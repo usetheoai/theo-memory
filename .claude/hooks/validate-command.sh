@@ -54,6 +54,25 @@ if echo "$COMMAND" | grep -qE '(rm|mv|cp|sed[[:space:]]+-i|>[[:space:]]*)[[:spac
   exit 2
 fi
 
+# --- No Co-Authored-By trailers in commit messages (user policy 2026-05-22) ---
+# Blocks any `git commit` whose message body contains the literal "Co-Authored-By"
+# (case-insensitive). User policy: this project's git history must not carry
+# co-authorship trailers. The check fires on the command text, which covers:
+#   - inline:    git commit -m "msg ... Co-Authored-By: ..."
+#   - heredoc:   git commit -m "$(cat <<'EOF' ... Co-Authored-By: ... EOF)"
+#   - amend:     git commit --amend -m "... Co-Authored-By: ..."
+# Workaround for false-positive: if you genuinely need to mention the literal
+# string "Co-Authored-By" inside a commit message body (e.g., a CHANGELOG entry
+# describing this policy), use printf via a temp file:
+#   printf '%s\n' "..." > /tmp/msg && git commit -F /tmp/msg
+# The -F path is the documented escape hatch; -F + a file with the trailer is
+# also caught by reading the file content, but the hook only sees the command
+# text so -F is the loophole. Use carefully; the policy is on the author.
+if echo "$COMMAND" | grep -qE 'git[[:space:]]+commit' && echo "$COMMAND" | grep -qiE 'co-authored-by'; then
+  echo "BLOCKED: 'Co-Authored-By:' trailers are forbidden on theo-memory commits (user policy 2026-05-22). Remove the trailer from the commit message body. See ~/.claude/projects/-home-paulo-Projetos-usetheo-theo-memory/memory/no_coauthored_by_in_commits.md for rationale." >&2
+  exit 2
+fi
+
 # --- npm publish guard (project is pre-release, not published yet) ---
 if echo "$COMMAND" | grep -qE 'npm[[:space:]]+(publish|unpublish)'; then
   echo "BLOCKED: '@usetheo/memory' is pre-release and not yet published to npm. Publishing requires explicit human authorization plus a v1.0 milestone with reproduced benchmarks (CLAUDE.md § Pre-release status)." >&2
