@@ -9,6 +9,14 @@ paths:
 
 # Testing Rules — @usetheo/memory
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 These rules are scoped to source and test files. Read them whenever you touch a `.ts`/`.tsx` under `src/` or `tests/`. They complement the global TDD discipline in `/home/paulo/.claude/CLAUDE.md` § PARTE I-7 and the root-level Inquebrável Rule 5.
 
 ## Core rule — TDD + BDD são obrigatórios

@@ -1,5 +1,13 @@
 # Loop engine convention
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Source of truth for **when to use ralph-loop vs Agent tool vs Skill tool** when designing or modifying skills in this ecosystem.
 
 ## The three loop mechanisms

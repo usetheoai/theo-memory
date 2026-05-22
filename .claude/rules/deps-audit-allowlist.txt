@@ -1,0 +1,36 @@
+# Deps-Audit Allowlist — CVE/version exemptions with mandatory sunset
+#
+# Authoritative source: .claude/rules/deps-audit-golden-rule.md § Allowlist mechanism
+#
+# Format (one entry per line):
+#   ECOSYSTEM|PACKAGE|VERSION-RANGE|CVE-ID|REASON|SUNSET-DATE
+#
+# Where:
+#   ECOSYSTEM     ∈ { npm, python, rust, go }
+#   PACKAGE       — exact package name as it appears in the manifest
+#   VERSION-RANGE — semver range matching the affected version(s) (e.g., ^4.17.20)
+#   CVE-ID        — CVE-YYYY-NNNN or GHSA-xxxx-xxxx-xxxx (the canonical advisory ID)
+#   REASON        — specific rationale; "WIP" / "TODO" / "investigating" are NOT accepted
+#   SUNSET-DATE   — YYYY-MM-DD; MUST be:
+#                     ≤ 30 days from entry creation for CRITICAL
+#                     ≤ 60 days for HIGH
+#                     ≤ 90 days for MEDIUM / LOW
+#
+# Behavior:
+#   - Lines starting with `#` and blank lines are skipped.
+#   - Active entry (today ≤ SUNSET-DATE): /deps-audit downgrades the finding by one severity level.
+#   - Expired entry (today > SUNSET-DATE): IGNORED; CVE re-fires at full severity.
+#   - /deps-audit MUST list expired entries in the report's "Allowlist hits — expired" subsection.
+#
+# Adding/modifying entries:
+#   - Adding requires inline rationale in the plan that introduced the dep.
+#   - Modifying SUNSET-DATE extends the grace period — commit message MUST explain why.
+#   - Removing an entry is the normal lifecycle (CVE was patched OR sunset reached).
+#
+# Examples (commented — uncomment + adapt when needed):
+#
+# npm|lodash|^4.17.20|CVE-2021-23337|patch upgrade requires regression test rerun; scheduled Q3 2026|2026-08-01
+# python|pyyaml|<6.0|CVE-2020-14343|removing pyyaml requires refactor of config loader (planned T2.4 of plan X)|2026-06-15
+#
+# ---
+# Seed: empty. Add entries only when justified by an ADR row in the affected plan.

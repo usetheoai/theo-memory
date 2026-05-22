@@ -1,0 +1,70 @@
+{
+  "$schema_version": "1.0",
+  "description": "Semantic category -> Theo Dark palette color. Used by apply_theo_palette.py to recolor SVGs and by icon_to_excalidraw.py for default fills. Source of truth: ../color-palette.md (dark mode).",
+  "categories": {
+    "primary": {
+      "color": "#a855f7",
+      "description": "Brand purple. CTAs, highlights, headers, memory core."
+    },
+    "secondary": {
+      "color": "#58a6ff",
+      "description": "Blue. Secondary actions, semantic recall, on-demand."
+    },
+    "accent": {
+      "color": "#fbbf24",
+      "description": "Yellow. Attention, badges, key numbers, emphasis."
+    },
+    "success": {
+      "color": "#3fb950",
+      "description": "Green. Positive, done, confirmed."
+    },
+    "warning": {
+      "color": "#f87171",
+      "description": "Red (soft). Errors, blocked, invalidated. Use sparingly."
+    },
+    "error": {
+      "color": "#ff6b6b",
+      "description": "Red (saturated). Critical risk only."
+    },
+    "ai": {
+      "color": "#d2a8ff",
+      "description": "Light purple. AI/LLM-specific elements, reflections, agent."
+    },
+    "neutral": {
+      "color": "#c9d1d9",
+      "description": "Default text color inside shapes. Use when no semantic applies."
+    },
+    "muted": {
+      "color": "#8b949e",
+      "description": "Secondary text, descriptions, body. Lower hierarchy."
+    },
+    "structural": {
+      "color": "#30363d",
+      "description": "Borders, grids, structural lines. Background structure."
+    },
+    "subtle": {
+      "color": "#484f58",
+      "description": "Arrow labels, inactive elements, dashed strokes."
+    }
+  },
+  "concept_to_category": {
+    "memory": "primary",
+    "context": "secondary",
+    "reflection": "ai",
+    "recall": "secondary",
+    "write": "primary",
+    "compaction": "accent",
+    "consolidation": "ai",
+    "agent": "ai",
+    "tool": "neutral",
+    "error": "warning",
+    "blocked": "warning",
+    "success": "success",
+    "warning": "warning",
+    "code": "neutral",
+    "data": "secondary",
+    "brand": "neutral",
+    "metric": "accent",
+    "highlight": "accent"
+  }
+}

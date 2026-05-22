@@ -7,6 +7,14 @@ paths:
 
 # Public Copy Rules — @usetheo/memory
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Scoped to **public-facing copy only** (`README.md` HERO/BODY, `PITCH.md`, marketing surfaces). Internal docs (`CLAUDE.md`, `docs/exploration-reports/*`, `docs/agentic-memory-landscape.md`, source code, CHANGELOG when created) stay technical-direct and are exempt from these rules.
 
 The operational voice guide is locked in [`../../theokit/CLAUDE.md`](../../theokit/CLAUDE.md) and applies to TheMemory by explicit extension (root strategic review 2026-05-21). This file enumerates the concrete checks that ALSO apply to TheMemory specifically.

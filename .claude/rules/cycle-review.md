@@ -9,6 +9,14 @@ status: v1.0 ACTIVE — skill `/review` built and validated 2026-05-21
 
 # Cycle: Review
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Source of truth for the post-implementation review cycle. **Status: v1.0 ACTIVE.** The single skill `/review` (in `.claude/skills/review/`) drives the cycle. Before invoking review proper, the skill **generates specialized review agents** for the plan's domain (architecture, tests, wiring, cross-validation, and 1-3 domain-specific) and **spawns them in parallel** via the Agent tool. The original v0.1 PROPOSED design (4 separate skills) was consolidated into 1 entry-point + dynamic agent generation at strategic review 2026-05-21.
 
 The "most rigorous gate of the ecosystem" framing is intentional: this cycle costs 150-250k tokens per invocation. Trade-off accepted in exchange for catching defects pre-merge that all upstream cycles missed.
