@@ -78,6 +78,22 @@ Single phase, but logically broken into 3 stages by the halt-loop:
 | **Halt-loop execute** | Implementation task list + feature branch | Atomic commits per task + `.progress-{slug}.json` | All tasks status=`committed` OR honest BLOCKED report |
 | **Final validation** | Code on feature branch + progress audit | JSON validation report + handoff decision | All validate gates PASS (or SKIP gracefully in pre-code phase) |
 
+## Model routing (teacher/student split — experimental)
+
+Source of truth for which model each `/implement` halt-loop phase runs on: [`.claude/rules/implement-model-routing.txt`](./implement-model-routing.txt). Consumed by `.claude/skills/implement/prompts/implementation-prompt.md` (halt-loop driver) when rule file is present.
+
+- **RED phase** — judgment-heavy (write failing test). **No entry → session model** (status quo, typically opus).
+- **GREEN phase** — minimal code to pass. Student candidate; **migration deferred** to 2026-08-22 review (per `implement-model-routing.txt` comment).
+- **REFACTOR phase** — SOLID/Clean Code review. **No entry → session model.**
+- **WIRING phase** — Python script (`check_wiring.py`); zero LLM cost, no routing entry needed.
+- **COMMIT phase** — conventional-commits message; highly templated. **Initial migration: `haiku`** (experimental_until=2026-07-22).
+- **Fallback chain:** rule file missing OR phase not listed → session model (no Agent tool nesting; status quo preserved).
+- **Mechanism (per spike `discoveries/blueprints/teacher-student-halt-loop-spike.md`):** for phases with a routing entry, the halt-loop driver invokes `Agent` tool nested with `model: <resolved>` and a phase-focused sub-prompt. Main session continues coordinating the loop.
+- **Experimental marker:** each non-default entry carries `experimental_until` + `rollback_if`. Rollback is `git rm .claude/rules/implement-model-routing.txt` (single-file revert).
+- **Scope intentionally enxuto:** only COMMIT migrated in v1.1; GREEN migration follows after first-month review per spike recommendation.
+
+Source plan: `.claude/knowledge-base/plans/teacher-student-model-split-plan.md` (T2.2-A).
+
 ## Hard gates (cannot advance — BLOCK the cycle)
 
 1. **Pre-condition fail** — plan verdict < SHIPPABLE_WITH_CAVEATS OR working on `main` OR uncommitted changes from prior cycle. Refuse to start.

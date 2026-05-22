@@ -42,8 +42,8 @@ The numbers below are estimates based on the architecture of each skill, not emp
 
 | Skill | Typical cost | Notes |
 |---|---|---|
-| `/implement` | 100-300k | Halt-loop with up to 50 iterations × (RED + GREEN + REFACTOR + WIRING + COMMIT phases) |
-| **Full cycle** | **100-300k** | Single skill; cost dominated by number of tasks × iterations per task |
+| `/implement` | 100-300k | Halt-loop with up to 50 iterations × (RED + GREEN + REFACTOR + WIRING + COMMIT phases). Teacher/student split: COMMIT phase migrated to haiku (experimental_until=2026-07-22, see `implement-model-routing.txt`); GREEN deferred to 2026-08-22 review. Per-task saving modest until GREEN ships. |
+| **Full cycle** | **100-300k** | Single skill; cost dominated by number of tasks × iterations per task. Marginal saving from current split (~5-10%) — meaningful saving requires GREEN migration after first-month review (per spike `discoveries/blueprints/teacher-student-halt-loop-spike.md`). |
 
 ### `cycle-review` skill
 

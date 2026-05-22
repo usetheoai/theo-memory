@@ -1,0 +1,30 @@
+# implement-model-routing — mapeamento phase → model (analog to review-model-routing.txt)
+# Generated 2026-05-22 — T2.2-A of plan teacher-student-model-split
+# Consumed by: .claude/skills/implement/prompts/implementation-prompt.md (halt-loop driver)
+#
+# Format:
+#   <phase>: <model> [experimental_until=YYYY-MM-DD] [rollback_if=<criterion>]
+#
+# Phases recognized:
+#   red       — write failing test (judgment-heavy → teacher)
+#   green     — minimal code to pass test (standardized → student candidate)
+#   refactor  — SOLID/Clean Code review (judgment-heavy → teacher)
+#   wiring    — Python script (no LLM cost; no entry needed)
+#   commit    — conventional-commits message (highly templated → student candidate)
+#
+# Notes:
+# - Initial shipment ships ONLY commit phase as student (spike recommendation: minimal blast radius).
+# - GREEN phase student migration is follow-up; uncomment when first month passes without incident.
+# - experimental_until is informational only — review manually before each release (EC-8).
+# - experimental_until paired with default model (opus) is semantically null (EC-9).
+# - Default fallback (phase not listed): session model (status quo, no Agent tool nesting).
+# - Rollback: `git rm .claude/rules/implement-model-routing.txt` reverts every phase to session model.
+# - Driver MUST check this file's presence before invoking nested Agent tool. Missing file = no split.
+# - See .claude/rules/cycle-implement.md § Model routing for the contract this file implements.
+# - Source spike: .claude/knowledge-base/discoveries/blueprints/teacher-student-halt-loop-spike.md
+
+# --- Phase 1 (minimal scope): only COMMIT phase migrates to student ---
+commit: haiku experimental_until=2026-07-22 rollback_if=conventional_commit_lint_failures_gt_1_per_5_tasks
+
+# --- Phase 2 (deferred until 2026-07-22 review): GREEN phase migration ---
+# green: haiku experimental_until=2026-08-22 rollback_if=green_retry_rate_gt_2_per_5_tasks
