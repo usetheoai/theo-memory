@@ -1,8 +1,8 @@
 {
   "plan_slug": "memory-contract-v0-0",
   "plan_path": "/home/paulo/Projetos/usetheo/theo-memory/.claude/knowledge-base/plans/memory-contract-v0-0-plan.md",
-  "plan_version": "1.2",
-  "scored_at": "2026-05-22T20:19:07+00:00",
+  "plan_version": "1.3",
+  "scored_at": "2026-05-22T20:33:07+00:00",
   "completude_score": 100.0,
   "risco_estrutural_score": 100.0,
   "active_dimensions": [

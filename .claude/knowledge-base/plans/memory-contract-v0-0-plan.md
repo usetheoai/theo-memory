@@ -1,14 +1,15 @@
 # Plan: Memory Contract v0.0
 
-> **Version 1.2** — Ship the v0.0 type-only contract for `@usetheo/memory` (no runtime code yet), composed of: the public `Memory` / `MemoryStore` / `MemoryConfig` surface, four DIP interfaces (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`) plus `ReflectionPolicy`, supporting types (scope, payload, options, errors), and nine ADRs that lock every load-bearing decision (four from `CLAUDE.md § Roadmap Item 1` + five from `CLAUDE.md § Open questions`). Downstream items v0.1–v1.4 implement against this surface without revisiting the public shape — the contract is the contract for the full v1.0 destination.
+> **Version 1.3** — Ship the v0.0 type-only contract for `@usetheo/memory` (no runtime code yet), composed of: the public `Memory` / `MemoryStore` / `MemoryConfig` surface, four DIP interfaces (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`) plus `ReflectionPolicy`, supporting types (scope, payload, options, errors), and nine ADRs that lock every load-bearing decision (four from `CLAUDE.md § Roadmap Item 1` + five from `CLAUDE.md § Open questions`). Downstream items v0.1–v1.4 implement against this surface without revisiting the public shape — the contract is the contract for the full v1.0 destination.
 >
 > **Change log:**
+> - **v1.2 → v1.3 (2026-05-22)** — Corrected file-location rule violation: documents MUST live in `.claude/knowledge-base/` ALWAYS; implementation (TypeScript source) is the ONLY thing that writes to `src/`. Plan v1.2 incorrectly placed types under `docs/contract/` and ADRs under `docs/adrs/`. Bulk relocation: 75 references `docs/contract/` → `src/core/` (aligns with `.claude/rules/architecture.md § 3 Dependency direction` — `src/core/` ← contracts, types, pure logic) + 29 references `docs/adrs/` → `.claude/knowledge-base/adrs/` (under the canonical knowledge-base root). The "not yet released" signal stays preserved via `"private": true` in `package.json` (T0.1) plus the absence of any default `"."` entry in `exports`. tsconfig include + ESLint glob + barrel paths updated accordingly. No semantic plan changes; pure relocation.
 > - **v1.1 → v1.2 (2026-05-22)** — Absorbed `/deps-audit` findings from `.claude/knowledge-base/audits/memory-contract-v0-0-deps-audit-2026-05-22.md` (verdict FAIL_MEDIUM → after corrections, PASS expected). **Two version bumps:** `vitest` ^1.5.0 → ^4.0.0 (resolves F1-F4: 4 MEDIUM CVEs chained vitest → vite → esbuild → vite-node, all GHSA-67mh-4wv8-2f99 + GHSA-4w7w-66w2-5vf9); `typescript-eslint` ^7.0.0 → ^8.0.0 (resolves F5: peer-dep conflict with eslint@^9.0.0 — v8.x added eslint 9+10 support). Rule 9 columns refreshed inline. Audit preamble added to `## Dependencies` section.
 > - **v1.0 → v1.1 (2026-05-22)** — Absorbed 11 edge cases from `.claude/knowledge-base/reviews/memory-contract-v0-0-edge-cases-2026-05-22.md`. **4 MUST FIX:** EC-1 (`MemoryConfig` + `CloudMemoryConfig` defined in T2.5 Deep Dive); EC-2 (`Object.setPrototypeOf` mandatory in every error constructor in T2.4); EC-3 (`package.json#exports./contract.default` points to the same file, not `null`, in T4.1); EC-4 (Phase 5 grep gates use context-aware exclusions). **3 RECOMMENDED TESTS:** EC-5 (`asOf` JSDoc + runtime-divergence type-test added to T2.5); EC-6 (`VectorStore.getUserId/setUserId` contract clarification added to T3.3); EC-7 (ESLint smoke test added to T0.3; `eslint-plugin-import` added to `## Dependencies`). **4 DOCUMENT:** EC-8 (additive-only CLAUDE.md edits noted in T1.2); EC-9 (`MemoryItem.metadata` flat-primitives limitation JSDoc in T2.2); EC-10 (`LLM.tools` opaque-shape JSDoc in T3.1); EC-11 (npm name reservation verification added to T0.1 DoD).
 
 ## Goal
 
-> "Enable `@usetheo/sdk` agents and TheoKit consumers to compile-check against a frozen v0.0 type contract for `@usetheo/memory` so that the v0.1 local runtime and downstream items v0.2–v1.4 can be implemented without revising public API shape, measured by `npx tsc --noEmit -p tsconfig.contract.json` returning exit code 0 with all four DIPs declared and nine ADRs filed under `docs/adrs/`."
+> "Enable `@usetheo/sdk` agents and TheoKit consumers to compile-check against a frozen v0.0 type contract for `@usetheo/memory` so that the v0.1 local runtime and downstream items v0.2–v1.4 can be implemented without revising public API shape, measured by `npx tsc --noEmit -p tsconfig.contract.json` returning exit code 0 with all four DIPs declared and nine ADRs filed under `.claude/knowledge-base/adrs/`."
 
 ## Context
 
@@ -16,9 +17,9 @@
 
 **What's missing.** Roadmap Item 1 (`v0.0 — Contract design`) is `In progress` per `CLAUDE.md § Macro roadmap`. Its acceptance criteria:
 
-- `tsc --noEmit` passes on `docs/contract/*.ts`
+- `tsc --noEmit` passes on `src/core/*.ts`
 - Four DIP interfaces declared (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`)
-- One ADR per locked decision (Mem0-shape, three-scope, ADD-only, API verbs) under `docs/adrs/`
+- One ADR per locked decision (Mem0-shape, three-scope, ADD-only, API verbs) under `.claude/knowledge-base/adrs/`
 
 **What's pending (from `CLAUDE.md § Open questions`).** Five questions MUST be locked before v0.0 ships, because the contract IS those decisions:
 
@@ -39,17 +40,17 @@
 
 ## Objective
 
-- [ ] Sub-goal 1 — `docs/contract/` directory exists with the seven canonical TypeScript files defining `Memory`, `MemoryStore`, scope types, DIPs, errors, options, and a single barrel `index.ts`.
+- [ ] Sub-goal 1 — `src/core/` directory exists with the seven canonical TypeScript files defining `Memory`, `MemoryStore`, scope types, DIPs, errors, options, and a single barrel `index.ts`.
 - [ ] Sub-goal 2 — Four DIP interfaces declared verbatim with the method counts locked in `D8` (and only those methods; no leakage).
-- [ ] Sub-goal 3 — Nine ADRs filed at `docs/adrs/ADR-000{1..9}-*.md` with alternatives + rationale + consequences sections present and non-empty (MADR 3.0-aligned shape).
-- [ ] Sub-goal 4 — `tsconfig.contract.json` compiles `docs/contract/**/*.ts` under `strict: true`, `noUncheckedIndexedAccess: true`, `noImplicitAny: true`, with zero diagnostics.
-- [ ] Sub-goal 5 — Type-level invariant tests (file `docs/contract/__tests__/contract.test-d.ts`) assert: scope narrowing (`memory.user(id)` returns User-scoped type), ADD-only (no `update` on public surface), forget-then-remember mutation path resolves, reflection promise return type is `Promise<ReflectionResult>`, and the four DIPs are structurally compatible with synthetic implementations.
-- [ ] Sub-goal 6 — `package.json` exports map declared but `"private": true` until v0.1 (no publish path yet; types live in `docs/contract/` for inspection, not in `src/` for distribution — v0.1 moves them).
+- [ ] Sub-goal 3 — Nine ADRs filed at `.claude/knowledge-base/adrs/ADR-000{1..9}-*.md` with alternatives + rationale + consequences sections present and non-empty (MADR 3.0-aligned shape).
+- [ ] Sub-goal 4 — `tsconfig.contract.json` compiles `src/core/**/*.ts` under `strict: true`, `noUncheckedIndexedAccess: true`, `noImplicitAny: true`, with zero diagnostics.
+- [ ] Sub-goal 5 — Type-level invariant tests (file `src/core/__tests__/contract.test-d.ts`) assert: scope narrowing (`memory.user(id)` returns User-scoped type), ADD-only (no `update` on public surface), forget-then-remember mutation path resolves, reflection promise return type is `Promise<ReflectionResult>`, and the four DIPs are structurally compatible with synthetic implementations.
+- [ ] Sub-goal 6 — `package.json` exports map declared but `"private": true` until v0.1 (no publish path yet; types live in `src/core/` for inspection, not in `src/` for distribution — v0.1 moves them).
 - [ ] Sub-goal 7 — `CHANGELOG.md` `[Unreleased]` section gains one `Added` entry referencing this plan's slug.
 
 ## ADRs
 
-> Each ADR below ALSO ships as a standalone `docs/adrs/ADR-000N-{slug}.md` file in MADR 3.0 shape (Status / Context / Decision / Consequences / Alternatives). The summaries below are the plan's normative version; the standalone files are derivative artifacts.
+> Each ADR below ALSO ships as a standalone `.claude/knowledge-base/adrs/ADR-000N-{slug}.md` file in MADR 3.0 shape (Status / Context / Decision / Consequences / Alternatives). The summaries below are the plan's normative version; the standalone files are derivative artifacts.
 
 ### D1 — Mem0-shape architecture (locked, ratified)
 
@@ -142,7 +143,7 @@
 
 ### D8 — DIP interfaces: VectorStore (11), LLM (2), Embedder (2), HistoryManager (4 required + 3 optional)
 
-- **Decision.** Lock the four DIP interfaces at the following surface in `docs/contract/dip/`:
+- **Decision.** Lock the four DIP interfaces at the following surface in `src/core/dip/`:
   - **`VectorStore`** — 11 methods: `initialize()`, `insert(vectors, ids, payloads)`, `search(query, topK?, filters?)`, `keywordSearch(query, topK?, filters?)`, `get(id)`, `update(id, vector, payload)`, `delete(id)`, `deleteCol()`, `list(filters?, topK?)`, `getUserId()`, `setUserId(userId)`.
   - **`LLM`** — 2 methods: `generateResponse(messages, responseFormat?, tools?)`, `generateChat(messages)`.
   - **`Embedder`** — 2 methods: `embed(text)`, `embedBatch(texts)`.
@@ -221,7 +222,7 @@ Phase 0 (tooling) ──▶ Phase 1 (ADRs)
 
 ## Phase 0: Tooling setup (TypeScript + vitest + ESLint, contract-only scope)
 
-**Objective:** Set up the minimum tooling needed to type-check and type-test `docs/contract/` files, without bringing in runtime deps. The phase ships `package.json`, `tsconfig.contract.json`, `vitest.contract.config.ts`, ESLint config, and `.npmrc`.
+**Objective:** Set up the minimum tooling needed to type-check and type-test `src/core/` files, without bringing in runtime deps. The phase ships `package.json`, `tsconfig.contract.json`, `vitest.contract.config.ts`, ESLint config, and `.npmrc`.
 
 ### T0.1 — Initialize `package.json` (private, contract-only scripts)
 
@@ -245,7 +246,7 @@ package.json — (NEW) — private:true, name "@usetheo/memory", version "0.0.0-
 - **No `main`/`module`/`types`/`exports` yet.** v0.0 is contract design only; consumers will never import from the live npm name. Adding `exports` now would let someone `npm install @usetheo/memory` and import broken code paths — block that vector by staying `private`.
 - **Scripts shape:**
   - `typecheck`: `tsc --noEmit -p tsconfig.contract.json`
-  - `lint`: `eslint docs/contract/**/*.ts`
+  - `lint`: `eslint src/core/**/*.ts`
   - `test`: `vitest run --config vitest.contract.config.ts`
   - `test:type`: `tsc --noEmit -p tsconfig.contract.json --strict` (kept as separate script for clarity in the validation gate output)
 - **No bundler (tsup/esbuild) at v0.0.** Distribution comes at v0.1 with `src/` and a real `exports` map.
@@ -284,7 +285,7 @@ VERIFY:  npm run typecheck — should fail because tsconfig doesn't exist yet (t
 
 ---
 
-### T0.2 — `tsconfig.contract.json` (strict; targets `docs/contract/`)
+### T0.2 — `tsconfig.contract.json` (strict; targets `src/core/`)
 
 #### Objective
 Configure TypeScript strictness to enforce the architecture rules: no `any`, no unchecked indexed access, ES modules only, target Node 20+.
@@ -294,12 +295,12 @@ Configure TypeScript strictness to enforce the architecture rules: no `any`, no 
 
 #### Files to edit
 ```
-tsconfig.contract.json — (NEW) — strict bundle, targets docs/contract/**/*.ts, isolatedModules:true
+tsconfig.contract.json — (NEW) — strict bundle, targets src/core/**/*.ts, isolatedModules:true
 tsconfig.json — (NEW) — minimal root config that extends nothing; future-proof for src/ in v0.1
 ```
 
 #### Deep file dependency analysis
-- **`tsconfig.contract.json`** is invoked by `npm run typecheck`. Including pattern: `docs/contract/**/*.ts`. Excluding: `node_modules`, `referencia/`, `dist`.
+- **`tsconfig.contract.json`** is invoked by `npm run typecheck`. Including pattern: `src/core/**/*.ts`. Excluding: `node_modules`, `referencia/`, `dist`.
 - **`tsconfig.json`** at root exists as a stub so editor LSPs find a config; it `references` the contract config and (later) the src config.
 
 #### Deep Dives
@@ -309,7 +310,7 @@ tsconfig.json — (NEW) — minimal root config that extends nothing; future-pro
 - **Why a separate `tsconfig.contract.json` vs everything in one file:** v0.1 introduces `tsconfig.src.json` for the runtime; keeping them separate from day 1 makes the destination obvious.
 
 #### Tasks
-1. Write `tsconfig.contract.json` with the strict flag set + include `docs/contract/**/*.ts` + paths config for `@contract/*` (sugar for cross-file imports inside `docs/contract/`).
+1. Write `tsconfig.contract.json` with the strict flag set + include `src/core/**/*.ts` + paths config for `@contract/*` (sugar for cross-file imports inside `src/core/`).
 2. Write `tsconfig.json` at root with only `{"references": [{"path": "./tsconfig.contract.json"}], "files": []}`.
 3. Run `npx tsc --noEmit -p tsconfig.contract.json` — expect "No files matched" or empty exit; both indicate the config is valid but no `.ts` files exist yet (Phase 2/3 fixes that).
 
@@ -339,7 +340,7 @@ VERIFY:  npm run typecheck — exits 0 (no files to type-check yet, but config i
 ### T0.3 — ESLint flat config + vitest config
 
 #### Objective
-ESLint flat config (v9) targeting `docs/contract/**/*.ts` with `typescript-eslint` strict rules + import sorting. Vitest config that picks up `docs/contract/__tests__/*.test.ts` and `docs/contract/**/*.test-d.ts` (type-level tests).
+ESLint flat config (v9) targeting `src/core/**/*.ts` with `typescript-eslint` strict rules + import sorting. Vitest config that picks up `src/core/__tests__/*.test.ts` and `src/core/**/*.test-d.ts` (type-level tests).
 
 #### Evidence
 `.claude/rules/architecture.md § 7` requires: "Destructured imports always: `import { foo, bar } from 'baz'`. Avoid `import * as ns`." That's an ESLint rule (`import/no-namespace`). `.claude/rules/testing.md § Running tests` references `npm test` as the validation gate entry — must point at a working vitest config.
@@ -366,7 +367,7 @@ vitest.contract.config.ts — (NEW) — vitest config; type-test pattern; covera
 
 #### Tasks
 1. Write `eslint.config.ts` with tseslint.config([...]) wrapping recommended-strict-type-checked + custom rules.
-2. Write `vitest.contract.config.ts` with `test: { typecheck: { enabled: true, include: ['docs/contract/**/*.test-d.ts'] }, include: ['docs/contract/__tests__/**/*.test.ts'] }`.
+2. Write `vitest.contract.config.ts` with `test: { typecheck: { enabled: true, include: ['src/core/**/*.test-d.ts'] }, include: ['src/core/__tests__/**/*.test.ts'] }`.
 3. Run `npm run lint` (exits 0 with no files; Phase 2 produces .ts files to lint).
 4. Run `npm test` (exits 0; no test files exist yet).
 
@@ -380,8 +381,8 @@ VERIFY:  npm run lint && npm test — both exit 0
 ```
 
 #### Acceptance Criteria
-- [ ] `eslint.config.ts` exists; `npx eslint --print-config docs/contract/types.ts 2>/dev/null || true` doesn't crash (no files yet, but config parses)
-- [ ] **EC-7 — ESLint smoke test passes:** `npx eslint --print-config docs/contract/index.ts > /dev/null` exits 0 once T4.1 lands the barrel file. Pre-T4.1, run against any temporary placeholder `.ts` file to verify the plugin chain resolves (typescript-eslint + eslint-plugin-import + flat-config compatibility).
+- [ ] `eslint.config.ts` exists; `npx eslint --print-config src/core/types.ts 2>/dev/null || true` doesn't crash (no files yet, but config parses)
+- [ ] **EC-7 — ESLint smoke test passes:** `npx eslint --print-config src/core/index.ts > /dev/null` exits 0 once T4.1 lands the barrel file. Pre-T4.1, run against any temporary placeholder `.ts` file to verify the plugin chain resolves (typescript-eslint + eslint-plugin-import + flat-config compatibility).
 - [ ] `vitest.contract.config.ts` exists; `npx vitest run --config vitest.contract.config.ts --reporter=basic` exits 0 with "no test files found"
 - [ ] Pass: lint — N/A
 - [ ] Pass: size — both files ≤ 80 lines
@@ -393,29 +394,29 @@ VERIFY:  npm run lint && npm test — both exit 0
 
 ---
 
-## Phase 1: ADRs (lock D1-D9 into `docs/adrs/`)
+## Phase 1: ADRs (lock D1-D9 into `.claude/knowledge-base/adrs/`)
 
 **Objective:** Persist each of D1-D9 as a standalone MADR-3.0-shape file. Each ADR has Status (Accepted), Context, Decision, Consequences (Positive/Negative/Reversibility), and Alternatives (with rejection reasons).
 
 ### T1.1 — ADRs D1-D4 (locked decisions ratified)
 
 #### Objective
-File D1 (Mem0-shape), D2 (Three-tier scope), D3 (ADD-only), D4 (API verbs) as separate markdown files under `docs/adrs/`. Each is a CONSOLIDATION of `CLAUDE.md § Architectural Decisions Locked` content into MADR shape — the strategic review already accepted these; this task just persists the rationale in the canonical location.
+File D1 (Mem0-shape), D2 (Three-tier scope), D3 (ADD-only), D4 (API verbs) as separate markdown files under `.claude/knowledge-base/adrs/`. Each is a CONSOLIDATION of `CLAUDE.md § Architectural Decisions Locked` content into MADR shape — the strategic review already accepted these; this task just persists the rationale in the canonical location.
 
 #### Evidence
-Roadmap Item 1 acceptance: "One ADR per locked decision (Mem0-shape, three-scope, ADD-only, API verbs) under `docs/adrs/`." Without these files, `/plan-confidence` will flag missing ADRs (although the plan's `## ADRs` section satisfies the inline requirement, the `docs/adrs/` files are the durable artifact for v0.1+ consumers).
+Roadmap Item 1 acceptance: "One ADR per locked decision (Mem0-shape, three-scope, ADD-only, API verbs) under `.claude/knowledge-base/adrs/`." Without these files, `/plan-confidence` will flag missing ADRs (although the plan's `## ADRs` section satisfies the inline requirement, the `.claude/knowledge-base/adrs/` files are the durable artifact for v0.1+ consumers).
 
 #### Files to edit
 ```
-docs/adrs/ADR-0001-mem0-shape-architecture.md — (NEW) — MADR 3.0 shape
-docs/adrs/ADR-0002-three-tier-scope.md — (NEW)
-docs/adrs/ADR-0003-add-only-public-api.md — (NEW)
-docs/adrs/ADR-0004-api-verbs.md — (NEW)
-docs/adrs/README.md — (NEW) — index pointing at ADR-0001..0009 with one-line summaries
+.claude/knowledge-base/adrs/ADR-0001-mem0-shape-architecture.md — (NEW) — MADR 3.0 shape
+.claude/knowledge-base/adrs/ADR-0002-three-tier-scope.md — (NEW)
+.claude/knowledge-base/adrs/ADR-0003-add-only-public-api.md — (NEW)
+.claude/knowledge-base/adrs/ADR-0004-api-verbs.md — (NEW)
+.claude/knowledge-base/adrs/README.md — (NEW) — index pointing at ADR-0001..0009 with one-line summaries
 ```
 
 #### Deep file dependency analysis
-- **`docs/adrs/`** is greenfield. The README.md index helps `/review`'s cross-validation agent + future-`/to-plan` invocations discover the catalogue.
+- **`.claude/knowledge-base/adrs/`** is greenfield. The README.md index helps `/review`'s cross-validation agent + future-`/to-plan` invocations discover the catalogue.
 - These ADR files DO NOT live under `src/` so they are NOT subject to `architecture.md` LoC budget. Markdown size budget per file: keep ≤ 200 lines.
 
 #### Deep Dives
@@ -436,7 +437,7 @@ docs/adrs/README.md — (NEW) — index pointing at ADR-0001..0009 with one-line
 
 #### Tasks
 1. Write each of the four ADR files using the content from `## ADRs § D1..D4` above as the source.
-2. Write `docs/adrs/README.md` as an index listing all 9 ADRs (D5-D9 added in T1.2).
+2. Write `.claude/knowledge-base/adrs/README.md` as an index listing all 9 ADRs (D5-D9 added in T1.2).
 
 #### TDD
 ```
@@ -451,7 +452,7 @@ VERIFY:  Read each ADR; manual review against MADR 3.0 shape.
 
 #### Acceptance Criteria
 - [ ] Four ADR files exist at the paths above
-- [ ] `docs/adrs/README.md` lists all 9 ADRs (D5-D9 will be filled by T1.2; the index is forward-looking)
+- [ ] `.claude/knowledge-base/adrs/README.md` lists all 9 ADRs (D5-D9 will be filled by T1.2; the index is forward-looking)
 - [ ] Each ADR has exactly one `Status:` line set to `Accepted`
 - [ ] Each ADR has non-empty Alternatives section
 - [ ] Pass: size — each ADR ≤ 200 lines
@@ -474,12 +475,12 @@ File D5 (Reflection trigger), D6 (Bi-temporal columns), D7 (Entity store opt-out
 
 #### Files to edit
 ```
-docs/adrs/ADR-0005-reflection-trigger.md — (NEW)
-docs/adrs/ADR-0006-bi-temporal-local-schema.md — (NEW)
-docs/adrs/ADR-0007-entity-store-opt-out.md — (NEW)
-docs/adrs/ADR-0008-dip-method-counts.md — (NEW)
-docs/adrs/ADR-0009-cloud-auth-theokit-api-key.md — (NEW)
-docs/adrs/README.md — (UPDATE) — add D5-D9 entries to the index
+.claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md — (NEW)
+.claude/knowledge-base/adrs/ADR-0006-bi-temporal-local-schema.md — (NEW)
+.claude/knowledge-base/adrs/ADR-0007-entity-store-opt-out.md — (NEW)
+.claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md — (NEW)
+.claude/knowledge-base/adrs/ADR-0009-cloud-auth-theokit-api-key.md — (NEW)
+.claude/knowledge-base/adrs/README.md — (UPDATE) — add D5-D9 entries to the index
 CLAUDE.md — (UPDATE) — § Open questions: mark Q2-Q6 as RESOLVED, link to ADRs
 ```
 
@@ -491,11 +492,11 @@ CLAUDE.md — (UPDATE) — § Open questions: mark Q2-Q6 as RESOLVED, link to AD
 - **D8 IS the load-bearing ADR for the DIPs.** Phase 3 cites D8 verbatim — any divergence between the contract files and D8 fails `/plan-confidence`.
 - **D6's runtime-error behavior** must be reflected in the contract by exporting a typed error class `BiTemporalNotSupportedLocally` (Phase 2 T2.4). The ADR justifies this error type.
 - **D9's optional `apiKey` parameter** appears in the cloud `Memory` constructor signature (Phase 2 T2.5).
-- **CLAUDE.md edits MUST be purely additive (resolves EC-8).** Section `§ Open questions` is NOT in CLAUDE.md's "Locked items" list, so editing it is part of the plan's normal contract. BUT every Q2-Q6 entry MUST be preserved verbatim (audit trail of the original question), with only an APPENDED `RESOLVED 2026-05-22 → docs/adrs/ADR-000N-*.md` line below each question. Never delete the question text. Never reword the question. The git diff for the CLAUDE.md edit MUST be ADD-ONLY (no `-` lines that touch question text).
+- **CLAUDE.md edits MUST be purely additive (resolves EC-8).** Section `§ Open questions` is NOT in CLAUDE.md's "Locked items" list, so editing it is part of the plan's normal contract. BUT every Q2-Q6 entry MUST be preserved verbatim (audit trail of the original question), with only an APPENDED `RESOLVED 2026-05-22 → .claude/knowledge-base/adrs/ADR-000N-*.md` line below each question. Never delete the question text. Never reword the question. The git diff for the CLAUDE.md edit MUST be ADD-ONLY (no `-` lines that touch question text).
 
 #### Tasks
 1. Write each of the five ADR files using the content from `## ADRs § D5..D9` above.
-2. Update `docs/adrs/README.md` to include D5-D9.
+2. Update `.claude/knowledge-base/adrs/README.md` to include D5-D9.
 3. Update `CLAUDE.md § Open questions`: mark Q2-Q6 RESOLVED with links to ADRs; do NOT remove the questions (audit trail).
 
 #### TDD
@@ -510,8 +511,8 @@ VERIFY:  Manual read of CLAUDE.md to confirm Q2-Q6 annotations don't break the d
 
 #### Acceptance Criteria
 - [ ] Five ADR files exist
-- [ ] `docs/adrs/README.md` index has 9 entries
-- [ ] `CLAUDE.md § Open questions`: Q2-Q6 each have `RESOLVED 2026-05-22 → docs/adrs/ADR-000N-...md` annotation
+- [ ] `.claude/knowledge-base/adrs/README.md` index has 9 entries
+- [ ] `CLAUDE.md § Open questions`: Q2-Q6 each have `RESOLVED 2026-05-22 → .claude/knowledge-base/adrs/ADR-000N-...md` annotation
 - [ ] No emoji
 - [ ] Pass: size — each ADR ≤ 200 lines
 - [ ] Pass: lint — N/A
@@ -524,9 +525,9 @@ VERIFY:  Manual read of CLAUDE.md to confirm Q2-Q6 annotations don't break the d
 
 ## Phase 2: Core types (Memory + MemoryStore + supporting)
 
-**Objective:** Write the type-only files that consumers will eventually `import` from `@usetheo/memory`. Everything in `docs/contract/`. NO runtime code. NO `class` keywords with bodies — interface-only.
+**Objective:** Write the type-only files that consumers will eventually `import` from `@usetheo/memory`. Everything in `src/core/`. NO runtime code. NO `class` keywords with bodies — interface-only.
 
-### T2.1 — `docs/contract/scope.ts` (three-tier scope shape)
+### T2.1 — `src/core/scope.ts` (three-tier scope shape)
 
 #### Objective
 Define the `Scope` discriminated-union and the three scope-specific narrow types: `UserScope`, `SessionScope`, `AgentScope`. The narrow types power D2's compile-time type narrowing.
@@ -536,12 +537,12 @@ Define the `Scope` discriminated-union and the three scope-specific narrow types
 
 #### Files to edit
 ```
-docs/contract/scope.ts — (NEW) — Scope discriminated union + three narrow types + Filters internal shape
-docs/contract/__tests__/scope.test-d.ts — (NEW) — type-level invariants
+src/core/scope.ts — (NEW) — Scope discriminated union + three narrow types + Filters internal shape
+src/core/__tests__/scope.test-d.ts — (NEW) — type-level invariants
 ```
 
 #### Deep file dependency analysis
-- **`scope.ts`** is imported by every other contract file (`memory-store.ts`, `options.ts`, `errors.ts`). Lives at the root of `docs/contract/` for visibility.
+- **`scope.ts`** is imported by every other contract file (`memory-store.ts`, `options.ts`, `errors.ts`). Lives at the root of `src/core/` for visibility.
 - **`scope.test-d.ts`** uses `expectTypeOf` from vitest to assert: `UserScope extends Scope`, `UserScope & SessionScope is never` (mutual exclusion), the `kind` discriminator narrows correctly.
 
 #### Deep Dives
@@ -563,8 +564,8 @@ docs/contract/__tests__/scope.test-d.ts — (NEW) — type-level invariants
 - **`readonly` everywhere.** Scopes are immutable values; mutation belongs in the store.
 
 #### Tasks
-1. Write `docs/contract/scope.ts` with the four exports above.
-2. Write `docs/contract/__tests__/scope.test-d.ts` with `expectTypeOf` assertions for narrowing and mutual exclusion.
+1. Write `src/core/scope.ts` with the four exports above.
+2. Write `src/core/__tests__/scope.test-d.ts` with `expectTypeOf` assertions for narrowing and mutual exclusion.
 
 #### TDD
 ```
@@ -577,7 +578,7 @@ VERIFY:  npm run typecheck && npm test
 ```
 
 #### Acceptance Criteria
-- [ ] `docs/contract/scope.ts` exports `UserScope`, `SessionScope`, `AgentScope`, `Scope`, `Filters`
+- [ ] `src/core/scope.ts` exports `UserScope`, `SessionScope`, `AgentScope`, `Scope`, `Filters`
 - [ ] `tsc --noEmit` passes
 - [ ] All type-level tests in `scope.test-d.ts` pass
 - [ ] Pass: lint — zero ESLint warnings
@@ -589,7 +590,7 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T2.2 — `docs/contract/memory-item.ts` (the persisted fact)
+### T2.2 — `src/core/memory-item.ts` (the persisted fact)
 
 #### Objective
 Define `MemoryItem` (a persisted fact) and `MemoryItemWithScore` (the recall result extension).
@@ -599,8 +600,8 @@ Mem0-ts ships `MemoryItem` at `referencia/mem0/mem0-ts/src/oss/src/types/index.t
 
 #### Files to edit
 ```
-docs/contract/memory-item.ts — (NEW)
-docs/contract/__tests__/memory-item.test-d.ts — (NEW)
+src/core/memory-item.ts — (NEW)
+src/core/__tests__/memory-item.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -665,7 +666,7 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T2.3 — `docs/contract/options.ts` (remember/recall/forget/reflect options)
+### T2.3 — `src/core/options.ts` (remember/recall/forget/reflect options)
 
 #### Objective
 Define the option-bag types: `RememberOptions`, `RecallOptions`, `ForgetOptions`, `ReflectOptions`, `GetAllOptions`. The five option types compose Scope, Filters, metadata, and v0.5+ asOf.
@@ -675,8 +676,8 @@ Mem0-ts has `AddMemoryOptions / SearchMemoryOptions / GetAllMemoryOptions / Dele
 
 #### Files to edit
 ```
-docs/contract/options.ts — (NEW)
-docs/contract/__tests__/options.test-d.ts — (NEW)
+src/core/options.ts — (NEW)
+src/core/__tests__/options.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -741,18 +742,18 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T2.4 — `docs/contract/errors.ts` (typed domain errors)
+### T2.4 — `src/core/errors.ts` (typed domain errors)
 
 #### Objective
 Define the typed error classes the contract surfaces: `MemoryNotFound`, `InvalidScope`, `EmbeddingMismatch`, `BiTemporalNotSupportedLocally`, `ReflectionNotConfigured`. Per `.claude/rules/architecture.md § 8 Error handling`.
 
 #### Evidence
-`architecture.md § 8` mandates: "Domain errors are typed classes: `MemoryNotFound`, `InvalidScope`, `EmbeddingMismatch`, etc. — exported from `src/core/errors.ts`." For v0.0 contract, these live at `docs/contract/errors.ts` (will move to `src/core/errors.ts` at v0.1).
+`architecture.md § 8` mandates: "Domain errors are typed classes: `MemoryNotFound`, `InvalidScope`, `EmbeddingMismatch`, etc. — exported from `src/core/errors.ts`." For v0.0 contract, these live at `src/core/errors.ts` (will move to `src/core/errors.ts` at v0.1).
 
 #### Files to edit
 ```
-docs/contract/errors.ts — (NEW)
-docs/contract/__tests__/errors.test-d.ts — (NEW)
+src/core/errors.ts — (NEW)
+src/core/__tests__/errors.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -804,7 +805,7 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T2.5 — `docs/contract/memory-store.ts` (the headline `Memory` + `MemoryStore` shape)
+### T2.5 — `src/core/memory-store.ts` (the headline `Memory` + `MemoryStore` shape)
 
 #### Objective
 Define the THREE central types: `MemoryStore` (the underlying primitive that adapters implement), `Memory` (the public-facing class signature with `.user(id)`, `.session(id)`, `.agent(id)` sub-objects), and `ScopedMemory` (the per-tier sub-object returned by `.user/.session/.agent`). The file is the contract's centerpiece.
@@ -814,8 +815,8 @@ Roadmap Item 1 acceptance: "Type contract for `Memory`, `MemoryStore`". The task
 
 #### Files to edit
 ```
-docs/contract/memory-store.ts — (NEW)
-docs/contract/__tests__/memory-store.test-d.ts — (NEW)
+src/core/memory-store.ts — (NEW)
+src/core/__tests__/memory-store.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -945,9 +946,9 @@ VERIFY:  npm run typecheck && npm test
 
 ## Phase 3: DIP interfaces (VectorStore, LLM, Embedder, HistoryManager, ReflectionPolicy)
 
-**Objective:** Lock the four D8 DIP shapes + the new `ReflectionPolicy` interface (D5). Each lives in `docs/contract/dip/`. Surface-verbatim from Mem0-ts where applicable; new ground for ReflectionPolicy.
+**Objective:** Lock the four D8 DIP shapes + the new `ReflectionPolicy` interface (D5). Each lives in `src/core/dip/`. Surface-verbatim from Mem0-ts where applicable; new ground for ReflectionPolicy.
 
-### T3.1 — `docs/contract/dip/embedder.ts` + `dip/llm.ts`
+### T3.1 — `src/core/dip/embedder.ts` + `dip/llm.ts`
 
 #### Objective
 Two smallest DIPs first (2 methods each). Used by every other DIP downstream, so they land first.
@@ -957,10 +958,10 @@ Verified at `referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (5 lines) a
 
 #### Files to edit
 ```
-docs/contract/dip/embedder.ts — (NEW)
-docs/contract/dip/llm.ts — (NEW)
-docs/contract/dip/__tests__/embedder.test-d.ts — (NEW)
-docs/contract/dip/__tests__/llm.test-d.ts — (NEW)
+src/core/dip/embedder.ts — (NEW)
+src/core/dip/llm.ts — (NEW)
+src/core/dip/__tests__/embedder.test-d.ts — (NEW)
+src/core/dip/__tests__/llm.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -1010,9 +1011,9 @@ docs/contract/dip/__tests__/llm.test-d.ts — (NEW)
   ```
 
 #### Tasks
-1. Write `docs/contract/message.ts` with `Role`, `Message`, `LLMResponse`.
-2. Write `docs/contract/dip/embedder.ts`.
-3. Write `docs/contract/dip/llm.ts`.
+1. Write `src/core/message.ts` with `Role`, `Message`, `LLMResponse`.
+2. Write `src/core/dip/embedder.ts`.
+3. Write `src/core/dip/llm.ts`.
 4. Write the two `.test-d.ts` files asserting structural compatibility with a synthetic implementation (stub class with method bodies returning typed dummies).
 
 #### TDD
@@ -1040,7 +1041,7 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T3.2 — `docs/contract/dip/history-manager.ts` (4 required + 3 optional)
+### T3.2 — `src/core/dip/history-manager.ts` (4 required + 3 optional)
 
 #### Objective
 Lock the HistoryManager DIP shape with required vs optional methods clearly marked.
@@ -1050,8 +1051,8 @@ Mem0-ts `referencia/mem0/mem0-ts/src/oss/src/storage/base.ts` (37 lines) — ver
 
 #### Files to edit
 ```
-docs/contract/dip/history-manager.ts — (NEW)
-docs/contract/dip/__tests__/history-manager.test-d.ts — (NEW)
+src/core/dip/history-manager.ts — (NEW)
+src/core/dip/__tests__/history-manager.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -1124,7 +1125,7 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T3.3 — `docs/contract/dip/vector-store.ts` (11 methods)
+### T3.3 — `src/core/dip/vector-store.ts` (11 methods)
 
 #### Objective
 Lock the VectorStore DIP shape. Largest of the four; locks the surface adapters in v0.1+ implement.
@@ -1134,8 +1135,8 @@ Mem0-ts `referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (35 lines) �
 
 #### Files to edit
 ```
-docs/contract/dip/vector-store.ts — (NEW)
-docs/contract/dip/__tests__/vector-store.test-d.ts — (NEW)
+src/core/dip/vector-store.ts — (NEW)
+src/core/dip/__tests__/vector-store.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -1226,7 +1227,7 @@ VERIFY:  npm run typecheck && npm test
 
 ---
 
-### T3.4 — `docs/contract/dip/reflection-policy.ts` (new DIP for D5)
+### T3.4 — `src/core/dip/reflection-policy.ts` (new DIP for D5)
 
 #### Objective
 Lock the ReflectionPolicy DIP. Single implementation `ManualReflectionPolicy` is the only one shipped in v0.0; v0.4a adds `ThresholdReflectionPolicy` + `SleepTimeReflectionPolicy`.
@@ -1236,8 +1237,8 @@ ADR-0005 (D5) — reflection trigger is explicit-only at v0.0 but the policy int
 
 #### Files to edit
 ```
-docs/contract/dip/reflection-policy.ts — (NEW)
-docs/contract/dip/__tests__/reflection-policy.test-d.ts — (NEW)
+src/core/dip/reflection-policy.ts — (NEW)
+src/core/dip/__tests__/reflection-policy.test-d.ts — (NEW)
 ```
 
 #### Deep file dependency analysis
@@ -1298,19 +1299,19 @@ VERIFY:  npm run typecheck && npm test
 
 ## Phase 4: Subpath exports + barrel `index.ts`
 
-**Objective:** Wire the `docs/contract/` files into a single importable surface. v0.0 ships a barrel `docs/contract/index.ts` that re-exports everything. v0.1+ will move these files into `src/core/` and into `src/index.ts`; v0.0 keeps them under `docs/contract/` to signal "not yet released".
+**Objective:** Wire the `src/core/` files into a single importable surface. v0.0 ships a barrel `src/core/index.ts` that re-exports everything. v0.1+ will move these files into `src/core/` and into `src/index.ts`; v0.0 keeps them under `src/core/` to signal "not yet released".
 
-### T4.1 — `docs/contract/index.ts` barrel + `package.json#exports` map (preview)
+### T4.1 — `src/core/index.ts` barrel + `package.json#exports` map (preview)
 
 #### Objective
-Single barrel re-exporting all contract types. Update `package.json#exports` map with `"./contract"` (preview entry pointing at `docs/contract/index.ts`) — clearly NOT a release path, but lets consumers do `import type { Memory } from '@usetheo/memory/contract'` locally for design exploration.
+Single barrel re-exporting all contract types. Update `package.json#exports` map with `"./contract"` (preview entry pointing at `src/core/index.ts`) — clearly NOT a release path, but lets consumers do `import type { Memory } from '@usetheo/memory/contract'` locally for design exploration.
 
 #### Evidence
 Roadmap Item 1 acceptance is satisfied without an exports map (only `tsc` passes is required). But adding the preview entry makes the v0.1 migration trivial — we already know the import paths.
 
 #### Files to edit
 ```
-docs/contract/index.ts — (NEW) — re-exports all types
+src/core/index.ts — (NEW) — re-exports all types
 package.json — (UPDATE) — exports map with "./contract" entry (preview)
 ```
 
@@ -1344,8 +1345,8 @@ package.json — (UPDATE) — exports map with "./contract" entry (preview)
   {
     "exports": {
       "./contract": {
-        "types": "./docs/contract/index.ts",
-        "default": "./docs/contract/index.ts"
+        "types": "./src/core/index.ts",
+        "default": "./src/core/index.ts"
       }
     }
   }
@@ -1353,14 +1354,14 @@ package.json — (UPDATE) — exports map with "./contract" entry (preview)
   Runtime safety still holds via `"private": true` (set in T0.1) — no `npm publish` is possible before v0.1. If someone clones the repo and tries `import { Memory }` (without `type`) at the package path, Node will attempt to load the `.ts` file directly and fail with a parser error — that is acceptable runtime feedback, no worse than `ERR_PACKAGE_PATH_NOT_EXPORTED`.
 
 #### Tasks
-1. Write `docs/contract/index.ts`.
+1. Write `src/core/index.ts`.
 2. Update `package.json` with the exports map (only the `./contract` preview path; `default` points to the same TS file as `types`).
 3. Add `_v0_0_exports_preview_only` sibling key in `package.json` with value `true` as a self-documenting flag explaining that this exports map is contract-preview-only until v0.1 lands `src/` + a real bundler config (JSON has no comments — sibling key is the convention).
 
 #### TDD
 ```
 RED:     barrel_re_exports_all — for each expected export name, write a test-d file that imports it from '../index' and asserts the type matches
-RED:     types_resolve_via_package_path — write a test-d that does `import type { Memory } from '@usetheo/memory/contract'`; tsc must accept it WITHOUT a `paths` map workaround (asserts the `types` key in exports works) — note: this requires the repo's own package to be resolvable as `@usetheo/memory` locally; achieve via `npm link` in CI OR via tsconfig `paths` entry that mirrors the exports map (`paths: { "@usetheo/memory/contract": ["./docs/contract/index.ts"] }`)
+RED:     types_resolve_via_package_path — write a test-d that does `import type { Memory } from '@usetheo/memory/contract'`; tsc must accept it WITHOUT a `paths` map workaround (asserts the `types` key in exports works) — note: this requires the repo's own package to be resolvable as `@usetheo/memory` locally; achieve via `npm link` in CI OR via tsconfig `paths` entry that mirrors the exports map (`paths: { "@usetheo/memory/contract": ["./src/core/index.ts"] }`)
 RED:     no_default_export_path_collision — assert package.json has exactly one entry under `exports["./contract"]` (no `import` / `require` conditional split)
 GREEN:   Write index.ts + update package.json (with the new exports map + `_v0_0_exports_preview_only` flag)
 REFACTOR: Sort exports alphabetically within each section for stable diffs.
@@ -1368,7 +1369,7 @@ VERIFY:  npm run typecheck && npm test
 ```
 
 #### Acceptance Criteria
-- [ ] `docs/contract/index.ts` re-exports every interface/type/class from Phase 2/3
+- [ ] `src/core/index.ts` re-exports every interface/type/class from Phase 2/3
 - [ ] `package.json#exports` has the `./contract` preview entry with `default` pointing to the same TS file as `types` (EC-3)
 - [ ] `package.json._v0_0_exports_preview_only: true` flag present
 - [ ] No `"."` entry in exports (locks v0.0 from accidental default import)
@@ -1409,7 +1410,7 @@ Run the full validation chain (`npm install` → `npm run typecheck` → `npm te
 1. Run `npm install` (devDeps only resolve since no runtime deps).
 2. Run `npm run typecheck` — `tsc --noEmit -p tsconfig.contract.json` returns 0.
 3. Run `npm test` — vitest exit 0 with all type-level tests passing.
-4. Run `npm run lint` — zero warnings on `docs/contract/**/*.ts`.
+4. Run `npm run lint` — zero warnings on `src/core/**/*.ts`.
 5. Execute the three grep gates (commands listed in `### Acceptance Criteria` below). Each must return empty stdout.
 
 #### TDD
@@ -1432,9 +1433,9 @@ See `### Acceptance Criteria` block immediately below (shared across phase and t
 
 ```bash
 npm install                                     # baseline dep install
-npm run typecheck                               # tsc --noEmit on docs/contract/
+npm run typecheck                               # tsc --noEmit on src/core/
 npm test                                        # vitest type-level tests
-npm run lint                                    # zero warnings on docs/contract/**/*.ts
+npm run lint                                    # zero warnings on src/core/**/*.ts
 ```
 
 ### Acceptance Criteria
@@ -1442,22 +1443,22 @@ npm run lint                                    # zero warnings on docs/contract
 - [ ] `npm install` exits 0 with zero errors
 - [ ] `npm run typecheck` exits 0 with no diagnostics
 - [ ] `npm test` exits 0 with all type-level tests passing
-- [ ] `npm run lint` exits 0 with zero warnings on `docs/contract/**/*.ts`
+- [ ] `npm run lint` exits 0 with zero warnings on `src/core/**/*.ts`
 - [ ] All four DIPs (+ ReflectionPolicy) verifiable via type-level synthetic implementations in `__tests__/`
 - [ ] **No `production-ready` claim added by this plan (EC-4 — context-aware grep gate).** Run:
   ```bash
-  grep -rnE "production[- ](ready|grade)" docs/contract/ docs/adrs/ package.json README.md CHANGELOG.md \
+  grep -rnE "production[- ](ready|grade)" src/core/ .claude/knowledge-base/adrs/ package.json README.md CHANGELOG.md \
     | grep -v -E "CANNOT|MUST NOT|forbidden|locked|gate|never|ban|claim"
   ```
   Exit 0 with empty stdout = pass. The post-filter excludes occurrences where the phrase is the SUBJECT of a prohibition (e.g., ADR-0011-style "MUST NOT claim production-ready before v1.0"), which are intentional and required by the dogfood golden rule.
 - [ ] **No emoji added by this plan (EC-4 — explicit Unicode ranges).** Run:
   ```bash
-  grep -rnP "[\x{1F300}-\x{1FAFF}]|[\x{2600}-\x{27BF}]|[\x{1F000}-\x{1F2FF}]" docs/contract/ docs/adrs/ package.json README.md CHANGELOG.md
+  grep -rnP "[\x{1F300}-\x{1FAFF}]|[\x{2600}-\x{27BF}]|[\x{1F000}-\x{1F2FF}]" src/core/ .claude/knowledge-base/adrs/ package.json README.md CHANGELOG.md
   ```
   Exit non-zero (no matches) = pass.
 - [ ] **Every `referencia/` citation in ADRs and the plan resolves via `Path.exists()` check.** Run a helper:
   ```bash
-  grep -roE "referencia/[a-zA-Z0-9/_.-]+" docs/adrs/ .claude/knowledge-base/plans/memory-contract-v0-0-plan.md \
+  grep -roE "referencia/[a-zA-Z0-9/_.-]+" .claude/knowledge-base/adrs/ .claude/knowledge-base/plans/memory-contract-v0-0-plan.md \
     | awk -F: '{print $NF}' | sort -u \
     | while read p; do test -e "$p" || echo "MISSING: $p"; done
   ```
@@ -1477,9 +1478,9 @@ npm run lint                                    # zero warnings on docs/contract
 
 | # | Gap / Requirement | Task(s) | Resolution |
 |---|---|---|---|
-| 1 | `tsc --noEmit` passes on `docs/contract/*.ts` | T0.2, T2.1-T2.5, T3.1-T3.4, T4.1, Phase 5 | tsconfig.contract.json strict config + every file ships under `docs/contract/`; Phase 5 verifies via `npm run typecheck` |
-| 2 | 4 DIP interfaces declared (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`) | T3.1 (Embedder, LLM), T3.2 (HistoryManager), T3.3 (VectorStore) | Each DIP is its own file under `docs/contract/dip/` with method counts locked by D8 |
-| 3 | ADR per locked decision: Mem0-shape, three-scope, ADD-only, API verbs | T1.1 | ADR-0001..0004 filed at `docs/adrs/` |
+| 1 | `tsc --noEmit` passes on `src/core/*.ts` | T0.2, T2.1-T2.5, T3.1-T3.4, T4.1, Phase 5 | tsconfig.contract.json strict config + every file ships under `src/core/`; Phase 5 verifies via `npm run typecheck` |
+| 2 | 4 DIP interfaces declared (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`) | T3.1 (Embedder, LLM), T3.2 (HistoryManager), T3.3 (VectorStore) | Each DIP is its own file under `src/core/dip/` with method counts locked by D8 |
+| 3 | ADR per locked decision: Mem0-shape, three-scope, ADD-only, API verbs | T1.1 | ADR-0001..0004 filed at `.claude/knowledge-base/adrs/` |
 | 4 | Q2 — `update()` semantics inside ADD-only | T1.2 (ADR-0003 expanded by D3 + reaffirmed in D8), T2.5 (Memory interface has no `update`), T2.5 test-d (`@ts-expect-error`) | ADR-0003 + contract surface excludes `update` + type test asserts compile error |
 | 5 | Q3 — Reflection trigger | T1.2 (ADR-0005), T3.4 (`ReflectionPolicy` DIP), T2.3 (`ReflectOptions`), T2.5 (`reflect` on ScopedMemory + Memory) | Explicit-method at v0.0 + DIP for future policies |
 | 6 | Q4 — Bi-temporal `t_valid` / `t_invalid` columns | T1.2 (ADR-0006), T2.2 (MemoryItem has `tValid`/`tInvalid`), T2.3 (RecallOptions has `asOf?`), T2.4 (`BiTemporalNotSupportedLocally` error) | Type contract uniform across runtimes; runtime divergence via typed error |
@@ -1499,11 +1500,11 @@ npm run lint                                    # zero warnings on docs/contract
 | 20 | Plan compatible with v0.1-v1.4 (no design that boxes out future items) | T1.1, T1.2 | T1.1+T1.2 ship ADRs D1-D9; each ADR includes a Consequences/Reversibility section documenting forward-compat cost (D6 bridges local/cloud asOf divergence; D7/D8 lock extensibility) |
 | 21 | EC-1 — `MemoryConfig` + `CloudMemoryConfig` defined and exported | T2.5 (Deep Dive, Tasks, TDD, Acceptance, barrel export in T4.1) | Types declared in `memory-store.ts`; barrel re-exports them; TDD asserts required vs optional fields |
 | 22 | EC-2 — Error subclasses survive cross-module `instanceof` | T2.4 (Deep Dive template + runtime TDD + Acceptance) | `Object.setPrototypeOf(this, ClassName.prototype)` in every error constructor; vitest runtime `instanceof` test asserts behavior |
-| 23 | EC-3 — `package.json#exports` default points to a real path (not `null`) | T4.1 (Deep Dive + Tasks + Acceptance) | `"default": "./docs/contract/index.ts"`; `private: true` blocks publish; sibling `_v0_0_exports_preview_only: true` flag |
+| 23 | EC-3 — `package.json#exports` default points to a real path (not `null`) | T4.1 (Deep Dive + Tasks + Acceptance) | `"default": "./src/core/index.ts"`; `private: true` blocks publish; sibling `_v0_0_exports_preview_only: true` flag |
 | 24 | EC-4 — Phase 5 grep gates use context-aware exclusions | T5.1 | T5.1 acceptance ships the three refined grep commands: `grep -v -E "CANNOT\|MUST NOT\|forbidden..."` post-filter for production-ready scan; explicit Unicode ranges for emoji scan; `Path.exists()` audit helper for citations |
 | 25 | EC-5 — `asOf` JSDoc divergence warning above field | T2.5 TDD `recall_asOf_jsdoc_present` + T2.3 ships the JSDoc | Regex test asserts `@throws BiTemporalNotSupportedLocally` is in `options.ts` above `asOf` |
 | 26 | EC-6 — VectorStore.getUserId/setUserId are session metadata, NOT tenant isolation | T3.3 (Deep Dive + TDD `vector_store_userId_is_session_metadata_not_isolation_key`) | JSDoc on the methods explicitly states tenant isolation uses `Filters`; adapter contract clarified |
-| 27 | EC-7 — ESLint v9 flat config + typescript-eslint v7 + `eslint-plugin-import` smoke-test | T0.3 Acceptance + `## Dependencies` (added eslint-plugin-import) | `npx eslint --print-config docs/contract/index.ts` exits 0; plugin dep declared with Rule 9 |
+| 27 | EC-7 — ESLint v9 flat config + typescript-eslint v7 + `eslint-plugin-import` smoke-test | T0.3 Acceptance + `## Dependencies` (added eslint-plugin-import) | `npx eslint --print-config src/core/index.ts` exits 0; plugin dep declared with Rule 9 |
 | 28 | EC-8 — CLAUDE.md edits to § Open questions are additive-only (audit trail) | T1.2 Deep Dive (additive-only constraint) | Question text preserved verbatim; only RESOLVED annotation appended below |
 | 29 | EC-9 — `MemoryItem.metadata` flat-primitives-only JSDoc | T2.2 Deep Dive (locked JSDoc above field) | JSDoc states "Flat key-value payload. Primitives only..."; v1.4 ontologies path documented for forward-compat |
 | 30 | EC-10 — `LLM.tools` opaque-shape v0.0→v0.3 forward-compat JSDoc | T3.1 Deep Dive (locked JSDoc above field) | JSDoc references ADR-0008 + ADR-0004 + v0.3 generic plan; adapters warned to type tool shape locally |
