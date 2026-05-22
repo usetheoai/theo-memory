@@ -1,0 +1,185 @@
+agent: review-teacher-student-model-split-architecture
+review_target: ec6e685..HEAD for plan teacher-student-model-split
+plan: .claude/knowledge-base/plans/teacher-student-model-split-plan.md
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: null
+    plan_ref: T1.2
+    summary: "DIP respected: spawn_reviewers.py depends on routing rule abstraction, not concrete models"
+    evidence: |
+      _resolve_model() contracts on {role, rule, overrides, default} parameters; script knows nothing of "haiku" vs "opus" semantics. Models are read from rule file or CLI flags, not hardcoded. Main script delegates model resolution to _resolve_model() helper, which follows the fallback chain (cli > rule > default) deterministically.
+    recommended_action: "No action needed; design honors SRP (script focuses on substitution, model routing is data-driven)"
+
+  - id: F-arch-2
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: 35
+    plan_ref: T1.1
+    summary: "SOLID — SRP upheld: _load_routing_rule() parses file without side effects"
+    evidence: |
+      Function reads .claude/rules/review-model-routing.txt, tolerates UTF-8 BOM + malformed lines (EC-3), returns parsed dict. No I/O beyond the single read() call. Caller decides fallback policy.
+    recommended_action: "No action needed; function is cohesive and testable"
+
+  - id: F-arch-3
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: 42
+    plan_ref: T1.2
+    summary: "EC-1 invariant (domain-X collapse to domain) correctly implemented"
+    evidence: |
+      _resolve_model() implements the domain role base lookup: if role starts with 'domain-' AND role not in overrides AND role not in rule, it collapses lookup_key to 'domain'. This ensures secondary domain agents (e.g., domain-pgvector-schema) inherit the same model as the primary domain unless explicitly overridden. Matches locked ADR in plan.
+    recommended_action: "No action needed; invariant is explicit and testable (see test_domain_secondary_resolves_via_base_lookup)"
+
+  - id: F-arch-4
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: 65
+    plan_ref: T1.3
+    summary: "_ModelOverrideAction correctly rejects empty model values (EC-5)"
+    evidence: |
+      argparse custom Action validates that both role and model are non-empty after split on '='. Fails with explicit error message if either is empty. Prevents silent defaults that would swallow misconfiguration.
+    recommended_action: "No action needed; validation is strict and testable"
+
+  - id: F-arch-5
+    severity: INFO
+    file: .claude/skills/review/templates/agent-architecture-reviewer.md
+    line: 5
+    plan_ref: T1.2
+    summary: "{MODEL} placeholder correctly introduced in all 5 agent templates"
+    evidence: |
+      Templates changed from `model: opus` to `model: {MODEL}`. Substitution happens in write_agent_file(). All 5 baseline + domain templates now use the placeholder consistently.
+    recommended_action: "No action needed; placeholder is consistent across all templates"
+
+  - id: F-arch-6
+    severity: INFO
+    file: .claude/rules/review-model-routing.txt
+    line: null
+    plan_ref: T1.3
+    summary: "Rule file is well-structured with experimental markers and fallback criteria"
+    evidence: |
+      Format is simple key: value with optional fields (experimental_until, rollback_if). Comments explain the lookup invariant, default fallback, and rollback procedure. Default model is opus when rule missing (preserves status quo).
+    recommended_action: "No action needed; rule design is KISS and maintainable"
+
+  - id: F-arch-7
+    severity: INFO
+    file: .claude/rules/cycle-review.md
+    line: null
+    plan_ref: T1.4
+    summary: "cycle-review.md correctly documents the model routing contract"
+    evidence: |
+      New section "## Model routing (teacher/student split)" in cycle-review.md explains fallback chain, EC-1 invariant, experimental markers, and escalation override. Cross-references review-model-routing.txt. Aligns with plan ADR-D2 (config declarative in rule file).
+    recommended_action: "No action needed; documentation is complete and synchronized with implementation"
+
+  - id: F-arch-8
+    severity: INFO
+    file: .claude/rules/cycle-implement.md
+    line: null
+    plan_ref: T2.2-A
+    summary: "cycle-implement.md documents the /implement split contract (COMMIT phase, experimental)"
+    evidence: |
+      New section "## Model routing (teacher/student split — experimental)" explains the implementation approach (Agent tool nested in halt-loop when rule present), phase assignments (COMMIT → haiku), and fallback (missing rule file → no nesting, status quo). Cross-references implement-model-routing.txt and the spike blueprint.
+    recommended_action: "No action needed; documentation is honest about experimental status and scope (COMMIT only)"
+
+  - id: F-arch-9
+    severity: INFO
+    file: .claude/rules/implement-model-routing.txt
+    line: null
+    plan_ref: T2.2-A
+    summary: "Implementation rule file correctly mirrors /review rule structure"
+    evidence: |
+      Format is identical (phase: model experimental_until=... rollback_if=...). Initial scope is COMMIT phase only (minimal blast radius per spike recommendation). GREEN migration deferred to 2026-08-22. Fallback is session model (no nesting) when rule missing.
+    recommended_action: "No action needed; structure is consistent with review-model-routing.txt"
+
+  - id: F-arch-10
+    severity: INFO
+    file: .claude/skills/implement/prompts/implementation-prompt.md
+    line: null
+    plan_ref: T2.2-A
+    summary: "COMMIT phase prompt correctly instructs halt-loop driver to use nested Agent tool when rule present"
+    evidence: |
+      New preamble to COMMIT phase explains conditional logic: if implement-model-routing.txt has a 'commit:' entry, delegate via Agent tool with resolved model. If rule missing or entry absent, compose inline (status quo). Main session retains git operations (stage + commit execution) so halt-loop stays observable.
+    recommended_action: "No action needed; prompt is clear and preserves halt-loop transparency"
+
+  - id: F-arch-11
+    severity: INFO
+    file: .claude/skills/review/tests/test_spawn_reviewers.py
+    line: null
+    plan_ref: T1.3
+    summary: "Test suite is comprehensive: 14 tests (4 baseline + 10 new for model split), all green"
+    evidence: |
+      Test snapshot: test_baseline_4_agents_generated, test_agent_files_actually_written, test_secondary_domains_spawn_extra_agents, test_findings_dir_created (baseline), PLUS 10 new tests (test_baseline_agents_get_student_model, test_cross_validation_gets_teacher_model, test_routing_rule_fallback_default, test_cli_model_override, test_experimental_marker_preserved, test_routing_rule_with_utf8_bom_parsed_correctly, test_domain_secondary_resolves_via_base_lookup, test_cli_override_with_empty_value_rejected, test_routing_rule_malformed_line_silently_skipped, test_routing_rule_unknown_model_passes_through). All pass in 0.55s.
+    recommended_action: "No action needed; test coverage honors Inquebrável Rule 5 (TDD)"
+
+  - id: F-arch-12
+    severity: INFO
+    file: .claude/knowledge-base/plans/teacher-student-model-split-plan.md
+    line: null
+    plan_ref: null
+    summary: "Plan v1.1 is SHIPPABLE 100/100 per /plan-confidence; all 5 ADRs are present and justified"
+    evidence: |
+      Plan scored 100/100 by plan-confidence M2 deterministic check. All 5 ADRs present: D1 (role-based split vs other options), D2 (declarative rule file vs env var), D3 (experimental marker + rollback), D4 (fallback chain priority), D5 (A/B baseline deferred). Coverage Matrix 100% (25 gaps → 11 tasks ordered). Changelog records v1.0 → v1.1 absorption of edge-cases (2 MUST FIX + 5 SHOULD TEST + 4 DOCUMENT).
+    recommended_action: "No action needed; plan is the contract and is solid"
+
+  - id: F-arch-13
+    severity: INFO
+    file: .claude/knowledge-base/discoveries/blueprints/teacher-student-halt-loop-spike.md
+    line: null
+    plan_ref: T2.1
+    summary: "Spike blueprint correctly cites ralph-loop + Agent tool source paths (EC-2, drift=zero)"
+    evidence: |
+      Spike T2.1 investigated Agent nesting in ralph-loop via two canonical sources: (1) cache at ~/.claude/plugins/cache/... (19 + 204 + 191 lines), (2) marketplace at ~/.claude/plugins/marketplaces/... (assumed identical, tagged 1.0.0). Both verified same-session, same-model semantics; Agent tool is independent subagent boundary. Decision: VIÁVEL with complexity medium; initial scope COMMIT phase only; experimental_until=2026-07-22 + rollback criterion observability.
+    recommended_action: "No action needed; spike investigation is thorough and decision is recorded honestly"
+
+  - id: F-arch-14
+    severity: INFO
+    file: .claude/rules/token-budget.md
+    line: null
+    plan_ref: D3
+    summary: "Token-budget.md correctly updated to reflect /review split economics (~70% reduction)"
+    evidence: |
+      `/review` row: "~60k (split) / 150-250k (fallback)" vs old "150-250k". Note explains 4 baseline → haiku ~5k each, 1 cross-validation → opus ~40k. `cycle-review` full cycle estimates ~70% reduction when rule present. Includes escalation override heuristic in "When NOT to use" section.
+    recommended_action: "No action needed; token estimates are documented with caveats (no A/B baseline yet; experimental)"
+
+  - id: F-arch-15
+    severity: MINOR
+    file: .claude/knowledge-base/implementations/teacher-student-model-split-implementation.md
+    line: null
+    plan_ref: "Overall (cross-plan)"
+    summary: "Implementation markdown documents T1-T3 subtasks but lacks explicit cross-references to /plan-confidence score"
+    evidence: |
+      Implementation artifact at `.claude/knowledge-base/implementations/teacher-student-model-split-implementation.md` lists ordered task list and status per task. Plan artifact at `.claude/knowledge-base/plans/teacher-student-model-split-plan.md` includes the confidence score (100/100, SHIPPABLE). No bidirectional link from implementation back to the plan's confidence report location (`.claude/knowledge-base/reviews/teacher-student-model-split-confidence-2026-05-22.md`).
+    recommended_action: "Not required for this review cycle. Future: consider adding a `plan_confidence_report:` field to implementation artifact frontmatter to complete the audit trail."
+
+  - id: F-arch-16
+    severity: INFO
+    file: CHANGELOG.md
+    line: null
+    plan_ref: "Inquebrável Rule 6"
+    summary: "CHANGELOG.md correctly updated per Inquebrável Rule 6 (changelog discipline)"
+    evidence: |
+      New `### Added — Teacher/Student model split (2026-05-22)` entry with 3 subsections: `/review` agent model split (full), `/implement` halt-loop split (experimental, COMMIT phase only), Plan + audit trail. Entry cites all relevant files (rule files, templates, tests, cycle documentation, spike, implementation contract). References upskill source inspiration. No vague language ("improvements", "ajustes"); all entries are consumable by downstream users.
+    recommended_action: "No action needed; changelog discipline is honored"
+
+  - id: F-arch-17
+    severity: INFO
+    file: .claude/skills/plan-confidence/tests/test_real_plans_snapshot.py
+    line: null
+    plan_ref: "Cross-cycle"
+    summary: "Plan snapshot test updated to include teacher-student-model-split-plan.md with correct verdicts"
+    evidence: |
+      Snapshot entry added: `"teacher-student-model-split-plan.md": {"verdict_in": {"SHIPPABLE", "SHIPPABLE_WITH_CAVEATS"}, "score_min": 90, "expected_hard_caps_subset": set()}`. Correctly expects SHIPPABLE verdict and score ≥ 90 (actual: 100). No hard caps expected (Coverage Matrix 100%, no fabricated citations).
+    recommended_action: "No action needed; snapshot is accurate"
+
+summary:
+  total_findings: 17
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 0
+    MINOR: 1
+    INFO: 16
+  top_concerns:
+    - "Minor: implementation artifact lacks cross-reference to plan confidence report (audit trail completeness). Recommendation: not required for this cycle; document as future enhancement."
+    - "No architectural defects detected. All SOLID principles respected: SRP via _resolve_model() abstraction, OCP via declarative rule file (no switch/case branches), DIP via file-driven configuration, ISP via role-scoped arguments, LSP via consistent fallback semantics. Test coverage (14/14 passing) and documentation (cycle-review.md + cycle-implement.md + spike) are thorough."

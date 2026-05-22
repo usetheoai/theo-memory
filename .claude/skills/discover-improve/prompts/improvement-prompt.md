@@ -1,0 +1,77 @@
+# Discover-Improve Halt-Loop Prompt
+
+You are mid-improvement of a blueprint, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked `/discover-improve {BLUEPRINT_SLUG}` after `/discover-confidence` returned a verdict below `{TARGET_VERDICT}`.
+
+**Blueprint:** `{BLUEPRINT_PATH}`
+**Target verdict:** `{TARGET_VERDICT}` (default: `SHIPPABLE_WITH_CAVEATS`, score ≥ 70)
+**Confidence rubric:** `.claude/skills/discover-confidence/templates/rubric-blueprint.md`
+
+## Your contract for this iteration
+
+### Phase A — Deterministic fixes (apply FIRST every iteration)
+
+Run `python3 .claude/skills/discover-improve/scripts/apply_fixes.py {BLUEPRINT_PATH}`. This:
+
+1. Replaces weak imperatives (should/could/may/might/deveria/poderia) with `must` / `deve` in prose (skips code blocks and citation tables).
+2. Strips loopholes ("if possible", "as appropriate", "se possível", "quando aplicável", ...).
+3. Detects fabricated citations (paths in `referencia/{...}` that don't exist on disk) and marks them with `<!-- BLOCKED: path not found in referencia/ -->`.
+4. Reports diff to stdout.
+
+Then re-score:
+
+```
+python3 .claude/skills/discover-confidence/scripts/run_blueprint_score.py {BLUEPRINT_PATH} --no-warn
+```
+
+If verdict ≥ `{TARGET_VERDICT}`, jump to step "Emit promise".
+
+### Phase B — LLM-driven fixes (apply only if Phase A insufficient)
+
+For each detractor in the latest `motivos`:
+
+1. **Empty coverage corner** — read the discovery plan to find the research question(s) mapped to that corner. If credible answers exist in already-collected blueprint content elsewhere, REFACTOR them into the empty corner. If no credible answer exists, add:
+   ```markdown
+   <!-- ADR: Corner X deferred. Original plan declared Qy for this corner; halt-loop blocked at iteration Z. See plan ADR Dn. -->
+   ```
+   The `<!-- ADR: ... -->` marker satisfies the completeness check as long as it includes a real reason.
+
+2. **Per-project asymmetry** — one project dominates content. Trim repetitive paragraphs in the dominant project's subsections; do NOT pad the under-represented projects with fabricated detail.
+
+3. **Low citation density** — paragraphs without citations should EITHER receive a real `referencia/{...}` citation OR be rewritten as opinion ("the synthesis suggests...") rather than claim.
+
+4. **Risco_estrutural detractors** — fix specific smells listed in motivos by rewriting the affected sentence.
+
+Then re-score with `run_blueprint_score.py`.
+
+### Emit promise
+
+When verdict ≥ `{TARGET_VERDICT}`, emit:
+
+```
+<promise>BLUEPRINT_IMPROVED</promise>
+```
+
+Report: initial verdict → final verdict, changes applied per category, remaining issues that need human review (don't auto-fix what you can't honestly fix — leave a TODO).
+
+If `iterations_used >= {MAX_ITERATIONS}` OR no-improvement detected for 2 consecutive iterations:
+
+- Emit the promise WITH honest remaining-issues report
+- Do NOT pretend the target was reached
+
+## Inviolable rules
+
+- NEVER touch files outside `{BLUEPRINT_PATH}`.
+- NEVER modify the upstream discovery plan. To revise the plan, the user must invoke `/discover-plan` again.
+- NEVER modify `referencia/` (boundary-check hook enforces).
+- NEVER fabricate a citation. If a path doesn't exist, mark it BLOCKED and move on.
+- NEVER emit the promise while a hard cap is still active. INVALID verdict cannot be auto-improved past 49 without resolving the underlying structural defect (empty corner / fabricated citation).
+- NEVER iterate beyond `{MAX_ITERATIONS}`.
+
+## When to give up honestly
+
+If a hard cap fires that cannot be resolved without human input:
+
+- Fabricated citation with no plausible replacement → BLOCKED, recommend `/discover-execute` to re-run that question
+- Empty corner with no relevant existing content → BLOCKED, recommend `/discover-plan` to re-plan or accept lower verdict
+
+Emit the promise with these issues itemized. The user reads the report and decides.
