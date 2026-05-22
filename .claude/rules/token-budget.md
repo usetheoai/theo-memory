@@ -49,8 +49,8 @@ The numbers below are estimates based on the architecture of each skill, not emp
 
 | Skill | Typical cost | Notes |
 |---|---|---|
-| `/review` | **150-250k** | Spawns 5-7 specialized agents in parallel; each agent does deep review (30-50k each). Teacher/student split available: see `review-model-routing.txt` + § Model routing in `cycle-review.md` — T1.5 of teacher-student-model-split plan will update this row with split estimates. |
-| **Full cycle** | **150-250k** | Most expensive single cycle by design |
+| `/review` | **~60k (split) / 150-250k (fallback)** | Spawns 5-7 agents; with `review-model-routing.txt` active, 4 baseline → haiku (~5k each), 1 cross-validation → opus (~40k). Falls back to all-opus when rule file missing (status quo). See `review-model-routing.txt` + § Model routing in `cycle-review.md` for the contract and rollback criteria. |
+| **Full cycle** | **~60k (split) / 150-250k (fallback)** | Split mode: ~70% reduction vs all-opus baseline (per teacher-student-model-split plan D3 — experimental until 2026-06-22, no A/B baseline yet). |
 
 ### Auxiliary
 
@@ -122,6 +122,7 @@ Token cost-saving heuristics:
 | `cycle-plan` | Change is trivial (single-line fix) | Write the change directly (<5k) |
 | `cycle-implement` | Plan was simple AND tests are trivial | Manual TDD (<30k) |
 | `/skill-writer` | Blueprint is one-off (no future reuse) | Skip distillation tail; keep blueprint only |
+| `cycle-review` split mode | Critical security review of high-blast-radius diff | Escalate via `spawn_reviewers.py --model-override architecture=opus --model-override domain=opus` (teacher for baseline arquétipos) |
 
 ## Cost monitoring
 
