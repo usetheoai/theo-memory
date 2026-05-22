@@ -42,6 +42,8 @@ export default tseslint.config(
     files: ['src/core/**/__tests__/**/*.test*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
       'import/order': 'off',
     },
   },
