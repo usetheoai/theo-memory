@@ -34,6 +34,98 @@ TEMPLATES = {
 
 BASELINE_ROLES = ["architecture", "tests", "wiring", "cross-validation"]
 
+# Default fallback model when the routing rule is absent OR a role has no
+# entry (preserves pre-split behavior — all agents run on opus).
+DEFAULT_MODEL = "opus"
+
+
+def _load_routing_rule(path: Path) -> dict[str, dict[str, str]]:
+    """Parse review-model-routing.txt → {role: {"model": ..., "experimental_until": ..., ...}}.
+
+    Returns empty dict when file missing OR malformed. Caller decides fallback policy.
+    Uses utf-8-sig to tolerate BOM-prefixed files (EC-3).
+    """
+    if not path.exists():
+        return {}
+    parsed: dict[str, dict[str, str]] = {}
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if ":" not in stripped:
+            continue  # malformed entry, silently skipped (EC-6)
+        role, rest = stripped.split(":", 1)
+        role = role.strip()
+        tokens = rest.strip().split()
+        if not tokens:
+            continue
+        entry: dict[str, str] = {"model": tokens[0]}
+        for token in tokens[1:]:
+            if "=" in token:
+                k, v = token.split("=", 1)
+                entry[k] = v
+        parsed[role] = entry
+    return parsed
+
+
+def _resolve_model(
+    role: str,
+    rule: dict[str, dict[str, str]],
+    overrides: dict[str, str],
+    default: str = DEFAULT_MODEL,
+) -> tuple[str, bool]:
+    """Resolve model for a role with fallback chain: cli override > rule > default.
+
+    Returns (model, is_experimental).
+
+    EC-1 invariant: roles matching pattern '^domain-.+$' collapse to base 'domain'
+    when no exact entry exists. Without this, secondary domain agents would
+    silently fall back to default opus, nullifying ~40% of expected savings.
+    """
+    lookup_key = role
+    if role.startswith("domain-") and role not in overrides and role not in rule:
+        lookup_key = "domain"
+
+    if lookup_key in overrides:
+        return overrides[lookup_key], False
+    if lookup_key in rule:
+        entry = rule[lookup_key]
+        is_experimental = "experimental_until" in entry
+        return entry["model"], is_experimental
+    return default, False
+
+
+class _ModelOverrideAction(argparse.Action):
+    """Parse --model-override role=model repeatedly into a dict.
+
+    Rejects empty model values (EC-5).
+    """
+
+    def __call__(  # type: ignore[override]
+        self, parser: argparse.ArgumentParser, namespace: argparse.Namespace,
+        values: object, option_string: str | None = None,
+    ) -> None:
+        current: dict[str, str] = getattr(namespace, self.dest, None) or {}
+        if not isinstance(values, str) or "=" not in values:
+            parser.error(f"--model-override expects 'role=model', got {values!r}")
+        role, model = values.split("=", 1)
+        role = role.strip()
+        model = model.strip()
+        if not role or not model:
+            parser.error(
+                f"--model-override 'role=model' requires non-empty values; got role={role!r}, model={model!r}"
+            )
+        current[role] = model
+        setattr(namespace, self.dest, current)
+
+
+def _default_routing_rule_path(skill_dir: Path) -> Path:
+    """Resolve the canonical routing rule path relative to the skill dir.
+
+    Convention: .claude/rules/review-model-routing.txt at project root.
+    """
+    return skill_dir.parent.parent / "rules" / "review-model-routing.txt"
+
 
 def _find_skill_dir(start: Path) -> Path:
     """Find the review skill directory (where templates live)."""
@@ -85,6 +177,19 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write agent files")
     parser.add_argument("--domain-keywords", default="", help="Comma-separated keywords (audit)")
     parser.add_argument("--skill-dir", type=Path, default=None, help="Override skill dir lookup (for tests)")
+    parser.add_argument(
+        "--routing-rule",
+        type=Path,
+        default=None,
+        help="Path to review-model-routing.txt (default: .claude/rules/review-model-routing.txt)",
+    )
+    parser.add_argument(
+        "--model-override",
+        action=_ModelOverrideAction,
+        default={},
+        metavar="ROLE=MODEL",
+        help="Override resolved model for a role (repeatable). Takes precedence over rule entries.",
+    )
     args = parser.parse_args()
 
     if not args.plan.exists():
@@ -102,6 +207,10 @@ def main() -> int:
     date_str = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     output_dir = args.output_dir or (skill_dir.parent.parent / "agents" / f"review-{args.slug}-{date_str}")
 
+    routing_rule_path = args.routing_rule or _default_routing_rule_path(skill_dir)
+    routing_rule = _load_routing_rule(routing_rule_path)
+    model_overrides: dict[str, str] = args.model_override or {}
+
     base_mapping = {
         "SLUG": args.slug,
         "DATE": date_str,
@@ -112,14 +221,19 @@ def main() -> int:
 
     generated: list[dict[str, str]] = []
     errors: list[str] = []
+    experimental_routings: list[str] = []
 
     # Baseline agents (always)
     for role in BASELINE_ROLES:
         try:
             mapping = dict(base_mapping)
+            model, is_experimental = _resolve_model(role, routing_rule, model_overrides)
+            mapping["MODEL"] = model
+            if is_experimental:
+                experimental_routings.append(role)
             template_name = TEMPLATES[role]
             path = write_agent_file(skill_dir, template_name, output_dir, role, mapping)
-            generated.append({"role": role, "path": str(path)})
+            generated.append({"role": role, "model": model, "path": str(path)})
         except FileNotFoundError as exc:
             errors.append(f"Failed to spawn {role}: {exc}")
         except OSError as exc:
@@ -137,8 +251,12 @@ def main() -> int:
             mapping = dict(base_mapping)
             mapping["DOMAIN"] = domain
             role = f"domain-{domain}"
+            model, is_experimental = _resolve_model(role, routing_rule, model_overrides)
+            mapping["MODEL"] = model
+            if is_experimental and role not in experimental_routings:
+                experimental_routings.append(role)
             path = write_agent_file(skill_dir, TEMPLATES["domain"], output_dir, role, mapping)
-            generated.append({"role": role, "domain": domain, "path": str(path)})
+            generated.append({"role": role, "domain": domain, "model": model, "path": str(path)})
         except FileNotFoundError as exc:
             errors.append(f"Failed to spawn domain-{domain}: {exc}")
         except OSError as exc:
@@ -157,6 +275,9 @@ def main() -> int:
         "secondary_domains": [d.strip() for d in args.secondary_domains.split(",") if d.strip()],
         "output_dir": str(output_dir),
         "findings_dir": str(findings_dir),
+        "routing_rule_path": str(routing_rule_path),
+        "routing_rule_loaded": bool(routing_rule),
+        "experimental_routings": experimental_routings,
         "agents_generated": generated,
         "agents_count": len(generated),
         "errors": errors,
