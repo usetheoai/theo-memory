@@ -1,0 +1,130 @@
+# Audit trail rotation policy
+
+Source of truth for when audit artifacts in `.claude/agents/`, `.claude/knowledge-base/reviews/`, and similar staging dirs are archived or deleted.
+
+## Why this rule exists
+
+Several cycles produce **persistent audit trails** by design:
+
+- `cycle-review` → `.claude/agents/review-{slug}-{date}/` (5-7 agent .md + findings/ per invocation)
+- `cycle-discover` → `.claude/knowledge-base/reviews/{slug}-confidence-*.md`
+- `cycle-plan` → `.claude/knowledge-base/reviews/{slug}-confidence-*.md`
+- `cycle-implement` → `.claude/knowledge-base/implementations/.progress-{slug}.json`
+- `cycle-discover` (`/discover-execute`) → `.claude/knowledge-base/discoveries/.progress-{slug}.json`
+- `cycle-discover` skill distillation → `.claude/knowledge-base/reviews/skill-register-{name}-{date}.md`
+
+Without rotation, these grow indefinitely. 30 reviews/month × 7 agent files = 200+ files/month polluting `.claude/agents/`. Sluggish git operations + cognitive overhead navigating the tree.
+
+## What gets rotated, what stays
+
+### KEEP forever (deliberately persistent)
+
+| Artifact | Reason to keep |
+|---|---|
+| `.claude/knowledge-base/discoveries/blueprints/{slug}-blueprint.md` | Architectural learnings; cited by patterns skills indefinitely |
+| `.claude/knowledge-base/plans/{slug}-plan.md` | Plan is contract; referenced by reviews and post-mortems |
+| `.claude/knowledge-base/discoveries/plans/{slug}-plan.md` | Same |
+| `.claude/skills/{name}-patterns/.source-blueprint` | Marker linking skill back to blueprint; load-bearing for `/skill-register` rollback |
+| `CHANGELOG.md` entries | Inquebrável Rule 6 |
+
+### ROTATE periodically (audit value decreases over time)
+
+| Artifact | When to rotate | How |
+|---|---|---|
+| `.claude/agents/review-{slug}-{date}/` | After the PR is merged AND 30 days passed | Move to `.claude/agents/_archive/review-{slug}-{date}/` |
+| `.claude/knowledge-base/reviews/{slug}-review-*.md` | Same trigger | Move to `_archive/` sibling |
+| `.claude/knowledge-base/reviews/{slug}-implement-validate-*.md` | After review accepted AND merged | Move to `_archive/` |
+| `.claude/knowledge-base/reviews/{slug}-confidence-*.md` (intermediate scores) | After plan/blueprint reaches final SHIPPABLE | Keep only the LAST score; delete intermediates |
+| `.claude/knowledge-base/implementations/.progress-{slug}.json` | After commit SHA is captured in the implementation md | Delete (state is now in git) |
+| `.claude/knowledge-base/discoveries/.progress-{slug}.json` | After blueprint reaches final SHIPPABLE/SHIPPABLE_WITH_CAVEATS | Delete (state is now in the blueprint + confidence report) |
+
+### DELETE outright
+
+| Artifact | Reason |
+|---|---|
+| Python caches (`__pycache__/`, `.hypothesis/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`) | Already in `.gitignore`; rebuild from source |
+| `.claude/skills/generated/` candidates that REJECT-ed | Per `/skill-validator` contract; never promote, never archive |
+| Stale `.progress-*.json` from aborted halt-loops | Misleading state; delete + re-run skill |
+
+## Rotation procedure (manual for now; automate later)
+
+Quarterly (4× per year) maintenance, OR ad-hoc when a directory crosses thresholds.
+
+### Threshold triggers
+
+- `.claude/agents/review-*` count > 30 → rotate older than 30 days
+- `.claude/knowledge-base/reviews/*.md` count > 50 → rotate intermediate-scores
+
+### Manual procedure
+
+```bash
+# 1. Identify candidates for archival (older than 30 days, PR is merged)
+find .claude/agents -maxdepth 1 -type d -name "review-*" -mtime +30
+
+# 2. For each, move to _archive (preserving structure)
+mkdir -p .claude/agents/_archive
+mv .claude/agents/review-{old-slug}-{old-date} .claude/agents/_archive/
+
+# 3. Similarly for reviews
+mkdir -p .claude/knowledge-base/reviews/_archive
+mv .claude/knowledge-base/reviews/{old-slug}-*.md .claude/knowledge-base/reviews/_archive/
+
+# 4. Commit the archive move as one atomic commit
+git add .claude/agents/_archive .claude/knowledge-base/reviews/_archive
+git commit -m "chore(audit): rotate audit artifacts older than 30 days to _archive"
+```
+
+### Future automation (out of scope for v1.0)
+
+Candidate implementations:
+
+- Add a maintenance skill `/rotate-audit-trails` that runs the procedure above with a dry-run flag
+- Add a GitHub Actions cron job that opens a PR with the rotation diff
+- Add a pre-commit hook that warns when `.claude/agents/` has > 30 review-* dirs
+
+These are deferred until manual rotation proves insufficient.
+
+## What `_archive/` looks like
+
+Standard structure:
+
+```
+.claude/
+├── agents/
+│   ├── _archive/
+│   │   ├── review-old-slug-1-2026-01-15/   ← moved here from .claude/agents/
+│   │   ├── review-old-slug-2-2026-02-08/
+│   │   └── mem-researcher.md               ← deprecated agent (P2 cleanup)
+│   ├── review-current-slug-2026-05-21/      ← current, NOT archived
+│   └── mem-researcher.md (or absent if archived)
+└── knowledge-base/
+    └── reviews/
+        ├── _archive/
+        │   ├── old-slug-1-implement-validate-2026-01-15.md
+        │   ├── old-slug-1-confidence-2026-01-15.md
+        │   └── ...
+        ├── current-slug-implement-validate-2026-05-21.md
+        └── current-slug-confidence-2026-05-21.md
+```
+
+`_archive/` IS committed to git — it remains discoverable via `git log` and grep. Just out of the way for navigation.
+
+## Restoring from archive
+
+```bash
+mv .claude/agents/_archive/review-{slug}-{date} .claude/agents/
+git add . && git commit -m "chore(audit): restore review-{slug}-{date} from archive"
+```
+
+## Anti-patterns
+
+1. **Deleting audit artifacts outright** — violates Inquebrável Rule 3 (extreme honesty). If a review found issues, the trail must exist somewhere in git history.
+2. **Archiving before PR is merged** — premature; the review may still be relevant if the PR is iterating.
+3. **Rotating Python caches into `_archive/`** — they're already gitignored; just delete on disk if needed.
+4. **`_archive/` in `.gitignore`** — defeats the purpose. Archive IS committed; just deprioritized for daily navigation.
+5. **Bulk-rotating without 30-day grace period** — recent reviews are still actively referenced in PR conversations.
+
+## Cross-references
+
+- Cycles producing audit trails: `cycle-discover.md`, `cycle-plan.md`, `cycle-implement.md`, `cycle-review.md`
+- Cleanup script (future): `.claude/scripts/rotate_audit.py` (not yet implemented)

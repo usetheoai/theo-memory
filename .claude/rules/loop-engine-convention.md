@@ -1,0 +1,154 @@
+# Loop engine convention
+
+Source of truth for **when to use ralph-loop vs Agent tool vs Skill tool** when designing or modifying skills in this ecosystem.
+
+## The three loop mechanisms
+
+This ecosystem uses three distinct mechanisms that look superficially similar but solve different problems. Choosing the wrong one wastes tokens and introduces fragility.
+
+### 1. `ralph-loop:ralph-loop` (the autonomous halt-loop)
+
+**What it is:** A plugin (`ralph-loop` in `~/.claude/settings.json.enabledPlugins`) that lets Claude run multi-iteration tasks across `Stop` events. Each iteration ends; the Stop hook restarts Claude with the same prompt + updated state.
+
+**State management:** External file (`.claude/ralph-loop.local.md` + skill-specific progress JSON).
+
+**Halt condition:** Promise marker like `<promise>BLUEPRINT_COMPLETE</promise>` in the response.
+
+**Cost:** HIGH (each iteration is a full LLM call). Use sparingly.
+
+**Use when:**
+
+- The task requires many sequential decisions that depend on accumulated state (e.g., implementing 50 tasks of a plan, one at a time)
+- The state cannot fit in a single Claude context window
+- Each iteration has a clear stop condition (test passes, citation verified, etc.)
+- Failure recovery requires restarting from a known state file
+
+**Examples in this ecosystem:**
+
+- `/discover-execute` — iterates over research questions in `referencia/`; emits `<promise>BLUEPRINT_COMPLETE</promise>` when all questions answered
+- `/discover-improve` — iterates Phase A (deterministic) + Phase B (LLM) until blueprint reaches target verdict
+- `/plan-improve` — same pattern for implementation plans
+- `/implement` — iterates over plan tasks, one TDD cycle per iteration
+
+**Anti-pattern:** Using ralph-loop for a single-pass task. If the task can fit in one Claude context, don't pay the multi-iteration overhead.
+
+### 2. `Agent` tool (subagent invocation)
+
+**What it is:** Built-in tool that spawns a subagent with its own context. The subagent receives a focused prompt and returns ONE structured result.
+
+**State management:** None — each invocation is independent.
+
+**Halt condition:** Subagent finishes its task and returns. No mid-iteration restart.
+
+**Cost:** Variable per agent; one full context window per agent. Cheap if focused; expensive if N agents in parallel.
+
+**Use when:**
+
+- The task has a clearly-scoped sub-question that benefits from isolated context
+- Multiple sub-questions can be answered in parallel (each in its own agent)
+- The result is a structured artifact (findings YAML, search results, summary) that doesn't need iterative refinement
+- You want to protect the main context window from the verbose intermediate work
+
+**Examples in this ecosystem:**
+
+- `/review` — spawns 5-7 specialized agents in PARALLEL (architecture, tests, wiring, cross-validation, domain-specific); each emits findings; orchestrator consolidates
+- `/discover-plan` Step 3 — may spawn a sub-agent to enumerate referencia/ structure when grep is insufficient
+
+**Anti-pattern:** Using Agent tool for an iterative refinement task. Each invocation is one-shot; if you need 5 retries, you'll spawn 5 agents instead of running 1 halt-loop with 5 iterations.
+
+### 3. `Skill` tool (compose existing skills)
+
+**What it is:** Built-in tool that invokes another skill from within the current task. The invoked skill runs in the SAME context as the caller, just with its SKILL.md instructions loaded.
+
+**State management:** Shared with the caller. Skills can produce files, edit code, etc., visible to the caller.
+
+**Halt condition:** Skill finishes its workflow.
+
+**Cost:** Low overhead (no new context); cost is the skill itself.
+
+**Use when:**
+
+- You want to invoke a sibling skill as part of a workflow (e.g., `/to-plan` chain invokes `/edge-case-plan` then `/plan-confidence`)
+- The skills share project context (files, repo state)
+- Sequential composition: skill A → skill B → skill C
+
+**Examples in this ecosystem:**
+
+- `/to-plan` orchestrator (when implemented) would invoke `/edge-case-plan` → `/plan-confidence` → optionally `/plan-improve` → `/plan-confidence`
+- `/discover-plan` chain documents the same sequential composition
+
+**Anti-pattern:** Using Skill tool for a task that needs isolated context. If the called skill would interfere with the caller's context, use Agent tool instead.
+
+## Decision matrix
+
+| Task shape | Recommended mechanism | Why |
+|---|---|---|
+| Iterate over a list with state-dependent decisions | **ralph-loop** | Multi-iteration with external state |
+| Parallel deep-review of N aspects | **Agent (parallel)** | Each agent in isolated context |
+| Sequential composition of skills | **Skill tool** | Shared context, low overhead |
+| Single focused question with structured output | **Agent (one-shot)** | Cheap; protects main context |
+| Single quick query | **None** — Read/Grep directly | Don't use any mechanism for a 1-line query |
+
+## When in doubt, ask these 4 questions
+
+1. **Can the task complete in ONE Claude context?**
+   - YES → Skill tool OR direct invocation (no mechanism)
+   - NO → ralph-loop or Agent
+
+2. **Does the task have N parallel sub-questions?**
+   - YES → Agent (parallel)
+   - NO → continue to Q3
+
+3. **Does the task require state across iterations?**
+   - YES → ralph-loop
+   - NO → Skill tool
+
+4. **Should the sub-task have its own isolated context?**
+   - YES → Agent (one-shot)
+   - NO → Skill tool
+
+## Examples by ecosystem
+
+| Skill | Mechanism | Why |
+|---|---|---|
+| `/to-plan` | Skill tool (composes /edge-case-plan, /plan-confidence) | Sequential, shared context |
+| `/edge-case-plan` | Read + Grep + reasoning | Single context, no loop needed |
+| `/plan-confidence` | Bash (python script) | Deterministic; no LLM loop |
+| `/plan-improve` | ralph-loop | Multi-iteration refinement with state |
+| `/discover-plan` | Skill tool + Read/Grep | Sequential, shared context |
+| `/discover-execute` | ralph-loop | Long iteration over `referencia/` |
+| `/discover-confidence` | Bash (python script) | Deterministic; no LLM loop |
+| `/implement` | ralph-loop | 50 iterations × 5 phases per task |
+| `/review` | Agent (parallel) | 5-7 specialized agents in parallel |
+| `/skill-writer` | Single Claude turn | Reads blueprint + writes candidate skill in one go |
+| `/skill-validator` | Bash (python script) | Deterministic |
+| `/skill-register` | Bash (python script) | Just moves files + writes audit |
+| `/ast-grep` | Bash | External tool; no LLM |
+
+## Cost implications
+
+Choosing the wrong mechanism is expensive:
+
+- ralph-loop overhead: ~20% extra tokens per iteration (Stop hook + restart)
+- Agent overhead: full context window per agent (5 agents = 5× context cost)
+- Skill tool overhead: low — composes within the same context
+
+Rule of thumb: use the MOST CONSTRAINED mechanism that solves the problem. Skill tool < Agent < ralph-loop in terms of overhead.
+
+## Anti-patterns
+
+1. **Using ralph-loop for everything because "halt-loop sounds robust"** — pay the overhead only when iteration is genuinely needed.
+2. **Spawning 10 Agents in parallel for "thoroughness"** — each one is a full context window. 10 agents in parallel = 10× cost. Match the count to the actual sub-problems.
+3. **Using Skill tool to invoke a skill that shouldn't see the caller's context** — risk of context pollution. Use Agent for isolated work.
+4. **Running ralph-loop with no halt condition** — recipe for runaway loops. Every ralph-loop must define a clear promise marker.
+5. **Conflating "halt-loop" (a concept) with "ralph-loop" (a tool)** — many tasks need iteration without needing ralph-loop. A while loop in Python is also a "halt-loop".
+
+## Cross-references
+
+- ralph-loop plugin: `ralph-loop:ralph-loop` skill (must be enabled in `~/.claude/settings.json.enabledPlugins`)
+- Skills using ralph-loop: `/discover-execute`, `/discover-improve`, `/plan-improve`, `/implement`
+- Skills using Agent (parallel): `/review`
+- Skills using Skill tool composition: `/to-plan` (chain), `/discover-plan` (chain)
+- Cycle rules referencing this convention: `cycle-discover.md`, `cycle-plan.md`, `cycle-implement.md`, `cycle-review.md`
+- Audit-trail rotation: `audit-trail-rotation.md`
+- Token budget: `token-budget.md`
