@@ -49,14 +49,20 @@ Read `.claude/skills/plan-improve/prompts/improvement-prompt.md` and substitute:
 - `{TARGET_VERDICT}` — target band
 - `{MAX_ITERATIONS}` — iteration limit
 
-### Step 4 — Invoke ralph-loop
+### Step 4 — Invoke ralph-loop (shell-safe positional + flags)
 
-Use the Skill tool to invoke `ralph-loop:ralph-loop` with the assembled prompt + `--completion-promise PLAN_IMPROVED` + `--max-iterations N`.
+**Read `.claude/rules/loop-engine-convention.md § How to invoke ralph-loop:ralph-loop safely` BEFORE this step.** The ralph-loop positional argument is shell-evaluated; inlining a multi-section driver prompt (backticks / fenced code blocks / `$(...)`) breaks loop startup with a bash parse error. Use the file-referenced pattern.
+
+1. Write the substituted prompt from Step 3 to `.claude/halt-loop-prompts/plan-improve-{plan-slug}.md` (gitignored).
+2. Invoke `ralph-loop:ralph-loop` with:
+   - Positional prompt (no shell metachars): `Read .claude/halt-loop-prompts/plan-improve-{plan-slug}.md and follow its instructions for this halt-loop iteration.`
+   - `--completion-promise 'PLAN_IMPROVED'`
+   - `--max-iterations N`
 
 The ralph-loop plugin:
 - Writes `.claude/ralph-loop.local.md` (state file)
 - Activates the Stop hook
-- Feeds the prompt back to Claude on each session-exit attempt
+- Feeds the positional prompt back to Claude on each session-exit attempt (Claude re-reads the driver file each iteration)
 - Detects `<promise>PLAN_IMPROVED</promise>` to terminate
 
 ### Step 5 — Report
