@@ -21,7 +21,14 @@
 This plan ships **Python tooling under `.claude/skills/discover-plan-confidence/`**, NOT TypeScript application code under `src/`. The wiring triad enforcement is adapted:
 
 - **Pillar (a) Static caller** — applies normally. `check_wiring.py` finds Python callers across the project. Orchestrator (`run_discover_plan_score.py`) is the caller for every checker; sibling skills' identically-named symbols (e.g., `check_research_coverage` in `discover-confidence/scripts/`) MAY appear as false-positive callers — verdict still PASS, acceptable per spec.
-- **Pillar (b) Integration test** — DEFERRED on every task via `<!-- ADR-DEFER-WIRING-B: Python tooling skill; tests live at .claude/skills/discover-plan-confidence/tests/ which IS the integration boundary for this skill — pytest exercises checkers + orchestrator end-to-end against real fixtures. No application src/ exists per CLAUDE.md pre-code phase. Plan acknowledged in Global DoD (`runtime-metric proof N/A; pre-code phase`). -->`. The `--deferral-path` flag points to THIS contract.
+- **Pillar (b) Integration test** — DEFERRED uniformly. `check_wiring.py` requires SYMBOL-SPECIFIC markers (format: `<!-- ADR-DEFER-WIRING-B: SYMBOL: reason -->`); the public symbols expected from this plan are pre-declared below so each task's wiring check resolves the deferral. Shared reason: Python tooling skill under `.claude/skills/`; tests at `.claude/skills/discover-plan-confidence/tests/` ARE the integration boundary (pytest exercises checkers + orchestrator end-to-end against real fixtures). No `tests/integration/` exists per CLAUDE.md pre-code phase; plan Global DoD acknowledged.
+
+<!-- ADR-DEFER-WIRING-B: check_research_coverage: Python tooling skill; integration boundary is pytest at tests/test_check_research_coverage.py. -->
+<!-- ADR-DEFER-WIRING-B: check_reference_citations: Python tooling skill; integration boundary is pytest at tests/test_check_reference_citations.py. -->
+<!-- ADR-DEFER-WIRING-B: check_plan_completeness: Python tooling skill; integration boundary is pytest at tests/test_check_plan_completeness.py. -->
+<!-- ADR-DEFER-WIRING-B: check_spec_smells: Python tooling skill; integration boundary is pytest at tests/test_check_spec_smells.py. -->
+<!-- ADR-DEFER-WIRING-B: load_rubric: Python tooling helper (copy-with-attribution from discover-confidence sibling); exercised via check_spec_smells tests. -->
+<!-- ADR-DEFER-WIRING-B: main: Python orchestrator (run_discover_plan_score.py CLI entry); exercised via pytest at tests/test_run_discover_plan_score.py + manual invocation against fixtures. -->
 - **Pillar (c) Runtime metric** — N/A across the board. Plan's Global DoD declared no metrics introduced.
 
 This policy is applied uniformly to all 21 tasks below; per-task entries omit the marker for brevity but inherit it from this header.
@@ -36,8 +43,8 @@ Each task MUST complete its TDD cycle (RED → GREEN → REFACTOR → WIRING →
 | T0.2 | Phase 0 / T0.2 | committed | n/a | n/a | n/a | 209a1be |
 | T0.3 | Phase 0 / T0.3 | committed | n/a | n/a | n/a | 1408f04 |
 | T0.4 | Phase 0 / T0.4 | committed | n/a | n/a | n/a | fba68fc |
-| T0.5 | Phase 0 / T0.5 | committed | n/a | n/a | n/a | (pending) |
-| T1.1 | Phase 1 / T1.1 | pending | — | — | — | — |
+| T0.5 | Phase 0 / T0.5 | committed | n/a | n/a | n/a | 9b95c00 |
+| T1.1 | Phase 1 / T1.1 | committed | pass | defer | n/a | (pending) |
 | T1.2 | Phase 1 / T1.2 | pending | — | — | — | — |
 | T1.3 | Phase 1 / T1.3 | pending | — | — | — | — |
 | T1.4 | Phase 1 / T1.4 | pending | — | — | — | — |

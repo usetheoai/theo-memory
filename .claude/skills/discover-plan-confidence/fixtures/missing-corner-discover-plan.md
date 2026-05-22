@@ -1,6 +1,6 @@
 # Discovery Plan: Missing-Corner Negative Fixture
 
-> **Version 1.0** — Negative fixture for `/discover-plan-confidence` tests. Identical shape to `good-discover-plan.md` EXCEPT the `tests` coverage corner has zero questions mapped AND no `<!-- DEFER-CORNER: tests | ... -->` marker. This MUST trigger the `empty_corner_tests` hard cap.
+> **Version 1.0** — Negative fixture for `/discover-plan-confidence` tests. Identical shape to `good-discover-plan.md` EXCEPT the `tests` coverage corner has zero questions mapped AND no deferral marker. This MUST trigger the `empty_corner_tests` hard cap.
 
 **Slug:** `missing-corner-fixture`
 **Owner:** test-author
@@ -67,7 +67,7 @@ Cause `check_research_coverage` to report `corners_populated = 3` and `empty_cor
 
 | Corner | Questions mapped | Status |
 |---|---|---|
-| Integration tests | (none) | NOT covered — no questions OR DEFER-CORNER marker |
+| Integration tests | (none) | NOT covered — no questions, no deferral marker |
 | Dependencies | Q1 | Covered |
 | Tools | Q2 | Covered |
 | Techniques | Q3, Q4, Q5 | Covered |
