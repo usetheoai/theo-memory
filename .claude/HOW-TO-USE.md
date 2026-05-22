@@ -21,6 +21,7 @@ Each arrow above is an **inquebrável chain** — you do not skip cycles, you do
 | "How does Letta / Mem0 / LangMem do X?" | `cycle-discover` | `/discover-plan {topic-slug}` |
 | "Let's design feature Y" | `cycle-plan` | `/to-plan` (consumes context + patterns skills) |
 | "Build the feature per the plan" | `cycle-implement` | `/implement {plan-slug}` |
+| "Audit dead code + fabricated APIs post-implement" | `/code-quality` | `python3 .claude/skills/code-quality/scripts/run_code_quality.py {slug}` |
 | "Review before merge" | `cycle-review` | `/review {plan-slug}` |
 | "Just find something in code" | (no cycle) | use Glob/Grep directly OR `/ast-grep` for structural queries |
 

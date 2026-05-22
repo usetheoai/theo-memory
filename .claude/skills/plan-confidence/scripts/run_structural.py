@@ -424,12 +424,69 @@ def _emit_calibration_warning() -> None:
         )
 
 
+def _find_repo_root_from_plan(plan_path: Path) -> Path:
+    """Walk up from the plan path looking for `.git` or `.claude` marker."""
+    cur = plan_path.resolve().parent
+    for _ in range(20):
+        if (cur / ".git").exists() or (cur / ".claude").exists():
+            # Only accept if .claude is at this level AND we're not already inside it
+            if (cur / ".claude").exists() and ".claude" not in cur.parts:
+                return cur
+            if (cur / ".git").exists() and ".claude" not in cur.parts:
+                return cur
+        if cur == cur.parent:
+            break
+        cur = cur.parent
+    return plan_path.resolve().parent
+
+
+def _invoke_code_quality(plan_slug: str, repo_root: Path, timeout_s: int = 600) -> dict | None:
+    """T6.5 / EC-29 Opção A — invoke /code-quality as subprocess and parse JSON verdict.
+
+    Returns the parsed JSON dict on success, or None on failure (gracefully
+    degraded). When integration fails, plan-confidence does NOT crash; it
+    just doesn't merge code-quality caps. The orchestrator's own --no-network
+    flag is forwarded when this skill's env has CODE_QUALITY_NO_NETWORK set.
+    """
+    import os
+    import subprocess
+
+    script = repo_root / ".claude" / "skills" / "code-quality" / "scripts" / "run_code_quality.py"
+    if not script.exists():
+        return None
+    cmd = ["python3", str(script), plan_slug, "--no-audit-write", "--json-out", "-"]
+    if os.environ.get("CODE_QUALITY_NO_NETWORK"):
+        cmd.append("--no-network")
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            cwd=str(repo_root),
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return None
+    if result.returncode not in (0, 1):
+        return None
+    try:
+        return json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run M2 structural plan-confidence scoring.")
     parser.add_argument("plan", help="plan slug (e.g., 'plan-confidence-setup') or .md path")
     parser.add_argument("--rubric", default=str(DEFAULT_RUBRIC))
     parser.add_argument("--thresholds", default=str(DEFAULT_THRESHOLDS))
     parser.add_argument("--no-warn", action="store_true", help="suppress calibration warning")
+    parser.add_argument(
+        "--no-code-quality",
+        action="store_true",
+        help="skip /code-quality runtime integration (T6.5)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -459,8 +516,37 @@ def main(argv: list[str] | None = None) -> int:
         "holdout_target": cal_target,
         "kappa_measured": False,
     }
+
+    # T6.5 / EC-29 — runtime integration with /code-quality skill.
+    if not args.no_code_quality:
+        repo_root = _find_repo_root_from_plan(plan_path)
+        cq_summary = _invoke_code_quality(report.plan_slug, repo_root)
+        if cq_summary:
+            cq_caps = list(cq_summary.get("hard_caps_triggered", []))
+            cq_soft = list(cq_summary.get("soft_caps_triggered", []))
+            out["code_quality"] = {
+                "verdict": cq_summary.get("verdict"),
+                "score_cap": cq_summary.get("score_cap"),
+                "hard_caps_triggered": cq_caps,
+                "soft_caps_triggered": cq_soft,
+                "languages_audited": cq_summary.get("languages_audited", []),
+            }
+            # Merge code-quality caps into plan-confidence verdict (smallest cap wins).
+            if cq_caps:
+                out["hard_caps_triggered"] = list(out.get("hard_caps_triggered", [])) + cq_caps
+                if report.verdict not in ("INVALID",):
+                    out["verdict"] = "INVALID"
+                    out["final_score_after_caps"] = min(out.get("final_score_after_caps", 100), 49)
+            elif cq_soft:
+                # Soft caps don't force INVALID but pull verdict down to SHIPPABLE_WITH_CAVEATS at most.
+                if out.get("verdict") == "SHIPPABLE":
+                    out["verdict"] = "SHIPPABLE_WITH_CAVEATS"
+                    out["final_score_after_caps"] = min(out.get("final_score_after_caps", 100), 89)
+        else:
+            out["code_quality"] = {"verdict": "UNAVAILABLE", "reason": "invocation failed or skipped"}
+
     print(json.dumps(out, indent=2, ensure_ascii=False))
-    return _exit_code(report.verdict)
+    return _exit_code(out.get("verdict", report.verdict))
 
 
 if __name__ == "__main__":

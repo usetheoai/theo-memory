@@ -73,6 +73,13 @@ Do NOT invoke when:
   ↓   .claude/knowledge-base/reviews/{slug}-implement-validate-{date}.md
   ↓
   ↓ if validation PASS:
+  ↓
+  ↓ /code-quality {plan-slug} (v1.1 — added 2026-05-22 via code-quality-skill plan)
+  ↓   - Detects dead code (D1 — vulture/knip/cargo-udeps/deadcode)
+  ↓   - Detects fabricated symbols (D2 — tree-sitter + registry lookup)
+  ↓   - Writes audit to .claude/knowledge-base/audits/{slug}-code-quality-{date}.md
+  ↓   - If verdict is FAIL_HARD or INVALID: HALT before review handoff
+  ↓
 HANDOFF — cycle-review can begin
 ```
 

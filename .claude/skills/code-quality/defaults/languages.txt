@@ -1,0 +1,32 @@
+# Code-quality languages enablement — commit-tracked declarative config
+#
+# Authoritative source: .claude/rules/code-quality-golden-rule.md § Allowlist mechanism
+#                       .claude/skills/code-quality/SKILL.md § Workflow Step 1
+#
+# Format (one entry per line):
+#   LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
+#
+# Where:
+#   LANGUAGE        ∈ { python, typescript, rust, go }
+#   MANIFEST-MARKER — filename used by auto-detection (auto-detect runs only if marker present)
+#   STATUS          ∈ { ENABLED, DISABLED, DEFER }
+#                     - ENABLED:  detector runs when manifest present
+#                     - DISABLED: detector SKIPPED with INFO Finding
+#                     - DEFER:    detector emits INFO "scheduled for vN" (e.g., Skylos defer to v0.2)
+#   NOTES           — free-form rationale (recommended; not enforced by parser)
+#
+# Behavior:
+#   - Lines starting with `#` and blank lines are skipped.
+#   - Skill auto-detects manifest presence at repo root (no recursion).
+#   - For each ENABLED language: if manifest present, run detectors; if absent, emit INFO + skip.
+#   - For each DISABLED language: emit single INFO Finding regardless of manifest presence.
+#   - For each DEFER language: emit INFO with NOTES echoed.
+#
+# Adding/modifying entries:
+#   - Adding requires PR + rationale in commit message.
+#   - Changing STATUS (e.g., DISABLED -> ENABLED) requires test coverage of the new path.
+
+python     | pyproject.toml   | ENABLED  | In use heavily across .claude/skills/scripts/; first-class detector.
+typescript | package.json     | ENABLED  | @usetheo/memory primary package; src/ pending; detector works against fixtures pre-code.
+rust       | Cargo.toml       | ENABLED  | Future core / performance-critical modules; pre-code today.
+go         | go.mod           | ENABLED  | Future server / runtime modules; pre-code today.

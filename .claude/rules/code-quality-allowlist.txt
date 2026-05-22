@@ -1,0 +1,33 @@
+# Code-quality allowlist — findings exemptions with mandatory sunset
+#
+# Authoritative source: .claude/rules/code-quality-golden-rule.md § Allowlist mechanism
+#
+# Format (one entry per line):
+#   ECOSYSTEM|FILE-PATH|FINDING-TYPE|SYMBOL-OR-LINE|REASON|SUNSET-DATE
+#
+# Where:
+#   ECOSYSTEM     ∈ { python, typescript, rust, go }
+#   FILE-PATH     — repo-relative (NOT absolute) — e.g., src/foo/bar.py
+#   FINDING-TYPE  ∈ { dead_code, symbol_fab, orphan_export, mutation_low }
+#   SYMBOL-OR-LINE — symbol name (pipe characters escaped as \|)
+#   REASON        — specific rationale; "WIP" / "TODO" / "later" / "investigating" are NOT accepted
+#   SUNSET-DATE   — YYYY-MM-DD; MUST be:
+#                     ≤ 30 days from entry creation for HARD CAP findings (dead_code, symbol_fab)
+#                     ≤ 90 days for SOFT findings (orphan_export, mutation_low)
+#
+# Behavior:
+#   - Lines starting with `#` and blank lines are skipped.
+#   - Active entry (today ≤ SUNSET-DATE): /code-quality downgrades the finding by one severity level
+#       (HARD -> SOFT_CAP, SOFT_CAP -> SOFT_FLOOR).
+#   - Expired entry (today > SUNSET-DATE): IGNORED; finding re-fires at full severity.
+#   - Malformed entry: emits `allowlist_malformed_entry` HARD Finding — silent acceptance forbidden.
+#   - /code-quality MUST list expired entries in the report's "Allowlist hits — expired" subsection.
+#
+# Adding/modifying entries:
+#   - Adding requires inline rationale in the PR that introduced the finding source.
+#   - Modifying SUNSET-DATE extends the grace period — commit message MUST explain why.
+#   - Removing an entry is the normal lifecycle (finding was fixed OR sunset reached).
+#
+# Examples (commented — uncomment + adapt when needed):
+# python|.claude/skills/foo/scripts/legacy.py|dead_code|unused_helper|Pending refactor in Q3 sprint planning|2026-08-22
+# typescript|src/local/postgres-adapter.ts|orphan_export|legacyPersistFn|Public API placeholder for v0.2 cloud runtime; will be wired then|2026-08-22
