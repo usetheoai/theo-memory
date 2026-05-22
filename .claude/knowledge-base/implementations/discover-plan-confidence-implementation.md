@@ -32,7 +32,7 @@ Each task MUST complete its TDD cycle (RED → GREEN → REFACTOR → WIRING →
 
 | # | Plan ref | Status | Wiring (a) | Wiring (b) | Wiring (c) | Commit SHA |
 |---|---|---|---|---|---|---|
-| T0.1 | Phase 0 / T0.1 | pending | — | — | — | — |
+| T0.1 | Phase 0 / T0.1 | committed | n/a | n/a | n/a | (filled by commit) |
 | T0.2 | Phase 0 / T0.2 | pending | — | — | — | — |
 | T0.3 | Phase 0 / T0.3 | pending | — | — | — | — |
 | T0.4 | Phase 0 / T0.4 | pending | — | — | — | — |
