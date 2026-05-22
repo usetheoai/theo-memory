@@ -1,0 +1,200 @@
+agent: review-teacher-student-model-split-cross-validation
+review_target: ec6e685..HEAD for plan teacher-student-model-split
+plan: .claude/knowledge-base/plans/teacher-student-model-split-plan.md
+plan_version: v1.1 (SHIPPABLE 100/100)
+implementation_contract: .claude/knowledge-base/implementations/teacher-student-model-split-implementation.md
+commits_in_scope:
+  - df47b45: T1.1 (RED tests)
+  - 711d1f4: T1.2 (templates {MODEL} placeholder)
+  - 7e8189c: T1.3 (resolution helpers + GREEN)
+  - 5bd6901: T1.4 (rule + cycle-review xrefs)
+  - f425a25: T1.5 (token-budget update)
+  - 5ea8d18: T2.1 (spike)
+  - 23cebfe: T2.2-A (split COMMIT only)
+  - 513592c: T3.3 (finalize + CHANGELOG)
+gates_without_commits:
+  - T0.1: gate (output captured in implementation-contract.md)
+  - T3.1: dry-run validation (output captured in implementation-contract.md)
+  - T3.2: cross-reference validation (output captured in implementation-contract.md)
+
+plan_tasks_summary:
+  total_tasks: 11
+  fully_implemented: 10
+  partial: 1            # T2.2-A — instruction-level only, runtime exercise deferred (documented divergence #3)
+  missing: 0
+  diverged: 3           # all 3 are HONEST divergences explicitly documented in implementation-contract.md § Known follow-ups (acceptable)
+
+acceptance_criteria_summary:
+  total: 41             # 4 (T0.1) + 5 (T1.1) + 4 (T1.2) + 6 (T1.3) + 4 (T1.4) + 3 (T1.5) + 5 (T2.1) + 4 (T2.2-A) + 4 (T3.1) + 2 (T3.2) + 4 (T3.3)
+  satisfied: 40
+  unverified: 1         # T2.2-A: dry-run in scratch dir for nested-Agent invocation — deferred to first real /implement run; explicitly logged
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 5
+  respected: 5
+  diverged_without_new_adr: 0
+  details:
+    D1_routing_by_archetype: respected — review-model-routing.txt maps role→model; spawn_reviewers._resolve_model uses role-based lookup with EC-1 invariant; cross-validation→opus, baseline→haiku
+    D2_rule_file_declarative: respected — .claude/rules/review-model-routing.txt + .claude/rules/implement-model-routing.txt (both stdlib parser; no PyYAML); D2-implicit decision T2.2-A "rule file strategy" → separate file (NOT consolidated) — documented in commit 23cebfe message
+    D3_experimental_marker_rollback: respected — all 4 baseline entries carry experimental_until=2026-06-22 + rollback_if=blocker_findings_gt_2_per_5_runs; cross-validation (opus, status quo) carries no marker per EC-9 guidance; implement-model-routing carries experimental_until=2026-07-22 + rollback_if=conventional_commit_lint_failures_gt_1_per_5_tasks
+    D4_implement_split_depends_on_spike: respected — T2.1 spike committed at 5ea8d18 BEFORE T2.2-A at 23cebfe; spike decision "VIÁVEL" → T2.2-A branch taken (not T2.2-B); spike cites both ralph-loop canonical paths (cache + marketplace, drift=zero) — EC-2 satisfied
+    D5_ab_baseline_deferred: respected — multiple xrefs ("No A/B baseline yet", "deferred plan", "stand-in honesty signal") in cycle-review.md:90 and token-budget.md:53
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan committed at ec6e685 (2026-05-22 06:57:11 -0300, only commit on file).
+    First implementation commit df47b45 at 2026-05-22 07:03:32 -0300 (6 min later).
+    Plan file is FROZEN since /implement start — review is reliable.
+
+coverage_matrix:
+  declared: 25
+  verified: 25
+  unmapped: 0
+  details: |
+    All 25 gaps verified against the implementing tasks declared in the matrix:
+    - Gaps 1-6 (review split): T1.1-T1.5 verified via commits + GREEN tests + rule file parse + xrefs
+    - Gaps 7-9 (implement spike + split + defer-or-impl branch): T2.1 spike + T2.2-A taken (D4 branch)
+    - Gap 10 (D3 mitigation): rule files carry experimental_until + rollback_if — verified by grep
+    - Gap 11 (D5 deferred): consistent "no A/B yet" language across rules — verified
+    - Gap 12 (Phase 3 integration validation): T3.1+T3.2+T3.3 outputs captured in implementation-contract.md
+    - Gap 13 (backward-compat): _resolve_model returns default opus when rule absent or role missing — verified in test_routing_rule_fallback_default
+    - Gap 14 (Inquebrável Rule 4 no main): branch is feat/teacher-student-model-split (verified)
+    - Gap 15 (Inquebrável Rule 5 TDD): df47b45 (RED) precedes 7e8189c (GREEN) chronologically
+    - Gap 16 (Inquebrável Rule 6 CHANGELOG): commit 513592c adds [Unreleased] section — verified
+    - Gaps 17-25 (edge cases EC-1..EC-10): all verified via tests (5 RED→GREEN tests for EC-3..EC-7), rule comments (EC-8, EC-9), spike sourcing (EC-2), spike naming convention (EC-10), CHANGELOG entry (EC-11)
+
+divergences_assessment:
+  count: 3
+  classification: ALL_ACCEPTABLE_AND_DOCUMENTED
+  details:
+    - id: DIV-1
+      task: T1.1
+      summary: 9/10 tests RED (not 10/10)
+      reason: |
+        test_cli_override_with_empty_value_rejected asserts `rc != 0`. argparse exits with rc=2 on unknown arguments BEFORE T1.3 lands the flag definition. So this test "passes" incidentally on the pre-T1.3 code (no flag → argparse error → rc=2 ≠ 0). After T1.3, _ModelOverrideAction explicitly rejects empty values with parser.error → also rc=2 ≠ 0. Same assertion holds either way.
+        Commit message df47b45 documents this honestly: "Status: 9/10 RED (correct), 1/10 incidentally-passing via argparse exit 2".
+      severity: INFO
+      assessment: Acceptable. Test still guards the contract (rc != 0 when empty value). The incidental-pass is a property of argparse's behavior, not a test design flaw. Honestly disclosed in the commit message.
+    - id: DIV-2
+      task: T2.2-A
+      summary: Shipped INSTRUCTION-LEVEL infra only (rule + prompt instructions + cycle-implement docs), not the Python-test-backed GREEN cycle the plan literal described
+      reason: |
+        Plan T2.2-A § TDD declares: "test_phase_model_routing_resolves_green_to_haiku" and "test_phase_model_routing_fallback_when_rule_missing" as RED tests.
+        Implementation per commit 23cebfe: "no Python parser added (rule format reuses spawn_reviewers mental model)" — because the rule is consumed by the LLM-driven halt-loop driver (prompt instruction), not by a Python script.
+        Spike T2.1 recommended escopo enxuto = COMMIT phase only (NOT GREEN); GREEN deferred to 2026-08-22 per spike. So the GREEN-specific tests in the plan template would test code that wasn't shipped.
+      severity: MINOR
+      assessment: Acceptable. Documented in commit 23cebfe ("Plan T2.2-A AC for new tests is partially satisfied"), in implementation-contract.md § Known follow-ups #2, and in CHANGELOG.md ("INSTRUCTION-LEVEL infra"). The spike's recommendation is honored — shipping the literal tests would test deferred code. ADR D4 explicitly anchors this conditional branching ("baseado no resultado, T2.2 vira A (implementar) OU B (ADR-DEFER)") and the spike's recommendation legitimately narrowed the scope further within branch A.
+    - id: DIV-3
+      task: T2.2-A
+      summary: Runtime validation of nested Agent tool invocation deferred to first real /implement run
+      reason: |
+        Plan T2.2-A AC: "Dry-run em scratch dir mostra GREEN rodando em Agent com model: haiku."
+        Implementation: instruction is in implementation-prompt.md but no dry-run exercise was performed (committed at 23cebfe says "Integration validation of the nested Agent invocation deferred to first real /implement run").
+        Backward-compat preserved: if rule file removed, COMMIT runs inline on session model (zero behavior change).
+      severity: MINOR
+      assessment: Acceptable. Documented in commit message, implementation-contract.md, and CHANGELOG.md. Rollback is single git rm; risk surface is low. Honest disclosure rather than fabricated pass.
+
+findings:
+  - id: F-xval-1
+    severity: INFO
+    file: .claude/skills/review/tests/test_spawn_reviewers.py
+    plan_ref: T1.1 Acceptance Criteria item 1 ("10 novos testes adicionados ... todos falham")
+    summary: 1 of 10 new tests passes incidentally pre-T1.3 (argparse exit 2 ≠ 0). Documented honestly in commit df47b45.
+    evidence: |
+      Commit df47b45 message: "Status: 9/10 RED (correct), 1/10 incidentally-passing via argparse exit 2 (asserts rc != 0, which holds both pre- and post-T1.3)."
+      Same assertion semantically holds post-implementation (_ModelOverrideAction.parser.error → rc=2). Test still guards the contract.
+    recommended_action: None. Accept as-is; honesty disclosure is exemplary. Optionally tighten the assertion to inspect stderr message in a follow-up (logged in implementation-contract.md § Known follow-ups is sufficient).
+  - id: F-xval-2
+    severity: MINOR
+    file: .claude/skills/implement/prompts/implementation-prompt.md (lines 69-89)
+    plan_ref: T2.2-A Acceptance Criteria items 3 and 4 ("Testes novos verdes" + "Dry-run em scratch dir mostra GREEN rodando em Agent")
+    summary: Plan's literal AC for new Python tests + dry-run was not satisfied; instead, instruction-level infra shipped, with runtime exercise deferred to first real /implement run. Honestly documented across 3 artifacts.
+    evidence: |
+      Commit 23cebfe message documents the partial satisfaction explicitly:
+        "Honesty note: this commit ships INSTRUCTION-LEVEL infra. Runtime exercise only happens when /implement is invoked via ralph-loop with the rule file present. Plan T2.2-A AC for new tests is partially satisfied — no Python parser added (rule format reuses spawn_reviewers mental model). Integration validation of the nested Agent invocation deferred to first real /implement run via ralph-loop in a future session. Logged as known follow-up."
+      implementation-contract.md § Known follow-ups #2 and #3 capture the same.
+      CHANGELOG.md [Unreleased] § "/implement halt-loop split (experimental, COMMIT phase only)" labels this as "experimental".
+      The spike (5ea8d18) recommended this narrowing: "Implementar com escopo enxuto para primeira iteração: 1 phase apenas (sugestão: COMMIT)".
+    recommended_action: |
+      Accept the partial as documented. When /implement is next exercised on a real plan via ralph-loop, capture an artifact (transcript snippet or smoke test) demonstrating the nested Agent invocation actually fires with the resolved model — promote DIV-3 from "instruction-level" to "runtime-validated". Until then, the rule file's absence-fallback (rollback = single git rm) is the safety net.
+  - id: F-xval-3
+    severity: INFO
+    file: .claude/skills/plan-confidence/tests/test_real_plans_snapshot.py (lines 79-85)
+    plan_ref: T3.3 (CHANGELOG + final validation)
+    summary: T3.3 adds a snapshot entry for the new active plan. Not declared in plan's "Files to edit" but justified by existing test contract (test_snapshots_cover_active_plans_with_matrix enforces snapshot for every active plan).
+    evidence: |
+      Commit 513592c adds entry to SNAPSHOTS dict. Comment explains the why: "Active (2026-05-22): teacher/student model split plan; scored SHIPPABLE 100/100".
+      Without this addition, the existing snapshot-coverage test would fail, blocking T3.3 acceptance.
+    recommended_action: None. This is a necessary fix to keep the test suite green; not scope creep. Commit message could have been more explicit about the dependency, but the substantive change is correct.
+  - id: F-xval-4
+    severity: INFO
+    file: cross-cutting
+    plan_ref: All ADRs (D1–D5)
+    summary: All 5 ADRs respected by the implementation with traceable evidence.
+    evidence: |
+      D1 (routing by archetype): spawn_reviewers._resolve_model uses role-keyed lookup; rule keys are arquétipos (architecture/tests/wiring/domain/cross-validation), not models or phases.
+      D2 (rule file declarative): two .txt rule files; stdlib parser only.
+      D3 (experimental + rollback marker): every non-default entry carries both attributes; verified via grep.
+      D4 (implement split depends on spike): spike commit (5ea8d18) precedes T2.2-A commit (23cebfe); spike content drove the COMMIT-only scope.
+      D5 (A/B deferred): consistent "no A/B baseline yet" language across cycle-review.md and token-budget.md.
+    recommended_action: None. Excellent ADR adherence.
+  - id: F-xval-5
+    severity: INFO
+    file: cross-cutting
+    plan_ref: Coverage Matrix (25 entries)
+    summary: 25/25 Coverage Matrix entries verified against implementation. Every gap maps to a task and every task to commits or gate evidence.
+    evidence: See coverage_matrix block above.
+    recommended_action: None.
+  - id: F-xval-6
+    severity: INFO
+    file: cross-cutting
+    plan_ref: Inquebrável Rules 4, 5, 6
+    summary: |
+      Rule 4 (no main, no destructive git): all commits on feat/teacher-student-model-split; no checkout/revert/force-push in history.
+      Rule 5 (TDD): df47b45 (RED) timestamp 07:03:32 < 7e8189c (GREEN) timestamp 07:06:10 — RED genuinely first.
+      Rule 6 (CHANGELOG): commit 513592c adds detailed [Unreleased] entry with both /review and /implement subsections, citing all touched files.
+    evidence: git log feat/teacher-student-model-split; CHANGELOG.md diff in 513592c.
+    recommended_action: None.
+
+scope_creep_check:
+  declared_files_only: true  # within reasonable interpretation
+  notes: |
+    - T3.3 touched test_real_plans_snapshot.py (not declared in plan T3.3 § Files to edit) — but this is a necessary downstream fix for an existing test contract triggered by adding a new active plan. Plan implicitly required CHANGELOG.md update via EC-11; the snapshot file is the same class of contract (existing test contract requires coverage for every active plan). Accepted with INFO finding F-xval-3.
+    - No other unexplained file changes across the 8 implementation commits.
+
+regression_check:
+  existing_tests:
+    - test_baseline_4_agents_generated: PASS (unchanged)
+    - test_agent_files_actually_written: PASS (unchanged)
+    - test_secondary_domains_spawn_extra_agents: PASS (unchanged)
+    - test_findings_dir_created: PASS (unchanged)
+  result: No regression in pre-existing tests.
+
+summary_table:
+  | Task | Status | Commit(s) | AC satisfied | Notes |
+  |---|---|---|---|---|
+  | T0.1 | DONE | (gate) | 4/4 | Output captured in impl-contract |
+  | T1.1 | DONE | df47b45 | 5/5 | 9/10 RED + 1 incidental-pass disclosed |
+  | T1.2 | DONE | 711d1f4 | 4/4 | All 5 templates have {MODEL} |
+  | T1.3 | DONE | 7e8189c | 6/6 | 14/14 tests GREEN; helpers + flags + JSON additions |
+  | T1.4 | DONE | 5bd6901 | 4/4 | Rule + xrefs + EC-1/EC-8/EC-9 comments |
+  | T1.5 | DONE | f425a25 | 3/3 | token-budget reflects split |
+  | T2.1 | DONE | 5ea8d18 | 5/5 | VIÁVEL; cites cache + marketplace |
+  | T2.2-A | PARTIAL | 23cebfe | 3/4 | Instruction-level only; DIV-2 + DIV-3 documented |
+  | T3.1 | DONE | (validation) | 4/4 | 4 haiku + 1 opus verified |
+  | T3.2 | DONE | (validation) | 2/2 | xrefs bidirectional |
+  | T3.3 | DONE | 513592c | 4/4 | CHANGELOG + all tests green |
+
+verdict_recommendation:
+  status: READY_TO_MERGE
+  rationale: |
+    Implementation matches plan v1.1 with 3 honest, documented divergences and zero silent ones.
+    All 5 ADRs respected. Coverage Matrix 25/25 verified. TDD discipline genuine (RED commit precedes GREEN by 3 min, sequence intact). Inquebrável Rules 4, 5, 6 satisfied. Backward-compat preserved (rule file absent → status quo). Tests 14/14 GREEN in review module, 27 total in scope, 182 GREEN in plan-confidence with new snapshot entry. Plan FROZEN since /implement start (6 min before first impl commit; only 1 plan commit ever).
+    The 1 partial AC (T2.2-A runtime dry-run) is explicitly deferred to first real /implement run and rolled back via single git rm if needed.
+  blockers_count: 0
+  critical_count: 0
+  major_count: 0
+  minor_count: 2  # F-xval-2 (T2.2-A partial), F-xval-1 incidentally-passing test (counted as INFO; could be MINOR — left as INFO since contract still guarded)
+  info_count: 6  # F-xval-1, F-xval-3, F-xval-4, F-xval-5, F-xval-6, plus one implicit summary

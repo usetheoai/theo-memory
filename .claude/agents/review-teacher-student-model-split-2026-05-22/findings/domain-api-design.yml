@@ -1,0 +1,179 @@
+agent: review-teacher-student-model-split-domain-api-design
+review_target: ec6e685..HEAD for plan teacher-student-model-split
+domain: api-design
+domain_specific_patterns_checked:
+  - CLI flag contract (--routing-rule, --model-override)
+  - Custom argparse Action robustness (_ModelOverrideAction)
+  - Routing rule file format (role: model [experimental_until=...] [rollback_if=...])
+  - JSON output schema evolvability
+  - Agent frontmatter {MODEL} placeholder substitution
+  - Backward compatibility (fallback chain: cli > rule > default opus)
+  - Edge case: domain-X collapse to base 'domain' key (EC-1)
+  - Error message clarity (empty value rejection per EC-5)
+
+findings:
+  - id: F-dom-1
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: "66-89 (_ModelOverrideAction.__call__)"
+    plan_ref: "T1.3 — Implementar resolução de modelo; EC-5 spec"
+    domain_anchor: "plan § 5 — 'Adicionar flag `--model-override role=model`... rejeita valores vazios'"
+    summary: "CLI error handling for empty model values is clear and specific. Rejects both empty role AND empty model value in one condition."
+    evidence: |
+      _ModelOverrideAction.__call__ line 79:
+      ```python
+      if not role or not model:
+          parser.error(
+              f"--model-override 'role=model' requires non-empty values; got role={role!r}, model={model!r}"
+          )
+      ```
+      Error message EC-5 validated: test_cli_override_with_empty_value_rejected() exits rc!=0.
+    recommended_action: "INFO — no action. Contract compliant."
+
+  - id: F-dom-2
+    severity: INFO
+    file: .claude/rules/review-model-routing.txt
+    line: "1-30 (entire file)"
+    plan_ref: "ADR D1 — Mapeamento role → model vive em `.claude/rules/review-model-routing.txt`"
+    domain_anchor: "plan § 4 — 'Decisão: Mapeamento role → model vive em `.claude/rules/review-model-routing.txt`'"
+    summary: "Routing rule file format matches spec: role: model [experimental_until=...] [rollback_if=...]. All four baseline roles assigned student model (haiku) with experimental_until marker and rollback criteria."
+    evidence: |
+      review-model-routing.txt lines 15-18:
+      ```
+      architecture: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+      tests: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+      wiring: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+      domain: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+      ```
+      - cross-validation correctly assigned opus (teacher model)
+      - Marker EC-9 observed: experimental_until paired with non-default model (haiku != opus fallback)
+    recommended_action: "INFO — no action. Rule file is canonical + gitable per plan intent (DIP, KISS, changelog discipline)."
+
+  - id: F-dom-3
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: "227-232 (JSON output dict)"
+    plan_ref: "T1.3 — 'emitir `experimental_routings` no JSON de saída'"
+    domain_anchor: "plan § 3 — JSON schema additions (routing_rule_path, routing_rule_loaded, experimental_routings)"
+    summary: "JSON schema additions are correct: routing_rule_path (Path), routing_rule_loaded (bool), experimental_routings (list[str]). Agent objects include 'model' field. Schema is backward-compatible (new fields added, old fields preserved)."
+    evidence: |
+      Output JSON structure:
+      ```json
+      {
+        "routing_rule_path": "...",
+        "routing_rule_loaded": true,
+        "experimental_routings": ["architecture"],
+        "agents_generated": [
+          {"role": "architecture", "model": "haiku", "path": "..."}
+        ]
+      }
+      ```
+      - Agents in agents_generated list now carry 'model' field (was absent before)
+      - experimental_routings array correctly populated from rule entries with experimental_until marker
+    recommended_action: "INFO — no action. Schema matches contract exactly."
+
+  - id: F-dom-4
+    severity: INFO
+    file: .claude/skills/review/templates/agent-*.md
+    line: "5 (frontmatter model field)"
+    plan_ref: "T1.3 — 'substituir `{MODEL}` no mapping antes de chamar `substitute()`'"
+    domain_anchor: "All 5 agent templates (architecture, tests, wiring, cross-validation, domain)"
+    summary: "Agent templates correctly declare `model: {MODEL}` in frontmatter. Substitution works: {MODEL} placeholder is replaced with resolved model value (opus/haiku/sonnet) before file write."
+    evidence: |
+      All 5 templates verified:
+      - agent-architecture-reviewer.md: line 5 → model: {MODEL}
+      - agent-tests-reviewer.md: line 5 → model: {MODEL}
+      - agent-wiring-reviewer.md: line 5 → model: {MODEL}
+      - agent-cross-validation-reviewer.md: line 5 → model: {MODEL}
+      - agent-domain-reviewer.md: line 5 → model: {MODEL}
+
+      Substitution test: routing rule assigns architecture=sonnet → generated agent has model: sonnet ✓
+    recommended_action: "INFO — no action. Template contract complete."
+
+  - id: F-dom-5
+    severity: INFO
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: "47-95 (fallback chain: _resolve_model)"
+    plan_ref: "T1.3 — 'fallback chain `cli > rule > default opus`'"
+    domain_anchor: "plan § 2 — Fallback chain, backward compatibility guarantee"
+    summary: "Fallback chain correctly implements (1) CLI override, (2) rule entry, (3) default opus. Missing routing rule → all agents default to opus (backward-compat, pre-split behavior preserved)."
+    evidence: |
+      _resolve_model function (line 50-62):
+      1. Check cli override (model_overrides dict): return if found
+      2. Check rule entry (routing_rule dict): return if found
+      3. Return default ("opus")
+
+      Test: missing routing rule, no overrides → all agents get opus ✓
+      Test: rule has entry → overrides default ✓
+      Test: CLI override --model-override X=Y → overrides rule ✓
+    recommended_action: "INFO — no action. Fallback contract honored."
+
+  - id: F-dom-6
+    severity: MAJOR
+    file: .claude/skills/review/scripts/spawn_reviewers.py
+    line: "51-62 (_resolve_model function)"
+    plan_ref: "EC-1 — 'Lookup invariant: domain-X collapse when no exact entry'"
+    domain_anchor: "plan § 5 — 'role matching pattern `^domain-.+$` collapse to base `domain`'"
+    summary: "The domain-X lookup invariant (EC-1) is implemented but silently collapses secondary domain agents (domain-pgvector-schema, domain-llm-extraction, etc.) to base 'domain' key when no exact entry exists. This is correct AND necessary (without it, ~40% token savings would be lost), but the behavior should be documented more explicitly in code comments or output."
+    evidence: |
+      _resolve_model function, lines 57-59:
+      ```python
+      if role.startswith("domain-") and role not in overrides and role not in rule:
+          lookup_key = "domain"
+      ```
+
+      Test: routing rule has only base 'domain: haiku' entry
+      Secondary domain agent (domain-pgvector-schema) resolves to haiku ✓
+
+      However: the collapse is implicit and not logged/visible in JSON output.
+      Future audit trail would benefit from explicit mention of which domain-X roles
+      collapsed to base 'domain' key (for debugging, understanding token savings).
+    recommended_action: "Consider adding a 'domain_lookups_collapsed' field to JSON output for auditability. Low priority; the behavior is correct."
+
+  - id: F-dom-7
+    severity: INFO
+    file: .claude/skills/review/tests/test_spawn_reviewers.py
+    line: "124-350 (10 RED tests)"
+    plan_ref: "T1.1 — 'Escrever testes que falhem **antes** de qualquer mudança'"
+    domain_anchor: "plan § 3 (TDD section) — test_spawn_reviewers.py v1.1 additions"
+    summary: "Test suite comprehensively covers the API-design surface: routing rule loading (default, fallback, missing file), CLI override (empty rejection EC-5, precedence, repeatable flags), agent model resolution, experimental marker preservation, domain-X collapse. Tests are deterministic and cover happy path + edge cases."
+    evidence: |
+      10 RED tests added (v1.1):
+      1. test_baseline_agents_get_student_model — 4 baseline arquétipos resolve to routing rule
+      2. test_cross_validation_gets_teacher_model — cross-validation stays on opus (teacher)
+      3. test_routing_rule_fallback_default — missing rule → all opus (backward-compat)
+      4. test_cli_model_override — --model-override takes precedence over rule
+      5. test_experimental_marker_preserved — experimental_until appears in JSON
+      6. test_cli_override_with_empty_value_rejected — EC-5: empty model rejects
+      7. test_routing_rule_malformed_line_silently_skipped — robustness (EC-6)
+      8. test_cli_multiple_overrides — repeatable --model-override flag
+      9. test_domain_agent_resolves_base_domain_key — EC-1: domain-X → domain collapse
+      10. test_experimental_marker_aggregation — multiple experimental roles collected
+
+      All tests use subprocess invocation (realistic) and parse JSON output (contract verification).
+    recommended_action: "INFO — no action. Test coverage is thorough."
+
+findings_summary:
+  total_findings: 7
+  critical: 0
+  major: 1
+  minor: 0
+  info: 6
+  contract_compliance: SHIPPABLE
+  public_api_design_quality: CLEAN
+  backward_compatibility: MAINTAINED
+  error_handling_clarity: STRONG
+
+note_for_review_orchestrator: |
+  The api-design domain surface in teacher-student-model-split is **contract-compliant**.
+
+  Public API contracts (CLI, JSON schema, routing rule format) all match plan specifications exactly.
+
+  One MAJOR finding (F-dom-6) is semantic improvement, not a defect:
+  the domain-X collapse behavior is correct and necessary for the token-savings target,
+  but auditability could improve with explicit logging of collapsed lookups in JSON output.
+  Low priority for v0.1 (shipped working); consider for v0.2 if audit trail becomes important.
+
+  No CRITICAL or BLOCKER findings. No backward-compat breaks. Error messages are clear (EC-5 verified).
+
+  Ready for handoff to cross-validation reviewer for plan-vs-code line-by-line audit.
