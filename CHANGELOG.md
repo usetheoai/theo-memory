@@ -4,6 +4,20 @@ Todos os mudanças relevantes em `@usetheo/memory` (TheMemory) e na infraestrutu
 
 ## [Unreleased]
 
+### Added — /code-quality skill scaffolding (2026-05-22, in progress)
+
+Cycle-plan chain artifacts for multi-language wiring + dead-code + symbol-fabrication gate.
+
+#### Blueprint + plan + edge-case + deps-audit
+- `.claude/knowledge-base/discoveries/blueprints/wiring-deadcode-gates-blueprint.md` — deep-research synthesis (WebSearch + WebFetch over SOTA papers, vendor docs, OSS monorepo CI patterns). Honest about being produced outside `/discover-execute` formal pipeline.
+- `.claude/knowledge-base/plans/code-quality-skill-plan.md` — v1.3 SHIPPABLE_WITH_CAVEATS (85.2/100). 25 tasks across 7 phases + Final validation. Coverage Matrix 36/36 (100%). All 8 ADRs with rejected alternatives. Multi-language scope: TypeScript + Python + Rust + Go.
+- `.claude/knowledge-base/reviews/code-quality-skill-edge-cases-2026-05-22.md` — 23 EC identified, 11 MUST FIX absorbed into plan v1.1.
+- `.claude/knowledge-base/audits/code-quality-skill-deps-audit-2026-05-22.md` — INVALID_PLAN_DEPS initial findings (F1 stryker wrong package name, F2 deadcode @latest version unspecified, F3-F5 outdated MAJORs, F6 osv-scanner missing). All 6 absorbed into plan v1.2.
+- `.claude/knowledge-base/implementations/code-quality-skill-implementation.md` — implementation working contract; 25 tasks with dependency graph.
+
+#### Rules infrastructure
+- `.claude/rules/code-quality-golden-rule.md` (T0.1, NEW) — locked contract with 4 HARD CAPs (dead_code_unallowlisted_{language}, symbol_fabrication_{language}, plan_missing_critical_paths_section, allowlist_malformed_entry) + 5 SOFT CAPs (orphan_export, mutation_score_low/medium, auditor_unavailable, d2_disabled_no_network). Sibling of deps-audit-golden-rule.
+
 ### Added — Teacher/Student model split (2026-05-22)
 
 Inspirado por `huggingface/upskill` v2 (`src/upskill/model_resolution.py`), trazendo roteamento de modelo por **papel** para os dois cycles mais caros — `/review` (MVP) e `/implement` (escopo enxuto).
