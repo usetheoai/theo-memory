@@ -1,0 +1,89 @@
+# Discovery Plan: Fabricated-Citation Negative Fixture
+
+> **Version 1.0** — Negative fixture for `/discover-plan-confidence`. Contains exactly 2 citations: one verified (`referencia/mem0/README.md` exists) and one fabricated (`referencia/mem0/this-path-does-not-exist-2026.md` does NOT exist). MUST trigger `fabricated_citation` hard cap.
+
+**Slug:** `fabricated-citation-fixture`
+**Owner:** test-author
+**Created:** 2026-05-22
+**Time budget:** 2h
+
+## Context
+
+Negative path: structurally valid except for ONE fabricated `referencia/` path in the Research Questions table. Used by `test_fabricated_citation_detected` to verify the checker fires `fabricated_citation` and reports the offending path.
+
+The fixture also contains a SECOND citation (`referencia/letta/README.md` followed by a `<!-- BLOCKED: ... -->` marker) to exercise the blocked-marker exclusion logic in `test_blocked_marker_excludes_from_fabricated`. The BLOCKED-marked path may be fake, but the BLOCKED marker tells the checker the gap is intentional documented — NOT a fabrication.
+
+## Objective
+
+Cause `check_reference_citations` to report `fabricated >= 1` and include the fake path in `fabricated_paths`.
+
+## In-Scope / Out-of-Scope
+
+### In-Scope
+
+| Project | In-scope subdirectories | Reason |
+|---|---|---|
+| `referencia/mem0/README.md` | top-level README (real, verified) | Reference for fabrication test |
+
+### Out-of-Scope
+
+| Project / Subdir | Why excluded |
+|---|---|
+| Anything not in `referencia/` | Cross-Project Rule |
+
+## ADRs
+
+### D1 — Time budget
+
+**Decision:** 2h total.
+
+**Rationale:** Minimal negative-path fixture; depth not needed.
+
+**Alternatives considered:** larger budget.
+
+**Consequences:** halt sooner on Fase A exhaustion.
+
+### D2 — Investigation depth
+
+**Decision:** Glob + Read only.
+
+**Rationale:** Sufficient for the fabrication test.
+
+**Alternatives considered:** ast-grep first.
+
+**Consequences:** Read-heavy.
+
+## Research Questions
+
+| # | Question | Corner | Reference project(s) | Fase A | Fase B | Expected answer shape |
+|---|---|---|---|---|---|---|
+| Q1 | What does Mem0 README say? | tests | `referencia/mem0/README.md` | SKIP | Read README | summary |
+| Q2 | What does this nonexistent path contain? | deps | `referencia/mem0/this-path-does-not-exist-2026.md` | SKIP | Read fake path | (will fail) |
+| Q3 | What does Letta document about deferred topic X? | tools | `referencia/letta/intentionally-missing-2026.md` <!-- BLOCKED: file removed in upstream 2026-04 per discover-execute audit; question marked blocked-by-source --> | SKIP | Read | (blocked) |
+| Q4 | LangMem prompts module structure | techniques | `referencia/langmem/src/langmem/prompts/` | ast-grep | Read each file | architecture map |
+| Q5 | Mem0 quickstart steps | techniques | `referencia/mem0/README.md` | SKIP | Read README | step-by-step |
+
+## Coverage Matrix
+
+| Corner | Questions mapped | Status |
+|---|---|---|
+| Integration tests | Q1 | Covered |
+| Dependencies | Q2 | Covered (but Q2's path is fabricated — triggers cap) |
+| Tools | Q3 | Covered (Q3's path is blocked-marked, not fabricated) |
+| Techniques | Q4, Q5 | Covered |
+
+**Coverage: 4/4 corners covered (100%)**
+
+## Halt-loop Checkpoints
+
+| Checkpoint | Assertion | Action if fails |
+|---|---|---|
+| Before Qx | path exists | Mark BLOCKED |
+
+## Acceptance Criteria
+
+- [ ] Q2 path verified — INTENTIONALLY FAILS (fabricated_citation expected)
+
+## Global Definition of Done
+
+- [ ] N/A — fixture designed to FAIL the citation check
