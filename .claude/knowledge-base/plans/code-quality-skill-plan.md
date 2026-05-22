@@ -59,6 +59,12 @@
 
 **Rationale:** TheoMemory adota 4 linguagens; skill monolítica viola SRP (`/home/paulo/.claude/CLAUDE.md § 13.1`). N skills separadas explode em audit overhead (4 audit trails / 4 reports / 4 cycle hooks). Adapter pattern segue o padrão validado de `/deps-audit` (que faz exatamente isso para CVEs). Inquebrável § 9 (Não Reinvente): o padrão deps-audit é o "blueprint vivo" do ecossistema.
 
+**Alternatives considered:**
+- **Skill monolítica** (todos detectores hardcoded no mesmo script) — rejeitada: viola SRP (Inquebrável § 13.1); cada mudança em detector Rust afetaria diff de Python.
+- **N skills separadas** (`/code-quality-ts`, `/code-quality-py`, etc.) — rejeitada: explosão de skills (4× audit + reporting + cycle hooks); usuário teria que invocar 4 vezes.
+- **Auto-detect puro sem config declarativa** — rejeitada explicitamente pelo usuário durante /to-plan: prefere `code-quality-languages.txt` commit-tracked para audit explícito de mudanças de escopo (sibling de `discover-web-allowlist.txt`).
+- **Plugin system via entry-points (Python setuptools)** — rejeitada: over-engineering para v0.1; YAGNI. Adapter direto via `scripts/detectors/{lang}.py` resolve com simplicidade.
+
 **Consequences:**
 - Adicionar Java/C#/Ruby no futuro = novo módulo `scripts/detectors/java.py` + 1 entry em `code-quality-languages.txt`.
 - Cada detector pode evoluir independentemente sem quebrar siblings.
@@ -84,6 +90,12 @@
 - D3 soft cap: export sem importer pode ser API pública legítima (libs). Surface humano.
 - D4 soft cap: mutation é caro e ruidoso; tratar como signal de qualidade de teste, não correção. Thresholds seguem consenso 2026 (Stryker docs: >80% ótimo, 60-80% bom, <60% gap).
 
+**Alternatives considered:**
+- **Tudo HARD CAP** — rejeitada: mutation testing pode flake; bloquearia PRs por razões fora do controle do autor (test order dependency, network timeout em testes de integração). Penaliza falsamente.
+- **Tudo SOFT CAP** — rejeitada: símbolo fabricado (D2) É literalmente código quebrado em runtime; sem hard cap, o gate perde valor inquebrável. Spracklen et al. 2025 quantifica o problema.
+- **Lenient → strict transition (modelo knip de adoção)** — começar tudo como soft, virar hard depois — rejeitada: adiciona "modo" à skill, complica config; preferimos hard cap com allowlist generoso no início (mesma trade-off do `/deps-audit`).
+- **Thresholds graduais por linguagem** (Python mais strict que Go por maturidade) — rejeitada para v0.1: YAGNI; tabela uniforme + per-language allowlist resolve sem complicar verdict aggregator.
+
 **Consequences:**
 - `code-quality-allowlist.txt` precisa de sunset obrigatório (mesma mecânica que `deps-audit-allowlist.txt`).
 - Soft caps D4 precisam que o plano implementado declare `## Critical paths` para sabermos onde rodar mutation. Plans pre-code (sem code ainda) skipam D4 com soft warning.
@@ -93,6 +105,12 @@
 **Decision:** Quando `/code-quality` retorna verdict ≤ FAIL_*, `/plan-confidence` capa na banda correspondente per cap table acima. Stable identifiers participam de `hard_caps_triggered` JSON output.
 
 **Rationale:** Mesmo padrão do `/deps-audit` v1.1 ([cycle-plan.md § Downstream changes](../../rules/cycle-plan.md)). Mantém single point of truth para verdict do plano. Sem essa wiring, `/code-quality` standalone vira "ferramenta opcional", perdendo o gate inquebrável.
+
+**Alternatives considered:**
+- **`/code-quality` standalone sem integração com plan-confidence** — rejeitada: skills isoladas perdem o enforcement upstream; usuário pode esquecer de invocar. Mesmo erro que /deps-audit v1.1 quase cometeu (documented-only sem código).
+- **`/code-quality` dentro do halt-loop de /implement (per-task)** — rejeitada: explode custos (100-300k tokens × N tasks); dead code emerge entre tasks, não dentro de cada uma; visibilidade só no fim do diff.
+- **`/code-quality` invocado por /review (post-merge gate)** — rejeitada: muito tarde no pipeline; pre-merge gate (via plan-confidence) é mais barato corrigir.
+- **Sem cycle integration, apenas hook git pre-commit** — rejeitada: hooks de cliente podem ser bypassed (--no-verify); pre-commit não tem contexto do plano (`## Critical paths` etc.); gate inquebrável precisa rodar via skill orquestrada.
 
 **Consequences:**
 - `plan-confidence-golden-rule.md` (LOCKED) precisa adicionar stable identifiers. Inquebrável Rule policy: locked file requires explicit ADR-style note + strategic review. Este ADR D3 SERVE como esse note: extensão (não softening), lower burden.
@@ -157,6 +175,12 @@
 
 **Rationale:** Mesma decisão de `/deps-audit`. JSON é contrato para downstream skills; Markdown é audit trail commit-tracked.
 
+**Alternatives considered:**
+- **Apenas JSON** — rejeitada: humano precisa ler findings sem parser; revisão em PR vira leitura de JSON minificado.
+- **Apenas Markdown** — rejeitada: `/plan-confidence` precisa parsear o verdict machine-readable; regex em Markdown é frágil.
+- **Apenas stdout (sem persistência em arquivo)** — rejeitada: audit trail commit-tracked é requisito do `audit-trail-rotation.md`; sem arquivo em `.claude/knowledge-base/audits/` perdemos histórico para `/review` semântico.
+- **YAML em vez de JSON** — rejeitada: JSON tem schema validation maduro (`jsonschema` Python lib); YAML adiciona indentation ambiguity sem ganho real.
+
 **Consequences:**
 - Template Markdown em `templates/code-quality-report.md`.
 - JSON schema documentado em SKILL.md (estável; mudanças requerem version bump).
@@ -168,6 +192,12 @@
 - **Negative** — fixture é código limpo. Test asserta detector NÃO emite falso positivo.
 
 **Rationale:** Inquebrável Rule 5 (TDD-first). Testes só pode validar correção se cobrir AMBOS lados. Vulture 644 FPs em 9 repos top Python é evidência de que detectores naive emitem ruído inviável; fixtures negativas são gate contra essa regressão.
+
+**Alternatives considered:**
+- **Só fixtures positive (defect present)** — rejeitada: sem fixtures negative não temos baseline para false-positive rate; vulture com 644 FPs prova que ignorar esse lado é desastre operacional.
+- **Property-based testing (Hypothesis para Python, fast-check para TS)** — rejeitada para v0.1: complexidade alta para benefício marginal; defer para v0.2 quando tivermos baseline de fixtures determinísticas.
+- **Fixtures real-world (clones de repos OSS conhecidos)** — rejeitada: license overhead (cada repo tem sua licença + atribuição); tamanho do repo da skill explode; manutenção fica acoplada a evolução upstream. Fixtures sintéticas minimalistas (3-10 linhas) são reproduzíveis e suficientes.
+- **Snapshot testing (jest-style)** — rejeitada: assertions explícitos são mais legíveis em código de skill que valida outros códigos; meta-testing via snapshot adiciona indireção sem benefício.
 
 **Consequences:**
 - ~8 fixtures por detector (2 por linguagem × 4 linguagens). D1 sozinho = 32 fixtures.
