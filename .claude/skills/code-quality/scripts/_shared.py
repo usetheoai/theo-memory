@@ -393,11 +393,62 @@ def _verdict_to_cap(verdict: str) -> int:
     }.get(verdict, 49)
 
 
+def compute_verdict(findings: list[Finding]) -> tuple[str, list[str]]:
+    """Compute the verdict + stable_identifiers list from a list of Findings.
+
+    Returns:
+        (verdict, hard_caps_triggered) — where verdict is one of
+        PASS / PASS_WITH_CAVEATS / FAIL_SOFT / FAIL_HARD / INVALID.
+
+    Cap precedence (smallest cap wins):
+      1. Any HARD finding -> FAIL_HARD (49)
+      2. Else any SOFT_CAP -> FAIL_SOFT (70)
+      3. Else any SOFT_FLOOR -> PASS_WITH_CAVEATS (89)
+      4. Else -> PASS (100)
+    """
+    severities = {f.severity for f in findings}
+    stable_ids: list[str] = []
+    for f in findings:
+        sid = _finding_to_stable_identifier(f)
+        if sid and sid not in stable_ids:
+            stable_ids.append(sid)
+
+    if "HARD" in severities:
+        return "FAIL_HARD", [sid for sid in stable_ids if not sid.startswith("soft_")]
+    if "SOFT_CAP" in severities:
+        return "FAIL_SOFT", stable_ids
+    if "SOFT_FLOOR" in severities:
+        return "PASS_WITH_CAVEATS", stable_ids
+    return "PASS", []
+
+
+def _finding_to_stable_identifier(f: Finding) -> str:
+    """Map a Finding to the stable identifier from code-quality-golden-rule.md."""
+    if f.detector == "d1_dead_code" and f.severity == "HARD":
+        return f"dead_code_unallowlisted_{f.language}"
+    if f.detector == "d1_dead_code" and f.severity == "SOFT_CAP":
+        # auditor_unavailable lives in allowlist_key tail
+        tail = f.allowlist_key.rsplit("|", 1)[-1]
+        return tail if tail.startswith(("auditor_", "soft_")) else f"soft_cap_{f.language}"
+    if f.detector == "d2_symbol_fab" and f.severity == "HARD":
+        return f"symbol_fabrication_{f.language}"
+    if f.detector == "d2_symbol_fab" and f.severity == "SOFT_FLOOR":
+        return f"symbol_fab_unverifiable_{f.language}"
+    if f.detector == "d3_orphan_export" and f.severity == "SOFT_CAP":
+        return f"soft_cap_orphan_export_{f.language}"
+    if f.detector == "d4_mutation" and f.severity == "SOFT_CAP":
+        return f"soft_cap_mutation_score_low_{f.language}"
+    if f.detector == "d4_mutation" and f.severity == "SOFT_FLOOR":
+        return f"soft_floor_mutation_score_medium_{f.language}"
+    return ""
+
+
 __all__ = [
     "DEFAULT_SKIP_DIRS",
     "AllowlistEntry",
     "AllowlistMatch",
     "Finding",
+    "compute_verdict",
     "emit_json_summary",
     "is_allowlisted",
     "load_allowlist",
