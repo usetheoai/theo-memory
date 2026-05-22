@@ -27,6 +27,7 @@ from typing import Any
 DEFAULT_SKIP_DIRS: frozenset[str] = frozenset(
     {
         ".git",
+        ".claude",  # meta-tooling — /code-quality audits the PRODUCT, not its own skills
         "node_modules",
         ".venv",
         "venv",

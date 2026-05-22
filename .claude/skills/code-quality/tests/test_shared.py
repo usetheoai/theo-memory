@@ -282,6 +282,15 @@ def test_default_skip_dirs_includes_referencia() -> None:
     assert "__pycache__" in DEFAULT_SKIP_DIRS
 
 
+def test_default_skip_dirs_includes_claude_meta() -> None:
+    """The skill audits the PRODUCT, never the .claude meta-tooling that hosts it.
+
+    Without this skip, /code-quality would falsely flag the skill's own scripts
+    when the product manifests are added at repo root.
+    """
+    assert ".claude" in DEFAULT_SKIP_DIRS
+
+
 # --- emit_json_summary ---
 
 
