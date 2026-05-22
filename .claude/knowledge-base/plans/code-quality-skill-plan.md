@@ -1,6 +1,6 @@
 # Plan: Code-Quality Skill — multi-language wiring + dead-code + symbol-fabrication gate
 
-> **Version 1.1** — Implementar a skill `/code-quality` em `.claude/skills/code-quality/` conforme blueprint `wiring-deadcode-gates-blueprint.md`. Skill audita TypeScript, Python, Rust e Go quanto a dead code, símbolos fabricados, wiring cross-package órfão e qualidade de testes (mutation), bloqueando PRs com achados não-allowlisted. Arquitetura adapter pattern (um módulo Python por linguagem). Sibling arquitetural de `/deps-audit`. Roda entre o halt-loop de `/implement` e o handoff para `/review` no `cycle-implement`. **Read-only** por design: nunca edita código.
+> **Version 1.2** — Implementar a skill `/code-quality` em `.claude/skills/code-quality/` conforme blueprint `wiring-deadcode-gates-blueprint.md`. Skill audita TypeScript, Python, Rust e Go quanto a dead code, símbolos fabricados, wiring cross-package órfão e qualidade de testes (mutation), bloqueando PRs com achados não-allowlisted. Arquitetura adapter pattern (um módulo Python por linguagem). Sibling arquitetural de `/deps-audit`. Roda entre o halt-loop de `/implement` e o handoff para `/review` no `cycle-implement`. **Read-only** por design: nunca edita código.
 
 ### Changelog do plano
 
@@ -8,6 +8,7 @@
 |---|---|---|---|
 | v1.0 | 2026-05-22 | Plano inicial via `/to-plan`. 20 tasks, 7 fases + Final. | Blueprint `wiring-deadcode-gates-blueprint.md` |
 | v1.1 | 2026-05-22 | 11 MUST FIX absorvidos de `/edge-case-plan`. Nova task T6.5 (EC-29 Opção A — estende `plan-confidence/run_structural.py` para consumir verdict de `/code-quality`). Coverage Matrix expande 20 → 28 entradas. Subtasks de validação + skip lists + atomic writes + safe parsing distribuídas em T0.1/T0.4/T2.2-2.5/T4.1/T5.1. | [`code-quality-skill-edge-cases-2026-05-22.md`](../reviews/code-quality-skill-edge-cases-2026-05-22.md) |
+| v1.2 | 2026-05-22 | 6 findings de `/deps-audit` absorvidos: F1 (stryker → @stryker-mutator/core ^9.6), F2 (deadcode @latest → @v0.45.0), F3 (tree-sitter ^0.23 → ^0.25), F4 (mutmut ^2.5 → ^3.5 + nota CLI revalidation), F5 (knip ^5.x → ^6.14 + nota schema revalidation), F6 (osv-scanner adicionado a PORTABLE prereqs). T1.2 + T4.1 + T4.2 ganham acceptance criteria de revalidação contra versões atualizadas. | [`code-quality-skill-deps-audit-2026-05-22.md`](../audits/code-quality-skill-deps-audit-2026-05-22.md) |
 
 ## Goal
 
@@ -185,15 +186,15 @@
 
 | Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
 |---|---|---|---|---|
-| `tree-sitter` (NEW) | `^0.23` | Python | Evaluated: `astroid` (Python-only), `typescript-compiler` via Node (Node dep), `lib2to3` (Py2 legacy). Per-lang ASTs would mean 4 separate implementations. | Language-agnostic single library; battle-tested (used by GitHub semantic, Neovim, Atom) |
+| `tree-sitter` (NEW) | `^0.25` | Python | Evaluated: `astroid` (Python-only), `typescript-compiler` via Node (Node dep), `lib2to3` (Py2 legacy). Per-lang ASTs would mean 4 separate implementations. | Language-agnostic single library; battle-tested (used by GitHub semantic, Neovim, Atom). **[v1.2 bump]** Pinned to ^0.25 (latest at audit date) — 0.x semver: minor is breaking; revisit yearly. |
 | `tree-sitter-languages` (NEW) | `^1.10` | Python | Evaluated: install each grammar separately (`tree-sitter-python`, `tree-sitter-typescript`, etc.) — more deps to manage. | Bundles 50+ grammars including all 4 target languages |
 | `requests` (NEW) | `^2.32` | Python | Evaluated: `httpx` (async, heavier), `urllib` (stdlib but verbose). | Mainstream HTTP client; simple sync API for registry lookups |
-| `knip` (NEW) | `^5.x` | npm (external CLI, not Python dep) | Evaluated: ts-prune (DEPRECATED 2024); unimported (less features); depcheck (only deps, not exports). | Knip succeeded ts-prune; first-class monorepo support; matched against [Effective TypeScript article](https://effectivetypescript.com/2023/07/29/knip/) |
+| `knip` (NEW) | `^6.14` | npm (external CLI, not Python dep) | Evaluated: ts-prune (DEPRECATED 2024); unimported (less features); depcheck (only deps, not exports). | Knip succeeded ts-prune; first-class monorepo support; matched against [Effective TypeScript article](https://effectivetypescript.com/2023/07/29/knip/). **[v1.2 bump]** Pinned to ^6.14 — v5 → v6 has breaking config-file changes; T1.2 fixture MUST be validated against v6 JSON output schema before implementation. |
 | `vulture` (NEW) | `^2.14` | Python (external CLI) | Evaluated: Skylos (not 1.0 yet); deadcode (jovem). | Mature, `--min-confidence 80` mitiga FPs; defer Skylos to v0.2 |
 | `cargo-udeps` (NEW) | `^0.1.x` | Rust (external CLI) | Evaluated: cargo-machete (faster, less features). | More features; battle-tested |
-| `deadcode` (NEW) | `golang.org/x/tools/cmd/deadcode@latest` | Go (external CLI) | Evaluated: staticcheck unused (less reliable for interfaces). | Official Go team tool; reachability analysis |
-| `stryker` (NEW) | `^8.x` | npm (external CLI) | No mature alternatives in TS ecosystem. | De facto standard |
-| `mutmut` (NEW) | `^2.5` | Python (external CLI) | Evaluated: mutpy (abandoned), cosmic-ray (slow). | Most maintained Python mutation tool |
+| `deadcode` (NEW) | `golang.org/x/tools/cmd/deadcode@v0.45.0` | Go (external CLI) | Evaluated: staticcheck unused (less reliable for interfaces). | Official Go team tool; reachability analysis. **[v1.2 fix F2]** Pinned to v0.45.0 (was `@latest` — violated golden rule). Revisit at v0.5.0 cut. |
+| `@stryker-mutator/core` (NEW) | `^9.6` | npm (external CLI) | No mature alternatives in TS ecosystem. | De facto standard. **[v1.2 fix F1]** Package name corrected: unscoped `stryker` on npm is v0.35.1 (abandoned); current pkg is `@stryker-mutator/core` (latest 9.6.1). Bumped from ^8.x (would mismatch wrong package). CLI binary remains `stryker` (invoked as `npx stryker`). |
+| `mutmut` (NEW) | `^3.5` | Python (external CLI) | Evaluated: mutpy (abandoned), cosmic-ray (slow). | Most maintained Python mutation tool. **[v1.2 bump]** Bumped from ^2.5 to ^3.5 (latest 3.5.0). **WARNING**: mutmut 3.x is a CLI rewrite — `mutmut run --paths-to-mutate` and `mutmut results --output json` syntax referenced in T4.1 MUST be revalidated against v3 docs before implementation. |
 
 ### Removed
 
@@ -472,7 +473,7 @@ class BaseDetector:
 #### Tasks
 1. Create directory tree `mkdir -p` for all paths above.
 2. Write `SKILL.md` with frontmatter + Trigger conditions + Modes + Workflow placeholder sections (mirror deps-audit shape; fill in later phases).
-3. Write `PORTABLE.md` describing standalone installation (matches plan-confidence/PORTABLE.md pattern).
+3. Write `PORTABLE.md` describing standalone installation (matches plan-confidence/PORTABLE.md pattern). **[v1.2 F6]** Include `## Dev prerequisites` section listing recommended (not mandatory) external tools: `osv-scanner` (cross-ecosystem CVE scanner — install via `go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest`), `knip` (^6.14), `vulture` (^2.14), `cargo-udeps` (^0.1), `deadcode@v0.45.0`, `@stryker-mutator/core` (^9.6), `mutmut` (^3.5). Without these, the corresponding detectors emit `auditor_unavailable_{tool}` SOFT_CAP Findings.
 4. Write `pyproject.toml` declaring Python deps (`tree-sitter`, `tree-sitter-languages`, `requests`, `pyyaml`, `pytest`, `pytest-mock`).
 5. Write `setup.sh` (venv + `pip install -e .`).
 6. Write detector stubs with `BaseDetector` interface + raise `NotImplementedError` on each method.
@@ -799,10 +800,12 @@ VERIFY:  pytest .claude/skills/code-quality/tests/test_typescript_detector.py -v
 - [ ] Real-world test (when `src/` exists in TheoMemory): run against `src/` (or skip with WARNING if `src/` doesn't exist yet)
 - [ ] Pass: size — file ≤ 300 lines
 - [ ] Pass: lint
+- [ ] **[v1.2 F5]** Knip JSON output schema validated against v6.x (NOT v5.x — plan bumped due to /deps-audit F5). If v6 reporter shape differs from `{files, exports, dependencies, devDependencies, duplicates}`, update `_parse_knip_json` accordingly.
 
 #### DoD
 - [ ] All RED tests GREEN
 - [ ] Skip-test passes gracefully when TheoMemory's `src/` doesn't exist
+- [ ] Knip v6 JSON schema documented in code comment
 
 ---
 
@@ -1398,6 +1401,12 @@ Blueprint Corner 4 Technique 3: mutation testing complements coverage; threshold
 {"killed": 47, "survived": 5, "timeout": 2, "score": 0.870}
 ```
 
+**[v1.2 F4 WARNING]** Plan now declares mutmut `^3.5` (bumped from `^2.5`). mutmut 3.x is a CLI rewrite — the `run --paths-to-mutate` flag AND `results --output json` flag MAY have different names or output schema. Before implementing this task, run:
+```bash
+pip install 'mutmut>=3.5' && mutmut --help && mutmut run --help && mutmut results --help
+```
+Update the subprocess invocation + JSON parsing to match v3 actual API. If schema diverges significantly, document in code comment + update `_parse_mutmut_output` accordingly.
+
 **Verdict mapping:**
 - Score ≥ floor → 0 Findings.
 - Score in [floor - 20%, floor) → SOFT_FLOOR (`soft_floor_mutation_score_medium_python`, cap 89).
@@ -1465,12 +1474,18 @@ Same as T4.1; stryker is the de-facto standard for TS mutation testing.
 #### Deep Dives
 **Stryker JSON output:** `reports/mutation/mutation.json` after run; contains `metrics.killed`, `metrics.survived`, `metrics.mutationScore`.
 
+**[v1.2 F1]** npm package is `@stryker-mutator/core` (scoped), NOT `stryker` (unscoped, abandoned at v0.35.1). Install via:
+```bash
+npm install --save-dev @stryker-mutator/core
+```
+The CLI binary is still `stryker` (resolves through node_modules/.bin/stryker → @stryker-mutator/core), so `npx stryker run` works as documented. Subprocess invocation does NOT need changes — only fixture `package.json` declares the scoped package name.
+
 #### Tasks
 1. Implement `TypeScriptDetector.detect_mutation_score`.
-2. Wrap subprocess `npx stryker run`.
+2. Wrap subprocess `npx stryker run` (binary name unchanged from v1.0 plan).
 3. Read reports/mutation/mutation.json.
 4. Apply verdict mapping (same as T4.1).
-5. Write fixtures.
+5. Write fixtures with `"@stryker-mutator/core": "^9.6"` in devDependencies (NOT `"stryker"`).
 
 #### TDD
 ```
