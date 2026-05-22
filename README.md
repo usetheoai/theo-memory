@@ -1,0 +1,382 @@
+<div align="center">
+
+<img src="https://usetheo.dev/logo-128.webp" alt="Theo" width="96" height="96" />
+
+**`@usetheo/memory`** · the **managed memory** auxiliary of the [Theo ecosystem](https://usetheo.dev)
+
+# Memory that lives where your agent lives.
+
+A managed memory layer for AI agents — **three tiers (User, Session, Agent)**, vector-based hybridd retrieval, **native to [TheoKit](../theokit), managed by [TheoCloud](../theo)**. The persistent-state verb of **Chat. Build. Deploy.**
+
+*Vector + hybrid retrieval + LLM fact extraction. Local mode for dev. Cloud runtime for production. MIT.*
+
+[![License](https://img.shields.io/badge/license-MIT-7C3AED?style=flat-square)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Status](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#status)
+[![Runtime](https://img.shields.io/badge/runtime-local%20%2B%20TheoCloud-7C3AED?style=flat-square)](#two-runtimes-one-api)
+[![Foundation](https://img.shields.io/badge/foundation-research%20locked-7C3AED?style=flat-square)](./docs/agentic-memory-landscape.md)
+
+[Quickstart](#quickstart) · [Three Tiers](#three-tiers) · [Why](#why-usetheomemory) · [Runtimes](#two-runtimes-one-api) · [Architecture](#architecture) · [Status](#status)
+
+</div>
+
+---
+
+## The shift
+
+There is a version of your agent that remembers who its users are.
+
+It does not greet returning customers as strangers. It does not re-ask the dietary restriction it learned last Tuesday. It does not forget — between yesterday's deploy and today's — the playbook it spent an hour figuring out. The session ends. The user, and the agent, do not.
+
+And the place that **deploys** the agent is the same place that **remembers** for it. One account. One dashboard. One platform.
+
+`@usetheo/memory` is the managed memory layer for the [TheoKit](../theokit) + [TheoCloud](../theo) agent stack — three tiers, vector-based hybrid architecture, MIT-licensed SDK, with a local mode for development and a managed runtime in TheoCloud for production.
+
+## Why `@usetheo/memory`
+
+The agentic-memory space is **crowded and well-funded** — REDACTED ($24M, ~56k stars), REDACTED ($10M, ~23k stars), REDACTED/REDACTED (YC W24, ~26k stars), REDACTED ($5.35M), REDACTED, REDACTED. Each carries a strong opinion on architecture and a strong opinion on lock-in. The full landscape and the strategic reasoning that shaped this project live in [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md).
+
+`@usetheo/memory` is not trying to win on benchmarks against players with two years of head start. It is trying to be **the memory line item on your TheoCloud invoice** — the managed memory that ships with the platform you already deploy on.
+
+If [Vercel KV](https://vercel.com/storage/kv) is "the key-value store that ships with the framework", `@usetheo/memory` is **the memory store that ships with the agent platform**. Same idea: deep coupling as a feature, not an apology.
+
+| Capability | `@usetheo/memory` | REDACTED | REDACTED | REDACTED / REDACTED | REDACTED |
+|---|---|---|---|---|---|
+| **Frame** | The managed memory of TheoCloud, optimized for TheoKit | Framework-agnostic drop-in SDK | Stateful agent runtime + memory | Bi-temporal knowledge graph | REDACTED memory store |
+| Architecture | vector-based hybrid: vector + LLM extraction + hybrid retrieval (semantic + BM25 + entity matching) | Same — pioneered the shape | OS-hierarchical (RAM + disk paging) | Temporal knowledge graph | Three-type semantic / episodic / procedural |
+| User memory (semantic, cross-session) | ✓ | ✓ | ✓ (core blocks) | ✓ | ✓ |
+| Session memory (episodic, scoped) | ✓ | ✓ | Implicit (single thread) | ✓ (episodes) | ✓ |
+| Agent memory (procedural, learned skills) | ✓ (skill-based) | Limited | Limited (core blocks) | Limited | ✓ (prompt rewriting) |
+| Local runtime (dev / CI) | ✓ Postgres + pgvector | ✓ self-host | ✓ Postgres + pgvector | Self-host a graph database etc. | REDACTED `BaseStore` |
+| Managed runtime | **TheoCloud — single platform for deploy + memory** | REDACTED Cloud (separate account) | REDACTED Cloud (separate account) | REDACTED Cloud (separate account) | REDACTED Platform |
+| Framework coupling | **Native to TheoKit by design** | Framework-agnostic | High (REDACTED owns the agent loop) | Framework-agnostic | High (REDACTED) |
+| License | **MIT** | Apache-2.0 | Apache-2.0 | Apache-2.0 (REDACTED) | MIT |
+| Single-vendor consolidation | **Yes** — same dashboard as your deploy | No (REDACTED Cloud is separate) | No | No | No |
+
+REDACTED won drop-in. REDACTED won the self-editing agent. REDACTED won bi-temporal auditing. **`@usetheo/memory` is the option you reach for when you have already chosen TheoKit + TheoCloud** — and you want memory on the same invoice, same dashboard, same access control, same support contract.
+
+If you are not on TheoKit, [REDACTED](https://REDACTED.ai) is a great pick.
+
+## Three tiers
+
+Three memory scopes, one API. The taxonomy follows cognitive psychology (episodic, semantic, procedural) mapped onto the surface a real agent needs.
+
+| Tier | Scope | Lifetime | Example |
+|---|---|---|---|
+| **User memory** | One user, across every session and every agent in the workspace | Durable | "Speaks Portuguese. Lives in São Paulo. Allergic to peanuts." |
+| **Session memory** | One conversation thread | Window-bounded | "User asked about pricing tier B in turn 3. We promised a callback." |
+| **Agent memory** | One agent, learned procedurally over many runs | Durable | "When the user types `/refund`, check the last 3 invoices before opening a ticket." |
+
+Same `remember` / `recall` / `forget` / `reflect` verbs across all three tiers — the scope is a parameter, not three separate APIs.
+
+## What you'd ship
+
+- **Customer support assistant that knows the user.** Past tickets, dietary restrictions, account tier, prior escalations — recalled without a separate CRM lookup.
+- **Healthcare intake bot.** Patient preferences, medication allergies, communication style persist across visits. Session memory bounded by appointment.
+- **Productivity copilot.** Adapts to the user's writing voice, project conventions, and recurring workflows. Agent memory accumulates the playbooks that worked.
+- **Coding agent with project memory.** Per-repo skill library — fix recipes, file conventions, migration patterns — accumulates across PRs. skill-based procedural memory tied to a real workspace.
+- **Multi-tenant agent SaaS.** Workspace-scoped isolation; user identity, session state, and agent skills never cross tenants. Native to TheoKit's per-request context.
+- **Game NPC with continuity.** Player history, in-game decisions, and emergent NPC personality survive session restarts.
+
+---
+
+## How it works
+
+Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, the foundation document, and status.
+
+## Status — design stage, contract being locked
+
+> `@usetheo/memory` is **pre-release**. The [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md) document (2026-05-16) is the foundation; the API contract below is under active design. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
+>
+> What is honest today:
+> - **Strategic placement decided** — managed memory of TheoCloud, TheoKit-native by design, MIT-licensed SDK.
+> - **Architecture decided** — vector-based hybrid: vector + LLM fact extraction + hybrid retrieval (semantic + BM25 + entity matching). Two runtimes (local Postgres + pgvector, cloud TheoCloud-managed) behind one API.
+> - **Contract under design** — the API in this README is the target shape, validated against the landscape document.
+> - **No production claims.** No benchmark numbers. No "X tests passing" badge until the suite exists.
+> - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). The choice is deliberate: signal maximum permissiveness to downstream consumers and embed-into-proprietary use cases. The rest of the OSS ecosystem stays Apache-2.0.
+>
+> If you are evaluating *today* and need something running in production *today*, the landscape document points to mature alternatives ([REDACTED](https://REDACTED.ai), [REDACTED](https://www.REDACTED.com), [REDACTED](https://www.REDACTED.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud.
+
+## Two runtimes, one API
+
+Runtime is picked by which key you pass to `Memory.create()` — `local` or `cloud`. Same API surface either way; same three tiers either way.
+
+| Runtime | What it does | When to use |
+|---|---|---|
+| **Local** | Runs against your own Postgres + pgvector. Embeddings via your provider key. | Dev, CI, self-hosted demos, evaluation against your data. |
+| **TheoCloud (managed)** | Runs in TheoCloud against a managed vector store with managed embeddings, managed LLM extraction, and managed retrieval. Same TheoCloud account that deploys your TheoKit app. | Production. Same dashboard as your deploy, one invoice, one access control surface. |
+
+Premium capabilities (graph memory, multi-tenant audit trails, managed embedding pricing, cross-region replication) ship in the TheoCloud runtime. The local runtime stays open and useful for development — it is not a crippled demo.
+
+## Planned API contract
+
+The contract below is the design target. Treat snippets as the **shape** the implementation will conform to, not as code you can run today.
+
+### Installation
+
+```bash
+npm install @usetheo/memory     # reserved; not yet published
+```
+
+### Local runtime — dev and CI
+
+```typescript
+import { Memory } from "@usetheo/memory";
+
+const memory = await Memory.create({
+  local: {
+    storage: { type: "postgres", url: process.env.DATABASE_URL! },
+  },
+  embeddings: { provider: "openai", model: "text-embedding-3-small" },
+  workspace: "acme-support",
+});
+```
+
+### TheoCloud runtime — production
+
+```typescript
+import { Memory } from "@usetheo/memory";
+
+const memory = await Memory.create({
+  cloud: { apiKey: process.env.THEOKIT_API_KEY! },
+  workspace: "acme-support",
+});
+```
+
+Same `THEOKIT_API_KEY` as the rest of the Theo ecosystem (`@usetheo/sdk`, TheoCloud deploys). No separate account. No separate billing.
+
+### Three-tier scopes
+
+```typescript
+// User memory — durable identity, cross-session
+await memory.user("user-42").remember(
+  "Speaks Portuguese. Vegetarian. Prefers concise responses."
+);
+
+// Session memory — scoped to one conversation
+const session = memory.session("session-abc");
+await session.remember({
+  role: "assistant",
+  text: "Promised a callback by Friday about the refund.",
+});
+
+// Agent memory — procedural skills the agent learned
+await memory.agent("support-bot").remember({
+  skill: "refund-flow",
+  body: "Check last 3 invoices, verify chargeback window, open ticket.",
+});
+
+// Unified recall — pulls from whichever tiers the call enables
+const context = await memory.recall("What does the user prefer?", {
+  user: "user-42",
+  session: "session-abc",
+  agent: "support-bot",
+  scopes: ["user", "session"],
+  limit: 8,
+});
+
+console.log(context.items);
+// → [{ tier: "user", text: "Speaks Portuguese...", score: 0.91, ... }]
+```
+
+Same verbs, scope-aware:
+
+```typescript
+// remember(fact, options)
+await memory.user(userId).remember("Allergic to peanuts");
+await memory.session(sessionId).remember({ role: "user", text: "..." });
+await memory.agent(agentId).remember({ skill: "refund-flow", body: "..." });
+
+// recall(query, options)
+const userFacts = await memory.user(userId).recall("dietary restrictions");
+const recentTurns = await memory.session(sessionId).recall(null, { limit: 20 });
+const skill = await memory.agent(agentId).recall("how to refund");
+
+// forget(predicate, options)
+await memory.user(userId).forget({ olderThan: "30d" });
+await memory.session(sessionId).clear();
+
+// reflect — consolidate episodic into semantic (Generative Agents-shaped)
+await memory.agent(agentId).reflect({ window: "7d" });
+```
+
+### TheoKit-native binding
+
+When the consumer is a [TheoKit](../theokit) app, the wiring is implicit — `@usetheo/memory` reads workspace, user identity, and session from the request context. This is the **default-on integration that makes TheMemory native to TheoKit**:
+
+```typescript
+// server/routes/chat.ts (TheoKit route)
+import { defineRoute } from "theokit/server";
+import { memory } from "@usetheo/memory/theokit";
+
+export const POST = defineRoute({
+  body: z.object({ message: z.string() }),
+  handler: async ({ body, ctx }) => {
+    const context = await memory.recall(body.message, {
+      user: ctx.user.userId,         // resolved from session
+      session: ctx.session.id,       // resolved from cookie
+      agent: ctx.agentId,            // resolved from route
+      scopes: ["user", "session", "agent"],
+    });
+    // ... pass context to your LLM call
+  },
+});
+```
+
+Outside TheoKit the framework-agnostic API is identical, but you wire workspace / user / session manually. **Inside TheoKit, the wiring writes itself.** That is the lock-in this project owns explicitly.
+
+### Retrieval — vector-based hybrid, multi-signal
+
+Each `recall` runs the same hybrid retrieval pipeline:
+
+```
+candidates = pgvector(semantic ANN) ∪ BM25(lexical) ∪ entity_match(extracted entities)
+score      = recency(decay) × importance(LLM-judged 1-10 at write) × relevance(cosine)
+```
+
+Pure cosine similarity is provably worse for agent behavior over long horizons (Park et al. 2023, *Generative Agents*). The recency × importance × relevance triad is the default. Hybrid candidate generation matches REDACTED's v2 retrieval shape (semantic + BM25 + entity).
+
+### Write pipeline — two-stage, ADD-only
+
+Following REDACTED v2.0 (April 2026), the write path is two-stage and **ADD-only**:
+
+1. **Extract** — recover top-K related memories for dedup context, single LLM call extracts all distinct facts from the new turn.
+2. **Update** — batch embed → hash-dedup → batch insert with entity linking.
+
+Old memories are not overwritten. Conflicts produce new facts with their own `t_valid` window. This trades disk for auditability — every claim the agent ever made is traceable.
+
+### Memory operations as agent tools
+
+When `@usetheo/memory` runs alongside an agent SDK (e.g., [`@usetheo/sdk`](../theokit-sdk)), the tier verbs are exposed as MCP tools — the agent decides when to remember, recall, and forget rather than the framework deciding for it. This follows the REDACTED lesson: **function-calling memory ops outperform hardcoded heuristics**.
+
+```typescript
+import { Agent } from "@usetheo/sdk";
+import { memoryTools } from "@usetheo/memory/agent-tools";
+
+const agent = await Agent.create({
+  apiKey: process.env.THEOKIT_API_KEY!,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd() },
+  tools: memoryTools(memory),    // exposes remember/recall/forget/reflect
+});
+```
+
+## Architecture
+
+```
+@usetheo/memory/
+├── packages/
+│   ├── core/                    Memory class, MemoryStore interface (DIP)
+│   │   ├── tiers/               UserMemory, SessionMemory, AgentMemory
+│   │   ├── retrieval/           recency × importance × relevance scorer
+│   │   ├── pipeline/            two-stage extract → update pipeline
+│   │   ├── consolidation/       reflect() — episodic → semantic
+│   │   └── types.ts             public type contract
+│   ├── local/                   Postgres + pgvector local runtime
+│   ├── cloud/                   TheoCloud managed runtime client
+│   ├── embeddings/              provider abstraction (OpenAI, Anthropic, local)
+│   ├── theokit/                 TheoKit-native binding (request-context aware)
+│   └── agent-tools/             MCP tools for @usetheo/sdk agents
+└── docs/
+    └── agentic-memory-landscape.md    foundation document (2026-05-16)
+```
+
+### Dependency direction (planned, enforced at CI)
+
+```
+core              → (nothing, type-only)
+local             → core
+cloud             → core
+embeddings        → core
+theokit           → core, embeddings
+agent-tools       → core
+```
+
+The `MemoryStore` interface in `core/` is the DIP boundary. Both `local/` and `cloud/` implement it. Consumers depend on `core/` only — they switch runtimes by changing one config block.
+
+### Local storage — pgvector
+
+Local mode runs on **Postgres + pgvector** because:
+
+- It is the simplest setup for dev and CI.
+- TheoCloud also exposes Postgres, so local-to-cloud migration is feasible.
+- pgvector is a single extension, not a separate database, network hop, or query language.
+- Hybrid retrieval (vector + BM25 + entity match) fits inside one SQL transaction.
+
+### Cloud storage — TheoCloud-managed
+
+Cloud mode runs against a TheoCloud-managed vector store with managed embeddings, managed LLM extraction, and managed retrieval. The user never sees the underlying engine — that is operational state, not API surface. This follows [Cross-Project Rule 9 (Cloud abstraction)](../CLAUDE.md): user-facing copy says "memory store", not "REDACTED" or "pgvector". The managed runtime is also where premium capabilities live:
+
+- **Graph memory** — entity-relation graph layered on top of fact extraction
+- **Bi-temporal audit** — `t_valid` and `t_invalid` windows on every fact for compliance trails
+- **Multi-region replication** — for latency-sensitive customer surfaces
+- **Managed embedding cost** — no per-call provider billing for embeddings; bundled in TheoCloud usage
+
+## Foundation
+
+This project rests on a piece of prior research:
+
+- [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md) — landscape of agentic memory frameworks as of 2026-05-16. REDACTED, REDACTED, REDACTED/REDACTED, REDACTED, REDACTED, REDACTED, REDACTED Memory, REDACTED, Generative Agents, REDACTED, GraphRAG, and the six vector DBs repositioned as memory. Includes the build/buy/wait analysis and the four universal architectural patterns that informed this project.
+
+Read the landscape document before proposing architectural changes — most of the "why not just use X" questions are answered there.
+
+## Roadmap
+
+The contract above is the target. The shipping order is:
+
+| Milestone | Scope | Status |
+|---|---|---|
+| **0.0 — Contract** | Type contract for `Memory`, `MemoryStore`, three tiers, retrieval scorer, two-stage pipeline. Frozen in `docs.md`. | In design |
+| **0.1 — Core + local runtime** | `core/` + `local/` (Postgres + pgvector). Single backend, three tiers, recency × importance × relevance retrieval, two-stage pipeline. | Planned |
+| **0.2 — TheoKit binding** | `theokit/` package: request-context resolution, default-on memory in scaffolded TheoKit apps. | Planned |
+| **0.3 — Agent tools** | `agent-tools/` package: MCP tools for `@usetheo/sdk` agents. | Planned |
+| **0.4 — Reflection + forgetting** | `reflect()` pipeline (Generative Agents-shaped). LLM-importance-aware forgetting that preserves long-tail. | Planned |
+| **0.5 — TheoCloud runtime** | `cloud/` package + TheoCloud-managed backend. Premium capabilities (graph, multi-region, audit). Depends on Theo PaaS general availability. | Planned |
+| **1.0** | Contract stable, benchmarks reproduced independently, production claims allowed. | Planned |
+
+Honest claims only — no version above 0.0 has shipped. The roadmap is the commitment, not the receipt.
+
+## Where this fits
+
+`@usetheo/memory` is a community auxiliary of the [usetheo stack](../README.md), with a managed runtime that lives inside TheoCloud:
+
+| Tier | Project | License | What it does |
+|---|---|---|---|
+| Apex (paid) | [TheoCloud](../theo) | Commercial | Managed deployment runtime. The product. Hosts the `@usetheo/memory` cloud runtime. |
+| Funnel (OSS) | [TheoCode](../theo-code) | Apache-2.0 | Autonomous coding agent. Plan · Code · Infra. |
+| Funnel (OSS) | [TheoCreate](../theo-stacks) | Apache-2.0 | Scaffolding for Node/Go/Python/Rust/Java/Ruby/PHP/Next.js. |
+| Funnel (OSS) | [TheoKit](../theokit) | Apache-2.0 | Next.js framework for full-stack AI agents. |
+| Community auxiliary | [`@usetheo/sdk`](../theokit-sdk) | Apache-2.0 | Build-your-own-agent SDK. |
+| Community auxiliary | [`@usetheo/ui`](../theo-ui) | Apache-2.0 | React components for AI agent surfaces. |
+| **Community auxiliary** | **`@usetheo/memory`** *(this)* | **MIT** | **Three-tier managed memory layer. Native to TheoKit; runs in TheoCloud.** |
+
+The local runtime is open and works without TheoCloud. The **managed runtime is the strategic focus** — that is where the single-platform consolidation happens (deploy + memory + agent SDK + UI all on one TheoCloud account).
+
+## Development
+
+This package is not yet published. Once implementation begins:
+
+```bash
+nvm use                       # Node 22+ per .nvmrc
+corepack enable
+
+pnpm install                  # install workspace deps
+pnpm typecheck                # tsc --noEmit across packages
+pnpm test                     # vitest
+pnpm build                    # tsup → dist/
+pnpm check                    # biome lint + format
+```
+
+Contributions are welcome once the 0.0 contract lands. Until then, the value-add is on the design itself — read [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md) and open issues against the planned API contract above.
+
+## License
+
+[MIT](./LICENSE) © [usetheo.dev](https://usetheo.dev)
+
+> MIT differs from the monorepo's Apache-2.0 standard (locked 2026-05-14). The choice is deliberate — maximum permissiveness for memory primitives that consumers embed deeply into proprietary systems. The rest of the OSS ecosystem stays Apache-2.0.
+
+## Community
+
+- Discord: https://discord.usetheo.dev/
+- X: https://x.com/usetheodev
+- LinkedIn: https://linkedin.com/company/usetheodev
