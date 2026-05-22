@@ -30,7 +30,6 @@ Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](.
 | API verbs | `remember` / `recall` / `forget` / `reflect` | strategic |
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
-| Foundation document | `docs/agentic-memory-landscape.md` (2026-05-16) | — |
 
 ## Voice and Tone
 
@@ -46,7 +45,6 @@ Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](.
 **Does NOT apply to (stays technical-direct):**
 
 - `README.md` from `## How it works` downward — Status section, Planned API contract, Architecture, Foundation, Roadmap, Where this fits
-- `docs/agentic-memory-landscape.md`, `docs/exploration-reports/*`
 - This `CLAUDE.md`, `CHANGELOG.md` (when created), source code, JSDoc, inline comments
 - Migration guides, runbooks, ADRs (when created)
 
@@ -64,53 +62,15 @@ If a piece of TheMemory copy contradicts the locked narrative in [`../CLAUDE.md`
 
 ## Architectural Decisions Locked
 
-Decisions taken during the project's design phase. **Do not re-litigate without reading the source artifact first.** Each entry names the artifact and the date.
+Decisions taken during the project's design phase that override root contract defaults.
 
-### 1. Four explicit overrides of root `CLAUDE.md` (2026-05-21)
+### Three explicit overrides of root `CLAUDE.md` (2026-05-21)
 
-The strategic review of 2026-05-21 documented four explicit overrides of the root meta-contract. **All four confirmed by the project owner.** Re-opening any requires a new strategic review.
+The strategic review of 2026-05-21 documented three explicit overrides of the root meta-contract. **All three confirmed by the project owner.** Re-opening any requires a new strategic review.
 
 - **Cross-Project Rule 6 — vendor lock-in exception.** TheoKit + TheMemory + TheoCloud is a deliberate single-platform consolidation. Walk-away from this specific combination costs a memory migration. Local OSS runtime stays open; the rest of the funnel remains lock-in-free. Source: root `CLAUDE.md` § Cross-Project Rules 6.
 - **Phase 1 scope expansion — TheoCloud completeness.** TheMemory enters Phase 1 as expansion of TheoCloud capacity, NOT as a 7th vertical productization. Classified as "line item on the TheoCloud invoice", analog Vercel KV. Source: root `CLAUDE.md` § Phase (now), "Expanded into scope 2026-05-21".
-- **Inquebrável Rule 9 — strategic build override.** The `docs/agentic-memory-landscape.md` foundation document (2026-05-16) explicitly recommended NOT building a REDACTED-clone. Override accepted because the motive is strategic (lock-in + revenue + single platform), not technical (differentiation). Source: `docs/agentic-memory-landscape.md` § 10 + memory.
 - **License standardization exception — MIT instead of Apache-2.0.** The 2026-05-14 license standardization mandates Apache-2.0 for every OSS product. TheMemory is the explicit MIT exception, for maximum permissiveness in proprietary embeds. Source: root `CLAUDE.md` § Product Hierarchy footnote.
-
-### 2. vector-based hybrid architecture (locked 2026-05-21)
-
-After cloning REDACTED v3.0.3 (`referencia/REDACTED/reference TS port/`) and producing a full exploration report (`docs/exploration-reports/reference TS port.md`, 2026-05-21), the following REDACTED patterns are **locked for v0.1**:
-
-- **Six-phase write pipeline:** Phase 0 context gathering → Phase 1 existing memory retrieval → Phase 2 single LLM extraction call (ADD-only, additive prompt) → Phase 3 batch embed → Phase 4-5 hash dedup → Phase 6 batch persist with fallbacks.
-- **Nine-step search pipeline:** preprocess query → embed → semantic search (over-fetch `max(topK * 4, 60)`) → optional keyword search → BM25 sigmoid normalization → entity boost from separate entity store → score and rank → format.
-- **Additive scoring formula:** `combined = (semantic + bm25 + entity_boost) / max_possible` with semantic threshold gating BEFORE combining. **NOT** the multiplicative `recency × importance × relevance` mentioned in README v1.
-- **Separate entity vector store** with `linkedMemoryIds` + spread-attenuated boost (formula: `boost = similarity * 0.5 * (1.0 / (1.0 + 0.001 * (numLinked - 1)**2))`). Achieves REDACTED-style entity boost without a graph database.
-- **Hash dedup via MD5 of text** — exact-match only; semantic dedup is the LLM's job in the extraction prompt.
-- **UUID → integer mapping** for LLM prompts (anti-hallucination, near-zero cost).
-- **`textLemmatized` precomputed at write** in payload — BM25 read latency stays low.
-- **Auto-detected embedding dimension** via probe call — eliminates a recurring user footgun.
-- **`infer: false` escape hatch** — when caller already has facts, skip LLM extraction.
-- **Robust fallbacks at every I/O boundary** — batch fails → individual; insert fails → one-by-one.
-
-**Source artifact:** `docs/exploration-reports/reference TS port.md` § 4, 5, 8.
-
-### 3. Three-scope model — user_id / agent_id / session_id (locked 2026-05-21)
-
-REDACTED's three-scope filter shape (`user_id` / `agent_id` / `run_id`) maps **1:1** onto TheMemory's User / Session / Agent tiers. We rename `run_id` → `session_id` for clarity. Implementation: scope passed internally as a `filters` object identical in shape to REDACTED's. Public API uses scoped sub-object form (`memory.user(id).remember(text)`) for TypeScript narrowing; both shapes resolve to the same `filters` object before reaching the vector store.
-
-**Source artifact:** `docs/exploration-reports/reference TS port.md` § 3.2.
-
-### 4. API verbs — divergence from REDACTED (locked 2026-05-21)
-
-TheMemory keeps `remember / recall / forget / reflect` (not REDACTED's `add / search / delete`). Divergence accepted for clarity to TheoKit users. **`update()` is NOT shipped** — ADD-only by design; users `forget(id) + remember(newText)` if they want the effect of update. `history(memoryId)` will ship for audit trails (cheap, no new code path).
-
-**Source artifact:** `docs/exploration-reports/reference TS port.md` § 10.4 + 10.5.
-
-### 5. Generative Agents scoring deferred to v0.4 (locked 2026-05-21)
-
-Original README v1 promised `score = recency × importance × relevance` (Generative Agents-style, Park et al. 2023). After exploration, **v0.1 ships REDACTED's additive formula instead**. The multiplicative Generative Agents-style formula moves to **v0.4 (Reflection + Forgetting)** behind a strategy interface, opt-in. Reason: REDACTED's formula is production-tested; recency decay and LLM-importance scoring are complexity extra without benchmarks justifying.
-
-**Action item:** README's "Retrieval — vector-based hybrid, multi-signal" section still mentions recency × importance × relevance. **Update on next pass.**
-
-**Source artifact:** `docs/exploration-reports/reference TS port.md` § 5.1 + 10.1.
 
 ## Relationship to other pillars
 
@@ -130,7 +90,7 @@ The `referencia/` directory contains three clones (`--depth 1`, 2026-05-21) used
 
 | Project | Tamanho | License | Status of exploration |
 |---|---|---|---|
-| [`REDACTED`](./referencia/REDACTED/) | 78 MB | Apache-2.0 | Explored — full report at `docs/exploration-reports/reference TS port.md` (2026-05-21) |
+| [`REDACTED`](./referencia/REDACTED/) | 78 MB | Apache-2.0 | Pending exploration — primary architectural reference (vector + LLM extraction + hybrid retrieval) |
 | [`REDACTED`](./referencia/REDACTED/) | 34 MB | Apache-2.0 | Pending exploration — relevant for Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
 | [`REDACTED`](./referencia/REDACTED/) | 3.9 MB | MIT | Pending exploration — relevant for procedural memory via prompt rewriting |
 
@@ -144,54 +104,52 @@ The roadmap below mirrors the consolidated view in the root `CLAUDE.md § Roadma
 
 | Artifact | Status |
 |---|---|
-| `docs/agentic-memory-landscape.md` — 13 sections, 10+ players surveyed (REDACTED, REDACTED, REDACTED/REDACTED, REDACTED, REDACTED, REDACTED, REDACTED Memory, REDACTED, Generative Agents, REDACTED) | Shipped 2026-05-16 |
-| `docs/exploration-reports/reference TS port.md` — REDACTED v3.0.3 dissected (DIP boundaries, 6-phase write pipeline, 9-step search, scoring divergence locked) | Shipped 2026-05-21 |
 | `referencia/` clones (REDACTED + REDACTED + REDACTED, `--depth 1`, gitignored) | Shipped 2026-05-21 |
 | `README.md` + strategic placement (Community auxiliary MIT, TheoKit-native, vector-based hybrid, two runtimes) | Shipped 2026-05-21 |
-| This `CLAUDE.md` (4 root overrides documented, architectural decisions locked) | Shipped 2026-05-21 |
+| This `CLAUDE.md` (3 root overrides documented) | Shipped 2026-05-21 |
 
 ### Macro roadmap — competitive positioning
 
-Premise: ship vector-based hybrid commodity (`landscape` §9.1) + **attack the 3 open problems** documented at `landscape` §9.3 (long-tail forgetting,  skill libraries, episodic→semantic distillation) + lock-in deliberato via TheoKit/TheoCloud. Each item below carries `Nº` (sequence), `Name` (semver + descriptor), `Description` (concrete scope), `Acceptance` (binary test + `Depends`), `Reference` (anchor in foundation docs), `Status`.
+Premise: ship vector-based hybrid commodity + **attack the 3 open problems** (long-tail forgetting,  skill libraries, episodic→semantic distillation) + lock-in deliberato via TheoKit/TheoCloud. Each item below carries `Nº` (sequence), `Name` (semver + descriptor), `Description` (concrete scope), `Acceptance` (binary test + `Depends`), `Status`.
 
 **Reading the Acceptance column:** Every item declares (a) one or more **binary tests** the implementation must pass, (b) **numeric thresholds** marked `TBD (lock by v0.X kickoff)` for criteria that need calibration, (c) explicit **`Depends:`** prerequisites by item number. An item is NOT considered done until its Acceptance row passes verifiably; "looks right" is not acceptable per Inquebrável Rule 5 (TDD) + Rule 7 (testes não negociáveis).
 
 #### Phase I — Foundation (vector-based hybrid, do not reinvent)
 
-| Nº | Name | Description | Acceptance | Reference | Status |
-|---|---|---|---|---|---|
-| 1 | **v0.0 — Contract design** | Type contract for `Memory`, `MemoryStore`, four DIPs (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`), three-scope `user_id`/`agent_id`/`session_id`, API verbs `remember/recall/forget/reflect` (ADD-only). Frozen in `docs.md`. | `tsc --noEmit` passes on `docs/contract/*.ts`. 4 DIP interfaces declared with method counts matching `reference TS port.md §2.1` (`VectorStore` ≥ 10 methods, `LLM` 2, `Embedder` 2, `HistoryManager` ≥ 3). One ADR per locked decision (vector-based hybrid, three-scope, ADD-only, API verbs) under `docs/adrs/`. **Depends:** — | `reference TS port.md` §2.1, §3.2, §10.4 | In progress |
-| 2 | **v0.1 — Core + local runtime** | 6-phase write pipeline (`infer:false` fast-path + Phase 0-6: context gather, existing retrieval, single LLM extraction, batch embed, MD5 dedup, batch persist with fallbacks) + 9-step search with additive scoring `(semantic + bm25 + entity_boost) / max_possible` + over-fetch `max(topK*4, 60)` + separate entity vector store + auto-detected embedding dim. Backend: Postgres + pgvector + Drizzle. | Integration test: `remember("Paulo likes coffee", {userId:"u1"})` → `recall("beverages", {userId:"u1"})` returns the memory in top-3. Each of 6 write phases + 9 search steps emits one OpenTelemetry span (verify via in-memory exporter). `drizzle-kit push` applies pgvector schema to a fresh database. P95 write latency ≤ TBD (lock by v0.1 kickoff). Fallback path tested: simulated batch-embed failure still completes via per-item fallback. **Depends:** Item 1 | `reference TS port.md` §4, §5; `landscape` §6.1-6.4 | Planned |
-| 3 | **v0.2 — TheoKit binding** | Subpath `@usetheo/memory/theokit` resolves `user_id`/`session_id`/`agent_id` from request context automatically; default-on memory in scaffolded TheoKit apps. **This is the deliberate lock-in surface** (override of Cross-Project Rule 6). | E2E test in scaffolded TheoKit app: HTTP request with auth header → `remember()` inside handler persists under correct `user_id` without explicit scoping in user code. Isolation test: two distinct `user_id` values produce disjoint `recall()` result sets (zero overlap). Scaffolded template includes memory module by default (template snapshot test). **Depends:** Item 2 | `landscape` §10.1; CLAUDE.md § Architectural Decisions Locked #1 | Planned |
-| 4 | **v0.3 — Agent tools (MCP)** | Subpath `@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as MCP tools for `@usetheo/sdk` agents. Function-calling-driven memory ops (lesson from REDACTED/REDACTED) without inheriting the agent-loop lock-in. | MCP server boots; `tools/list` returns exactly 4 tools with stable names. End-to-end via `@usetheo/sdk` agent: each verb invoked successfully with valid payload; schema validation rejects malformed payloads with structured error. JSON-RPC trace test confirms no cross-tool state leakage. **Depends:** Item 2 | `landscape` §4.2 (REDACTED), §6.4 (function-calling pattern) | Planned |
+| Nº | Name | Description | Acceptance | Status |
+|---|---|---|---|---|
+| 1 | **v0.0 — Contract design** | Type contract for `Memory`, `MemoryStore`, four DIPs (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`), three-scope `user_id`/`agent_id`/`session_id`, API verbs `remember/recall/forget/reflect` (ADD-only). Frozen in `docs.md`. | `tsc --noEmit` passes on `docs/contract/*.ts`. 4 DIP interfaces declared (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`) with method counts to be fixed in the contract spec. One ADR per locked decision (vector-based hybrid, three-scope, ADD-only, API verbs) under `docs/adrs/`. **Depends:** — | In progress |
+| 2 | **v0.1 — Core + local runtime** | 6-phase write pipeline (`infer:false` fast-path + Phase 0-6: context gather, existing retrieval, single LLM extraction, batch embed, MD5 dedup, batch persist with fallbacks) + 9-step search with additive scoring `(semantic + bm25 + entity_boost) / max_possible` + over-fetch `max(topK*4, 60)` + separate entity vector store + auto-detected embedding dim. Backend: Postgres + pgvector + Drizzle. | Integration test: `remember("Paulo likes coffee", {userId:"u1"})` → `recall("beverages", {userId:"u1"})` returns the memory in top-3. Each of 6 write phases + 9 search steps emits one OpenTelemetry span (verify via in-memory exporter). `drizzle-kit push` applies pgvector schema to a fresh database. P95 write latency ≤ TBD (lock by v0.1 kickoff). Fallback path tested: simulated batch-embed failure still completes via per-item fallback. **Depends:** Item 1 | Planned |
+| 3 | **v0.2 — TheoKit binding** | Subpath `@usetheo/memory/theokit` resolves `user_id`/`session_id`/`agent_id` from request context automatically; default-on memory in scaffolded TheoKit apps. **This is the deliberate lock-in surface** (override of Cross-Project Rule 6). | E2E test in scaffolded TheoKit app: HTTP request with auth header → `remember()` inside handler persists under correct `user_id` without explicit scoping in user code. Isolation test: two distinct `user_id` values produce disjoint `recall()` result sets (zero overlap). Scaffolded template includes memory module by default (template snapshot test). **Depends:** Item 2 | Planned |
+| 4 | **v0.3 — Agent tools (MCP)** | Subpath `@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as MCP tools for `@usetheo/sdk` agents. Function-calling-driven memory ops (lesson from REDACTED/REDACTED) without inheriting the agent-loop lock-in. | MCP server boots; `tools/list` returns exactly 4 tools with stable names. End-to-end via `@usetheo/sdk` agent: each verb invoked successfully with valid payload; schema validation rejects malformed payloads with structured error. JSON-RPC trace test confirms no cross-tool state leakage. **Depends:** Item 2 | Planned |
 
 #### Phase II — Consolidation infrastructure + cloud foundation
 
 > Items 5+6 deliver the consolidation primitive (reflection unlocks forgetting). Item 7 lands the cloud runtime that also exposes the bi-temporal moat. These three items are the bedrock for Phase III differentiation.
 
-| Nº | Name | Description | Acceptance | Reference | Status |
-|---|---|---|---|---|---|
-| 5 | **v0.4a — Reflection pipeline** | `reflect()` async via sleep-time worker (REDACTED pattern). Scoring tier opcional behind strategy interface: additive REDACTED (default) OR multiplicative Generative Agents (`recency × importance × relevance`). LLM-importance cached at write to avoid per-query cost. | Test: seed 50 memories in a scope; trigger `reflect()`; assert ≥ 1 higher-order memory exists with `derived_from: string[]` provenance linking source memory IDs. Both scoring strategies pass identical recall-shape contract test (interface compliance). Sleep-time worker test: background trigger fires within TBD seconds (lock by v0.4a kickoff) when threshold of N new memories crossed. LLM-importance score persisted on first write; second-write same content does NOT re-invoke LLM. **Depends:** Item 2 | `landscape` §4.9 (Generative Agents), §6.3 (consolidação first-class); `reference TS port.md` §10.1 | Planned |
-| 6 | **v0.4b — Forgetting with long-tail preservation** | **OPEN PROBLEM #1 — no competitor solved this.** Triadic signal (Ebbinghaus time decay + LRU/LFU + LLM-judged importance) WITH explicit anti-long-tail guardrail: rare-but-semantically-isolated memories receive a protection multiplier to defeat frequency bias. | Curated test set: 1000 memories with 50 rare-query targets seeded. After `forget()` cycle removing 30% by triadic score: `recall@10` on rare-query set ≥ TBD (lock by v0.4b kickoff). Guardrail unit test: a rare-but-isolated memory survives ≥ 5 consecutive LRU eviction passes against frequent siblings. Evaluation matrix published at `docs/forgetting-evaluation.md` (artifact must exist + be reproducible). **Depends:** Item 5 | `landscape` §8 "Memory consolidation / forgetting", §9.3 #1 (open problem) | Planned |
-| 7 | **v0.5 — TheoCloud runtime + bi-temporal premium** | `cloud/` package + TheoCloud-managed backend. Bi-temporal `t_valid`/`t_invalid` columns + audit history exposed in paid tier (**REDACTED's only real moat — we match it bundled**). Multi-region replication, managed embedding pricing. (Graph backend explicitly NOT in this item — see Item 14.) | Bi-temporal test: `remember(fact)` at t1; `forget(id)` at t2; `recall(query, {asOf: t1})` returns the fact; `recall(query, {asOf: t2})` does NOT. `@usetheo/memory/cloud` subpath imports the cloud client and does NOT pull local runtime deps (bundle-size assertion). `THEOKIT_API_KEY` auth flow passes against staging environment (CI secret). Multi-region failover: write in region A, read in region B succeeds within TBD seconds (lock by v0.5 kickoff). **Depends:** Item 2, Theo PaaS GA | `landscape` §4.3 (REDACTED bi-temporal); `reference TS port.md` §10.2 (subpath split), §11 #4 | Planned (depends on PaaS GA) |
+| Nº | Name | Description | Acceptance | Status |
+|---|---|---|---|---|
+| 5 | **v0.4a — Reflection pipeline** | `reflect()` async via sleep-time worker (REDACTED pattern). Scoring tier opcional behind strategy interface: additive REDACTED (default) OR multiplicative Generative Agents (`recency × importance × relevance`). LLM-importance cached at write to avoid per-query cost. | Test: seed 50 memories in a scope; trigger `reflect()`; assert ≥ 1 higher-order memory exists with `derived_from: string[]` provenance linking source memory IDs. Both scoring strategies pass identical recall-shape contract test (interface compliance). Sleep-time worker test: background trigger fires within TBD seconds (lock by v0.4a kickoff) when threshold of N new memories crossed. LLM-importance score persisted on first write; second-write same content does NOT re-invoke LLM. **Depends:** Item 2 | Planned |
+| 6 | **v0.4b — Forgetting with long-tail preservation** | **OPEN PROBLEM #1 — no competitor solved this.** Triadic signal (Ebbinghaus time decay + LRU/LFU + LLM-judged importance) WITH explicit anti-long-tail guardrail: rare-but-semantically-isolated memories receive a protection multiplier to defeat frequency bias. | Curated test set: 1000 memories with 50 rare-query targets seeded. After `forget()` cycle removing 30% by triadic score: `recall@10` on rare-query set ≥ TBD (lock by v0.4b kickoff). Guardrail unit test: a rare-but-isolated memory survives ≥ 5 consecutive LRU eviction passes against frequent siblings. Evaluation matrix published at `docs/forgetting-evaluation.md` (artifact must exist + be reproducible). **Depends:** Item 5 | Planned |
+| 7 | **v0.5 — TheoCloud runtime + bi-temporal premium** | `cloud/` package + TheoCloud-managed backend. Bi-temporal `t_valid`/`t_invalid` columns + audit history exposed in paid tier (**REDACTED's only real moat — we match it bundled**). Multi-region replication, managed embedding pricing. (Graph backend explicitly NOT in this item — see Item 14.) | Bi-temporal test: `remember(fact)` at t1; `forget(id)` at t2; `recall(query, {asOf: t1})` returns the fact; `recall(query, {asOf: t2})` does NOT. `@usetheo/memory/cloud` subpath imports the cloud client and does NOT pull local runtime deps (bundle-size assertion). `THEOKIT_API_KEY` auth flow passes against staging environment (CI secret). Multi-region failover: write in region A, read in region B succeeds within TBD seconds (lock by v0.5 kickoff). **Depends:** Item 2, Theo PaaS GA | Planned (depends on PaaS GA) |
 
 #### Phase III — Differentiation (open problems #2 + #3) and v1.0 gate
 
-| Nº | Name | Description | Acceptance | Reference | Status |
-|---|---|---|---|---|---|
-| 8 | **v0.6 —  skill library** | **OPEN PROBLEM #2 — only the paper exists.** Procedural memory for coding agents: stores executable reusable code/playbooks indexed by retrieval; reflection refactors + dedups skills periodically (no one shipped this as infra). Natural alignment with TheoCode. Opt-in tier `memory.skills(repoId)`. | TheoCode integration test: a successful run produces ≥ 1 skill artifact in `memory.skills(repoId)`. Subsequent run with semantically-similar prompt retrieves + reuses the skill (cache-hit metric > 0). Refactoring test: feed 2 syntactically-different but semantically-equivalent skills; reflection consolidates to 1 with both source IDs in `derived_from`. **Depends:** Item 5 | `landscape` §8 "Procedural memory / REDACTED" (arxiv 2305.16291), §9.3 #2, §10.2 | Planned |
-| 9 | **v0.7 — Episodic→Semantic distillation pipeline** | **OPEN PROBLEM #3 — REDACTED/REDACTED try, quality remains open.** Managed pipeline: raw episodes → entity extraction → conflict resolution (LLM-judged) → semantic facts with provenance link back to source episodes. | Gold set: 200 manually-labeled raw episodes committed under `tests/fixtures/distillation/`. Entity-extraction precision ≥ TBD (lock by v0.7 kickoff); recall ≥ TBD (lock by v0.7 kickoff). Conflict-resolution test: two contradictory facts → pipeline resolves to one + history records rejected alternative with reason. Every persisted semantic fact has non-empty `derived_from: episodeId[]`. Metrics published at `docs/distillation-evaluation.md`. **Depends:** Item 5 | `landscape` §9.3 #3; `reference TS port.md` §4.2 Phase 2 (single LLM call extraction) | Planned |
-| 10 | **v0.8 — Independent benchmark reproduction** | Reproduce LongMemEval + LoCoMo + DMR **independently** (not self-published per `landscape` §11 caveats). Compare against REDACTED/REDACTED/REDACTED on real fixtures. Publish matrix: P95 latency, recall@10, cost/session, temporal accuracy. **Zero benchmark theater** — methodology + raw fixtures published alongside numbers. | All 3 benchmarks run in CI against TheMemory v0.7 + REDACTED v3 + REDACTED + REDACTED on identical fixtures (committed under `benchmarks/fixtures/`). Matrix published at `docs/benchmarks/v0.8.md` with 4 columns: P95 latency, recall@10, cost/session, temporal accuracy. Reproducibility: a third party running `pnpm bench` produces matching numbers within TBD% tolerance (lock by v0.8 kickoff). Target: TheMemory ≥ REDACTED on at least TBD of TBD metrics (lock by v0.8 kickoff); shortfalls documented honestly. **Depends:** Items 6, 8, 9 | `landscape` §4.1, §4.3 (REDACTED/REDACTED benchmark controversies), §11; CLAUDE.md § Honesty discipline | Planned |
-| 11 | **v1.0 — Contract stable** | Contract frozen. `production-ready` claim permitted ONLY after: (a) Item 10 reproduced independently with verifiable artifacts, (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" `running` ≥ 30 days). | (a) `docs/benchmarks/v0.8.md` exists + at least one external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (per `dogfood-golden-rule.md`). README Status section flipped to `Production-ready` in the same PR that bumps to v1.0. No `production-ready` token appears anywhere in repo before this PR (grep gate). **Depends:** Item 10 + `/dogfood` infra (already shipped 2026-05-22) | `dogfood-golden-rule.md`; CLAUDE.md § Honesty discipline | Planned |
+| Nº | Name | Description | Acceptance | Status |
+|---|---|---|---|---|
+| 8 | **v0.6 —  skill library** | **OPEN PROBLEM #2 — only the paper exists.** Procedural memory for coding agents: stores executable reusable code/playbooks indexed by retrieval; reflection refactors + dedups skills periodically (no one shipped this as infra). Natural alignment with TheoCode. Opt-in tier `memory.skills(repoId)`. | TheoCode integration test: a successful run produces ≥ 1 skill artifact in `memory.skills(repoId)`. Subsequent run with semantically-similar prompt retrieves + reuses the skill (cache-hit metric > 0). Refactoring test: feed 2 syntactically-different but semantically-equivalent skills; reflection consolidates to 1 with both source IDs in `derived_from`. **Depends:** Item 5 | Planned |
+| 9 | **v0.7 — Episodic→Semantic distillation pipeline** | **OPEN PROBLEM #3 — REDACTED/REDACTED try, quality remains open.** Managed pipeline: raw episodes → entity extraction → conflict resolution (LLM-judged) → semantic facts with provenance link back to source episodes. | Gold set: 200 manually-labeled raw episodes committed under `tests/fixtures/distillation/`. Entity-extraction precision ≥ TBD (lock by v0.7 kickoff); recall ≥ TBD (lock by v0.7 kickoff). Conflict-resolution test: two contradictory facts → pipeline resolves to one + history records rejected alternative with reason. Every persisted semantic fact has non-empty `derived_from: episodeId[]`. Metrics published at `docs/distillation-evaluation.md`. **Depends:** Item 5 | Planned |
+| 10 | **v0.8 — Independent benchmark reproduction** | Reproduce LongMemEval + LoCoMo + DMR **independently**. Compare against REDACTED/REDACTED/REDACTED on real fixtures. Publish matrix: P95 latency, recall@10, cost/session, temporal accuracy. **Zero benchmark theater** — methodology + raw fixtures published alongside numbers. | All 3 benchmarks run in CI against TheMemory v0.7 + REDACTED v3 + REDACTED + REDACTED on identical fixtures (committed under `benchmarks/fixtures/`). Matrix published at `docs/benchmarks/v0.8.md` with 4 columns: P95 latency, recall@10, cost/session, temporal accuracy. Reproducibility: a third party running `pnpm bench` produces matching numbers within TBD% tolerance (lock by v0.8 kickoff). Target: TheMemory ≥ REDACTED on at least TBD of TBD metrics (lock by v0.8 kickoff); shortfalls documented honestly. **Depends:** Items 6, 8, 9 | Planned |
+| 11 | **v1.0 — Contract stable** | Contract frozen. `production-ready` claim permitted ONLY after: (a) Item 10 reproduced independently with verifiable artifacts, (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" `running` ≥ 30 days). | (a) `docs/benchmarks/v0.8.md` exists + at least one external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (per `dogfood-golden-rule.md`). README Status section flipped to `Production-ready` in the same PR that bumps to v1.0. No `production-ready` token appears anywhere in repo before this PR (grep gate). **Depends:** Item 10 + `/dogfood` infra (already shipped 2026-05-22) | Planned |
 
 #### Phase IV — Post v1.0 (competitive expansion)
 
-| Nº | Name | Description | Acceptance | Reference | Status |
-|---|---|---|---|---|---|
-| 12 | **v1.1 — Multi-peer / `attributed_to`** | Memories carrying perspective ("memory A is about user X, said by user Y") via `attributed_to` field in payload. Delivers theory-of-mind-style perspective filtering WITHOUT inheriting REDACTED's AGPL restriction. *(Decision 2026-05-22: NOT day-0 — see `## Open questions` § 1, now resolved.)* | Test: `remember(text, {userId:"x", attributedTo:"y"})` persists with both fields. `recall(query, {userId:"x", attributedTo:"y"})` returns it; `recall(query, {userId:"x"})` (no filter) also returns it under x's scope. Schema migration adds optional `attributed_to` column; existing rows remain valid (NULL). Backward-compat test: pre-v1.1 caller code keeps working unchanged. **Depends:** Item 2 | `reference TS port.md` §4.3 #7, §11 #1; `landscape` §4.5 (REDACTED) | Planned |
-| 13 | **v1.2 — Adaptive retrieval** | "Should I retrieve?" + "Was it good?" decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). Retrieval as policy, not constant — reduces token cost and ranking noise. | Baseline measurement: N test queries → N retrievals (M2 = no hook). With `shouldRetrieve` hook installed: M < N retrievals AND recall on emitted retrievals ≥ baseline recall (no quality regression). `wasRetrievalGood` callback receives `{score, query, results}` post-recall and consumer can mutate downstream behavior (test via state-mutation spy). **Depends:** Item 2 | `landscape` §8 "Self-RAG / CRAG / Adaptive-RAG" (arxiv 2310.11511, 2401.15884, 2403.14403), §10.2 | Planned |
-| 14 | **v1.3 — Optional graph backend** | Adapter `@usetheo/memory/graph` for KG-style queries (REDACTED/REDACTED use cases). **Composition** via interface, NOT replacement of vector core. Backend: Postgres + Apache AGE OR Neo4j. | Shape-shared test suite: same `MemoryStore` interface, same assertions, runs green against (a) pgvector backend AND (b) AGE backend. Graph-specific API: `memory.traverse(entityId, {depth: 2})` returns correct neighborhood verified against seeded fixture. Bundle gate: importing `@usetheo/memory` (default) does NOT pull graph deps. **Depends:** Item 2 | `landscape` §4.4 (REDACTED), §9.2 (contested layer); `reference TS port.md` §5.2 (separate entity store is half-graph already) | Planned |
-| 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical, legal, code, support) layered over LLM extraction. Attacks REDACTED's pitch WITHOUT replicating its poly-store complexity. | Pilot domain (medical) ships with declared TypeScript schema. Extraction over domain-relevant fixture text produces entities conforming to schema (Zod validation passes). Consumer code: `recall<MedicalSchema>(...)` narrows return type at compile time (`tsc --noEmit` test). At least 1 cross-domain conflict caught at write time (e.g., medical-domain memory rejected from legal scope). **Depends:** Item 9 (distillation pipeline feeds typed extraction) | `landscape` §4.4 (REDACTED ontologies) | Planned |
+| Nº | Name | Description | Acceptance | Status |
+|---|---|---|---|---|
+| 12 | **v1.1 — Multi-peer / `attributed_to`** | Memories carrying perspective ("memory A is about user X, said by user Y") via `attributed_to` field in payload. Delivers theory-of-mind-style perspective filtering WITHOUT inheriting REDACTED's AGPL restriction. *(Decision 2026-05-22: NOT day-0 — see `## Open questions` § 1, now resolved.)* | Test: `remember(text, {userId:"x", attributedTo:"y"})` persists with both fields. `recall(query, {userId:"x", attributedTo:"y"})` returns it; `recall(query, {userId:"x"})` (no filter) also returns it under x's scope. Schema migration adds optional `attributed_to` column; existing rows remain valid (NULL). Backward-compat test: pre-v1.1 caller code keeps working unchanged. **Depends:** Item 2 | Planned |
+| 13 | **v1.2 — Adaptive retrieval** | "Should I retrieve?" + "Was it good?" decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns — arxiv 2310.11511, 2401.15884, 2403.14403). Retrieval as policy, not constant — reduces token cost and ranking noise. | Baseline measurement: N test queries → N retrievals (M2 = no hook). With `shouldRetrieve` hook installed: M < N retrievals AND recall on emitted retrievals ≥ baseline recall (no quality regression). `wasRetrievalGood` callback receives `{score, query, results}` post-recall and consumer can mutate downstream behavior (test via state-mutation spy). **Depends:** Item 2 | Planned |
+| 14 | **v1.3 — Optional graph backend** | Adapter `@usetheo/memory/graph` for KG-style queries (REDACTED/REDACTED use cases). **Composition** via interface, NOT replacement of vector core. Backend: Postgres + Apache AGE OR Neo4j. | Shape-shared test suite: same `MemoryStore` interface, same assertions, runs green against (a) pgvector backend AND (b) AGE backend. Graph-specific API: `memory.traverse(entityId, {depth: 2})` returns correct neighborhood verified against seeded fixture. Bundle gate: importing `@usetheo/memory` (default) does NOT pull graph deps. **Depends:** Item 2 | Planned |
+| 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical, legal, code, support) layered over LLM extraction. Attacks REDACTED's pitch WITHOUT replicating its poly-store complexity. | Pilot domain (medical) ships with declared TypeScript schema. Extraction over domain-relevant fixture text produces entities conforming to schema (Zod validation passes). Consumer code: `recall<MedicalSchema>(...)` narrows return type at compile time (`tsc --noEmit` test). At least 1 cross-domain conflict caught at write time (e.g., medical-domain memory rejected from legal scope). **Depends:** Item 9 (distillation pipeline feeds typed extraction) | Planned |
 
 ### Items cut / deferred
 
@@ -202,7 +160,7 @@ Premise: ship vector-based hybrid commodity (`landscape` §9.1) + **attack the 3
 
 ### Competitive superiority matrix
 
-How each roadmap item maps to a specific competitor weakness. Every "attack" is grounded in `landscape` §3-4 (per-player limitations) or §9.3 (open problems).
+How each roadmap item maps to a specific competitor weakness.
 
 | Competitor | Their moat | Our attack | Roadmap item(s) |
 |---|---|---|---|
@@ -223,7 +181,7 @@ How each roadmap item maps to a specific competitor weakness. Every "attack" is 
 
 ## Open questions for the contract design
 
-Tracked in the exploration report (`docs/exploration-reports/reference TS port.md` § 11). **Lock before v0.0 contract ships:**
+**Lock before v0.0 contract ships:**
 
 1. ~~**Multi-peer / `attributed_to` support.** REDACTED has the field as opt-in. Day-one for TheMemory?~~ **RESOLVED 2026-05-22:** deferred to v1.1 (roadmap Item 12). Rationale: keeps v0.0 contract minimal; no consumer asked for day-0; backward-compat path via optional column.
 2. **`update()` semantics inside ADD-only.** REDACTED has `update()`; we hold the line. Edge case: should it ever exist?
@@ -247,14 +205,12 @@ Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Pr
 
 ## When this file is wrong
 
-The code (when it lands), the README, and the exploration reports are authoritative. If this file disagrees with them, the code/README/reports win — update this file via PR with a one-line rationale in the commit message.
+The code (when it lands) and the README are authoritative. If this file disagrees with them, the code/README win — update this file via PR with a one-line rationale in the commit message.
 
 **Locked items** require explicit strategic review:
 
 - **Locked names** (npm package, license MIT exception, tier, memory tiers, API verbs, two runtimes, subpath exports) — root-level strategic review.
 - **Voice and tone** — root-level strategic review per Voice and Tone section.
-- **Four root overrides** (Cross-Project Rule 6 exception, Phase 1 scope, Inquebrável Rule 9 override, MIT license exception) — root-level strategic review.
-- **vector-based hybrid architecture commitments** — local sub-project review (re-explore the source artifact first).
-- **Three-scope model + API verbs + ADD-only** — local sub-project review (re-read the exploration report first).
+- **Three root overrides** (Cross-Project Rule 6 exception, Phase 1 scope, MIT license exception) — root-level strategic review.
 
 Do not edit any of the above silently. Surface the conflict to the user first.
