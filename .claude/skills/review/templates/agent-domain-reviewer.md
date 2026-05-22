@@ -2,7 +2,7 @@
 name: review-{SLUG}-domain-{DOMAIN}
 description: Domain-specific reviewer for {SLUG} (domain: {DOMAIN}). Checks compliance with patterns and conventions specific to the {DOMAIN} domain — references blueprints, patterns skills, and project rules relevant to {DOMAIN}. Generated 2026-05-21 by /review.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: {MODEL}
 ---
 
 # Domain Reviewer — {DOMAIN} for {SLUG}

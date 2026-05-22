@@ -2,7 +2,7 @@
 name: review-{SLUG}-wiring
 description: Wiring depth reviewer for {SLUG}. Re-validates wiring triad (caller + integration test + runtime metric) in DEPTH; verifies new code is INTEGRATED into existing flows, not orphan modules. Generated 2026-05-21 by /review.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: {MODEL}
 ---
 
 # Wiring Reviewer — {SLUG}

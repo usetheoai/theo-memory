@@ -2,7 +2,7 @@
 name: review-{SLUG}-tests
 description: Test quality reviewer for {SLUG}. Validates integration test depth, AAA/Given-When-Then format, fixture quality, scenario coverage from plan TDD sections, and edge-case coverage. Generated 2026-05-21 by /review.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: {MODEL}
 ---
 
 # Test Reviewer — {SLUG}

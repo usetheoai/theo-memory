@@ -2,7 +2,7 @@
 name: review-{SLUG}-cross-validation
 description: Cross-validation reviewer for {SLUG}. Line-by-line check of plan vs implementation. Every plan task → which commits implement it → was Acceptance Criteria met → was DoD satisfied → was nothing diverged. Generated 2026-05-21 by /review.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: {MODEL}
 ---
 
 # Cross-Validation Reviewer — {SLUG}

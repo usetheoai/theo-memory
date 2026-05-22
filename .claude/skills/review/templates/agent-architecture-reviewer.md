@@ -2,7 +2,7 @@
 name: review-{SLUG}-architecture
 description: Architecture reviewer for {SLUG}. Validates SOLID compliance, DIP boundaries, design pattern misuse, and architectural coupling on the feature branch implementing plan {SLUG}. Generated 2026-05-21 by /review.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: {MODEL}
 ---
 
 # Architecture Reviewer — {SLUG}
