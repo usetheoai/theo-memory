@@ -1,6 +1,6 @@
 # Plan: Code-Quality Skill — multi-language wiring + dead-code + symbol-fabrication gate
 
-> **Version 1.2** — Implementar a skill `/code-quality` em `.claude/skills/code-quality/` conforme blueprint `wiring-deadcode-gates-blueprint.md`. Skill audita TypeScript, Python, Rust e Go quanto a dead code, símbolos fabricados, wiring cross-package órfão e qualidade de testes (mutation), bloqueando PRs com achados não-allowlisted. Arquitetura adapter pattern (um módulo Python por linguagem). Sibling arquitetural de `/deps-audit`. Roda entre o halt-loop de `/implement` e o handoff para `/review` no `cycle-implement`. **Read-only** por design: nunca edita código.
+> **Version 1.3** — Implementar a skill `/code-quality` em `.claude/skills/code-quality/` conforme blueprint `wiring-deadcode-gates-blueprint.md`. Skill audita TypeScript, Python, Rust e Go quanto a dead code, símbolos fabricados, wiring cross-package órfão e qualidade de testes (mutation), bloqueando PRs com achados não-allowlisted. Arquitetura adapter pattern (um módulo Python por linguagem). Sibling arquitetural de `/deps-audit`. Roda entre o halt-loop de `/implement` e o handoff para `/review` no `cycle-implement`. **Read-only** por design: nunca edita código.
 
 ### Changelog do plano
 
