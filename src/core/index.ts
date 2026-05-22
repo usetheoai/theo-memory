@@ -1,0 +1,81 @@
+/**
+ * Public contract barrel for `@usetheo/memory/contract`.
+ *
+ * v0.0 preview surface — re-exports every contract type from Phase 2 + Phase 3.
+ * v0.1+ moves the canonical source under the same paths; this barrel stays
+ * stable as the consumer-facing entry point.
+ *
+ * @see ADR-0004 — API verbs (Memory + ScopedMemory expose remember/recall/forget/reflect)
+ * @see ADR-0008 — DIP method counts (5 DIPs surface here)
+ */
+
+// Domain types
+export type {
+  AgentScope,
+  Filters,
+  Scope,
+  SessionScope,
+  UserScope,
+} from './scope.js';
+
+export type {
+  MemoryItem,
+  MemoryItemWithScore,
+} from './memory-item.js';
+
+export type {
+  ForgetOptions,
+  GetAllOptions,
+  RecallOptions,
+  ReflectOptions,
+  RememberOptions,
+} from './options.js';
+
+export type {
+  CloudMemoryConfig,
+  Memory,
+  MemoryConfig,
+  MemoryStore,
+  ScopedMemory,
+} from './memory-store.js';
+
+export type { HistoryEntry } from './history-entry.js';
+
+export type { ReflectionResult } from './reflection-result.js';
+
+// Domain errors (real classes — not types)
+export {
+  BiTemporalNotSupportedLocally,
+  EmbeddingMismatch,
+  InvalidScope,
+  MemoryNotFound,
+  ReflectionNotConfigured,
+} from './errors.js';
+
+// Chat-message shape (shared across LLM + V3 history)
+export type {
+  LLMResponse,
+  Message,
+  Role,
+} from './message.js';
+
+// DIPs
+export type { Embedder } from './dip/embedder.js';
+
+export type { LLM } from './dip/llm.js';
+
+export type {
+  VectorStore,
+  VectorStoreResult,
+} from './dip/vector-store.js';
+
+export type {
+  HistoryBatchRecord,
+  HistoryManager,
+} from './dip/history-manager.js';
+
+export type {
+  ManualReflectionPolicy,
+  ReflectionPolicy,
+  ReflectionTrigger,
+} from './dip/reflection-policy.js';
