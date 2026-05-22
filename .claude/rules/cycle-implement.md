@@ -38,7 +38,7 @@ Do NOT invoke when:
 - Plan contains unmapped Coverage Matrix gaps — fix the plan
 - A previous `/implement-execute` for this slug is mid-flight with unmerged commits — finish or abort it first
 
-## Chain (v1.0 — inquebrável)
+## Chain (v1.1 — inquebrável; SEPA-augmented)
 
 ```
 /implement {plan-slug}
@@ -49,16 +49,25 @@ Do NOT invoke when:
   ↓ parse plan → ordered implementation task list at
   ↓   .claude/knowledge-base/implementations/{slug}-implementation.md
   ↓
+  ↓ SPAWN SEPA (Staff Engineer Pair-Program Agent) at
+  ↓   .claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md
+  ↓   — composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + rules
+  ↓   — initial-brief Agent invocation; persists role contract for cross-iteration consultation
+  ↓   — read-only observer; main session retains commit authority
+  ↓
   ↓ invoke ralph-loop:ralph-loop with halt-loop prompt:
   ↓ FOR EACH task in dependency order:
+  ↓   SEPA 1/3      — pre-RED brief: recap plan task + gotchas
   ↓   RED phase     — write failing test FIRST; confirm it fails
   ↓   GREEN phase   — minimal code; test passes (max 3 retries per task)
-  ↓   REFACTOR phase — SOLID + Clean Code + DRY review; tests stay green
+  ↓   SEPA 2/3      — post-GREEN review: SOLID/Clean Code/DRY violations
+  ↓   REFACTOR phase — apply quality rules + SEPA findings; tests stay green
   ↓   WIRING phase  — triad check (scripts/check_wiring.py):
   ↓                   (a) Static caller   — grep production callers ≥ 1
   ↓                   (b) Integration test — grep tests/integration/ ≥ 1 OR ADR-DEFER
   ↓                   (c) Runtime metric   — .wiring-evidence.json count > 0 OR n/a
   ↓                   HALT before commit if any required pillar fails
+  ↓   SEPA 3/3      — pre-COMMIT audit: DoD checkboxes + commit shape
   ↓   COMMIT phase  — staged-files-only commit, conventional-commits format
   ↓                   NEVER --no-verify, NEVER on main
   ↓ emits <promise>IMPLEMENTATION_COMPLETE</promise> when all tasks done OR honest BLOCKED
@@ -171,7 +180,16 @@ NEVER rollback `main` — work happens on feature branches. If the cycle produce
 
 ## Versioning
 
-This cycle rule is **v1.0 ACTIVE** as of 2026-05-21. Promoted from v0.1 PROPOSED after the strategic review consolidated 3 proposed skills into 1 entry-point + halt-loop, and the `/implement` skill was built + scripts validated.
+This cycle rule is **v1.1 ACTIVE** as of 2026-05-22.
+
+### Change log
+
+| Version | Date | Change | Rationale |
+|---|---|---|---|
+| v1.0 | 2026-05-21 | Initial halt-loop design (single-skill entry, ralph-loop iteration, TDD per task, wiring triad gate). | Strategic review consolidated 3 proposed skills into 1 entry-point. |
+| v1.1 | 2026-05-22 | Added SEPA (Staff Engineer Pair-Program Agent) at `/implement` startup. Runtime-generated specialist agent composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + project rules. Consulted 3× per iteration (pre-RED, post-GREEN, pre-COMMIT) as read-only observer. Catches plan deviations + ADR cross-reference misses + SOLID/Clean Code violations + scope creep inline. Cost: ~30-60k tokens extra per cycle. | User directive 2026-05-22 post memory-contract-v0-0 retrospective: serial halt-loop lacked second-eyes safeguard; missed cross-references and required reactive fixes. Mirrors `/review`'s parallel-specialist pattern but inline during /implement instead of post-hoc. |
+
+### v0.1 → v1.0 resolved decisions
 
 ### v0.1 → v1.0 resolved decisions
 

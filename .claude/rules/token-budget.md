@@ -51,7 +51,7 @@ The numbers below are estimates based on the architecture of each skill, not emp
 
 | Skill | Typical cost | Notes |
 |---|---|---|
-| `/implement` | 100-300k | Halt-loop with up to 50 iterations × (RED + GREEN + REFACTOR + WIRING + COMMIT phases). Teacher/student split: COMMIT phase migrated to haiku (experimental_until=2026-07-22, see `implement-model-routing.txt`); GREEN deferred to 2026-08-22 review. Per-task saving modest until GREEN ships. |
+| `/implement` | 130-360k | Halt-loop with up to 50 iterations × (RED + GREEN + REFACTOR + WIRING + COMMIT phases). v1.1 adds SEPA (Staff Engineer Pair-Program Agent) consulted 3× per iteration (pre-RED, post-GREEN, pre-COMMIT): ~2-5k tokens per call → ~30-60k tokens per cycle of SEPA overhead. Teacher/student split: COMMIT phase migrated to haiku (experimental_until=2026-07-22, see `implement-model-routing.txt`); GREEN deferred to 2026-08-22 review. Per-task saving modest until GREEN ships. |
 | `/code-quality` | 5-15k | v1.1 (added 2026-05-22). Detectors are subprocesses to external CLIs (vulture/knip/cargo-udeps/deadcode/stryker/mutmut) — ~0 LLM tokens for the runs themselves. Cost is in JSON parsing + tree-sitter AST extraction + registry HTTP lookups + Markdown report generation. Higher end (~15k) when D2 hits registries for many imports without cache warmth. CI runtime: 2-7 min (subprocess + network). |
 | **Full cycle** | **105-315k** | Includes `/implement` + `/code-quality` for the v1.1 chain. Marginal saving from teacher/student split (~5-10%) — meaningful saving requires GREEN migration after first-month review. |
 
