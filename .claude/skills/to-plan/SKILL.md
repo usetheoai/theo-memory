@@ -80,6 +80,7 @@ Use the template below and save to `.claude/knowledge-base/plans/{slug}-plan.md`
 
 The plan MUST include:
 
+- A `## Goal` section in the canonical SMART format defined in [`templates/plan-template.md § Goal`](./templates/plan-template.md): one sentence, action-oriented verb, one named observable metric. Vague verbs (`improve`, `enhance`, `better`, `optimize` without a number, `clean up`) are forbidden as the primary verb.
 - ADR Rationale citing project rules or principles (Step 0).
 - Global DoD with quality-gate entries (lint, complexity, size).
 - File size budget mention (default 500 LoC; see `.claude/rules/architecture.md § Module hygiene` for project-specific budgets, or `.claude/skills/plan-confidence/defaults/loc-limits.md` as fallback).
@@ -94,6 +95,8 @@ When generating a plan, read that file and copy everything inside its `<plan-tem
 ## Quality Rules
 
 These rules are NON-NEGOTIABLE for every plan produced by this skill:
+
+0. **Goal is one sentence + one metric** — the `## Goal` section MUST follow the SMART format in [`templates/plan-template.md § Goal`](./templates/plan-template.md): action-oriented verb, single observable metric (test pass, benchmark threshold, counter non-zero, coverage %), no vague verbs (`improve`, `enhance`, `better`, `clean up`, `optimize` without a number). If the goal cannot fit one sentence with one metric, split the plan. The Goal is the contract `/plan-confidence`, `/implement`, and `/review` cite.
 
 1. **Every task has TDD** — no task without RED-GREEN-REFACTOR cycle. Tests are listed BEFORE implementation steps.
 

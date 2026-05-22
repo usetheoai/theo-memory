@@ -10,13 +10,35 @@ This file is the canonical template referenced from `to-plan/SKILL.md § Plan Te
 
 > **Version 1.0** — one-paragraph executive summary explaining what this plan does, why it matters, and what the expected outcome is.
 
+## Goal
+
+**One sentence, action-oriented, measurable.** Mandatory format:
+
+> "Enable {who} to {capability} so that {observable outcome}, measured by {metric}."
+
+Example:
+
+> "Enable `@usetheo/sdk` agents to persist scoped memory across sessions so that conversation context survives process restarts, measured by `recall@5 ≥ 0.85` on the LongMemEval slice."
+
+**NON-NEGOTIABLE:**
+- The Goal MUST fit in one sentence with one named metric. If it cannot, the plan scope is too large — split into multiple plans.
+- The primary verb MUST be action-oriented with a clear end-state: `ship`, `enable`, `replace X with Y`, `reduce X from N to M`, `add`, `remove`, `migrate`. Vague verbs are FORBIDDEN as the primary verb: `improve`, `enhance`, `better`, `optimize` (without a number), `clean up`, `refactor` (without a target).
+- The metric MUST be observable from outside the implementation: a test that passes, a benchmark threshold, a counter non-zero in integration workload, a file that exists, a coverage percentage. "Code looks cleaner" is NOT a metric.
+- The Goal is the contract `/plan-confidence`, `/implement`, and `/review` cite. Changing it after `/edge-case-plan` runs requires bumping the plan version.
+
 ## Context
 
 What exists today, what's broken or missing, and what evidence (data, logs, user reports, benchmark results) motivates this work. Include links to issues, PRs, or ADRs when available.
 
 ## Objective
 
-One clear sentence: what does "done" look like? Then a short list of specific, measurable goals.
+The list of specific, measurable sub-goals that, taken together, compose the **Goal** above. Each sub-goal is a checkbox the implementer can tick off; the Goal is achieved when all sub-goals are checked AND the named metric in the Goal is observed.
+
+- [ ] Sub-goal 1 — specific, measurable
+- [ ] Sub-goal 2 — specific, measurable
+- [ ] Sub-goal 3 — specific, measurable
+
+If the list of sub-goals has more than ~7 entries, the Goal is likely too broad — split the plan.
 
 ## ADRs
 
@@ -138,6 +160,7 @@ Table mapping original gaps/requirements to tasks:
 - [ ] Backward compatibility preserved across public API (`src/index.ts` and subpath exports)
 - [ ] Plan-specific criteria (list them explicitly)
 - [ ] **Runtime-metric proof** — for every task whose DoD references a runtime counter (cache-hit rate, dedup-collision rate, embedding-batch fill rate, BM25 vs semantic share, etc.), the metric MUST be observed non-zero in an integration workload (`npm test -- tests/integration/`), not just verified to compile. "Code exists + tests pass" is NOT proof the wiring fires in real workloads.
+- [ ] **Plan archived** — after `/review` returns `READY_TO_MERGE` AND the PR has been merged to `main`, move `.claude/knowledge-base/plans/{slug}-plan.md` to `.claude/knowledge-base/plans/completed/{slug}-plan.md`. This signals the plan is no longer the active contract and keeps the active `plans/` directory focused on in-flight work. Associated artifacts (confidence reports, edge-case reports, implementation md, review reports) stay in their original locations and follow the rotation policy in [`.claude/rules/audit-trail-rotation.md`](../../rules/audit-trail-rotation.md). NEVER move the plan before the PR is merged — the plan is the contract `/review` cites; moving it during review breaks cross-references.
 
 ## Final Phase: Integration Validation (MANDATORY)
 

@@ -22,10 +22,13 @@ Without rotation, these grow indefinitely. 30 reviews/month × 7 agent files = 2
 | Artifact | Reason to keep |
 |---|---|
 | `.claude/knowledge-base/discoveries/blueprints/{slug}-blueprint.md` | Architectural learnings; cited by patterns skills indefinitely |
-| `.claude/knowledge-base/plans/{slug}-plan.md` | Plan is contract; referenced by reviews and post-mortems |
-| `.claude/knowledge-base/discoveries/plans/{slug}-plan.md` | Same |
+| `.claude/knowledge-base/plans/{slug}-plan.md` (active) | Plan is contract; referenced by reviews and post-mortems. Lives here while the plan is the active contract (pre-merge). |
+| `.claude/knowledge-base/plans/completed/{slug}-plan.md` (post-merge) | Same plan, post-merge. Moved here per the `Plan archived` checkbox in the plan template's Global DoD, after `/review` returns `READY_TO_MERGE` AND the PR is merged to `main`. Keeps the active `plans/` directory focused on in-flight work without losing the historical contract. |
+| `.claude/knowledge-base/discoveries/plans/{slug}-plan.md` | Same — discovery plans do not have a `completed/` lifecycle today; they remain in place after their blueprint ships. |
 | `.claude/skills/{name}-patterns/.source-blueprint` | Marker linking skill back to blueprint; load-bearing for `/skill-register` rollback |
 | `CHANGELOG.md` entries | Inquebrável Rule 6 |
+
+> **Note — active vs completed is lifecycle, not rotation.** The active → completed move is part of the plan's normal lifecycle (it remains KEEP forever in either location). It is NOT the same as the `_archive/` rotation below, which targets artifacts whose audit value decays over time (review findings, intermediate confidence scores, agent dirs). Never put plan files in `_archive/`.
 
 ### ROTATE periodically (audit value decreases over time)
 
@@ -127,4 +130,5 @@ git add . && git commit -m "chore(audit): restore review-{slug}-{date} from arch
 ## Cross-references
 
 - Cycles producing audit trails: `cycle-discover.md`, `cycle-plan.md`, `cycle-implement.md`, `cycle-review.md`
+- Plan template (defines the `Plan archived` DoD checkbox that triggers the active → completed move): [`.claude/skills/to-plan/templates/plan-template.md § Global Definition of Done`](../skills/to-plan/templates/plan-template.md)
 - Cleanup script (future): `.claude/scripts/rotate_audit.py` (not yet implemented)

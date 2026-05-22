@@ -1,0 +1,20 @@
+# Evidence files live in this directory.
+#
+# Naming: {scenario-slug}-{YYYY-MM-DD}.md
+# Example: claude-code-auto-memory-2026-06-15.md
+#
+# Each file has frontmatter:
+#   ---
+#   scenario: claude-code-auto-memory
+#   date: YYYY-MM-DD
+#   status: running | paused | abandoned
+#   session_focus: "<short text>"
+#   ---
+#
+# Body sections (any order, all optional but logging empty ones is suspicious):
+#   ## What we did
+#   ## DX pains encountered
+#   ## API gaps surfaced
+#   ## Next session goal
+#
+# Create via `/dogfood log-evidence`. See ../manifest.md for the active scenarios.
