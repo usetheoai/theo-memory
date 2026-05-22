@@ -76,6 +76,13 @@ SNAPSHOTS: dict[str, dict[str, object]] = {
         "score_min": 0,
         "expected_hard_caps_subset": set(),
     },
+    # Active (2026-05-22): teacher/student model split plan; scored SHIPPABLE 100/100
+    # (cycle-plan output in .claude/knowledge-base/reviews/ for audit).
+    "teacher-student-model-split-plan.md": {
+        "verdict_in": {"SHIPPABLE", "SHIPPABLE_WITH_CAVEATS"},
+        "score_min": 90,
+        "expected_hard_caps_subset": set(),
+    },
 }
 
 
