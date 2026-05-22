@@ -49,7 +49,19 @@ if echo "$COMMAND" | grep -qE 'rm[[:space:]]+-rf?[[:space:]]+(/[[:space:]]*$|/[[
 fi
 
 # --- referencia/ is read-only study material ---
-if echo "$COMMAND" | grep -qE '(rm|mv|cp|sed[[:space:]]+-i|>[[:space:]]*)[[:space:]]+(\./)?referencia/'; then
+# Only block clear WRITE/MODIFY operations targeting referencia/.
+# Read-only ops (test, ls, cat, head, tail, find, grep, for-loops, Read/Glob tools)
+# are explicitly allowed — they are needed for /discover-execute and /discover-plan.
+#
+# Anchor the verb to a shell-segment boundary (start, space, `;`, `&&`, `||`, `|`, `(`)
+# so substrings like "cp" inside "docker-compose" don't false-positive.
+# Permits intermediate args/flags between verb and referencia/ via `[^;&|]*`.
+#
+# Known limitation: regex-based shell parsing cannot distinguish bare `rm referencia/`
+# from `rm` appearing inside a quoted string (e.g., `echo 'this rm in a string'
+# referencia/foo`). The latter false-positives. Workaround: rephrase the echo
+# without the verb-name keyword, or use `printf '%s\n' "$VAR"` style.
+if echo "$COMMAND" | grep -qE '(^|[[:space:]]|;|&&|\|\||\||\()[[:space:]]*((rm|mv|cp|sed[[:space:]]+-i|tee)[[:space:]]+[^;&|]*(\./)?referencia/|>{1,2}[[:space:]]+(\./)?referencia/)'; then
   echo "BLOCKED: 'referencia/' contains read-only study clones (Mem0, Letta, LangMem). Never modify, delete, install dependencies in, or rename anything inside it. Use docs/exploration-reports/ to capture findings instead." >&2
   exit 2
 fi
