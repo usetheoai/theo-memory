@@ -45,8 +45,8 @@ Each task MUST complete its TDD cycle (RED → GREEN → REFACTOR → WIRING →
 | T0.4 | Phase 0 / T0.4 | committed | n/a | n/a | n/a | fba68fc |
 | T0.5 | Phase 0 / T0.5 | committed | n/a | n/a | n/a | 9b95c00 |
 | T1.1 | Phase 1 / T1.1 | committed | pass | defer | n/a | 8c638ae |
-| T1.2 | Phase 1 / T1.2 | committed | pass | defer | n/a | (pending) |
-| T1.3 | Phase 1 / T1.3 | pending | — | — | — | — |
+| T1.2 | Phase 1 / T1.2 | committed | pass | defer | n/a | 3bba697 |
+| T1.3 | Phase 1 / T1.3 | committed | pass | defer | n/a | (pending) |
 | T1.4 | Phase 1 / T1.4 | pending | — | — | — | — |
 | T2.1 | Phase 2 / T2.1 | pending | — | — | — | — |
 | T2.2 | Phase 2 / T2.2 | pending | — | — | — | — |
