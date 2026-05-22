@@ -1,0 +1,32 @@
+{
+  "name": "@usetheo/memory",
+  "version": "0.0.0-rc.1",
+  "description": "Managed three-tier memory layer for the usetheo ecosystem. Pre-release.",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.contract.json",
+    "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
+    "lint": "eslint 'src/core/**/*.ts'",
+    "test": "vitest run --config vitest.contract.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-import": "^2.30.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usetheodev/theo-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/usetheodev/theo-memory/issues"
+  },
+  "homepage": "https://usetheo.dev"
+}
