@@ -1,5 +1,13 @@
 # Loop engine convention
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Source of truth for **when to use ralph-loop vs Agent tool vs Skill tool** when designing or modifying skills in this ecosystem.
 
 ## The three loop mechanisms
@@ -31,6 +39,42 @@ This ecosystem uses three distinct mechanisms that look superficially similar bu
 - `/implement` — iterates over plan tasks, one TDD cycle per iteration
 
 **Anti-pattern:** Using ralph-loop for a single-pass task. If the task can fit in one Claude context, don't pay the multi-iteration overhead.
+
+#### How to invoke `ralph-loop:ralph-loop` safely — argument-passing contract
+
+`ralph-loop:ralph-loop` invokes a shell script (`setup-ralph-loop.sh`) that parses its arguments via bash. **The positional prompt argument is shell-evaluated.** Backticks, `$VAR`/`$(...)`, and unescaped quotes will trigger command substitution and break the loop start with a parse error (observed regression 2026-05-22 during `/implement` startup).
+
+**Argument contract (per ralph-loop plugin):**
+
+```
+/ralph-loop PROMPT_TEXT --completion-promise 'TEXT' --max-iterations N
+```
+
+- `PROMPT_TEXT` — initial prompt that ralph-loop will replay each iteration. **MUST be shell-safe** — no backticks, no `$VAR`/`$(...)`, no unescaped quotes, no code blocks, no markdown headers if they touch shell-active chars.
+- `--completion-promise 'TEXT'` — promise marker (use single quotes if multi-word). Required to terminate the loop.
+- `--max-iterations N` — iteration cap (per `.claude/rules/token-budget.md`).
+
+**Recommended pattern: file-referenced prompt.** Inline assembly of a complex driver prompt is fragile. For non-trivial drivers (typical of `/implement`, `/discover-execute`, `/discover-improve`, `/plan-improve`), build a SHORT shell-safe positional prompt that POINTS to a file containing the full driver text:
+
+1. **Read** the driver template (e.g., `.claude/skills/{name}/prompts/{name}-prompt.md`).
+2. **Substitute** static placeholders (`{PLAN_SLUG}`, `{MAX_ITERATIONS}`, etc.) — leaving dynamic ones (`{ITERATION}`) for ralph-loop / the per-iteration Claude.
+3. **Write** the substituted prompt to a per-invocation file under `.claude/halt-loop-prompts/{name}-{slug}.md` (gitignored — see `.gitignore`).
+4. **Invoke** ralph-loop with a SHORT positional prompt that references the file (no shell metachars):
+
+```
+Read .claude/halt-loop-prompts/implement-discover-plan-confidence.md and follow its instructions for this halt-loop iteration.
+```
+
+Plus the flags: `--completion-promise 'IMPLEMENTATION_COMPLETE' --max-iterations 80`.
+
+Each iteration, ralph-loop replays this short positional prompt; Claude reads the file and drives the loop step. The driver file is the single source of truth across iterations.
+
+**Anti-patterns specific to ralph-loop invocation:**
+
+1. **Inlining the driver prompt with backticks / fenced code blocks / `$(...)` in ralph-loop args** — shell evaluates them and the loop fails to start.
+2. **Forgetting `--completion-promise`** — loop runs until `--max-iterations` is exhausted, wasting tokens.
+3. **Setting `--max-iterations` too high without budget justification** — violates `.claude/rules/token-budget.md`. Skill SHOULD document its expected iteration count.
+4. **Writing the driver file inside the skill dir** (e.g., `.claude/skills/{name}/.last-halt-loop.md`) — pollutes the skill source tree. Use `.claude/halt-loop-prompts/` (gitignored).
 
 ### 2. `Agent` tool (subagent invocation)
 

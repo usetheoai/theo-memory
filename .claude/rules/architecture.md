@@ -6,6 +6,14 @@ paths:
 
 # Architecture Rules — @usetheo/memory
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 These rules govern source code under `src/`. Read them before writing any `.ts`/`.tsx`. They make the architectural decisions in `CLAUDE.md § Architectural Decisions Locked` enforceable in code.
 
 ## 1. Three-tier scope (User / Session / Agent)

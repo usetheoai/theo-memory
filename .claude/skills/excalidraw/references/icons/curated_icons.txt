@@ -1,0 +1,214 @@
+# Curated icon list. Format: <lib>/<icon-name> [category]
+# Categories map to theo_palette_map.json -> categories.<category>.color
+# Used by download_icons.py to fetch only what we need.
+#
+# Libraries:
+#   lucide          -> https://github.com/lucide-icons/lucide/tree/main/icons/<name>.svg
+#   tabler          -> https://github.com/tabler/tabler-icons/tree/main/icons/outline/<name>.svg
+#   simple-icons    -> https://github.com/simple-icons/simple-icons/tree/develop/icons/<name>.svg
+#   phosphor-duotone-> https://github.com/phosphor-icons/core/tree/main/assets/duotone/<name>-duotone.svg
+
+# --- LUCIDE: AI / Cognition (primary motor for AI concepts) ---
+lucide/brain primary
+lucide/bot ai
+lucide/cpu neutral
+lucide/sparkles accent
+lucide/network secondary
+lucide/workflow primary
+lucide/zap accent
+lucide/lightbulb accent
+lucide/atom ai
+
+# --- LUCIDE: Flow / Sequence ---
+lucide/arrow-right neutral
+lucide/arrow-left neutral
+lucide/arrow-down neutral
+lucide/arrow-up neutral
+lucide/arrow-up-right neutral
+lucide/git-branch secondary
+lucide/git-merge secondary
+lucide/git-commit-horizontal secondary
+lucide/git-pull-request secondary
+lucide/route secondary
+lucide/milestone neutral
+lucide/navigation neutral
+lucide/refresh-cw secondary
+lucide/repeat secondary
+
+# --- LUCIDE: Memory / Storage (core for our domain) ---
+lucide/database primary
+lucide/hard-drive primary
+lucide/archive primary
+lucide/save primary
+lucide/server neutral
+lucide/layers primary
+lucide/package neutral
+lucide/box neutral
+lucide/folder neutral
+lucide/folder-tree neutral
+lucide/file neutral
+lucide/file-text neutral
+lucide/file-code neutral
+lucide/history accent
+lucide/clock muted
+lucide/calendar muted
+lucide/bookmark accent
+
+# --- LUCIDE: Tools / Actions ---
+lucide/check success
+lucide/x warning
+lucide/plus neutral
+lucide/minus neutral
+lucide/square-pen neutral
+lucide/pen-line neutral
+lucide/copy neutral
+lucide/settings muted
+lucide/sliders-horizontal muted
+lucide/search neutral
+lucide/eye accent
+lucide/eye-off muted
+lucide/play success
+lucide/pause accent
+lucide/square neutral
+lucide/circle neutral
+lucide/terminal neutral
+lucide/wand-sparkles ai
+
+# --- LUCIDE: Communication / IO ---
+lucide/send primary
+lucide/message-square neutral
+lucide/message-circle neutral
+lucide/mail neutral
+lucide/inbox neutral
+lucide/upload secondary
+lucide/download secondary
+lucide/link secondary
+lucide/external-link secondary
+lucide/share-2 secondary
+
+# --- LUCIDE: Concepts / Structure ---
+lucide/grid-2x2 neutral
+lucide/list neutral
+lucide/sigma accent
+lucide/square-function accent
+lucide/regex neutral
+lucide/parentheses neutral
+lucide/braces neutral
+lucide/brackets neutral
+lucide/binary muted
+
+# --- LUCIDE: Security / Guard ---
+lucide/lock warning
+lucide/lock-open muted
+lucide/shield neutral
+lucide/shield-check success
+lucide/shield-alert warning
+lucide/key accent
+lucide/key-round accent
+
+# --- LUCIDE: State / Status ---
+lucide/circle-check success
+lucide/circle-x warning
+lucide/circle-alert warning
+lucide/triangle-alert warning
+lucide/info secondary
+lucide/circle-question-mark muted
+lucide/loader muted
+lucide/timer muted
+
+# --- LUCIDE: Performance / Metric ---
+lucide/gauge accent
+lucide/activity accent
+lucide/trending-up success
+lucide/trending-down warning
+lucide/chart-bar secondary
+lucide/chart-line secondary
+lucide/chart-pie secondary
+lucide/target accent
+lucide/percent accent
+
+# --- LUCIDE: Code / Dev ---
+lucide/code neutral
+lucide/code-xml neutral
+lucide/square-terminal neutral
+lucide/command neutral
+lucide/bug warning
+lucide/test-tube secondary
+
+# --- LUCIDE: People / Agent ---
+lucide/user neutral
+lucide/users neutral
+lucide/user-check success
+lucide/headphones neutral
+
+# --- TABLER: technical complement (only when Lucide misses) ---
+tabler/stack-2 primary
+tabler/stack-3 primary
+tabler/prompt ai
+tabler/message-2-code ai
+tabler/brackets-contain neutral
+tabler/api secondary
+tabler/cpu-2 neutral
+tabler/device-laptop neutral
+tabler/device-desktop neutral
+tabler/device-mobile neutral
+tabler/cloud secondary
+tabler/cloud-cog secondary
+tabler/world-www secondary
+tabler/topology-complex primary
+tabler/topology-ring primary
+tabler/binary-tree primary
+tabler/circuit-cell neutral
+
+# --- SIMPLE-ICONS: brand logos (CC0, monochrome) ---
+simple-icons/github brand
+simple-icons/anthropic brand
+simple-icons/claude brand
+simple-icons/googlegemini brand
+simple-icons/python brand
+simple-icons/rust brand
+simple-icons/go brand
+simple-icons/typescript brand
+simple-icons/javascript brand
+simple-icons/react brand
+simple-icons/vuedotjs brand
+simple-icons/nodedotjs brand
+simple-icons/docker brand
+simple-icons/kubernetes brand
+simple-icons/redis brand
+simple-icons/postgresql brand
+simple-icons/mongodb brand
+simple-icons/sqlite brand
+simple-icons/git brand
+simple-icons/gnubash brand
+simple-icons/linux brand
+simple-icons/apple brand
+simple-icons/googlecloud brand
+simple-icons/cloudflare brand
+simple-icons/huggingface brand
+simple-icons/tensorflow brand
+simple-icons/pytorch brand
+simple-icons/jupyter brand
+simple-icons/vscodium brand
+simple-icons/neovim brand
+simple-icons/jetbrains brand
+simple-icons/markdown brand
+simple-icons/json brand
+simple-icons/yaml brand
+
+# --- PHOSPHOR-DUOTONE: hero elements (use sparingly, only in infographics) ---
+phosphor-duotone/brain primary
+phosphor-duotone/robot ai
+phosphor-duotone/lightning accent
+phosphor-duotone/sparkle accent
+phosphor-duotone/database primary
+phosphor-duotone/graph secondary
+phosphor-duotone/network secondary
+phosphor-duotone/lightbulb accent
+phosphor-duotone/lock-key warning
+phosphor-duotone/cpu neutral
+phosphor-duotone/atom ai
+phosphor-duotone/eye accent
+phosphor-duotone/gear muted
+phosphor-duotone/plug secondary
+phosphor-duotone/tree-structure primary

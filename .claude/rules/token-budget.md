@@ -1,5 +1,13 @@
 # Token budget — cost estimates per cycle/skill
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Source of truth for **expected token cost** of each cycle and skill in this ecosystem. Use this before invoking expensive cycles to make informed decisions.
 
 ## Why this rule exists
@@ -20,9 +28,10 @@ The numbers below are estimates based on the architecture of each skill, not emp
 |---|---|---|
 | `/to-plan` | 15-40k | Reads `.claude/rules/`, patterns skills frontmatter, repo state; writes plan |
 | `/edge-case-plan` | 5-15k | Reads plan, applies pragmatic checklist |
+| `/deps-audit` | 5-20k | v1.1; scanner runtime is ~0 LLM tokens (`osv-scanner`, `npm audit`, `pip-audit`, `cargo audit`, `govulncheck` are external CLIs). Cost is in JSON parsing + cross-referencing plan's `## Dependencies` section + report writing. Higher end (~20k) when plan declares many deps OR many CVEs surface. |
 | `/plan-confidence` | <1k | Deterministic Python; ~0 LLM tokens |
 | `/plan-improve` | 10-25k | Halt-loop Phase A (deterministic, $0) + Phase B (LLM-driven) |
-| **Full chain** | **30-80k** | with /plan-improve, otherwise 20-55k |
+| **Full chain** | **35-100k** | v1.1 includes `/deps-audit`; with `/plan-improve`, otherwise 25-75k |
 
 ### `cycle-discover` skills
 
@@ -51,6 +60,15 @@ The numbers below are estimates based on the architecture of each skill, not emp
 |---|---|---|
 | `/review` | **~60k (split) / 150-250k (fallback)** | Spawns 5-7 agents; with `review-model-routing.txt` active, 4 baseline → haiku (~5k each), 1 cross-validation → opus (~40k). Falls back to all-opus when rule file missing (status quo). See `review-model-routing.txt` + § Model routing in `cycle-review.md` for the contract and rollback criteria. |
 | **Full cycle** | **~60k (split) / 150-250k (fallback)** | Split mode: ~70% reduction vs all-opus baseline (per teacher-student-model-split plan D3 — experimental until 2026-06-22, no A/B baseline yet). |
+
+### Presentation skills
+
+| Skill | Typical cost | Notes |
+|---|---|---|
+| `/excalidraw` | 5-15k per diagram | Includes the mandatory render-view-fix loop (typically 2-4 iterations of view PNG + adjust JSON). Cost scales with diagram complexity (simple: ~5k; comprehensive technical: ~15k). |
+| `/marp-slide` | 10-30k | Slide drafting LLM cost; `marp-cli` render itself is ~0 LLM tokens. Cost scales with slide count (8-16 slides typical) and audience research depth. |
+| `/deck` | 60-150k | Orchestrates `/excalidraw × N_diagrams` + `/marp-slide`. N_diagrams typically 4-8 for a 10-16 slide deck. Always invoke `/dogfood` BEFORE generating any status-claim deck — its <1k cost prevents shipping false production claims. |
+| **Full deck workflow** | **60-150k** | Single user invocation of `/deck` includes the orchestration above. Largest single skill in the ecosystem aside from `/implement` and `/review`. |
 
 ### Auxiliary
 

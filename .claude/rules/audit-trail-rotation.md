@@ -1,5 +1,13 @@
 # Audit trail rotation policy
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Source of truth for when audit artifacts in `.claude/agents/`, `.claude/knowledge-base/reviews/`, and similar staging dirs are archived or deleted.
 
 ## Why this rule exists

@@ -1,5 +1,13 @@
 # Discover-Blueprint Golden Rule (INQUEBRÁVEL) — TEMPLATE
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 > Copy this file to `.claude/rules/discover-blueprint-golden-rule.md` in your project.
 
 **Source of truth for the `/discover-confidence` skill's most important contract.**

@@ -121,17 +121,28 @@ Read `.claude/knowledge-base/plans/{slug}-plan.md`. Extract:
 
 Write the ordered task list to `.claude/knowledge-base/implementations/{slug}-implementation.md` using `templates/implementation-task-template.md`. This file is the halt-loop's working contract.
 
-### Step 3 — Build the halt-loop prompt
+### Step 3 — Build the halt-loop prompt (file-referenced pattern)
 
-Read `prompts/implementation-prompt.md` and substitute:
+**Read `.claude/rules/loop-engine-convention.md § How to invoke ralph-loop:ralph-loop safely` BEFORE this step.** The ralph-loop positional argument is shell-evaluated; inlining a multi-section prompt (backticks / fenced code blocks / `$(...)`) breaks loop startup with a bash parse error.
 
-- `{PLAN_SLUG}`, `{PLAN_PATH}`, `{IMPLEMENTATION_PATH}`
-- `{MAX_ITERATIONS}` — default 50 (more than discover-execute because TDD has 3 phases per task)
-- `{TIME_BUDGET}` — default 8h (configurable; warn at 75%, halt at 100%)
+Build the per-invocation driver file:
 
-### Step 4 — Invoke ralph-loop
+1. Read `prompts/implementation-prompt.md` and substitute static placeholders:
+   - `{PLAN_SLUG}`, `{PLAN_PATH}`, `{IMPLEMENTATION_PATH}`
+   - `{MAX_ITERATIONS}` — default 50 (more than discover-execute because TDD has 3 phases per task; bump to 80 if plan has > 15 tasks)
+   - `{TIME_BUDGET}` — default 8h (configurable; warn at 75%, halt at 100%)
+   - Leave `{ITERATION}` for ralph-loop to substitute per iteration.
+2. Write the substituted text to `.claude/halt-loop-prompts/implement-{plan-slug}.md` (gitignored).
 
-Use the Skill tool to invoke `ralph-loop:ralph-loop` with the assembled prompt + `--completion-promise IMPLEMENTATION_COMPLETE` + `--max-iterations N`.
+### Step 4 — Invoke ralph-loop (shell-safe positional prompt + flags)
+
+Use the Skill tool to invoke `ralph-loop:ralph-loop`:
+
+- Positional prompt (no shell metachars): `Read .claude/halt-loop-prompts/implement-{plan-slug}.md and follow its instructions for this halt-loop iteration.`
+- `--completion-promise 'IMPLEMENTATION_COMPLETE'`
+- `--max-iterations N` (matches `{MAX_ITERATIONS}` from Step 3)
+
+Each iteration, ralph-loop replays the short positional prompt; Claude reads the driver file and drives one TDD step.
 
 Each iteration executes ONE task's complete TDD cycle:
 

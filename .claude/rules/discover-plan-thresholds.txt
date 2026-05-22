@@ -1,0 +1,25 @@
+# Discover-Plan Score Thresholds (project-level)
+#
+# Sibling of plan-confidence-thresholds.txt and discover-blueprint-thresholds.txt.
+# Consumed by .claude/skills/discover-plan-confidence/scripts/run_discover_plan_score.py.
+#
+# Format: <band-name>|<min-score>|<sunset-date>|<adr-ref>
+#
+# Bands (descending):
+#   90+   -> SHIPPABLE              (verde, discovery plan pronto para /discover-execute)
+#   70-89 -> SHIPPABLE_WITH_CAVEATS (ressalvas explicitas; revisar antes de execute)
+#   50-69 -> NON_SHIPPABLE          (qualidade insuficiente; re-rodar /discover-plan + /discover-edge-cases)
+#   0-49  -> INVALID                (hard cap fired; ver discover-plan-golden-rule.md)
+#
+# Comparison is >= (inclusive). Score == 70 -> SHIPPABLE_WITH_CAVEATS.
+#
+# Customize cutoffs after holdout calibration (target: 30 entries; Cohen's
+# kappa measured). Defaults (90/70/50/0) are SOTA-equivalent from siblings.
+#
+# Sunset = revisão trimestral. Update sunset + ADR ref when recalibrating.
+# run_discover_plan_score.py emits WARN: PROVISIONAL_v1 calibration until holdout lands.
+#
+SHIPPABLE|90|2027-01-31|YOUR_ADR_REF
+SHIPPABLE_WITH_CAVEATS|70|2027-01-31|YOUR_ADR_REF
+NON_SHIPPABLE|50|2027-01-31|YOUR_ADR_REF
+INVALID|0|2027-01-31|YOUR_ADR_REF

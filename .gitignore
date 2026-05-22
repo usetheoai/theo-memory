@@ -54,3 +54,16 @@ htmlcov/
 # (covers ralph-loop and any future skill that drops a .theo/ working dir)
 **/.theo/
 
+# Per-invocation halt-loop driver prompts written by /implement, /discover-execute,
+# /discover-improve, /plan-improve before invoking ralph-loop. See
+# .claude/rules/loop-engine-convention.md § "How to invoke ralph-loop:ralph-loop safely".
+.claude/halt-loop-prompts/
+
+# ralph-loop plugin state (session-local; recreated per invocation)
+.claude/ralph-loop.local.md
+
+# Halt-loop progress files (state JSON written each iteration; gitignored — audit
+# trail lives in commits + reviews/, not in progress JSON).
+.claude/knowledge-base/implementations/.progress-*.json
+.claude/knowledge-base/discoveries/.progress-*.json
+

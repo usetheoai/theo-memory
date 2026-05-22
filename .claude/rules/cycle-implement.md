@@ -9,6 +9,14 @@ status: v1.0 ACTIVE — skill `/implement` built and validated 2026-05-21
 
 # Cycle: Implement
 
+> **INQUEBRÁVEL — 95% Confidence Gate**
+>
+> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
+> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> OPÇÕES PARA ELE ESCOLHER.
+>
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+
 Source of truth for the implementation-execution cycle. **Status: v1.0 ACTIVE.** Single skill `/implement` (in `.claude/skills/implement/`) drives the cycle via ralph-loop halt-loop. The original v0.1 PROPOSED design (3 separate skills: to-implement, implement-execute, implement-validate) was consolidated into 1 entry-point at strategic review 2026-05-21 to reduce orchestration complexity.
 
 ## Purpose
