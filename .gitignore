@@ -1,0 +1,56 @@
+# Reference projects — study material only, never committed.
+# Clones live here for inspiration / design study. Documented convention:
+# see README.md (Foundation section) and docs/agentic-memory-landscape.md.
+referencia/
+
+# Node.js
+node_modules/
+dist/
+*.tsbuildinfo
+.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code — personal-only files (per .claude/settings.local.json.example)
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/.session
+.claude/scratch/
+
+# Python tooling caches (from .claude/skills/plan-confidence + plan-improve)
+**/__pycache__/
+*.pyc
+*.pyo
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.hypothesis/
+**/.benchmarks/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Skill local state — per-session metrics, memory, trajectories, episodes
+# (covers ralph-loop and any future skill that drops a .theo/ working dir)
+**/.theo/
+
