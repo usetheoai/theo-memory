@@ -8,11 +8,11 @@ Architecture Decision Records (MADR 3.0 shape) that lock the load-bearing design
 | [ADR-0002](ADR-0002-three-tier-scope.md) | Three-tier scope (User / Session / Agent) via scoped sub-objects | CLAUDE.md § Locked names + § Architectural Decisions Locked #2 | Hard — public sub-object API is load-bearing for type narrowing |
 | [ADR-0003](ADR-0003-add-only-public-api.md) | ADD-only public API (no `update()` method) | Open question Q2 + Locked Decision #4 | Hard — undoing introduces silent semantic-merge behavior change |
 | [ADR-0004](ADR-0004-api-verbs.md) | API verbs (`remember / recall / forget / reflect` + parity helpers) | CLAUDE.md § Locked names | Effectively NO post-v1.0 |
-| ADR-0005 | Reflection trigger: explicit-only in v0.0, policy interface declared | Open question Q3 | To be filed by T1.2 |
-| ADR-0006 | Bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5 | Open question Q4 | To be filed by T1.2 |
-| ADR-0007 | Entity store: opt-out via constructor flag `entityBoost: boolean` | Open question Q5 | To be filed by T1.2 |
-| ADR-0008 | DIP interfaces (VectorStore 11, LLM 2, Embedder 2, HistoryManager 4+3) | Roadmap Item 1 acceptance | To be filed by T1.2 |
-| ADR-0009 | Cloud auth: `THEOKIT_API_KEY` reuse with optional `apiKey` override | Open question Q6 | To be filed by T1.2 |
+| [ADR-0005](ADR-0005-reflection-trigger.md) | Reflection trigger: explicit-only in v0.0, policy interface declared | Open question Q3 | Medium — auto-reflect would be a breaking behavior change |
+| [ADR-0006](ADR-0006-bi-temporal-local-schema.md) | Bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5 | Open question Q4 | Easy on type contract; runtime softening is additive |
+| [ADR-0007](ADR-0007-entity-store-opt-out.md) | Entity store: opt-out via constructor flag `entityBoost: boolean` | Open question Q5 | Yes, with manual backfill |
+| [ADR-0008](ADR-0008-dip-method-counts.md) | DIP method counts (VectorStore 11, LLM 2, Embedder 2, HistoryManager 4+3, ReflectionPolicy 1+2) | Roadmap Item 1 acceptance | Adding optional methods backward-compat; removing required is breaking |
+| [ADR-0009](ADR-0009-cloud-auth-theokit-api-key.md) | Cloud auth: `THEOKIT_API_KEY` reuse with optional `apiKey` override | Open question Q6 | Adding a separate env var later is backward-compat |
 
 ## Conventions
 

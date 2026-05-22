@@ -184,11 +184,11 @@ How each roadmap item maps to a specific competitor weakness.
 **Lock before v0.0 contract ships:**
 
 1. ~~**Multi-peer / `attributed_to` support.** Mem0 has the field as opt-in. Day-one for TheMemory?~~ **RESOLVED 2026-05-22:** deferred to v1.1 (roadmap Item 12). Rationale: keeps v0.0 contract minimal; no consumer asked for day-0; backward-compat path via optional column.
-2. **`update()` semantics inside ADD-only.** Mem0 has `update()`; we hold the line. Edge case: should it ever exist?
-3. **Reflection trigger.** Background scheduler? Explicit call? Threshold-based? Shapes the storage layer.
-4. **Bi-temporal `t_valid` / `t_invalid` columns on local.** Always there (cloud exposes them), or schema differs?
-5. **Entity store opt-out.** Doubles storage cost. Configurable flag `entityBoost: false`?
-6. **`THEOKIT_API_KEY` reuse** — confirm with `@usetheo/sdk` that cloud auth path is shared.
+2. **`update()` semantics inside ADD-only.** Mem0 has `update()`; we hold the line. Edge case: should it ever exist? **RESOLVED 2026-05-22 → [ADR-0003](.claude/knowledge-base/adrs/ADR-0003-add-only-public-api.md):** ADD-only. No public `update()`. Mutation = `forget(id) + remember(newText)`. `history(memoryId)` exists for audit.
+3. **Reflection trigger.** Background scheduler? Explicit call? Threshold-based? Shapes the storage layer. **RESOLVED 2026-05-22 → [ADR-0005](.claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md):** Explicit-only at v0.0. `ReflectionPolicy` DIP declared; `ManualReflectionPolicy` is the only v0.0 impl. Threshold + sleep-time policies land at v0.4a (roadmap Item 5) behind the same DIP — zero contract change.
+4. **Bi-temporal `t_valid` / `t_invalid` columns on local.** Always there (cloud exposes them), or schema differs? **RESOLVED 2026-05-22 → [ADR-0006](.claude/knowledge-base/adrs/ADR-0006-bi-temporal-local-schema.md):** Local schema HAS the columns from v0.1; local `recall()` does NOT accept `asOf` until v0.5+ backports (throws `BiTemporalNotSupportedLocally`). Cloud (v0.5) is the first to honor `asOf` in queries. Contract types are uniform across runtimes; divergence is a runtime error, not a type error.
+5. **Entity store opt-out.** Doubles storage cost. Configurable flag `entityBoost: false`? **RESOLVED 2026-05-22 → [ADR-0007](.claude/knowledge-base/adrs/ADR-0007-entity-store-opt-out.md):** Constructor-level flag `MemoryConfig.entityBoost?: boolean` defaults to `true` (Mem0 parity). When `false`, no entity vector store instantiated; recall's entity-boost score component is zero.
+6. **`THEOKIT_API_KEY` reuse** — confirm with `@usetheo/sdk` that cloud auth path is shared. **RESOLVED 2026-05-22 → [ADR-0009](.claude/knowledge-base/adrs/ADR-0009-cloud-auth-theokit-api-key.md):** Reuse `THEOKIT_API_KEY` env var with optional explicit `apiKey` constructor parameter override. No separate `THEMEMORY_API_KEY`. Matches the locked consolidation pattern per Cross-Project Rule 6 exception.
 
 ## Inviolable rules (from root and global)
 
