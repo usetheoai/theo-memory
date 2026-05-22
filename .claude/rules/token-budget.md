@@ -49,7 +49,7 @@ The numbers below are estimates based on the architecture of each skill, not emp
 
 | Skill | Typical cost | Notes |
 |---|---|---|
-| `/review` | **150-250k** | Spawns 5-7 specialized agents in parallel; each agent does deep review (30-50k each) |
+| `/review` | **150-250k** | Spawns 5-7 specialized agents in parallel; each agent does deep review (30-50k each). Teacher/student split available: see `review-model-routing.txt` + § Model routing in `cycle-review.md` — T1.5 of teacher-student-model-split plan will update this row with split estimates. |
 | **Full cycle** | **150-250k** | Most expensive single cycle by design |
 
 ### Auxiliary

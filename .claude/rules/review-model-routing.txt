@@ -1,0 +1,23 @@
+# review-model-routing — mapeamento role → model
+# Generated 2026-05-22 — Plan teacher-student-model-split (v1.1 SHIPPABLE)
+# Consumed by: .claude/skills/review/scripts/spawn_reviewers.py via --routing-rule
+#
+# Format:
+#   <role>: <model> [experimental_until=YYYY-MM-DD] [rollback_if=<criterion>]
+#
+# Notes:
+# - experimental_until is informational only — review manually before each release; no auto-expiration (EC-8)
+# - experimental_until only makes sense paired with a non-default model (opus is the safe fallback, not experimental) (EC-9)
+# - Default fallback: opus (when role not listed OR rule file missing → backward-compat status quo)
+# - Lookup invariant (EC-1): role 'domain-X' resolves via base key 'domain' when no exact entry exists
+# - Rollback procedure: `git rm .claude/rules/review-model-routing.txt` reverts every review agent to opus
+# - See .claude/rules/cycle-review.md § Model routing for the contract this file implements
+
+# --- baseline arquétipos (student = haiku): checklist-shape execution ---
+architecture: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+tests: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+wiring: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+domain: haiku experimental_until=2026-06-22 rollback_if=blocker_findings_gt_2_per_5_runs
+
+# --- cross-validation arquétipo (teacher = opus): cross-cutting plan-vs-code reasoning ---
+cross-validation: opus
