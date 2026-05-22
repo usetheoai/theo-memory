@@ -5,6 +5,13 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "_v0_0_exports_preview_only": true,
+  "exports": {
+    "./contract": {
+      "types": "./src/core/index.ts",
+      "default": "./src/core/index.ts"
+    }
+  },
   "engines": {
     "node": ">=20.0.0"
   },
