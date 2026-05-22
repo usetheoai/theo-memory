@@ -39,7 +39,7 @@ Halt-loop picks the next `pending` task whose dependencies are `committed`. The 
 | T5.1 | Phase 5 / T5.1 | Final validation chain + 3 grep gates + referencia/ Path.exists() audit | pending | n/a | n/a | n/a | — |
 
 Status legend: `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`
-Wiring legend: `✓` = passed; `✗` = failed; `defer` = ADR-deferred; `n/a` = not applicable; `—` = not yet checked.
+Wiring legend: `[OK]` = passed; `[FAIL]` = failed; `defer` = ADR-deferred; `n/a` = not applicable; `--` = not yet checked.
 
 ## Per-task contract
 
