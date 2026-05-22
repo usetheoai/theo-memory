@@ -121,6 +121,64 @@ Read `.claude/knowledge-base/plans/{slug}-plan.md`. Extract:
 
 Write the ordered task list to `.claude/knowledge-base/implementations/{slug}-implementation.md` using `templates/implementation-task-template.md`. This file is the halt-loop's working contract.
 
+### Step 2.5 — Spawn the SEPA (Staff Engineer Pair-Program Agent)
+
+Mandatory step. The SEPA is a **runtime-generated specialist agent** that observes the halt-loop and advises per iteration. It mirrors `/review`'s parallel-specialist pattern but operates INLINE during implementation.
+
+The SEPA prompt is composed from the FULL plan + all ADRs + edge-case review + deps audit + plan-confidence report + project rules (NOT summaries — verbatim content). The agent becomes EXTREMELY specialist on this exact plan; no generic implementation advice leaks.
+
+#### Composing the SEPA prompt
+
+1. Read `templates/sepa-staff-engineer-template.md`.
+2. Substitute the context placeholders with verbatim file contents:
+   - `{PLAN_SLUG}` — the slug
+   - `{FULL_PLAN_CONTENT}` — `.claude/knowledge-base/plans/{slug}-plan.md`
+   - `{FULL_ADR_FILES_CONCATENATED}` — every `.claude/knowledge-base/adrs/ADR-*.md` referenced by the plan (typically D1-D9 for a new contract)
+   - `{FULL_EDGE_CASE_REVIEW}` — `.claude/knowledge-base/reviews/{slug}-edge-cases-*.md` if present
+   - `{FULL_DEPS_AUDIT_REPORT}` — `.claude/knowledge-base/audits/{slug}-deps-audit-*.md` if present
+   - `{FULL_PLAN_CONFIDENCE_REPORT}` — `.claude/knowledge-base/reviews/{slug}-confidence-*.md` if present
+   - Project rules — `.claude/rules/architecture.md`, `testing.md`, `public-copy.md`, plus golden rules relevant to the plan's domain
+3. Write the substituted SEPA prompt to `.claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md` for audit trail (the file IS the agent's domain brief — preserved across iterations).
+
+#### Initial brief
+
+Invoke `Agent` tool ONCE at startup with:
+
+- `description`: "SEPA initial brief — {slug}"
+- `subagent_type`: `general-purpose` (for now; v2+ may introduce a dedicated `implement-pair-program` subagent_type)
+- `prompt`: the full content of `.claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md`
+
+The Agent's response is the SEPA's "I have read and accept the role" confirmation, plus any IMMEDIATE flags it caught while reading (e.g., "the plan declares 9 ADRs but only 4 ADR files exist on disk — recommend halt until T1.2 lands").
+
+Persist the SEPA's initial-brief response under the same agent directory as `initial-brief-response.md`. The main session reviews it before invoking ralph-loop.
+
+#### Per-iteration SEPA invocation
+
+The halt-loop driver (`prompts/implementation-prompt.md`) calls the SEPA THREE times per iteration:
+
+1. **Before RED**: ask SEPA to recap the picked task + surface gotchas.
+2. **After GREEN / before REFACTOR**: ask SEPA to spot SOLID/Clean Code violations + missed cross-references.
+3. **Before COMMIT**: ask SEPA to audit the staged diff against DoD checkboxes.
+
+Each invocation is a fresh `Agent` call with the SEPA's persistent brief as the prompt baseline + the iteration-specific question. Cost: ~2-5k tokens per call. Net ~30-60k tokens extra over a 16-iteration cycle — justified vs the rework cost of caught-late deviations.
+
+#### SEPA authority + boundaries (locked)
+
+- READ-ONLY. NEVER writes code, ADRs, configs.
+- NEVER commits.
+- NEVER modifies the plan.
+- Outputs structured advice (markdown). Main session retains final decision.
+- CRITICAL findings recommend HALT but do NOT block — main session may proceed with explicit justification (per Inquebrável Rule 1: 95% confidence is on the actor).
+
+#### Skip conditions (rare)
+
+The SEPA is mandatory by default. Skip only when:
+
+- The plan has zero ADRs AND zero edge-case absorption (rare for `/implement` triggers — by definition the upstream cycle-plan produces both).
+- The user explicitly invokes `/implement {slug} --no-sepa` (flag NOT implemented at v1; reserved for future opt-out).
+
+A skipped SEPA must be logged in the implementation contract under "Pre-condition audit" with explicit rationale.
+
 ### Step 3 — Build the halt-loop prompt (file-referenced pattern)
 
 **Read `.claude/rules/loop-engine-convention.md § How to invoke ralph-loop:ralph-loop safely` BEFORE this step.** The ralph-loop positional argument is shell-evaluated; inlining a multi-section prompt (backticks / fenced code blocks / `$(...)`) breaks loop startup with a bash parse error.
