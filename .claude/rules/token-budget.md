@@ -53,14 +53,14 @@ The numbers below are estimates based on the architecture of each skill, not emp
 |---|---|---|
 | `/implement` | 100-300k | Halt-loop with up to 50 iterations × (RED + GREEN + REFACTOR + WIRING + COMMIT phases). Teacher/student split: COMMIT phase migrated to haiku (experimental_until=2026-07-22, see `implement-model-routing.txt`); GREEN deferred to 2026-08-22 review. Per-task saving modest until GREEN ships. |
 | `/code-quality` | 5-15k | v1.1 (added 2026-05-22). Detectors are subprocesses to external CLIs (vulture/knip/cargo-udeps/deadcode/stryker/mutmut) — ~0 LLM tokens for the runs themselves. Cost is in JSON parsing + tree-sitter AST extraction + registry HTTP lookups + Markdown report generation. Higher end (~15k) when D2 hits registries for many imports without cache warmth. CI runtime: 2-7 min (subprocess + network). |
-| **Full cycle** | **105-315k** | Includes `/implement` + `/code-quality` for the v1.1 chain. Marginal saving from teacher/student split (~5-10%) — meaningful saving requires GREEN migration after first-month review (per spike `discoveries/blueprints/teacher-student-halt-loop-spike.md`). |
+| **Full cycle** | **105-315k** | Includes `/implement` + `/code-quality` for the v1.1 chain. Marginal saving from teacher/student split (~5-10%) — meaningful saving requires GREEN migration after first-month review. |
 
 ### `cycle-review` skill
 
 | Skill | Typical cost | Notes |
 |---|---|---|
 | `/review` | **~60k (split) / 150-250k (fallback)** | Spawns 5-7 agents; with `review-model-routing.txt` active, 4 baseline → haiku (~5k each), 1 cross-validation → opus (~40k). Falls back to all-opus when rule file missing (status quo). See `review-model-routing.txt` + § Model routing in `cycle-review.md` for the contract and rollback criteria. |
-| **Full cycle** | **~60k (split) / 150-250k (fallback)** | Split mode: ~70% reduction vs all-opus baseline (per teacher-student-model-split plan D3 — experimental until 2026-06-22, no A/B baseline yet). |
+| **Full cycle** | **~60k (split) / 150-250k (fallback)** | Split mode: ~70% reduction vs all-opus baseline — experimental until 2026-06-22, no A/B baseline yet. |
 
 ### Presentation skills
 

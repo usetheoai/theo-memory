@@ -24,7 +24,7 @@ These rules are scoped to source and test files. Read them whenever you touch a 
 - **TDD (Test-Driven Development)** is the working method, not a preference.
 - Every non-trivial logic change needs a test or an explicit reason why not, documented in the PR description.
 - Bug fixes ship a regression test in the same commit (test commits before the fix when practical).
-- The LLM-extraction pipeline (Mem0's six-phase write — see `docs/exploration-reports/mem0-ts.md` § 4) needs prompt-output assertion tests **first**, then implementation.
+- The LLM-extraction pipeline (Mem0's six-phase write) needs prompt-output assertion tests **first**, then implementation.
 
 ## TDD — Red-Green-Refactor
 
@@ -117,5 +117,4 @@ describe('UserMemory.remember', () => {
 ## Reference
 
 - TDD cycle and BDD format: `/home/paulo/.claude/CLAUDE.md` § PARTE I-7.
-- Mem0 architectural decisions to test against: `docs/exploration-reports/mem0-ts.md`.
-- Three-tier scope shape: `CLAUDE.md § Architectural Decisions Locked #3`.
+- Three-tier scope shape: `CLAUDE.md § Architectural Decisions Locked` and `CLAUDE.md § Locked names`.

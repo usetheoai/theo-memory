@@ -68,7 +68,7 @@ After triad passes, update progress file: task status → `wired`, log iteration
 
 ### COMMIT phase
 
-**Model routing (teacher/student split — experimental, T2.2-A of teacher-student-model-split plan):**
+**Model routing (teacher/student split — experimental):**
 
 Before composing the commit message, check `.claude/rules/implement-model-routing.txt`. If a `commit:` entry exists (e.g., `commit: haiku ...`), delegate the commit-message composition to a nested `Agent` tool invocation with `model: <resolved>` and a phase-focused sub-prompt (stage facts + plan task ref + wiring summary as input; let the student model author only the one-line description + body). Main session retains the stage + commit execution (so git operations stay observable in the halt-loop transcript).
 

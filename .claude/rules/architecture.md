@@ -57,9 +57,7 @@ src/core/        ← contracts, types, pure logic, LLM extraction pipeline (no I
 
 ## 4. Mem0-shape architecture, not Mem0-clone
 
-Cross-reference: `docs/exploration-reports/mem0-ts.md`.
-
-Adopt — these patterns are locked for v0.1 (CLAUDE.md § Architectural Decisions Locked #2):
+Adopt — these patterns are locked for v0.1:
 
 - Six-phase write pipeline (Context → Retrieval → Single LLM extraction → Batch embed → Hash dedup → Batch persist).
 - Nine-step search (Preprocess → Embed → Semantic over-fetch → BM25 → Sigmoid normalization → Entity boost → Combined score → Threshold → Format).
@@ -126,5 +124,3 @@ The `index.ts` at `src/` is the **only** thing TypeScript consumers import direc
 ## Reference
 
 - `CLAUDE.md § Architectural Decisions Locked` — the source of truth.
-- `docs/exploration-reports/mem0-ts.md` — the deep-dive that justified the decisions.
-- `docs/agentic-memory-landscape.md` — the wider design context.

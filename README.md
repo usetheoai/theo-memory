@@ -14,7 +14,6 @@ A managed memory layer for AI agents — **three tiers (User, Session, Agent)**,
 [![TypeScript](https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Status](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#status)
 [![Runtime](https://img.shields.io/badge/runtime-local%20%2B%20TheoCloud-7C3AED?style=flat-square)](#two-runtimes-one-api)
-[![Foundation](https://img.shields.io/badge/foundation-research%20locked-7C3AED?style=flat-square)](./docs/agentic-memory-landscape.md)
 
 [Quickstart](#quickstart) · [Three Tiers](#three-tiers) · [Why](#why-usetheomemory) · [Runtimes](#two-runtimes-one-api) · [Architecture](#architecture) · [Status](#status)
 
@@ -34,7 +33,7 @@ And the place that **deploys** the agent is the same place that **remembers** fo
 
 ## Why `@usetheo/memory`
 
-The agentic-memory space is **crowded and well-funded** — Mem0 ($24M, ~56k stars), Letta ($10M, ~23k stars), Zep/Graphiti (YC W24, ~26k stars), Honcho ($5.35M), Cognee, LangMem. Each carries a strong opinion on architecture and a strong opinion on lock-in. The full landscape and the strategic reasoning that shaped this project live in [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md).
+The agentic-memory space is **crowded and well-funded** — Mem0 ($24M, ~56k stars), Letta ($10M, ~23k stars), Zep/Graphiti (YC W24, ~26k stars), Honcho ($5.35M), Cognee, LangMem. Each carries a strong opinion on architecture and a strong opinion on lock-in.
 
 `@usetheo/memory` is not trying to win on benchmarks against players with two years of head start. It is trying to be **the memory line item on your TheoCloud invoice** — the managed memory that ships with the platform you already deploy on.
 
@@ -82,20 +81,20 @@ Same `remember` / `recall` / `forget` / `reflect` verbs across all three tiers �
 
 ## How it works
 
-Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, the foundation document, and status.
+Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, and status.
 
 ## Status — design stage, contract being locked
 
-> `@usetheo/memory` is **pre-release**. The [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md) document (2026-05-16) is the foundation; the API contract below is under active design. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
+> `@usetheo/memory` is **pre-release**. The API contract below is under active design. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
 >
 > What is honest today:
 > - **Strategic placement decided** — managed memory of TheoCloud, TheoKit-native by design, MIT-licensed SDK.
 > - **Architecture decided** — Mem0-shape: vector + LLM fact extraction + hybrid retrieval (semantic + BM25 + entity matching). Two runtimes (local Postgres + pgvector, cloud TheoCloud-managed) behind one API.
-> - **Contract under design** — the API in this README is the target shape, validated against the landscape document.
+> - **Contract under design** — the API in this README is the target shape.
 > - **No production claims.** No benchmark numbers. No "X tests passing" badge until the suite exists.
 > - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). The choice is deliberate: signal maximum permissiveness to downstream consumers and embed-into-proprietary use cases. The rest of the OSS ecosystem stays Apache-2.0.
 >
-> If you are evaluating *today* and need something running in production *today*, the landscape document points to mature alternatives ([Mem0](https://mem0.ai), [Letta](https://www.letta.com), [Zep](https://www.getzep.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud.
+> If you are evaluating *today* and need something running in production *today*, mature alternatives exist ([Mem0](https://mem0.ai), [Letta](https://www.letta.com), [Zep](https://www.getzep.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud.
 
 ## Two runtimes, one API
 
@@ -277,8 +276,6 @@ const agent = await Agent.create({
 │   ├── embeddings/              provider abstraction (OpenAI, Anthropic, local)
 │   ├── theokit/                 TheoKit-native binding (request-context aware)
 │   └── agent-tools/             MCP tools for @usetheo/sdk agents
-└── docs/
-    └── agentic-memory-landscape.md    foundation document (2026-05-16)
 ```
 
 ### Dependency direction (planned, enforced at CI)
@@ -311,14 +308,6 @@ Cloud mode runs against a TheoCloud-managed vector store with managed embeddings
 - **Bi-temporal audit** — `t_valid` and `t_invalid` windows on every fact for compliance trails
 - **Multi-region replication** — for latency-sensitive customer surfaces
 - **Managed embedding cost** — no per-call provider billing for embeddings; bundled in TheoCloud usage
-
-## Foundation
-
-This project rests on a piece of prior research:
-
-- [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md) — landscape of agentic memory frameworks as of 2026-05-16. Mem0, Letta, Zep/Graphiti, Cognee, Honcho, LangMem, LlamaIndex Memory, MemGPT, Generative Agents, Voyager, GraphRAG, and the six vector DBs repositioned as memory. Includes the build/buy/wait analysis and the four universal architectural patterns that informed this project.
-
-Read the landscape document before proposing architectural changes — most of the "why not just use X" questions are answered there.
 
 ## Roadmap
 
@@ -367,7 +356,7 @@ pnpm build                    # tsup → dist/
 pnpm check                    # biome lint + format
 ```
 
-Contributions are welcome once the 0.0 contract lands. Until then, the value-add is on the design itself — read [`docs/agentic-memory-landscape.md`](./docs/agentic-memory-landscape.md) and open issues against the planned API contract above.
+Contributions are welcome once the 0.0 contract lands. Until then, the value-add is on the design itself — open issues against the planned API contract above.
 
 ## License
 

@@ -103,11 +103,9 @@ Source of truth for which model each `/implement` halt-loop phase runs on: [`.cl
 - **WIRING phase** — Python script (`check_wiring.py`); zero LLM cost, no routing entry needed.
 - **COMMIT phase** — conventional-commits message; highly templated. **Initial migration: `haiku`** (experimental_until=2026-07-22).
 - **Fallback chain:** rule file missing OR phase not listed → session model (no Agent tool nesting; status quo preserved).
-- **Mechanism (per spike `discoveries/blueprints/teacher-student-halt-loop-spike.md`):** for phases with a routing entry, the halt-loop driver invokes `Agent` tool nested with `model: <resolved>` and a phase-focused sub-prompt. Main session continues coordinating the loop.
+- **Mechanism:** for phases with a routing entry, the halt-loop driver invokes `Agent` tool nested with `model: <resolved>` and a phase-focused sub-prompt. Main session continues coordinating the loop.
 - **Experimental marker:** each non-default entry carries `experimental_until` + `rollback_if`. Rollback is `git rm .claude/rules/implement-model-routing.txt` (single-file revert).
-- **Scope intentionally enxuto:** only COMMIT migrated in v1.1; GREEN migration follows after first-month review per spike recommendation.
-
-Source plan: `.claude/knowledge-base/plans/teacher-student-model-split-plan.md` (T2.2-A).
+- **Scope intentionally enxuto:** only COMMIT migrated in v1.1; GREEN migration follows after first-month review.
 
 ## Hard gates (cannot advance — BLOCK the cycle)
 

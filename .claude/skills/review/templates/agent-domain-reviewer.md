@@ -26,7 +26,7 @@ The actual checks depend on what {DOMAIN} is. Below are domain-recipes — apply
 
 ### If {DOMAIN} == "memory-layer"
 
-- Verify the implementation follows the Mem0-shape pipeline (six-phase write, nine-step search) per `docs/exploration-reports/mem0-ts.md`
+- Verify the implementation follows the Mem0-shape pipeline (six-phase write, nine-step search) per the CLAUDE.md architectural anchors
 - Verify the three-tier scope model (User / Session / Agent) is preserved
 - Verify ADD-only invariant — no `update()` on public API
 - Verify additive scoring formula is used (NOT multiplicative Generative Agents — that's deferred to v0.4)
@@ -89,14 +89,14 @@ findings:
     file: src/core/extraction-pipeline.ts
     line: 67
     plan_ref: ADR D1 — adopt Mem0 multi-phase write pipeline
-    domain_anchor: docs/exploration-reports/mem0-ts.md § 4.3 (six-phase pipeline diagram)
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked (six-phase pipeline)
     summary: Phase 4 (batch embed) is missing — implementation goes from extraction (phase 3) directly to persist (phase 6)
     evidence: |
       ```ts
       const facts = await extractor.extract(input);
       await store.insert(facts);  // <-- should batch-embed first
       ```
-    recommended_action: Add embedder.embedBatch(facts.map(f => f.text)) before insert; align with mem0-ts § 4.3
+    recommended_action: Add embedder.embedBatch(facts.map(f => f.text)) before insert
 ```
 
 ## Anti-patterns YOU never commit

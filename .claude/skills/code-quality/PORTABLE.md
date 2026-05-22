@@ -25,7 +25,7 @@ Each detector wraps an external tool. Without the tool installed, the detector e
 | `mutmut` | Python mutation testing | `pip install 'mutmut>=3.5'` | `^3.5` |
 | `osv-scanner` | Cross-eco CVE (recommended dev prereq) | `go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest` | latest |
 
-**Pinned versions** come from `/deps-audit` of `code-quality-skill-plan.md` v1.3 (2026-05-22). Update via plan revision + new audit.
+**Pinned versions** were established via `/deps-audit` on 2026-05-22. Update via a new audit run before bumping.
 
 ## Verifying installation
 

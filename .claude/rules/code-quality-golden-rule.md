@@ -118,7 +118,7 @@ PRs that **add** new inquebráveis (e.g., M2 future "static type narrowness chec
 - Languages config: [`.claude/rules/code-quality-languages.txt`](./code-quality-languages.txt)
 - Thresholds: [`.claude/rules/code-quality-thresholds.txt`](./code-quality-thresholds.txt)
 - Allowlist: [`.claude/rules/code-quality-allowlist.txt`](./code-quality-allowlist.txt)
-- Cycle: [`.claude/rules/cycle-implement.md`](./cycle-implement.md) (when extended — wiring tracked via T6.1 of code-quality-skill-plan.md)
+- Cycle: [`.claude/rules/cycle-implement.md`](./cycle-implement.md)
 - Sibling golden rules: [`plan-confidence-golden-rule.md`](./plan-confidence-golden-rule.md), [`deps-audit-golden-rule.md`](./deps-audit-golden-rule.md), [`dogfood-golden-rule.md`](./dogfood-golden-rule.md)
 - Inquebrável principles: [`/home/paulo/.claude/CLAUDE.md`](file:///home/paulo/.claude/CLAUDE.md) § 5 (TDD), § 9 (Não Reinvente)
 - Token budget: [`.claude/rules/token-budget.md`](./token-budget.md) § cycle-implement (when extended)
@@ -127,4 +127,4 @@ PRs that **add** new inquebráveis (e.g., M2 future "static type narrowness chec
 
 | Date | Change | Rationale |
 |---|---|---|
-| 2026-05-22 | Rule created at T0.1 of the `/code-quality` skill implementation. Anchor: dead code + symbol fabrication MUST be detected and gated before any PR can merge. | Implements blueprint `wiring-deadcode-gates-blueprint.md` (2026-05-22) per plan `code-quality-skill-plan.md` v1.3 (SHIPPABLE_WITH_CAVEATS 85.2/100). |
+| 2026-05-22 | Rule created at T0.1 of the `/code-quality` skill implementation. Anchor: dead code + symbol fabrication MUST be detected and gated before any PR can merge. | Locks the gate contract before code lands. |

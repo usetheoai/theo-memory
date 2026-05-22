@@ -51,7 +51,7 @@ The rule closes this gap by forcing minimum structural state PRESENT before the 
 | `hard_caps_triggered` list MUST be non-empty when verdict==INVALID | JSON schema invariant |
 | Renormalization (D8) does NOT bypass hard caps | `final_score_after_caps = min(weighted_avg, smallest_active_cap)` |
 | `/deps-audit` returns FAIL_INSECURE → score ≤ 49 (CVE in declared dep) | v1.1 (2026-05-22) — wired via `run_structural.py` `--invoke-deps-audit` (planned downstream — see `cycle-plan.md` v1.1 § Downstream changes) |
-| `/code-quality` returns FAIL_HARD → score ≤ 49 (unallowlisted dead code OR fabricated symbol) | v1.2 (2026-05-22) — wired via `run_structural.py::_invoke_code_quality()` extension shipped in T6.5 of code-quality-skill-plan.md (EC-29 Opção A). Stable identifiers: `dead_code_unallowlisted_{python\|typescript\|rust\|go}`, `symbol_fabrication_{python\|typescript\|rust\|go}`, `allowlist_malformed_entry`. |
+| `/code-quality` returns FAIL_HARD → score ≤ 49 (unallowlisted dead code OR fabricated symbol) | v1.2 (2026-05-22) — wired via `run_structural.py::_invoke_code_quality()` extension. Stable identifiers: `dead_code_unallowlisted_{python\|typescript\|rust\|go}`, `symbol_fabrication_{python\|typescript\|rust\|go}`, `allowlist_malformed_entry`. |
 
 ## When this rule may change
 
@@ -76,4 +76,4 @@ PRs that **add** new hard caps (e.g., M3 activates "fabricated citation") follow
 
 | Date | Change | Authorized by |
 |---|---|---|
-| 2026-05-22 | Extension: added `/deps-audit` (v1.1) + `/code-quality` (v1.2) verdict consumption rows to `## Rules that cannot be bent`. Extension (not softening) per the policy in `## When this rule may change`. Sibling golden rules added to `## Related`. | Project owner via explicit approval during T6.2 of `code-quality-skill-plan.md` v1.3 execution. |
+| 2026-05-22 | Extension: added `/deps-audit` (v1.1) + `/code-quality` (v1.2) verdict consumption rows to `## Rules that cannot be bent`. Extension (not softening) per the policy in `## When this rule may change`. Sibling golden rules added to `## Related`. | Project owner via explicit approval. |

@@ -39,8 +39,8 @@ If your project has all five: full pipeline. If only `/discover-plan`: standalon
 
 ### Optional but recommended
 
-- `docs/agentic-memory-landscape.md` (or equivalent foundation doc) — Step 1 reads it for inventory of what is already known. If absent, skill skips that step.
-- `docs/exploration-reports/*.md` — prior reports that the plan cross-references.
+- A foundation doc (e.g., a landscape survey) in `docs/` — Step 1 reads it for inventory of what is already known. If absent, skill skips that step.
+- Prior exploration reports under `docs/exploration-reports/*.md` (if any) — the plan cross-references them.
 - `CLAUDE.md § Architectural Decisions Locked` — root-level lock list. Without it, ADRs in the plan won't reference upstream decisions.
 
 ## What happens out of the box
@@ -48,7 +48,7 @@ If your project has all five: full pipeline. If only `/discover-plan`: standalon
 When you invoke `/discover-plan {topic-slug}`:
 
 1. Reads `.claude/rules/` to internalize project principles
-2. Reads `docs/agentic-memory-landscape.md`, `docs/exploration-reports/*.md`, `CLAUDE.md` (if present) for context inventory
+2. Reads any `docs/*.md` foundation docs + `CLAUDE.md` (if present) for context inventory
 3. Lists `referencia/{mem0,letta,langmem}/` top-level structure (or your equivalent)
 4. Defines investigation targets (in-scope / out-of-scope)
 5. Declares four-corner coverage (5-10 questions total, max 3 per corner)
@@ -97,7 +97,6 @@ The template suggests "Mem0: 4h, Letta: 2h, LangMem: 1h" as illustrative. For yo
 | Fase A → Fase B workflow | ✅ Fully | Investigation pattern, not tool-specific. |
 | Template structure (10 mandatory sections) | ✅ Fully | Coverage Matrix shape is universal. |
 | Cited paths `referencia/mem0/...` | ❌ Project-specific | Examples reference TheMemory's clones. Replace with your paths. |
-| Cross-references to `docs/exploration-reports/mem0-ts.md` | ❌ Project-specific | Specific to TheMemory's history. |
 | Example ADRs (D1 Mem0/Letta/LangMem budget) | ❌ Project-specific | Adapt to your reference list. |
 
 ## Limitations (Known)

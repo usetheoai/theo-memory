@@ -1,5 +1,5 @@
 # implement-model-routing — mapeamento phase → model (analog to review-model-routing.txt)
-# Generated 2026-05-22 — T2.2-A of plan teacher-student-model-split
+# Generated 2026-05-22 (teacher/student split for halt-loop phases)
 # Consumed by: .claude/skills/implement/prompts/implementation-prompt.md (halt-loop driver)
 #
 # Format:
@@ -21,7 +21,6 @@
 # - Rollback: `git rm .claude/rules/implement-model-routing.txt` reverts every phase to session model.
 # - Driver MUST check this file's presence before invoking nested Agent tool. Missing file = no split.
 # - See .claude/rules/cycle-implement.md § Model routing for the contract this file implements.
-# - Source spike: .claude/knowledge-base/discoveries/blueprints/teacher-student-halt-loop-spike.md
 
 # --- Phase 1 (minimal scope): only COMMIT phase migrates to student ---
 commit: haiku experimental_until=2026-07-22 rollback_if=conventional_commit_lint_failures_gt_1_per_5_tasks

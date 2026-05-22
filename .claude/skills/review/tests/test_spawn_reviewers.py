@@ -1,8 +1,8 @@
 """Tests for spawn_reviewers.py — verifies template substitution + agent generation.
 
-v1.1 (2026-05-22): 10 RED tests added for teacher-student model split
-(plan teacher-student-model-split). Tests cover frontmatter `model:` resolution
-per role via routing rule, with EC-3..EC-7 edge cases.
+v1.1 (2026-05-22): 10 RED tests added for the teacher/student model split.
+Tests cover frontmatter `model:` resolution per role via routing rule,
+with EC-3..EC-7 edge cases.
 """
 from __future__ import annotations
 
@@ -123,10 +123,9 @@ def test_findings_dir_created(sample_plan: Path, tmp_path: Path) -> None:
 
 
 # ----------------------------------------------------------------------------
-# RED tests for teacher-student model split (v1.1 — plan teacher-student-model-split)
+# RED tests for the teacher/student model split (v1.1)
 #
-# 5 core tests (T1.1 base scope) + 5 SHOULD TEST absorved from
-# edge-cases-2026-05-22 (EC-3..EC-7). GREEN delivered by T1.2 + T1.3.
+# 5 core tests + 5 absorbed from the edge-case review (EC-3..EC-7).
 # ----------------------------------------------------------------------------
 
 

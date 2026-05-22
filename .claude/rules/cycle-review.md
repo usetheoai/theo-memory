@@ -95,10 +95,8 @@ Source of truth for which model each review agent runs on: [`.claude/rules/revie
 - **Cross-validation arquétipo** — **teacher** (`opus`). Cross-cutting plan-vs-code semantic audit; raciocínio profundo justifica o custo.
 - **Fallback chain:** `--model-override ROLE=MODEL` (operator-time) > rule file entry > default `opus`. Missing OR malformed rule file → all agents fall back to `opus` (status quo preserved, no silent breakage).
 - **EC-1 invariant** (locked v1.1): role `domain-X` collapses to base key `domain` for rule lookup; primary + secondary domain agents share the same student model unless overridden.
-- **Experimental marker:** each non-default entry carries `experimental_until: YYYY-MM-DD` + `rollback_if: <criterion>`. No A/B baseline yet (deferred plan) — marker is the stand-in honesty signal. Rollback is `git rm .claude/rules/review-model-routing.txt` (single-file revert).
+- **Experimental marker:** each non-default entry carries `experimental_until: YYYY-MM-DD` + `rollback_if: <criterion>`. No A/B baseline yet — marker is the stand-in honesty signal. Rollback is `git rm .claude/rules/review-model-routing.txt` (single-file revert).
 - **Escalation override** for critical reviews: invoke `spawn_reviewers.py --model-override architecture=opus --model-override domain=opus` to lift the baseline agents back to teacher when the diff is high-blast-radius.
-
-Source plan + ADRs: `.claude/knowledge-base/plans/teacher-student-model-split-plan.md` (v1.1, SHIPPABLE 100/100).
 
 ## Hard gates (cannot advance — BLOCK the cycle)
 

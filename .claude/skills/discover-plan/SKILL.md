@@ -10,7 +10,7 @@ argument-hint: "{topic-slug}"
 
 Generates a structured **discovery plan** for investigating the reference implementations under `referencia/` (Mem0, Letta, LangMem). The output is the input for `/discover-execute`.
 
-Sibling of `/to-plan` — same backbone, different output. `to-plan` produces implementation plans; `discover-plan` produces research plans whose deliverable is a **technical blueprint** (`docs/exploration-reports/mem0-ts.md` is the reference shape).
+Sibling of `/to-plan` — same backbone, different output. `to-plan` produces implementation plans; `discover-plan` produces research plans whose deliverable is a **technical blueprint** (a structured report under `docs/exploration-reports/` per investigation).
 
 ## When to Trigger
 
@@ -48,8 +48,8 @@ Read each `.md` file. The discovery plan SHALL cite at least one project rule (e
 
 Read in order:
 
-1. `docs/agentic-memory-landscape.md` — the foundation survey
-2. `docs/exploration-reports/*.md` — prior reports (the canonical example is `mem0-ts.md`)
+1. Any foundation docs under `docs/` (landscape surveys, position papers) — if present
+2. Prior reports under `docs/exploration-reports/*.md` — if present
 3. `CLAUDE.md § Architectural Decisions Locked` — what is already locked
 4. The `referencia/{mem0,letta,langmem}/` top-level structure (`ls`, `tree -L 2`)
 
@@ -149,4 +149,3 @@ These rules are NON-NEGOTIABLE for every discovery plan:
 - Sibling skill: `/discover-execute` (consumes the plan)
 - Sibling skill: `/discover-confidence` (scores the blueprint produced by execute)
 - Template: `templates/discovery-plan-template.md`
-- Reference shape: `docs/exploration-reports/mem0-ts.md` (the canonical blueprint produced by a discovery)

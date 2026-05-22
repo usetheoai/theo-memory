@@ -8,7 +8,6 @@
 #
 # Does NOT apply to:
 #   - docs/exploration-reports/*.md  (technical, can mention Mem0/Qdrant/pgvector by name)
-#   - docs/agentic-memory-landscape.md
 #   - CLAUDE.md, CHANGELOG.md, source code
 #   - referencia/** (already blocked by boundary-check)
 #
@@ -43,9 +42,8 @@ if [ "$IS_PUBLIC_COPY" = false ]; then
   exit 0
 fi
 
-# Skip the foundation document and exploration reports even if they live under docs/
+# Skip technical docs even if they live under docs/
 case "$FILE_PATH" in
-  *docs/agentic-memory-landscape.md) exit 0 ;;
   *docs/exploration-reports/*) exit 0 ;;
 esac
 

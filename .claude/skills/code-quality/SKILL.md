@@ -188,6 +188,4 @@ Per [`code-quality-golden-rule.md § Severity rubric`](../../rules/code-quality-
 - Thresholds: [`.claude/rules/code-quality-thresholds.txt`](../../rules/code-quality-thresholds.txt)
 - Allowlist: [`.claude/rules/code-quality-allowlist.txt`](../../rules/code-quality-allowlist.txt)
 - Sibling skill (model arquitetural): [`/deps-audit`](../deps-audit/SKILL.md)
-- Cycle: [`.claude/rules/cycle-implement.md`](../../rules/cycle-implement.md) (wired in T6.1)
-- Plan: [`.claude/knowledge-base/plans/code-quality-skill-plan.md`](../../knowledge-base/plans/code-quality-skill-plan.md) v1.3
-- Blueprint: [`.claude/knowledge-base/discoveries/blueprints/wiring-deadcode-gates-blueprint.md`](../../knowledge-base/discoveries/blueprints/wiring-deadcode-gates-blueprint.md)
+- Cycle: [`.claude/rules/cycle-implement.md`](../../rules/cycle-implement.md)

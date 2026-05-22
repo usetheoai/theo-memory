@@ -89,7 +89,6 @@ PRs that **add** new inquebráveis (e.g., M3 future "fabricated symbol citation"
 
 - Skill: [`.claude/skills/discover-plan-confidence/SKILL.md`](../skills/discover-plan-confidence/SKILL.md) (created in T3.1 of the discover-plan-confidence implementation plan)
 - Thresholds: [`.claude/rules/discover-plan-thresholds.txt`](./discover-plan-thresholds.txt)
-- Source plan: [`.claude/knowledge-base/plans/discover-plan-confidence-plan.md`](../knowledge-base/plans/discover-plan-confidence-plan.md) (v1.1, SHIPPABLE 96.4/100)
 - Sibling rule: [`plan-confidence-golden-rule.md`](./plan-confidence-golden-rule.md) (gates implementation plans)
 - Sibling rule: [`discover-blueprint-golden-rule.md`](./discover-blueprint-golden-rule.md) (gates blueprints)
 - D5 (DEFER-CORNER convention): source plan § ADRs D5

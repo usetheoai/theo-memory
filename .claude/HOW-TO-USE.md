@@ -112,7 +112,6 @@ git switch -c feature/my-feature
 │   ├── reviews/                  /plan-confidence, /discover-confidence, /review reports
 │   └── concepts/                 Long-form ADRs / design docs
 ├── agents/
-│   ├── mem-researcher.md         (active or _archive — see git log)
 │   └── review-{slug}-{date}/     Audit trail of /review invocations
 └── scripts/
     └── check_xrefs.py            Cross-reference validator

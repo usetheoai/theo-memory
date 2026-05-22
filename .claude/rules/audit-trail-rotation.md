@@ -104,10 +104,8 @@ Standard structure:
 ├── agents/
 │   ├── _archive/
 │   │   ├── review-old-slug-1-2026-01-15/   ← moved here from .claude/agents/
-│   │   ├── review-old-slug-2-2026-02-08/
-│   │   └── mem-researcher.md               ← deprecated agent (P2 cleanup)
-│   ├── review-current-slug-2026-05-21/      ← current, NOT archived
-│   └── mem-researcher.md (or absent if archived)
+│   │   └── review-old-slug-2-2026-02-08/
+│   └── review-current-slug-2026-05-21/      ← current, NOT archived
 └── knowledge-base/
     └── reviews/
         ├── _archive/
