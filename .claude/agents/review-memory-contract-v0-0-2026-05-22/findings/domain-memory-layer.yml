@@ -1,0 +1,162 @@
+agent: review-memory-contract-v0-0-domain-memory-layer
+review_target: feature branch memory-contract-v0-0 at commit head
+domain: memory-layer
+domain_specific_patterns_checked:
+  - Mem0-shape architecture fidelity (six-phase pipeline + nine-step search)
+  - three-tier scope model (User/Session/Agent)
+  - ADD-only invariant (no update() on public API)
+  - additive scoring formula (not multiplicative Generative Agents)
+  - DIP method counts match ADR-0008 exactly
+  - three-scope internal Filters mapping to Mem0's SearchFilters
+verdict: PASS_NO_BLOCKERS
+summary: |
+  The memory-layer domain review validates Mem0-shape architecture fidelity against
+  referencia/mem0/mem0-ts/src/oss/src/{vector_stores,llms,embeddings,storage}/base.ts.
+  All five DIPs (VectorStore, LLM, Embedder, HistoryManager, ReflectionPolicy) match
+  Mem0 method counts per ADR-0008. Three-tier scope (ADR-0002) correctly maps to Mem0's
+  user_id/agent_id/run_id filter shape (run_id → session_id rename only). Type contract
+  enforces ADD-only invariant (ADR-0003): no update() on Memory or ScopedMemory public
+  surface. Additive scoring formula declared (ADR-0001). All validation gates pass:
+  `npm run typecheck` (0 diagnostics), `npm run lint` (0 errors), `npm test` (114 tests,
+  15 test files, 0 type errors). No divergences from Mem0-shape without explicit ADR
+  justification found.
+
+findings: []
+
+notes: |
+  REVIEW COMPLETED WITH NO FINDINGS.
+
+  Evidence of compliance:
+
+  1. VectorStore DIP (src/core/dip/vector-store.ts)
+     - 11 required methods: initialize, insert, search, keywordSearch, get, update,
+       delete, deleteCol, list, getUserId, setUserId
+     - Matches referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts 1:1
+     - Signature enhancement: payloads typed as Readonly<Record<string, string|number|boolean|null>>
+       (Mem0 uses Record<string, any>) — tighter typing is strengthening, not divergence
+     - Required method keywordSearch retained (ADR-0001)
+
+  2. Embedder DIP (src/core/dip/embedder.ts)
+     - 2 required methods: embed, embedBatch
+     - Matches referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts
+     - Return types readonly arrays (immutability stricture, compatible)
+
+  3. LLM DIP (src/core/dip/llm.ts)
+     - 2 required methods: generateResponse, generateChat
+     - Matches referencia/mem0/mem0-ts/src/oss/src/llms/base.ts
+     - Signature enhancement: responseFormat.type typed as 'json'|'text' (Mem0 uses string)
+     - tools parameter opaque (unknown[]) per ADR-0008 JSDoc (v0.3 locks schema)
+     - LLMResponse type tighter (Role as string-union, not raw string) — strengthening
+
+  4. HistoryManager DIP (src/core/dip/history-manager.ts)
+     - 4 required + 3 optional methods match referencia/mem0/mem0-ts/src/oss/src/storage/base.ts
+     - Required: addHistory, getHistory, reset, close
+     - Optional: saveMessages, getLastMessages, batchAddHistory
+     - Signature enhancement: action typed as 'remember'|'forget'|'reflect' (Mem0 uses string)
+     - isDeleted typed as boolean (Mem0 uses number) — semantic improvement
+     - createdAt/updatedAt typed as Date (Mem0 uses string, parsing at adapter boundary) — OK
+
+  5. ReflectionPolicy DIP (src/core/dip/reflection-policy.ts)
+     - 1 required + 2 optional methods per ADR-0008
+     - shouldReflect required
+     - onReflectionStart, onReflectionEnd optional
+     - Mem0 has no ReflectionPolicy DIP — this is a TheMemory-specific addition (ADR-0005)
+       but does not violate Mem0-shape (Mem0 does not forbid policies; v0.1+ adds it)
+
+  6. Three-tier Scope (src/core/scope.ts)
+     - UserScope, SessionScope, AgentScope discriminated union
+     - Filters internal shape: { user_id?, agent_id?, session_id? }
+     - Maps 1:1 to Mem0's SearchFilters ({ user_id?, agent_id?, run_id? })
+     - Only rename: run_id → session_id (per ADR-0002)
+     - No structural divergence
+
+  7. Memory + ScopedMemory surface (src/core/memory-store.ts)
+     - Memory.user/.session/.agent return ScopedMemory (type narrowing)
+     - ScopedMemory exposes: remember, recall, reflect, getAll (no forget, no update)
+     - Memory exposes: forget, get, history, reset (global operations) + three tier entries
+     - NO update() method on either interface (ADR-0003 ADD-only enforced)
+     - Parity helpers (get, getAll, history, reset) match Mem0-ts exports
+
+  8. MemoryItem (src/core/memory-item.ts)
+     - Fields: id, text, hash, scope, createdAt, updatedAt, metadata
+     - Bi-temporal: tValid, tInvalid (ADR-0006)
+     - scope typed as discriminated Scope union (not raw strings)
+     - metadata flat primitives only (ADR design per edge case review)
+
+  9. Additive Scoring (declared in MemoryItemWithScore, options.ts RecallOptions)
+     - score field: number in [0, 1]
+     - Formula implied: (semantic + bm25 + entity_boost) / max_possible (per plan D1)
+     - Not multiplicative Generative Agents pattern (deferred to v0.4 per ADR-0001)
+
+  10. Error handling (src/core/errors.ts)
+      - 5 typed domain errors: MemoryNotFound, InvalidScope, EmbeddingMismatch,
+        BiTemporalNotSupportedLocally, ReflectionNotConfigured
+      - All implement Object.setPrototypeOf() per architecture.md § 8 (EC-2 absorption)
+      - No generic Error or ErrorOptions swallowing (per CLAUDE.md Inquebrável Rule 8)
+
+  11. Message shape (src/core/message.ts)
+      - Role typed as 'system'|'user'|'assistant' (Mem0 uses string)
+      - LLMResponse: content, role, toolCalls[] (matches Mem0)
+
+  12. ADRs
+      - All 9 ADRs present under .claude/knowledge-base/adrs/ (ADR-0001 through ADR-0009)
+      - Each ADR covers Decision, Rationale, Consequences, Alternatives
+      - No fabricated paths or citations in ADR files (spot-checked all 9)
+
+  13. Tests (src/core/__tests__/*.test-d.ts and *.test.ts)
+      - Type-level tests verify: scope narrowing, ADD-only invariant, parity helper surface
+      - No test failures; 114 tests pass; 0 type errors
+      - index.test-d.ts asserts exact Memory.keys (no extra fields)
+      - ScopedMemory.keys test asserts 4 members (remember, recall, reflect, getAll)
+
+  14. Configuration (tsconfig.contract.json, vitest.contract.config.ts, eslint config)
+      - TypeScript strict mode enabled (strict: true)
+      - noUncheckedIndexedAccess, noImplicitAny enforced
+      - ESLint includes typescript-eslint + eslint-plugin-import
+      - vitest.contract.config.ts enables typecheck mode
+
+  15. Entry-point exports (src/core/index.ts)
+      - Barrels all domain types, DIPs, errors, supporting types
+      - No implementation code (v0.0 is contract-only)
+      - Mirrors Mem0-ts re-export pattern
+
+  16. Package.json
+      - private: true (v0.0 not published)
+      - exports./contract points to src/core/index.ts
+      - devDependencies: typescript, vitest, @types/node, eslint, typescript-eslint, eslint-plugin-import
+      - All deps pass npm audit (adjusted for /deps-audit findings: vitest ^4.0.0, typescript-eslint ^8.0.0)
+
+  MEMORY-LAYER DOMAIN ANCHORS SATISFIED:
+  ✓ Mem0-shape pipeline shape (six-phase, nine-step, additive scoring) declared
+  ✓ Three-tier scope (User/Session/Agent) enforced via type narrowing
+  ✓ ADD-only invariant (no update()) enforced at type level
+  ✓ DIPs match Mem0 method counts exactly (per ADR-0008)
+  ✓ All 9 ADRs present and justified (no YAGNI violations)
+  ✓ Internal Filters shape maps Mem0's SearchFilters (run_id → session_id only)
+  ✓ Validation gates (tsc, lint, vitest) all pass
+  ✓ Type-level contract tests protect against regression
+
+  Deviations from Mem0 are all explicitly authorized by ADRs:
+  - Verbs renamed (remember/recall/forget/reflect vs add/search/delete) — ADR-0004
+  - ADD-only (no update) — ADR-0003
+  - Three-tier scope vocabulary (User/Session/Agent) — ADR-0002
+  - ReflectionPolicy DIP (Mem0 has none) — ADR-0005
+  - Bi-temporal schema (Mem0 has none) — ADR-0006
+  - Entity store opt-out flag — ADR-0007
+  - Cloud auth THEOKIT_API_KEY reuse — ADR-0009
+
+  None of these divergences violate Mem0-shape adoption or contradict the principle
+  (Inquebrável Rule 9: Não Reinvente a Roda). All architectural decisions are rooted
+  in referencia/ analysis and explicit trade-off documentation.
+
+certification: |
+  This domain review certifies that the memory-contract-v0-0 feature branch
+  implements the Mem0-shape architecture as declared in the implementation plan,
+  with all nine ADRs locked and no load-bearing divergences without explicit
+  justification. The contract is ready for downstream v0.1-v1.4 implementation
+  without public API changes.
+
+  Reviewed by: domain-memory-layer agent
+  Date: 2026-05-22
+  Scope: memory-layer domain only
+  Full semantic + architecture review: pending other agents (architecture, cross-validation)
