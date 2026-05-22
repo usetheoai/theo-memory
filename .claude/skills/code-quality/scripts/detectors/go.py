@@ -1,31 +1,115 @@
 """Go detector — wraps deadcode (D1) + Go proxy registry lookup (D2).
 
-Stub at T0.3. Implementations:
-- detect_dead_code → T1.4 (deadcode wrapper, v0.45.0)
-- detect_symbol_fabrication → T2.5 (Go proxy + self-module skip + vendor/ skip)
-- detect_orphan_exports → T3.1 (shared cross-package wiring)
-- detect_mutation_score → T4.3 (DEFERRED to v0.2 — graceful INFO skip)
+T1.4 implementation: detect_dead_code via deadcode subprocess.
+Other methods still stubs (T2.5 / T3.1) — T4.3 ADR DEFER for mutation.
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
+from scripts._shared import Finding, safe_parse_json, sanitize_symbol
+
 from . import BaseDetector
+
+_DEADCODE_TIMEOUT_SEC = 180
 
 
 class GoDetector(BaseDetector):
     language = "go"
     manifest_marker = "go.mod"
 
-    def detect_dead_code(self, repo_root: Path) -> list:
-        raise NotImplementedError("T1.4: deadcode wrapper not yet implemented")
+    def detect_dead_code(self, repo_root: Path) -> list[Finding]:
+        """Run `deadcode -json ./...` and parse JSON list into Findings."""
+        cmd = ["deadcode", "-json", "./..."]
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                timeout=_DEADCODE_TIMEOUT_SEC,
+                check=False,
+            )
+        except FileNotFoundError:
+            return [
+                self._auditor_unavailable(
+                    "deadcode binary not found (install via "
+                    "`go install golang.org/x/tools/cmd/deadcode@v0.45.0`)"
+                )
+            ]
+        except subprocess.TimeoutExpired:
+            return [self._auditor_unavailable(f"deadcode timed out after {_DEADCODE_TIMEOUT_SEC}s")]
+        except (subprocess.SubprocessError, OSError) as e:
+            return [self._auditor_unavailable(f"deadcode invocation failed: {e}")]
 
-    def detect_symbol_fabrication(self, changed_files: list[Path]) -> list:
+        if not result.stdout.strip():
+            if result.returncode != 0:
+                return [
+                    self._auditor_unavailable(
+                        f"deadcode exit {result.returncode}: {result.stderr.strip()[:200]}"
+                    )
+                ]
+            return []
+
+        data, parse_finding = safe_parse_json(result.stdout, "deadcode")
+        if parse_finding is not None:
+            return [
+                Finding(
+                    detector="d1_dead_code",
+                    language="go",
+                    severity="SOFT_CAP",
+                    file_path=".",
+                    symbol_or_line="deadcode",
+                    message=f"deadcode JSON output failed to parse: {parse_finding.message}",
+                    allowlist_key="go|.|dead_code|auditor_output_malformed_deadcode",
+                )
+            ]
+        return self._parse_deadcode_json(data)
+
+    def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
         raise NotImplementedError("T2.5: Go proxy symbol fabrication detector not yet implemented")
 
-    def detect_orphan_exports(self, repo_root: Path) -> list:
+    def detect_orphan_exports(self, repo_root: Path) -> list[Finding]:
         raise NotImplementedError("T3.1: cross-package wiring detector not yet implemented")
 
-    def detect_mutation_score(self, critical_paths: list[Path]) -> list:
+    def detect_mutation_score(self, critical_paths: list[Path]) -> list[Finding]:
         # T4.3 — DEFERRED to v0.2 (evaluate go-mutesting vs gremlins first)
         raise NotImplementedError("T4.3: Go mutation testing DEFERRED to v0.2 (graceful skip)")
+
+    # ------------------------------------------------------------------
+
+    def _parse_deadcode_json(self, data) -> list[Finding]:
+        findings: list[Finding] = []
+        if not isinstance(data, list):
+            return findings
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            position = entry.get("position", "<unknown>:0:0")
+            name = entry.get("name", "<unknown>")
+            file_part = position.split(":", 1)[0] if ":" in position else position
+            sanitized = sanitize_symbol(name)
+            findings.append(
+                Finding(
+                    detector="d1_dead_code",
+                    language="go",
+                    severity="HARD",
+                    file_path=file_part,
+                    symbol_or_line=f"{name} @ {position}",
+                    message=f"Unreachable Go symbol '{name}' at {position}",
+                    allowlist_key=f"go|{file_part}|dead_code|{sanitized}",
+                )
+            )
+        return findings
+
+    def _auditor_unavailable(self, reason: str) -> Finding:
+        return Finding(
+            detector="d1_dead_code",
+            language="go",
+            severity="SOFT_CAP",
+            file_path=".",
+            symbol_or_line="deadcode",
+            message=f"deadcode auditor unavailable: {reason}",
+            allowlist_key="go|.|dead_code|auditor_unavailable_deadcode",
+        )
