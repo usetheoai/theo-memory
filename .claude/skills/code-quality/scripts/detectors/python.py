@@ -1,15 +1,19 @@
 """Python detector — wraps vulture (D1) + PyPI registry lookup (D2) + mutmut (D4).
 
 T1.1 implementation: detect_dead_code via vulture subprocess.
-Other methods still stubs (T2.2 / T3.1 / T4.1).
+T2.2 implementation: detect_symbol_fabrication via tree-sitter + PyPI lookup.
+Other methods still stubs (T3.1 / T4.1).
 """
 from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 
-from scripts._shared import Finding, sanitize_symbol
+from scripts import _registry
+from scripts._shared import Finding, sanitize_symbol, to_rel_path
+from scripts.check_symbol_fab import extract_imports_and_calls
 
 from . import BaseDetector
 
@@ -59,8 +63,53 @@ class PythonDetector(BaseDetector):
         return self._parse_vulture_output(result.stdout, repo_root)
 
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
-        # T2.2 — PyPI registry lookup + inspect introspection
-        raise NotImplementedError("T2.2: PyPI symbol fabrication detector not yet implemented")
+        """T2.2 — Validate imports against PyPI. Skip stdlib + relative imports (EC-17)."""
+        findings: list[Finding] = []
+        stdlib_modules = set(sys.stdlib_module_names)
+        for src_file in changed_files:
+            if not src_file.exists():
+                continue
+            rel = to_rel_path(src_file)
+            for sym in extract_imports_and_calls(src_file, "python"):
+                if sym.kind != "import":
+                    continue
+                module = sym.module
+                if not module or module.startswith("."):
+                    continue  # EC-17 — relative imports skipped
+                top_level = module.split(".")[0]
+                if top_level in stdlib_modules:
+                    continue
+                exists = _registry.package_exists_on_pypi(top_level)
+                if exists is True:
+                    continue
+                if exists is False:
+                    sanitized = sanitize_symbol(top_level)
+                    findings.append(
+                        Finding(
+                            detector="d2_symbol_fab",
+                            language="python",
+                            severity="HARD",
+                            file_path=rel,
+                            symbol_or_line=f"import {module}",
+                            message=f"Fabricated PyPI package '{top_level}' (not found on registry)",
+                            allowlist_key=f"python|{rel}|symbol_fab|{sanitized}",
+                        )
+                    )
+                else:
+                    # EC-2 — registry returned None (HTML / timeout). Conservative SOFT_FLOOR.
+                    sanitized = sanitize_symbol(top_level)
+                    findings.append(
+                        Finding(
+                            detector="d2_symbol_fab",
+                            language="python",
+                            severity="SOFT_FLOOR",
+                            file_path=rel,
+                            symbol_or_line=f"import {module}",
+                            message=f"Could not verify PyPI package '{top_level}' (ambiguous response)",
+                            allowlist_key=f"python|{rel}|symbol_fab|symbol_fab_unverifiable_{sanitized}",
+                        )
+                    )
+        return findings
 
     def detect_orphan_exports(self, repo_root: Path) -> list[Finding]:
         # T3.1 — shared cross-package wiring (delegates to check_wiring_cross_package.py)

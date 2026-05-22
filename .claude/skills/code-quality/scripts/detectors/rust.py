@@ -1,16 +1,21 @@
 """Rust detector — wraps cargo-udeps (D1) + crates.io registry lookup (D2).
 
 T1.3 implementation: detect_dead_code via cargo-udeps subprocess.
-Other methods still stubs (T2.4 / T3.1) — T4.3 ADR DEFER for mutation.
+T2.4 implementation: detect_symbol_fabrication via tree-sitter + crates.io.
+Other methods still stubs (T3.1) — T4.3 ADR DEFER for mutation.
 """
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
 
-from scripts._shared import Finding, safe_parse_json, sanitize_symbol
+from scripts import _registry
+from scripts._shared import Finding, safe_parse_json, sanitize_symbol, to_rel_path
+from scripts.check_symbol_fab import extract_imports_and_calls
 
 from . import BaseDetector
+
+_RUST_MODULE_LOCAL_PREFIXES = ("crate::", "self::", "super::", "crate", "self", "super")
 
 _CARGO_UDEPS_TIMEOUT_SEC = 180
 
@@ -64,7 +69,54 @@ class RustDetector(BaseDetector):
         return self._parse_udeps_json(data)
 
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
-        raise NotImplementedError("T2.4: crates.io symbol fabrication detector not yet implemented")
+        """T2.4 — Validate `use` statements against crates.io. Skip module-local (EC-17 analog)."""
+        findings: list[Finding] = []
+        for src_file in changed_files:
+            if not src_file.exists():
+                continue
+            rel = to_rel_path(src_file)
+            for sym in extract_imports_and_calls(src_file, "rust"):
+                if sym.kind != "import":
+                    continue
+                module = sym.module
+                if not module:
+                    continue
+                # EC-17 analog — module-local
+                if any(module == p or module.startswith(p) for p in _RUST_MODULE_LOCAL_PREFIXES):
+                    continue
+                # Extract crate name (first segment of "serde::Deserialize")
+                crate = module.split("::", 1)[0].strip()
+                if not crate:
+                    continue
+                exists = _registry.crate_exists_on_crates_io(crate)
+                if exists is True:
+                    continue
+                sanitized = sanitize_symbol(crate)
+                if exists is False:
+                    findings.append(
+                        Finding(
+                            detector="d2_symbol_fab",
+                            language="rust",
+                            severity="HARD",
+                            file_path=rel,
+                            symbol_or_line=f"use {module}",
+                            message=f"Fabricated crate '{crate}' (not found on crates.io)",
+                            allowlist_key=f"rust|{rel}|symbol_fab|{sanitized}",
+                        )
+                    )
+                else:
+                    findings.append(
+                        Finding(
+                            detector="d2_symbol_fab",
+                            language="rust",
+                            severity="SOFT_FLOOR",
+                            file_path=rel,
+                            symbol_or_line=f"use {module}",
+                            message=f"Could not verify crate '{crate}' (ambiguous response)",
+                            allowlist_key=f"rust|{rel}|symbol_fab|symbol_fab_unverifiable_{sanitized}",
+                        )
+                    )
+        return findings
 
     def detect_orphan_exports(self, repo_root: Path) -> list[Finding]:
         raise NotImplementedError("T3.1: cross-package wiring detector not yet implemented")

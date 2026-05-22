@@ -333,6 +333,16 @@ def sanitize_symbol(symbol: str) -> str:
     return symbol.replace("|", "\\|")
 
 
+def to_rel_path(p: Path) -> str:
+    """Strip leading slash so absolute paths satisfy Finding's repo-relative invariant.
+
+    Detectors invoked with `tmp_path` from tests pass absolute paths; production
+    orchestrator (T5.1) passes already-relative paths so this is a no-op there.
+    """
+    s = p.as_posix()
+    return s.lstrip("/") if s.startswith("/") else s
+
+
 # ---------------------------------------------------------------------------
 # JSON summary emission
 # ---------------------------------------------------------------------------
@@ -396,5 +406,6 @@ __all__ = [
     "make_relative",
     "safe_parse_json",
     "sanitize_symbol",
+    "to_rel_path",
     "write_atomic",
 ]

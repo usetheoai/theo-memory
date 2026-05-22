@@ -1,16 +1,29 @@
 """TypeScript detector — wraps knip (D1) + npm registry lookup (D2) + stryker (D4).
 
 T1.2 implementation: detect_dead_code via knip subprocess.
-Other methods still stubs (T2.3 / T3.1 / T4.2).
+T2.3 implementation: detect_symbol_fabrication via tree-sitter + npm lookup.
+Other methods still stubs (T3.1 / T4.2).
 """
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
 
-from scripts._shared import Finding, safe_parse_json, sanitize_symbol
+from scripts import _registry
+from scripts._shared import Finding, safe_parse_json, sanitize_symbol, to_rel_path
+from scripts.check_symbol_fab import extract_imports_and_calls
 
 from . import BaseDetector
+
+_TS_NODE_BUILTINS = frozenset(
+    {
+        "fs", "path", "os", "util", "crypto", "http", "https", "url", "stream",
+        "events", "buffer", "child_process", "cluster", "dgram", "dns", "net",
+        "querystring", "readline", "tls", "tty", "vm", "zlib", "assert",
+        "string_decoder", "process", "module", "perf_hooks", "worker_threads",
+        "console", "timers", "domain", "punycode", "v8", "inspector",
+    }
+)
 
 _KNIP_TIMEOUT_SEC = 120
 
@@ -66,7 +79,58 @@ class TypescriptDetector(BaseDetector):
         return self._parse_knip_json(data, repo_root)
 
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
-        raise NotImplementedError("T2.3: npm symbol fabrication detector not yet implemented")
+        """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16)."""
+        findings: list[Finding] = []
+        for src_file in changed_files:
+            if not src_file.exists():
+                continue
+            rel = to_rel_path(src_file)
+            for sym in extract_imports_and_calls(src_file, "typescript"):
+                if sym.kind != "import":
+                    continue
+                module = sym.module
+                if not module:
+                    continue
+                # Relative imports
+                if module.startswith("./") or module.startswith("../") or module == "." or module == "..":
+                    continue
+                # Node builtins
+                if module.startswith("node:"):
+                    continue
+                top = module.split("/")[0] if not module.startswith("@") else "/".join(module.split("/")[:2])
+                if top in _TS_NODE_BUILTINS:
+                    continue
+                # Package name for npm lookup
+                pkg = module if module.startswith("@") else module.split("/")[0]
+                exists = _registry.package_exists_on_npm(pkg)
+                if exists is True:
+                    continue
+                sanitized = sanitize_symbol(pkg)
+                if exists is False:
+                    findings.append(
+                        Finding(
+                            detector="d2_symbol_fab",
+                            language="typescript",
+                            severity="HARD",
+                            file_path=rel,
+                            symbol_or_line=f"import from '{module}'",
+                            message=f"Fabricated npm package '{pkg}' (not found on registry)",
+                            allowlist_key=f"typescript|{rel}|symbol_fab|{sanitized}",
+                        )
+                    )
+                else:
+                    findings.append(
+                        Finding(
+                            detector="d2_symbol_fab",
+                            language="typescript",
+                            severity="SOFT_FLOOR",
+                            file_path=rel,
+                            symbol_or_line=f"import from '{module}'",
+                            message=f"Could not verify npm package '{pkg}' (ambiguous response)",
+                            allowlist_key=f"typescript|{rel}|symbol_fab|symbol_fab_unverifiable_{sanitized}",
+                        )
+                    )
+        return findings
 
     def detect_orphan_exports(self, repo_root: Path) -> list[Finding]:
         raise NotImplementedError("T3.1: cross-package wiring detector not yet implemented")
