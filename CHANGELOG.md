@@ -4,6 +4,34 @@ Todos os mudanças relevantes em `@usetheo/memory` (TheMemory) e na infraestrutu
 
 ## [Unreleased]
 
+### Added — Teacher/Student model split (2026-05-22)
+
+Inspirado por `huggingface/upskill` v2 (`src/upskill/model_resolution.py`), trazendo roteamento de modelo por **papel** para os dois cycles mais caros — `/review` (MVP) e `/implement` (escopo enxuto).
+
+#### `/review` agent model split (full)
+- `.claude/skills/review/scripts/spawn_reviewers.py` — resolve `model:` por arquétipo via rule declarativa, com fallback chain `cli override > rule > default opus`. Helpers: `_load_routing_rule` (parser stdlib-only, tolerante a UTF-8 BOM e linhas malformadas), `_resolve_model` (com EC-1 invariant: `domain-X` → base `domain` lookup), `_ModelOverrideAction` (custom argparse, rejeita valores vazios).
+- `.claude/skills/review/scripts/spawn_reviewers.py` — novas flags CLI `--routing-rule PATH` e `--model-override ROLE=MODEL` (repetível). JSON output ganha `routing_rule_path`, `routing_rule_loaded`, `experimental_routings`.
+- `.claude/skills/review/templates/agent-*.md` (5 templates) — frontmatter agora declara `model: {MODEL}` substituído por role.
+- `.claude/skills/review/tests/test_spawn_reviewers.py` — 10 RED→GREEN tests adicionados (5 core + 5 SHOULD TEST de EC-3..EC-7); 14/14 verde.
+- `.claude/rules/review-model-routing.txt` (NEW) — mapeamento role → model com `experimental_until=2026-06-22` + `rollback_if=blocker_findings_gt_2_per_5_runs` por entry. Default: 4 baseline → haiku; cross-validation → opus.
+- `.claude/rules/cycle-review.md` — nova seção "Model routing (teacher/student split)" documentando contrato, fallback chain, EC-1 invariant, escalation override.
+- `.claude/rules/token-budget.md` — `/review` row atualizada: ~60k (split) / 150-250k (fallback), com nota de escalation override em "When NOT to use".
+- Economia estimada: ~70% por `/review` invocation (200k → ~60k) quando rule presente.
+
+#### `/implement` halt-loop split (experimental, COMMIT phase only)
+- `.claude/knowledge-base/discoveries/blueprints/teacher-student-halt-loop-spike.md` (NEW, marked `-spike`) — investigation T2.1 confirms VIÁVEL com Agent tool aninhado dentro de ralph-loop iterations. Both ralph-loop source paths cited (cache + marketplace, drift=zero).
+- `.claude/rules/implement-model-routing.txt` (NEW) — `commit: haiku experimental_until=2026-07-22 rollback_if=...`. GREEN migration deferred a 2026-08-22 per spike recommendation (escopo enxuto).
+- `.claude/rules/cycle-implement.md` — nova seção "Model routing (teacher/student split — experimental)".
+- `.claude/skills/implement/prompts/implementation-prompt.md` — COMMIT phase preamble instrui halt-loop driver a delegar composição via Agent tool aninhado com modelo resolvido (quando rule presente).
+- `.claude/rules/token-budget.md` — `/implement` row reflete experimental status + saving modesto (~5-10%) até GREEN ship.
+
+#### Plan + audit trail (Inquebrável Rule 6)
+- `.claude/knowledge-base/plans/teacher-student-model-split-plan.md` (v1.1, SHIPPABLE 100/100) — plan completo com 5 ADRs, 25 gaps Coverage Matrix 100%, 11 tasks ordenadas, 5 SHOULD TEST inline na seção TDD de T1.3.
+- `.claude/knowledge-base/reviews/teacher-student-model-split-edge-cases-2026-05-22.md` — 11 edges identificados (2 MUST FIX + 5 SHOULD TEST + 4 DOCUMENT), absorvidos no plan v1.0 → v1.1.
+- `.claude/knowledge-base/reviews/teacher-student-model-split-confidence-2026-05-22.md` — M2 deterministic score 100/100 SHIPPABLE.
+- `.claude/knowledge-base/implementations/teacher-student-model-split-implementation.md` — implementation contract com pre-condition gate output + status per task.
+- `.claude/skills/plan-confidence/tests/test_real_plans_snapshot.py` — snapshot entry adicionado para o novo plan.
+
 ### Added — Foundation (2026-05-21)
 
 #### Project bootstrap
