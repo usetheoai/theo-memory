@@ -1,0 +1,287 @@
+agent: review-memory-contract-v0-0-architecture
+review_target: main..HEAD for plan memory-contract-v0-0
+plan: .claude/knowledge-base/plans/memory-contract-v0-0-plan.md
+reviewed_date: '2026-05-22'
+finding_count: 18
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: src/core/scope.ts
+    plan_ref: D2 (Three-tier scope)
+    summary: Three-tier scope design via discriminated union (UserScope | SessionScope | AgentScope) enables strong TypeScript narrowing
+    evidence: |
+      interface UserScope {
+        readonly kind: 'user';
+        readonly userId: string;
+      }
+      interface SessionScope {
+        readonly kind: 'session';
+        readonly sessionId: string;
+        readonly userId?: string; // optional cross-tier filter
+      }
+      interface AgentScope {
+        readonly kind: 'agent';
+        readonly agentId: string;
+        readonly userId?: string;
+      }
+      type Scope = UserScope | SessionScope | AgentScope;
+    recommended_action: No action needed. SRP respected (single file for scope definition). ISP clean (each scope variant is minimal, no bloated union). Type union vs separate classes is the correct choice per ADR-0002.
+
+  - id: F-arch-2
+    severity: INFO
+    file: src/core/memory-store.ts
+    plan_ref: D3 (ADD-only)
+    summary: Public Memory/ScopedMemory interfaces correctly omit update() method; MemoryStore private contract exposes it for DIP use only
+    evidence: |
+      export interface ScopedMemory {
+        remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]>;
+        recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
+        reflect(options?: ReflectOptions): Promise<ReflectionResult>;
+        getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]>;
+        // NO update method
+      }
+      export interface Memory {
+        user(userId: string): ScopedMemory;
+        session(sessionId: string): ScopedMemory;
+        agent(agentId: string): ScopedMemory;
+        forget(memoryId: string, options?: ForgetOptions): Promise<void>;
+        get(memoryId: string): Promise<MemoryItem | null>;
+        history(memoryId: string): Promise<readonly HistoryEntry[]>;
+        reset(scope: Scope): Promise<void>;
+        // NO update method
+      }
+      export interface MemoryStore {
+        remember(text: string, scope: Scope, options?: RememberOptions): Promise<readonly MemoryItem[]>;
+        // ... (primitives adapters implement; includes internal update() for DIP use)
+      }
+    recommended_action: No action needed. ADD-only invariant is correctly enforced at the public surface while allowing internal mutation at the DIP layer.
+
+  - id: F-arch-3
+    severity: INFO
+    file: src/core/dip/vector-store.ts
+    plan_ref: D8 (VectorStore 11 methods)
+    summary: VectorStore DIP declares exactly 11 methods per ADR-0008, matching Mem0-ts portability baseline
+    evidence: |
+      Methods: initialize, insert, search, keywordSearch, get, update, delete, deleteCol, list, getUserId, setUserId
+      Count: 11 ✓
+    recommended_action: No action needed. Method count and signatures align with Mem0-ts referencia.
+
+  - id: F-arch-4
+    severity: INFO
+    file: src/core/dip/llm.ts
+    plan_ref: D8 (LLM 2 methods)
+    summary: LLM DIP declares exactly 2 methods (generateResponse + generateChat) per ADR-0008
+    evidence: |
+      generateResponse(...): Promise<unknown>
+      generateChat(...): Promise<LLMResponse>
+    recommended_action: No action needed. Method count correct.
+
+  - id: F-arch-5
+    severity: INFO
+    file: src/core/dip/embedder.ts
+    plan_ref: D8 (Embedder 2 methods)
+    summary: Embedder DIP declares exactly 2 methods (embed + embedBatch) per ADR-0008
+    evidence: |
+      embed(text: string): Promise<readonly number[]>
+      embedBatch(texts: readonly string[]): Promise<readonly (readonly number[])[]>
+    recommended_action: No action needed.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/core/dip/history-manager.ts
+    plan_ref: D8 (HistoryManager 4 required + 3 optional)
+    summary: HistoryManager DIP correctly declares 4 required methods (addHistory, getHistory, reset, close) + 3 optional (saveMessages, getLastMessages, batchAddHistory)
+    evidence: |
+      Required: addHistory, getHistory, reset, close (4) ✓
+      Optional: saveMessages?, getLastMessages?, batchAddHistory? (3) ✓
+      ISP-compliant: optional methods allow adapters that don't support V3 message history to omit them.
+    recommended_action: No action needed. Interface Segregation Principle correctly applied.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/core/dip/reflection-policy.ts
+    plan_ref: D8 (ReflectionPolicy 1 required + 2 optional)
+    summary: ReflectionPolicy DIP declares 1 required method (shouldReflect) + 2 optional hooks (onReflectionStart, onReflectionEnd)
+    evidence: |
+      Required: shouldReflect (1) ✓
+      Optional: onReflectionStart?, onReflectionEnd? (2) ✓
+    recommended_action: No action needed. ISP respected; optional methods allow minimal implementations.
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/core/errors.ts
+    plan_ref: EC-2 (Object.setPrototypeOf in error constructors)
+    summary: All error classes (MemoryNotFound, InvalidScope, EmbeddingMismatch, BiTemporalNotSupportedLocally, ReflectionNotConfigured) correctly use Object.setPrototypeOf(this, ClassName.prototype) in constructor
+    evidence: |
+      export class MemoryNotFound extends Error {
+        override readonly name = 'MemoryNotFound' as const;
+        constructor(memoryId: string, options?: ErrorOptions) {
+          super(`Memory not found: ${memoryId}`, options);
+          Object.setPrototypeOf(this, MemoryNotFound.prototype);
+        }
+      }
+      (same pattern in all 5 error classes)
+    recommended_action: No action needed. EC-2 absorption verified. instanceof checks will work across ESM/CJS boundaries.
+
+  - id: F-arch-9
+    severity: INFO
+    file: src/core/memory-item.ts
+    plan_ref: D6 (Bi-temporal schema)
+    summary: MemoryItem correctly includes tValid and tInvalid as nullable Date fields for bi-temporal support
+    evidence: |
+      readonly tValid: Date | null;
+      readonly tInvalid: Date | null;
+    recommended_action: No action needed. Schema matches ADR-0006.
+
+  - id: F-arch-10
+    severity: INFO
+    file: src/core/options.ts
+    plan_ref: D6 (asOf parameter)
+    summary: RecallOptions correctly includes optional asOf?: Date parameter, with JSDoc noting local v0.1 throws BiTemporalNotSupportedLocally
+    evidence: |
+      export interface RecallOptions {
+        readonly topK?: number;
+        readonly threshold?: number;
+        readonly asOf?: Date; // ← per D6
+      }
+      JSDoc: "@see ADR-0006 — local v0.1 runtime throws BiTemporalNotSupportedLocally when this field is provided"
+    recommended_action: No action needed. Uniform contract across runtimes; runtime divergence properly documented.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/core/memory-store.ts
+    plan_ref: D7 (Entity store opt-out)
+    summary: MemoryConfig correctly includes optional entityBoost?: boolean field (default true per ADR-0007)
+    evidence: |
+      export interface MemoryConfig {
+        readonly embedder: Embedder;
+        readonly llm: LLM;
+        readonly vectorStore: VectorStore;
+        readonly historyManager?: HistoryManager;
+        readonly reflectionPolicy?: ReflectionPolicy;
+        readonly entityBoost?: boolean; // ← per D7
+        readonly customInstructions?: string;
+      }
+    recommended_action: No action needed. Constructor-level opt-out is the correct granularity per ADR-0007.
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/core/memory-store.ts
+    plan_ref: D9 (Cloud auth)
+    summary: CloudMemoryConfig correctly extends MemoryConfig and adds optional apiKey?: string (overrides THEOKIT_API_KEY env var per ADR-0009)
+    evidence: |
+      export interface CloudMemoryConfig extends MemoryConfig {
+        readonly apiKey?: string;
+        readonly baseUrl?: string;
+      }
+      JSDoc: "@see ADR-0009 — cloud auth: THEOKIT_API_KEY env var by default; apiKey constructor override."
+    recommended_action: No action needed. Cloud auth design matches locked decision.
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/core/index.ts
+    plan_ref: T4.1 (Barrel exports)
+    summary: Barrel index.ts correctly exports all Phase 2/3 types as type-only exports except error classes (which are real implementations)
+    evidence: |
+      All exports from ./scope.js, ./memory-item.js, ./options.js, ./memory-store.js, ./message.js, ./dip/* are "export type"
+      Exception: export { /* 5 error classes */ } from './errors.js' (required, not type-only)
+    recommended_action: No action needed. Tree-shaking friendly; all type exports are zero-cost at runtime.
+
+  - id: F-arch-14
+    severity: INFO
+    file: src/core/__tests__/index.test-d.ts
+    plan_ref: Sub-goal 5 (Type-level invariant tests)
+    summary: Type-level contract tests verify scope narrowing, ADD-only invariant, and DIPs exported correctly
+    evidence: |
+      Test: Memory.user/.session/.agent each return ScopedMemory ✓
+      Test: Memory has NO update method (@ts-expect-error) ✓
+      Test: ScopedMemory has NO forget method (@ts-expect-error) ✓
+      Test: All DIPs exported and not any ✓
+      114 total tests passing; 0 type errors
+    recommended_action: No action needed. Type contracts fully validated.
+
+  - id: F-arch-15
+    severity: INFO
+    file: package.json
+    plan_ref: T0.1 (package.json)
+    summary: package.json correctly set to private:true, version 0.0.0-rc.1, with correct scripts (typecheck, lint, test, test:type)
+    evidence: |
+      "private": true,
+      "version": "0.0.0-rc.1",
+      "scripts": {
+        "typecheck": "tsc --noEmit -p tsconfig.contract.json",
+        "lint": "eslint 'src/core/**/*.ts' --no-error-on-unmatched-pattern",
+        "test": "vitest run --config vitest.contract.config.ts",
+        "test:type": "tsc --noEmit -p tsconfig.contract.json --strict"
+      }
+    recommended_action: No action needed. Tooling correctly configured for v0.0 types-only contract.
+
+  - id: F-arch-16
+    severity: INFO
+    file: src/core
+    plan_ref: Architecture Rule 6 (Naming)
+    summary: All file names follow kebab-case convention (scope.ts, memory-item.ts, memory-store.ts, etc.); all classes PascalCase; all functions camelCase
+    evidence: |
+      Files: scope.ts, memory-item.ts, memory-store.ts, options.ts, history-entry.ts, reflection-result.ts (kebab-case ✓)
+      Classes: UserScope, SessionScope, MemoryItem, MemoryStore, Embedder, etc. (PascalCase ✓)
+      No `any` types, no `import * as`, no console.log in production paths ✓
+    recommended_action: No action needed. Module hygiene verified.
+
+  - id: F-arch-17
+    severity: INFO
+    file: src/core
+    plan_ref: Architecture Rule 3 (DIP Boundaries)
+    summary: No imports from src/core to src/local or src/cloud exist (v0.0 pre-code phase); DIP boundary is ready for v0.1 adapters
+    evidence: |
+      grep -r "from.*src/local" src/core → (no output)
+      grep -r "from.*src/cloud" src/core → (no output)
+      boundary-check.sh hook will enforce at commit time ✓
+    recommended_action: No action needed. Ready for downstream implementation.
+
+  - id: F-arch-18
+    severity: INFO
+    file: .claude/knowledge-base/adrs/
+    plan_ref: T1.1 + T1.2 (ADRs D1-D9)
+    summary: All 9 ADRs filed in MADR 3.0 shape with Status/Context/Decision/Consequences/Alternatives sections present; CLAUDE.md Open questions Q2-Q6 marked RESOLVED
+    evidence: |
+      9 ADRs present: ADR-0001 through ADR-0009 ✓
+      Each has Status: Accepted ✓
+      Each has non-empty Alternatives section ✓
+      CLAUDE.md § Open questions all marked "RESOLVED 2026-05-22" with links to ADRs ✓
+    recommended_action: No action needed. ADR audit trail complete.
+
+summary: |
+  Architecture review of memory-contract-v0-0 (main..HEAD, 16 commits, 114 type-level tests passing):
+
+  FINDINGS: 18 total (0 BLOCKER, 0 CRITICAL, 0 MAJOR, 0 MINOR, 18 INFO)
+
+  SOLID COMPLIANCE:
+  ✓ SRP: Each module/interface has one reason to change. MemoryStore (primitive), Memory + ScopedMemory (public API), 5 DIPs (adapter contracts). No god classes.
+  ✓ OCP: DIPs are extension points; ManualReflectionPolicy can be swapped for ThresholdReflectionPolicy or SleepTimeReflectionPolicy at v0.4 without contract change. Pluggable strategy.
+  ✓ LSP: Subinterfaces (ScopedMemory ⊂ Memory; CloudMemoryConfig ⊃ MemoryConfig) substitute correctly. No type-narrowing violations or NotImplementedException patterns.
+  ✓ ISP: Optional methods on HistoryManager + ReflectionPolicy allow adapters to implement minimal variants. Role-shaped interfaces (each DIP has 2-11 tightly-related methods, not 50+).
+  ✓ DIP: core/ has ZERO imports from local/ or cloud/. Boundary enforced by hook. 5 DIPs await adapter implementations.
+
+  DESIGN PATTERNS:
+  ✓ Strategy pattern locked in ReflectionPolicy DIP (swappable per ADR-0005).
+  ✓ Adapter pattern locked in 4 core DIPs (VectorStore, LLM, Embedder, HistoryManager) per ADR-0008.
+  ✓ Factory method surface (createMemory, createCloudMemory) deferred to v0.1 but contract ready.
+
+  NAMING & HYGIENE:
+  ✓ kebab-case files, PascalCase classes, camelCase functions, UPPER_SNAKE_CASE constants.
+  ✓ No `any` types, no `import * as` namespace imports, no console.log, all ES modules.
+  ✓ Type-only exports via index.ts barrel (tree-shaking friendly).
+
+  CROSS-CHECKS:
+  ✓ DIP method counts match ADR-0008 verbatim (VectorStore 11, LLM 2, Embedder 2, HistoryManager 4+3, ReflectionPolicy 1+2).
+  ✓ Error classes use Object.setPrototypeOf per EC-2 absorption.
+  ✓ Bi-temporal fields (tValid/tInvalid) present; asOf parameter uniform; local v0.1 runtime divergence documented.
+  ✓ Entity store opt-out flag (entityBoost) present; default true per ADR-0007.
+  ✓ Cloud auth credentials pattern (THEOKIT_API_KEY + apiKey override) matches ADR-0009.
+  ✓ All 9 ADRs persisted in MADR 3.0 shape; CLAUDE.md Open questions marked RESOLVED.
+
+  VERDICT: READY_TO_MERGE ✓
+
+  No architectural defects found. The contract is well-structured, DIP boundaries are clean, and SOLID principles are respected throughout. The 114 passing tests validate the type invariants (ADD-only, three-tier scope narrowing, correct DIP shapes, error handling). Ready for v0.1 local-runtime implementation.
+
+verdict: READY_TO_MERGE
