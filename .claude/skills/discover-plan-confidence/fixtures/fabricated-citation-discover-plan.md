@@ -11,7 +11,7 @@
 
 Negative path: structurally valid except for ONE fabricated `referencia/` path in the Research Questions table. Used by `test_fabricated_citation_detected` to verify the checker fires `fabricated_citation` and reports the offending path.
 
-The fixture also contains a SECOND citation (`referencia/letta/README.md` followed by a `<!-- BLOCKED: ... -->` marker) to exercise the blocked-marker exclusion logic in `test_blocked_marker_excludes_from_fabricated`. The BLOCKED-marked path may be fake, but the BLOCKED marker tells the checker the gap is intentional documented — NOT a fabrication.
+The fixture also contains a SECOND fake citation in Q3, followed by an HTML comment marker that flags it as intentionally documented. The blocked-marker recognizer in `check_reference_citations` excludes such paths from the fabricated count, so the test verifies that an explicitly-documented gap does NOT trigger the cap.
 
 ## Objective
 
@@ -59,7 +59,7 @@ Cause `check_reference_citations` to report `fabricated >= 1` and include the fa
 |---|---|---|---|---|---|---|
 | Q1 | What does Mem0 README say? | tests | `referencia/mem0/README.md` | SKIP | Read README | summary |
 | Q2 | What does this nonexistent path contain? | deps | `referencia/mem0/this-path-does-not-exist-2026.md` | SKIP | Read fake path | (will fail) |
-| Q3 | What does Letta document about deferred topic X? | tools | `referencia/letta/intentionally-missing-2026.md` <!-- BLOCKED: file removed in upstream 2026-04 per discover-execute audit; question marked blocked-by-source --> | SKIP | Read | (blocked) |
+| Q3 | What does Letta document about deferred topic X? | tools | `referencia/letta/intentionally-missing-2026.md` <!-- BLOCKED: removed --> | SKIP | Read | (blocked) |
 | Q4 | LangMem prompts module structure | techniques | `referencia/langmem/src/langmem/prompts/` | ast-grep | Read each file | architecture map |
 | Q5 | Mem0 quickstart steps | techniques | `referencia/mem0/README.md` | SKIP | Read README | step-by-step |
 
