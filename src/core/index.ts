@@ -91,3 +91,18 @@ export {
   sigmoidBm25,
 } from './scoring.js';
 export type { ActiveSignals, CandidateScores } from './scoring.js';
+
+// Cross-cutting constants
+export { MAX_EMBEDDING_DIM } from './constants.js';
+
+// Observable events (Phase 4 + Phase 5)
+export { MEMORY_EVENTS, emitEvent } from './memory-event.js';
+export type { AttributeValue, MemoryEvent } from './memory-event.js';
+
+// Extraction prompt (Phase 4)
+export {
+  AdditiveExtractionSchema,
+  escapeMarkdownHeaders,
+  generateAdditiveExtractionPrompt,
+} from './extraction/prompt.js';
+export type { AdditiveExtractionResponse, PromptResult } from './extraction/prompt.js';
