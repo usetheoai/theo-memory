@@ -2,7 +2,6 @@
   "name": "@usetheo/memory",
   "version": "0.0.0-rc.2",
   "description": "Managed three-tier memory layer for the usetheo ecosystem. Pre-release.",
-  "private": true,
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -38,7 +37,8 @@
     "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "compose:up": "docker compose up -d pgvector",
-    "compose:down": "docker compose down"
+    "compose:down": "docker compose down",
+    "publish:check": "npm publish --dry-run --tag next"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.0",
