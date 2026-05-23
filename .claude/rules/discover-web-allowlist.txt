@@ -1,0 +1,40 @@
+# Discover web allowlist — domains permitted for citation in cycle-discover blueprints
+#
+# Authoritative source: .claude/rules/cycle-discover.md v1.1 § Downstream changes required #4
+# Enforced by: .claude/skills/discover-confidence/scripts/check_reference_citations.py (v1.1 wiring pending)
+#
+# Format: one domain per line. Comments start with `#`. Each entry MUST carry inline rationale
+# noting why the domain is trusted (added because X for {slug} at {date}).
+#
+# Rules:
+# - Subdomains are NOT auto-allowed. If you cite `spec.modelcontextprotocol.io`, that subdomain
+#   needs its own entry (the root `modelcontextprotocol.io` does NOT cover it).
+# - Citing a URL outside the allowlist caps /discover-confidence at 49 (INVALID) with stable
+#   identifier `domain_not_in_allowlist` per cycle-discover.md v1.1 hard gate #5.
+# - Drive-by domain additions defeat the audit purpose — every entry needs the inline rationale.
+# - Adding an entry requires the rationale to cite the discovery slug + date.
+# - Removing an entry requires explaining what blueprint(s) lose access.
+#
+# Initial seed (per cycle-discover.md v1.1 § Downstream change #4 — official spec list):
+
+arxiv.org                       # added for cycle-discover.md v1.1 seed at 2026-05-22 — academic papers (Generative Agents, MemGPT, RAG variants)
+www.rfc-editor.org              # added for cycle-discover.md v1.1 seed at 2026-05-22 — IETF RFCs (stable spec text)
+www.w3.org                      # added for cycle-discover.md v1.1 seed at 2026-05-22 — W3C standards
+datatracker.ietf.org            # added for cycle-discover.md v1.1 seed at 2026-05-22 — IETF working drafts
+github.com                      # added for cycle-discover.md v1.1 seed at 2026-05-22 — open-source source code references
+npmjs.com                       # added for cycle-discover.md v1.1 seed + v0-3-agent-tools-mcp Q2 at 2026-05-23 — npm package metadata
+pypi.org                        # added for cycle-discover.md v1.1 seed at 2026-05-22 — Python package metadata
+docs.pinecone.io                # added for cycle-discover.md v1.1 seed at 2026-05-22 — vendor docs (Pinecone)
+docs.weaviate.io                # added for cycle-discover.md v1.1 seed at 2026-05-22 — vendor docs (Weaviate)
+qdrant.tech                     # added for cycle-discover.md v1.1 seed at 2026-05-22 — vendor docs (Qdrant)
+platform.openai.com             # added for cycle-discover.md v1.1 seed at 2026-05-22 — OpenAI API + Memory docs
+docs.anthropic.com              # added for cycle-discover.md v1.1 seed at 2026-05-22 — Anthropic API + MCP docs
+mem0.ai                         # added for cycle-discover.md v1.1 seed at 2026-05-22 — Mem0 product docs
+letta.com                       # added for cycle-discover.md v1.1 seed at 2026-05-22 — Letta product docs
+langchain.com                   # added for cycle-discover.md v1.1 seed at 2026-05-22 — LangChain ecosystem docs
+
+# v0-3-agent-tools-mcp additions (per ADR D6 prerequisite block — 2026-05-23):
+
+anthropic.com                   # added for v0-3-agent-tools-mcp Q7 at 2026-05-23 — root domain for /news/model-context-protocol announcement post
+spec.modelcontextprotocol.io    # added for v0-3-agent-tools-mcp Q7 at 2026-05-23 — canonical MCP specification subdomain
+modelcontextprotocol.io         # added for v0-3-agent-tools-mcp Q7 at 2026-05-23 — root domain fallback if spec subdomain redirects
