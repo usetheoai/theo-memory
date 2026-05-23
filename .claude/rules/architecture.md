@@ -59,7 +59,7 @@ src/core/        ← contracts, types, pure logic, LLM extraction pipeline (no I
 
 Adopt — these patterns are locked for v0.1:
 
-- Six-phase write pipeline (Context → Retrieval → Single LLM extraction → Batch embed → Hash dedup → Batch persist).
+- Eight-phase write pipeline (per v0.1 runtime; ADR-0001 narrates it as six. Phase 0 context, Phase 1 retrieval + UUID→int, Phase 2 LLM extraction, Phase 3 batch embed, Phase 4-5 hash dedup + payload, Phase 6 batch persist, Phase 6.5 history persist, Phase 7+8 entity linking + save messages scaffolded for v0.2 — see ADR-0001 § Implementation note).
 - Nine-step search (Preprocess → Embed → Semantic over-fetch → BM25 → Sigmoid normalization → Entity boost → Combined score → Threshold → Format).
 - **Additive scoring**: `combined = (semantic + bm25 + entity_boost) / max_possible`, with semantic threshold gating BEFORE combining.
 - Hash dedup via MD5 of normalized text (exact match only).
