@@ -1,0 +1,39 @@
+# Local dev pgvector container for v0.1 — T0.3 of v0-1-local-runtime plan v1.3.
+#
+# Single service (no nginx, no app — TheMemory is a library, not a server).
+# Convergent image choice across REDACTED + REDACTED blueprint Q7. EC-15 absorbed:
+# POSTGRES_PORT env override lets devs avoid 5432 conflicts on their machine.
+#
+# Usage:
+#   npm run compose:up      # docker compose up -d pgvector
+#   npm run compose:down    # docker compose down
+#
+# Then:
+#   psql $THEOMEM_PG_URI -c "CREATE EXTENSION IF NOT EXISTS vector"
+#   npm run db:push
+#
+# See README Quickstart (T8.2) for the full local-dev story.
+
+services:
+  pgvector:
+    image: ankane/pgvector:v0.5.1
+    container_name: themem_pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-themem}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-themem}
+      POSTGRES_DB: ${POSTGRES_DB:-themem}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-themem} -d ${POSTGRES_DB:-themem}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: themem_pgdata
