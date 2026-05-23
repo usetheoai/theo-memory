@@ -2,7 +2,7 @@
 
 > **Version 1.1** — Ship the `@usetheo/memory/theokit` subpath that auto-resolves `user_id` / `session_id` / `agent_id` from TheoKit request context AND wires default-on memory into `create-theo` scaffolded templates (`saas`, `postgres`). This is the deliberate lock-in surface (override of Cross-Project Rule 6) ratified at CLAUDE.md § Architectural Decisions Locked. Synthesizes the v0-2-theokit-binding blueprint (SHIPPABLE_WITH_CAVEATS 89/100) into atomic TDD-disciplined tasks. Expected outcome: a consumer running `npx create-theokit my-app --template=saas` gets a working memory primitive wired into their first handler with zero explicit `createMemory` call in user code.
 >
-> **Version 1.1 changelog (2026-05-23):** Absorbed 5 MUST FIX + 5 SHOULD TEST + 3 DOCUMENT items from `.claude/knowledge-base/reviews/v0-2-theokit-binding-edge-cases-2026-05-23.md`. Added ADRs D7 (cross-repo PR coordination) + D8 (stub adapters + private flag removal). Added tasks T2.3 (remove `"private": true`) + T4.5 (`src/local/stubs.ts` with StubEmbedder/StubLLM). Revised T1.1 with runtime type-guard for userId. Added 5 SHOULD TEST cases inline in TDD blocks; 3 DOCUMENT items inline in Deep Dives / Acceptance Criteria.
+> **Version 1.1 changelog (2026-05-23):** Absorbed 5 MUST FIX + 5 SHOULD TEST + 3 DOCUMENT items from `.claude/knowledge-base/reviews/v0-2-theokit-binding-edge-cases-2026-05-23.md`. Added ADRs D7 (cross-repo PR coordination) + D8 (stub adapters + private flag removal). Added tasks T2.3 (remove `"private": true`) + T4.5 (`src/local/stubs.ts` with StubEmbedder/StubLLM). Revised T1.1 with runtime type-guard for userId. Added 5 SHOULD TEST cases inline in TDD blocks; 3 DOCUMENT items inline in Deep Dives / Acceptance Criteria. Late addition (same v1.1 cycle, post `/plan-confidence` initial run): added mandatory `## Dependencies` section per cycle-plan.md v1.1 — gap revealed by `/deps-audit` invocation.
 
 ## Goal
 
@@ -156,6 +156,46 @@
   - Public surface widens: `src/index.ts` re-exports `StubEmbedder` + `StubLLM` (test/demo path; mark via JSDoc `@experimental — for scaffold demo only, replace before production`).
   - Removing `"private": true` opens the npm publish path; first publish (`0.0.0-rc.3` or first `0.1.0` cut) becomes a gate for Phase 5 E2E.
   - PR description must reference D7 + D8 together (publish gate enables PR-B).
+
+## Dependencies
+
+Per cycle-plan.md v1.1 — mandatory declaration of every Existing / New / Removed dep this plan touches. Cross-referenced by `/deps-audit` against current manifests + registry + CVE database.
+
+### Existing — use as-is
+
+| Package | Version | Ecosystem | Why |
+|---|---|---|---|
+| drizzle-orm | ^0.45.0 | npm | v0.1 dep; binding does NOT use it directly but T4.5 stubs ship alongside DrizzleHistoryManager (already exported) |
+| pg | ^8.13.0 | npm | v0.1 dep; binding does NOT use it directly; only relevant to T4.5 stubs as the Pool type for sample usage |
+| zod | ^3.24.0 | npm | v0.1 dep; T4.2 demo route uses zod for body schema (mirrors TheoKit fixture pattern) |
+| @opentelemetry/api | ^1.9.0 | npm (dev) | v0.1 dep; binding does NOT instrument (delegates to underlying createLocalMemory which already does) |
+| typescript | ^5.4.0 | npm (dev) | v0.1 dep; T0.2 type-only tests + structural typing rely on TS ≥ 5.4 inference |
+| vitest | ^4.0.0 | npm (dev) | v0.1 dep; T1.1 + T3.1 use vitest; T0.2 uses vitest's `expectTypeOf` |
+| vitest-mock-extended | ^4.0.0 | npm (dev) | v0.1 dep; T1.1 spy on `memory.user()` uses mock-extended |
+| eslint + plugins | ^9.0.0 | npm (dev) | v0.1 dep; lint gate honored per Global DoD |
+
+### New — to be introduced
+
+| Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
+|---|---|---|---|---|
+| (none) | — | — | N/A — v0.2 introduces ZERO new runtime deps to `@usetheo/memory`'s `package.json`. | The binding lives in `src/theokit/` and depends ONLY on `src/core/` (per DIP `architecture.md § 3`). Stubs (T4.5) implement existing `Embedder` + `LLM` DIPs from `src/core/dip/` — no external lib needed. Demo route in scaffolded template uses `zod` which is already a TheoKit peer-dep (no addition required there either). |
+
+**Cross-repo dep declaration** (sibling `theokit` repo, NOT this repo's `package.json`):
+
+| Package | Version | Where | Rule 9 rationale | Why |
+|---|---|---|---|---|
+| @usetheo/memory | ^0.1.0-next.0 | `../theokit/packages/create-theo/templates/{saas,postgres}/package.json.tmpl` | N/A — this package IS the dep being introduced (self-reference into scaffolded apps) | T4.1 adds the dep to template `package.json.tmpl`. Version range ties to PR-A's npm publish (per ADR D7). |
+
+### Removed
+
+| Package | Last version | Why removed |
+|---|---|---|
+| (none) | — | v0.2 introduces additive code only (`src/theokit/` + `src/local/stubs.ts`); zero deletions from manifest. T2.3 removes `"private": true` from `package.json` BUT that is a PACKAGE METADATA change, not a dep removal. |
+
+### Audit expectations
+
+- v0.2's own `package.json` is UNCHANGED for runtime deps; `/deps-audit` against the current manifest should report whatever CVEs the v0.1 deps surface (already audited at v0.1 release with HIGH CVE on drizzle-orm <0.45.2 forcing the ^0.45.0 bump per v0.1 ADR D1.10).
+- The cross-repo `@usetheo/memory` dep added in template `package.json.tmpl` lives in the sibling theokit repo and is audited there (not by THIS invocation of `/deps-audit`).
 
 ## Dependency Graph
 
