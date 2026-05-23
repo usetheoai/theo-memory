@@ -14,13 +14,13 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylistic,
   {
-    files: ['src/core/**/*.ts'],
+    files: ['src/{core,local}/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.contract.json',
+        project: ['./tsconfig.contract.json', './tsconfig.local.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -39,7 +39,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/core/**/__tests__/**/*.test*.ts'],
+    files: ['src/{core,local}/**/__tests__/**/*.test*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',
