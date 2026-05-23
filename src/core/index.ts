@@ -110,3 +110,7 @@ export type { AdditiveExtractionResponse, PromptResult } from './extraction/prom
 // Extraction pipeline (Phase 4 — the 8-phase write)
 export { runExtractionPipeline } from './extraction/pipeline.js';
 export type { ExtractionDeps } from './extraction/pipeline.js';
+
+// Retrieval pipeline (Phase 5 — the 9-step search)
+export { runRetrievalPipeline } from './retrieval/pipeline.js';
+export type { RetrievalDeps } from './retrieval/pipeline.js';
