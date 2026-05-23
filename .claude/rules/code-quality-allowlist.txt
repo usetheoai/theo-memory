@@ -37,3 +37,6 @@ typescript|src/local/**|symbol_fab|*|v0.1 pre-code phase per plan v0-1-local-run
 typescript|src/core/extraction/**|symbol_fab|*|v0.1 pre-code phase; src/core/extraction/ created by Phase 4 (T4.1 + T4.3). Forward references to extraction symbols are intentional.|2026-06-22
 typescript|src/core/retrieval/**|symbol_fab|*|v0.1 pre-code phase; src/core/retrieval/ created by Phase 5 (T5.1). Forward references to retrieval symbols are intentional.|2026-06-22
 typescript|src/index.ts|symbol_fab|*|v0.1 pre-code phase; src/index.ts (public barrel) created by T7.2. Forward references to createMemory + re-exports are intentional.|2026-06-22
+
+# Active entries — v0.2 pre-code phase
+typescript|src/theokit/**|symbol_fab|*|v0.2 pre-code phase per plan v0-2-theokit-binding-plan.md v1.1; src/theokit/ tree does not exist yet (T0.2 + T1.1 create it). Forward references in the plan are intentional declarations that land during /implement. Re-validate after T1.1 lands the binding module.|2026-06-22
