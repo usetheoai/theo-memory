@@ -15,8 +15,10 @@
  * @see ADR D1.2 (this plan) + ADR-0008 (DIP method counts)
  */
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+
 import type { VectorStore } from '../../core/dip/vector-store.js';
 import type { Filters } from '../../core/scope.js';
+
 import { VEC_A, VEC_B, VEC_C } from './fixtures/deterministic-vectors.js';
 
 export interface ConformanceContext {
