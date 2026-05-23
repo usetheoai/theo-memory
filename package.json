@@ -13,6 +13,10 @@
     "./contract": {
       "types": "./src/core/index.ts",
       "default": "./src/core/index.ts"
+    },
+    "./theokit": {
+      "types": "./src/theokit/index.ts",
+      "default": "./src/theokit/index.ts"
     }
   },
   "engines": {
