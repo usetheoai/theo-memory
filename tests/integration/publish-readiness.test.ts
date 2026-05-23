@@ -86,4 +86,34 @@ describe('publish-readiness — gate executable', () => {
     );
     expect(forbidden).toEqual([]);
   }, 30_000);
+
+  test('F1 followup: tarball POSITIVELY INCLUDES every source file backing a declared package.json#exports entry', () => {
+    // Prevents the silent "published package missing the stub the consumer imports"
+    // failure mode flagged by SEPA during T2.3. Logged at
+    // .claude/knowledge-base/implementations/v0-2-theokit-binding-followups.md F1
+    // and absorbed into T4.5 because stubs introduce new public surface.
+    const pkg = readPackageJson() as PackageJsonShape & {
+      exports?: Record<string, { default?: string }>;
+    };
+    expect(pkg.exports).toBeDefined();
+    const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>;
+    const allPaths = new Set(parsed.flatMap((entry) => entry.files.map((f) => f.path)));
+
+    for (const [subpath, conditions] of Object.entries(pkg.exports ?? {})) {
+      const target = conditions.default;
+      if (target === undefined) continue;
+      // Conditions reference paths like './src/theokit/index.ts'; strip leading './'.
+      const normalized = target.replace(/^\.\//, '');
+      expect(allPaths.has(normalized)).toBe(
+        true,
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        `Exports entry ${subpath} → ${target}: backing source not present in npm pack output`,
+      );
+    }
+  }, 30_000);
 });
