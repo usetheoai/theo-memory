@@ -440,6 +440,48 @@ def _find_repo_root_from_plan(plan_path: Path) -> Path:
     return plan_path.resolve().parent
 
 
+def _merge_code_quality_verdict(out: dict, cq_summary: dict) -> None:
+    """Merge code-quality verdict into plan-confidence output (smallest cap wins).
+
+    Severity tier mapping (consults cq_summary["score_cap"] AND ["verdict"], NOT just
+    presence of stable identifiers in hard_caps_triggered — see 2026-05-23 bug fix):
+
+      cq_verdict       → cq_score_cap → plan-confidence cap action
+      PASS             → 100          → no change
+      PASS_WITH_CAVEATS → 89          → cap at 89; if plan was SHIPPABLE, downgrade to SHIPPABLE_WITH_CAVEATS
+      FAIL_SOFT        → 70           → cap at 70; if plan was SHIPPABLE*, downgrade to NON_SHIPPABLE
+      FAIL_HARD / INVALID → 49        → force INVALID; cap at 49
+
+    Stable identifiers from cq_summary["hard_caps_triggered"] are ALWAYS appended to the plan's
+    hard_caps_triggered list for audit-trail visibility, regardless of severity tier.
+    The cap APPLIED to the score depends on tier, not on list presence — respecting allowlist
+    downgrades documented in code-quality-golden-rule.md § Allowlist mechanism.
+    """
+    cq_caps = list(cq_summary.get("hard_caps_triggered", []))
+    if cq_caps:
+        existing = list(out.get("hard_caps_triggered", []))
+        for cap in cq_caps:
+            if cap not in existing:
+                existing.append(cap)
+        out["hard_caps_triggered"] = existing
+
+    cq_score_cap = cq_summary.get("score_cap", 100)
+    cq_verdict = cq_summary.get("verdict", "UNKNOWN")
+    if cq_score_cap >= 100:
+        return
+
+    out["final_score_after_caps"] = min(out.get("final_score_after_caps", 100), cq_score_cap)
+    current = out.get("verdict", "SHIPPABLE")
+    if cq_verdict in ("FAIL_HARD", "INVALID"):
+        out["verdict"] = "INVALID"
+    elif cq_verdict == "FAIL_SOFT":
+        if current in ("SHIPPABLE", "SHIPPABLE_WITH_CAVEATS"):
+            out["verdict"] = "NON_SHIPPABLE"
+    elif cq_verdict == "PASS_WITH_CAVEATS":
+        if current == "SHIPPABLE":
+            out["verdict"] = "SHIPPABLE_WITH_CAVEATS"
+
+
 def _invoke_code_quality(plan_slug: str, repo_root: Path, timeout_s: int = 600) -> dict | None:
     """T6.5 / EC-29 Opção A — invoke /code-quality as subprocess and parse JSON verdict.
 
@@ -531,17 +573,9 @@ def main(argv: list[str] | None = None) -> int:
                 "soft_caps_triggered": cq_soft,
                 "languages_audited": cq_summary.get("languages_audited", []),
             }
-            # Merge code-quality caps into plan-confidence verdict (smallest cap wins).
-            if cq_caps:
-                out["hard_caps_triggered"] = list(out.get("hard_caps_triggered", [])) + cq_caps
-                if report.verdict not in ("INVALID",):
-                    out["verdict"] = "INVALID"
-                    out["final_score_after_caps"] = min(out.get("final_score_after_caps", 100), 49)
-            elif cq_soft:
-                # Soft caps don't force INVALID but pull verdict down to SHIPPABLE_WITH_CAVEATS at most.
-                if out.get("verdict") == "SHIPPABLE":
-                    out["verdict"] = "SHIPPABLE_WITH_CAVEATS"
-                    out["final_score_after_caps"] = min(out.get("final_score_after_caps", 100), 89)
+            # Severity-tier-aware merge (bug fix 2026-05-23: previous logic blindly
+            # forced INVALID on any cq cap entry, neutralizing allowlist downgrades).
+            _merge_code_quality_verdict(out, cq_summary)
         else:
             out["code_quality"] = {"verdict": "UNAVAILABLE", "reason": "invocation failed or skipped"}
 

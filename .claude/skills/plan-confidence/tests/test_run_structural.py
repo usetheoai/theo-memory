@@ -15,6 +15,11 @@ from run_structural import (  # noqa: E402
     run_structural,
 )
 
+try:
+    from run_structural import _merge_code_quality_verdict  # noqa: E402
+except ImportError:
+    _merge_code_quality_verdict = None  # type: ignore[assignment]
+
 SKILL_ROOT = Path(__file__).parent.parent
 FIXTURES = SKILL_ROOT / "fixtures"
 RUBRIC = SKILL_ROOT / "templates" / "rubric-v1.md"
@@ -179,3 +184,95 @@ def test_runtime_metric_proof_missing_coverage_triggers_cap() -> None:
         "and verdict INVALID. This is the smoke test for the entire pipeline."
     )
     assert report.verdict == "INVALID"
+
+
+# Code-quality integration verdict-merge tests (regression for bug discovered 2026-05-23)
+#
+# Bug context: when /code-quality returns PASS_WITH_CAVEATS (allowlist-downgraded findings
+# at SOFT_FLOOR severity), the previous integration logic blindly merged the
+# `hard_caps_triggered` list and forced INVALID — neutralizing the allowlist mechanism.
+# The fix consults `code_quality.score_cap` to determine the correct severity tier.
+
+def test_merge_cq_pass_does_not_change_verdict() -> None:
+    """PASS verdict (no caps) leaves plan-confidence verdict untouched."""
+    if _merge_code_quality_verdict is None:
+        return  # function not yet extracted — test will run after GREEN
+    out: dict = {"verdict": "SHIPPABLE", "final_score_after_caps": 95, "hard_caps_triggered": []}
+    cq = {"verdict": "PASS", "score_cap": 100, "hard_caps_triggered": [], "soft_caps_triggered": []}
+    _merge_code_quality_verdict(out, cq)
+    assert out["verdict"] == "SHIPPABLE"
+    assert out["final_score_after_caps"] == 95
+
+
+def test_merge_cq_pass_with_caveats_caps_at_89_no_invalid() -> None:
+    """Regression test for 2026-05-23 bug: PASS_WITH_CAVEATS (allowlist-downgraded) MUST cap at 89,
+    NOT force INVALID. Symbol fab findings allowlisted via sunset are downgraded to SOFT_FLOOR
+    severity by /code-quality; plan-confidence MUST respect that downgrade."""
+    if _merge_code_quality_verdict is None:
+        return  # function not yet extracted — test will run after GREEN
+    out: dict = {"verdict": "SHIPPABLE", "final_score_after_caps": 95, "hard_caps_triggered": []}
+    cq = {
+        "verdict": "PASS_WITH_CAVEATS",
+        "score_cap": 89,
+        "hard_caps_triggered": ["symbol_fab_unverifiable_typescript"],
+        "soft_caps_triggered": [],
+    }
+    _merge_code_quality_verdict(out, cq)
+    # Bug regression: must NOT be INVALID
+    assert out["verdict"] != "INVALID", (
+        "BUG REGRESSION: PASS_WITH_CAVEATS code-quality verdict was forcing plan-confidence INVALID. "
+        "Allowlist downgrade must be respected."
+    )
+    assert out["verdict"] == "SHIPPABLE_WITH_CAVEATS"
+    assert out["final_score_after_caps"] == 89
+
+
+def test_merge_cq_fail_soft_caps_at_70_non_shippable() -> None:
+    """FAIL_SOFT (real SOFT_CAP findings, not allowlisted) caps plan at 70 → NON_SHIPPABLE band."""
+    if _merge_code_quality_verdict is None:
+        return
+    out: dict = {"verdict": "SHIPPABLE", "final_score_after_caps": 95, "hard_caps_triggered": []}
+    cq = {
+        "verdict": "FAIL_SOFT",
+        "score_cap": 70,
+        "hard_caps_triggered": ["soft_cap_orphan_export_typescript"],
+        "soft_caps_triggered": [],
+    }
+    _merge_code_quality_verdict(out, cq)
+    assert out["verdict"] == "NON_SHIPPABLE"
+    assert out["final_score_after_caps"] == 70
+
+
+def test_merge_cq_fail_hard_forces_invalid() -> None:
+    """FAIL_HARD (real HARD findings, no allowlist) forces INVALID (49 cap)."""
+    if _merge_code_quality_verdict is None:
+        return
+    out: dict = {"verdict": "SHIPPABLE", "final_score_after_caps": 95, "hard_caps_triggered": []}
+    cq = {
+        "verdict": "FAIL_HARD",
+        "score_cap": 49,
+        "hard_caps_triggered": ["dead_code_unallowlisted_typescript"],
+        "soft_caps_triggered": [],
+    }
+    _merge_code_quality_verdict(out, cq)
+    assert out["verdict"] == "INVALID"
+    assert out["final_score_after_caps"] == 49
+
+
+def test_merge_cq_smallest_cap_wins() -> None:
+    """If plan already capped lower than code-quality cap, plan's cap stays."""
+    if _merge_code_quality_verdict is None:
+        return
+    out: dict = {"verdict": "INVALID", "final_score_after_caps": 49, "hard_caps_triggered": ["coverage_lt_100"]}
+    cq = {
+        "verdict": "PASS_WITH_CAVEATS",
+        "score_cap": 89,
+        "hard_caps_triggered": ["symbol_fab_unverifiable_typescript"],
+        "soft_caps_triggered": [],
+    }
+    _merge_code_quality_verdict(out, cq)
+    # Plan was already INVALID; cq's softer 89 cap cannot lift it
+    assert out["verdict"] == "INVALID"
+    assert out["final_score_after_caps"] == 49
+    # But identifier is appended to the cap list (audit trail)
+    assert "symbol_fab_unverifiable_typescript" in out["hard_caps_triggered"]
