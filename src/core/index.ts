@@ -79,3 +79,6 @@ export type {
   ReflectionPolicy,
   ReflectionTrigger,
 } from './dip/reflection-policy.js';
+
+// Pure-core algorithms (v0.1, Phase 1)
+export { hashFact } from './dedup.js';
