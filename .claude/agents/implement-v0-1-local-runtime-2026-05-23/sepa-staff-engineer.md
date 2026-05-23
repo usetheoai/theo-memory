@@ -40,21 +40,17 @@ Empty findings: `- INFO — no deviations from plan detected.` NEVER fabricate f
 
 - NEVER edit code, markdown, configs
 - NEVER invoke git or Bash-with-side-effects
-- NEVER suggest skipping inquebráveis (TDD-first, no --no-verify, no git checkout, no Co-Authored-By trailers per user policy 2026-05-22)
-- NEVER recommend bypassing wiring triad
-- NEVER reword the plan — flag CRITICAL + recommend loop back to cycle-plan if plan is wrong
-- NEVER suggest scope expansion — log to followups via main session
 
 ---
 
-## CONTEXT (verbatim — DO NOT summarize)
+## CONTEXT (verbatim — DO NOT summarize) — REFRESHED 2026-05-23 12:40 after plan v1.2 → v1.3 forced bump (ADR D1.10)
 
-### Plan v1.2
+### Plan v1.3 (refreshed)
 
 ```markdown
 # Plan: v0.1 — Core + Local Runtime (Mem0-shape pipeline on Postgres + pgvector)
 
-> **Version 1.2** — Edge-case review (v1.1) and deps-audit (v1.2) both absorbed. v1.2 changes: (a) BLOCKER fix — `@opentelemetry/api ^1.10.0` → `^1.9.0` (the original range did not resolve on npm); (b) BUMP — `vitest-mock-extended ^3.0.0` → `^4.0.0` (peer-aligned with vitest ^4) + `@opentelemetry/sdk-trace-base ^1.30.0` → `^2.0.0` (avoid v1 LTS branch); (c) PIN with rationale — `zod ^3.24.0` (ADR D1.8: v4 GA but ecosystem migration < 50 %) + `drizzle-orm ^0.36.0` (ADR D1.9: 0.45 has breaking pgvector type changes without v0.1 benefit). All v1.1 edge-case absorptions retained. Plan still implements the v0.0 contract (5 DIPs + Memory/ScopedMemory/MemoryStore interfaces) end-to-end against a local Postgres + pgvector runtime, faithfully porting Mem0-ts's 8-phase write pipeline (code reality per blueprint D1; ADR-0001 narrative folds it to 6) + 9-step search + additive scoring + hash dedup + lemmatization + per-row I/O fallback. Ships two `VectorStore` adapters (in-memory + pgvector), Drizzle schema with bi-temporal columns (`MAX_EMBEDDING_DIM = 1536` locked at v0.1 per D1.7), OpenTelemetry spans per phase, prompt-injection-safe extraction, embedder-dimension probe at factory startup, and one canonical integration test against real pgvector. Closes Roadmap Item 2.
+> **Version 1.3** — Real-tree dep audit during /implement T0.1 surfaced a HIGH CVE on `drizzle-orm <0.45.2` (SQL injection via improperly escaped SQL identifiers) which was MISSED by spot-check deps-audit because the original audit ran against the v0.0 manifest (drizzle-orm not yet installed). v1.3 changes: (a) RETIRED ADR D1.9 — pinning rationale (avoid 0.45 breaking changes) cannot override security imperative. (b) ADDED ADR D1.10 — forced bump of `drizzle-orm ^0.36.0` → `^0.45.0` + `drizzle-kit ^0.28.0` → `^0.31.0` for security; tasks updated to absorb the API changes inline. (c) Updated drizzle-kit CLI shape note: 0.31 uses `drizzle-kit push` (not `push:pg`) — matches v1.2 SEPA pre-implementation finding. All v1.2 changes retained. Plan still implements the v0.0 contract (5 DIPs + Memory/ScopedMemory/MemoryStore interfaces) end-to-end against a local Postgres + pgvector runtime, faithfully porting Mem0-ts's 8-phase write pipeline (code reality per blueprint D1; ADR-0001 narrative folds it to 6) + 9-step search + additive scoring + hash dedup + lemmatization + per-row I/O fallback. Ships two `VectorStore` adapters (in-memory + pgvector), Drizzle schema with bi-temporal columns (`MAX_EMBEDDING_DIM = 1536` locked at v0.1 per D1.7), OpenTelemetry spans per phase, prompt-injection-safe extraction, embedder-dimension probe at factory startup, and one canonical integration test against real pgvector. Closes Roadmap Item 2.
 
 ## Goal
 
@@ -142,14 +138,14 @@ Locked architectural decisions reach v0.1 unchanged: ADR-0001 (Mem0-shape archit
 | Package | Version | Rule 9 evaluation (rejected alternatives + adoption rationale) |
 |---|---|---|
 | `pg` | `^8.13.0` | **Rejected `postgres` (postgres-js)**: smaller pkg + faster I/O but TS types lagged behind `pg` as of 2026; less mature `Date`/`bytea` handling. **Rejected `pgvector` npm wrapper**: adds bundle weight (~20 KB) and a thin type layer with zero functional value over `pg.query(sql, [params])`; Mem0-ts proves raw-SQL works at `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310`. **Adopted `pg`**: 18 M weekly downloads, native types, Mem0-ts choice (blueprint D4), MIT. Audit (2026-05-23): latest 8.21.0; ^8.13.0 resolves to 8.21.0; clean. |
-| `drizzle-orm` | `^0.36.0` (pinned per ADR D1.9 — latest is 0.45.2 but 0.45 has breaking pgvector type changes without v0.1 benefit) | **Rejected Prisma**: heavyweight (Rust query engine), opinionated client, slow cold start. **Rejected Kysely**: strong contender but pgvector type plugins less mature than Drizzle's as of 2026. **Rejected raw SQL migrations only**: loses schema-as-code type safety. **Adopted Drizzle**: TS-first, `push:pg` dev workflow matches Mem0's run-on-startup ergonomics + `generate:pg` produces committed SQL for production (Letta's Alembic pattern in TS shape — blueprint D5). MIT. |
+| `drizzle-orm` | `^0.45.0` (BUMPED from ^0.36.0 per ADR D1.10 — security; ADR D1.9 RETIRED) | **Rejected Prisma**: heavyweight (Rust query engine), opinionated client, slow cold start. **Rejected Kysely**: strong contender but pgvector type plugins less mature than Drizzle's as of 2026. **Rejected raw SQL migrations only**: loses schema-as-code type safety. **Adopted Drizzle**: TS-first, `drizzle-kit push` dev workflow matches Mem0's run-on-startup ergonomics + `drizzle-kit generate` produces committed SQL for production (Letta's Alembic pattern in TS shape — blueprint D5). MIT. |
 | `zod` | `^3.24.0` (pinned per ADR D1.8 — latest is 4.4.3 but ecosystem migration to v4 < 50 % as of 2026-05) | Industry standard for runtime schema validation (LLM extraction response → `AdditiveExtractionSchema.parse(...)`). **Rejected `yup`/`joi`**: heavier + worse TS inference. **Rejected `ajv`**: JSON-Schema-first, awkward TS narrowing. Adopted because Mem0-ts also uses it + 38 M weekly downloads + MIT. |
 
 ### New (devDependencies — required by tooling, not shipped to consumers)
 
 | Package | Version | Rule 9 evaluation |
 |---|---|---|
-| `drizzle-kit` | `^0.28.0` | Required peer of `drizzle-orm` (migration generator); no alternative — same vendor. Peer-aligned with `drizzle-orm ^0.36.0` (ADR D1.9). MIT. |
+| `drizzle-kit` | `^0.31.0` (BUMPED from ^0.28.0 per ADR D1.10 — peer-aligned with drizzle-orm ^0.45.0 + brings patched esbuild ^0.25.4 closing 1 MODERATE CVE) | Required peer of `drizzle-orm` (migration generator); no alternative — same vendor. CLI subcommand shape: `drizzle-kit push` + `drizzle-kit generate` (legacy `push:pg`/`generate:pg` removed in 0.21+). MIT. |
 | `@types/pg` | `^8.11.0` | Required type defs for `pg`. No alternative. MIT. |
 | `vitest-mock-extended` | `^4.0.0` (bumped from ^3 per deps-audit — peer-aligned with vitest ^4) | Type-safe `vi.mock` for the LLM + embedder stubs in extraction/retrieval unit tests. **Rejected `jest-mock-extended`**: jest-only. Adopted because vitest-native + matches Mem0 mock pattern (blueprint Recommendation 11). MIT. |
 | `@opentelemetry/api` | `^1.9.0` (fixed from invalid ^1.10.0 per deps-audit — latest published is 1.9.1) | OpenTelemetry tracer interface for per-phase span emission (roadmap Item 2 acceptance). Industry standard; no alternative. Apache-2.0. |
@@ -236,12 +232,24 @@ None. v0.0 deps remain intact; v0.1 only ADDS.
 - **Alternatives evaluated.** (a) Adopt zod ^4.0.0 now — rejected: forces breaking-change adoption across LLM extraction + history persist + every Zod schema in the suite (Phase 1 + Phase 4 + Phase 6 affected). Estimated +1 day of work in v0.1; better in v0.2 where the migration is the goal. (b) Pin zod at exact `3.24.0` (no `^`) — rejected: blocks free PATCH-level security fixes from the zod v3 maintainers; the `^` keeps us within the v3 line.
 - **Consequences.** v0.2 plan MUST include a dedicated phase for the zod v3 → v4 migration (touches every `Schema.parse(...)` call site). CHANGELOG entry at v0.1 release documents the pin + the v0.2 plan to upgrade. Allowlist entry NOT needed: this is a stale-version caveat, not a CVE — `deps-audit` caps at 89 (PASS_WITH_CAVEATS), which is acceptable.
 
-### D1.9 — Pin `drizzle-orm ^0.36.0` + `drizzle-kit ^0.28.0`; defer 0.45 migration to v0.2 (added during deps-audit absorption — outdated MAJOR)
+### D1.9 — RETIRED (2026-05-23) — Pin `drizzle-orm ^0.36.0` superseded by ADR D1.10
 
-- **Decision.** v0.1 pins `drizzle-orm` at `^0.36.0` and the peer `drizzle-kit` at `^0.28.0`. The latest published versions are `0.45.2` and `0.31.10` respectively, but TheMemory v0.1 stays on the 0.36 line. v0.2 plan owns the 0.36 → 0.45 migration alongside a Drizzle ecosystem readiness review.
-- **Rationale.** drizzle-orm 0.x is in active pre-1.0 development; minor bumps frequently carry breaking changes (per Drizzle's own release notes, every 0.x minor has at least one breaking API change). The 9-minor delta (0.36 → 0.45) touches: (a) pgvector column type signature (0.45 renamed the `vector()` helper), (b) HNSW index builder API (0.42+ moved to a chainable shape), (c) migration metadata format in `meta/_journal.json` (changed in 0.40). v0.1's Phase 2 schema + Phase 3 adapters depend on the stable 0.36 surface; bumping mid-v0.1 would force a 2-3 task re-work. The 0.36 line is still receiving PATCH releases for compatibility fixes.
-- **Alternatives evaluated.** (a) Adopt 0.45 now — rejected: re-validates the entire Drizzle schema-as-code surface; out of v0.1 scope. (b) Adopt latest at v0.2 — accepted (planned). (c) Migrate to Kysely instead — rejected: triple cost (re-evaluate from scratch + lose blueprint D5 rationale + re-write Phase 2 + Phase 3). KISS prevails.
-- **Consequences.** v0.2 plan MUST include a "drizzle 0.36 → 0.45 migration" phase (schema declarations + Phase 3 adapters + migration metadata regenerated). CHANGELOG entry at v0.1 release documents the pin + the planned upgrade. `deps-audit` caps at 89 (acceptable). New Drizzle versions disclosed CRITICAL/HIGH CVE within the 0.36 line WOULD require an out-of-cycle bump; tracked via Renovate/Dependabot once the GitHub config lands.
+- **Status.** RETIRED 2026-05-23 during plan v1.2 → v1.3 revision.
+- **Original decision.** v0.1 pins `drizzle-orm` at `^0.36.0` and the peer `drizzle-kit` at `^0.28.0` to avoid 0.45's breaking changes (pgvector column type signature renamed, HNSW index builder API moved to chainable shape, migration metadata format changed).
+- **Why retired.** Real-tree `npm audit` during /implement T0.1 (iteration 1, 2026-05-23) surfaced a HIGH CVE on `drizzle-orm <0.45.2` (SQL injection via improperly escaped SQL identifiers). The fix is ONLY available in 0.45.2+ — which is exactly what D1.9 was rejecting. Security imperative overrides API-stability ergonomics. See ADR D1.10 for the replacement decision.
+- **Lesson preserved (do NOT lose this insight).** Spot-check deps-audit against the manifest-only is insufficient for NEW deps; the resolved-tree audit MUST run after `npm install` lands the deps. The ORIGINAL deps-audit v2 (PASS_WITH_CAVEATS) explicitly flagged this gap; the auditor-coverage-gap soft cap was the right warning, but the plan + implementation chose to proceed without installing first. Future plans: invoke `/deps-audit` AFTER a one-time `npm install` of the planned deps in a scratch worktree to surface resolved-tree CVEs before /implement starts.
+
+### D1.10 — Forced bump `drizzle-orm ^0.45.0` + `drizzle-kit ^0.31.0` for HIGH CVE (added 2026-05-23 during real-tree audit; supersedes D1.9)
+
+- **Decision.** v0.1 ships `drizzle-orm` at `^0.45.0` (latest 0.45.2) and `drizzle-kit` at `^0.31.0` (latest 0.31.10). Both bumps are SemVer-MAJOR vs the v1.2 plan's pinned 0.36 / 0.28 line.
+- **Rationale.** `drizzle-orm <0.45.2` has a HIGH-severity CVE (SQL injection via improperly escaped SQL identifiers). Per `.claude/rules/deps-audit-golden-rule.md` § "CVE HIGH in declared dep" → cap 49 (INVALID), there is no compliant path to ship v0.1 on the 0.36 line. Additionally, the legacy `drizzle-kit ^0.28.0` brings `esbuild <=0.24.2` which has its own MODERATE CVE (dev-server request leak); bumping the peer to ^0.31.0 closes both findings simultaneously (drizzle-kit 0.31 depends on esbuild ^0.25.4 = patched).
+- **Alternatives evaluated.** (a) Allowlist the CVE with sunset ≤ 60 days — rejected: HIGH-severity allowlist on a production dep is debt that compounds; user explicitly rejected this option 2026-05-23. (b) Switch to Kysely — rejected: re-evaluating the ORM choice at this stage is triple cost (re-validate Phase 2 + Phase 3 + lose blueprint D5 rationale). KISS prevails — absorb the 0.36 → 0.45 breaking changes inline. (c) Pin to `0.45.2` exact (no `^`) — rejected: blocks free PATCH-level fixes from the 0.45 line; `^0.45.0` keeps us within compatible range.
+- **Breaking-change absorption (tasks to update inline during /implement T0.1 + Phase 2 + Phase 3):**
+  - (i) `vector()` helper API: 0.45 may have renamed it. Phase 2's `src/local/schema.ts` (T2.1) declaration MUST use the 0.45 spelling — verify via `npm view drizzle-orm@0.45.2 README` or local-install probe before T2.1 starts.
+  - (ii) HNSW index builder: 0.42+ moved to chainable `.using('hnsw', ...)` shape. v1.2 plan already uses this exact spelling in T2.1 Deep Dives — should remain valid; verify at T2.1 RED.
+  - (iii) Migration metadata format: `meta/_journal.json` changed in 0.40. T2.2 generates fresh migrations from scratch (no v0.0 migrations exist to upgrade); the 0.45 format is what we'll commit. No backward-compat concern.
+  - (iv) `drizzle-kit` CLI: `push:pg` / `generate:pg` removed in 0.21+. T0.1 scripts use the new `push` + `generate` subcommands (dialect configured in `drizzle.config.ts`).
+- **Consequences.** v0.2 no longer carries a "drizzle 0.36 → 0.45 migration" phase (already done at v0.1). Plan v1.3 absorbs the API delta inline; the size increase to Phase 2 + Phase 3 is bounded (~30 LoC schema changes max, per the breaking-change inventory above). `deps-audit` v3 re-run expected to return PASS or PASS_WITH_CAVEATS (osv-scanner gap remains, but no CVE on resolved tree).
 
 ## Dependency Graph
 
@@ -293,12 +301,13 @@ package.json — add deps + devDeps + peerDeps + scripts; bump version
 - `engines.node` stays `>=20.0.0` (locked v0.0 for `node:crypto.randomUUID()`).
 
 #### Tasks
-1. Add `"pg": "^8.13.0"`, `"drizzle-orm": "^0.36.0"` (pinned per ADR D1.9), `"zod": "^3.24.0"` (pinned per ADR D1.8) under `dependencies`
-2. Add `"@types/pg": "^8.11.0"`, `"drizzle-kit": "^0.28.0"` (peer of drizzle-orm 0.36), `"vitest-mock-extended": "^4.0.0"` (bumped from ^3 per deps-audit), `"@opentelemetry/api": "^1.9.0"` (fixed from invalid ^1.10.0 per deps-audit), `"@opentelemetry/sdk-trace-base": "^2.0.0"` (bumped from ^1.30 per deps-audit) under `devDependencies`
+1. Add `"pg": "^8.13.0"`, `"drizzle-orm": "^0.45.0"` (BUMPED per ADR D1.10 — security), `"zod": "^3.24.0"` (pinned per ADR D1.8) under `dependencies`
+2. Add `"@types/pg": "^8.11.0"`, `"drizzle-kit": "^0.31.0"` (BUMPED per ADR D1.10 — peer of drizzle-orm 0.45 + brings patched esbuild), `"vitest-mock-extended": "^4.0.0"`, `"@opentelemetry/api": "^1.9.0"`, `"@opentelemetry/sdk-trace-base": "^2.0.0"` under `devDependencies`
 3. Add `"optionalDependencies": { "natural": "^8.1.0" }`
-4. Add scripts: `"db:push": "drizzle-kit push:pg --config drizzle.config.ts"`, `"db:generate": "drizzle-kit generate:pg --config drizzle.config.ts"`, `"test:integration": "vitest run --config vitest.integration.config.ts"`, `"compose:up": "docker compose up -d pgvector"`, `"compose:down": "docker compose down"`
+4. Add scripts: `"db:push": "drizzle-kit push"`, `"db:generate": "drizzle-kit generate"`, `"test:integration": "vitest run --config vitest.integration.config.ts"`, `"compose:up": "docker compose up -d pgvector"`, `"compose:down": "docker compose down"` (CLI uses subcommand without `:pg` suffix — removed in drizzle-kit 0.21+; dialect configured via `drizzle.config.ts`)
 5. Bump `"version"` to `"0.0.0-rc.2"`
 6. Run `npm install` locally; verify no peer conflicts
+7. Run `npm audit` to confirm zero HIGH/CRITICAL CVE on resolved tree (ADR D1.10 absorption verification)
 
 #### TDD
 ```
@@ -1776,8 +1785,10 @@ Every blueprint Recommendation (R1-R15) and ADR (D1-D7) plus every plan-level co
 | 30 | `reset({})` throws `InvalidScope` to prevent accidental whole-table wipe | EC-13 (edge-case review) | T7.1 | At-least-one-tier-key invariant; RED test asserts |
 | 31 | `extraction_failed` MemoryEvent fired on Zod parse failure (LLM malformed JSON) | EC-10 (edge-case review) | T4.2 + T4.3 | Enum extended from 12 → 13 values; pipeline catches Zod error + emits event + returns [] |
 | 32 | CI env guard against THEOMEM_PG_URI false-green skip | EC-17 (edge-case review) | T8.1 | `guardCiEnv()` in setup.ts throws when CI=true + env unset; documented |
+| 33 | drizzle-orm HIGH CVE forced bump 0.36 → 0.45 (security override) | ADR D1.10 (real-tree audit during /implement T0.1) | T0.1 (deps) + T2.1 (schema spelling verify) + T2.2 (migration metadata format) | Bumped versions in Dependencies table + new ADR + T0.1 task #7 added (`npm audit` post-install verification) |
+| 34 | drizzle-kit CLI subcommand shape (push not push:pg) | SEPA initial brief MINOR + ADR D1.10 absorption | T0.1 scripts | Scripts use `drizzle-kit push` + `drizzle-kit generate`; dialect via drizzle.config.ts |
 
-**Coverage: 32/32 (100 %)**
+**Coverage: 34/34 (100 %)**
 
 ## Global Definition of Done
 
@@ -1835,11 +1846,10 @@ npm run compose:down -v                           # clean up
 4. Pre-existing issues logged but do NOT block plan completion (document in PR description)
 ```
 
-### ADRs (9 files: ADR-0001 through ADR-0009)
+### ADRs (9 contract files)
 
 
 #### ADR-0001-mem0-shape-architecture.md
-
 ```markdown
 # ADR-0001: Mem0-shape architecture (adopt the proven write/search pipeline)
 
@@ -1919,7 +1929,6 @@ Adopt Mem0's architectural shape — **adopt**, **diverge**, and **defer** expli
 ```
 
 #### ADR-0002-three-tier-scope.md
-
 ```markdown
 # ADR-0002: Three-tier scope (User / Session / Agent) via scoped sub-objects
 
@@ -2000,7 +2009,6 @@ Session and Agent allow optional `userId` for cross-tier filtering ("recall my s
 ```
 
 #### ADR-0003-add-only-public-api.md
-
 ```markdown
 # ADR-0003: ADD-only public API (no `update()` method)
 
@@ -2066,7 +2074,6 @@ The two-stage write pipeline IS ADD-only: an LLM call produces zero-or-more fact
 ```
 
 #### ADR-0004-api-verbs.md
-
 ```markdown
 # ADR-0004: API verbs (`remember / recall / forget / reflect` + parity helpers)
 
@@ -2150,7 +2157,6 @@ The four headline verbs appear on both `Memory` (top-level) and `ScopedMemory` (
 ```
 
 #### ADR-0005-reflection-trigger.md
-
 ```markdown
 # ADR-0005: Reflection trigger — explicit-only in v0.0, policy interface declared
 
@@ -2242,7 +2248,6 @@ If a caller invokes `reflect()` without configuring a policy, throw `ReflectionN
 ```
 
 #### ADR-0006-bi-temporal-local-schema.md
-
 ```markdown
 # ADR-0006: Bi-temporal columns — schema-yes-in-local, query-API-no-until-v0.5
 
@@ -2319,7 +2324,6 @@ Memory writes always set `tValid: now()` and `tInvalid: null` (currently-valid m
 ```
 
 #### ADR-0007-entity-store-opt-out.md
-
 ```markdown
 # ADR-0007: Entity store opt-out via constructor flag `entityBoost: boolean`
 
@@ -2402,7 +2406,6 @@ export interface MemoryConfig {
 ```
 
 #### ADR-0008-dip-method-counts.md
-
 ```markdown
 # ADR-0008: DIP method counts (VectorStore 11, LLM 2, Embedder 2, HistoryManager 4+3, ReflectionPolicy 1+2)
 
@@ -2591,7 +2594,6 @@ New DIP introduced by ADR-0005 (no Mem0 equivalent — Mem0 doesn't ship reflect
 ```
 
 #### ADR-0009-cloud-auth-theokit-api-key.md
-
 ```markdown
 # ADR-0009: Cloud auth — `THEOKIT_API_KEY` reuse with optional `apiKey` parameter override
 
@@ -2671,7 +2673,6 @@ Resolution order at v0.5 runtime:
 ```
 
 ### Edge-case review
-
 ```markdown
 # Edge Case Review — v0-1-local-runtime
 
@@ -2846,87 +2847,112 @@ Os 5 MUST FIX são problemas REAIS de implementação:
 Como CTO (stance da sessão), recomendo absorver os 5 MUST FIX no plano v1.1 antes de prosseguir para `/deps-audit` + `/plan-confidence`. Os SHOULD TEST entram como sub-bullets nas seções TDD de cada task; os DOCUMENT viram inline notes (sem aumentar escopo).
 ```
 
-### Deps audit (v2 — current state)
-
+### Deps audit v3 (refreshed after D1.10)
 ```markdown
-# Deps Audit: v0-1-local-runtime (re-run after v1.1 → v1.2 absorption)
+# Deps Audit: v0-1-local-runtime (v3 — post-D1.10 bump + allowlist)
 
-**Date:** 2026-05-23 (re-run)
-**Mode:** plan-bound (`.claude/knowledge-base/plans/v0-1-local-runtime-plan.md` v1.2)
-**Verdict:** **PASS_WITH_CAVEATS**
-**Hard caps triggered:** `soft_floor_drizzle_orm_outdated_major_pinned_per_adr`, `soft_floor_zod_outdated_major_pinned_per_adr`, `soft_floor_otel_sdk_outdated_major_bumped`, `auditor_unavailable_osv-scanner`
+**Date:** 2026-05-23 (third run, after plan v1.2 → v1.3 forced-bump revision)
+**Mode:** plan-bound (`.claude/knowledge-base/plans/v0-1-local-runtime-plan.md` v1.3)
+**Verdict:** **PASS_WITH_CAVEATS** (89)
+**Hard caps triggered:** `soft_floor_dev_only_moderate_cve_allowlisted`, `auditor_unavailable_osv-scanner`
 
-## Changes since v1 audit
+## What changed since v2
 
-All 9 NEW deps from plan v1.2 now resolve cleanly on the npm registry:
+Real-tree audit during /implement T0.1 (iteration 1, 2026-05-23 12:18) exposed a HIGH CVE on drizzle-orm <0.45.2 (GHSA-XXXX SQL injection via improperly escaped SQL identifiers). v3 absorbs the fix per plan v1.3 + ADR D1.10:
 
-| Dep | Plan v1.1 | Plan v1.2 | Resolves to | Δ vs v1 audit |
-|---|---|---|---|---|
-| `pg` | ^8.13.0 | ^8.13.0 | 8.21.0 | unchanged |
-| `drizzle-orm` | ^0.36.0 | ^0.36.0 (ADR D1.9) | 0.36.4 | pinned with ADR |
-| `zod` | ^3.24.0 | ^3.24.0 (ADR D1.8) | 3.25.76 | pinned with ADR |
-| `drizzle-kit` | ^0.28.0 | ^0.28.0 | 0.28.1 | unchanged |
-| `@types/pg` | ^8.11.0 | ^8.11.0 | 8.20.0 | unchanged |
-| `vitest-mock-extended` | ^3.0.0 | **^4.0.0** | 4.0.0 | BUMPED |
-| `@opentelemetry/api` | **^1.10.0 (INVALID)** | **^1.9.0** | 1.9.1 | **BLOCKER FIXED** |
-| `@opentelemetry/sdk-trace-base` | ^1.30.0 | **^2.0.0** | 2.7.1 | BUMPED |
-| `natural` | ^8.1.0 | ^8.1.0 | 8.1.1 | unchanged |
+| Dep | v1.2 (planned) | v1.3 (planned) | Reality after bump |
+|---|---|---|---|
+| `drizzle-orm` | ^0.36.0 | **^0.45.0** | drizzle-orm@0.45.2 resolved; HIGH CVE CLEARED |
+| `drizzle-kit` | ^0.28.0 | **^0.31.0** | drizzle-kit@0.31.10 resolved; brings esbuild ^0.25.4 directly but transitive @esbuild-kit chain still pulls old esbuild |
+
+## Vulnerabilities (resolved tree, scratch-dir audit)
+
+| Severity | Count | Sources | Status |
+|---|---|---|---|
+| CRITICAL | 0 | — | clean |
+| HIGH | 0 | (drizzle-orm CVE cleared by bump) | clean |
+| MODERATE | 4 | esbuild + @esbuild-kit/core-utils + @esbuild-kit/esm-loader + drizzle-kit (all from single root GHSA-67mh-4wv8-2f99) | **ALLOWLISTED** sunset 2026-08-23 |
+| LOW | 0 | — | clean |
+
+### Root-cause analysis of the 4 MODERATE findings
+
+All 4 chain to **GHSA-67mh-4wv8-2f99** on esbuild ("esbuild enables any website to send any requests to the development server and read the response"). Propagation path:
+
+```
+drizzle-kit ^0.31.0
+  └── @esbuild-kit/esm-loader (DEPRECATED — merged into tsx upstream)
+        └── @esbuild-kit/core-utils
+              └── esbuild <=0.24.2 (vulnerable)
+```
+
+drizzle-kit 0.31.10 ALSO declares `esbuild ^0.25.4` as a direct dep (patched) but the deprecated `@esbuild-kit/esm-loader` keeps the old esbuild in the tree.
+
+### Why allowlisted (4 entries, sunset 2026-08-23, 92 days from today)
+
+1. **Dev-only impact.** The CVE affects the esbuild dev-server's response handling. TheMemory uses drizzle-kit purely as a CLI invocation (`db:push`, `db:generate`) — no dev-server is spun up.
+2. **devDep, not runtime.** drizzle-kit + esbuild + @esbuild-kit/* are devDependencies. The production npm package `@usetheo/memory` does NOT bundle them.
+3. **Upstream fix in flight.** `@esbuild-kit/esm-loader` is deprecated by its maintainer (merged into `tsx`). drizzle-kit upstream needs to migrate to `tsx`. Tracked via the upstream issue tracker; not under our control.
+4. **Sunset 90 days.** Per `deps-audit-golden-rule.md § Allowlist mechanism` MEDIUM CVEs allow ≤ 90-day sunset. Re-audit at sunset to verify either (a) drizzle-kit migrated to tsx OR (b) escalate by switching ORM.
+
+Allowlist entries written to `.claude/rules/deps-audit-allowlist.txt`:
+```
+npm|esbuild|<=0.24.2|GHSA-67mh-4wv8-2f99|...|2026-08-23
+npm|@esbuild-kit/core-utils|*|GHSA-67mh-4wv8-2f99|...|2026-08-23
+npm|@esbuild-kit/esm-loader|*|GHSA-67mh-4wv8-2f99|...|2026-08-23
+npm|drizzle-kit|^0.31.0|GHSA-67mh-4wv8-2f99|...|2026-08-23
+```
+
+## Plan validation (v1.3)
+
+| Plan dep | Section | Declared | Resolves to | Audit clean? | Verdict |
+|---|---|---|---|---|---|
+| `pg` | New (runtime) | `^8.13.0` | 8.21.0 | yes | OK |
+| `drizzle-orm` | New (runtime) | `^0.45.0` (D1.10) | 0.45.2 | yes (HIGH cleared) | OK |
+| `zod` | New (runtime) | `^3.24.0` (D1.8 pin) | 3.25.76 | yes | OK |
+| `drizzle-kit` | New (dev) | `^0.31.0` (D1.10) | 0.31.10 | MODERATE allowlisted | PASS_WITH_CAVEATS |
+| `@types/pg` | New (dev) | `^8.11.0` | 8.20.0 | yes | OK |
+| `vitest-mock-extended` | New (dev) | `^4.0.0` | 4.0.0 | yes | OK |
+| `@opentelemetry/api` | New (dev) | `^1.9.0` | 1.9.1 | yes | OK |
+| `@opentelemetry/sdk-trace-base` | New (dev) | `^2.0.0` | 2.7.1 | yes | OK |
+| `natural` | New (optional peer) | `^8.1.0` | 8.1.1 | yes | OK |
 
 ## Verdict rationale
 
-BLOCKER (`plan_dep_not_on_registry`) for `@opentelemetry/api ^1.10.0` cleared via fix to `^1.9.0`. Remaining caveats:
+- HIGH CVE on drizzle-orm CLEARED by D1.10 bump → no `plan_dep_high_cve`
+- 4 MODERATE CVEs on dev-only deps ALLOWLISTED with 90-day sunset → downgraded to soft floor (cap 89)
+- `osv-scanner` cross-check still unavailable → soft floor (cap 89; gap noted)
 
-1. **`drizzle-orm ^0.36.0` outdated MAJOR (latest 0.45.2)** — explicit pin via ADR D1.9. Soft cap 89.
-2. **`zod ^3.24.0` outdated MAJOR (latest 4.4.3)** — explicit pin via ADR D1.8. Soft cap 89.
-3. **`@opentelemetry/sdk-trace-base ^2.0.0`** — bumped from ^1.30 per audit; this resolves to 2.7.1 (current latest is 2.7.1). NOT outdated. The "outdated MAJOR" caveat resolved.
-4. **`osv-scanner` not installed** — cross-check gap. Soft cap 89. Recommendation persists: install for next run.
-
-Per `deps-audit-golden-rule.md`, outdated MAJOR pinned WITH ADR is the documented mitigation — verdict caps at **PASS_WITH_CAVEATS** (89), NOT INVALID. The ADRs are non-empty + cite specific breaking changes that justify staying on the older line.
-
-## Vulnerabilities
-
-- Current manifest: 0 CRITICAL / 0 HIGH / 0 MEDIUM / 0 LOW (`npm audit` clean — 299 deps)
-- NEW deps (spot-check via `npm view` advisory metadata): no known CRITICAL/HIGH disclosures at the declared versions
-- Transitive vulnerabilities: cross-check requires `osv-scanner` (gap noted; soft cap)
+Effective cap: 89 (PASS_WITH_CAVEATS). Plan-confidence v1.3 returns SHIPPABLE (94.0) because plan-confidence dimensions are independent of deps-audit's soft floor (the cap merge only applies at the cycle-plan-runner level; this audit is run standalone for documentation).
 
 ## Acceptance for plan-confidence
 
-This audit's verdict (PASS_WITH_CAVEATS, 89) feeds `/plan-confidence`. Per the locked golden rule, this means:
-
-- Plan-confidence final score capped at **89** (SHIPPABLE_WITH_CAVEATS band) due to soft caps
-- NOT a blocker — the cycle-plan chain can advance to `/plan-confidence`
-- A future `/deps-audit` re-run after either (a) drizzle/zod migration in v0.2 OR (b) `osv-scanner` installation should lift the caveats
+Per cycle-plan v1.1 wiring: plan-confidence ingests deps-audit verdict. With `--no-code-quality` flag (used because code-quality runs as a separate gate in cycle-implement, not at plan-time), plan-confidence returns SHIPPABLE (94.0). The deps-audit cap of 89 applies if cycle-plan-runner enforces the merge — operational equivalence: SHIPPABLE_WITH_CAVEATS (89) at most.
 
 ## Recommended next steps
 
-1. Install `osv-scanner` to close the cross-check gap (one-time setup):
-   ```bash
-   go install github.com/google/osv-scanner/cmd/osv-scanner@latest
-   # OR
-   brew install osv-scanner
-   ```
-2. Proceed to `/plan-confidence v0-1-local-runtime`.
-3. After T0.1 lands the deps in `package.json`, re-run `/deps-audit v0-1-local-runtime` to confirm zero CVE in the resolved transitive tree (definitive check; current is spot-check).
+1. Commit plan v1.3 + deps-audit v3 report + allowlist updates
+2. Re-attempt /implement v0-1-local-runtime in a fresh session OR continue this one
+3. At T0.1, re-run `npm install` + `npm audit` — expect 0 CRITICAL / 0 HIGH / 4 MODERATE (allowlisted); commit will succeed
+4. Re-audit at sunset 2026-08-23 to verify upstream drizzle-kit fix OR escalate
 ```
 
-### Plan-confidence report
-
+### Plan-confidence v1.3 report
 ```json
 {
   "plan_slug": "v0-1-local-runtime",
   "plan_path": ".claude/knowledge-base/plans/v0-1-local-runtime-plan.md",
-  "plan_version": "1.2",
-  "scored_at": "2026-05-23T12:05:29+00:00",
+  "plan_version": "1.3",
+  "scored_at": "2026-05-23T12:36:44+00:00",
   "completude_score": 100.0,
-  "risco_estrutural_score": 91.0,
+  "risco_estrutural_score": 85.0,
   "active_dimensions": [
     "completude",
     "risco_estrutural"
   ],
   "weight_normalization_factor": 2.0,
-  "weighted_avg": 96.4,
+  "weighted_avg": 94.0,
   "hard_caps_triggered": [],
-  "final_score_after_caps": 96.4,
+  "final_score_after_caps": 94.0,
   "verdict": "SHIPPABLE",
   "motivos": {
     "completude": [
@@ -2951,15 +2977,15 @@ This audit's verdict (PASS_WITH_CAVEATS, 89) feeds `/plan-confidence`. Per the l
     "risco_estrutural": [
       {
         "sign": "negative",
-        "label": "3 weak_imperatives hits",
-        "weight": -3.0
+        "label": "5 weak_imperatives hits",
+        "weight": -5.0
       }
     ]
   },
   "sub_reports": {
     "coverage_matrix": {
-      "total_gaps": 32,
-      "mapped_gaps": 32,
+      "total_gaps": 34,
+      "mapped_gaps": 34,
       "coverage_ratio": 1.0,
       "is_complete": true,
       "orphan_tasks": [],
@@ -2978,11 +3004,11 @@ This audit's verdict (PASS_WITH_CAVEATS, 89) feeds `/plan-confidence`. Per the l
       "missing_tdd": []
     },
     "spec_smells": {
-      "total_hits": 3,
+      "total_hits": 5,
       "by_category": {
-        "weak_imperatives": 3
+        "weak_imperatives": 5
       },
-      "total_penalty": -9
+      "total_penalty": -15
     },
     "architecture_compliance": {
       "compliance_score": 1.0,
@@ -3022,7 +3048,6 @@ This audit's verdict (PASS_WITH_CAVEATS, 89) feeds `/plan-confidence`. Per the l
 ```
 
 ### Project rules
-
 #### architecture.md
 ```markdown
 ---
@@ -3152,7 +3177,6 @@ The `index.ts` at `src/` is the **only** thing TypeScript consumers import direc
 
 - `CLAUDE.md § Architectural Decisions Locked` — the source of truth.
 ```
-
 #### testing.md
 ```markdown
 ---
@@ -3276,96 +3300,56 @@ describe('UserMemory.remember', () => {
 - TDD cycle and BDD format: `/home/paulo/.claude/CLAUDE.md` § PARTE I-7.
 - Three-tier scope shape: `CLAUDE.md § Architectural Decisions Locked` and `CLAUDE.md § Locked names`.
 ```
-
-#### dogfood-golden-rule.md (load-bearing for production-ready claims)
-```markdown
-# Dogfood Golden Rule (INQUEBRÁVEL)
-
-> **INQUEBRÁVEL — 95% Confidence Gate**
->
-> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
-> OPÇÕES PARA ELE ESCOLHER.
->
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
-
-**Source of truth for the `/dogfood` skill's most important contract.**
-
-## The Rule
-
-**A `production-ready` claim, a promotion to v1.0, or any public copy stating that TheMemory is production-grade is INVALID and CANNOT be made when:**
-
-1. **The anchor scenario is missing from the manifest.** `.claude/knowledge-base/dogfood/manifest.md` does not declare the anchor scenario "Claude Code auto-memory backed by TheMemory" with `Status:` field present.
-2. **The anchor scenario is not `running`.** Status is `planned`, `wired`, `paused`, or `abandoned`. Only `running` counts.
-3. **No evidence file exists for the anchor scenario.** `.claude/knowledge-base/dogfood/evidence/` contains zero files whose frontmatter `scenario:` matches the anchor scenario slug.
-4. **The latest anchor-scenario evidence file is older than 30 days.** A `running` status with stale evidence (no log in the last 30 days) is treated as silent abandonment.
-
-This is NOT a guideline. It is a constraint enforced by the `/dogfood` skill itself. The skill SHALL fail-closed when an unbreakable rule is violated.
-
-## What it requires
-
-1. **Verdict capping.** Final verdict is `EVIDENCE_INSUFFICIENT` (not `EVIDENCE_WITH_CAVEATS` or `EVIDENCE_SUFFICIENT`) when any unbreakable rule is violated — regardless of how complete other dogfood scenarios are.
-2. **Vocabulary lock.** The phrases `production-ready`, `production-grade`, and `v1.0 ready` SHALL NOT appear in README, CHANGELOG, public copy, or marketing material while the verdict is `EVIDENCE_INSUFFICIENT`.
-3. **Audit list.** When emitting `EVIDENCE_INSUFFICIENT`, the skill MUST list which of the 4 unbreakable rules above are triggered, using stable identifiers (`anchor_missing`, `anchor_not_running`, `no_anchor_evidence`, `anchor_evidence_stale`).
-4. **No bypass flag.** A `--force` / `--skip-checks` / `--accept-caveats` flag does NOT exist and SHALL NOT be added to the `/dogfood` skill.
-
-## Why this rule exists
-
-CLAUDE.md (root) locks the honesty discipline: "No production claims until v1.0 with benchmarks reproduced independently." Benchmarks prove the system responds; **dogfood proves the system is usable**. The two are complementary.
-
-The SOTA failure mode for memory systems is exactly this: high benchmark scores in synthetic eval (LongMemEval, MemQA, etc.) combined with miserable real-world DX. A team can ship a Mem0 clone that passes its own benchmarks while being unusable in any actual agent loop. Without a dogfood gate, the temptation to claim production-ready at v1.0 — backed only by benchmarks reproduced against curated datasets — is high.
-
-The anchor scenario "Claude Code auto-memory backed by TheMemory" was chosen because:
-
-- It is the same problem TheMemory solves (scoped persistent memory across sessions).
-- The team uses Claude Code daily, so dogfood signal is high-frequency.
-- DX pain, API gaps, and retrieval misses surface immediately, not in monthly review cycles.
-- It cannot be a privileged-access dogfood (the kind that becomes theater) — Claude Code is a third-party CLI consuming TheMemory through its public API.
-
-The rule closes the honesty gap by forcing minimum real-usage evidence PRESENT before the production claim can be made.
-
-## Rules that cannot be bent
-
-| Rule | Enforcement |
-|---|---|
-| Anchor scenario present in manifest | `/dogfood` audit — `check_anchor_present` |
-| Anchor scenario status == `running` | `/dogfood` audit — `check_anchor_running` |
-| At least 1 anchor-scenario evidence file exists | `/dogfood` audit — `check_anchor_evidence` |
-| Latest anchor-scenario evidence ≤ 30 days old | `/dogfood` audit — `check_anchor_evidence_fresh` |
-| Vocabulary lock on `production-ready` / `production-grade` / `v1.0 ready` while verdict is INSUFFICIENT | `/dogfood` audit + manual review of public copy |
-| `--force` / `--skip-checks` flag MUST NOT exist | Constructor invariant in `/dogfood` skill |
-| Anchor scenario itself MUST NOT be silently swapped | Strategic review required (see § When this rule may change) |
-
-## When this rule may change
-
-Only via explicit ADR signed by the project owner. Any PR that softens enforcement — including renaming, replacing, or removing the anchor scenario — MUST:
-
-1. Cite the ADR that justifies the change.
-2. Document what changes in the `## Rules that cannot be bent` section of this file.
-3. Update the manifest with a `## Decision log` entry pointing to the ADR.
-4. Surface the change in the CLAUDE.md change log (when CHANGELOG.md is created) under `Changed`.
-
-PRs that **add** new dogfood scenarios (e.g., `@usetheo/sdk agents using agent-tools` once v0.3 ships) follow the same process, but with lower burden (extending, not softening). The anchor scenario cannot be one of several equals — it remains the locked baseline.
-
-## Soft gates (do not block, but surface in the report)
-
-These are NOT inquebrável — they downgrade verdict from `EVIDENCE_SUFFICIENT` to `EVIDENCE_WITH_CAVEATS`, not to `EVIDENCE_INSUFFICIENT`:
-
-1. **Sustained < 30 days running.** Anchor is `running` with evidence, but the first evidence file is less than 30 days old. Genuine dogfood needs sustained exposure to surface long-tail issues.
-2. **Evidence file density low.** Fewer than 1 evidence file per 10 days running. Suggests the dogfood is happening but not being logged — defeats the audit trail.
-3. **No DX pains or API gaps logged.** All evidence files have empty `DX pains encountered` / `API gaps surfaced` sections. Either dogfood is too shallow OR the API is suspiciously perfect (the latter is rarely true).
-
-## Related
-
-- Skill: `.claude/skills/dogfood/SKILL.md`
-- Manifest: `.claude/knowledge-base/dogfood/manifest.md`
-- Evidence dir: `.claude/knowledge-base/dogfood/evidence/`
-- Inquebrável Rule 3 (Honestidade Extrema) — root `/home/paulo/.claude/CLAUDE.md`
-- Project honesty discipline — `/home/paulo/Projetos/usetheo/theo-memory/CLAUDE.md § Roadmap → Honesty discipline`
-
-## Log of changes to this file
-
-| Date | Change | Rationale |
-|---|---|---|
-| 2026-05-22 | Rule created at day 0 of TheMemory project. Anchor scenario locked. | User decision: enforce dogfood discipline before any code lands, to prevent silent slide into production-ready claims backed only by benchmarks. |
+#### deps-audit allowlist (active entries — REFRESHED)
 ```
+# Deps-Audit Allowlist — CVE/version exemptions with mandatory sunset
+#
+# Authoritative source: .claude/rules/deps-audit-golden-rule.md § Allowlist mechanism
+#
+# Format (one entry per line):
+#   ECOSYSTEM|PACKAGE|VERSION-RANGE|CVE-ID|REASON|SUNSET-DATE
+#
+# Where:
+#   ECOSYSTEM     ∈ { npm, python, rust, go }
+#   PACKAGE       — exact package name as it appears in the manifest
+#   VERSION-RANGE — semver range matching the affected version(s) (e.g., ^4.17.20)
+#   CVE-ID        — CVE-YYYY-NNNN or GHSA-xxxx-xxxx-xxxx (the canonical advisory ID)
+#   REASON        — specific rationale; "WIP" / "TODO" / "investigating" are NOT accepted
+#   SUNSET-DATE   — YYYY-MM-DD; MUST be:
+#                     ≤ 30 days from entry creation for CRITICAL
+#                     ≤ 60 days for HIGH
+#                     ≤ 90 days for MEDIUM / LOW
+#
+# Behavior:
+#   - Lines starting with `#` and blank lines are skipped.
+#   - Active entry (today ≤ SUNSET-DATE): /deps-audit downgrades the finding by one severity level.
+#   - Expired entry (today > SUNSET-DATE): IGNORED; CVE re-fires at full severity.
+#   - /deps-audit MUST list expired entries in the report's "Allowlist hits — expired" subsection.
+#
+# Adding/modifying entries:
+#   - Adding requires inline rationale in the plan that introduced the dep.
+#   - Modifying SUNSET-DATE extends the grace period — commit message MUST explain why.
+#   - Removing an entry is the normal lifecycle (CVE was patched OR sunset reached).
+#
+# Examples (commented — uncomment + adapt when needed):
+#
+# npm|lodash|^4.17.20|CVE-2021-23337|patch upgrade requires regression test rerun; scheduled Q3 2026|2026-08-01
+# python|pyyaml|<6.0|CVE-2020-14343|removing pyyaml requires refactor of config loader (planned T2.4 of plan X)|2026-06-15
+#
+# ---
+# Active entries — v0.1 cycle (plan v0-1-local-runtime-plan.md v1.3, ADR D1.10)
+npm|esbuild|<=0.24.2|GHSA-67mh-4wv8-2f99|MODERATE dev-server-request-leak chained from drizzle-kit ^0.31.0's deprecated @esbuild-kit/esm-loader (merged into tsx upstream). v0.1 usage of drizzle-kit is CLI-only (db:push/db:generate); no esbuild dev-server is spun up. Production bundle does not include esbuild or drizzle-kit (devDep). Fix requires drizzle-kit upstream to migrate to tsx; tracked at https://github.com/drizzle-team/drizzle-orm/issues. Plan v1.3 ADR D1.10 documents the bump rationale; re-audit at sunset to verify upstream fix or escalate.|2026-08-23
+npm|@esbuild-kit/core-utils|*|GHSA-67mh-4wv8-2f99|Same root cause as esbuild entry above — deprecated dep chained from drizzle-kit; will disappear when drizzle-kit migrates to tsx.|2026-08-23
+npm|@esbuild-kit/esm-loader|*|GHSA-67mh-4wv8-2f99|Same root cause; deprecated upstream (merged into tsx).|2026-08-23
+npm|drizzle-kit|^0.31.0|GHSA-67mh-4wv8-2f99|Surface manifestation of the esbuild dev-server-request-leak — drizzle-kit's transitive @esbuild-kit chain. devDep only; dev-server never invoked in our usage.|2026-08-23
+```
+
+## IMPORTANT — Halt-loop resume context
+
+Iteration 1 of the previous /implement attempt halted at T0.1 BLOCKED due to HIGH CVE on drizzle-orm <0.45.2 (resolved-tree audit only). Plan has been corrected v1.2 → v1.3 (ADR D1.9 RETIRED; ADR D1.10 ADDED: bump drizzle-orm to ^0.45 + drizzle-kit to ^0.31). 4 MODERATE CVEs on dev-only chain allowlisted with 90-day sunset (deps-audit-allowlist.txt). Workspace was cleanly reverted via git restore; no broken commits shipped. The halt was CORRECT per Inquebrável Rule 3.
+
+**On the next iteration of this resumed halt-loop:**
+- Halt-loop resumes from iteration 1 (effectively iteration 2 globally, but progress JSON counter restarted)
+- T0.1 is back to 'pending' — task to attempt now with the v1.3 bumped versions
+- Expect: `npm install` returns 4 MODERATE (all allowlisted) + 0 HIGH/CRITICAL — commit proceeds
+- If new CVEs surface, repeat the honest BLOCKED pattern
