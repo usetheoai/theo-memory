@@ -23,12 +23,29 @@ import type { HistoryBatchRecord, HistoryManager } from '../core/dip/history-man
 import type { HistoryEntry } from '../core/history-entry.js';
 
 import { history } from './schema.js';
+import type { entities, memories } from './schema.js';
 
 type HistoryAction = 'remember' | 'forget' | 'reflect';
 
+/**
+ * Schema shape exposed to Drizzle's generic. Bundling the three v0.1 tables
+ * (memories + entities + history) into one local type avoids:
+ *   - namespace import (`import * as schema`) which the project's lint forbids
+ *   - the previous `NodePgDatabase<any>` escape hatch (F-arch-1)
+ *
+ * Consumers passing a plain `drizzle(pool)` (no schema generic) still work
+ * because TypeScript widens to the broader interface; only when the consumer
+ * explicitly typed their db with a different schema would TS complain.
+ */
+interface ThemoryV01Schema {
+  readonly memories: typeof memories;
+  readonly entities: typeof entities;
+  readonly history: typeof history;
+}
+type HistoryDb = NodePgDatabase<ThemoryV01Schema>;
+
 export class DrizzleHistoryManager implements HistoryManager {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private readonly db: NodePgDatabase<any>) {}
+  constructor(private readonly db: HistoryDb) {}
 
   async addHistory(
     memoryId: string,
