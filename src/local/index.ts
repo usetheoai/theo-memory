@@ -62,13 +62,14 @@ export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { entities, history, memories } from './schema.js';
+export { StubEmbedder, StubLLM } from './stubs.js';
 
 /** Extended MemoryConfig with the OTel tracer slot from ADR D1.3. */
 export interface LocalMemoryConfig extends MemoryConfig {
   readonly tracer?: Tracer;
 }
 
-const PROBE_TEXT = '__themem_probe__';
+export const PROBE_TEXT = '__themem_probe__';
 
 function filtersFromScope(scope: Scope): Filters {
   switch (scope.kind) {
