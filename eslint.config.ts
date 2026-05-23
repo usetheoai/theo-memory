@@ -47,6 +47,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-empty-function': 'off',
+      // vitest-mock-extended `mock<T>()` produces method spies referenced as
+      // `expect(mock.method).toHaveBeenCalled()`; unbound-method false-positives.
+      '@typescript-eslint/unbound-method': 'off',
       'import/order': 'off',
     },
   },

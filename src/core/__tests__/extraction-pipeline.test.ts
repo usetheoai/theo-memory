@@ -169,7 +169,6 @@ describe('runExtractionPipeline (8-phase write)', () => {
       { vectorStore: store, embedder, llm },
     );
     expect(result).toHaveLength(1);
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(embedder.embed).toHaveBeenCalled();
   });
 
@@ -199,7 +198,6 @@ describe('runExtractionPipeline (8-phase write)', () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0]?.text).toBe('verbatim fact');
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(llm.generateResponse).not.toHaveBeenCalled();
   });
 
