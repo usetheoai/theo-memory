@@ -1,0 +1,57 @@
+/**
+ * Observable events emitted by the v0.1 extraction + retrieval pipelines.
+ * T4.2 of v0-1-local-runtime plan v1.3.
+ *
+ * Each phase boundary emits ONE event via the optional OpenTelemetry tracer
+ * (per ADR D1.3). When the tracer is absent (config.tracer undefined), `emitEvent`
+ * is a zero-cost no-op.
+ *
+ * EC-10 absorbed: `extraction_failed` fires when the LLM response fails Zod parse —
+ * pipeline returns [] without throwing.
+ *
+ * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T4.2 + ADR D1.4
+ */
+import type { Tracer } from '@opentelemetry/api';
+
+export const MEMORY_EVENTS = [
+  'extraction_started',
+  'extraction_completed',
+  'extraction_failed',
+  'embedding_batch_started',
+  'embedding_batch_completed',
+  'embedding_batch_fallback',
+  'dedup_skipped',
+  'persist_started',
+  'persist_completed',
+  'persist_fallback',
+  'history_persisted',
+  'entity_linked',
+  'messages_saved',
+] as const;
+
+export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
+
+/** Attribute value type accepted by OTel spans. */
+export type AttributeValue = string | number | boolean;
+
+/**
+ * Emit one span for the given event. No-op when tracer is undefined.
+ * Each attribute is set on the active span via `setAttribute`; span ends inline.
+ */
+export function emitEvent(
+  tracer: Tracer | undefined,
+  event: MemoryEvent,
+  attributes?: Readonly<Record<string, AttributeValue>>,
+): void {
+  if (tracer === undefined) {
+    return;
+  }
+  tracer.startActiveSpan(event, (span) => {
+    if (attributes !== undefined) {
+      for (const [key, value] of Object.entries(attributes)) {
+        span.setAttribute(key, value);
+      }
+    }
+    span.end();
+  });
+}
