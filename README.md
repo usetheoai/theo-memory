@@ -83,6 +83,65 @@ Same `remember` / `recall` / `forget` / `reflect` verbs across all three tiers �
 
 Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, and status.
 
+## Quickstart (v0.1 local runtime)
+
+> **Pre-release.** Not production-ready. Status: dogfooding via the `/dogfood` gate. The embedding dimension is capped at **1536** at v0.1 (see plan ADR D1.7 in `.claude/knowledge-base/plans/v0-1-local-runtime-plan.md`).
+
+The v0.1 local runtime ships as: TypeScript library + Postgres + pgvector container + your-supplied LLM and Embedder. Wiring:
+
+```bash
+# 1. Boot the local pgvector container
+docker compose up -d pgvector
+# (port conflict on 5432? POSTGRES_PORT=5433 docker compose up -d pgvector — see .env.example)
+
+# 2. Set the connection env var (matches docker-compose.yaml defaults)
+export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
+
+# 3. Enable pgvector + push schema (dev — uses drizzle-kit push; production should
+#    instead run npm run db:generate + apply the SQL migrations via the Drizzle
+#    migrator at app boot)
+psql $THEOMEM_PG_URI -c "CREATE EXTENSION IF NOT EXISTS vector"
+npm run db:push -- --force
+```
+
+Minimum usage from TypeScript:
+
+```ts
+import { createMemory, PgvectorStore, DrizzleHistoryManager } from '@usetheo/memory'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import pg from 'pg'
+import { OpenAILLM, OpenAIEmbedder } from './your-providers' // consumer-supplied
+
+const pool = new pg.Pool({ connectionString: process.env.THEOMEM_PG_URI! })
+const db = drizzle(pool)
+
+const memory = await createMemory({
+  vectorStore: new PgvectorStore(pool),
+  embedder: new OpenAIEmbedder({ model: 'text-embedding-3-small', dimensions: 1536 }),
+  llm: new OpenAILLM({ model: 'gpt-4o-mini' }),
+  historyManager: new DrizzleHistoryManager(db),
+})
+
+// Write
+await memory.user('alice').remember('Paulo likes coffee')
+
+// Read
+const results = await memory.user('alice').recall('beverages', { topK: 3 })
+// → MemoryItemWithScore[] sorted by combined score (semantic + BM25 + entity boost)
+```
+
+**Important constraints at v0.1:**
+
+- Embedder MUST return 1536-dim vectors (`createMemory` probes at startup; mismatched dim throws `EmbeddingMismatch` immediately).
+- `forget(unknown_id)` throws `MemoryNotFound` (divergence from REDACTED's silent no-op).
+- `reset({})` throws `InvalidScope` — explicit scope key required (prevents accidental wipe).
+- `recall({ asOf })` throws `BiTemporalNotSupportedLocally` — bi-temporal queries land in the cloud runtime at v0.5.
+- `reflect()` throws `ReflectionNotConfigured` — reflection algorithm lands at v0.4a (roadmap Item 5).
+
+For the full Quickstart end-to-end test, see `tests/integration/local-runtime.test.ts`.
+
+
+
 ## Status — design stage, contract being locked
 
 > `@usetheo/memory` is **pre-release**. The API contract below is under active design. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
