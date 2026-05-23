@@ -73,3 +73,22 @@ Adopt Mem0's architectural shape — **adopt**, **diverge**, and **defer** expli
 - `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts` — the canonical TypeScript implementation of the six-phase + nine-step pipelines.
 - `CLAUDE.md § Architectural Decisions Locked` — strategic context.
 - Roadmap Item 1 acceptance criteria (CLAUDE.md § Macro roadmap).
+
+## Implementation note (v0.1 runtime — added 2026-05-23 per T7.3 of v0-1-local-runtime plan v1.3)
+
+The "six-phase write pipeline" narrative in this ADR is a SIMPLIFICATION of the code reality. The v0.1 implementation at `src/core/extraction/pipeline.ts` (landed by T4.3) adopts the **eight-phase shape** verbatim from Mem0's `addToVectorStore` (`referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`), with phase boundaries at the code comments at L588 / L606 / L626 / L695 / L716 / L783 / L851 / L976.
+
+Phase mapping (v0.1 runtime → ADR narrative):
+- Phase 0 (context gather) + Phase 1 (existing retrieval + UUID→int) → ADR's "context + retrieval" (1 narrative phase)
+- Phase 2 (LLM extraction) → ADR's "single LLM extraction"
+- Phase 3 (batch embed) → ADR's "batch embed"
+- Phase 4 (hash dedup) + Phase 5 (payload composition) → ADR's "hash dedup + payload" (1 narrative phase)
+- Phase 6 (batch persist) → ADR's "batch persist with fallbacks"
+- Phase 6.5 (batch history persist) — auxiliary, not counted in narrative
+- Phase 7 (entity linking) + Phase 8 (save messages) — auxiliaries, scaffolded for v0.2 expansion
+
+The "six-phase" framing folds phases 0+1 and 4+5 for marketing brevity. The runtime needs the granular eight-phase shape because the per-row fallback boundaries (Inquebrável Rule 9 + blueprint Recommendation 1) depend on phase identity — collapsing them would lose the fault-tolerance shape that makes the pipeline robust.
+
+This update is documentation-only. The Adopt list in `.claude/rules/architecture.md § 4` was updated in the same v0.1 cycle to use the phrasing "Eight-phase write pipeline (per v0.1 runtime; ADR-0001 narrates it as six)" so future readers see both counts and the rationale for the divergence.
+
+Decision authority: this implementation note ADDS clarity, does NOT reopen the architectural decision. The Mem0-shape adoption stays locked.

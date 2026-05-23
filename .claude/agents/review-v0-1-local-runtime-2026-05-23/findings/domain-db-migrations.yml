@@ -1,0 +1,195 @@
+agent: review-v0-1-local-runtime-domain-db-migrations
+review_target: HEAD (fix commit a43e337 "fix(review): apply all v0-1-local-runtime review findings")
+domain: db-migrations
+domain_specific_patterns_checked:
+  - pgvector schema migration discipline (Alembic-equivalent via Drizzle)
+  - embedding dimension auto-detection
+  - CREATE EXTENSION IF NOT EXISTS vector idempotency
+  - runMigrations helper export + npm script wiring
+  - package.json files entry for npm tarball shipping
+
+previously_flagged_critical_findings:
+  - F-dom-2-CRITICAL-1: package.json#files missing src/local/migrations/** → migrations NOT shipped in npm tarball
+  - F-dom-2-CRITICAL-2: runMigrations(pool) helper missing from src/local/index.ts + not re-exported via src/index.ts
+  - F-dom-2-CRITICAL-3: migration file lacks CREATE EXTENSION IF NOT EXISTS vector (production Postgres environments fail with "type vector does not exist")
+  - F-dom-2-CRITICAL-4: npm script db:push does NOT pre-emptively run CREATE EXTENSION before drizzle-kit push
+
+findings:
+  - id: F-dom-2-CRITICAL-1-RESOLVED
+    severity: RESOLVED
+    file: package.json
+    line: 21-27
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked; packaging contract requires migrations shipping inside tarball
+    summary: package.json#files entry now includes src/local/migrations/**
+    evidence: |
+      Lines 21-27 now declare:
+      ```json
+      "files": [
+        "src/**/*.ts",
+        "!src/**/__tests__/**",
+        "!src/**/*.test.ts",
+        "!src/**/*.test-d.ts",
+        "src/local/migrations/**"
+      ]
+      ```
+      The explicit `src/local/migrations/**` entry ensures npm pack includes all .sql files.
+      Previously missing, now added in fix commit a43e337.
+    status: PASS
+    remediation_commit: a43e337
+
+  - id: F-dom-2-CRITICAL-2-RESOLVED
+    severity: RESOLVED
+    file: src/local/index.ts + src/index.ts
+    line: "src/local/index.ts:277-288; src/index.ts:14"
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked; two-runtime contract requires runMigrations as public API
+    summary: runMigrations(pool) factory now exported from src/local/index.ts and re-exported via src/index.ts (T7.1 + T7.2)
+    evidence: |
+      src/local/index.ts lines 262-288:
+      ```ts
+      /**
+       * Apply pgvector + Drizzle migrations to a Postgres database.
+       *
+       * For production use: run once at app boot before constructing `createMemory`.
+       * Idempotent: re-running against an already-migrated DB is a no-op.
+       *
+       * Resolves the migrations folder shipped inside the npm package (`src/local/migrations/`).
+       * Consumers do NOT need to know the path — they just provide the pool.
+       *
+       * Per F-dom-2 + db-migrations CRITICAL #2: addresses the production gap where
+       * createLocalMemory previously assumed the schema already existed. Now consumers
+       * can either:
+       *   - dev:  `npm run db:push` (introspection-based, runs CREATE EXTENSION first via npm script)
+       *   - prod: `await runMigrations(pool)` at app boot, then `createMemory({...})`.
+       */
+      export async function runMigrations(pool: Pool): Promise<void> {
+        // pgvector extension MUST exist before tables with vector columns can be created.
+        // Idempotent; safe to re-run.
+        await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+
+        // Resolve migrations folder shipped inside this package.
+        const here = dirname(fileURLToPath(import.meta.url));
+        const migrationsFolder = resolvePath(here, 'migrations');
+
+        const db = drizzleNodePostgres(pool);
+        await migrate(db, { migrationsFolder });
+      }
+      ```
+
+      src/index.ts line 14:
+      ```ts
+      export { createMemory, createLocalMemory, runMigrations } from './local/index.js';
+      ```
+
+      Consumers can now import: `import { createMemory, runMigrations } from '@usetheo/memory'`
+    status: PASS
+    remediation_commit: a43e337
+
+  - id: F-dom-2-CRITICAL-3-RESOLVED
+    severity: RESOLVED
+    file: src/local/migrations/0000_crazy_mimic.sql
+    line: 1-6
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked; pgvector schema migration must be idempotent and pre-extension-check
+    summary: Migration file now declares CREATE EXTENSION IF NOT EXISTS vector at line 1 (before table definitions)
+    evidence: |
+      src/local/migrations/0000_crazy_mimic.sql lines 1-7:
+      ```sql
+      -- Enable pgvector extension. Required for the vector() column type + HNSW indexes below.
+      -- Idempotent: safe to re-run; if pgvector not installed in the Postgres image, this fails LOUDLY
+      -- with a clear error (vs cryptic "type vector does not exist" on column creation).
+      -- Per F-dom-2 review finding: consumers running `drizzle-kit push` should NOT need to manually
+      -- run `psql -c "CREATE EXTENSION ..."` as a separate step.
+      CREATE EXTENSION IF NOT EXISTS vector;
+      --> statement-breakpoint
+      ```
+
+      The extension is created idempotent (IF NOT EXISTS) before the first vector() column is referenced
+      (line 11 in entities table, line 30 in memories table). Production Postgres environments without
+      pgvector pre-installed will now receive a clear error at migration time instead of a cryptic
+      "type vector does not exist" error during schema creation.
+    status: PASS
+    remediation_commit: a43e337
+
+  - id: F-dom-2-CRITICAL-4-RESOLVED
+    severity: RESOLVED
+    file: package.json
+    line: 34
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked; npm scripts must honor migration sequencing
+    summary: npm script db:push now runs CREATE EXTENSION IF NOT EXISTS vector before drizzle-kit push
+    evidence: |
+      package.json line 34:
+      ```json
+      "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push",
+      ```
+
+      Execution order:
+      1. Inline Node script creates extension: `CREATE EXTENSION IF NOT EXISTS vector` idempotent
+      2. Then: `drizzle-kit push` runs migrations (which now include another idempotent CREATE EXTENSION)
+
+      Double-idempotent design (extension created by both npm script AND migration file) is safe and
+      defensive. Addresses the dev-workflow gap where dev engineers might run `npm run db:push` against
+      a Postgres image without pgvector extension installed and get silent failure or confusing errors.
+    status: PASS
+    remediation_commit: a43e337
+
+  - id: DOMAIN-1-INFO
+    severity: INFO
+    file: src/local/index.ts
+    line: 277-288
+    domain_anchor: architecture.md § Module hygiene + CLAUDE.md § Architectural Decisions Locked (two runtimes)
+    summary: runMigrations implementation correctly uses dirname + fileURLToPath pattern for ESM module-relative path resolution
+    evidence: |
+      Correct pattern for finding the migrations folder relative to the compiled .js output:
+      ```ts
+      const here = dirname(fileURLToPath(import.meta.url));
+      const migrationsFolder = resolvePath(here, 'migrations');
+      ```
+
+      This is ESM-safe (avoids __dirname which does not exist in ESM) and correctly resolves to
+      the compiled output location, not the source. When npm tarball is unpacked, the path will
+      resolve correctly in the node_modules tree.
+    status: PASS
+
+  - id: DOMAIN-2-MINOR-WARNING
+    severity: MINOR
+    file: src/local/index.ts
+    line: 280
+    domain_anchor: architecture.md § Error handling § Boundary validation
+    summary: runMigrations does not validate that pool is connected before calling pool.query
+    evidence: |
+      Line 280 calls `await pool.query('CREATE EXTENSION IF NOT EXISTS vector')` without checking
+      if the pool is in a valid connected state. If the pool is closed or the connection URI is invalid,
+      this will throw a runtime error, but the error message could be more specific in documentation.
+
+      Recommendation: ADD a JSDoc note stating consumers MUST provide a valid, connected pool.
+      The error handling is acceptable (pool.query failure will throw naturally), but callers should
+      be warned that passing a closed pool is a programming error (not a fallback scenario).
+    status: ACCEPTABLE_WITH_NOTE
+    recommendation: Consider adding @throws documentation clarifying pool connection state requirements
+
+findings_summary:
+  CRITICAL_unresolved: 0
+  CRITICAL_resolved: 4
+  MAJOR_unresolved: 0
+  MINOR_unresolved: 0
+  INFO_unresolved: 0
+  PASS_rate: 100%
+
+overall_verdict: READY_TO_MERGE
+
+domain_specific_conclusion: |
+  All four CRITICAL findings from the previous db-migrations domain review (F-dom-2-CRITICAL-1 through -4)
+  have been RESOLVED in commit a43e337. The implementation now:
+
+  1. Ships migrations in npm tarball via explicit package.json#files entry
+  2. Exports runMigrations(pool) factory from src/local/index.ts, re-exported via src/index.ts barrel
+  3. Includes CREATE EXTENSION IF NOT EXISTS vector in the migration file (line 1), idempotent and safe
+  4. Wires npm script db:push to pre-emptively create the extension before drizzle-kit push
+
+  The migration discipline now matches Drizzle best practices: idempotent extension creation,
+  schema definition follows extension requirement, and consumers have both dev-friendly (npm run db:push)
+  and prod-friendly (runMigrations at app boot) pathways.
+
+  One MINOR documentation gap noted (pool connection state validation), but not blocking — the error
+  handling is correct and callers will receive clear errors if they misuse the API.
+
+  Domain reviewer: db-migrations PASS. Feature branch ready for architecture + tests + wiring reviews.

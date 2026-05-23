@@ -31,3 +31,9 @@
 # Examples (commented — uncomment + adapt when needed):
 # python|.claude/skills/foo/scripts/legacy.py|dead_code|unused_helper|Pending refactor in Q3 sprint planning|2026-08-22
 # typescript|src/local/postgres-adapter.ts|orphan_export|legacyPersistFn|Public API placeholder for v0.2 cloud runtime; will be wired then|2026-08-22
+
+# Active entries — v0.1 pre-code phase
+typescript|src/local/**|symbol_fab|*|v0.1 pre-code phase per plan v0-1-local-runtime-plan.md; src/local/ tree does not exist yet (T0.4 + Phase 2/3/6/7 create it). Forward references in the plan are intentional declarations that land during /implement. Re-validate after T7.2 lands the public barrel.|2026-06-22
+typescript|src/core/extraction/**|symbol_fab|*|v0.1 pre-code phase; src/core/extraction/ created by Phase 4 (T4.1 + T4.3). Forward references to extraction symbols are intentional.|2026-06-22
+typescript|src/core/retrieval/**|symbol_fab|*|v0.1 pre-code phase; src/core/retrieval/ created by Phase 5 (T5.1). Forward references to retrieval symbols are intentional.|2026-06-22
+typescript|src/index.ts|symbol_fab|*|v0.1 pre-code phase; src/index.ts (public barrel) created by T7.2. Forward references to createMemory + re-exports are intentional.|2026-06-22

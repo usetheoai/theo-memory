@@ -1,0 +1,313 @@
+agent: review-v0-1-local-runtime-architecture
+review_target: b2445db..HEAD for v0-1-local-runtime post-fix re-review
+plan: .claude/knowledge-base/plans/v0-1-local-runtime-plan.md
+findings:
+  - id: F-arch-1
+    status: RESOLVED
+    severity: INFO
+    file: src/local/history-manager.ts
+    lines: 32-45
+    summary: DrizzleHistoryManager constructor typing upgraded from NodePgDatabase<any> to NodePgDatabase<ThemoryV01Schema>
+    evidence: |
+      Previous (b2445db):
+      ```ts
+      constructor(private readonly db: NodePgDatabase<any>) {}
+      ```
+
+      Current (HEAD):
+      ```ts
+      interface ThemoryV01Schema {
+        readonly memories: typeof memories;
+        readonly entities: typeof entities;
+        readonly history: typeof history;
+      }
+      type HistoryDb = NodePgDatabase<ThemoryV01Schema>;
+
+      export class DrizzleHistoryManager implements HistoryManager {
+        constructor(private readonly db: HistoryDb) {}
+      ```
+    analysis: |
+      CRITICAL finding from previous /review has been FULLY RESOLVED. The escape hatch
+      `NodePgDatabase<any>` (previously flagged as violating strict type discipline) is now
+      replaced with an explicit schema interface `ThemoryV01Schema` that bundles the three
+      v0.1 tables (memories, entities, history).
+
+      Architectural quality improved:
+      - NO `any` in the public constructor signature (tsc --strict compliance)
+      - TypeScript widens correctly when consumers pass `drizzle(pool)` without schema
+      - Explicit contract over three tables; coupling is transparent
+      - Follows architecture.md rule § 7 (strict mode, no `any`)
+
+      The approach respects the root CLAUDE.md § 9 (Não Reinvente) by using Drizzle's
+      generic over inventing a custom wrapper.
+    recommended_action: ACCEPT — this fix is architecturally sound. No further action needed.
+
+  - id: F-arch-2
+    status: DEFERRED_DOCUMENTED
+    severity: INFO
+    file: src/local/index.ts
+    lines: 105-110
+    summary: LocalScopedMemory SRP refactor deferred to v0.2; documented as out-of-scope for v0.1
+    evidence: |
+      LocalScopedMemory currently implements ScopedMemory with all five methods
+      (remember, recall, reflect, getAll, forget is on parent Memory class):
+
+      ```ts
+      class LocalScopedMemory implements ScopedMemory {
+        async remember(...)
+        async recall(...)
+        reflect(...)
+        async getAll(...)
+      }
+      ```
+
+      The class has FOUR reasons to change (extraction, retrieval, reflection, list).
+    analysis: |
+      MAJOR finding from previous /review (F-arch-2) flagged the SRP violation.
+      The fix decision was to DEFER this refactor to v0.2 (not v0.1 scope).
+
+      Status documented in the plan:
+      - CLAUDE.md § Roadmap § Deferred: "LocalScopedMemory SRP refactor" listed with
+        rationale "Keeps v0.1 contract minimal; no pattern to extract yet; shipped as
+        monolithic for now."
+      - Current implementation is INTENDED for v0.1; future v0.2 will split into
+        RememberScoped / RecallScoped / ReflectScoped / ListScoped (or similar) behind
+        a composition interface.
+
+      This is NOT a blocker for v0.1 merge because:
+      1. The violation is known and documented
+      2. The refactor is captured in the v0.2 roadmap
+      3. No new code added in the fix commit violates SRP further
+      4. The class remains understandable and maintainable at current size (~60 SLOC)
+    recommended_action: ACCEPT AS DEFERRED — SRP violation is acceptable for v0.1 per plan. Plan v0.2 to split.
+
+  - id: F-arch-3
+    status: RESOLVED
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    lines: 119-122, 141-159
+    summary: PgvectorStore now accepts optional Tracer; per-row fallback emits persist_fallback events
+    evidence: |
+      Previous (b2445db):
+      ```ts
+      constructor(private readonly pool: Pool) {}
+
+      // Per-row fallback (blueprint D1 / Recommendation 1)
+      for (let i = 0; i < vectors.length; i += 1) {
+        try {
+          await this.insertSingle(...);
+        } catch {
+          // Log + skip; do not poison the rest of the batch
+        }
+      }
+      ```
+
+      Current (HEAD):
+      ```ts
+      constructor(
+        private readonly pool: Pool,
+        private readonly tracer?: Tracer,
+      ) {}
+
+      // Per-row fallback (blueprint D1 / Recommendation 1)
+      // F-arch-3 absorption: emit persist_fallback event so consumers observing the
+      // tracer can detect partial-batch degradation.
+      emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
+      let failed = 0;
+      for (let i = 0; i < vectors.length; i += 1) {
+        try {
+          await this.insertSingle(...);
+        } catch {
+          failed += 1;
+        }
+      }
+      if (failed > 0) {
+        emitEvent(this.tracer, 'persist_fallback', { failed_rows: failed, total: vectors.length });
+      }
+      ```
+    analysis: |
+      CRITICAL finding from previous /review (F-arch-3) has been FULLY RESOLVED via two changes:
+
+      1. Constructor signature extended with optional `tracer?: Tracer` parameter
+         - Preserves backward compatibility (default behavior when tracer undefined)
+         - Aligns with ADR D1.3 from the plan (observability via optional OTel tracer)
+         - Non-breaking: existing callers passing only `pool` continue to work
+
+      2. Per-row fallback now emits observability events
+         - `emitEvent(tracer, 'persist_fallback', { count: vectors.length })` fires ONCE when batch fails
+         - Inside the per-row loop: counts actual failures
+         - Post-loop: `emitEvent(tracer, 'persist_fallback', { failed_rows, total })` summarizes the degradation
+         - Zero-cost when tracer is undefined (emitEvent is a no-op per src/core/memory-event.ts)
+
+      Architectural improvements:
+      - Defense-in-depth observability: internal fallback path is now VISIBLE to consumers monitoring spans
+      - Consumers can now detect partial-batch degradation without reading logs
+      - Follows architecture.md rule § 8 (error handling + observability at I/O boundaries)
+      - The `emitEvent` function (src/core/memory-event.ts) respects DIP (tracer is optional; no coupling when undefined)
+    recommended_action: ACCEPT — this fix is architecturally sound. Observability was missing; now present. No further action needed.
+
+  - id: F-arch-4
+    status: NEW_FINDING
+    severity: MINOR
+    file: src/local/index.ts
+    lines: 277-288
+    summary: runMigrations helper function added; properly encapsulates the CREATE EXTENSION bootstrapping
+    evidence: |
+      New public function at src/local/index.ts:
+      ```ts
+      export async function runMigrations(pool: Pool): Promise<void> {
+        // pgvector extension MUST exist before tables with vector columns can be created.
+        await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+
+        const here = dirname(fileURLToPath(import.meta.url));
+        const migrationsFolder = resolvePath(here, 'migrations');
+
+        const db = drizzleNodePostgres(pool);
+        await migrate(db, { migrationsFolder });
+      }
+      ```
+
+      Exported via src/index.ts:
+      ```ts
+      export { createMemory, createLocalMemory, runMigrations } from './local/index.js';
+      ```
+    analysis: |
+      This is a POSITIVE architectural addition (not a defect). The F-dom-2 CRITICAL finding
+      from the previous /review was that consumers had no API to run migrations — they either
+      ran Drizzle CLI manually OR the schema was assumed to pre-exist.
+
+      The fix introduces a consumer-facing runMigrations() function that:
+      1. Handles the pgvector extension bootstrap (idempotent CREATE EXTENSION IF NOT EXISTS)
+      2. Resolves the migrations folder from the package
+      3. Delegates actual migration execution to drizzle-orm's migrate()
+
+      Architectural considerations:
+      - Function is correctly placed in src/local/ (runtime-specific)
+      - Exported at the barrel level (src/index.ts) for public consumption
+      - Idempotent (safe to re-run)
+      - No new imports of problematic types (uses Pool from 'pg', not Drizzle internals)
+      - Respects DIP: the pool is passed in, migrations folder is resolved at runtime
+
+      Follows architecture.md rule § 4 (I/O boundaries). This is the canonical boundary
+      for database initialization.
+    recommended_action: ACCEPT — good architectural addition. Completes the v0.1 contract for consumers.
+
+  - id: F-arch-5
+    status: NEW_FINDING
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    lines: 51-58
+    summary: vectorLiteral() function now guards against NaN/Infinity components
+    evidence: |
+      New validation in vectorLiteral():
+      ```ts
+      function vectorLiteral(vector: readonly number[]): string {
+        for (let i = 0; i < vector.length; i += 1) {
+          const n = vector[i] as number;
+          if (!Number.isFinite(n)) {
+            throw new Error(`vectorLiteral: vector[${i}] is not finite (${String(n)}); pgvector requires finite numbers`);
+          }
+        }
+        return `[${vector.join(',')}]`;
+      }
+      ```
+    analysis: |
+      This is a POSITIVE architectural addition (absorbs F-dom-1 edge case).
+
+      Previous behavior: malformed vectors (with NaN/Infinity) would reach pgvector
+      and fail with a cryptic "invalid input syntax for type vector" error at the SQL layer.
+
+      New behavior: the validation is EARLY and CLEAR, throwing a domain-specific error
+      before reaching pgvector.
+
+      Architectural quality:
+      - Follows PARTE I-8 of global CLAUDE.md (Error Handling — fail-fast with clear messages)
+      - Boundary validation: catches malformed data at the VectorStore adapter entry point
+      - No SRP violation: vectorLiteral is a single-purpose helper (format number[] to pgvector syntax)
+      - Cost: O(n) loop once per insert, acceptable for typical vector sizes (~1536 dims)
+    recommended_action: ACCEPT — good defensive programming. Aligns with error-handling principles.
+
+  - id: F-arch-6
+    status: NEW_FINDING
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    lines: 207-222
+    summary: search() method now validates query vector dimension against MAX_EMBEDDING_DIM
+    evidence: |
+      New validation in search():
+      ```ts
+      if (query.length !== MAX_EMBEDDING_DIM) {
+        throw new Error(
+          `PgvectorStore.search: query vector dimension ${query.length} does not match MAX_EMBEDDING_DIM ${MAX_EMBEDDING_DIM}`,
+        );
+      }
+      ```
+    analysis: |
+      This is a POSITIVE architectural addition (absorbs F-dom-4 edge case).
+
+      Previous behavior: mismatched query vectors would silently produce wrong results
+      (pgvector computes distance on mismatched dimensions, returning garbage).
+
+      New behavior: dimension mismatch is detected and fails loudly with a clear error.
+
+      Architectural quality:
+      - Follows PARTE I-8 of global CLAUDE.md (fail-fast principle)
+      - The createLocalMemory factory already probes the embedder dimension at startup (EC-5)
+      - This check is a second line of defense: even if the embedder breaks mid-run,
+        the search catches it before producing silent wrong results
+      - Cost: O(1) length comparison, negligible
+    recommended_action: ACCEPT — good defensive programming. Defense-in-depth is appropriate for silent-failure risks.
+
+  - id: F-arch-7
+    status: NEW_FINDING
+    severity: INFO
+    file: src/local/index.ts
+    lines: 243-245
+    summary: EmbeddingMismatch error constructor call updated for consistency
+    evidence: |
+      Previous (b2445db):
+      ```ts
+      throw new EmbeddingMismatch({ expected: MAX_EMBEDDING_DIM, actual: vector.length });
+      ```
+
+      Current (HEAD):
+      ```ts
+      throw new EmbeddingMismatch(MAX_EMBEDDING_DIM, vector.length);
+      ```
+    analysis: |
+      The error constructor signature was updated to accept positional arguments
+      instead of an object literal. This is a consistency fix (both sites now use
+      the same constructor form).
+
+      Architectural note: not a defect, just a constructor API decision. The fix
+      aligns the two call sites (one in src/local/index.ts, any others) to use
+      a consistent pattern. This is housekeeping, not a structural change.
+    recommended_action: ACCEPT — consistency improvement. No architectural impact.
+
+summary: |
+  Re-review of v0-1-local-runtime after fix commit (a43e337) for CRITICAL findings
+  from previous /review (b2445db).
+
+  PREVIOUS CRITICAL/MAJOR FINDINGS STATUS:
+  - F-arch-1 (CRITICAL): NodePgDatabase<any> typing → RESOLVED ✓
+    Upgraded to NodePgDatabase<ThemoryV01Schema> with explicit interface.
+  - F-arch-3 (MAJOR): Tracer observability in PgvectorStore fallback → RESOLVED ✓
+    Constructor accepts optional tracer; fallback now emits persist_fallback events.
+  - F-arch-2 (MAJOR): LocalScopedMemory SRP violation → DEFERRED_DOCUMENTED ✓
+    Intentional deferral to v0.2 per plan; acceptable for v0.1 scope.
+
+  NEW FINDINGS (POST-FIX REVIEW):
+  - F-arch-4 (MINOR): runMigrations helper added; good architectural addition
+  - F-arch-5 (MINOR): vectorLiteral() guards against NaN/Infinity; defensive improvement
+  - F-arch-6 (MINOR): search() validates query dimension; defense-in-depth
+  - F-arch-7 (INFO): EmbeddingMismatch constructor consistency fix
+
+  SEVERITY SUMMARY:
+  - BLOCKER: 0
+  - CRITICAL: 0 (1 RESOLVED from previous review)
+  - MAJOR: 0 (1 RESOLVED + 1 DEFERRED from previous review)
+  - MINOR: 3
+  - INFO: 4
+
+  VERDICT: All critical/major findings have been resolved or properly deferred.
+  No blocking architectural defects remain. Code is ready for merge.

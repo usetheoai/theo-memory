@@ -4,7 +4,7 @@ phases:
   - implement       (single entry-point; orchestrates internally via ralph-loop halt-loop)
 trigger: when a plan from cycle-plan has verdict ≥ SHIPPABLE_WITH_CAVEATS and is ready to be coded
 output: feature branch with atomic commits per task, validation report, ready for cycle-review
-status: v1.0 ACTIVE — skill `/implement` built and validated 2026-05-21
+status: v1.2 ACTIVE — skill `/implement` built 2026-05-21, SEPA augmented 2026-05-22, resume-after-blocker protocol locked 2026-05-23
 ---
 
 # Cycle: Implement
@@ -17,7 +17,7 @@ status: v1.0 ACTIVE — skill `/implement` built and validated 2026-05-21
 >
 > Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
 
-Source of truth for the implementation-execution cycle. **Status: v1.0 ACTIVE.** Single skill `/implement` (in `.claude/skills/implement/`) drives the cycle via ralph-loop halt-loop. The original v0.1 PROPOSED design (3 separate skills: to-implement, implement-execute, implement-validate) was consolidated into 1 entry-point at strategic review 2026-05-21 to reduce orchestration complexity.
+Source of truth for the implementation-execution cycle. **Status: v1.2 ACTIVE.** Single skill `/implement` (in `.claude/skills/implement/`) drives the cycle via ralph-loop halt-loop. The original v0.1 PROPOSED design (3 separate skills: to-implement, implement-execute, implement-validate) was consolidated into 1 entry-point at strategic review 2026-05-21 to reduce orchestration complexity.
 
 ## Purpose
 
@@ -136,10 +136,19 @@ Source of truth for which model each `/implement` halt-loop phase runs on: [`.cl
 
 ## Stop conditions (cycle aborts honestly — NOT a failure)
 
+These are the **ONLY** valid reasons for `/implement` to exit before `IMPLEMENTATION_COMPLETE`. Any other reason (running low on context, "feels like a natural break", "should I continue?") is a contract violation.
+
 1. **Task fails to GREEN after 3 implementation attempts** — mark task BLOCKED with reason "implementation strategy not viable"; surface to human. Do NOT skip and continue (poisons the chain).
 2. **Halt-loop max iterations reached** — emit promise with honest "tasks N through M remaining" report.
 3. **External dependency missing** — Postgres down for integration test, npm package not installed. Halt; surface for human to fix the environment.
 4. **Plan task assumes behavior contradicted by reality** — e.g., a borrowed pattern doesn't actually exist in `referencia/` even though plan cited it. Halt; loop back to cycle-discover or cycle-plan.
+5. **Real-tree validation surfaces a HIGH/CRITICAL CVE** on a declared dep (e.g., `npm audit` post-install) — halt; loop back to cycle-plan for ADR + dep bump. After the plan is corrected, **re-invoke ralph-loop per the resume protocol below** — do NOT drive remaining tasks manually.
+
+### Resume after recovered blocker (canonical protocol)
+
+Stop conditions 3 + 4 + 5 are RECOVERABLE: the user fixes the environment, the cycle-plan revises the plan, the dep gets bumped. Once the blocker is resolved, the skill MUST re-invoke ralph-loop — driving remaining tasks manually in the foreground session is a contract violation (loses audit trail, restart-on-Stop hook, max-iterations safety, promise-marker termination, and the discipline against ad-hoc scope creep).
+
+The resume protocol lives in [`.claude/skills/implement/SKILL.md § Step 4 / Resume after recovered blocker`](../skills/implement/SKILL.md). The skill is the source of truth for the 6-step procedure (verify blocker resolved → refresh SEPA brief → reset progress JSON → verify halt-loop driver → re-invoke ralph-loop with SAME flags → fresh iteration picks up). The cycle rule's job is to lock the invariant: **after a recoverable halt, re-invoke ralph-loop; do not continue manually.**
 
 ## Anti-patterns (NEVER do these — violates the contract)
 
@@ -152,6 +161,8 @@ Source of truth for which model each `/implement` halt-loop phase runs on: [`.cl
 7. **NEVER scope-creep mid-task** — if you discover an unrelated improvement opportunity, log it in `implementations/{slug}-followups.md` and continue with the current task.
 8. **NEVER bypass `/implement-validate`** even if "it's just a tiny change" — validate is the gate; tiny changes silently break things.
 9. **NEVER fabricate runtime-metric proof** — the plan's Global DoD requires observing the metric non-zero. Reading the code that emits the metric is NOT proof; the metric must actually fire in an integration workload.
+10. **NEVER drive implementation tasks manually outside of ralph-loop.** The halt-loop is the ONLY execution mode. Pause in the foreground session = re-invoke ralph-loop per the resume protocol above. The skill's value (audit trail, Stop hook restart, max-iterations safety, promise-marker contract) evaporates the moment manual driving begins. This anti-pattern was added 2026-05-23 after the v0-1-local-runtime session surfaced the gap: ralph-loop was cancelled by a recoverable HIGH CVE blocker, then 22 subsequent tasks were driven manually in the foreground with per-phase user-confirmation prompts — a contract violation despite shipping correct code.
+11. **NEVER ask the user for permission between phases while pending tasks remain.** Once `/implement {slug}` is invoked with a verdict ≥ SHIPPABLE_WITH_CAVEATS plan, the only valid stops are the 5 Stop conditions above. "Should I continue with Phase N+1?" or "Phase N done — continue or stop?" prompts are a contract violation. The promise-marker `<promise>IMPLEMENTATION_COMPLETE</promise>` OR an honest BLOCKED report is the only legitimate way to exit. Token-budget anxiety is not a Stop condition — the halt-loop's Stop hook + restart pattern is designed to span context boundaries, and fresh iterations carry minimal state.
 
 ## Rollback
 
@@ -180,7 +191,7 @@ NEVER rollback `main` — work happens on feature branches. If the cycle produce
 
 ## Versioning
 
-This cycle rule is **v1.1 ACTIVE** as of 2026-05-22.
+This cycle rule is **v1.2 ACTIVE** as of 2026-05-23.
 
 ### Change log
 
@@ -188,6 +199,7 @@ This cycle rule is **v1.1 ACTIVE** as of 2026-05-22.
 |---|---|---|---|
 | v1.0 | 2026-05-21 | Initial halt-loop design (single-skill entry, ralph-loop iteration, TDD per task, wiring triad gate). | Strategic review consolidated 3 proposed skills into 1 entry-point. |
 | v1.1 | 2026-05-22 | Added SEPA (Staff Engineer Pair-Program Agent) at `/implement` startup. Runtime-generated specialist agent composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + project rules. Consulted 3× per iteration (pre-RED, post-GREEN, pre-COMMIT) as read-only observer. Catches plan deviations + ADR cross-reference misses + SOLID/Clean Code violations + scope creep inline. Cost: ~30-60k tokens extra per cycle. | User directive 2026-05-22 post memory-contract-v0-0 retrospective: serial halt-loop lacked second-eyes safeguard; missed cross-references and required reactive fixes. Mirrors `/review`'s parallel-specialist pattern but inline during /implement instead of post-hoc. |
+| v1.2 | 2026-05-23 | Added § "Resume after recovered blocker" protocol + 5th Stop condition (real-tree HIGH/CRITICAL CVE) + 2 new anti-patterns (#10 never drive manually outside ralph-loop; #11 never ask user for permission between phases while pending tasks remain). Tightened § Stop conditions preamble to "ONLY valid reasons". Skill `/implement` SKILL.md updated in same PR with Step 4 expansion. | User directive 2026-05-23 post v0-1-local-runtime session retrospective: ralph-loop was cancelled by a recoverable HIGH CVE blocker; 22 subsequent tasks driven manually in foreground with per-phase user-confirmation prompts. Correct code shipped but contract violated (lost audit trail, lost Stop-hook restart, lost max-iterations safety). User flagged: "Voce nao deve parar ate o plano estiver completo, deveriamos esta usando o ralph-loop ou o goal para terminar o plano. Isso nao esta clara em nossas skills principalmente na skill implement?" — gap closed by making the resume protocol explicit + lifting "never ask between phases" to an anti-pattern. |
 
 ### v0.1 → v1.0 resolved decisions
 

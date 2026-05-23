@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.contract.json",
+  "compilerOptions": {
+    "paths": {
+      "@usetheo/memory/contract": ["./src/core/index.ts"]
+    }
+  },
+  "include": ["src/core/**/*.ts", "src/local/**/*.ts"],
+  "exclude": ["node_modules", "referencia", "dist", ".claude", "tests"]
+}

@@ -1,0 +1,107 @@
+{
+  "plan_slug": "v0-1-local-runtime",
+  "plan_path": ".claude/knowledge-base/plans/v0-1-local-runtime-plan.md",
+  "plan_version": "1.3",
+  "scored_at": "2026-05-23T12:36:44+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 85.0,
+  "active_dimensions": [
+    "completude",
+    "risco_estrutural"
+  ],
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 94.0,
+  "hard_caps_triggered": [],
+  "final_score_after_caps": 94.0,
+  "verdict": "SHIPPABLE",
+  "motivos": {
+    "completude": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (0/0)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidencia": [],
+    "calibracao": [],
+    "risco_estrutural": [
+      {
+        "sign": "negative",
+        "label": "5 weak_imperatives hits",
+        "weight": -5.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 34,
+      "mapped_gaps": 34,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 0,
+      "with_alternatives": 0,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 5,
+      "by_category": {
+        "weak_imperatives": 5
+      },
+      "total_penalty": -15
+    },
+    "architecture_compliance": {
+      "compliance_score": 1.0,
+      "project_rules_found_count": 16,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": [
+        "architecture.md",
+        "cycle-implement.md",
+        "cycle-plan.md",
+        "deps-audit-golden-rule.md",
+        "dogfood-golden-rule.md",
+        "testing.md"
+      ],
+      "principles_cited": [
+        "DIP",
+        "DRY",
+        "KISS",
+        "TDD"
+      ],
+      "has_dod_quality_signal": true,
+      "has_size_budget_signal": true,
+      "motivos": [
+        "References 6 project rule(s): ['architecture.md', 'cycle-implement.md', 'cycle-plan.md']",
+        "Cites 4 principle(s): ['DIP', 'DRY', 'KISS']",
+        "Global DoD references quality gates (lint/complexity/size)",
+        "Plan mentions file-size budget"
+      ]
+    }
+  },
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  }
+}

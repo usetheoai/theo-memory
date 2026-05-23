@@ -79,3 +79,38 @@ export type {
   ReflectionPolicy,
   ReflectionTrigger,
 } from './dip/reflection-policy.js';
+
+// Pure-core algorithms (v0.1, Phase 1)
+export { hashFact } from './dedup.js';
+export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
+export {
+  ENTITY_BOOST_WEIGHT,
+  combineScores,
+  entityBoost,
+  maxPossible,
+  sigmoidBm25,
+} from './scoring.js';
+export type { ActiveSignals, CandidateScores } from './scoring.js';
+
+// Cross-cutting constants
+export { MAX_EMBEDDING_DIM } from './constants.js';
+
+// Observable events (Phase 4 + Phase 5)
+export { MEMORY_EVENTS, emitEvent } from './memory-event.js';
+export type { AttributeValue, MemoryEvent } from './memory-event.js';
+
+// Extraction prompt (Phase 4)
+export {
+  AdditiveExtractionSchema,
+  escapeMarkdownHeaders,
+  generateAdditiveExtractionPrompt,
+} from './extraction/prompt.js';
+export type { AdditiveExtractionResponse, PromptResult } from './extraction/prompt.js';
+
+// Extraction pipeline (Phase 4 — the 8-phase write)
+export { runExtractionPipeline } from './extraction/pipeline.js';
+export type { ExtractionDeps } from './extraction/pipeline.js';
+
+// Retrieval pipeline (Phase 5 — the 9-step search)
+export { runRetrievalPipeline } from './retrieval/pipeline.js';
+export type { RetrievalDeps } from './retrieval/pipeline.js';
