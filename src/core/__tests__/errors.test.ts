@@ -5,6 +5,7 @@ import {
   EmbeddingMismatch,
   InvalidScope,
   MemoryNotFound,
+  MissingScopeError,
   ReflectionNotConfigured,
 } from '../errors.js';
 
@@ -67,5 +68,31 @@ describe('error name fields are literal-typed (as const)', () => {
     const e = new MemoryNotFound('x');
     const literal: 'MemoryNotFound' = e.name;
     expect(literal).toBe('MemoryNotFound');
+  });
+});
+
+describe('MissingScopeError — fail-loud per ADR D4 (binding 3-state resolver)', () => {
+  test('exposes a stable literal name "MissingScopeError"', () => {
+    const e = new MissingScopeError('authenticated session required');
+    const literal: 'MissingScopeError' = e.name;
+    expect(literal).toBe('MissingScopeError');
+  });
+
+  test('is an instance of Error AND of MissingScopeError (EC-2 cross-module trap)', () => {
+    const e = new MissingScopeError('binding requires session-bearing TheoKit context');
+    expect(e instanceof Error).toBe(true);
+    expect(e instanceof MissingScopeError).toBe(true);
+  });
+
+  test('preserves the caller-provided message verbatim', () => {
+    const message = 'authenticated session required — call requireAuth(ctx.session) first';
+    const e = new MissingScopeError(message);
+    expect(e.message).toBe(message);
+  });
+
+  test('retains cause when provided via ErrorOptions', () => {
+    const root = new Error('upstream session decode failure');
+    const e = new MissingScopeError('session decryption failed', { cause: root });
+    expect(e.cause).toBe(root);
   });
 });
