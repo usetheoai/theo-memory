@@ -20,7 +20,13 @@
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T7.1
  */
+import { dirname, resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { Tracer } from '@opentelemetry/api';
+import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import type { Pool } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { Embedder } from '../core/dip/embedder.js';
@@ -118,7 +124,7 @@ class LocalScopedMemory implements ScopedMemory {
 
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
     if (options?.asOf !== undefined) {
-      throw new BiTemporalNotSupportedLocally('recall(asOf) is local v0.1; cloud v0.5+ supports it');
+      throw new BiTemporalNotSupportedLocally();
     }
     return runRetrievalPipeline(query, this.filters, {
       vectorStore: this.config.vectorStore,
@@ -129,19 +135,13 @@ class LocalScopedMemory implements ScopedMemory {
 
   reflect(_options?: ReflectOptions): Promise<ReflectionResult> {
     if (this.reflectionPolicy === undefined) {
-      return Promise.reject(
-        new ReflectionNotConfigured(
-          'reflect() requires a ReflectionPolicy in MemoryConfig (ADR-0005; v0.4a ships ThresholdReflectionPolicy)',
-        ),
-      );
+      return Promise.reject(new ReflectionNotConfigured());
     }
     void this.scope;
     void _options;
     // v0.1 ships only ManualReflectionPolicy; the policy DIP is wired but the
     // actual reflection algorithm lands at v0.4a per roadmap Item 5.
-    return Promise.reject(
-      new ReflectionNotConfigured('reflect() implementation deferred to v0.4a (roadmap Item 5)'),
-    );
+    return Promise.reject(new ReflectionNotConfigured());
   }
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
@@ -242,7 +242,7 @@ class LocalMemory implements Memory {
 async function probeEmbedder(embedder: Embedder): Promise<void> {
   const vector = await embedder.embed(PROBE_TEXT);
   if (vector.length !== MAX_EMBEDDING_DIM) {
-    throw new EmbeddingMismatch({ expected: MAX_EMBEDDING_DIM, actual: vector.length });
+    throw new EmbeddingMismatch(MAX_EMBEDDING_DIM, vector.length);
   }
 }
 
@@ -258,3 +258,31 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Memo
 
 /** Alias matching the public surface name (T7.2 re-exports). */
 export { createLocalMemory as createMemory };
+
+/**
+ * Apply pgvector + Drizzle migrations to a Postgres database.
+ *
+ * For production use: run once at app boot before constructing `createMemory`.
+ * Idempotent: re-running against an already-migrated DB is a no-op.
+ *
+ * Resolves the migrations folder shipped inside the npm package (`src/local/migrations/`).
+ * Consumers do NOT need to know the path — they just provide the pool.
+ *
+ * Per F-dom-2 + db-migrations CRITICAL #2: addresses the production gap where
+ * createLocalMemory previously assumed the schema already existed. Now consumers
+ * can either:
+ *   - dev:  `npm run db:push` (introspection-based, runs CREATE EXTENSION first via npm script)
+ *   - prod: `await runMigrations(pool)` at app boot, then `createMemory({...})`.
+ */
+export async function runMigrations(pool: Pool): Promise<void> {
+  // pgvector extension MUST exist before tables with vector columns can be created.
+  // Idempotent; safe to re-run.
+  await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+
+  // Resolve migrations folder shipped inside this package.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const migrationsFolder = resolvePath(here, 'migrations');
+
+  const db = drizzleNodePostgres(pool);
+  await migrate(db, { migrationsFolder });
+}

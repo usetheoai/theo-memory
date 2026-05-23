@@ -18,9 +18,12 @@
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
  * @see referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
  */
+import type { Tracer } from '@opentelemetry/api';
 import type { Pool, QueryResultRow } from 'pg';
 
+import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
 
 type Payload = Record<string, string | number | boolean | null>;
@@ -37,7 +40,21 @@ interface MemoriesRow extends QueryResultRow {
   readonly rank?: number;
 }
 
+/**
+ * Convert a number[] into pgvector's `[v1,v2,...]` literal syntax.
+ *
+ * F-dom-1 absorption: guards every component against NaN / Infinity / -Infinity.
+ * Without the guard, malformed vectors would reach pgvector and fail with a
+ * cryptic `invalid input syntax for type vector` error at the SQL layer. With
+ * the guard, callers see a clear JS error pointing at the offending index.
+ */
 function vectorLiteral(vector: readonly number[]): string {
+  for (let i = 0; i < vector.length; i += 1) {
+    const n = vector[i] as number;
+    if (!Number.isFinite(n)) {
+      throw new Error(`vectorLiteral: vector[${i}] is not finite (${String(n)}); pgvector requires finite numbers`);
+    }
+  }
   return `[${vector.join(',')}]`;
 }
 
@@ -93,7 +110,16 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
 export class PgvectorStore implements VectorStore {
   private currentUserId = '';
 
-  constructor(private readonly pool: Pool) {}
+  /**
+   * @param pool   — connected pg.Pool
+   * @param tracer — optional OTel tracer for observability of internal per-row fallback paths
+   *                 (F-arch-3 absorption — defense-in-depth event emission below the pipeline level).
+   *                 When absent, fallback is silent (matches v0.1.0 behavior).
+   */
+  constructor(
+    private readonly pool: Pool,
+    private readonly tracer?: Tracer,
+  ) {}
 
   async initialize(): Promise<void> {
     // Schema is owned by Drizzle migrations (T2.2). Just verify connectivity.
@@ -112,6 +138,12 @@ export class PgvectorStore implements VectorStore {
       await this.insertBatch(vectors, ids, payloads);
     } catch {
       // Per-row fallback (blueprint D1 / Recommendation 1)
+      // F-arch-3 absorption: emit persist_fallback event so consumers observing the
+      // tracer can detect partial-batch degradation. Per-row failures are still
+      // skipped (do not poison the rest of the batch), but at least one
+      // persist_fallback span fires per fallback invocation.
+      emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
+      let failed = 0;
       for (let i = 0; i < vectors.length; i += 1) {
         try {
           await this.insertSingle(
@@ -120,8 +152,11 @@ export class PgvectorStore implements VectorStore {
             payloads[i] as Payload,
           );
         } catch {
-          // Log + skip; do not poison the rest of the batch
+          failed += 1;
         }
+      }
+      if (failed > 0) {
+        emitEvent(this.tracer, 'persist_fallback', { failed_rows: failed, total: vectors.length });
       }
     }
   }
@@ -175,6 +210,16 @@ export class PgvectorStore implements VectorStore {
     topK = 10,
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[]> {
+    // F-dom-4 absorption: guard query vector dimension. The factory probes the
+    // embedder at construction time (EC-5) but the retrieval pipeline could
+    // still pass a malformed query (e.g., empty array from a failed embed).
+    // Surface the bug here with a clear error rather than letting pgvector
+    // silently return wrong results from a dimension mismatch.
+    if (query.length !== MAX_EMBEDDING_DIM) {
+      throw new Error(
+        `PgvectorStore.search: query vector dimension ${query.length} does not match MAX_EMBEDDING_DIM ${MAX_EMBEDDING_DIM}`,
+      );
+    }
     const filter = composeFilters(filters, 2);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,

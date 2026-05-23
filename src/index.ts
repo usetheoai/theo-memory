@@ -11,7 +11,7 @@
  */
 
 // Default factory (local runtime)
-export { createMemory, createLocalMemory } from './local/index.js';
+export { createMemory, createLocalMemory, runMigrations } from './local/index.js';
 export type { LocalMemoryConfig } from './local/index.js';
 
 // Local-runtime adapter classes (advanced consumers wiring custom configs)

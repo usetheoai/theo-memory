@@ -1,3 +1,10 @@
+-- Enable pgvector extension. Required for the vector() column type + HNSW indexes below.
+-- Idempotent: safe to re-run; if pgvector not installed in the Postgres image, this fails LOUDLY
+-- with a clear error (vs cryptic "type vector does not exist" on column creation).
+-- Per F-dom-2 review finding: consumers running `drizzle-kit push` should NOT need to manually
+-- run `psql -c "CREATE EXTENSION ..."` as a separate step.
+CREATE EXTENSION IF NOT EXISTS vector;
+--> statement-breakpoint
 CREATE TABLE "entities" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
