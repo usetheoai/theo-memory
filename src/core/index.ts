@@ -106,3 +106,7 @@ export {
   generateAdditiveExtractionPrompt,
 } from './extraction/prompt.js';
 export type { AdditiveExtractionResponse, PromptResult } from './extraction/prompt.js';
+
+// Extraction pipeline (Phase 4 — the 8-phase write)
+export { runExtractionPipeline } from './extraction/pipeline.js';
+export type { ExtractionDeps } from './extraction/pipeline.js';
