@@ -1,11 +1,10 @@
 {
   "name": "@usetheo/memory",
-  "version": "0.0.0-rc.1",
+  "version": "0.0.0-rc.2",
   "description": "Managed three-tier memory layer for the usetheo ecosystem. Pre-release.",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "_v0_0_exports_preview_only": true,
   "exports": {
     "./contract": {
       "types": "./src/core/index.ts",
@@ -19,16 +18,34 @@
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
     "lint": "eslint 'src/core/**/*.ts' --no-error-on-unmatched-pattern",
-    "test": "vitest run --config vitest.contract.config.ts"
+    "test": "vitest run --config vitest.contract.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "compose:up": "docker compose up -d pgvector",
+    "compose:down": "docker compose down"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.0",
+    "pg": "^8.13.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "drizzle-kit": "^0.31.0",
     "eslint": "^9.0.0",
     "eslint-plugin-import": "^2.30.0",
     "jiti": "^2.7.0",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "vitest-mock-extended": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "natural": "^8.1.0"
   },
   "repository": {
     "type": "git",
