@@ -82,3 +82,4 @@ export type {
 
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
+export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
