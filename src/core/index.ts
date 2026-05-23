@@ -49,6 +49,7 @@ export {
   EmbeddingMismatch,
   InvalidScope,
   MemoryNotFound,
+  MissingScopeError,
   ReflectionNotConfigured,
 } from './errors.js';
 
