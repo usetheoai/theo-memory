@@ -142,9 +142,9 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 
 
 
-## Status — v0.1 local runtime shipped; v0.2+ in design
+## Status — v0.2 PR-A (TheoKit binding) shipped; PR-B + cloud + reflection in design
 
-> `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
+> `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23; v0.2 PR-A (TheoKit binding) shipped via PR #11 on 2026-05-23. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
 >
 > What works today (v0.1 local runtime, against `ankane/pgvector:v0.5.1`):
 > - **`createMemory` factory** + `runMigrations` helper + public barrel at `@usetheo/memory`.
@@ -161,7 +161,7 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 > - **Pre-release.** No package published. No "production-ready" claim until v1.0 with reproduced benchmarks (LongMemEval + LoCoMo + DMR) per the macro roadmap.
 > - **Cloud runtime not built yet.** v0.5 depends on TheoCloud (pre-release) GA.
 > - **Reflection algorithm not built yet.** `reflect()` throws `ReflectionNotConfigured` at v0.1; v0.4a roadmap Item 5 lands the actual algorithm behind the `ReflectionPolicy` DIP.
-> - **TheoKit binding not built yet.** `@usetheo/memory/theokit` subpath ships at v0.2 (roadmap Item 3).
+> - **TheoKit binding shipped (PR-A).** `@usetheo/memory/theokit` subpath exports `memoryFromCtx(ctx, memory)` — auto-scopes `user_id` from `ctx.session.userId` via structural typing (zero peer-dep on `theokit`, ADR D1). 3-state resolver per ADR D4 throws `MissingScopeError` for session-null / session-absent / userId-empty. PR-B (sibling `theokit` repo) coordinates default-on memory in scaffolded `create-theo` templates per ADR D7 — pending; until then consumers add `@usetheo/memory` as a dep + wire the singleton manually per the binding example above.
 > - **MCP tools not built yet.** `@usetheo/memory/agent-tools` subpath ships at v0.3 (roadmap Item 4).
 > - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). Maximum permissiveness for proprietary embeds.
 >
@@ -395,15 +395,15 @@ The contract above is the target. The shipping order is:
 
 | Milestone | Scope | Status |
 |---|---|---|
-| **0.0 — Contract** | Type contract for `Memory`, `MemoryStore`, three tiers, retrieval scorer, two-stage pipeline. Frozen in `docs.md`. | In design |
-| **0.1 — Core + local runtime** | `core/` + `local/` (Postgres + pgvector). Single backend, three tiers, recency × importance × relevance retrieval, two-stage pipeline. | Planned |
-| **0.2 — TheoKit binding** | `theokit/` package: request-context resolution, default-on memory in scaffolded TheoKit apps. | Planned |
+| **0.0 — Contract** | Type contract for `Memory`, `MemoryStore`, three tiers, retrieval scorer, two-stage pipeline. | **Shipped 2026-05-22** (PR #4) |
+| **0.1 — Core + local runtime** | `core/` + `local/` (Postgres + pgvector). Single backend, three tiers, additive scoring, 8-phase write + 9-step search. | **Shipped 2026-05-23** (PR #8) |
+| **0.2 — TheoKit binding** | `theokit/` subpath: `memoryFromCtx(ctx, memory)` auto-scopes from `ctx.session.userId` via structural typing. Default-on in scaffolded TheoKit apps deferred to sibling repo PR-B per ADR D7. | **PR-A shipped 2026-05-23** (PR #11); PR-B pending |
 | **0.3 — Agent tools** | `agent-tools/` package: MCP tools for `@usetheo/sdk` agents. | Planned |
 | **0.4 — Reflection + forgetting** | `reflect()` pipeline (Generative Agents-shaped). LLM-importance-aware forgetting that preserves long-tail. | Planned |
 | **0.5 — TheoCloud runtime** | `cloud/` package + TheoCloud-managed backend. Premium capabilities (graph, multi-region, audit). Depends on Theo PaaS general availability. | Planned |
 | **1.0** | Contract stable, benchmarks reproduced independently, production claims allowed. | Planned |
 
-Honest claims only — no version above 0.0 has shipped. The roadmap is the commitment, not the receipt.
+Honest claims only — v0.0 + v0.1 + v0.2 PR-A shipped to git (`main`); package is NOT yet published to npm; no "production-ready" claim until v1.0 with reproduced benchmarks per CLAUDE.md § honesty discipline. The roadmap is the commitment, not the receipt.
 
 ## Where this fits
 
