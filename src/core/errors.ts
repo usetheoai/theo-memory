@@ -58,3 +58,25 @@ export class ReflectionNotConfigured extends Error {
     Object.setPrototypeOf(this, ReflectionNotConfigured.prototype);
   }
 }
+
+/**
+ * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
+ *
+ * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
+ * `ctx.session.userId` cannot be resolved to a non-empty string — covers the two
+ * "no usable scope" states:
+ *   (b) `ctx.session === null` (unauthenticated request on a session-bearing context)
+ *   (c) `ctx.session` field absent OR `ctx.session.userId` undefined/non-string/empty/whitespace
+ * (state (a) — `userId` is a non-empty string — returns the scoped memory and does NOT throw)
+ *
+ * Caller-provided message lets the binding distinguish state (b) from state (c)
+ * at the call site (e.g., "authenticated session required — call requireAuth(ctx.session) first").
+ */
+export class MissingScopeError extends Error {
+  override readonly name = 'MissingScopeError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, MissingScopeError.prototype);
+  }
+}
