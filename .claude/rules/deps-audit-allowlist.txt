@@ -33,4 +33,8 @@
 # python|pyyaml|<6.0|CVE-2020-14343|removing pyyaml requires refactor of config loader (planned T2.4 of plan X)|2026-06-15
 #
 # ---
-# Seed: empty. Add entries only when justified by an ADR row in the affected plan.
+# Active entries — v0.1 cycle (plan v0-1-local-runtime-plan.md v1.3, ADR D1.10)
+npm|esbuild|<=0.24.2|GHSA-67mh-4wv8-2f99|MODERATE dev-server-request-leak chained from drizzle-kit ^0.31.0's deprecated @esbuild-kit/esm-loader (merged into tsx upstream). v0.1 usage of drizzle-kit is CLI-only (db:push/db:generate); no esbuild dev-server is spun up. Production bundle does not include esbuild or drizzle-kit (devDep). Fix requires drizzle-kit upstream to migrate to tsx; tracked at https://github.com/drizzle-team/drizzle-orm/issues. Plan v1.3 ADR D1.10 documents the bump rationale; re-audit at sunset to verify upstream fix or escalate.|2026-08-23
+npm|@esbuild-kit/core-utils|*|GHSA-67mh-4wv8-2f99|Same root cause as esbuild entry above — deprecated dep chained from drizzle-kit; will disappear when drizzle-kit migrates to tsx.|2026-08-23
+npm|@esbuild-kit/esm-loader|*|GHSA-67mh-4wv8-2f99|Same root cause; deprecated upstream (merged into tsx).|2026-08-23
+npm|drizzle-kit|^0.31.0|GHSA-67mh-4wv8-2f99|Surface manifestation of the esbuild dev-server-request-leak — drizzle-kit's transitive @esbuild-kit chain. devDep only; dev-server never invoked in our usage.|2026-08-23
