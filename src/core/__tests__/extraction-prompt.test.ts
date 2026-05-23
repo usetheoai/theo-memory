@@ -16,7 +16,13 @@ import type { Message } from '../message.js';
 const fixtureMemory = (id: string, text: string): MemoryItem => ({
   id,
   text,
+  hash: 'fixture-hash',
+  scope: { kind: 'user', userId: 'alice' },
   createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+  metadata: {},
+  tValid: new Date('2026-01-01T00:00:00Z'),
+  tInvalid: null,
 });
 
 describe('escapeMarkdownHeaders (EC-4)', () => {
