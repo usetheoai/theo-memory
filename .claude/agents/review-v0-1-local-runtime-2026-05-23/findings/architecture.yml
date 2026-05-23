@@ -1,0 +1,176 @@
+agent: review-v0-1-local-runtime-architecture
+review_target: main..HEAD for plan v0-1-local-runtime
+plan: .claude/knowledge-base/plans/v0-1-local-runtime-plan.md
+findings:
+  - id: F-arch-1
+    severity: CRITICAL
+    file: src/local/history-manager.ts
+    line: 30-31
+    plan_ref: T6.1 Drizzle-backed HistoryManager implementation
+    summary: Type safety violation—`NodePgDatabase<any>` erases Drizzle type information at constructor, breaking LSP for type-narrowing callers
+    evidence: |
+      ```ts
+      constructor(private readonly db: NodePgDatabase<any>) {}
+      ```
+      The eslint-disable comment is a band-aid. Per architecture.md § Module hygiene ("No `any` in TypeScript"), this violates strict mode. While the adapter has an eslint-disable-line directive, the design pattern itself breaks Drizzle's generic type system for future schema extensions (e.g., v0.2 entity table integration). Callers cannot reliably infer column types or schema changes.
+    recommended_action: Use a generic parameter `DrizzleHistoryManager<T extends Record<string, any>>` or accept `NodePgDatabase<typeof schema>` where schema is imported from ./schema.ts. This preserves type safety across versions and allows Drizzle's type guards to work end-to-end. The one-liner fix makes the class LSP-compliant for any future refactoring that adds typed schemas.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 99-162
+    plan_ref: T7.1 LocalScopedMemory implementation
+    summary: SRP violation—LocalScopedMemory couples scoping, filtering, and DIP wiring; constructor accepts full config instead of scoped dependencies
+    evidence: |
+      ```ts
+      class LocalScopedMemory implements ScopedMemory {
+        constructor(
+          private readonly scope: Scope,
+          private readonly filters: Filters,
+          private readonly config: LocalMemoryConfig,  // <-- passes entire MemoryConfig
+          private readonly reflectionPolicy: ReflectionPolicy | undefined,
+        ) {}
+      ```
+      Every call to `remember`, `recall`, `getAll` extracts and passes sub-fields from `this.config` (vectorStore, embedder, llm, etc.). The class has ONE reason to change (scope/filter shape), but the constructor couples it to the entire config structure. If v0.2 adds a new DIP (e.g., `ReflectionTriggerPolicy`), every call site must thread it through `config`.
+    recommended_action: Refactor constructor to accept minimal DIP shape: `constructor(scope: Scope, filters: Filters, vectorStore: VectorStore, embedder: Embedder, llm: LLM, ...)` OR use a frozen options object narrowed to only the DIPs each method actually uses. This applies OCP—adding a new DIP at v0.2 becomes an additive parameter, not a structural reshaping of the entire `config` object. Lower the constructor's visible parameter count from 4 to a DIP bundle matching the actual API surface.
+
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 113-126
+    plan_ref: T3.3 Per-row fallback implementation (EC-3 error handling)
+    summary: Silent error swallowing in per-row fallback loop—errors are caught and skipped with no logging or telemetry
+    evidence: |
+      ```ts
+      try {
+        await this.insertBatch(vectors, ids, payloads);
+      } catch {
+        for (let i = 0; i < vectors.length; i += 1) {
+          try {
+            await this.insertSingle(...);
+          } catch {
+            // Log + skip; do not poison the rest of the batch
+          }  // <-- no actual logging; comment is aspirational
+        }
+      }
+      ```
+      The plan (T3.3) declares "per-row fallback at every I/O boundary" to honor Mem0's resilience. The code achieves the functional goal (insert continues despite failures) but VIOLATES global CLAUDE.md § PARTE I-8 (error handling). Errors silently disappear; callers have no visibility into partial failures. A batch of 10 vectors with 3 insertion failures returns success with zero indication that 30% of the write was lost.
+    recommended_action: (a) Accept a `logger?: Logger` in the constructor (DIP), or (b) emit OpenTelemetry span events for per-row failures (plan ADR D1.4 declares tracer slots). Log structured data: `{ rowIndex: i, id: vectorId, error: e.message }`. Callers can then decide: ignore (current behavior), retry, or escalate. The comment says "Log + skip" but the implementation is silent—honor the plan's intent by actually emitting the event or passing a structured logger.
+
+  - id: F-arch-4
+    severity: MINOR
+    file: src/core/lemmatization.ts
+    line: 18-32
+    plan_ref: T5.2 Optional stemmer selection via dynamic import
+    summary: Dynamic require() at module load time complicates testing and tree-shaking; considered acceptable for optional peer but warrants a future refactor flag
+    evidence: |
+      ```ts
+      import { createRequire } from 'node:module';
+
+      let naturalModule: NaturalModule | null = null;
+      try {
+        const req = createRequire(import.meta.url);
+        naturalModule = req('natural') as NaturalModule;
+      } catch {
+        naturalModule = null;
+      }
+      ```
+      This pattern is pragmatic (matches blueprint D6 / Recommendation 4: "try-require + fallback") and TypeScript-correct. However, it blocks top-level execution and complicates dead-code analysis. Tree-shakers see the code path (even if unreachable) and cannot fully eliminate `simpleStem` when `natural` IS installed. This is acceptable for v0.1 (optional peer design is solid), but flag for v0.2+: lazy-load via `dynamicImport` after first call, not at module instantiation.
+    recommended_action: Document in ADR D6 a v0.2 refactor goal: move the require into the first `stem()` call with a one-shot cache (same behavior, lazy execution). This allows tree-shakers to eliminate `simpleStem` at build time when `natural` is present. No code change required for v0.1 acceptance—this is a future optimization.
+
+  - id: F-arch-5
+    severity: INFO
+    file: src/core/extraction/pipeline.ts
+    line: 1-100
+    plan_ref: T4.3 8-phase write pipeline structure
+    summary: No issues found. Pipeline is properly modularized into phases, error handling uses per-row fallback as spec'd, and DIP boundaries are clean.
+    evidence: |
+      - Imports only from `src/core/` (DIPs, helpers, types); zero coupling to `src/local/`
+      - Each phase is a private async function with clear responsibility
+      - Error handling: batch → per-row fallback pattern used correctly at Phase 3 (embed), Phase 6 (persist), Phase 6.5 (history)
+      - OpenTelemetry spans emitted via `emitEvent` per ADR D1.4 and T4.2
+      - Zod parse with EC-10 fallback (returns [] on parse failure, no throw)
+    recommended_action: None. This module exemplifies the architecture design.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/local/in-memory-store.ts
+    line: 1-200
+    plan_ref: T3.2 In-memory VectorStore reference implementation
+    summary: No issues found. Implementation is pure, SRP-compliant, LSP-sound, and serves as accurate spec for pgvector adapter.
+    evidence: |
+      - Single responsibility: in-memory vector storage + cosine similarity
+      - Zero external I/O; zero dependencies beyond core types
+      - Filter matching is explicitly AND-composed per spec (architecture.md § 1)
+      - Cosine similarity function is mathematically correct (dot product + magnitude normalization)
+      - Implements all 11 VectorStore DIP methods; no partial implementations
+    recommended_action: None. This module exemplifies the reference implementation pattern.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/core/retrieval/pipeline.ts
+    line: 1-50
+    plan_ref: T5.1 9-step search pipeline
+    summary: No issues found. Pipeline correctly implements the additive scoring model from Mem0 (blueprint D2), with threshold-gate-BEFORE-combining invariant preserved.
+    evidence: |
+      - Nine steps clearly named and ordered per Mem0 comments (blueprint D2 citations)
+      - Semantic threshold gates BEFORE combining (EC-9 invariant: semantic < threshold → skip BM25+entity combine)
+      - Additive scoring uses `combineScores(scores, maxPossible(signals))` — dumb arithmetic, as spec'd
+      - NaN handling per EC-8: threshold gate drops NaN-scored candidates
+      - Entity boost is optional flag-gated; v0.1 ships without entity store but interface ready for v0.2
+    recommended_action: None. This module exemplifies the retrieval design.
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/core/scoring.ts
+    line: 1-103
+    plan_ref: T5.1 Additive scoring primitives
+    summary: No issues found. Pure functions, correct mathematical formulas, no side effects or state.
+    evidence: |
+      - Four exports: `sigmoidBm25`, `entityBoost`, `maxPossible`, `combineScores` — each is stateless
+      - Sigmoid params tuned by query length (short vs long queries have different thresholds)
+      - Entity boost uses spread-attenuation formula (1 / (1 + 0.001 * (n-1)^2)) matching Mem0 exactly
+      - maxPossible correctly computes signal-active combinations {0, 1.0, 1.5, 2.0, 2.5}
+      - combineScores guards divide-by-zero and caps at 1.0 per EC-1
+    recommended_action: None. This module exemplifies pure-function design.
+
+  - id: F-arch-9
+    severity: INFO
+    file: src/index.ts
+    line: 1-23
+    plan_ref: T7.2 Public barrel export
+    summary: No issues found. Correctly re-exports local runtime factory as default, contract types from core, and advanced adapters.
+    evidence: |
+      - Default export: `createMemory`, `createLocalMemory` (local runtime) per T7.2
+      - Adapter classes exported for advanced consumers (InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager)
+      - Full contract re-exported from `./core/index.js` (types, DIPs, errors)
+      - v0.5 cloud subpath left unimplemented (stub comment present; no missing reference)
+      - No circular re-exports; import graph is acyclic
+    recommended_action: None. Public API shape is correct.
+
+  - id: F-arch-10
+    severity: INFO
+    file: src/local/schema.ts
+    line: 1-100
+    plan_ref: T2.1 Drizzle schema definition
+    summary: No issues found. Schema correctly declares three tables (memories, entities, history) with bi-temporal columns and pgvector indices.
+    evidence: |
+      - Three tables map cleanly to domain (memories = core, entities = opt-in via entityBoost flag, history = audit)
+      - Bi-temporal columns (t_valid, t_invalid) nullable per ADR-0006 (local runtime does not support asOf queries)
+      - HNSW index on embedding with vector_cosine_ops (pgvector 0.5.1 standard)
+      - Unique hash index (MD5 collision rare enough for v0.1 per EC-6)
+      - Scope columns (user_id, session_id, agent_id) all nullable; AND-composed at query time
+      - text_lemmatized JSONB for BM25 tokens (precomputed per blueprint Recommendation 3)
+    recommended_action: None. Schema design is correct.
+
+summary:
+  total_findings: 10
+  blocker: 0
+  critical: 1
+  major: 2
+  minor: 1
+  info: 6
+  highest_severity: |
+    **F-arch-1 (CRITICAL)**: `NodePgDatabase<any>` erases type safety in HistoryManager. Fixable in 1 line via generic parameter, but blocks LSP compliance. This is a one-line type annotation fix; recommend bundling with F-arch-2 below.
+
+  **F-arch-2 (MAJOR)**: LocalScopedMemory couples full MemoryConfig into constructor. Violates SRP and OCP (v0.2 additions become constructor reshapes). Recommend refactor to inject minimal DIP bundle matching actual method surface.
