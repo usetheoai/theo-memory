@@ -14,13 +14,16 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylistic,
   {
-    files: ['src/{core,local}/**/*.ts'],
+    files: ['src/{core,local,theokit}/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
     languageOptions: {
       parserOptions: {
         project: ['./tsconfig.contract.json', './tsconfig.local.json'],
+        // tsconfig.contract.json now spans src/{core,theokit}; tsconfig.local.json spans src/{core,local}.
+        // Together they cover all linted files. src/theokit/__tests__/ test files are picked up via
+        // the contract project's include glob.
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -39,11 +42,14 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/{core,local}/**/__tests__/**/*.test*.ts'],
+    files: ['src/{core,local,theokit}/**/__tests__/**/*.test*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-empty-function': 'off',
+      // vitest-mock-extended `mock<T>()` produces method spies referenced as
+      // `expect(mock.method).toHaveBeenCalled()`; unbound-method false-positives.
+      '@typescript-eslint/unbound-method': 'off',
       'import/order': 'off',
     },
   },

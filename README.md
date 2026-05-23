@@ -270,30 +270,39 @@ await memory.session(sessionId).clear();
 await memory.agent(agentId).reflect({ window: "7d" });
 ```
 
-### TheoKit-native binding
+### TheoKit-native binding (`@usetheo/memory/theokit`)
 
-When the consumer is a [TheoKit](../theokit) app, the wiring is implicit — `@usetheo/memory` reads workspace, user identity, and session from the request context. This is the **default-on integration that makes TheMemory native to TheoKit**:
+When the consumer is a [TheoKit](../theokit) app, the binding auto-scopes memory from the request context — no explicit `memory.user(id)` thread through every handler. The lock-in surface is **opt-in via a separate subpath** (consumers not using TheoKit pay zero binding bundle cost):
 
 ```typescript
-// server/routes/chat.ts (TheoKit route)
-import { defineRoute } from "theokit/server";
-import { memory } from "@usetheo/memory/theokit";
+// server/routes/notes.ts (TheoKit route)
+import { defineRoute, requireAuth } from "theokit/server";
+import { memoryFromCtx } from "@usetheo/memory/theokit";
+import { z } from "zod";
+
+import { memory } from "../memory.js"; // your app-scoped singleton
 
 export const POST = defineRoute({
-  body: z.object({ message: z.string() }),
-  handler: async ({ body, ctx }) => {
-    const context = await memory.recall(body.message, {
-      user: ctx.user.userId,         // resolved from session
-      session: ctx.session.id,       // resolved from cookie
-      agent: ctx.agentId,            // resolved from route
-      scopes: ["user", "session", "agent"],
-    });
-    // ... pass context to your LLM call
+  body: z.object({ text: z.string() }),
+  handler: async ({ ctx, body }) => {
+    requireAuth(ctx.session);
+    await memoryFromCtx(ctx, memory).remember(body.text);
+    return { ok: true };
   },
 });
 ```
 
-Outside TheoKit the framework-agnostic API is identical, but you wire workspace / user / session manually. **Inside TheoKit, the wiring writes itself.** That is the lock-in this project owns explicitly.
+`memoryFromCtx(ctx, memory)` reads `ctx.session.userId` structurally — zero peer-dependency on the `theokit` package. The resolver has three explicit states:
+
+- **(a)** `userId` is a non-empty string → returns `memory.user(userId)`
+- **(b)** `ctx.session === null` (unauthenticated) → throws `MissingScopeError` with guidance to call `requireAuth(ctx.session)` first
+- **(c)** `session` field absent OR `userId` undefined/non-string/empty/whitespace → throws `MissingScopeError` with guidance to wire `createSessionManager`
+
+`MissingScopeError` is re-exported from the same subpath for `instanceof` checks in error boundaries.
+
+v0.2 resolves the **`userId` tier only**; consumers needing `sessionId` or `agentId` scoping call `memory.session(id)` / `memory.agent(id)` directly per the three-tier API. Multi-tier auto-resolution may land in a later milestone. Default-on memory in scaffolded `create-theokit` templates (`saas` + `postgres`) is **planned** as a follow-up — until that lands, consumers add `@usetheo/memory` as a dep + wire the singleton themselves.
+
+Outside TheoKit the framework-agnostic API is identical — wire `user` / `session` / `agent` manually. **Inside TheoKit, the binding reads them from `ctx.session` for you.** That is the lock-in this project owns explicitly.
 
 ### Retrieval — vector-based hybrid, multi-signal
 
