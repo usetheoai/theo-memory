@@ -192,7 +192,9 @@ Build the per-invocation driver file:
    - Leave `{ITERATION}` for ralph-loop to substitute per iteration.
 2. Write the substituted text to `.claude/halt-loop-prompts/implement-{plan-slug}.md` (gitignored).
 
-### Step 4 — Invoke ralph-loop (shell-safe positional prompt + flags)
+### Step 4 — Invoke ralph-loop (shell-safe positional prompt + flags) — MANDATORY
+
+**The halt-loop is the ONLY mode of execution. Driving tasks manually outside of ralph-loop is a contract violation.** The skill exists to wrap a `cycle-plan` output in a long-running TDD halt-loop; bypassing the loop defeats the whole point (audit trail, restart-on-Stop hook, max-iterations safety, promise-marker termination).
 
 Use the Skill tool to invoke `ralph-loop:ralph-loop`:
 
@@ -201,6 +203,14 @@ Use the Skill tool to invoke `ralph-loop:ralph-loop`:
 - `--max-iterations N` (matches `{MAX_ITERATIONS}` from Step 3)
 
 Each iteration, ralph-loop replays the short positional prompt; Claude reads the driver file and drives one TDD step.
+
+#### The loop drives until ONE of these terminal states (no other exit is valid):
+
+| Terminal state | Trigger | Skill action |
+|---|---|---|
+| `<promise>IMPLEMENTATION_COMPLETE</promise>` | All tasks status=`committed` OR `blocked` with reason; all DoD checkboxes true | Proceed to Step 5 (validation gate) |
+| `<promise>IMPLEMENTATION_COMPLETE</promise>` with honest BLOCKED report | `iterations_used >= MAX_ITERATIONS` OR time budget exhausted OR same task fails GREEN 3× OR plan-defect halt | Surface BLOCKED tasks to user; do NOT pretend complete |
+| Ralph-loop cancelled externally (Stop hook removed, user `/cancel`, etc.) | User intervention OR fatal environment failure | **See § "Resume after recovered blocker" below — re-invoke ralph-loop with corrected state. NEVER drive remaining tasks manually.** |
 
 Each iteration executes ONE task's complete TDD cycle:
 
@@ -212,6 +222,27 @@ Each iteration executes ONE task's complete TDD cycle:
 6. **PROGRESS:** update `.progress-{slug}.json` audit trail
 
 If a task fails at any phase, the iteration HALTS (no commit), surfaces the failure honestly, and the loop attempts up to 3 retries with revised approach. After 3 attempts, mark task BLOCKED and continue OR escalate to human per stop conditions in cycle rule.
+
+#### Resume after recovered blocker (CRITICAL — added 2026-05-23 to close skill-clarity gap)
+
+Sometimes ralph-loop is cancelled mid-flight by a legitimate blocker (e.g., real-tree dep audit surfaces a HIGH CVE that requires plan revision; the boundary-check hook rejects an import that needs an inline rewrite; the dev environment is missing a binary). After the human + the skill cooperatively resolve the blocker (plan v1.x → v1.(x+1), env fix, etc.), the skill MUST re-invoke ralph-loop with the corrected state — NOT continue driving the remaining tasks manually.
+
+**Why this matters.** Manually driving Phase N+1, N+2, ... outside the halt-loop loses:
+- The audit trail (`.claude/halt-loop-prompts/` + ralph state file)
+- The per-iteration restart safety (Stop hook + iteration counter)
+- The promise-marker termination contract (when is "done" actually done?)
+- The discipline against ad-hoc scope creep ("just one more task while you're here")
+
+**Resume protocol:**
+
+1. **Verify the blocker is resolved.** Plan is at the correct version; package.json reflects bumped deps; env vars are set; whatever caused the original cancel is fixed.
+2. **Refresh the SEPA brief** at `.claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md` — re-concatenate the now-corrected plan + ADRs + audits. The SEPA's per-iteration value depends on having current context.
+3. **Reset the progress JSON.** Top-level `previous_halt` field records the original halt reason + resolution date; the BLOCKED task that was the trigger gets status=`pending` again with `retries` incremented and `previous_blocked_reason` preserved.
+4. **Verify halt-loop driver file still exists** at `.claude/halt-loop-prompts/implement-{slug}.md`. If gitignored + wiped, regenerate per Step 3.
+5. **Re-invoke ralph-loop with the SAME flags** as the original invocation (same `--completion-promise`, same `--max-iterations` budget — the iteration counter resumes from where progress JSON left off, NOT from 1).
+6. The fresh iteration reads `.progress-{slug}.json`, picks the formerly-BLOCKED task (now `pending`), and proceeds. SEPA's per-iteration brief includes the recovered state.
+
+**NEVER drive the remaining tasks manually after a recovered blocker.** Per § Halt-loop invariants below, the skill never asks the user for permission between tasks while pending tasks remain — re-invoking ralph-loop is the canonical resume path.
 
 ### Step 5 — Final validation gate
 
@@ -259,6 +290,8 @@ To handoff: gh pr create
 - The skill NEVER fabricates runtime-metric evidence — if `.wiring-evidence.json` is missing, the metric is unproven
 - The skill NEVER edits `.claude/knowledge-base/plans/{slug}-plan.md` during execution — the plan is the contract; revisions go through `cycle-plan` again
 - The skill NEVER scope-creeps mid-task — opportunistic improvements logged to `{slug}-followups.md`, NOT included in current commit
+- **The skill NEVER drives implementation tasks manually outside of ralph-loop.** The halt-loop is the ONLY execution mode. If ralph-loop is cancelled mid-flight by a recoverable blocker, the skill re-invokes ralph-loop per § Step 4 "Resume after recovered blocker"; it does NOT continue task-by-task in the foreground session.
+- **The skill NEVER asks the user for permission between phases while pending tasks remain.** Once `/implement` is invoked with a SHIPPABLE plan, the only valid stops are the 5 terminal conditions in `cycle-implement.md § Stop conditions`. Pausing to ask "continue?" after every committed task violates the autonomy contract and defeats the halt-loop's purpose. The promise-marker `<promise>IMPLEMENTATION_COMPLETE</promise>` OR an honest BLOCKED report is the only legitimate way to exit.
 
 ## When to give up honestly
 
@@ -268,8 +301,9 @@ Per `cycle-implement.md § Stop conditions`:
 2. Halt-loop max iterations reached → emit promise with honest "tasks N through M remaining"
 3. External dependency missing (Postgres down, lib not installed) → halt; surface for human to fix environment
 4. Plan task assumes behavior contradicted by reality (e.g., referenced pattern doesn't actually exist) → halt; loop back to `cycle-plan` for revision
+5. Real-tree validation surfaces a HIGH/CRITICAL CVE on a declared dep (e.g., `npm audit` post-install) → halt; loop back to `cycle-plan` for ADR + dep bump; re-invoke per § Step 4 "Resume after recovered blocker" once the plan is corrected
 
-Honest BLOCKED > false completion (Inquebrável Rule 3).
+Honest BLOCKED > false completion (Inquebrável Rule 3). **"Run out of session context" is NOT a valid halt reason** — the halt-loop's purpose is to span context boundaries via the Stop hook + restart pattern. If the foreground session is exhausting context, the correct response is to let ralph-loop's Stop hook trigger a fresh iteration, NOT to pause and ask the user.
 
 ## Related
 
