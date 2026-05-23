@@ -11,7 +11,6 @@ const BARREL = resolve(REPO_ROOT, 'src', 'core', 'index.ts');
 
 interface PackageJsonShape {
   readonly exports?: Record<string, { readonly types?: string; readonly default?: string | null }>;
-  readonly _v0_0_exports_preview_only?: boolean;
 }
 
 function readPackageJson(): PackageJsonShape {
@@ -40,12 +39,14 @@ describe('EC-3 — package.json#exports./contract.default is NOT null', () => {
     expect(contractEntry?.types).toBe(contractEntry?.default);
   });
 
-  test('package.json has _v0_0_exports_preview_only flag (self-documenting)', () => {
+  test('package.json#exports./contract still resolves at v0.1 (backward-compat with v0.0 contract preview)', () => {
     const pkg = readPackageJson();
-    expect(pkg._v0_0_exports_preview_only).toBe(true);
+    const contractEntry = pkg.exports?.['./contract'];
+    expect(contractEntry).toBeDefined();
+    expect(contractEntry?.default).toBe('./src/core/index.ts');
   });
 
-  test('package.json has no "." entry in exports (locks v0.0 from accidental default import)', () => {
+  test('package.json has no "." entry in exports yet (T7.2 of v0-1-local-runtime adds it)', () => {
     const pkg = readPackageJson();
     expect(pkg.exports).toBeDefined();
     expect(Object.keys(pkg.exports ?? {})).not.toContain('.');
