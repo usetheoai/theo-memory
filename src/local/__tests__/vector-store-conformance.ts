@@ -14,12 +14,19 @@
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.1
  * @see ADR D1.2 (this plan) + ADR-0008 (DIP method counts)
  */
+import { randomUUID } from 'node:crypto';
+
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { VectorStore } from '../../core/dip/vector-store.js';
 import type { Filters } from '../../core/scope.js';
 
 import { VEC_A, VEC_B, VEC_C } from './fixtures/deterministic-vectors.js';
+
+/** UUID v4 generator — matches the production schema (memories.id is uuid). */
+function uuid(): string {
+  return randomUUID();
+}
 
 export interface ConformanceContext {
   readonly store: VectorStore;
@@ -57,7 +64,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     });
 
     test('insert + get round-trip preserves payload + id', async () => {
-      const id = 'id-A';
+      const id = uuid();
       await ctx.store.insert([VEC_A], [id], [payload('A', { user_id: 'alice' })]);
       const result = await ctx.store.get(id);
       expect(result).not.toBeNull();
@@ -66,14 +73,14 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     });
 
     test('get returns null for unknown id', async () => {
-      const result = await ctx.store.get('does-not-exist');
+      const result = await ctx.store.get(uuid());
       expect(result).toBeNull();
     });
 
     test('insert N vectors persists each', async () => {
       await ctx.store.insert(
         [VEC_A, VEC_B, VEC_C],
-        ['a', 'b', 'c'],
+        [uuid(), uuid(), uuid()],
         [payload('A'), payload('B'), payload('C')],
       );
       const [results, total] = await ctx.store.list({}, 100);
@@ -82,20 +89,21 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     });
 
     test('search returns top-K ordered by similarity (A nearest A; C between)', async () => {
+      const idA = uuid();
       await ctx.store.insert(
         [VEC_A, VEC_B, VEC_C],
-        ['a', 'b', 'c'],
+        [idA, uuid(), uuid()],
         [payload('A'), payload('B'), payload('C')],
       );
       const hits = await ctx.store.search(VEC_A, 3);
       expect(hits.length).toBe(3);
-      expect(hits[0]?.id).toBe('a');
+      expect(hits[0]?.id).toBe(idA);
     });
 
     test('search respects topK limit', async () => {
       await ctx.store.insert(
         [VEC_A, VEC_B, VEC_C],
-        ['a', 'b', 'c'],
+        [uuid(), uuid(), uuid()],
         [payload('A'), payload('B'), payload('C')],
       );
       const hits = await ctx.store.search(VEC_A, 2);
@@ -105,7 +113,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     test('filter isolation by user_id (ADR-0002): scope A returns only scope A', async () => {
       await ctx.store.insert(
         [VEC_A, VEC_B],
-        ['alice-1', 'bob-1'],
+        [uuid(), uuid()],
         [payload('alice', { user_id: 'alice' }), payload('bob', { user_id: 'bob' })],
       );
       const aliceHits = await ctx.store.search(VEC_A, 10, { user_id: 'alice' });
@@ -116,7 +124,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     test('filter isolation by session_id', async () => {
       await ctx.store.insert(
         [VEC_A, VEC_B],
-        ['s1', 's2'],
+        [uuid(), uuid()],
         [
           payload('s1', { user_id: 'alice', session_id: 's1' }),
           payload('s2', { user_id: 'alice', session_id: 's2' }),
@@ -129,7 +137,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     test('filter isolation by agent_id', async () => {
       await ctx.store.insert(
         [VEC_A, VEC_B],
-        ['a1', 'a2'],
+        [uuid(), uuid()],
         [
           payload('a1', { agent_id: 'helper' }),
           payload('a2', { agent_id: 'critic' }),
@@ -140,30 +148,32 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     });
 
     test('keywordSearch returns results OR null (opt-out per DIP)', async () => {
-      await ctx.store.insert([VEC_A], ['kw-1'], [payload('Paulo likes coffee')]);
+      await ctx.store.insert([VEC_A], [uuid()], [payload('Paulo likes coffee')]);
       const result = await ctx.store.keywordSearch('coffee', 5);
       // Adapters may return either real results or null (opt-out)
       expect(result === null || Array.isArray(result)).toBe(true);
     });
 
     test('update refreshes vector + payload in place', async () => {
-      await ctx.store.insert([VEC_A], ['u-1'], [payload('original')]);
-      await ctx.store.update('u-1', VEC_B, payload('updated'));
-      const result = await ctx.store.get('u-1');
+      const id = uuid();
+      await ctx.store.insert([VEC_A], [id], [payload('original')]);
+      await ctx.store.update(id, VEC_B, payload('updated'));
+      const result = await ctx.store.get(id);
       expect(result?.payload['text']).toBe('updated');
     });
 
     test('delete removes a single vector', async () => {
-      await ctx.store.insert([VEC_A], ['del-1'], [payload('to delete')]);
-      await ctx.store.delete('del-1');
-      const result = await ctx.store.get('del-1');
+      const id = uuid();
+      await ctx.store.insert([VEC_A], [id], [payload('to delete')]);
+      await ctx.store.delete(id);
+      const result = await ctx.store.get(id);
       expect(result).toBeNull();
     });
 
     test('list returns paginated results with total count', async () => {
       await ctx.store.insert(
         [VEC_A, VEC_B, VEC_C],
-        ['p1', 'p2', 'p3'],
+        [uuid(), uuid(), uuid()],
         [payload('1'), payload('2'), payload('3')],
       );
       const [page, total] = await ctx.store.list({}, 2);
@@ -181,7 +191,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
       await ctx.store.setUserId('alice');
       await ctx.store.insert(
         [VEC_A, VEC_B],
-        ['x1', 'x2'],
+        [uuid(), uuid()],
         [payload('x1', { user_id: 'alice' }), payload('x2', { user_id: 'bob' })],
       );
       // search with no filter MUST return all tenants (setUserId is observability metadata)
@@ -190,9 +200,10 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     });
 
     test('truncate isolates state between tests (EC-3)', async () => {
-      await ctx.store.insert([VEC_A], ['t-1'], [payload('seeded')]);
+      const id = uuid();
+      await ctx.store.insert([VEC_A], [id], [payload('seeded')]);
       await ctx.truncate();
-      const result = await ctx.store.get('t-1');
+      const result = await ctx.store.get(id);
       expect(result).toBeNull();
     });
 
@@ -200,7 +211,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
     // the test runner re-applies migrations between files for pgvector,
     // and in-memory adapter reconstructs the Map on next factory call.
     test('deleteCol drops the entire collection (FINAL — runs once at suite end)', async () => {
-      await ctx.store.insert([VEC_A], ['dc-1'], [payload('to drop')]);
+      await ctx.store.insert([VEC_A], [uuid()], [payload('to drop')]);
       await ctx.store.deleteCol();
       // After deleteCol, behavior is implementation-specific; we just assert no throw.
       expect(true).toBe(true);
