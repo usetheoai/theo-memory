@@ -46,10 +46,11 @@ describe('EC-3 — package.json#exports./contract.default is NOT null', () => {
     expect(contractEntry?.default).toBe('./src/core/index.ts');
   });
 
-  test('package.json has no "." entry in exports yet (T7.2 of v0-1-local-runtime adds it)', () => {
+  test('package.json has "." entry in exports (T7.2 of v0-1-local-runtime landed it)', () => {
     const pkg = readPackageJson();
     expect(pkg.exports).toBeDefined();
-    expect(Object.keys(pkg.exports ?? {})).not.toContain('.');
+    expect(Object.keys(pkg.exports ?? {})).toContain('.');
+    expect(pkg.exports?.['.']?.default).toBe('./src/index.ts');
   });
 });
 
