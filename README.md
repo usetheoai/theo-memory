@@ -142,18 +142,30 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 
 
 
-## Status — design stage, contract being locked
+## Status — v0.1 local runtime shipped; v0.2+ in design
 
-> `@usetheo/memory` is **pre-release**. The API contract below is under active design. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
+> `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
 >
-> What is honest today:
-> - **Strategic placement decided** — managed memory of TheoCloud, TheoKit-native by design, MIT-licensed SDK.
-> - **Architecture decided** — vector-based hybrid: vector + LLM fact extraction + hybrid retrieval (semantic + BM25 + entity matching). Two runtimes (local Postgres + pgvector, cloud TheoCloud-managed) behind one API.
-> - **Contract under design** — the API in this README is the target shape.
-> - **No production claims.** No benchmark numbers. No "X tests passing" badge until the suite exists.
-> - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). The choice is deliberate: signal maximum permissiveness to downstream consumers and embed-into-proprietary use cases. The rest of the OSS ecosystem stays Apache-2.0.
+> What works today (v0.1 local runtime, against `ankane/pgvector:v0.5.1`):
+> - **`createMemory` factory** + `runMigrations` helper + public barrel at `@usetheo/memory`.
+> - **Three-tier scope** (`memory.user(id)` / `memory.session(id)` / `memory.agent(id)`) with isolation enforced at the SQL `WHERE` level.
+> - **8-phase write pipeline** ported verbatim from REDACTED with per-row fallback at every I/O boundary + OpenTelemetry spans per phase.
+> - **9-step search** with additive `(semantic + BM25 + entity_boost) / max_possible` scoring, threshold-gates-semantic-BEFORE-combining invariant, BM25 via Postgres `to_tsvector` + sigmoid normalization adapted to query length.
+> - **MD5 hash dedup** (no normalization; matches REDACTED byte-level behavior) + **Porter lemmatization** (optional `natural` peer + in-house `simpleStem` fallback).
+> - **Two `VectorStore` adapters**: in-memory (Map-backed, ~200 LoC) for unit tests + dev quickstart; pgvector (raw SQL via `pg`) for production. Both pass identical 17-test conformance suite.
+> - **`DrizzleHistoryManager`** for append-only audit trail (`Memory.history(id)` reverse-chronological).
+> - **Drizzle schema** with bi-temporal columns (`tValid`/`tInvalid` nullable per ADR-0006), HNSW pgvector index on 1536-dim embedding column (cap locked per plan ADR D1.7 due to pgvector 0.5.1's 2000-dim HNSW limit).
+> - **Test coverage**: 229 contract tests (unit + type) + 28 integration tests against real pgvector. Zero CRITICAL/HIGH CVE (4 MODERATE allowlisted, dev-only `esbuild` chain via drizzle-kit, sunset 2026-08-23).
 >
-> If you are evaluating *today* and need something running in production *today*, mature alternatives exist ([REDACTED](https://REDACTED.ai), [REDACTED](https://www.REDACTED.com), [REDACTED](https://www.REDACTED.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud.
+> What is still honest:
+> - **Pre-release.** No package published. No "production-ready" claim until v1.0 with reproduced benchmarks (LongMemEval + LoCoMo + DMR) per the macro roadmap.
+> - **Cloud runtime not built yet.** v0.5 depends on TheoCloud (pre-release) GA.
+> - **Reflection algorithm not built yet.** `reflect()` throws `ReflectionNotConfigured` at v0.1; v0.4a roadmap Item 5 lands the actual algorithm behind the `ReflectionPolicy` DIP.
+> - **TheoKit binding not built yet.** `@usetheo/memory/theokit` subpath ships at v0.2 (roadmap Item 3).
+> - **MCP tools not built yet.** `@usetheo/memory/agent-tools` subpath ships at v0.3 (roadmap Item 4).
+> - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). Maximum permissiveness for proprietary embeds.
+>
+> If you are evaluating *today* and need something running in production *today*, mature alternatives exist ([REDACTED](https://REDACTED.ai), [REDACTED](https://www.REDACTED.com), [REDACTED](https://www.REDACTED.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud OR you want a vector-based hybrid memory primitive without the framework lock-in.
 
 ## Two runtimes, one API
 
