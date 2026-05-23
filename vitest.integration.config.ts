@@ -22,6 +22,11 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     globals: false,
+    // Integration tests all share the same Postgres + pgvector container.
+    // Parallel file execution causes TRUNCATE races and FK constraint violations
+    // (see T6.1 fix log: history-manager.test seeded memories were nuked by
+    // pgvector-store.test's TRUNCATE running concurrently).
+    fileParallelism: false,
     coverage: {
       enabled: false,
     },
