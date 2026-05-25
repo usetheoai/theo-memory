@@ -1,6 +1,15 @@
 # Plan: v0.3 — `@usetheo/memory/agent-tools` — MCP server exposing 4 verbs to agent loops
 
-> **Version 1.0** — Ships a stdio + streamable-HTTP MCP server at the `@usetheo/memory/agent-tools` subpath exposing `remember/recall/forget/reflect` as JSON-RPC tools consumable by any MCP-aware agent loop (Claude Desktop, Cursor, `@usetheo/sdk` agents). Reuses v0.2's `memoryFromCtx` for scope binding via `AsyncLocalStorage`. Zero changes to `@usetheo/sdk` per blueprint ADR D4 (SDK already ships a full MCP client at SHA `6d9d553`). Closes CLAUDE.md Roadmap Item 4 acceptance: "MCP server boots; `tools/list` returns exactly 4 tools with stable names" + end-to-end via `@usetheo/sdk` agent + JSON-RPC trace confirms no cross-tool state leakage.
+> **Version 1.1** — Ships a stdio + streamable-HTTP MCP server at the `@usetheo/memory/agent-tools` subpath exposing `remember/recall/forget/reflect` as JSON-RPC tools consumable by any MCP-aware agent loop (Claude Desktop, Cursor, `@usetheo/sdk` agents). Reuses v0.2's `memoryFromCtx` for scope binding via `AsyncLocalStorage`. Zero changes to `@usetheo/sdk` per blueprint ADR D4 (SDK already ships a full MCP client at SHA `6d9d553`). Closes CLAUDE.md Roadmap Item 4 acceptance: "MCP server boots; `tools/list` returns exactly 4 tools with stable names" + end-to-end via `@usetheo/sdk` agent + JSON-RPC trace confirms no cross-tool state leakage.
+>
+> **v1.0 → v1.1 changes (2026-05-24):** absorbed 8 MUST FIX edge cases from `.claude/knowledge-base/reviews/v0-3-agent-tools-mcp-edge-cases-2026-05-24.md`:
+> - EC-1 + EC-8 (build ordering): moved build-pipeline-verify from T6.1 → T0.2 step 0; added `pretest` build hook in T7.1.
+> - EC-2 (input boundary): added payload size caps in T2.1 schemas (`MAX_CONTENT_BYTES=50_000`, `MAX_QUERY_BYTES=2_000`).
+> - EC-3 (schema dialect): added ADR D9 "JSON Schema dialect lock" + explicit target config in T2.2.
+> - EC-4 (backward compat): elevated v0.2 PR-A suite-green check to T3.1 Acceptance Criterion.
+> - EC-5 (third-party errors): added `PG_TRANSIENT_CODES` case in T4.1 Deep Dives.
+> - EC-6 (response shape): locked empty-recall content shape in T5.1 Deep Dives.
+> - EC-7 (process lifecycle): SIGINT + SIGTERM handlers + `THEOMEM_PG_URI` hard-fail in T6.1.
 
 ## Goal
 
@@ -135,6 +144,14 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 
 **Consequences.** `deps-audit-allowlist.txt` may grow if `@modelcontextprotocol/sdk`'s transitive deps surface unallowlisted CVEs at install time. Allowlist additions require sunset ≤ 90 days per `deps-audit-golden-rule.md`. If audit returns FAIL_INSECURE (CRITICAL/HIGH CVE), plan-confidence caps at 49 → /to-plan loops back to revise dep choice.
 
+### D9 — JSON Schema dialect lock (zod-to-json-schema target pinned)
+
+**Decision.** Pin `zod-to-json-schema` invocation to emit JSON Schema with a target compatible with MCP spec 2025-11-25 § Data Types (Tool.inputSchema defaults to 2020-12; draft-07 also accepted). Locked target: `target: 'jsonSchema7'` (the most widely-supported emitter target as of zod-to-json-schema v3.x). All four tool inputSchemas + the recall outputSchema use the SAME target — no per-schema variance.
+
+**Rationale.** Edge case EC-3 absorbed: spec mandates 2020-12 default OR a valid `$schema` field. Without explicit target, `zod-to-json-schema` defaults vary by version (some emit draft-7, others 2020-12). SDK clients that strict-validate may reject the inputSchema. Lock prevents silent dialect drift across upgrades.
+
+**Consequences.** Single `ZOD_TO_JSON_SCHEMA_TARGET = 'jsonSchema7'` constant exported from `src/agent-tools/tools/schema-emit.ts` (NEW helper); all 4 tools use this constant. If MCP spec evolves to require 2020-12-only, change happens in one place. F-zod-schema-fixture-test (from blueprint) asserts emitted schema includes `$schema` field with the expected URI.
+
 ### D8 — Package surface: subpath export + bin entry; isolated bundle (no main barrel leak)
 
 **Decision.** Add 2 entries to `package.json`:
@@ -265,13 +282,14 @@ tests/integration/agent-tools/public-paths.test.ts (NEW) — RED tripwire test
 - **bin path**: `bin: { "themory-mcp": "./dist/agent-tools/cli.js" }` — requires compiled `dist/` for runtime. Build step covered in T6.1.
 
 #### Tasks
-1. Create `src/agent-tools/` directory.
-2. Create `index.ts` barrel exporting `createMcpServer` (placeholder) + `types.ts` re-exports.
-3. Create `cli.ts` with stub `main(argv)` returning resolved Promise.
-4. Create `types.ts` declaring `McpServerOptions`, `TransportKind = 'stdio' | 'streamable-http'`.
-5. Edit `package.json` to add `./agent-tools` subpath export entry (mirror `./theokit` shape).
-6. Edit `package.json` to add `bin: { "themory-mcp": "./dist/agent-tools/cli.js" }`.
-7. Write tripwire test asserting main barrel does not leak agent-tools symbols.
+1. **EC-1 absorbed (build pipeline verify, moved from T6.1):** Verify v0.1 build pipeline emits `dist/`. If `tsconfig.json` lacks `outDir: "./dist"` OR no `npm run build` script exists, add them now. Verify `npm run build` produces `dist/agent-tools/cli.js` even with the stub from step 3 below (path must resolve before bin entry lands).
+2. Create `src/agent-tools/` directory.
+3. Create `index.ts` barrel exporting `createMcpServer` (placeholder) + `types.ts` re-exports.
+4. Create `cli.ts` with stub `main(argv)` returning resolved Promise.
+5. Create `types.ts` declaring `McpServerOptions`, `TransportKind = 'stdio' | 'streamable-http'`.
+6. Edit `package.json` to add `./agent-tools` subpath export entry (mirror `./theokit` shape).
+7. Edit `package.json` to add `bin: { "themory-mcp": "./dist/agent-tools/cli.js" }`.
+8. Write tripwire test asserting main barrel does not leak agent-tools symbols.
 
 #### TDD
 ```
@@ -389,6 +407,9 @@ src/agent-tools/tools/__tests__/schemas.test.ts (NEW) — RED tests for each
 - No cross-tool imports between schema files.
 
 #### Deep Dives
+- **EC-2 absorbed (payload size caps)**: declare constants `MAX_CONTENT_BYTES = 50_000` (≈12k tokens, aligned with v0.1 `MAX_EMBEDDING_DIM` cap) + `MAX_QUERY_BYTES = 2_000` in `src/agent-tools/tools/constants.ts`. Apply: `rememberSchema.content = z.string().min(1).max(MAX_CONTENT_BYTES)`; `recallSchema.query = z.string().min(1).max(MAX_QUERY_BYTES)`. Fail-fast at zod boundary BEFORE embedding/LLM cost; rejection emits Protocol Error `-32602` per D6.
+- **EC-10 absorbed (recall threshold range, SHOULD TEST upgraded inline)**: `recallSchema.threshold = z.number().min(0).max(1).default(0)`. Out-of-range rejected at boundary.
+- **EC-11 absorbed (reflect strict shape, SHOULD TEST upgraded inline)**: `reflectSchema = z.object({}).strict()` — extra keys rejected. Future `reflect({since: timestamp})` adds field explicitly; silent extras forbidden to avoid drift.
 - **Forget mutual exclusion**: `z.object({id: z.string().uuid().optional(), all: z.boolean().optional()}).refine(d => Boolean(d.id) !== Boolean(d.all), { message: 'Provide exactly one of id or all' })`. Mirror LangMem's argument-contract discipline (Q6).
 - **Recall output schema**: array of `{id, text, score, attributedTo?, scope, timestamp}` matching `MemoryItem` from v0.0 contract.
 - **No-params reflect**: per Q7 spec, recommended shape is `z.object({}).strict()` which JSON-schemifies to `{type: 'object', additionalProperties: false}`.
@@ -453,13 +474,14 @@ src/agent-tools/server.ts — wire handler in constructor (after T1.1 lands)
 - Calls SDK's `server.setRequestHandler(ListToolsRequestSchema, handler)`.
 
 #### Deep Dives
+- **EC-3 absorbed (ADR D9 dialect lock)**: extract `src/agent-tools/tools/schema-emit.ts` with `export const ZOD_TO_JSON_SCHEMA_TARGET = 'jsonSchema7' as const` + `export function emitToolSchema(zodSchema): JSONSchema7 { return zodToJsonSchema(zodSchema, { target: ZOD_TO_JSON_SCHEMA_TARGET }) }`. All 4 tool inputSchemas + recall outputSchema route through `emitToolSchema()`. Per ADR D9, single point of dialect control.
 - **Per-tool entry shape** (per Q7):
   ```ts
   {
     name: TOOL_NAME,
     description: DESCRIPTION,
-    inputSchema: zodToJsonSchema(INPUT_SCHEMA, { target: 'jsonSchema2019-09' }),  // or '2020-12' per emitter version
-    outputSchema: OUTPUT_SCHEMA ? zodToJsonSchema(OUTPUT_SCHEMA, ...) : undefined,
+    inputSchema: emitToolSchema(INPUT_SCHEMA),  // per D9 — pinned target
+    outputSchema: OUTPUT_SCHEMA ? emitToolSchema(OUTPUT_SCHEMA) : undefined,
   }
   ```
 - **Required array verification (F-zod-schema-fixture-test from blueprint)**: assert emitted JSON Schema includes `required: ['content']` for remember, `required: ['query']` for recall — proves LangMem `_ToolWithRequired` workaround unneeded.
@@ -566,6 +588,7 @@ VERIFY: npm test -- src/agent-tools/__tests__/scope.test.ts
 - [ ] `withScope` + `getScope` exported from `src/agent-tools/index.ts`
 - [ ] `ScopedContext` moved to `src/core/scope.ts`; v0.2 PR-A backward compat preserved
 - [ ] All 5 RED tests pass
+- [ ] **EC-4 absorbed (v0.2 PR-A backward compat MUST be verified, not just declared):** `npm test -- tests/integration/theokit-binding.test.ts` MUST exit 0 AFTER the ScopedContext move (304 v0.2 tests still green). This is a HARD GATE — if v0.2 PR-A tests break, revert the move and fix re-export shape before commit.
 - [ ] Concurrent isolation verified
 - [ ] Pass: complexity — scope.ts cyclomatic ≤ 10
 - [ ] Pass: coverage — 100% (critical path)
@@ -610,9 +633,10 @@ src/core/errors.ts — add MemoryStoreError, EmbedderError, ContentTooLargeError
   - `MemoryStoreError` (DB unreachable, pgvector down) → Tool Execution Error with actionable text: "Memory store unavailable. Retry in a moment.".
   - `EmbedderError` → Tool Execution Error: "Embedding provider unavailable. Retry in a moment.".
   - `ContentTooLargeError` → Tool Execution Error: "Content exceeds maximum embedding dimension ({MAX_EMBEDDING_DIM}).".
+  - **EC-5 absorbed (third-party pg/network errors)**: declare `const PG_TRANSIENT_CODES = new Set(['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EPIPE', 'ECONNRESET'])`. Classifier branch: `if (err instanceof Error && typeof (err as {code?: unknown}).code === 'string' && PG_TRANSIENT_CODES.has((err as {code: string}).code)) { return executionError('Memory store unavailable. Retry in a moment.') }`. Mirrors Mem0's graceful-degradation pattern (Q5 lines 46-77) — transient infrastructure failures become LLM-self-correctable Tool Execution Errors, NOT Protocol Errors.
   - `ZodError` (from boundary validation, T2.1) → Protocol Error `-32602 Invalid params` with `data: zodError.flatten()`.
   - Unknown tool name (from dispatch, Phase 5) → Protocol Error `-32601 Method not found` with `data: {requestedTool: name}`.
-  - Unexpected error (anything else) → Protocol Error `-32603 Internal error` with `data: {message: err.message}`; do NOT leak stack trace.
+  - Unexpected error (anything else) → Protocol Error `-32603 Internal error` with `data: {message: err.message}`; do NOT leak stack trace OR `err.cause` chain (EC-13 SHOULD TEST asserts this).
 - **Letta `EXPECTED_MCP_TOOL_ERRORS` discipline (Q3)**: maintain `EXPECTED_DOMAIN_ERRORS` tuple of error class names; classifier uses for log-level decision (info vs warning) — future observability hook, not v0.3 wiring.
 
 #### Tasks
@@ -690,6 +714,7 @@ src/agent-tools/server.ts — wire CallToolRequestSchema handler (after T1.1)
   return { content: [{type:'text', text:'Memory persisted.'}], isError: false };
   ```
 - **Recall structured content**: `{ content: [{type:'text', text: JSON.stringify(results)}], structuredContent: {results}, isError: false }` per Q7 backwards-compat note.
+- **EC-6 absorbed (empty-recall shape lock)**: when `memory.recall(query)` returns `[]`, handler returns `{content: [{type:'text', text: 'No memories matched the query.'}], structuredContent: {results: []}, isError: false}`. Human-legible text guides LLM self-correction ("try different query"); `structuredContent.results = []` keeps programmatic consumers happy. NEVER return empty `content: []` array — Q7 examples always show non-empty content; ambiguous shape risks SDK client crashes.
 - **Forget**: branch on `id` vs `all`; calls `memory.forget(id)` or `memory.forgetAll()` (verify v0.1 exposes the latter; if not, log followup for v0.4 — for v0.3 only `id` mode supported and `all: true` returns Tool Execution Error "bulk delete not yet supported, pending v0.4").
 - **Reflect**: calls `memory.reflect()` which delegates to `ManualReflectionPolicy` per v0.0 ADR-0005. Returns text content with reflection count.
 
@@ -764,12 +789,23 @@ package.json — add build script for cli.ts → dist/agent-tools/cli.js if not 
 
 #### Deep Dives
 - **Env-var reading**: `THEOMEM_PG_URI` (required for memory backend), `THEOMEM_AGENT_ID` (optional, sets default scope at server boot for single-agent stdio), `THEOMEM_MCP_TRANSPORT` (defaults to 'stdio').
+- **EC-7 absorbed (env var hard-fail + signal handlers)**: validate required env vars at start; if `THEOMEM_PG_URI` absent/empty, write actionable error to stderr (`'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).'`) and `process.exit(2)`. Register BOTH `SIGTERM` AND `SIGINT` handlers — single shared async `shutdownHandler()` that calls `await server.stop()` with 5s timeout, then `process.exit(0)`. Ctrl-C (SIGINT) common operator scenario; SIGTERM-only handling leaves zombie pg connections.
 - **Bootstrap shape**:
   ```ts
   export async function main(argv = process.argv.slice(2)) {
+    if (!process.env.THEOMEM_PG_URI) {
+      process.stderr.write('Error: THEOMEM_PG_URI required. Set it to a postgres connection string.\n');
+      process.exit(2);
+    }
     const memoryFactory = () => createLocalMemory({ /* from env */ });
     const server = new McpServer({ name: 'themory', memoryFactory });
     const transport = new StdioServerTransport();
+    const shutdownHandler = async () => {
+      try { await Promise.race([server.stop(), new Promise(r => setTimeout(r, 5_000))]); }
+      finally { process.exit(0); }
+    };
+    process.on('SIGTERM', () => void shutdownHandler());
+    process.on('SIGINT', () => void shutdownHandler());
     // Optional: pre-bind scope from THEOMEM_AGENT_ID if set
     await server.start(transport);
     // Process stays alive until stdio closes
@@ -917,11 +953,12 @@ tests/e2e/agent-tools/example-mcp-config.json (NEW) — canonical .theokit/mcp.j
 - **Timeout**: 30s matches v0.2 integration tests.
 
 #### Tasks
-1. Implement `MockMcpClient` helper.
-2. Write THE GOAL test (round-trip + isolation).
-3. Write 4 per-verb happy-path tests (remember/recall/forget/reflect via subprocess).
-4. Write error-path test: invalid tools/call args → assert `error.code === -32602`.
-5. Write example `.theokit/mcp.json` snippet committed as fixture.
+1. **EC-8 absorbed (build-before-test ordering)**: ensure `dist/agent-tools/cli.js` exists before E2E spawns it. Two-step fix: (a) add `"pretest:e2e": "npm run build"` script in `package.json`; (b) add safeguard in the E2E suite — `beforeAll(() => { if (!existsSync('dist/agent-tools/cli.js')) { execSync('npm run build', { stdio: 'inherit' }); } })`. Acceptance criterion: fresh clone + `npm ci && npm test` succeeds without manual build.
+2. Implement `MockMcpClient` helper.
+3. Write THE GOAL test (round-trip + isolation).
+4. Write 4 per-verb happy-path tests (remember/recall/forget/reflect via subprocess).
+5. Write error-path test: invalid tools/call args → assert `error.code === -32602`.
+6. Write example `.theokit/mcp.json` snippet committed as fixture.
 
 #### TDD
 ```
@@ -1044,8 +1081,19 @@ Maps blueprint recommendations + ADRs to plan tasks. Per cycle-plan.md § Qualit
 | 23 | architecture.md § 9 — Public API surface (subpath + tripwire) | T0.2 | Tripwire test |
 | 24 | testing.md § Pyramid — 3 tiers | All tests T2-T7 | (See #5) |
 | 25 | dogfood-golden-rule.md — Do not claim production until v1.0 + dogfood | T7.2 README STATUS section honest | "Pre-release" preserved |
+| 26 | EC-1 (MUST FIX) — bin entry requires dist/ build pipeline verified upfront | T0.2 § Tasks step 1 (moved from T6.1) | Build pipeline check moved to Phase 0 |
+| 27 | EC-2 (MUST FIX) — payload size caps at zod boundary (MAX_CONTENT_BYTES, MAX_QUERY_BYTES) | T2.1 § Deep Dives | Fail-fast before embedder OOM |
+| 28 | EC-3 (MUST FIX) — JSON Schema dialect locked (ADR D9) | T2.2 § Deep Dives + ADR D9 | Single ZOD_TO_JSON_SCHEMA_TARGET constant; no version drift |
+| 29 | EC-4 (MUST FIX) — v0.2 PR-A backward compat hard gate | T3.1 § Acceptance Criteria (elevated) | v0.2 304-test suite MUST stay green |
+| 30 | EC-5 (MUST FIX) — pg-layer transient errors (ECONNREFUSED/ETIMEDOUT/etc) → Tool Execution Error | T4.1 § Deep Dives (PG_TRANSIENT_CODES) | Mem0-style graceful degradation |
+| 31 | EC-6 (MUST FIX) — empty-recall shape locked (non-empty content + structuredContent.results=[]) | T5.1 § Deep Dives | No ambiguous wire shape |
+| 32 | EC-7 (MUST FIX) — SIGINT + SIGTERM + THEOMEM_PG_URI hard-fail | T6.1 § Deep Dives (shutdownHandler + env validation) | Clean process lifecycle + UX |
+| 33 | EC-8 (MUST FIX) — build-before-test ordering (pretest:e2e + beforeAll safeguard) | T7.1 § Tasks step 1 | Fresh-clone npm ci && npm test works |
+| 34 | EC-10 (SHOULD TEST upgraded inline) — recall.threshold range [0,1] | T2.1 § Deep Dives | zod .min(0).max(1).default(0) |
+| 35 | EC-11 (SHOULD TEST upgraded inline) — reflect strict empty object | T2.1 § Deep Dives | z.object({}).strict() — extras rejected |
+| 36 | EC-13 (SHOULD TEST referenced) — Error.cause / stack not leaked in -32603 | T4.1 § Deep Dives + test in T4.1 § TDD | Explicit sanitization gate |
 
-**Coverage: 25/25 (100%)** — every blueprint recommendation, blueprint ADR, plan ADR, CLAUDE.md acceptance criterion, and applicable architecture/testing/dogfood rule mapped to at least one task.
+**Coverage: 36/36 (100%)** — every blueprint recommendation, blueprint ADR, plan ADR, CLAUDE.md acceptance criterion, architecture/testing/dogfood rule, AND every MUST FIX from `.claude/knowledge-base/reviews/v0-3-agent-tools-mcp-edge-cases-2026-05-24.md` mapped to at least one task. SHOULD TEST entries EC-9, EC-12, EC-14, EC-15, EC-16, EC-17 remain logged in the edge-case report as test-additions for `/implement` to consume per TDD discipline (NOT elevated to plan rows since they don't require new tasks — just additional `RED:` lines in existing TDD blocks).
 
 ## Global Definition of Done
 
