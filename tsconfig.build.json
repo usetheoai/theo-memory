@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.contract.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "referencia",
+    "dist",
+    ".claude",
+    "src/**/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.test-d.ts"
+  ]
+}
