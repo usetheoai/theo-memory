@@ -14,12 +14,14 @@ Source of truth for when audit artifacts in `.claude/agents/`, `.claude/knowledg
 
 Several cycles produce **persistent audit trails** by design:
 
-- `cycle-review` → `.claude/agents/review-{slug}-{date}/` (5-7 agent .md + findings/ per invocation)
+- `cycle-review` → `.claude/agents/review-{slug}-{date}/` (5-7 Claude Code-conformant agent .md + findings/ per invocation)
 - `cycle-discover` → `.claude/knowledge-base/reviews/{slug}-confidence-*.md`
 - `cycle-plan` → `.claude/knowledge-base/reviews/{slug}-confidence-*.md`
-- `cycle-implement` → `.claude/knowledge-base/implementations/.progress-{slug}.json`
+- `cycle-implement` → `.claude/knowledge-base/implementations/.progress-{slug}.json` + (since v1.3 2026-05-25) `.claude/agents/implement-{slug}-{date}/sepa.md` (agent DEFINITION — Claude Code-conformant frontmatter+body) AND `.claude/knowledge-base/implementations/{slug}/sepa-iterations/iteration-{N}-{phase}.md` (per-iteration LOG OUTPUTS — kept OUT of `.claude/agents/` so that directory contains only agent definitions per Claude Code spec)
 - `cycle-discover` (`/discover-execute`) → `.claude/knowledge-base/discoveries/.progress-{slug}.json`
 - `cycle-discover` skill distillation → `.claude/knowledge-base/reviews/skill-register-{name}-{date}.md`
+
+> **Invariant: `.claude/agents/` is for agent DEFINITIONS only** (per Claude Code spec). Both `cycle-review` and `cycle-implement` v1.3+ honor this. Log outputs (findings, per-iteration SEPA responses) live under `.claude/knowledge-base/`. Pre-v1.3 cycle-implement runs that mixed logs into `.claude/agents/implement-{slug}-{date}/iteration-N-*.md` are grandfathered (legacy artifacts) and will rotate to `_archive/` per the 30-day rule below.
 
 Without rotation, these grow indefinitely. 30 reviews/month × 7 agent files = 200+ files/month polluting `.claude/agents/`. Sluggish git operations + cognitive overhead navigating the tree.
 
