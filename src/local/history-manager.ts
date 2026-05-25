@@ -41,6 +41,7 @@ interface ThemoryV01Schema {
   readonly memories: typeof memories;
   readonly entities: typeof entities;
   readonly history: typeof history;
+  readonly [k: string]: unknown;
 }
 type HistoryDb = NodePgDatabase<ThemoryV01Schema>;
 

@@ -1,23 +1,73 @@
 /**
- * CLI entry point for `npx @usetheo/memory/agent-tools` invocation.
+ * CLI entry point for `npx @usetheo/memory/agent-tools` (stdio transport at v0.3).
  *
- * Stub at T0.2 — real implementation lands at T6.1 (stdio transport) + T6.2
- * (streamable-HTTP transport). For now, exists so the `bin: { themory-mcp:
- * ./dist/agent-tools/cli.js }` entry resolves post-build (EC-1 absorption gate).
+ * EC-7 absorbed (plan v1.1):
+ * - THEOMEM_PG_URI required → hard-fail with actionable stderr message + process.exit(2)
+ * - SIGINT + SIGTERM handlers via shared shutdownHandler with 5s timeout (forces exit 0)
  *
- * @see ADR D1 — Transport: stdio + streamable-HTTP
- * @see ADR D8 — Package surface (bin entry)
- * @see EC-1 (plan v1.1) — build pipeline verified upfront
+ * Composition root (DIP-allowed): cli.ts wires src/local/ (pgvector + stubs) into
+ * the agent-tools McpServer. Library layer (src/agent-tools/index.ts) does NOT
+ * re-export src/local/ — bin entry IS the composition site per ADR D8.
+ *
+ * @see ADR D1 — stdio is the primary transport for local CLI deployment
+ * @see ADR D4 — McpServer consumes memoryFactory; T5.1 dispatch resolves scoped memory
+ * @see EC-7 — env-var hard-fail + dual signal handlers
  */
+import { Pool } from 'pg';
 
-export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
-  // T0.2 stub: prints invocation banner and exits cleanly.
-  // Real env-var validation (THEOMEM_PG_URI hard-fail per EC-7) + transport
-  // selection (THEOMEM_MCP_TRANSPORT per ADR D1) + signal handlers (SIGINT+SIGTERM
-  // per EC-7) land at T6.1.
-  void argv;
-  process.stdout.write('@usetheo/memory/agent-tools: stub CLI (T0.2). Real impl lands at T6.1.\n');
-  return Promise.resolve();
+import { createLocalMemory, runMigrations, StubEmbedder, StubLLM } from '../local/index.js';
+import { PgvectorStore } from '../local/pgvector-store.js';
+
+import { McpServer } from './server.js';
+import { connectStdio } from './transports/stdio.js';
+
+/** Shutdown timeout (ms) — caps how long we wait for server.stop() before force-exit. */
+const SHUTDOWN_TIMEOUT_MS = 5_000;
+
+export async function main(_argv: readonly string[] = process.argv.slice(2)): Promise<void> {
+  void _argv;
+
+  const pgUri = process.env['THEOMEM_PG_URI'];
+  if (pgUri === undefined || pgUri.length === 0) {
+    process.stderr.write(
+      'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).\n',
+    );
+    process.exit(2);
+    return; // unreachable but satisfies typecheck
+  }
+
+  const pool = new Pool({ connectionString: pgUri });
+  await runMigrations(pool);
+
+  const memory = await createLocalMemory({
+    vectorStore: new PgvectorStore(pool),
+    embedder: new StubEmbedder(),
+    llm: new StubLLM(),
+  });
+
+  const server = new McpServer({
+    name: 'themory',
+    version: '0.3.0',
+    memoryFactory: () => memory,
+  });
+
+  const shutdownHandler = (): void => {
+    void (async (): Promise<void> => {
+      try {
+        await Promise.race([
+          server.stop(),
+          new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+        ]);
+      } finally {
+        process.exit(0);
+      }
+    })();
+  };
+
+  process.on('SIGTERM', shutdownHandler);
+  process.on('SIGINT', shutdownHandler);
+
+  await connectStdio(server);
 }
 
 // Invoke when executed directly as the bin entry (`node dist/agent-tools/cli.js`).
@@ -25,7 +75,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 const isDirectInvocation =
   typeof process !== 'undefined' &&
   typeof process.argv[1] === 'string' &&
-  /agent-tools[\/\\]cli\.(?:js|ts)$/.test(process.argv[1]);
+  /agent-tools[\\/]cli\.(?:js|ts)$/.test(process.argv[1]);
 
 if (isDirectInvocation) {
   main().catch((err: unknown) => {
