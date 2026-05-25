@@ -62,7 +62,10 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- ADR-DEFER-WIRING-B-connectStreamableHttp: T6.2 connectStreamableHttp covered by 4 unit tests at src/agent-tools/__tests__/streamable-http.test.ts (listens + stateless mode + host/port + close idempotent). Integration coverage lands at T7.1 E2E OR v0.5 cloud iteration. Per-request X-Agent-Id middleware (F-T6.2-1) + EC-15 port collision (F-T6.2-2) + EC-16 header sanitization (F-T6.2-3) deferred to v0.4/v0.5 — v0.3 primary transport is stdio per ADR D1; HTTP is secondary for TheoCloud alignment. -->
 
-| T7.1 | Phase 7 / T7.1 — E2E round-trip + THE GOAL TEST (zero overlap) | pending | — | — | THE GOAL METRIC | — |
+| T7.1 | Phase 7 / T7.1 — E2E + THE GOAL TEST (zero overlap PROVEN integration; subprocess slimmed) | committed | pass | pass | **THE GOAL METRIC OBSERVED** | (see below) |
+
+<!-- T7.1 hybrid strategy: integration test at tests/integration/agent-tools/the-goal.test.ts (5 tests) proves THE GOAL semantic anchor — alice/bob ZERO cross-userId overlap with real Memory (contentEchoLlm + pgvector). Subprocess E2E at tests/e2e/agent-tools/round-trip.test.ts (1 test) proves transport boundary — spawns dist/agent-tools/cli.js + initialize + tools/list + SIGTERM clean exit. Per F-T7.1-1: 5 deferred subprocess tests logged for v0.4+ depth. EC-8 absorbed: pretest:e2e + beforeAll(existsSync(CLI_PATH)) safeguard. NEW classifier branch ReflectionNotConfigured → Tool Execution Error (F-T7.1-4). NEW postbuild:copy-migrations npm script for tsc asset gap (F-T7.1-3). NEW vitest.e2e.config.ts. -->
+
 | T7.2 | Phase 7 / T7.2 — README + CHANGELOG | pending | n/a (docs) | n/a | n/a | — |
 | Final | Final Phase — Integration Validation | pending | aggregated | aggregated | aggregated | — |
 
