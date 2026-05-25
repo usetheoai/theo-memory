@@ -44,7 +44,12 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- ADR-DEFER-WIRING-B: T3.1 withScope + getScope covered by 7 unit tests at src/agent-tools/__tests__/scope.test.ts (throws outside / returns inside / nested inner-wins / concurrent zero-overlap via Promise.all with await / type imported from core / EC-12 nested undefined STRICT / SEPA-added null+undefined entry STRICT). Integration coverage lands at T7.1 E2E via JSON-RPC roundtrip — withScope wraps tools/call dispatch + getScope feeds memoryFromCtx for tool body execution per ADR D3+D4. EC-4 HARD GATE verified: 50/50 integration suite GREEN against real pgvector (incl. 5/5 v0.2 PR-A theokit-binding.test.ts) AFTER ScopedContext relocation — backward compat preserved via @see import re-export pattern in src/theokit/types.ts. -->
 
-| T4.1 | Phase 4 / T4.1 — error classifier | pending | — | — | n/a | — |
+| T4.1 | Phase 4 / T4.1 — error classifier (EC-5 PG_TRANSIENT_CODES + EC-13 stack-leak guard) | committed | defer | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-A: T4.1 classifyError + UnknownToolError have NO production caller at T4.1 — tests instantiate as fixtures only. First production caller lands T5.1 (dispatch wraps each tool body in try/catch + routes thrown errors to classifyError). Honest framing per cycle-implement v1.2 anti-pattern #9 + Inquebrável Rule 3. -->
+<!-- ADR-DEFER-WIRING-B: T4.1 classifyError + UnknownToolError covered by 8 unit tests at src/agent-tools/__tests__/error-classifier.test.ts (MissingScope/MemoryStore/Embedder/ContentTooLarge → execution; pg ECONNREFUSED via PG_TRANSIENT_CODES → execution; UnknownTool → -32601; ZodError → -32602; unexpected → -32603 with EC-13 stack+cause sanitization verified via JSON.stringify substring check). Integration coverage lands at T7.1 E2E via JSON-RPC error roundtrip — T5.1 dispatch wraps each tool body in classifier so live JSON-RPC clients observe both wire shapes per ADR D6. -->
+
+
 | T5.1 | Phase 5 / T5.1 — 4 dispatch handlers | pending | — | — | n/a | — |
 | T6.1 | Phase 6 / T6.1 — stdio transport + CLI | pending | — | — | n/a | — |
 | T6.2 | Phase 6 / T6.2 — streamable-HTTP transport | pending | — | — | n/a | — |
