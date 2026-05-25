@@ -16,7 +16,14 @@
     "./theokit": {
       "types": "./src/theokit/index.ts",
       "default": "./src/theokit/index.ts"
+    },
+    "./agent-tools": {
+      "types": "./src/agent-tools/index.ts",
+      "default": "./src/agent-tools/index.ts"
     }
+  },
+  "bin": {
+    "themory-mcp": "./dist/agent-tools/cli.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -30,10 +37,14 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
+    "build": "tsc -p tsconfig.build.json && npm run postbuild:copy-migrations",
+    "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');if(existsSync('src/local/migrations')){mkdirSync('dist/local/migrations',{recursive:true});cpSync('src/local/migrations','dist/local/migrations',{recursive:true});console.log('migrations copied to dist/local/migrations');}\"",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
-    "lint": "eslint 'src/{core,local,theokit}/**/*.ts' --no-error-on-unmatched-pattern",
+    "lint": "eslint 'src/{core,local,theokit,agent-tools}/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "pretest:e2e": "npm run build",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "compose:up": "docker compose up -d pgvector",
@@ -41,9 +52,11 @@
     "publish:check": "npm publish --dry-run --tag next"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.13.0",
-    "zod": "^3.24.0"
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.0"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
