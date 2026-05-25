@@ -23,6 +23,6 @@
       "@usetheo/memory/contract": ["./src/core/index.ts"]
     }
   },
-  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts"],
+  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts"],
   "exclude": ["node_modules", "referencia", "dist", ".claude"]
 }
