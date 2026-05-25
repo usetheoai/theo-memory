@@ -31,7 +31,11 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- ADR-DEFER-WIRING-B: T1.1 McpServer wrapper — integration test deferred to T6.1+ (stdio + streamable-HTTP transports). McpServer is a thin wrapper around `@modelcontextprotocol/sdk/server/index.js#Server`; integration is meaningful only once a real transport binds and the SDK handshake fires. Unit test at `src/agent-tools/__tests__/server.test.ts` covers construction + capability declaration + name/version defaults (3 tests, all green). Per cycle-implement v1.2 § Wiring triad: pillar (b) ADR-deferred for prototype/scaffold phases; T6.1's E2E will cover end-to-end. -->
 
-| T2.1 | Phase 2 / T2.1 — 4 zod schemas (parallel with T3.1, T4.1) | pending | — | — | n/a | — |
+| T2.1 | Phase 2 / T2.1 — 4 zod schemas (EC-2/EC-10/EC-11 absorbed) | committed | defer | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-A: T2.1 schemas are intermediate building blocks — first production callers land at T2.2 (`tools/list` emitter pipes each INPUT_SCHEMA through zod-to-json-schema) + T5.1 (dispatch handlers validate args via INPUT_SCHEMA.safeParse). Schemas have no standalone caller until those tasks ship. -->
+<!-- ADR-DEFER-WIRING-B: T2.1 schemas exercised by 9 unit tests at src/agent-tools/tools/__tests__/schemas.test.ts (accept/reject + range + strict + tool-name regex per MCP spec). Integration coverage lands at T7.1 E2E via JSON-RPC roundtrip (malformed args → Protocol Error -32602 per ADR D6). Test placement follows project convention (colocated under src/{module}/__tests__/, not tests/integration/). -->
+
 | T2.2 | Phase 2 / T2.2 — tools/list response emitter | pending | — | — | n/a | — |
 | T3.1 | Phase 3 / T3.1 — AsyncLocalStorage scope binding + ScopedContext core move | pending | — | — | n/a | — |
 | T4.1 | Phase 4 / T4.1 — error classifier | pending | — | — | n/a | — |
