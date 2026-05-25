@@ -66,7 +66,7 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- T7.1 hybrid strategy: integration test at tests/integration/agent-tools/the-goal.test.ts (5 tests) proves THE GOAL semantic anchor — alice/bob ZERO cross-userId overlap with real Memory (contentEchoLlm + pgvector). Subprocess E2E at tests/e2e/agent-tools/round-trip.test.ts (1 test) proves transport boundary — spawns dist/agent-tools/cli.js + initialize + tools/list + SIGTERM clean exit. Per F-T7.1-1: 5 deferred subprocess tests logged for v0.4+ depth. EC-8 absorbed: pretest:e2e + beforeAll(existsSync(CLI_PATH)) safeguard. NEW classifier branch ReflectionNotConfigured → Tool Execution Error (F-T7.1-4). NEW postbuild:copy-migrations npm script for tsc asset gap (F-T7.1-3). NEW vitest.e2e.config.ts. -->
 
-| T7.2 | Phase 7 / T7.2 — README + CHANGELOG | pending | n/a (docs) | n/a | n/a | — |
+| T7.2 | Phase 7 / T7.2 — README "Agent loops via MCP" section + canonical .theokit/mcp.json + CHANGELOG | committed | n/a (docs) | n/a | n/a | (this commit) |
 | Final | Final Phase — Integration Validation | pending | aggregated | aggregated | aggregated | — |
 
 **Status legend:** `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`
