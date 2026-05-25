@@ -9,9 +9,14 @@
  * @see ADR D8 — Package surface: exported via `@usetheo/memory/agent-tools` subpath only
  */
 import { Server as SdkServer } from '@modelcontextprotocol/sdk/server/index.js';
-import { ListToolsRequestSchema, type ServerCapabilities } from '@modelcontextprotocol/sdk/types.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  type ServerCapabilities,
+} from '@modelcontextprotocol/sdk/types.js';
 
+import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
 import type { McpServerOptions } from './types.js';
 
@@ -51,6 +56,23 @@ export class McpServer {
     this.sdkServer.setRequestHandler(ListToolsRequestSchema, () =>
       Promise.resolve(buildToolsListResponse()),
     );
+    // Register the tools/call dispatch handler — routes to {remember,recall,forget,reflect}
+    // handlers per T5.1. Protocol Errors throw McpError; Tool Execution Errors return CallToolResult.
+    const memoryFactory = options.memoryFactory;
+    this.sdkServer.setRequestHandler(CallToolRequestSchema, (req) => {
+      if (memoryFactory === undefined) {
+        return Promise.resolve({
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Memory backend not configured on this McpServer instance. Pass memoryFactory in McpServerOptions to enable tools/call.',
+            },
+          ],
+          isError: true,
+        });
+      }
+      return dispatch(req.params.name, req.params.arguments, { memoryFactory });
+    });
   }
 
   /** Connects the server to a transport (stdio at T6.1, streamable-HTTP at T6.2). */
