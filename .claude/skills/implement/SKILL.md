@@ -127,40 +127,46 @@ Mandatory step. The SEPA is a **runtime-generated specialist agent** that observ
 
 The SEPA prompt is composed from the FULL plan + all ADRs + edge-case review + deps audit + plan-confidence report + project rules (NOT summaries — verbatim content). The agent becomes EXTREMELY specialist on this exact plan; no generic implementation advice leaks.
 
-#### Composing the SEPA prompt
+#### Composing the SEPA agent file (Claude Code-conformant)
 
 1. Read `templates/sepa-staff-engineer-template.md`.
 2. Substitute the context placeholders with verbatim file contents:
    - `{PLAN_SLUG}` — the slug
+   - `{DATE}` — today (YYYY-MM-DD UTC)
    - `{FULL_PLAN_CONTENT}` — `.claude/knowledge-base/plans/{slug}-plan.md`
    - `{FULL_ADR_FILES_CONCATENATED}` — every `.claude/knowledge-base/adrs/ADR-*.md` referenced by the plan (typically D1-D9 for a new contract)
    - `{FULL_EDGE_CASE_REVIEW}` — `.claude/knowledge-base/reviews/{slug}-edge-cases-*.md` if present
    - `{FULL_DEPS_AUDIT_REPORT}` — `.claude/knowledge-base/audits/{slug}-deps-audit-*.md` if present
    - `{FULL_PLAN_CONFIDENCE_REPORT}` — `.claude/knowledge-base/reviews/{slug}-confidence-*.md` if present
    - Project rules — `.claude/rules/architecture.md`, `testing.md`, `public-copy.md`, plus golden rules relevant to the plan's domain
-3. Write the substituted SEPA prompt to `.claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md` for audit trail (the file IS the agent's domain brief — preserved across iterations).
+3. Assemble the output file as **Claude Code-conformant agent definition**: YAML frontmatter block (between `---` delimiters) + system prompt body. The template documents the exact structure under § "Frontmatter" and § "System prompt body".
+4. Write to `.claude/agents/implement-{slug}-{date}/sepa.md` (file name is `sepa.md`, NOT `sepa-staff-engineer.md` — alignment with Claude Code agent-discovery naming). This file is the agent DEFINITION, discoverable by Claude Code's subagent system as `subagent_type='implement-{slug}-sepa'`.
 
 #### Initial brief
 
 Invoke `Agent` tool ONCE at startup with:
 
 - `description`: "SEPA initial brief — {slug}"
-- `subagent_type`: `general-purpose` (for now; v2+ may introduce a dedicated `implement-pair-program` subagent_type)
-- `prompt`: the full content of `.claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md`
+- `subagent_type`: `implement-{slug}-sepa` (the agent's `name` field from frontmatter resolves to this — Claude Code auto-discovers the agent file written in step 4 above)
+- `prompt`: the iteration-specific question (e.g., "Initial brief: read your role contract + flag any IMMEDIATE issues you see in the plan/ADRs/edge-cases").
 
 The Agent's response is the SEPA's "I have read and accept the role" confirmation, plus any IMMEDIATE flags it caught while reading (e.g., "the plan declares 9 ADRs but only 4 ADR files exist on disk — recommend halt until T1.2 lands").
 
-Persist the SEPA's initial-brief response under the same agent directory as `initial-brief-response.md`. The main session reviews it before invoking ralph-loop.
+Persist the SEPA's initial-brief response to `.claude/knowledge-base/implementations/{slug}/sepa-iterations/initial-brief-response.md`. The main session reviews it before invoking ralph-loop. Note: the response is a LOG OUTPUT (not an agent definition), so it lives under `knowledge-base/implementations/`, NOT under `.claude/agents/` (which is reserved for agent definitions per Claude Code spec).
 
 #### Per-iteration SEPA invocation
 
-The halt-loop driver (`prompts/implementation-prompt.md`) calls the SEPA THREE times per iteration:
+The halt-loop driver (`prompts/implementation-prompt.md`) calls the SEPA THREE times per iteration via `Agent(subagent_type='implement-{slug}-sepa', prompt=<iteration question>, description='SEPA iter {N} {phase}')`:
 
 1. **Before RED**: ask SEPA to recap the picked task + surface gotchas.
 2. **After GREEN / before REFACTOR**: ask SEPA to spot SOLID/Clean Code violations + missed cross-references.
 3. **Before COMMIT**: ask SEPA to audit the staged diff against DoD checkboxes.
 
-Each invocation is a fresh `Agent` call with the SEPA's persistent brief as the prompt baseline + the iteration-specific question. Cost: ~2-5k tokens per call. Net ~30-60k tokens extra over a 16-iteration cycle — justified vs the rework cost of caught-late deviations.
+Each invocation is a fresh `Agent` call with the SEPA's frontmatter+system-prompt as the agent definition baseline + the iteration-specific question as the prompt. Cost: ~2-5k tokens per call. Net ~30-60k tokens extra over a 16-iteration cycle — justified vs the rework cost of caught-late deviations.
+
+#### Per-iteration log persistence
+
+After each SEPA response, persist it to `.claude/knowledge-base/implementations/{slug}/sepa-iterations/iteration-{N}-{phase}.md` (where `{phase}` ∈ `pre-red`, `post-green`, `pre-commit`). These are LOG OUTPUTS — keep them out of `.claude/agents/` to honor the Claude Code agent-discovery convention (the agents directory should contain ONLY agent definitions, not invocation logs).
 
 #### SEPA authority + boundaries (locked)
 

@@ -49,10 +49,13 @@ Do NOT invoke when:
   ↓ parse plan → ordered implementation task list at
   ↓   .claude/knowledge-base/implementations/{slug}-implementation.md
   ↓
-  ↓ SPAWN SEPA (Staff Engineer Pair-Program Agent) at
-  ↓   .claude/agents/implement-{slug}-{date}/sepa-staff-engineer.md
+  ↓ SPAWN SEPA (Staff Engineer Pair-Program Agent) as Claude Code-conformant agent at
+  ↓   .claude/agents/implement-{slug}-{date}/sepa.md (YAML frontmatter + system prompt body)
+  ↓   — agent `name` field: implement-{slug}-sepa (resolves as subagent_type)
   ↓   — composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + rules
-  ↓   — initial-brief Agent invocation; persists role contract for cross-iteration consultation
+  ↓   — initial-brief via Agent(subagent_type='implement-{slug}-sepa', prompt=<question>)
+  ↓   — per-iteration logs persisted to .claude/knowledge-base/implementations/{slug}/sepa-iterations/
+  ↓     (NOT .claude/agents/ — that dir is reserved for agent definitions, not log outputs)
   ↓   — read-only observer; main session retains commit authority
   ↓
   ↓ invoke ralph-loop:ralph-loop with halt-loop prompt:
@@ -200,6 +203,7 @@ This cycle rule is **v1.2 ACTIVE** as of 2026-05-23.
 | v1.0 | 2026-05-21 | Initial halt-loop design (single-skill entry, ralph-loop iteration, TDD per task, wiring triad gate). | Strategic review consolidated 3 proposed skills into 1 entry-point. |
 | v1.1 | 2026-05-22 | Added SEPA (Staff Engineer Pair-Program Agent) at `/implement` startup. Runtime-generated specialist agent composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + project rules. Consulted 3× per iteration (pre-RED, post-GREEN, pre-COMMIT) as read-only observer. Catches plan deviations + ADR cross-reference misses + SOLID/Clean Code violations + scope creep inline. Cost: ~30-60k tokens extra per cycle. | User directive 2026-05-22 post memory-contract-v0-0 retrospective: serial halt-loop lacked second-eyes safeguard; missed cross-references and required reactive fixes. Mirrors `/review`'s parallel-specialist pattern but inline during /implement instead of post-hoc. |
 | v1.2 | 2026-05-23 | Added § "Resume after recovered blocker" protocol + 5th Stop condition (real-tree HIGH/CRITICAL CVE) + 2 new anti-patterns (#10 never drive manually outside ralph-loop; #11 never ask user for permission between phases while pending tasks remain). Tightened § Stop conditions preamble to "ONLY valid reasons". Skill `/implement` SKILL.md updated in same PR with Step 4 expansion. | User directive 2026-05-23 post v0-1-local-runtime session retrospective: ralph-loop was cancelled by a recoverable HIGH CVE blocker; 22 subsequent tasks driven manually in foreground with per-phase user-confirmation prompts. Correct code shipped but contract violated (lost audit trail, lost Stop-hook restart, lost max-iterations safety). User flagged: "Voce nao deve parar ate o plano estiver completo, deveriamos esta usando o ralph-loop ou o goal para terminar o plano. Isso nao esta clara em nossas skills principalmente na skill implement?" — gap closed by making the resume protocol explicit + lifting "never ask between phases" to an anti-pattern. |
+| v1.3 | 2026-05-25 | SEPA agent file made Claude Code-conformant: YAML frontmatter (`name: implement-{slug}-sepa`, `description`, `tools`, `model: opus`) + system prompt body. File renamed `sepa-staff-engineer.md` → `sepa.md`. Invocation switched from `Agent(subagent_type='general-purpose', prompt=<file content>)` to `Agent(subagent_type='implement-{slug}-sepa', prompt=<iteration question>)` — Claude Code auto-discovers via frontmatter `name` field. Per-iteration logs MOVED from `.claude/agents/implement-{slug}-{date}/iteration-N-*.md` to `.claude/knowledge-base/implementations/{slug}/sepa-iterations/iteration-N-{phase}.md` — `.claude/agents/` is now reserved exclusively for agent DEFINITIONS, not invocation logs (aligns with Claude Code spec + matches /review pattern). | User flagged 2026-05-25: "os agentes autogerado nao esta no padrao do CLAUDE code". `/review` was Claude Code-conformant (YAML frontmatter present); `/implement` SEPA was not (raw markdown brief passed as Agent `prompt`). Refactor closes the inconsistency + makes SEPA invocable as a first-class subagent reusable across cycles. Pre-existing SEPA artifacts under `.claude/agents/implement-{old-slug}-{date}/` remain in place per audit-trail-rotation invariant; only forward-going /implement invocations use the new structure. |
 
 ### v0.1 → v1.0 resolved decisions
 
