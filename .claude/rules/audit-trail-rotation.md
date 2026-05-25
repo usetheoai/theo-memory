@@ -17,7 +17,8 @@ Several cycles produce **persistent audit trails** by design:
 - `cycle-review` → `.claude/agents/review-{slug}-{date}/` (5-7 Claude Code-conformant agent .md + findings/ per invocation)
 - `cycle-discover` → `.claude/knowledge-base/reviews/{slug}-confidence-*.md`
 - `cycle-plan` → `.claude/knowledge-base/reviews/{slug}-confidence-*.md`
-- `cycle-implement` → `.claude/knowledge-base/implementations/.progress-{slug}.json` + (since v1.3 2026-05-25) `.claude/agents/implement-{slug}-{date}/sepa.md` (agent DEFINITION — Claude Code-conformant frontmatter+body) AND `.claude/knowledge-base/implementations/{slug}/sepa-iterations/iteration-{N}-{phase}.md` (per-iteration LOG OUTPUTS — kept OUT of `.claude/agents/` so that directory contains only agent definitions per Claude Code spec)
+- `cycle-implement` → `.claude/knowledge-base/implementations/.progress-{slug}.json` + (since v1.3 2026-05-25) `.claude/agents/implement-{slug}-{date}/sepa.md` (agent DEFINITION — Claude Code-conformant frontmatter+body) + (since v1.4 2026-05-25) `.claude/skills/implement-{slug}-sepa-knowledge/SKILL.md` (paired knowledge skill — Claude Code Skills-spec-conformant; SEPA's knowledge layer) AND `.claude/knowledge-base/implementations/{slug}/sepa-iterations/iteration-{N}-{phase}.md` (per-iteration LOG OUTPUTS — kept OUT of `.claude/agents/` so that directory contains only agent definitions per Claude Code spec)
+- `cycle-review` (since v1.1 2026-05-25) → paired knowledge skills at `.claude/skills/review-{slug}-{role}-knowledge/SKILL.md` (one per spawned agent — 4 baseline + 1-3 domain). Same Claude Code Skills spec; auto-generated alongside agents by `spawn_reviewers.py`. Rotate via same lifecycle as the paired agent (move to `_archive/` after 30 days post PR-merge).
 - `cycle-discover` (`/discover-execute`) → `.claude/knowledge-base/discoveries/.progress-{slug}.json`
 - `cycle-discover` skill distillation → `.claude/knowledge-base/reviews/skill-register-{name}-{date}.md`
 

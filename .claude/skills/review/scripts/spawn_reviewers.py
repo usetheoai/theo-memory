@@ -32,6 +32,18 @@ TEMPLATES = {
     "domain": "agent-domain-reviewer.md",
 }
 
+# Per-plan paired knowledge skills (Claude Code Skills spec) — cycle-review v1.1 (2026-05-25).
+# Each baseline role has a paired knowledge skill template that hydrates plan-specific
+# context (ADRs, project rules, diff surface) + instructs WebSearch refresh of community
+# best practices. Skills are auto-discovered by Claude Code at `.claude/skills/{name}/SKILL.md`.
+SKILL_TEMPLATES = {
+    "architecture": "skill-architecture-knowledge.md",
+    "tests": "skill-tests-knowledge.md",
+    "wiring": "skill-wiring-knowledge.md",
+    "cross-validation": "skill-cross-validation-knowledge.md",
+    "domain": "skill-domain-knowledge.md",
+}
+
 BASELINE_ROLES = ["architecture", "tests", "wiring", "cross-validation"]
 
 # Default fallback model when the routing rule is absent OR a role has no
@@ -162,6 +174,34 @@ def write_agent_file(skill_dir: Path, template_name: str, output_dir: Path, role
     return output_path
 
 
+def write_skill_file(
+    skill_dir: Path,
+    template_name: str,
+    skills_root: Path,
+    slug: str,
+    role: str,
+    mapping: dict[str, str],
+) -> Path:
+    """Write paired knowledge skill file (Claude Code Skills spec) alongside the agent.
+
+    Per cycle-review v1.1 (2026-05-25): for each agent generated, a paired knowledge
+    skill is written at .claude/skills/review-{slug}-{role}-knowledge/SKILL.md.
+    The skill provides domain best practices via WebSearch + plan-specific context.
+    """
+    template_path = skill_dir / "templates" / template_name
+    if not template_path.exists():
+        raise FileNotFoundError(f"Skill template not found: {template_path}")
+
+    content = template_path.read_text(encoding="utf-8-sig")
+    substituted = substitute(content, mapping)
+
+    skill_output_dir = skills_root / f"review-{slug}-{role}-knowledge"
+    skill_output_dir.mkdir(parents=True, exist_ok=True)
+    skill_path = skill_output_dir / "SKILL.md"
+    skill_path.write_text(substituted, encoding="utf-8")
+    return skill_path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Spawn specialized review agents for a plan.")
     parser.add_argument("--plan", type=Path, required=True, help="Path to plan markdown")
@@ -175,6 +215,17 @@ def main() -> int:
     )
     parser.add_argument("--diff-base", default="main", help="Git diff base (default: main)")
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write agent files")
+    parser.add_argument(
+        "--skills-dir",
+        type=Path,
+        default=None,
+        help="Where to write paired knowledge skills (default: .claude/skills/). Per cycle-review v1.1.",
+    )
+    parser.add_argument(
+        "--no-skills",
+        action="store_true",
+        help="Suppress paired skill generation (escape hatch; not recommended). Backward compat for pre-v1.1 invocations.",
+    )
     parser.add_argument("--domain-keywords", default="", help="Comma-separated keywords (audit)")
     parser.add_argument("--skill-dir", type=Path, default=None, help="Override skill dir lookup (for tests)")
     parser.add_argument(
@@ -206,6 +257,7 @@ def main() -> int:
             skill_dir = _find_skill_dir(Path(__file__).resolve().parent)
     date_str = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     output_dir = args.output_dir or (skill_dir.parent.parent / "agents" / f"review-{args.slug}-{date_str}")
+    skills_root = args.skills_dir or (skill_dir.parent)  # `.claude/skills/` parent of review/ skill dir
 
     routing_rule_path = args.routing_rule or _default_routing_rule_path(skill_dir)
     routing_rule = _load_routing_rule(routing_rule_path)
@@ -223,7 +275,7 @@ def main() -> int:
     errors: list[str] = []
     experimental_routings: list[str] = []
 
-    # Baseline agents (always)
+    # Baseline agents + paired knowledge skills (always)
     for role in BASELINE_ROLES:
         try:
             mapping = dict(base_mapping)
@@ -233,13 +285,23 @@ def main() -> int:
                 experimental_routings.append(role)
             template_name = TEMPLATES[role]
             path = write_agent_file(skill_dir, template_name, output_dir, role, mapping)
-            generated.append({"role": role, "model": model, "path": str(path)})
+            entry: dict[str, str] = {"role": role, "model": model, "path": str(path)}
+
+            # Per cycle-review v1.1 — write paired knowledge skill alongside the agent
+            if not args.no_skills:
+                skill_template = SKILL_TEMPLATES.get(role)
+                if skill_template is not None:
+                    skill_path = write_skill_file(
+                        skill_dir, skill_template, skills_root, args.slug, role, mapping
+                    )
+                    entry["skill_path"] = str(skill_path)
+            generated.append(entry)
         except FileNotFoundError as exc:
             errors.append(f"Failed to spawn {role}: {exc}")
         except OSError as exc:
             errors.append(f"Failed to write {role}: {exc}")
 
-    # Domain-specific agents
+    # Domain-specific agents + paired knowledge skills
     domains_to_spawn: list[str] = [args.primary_domain]
     if args.secondary_domains:
         domains_to_spawn.extend(d.strip() for d in args.secondary_domains.split(",") if d.strip())
@@ -256,7 +318,15 @@ def main() -> int:
             if is_experimental and role not in experimental_routings:
                 experimental_routings.append(role)
             path = write_agent_file(skill_dir, TEMPLATES["domain"], output_dir, role, mapping)
-            generated.append({"role": role, "domain": domain, "model": model, "path": str(path)})
+            entry: dict[str, str] = {"role": role, "domain": domain, "model": model, "path": str(path)}
+
+            # Per cycle-review v1.1 — write paired knowledge skill for domain agent
+            if not args.no_skills:
+                skill_path = write_skill_file(
+                    skill_dir, SKILL_TEMPLATES["domain"], skills_root, args.slug, role, mapping
+                )
+                entry["skill_path"] = str(skill_path)
+            generated.append(entry)
         except FileNotFoundError as exc:
             errors.append(f"Failed to spawn domain-{domain}: {exc}")
         except OSError as exc:
