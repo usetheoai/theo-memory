@@ -16,6 +16,7 @@ import type { McpServerOptions } from './types.js';
 export type { TransportKind, McpServerOptions } from './types.js';
 export { McpServer } from './server.js';
 export { withScope, getScope } from './scope.js';
+export { connectStdio } from './transports/stdio.js';
 
 /**
  * Constructs an MCP server bound to a TheMemory runtime.
