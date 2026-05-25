@@ -114,6 +114,19 @@ describe('UserMemory.remember', () => {
 - `npm test -- src/core/retrieval` — narrow scope while debugging.
 - `npm run test:coverage` — coverage gate. Critical paths (extraction, retrieval, dedup) must be 100%.
 
+## Typecheck scope — transitive expansion gotcha
+
+`npm run typecheck` runs `tsc --noEmit -p tsconfig.contract.json`. The contract tsconfig declares `include: ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts"]`. tsc walks transitively: any file IMPORTED from an included file is also typechecked, even if outside the include glob.
+
+**Consequence:** when a NEW file under an included dir starts importing from a previously-not-typechecked area (e.g., v0.3 T6.1 `src/agent-tools/cli.ts` imported `src/local/history-manager.ts` for the first time), the transitive expansion can surface pre-existing type defects that lay dormant under the v0.1 contract scope.
+
+**Rule:**
+- When a PR introduces a new cross-area import, run `npm run typecheck` BEFORE assuming the change is type-clean. The lint config glob covers files; the typecheck config covers ROOTS and walks transitively.
+- If a pre-existing defect surfaces, fix it in the same commit (it was always wrong; the new import just exposed it). Don't `@ts-expect-error` it forward.
+- For lint coverage parity see `tests/integration/config-parity.test.ts` — that sentinel asserts every tsconfig include dir is also linted.
+
+F-T6.1-1 (v0.1 `history-manager.ts:45` index-signature defect surfaced at v0.3 T6.1).
+
 ## Reference
 
 - TDD cycle and BDD format: `/home/paulo/.claude/CLAUDE.md` § PARTE I-7.
