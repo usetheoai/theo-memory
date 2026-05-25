@@ -31,7 +31,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
-    "lint": "eslint 'src/{core,local,theokit}/**/*.ts' --no-error-on-unmatched-pattern",
+    "lint": "eslint 'src/{core,local,theokit,agent-tools}/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push",
@@ -41,9 +41,11 @@
     "publish:check": "npm publish --dry-run --tag next"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.13.0",
-    "zod": "^3.24.0"
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.0"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
