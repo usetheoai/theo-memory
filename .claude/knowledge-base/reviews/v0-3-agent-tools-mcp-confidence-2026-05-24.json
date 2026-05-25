@@ -1,140 +1,130 @@
 {
-  "blueprint_slug": "v0-3-agent-tools-mcp",
-  "blueprint_path": "/home/paulo/Projetos/usetheo/theo-memory/.claude/knowledge-base/discoveries/blueprints/v0-3-agent-tools-mcp-blueprint.md",
-  "blueprint_version": null,
-  "scored_at": "2026-05-25T10:35:31.650608+00:00",
-  "research_coverage_score": 100.0,
-  "reference_citations_score": 100.0,
-  "blueprint_completeness_score": 100.0,
-  "risco_estrutural_score": 0.0,
+  "plan_slug": "v0-3-agent-tools-mcp",
+  "plan_path": ".claude/knowledge-base/plans/v0-3-agent-tools-mcp-plan.md",
+  "plan_version": "1.1",
+  "scored_at": "2026-05-25T11:30:30+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 53.0,
   "active_dimensions": [
-    "research_coverage",
-    "reference_citations",
-    "blueprint_completeness",
+    "completude",
     "risco_estrutural"
   ],
-  "weight_normalization_factor": 1.0,
-  "weighted_avg": 85.0,
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 81.2,
   "hard_caps_triggered": [
-    "soft_floor_smell_density_high",
-    "soft_floor_citation_density_low"
+    "symbol_fab_unverifiable_typescript"
   ],
-  "final_score_after_caps": 85.0,
+  "final_score_after_caps": 81.2,
   "verdict": "SHIPPABLE_WITH_CAVEATS",
+  "motivos": {
+    "completude": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (9/9)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidencia": [],
+    "calibracao": [],
+    "risco_estrutural": [
+      {
+        "sign": "negative",
+        "label": "13 weak_imperatives hits",
+        "weight": -13.0
+      },
+      {
+        "sign": "negative",
+        "label": "2 subjective_adjectives hits",
+        "weight": -2.0
+      },
+      {
+        "sign": "negative",
+        "label": "2 vague_pronouns hits",
+        "weight": -2.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 36,
+      "mapped_gaps": 36,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 9,
+      "with_alternatives": 9,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 17,
+      "by_category": {
+        "subjective_adjectives": 2,
+        "vague_pronouns": 2,
+        "weak_imperatives": 13
+      },
+      "total_penalty": -47
+    },
+    "architecture_compliance": {
+      "compliance_score": 1.0,
+      "project_rules_found_count": 16,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": [
+        "architecture.md",
+        "cycle-plan.md",
+        "deps-audit-golden-rule.md",
+        "dogfood-golden-rule.md",
+        "testing.md"
+      ],
+      "principles_cited": [
+        "ISP",
+        "DIP",
+        "TDD"
+      ],
+      "has_dod_quality_signal": true,
+      "has_size_budget_signal": true,
+      "motivos": [
+        "References 5 project rule(s): ['architecture.md', 'cycle-plan.md', 'deps-audit-golden-rule.md']",
+        "Cites 3 principle(s): ['ISP', 'DIP', 'TDD']",
+        "Global DoD references quality gates (lint/complexity/size)",
+        "Plan mentions file-size budget"
+      ]
+    }
+  },
   "calibration": {
     "status": "PROVISIONAL_v1",
     "holdout_count": 0,
     "holdout_target": 30,
     "kappa_measured": false
   },
-  "motivos": {
-    "research_coverage": {
-      "contributors": [
-        "Corner 'tests' populated",
-        "Corner 'deps' populated",
-        "Corner 'tools' populated"
-      ],
-      "detractors": []
-    },
-    "reference_citations": {
-      "contributors": [
-        "18 verified referencia/ citation(s)"
-      ],
-      "detractors": []
-    },
-    "blueprint_completeness": {
-      "contributors": [
-        "10/10 mandatory sections present",
-        "6 ADR(s) found in ADRs section"
-      ],
-      "detractors": []
-    },
-    "risco_estrutural": {
-      "contributors": [],
-      "detractors": [
-        "weak_imperatives: 33 hits",
-        "vague_pronouns: 9 hits"
-      ]
-    }
-  },
-  "sub_reports": {
-    "research_coverage": {
-      "corners_populated": 4,
-      "corners_total": 4,
-      "corners_status": [
-        {
-          "corner": "tests",
-          "present": true,
-          "populated": true
-        },
-        {
-          "corner": "deps",
-          "present": true,
-          "populated": true
-        },
-        {
-          "corner": "tools",
-          "present": true,
-          "populated": true
-        },
-        {
-          "corner": "techniques",
-          "present": true,
-          "populated": true
-        }
-      ],
-      "empty_corners": [],
-      "contributors": [
-        "Corner 'tests' populated",
-        "Corner 'deps' populated",
-        "Corner 'tools' populated"
-      ],
-      "detractors": []
-    },
-    "reference_citations": {
-      "total": 18,
-      "verified": 18,
-      "fabricated": 0,
-      "explicitly_blocked": 0,
-      "fabricated_paths": [],
-      "blocked_paths": [],
-      "word_count": 11745,
-      "citation_density_per_200w": 0.31,
-      "contributors": [
-        "18 verified referencia/ citation(s)"
-      ],
-      "detractors": []
-    },
-    "blueprint_completeness": {
-      "total_required": 10,
-      "found": 10,
-      "present": [
-        "Header",
-        "Context",
-        "Objective",
-        "Coverage Corner 1",
-        "Coverage Corner 2",
-        "Coverage Corner 3",
-        "Coverage Corner 4",
-        "Cross-cutting Comparison",
-        "ADRs",
-        "Recommendations"
-      ],
-      "missing_mandatory": [],
-      "adr_count": 6,
-      "contributors": [
-        "10/10 mandatory sections present",
-        "6 ADR(s) found in ADRs section"
-      ],
-      "detractors": []
-    },
-    "risco_estrutural": {
-      "total_hits": 42,
-      "by_category": {
-        "vague_pronouns": 9,
-        "weak_imperatives": 33
-      },
-      "total_penalty": -117
-    }
+  "code_quality": {
+    "verdict": "PASS_WITH_CAVEATS",
+    "score_cap": 89,
+    "hard_caps_triggered": [
+      "symbol_fab_unverifiable_typescript"
+    ],
+    "soft_caps_triggered": [],
+    "languages_audited": [
+      "typescript"
+    ]
   }
 }
