@@ -20,6 +20,7 @@ import { PgvectorStore } from '../local/pgvector-store.js';
 
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
+import { connectStreamableHttp } from './transports/streamable-http.js';
 
 /** Shutdown timeout (ms) — caps how long we wait for server.stop() before force-exit. */
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -67,7 +68,14 @@ export async function main(_argv: readonly string[] = process.argv.slice(2)): Pr
   process.on('SIGTERM', shutdownHandler);
   process.on('SIGINT', shutdownHandler);
 
-  await connectStdio(server);
+  const transport = process.env['THEOMEM_MCP_TRANSPORT'] ?? 'stdio';
+  if (transport === 'streamable-http') {
+    const port = Number.parseInt(process.env['THEOMEM_MCP_HTTP_PORT'] ?? '8080', 10);
+    const host = process.env['THEOMEM_MCP_HTTP_HOST'] ?? '127.0.0.1';
+    await connectStreamableHttp(server, { port, host });
+  } else {
+    await connectStdio(server);
+  }
 }
 
 // Invoke when executed directly as the bin entry (`node dist/agent-tools/cli.js`).
