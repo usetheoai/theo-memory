@@ -1,37 +1,13 @@
 /**
- * `ScopedContext` — structural interface consumed by `memoryFromCtx` (T1.1).
+ * Re-export of `ScopedContext` from core (moved at v0.3 T3.1 per ADR D3).
  *
- * @see ADR D1 — structural typing over peer-dep on `theokit`
- * @see ADR D4 — 3-state resolver (a userId-present / b session-null / c session-or-userId-absent)
- * @see ADR D6 — `@usetheo/memory/theokit` subpath ships independent of the main barrel
+ * The full JSDoc + structural shape live at `src/core/scope.ts` — single source
+ * of truth consumed by BOTH `memoryFromCtx` (v0.2 PR-A) AND the agent-tools
+ * AsyncLocalStorage scope binding (v0.3 T3.1).
  *
- * ZERO peer-dependency on `theokit`. Any consumer whose request context exposes
- * `ctx.session.userId` satisfies this via structural typing — verified across
- * 5 TheoKit fixtures in blueprint Q5 (sessions-auth, template-saas,
- * auth-providers-with-authjs, auth-providers-diy-github, template-postgres).
- *
- * v0.2 binding only resolves the `userId` tier. `sessionId` and `agentId` are
- * declared for forward compatibility (v0.3+) — consumers needing session-tier
- * or agent-tier scoping call `memory.session(id)` / `memory.agent(id)` directly
- * per `architecture.md § 1`.
+ * @see {@link import('../core/scope.js').ScopedContext} — canonical definition + ADR D1/D4/D6 (v0.2) + D3 (v0.3)
+ * @see ADR D1 (v0.2) — structural typing over peer-dep on `theokit`
+ * @see ADR D4 (v0.2) — 3-state resolver
+ * @see ADR D6 (v0.2) — `@usetheo/memory/theokit` subpath isolation
  */
-export interface ScopedContext {
-  /**
-   * Per-request session payload. Both `undefined` (field absent — e.g.,
-   * `template-postgres` fixture with only `{ db }`) AND `null` (session-bearing
-   * fixture, unauthenticated request) are valid runtime states the resolver
-   * MUST handle distinctly per ADR D4.
-   */
-  session?: {
-    /**
-     * Caller-supplied user identifier. The binding TRUSTS this verbatim per
-     * blueprint Q7 — no normalization, no namespacing. Consumer is responsible
-     * for cross-tenant disambiguation (e.g., `"t-${tenantId}-u-${userId}"`).
-     */
-    userId?: string;
-    /** RESERVED for v0.3+ session-tier auto-resolution. Ignored by v0.2 binding. */
-    sessionId?: string;
-    /** RESERVED for v0.3+ agent-tier auto-resolution. Ignored by v0.2 binding. */
-    agentId?: string;
-  } | null;
-}
+export type { ScopedContext } from '../core/scope.js';

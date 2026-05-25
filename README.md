@@ -140,6 +140,53 @@ const results = await memory.user('alice').recall('beverages', { topK: 3 })
 
 For the full Quickstart end-to-end test, see `tests/integration/local-runtime.test.ts`.
 
+## Agent loops via MCP (v0.3 — `@usetheo/memory/agent-tools`)
+
+`@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as an MCP server (Model Context Protocol per [spec 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25)) consumable by any MCP-aware agent loop — Claude Desktop, Cursor, [`@usetheo/sdk`](../theokit-sdk) agents via their existing `mcpServers` config.
+
+**Install as a stdio MCP server** in your agent's `.theokit/mcp.json`:
+
+```json
+{
+  "servers": {
+    "themory": {
+      "command": "npx",
+      "args": ["@usetheo/memory/agent-tools"],
+      "env": {
+        "THEOMEM_PG_URI": "postgres://user:pass@host:5432/dbname"
+      }
+    }
+  }
+}
+```
+
+**Or HTTP** (TheoCloud v0.5 alignment; streamable-HTTP secondary transport per ADR D1):
+
+```bash
+THEOMEM_PG_URI=postgres://... \
+  THEOMEM_MCP_TRANSPORT=streamable-http \
+  THEOMEM_MCP_HTTP_PORT=8080 \
+  npx @usetheo/memory/agent-tools
+```
+
+**Tools exposed (exactly 4, per CLAUDE.md § Locked names):**
+
+| Tool | Input | Output |
+|---|---|---|
+| `remember` | `{content, metadata?}` | text content "Memory persisted." |
+| `recall` | `{query, topK?, threshold?}` | `structuredContent.results[]` of `{id, text, score, scope, createdAt, metadata}` |
+| `forget` | `{id}` xor `{all: true}` | text content with forget status (bulk delete deferred to v0.4) |
+| `reflect` | `{}` (strict empty) | text content with reflection count (algorithm lands v0.4a per Roadmap Item 5) |
+
+**Error mechanisms per MCP spec § Error Handling:**
+
+- **Protocol Errors** (JSON-RPC `error{}`): unknown tool → `-32601 Method not found`; malformed args → `-32602 Invalid params`; transport crash → `-32603 Internal error`.
+- **Tool Execution Errors** (`result.isError: true`): `MissingScope`, `MemoryStoreError`, `EmbedderError`, `ContentTooLargeError`, and PG transient codes (`ECONNREFUSED`/`ETIMEDOUT`/etc.) — all surface with actionable text so the LLM can self-correct.
+
+**Scope binding** flows through `AsyncLocalStorage` per ADR D3: the server reads request context, binds the active `ScopedContext`, and tool bodies resolve `memoryFromCtx(scope, memory)` from the v0.2 binding. Result: **zero cross-userId overlap** is the anchor metric (`tests/integration/agent-tools/the-goal.test.ts`).
+
+**TLS:** v0.3 ships HTTP plaintext by design; production deployments expect to run behind a reverse proxy (nginx/caddy/Cloudflare) for TLS termination. TheoCloud handles this at the platform layer; do not expose port 8080 directly to public internet without TLS.
+
 
 
 ## Status — v0.2 PR-A (TheoKit binding) shipped; PR-B + cloud + reflection in design
