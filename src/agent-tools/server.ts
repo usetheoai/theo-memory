@@ -9,9 +9,10 @@
  * @see ADR D8 — Package surface: exported via `@usetheo/memory/agent-tools` subpath only
  */
 import { Server as SdkServer } from '@modelcontextprotocol/sdk/server/index.js';
-import type { ServerCapabilities } from '@modelcontextprotocol/sdk/types.js';
+import { ListToolsRequestSchema, type ServerCapabilities } from '@modelcontextprotocol/sdk/types.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
+import { buildToolsListResponse } from './tools/list-handler.js';
 import type { McpServerOptions } from './types.js';
 
 /** Locked default server identity advertised in MCP `initialize` handshake. */
@@ -44,6 +45,11 @@ export class McpServer {
     this.sdkServer = new SdkServer(
       { name: this.name, version: this.version },
       { capabilities: this.capabilities },
+    );
+    // Register the static tools/list handler at construction time (4 tools never change
+    // for v0.3 per ADR D2 listChanged:false). See `tools/list-handler.ts` for shape.
+    this.sdkServer.setRequestHandler(ListToolsRequestSchema, () =>
+      Promise.resolve(buildToolsListResponse()),
     );
   }
 
