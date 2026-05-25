@@ -26,7 +26,7 @@
 
 **What exists in `src/` today** (per `architecture.md § 3` DIP boundaries):
 - `src/core/` — contracts, types, pure logic (extraction + retrieval pipelines, dedup, errors, DIPs). 5 DIPs: `Embedder`, `LLM`, `VectorStore`, `HistoryManager`, `ReflectionPolicy`.
-- `src/local/` — pgvector adapter + in-memory adapter + stubs (StubEmbedder/StubLLM from v0.2 PR-A T4.5).
+- `src/local/` — pgvector adapter + in-memory adapter + stubs (StubEmbedder/StubLLM from v0.2 PR-A).
 - `src/theokit/` — `memoryFromCtx(ctx, memory)` resolver + `ScopedContext` interface. v0.2 PR-A.
 - `src/index.ts` — public barrel (3 subpath exports: `.`, `./contract`, `./theokit`).
 - **No `src/agent-tools/` yet** — this plan creates it.
@@ -88,7 +88,12 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 
 ### D1 — Transport: stdio (primary) + streamable-HTTP (secondary); skip SSE; skip fastmcp wrapper
 
-**Decision.** Ship stdio + streamable-HTTP transports via `@modelcontextprotocol/sdk/server/stdio` + `@modelcontextprotocol/sdk/server/streamableHttp`. Skip SSE (4× independently confirmed deprecated). Skip fastmcp-style OAuth wrapper (no OAuth in v0.3 scope per CLAUDE.md Item 4).
+**Decision.** Ship stdio + streamable-HTTP transports via `@modelcontextprotocol/sdk/server/stdio` + `@modelcontextprotocol/sdk/server/streamableHttp`.
+
+**Alternatives considered (full detail in blueprint § ADR D1):**
+- *SSE transport* — rejected: deprecated 4× independently (Letta `@pytest.mark.skip`, fastmcp evolution docstring, Mem0 `mcp_server.py:500-502`, MCP spec 2025-11-25 silence). Trade-off accepted: SDK still ships SSE for backward compat but we skip to avoid carrying deprecated code.
+- *fastmcp-style OAuth wrapper* — rejected: no OAuth in v0.3 scope per CLAUDE.md Item 4. Trade-off: revisit at v0.5 cloud if multi-tenant streamable-HTTP needs server-side OAuth.
+- *stdio-only* — rejected: blocks HTTP deploy path; TheoCloud v0.5 requires streamable-HTTP. Chose to ship both instead of stdio-first then add HTTP later.
 
 **Rationale.** Aligns with `architecture.md § 3` DIP (transports are infrastructure; live in `src/agent-tools/transports/`, depend on core contracts only). Blueprint cited 4 independent sources confirming SSE deprecation. Honors Inquebrável Rule 9 (`@modelcontextprotocol/sdk` exists; not reinvented).
 
@@ -106,6 +111,11 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 
 **Decision.** Use `node:async_hooks` `AsyncLocalStorage<ScopedContext>` initialized at JSON-RPC request boundary (per-handler `als.run(ctx, () => dispatch(...))`). Tool body calls `memoryFromCtx(als.getStore()!, injectedMemoryFactory())`. Reset is automatic via `als.run`'s lexical scope (no manual try/finally needed — `AsyncLocalStorage` is auto-resetting unlike Python's `contextvars.ContextVar`).
 
+**Alternatives considered (full detail in blueprint § ADR D3):**
+- *Pass scope explicitly as tool argument* — rejected: pollutes tool schema exposed to LLM; agent must know its own userId at every call; defeats v0.2 default-on UX. Trade-off: explicit args are simpler but worse DX.
+- *Module-level singleton (mutable global state)* — rejected: concurrent requests race; spec § stateful connections requires per-session isolation. Trade-off accepted: AsyncLocalStorage adds Node API surface dependency in exchange for race-free isolation.
+- *Custom per-request context-injection middleware* — rejected: reinvents what `AsyncLocalStorage` already provides natively. Inquebrável Rule 9.
+
 **Rationale.** Native Node.js analog of Mem0's `contextvars.ContextVar` (Q5) and LangMem's `_get_store(initial_store)` runtime fallback (Q6). Reuses v0.2 PR-A's `memoryFromCtx` 3-state resolver — no new scope-resolution code. Honors `architecture.md § 9` (public API surface — `memoryFromCtx` is already a public export at `@usetheo/memory/theokit`).
 
 **Consequences.** Tool handlers stay stateless w.r.t. scope (pure functions). Concurrent requests in streamable-HTTP mode get per-request isolation automatically. Risk: missing `als.run` wrapper = scope undefined → tool returns `MissingScopeError` Tool Execution Error (per D6). Mitigated via E2E test asserting 2 sequential calls with different userIds produce ZERO cross-contamination.
@@ -113,6 +123,11 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 ### D4 — SDK integration via SDK's existing MCP client (zero SDK changes)
 
 **Decision.** v0.3 is SERVER-ONLY. Do NOT ship an `@usetheo/memory/agent-tools-client`. SDK at SHA `6d9d553` already consumes via `AgentDefinition.mcpServers` + `.theokit/mcp.json`.
+
+**Alternatives considered (full detail in blueprint § ADR D4):**
+- *Add TheMemory as a `MemoryAdapter` package* (à la `@usetheo/memory-supermemory`) — rejected: MemoryAdapter is for in-process imports; TheMemory's pgvector + LLM extraction runtime doesn't fit; would bundle Postgres+drizzle INTO consumer's bundle. Wrong layer.
+- *Custom HTTP API + custom SDK HTTP client* — rejected: reinvents MCP transport; bypasses standard agent-tool discovery; violates Inquebrável Rule 9.
+- *Wait for SDK to special-case TheMemory* — rejected: would create one-off cross-product coupling; MCP-via-stdio is the clean abstraction.
 
 **Rationale.** Blueprint Q8 confirms SDK has full MCP client: `mcpServers?: Array<string | Record<string, McpServerConfig>>`, tool-naming `mcp_<server>_call`, OAuth 2.1 PKCE. Sibling `@usetheo/memory-{supermemory,honcho,mem0}` packages consume `MemoryAdapter` contract (in-process imports) — DIFFERENT layer from TheMemory (managed runtime). Confusing them silently violates `architecture.md § 5` two-runtimes principle.
 
@@ -132,6 +147,11 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 - **Protocol Errors** (JSON-RPC `error{code, message, data?}`): unknown tool name (`-32601 Method not found`); zod validation fail at boundary (`-32602 Invalid params`); transport crash (`-32603 Internal error`).
 - **Tool Execution Errors** (`result.isError: true` + content text): `MissingScopeError` (D3), `MemoryStoreError` (DB unreachable), `EmbedderError` (provider down), `ContentTooLargeError` (input > embedding-dim cap).
 
+**Alternatives considered (full detail in blueprint § ADR D6):**
+- *Single mechanism — string returns à la Mem0* — rejected: non-compliant with spec § Error Handling (clients can't distinguish error from success). Trade-off: simpler API but loses LLM self-correction signal.
+- *Single mechanism — always raise + let SDK translate* — rejected: loses Protocol-vs-Execution distinction the spec carved out for LLM self-correction.
+- *Custom error taxonomy outside spec* — rejected: violates Inquebrável Rule 9 (MCP spec gives the taxonomy for free; reinventing it diverges from the ecosystem).
+
 **Rationale.** Spec § Error Handling distinguishes recoverable (LLM self-correctable) from structural failures. Mem0's plain-string return shape (Q5) is non-compliant — clients can't distinguish error from success. v0.3 honors `architecture.md § 8` (typed domain errors from `src/core/errors.ts`).
 
 **Consequences.** Catalog of expected error classes maintained at `src/agent-tools/error-classifier.ts`. Adopt Mem0's graceful-degradation pattern (Q5 lines 46-77): DB-unreachable returns Tool Execution Error with actionable text, NOT crash JSON-RPC connection. Test discipline: unit tests assert BOTH error paths produce correct wire shape.
@@ -139,6 +159,12 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 ### D7 — Deps-audit absorption: bump zod, add 2 NEW deps, declare allowlist if needed
 
 **Decision.** Bump `zod ^3.24 → ^3.25` (patch-level; no API break). Add `@modelcontextprotocol/sdk ^1.29.0` + `zod-to-json-schema ^3.x` as runtime deps. `/deps-audit v0-3-agent-tools-mcp` MUST run between `/edge-case-plan` and `/plan-confidence` per cycle-plan.md v1.1 § Chain.
+
+**Alternatives considered (per blueprint Q2 Rule 9 evaluation):**
+- *Handroll JSON-RPC 2.0 + transports from scratch* — rejected per Inquebrável Rule 9 (protocol exists for exactly this) + violates blueprint ADR D1. Trade-off accepted: ~1.5-2 MB transitive deps from SDK is cheaper than maintaining handroll.
+- *`mcp-framework` community fork* — rejected for staleness (last release > 6mo; deps-audit-golden-rule § auditor_unavailable signal). Trade-off: smaller dep tree vs ecosystem-orphan risk.
+- *`fastmcp` Python SDK Node port* — rejected: does not exist in npm registry per blueprint Q2 verification.
+- *`zod-to-openapi` instead of `zod-to-json-schema`* — rejected: emits OpenAPI 3.x shape, not pure JSON Schema 2020-12 (blueprint Q7 mandates 2020-12 default dialect). Same rejection for `@anatine/zod-to-openapi`.
 
 **Rationale.** v0.1 already has 4 MODERATE CVE allowlist entries (dev-only esbuild chain) with sunset 2026-08-23 per the v0-1 deps audit. v0.3 inherits those — no expiration risk. Two NEW deps introduce ~1.5-2 MB transitive deps (per blueprint Q2 estimate) — accepted as price of Inquebrável Rule 9 compliance.
 
@@ -148,7 +174,12 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 
 **Decision.** Pin `zod-to-json-schema` invocation to emit JSON Schema with a target compatible with MCP spec 2025-11-25 § Data Types (Tool.inputSchema defaults to 2020-12; draft-07 also accepted). Locked target: `target: 'jsonSchema7'` (the most widely-supported emitter target as of zod-to-json-schema v3.x). All four tool inputSchemas + the recall outputSchema use the SAME target — no per-schema variance.
 
-**Rationale.** Edge case EC-3 absorbed: spec mandates 2020-12 default OR a valid `$schema` field. Without explicit target, `zod-to-json-schema` defaults vary by version (some emit draft-7, others 2020-12). SDK clients that strict-validate may reject the inputSchema. Lock prevents silent dialect drift across upgrades.
+**Alternatives considered:**
+- *No explicit target (rely on emitter default)* — rejected: defaults vary by zod-to-json-schema version (some emit draft-7, others 2020-12); silent dialect drift across upgrades. Trade-off: less code vs unpredictable wire shape.
+- *`target: 'jsonSchema2019-09'`* — rejected: older draft; clients expect 2020-12 default per Q7. Trade-off considered but jsonSchema7 has broader emitter support.
+- *Per-tool per-schema target choice* — rejected: 4 tools could diverge silently. Single constant enforces uniform contract.
+
+**Rationale.** Edge case EC-3 absorbed: spec mandates 2020-12 default OR a valid `$schema` field. Without explicit target, `zod-to-json-schema` defaults vary by version. SDK clients that strict-validate may reject the inputSchema. Lock prevents silent dialect drift across upgrades.
 
 **Consequences.** Single `ZOD_TO_JSON_SCHEMA_TARGET = 'jsonSchema7'` constant exported from `src/agent-tools/tools/schema-emit.ts` (NEW helper); all 4 tools use this constant. If MCP spec evolves to require 2020-12-only, change happens in one place. F-zod-schema-fixture-test (from blueprint) asserts emitted schema includes `$schema` field with the expected URI.
 
@@ -159,6 +190,11 @@ The Goal is achieved when ALL of the following sub-goals are checked AND the nam
 2. `bin: { "themory-mcp": "./dist/agent-tools/cli.js" }` — CLI entry for `npx @usetheo/memory/agent-tools` invocation per Q8 `.theokit/mcp.json` convention.
 
 Default barrel `@usetheo/memory` (src/index.ts) MUST NOT export anything from `src/agent-tools/` — bundle isolation per `architecture.md § 9`.
+
+**Alternatives considered:**
+- *Export from main barrel `@usetheo/memory`* — rejected: would pull ~1.5-2 MB SDK transitive deps into consumers who only need core memory contracts. Trade-off accepted: extra subpath import vs ~1.5-2 MB bundle bloat for all consumers.
+- *Separate package `@usetheo/memory-agent-tools`* — rejected: forces version coordination across two packages for every release; subpath + bundle isolation achieves the same goal without that operational tax. Instead of separate package, use existing v0.2 pattern (./theokit subpath).
+- *Skip bin entry, require manual `node node_modules/.../cli.js`* — rejected: defeats `npx @usetheo/memory/agent-tools` UX in `.theokit/mcp.json` per Q8 SDK convention.
 
 **Rationale.** Mirrors v0.2 PR-A pattern (`./theokit` subpath isolation). Tripwire test asserts `src/index.ts` contains zero `agent-tools` references (same pattern as v0.2's `public-paths.test.ts` for theokit). bin entry follows SDK's own `bin: { theokit-migrate-config, theokit-migrate-memory }` convention (Q8).
 
@@ -1068,7 +1104,7 @@ Maps blueprint recommendations + ADRs to plan tasks. Per cycle-plan.md § Qualit
 | 10 | Blueprint ADR D2 — Schema + 4-tool split | T2.1 + T2.2 | (See #4) |
 | 11 | Blueprint ADR D3 — AsyncLocalStorage scope binding | T3.1 | (See #3) |
 | 12 | Blueprint ADR D4 — SDK integration via existing MCP client | T0.2 (subpath + bin only) + T7.2 (docs) | (See #7) |
-| 13 | Blueprint ADR D5 — Test pyramid | All Phase 2-7 tests | (See #5) |
+| 13 | Blueprint ADR D5 — Test pyramid | T2.1 + T2.2 + T3.1 + T4.1 + T5.1 + T6.1 + T6.2 + T7.1 (every task has TDD section enforcing pyramid) | (See #5) |
 | 14 | Blueprint ADR D6 — TWO error mechanisms | T4.1 + T5.1 + T7.1 error-path | (See #6) |
 | 15 | Plan ADR D7 — Deps audit absorption (run /deps-audit between /edge-case-plan and /plan-confidence) | T0.1 (deps audit gate) | Cycle-plan v1.1 § Chain |
 | 16 | Plan ADR D8 — Package surface (subpath + bin + bundle isolation) | T0.2 | Tripwire test + bin entry |
@@ -1077,9 +1113,9 @@ Maps blueprint recommendations + ADRs to plan tasks. Per cycle-plan.md § Qualit
 | 19 | CLAUDE.md Roadmap Item 4 acceptance — "Schema validation rejects malformed payloads with structured error" | T2.1 (schemas) + T4.1 (classifier) + T7.1 (E2E error test) | (See #6 + #4) |
 | 20 | CLAUDE.md Roadmap Item 4 acceptance — "JSON-RPC trace test confirms no cross-tool state leakage" | T3.1 (scope isolation tests) + T7.1 (THE GOAL TEST alice/bob zero overlap) | (See #3 + #5) |
 | 21 | architecture.md § 3 — DIP boundary src/agent-tools/ → src/core/ only | All phases (compliance per task acceptance) + tripwire test in T0.2 | Enforced |
-| 22 | architecture.md § 6 — Naming conventions (kebab-case files, etc.) | All phases (lint enforcement) | Enforced by lint gate |
+| 22 | architecture.md § 6 — Naming conventions (kebab-case files, etc.) | T0.2 + T1.1 + T2.1 + T2.2 + T3.1 + T4.1 + T5.1 + T6.1 + T6.2 + T7.1 (each task has `Pass: lint` acceptance criterion) | Enforced by lint gate |
 | 23 | architecture.md § 9 — Public API surface (subpath + tripwire) | T0.2 | Tripwire test |
-| 24 | testing.md § Pyramid — 3 tiers | All tests T2-T7 | (See #5) |
+| 24 | testing.md § Pyramid — 3 tiers | T2.1 + T2.2 (pure unit) + T3.1 + T4.1 + T5.1 + T6.1 + T6.2 (unit-with-mocks) + T7.1 (E2E) | (See #5) |
 | 25 | dogfood-golden-rule.md — Do not claim production until v1.0 + dogfood | T7.2 README STATUS section honest | "Pre-release" preserved |
 | 26 | EC-1 (MUST FIX) — bin entry requires dist/ build pipeline verified upfront | T0.2 § Tasks step 1 (moved from T6.1) | Build pipeline check moved to Phase 0 |
 | 27 | EC-2 (MUST FIX) — payload size caps at zod boundary (MAX_CONTENT_BYTES, MAX_QUERY_BYTES) | T2.1 § Deep Dives | Fail-fast before embedder OOM |
