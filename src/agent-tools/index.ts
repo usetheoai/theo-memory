@@ -10,22 +10,18 @@
  *   (bundle isolation verified by `tests/integration/agent-tools/public-paths.test.ts`).
  */
 
+import { McpServer } from './server.js';
 import type { McpServerOptions } from './types.js';
 
 export type { TransportKind, McpServerOptions } from './types.js';
+export { McpServer } from './server.js';
 
 /**
  * Constructs an MCP server bound to a TheMemory runtime.
  *
- * Stub at T0.2 — throws when called. Real implementation lands at T1.1
- * (the `McpServer` class wrapping `@modelcontextprotocol/sdk/server`).
- *
- * @param _options server identity + version (defaults at T1.1)
- * @returns an MCP server handle (shape finalized at T1.1)
- * @throws Error — always at T0.2; remove this throw at T1.1 when McpServer ships
+ * @param options server identity + version (defaults: name='themory', version='0.3.0')
+ * @returns an `McpServer` handle ready for transport binding (T6.1 stdio / T6.2 streamable-HTTP)
  */
-export function createMcpServer(_options?: McpServerOptions): never {
-  throw new Error(
-    'createMcpServer: implementation deferred to T1.1 (Phase 1 — McpServer wrapper class).',
-  );
+export function createMcpServer(options?: McpServerOptions): McpServer {
+  return new McpServer(options ?? {});
 }
