@@ -14,16 +14,15 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylistic,
   {
-    files: ['src/{core,local,theokit}/**/*.ts'],
+    files: ['src/{core,local,theokit,agent-tools}/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
     languageOptions: {
       parserOptions: {
         project: ['./tsconfig.contract.json', './tsconfig.local.json'],
-        // tsconfig.contract.json now spans src/{core,theokit}; tsconfig.local.json spans src/{core,local}.
-        // Together they cover all linted files. src/theokit/__tests__/ test files are picked up via
-        // the contract project's include glob.
+        // tsconfig.contract.json now spans src/{core,theokit,agent-tools}; tsconfig.local.json spans src/{core,local}.
+        // Together they cover all linted files including src/agent-tools/__tests__/ (v0.3 T0.1 expanded contract glob).
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -42,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/{core,local,theokit}/**/__tests__/**/*.test*.ts'],
+    files: ['src/{core,local,theokit,agent-tools}/**/__tests__/**/*.test*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',

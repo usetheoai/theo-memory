@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['src/{core,local,theokit}/**/__tests__/**/*.test.ts'],
+    include: ['src/{core,local,theokit,agent-tools}/**/__tests__/**/*.test.ts'],
     passWithNoTests: true,
     typecheck: {
       enabled: true,

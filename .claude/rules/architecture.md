@@ -121,6 +121,34 @@ The `index.ts` at `src/` is the **only** thing TypeScript consumers import direc
 - Adding a new public export requires updating: `src/index.ts`, `package.json#exports`, the README's "Planned API contract" section, and a unit test that imports through the public path.
 - Internal helpers stay un-exported. Test them through the public API.
 
+## 10. Build pipeline — known gaps
+
+### 10.1 Non-`.ts` assets are not copied by `tsc`
+
+`tsc` only emits `.js` / `.d.ts` from `.ts` sources. Anything else co-located under `src/` (Drizzle SQL migrations, JSON fixtures, schema YAMLs) is silently skipped.
+
+Discovered at v0.3 T7.1 — `dist/local/migrations/` was missing after `npm run build`, causing `runMigrations()` to fail at E2E time with `Cannot find module migrations/0000_*.sql`. F-T7.1-3.
+
+**Rule:** when adding any non-`.ts` asset under `src/`, also add a `postbuild:*` npm script that copies it to `dist/`. The contract:
+
+- Asset SHALL be discoverable at runtime via `dirname(fileURLToPath(import.meta.url))` after `tsc` build (production) AND after the test runner's transient compile (test).
+- The `postbuild:*` step SHALL be wired into `"build"` (chained with `&&`), not optional — `npm publish --dry-run` must include the artifact.
+- Add a publish-readiness integration test that asserts the asset is present under `dist/` post-build.
+
+Current consumer: `src/local/migrations/**` copied via `postbuild:copy-migrations` (see `package.json`).
+
+### 10.2 `drizzle-kit push` vs `runMigrations()` conflict
+
+`drizzle-kit push` introspects the live DB and synchronizes the schema WITHOUT writing to the `drizzle.__drizzle_migrations` journal. If a consumer pushes a schema for dev AND later calls `runMigrations(pool)` against the same DB, `migrate()` throws `relation "memories" already exists`.
+
+**Mitigation (shipped 2026-05-25):** `runMigrations()` detects the orphan-schema state (tables present + journal absent) and skips `migrate()` with a `console.warn` rather than crashing. The warning surfaces the config smell to ops.
+
+**Rule:**
+- Production deployments use `runMigrations()` against a fresh DB. Never mix the two.
+- Dev/CI may use `npm run db:push` for fast iteration. The `runMigrations()` warning is the early-detection signal when the two paths collide.
+
+F-T7.1-2.
+
 ## Reference
 
 - `CLAUDE.md § Architectural Decisions Locked` — the source of truth.

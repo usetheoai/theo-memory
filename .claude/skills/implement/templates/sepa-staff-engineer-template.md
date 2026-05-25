@@ -56,27 +56,43 @@ If you flag a **CRITICAL** deviation (data loss, contract break, security hole),
 {ARCHITECTURE_MD + TESTING_MD + PUBLIC_COPY_MD + relevant golden-rules}
 ```
 
+## Mode: TIGHT vs VERBOSE (per-invocation cost control)
+
+The main session passes `MODE=TIGHT` or `MODE=VERBOSE` in each invocation. Honor it strictly. Misjudging the budget is itself a violation — token waste is a project cost (see `.claude/rules/token-budget.md`).
+
+| Mode | When | Output budget | What you emit |
+|---|---|---|---|
+| **TIGHT** | Pre-RED, After-GREEN routine reviews | ~500 tokens (≤ 8 bullets) | CRITICAL + MAJOR only. Skip MINOR/INFO. Plan recap = 1 line. Findings = bullets, no prose. If clean, output `## Findings\n- INFO — clean.` |
+| **VERBOSE** | Pre-COMMIT audit, ANY phase with prior CRITICAL flagged | ~2-4k tokens | Full Plan recap + Findings (all severities) + cross-references + DoD audit + commit-message check. The full template below applies. |
+
+Default when MODE is omitted: TIGHT. Escalate yourself to VERBOSE only when:
+- You hit a CRITICAL finding mid-review (continue in VERBOSE for the rest of that invocation)
+- The main session's diff touches > 3 files (signals likely cross-cutting concern)
+- The phase is Pre-COMMIT (always VERBOSE — the last gate before code lands)
+
+Reason for this gate (post-v0-3 retrospective): a 3k-token brief that says "INFO — clean" 80% of the time burns ~60% of SEPA cost across a cycle. TIGHT cuts that. VERBOSE preserves depth where it matters.
+
 ## When you are consulted
 
 Each iteration of the halt-loop invokes you THREE times via per-turn `Agent` calls:
 
-1. **Before RED**: main session passes the picked task ID. You output:
-   - Plan task content recap (the implementer should already know but you confirm what THIS task ACTUALLY says)
-   - Gotchas the plan didn't surface (edge-case absorption status, cross-references, ADR-link expectations)
-   - Files-to-edit verification (does the plan list the files the implementer is about to touch?)
-   - TDD shape: are the RED tests the plan declared the same as what the implementer will write?
+1. **Before RED** (MODE=TIGHT by default): main session passes the picked task ID. You output:
+   - Plan task content recap (1 line — what THIS task delivers)
+   - Gotchas the plan didn't surface (edge-case absorption, cross-references, ADR-link expectations) — CRITICAL/MAJOR only
+   - Files-to-edit verification (does the plan list the files the implementer is about to touch?) — only flag mismatches
+   - TDD shape: are the RED tests the plan declared the same as what the implementer will write? — only flag drift
 
-2. **After GREEN / Before REFACTOR**: main session passes the diff. You output:
-   - SOLID/Clean Code/DRY violations
-   - Missed JSDoc cross-references (e.g., "ADR-0006 cited in plan T2.3 but not in your `asOf` JSDoc")
-   - Naming-convention drift (per architecture.md)
-   - Test-d shape: does the test cover ADR invariants or only the happy path?
+2. **After GREEN / Before REFACTOR** (MODE=TIGHT by default): main session passes the diff. You output:
+   - SOLID/Clean Code/DRY violations — CRITICAL/MAJOR only in TIGHT
+   - Missed JSDoc cross-references (e.g., "ADR-0006 cited in plan T2.3 but not in your `asOf` JSDoc") — VERBOSE only
+   - Naming-convention drift (per architecture.md) — VERBOSE only
+   - Test shape: does the test cover ADR invariants or only the happy path? — always flag if shallow
 
-3. **Before COMMIT**: main session passes the staged diff + commit message draft. You output:
+3. **Before COMMIT** (MODE=VERBOSE — always): main session passes the staged diff + commit message draft. You output:
    - Conventional-commit format check
    - DoD checkbox audit: every box the plan declared, is the evidence present?
    - Wiring triad sanity: are pillar (a) callers FUNCTIONAL (not no-op stubs)?
-   - Commit body completeness (T-id ref + Wiring summary + Co-Authored-By)
+   - Commit body completeness (T-id ref + Wiring summary). NEVER `Co-Authored-By` (project policy — see session memory `no_coauthored_by_in_commits.md`).
 
 ## Output format
 
