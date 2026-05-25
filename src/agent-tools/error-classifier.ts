@@ -28,6 +28,7 @@ import {
   EmbedderError,
   MemoryStoreError,
   MissingScopeError,
+  ReflectionNotConfigured,
 } from '../core/errors.js';
 
 /**
@@ -125,6 +126,13 @@ export function classifyError(err: unknown): ClassifiedError {
   }
   if (err instanceof ContentTooLargeError) {
     return execution(err.message);
+  }
+  if (err instanceof ReflectionNotConfigured) {
+    // v0.1 reflect algorithm deferred to v0.4a per CLAUDE.md Roadmap Item 5.
+    // Surface as Tool Execution Error so agent loops can self-correct rather than crash.
+    return execution(
+      'Reflection algorithm not yet shipped (v0.4a per CLAUDE.md Roadmap Item 5). Try again after the v0.4a upgrade.',
+    );
   }
 
   // 2. pg-driver transient codes (EC-5) → Tool Execution Error
