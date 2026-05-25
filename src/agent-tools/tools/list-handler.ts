@@ -9,11 +9,13 @@
  * @see ADR D9 — JSON Schema dialect lock (target='jsonSchema7' via emitToolSchema)
  * @see MCP spec 2025-11-25 § Listing Tools (blueprint Q7 wire shape)
  */
+import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
+
 import {
-  TOOL_NAME as REMEMBER_NAME,
-  DESCRIPTION as REMEMBER_DESC,
-  INPUT_SCHEMA as rememberInput,
-} from './remember-schema.js';
+  TOOL_NAME as FORGET_NAME,
+  DESCRIPTION as FORGET_DESC,
+  INPUT_SCHEMA as forgetInput,
+} from './forget-schema.js';
 import {
   TOOL_NAME as RECALL_NAME,
   DESCRIPTION as RECALL_DESC,
@@ -21,17 +23,15 @@ import {
   OUTPUT_SCHEMA as recallOutput,
 } from './recall-schema.js';
 import {
-  TOOL_NAME as FORGET_NAME,
-  DESCRIPTION as FORGET_DESC,
-  INPUT_SCHEMA as forgetInput,
-} from './forget-schema.js';
-import {
   TOOL_NAME as REFLECT_NAME,
   DESCRIPTION as REFLECT_DESC,
   INPUT_SCHEMA as reflectInput,
 } from './reflect-schema.js';
-import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
-
+import {
+  TOOL_NAME as REMEMBER_NAME,
+  DESCRIPTION as REMEMBER_DESC,
+  INPUT_SCHEMA as rememberInput,
+} from './remember-schema.js';
 import { emitToolSchema } from './schema-emit.js';
 
 /** Spec-compliant `tools/list` response shape (no pagination for 4 static tools). */

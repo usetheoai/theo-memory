@@ -4,6 +4,7 @@
  * @see ADR D1 — Transport selection: stdio (primary) + streamable-HTTP (secondary)
  * @see ADR D8 — Package surface (subpath + bin + bundle isolation)
  */
+import type { Memory } from '../core/memory-store.js';
 
 /**
  * Transport flavor for the MCP server.
@@ -28,4 +29,12 @@ export interface McpServerOptions {
   readonly name?: string;
   /** Server version advertised in MCP `initialize` handshake. Defaults to package.json#version. */
   readonly version?: string;
+  /**
+   * Factory producing the Memory runtime. Called once per `tools/call` request
+   * (per ADR D3 + D4 — handler resolves scoped memory via `memoryFromCtx`).
+   * Optional at construction time so the server can still serve `tools/list`
+   * without a memory backend; absence at `tools/call` time surfaces a Tool
+   * Execution Error per ADR D6.
+   */
+  readonly memoryFactory?: () => Memory;
 }
