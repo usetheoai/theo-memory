@@ -264,7 +264,13 @@ export { createLocalMemory as createMemory };
  * Apply pgvector + Drizzle migrations to a Postgres database.
  *
  * For production use: run once at app boot before constructing `createMemory`.
- * Idempotent: re-running against an already-migrated DB is a no-op.
+ * Idempotent across BOTH provisioning paths (F-T7.1-2):
+ *   1. fresh DB                              → `CREATE EXTENSION` + run migrations
+ *   2. already migrated (journal present)    → `migrate()` is a journal-aware no-op
+ *   3. schema pushed via `drizzle-kit push`  → detects orphan schema (tables present
+ *      but no `__drizzle_migrations` journal), logs a warning, and skips `migrate()`
+ *      to avoid "relation already exists" crashes. The push-flow is dev-only;
+ *      mixing it with `runMigrations()` in prod is a config smell the warning surfaces.
  *
  * Resolves the migrations folder shipped inside the npm package (`src/local/migrations/`).
  * Consumers do NOT need to know the path — they just provide the pool.
@@ -279,6 +285,37 @@ export async function runMigrations(pool: Pool): Promise<void> {
   // pgvector extension MUST exist before tables with vector columns can be created.
   // Idempotent; safe to re-run.
   await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+
+  // Detect the "drizzle-kit push" footgun: schema present but not journal-tracked.
+  // Without this guard, `migrate()` would throw "relation already exists" on re-run.
+  const journalCheck = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.tables
+       WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'
+     ) AS exists`,
+  );
+  const journalExists = journalCheck.rows[0]?.exists === true;
+
+  if (!journalExists) {
+    const memoriesCheck = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = 'memories'
+       ) AS exists`,
+    );
+    const memoriesExists = memoriesCheck.rows[0]?.exists === true;
+    if (memoriesExists) {
+      // Schema present but not journal-tracked → push-flow was used. Skip migrate()
+      // gracefully; this is a deployment-config smell, not a runtime error.
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[themory] schema present but `drizzle.__drizzle_migrations` journal missing. ' +
+          'Likely `drizzle-kit push` was used — skipping runMigrations(). ' +
+          'For production reproducibility, prefer `runMigrations()` on a fresh DB (F-T7.1-2).',
+      );
+      return;
+    }
+  }
 
   // Resolve migrations folder shipped inside this package.
   const here = dirname(fileURLToPath(import.meta.url));
