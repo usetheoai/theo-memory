@@ -58,7 +58,10 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- ADR-DEFER-WIRING-B-connectStdio: T6.1 connectStdio covered by 6 unit tests at src/agent-tools/__tests__/cli.test.ts (bootstrap + env-var + dual signal handlers + SIGTERM/SIGINT shutdown). Integration coverage lands at T7.1 E2E via subprocess.spawn of dist/agent-tools/cli.js + real stdio JSON-RPC roundtrip. main() pillar (b) PASS via cli.test.ts (vitest typecheck includes the file). -->
 
-| T6.2 | Phase 6 / T6.2 — streamable-HTTP transport | pending | — | — | n/a | — |
+| T6.2 | Phase 6 / T6.2 — streamable-HTTP transport (stateless mode, base wiring; middleware deferred) | committed | pass | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-B-connectStreamableHttp: T6.2 connectStreamableHttp covered by 4 unit tests at src/agent-tools/__tests__/streamable-http.test.ts (listens + stateless mode + host/port + close idempotent). Integration coverage lands at T7.1 E2E OR v0.5 cloud iteration. Per-request X-Agent-Id middleware (F-T6.2-1) + EC-15 port collision (F-T6.2-2) + EC-16 header sanitization (F-T6.2-3) deferred to v0.4/v0.5 — v0.3 primary transport is stdio per ADR D1; HTTP is secondary for TheoCloud alignment. -->
+
 | T7.1 | Phase 7 / T7.1 — E2E round-trip + THE GOAL TEST (zero overlap) | pending | — | — | THE GOAL METRIC | — |
 | T7.2 | Phase 7 / T7.2 — README + CHANGELOG | pending | n/a (docs) | n/a | n/a | — |
 | Final | Final Phase — Integration Validation | pending | aggregated | aggregated | aggregated | — |
