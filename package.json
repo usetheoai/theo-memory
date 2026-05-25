@@ -16,7 +16,14 @@
     "./theokit": {
       "types": "./src/theokit/index.ts",
       "default": "./src/theokit/index.ts"
+    },
+    "./agent-tools": {
+      "types": "./src/agent-tools/index.ts",
+      "default": "./src/agent-tools/index.ts"
     }
+  },
+  "bin": {
+    "themory-mcp": "./dist/agent-tools/cli.js"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -30,6 +37,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
+    "build": "tsc -p tsconfig.build.json",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
     "lint": "eslint 'src/{core,local,theokit,agent-tools}/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
