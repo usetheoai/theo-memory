@@ -36,7 +36,10 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 <!-- ADR-DEFER-WIRING-A: T2.1 schemas are intermediate building blocks — first production callers land at T2.2 (`tools/list` emitter pipes each INPUT_SCHEMA through zod-to-json-schema) + T5.1 (dispatch handlers validate args via INPUT_SCHEMA.safeParse). Schemas have no standalone caller until those tasks ship. -->
 <!-- ADR-DEFER-WIRING-B: T2.1 schemas exercised by 9 unit tests at src/agent-tools/tools/__tests__/schemas.test.ts (accept/reject + range + strict + tool-name regex per MCP spec). Integration coverage lands at T7.1 E2E via JSON-RPC roundtrip (malformed args → Protocol Error -32602 per ADR D6). Test placement follows project convention (colocated under src/{module}/__tests__/, not tests/integration/). -->
 
-| T2.2 | Phase 2 / T2.2 — tools/list response emitter | pending | — | — | n/a | — |
+| T2.2 | Phase 2 / T2.2 — tools/list response emitter (ADR D9 + EC-3 + F-T2.1-3) | committed | pass | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-B: T2.2 buildToolsListResponse + emitToolSchema covered by 5 unit tests at src/agent-tools/tools/__tests__/list-handler.test.ts (exact tool count + locked-verb declaration order + required-content emission + recall outputSchema present + reflect additionalProperties:false per F-T2.1-3). Integration coverage lands at T7.1 E2E via JSON-RPC tools/list roundtrip — assertions there will verify the wire shape an MCP-aware agent loop actually consumes. -->
+
 | T3.1 | Phase 3 / T3.1 — AsyncLocalStorage scope binding + ScopedContext core move | pending | — | — | n/a | — |
 | T4.1 | Phase 4 / T4.1 — error classifier | pending | — | — | n/a | — |
 | T5.1 | Phase 5 / T5.1 — 4 dispatch handlers | pending | — | — | n/a | — |
