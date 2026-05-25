@@ -9,7 +9,7 @@
  * @see ADR D9 — JSON Schema dialect lock (zod-to-json-schema target pinned)
  * @see EC-3 absorbed: prevents silent dialect drift across emitter version upgrades
  */
-import type { ZodTypeAny } from 'zod';
+import type { ZodSchema } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 /**
@@ -28,6 +28,6 @@ export const ZOD_TO_JSON_SCHEMA_TARGET = 'jsonSchema7' as const;
  * Callers should rely on structural duck-typing for `.type`, `.required`,
  * `.additionalProperties` etc. — never cast to `any`.
  */
-export function emitToolSchema(schema: ZodTypeAny): ReturnType<typeof zodToJsonSchema> {
+export function emitToolSchema(schema: ZodSchema): ReturnType<typeof zodToJsonSchema> {
   return zodToJsonSchema(schema, { target: ZOD_TO_JSON_SCHEMA_TARGET });
 }

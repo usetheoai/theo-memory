@@ -50,7 +50,10 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 <!-- ADR-DEFER-WIRING-B: T4.1 classifyError + UnknownToolError covered by 8 unit tests at src/agent-tools/__tests__/error-classifier.test.ts (MissingScope/MemoryStore/Embedder/ContentTooLarge → execution; pg ECONNREFUSED via PG_TRANSIENT_CODES → execution; UnknownTool → -32601; ZodError → -32602; unexpected → -32603 with EC-13 stack+cause sanitization verified via JSON.stringify substring check). Integration coverage lands at T7.1 E2E via JSON-RPC error roundtrip — T5.1 dispatch wraps each tool body in classifier so live JSON-RPC clients observe both wire shapes per ADR D6. -->
 
 
-| T5.1 | Phase 5 / T5.1 — 4 dispatch handlers | pending | — | — | n/a | — |
+| T5.1 | Phase 5 / T5.1 — 4 dispatch handlers (EC-6 empty-recall + EC-14 idempotent forget + SEPA gotchas) | committed | pass | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-B: T5.1 dispatch + 4 handlers covered by 12 unit tests at src/agent-tools/tools/__tests__/handlers.test.ts (4 happy paths via withScope + mocked Memory + EC-6 empty-recall shape + createdAt→ISO mapping + EC-14 forget unknown-id idempotent + 4 error paths through classifier). Integration coverage lands at T7.1 E2E via JSON-RPC tools/call roundtrip against real stdio subprocess + real pgvector — exercises dispatch → handler → ScopedMemory chain end-to-end. Production callers PASS pillar (a): server.ts setRequestHandler(CallToolRequestSchema, dispatch) registers dispatch; dispatch HANDLERS Map registers 4 handlers. -->
+
 | T6.1 | Phase 6 / T6.1 — stdio transport + CLI | pending | — | — | n/a | — |
 | T6.2 | Phase 6 / T6.2 — streamable-HTTP transport | pending | — | — | n/a | — |
 | T7.1 | Phase 7 / T7.1 — E2E round-trip + THE GOAL TEST (zero overlap) | pending | — | — | THE GOAL METRIC | — |
