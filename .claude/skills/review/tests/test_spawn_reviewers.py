@@ -30,6 +30,10 @@ def _run(
     extra_args: additional CLI args (e.g., --routing-rule, --model-override).
     """
     skill_dir = Path(__file__).parent.parent  # The review skill dir (where templates live)
+    # Default --skills-dir to output_dir.parent (tmp_path) to prevent test contamination
+    # of the real .claude/skills/ tree. Tests that want a specific skills-dir can override
+    # via extra_args; the explicit --skills-dir there will win the duplicate arg parse.
+    default_skills_dir = output_dir.parent / "skills-test-isolation"
     args = [
         sys.executable,
         str(SCRIPT),
@@ -39,6 +43,7 @@ def _run(
         "--secondary-domains", secondary,
         "--output-dir", str(output_dir),
         "--skill-dir", str(skill_dir),
+        "--skills-dir", str(default_skills_dir),
     ]
     if extra_args:
         args.extend(extra_args)
@@ -369,3 +374,103 @@ def test_routing_rule_unknown_model_passes_through(
     assert rc == 0  # fail-soft: script aceita; downstream Anthropic CLI decide
     arch_fm = _parse_frontmatter(output_dir / "architecture.md")
     assert arch_fm.get("model") == "nonexistent-model-xyz"
+
+
+# ----------------------------------------------------------------------------
+# RED tests for per-plan paired knowledge skills (v1.1, 2026-05-25)
+#
+# Per cycle-review v1.1: each generated agent gets a paired knowledge skill
+# at .claude/skills/review-{slug}-{role}-knowledge/SKILL.md. The skill
+# provides domain best practices via WebSearch + plan-specific context.
+# ----------------------------------------------------------------------------
+
+
+def test_baseline_agents_get_paired_knowledge_skills(
+    sample_plan: Path, tmp_path: Path
+) -> None:
+    """Each of the 4 baseline roles (architecture, tests, wiring, cross-validation)
+    must produce a paired knowledge skill at .claude/skills/review-{slug}-{role}-knowledge/SKILL.md."""
+    output_dir = tmp_path / "agents-out"
+    skills_dir = tmp_path / "skills-out"
+    rc, data = _run(
+        sample_plan,
+        "test-slug",
+        "pgvector-schema",
+        output_dir,
+        extra_args=["--skills-dir", str(skills_dir)],
+    )
+    assert rc == 0
+    for role in ("architecture", "tests", "wiring", "cross-validation"):
+        skill_path = skills_dir / f"review-test-slug-{role}-knowledge" / "SKILL.md"
+        assert skill_path.exists(), f"Skill for role {role} missing at {skill_path}"
+        content = skill_path.read_text(encoding="utf-8-sig")
+        assert "{SLUG}" not in content
+        assert "test-slug" in content
+
+
+def test_domain_agent_gets_paired_knowledge_skill(
+    sample_plan: Path, tmp_path: Path
+) -> None:
+    """Domain agent gets a paired knowledge skill named review-{slug}-domain-{X}-knowledge."""
+    output_dir = tmp_path / "agents-out"
+    skills_dir = tmp_path / "skills-out"
+    rc, data = _run(
+        sample_plan,
+        "test-slug",
+        "pgvector-schema",
+        output_dir,
+        extra_args=["--skills-dir", str(skills_dir)],
+    )
+    assert rc == 0
+    skill_path = skills_dir / "review-test-slug-domain-pgvector-schema-knowledge" / "SKILL.md"
+    assert skill_path.exists()
+    content = skill_path.read_text(encoding="utf-8-sig")
+    assert "pgvector-schema" in content
+
+
+def test_generated_skill_has_claude_code_frontmatter(
+    sample_plan: Path, tmp_path: Path
+) -> None:
+    """Paired skill MUST be Claude Code-conformant: YAML frontmatter with name + description + allowed-tools."""
+    output_dir = tmp_path / "agents-out"
+    skills_dir = tmp_path / "skills-out"
+    rc, data = _run(
+        sample_plan,
+        "test-slug",
+        "pgvector-schema",
+        output_dir,
+        extra_args=["--skills-dir", str(skills_dir)],
+    )
+    assert rc == 0
+    skill_path = skills_dir / "review-test-slug-architecture-knowledge" / "SKILL.md"
+    content = skill_path.read_text(encoding="utf-8-sig")
+    # Frontmatter block present
+    assert content.count("---") >= 2
+    # Skills DON'T require the same frontmatter at top of file as the template documents
+    # the frontmatter inside a code-fenced block; what matters is that the substituted
+    # template includes the expected skill identity + WebSearch instructions in the body.
+    assert "review-test-slug-architecture-knowledge" in content
+    assert "WebSearch" in content
+    assert "allowed-tools" in content
+
+
+def test_no_skills_flag_suppresses_skill_generation(
+    sample_plan: Path, tmp_path: Path
+) -> None:
+    """The --no-skills flag (backward compat escape hatch) skips skill generation."""
+    output_dir = tmp_path / "agents-out"
+    skills_dir = tmp_path / "skills-out"
+    rc, data = _run(
+        sample_plan,
+        "test-slug",
+        "pgvector-schema",
+        output_dir,
+        extra_args=["--skills-dir", str(skills_dir), "--no-skills"],
+    )
+    assert rc == 0
+    # Skills dir should not have any review-test-slug-* dirs
+    if skills_dir.exists():
+        children = [d for d in skills_dir.iterdir() if d.name.startswith("review-test-slug-")]
+        assert children == [], f"Expected no skill dirs, found: {children}"
+    # But agents should still be generated
+    assert (output_dir / "architecture.md").exists()

@@ -121,11 +121,18 @@ Read `.claude/knowledge-base/plans/{slug}-plan.md`. Extract:
 
 Write the ordered task list to `.claude/knowledge-base/implementations/{slug}-implementation.md` using `templates/implementation-task-template.md`. This file is the halt-loop's working contract.
 
-### Step 2.5 — Spawn the SEPA (Staff Engineer Pair-Program Agent)
+### Step 2.5 — Spawn the SEPA (agent + paired knowledge skill)
 
-Mandatory step. The SEPA is a **runtime-generated specialist agent** that observes the halt-loop and advises per iteration. It mirrors `/review`'s parallel-specialist pattern but operates INLINE during implementation.
+Mandatory step. SEPA is a **runtime-generated specialist agent + paired knowledge skill** pair. Per cycle-implement.md v1.4 (2026-05-25), `/implement` generates BOTH:
 
-The SEPA prompt is composed from the FULL plan + all ADRs + edge-case review + deps audit + plan-confidence report + project rules (NOT summaries — verbatim content). The agent becomes EXTREMELY specialist on this exact plan; no generic implementation advice leaks.
+| Artifact | Path | Purpose |
+|---|---|---|
+| **Agent** | `.claude/agents/implement-{slug}-{date}/sepa.md` | Orchestrator — read-only observer consulted 3× per iteration |
+| **Paired skill** | `.claude/skills/implement-{slug}-sepa-knowledge/SKILL.md` | Knowledge layer — domain best practices via WebSearch + plan-specific context hydrated at generation |
+
+The agent + skill pairing is **mandatory** per Claude Code Skills spec ([docs](https://code.claude.com/docs/en/skills)) and matches the `/review` per-plan generation convention shipped in cycle-review v1.1.
+
+The SEPA agent and its paired skill are both composed from the FULL plan + ADRs + edge-case review + deps audit + plan-confidence report + project rules (verbatim, not summaries). The agent becomes EXTREMELY specialist on this exact plan; the skill becomes the knowledge librarian that refreshes community best practices via WebSearch on demand.
 
 #### Composing the SEPA agent file (Claude Code-conformant)
 
@@ -141,6 +148,22 @@ The SEPA prompt is composed from the FULL plan + all ADRs + edge-case review + d
    - Project rules — `.claude/rules/architecture.md`, `testing.md`, `public-copy.md`, plus golden rules relevant to the plan's domain
 3. Assemble the output file as **Claude Code-conformant agent definition**: YAML frontmatter block (between `---` delimiters) + system prompt body. The template documents the exact structure under § "Frontmatter" and § "System prompt body".
 4. Write to `.claude/agents/implement-{slug}-{date}/sepa.md` (file name is `sepa.md`, NOT `sepa-staff-engineer.md` — alignment with Claude Code agent-discovery naming). This file is the agent DEFINITION, discoverable by Claude Code's subagent system as `subagent_type='implement-{slug}-sepa'`.
+
+#### Composing the SEPA-paired knowledge skill (Claude Code Skills-conformant — v1.4 addition)
+
+After writing the agent file (step 4 above), `/implement` ALSO writes the paired knowledge skill:
+
+1. Read `templates/sepa-knowledge-skill-template.md`.
+2. Substitute placeholders specific to the skill (in addition to the agent's placeholders):
+   - `{PLAN_GOAL_VERBATIM}` — single-sentence `## Goal` from plan
+   - `{ADR_SUMMARY_TABLE}` — markdown table of plan's ADRs (ID + 1-line decision)
+   - `{EDGE_CASE_FINDINGS_ABSORBED}` — list of MUST FIX items absorbed (verbatim from edge-case review)
+   - `{PROJECT_RULES_RELEVANT}` — filenames from `.claude/rules/` cited in plan's ADR Rationale (subset, not all)
+   - `{DOMAIN_KEYWORDS}` — extract from plan title + Goal for WebSearch query construction (top 3-5 terms)
+3. Assemble as **Claude Code-conformant skill**: YAML frontmatter (between `---` delimiters) + body. Template documents exact structure.
+4. Write to `.claude/skills/implement-{slug}-sepa-knowledge/SKILL.md`. Skill is auto-discoverable by Claude Code; SEPA agent invokes it via `Skill` tool when consulting community knowledge.
+
+The paired skill is what makes SEPA's findings citable. Without it, SEPA's "best practice" claims would rest on training-data recall (anti-pattern per `cycle-discover.md` v1.1 #10). With it, SEPA invokes the skill, which WebSearches authoritative sources, snapshots them, and returns verbatim canonical quotes.
 
 #### Initial brief
 
