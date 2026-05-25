@@ -54,7 +54,10 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- ADR-DEFER-WIRING-B: T5.1 dispatch + 4 handlers covered by 12 unit tests at src/agent-tools/tools/__tests__/handlers.test.ts (4 happy paths via withScope + mocked Memory + EC-6 empty-recall shape + createdAt→ISO mapping + EC-14 forget unknown-id idempotent + 4 error paths through classifier). Integration coverage lands at T7.1 E2E via JSON-RPC tools/call roundtrip against real stdio subprocess + real pgvector — exercises dispatch → handler → ScopedMemory chain end-to-end. Production callers PASS pillar (a): server.ts setRequestHandler(CallToolRequestSchema, dispatch) registers dispatch; dispatch HANDLERS Map registers 4 handlers. -->
 
-| T6.1 | Phase 6 / T6.1 — stdio transport + CLI | pending | — | — | n/a | — |
+| T6.1 | Phase 6 / T6.1 — stdio transport + CLI (EC-7 SIGINT+SIGTERM+env-var hard-fail absorbed) | committed | pass | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-B-connectStdio: T6.1 connectStdio covered by 6 unit tests at src/agent-tools/__tests__/cli.test.ts (bootstrap + env-var + dual signal handlers + SIGTERM/SIGINT shutdown). Integration coverage lands at T7.1 E2E via subprocess.spawn of dist/agent-tools/cli.js + real stdio JSON-RPC roundtrip. main() pillar (b) PASS via cli.test.ts (vitest typecheck includes the file). -->
+
 | T6.2 | Phase 6 / T6.2 — streamable-HTTP transport | pending | — | — | n/a | — |
 | T7.1 | Phase 7 / T7.1 — E2E round-trip + THE GOAL TEST (zero overlap) | pending | — | — | THE GOAL METRIC | — |
 | T7.2 | Phase 7 / T7.2 — README + CHANGELOG | pending | n/a (docs) | n/a | n/a | — |
