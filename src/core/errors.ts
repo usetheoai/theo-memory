@@ -80,3 +80,62 @@ export class MissingScopeError extends Error {
     Object.setPrototypeOf(this, MissingScopeError.prototype);
   }
 }
+
+/**
+ * Thrown when a `MemoryStore` operation fails at the persistence boundary
+ * (pg driver ECONNREFUSED/ETIMEDOUT/etc; pgvector index corruption; transaction
+ * abort). Classified as Tool Execution Error per ADR D6 (T4.1) so MCP agent
+ * loops can self-correct via retry.
+ *
+ * @see ADR D6 — Error mechanisms (TWO mechanisms per MCP spec)
+ * @see EC-5 (plan v1.1) — pg transient codes mapped via this error class
+ */
+export class MemoryStoreError extends Error {
+  override readonly name = 'MemoryStoreError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, MemoryStoreError.prototype);
+  }
+}
+
+/**
+ * Thrown when the embedding provider is unreachable, returns malformed data,
+ * or exceeds rate limits. Classified as Tool Execution Error per ADR D6 so the
+ * LLM can self-correct (retry after backoff).
+ *
+ * @see ADR D6 — Error mechanisms
+ */
+export class EmbedderError extends Error {
+  override readonly name = 'EmbedderError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, EmbedderError.prototype);
+  }
+}
+
+/**
+ * Thrown when input content exceeds the embedder's per-call dimension cap
+ * (1536 at v0.1 per pgvector HNSW limit; MAX_CONTENT_BYTES=50_000 at the
+ * agent-tools boundary per EC-2). Classified as Tool Execution Error per ADR D6
+ * with actionable text so the LLM can split + retry.
+ *
+ * @see ADR D6 — Error mechanisms
+ * @see EC-2 (plan v1.1) — payload caps absorbed at the zod boundary
+ */
+export class ContentTooLargeError extends Error {
+  override readonly name = 'ContentTooLargeError' as const;
+
+  /**
+   * @param maxBytes maximum allowed payload size in bytes
+   * @param actualBytes observed payload size that triggered rejection
+   */
+  constructor(maxBytes: number, actualBytes: number, options?: ErrorOptions) {
+    super(
+      `Content exceeds maximum allowed payload: ${String(actualBytes)} bytes > ${String(maxBytes)} bytes. Split the input and retry.`,
+      options,
+    );
+    Object.setPrototypeOf(this, ContentTooLargeError.prototype);
+  }
+}
