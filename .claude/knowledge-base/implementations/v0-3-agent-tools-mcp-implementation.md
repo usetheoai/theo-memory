@@ -40,7 +40,10 @@ Per plan v1.1 § Dependency Graph: Phase 0 → 1 → (2 || 3 || 4 parallel) → 
 
 <!-- ADR-DEFER-WIRING-B: T2.2 buildToolsListResponse + emitToolSchema covered by 5 unit tests at src/agent-tools/tools/__tests__/list-handler.test.ts (exact tool count + locked-verb declaration order + required-content emission + recall outputSchema present + reflect additionalProperties:false per F-T2.1-3). Integration coverage lands at T7.1 E2E via JSON-RPC tools/list roundtrip — assertions there will verify the wire shape an MCP-aware agent loop actually consumes. -->
 
-| T3.1 | Phase 3 / T3.1 — AsyncLocalStorage scope binding + ScopedContext core move | pending | — | — | n/a | — |
+| T3.1 | Phase 3 / T3.1 — AsyncLocalStorage scope binding + ScopedContext core move (EC-4 HARD GATE + EC-12 STRICT) | committed | pass | defer | n/a | (see below) |
+
+<!-- ADR-DEFER-WIRING-B: T3.1 withScope + getScope covered by 7 unit tests at src/agent-tools/__tests__/scope.test.ts (throws outside / returns inside / nested inner-wins / concurrent zero-overlap via Promise.all with await / type imported from core / EC-12 nested undefined STRICT / SEPA-added null+undefined entry STRICT). Integration coverage lands at T7.1 E2E via JSON-RPC roundtrip — withScope wraps tools/call dispatch + getScope feeds memoryFromCtx for tool body execution per ADR D3+D4. EC-4 HARD GATE verified: 50/50 integration suite GREEN against real pgvector (incl. 5/5 v0.2 PR-A theokit-binding.test.ts) AFTER ScopedContext relocation — backward compat preserved via @see import re-export pattern in src/theokit/types.ts. -->
+
 | T4.1 | Phase 4 / T4.1 — error classifier | pending | — | — | n/a | — |
 | T5.1 | Phase 5 / T5.1 — 4 dispatch handlers | pending | — | — | n/a | — |
 | T6.1 | Phase 6 / T6.1 — stdio transport + CLI | pending | — | — | n/a | — |
