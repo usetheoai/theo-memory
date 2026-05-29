@@ -7,3 +7,8 @@ out
 .DS_Store
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# @usetheo/sdk creates these per-workspace at runtime (its own state + memory).
+# Distinct from @usetheo/memory — kept out of git so the demo stays reproducible.
+.theokit/
+memory.txt
