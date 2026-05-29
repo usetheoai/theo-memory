@@ -1,6 +1,6 @@
 ---
 name: discover-execute
-description: Executa um discovery plan via halt-loop (ralph-loop-style autonomous iteration) sobre referencia/ — Mem0, Letta, LangMem. Produz blueprint técnico em .claude/knowledge-base/discoveries/blueprints/{slug}-blueprint.md. Use após /discover-edge-cases ter aprovado o plano.
+description: Executa um discovery plan via halt-loop (ralph-loop-style autonomous iteration) sobre .claude/knowledge-base/references/ — Mem0, Letta, LangMem. Produz blueprint técnico em .claude/knowledge-base/discoveries/blueprints/{slug}-blueprint.md. Use após /discover-edge-cases ter aprovado o plano.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write Edit
 argument-hint: "{plan-slug} [--max-iterations 30]"
@@ -8,20 +8,20 @@ argument-hint: "{plan-slug} [--max-iterations 30]"
 
 # Discover-Execute — Halt-Loop Deep-Research Driver
 
-Reads an approved discovery plan, then drives a halt-loop investigation across `referencia/` (Mem0, Letta, LangMem), producing a structured technical blueprint.
+Reads an approved discovery plan, then drives a halt-loop investigation across `.claude/knowledge-base/references/` (Mem0, Letta, LangMem), producing a structured technical blueprint.
 
 **Architecture:** wraps the `ralph-loop` plugin's autonomous-iteration mechanism (Stop hook + state file) with a discovery-specific prompt template. Each iteration answers one or more research questions from the plan, appends to the blueprint, and re-evaluates "are all questions answered + all citations real + all coverage corners covered?"
 
 **Halt condition:** the loop emits `<promise>BLUEPRINT_COMPLETE</promise>` only when ALL of:
 
 1. Every research question from the plan is answered in the blueprint.
-2. Every citation (file/symbol) in the blueprint exists in `referencia/`.
+2. Every citation (file/symbol) in the blueprint exists in `.claude/knowledge-base/references/`.
 3. All four coverage corners (tests / deps / tools / techniques) have at least one populated subsection.
 4. Acceptance criteria from the plan are observably met.
 
 ## Cycle contract
 
-This skill is **phase 3** of [`cycle-discover`](../../rules/cycle-discover.md). The cycle rule is the source of truth for chain order, hard gates (path existence, halt-loop conditions, fabricated citation refusal), stop conditions (3-retry Fase A, time budget exhaustion), anti-patterns (never modify referencia/, never fabricate Fase B answers), and rollback. **Read `cycle-discover.md` before invoking this skill.** This SKILL.md retains phase-specific detail (halt-loop workflow, per-iteration prompt, halt-loop invariants).
+This skill is **phase 3** of [`cycle-discover`](../../rules/cycle-discover.md). The cycle rule is the source of truth for chain order, hard gates (path existence, halt-loop conditions, fabricated citation refusal), stop conditions (3-retry Fase A, time budget exhaustion), anti-patterns (never modify .claude/knowledge-base/references/, never fabricate Fase B answers), and rollback. **Read `cycle-discover.md` before invoking this skill.** This SKILL.md retains phase-specific detail (halt-loop workflow, per-iteration prompt, halt-loop invariants).
 
 ## When to Trigger
 
@@ -82,10 +82,10 @@ The ralph-loop plugin:
 Each iteration of the halt-loop MUST:
 
 1. **Pick the next un-answered research question** from the plan's Coverage Matrix.
-2. **Apply the planned method** (Read / Grep / find / git log) using the planned reference project + path. Never `cd` into `referencia/`; never modify it (boundary-check hook blocks).
+2. **Apply the planned method** (Read / Grep / find / git log) using the planned reference project + path. Never `cd` into `.claude/knowledge-base/references/`; never modify it (boundary-check hook blocks).
 3. **Synthesize the answer** in the format declared by the plan's "expected answer shape".
 4. **Append/update the blueprint** under the section mapped to that question. Replace the `<!-- TBD: Qx -->` placeholder.
-5. **Cite the source** — every paragraph or table cell that references behavior MUST link to a `referencia/{project}/{path}:{line}` reference. No claim without citation.
+5. **Cite the source** — every paragraph or table cell that references behavior MUST link to a `.claude/knowledge-base/references/{project}/{path}:{line}` reference. No claim without citation.
 6. **Mark the question DONE** in a session-local progress file under `.claude/knowledge-base/discoveries/.progress-{slug}.json` (gitignored).
 7. **Re-evaluate halt condition.** If all four conditions hold (every question answered + every citation verifiable + four corners populated + acceptance criteria met), emit `<promise>BLUEPRINT_COMPLETE</promise>`.
 
@@ -109,8 +109,8 @@ After the loop terminates (promise detected OR max iterations OR time budget):
 ## Halt-loop invariants
 
 - The skill SHALL NOT modify the discovery plan during execute (use `/discover-improve` for blueprint refinement).
-- The skill SHALL NOT touch any file inside `referencia/` (boundary-check hook enforces).
-- The skill SHALL NOT run `npm install`, `pip install`, `poetry install`, or any dependency installer inside `referencia/`.
+- The skill SHALL NOT touch any file inside `.claude/knowledge-base/references/` (boundary-check hook enforces).
+- The skill SHALL NOT run `npm install`, `pip install`, `poetry install`, or any dependency installer inside `.claude/knowledge-base/references/`.
 - The skill SHALL NOT emit `<promise>BLUEPRINT_COMPLETE</promise>` while ANY of the four halt-condition checks fails.
 - The loop SHALL NOT iterate beyond `--max-iterations` or `--time-budget`.
 - If exhausted before completion, the skill SHALL emit a promise with HONEST blocked-questions report.
@@ -139,7 +139,7 @@ Your next action:
 - Review edge cases — that's `/discover-edge-cases`.
 - Score the blueprint — that's `/discover-confidence`.
 - Refine a low-scoring blueprint — that's `/discover-improve`.
-- Modify `referencia/` — forbidden by boundary-check hook.
+- Modify `.claude/knowledge-base/references/` — forbidden by boundary-check hook.
 
 ## Related
 

@@ -26,14 +26,14 @@ One sentence: what the blueprint enables the reader to decide.
 
 How Mem0 tests integration scenarios:
 
-- **Pattern**: {description with citation `referencia/mem0/mem0-ts/tests/...:line`}
+- **Pattern**: {description with citation `.claude/knowledge-base/references/mem0/mem0-ts/tests/...:line`}
 - **Fixtures**: {how they set up Postgres / pgvector / LLM stubs}
 - **Coverage**: {what they assert vs what they leave to unit tests}
 
 Code example (with citation):
 
 ```ts
-// referencia/mem0/mem0-ts/tests/example.test.ts:42
+// .claude/knowledge-base/references/mem0/mem0-ts/tests/example.test.ts:42
 {cited snippet}
 ```
 
@@ -55,8 +55,8 @@ Runtime + dev dependencies (with versions and justification):
 
 | Dependency | Version | Why | Citation |
 |---|---|---|---|
-| `pgvector` | `^X.Y` | embedding store | `referencia/mem0/mem0-ts/package.json:N` |
-| `openai` | `^X.Y` | LLM extraction provider | `referencia/mem0/mem0-ts/package.json:N` |
+| `pgvector` | `^X.Y` | embedding store | `.claude/knowledge-base/references/mem0/mem0-ts/package.json:N` |
+| `openai` | `^X.Y` | LLM extraction provider | `.claude/knowledge-base/references/mem0/mem0-ts/package.json:N` |
 
 ### Letta
 
@@ -94,9 +94,9 @@ How each project implements this technique:
 
 | Project | Approach | Citation |
 |---|---|---|
-| Mem0 | {description} | `referencia/mem0/.../file.py:N` |
-| Letta | {description} | `referencia/letta/.../file.py:N` |
-| LangMem | {description} | `referencia/langmem/.../file.py:N` |
+| Mem0 | {description} | `.claude/knowledge-base/references/mem0/.../file.py:N` |
+| Letta | {description} | `.claude/knowledge-base/references/letta/.../file.py:N` |
+| LangMem | {description} | `.claude/knowledge-base/references/langmem/.../file.py:N` |
 
 Notable differences worth calling out: {one paragraph + citation per claim}.
 
@@ -151,7 +151,7 @@ Concrete next steps that the blueprint informs. Each recommendation links to:
 
 | Question | Reason | Suggested human follow-up |
 |---|---|---|
-| Q5 | `referencia/letta/letta/services/memory.py:142` does not exist — file may have been renamed | Search for moved file; if not found, re-execute Q5 with revised path |
+| Q5 | `.claude/knowledge-base/references/letta/letta/services/memory.py:142` does not exist — file may have been renamed | Search for moved file; if not found, re-execute Q5 with revised path |
 
 ## Halt-loop progress (audit trail)
 

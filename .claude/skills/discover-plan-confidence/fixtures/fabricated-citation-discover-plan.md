@@ -1,6 +1,6 @@
 # Discovery Plan: Fabricated-Citation Negative Fixture
 
-> **Version 1.0** — Negative fixture for `/discover-plan-confidence`. Contains exactly 2 citations: one verified (`referencia/mem0/README.md` exists) and one fabricated (`referencia/mem0/this-path-does-not-exist-2026.md` does NOT exist). MUST trigger `fabricated_citation` hard cap.
+> **Version 1.0** — Negative fixture for `/discover-plan-confidence`. Contains exactly 2 citations: one verified (`.claude/knowledge-base/references/mem0/README.md` exists) and one fabricated (`.claude/knowledge-base/references/mem0/this-path-does-not-exist-2026.md` does NOT exist). MUST trigger `fabricated_citation` hard cap.
 
 **Slug:** `fabricated-citation-fixture`
 **Owner:** test-author
@@ -9,7 +9,7 @@
 
 ## Context
 
-Negative path: structurally valid except for ONE fabricated `referencia/` path in the Research Questions table. Used by `test_fabricated_citation_detected` to verify the checker fires `fabricated_citation` and reports the offending path.
+Negative path: structurally valid except for ONE fabricated `.claude/knowledge-base/references/` path in the Research Questions table. Used by `test_fabricated_citation_detected` to verify the checker fires `fabricated_citation` and reports the offending path.
 
 The fixture also contains a SECOND fake citation in Q3, followed by an HTML comment marker that flags it as intentionally documented. The blocked-marker recognizer in `check_reference_citations` excludes such paths from the fabricated count, so the test verifies that an explicitly-documented gap does NOT trigger the cap.
 
@@ -23,13 +23,13 @@ Cause `check_reference_citations` to report `fabricated >= 1` and include the fa
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `referencia/mem0/README.md` | top-level README (real, verified) | Reference for fabrication test |
+| `.claude/knowledge-base/references/mem0/README.md` | top-level README (real, verified) | Reference for fabrication test |
 
 ### Out-of-Scope
 
 | Project / Subdir | Why excluded |
 |---|---|
-| Anything not in `referencia/` | Cross-Project Rule |
+| Anything not in `.claude/knowledge-base/references/` | Cross-Project Rule |
 
 ## ADRs
 
@@ -57,11 +57,11 @@ Cause `check_reference_citations` to report `fabricated >= 1` and include the fa
 
 | # | Question | Corner | Reference project(s) | Fase A | Fase B | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | What does Mem0 README say? | tests | `referencia/mem0/README.md` | SKIP | Read README | summary |
-| Q2 | What does this nonexistent path contain? | deps | `referencia/mem0/this-path-does-not-exist-2026.md` | SKIP | Read fake path | (will fail) |
-| Q3 | What does Letta document about deferred topic X? | tools | `referencia/letta/intentionally-missing-2026.md` <!-- BLOCKED: removed --> | SKIP | Read | (blocked) |
-| Q4 | LangMem prompts module structure | techniques | `referencia/langmem/src/langmem/prompts/` | ast-grep | Read each file | architecture map |
-| Q5 | Mem0 quickstart steps | techniques | `referencia/mem0/README.md` | SKIP | Read README | step-by-step |
+| Q1 | What does Mem0 README say? | tests | `.claude/knowledge-base/references/mem0/README.md` | SKIP | Read README | summary |
+| Q2 | What does this nonexistent path contain? | deps | `.claude/knowledge-base/references/mem0/this-path-does-not-exist-2026.md` | SKIP | Read fake path | (will fail) |
+| Q3 | What does Letta document about deferred topic X? | tools | `.claude/knowledge-base/references/letta/intentionally-missing-2026.md` <!-- BLOCKED: removed --> | SKIP | Read | (blocked) |
+| Q4 | LangMem prompts module structure | techniques | `.claude/knowledge-base/references/langmem/src/langmem/prompts/` | ast-grep | Read each file | architecture map |
+| Q5 | Mem0 quickstart steps | techniques | `.claude/knowledge-base/references/mem0/README.md` | SKIP | Read README | step-by-step |
 
 ## Coverage Matrix
 

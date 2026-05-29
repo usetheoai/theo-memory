@@ -2,7 +2,7 @@
 # PreToolUse hook for Edit/Write: enforces architectural boundaries.
 #
 # Boundaries enforced (from CLAUDE.md § Architectural Decisions Locked):
-#   1. referencia/ is read-only study material — never edit it.
+#   1. .claude/knowledge-base/references/ is read-only study material — never edit it.
 #   2. Dependency direction: core/ must NOT import from local/ or cloud/.
 #      local/ and cloud/ must NOT import from each other.
 #      theokit/ binding imports from core/ only.
@@ -22,9 +22,9 @@ fi
 
 CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // empty')
 
-# --- Guard 1: referencia/ is read-only ---
-if echo "$FILE_PATH" | grep -qE '(^|/)referencia/'; then
-  echo '{"decision":"block","reason":"BOUNDARY VIOLATION: referencia/ holds read-only clones (Mem0, Letta, LangMem) for design study. Never edit, never create files there. Capture findings in docs/exploration-reports/ instead."}' >&2
+# --- Guard 1: .claude/knowledge-base/references/ is read-only ---
+if echo "$FILE_PATH" | grep -qE '(^|/).claude/knowledge-base/references/'; then
+  echo '{"decision":"block","reason":"BOUNDARY VIOLATION: .claude/knowledge-base/references/ holds read-only clones (Mem0, Letta, LangMem) for design study. Never edit, never create files there. Capture findings in docs/exploration-reports/ instead."}' >&2
   exit 2
 fi
 

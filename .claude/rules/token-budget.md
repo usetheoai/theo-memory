@@ -37,9 +37,9 @@ The numbers below are estimates based on the architecture of each skill, not emp
 
 | Skill | Typical cost | Notes |
 |---|---|---|
-| `/discover-plan` | 10-30k | Reads rules, foundation doc, exploration reports, `referencia/` top-level |
+| `/discover-plan` | 10-30k | Reads rules, foundation doc, exploration reports, `.claude/knowledge-base/references/` top-level |
 | `/discover-edge-cases` | 5-15k | Reads plan + pragmatic checklist |
-| `/discover-execute` | 30-100k | Halt-loop with 10-30 iterations over `referencia/` |
+| `/discover-execute` | 30-100k | Halt-loop with 10-30 iterations over `.claude/knowledge-base/references/` |
 | `/discover-confidence` | <1k | Deterministic Python; ~0 LLM tokens |
 | `/discover-improve` | 10-30k | Halt-loop Phase A + Phase B |
 | `/skill-writer` | 5-15k | Reads blueprint, extracts patterns, writes candidate skill |
@@ -71,6 +71,17 @@ The numbers below are estimates based on the architecture of each skill, not emp
 | `/deck` | 60-150k | Orchestrates `/excalidraw × N_diagrams` + `/marp-slide`. N_diagrams typically 4-8 for a 10-16 slide deck. Always invoke `/dogfood` BEFORE generating any status-claim deck — its <1k cost prevents shipping false production claims. |
 | **Full deck workflow** | **60-150k** | Single user invocation of `/deck` includes the orchestration above. Largest single skill in the ecosystem aside from `/implement` and `/review`. |
 
+### Super-cycle (`/auto-plan` orchestrator — added 2026-05-26)
+
+| Skill / mode | Typical cost | Notes |
+|---|---|---|
+| `/auto-plan` (Step 1 only) | <1k | Confidence assessment is deterministic Python (`scripts/assess_confidence.py`); ~0 LLM tokens |
+| `/auto-plan` depth=none | 35-100k | Orchestrates cycle-plan only (to-plan + edge-case-plan + deps-audit + plan-confidence + optional plan-improve). Same as cycle-plan Full Chain row above. |
+| `/auto-plan` depth=light | 80-150k | cycle-discover (light: 2-3 questions, ~30-60k) + cycle-plan. Halt-loop iters capped lower for light depth. |
+| `/auto-plan` depth=full | 200-400k | cycle-discover (full: 5-10 questions, ~80-200k) + cycle-plan + plan-improve. Largest single auto-orchestrated cost in the ecosystem (below `/implement` + `/review` combined). |
+
+Use `/auto-plan {topic-slug}` to invoke; orchestrator auto-recommends depth based on confidence score. CLI flags `--depth=...` and `--force-override` available. See `.claude/rules/cycle-auto-plan.md` for the full cycle SoT.
+
 ### Auxiliary
 
 | Skill | Typical cost | Notes |
@@ -87,7 +98,7 @@ The numbers below are estimates based on the architecture of each skill, not emp
 
 Estimated cost: **40-150k tokens**
 
-When to use: studying `referencia/` to inform a design decision. No `/skill-writer` because we don't need a persistent skill.
+When to use: studying `.claude/knowledge-base/references/` to inform a design decision. No `/skill-writer` because we don't need a persistent skill.
 
 ### Workflow B: Investigation that produces a reusable patterns skill
 

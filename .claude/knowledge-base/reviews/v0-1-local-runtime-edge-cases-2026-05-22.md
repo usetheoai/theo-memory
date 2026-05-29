@@ -13,7 +13,7 @@ Edge cases encontrados: 8 (MUST FIX: 2, SHOULD TEST: 4, DOCUMENT: 2)
 
 - **Question afetada:** Q5
 - **Família:** Method / Scope
-- **Cenário:** O plano diz "Read 2-3 representative Alembic migrations" mas `referencia/letta/alembic/versions/` contém **167 arquivos** (verificado via `ls | wc -l`). Sem critério, o halt-loop pode (a) ler arbitrariamente as 3 primeiras alfabeticamente — irrelevantes para o memory schema, (b) tentar ler todas — explode budget, OU (c) ficar indeciso sobre quais 3 escolher.
+- **Cenário:** O plano diz "Read 2-3 representative Alembic migrations" mas `.claude/knowledge-base/references/letta/alembic/versions/` contém **167 arquivos** (verificado via `ls | wc -l`). Sem critério, o halt-loop pode (a) ler arbitrariamente as 3 primeiras alfabeticamente — irrelevantes para o memory schema, (b) tentar ler todas — explode budget, OU (c) ficar indeciso sobre quais 3 escolher.
 - **Impacto:** Q5 entrega blueprint vazio OR halt-loop esgota budget de Letta antes de chegar em Q6/Q7.
 - **Fix sugerido:** Adicionar à coluna Fase A de Q5 o critério de amostragem: "First Grep `passages\|memories\|archival_memory\|vector` over `versions/*.py` para encontrar as N migrações que tocam o memory schema; depois selecionar as 3 mais relevantes: a primeira que cria a tabela memory + a mais recente que a altera + uma intermediária."
 
@@ -21,7 +21,7 @@ Edge cases encontrados: 8 (MUST FIX: 2, SHOULD TEST: 4, DOCUMENT: 2)
 
 - **Question afetada:** Q4
 - **Família:** Method / Scope
-- **Cenário:** `referencia/mem0/mem0-ts/src/oss/tests/` contém 26 `.test.ts` files (verificado via `find`). Q4 diz "3-5 representative test files" sem dizer COMO escolher. Halt-loop pode arbitrariamente pegar `azure-embedder.test.ts` (irrelevante) ou as 5 primeiras alfabéticas.
+- **Cenário:** `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/tests/` contém 26 `.test.ts` files (verificado via `find`). Q4 diz "3-5 representative test files" sem dizer COMO escolher. Halt-loop pode arbitrariamente pegar `azure-embedder.test.ts` (irrelevante) ou as 5 primeiras alfabéticas.
 - **Impacto:** Q4 entrega caracterização do test pattern baseada em fixtures não-representativas (ex.: testa LLM adapters, não a pipeline write→search).
 - **Fix sugerido:** Adicionar à coluna Fase A de Q4 o critério: "First Grep `add\|search\|extraction` sobre os 26 test files para identificar quais exercitam a pipeline write/search (vs adapter unit tests); depois selecionar 3-5 desses como representativos da integration pattern."
 
@@ -31,7 +31,7 @@ Edge cases encontrados: 8 (MUST FIX: 2, SHOULD TEST: 4, DOCUMENT: 2)
 
 - **Question afetada:** Q1, Q2, Q3
 - **Halt-loop checkpoint sugerido:** Adicionar à seção "Halt-loop Checkpoints" do plano:
-  > "Per-file Read cache: if `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts` (1708 LoC) was Read in a prior question's Fase B, subsequent questions on the same file MUST cite via line range from the prior Read rather than re-Reading the full file. Halt-loop tracks file-read state per discovery run."
+  > "Per-file Read cache: if `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts` (1708 LoC) was Read in a prior question's Fase B, subsequent questions on the same file MUST cite via line range from the prior Read rather than re-Reading the full file. Halt-loop tracks file-read state per discovery run."
 
 ### EC-4: Q1 `async add` é 489 lines (507-996) — pode exceder context budget num único Read
 
@@ -41,7 +41,7 @@ Edge cases encontrados: 8 (MUST FIX: 2, SHOULD TEST: 4, DOCUMENT: 2)
 ### EC-5: Letta deps são static em pyproject.toml MAS `uv.lock` tem resolved versions — Q6 deve ler AMBOS
 
 - **Question afetada:** Q6
-- **Halt-loop checkpoint sugerido:** Refinar Q6's Fase B: "Read BOTH `referencia/letta/pyproject.toml` (declared ranges, e.g. `pgvector>=0.3.0,<0.5`) AND `referencia/letta/uv.lock` (resolved versions, e.g. `pgvector==0.3.4`). The resolved versions are what TheMemory's deps-audit reference for v0.1 plan."
+- **Halt-loop checkpoint sugerido:** Refinar Q6's Fase B: "Read BOTH `.claude/knowledge-base/references/letta/pyproject.toml` (declared ranges, e.g. `pgvector>=0.3.0,<0.5`) AND `.claude/knowledge-base/references/letta/uv.lock` (resolved versions, e.g. `pgvector==0.3.4`). The resolved versions are what TheMemory's deps-audit reference for v0.1 plan."
 
 ### EC-6: 6h budget total pode ser agressivo dado o tamanho de mem0-ts/memory/index.ts (1708 LoC)
 

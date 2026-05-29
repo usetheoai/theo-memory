@@ -17,18 +17,22 @@
  *  - text_lemmatized: jsonb storing string[] (pre-computed BM25 tokens, blueprint Recommendation 3)
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1 + ADR D1.7
- * @see referencia/letta/letta/orm/passage.py:1-105
+ * @see .claude/knowledge-base/references/letta/letta/orm/passage.py:1-105
  */
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
+  check,
   index,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   uniqueIndex,
   uuid,
+  varchar,
   vector,
 } from 'drizzle-orm/pg-core';
 
@@ -49,6 +53,12 @@ export const memories = pgTable(
     tValid: timestamp('t_valid', { withTimezone: true }).defaultNow(),
     tInvalid: timestamp('t_invalid', { withTimezone: true }),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
+    /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6. */
+    kind: varchar('kind', { length: 20 }).notNull().default('extracted'),
+    /** v0.4a: provenance for kind='derived' memories — array of source memory UUIDs per ADR D6. */
+    derivedFrom: jsonb('derived_from').$type<string[]>(),
+    /** v0.4a: LLM-judged importance cached at write per ADR D8 (REUSED by v0.4b forgetting). */
+    llmImportanceScore: real('llm_importance_score'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -58,6 +68,49 @@ export const memories = pgTable(
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),
     index('memories_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
+    check(
+      'memories_kind_derived_from_check',
+      sql`(${table.kind} = 'extracted' AND ${table.derivedFrom} IS NULL)
+       OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)`,
+    ),
+  ],
+);
+
+/**
+ * v0.4a: per-scope reflection trigger counter — bumped on each remember() per ADR D4.
+ *
+ * ThresholdReflectionPolicy reads `count % threshold == 0` to decide whether to enqueue
+ * a reflection. Counter is decoupled from `memories` because (a) it's a hot-write row
+ * (every remember() bumps it) while memories is append-only, and (b) it isolates
+ * threshold state from the bi-temporal memory store.
+ *
+ * EC-2 absorption: `count BIGINT` (not INTEGER) to avoid 2.1B overflow.
+ * EC-3 absorption: CHECK forbids all-NULL scope rows (Postgres NULL≠NULL in UNIQUE
+ * would otherwise allow unbounded all-NULL counter rows, defeating modular arithmetic).
+ *
+ * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § ADR D4
+ */
+export const reflectionCounters = pgTable(
+  'reflection_counters',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    scopeUserId: text('scope_user_id'),
+    scopeSessionId: text('scope_session_id'),
+    scopeAgentId: text('scope_agent_id'),
+    count: bigint('count', { mode: 'number' }).notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('reflection_counters_scope_unique_idx').on(
+      table.scopeUserId,
+      table.scopeSessionId,
+      table.scopeAgentId,
+    ),
+    check(
+      'reflection_counters_scope_not_all_null_check',
+      sql`NOT (${table.scopeUserId} IS NULL AND ${table.scopeSessionId} IS NULL AND ${table.scopeAgentId} IS NULL)`,
+    ),
   ],
 );
 

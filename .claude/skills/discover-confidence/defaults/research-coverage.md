@@ -48,7 +48,7 @@ These are checked by `check_blueprint_completeness.py` and trigger a soft cap (â
 
 ## Citation density
 
-The blueprint SHOULD have at least 1 `referencia/{project}/{path}` citation per 200 words of prose. Lower density triggers `soft_floor_citation_density_low` (cap at 89, not INVALID).
+The blueprint SHOULD have at least 1 `.claude/knowledge-base/references/{project}/{path}` citation per 200 words of prose. Lower density triggers `soft_floor_citation_density_low` (cap at 89, not INVALID).
 
 ## Per-project asymmetry
 

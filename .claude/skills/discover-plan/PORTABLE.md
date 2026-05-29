@@ -1,6 +1,6 @@
 # Discover-Plan — Portable Installation
 
-This skill works in **any project** that uses Claude Code AND has a `referencia/` (or equivalent) directory of read-only reference implementations to investigate.
+This skill works in **any project** that uses Claude Code AND has a `.claude/knowledge-base/references/` (or equivalent) directory of read-only reference implementations to investigate.
 
 ## What you get
 
@@ -34,7 +34,7 @@ If your project has all five: full pipeline. If only `/discover-plan`: standalon
 ### Required
 
 - **`.claude/rules/` directory** with at least `architecture.md` and `testing.md` (or your project's equivalents). Step 0 of the protocol mandates reading them. If missing, the skill falls back to a generic "no rules" plan (lower quality output).
-- **A reference-clones directory** — the SKILL.md examples cite `referencia/mem0/`, `referencia/letta/`, `referencia/langmem/`. If your project uses a different path (e.g., `vendor/`, `third_party/`, `studies/`), see § Customization below.
+- **A reference-clones directory** — the SKILL.md examples cite `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/`, `.claude/knowledge-base/references/langmem/`. If your project uses a different path (e.g., `vendor/`, `third_party/`, `studies/`), see § Customization below.
 - **`.claude/knowledge-base/discoveries/plans/` directory** — where the plan is saved. Created on first use if missing.
 
 ### Optional but recommended
@@ -49,7 +49,7 @@ When you invoke `/discover-plan {topic-slug}`:
 
 1. Reads `.claude/rules/` to internalize project principles
 2. Reads any `docs/*.md` foundation docs + `CLAUDE.md` (if present) for context inventory
-3. Lists `referencia/{mem0,letta,langmem}/` top-level structure (or your equivalent)
+3. Lists `.claude/knowledge-base/references/{mem0,letta,langmem}/` top-level structure (or your equivalent)
 4. Defines investigation targets (in-scope / out-of-scope)
 5. Declares four-corner coverage (5-10 questions total, max 3 per corner)
 6. Writes the plan at `.claude/knowledge-base/discoveries/plans/{slug}-plan.md`
@@ -58,12 +58,12 @@ When you invoke `/discover-plan {topic-slug}`:
 
 ### 1. Different reference-clones directory
 
-If your project uses `vendor/` instead of `referencia/`:
+If your project uses `vendor/` instead of `.claude/knowledge-base/references/`:
 
 ```bash
-# Find every referencia/ mention in the skill and replace
-sed -i 's|referencia/|vendor/|g' .claude/skills/discover-plan/SKILL.md
-sed -i 's|referencia/|vendor/|g' .claude/skills/discover-plan/templates/discovery-plan-template.md
+# Find every .claude/knowledge-base/references/ mention in the skill and replace
+sed -i 's|.claude/knowledge-base/references/|vendor/|g' .claude/skills/discover-plan/SKILL.md
+sed -i 's|.claude/knowledge-base/references/|vendor/|g' .claude/skills/discover-plan/templates/discovery-plan-template.md
 ```
 
 Or simpler: add a project-specific override at `.claude/rules/discover-plan-overrides.md` that the skill reads first.
@@ -96,7 +96,7 @@ The template suggests "Mem0: 4h, Letta: 2h, LangMem: 1h" as illustrative. For yo
 | Question budget rule (5-10, max 3 per corner) | ✅ Fully | Domain-agnostic heuristic. |
 | Fase A → Fase B workflow | ✅ Fully | Investigation pattern, not tool-specific. |
 | Template structure (10 mandatory sections) | ✅ Fully | Coverage Matrix shape is universal. |
-| Cited paths `referencia/mem0/...` | ❌ Project-specific | Examples reference TheMemory's clones. Replace with your paths. |
+| Cited paths `.claude/knowledge-base/references/mem0/...` | ❌ Project-specific | Examples reference TheMemory's clones. Replace with your paths. |
 | Example ADRs (D1 Mem0/Letta/LangMem budget) | ❌ Project-specific | Adapt to your reference list. |
 
 ## Limitations (Known)

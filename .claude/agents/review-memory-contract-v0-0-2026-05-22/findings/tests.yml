@@ -385,7 +385,7 @@ recommendations_for_pr_merge:
   - "Ready to merge to main. No test-related blocking issues."
 
 next_cycle_notes:
-  v0_1_integration_tests: "Plan integration tests against real Postgres + pgvector. Use @testcontainers/postgresql pattern (observed in referencia/mem0 test suite)."
+  v0_1_integration_tests: "Plan integration tests against real Postgres + pgvector. Use @testcontainers/postgresql pattern (observed in .claude/knowledge-base/references/mem0 test suite)."
   v0_2_e2e_tests: "Plan E2E tests validating Memory + TheoKit binding request-context resolution."
   coverage_gate_at_v0_1: "Aim for 90%+ coverage on critical paths (extraction pipeline, retrieval pipeline, dedup). Mock LLM calls with fixtures; never call live providers in CI."
   mutation_testing_at_v0_1: "Introduce mutation testing (mutmut for Python-style logic, stryker for TypeScript) on critical paths to validate test quality beyond line coverage."

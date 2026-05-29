@@ -3,7 +3,7 @@
 
 5 deterministic checks:
   1. Frontmatter conformance — required fields present, allowed-tools read-only
-  2. Citation existence — every `referencia/{path}` exists on disk
+  2. Citation existence — every `.claude/knowledge-base/references/{path}` exists on disk
   3. No duplication — name does NOT collide with existing first-class skills
   4. Description trigger-phrase clarity — ≥2 "Use when..." phrases + concrete context
   5. No forbidden patterns — no Bash perms, no dangerous shell, no Write/Edit perms
@@ -52,12 +52,12 @@ FORBIDDEN_TOOLS = frozenset({
 # Bash patterns explicitly forbidden in generated skills (defense in depth — validator)
 FORBIDDEN_BASH_TOKENS = ("rm ", "curl ", "wget ", "sudo ", "kubectl ", "docker ", "npm install", "pip install")
 
-CITATION_RE = re.compile(r"referencia/[A-Za-z0-9_\-./]+")
+CITATION_RE = re.compile(r".claude/knowledge-base/references/[A-Za-z0-9_\-./]+")
 LINE_SUFFIX_RE = re.compile(r":\d+(:\d+)?$")
 USE_WHEN_RE = re.compile(
     r"\b[Uu]se when\b|\b[Cc]onsult when\b|,\s*when\s+\w+|;\s*when\s+\w+|\bor\s+when\s+\w+"
 )
-CONCRETE_CONTEXT_RE = re.compile(r"(src/|\.claude/|referencia/|/to-plan|/discover|architecture\.md|testing\.md|public-copy\.md)")
+CONCRETE_CONTEXT_RE = re.compile(r"(src/|\.claude/|.claude/knowledge-base/references/|/to-plan|/discover|architecture\.md|testing\.md|public-copy\.md)")
 FENCED_BASH_RE = re.compile(r"^```(?:bash|sh)\s*\n(.*?)^```", re.MULTILINE | re.DOTALL)
 
 
@@ -137,7 +137,7 @@ def check_frontmatter(content: str) -> dict[str, Any]:
 def check_citations(content: str, project_root: Path) -> dict[str, Any]:
     citations_seen = sorted(set(CITATION_RE.findall(content)))
     if not citations_seen:
-        return {"status": "PASS", "verified": 0, "fabricated": 0, "note": "No referencia/ citations to verify"}
+        return {"status": "PASS", "verified": 0, "fabricated": 0, "note": "No .claude/knowledge-base/references/ citations to verify"}
 
     verified: list[str] = []
     fabricated: list[str] = []

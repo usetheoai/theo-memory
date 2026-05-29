@@ -1,6 +1,6 @@
 # Blueprint: v0.1 Local Runtime (Mem0-shape pipeline + pgvector schema)
 
-> **Version 1.0** — Technical synthesis of how `referencia/mem0/mem0-ts/` implements the locked Mem0-shape pipeline (6-phase write + 9-step search + additive scoring + hash dedup + entity store + per-row fallback) and how `referencia/letta/` schemas + tests pgvector against real Postgres. Informs the v0.1 `/to-plan` for the local runtime.
+> **Version 1.0** — Technical synthesis of how `.claude/knowledge-base/references/mem0/mem0-ts/` implements the locked Mem0-shape pipeline (6-phase write + 9-step search + additive scoring + hash dedup + entity store + per-row fallback) and how `.claude/knowledge-base/references/letta/` schemas + tests pgvector against real Postgres. Informs the v0.1 `/to-plan` for the local runtime.
 
 **Slug:** `v0-1-local-runtime`
 **Source plan:** `.claude/knowledge-base/discoveries/plans/v0-1-local-runtime-plan.md` (v1.1)
@@ -10,11 +10,11 @@
 
 ## Context
 
-Roadmap Item 2 (v0.1 — Core + local runtime) requires concrete decisions for the 6-phase write, 9-step search, hash dedup, entity store, pgvector schema, integration tests, and dev tooling. The blueprint synthesizes evidence from `referencia/mem0/mem0-ts/` (primary architectural reference, 4h budget) and `referencia/letta/` (pgvector schema + Alembic migrations + integration test patterns, 2h budget). LangMem deferred per plan D3.
+Roadmap Item 2 (v0.1 — Core + local runtime) requires concrete decisions for the 6-phase write, 9-step search, hash dedup, entity store, pgvector schema, integration tests, and dev tooling. The blueprint synthesizes evidence from `.claude/knowledge-base/references/mem0/mem0-ts/` (primary architectural reference, 4h budget) and `.claude/knowledge-base/references/letta/` (pgvector schema + Alembic migrations + integration test patterns, 2h budget). LangMem deferred per plan D3.
 
 ## Objective
 
-Enable `/to-plan v0-1-local-runtime` to lock concrete v0.1 decisions for every pipeline stage, schema column, dep choice, and dev tooling element — each grounded in a verified `referencia/{...}` citation.
+Enable `/to-plan v0-1-local-runtime` to lock concrete v0.1 decisions for every pipeline stage, schema column, dep choice, and dev tooling element — each grounded in a verified `.claude/knowledge-base/references/{...}` citation.
 
 ---
 
@@ -137,7 +137,7 @@ Enable `/to-plan v0-1-local-runtime` to lock concrete v0.1 decisions for every p
 
 #### Schema strategy — DUAL-backend pattern (Postgres + SQLite from one ORM)
 
-**Cross-DB embedding column** (`referencia/letta/letta/orm/passage.py:34-40`):
+**Cross-DB embedding column** (`.claude/knowledge-base/references/letta/letta/orm/passage.py:34-40`):
 
 ```python
 if settings.database_engine is DatabaseChoice.POSTGRES:
@@ -148,7 +148,7 @@ else:
 ```
 
 - **Postgres path:** `pgvector.sqlalchemy.Vector(MAX_EMBEDDING_DIM)` — native pgvector column. `MAX_EMBEDDING_DIM` declared in `letta/constants.py` (not read — flag for v0.1 sampling).
-- **SQLite path:** `CommonVector` custom TypeDecorator with `impl = BINARY` (`referencia/letta/letta/orm/custom_columns.py:142-152`):
+- **SQLite path:** `CommonVector` custom TypeDecorator with `impl = BINARY` (`.claude/knowledge-base/references/letta/letta/orm/custom_columns.py:142-152`):
   ```python
   class CommonVector(TypeDecorator):
       impl = BINARY
@@ -211,7 +211,7 @@ def upgrade() -> None:
 
 **All migrations carry `upgrade()` + `downgrade()` + standard Alembic header** (`revision`, `down_revision`, `branch_labels`, `depends_on`).
 
-#### Integration test fixture style (`referencia/letta/tests/conftest.py:1-80`)
+#### Integration test fixture style (`.claude/knowledge-base/references/letta/tests/conftest.py:1-80`)
 
 - pytest framework; `pytest_configure` enables DEBUG logging
 - **Server-in-background-thread fixture** (`conftest.py:22-60`): if `LETTA_SERVER_URL` env var not set, the fixture STARTS the Letta server in a daemon thread (`from letta.server.rest_api.app import start_server`), then polls `/v1/health` up to 60s for readiness
@@ -242,7 +242,7 @@ ADR-deferred per discovery plan D3 (procedural memory; revisit at v0.6 Voyager s
 
 ### Mem0 (Q6)
 
-**Dual-source executed:** `referencia/mem0/mem0-ts/package.json` (declared) + `referencia/mem0/mem0-ts/pnpm-lock.yaml` (resolved via pnpm lockfile v9.0).
+**Dual-source executed:** `.claude/knowledge-base/references/mem0/mem0-ts/package.json` (declared) + `.claude/knowledge-base/references/mem0/mem0-ts/pnpm-lock.yaml` (resolved via pnpm lockfile v9.0).
 
 | Package | Declared | Resolved | Role |
 |---|---|---|---|
@@ -257,7 +257,7 @@ ADR-deferred per discovery plan D3 (procedural memory; revisit at v0.6 Voyager s
 | `openai` | `^4.93.0` | `4.93.0` | LLM provider (one of many) |
 | `@anthropic-ai/sdk` | `^0.40.1` | `0.40.1` | LLM provider (alternative) |
 
-**Critical finding — NO `pgvector` npm package**: Mem0-ts talks to pgvector via raw SQL through the `pg` client. Verified via Grep on `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts`:
+**Critical finding — NO `pgvector` npm package**: Mem0-ts talks to pgvector via raw SQL through the `pg` client. Verified via Grep on `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts`:
 - L105: `// Create vector extension` → executes `CREATE EXTENSION IF NOT EXISTS vector`
 - L144: `vector vector(${dims}),` → table creation with native pgvector column type
 - L169: `USING hnsw (vector vector_cosine_ops);` → HNSW index on cosine distance
@@ -273,7 +273,7 @@ This means Mem0 chose **raw SQL composition** over an ORM/wrapper layer. The tra
 
 ### Letta (Q6)
 
-**Dual-source executed:** `referencia/letta/pyproject.toml` (declared) + `referencia/letta/uv.lock` (resolved).
+**Dual-source executed:** `.claude/knowledge-base/references/letta/pyproject.toml` (declared) + `.claude/knowledge-base/references/letta/uv.lock` (resolved).
 
 | Package | Declared | Resolved | Role |
 |---|---|---|---|
@@ -331,7 +331,7 @@ ADR-deferred per discovery plan D3.
 
 ### Mem0 (Q7)
 
-**`server/docker-compose.yaml`** (76 LoC; `referencia/mem0/server/docker-compose.yaml`) — 3 services:
+**`server/docker-compose.yaml`** (76 LoC; `.claude/knowledge-base/references/mem0/server/docker-compose.yaml`) — 3 services:
 
 | Service | Image / build | Port | Notes |
 |---|---|---|---|
@@ -358,7 +358,7 @@ Migration is NOT a separate one-shot job; it's embedded in the service container
 - `make build` → docker build for production image (no compose)
 - `make run_local` → `docker run -p 8000:8000 -v $(pwd):/app mem0-api-server --env-file .env`
 
-**`mem0-ts/package.json` scripts** (`referencia/mem0/mem0-ts/package.json`):
+**`mem0-ts/package.json` scripts** (`.claude/knowledge-base/references/mem0/mem0-ts/package.json`):
 ```json
 {
   "build": "npm run clean && npx prettier --check . && npx tsup",
@@ -377,7 +377,7 @@ Two-tier test config: **`jest.config.js`** for unit (in-memory, mocks) + **`jest
 
 ### Letta (Q7)
 
-**`compose.yaml`** (65 LoC; `referencia/letta/compose.yaml`) — 3 services:
+**`compose.yaml`** (65 LoC; `.claude/knowledge-base/references/letta/compose.yaml`) — 3 services:
 
 | Service | Image | Port | Notes |
 |---|---|---|---|
@@ -469,11 +469,11 @@ ADR-deferred per discovery plan D3.
 
 ### Technique 1 — Multi-phase write pipeline (Q1)
 
-> **D5 note (EC-7):** ADR-0001 narrates a "6-phase write pipeline" (`.claude/rules/architecture.md § 4` Adopt list). Code reality is **8 phases** (0,1,2,3,4-5,6,7,8 per comments at `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:588,590,606,626,695,716,783,851,976`) plus an unnumbered batch-history step (805-849) between Phase 6 and 7. The 6-phase framing folds phases 0+1 → "context+retrieval", 4+5 → "dedup+payload", and treats entity-linking (Phase 7) + save-messages (Phase 8) as auxiliaries. **Blueprint reports the code's own numbering**; v0.1 implementation has discretion to flatten labels but the SHAPE is what's load-bearing.
+> **D5 note (EC-7):** ADR-0001 narrates a "6-phase write pipeline" (`.claude/rules/architecture.md § 4` Adopt list). Code reality is **8 phases** (0,1,2,3,4-5,6,7,8 per comments at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:588,590,606,626,695,716,783,851,976`) plus an unnumbered batch-history step (805-849) between Phase 6 and 7. The 6-phase framing folds phases 0+1 → "context+retrieval", 4+5 → "dedup+payload", and treats entity-linking (Phase 7) + save-messages (Phase 8) as auxiliaries. **Blueprint reports the code's own numbering**; v0.1 implementation has discretion to flatten labels but the SHAPE is what's load-bearing.
 
-**Public entry vs internal pipeline split:** `async add` (`referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:507-560`, 55 lines) is the public surface — validates messages, normalizes IDs (camelCase → snake_case for storage), parses vision messages, then delegates to private `addToVectorStore` (`referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`, 433 lines).
+**Public entry vs internal pipeline split:** `async add` (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:507-560`, 55 lines) is the public surface — validates messages, normalizes IDs (camelCase → snake_case for storage), parses vision messages, then delegates to private `addToVectorStore` (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`, 433 lines).
 
-**`infer: false` escape hatch** (`referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:568-586`): when caller pre-extracted facts, skip the full pipeline — just `createMemory(content, {}, metadata)` per non-system message. Returns `{ id, memory: content, metadata: { event: "ADD" } }`. No LLM call, no entity store, no hash dedup. Per-row scope: each message becomes one memory.
+**`infer: false` escape hatch** (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:568-586`): when caller pre-extracted facts, skip the full pipeline — just `createMemory(content, {}, metadata)` per non-system message. Returns `{ id, memory: content, metadata: { event: "ADD" } }`. No LLM call, no entity store, no hash dedup. Per-row scope: each message becomes one memory.
 
 **Phases (when `infer: true`):**
 
@@ -489,7 +489,7 @@ ADR-deferred per discovery plan D3.
 | 7 — Batch entity linking | 851-974 | Outer try/catch (entire phase can fail without breaking the write). 7a: `extractEntitiesBatch(allTexts)` + global dedup into `globalEntities[key] = {entityType, entityText, memoryIds: Set}`. 7b: `embedder.embedBatch(entityTexts)` with per-text fallback. 7c: for each entity, `entityStore.search(entityVec, 1, filters)` (with try/catch silent); if best match score >= 0.95, update existing (try/catch → console.debug); else collect for batch insert. 7e: single `entityStore.insert(toInsertVectors, toInsertIds, toInsertPayloads)` for all NEW entities (try/catch → console.warn) | per-text on entity embed; per-entity on update; ENTIRE PHASE 7 wrapped in try/catch — entity-store failure NEVER breaks the write |
 | 8 — Save messages + return | 976-994 | Optional `db.saveMessages(messages, sessionScope)` (try/catch silent); return `records.map(r => ({id: r.memoryId, memory: r.text, metadata: {event: "ADD"}}))` | try/catch silent on saveMessages — write succeeds even if message log fails |
 
-**Citations:** `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:507-994` (full `add`+`addToVectorStore` range).
+**Citations:** `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:507-994` (full `add`+`addToVectorStore` range).
 
 **v0.1 porting notes:**
 - The 6-phase ADR-0001 label is a simplification; v0.1 MUST adopt the 8-phase shape verbatim and call out the alignment in a new ADR.
@@ -499,9 +499,9 @@ ADR-deferred per discovery plan D3.
 
 ### Technique 2 — Nine-step search with additive scoring (Q2)
 
-> **D5 confirmation:** ADR-0001 narrates "9-step search" — code reality MATCHES exactly. 9 steps per comments at `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:1108,1112,1115,1123,1142,1155,1217,1224,1233`. No divergence to call out.
+> **D5 confirmation:** ADR-0001 narrates "9-step search" — code reality MATCHES exactly. 9 steps per comments at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:1108,1112,1115,1123,1142,1155,1217,1224,1233`. No divergence to call out.
 
-**Public entry:** `async search(query, config)` at `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:1037-1269`.
+**Public entry:** `async search(query, config)` at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:1037-1269`.
 
 **Pre-pipeline guards** (1041-1106):
 - `rejectTopLevelEntityParams` (1042) — entity IDs MUST be in `config.filters`, not top-level (Mem0 conservative API guard)
@@ -515,7 +515,7 @@ ADR-deferred per discovery plan D3.
 
 | Step | Lines | Operation | Notes |
 |---|---|---|---|
-| 1 — Preprocess query | 1108-1110 | `lemmatizeForBm25(query)` → queryLemmatized; `extractEntities(query)` → queryEntities | Both utilities loaded from `referencia/mem0/mem0-ts/src/oss/src/utils/{lemmatization,entity_extraction}.ts` |
+| 1 — Preprocess query | 1108-1110 | `lemmatizeForBm25(query)` → queryLemmatized; `extractEntities(query)` → queryEntities | Both utilities loaded from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/{lemmatization,entity_extraction}.ts` |
 | 2 — Embed query | 1112-1113 | `embedder.embed(query)` → queryEmbedding | Single embed call; no fallback |
 | 3 — Semantic search over-fetch | 1115-1121 | `internalLimit = max(topK * 4, 60)`; `vectorStore.search(queryEmbedding, internalLimit, effectiveFilters)` | **Key invariant:** over-fetch a larger candidate pool than `topK` so steps 5-6 have signal to re-rank against |
 | 4 — Keyword search (BM25) | 1123-1140 | If `vectorStore.keywordSearch` exists, `keywordSearch(queryLemmatized, internalLimit, effectiveFilters)`; else `keywordResults = null` | Per-call try/catch → null on failure; pipeline continues without BM25 (gracefully degrades) |
@@ -525,7 +525,7 @@ ADR-deferred per discovery plan D3.
 | 8 — Score and rank | 1224-1231 | `scoreAndRank(candidates, bm25Scores, entityBoosts, threshold, topK)` — see scoring.ts breakdown below | |
 | 9 — Format results | 1233-1264 | Filter `scored.payload.data` non-null; project to `{id, memory, hash, createdAt, updatedAt, score, metadata: payload minus internal keys, optional user/agent/run_id}` | Internal keys excluded: `user_id`, `agent_id`, `run_id`, `hash`, `data`, `createdAt`, `updatedAt`, `textLemmatized`, `attributedTo` — projected separately or removed |
 
-**Additive scoring formula (`referencia/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138`):**
+**Additive scoring formula (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138`):**
 
 ```
 combined = min((semantic + bm25 + entity_boost) / max_possible, 1.0)
@@ -568,7 +568,7 @@ Query-length-adaptive params (`getBm25Params`):
 
 #### Sub-topic A — Hash dedup (MD5)
 
-**Where:** `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:735` (Phase 4-5 of write pipeline), 1453 (`createMemory` helper), 1488 (another `createMemory` variant).
+**Where:** `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:735` (Phase 4-5 of write pipeline), 1453 (`createMemory` helper), 1488 (another `createMemory` variant).
 
 **Implementation:**
 ```ts
@@ -589,7 +589,7 @@ const memHash = createHash("md5").update(text).digest("hex");
 
 #### Sub-topic B — UUID→int mapping (anti-hallucination for LLM prompts)
 
-**Where:** `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:614-624` (Phase 1 of write pipeline, after existing-memory retrieval).
+**Where:** `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:614-624` (Phase 1 of write pipeline, after existing-memory retrieval).
 
 **Implementation:**
 ```ts
@@ -612,11 +612,11 @@ for (let idx = 0; idx < existingResults.length; idx++) {
 **v0.1 porting notes:**
 - ADOPT the integer-string mapping pattern verbatim for ANY prompt that lists existing memories to the LLM.
 - The reverse-mapping responsibility is unclear in Mem0's current code (looks like dead-end). Our v0.1 plan MUST lock: if we surface `linked_memory_ids` in metadata, must we resolve back to UUIDs? Most likely YES at the storage layer; flag in v0.1 plan as an open question.
-- For the additive-extraction prompt template, port `ADDITIVE_EXTRACTION_PROMPT` from `referencia/mem0/mem0-ts/src/oss/src/prompts/` (not yet read; flag for v0.1 detailed pickup).
+- For the additive-extraction prompt template, port `ADDITIVE_EXTRACTION_PROMPT` from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/prompts/` (not yet read; flag for v0.1 detailed pickup).
 
 #### Sub-topic C — Lemmatization (BM25 token preprocessing)
 
-**Where:** `referencia/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts:246-278` (function `lemmatizeForBm25`).
+**Where:** `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts:246-278` (function `lemmatizeForBm25`).
 
 **Callsites:**
 - `memory/index.ts:741` (write Phase 4-5) — `textLemmatized = lemmatizeForBm25(text)` stored in payload
@@ -663,14 +663,14 @@ for (let idx = 0; idx < existingResults.length; idx++) {
 
 ### D1 — Adopt the 8-phase write pipeline as the runtime canonical shape; treat ADR-0001's "6-phase" label as a narrative simplification
 
-- **Decision.** v0.1 runtime implements the 8-phase pipeline (0: context, 1: existing retrieval + UUID→int, 2: LLM extraction, 3: batch embed, 4-5: dedup + payload, 6: batch persist, 6.5: batch history, 7: entity linking, 8: save messages) verbatim from `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`. The code comments at L588/606/626/695/716/783/851/976 are the source of truth for phase boundaries.
+- **Decision.** v0.1 runtime implements the 8-phase pipeline (0: context, 1: existing retrieval + UUID→int, 2: LLM extraction, 3: batch embed, 4-5: dedup + payload, 6: batch persist, 6.5: batch history, 7: entity linking, 8: save messages) verbatim from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`. The code comments at L588/606/626/695/716/783/851/976 are the source of truth for phase boundaries.
 - **Rationale.** Mem0-ts is the production-tested reference (ADR-0001 § Adopt). Faithful porting preserves the per-row fallback shape that makes the pipeline fault-tolerant. ADR-0001's "6-phase" framing folds phases 0+1 → "context+retrieval" and 4+5 → "dedup+payload" for marketing brevity; the runtime needs the granular shape.
 - **Alternatives evaluated.** (a) Force the 6-phase narrative on the code — rejected; loses the granular fallback boundaries. (b) Invent a new phase decomposition — rejected; violates Inquebrável Rule 9 (Não Reinvente a Roda).
 - **Consequences.** v0.1 plan needs to update or augment ADR-0001 to acknowledge the 8-phase code reality. The Memory.remember() public verb still presents a single-shot API; phases are internal.
 
 ### D2 — Adopt the additive scoring formula + sigmoid BM25 + spread-attenuated entity boost VERBATIM
 
-- **Decision.** v0.1's `recall()` implements `combined = min((semantic + bm25 + entity_boost) / max_possible, 1.0)` per `referencia/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138`. `max_possible ∈ {1.0, 1.5, 2.0, 2.5}` depending on active signals. `ENTITY_BOOST_WEIGHT = 0.5` constant. BM25 normalized via sigmoid `1 / (1 + exp(-steepness * (raw - midpoint)))` with query-length-adaptive params. Entity boost spread-attenuated by `1 / (1 + 0.001 * (numLinked - 1)^2)`.
+- **Decision.** v0.1's `recall()` implements `combined = min((semantic + bm25 + entity_boost) / max_possible, 1.0)` per `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138`. `max_possible ∈ {1.0, 1.5, 2.0, 2.5}` depending on active signals. `ENTITY_BOOST_WEIGHT = 0.5` constant. BM25 normalized via sigmoid `1 / (1 + exp(-steepness * (raw - midpoint)))` with query-length-adaptive params. Entity boost spread-attenuated by `1 / (1 + 0.001 * (numLinked - 1)^2)`.
 - **Rationale.** Mem0 has iterated this formula at scale; it works. The threshold-gates-semantic-BEFORE-combining behavior (scoring.ts:117-120) is a load-bearing invariant.
 - **Alternatives evaluated.** (a) Multiplicative scoring per Generative Agents (`recency × importance × relevance`) — already deferred per `.claude/rules/architecture.md § 4` "Defer to v0.4". (b) Pure-semantic only — rejected; loses hybrid-retrieval competitive advantage.
 - **Consequences.** v0.1 ships `additive` scoring as the only strategy; v0.4 introduces strategy interface to add multiplicative.
@@ -685,14 +685,14 @@ for (let idx = 0; idx < existingResults.length; idx++) {
 ### D4 — Reject `pgvector` npm wrapper; use raw SQL through `pg ^8.11` client
 
 - **Decision.** v0.1 ships `pg ^8.11` as the only Postgres client. Vector ops via raw SQL: `CREATE EXTENSION IF NOT EXISTS vector`, `vector vector(${dims})`, `USING hnsw (vector vector_cosine_ops)`, `vector <=> $1::vector AS distance`. NO `pgvector` npm wrapper package.
-- **Rationale.** Mem0-ts at `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310` proves raw-SQL approach works. The npm `pgvector` wrapper adds zero functional value over `pg.query(sql, [params])` — only a thin type layer that we can replicate inline.
+- **Rationale.** Mem0-ts at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310` proves raw-SQL approach works. The npm `pgvector` wrapper adds zero functional value over `pg.query(sql, [params])` — only a thin type layer that we can replicate inline.
 - **Alternatives evaluated.** (a) `pgvector` npm — rejected; adds bundle weight without behavior. (b) `postgres` (postgres-js) — rejected; smaller pkg + faster but less mature TS types as of 2026 + Mem0 chose `pg`. (c) Drizzle ORM `pg-core` only — adopted in PARALLEL with `pg` for type-safe SQL and migrations (see D5).
 - **Consequences.** v0.1 implements pgvector SQL strings inline within adapter; type safety via Drizzle (D5).
 
 ### D5 — Adopt Drizzle ORM for type-safe SQL + migrations (Letta's Alembic-pattern in TS shape)
 
 - **Decision.** v0.1 uses `drizzle-orm ^0.30` + `drizzle-kit` for: (a) schema-as-code (memory table + entity table + history table), (b) type-safe query composition where the SQL isn't pgvector-specific, (c) `drizzle-kit push:pg` for dev migrations + `drizzle-kit generate:pg` for production SQL migrations. Bi-temporal columns (`tValid`/`tInvalid` per ADR-0006) declared in Drizzle schema.
-- **Rationale.** Letta's Alembic pattern (`referencia/letta/alembic/versions/`) proves migration-on-startup is sustainable at 167-migration scale. Drizzle is the closest TS equivalent. The dual-mode (push for dev, generate for prod) matches Mem0's run-on-startup approach with cleaner DX.
+- **Rationale.** Letta's Alembic pattern (`.claude/knowledge-base/references/letta/alembic/versions/`) proves migration-on-startup is sustainable at 167-migration scale. Drizzle is the closest TS equivalent. The dual-mode (push for dev, generate for prod) matches Mem0's run-on-startup approach with cleaner DX.
 - **Alternatives evaluated.** (a) Raw SQL migrations only — rejected; loses type-safety from schema. (b) Prisma — rejected; heavyweight + Rust query engine + opinionated client. (c) Kysely — strong contender; rejected for v0.1 because Drizzle has better TS-types for pgvector via plugins.
 - **Consequences.** v0.1 adds two devDeps (drizzle-orm + drizzle-kit). Schema lives at `src/local/schema.ts`; migrations generated to `src/local/migrations/`.
 
@@ -743,7 +743,7 @@ for (let idx = 0; idx < existingResults.length; idx++) {
 - Iterations used: 8 / 30
 - Questions answered: 7 / 7 (Q1-Q7 all `done`; zero blocked, zero partial)
 - Questions blocked: 0
-- Citations verified: 21 (all `referencia/*` paths in blueprint pass `test -e`; FABRICATED check returns empty)
+- Citations verified: 21 (all `.claude/knowledge-base/references/*` paths in blueprint pass `test -e`; FABRICATED check returns empty)
 - Promise emitted at iteration: 8 (this iteration)
 - Time used: ~6h equivalent (Mem0: ~4h reading memory/index.ts + scoring + lemmatization + 3 test files + package.json + pgvector.ts grep + docker-compose + Makefile; Letta: ~2h reading passage.py + custom_columns + 2 Alembic migrations + conftest + pyproject + uv.lock + compose.yaml). Within plan D1 budget.
 

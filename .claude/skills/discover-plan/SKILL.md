@@ -1,6 +1,6 @@
 ---
 name: discover-plan
-description: Turn the current context + the referencia/ clones into a discovery plan saved at .claude/knowledge-base/discoveries/plans/{slug}-plan.md. Use when you want to plan a deep-research investigation into Mem0 / Letta / LangMem before producing a blueprint.
+description: Turn the current context + the .claude/knowledge-base/references/ clones into a discovery plan saved at .claude/knowledge-base/discoveries/plans/{slug}-plan.md. Use when you want to plan a deep-research investigation into Mem0 / Letta / LangMem before producing a blueprint.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write
 argument-hint: "{topic-slug}"
@@ -8,7 +8,7 @@ argument-hint: "{topic-slug}"
 
 # Discover-Plan — Plan a Deep-Research Investigation
 
-Generates a structured **discovery plan** for investigating the reference implementations under `referencia/` (Mem0, Letta, LangMem). The output is the input for `/discover-execute`.
+Generates a structured **discovery plan** for investigating the reference implementations under `.claude/knowledge-base/references/` (Mem0, Letta, LangMem). The output is the input for `/discover-execute`.
 
 Sibling of `/to-plan` — same backbone, different output. `to-plan` produces implementation plans; `discover-plan` produces research plans whose deliverable is a **technical blueprint** (a structured report under `docs/exploration-reports/` per investigation).
 
@@ -18,7 +18,7 @@ User explicitly invokes `/discover-plan {topic-slug}` when they want to:
 
 - Investigate how a reference project solves a specific problem (e.g., dedup, retrieval, reflection).
 - Compile a side-by-side blueprint across Mem0 / Letta / LangMem.
-- Audit integration tests / dependencies / tools in `referencia/` before locking a TheMemory decision.
+- Audit integration tests / dependencies / tools in `.claude/knowledge-base/references/` before locking a TheMemory decision.
 
 ## Cycle contract
 
@@ -36,7 +36,7 @@ This skill is **phase 1** of [`cycle-discover`](../../rules/cycle-discover.md). 
 
 ### Step 0 — Read project rules (MANDATORY)
 
-Before exploring `referencia/`, internalize the project rules:
+Before exploring `.claude/knowledge-base/references/`, internalize the project rules:
 
 ```bash
 ls .claude/rules/
@@ -51,7 +51,7 @@ Read in order:
 1. Any foundation docs under `docs/` (landscape surveys, position papers) — if present
 2. Prior reports under `docs/exploration-reports/*.md` — if present
 3. `CLAUDE.md § Architectural Decisions Locked` — what is already locked
-4. The `referencia/{mem0,letta,langmem}/` top-level structure (`ls`, `tree -L 2`)
+4. The `.claude/knowledge-base/references/{mem0,letta,langmem}/` top-level structure (`ls`, `tree -L 2`)
 
 Identify what is **already documented** vs **still open**. The discovery plan exists to close the open gaps, NOT to re-document what is already covered.
 
@@ -59,7 +59,7 @@ Identify what is **already documented** vs **still open**. The discovery plan ex
 
 For each reference project in scope, declare:
 
-- **Project**: `referencia/mem0/`, `referencia/letta/`, `referencia/langmem/`
+- **Project**: `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/`, `.claude/knowledge-base/references/langmem/`
 - **In scope**: subdirectories the investigation will touch (e.g., `mem0-ts/src/memory/`, `letta/letta/services/`)
 - **Out of scope**: subdirectories explicitly excluded (e.g., `mem0/docs/`, build artifacts)
 
@@ -87,7 +87,7 @@ Every discovery plan MUST cover the four corners or explicitly justify deferral 
 
 #### Pre-validate cited paths (mandatory)
 
-Before adding a `referencia/{project}/{path}` to ANY question's Fase A or Fase B column, verify the path exists. The `discover-confidence` hard cap on fabricated citations will fire if even one fake path slips through.
+Before adding a `.claude/knowledge-base/references/{project}/{path}` to ANY question's Fase A or Fase B column, verify the path exists. The `discover-confidence` hard cap on fabricated citations will fire if even one fake path slips through.
 
 The Coverage Matrix in the discovery plan MUST map each question to a method (read which file, grep which symbol, run which command) and a target answer format.
 
@@ -113,7 +113,7 @@ The full template is in `templates/discovery-plan-template.md`. Required section
 6. **Research questions** — numbered list. Each question → coverage corner (tests/deps/tools/techniques) → planned method → expected answer shape.
 7. **Coverage Matrix** — 100% mapping: every question → at least one method. Gaps marked explicitly as ADR-deferred.
 8. **Halt-loop checkpoints** — for `/discover-execute`: what intermediate state must hold before the loop can mark a sub-task DONE.
-9. **Acceptance Criteria** — observable conditions for "this discovery is done": every question answered, every citation backed by a `referencia/` path, blueprint sections complete.
+9. **Acceptance Criteria** — observable conditions for "this discovery is done": every question answered, every citation backed by a `.claude/knowledge-base/references/` path, blueprint sections complete.
 10. **Global Definition of Done** — links to `/discover-confidence` thresholds + golden rule.
 
 ## Quality Rules
@@ -121,7 +121,7 @@ The full template is in `templates/discovery-plan-template.md`. Required section
 These rules are NON-NEGOTIABLE for every discovery plan:
 
 1. **Every research question maps to a method.** No "we'll figure it out". Method = `Read path/to/file`, `Grep 'pattern' in dir/`, `find -name`, `git log --grep`, etc.
-2. **Every citation in the plan points to a real path in `referencia/`.** Fabricated paths are a `discover-confidence` hard cap (INVALID).
+2. **Every citation in the plan points to a real path in `.claude/knowledge-base/references/`.** Fabricated paths are a `discover-confidence` hard cap (INVALID).
 3. **Out-of-scope is explicit.** Vague "rest" is rejected.
 4. **Question budget respected.** Total 5-10 questions, max 3 per corner, min 1 per corner (or ADR-deferred). See Step 3.
 5. **Time-budget per project.** Each reference project gets a budget (e.g., "Mem0: 4h, Letta: 2h, LangMem: 1h"). Halt-loop respects it. Per-question stop condition mandatory in D1 (see template).
@@ -133,7 +133,7 @@ These rules are NON-NEGOTIABLE for every discovery plan:
 
 - Execute the research itself — that's `/discover-execute`.
 - Write the blueprint — that's `/discover-execute` output.
-- Modify anything inside `referencia/` — read-only zone (enforced by `.claude/hooks/boundary-check.sh`).
+- Modify anything inside `.claude/knowledge-base/references/` — read-only zone (enforced by `.claude/hooks/boundary-check.sh`).
 - Score the result — that's `/discover-confidence`.
 
 ## Anti-patterns

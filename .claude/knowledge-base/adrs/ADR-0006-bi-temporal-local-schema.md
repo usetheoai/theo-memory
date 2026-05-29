@@ -69,4 +69,4 @@ Memory writes always set `tValid: now()` and `tInvalid: null` (currently-valid m
 - T2.2 `MemoryItem` shape (ships `tValid: Date | null` + `tInvalid: Date | null` fields).
 - T2.4 `errors.ts` exports `BiTemporalNotSupportedLocally`.
 - T2.3 `options.ts` ships `RecallOptions.asOf?: Date` with `@throws` JSDoc.
-- `referencia/letta/letta/orm/` — Letta's schema does NOT have bi-temporal columns; Letta uses standard `created_at`/`updated_at` and tracks history via Alembic migrations. This ADR diverges from Letta's choice.
+- `.claude/knowledge-base/references/letta/letta/orm/` — Letta's schema does NOT have bi-temporal columns; Letta uses standard `created_at`/`updated_at` and tracks history via Alembic migrations. This ADR diverges from Letta's choice.

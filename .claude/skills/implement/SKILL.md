@@ -107,7 +107,28 @@ test -f .claude/knowledge-base/plans/{slug}-plan.md
 command -v npm && npm --version
 # Check 5: project bootstrapped (if applicable — pre-code projects skip this gracefully)
 test -f package.json || echo "WARN: package.json missing — pre-code phase, validate gate will skip npm-based checks"
+# Check 6: Node engines satisfied (added 2026-05-26 — closes v0-4a env-mismatch retrospective)
+if [ -f package.json ]; then
+  required=$(node -p "require('./package.json').engines?.node || '*'" 2>/dev/null)
+  actual=$(node --version 2>/dev/null | sed 's/^v//')
+  echo "Node required (engines): $required"
+  echo "Node actual ($(which node)): v$actual"
+  # If shells default to an older Node via /usr/bin/node, check ~/.nvm for compatible versions
+  ls ~/.nvm/versions/node/ 2>/dev/null | head -3
+fi
 ```
+
+**Check 6 — Node engines mismatch handling:** if `node --version` does not satisfy `package.json#engines.node`, surface honestly. Likely cause on dev machines: default shell PATH uses `/usr/bin/node` (system Node, often older) but nvm-managed newer Node lives at `~/.nvm/versions/node/v{X}/bin/`. The fix is environmental, not a /implement bug — instruct the user to:
+
+```bash
+# Add to .nvmrc (per-project Node lock) — preferred
+echo "22" > .nvmrc
+
+# Or export PATH for the session
+export PATH=$HOME/.nvm/versions/node/v22.22.2/bin:$PATH
+```
+
+Refuse to start the halt-loop until the active Node satisfies engines. Surfacing the mismatch early prevents puzzling test failures like `SyntaxError: ... does not provide an export named 'styleText'` (Node 22-only export imported by vitest 4.x via rolldown).
 
 If any HARD check fails, refuse to start. Surface the missing piece.
 

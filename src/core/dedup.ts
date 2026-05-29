@@ -11,7 +11,7 @@
  * dedup matching Mem0's behavior (EC-6).
  *
  * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § D3
- * @see referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:735
+ * @see .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:735
  */
 import { createHash } from 'node:crypto';
 

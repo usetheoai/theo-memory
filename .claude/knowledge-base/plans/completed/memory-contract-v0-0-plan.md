@@ -13,7 +13,7 @@
 
 ## Context
 
-**What exists today.** TheMemory is greenfield. The repo at `/home/paulo/Projetos/usetheo/theo-memory/` ships only foundation artifacts: `README.md`, `CLAUDE.md` (locked design + roadmap), `CHANGELOG.md` skeleton, `.claude/rules/` (architecture/testing/public-copy + cycles + golden rules), the `referencia/` clones (Mem0/Letta/LangMem; read-only; gitignored), and `docs/` empty. No `src/`, no `package.json`, no `tsconfig.json`, no test setup. `git status` is clean on `main`.
+**What exists today.** TheMemory is greenfield. The repo at `/home/paulo/Projetos/usetheo/theo-memory/` ships only foundation artifacts: `README.md`, `CLAUDE.md` (locked design + roadmap), `CHANGELOG.md` skeleton, `.claude/rules/` (architecture/testing/public-copy + cycles + golden rules), the `.claude/knowledge-base/references/` clones (Mem0/Letta/LangMem; read-only; gitignored), and `docs/` empty. No `src/`, no `package.json`, no `tsconfig.json`, no test setup. `git status` is clean on `main`.
 
 **What's missing.** Roadmap Item 1 (`v0.0 — Contract design`) is `In progress` per `CLAUDE.md § Macro roadmap`. Its acceptance criteria:
 
@@ -32,11 +32,11 @@
 **Evidence motivating this work NOW (not later).**
 
 - Strategic destination locked at v1.0 (Item 11) with 15 roadmap items and Phase II/III/IV depending on v0.0 stability — every later item compiles against this surface.
-- Mem0-ts reference shows the four-DIP shape works in production (`referencia/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts` — verified to exist).
+- Mem0-ts reference shows the four-DIP shape works in production (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts` — verified to exist).
 - Cloud runtime (v0.5) depends on Theo PaaS GA; surfaces the bi-temporal moat — must decide Q4 schema posture now or face migration pain at v0.5.
 - Dogfood gate is LOCKED day-0 (`.claude/rules/dogfood-golden-rule.md`); we cannot make `production-ready` claims regardless, so quality on the contract is what carries us to v1.0.
 
-**What `referencia/` confirms.** Mem0-ts ships four base interfaces (`Embedder`, `LLM`, `VectorStore`, `HistoryManager`) that map 1:1 onto our planned DIPs (Architectural Decision §3 in `architecture.md`). Their public `Memory` class exposes `add / get / search / update / delete / deleteAll / history / reset / getAll` — we diverge by renaming to `remember / recall / forget / reflect`, eliminating public `update()`, and keeping `get / getAll / history / reset` for parity.
+**What `.claude/knowledge-base/references/` confirms.** Mem0-ts ships four base interfaces (`Embedder`, `LLM`, `VectorStore`, `HistoryManager`) that map 1:1 onto our planned DIPs (Architectural Decision §3 in `architecture.md`). Their public `Memory` class exposes `add / get / search / update / delete / deleteAll / history / reset / getAll` — we diverge by renaming to `remember / recall / forget / reflect`, eliminating public `update()`, and keeping `get / getAll / history / reset` for parity.
 
 ## Objective
 
@@ -55,7 +55,7 @@
 ### D1 — Mem0-shape architecture (locked, ratified)
 
 - **Decision.** Adopt Mem0's six-phase write pipeline + nine-step search + additive scoring + hash-only dedup + UUID/integer mapping + auto-detected embedding dim + `infer: false` escape hatch + per-row fallback paths at every I/O boundary (batch failure → per-item retry). Diverge on public verbs (`remember/recall/forget/reflect`), ADD-only (no public `update()`), and three-tier vocabulary (User/Session/Agent).
-- **Rationale.** Mem0 is the production-tested baseline (`referencia/mem0/`, Apache-2.0). Inquebrável Rule 9 (Não Reinvente a Roda) — adopt the proven pipeline shape. The divergences are public-surface ergonomics, not architecture. Cited rules: `.claude/rules/architecture.md § 4 Mem0-shape architecture` (explicit list of patterns to adopt, diverge, defer).
+- **Rationale.** Mem0 is the production-tested baseline (`.claude/knowledge-base/references/mem0/`, Apache-2.0). Inquebrável Rule 9 (Não Reinvente a Roda) — adopt the proven pipeline shape. The divergences are public-surface ergonomics, not architecture. Cited rules: `.claude/rules/architecture.md § 4 Mem0-shape architecture` (explicit list of patterns to adopt, diverge, defer).
 - **Consequences.**
   - Enables: clean inheritance of Mem0's hard-won lessons (anti-hallucination integer mapping, sigmoid normalization, BM25-vs-semantic gating).
   - Constrains: cannot drift into Letta's function-calling-driven memory (kept as separable agent-tools layer at v0.3) or Zep's bi-temporal-first (kept as cloud-tier feature at v0.5).
@@ -148,9 +148,9 @@
   - **`LLM`** — 2 methods: `generateResponse(messages, responseFormat?, tools?)`, `generateChat(messages)`.
   - **`Embedder`** — 2 methods: `embed(text)`, `embedBatch(texts)`.
   - **`HistoryManager`** — 4 required + 3 optional: required `addHistory(...)`, `getHistory(memoryId)`, `reset()`, `close()`; optional `saveMessages?(...)`, `getLastMessages?(...)`, `batchAddHistory?(...)`.
-- **Rationale.** Each surface is taken VERBATIM from Mem0-ts (`referencia/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts` — all verified to exist via `Path.exists()`). Inquebrável Rule 9 — these surfaces have been iterated by Mem0 and battle-tested with 30+ vector store / 24+ LLM / 15+ embedding implementations; we adopt the surface and diverge only on naming polish, never on shape. ISP-compliant (`.claude/rules/architecture.md § 8 Error handling` implicitly + ISP per global CLAUDE.md PARTE II-13.4): optional methods on `HistoryManager` are the right shape — not every backend supports V3 message history. Cited: `architecture.md § 3 Dependency direction` (these DIPs live in `src/core/`; adapters in `src/local/` and `src/cloud/` implement them).
+- **Rationale.** Each surface is taken VERBATIM from Mem0-ts (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts` — all verified to exist via `Path.exists()`). Inquebrável Rule 9 — these surfaces have been iterated by Mem0 and battle-tested with 30+ vector store / 24+ LLM / 15+ embedding implementations; we adopt the surface and diverge only on naming polish, never on shape. ISP-compliant (`.claude/rules/architecture.md § 8 Error handling` implicitly + ISP per global CLAUDE.md PARTE II-13.4): optional methods on `HistoryManager` are the right shape — not every backend supports V3 message history. Cited: `architecture.md § 3 Dependency direction` (these DIPs live in `src/core/`; adapters in `src/local/` and `src/cloud/` implement them).
 - **Consequences.**
-  - Enables: adapters from `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` and siblings can be ported with minimal adaptation; v0.5 cloud adapter is similarly constrained to this surface.
+  - Enables: adapters from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` and siblings can be ported with minimal adaptation; v0.5 cloud adapter is similarly constrained to this surface.
   - Constrains: any divergence from Mem0's signatures will hurt portability; introducing a fifth DIP later (e.g., `ReflectionWorker`) constitutes a contract change.
   - Reversible? Adding methods to optional sections is backward-compatible; removing or renaming required methods is breaking.
 - **Alternatives evaluated.**
@@ -253,7 +253,7 @@ package.json — (NEW) — private:true, name "@usetheo/memory", version "0.0.0-
 
 #### Tasks
 1. Run `cd /home/paulo/Projetos/usetheo/theo-memory` and inspect that no `package.json` exists.
-2. Write `package.json` with `name`, `version`, `private:true`, `description` (one-line from README HERO), `license: MIT`, `engines: { node: ">=20.0.0" }`, `scripts`, `devDependencies`, `repository`, `bugs`, `homepage` fields per Mem0-ts shape (verified at `referencia/mem0/mem0-ts/package.json`).
+2. Write `package.json` with `name`, `version`, `private:true`, `description` (one-line from README HERO), `license: MIT`, `engines: { node: ">=20.0.0" }`, `scripts`, `devDependencies`, `repository`, `bugs`, `homepage` fields per Mem0-ts shape (verified at `.claude/knowledge-base/references/mem0/mem0-ts/package.json`).
 3. Write `.npmrc` with the two lines above.
 4. Run `npm install` (only devDeps; no postinstall side effects expected at this phase).
 
@@ -300,7 +300,7 @@ tsconfig.json — (NEW) — minimal root config that extends nothing; future-pro
 ```
 
 #### Deep file dependency analysis
-- **`tsconfig.contract.json`** is invoked by `npm run typecheck`. Including pattern: `src/core/**/*.ts`. Excluding: `node_modules`, `referencia/`, `dist`.
+- **`tsconfig.contract.json`** is invoked by `npm run typecheck`. Including pattern: `src/core/**/*.ts`. Excluding: `node_modules`, `.claude/knowledge-base/references/`, `dist`.
 - **`tsconfig.json`** at root exists as a stub so editor LSPs find a config; it `references` the contract config and (later) the src config.
 
 #### Deep Dives
@@ -431,9 +431,9 @@ Roadmap Item 1 acceptance: "One ADR per locked decision (Mem0-shape, three-scope
     - Negative (what this constrains)
     - Reversibility (how hard is it to undo)
   - Alternatives (table: option / rejected because)
-  - References (links to CLAUDE.md sections, referencia/ paths, this plan)
+  - References (links to CLAUDE.md sections, .claude/knowledge-base/references/ paths, this plan)
 - **No emoji** in any ADR (architecture rule).
-- **Cite paths and line numbers** when referencing `referencia/` — and only paths that exist (`Path.exists()` check).
+- **Cite paths and line numbers** when referencing `.claude/knowledge-base/references/` — and only paths that exist (`Path.exists()` check).
 
 #### Tasks
 1. Write each of the four ADR files using the content from `## ADRs § D1..D4` above as the source.
@@ -460,7 +460,7 @@ VERIFY:  Read each ADR; manual review against MADR 3.0 shape.
 - [ ] No emoji in any ADR
 
 #### DoD
-- [ ] Cross-references inside ADRs use repo-relative paths (`../../CLAUDE.md § ...`) or `referencia/` paths that exist
+- [ ] Cross-references inside ADRs use repo-relative paths (`../../CLAUDE.md § ...`) or `.claude/knowledge-base/references/` paths that exist
 - [ ] No `production-ready` token appears in any ADR (Inquebrável Rule 3 + dogfood gate)
 
 ---
@@ -533,7 +533,7 @@ VERIFY:  Manual read of CLAUDE.md to confirm Q2-Q6 annotations don't break the d
 Define the `Scope` discriminated-union and the three scope-specific narrow types: `UserScope`, `SessionScope`, `AgentScope`. The narrow types power D2's compile-time type narrowing.
 
 #### Evidence
-`.claude/rules/architecture.md § 1 Three-tier scope` + ADR-0002. Mem0-ts's `SearchFilters` (verified at `referencia/mem0/mem0-ts/src/oss/src/types/index.ts:84-89`) is the internal shape; our public types narrow over it.
+`.claude/rules/architecture.md § 1 Three-tier scope` + ADR-0002. Mem0-ts's `SearchFilters` (verified at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/types/index.ts:84-89`) is the internal shape; our public types narrow over it.
 
 #### Files to edit
 ```
@@ -596,7 +596,7 @@ VERIFY:  npm run typecheck && npm test
 Define `MemoryItem` (a persisted fact) and `MemoryItemWithScore` (the recall result extension).
 
 #### Evidence
-Mem0-ts ships `MemoryItem` at `referencia/mem0/mem0-ts/src/oss/src/types/index.ts:74-82` — verified to exist. Our shape adds `scope` (typed) and removes `metadata: Record<string, any>` (replaced by typed payload at v1.4 ontologies, but v0.0 keeps `metadata: Readonly<Record<string, string | number | boolean | null>>` as a tightened shape).
+Mem0-ts ships `MemoryItem` at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/types/index.ts:74-82` — verified to exist. Our shape adds `scope` (typed) and removes `metadata: Record<string, any>` (replaced by typed payload at v1.4 ontologies, but v0.0 keeps `metadata: Readonly<Record<string, string | number | boolean | null>>` as a tightened shape).
 
 #### Files to edit
 ```
@@ -672,7 +672,7 @@ VERIFY:  npm run typecheck && npm test
 Define the option-bag types: `RememberOptions`, `RecallOptions`, `ForgetOptions`, `ReflectOptions`, `GetAllOptions`. The five option types compose Scope, Filters, metadata, and v0.5+ asOf.
 
 #### Evidence
-Mem0-ts has `AddMemoryOptions / SearchMemoryOptions / GetAllMemoryOptions / DeleteAllMemoryOptions` at `referencia/mem0/mem0-ts/src/oss/src/memory/memory.types.ts:10-27` — verified. Our shape replaces these with the four verb-aligned types, reusing the inferred-fact escape hatch (`infer?: boolean`).
+Mem0-ts has `AddMemoryOptions / SearchMemoryOptions / GetAllMemoryOptions / DeleteAllMemoryOptions` at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/memory.types.ts:10-27` — verified. Our shape replaces these with the four verb-aligned types, reusing the inferred-fact escape hatch (`infer?: boolean`).
 
 #### Files to edit
 ```
@@ -954,7 +954,7 @@ VERIFY:  npm run typecheck && npm test
 Two smallest DIPs first (2 methods each). Used by every other DIP downstream, so they land first.
 
 #### Evidence
-Verified at `referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (5 lines) and `referencia/mem0/mem0-ts/src/oss/src/llms/base.ts` (20 lines). D8 locks the counts at 2 each.
+Verified at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (5 lines) and `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/llms/base.ts` (20 lines). D8 locks the counts at 2 each.
 
 #### Files to edit
 ```
@@ -1047,7 +1047,7 @@ VERIFY:  npm run typecheck && npm test
 Lock the HistoryManager DIP shape with required vs optional methods clearly marked.
 
 #### Evidence
-Mem0-ts `referencia/mem0/mem0-ts/src/oss/src/storage/base.ts` (37 lines) — verified. D8 locks 4 required + 3 optional.
+Mem0-ts `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts` (37 lines) — verified. D8 locks 4 required + 3 optional.
 
 #### Files to edit
 ```
@@ -1131,7 +1131,7 @@ VERIFY:  npm run typecheck && npm test
 Lock the VectorStore DIP shape. Largest of the four; locks the surface adapters in v0.1+ implement.
 
 #### Evidence
-Mem0-ts `referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (35 lines) — verified. D8 locks 11 methods.
+Mem0-ts `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (35 lines) — verified. D8 locks 11 methods.
 
 #### Files to edit
 ```
@@ -1392,7 +1392,7 @@ VERIFY:  npm run typecheck && npm test
 ### T5.1 — Final validation chain + grep gates + reference-citation existence audit
 
 #### Objective
-Run the full validation chain (`npm install` → `npm run typecheck` → `npm test` → `npm run lint`) AND execute the three honesty grep gates (no `production-ready` claims, no emoji, all `referencia/` paths resolve). The gate that closes v0.0.
+Run the full validation chain (`npm install` → `npm run typecheck` → `npm test` → `npm run lint`) AND execute the three honesty grep gates (no `production-ready` claims, no emoji, all `.claude/knowledge-base/references/` paths resolve). The gate that closes v0.0.
 
 #### Evidence
 `cycle-plan.md § Phase contracts` mandates an Integration Validation phase. Coverage Matrix gaps #12 (no production-ready token), #20 (plan compatible with v0.1-v1.4 — ADR consequences/reversibility verified), and #24 (refined Phase 5 grep gates with context-aware exclusions per EC-4) all depend on this task.
@@ -1456,9 +1456,9 @@ npm run lint                                    # zero warnings on src/core/**/*
   grep -rnP "[\x{1F300}-\x{1FAFF}]|[\x{2600}-\x{27BF}]|[\x{1F000}-\x{1F2FF}]" src/core/ .claude/knowledge-base/adrs/ package.json README.md CHANGELOG.md
   ```
   Exit non-zero (no matches) = pass.
-- [ ] **Every `referencia/` citation in ADRs and the plan resolves via `Path.exists()` check.** Run a helper:
+- [ ] **Every `.claude/knowledge-base/references/` citation in ADRs and the plan resolves via `Path.exists()` check.** Run a helper:
   ```bash
-  grep -roE "referencia/[a-zA-Z0-9/_.-]+" .claude/knowledge-base/adrs/ .claude/knowledge-base/plans/memory-contract-v0-0-plan.md \
+  grep -roE ".claude/knowledge-base/references/[a-zA-Z0-9/_.-]+" .claude/knowledge-base/adrs/ .claude/knowledge-base/plans/memory-contract-v0-0-plan.md \
     | awk -F: '{print $NF}' | sort -u \
     | while read p; do test -e "$p" || echo "MISSING: $p"; done
   ```
@@ -1496,7 +1496,7 @@ npm run lint                                    # zero warnings on src/core/**/*
 | 16 | CHANGELOG.md `[Unreleased]` updated | T1.2 DoD + T0.1 DoD | One entry per phase touching public surface |
 | 17 | Cycle-plan compliance: `## Dependencies` section with Rule 9 evaluation | T0.1 | T0.1 ships `package.json` consuming the deps declared in `## Dependencies` (six NEW with Rule 9 + version pin) |
 | 18 | Type-level testing infrastructure (vitest `expectTypeOf`) | T0.3, every T2/T3 `.test-d.ts` | `test.typecheck.enabled: true` in vitest config |
-| 19 | Mem0-ts citations resolve (every `referencia/` path verified) | T1.1, T1.2, T5.1 | T1.1+T1.2 cite `referencia/mem0/...` in ADR Evidence; T5.1 grep gate runs the `Path.exists()` audit script |
+| 19 | Mem0-ts citations resolve (every `.claude/knowledge-base/references/` path verified) | T1.1, T1.2, T5.1 | T1.1+T1.2 cite `.claude/knowledge-base/references/mem0/...` in ADR Evidence; T5.1 grep gate runs the `Path.exists()` audit script |
 | 20 | Plan compatible with v0.1-v1.4 (no design that boxes out future items) | T1.1, T1.2 | T1.1+T1.2 ship ADRs D1-D9; each ADR includes a Consequences/Reversibility section documenting forward-compat cost (D6 bridges local/cloud asOf divergence; D7/D8 lock extensibility) |
 | 21 | EC-1 — `MemoryConfig` + `CloudMemoryConfig` defined and exported | T2.5 (Deep Dive, Tasks, TDD, Acceptance, barrel export in T4.1) | Types declared in `memory-store.ts`; barrel re-exports them; TDD asserts required vs optional fields |
 | 22 | EC-2 — Error subclasses survive cross-module `instanceof` | T2.4 (Deep Dive template + runtime TDD + Acceptance) | `Object.setPrototypeOf(this, ClassName.prototype)` in every error constructor; vitest runtime `instanceof` test asserts behavior |
@@ -1523,7 +1523,7 @@ npm run lint                                    # zero warnings on src/core/**/*
 - [ ] Backward compatibility preserved — N/A (greenfield; no prior public API to break)
 - [ ] No `production-ready` token added by this plan (grep gate)
 - [ ] No emoji added by this plan (grep gate)
-- [ ] Every `referencia/` path cited in the plan and ADRs resolves via `Path.exists()` — verified by `/discover-confidence`-style check (manual at v0.0; automated at v0.1+ via the symbol-fabrication detector from `/code-quality` D2)
+- [ ] Every `.claude/knowledge-base/references/` path cited in the plan and ADRs resolves via `Path.exists()` — verified by `/discover-confidence`-style check (manual at v0.0; automated at v0.1+ via the symbol-fabrication detector from `/code-quality` D2)
 - [ ] All five open questions Q2-Q6 from `CLAUDE.md § Open questions` are annotated RESOLVED with ADR cross-links
 - [ ] Runtime-metric proof — N/A (no runtime code at v0.0; metric requirement re-enters at v0.1)
 - [ ] **Plan archived** — after `/review` returns `READY_TO_MERGE` AND the PR has been merged to `main`, move `.claude/knowledge-base/plans/memory-contract-v0-0-plan.md` to `.claude/knowledge-base/plans/completed/memory-contract-v0-0-plan.md` per `.claude/rules/audit-trail-rotation.md § KEEP forever` (active vs completed lifecycle).

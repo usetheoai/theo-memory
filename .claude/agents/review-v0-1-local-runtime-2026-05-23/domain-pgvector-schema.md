@@ -17,7 +17,7 @@ The pre-read list depends on the domain. The spawn script populates the relevant
 2. The relevant project rule(s): `.claude/rules/architecture.md` § sections related to pgvector-schema
 3. The relevant `*-patterns` skill if registered: `.claude/skills/pgvector-schema-patterns/SKILL.md` if exists
 4. The relevant blueprint if exists: `.claude/knowledge-base/discoveries/blueprints/pgvector-schema-blueprint.md` if exists
-5. The relevant reference clones in `referencia/` (READ-ONLY; never modify): look at `referencia/{project}/` directories related to pgvector-schema
+5. The relevant reference clones in `.claude/knowledge-base/references/` (READ-ONLY; never modify): look at `.claude/knowledge-base/references/{project}/` directories related to pgvector-schema
 6. Domain-specific keywords from `detect_domain.py` output: 
 
 ## Domain-aware checks

@@ -6,7 +6,19 @@ You are mid-implementation, iteration {ITERATION}/{MAX_ITERATIONS}. The user inv
 **Implementation working contract:** `{IMPLEMENTATION_PATH}`
 **Time budget remaining:** `{TIME_BUDGET}`
 **Progress file:** `.claude/knowledge-base/implementations/.progress-{PLAN_SLUG}.json` (gitignored)
-**SEPA brief:** `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa-staff-engineer.md` (persistent across iterations; invoked via `Agent` tool 3× per iteration)
+**SEPA agent file:** `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa.md` (Claude Code agent definition — frontmatter `name: implement-{PLAN_SLUG}-sepa`, body = role contract + verbatim plan/ADRs/edge-cases/audits/rules)
+**SEPA paired knowledge skill:** `.claude/skills/implement-{PLAN_SLUG}-sepa-knowledge/SKILL.md` (Claude Code Skills-conformant; SEPA invokes via `Skill` tool for WebSearch refresh)
+**SEPA per-iteration logs:** `.claude/knowledge-base/implementations/{PLAN_SLUG}/sepa-iterations/iteration-{N}-{phase}.md`
+
+## SEPA invocation discipline (READ BEFORE Step 1)
+
+Claude Code's agent registry is loaded at SESSION START — agent files written by `/implement` Step 2.5 mid-session may NOT be auto-discoverable by `subagent_type='implement-{PLAN_SLUG}-sepa'` until a fresh session starts. Two invocation paths are supported, in priority order:
+
+1. **Primary (fresh session):** `Agent(subagent_type='implement-{PLAN_SLUG}-sepa', prompt=<iteration question>, description='SEPA iter {N} {phase}')`. The agent registry resolves `name:` from the SEPA file's frontmatter. Works only if the SEPA file was written BEFORE this session started.
+
+2. **Fallback (mid-session):** `Agent(subagent_type='general-purpose', prompt='Read .claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa.md for your full role contract + plan/ADR/edge-case context. <iteration-specific question with MODE=TIGHT or MODE=VERBOSE>', description='SEPA iter {N} {phase}')`. The general-purpose agent reads the SEPA file at invocation time, so timing-of-write doesn't matter.
+
+If the Primary path returns "Agent type not found", silently switch to Fallback for the rest of the cycle. Both paths satisfy the SEPA-mandate of `cycle-implement.md` Step 2.5 — the SEPA agent file IS the source of truth either way.
 
 ## Your contract for this iteration
 
@@ -19,12 +31,12 @@ You are mid-implementation, iteration {ITERATION}/{MAX_ITERATIONS}. The user inv
 Before writing any test, invoke the SEPA via `Agent` tool:
 
 - `description`: "SEPA pre-RED brief — task {T-ID}"
-- `subagent_type`: `general-purpose`
-- `prompt`: read `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa-staff-engineer.md` for the role brief, then advise on task {T-ID} — recap what the plan declares for this task; surface gotchas, ADR-link expectations, files-to-edit verification, and TDD shape concerns. Return ONLY the structured advice format from the brief.
+- `subagent_type`: `implement-{PLAN_SLUG}-sepa` (Primary) OR `general-purpose` (Fallback — pass SEPA file path in prompt)
+- `prompt`: read `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa.md` for the role brief, then advise on task {T-ID} — recap what the plan declares for this task; surface gotchas, ADR-link expectations, files-to-edit verification, and TDD shape concerns. Return ONLY the structured advice format from the brief.
 
 The SEPA's response is markdown advice. Read it BEFORE writing the test. If SEPA flags `[CRITICAL]`, treat as HALT trigger unless you have explicit Inquebrável-Rule-1 (95% confidence) justification to proceed.
 
-Append SEPA's response to `.claude/agents/implement-{PLAN_SLUG}-{DATE}/iteration-{ITERATION}-pre-red.md` for audit trail.
+Append SEPA's response to `.claude/knowledge-base/implementations/{PLAN_SLUG}/sepa-iterations/iteration-{ITERATION}-pre-red.md` for audit trail (NOT `.claude/agents/` — that dir holds agent definitions only per Claude Code spec; logs go under knowledge-base/implementations/).
 
 ### RED phase (mandatory first)
 
@@ -51,7 +63,7 @@ Invoke the SEPA via `Agent` tool with the staged diff:
 - `subagent_type`: `general-purpose`
 - `prompt`: read `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa-staff-engineer.md` for the role brief, then review the diff (captured via `git diff` against last commit). Spot SOLID/Clean Code/DRY violations, missed JSDoc cross-references, naming-convention drift, test-d completeness against ADR invariants.
 
-Append response to `.claude/agents/implement-{PLAN_SLUG}-{DATE}/iteration-{ITERATION}-post-green.md`.
+Append response to `.claude/knowledge-base/implementations/{PLAN_SLUG}/sepa-iterations/iteration-{ITERATION}-post-green.md`.
 
 ### REFACTOR phase
 
@@ -107,7 +119,7 @@ Stage the files first (`git add` with specific paths), then invoke the SEPA:
 - `subagent_type`: `general-purpose`
 - `prompt`: read `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa-staff-engineer.md` for the role brief, then audit the staged diff (`git diff --cached`) + draft commit message against the task's DoD checkboxes from the plan. Verify: conventional-commit format, T-id reference, Wiring summary completeness, wiring triad sanity (pillar (a) callers are FUNCTIONAL not no-op stubs).
 
-Append response to `.claude/agents/implement-{PLAN_SLUG}-{DATE}/iteration-{ITERATION}-pre-commit.md`.
+Append response to `.claude/knowledge-base/implementations/{PLAN_SLUG}/sepa-iterations/iteration-{ITERATION}-pre-commit.md`.
 
 If SEPA flags `[CRITICAL]` on this consultation, do NOT commit. Unstage (`git restore --staged`), address the finding, re-invoke SEPA. Repeat up to 2 retries; on third [CRITICAL] mark task BLOCKED.
 
@@ -151,13 +163,20 @@ After completing a task (or marking it BLOCKED), verify:
 2. **No task is `red`, `green`, `refactor`, or `wired` without `committed`.** A stuck mid-phase task → continue iterating to finish.
 3. **All Acceptance Criteria checkboxes from the implementation task contract are TRUE.**
 
-If ALL conditions hold, emit:
+If ALL conditions hold, emit the promise marker AT THE VERY END of your response — **plain text, isolated on its own line, NO backticks, NO fenced code blocks, NO markdown wrapping**. Ralph-loop's regex matches the literal sequence `<promise>IMPLEMENTATION_COMPLETE</promise>` outside of inline code. Wrapping the marker in backticks (` `` `) or triple-fence code blocks BREAKS detection and forces another iteration.
 
-```
+Correct form (emit exactly this on its own line at end of response):
+
 <promise>IMPLEMENTATION_COMPLETE</promise>
-```
 
-Then report: tasks completed / tasks blocked / iterations used / wiring triad summary / next step recommendation (run `scripts/run_validation.py`).
+INCORRECT forms (will NOT terminate the loop):
+
+- Wrapped in backticks: `<promise>IMPLEMENTATION_COMPLETE</promise>`
+- Inside a fenced code block (triple backticks)
+- Indented as part of a list item or quote
+- Embedded mid-sentence
+
+After emitting, you may follow with a one-paragraph summary, but the promise marker MUST be on its own isolated line before any trailing prose. Report: tasks completed / tasks blocked / iterations used / wiring triad summary / next step recommendation (run `scripts/run_validation.py`).
 
 If conditions NOT met, do NOT emit the promise. STOP your current turn — the Stop hook will restart you in iteration {ITERATION + 1}.
 

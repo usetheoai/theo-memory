@@ -17,7 +17,7 @@
 | npm audit | `npm audit` | 0 | **0 vulnerabilities** at every severity |
 | EC-4 grep gate 1 (production-ready) | refined `grep -E ... \| grep -v -E ...` | 1 (no matches) | No claim introduced by this plan |
 | EC-4 grep gate 2 (emoji) | `grep -P "[\u{1F300}-\u{1FAFF}]\|..."` over `git diff --name-only main...HEAD` | 1 (no matches) | Pre-existing README ✓ excluded by scope; one self-introduced emoji caught + replaced in T5.1 |
-| EC-4 grep gate 3 (referencia/ paths) | `grep -roE ... \| Path.exists()` audit (skip ellipsis) | clean | All real `referencia/mem0/...` paths resolve |
+| EC-4 grep gate 3 (.claude/knowledge-base/references/ paths) | `grep -roE ... \| Path.exists()` audit (skip ellipsis) | clean | All real `.claude/knowledge-base/references/mem0/...` paths resolve |
 
 ## Task completion (16/16)
 
@@ -62,7 +62,7 @@
 - [x] Backward compatibility N/A (greenfield)
 - [x] No `production-ready` token added (EC-4 grep gate 1 PASS)
 - [x] No emoji added (EC-4 grep gate 2 PASS after one self-introduced ✓/✗ caught + replaced)
-- [x] Every `referencia/` citation resolves (EC-4 grep gate 3 PASS)
+- [x] Every `.claude/knowledge-base/references/` citation resolves (EC-4 grep gate 3 PASS)
 - [x] All 5 open questions Q2-Q6 from CLAUDE.md annotated RESOLVED with ADR cross-links
 - [x] Runtime-metric proof N/A (v0.0 is types-only; metric requirement re-enters at v0.1)
 

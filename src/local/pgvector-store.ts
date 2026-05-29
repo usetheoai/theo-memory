@@ -16,10 +16,10 @@
  * NULL columns are skipped (passthrough — no `IS NULL` filter).
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
- * @see referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
+ * @see .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
  */
 import type { Tracer } from '@opentelemetry/api';
-import type { Pool, QueryResultRow } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
@@ -329,5 +329,168 @@ export class PgvectorStore implements VectorStore {
   // eslint-disable-next-line @typescript-eslint/require-await
   async setUserId(userId: string): Promise<void> {
     this.currentUserId = userId;
+  }
+
+  /**
+   * Atomically bump the reflection counter for a given scope and return the new value.
+   *
+   * Uses two-step find-then-modify with IS NOT DISTINCT FROM to handle the
+   * Postgres NULL-comparison semantics correctly (composite-unique index
+   * UPSERT semantics differ when ANY of the keys is NULL).
+   *
+   * Per plan v0-4a-reflection-pipeline § T2.1 + ADR D4. Consumer
+   * (ThresholdReflectionPolicy) validates scope non-emptiness BEFORE calling
+   * this — the reflection_counters CHECK constraint guards as final defense.
+   *
+   * @param scope Scope-tuple (userId / sessionId / agentId; at least one non-null)
+   * @returns the new counter value AFTER the increment
+   */
+  /**
+   * Persist a derived memory (kind='derived') with non-empty derived_from per
+   * plan T4.3 + ADR D6 (kind discriminator) + ADR D7 (provenance fail-fast).
+   *
+   * Atomic per-call: a single INSERT statement. Multi-draft transactional
+   * wrapping is the caller's responsibility (v0.4a Memory.reflect uses BEGIN/
+   * COMMIT/ROLLBACK around the for-loop per EC-6).
+   *
+   * @param args row data; embedding length must match MAX_EMBEDDING_DIM
+   * @returns the generated memory id
+   */
+  async insertDerivedMemory(args: {
+    text: string;
+    hash: string;
+    embedding: readonly number[];
+    derivedFrom: readonly string[];
+    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+  }): Promise<string> {
+    const vectorLiteral = `[${args.embedding.join(',')}]`;
+    const sql = `
+      INSERT INTO memories (
+        text, hash, embedding, payload,
+        user_id, session_id, agent_id,
+        kind, derived_from
+      ) VALUES (
+        $1, $2, $3::vector, '{}'::jsonb,
+        $4, $5, $6,
+        'derived', $7::jsonb
+      )
+      RETURNING id
+    `;
+    const result = await this.pool.query<{ id: string }>(sql, [
+      args.text,
+      args.hash,
+      vectorLiteral,
+      args.scope.userId ?? null,
+      args.scope.sessionId ?? null,
+      args.scope.agentId ?? null,
+      JSON.stringify([...args.derivedFrom]),
+    ]);
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error('insertDerivedMemory: INSERT returned no rows');
+    }
+    return row.id;
+  }
+
+  /**
+   * Look up the cached LLM-importance score for a memory by content hash.
+   *
+   * Per plan T5.2 + ADR D8: hash-keyed cache lookup is the v0.4a strategy for
+   * avoiding LLM re-invocation on identical-content writes. The
+   * memories_hash_unique_idx UNIQUE constraint guarantees at most one row per
+   * hash, so `LIMIT 1` is exact (not first-of-many).
+   *
+   * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories);
+   * collision-SAFE by virtue of v0.1's UNIQUE constraint — a collision would
+   * fail the UNIQUE insert BEFORE this lookup is reached on the cached row.
+   *
+   * @returns cached score in [1, 10] OR null when no row exists OR row has NULL score
+   */
+  async getImportanceByHash(hash: string): Promise<number | null> {
+    const result = await this.pool.query<{ llm_importance_score: string | null }>(
+      `SELECT llm_importance_score FROM memories WHERE hash = $1 LIMIT 1`,
+      [hash],
+    );
+    const row = result.rows[0];
+    if (row === undefined || row.llm_importance_score === null) {
+      return null;
+    }
+    return Number(row.llm_importance_score);
+  }
+
+  /** Persist a cached importance score for the row identified by content hash. */
+  async setImportanceByHash(hash: string, score: number): Promise<void> {
+    await this.pool.query(
+      `UPDATE memories SET llm_importance_score = $1, updated_at = NOW() WHERE hash = $2`,
+      [score, hash],
+    );
+  }
+
+  /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
+  async withTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async bumpReflectionCounter(scope: {
+    userId?: string | null;
+    sessionId?: string | null;
+    agentId?: string | null;
+  }): Promise<number> {
+    const userId = scope.userId ?? null;
+    const sessionId = scope.sessionId ?? null;
+    const agentId = scope.agentId ?? null;
+
+    // Find existing row using IS NOT DISTINCT FROM (treats NULL = NULL)
+    const findSql = `
+      SELECT id, count FROM reflection_counters
+      WHERE scope_user_id IS NOT DISTINCT FROM $1
+        AND scope_session_id IS NOT DISTINCT FROM $2
+        AND scope_agent_id IS NOT DISTINCT FROM $3
+      LIMIT 1
+    `;
+    const found = await this.pool.query<{ id: string; count: string }>(findSql, [userId, sessionId, agentId]);
+
+    if (found.rows.length > 0) {
+      const row = found.rows[0];
+      if (row === undefined) {
+        throw new Error('unreachable: rows.length > 0 but row undefined');
+      }
+      const updateSql = `
+        UPDATE reflection_counters
+        SET count = count + 1, updated_at = NOW()
+        WHERE id = $1
+        RETURNING count
+      `;
+      const updateResult = await this.pool.query<{ count: string }>(updateSql, [row.id]);
+      const updatedRow = updateResult.rows[0];
+      if (updatedRow === undefined) {
+        throw new Error('reflection_counters UPDATE returned no rows');
+      }
+      return Number(updatedRow.count);
+    }
+
+    // No existing row — insert with count=1 (CHECK upstream blocks all-NULL)
+    const insertSql = `
+      INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
+      VALUES ($1, $2, $3, 1)
+      RETURNING count
+    `;
+    const insertResult = await this.pool.query<{ count: string }>(insertSql, [userId, sessionId, agentId]);
+    const insertedRow = insertResult.rows[0];
+    if (insertedRow === undefined) {
+      throw new Error('reflection_counters INSERT returned no rows');
+    }
+    return Number(insertedRow.count);
   }
 }

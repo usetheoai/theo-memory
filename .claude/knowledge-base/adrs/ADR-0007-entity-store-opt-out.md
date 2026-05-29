@@ -75,4 +75,4 @@ export interface MemoryConfig {
 - ADR-0001 § "Adopt" list — entity store is in the locked set.
 - ADR-0008 (DIP method counts) — `VectorStore` shape supports the entity store as a second instance of the same interface.
 - T2.5 `MemoryConfig` shape — declares `entityBoost?: boolean`.
-- `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:151` — Mem0's `_entityStore?: VectorStore` field, used optionally for entity vectors.
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:151` — Mem0's `_entityStore?: VectorStore` field, used optionally for entity vectors.

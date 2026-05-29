@@ -19,7 +19,7 @@ Architecture Decision Records (MADR 3.0 shape) that lock the load-bearing design
 - File format: MADR 3.0 (Status, Context, Decision, Consequences with Positive/Negative/Reversibility, Alternatives, References).
 - File naming: `ADR-NNNN-{kebab-case-slug}.md`. ADR numbers are immutable once accepted; superseded ADRs update the Status field but keep the number.
 - Cross-references via repo-relative paths.
-- Every ADR cites at least one verifiable `referencia/` path (when applicable) — `/discover-confidence` checks via `Path.exists()`.
+- Every ADR cites at least one verifiable `.claude/knowledge-base/references/` path (when applicable) — `/discover-confidence` checks via `Path.exists()`.
 - No emoji (per architecture.md + Inquebrável Rule).
 - ADRs do NOT introduce file paths inside Decision sections — file paths belong in implementation plans, not architecture decisions.
 

@@ -7,7 +7,7 @@
  * real container.
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1
- * @see referencia/letta/letta/orm/passage.py:1-105 (Letta dual-backend reference)
+ * @see .claude/knowledge-base/references/letta/letta/orm/passage.py:1-105 (Letta dual-backend reference)
  */
 import { describe, expect, test } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
@@ -19,6 +19,7 @@ describe('memories table', () => {
     const colNames = cfg.columns.map((c) => c.name).sort();
     expect(colNames).toEqual(
       [
+        // v0.1
         'id',
         'text',
         'hash',
@@ -32,6 +33,10 @@ describe('memories table', () => {
         'text_lemmatized',
         'created_at',
         'updated_at',
+        // v0.4a additions (T0.2 — see schema-v0-4a.test.ts for ADR D6/D8 details)
+        'kind',
+        'derived_from',
+        'llm_importance_score',
       ].sort(),
     );
   });

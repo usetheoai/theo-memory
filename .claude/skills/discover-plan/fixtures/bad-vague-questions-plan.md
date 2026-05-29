@@ -11,7 +11,7 @@
 
 ## Context
 
-We have referencia/. We want to learn from it.
+We have .claude/knowledge-base/references/. We want to learn from it.
 
 ## Objective
 
@@ -21,7 +21,7 @@ Understand the projects better and decide what to do next.
 
 ### In-Scope
 
-Everything in `referencia/`.
+Everything in `.claude/knowledge-base/references/`.
 
 ### Out-of-Scope
 

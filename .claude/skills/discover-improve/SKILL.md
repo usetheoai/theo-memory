@@ -86,7 +86,7 @@ After the loop terminates:
 |---|---|---|---|
 | Weak imperatives in blueprint prose (should/could/may/might) → must | A — deterministic | regex (skips code blocks + citation tables) | Low |
 | Loopholes (if possible, when applicable, ...) | A — deterministic | regex | Low |
-| Fabricated citation → mark as `<!-- BLOCKED: path not found in referencia/ -->` | A — deterministic | path existence check | Low |
+| Fabricated citation → mark as `<!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->` | A — deterministic | path existence check | Low |
 | Empty coverage corner → mark as `<!-- BLOCKED: corner X has zero content; re-run /discover-execute -->` | A — deterministic | section emptiness check | Low |
 
 **Empty coverage corner is NOT auto-resolved via ADR.** A blueprint missing an entire coverage corner is a structural defect (hard cap 49 INVALID per `discover-blueprint-golden-rule.md`). Auto-laundering it through a Phase B ADR would let `discover-improve` paper over deep-research failure. Instead, Phase A marks the corner explicitly as BLOCKED — the human re-executes that section via `/discover-execute` (or revises the discovery plan).
@@ -96,7 +96,7 @@ After the loop terminates:
 ## Invariants
 
 - The skill SHALL NOT touch files outside `{BLUEPRINT_PATH}` (or the progress file).
-- The skill SHALL NOT modify `referencia/` (boundary-check hook enforces).
+- The skill SHALL NOT modify `.claude/knowledge-base/references/` (boundary-check hook enforces).
 - The skill SHALL NOT modify the upstream discovery plan (use `/discover-plan` to revise the plan).
 - The skill SHALL NOT commit or push to git.
 - The skill SHALL NOT emit `<promise>BLUEPRINT_IMPROVED</promise>` falsely.

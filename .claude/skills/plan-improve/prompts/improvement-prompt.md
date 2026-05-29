@@ -45,13 +45,13 @@ Read the JSON output. Note:
 
 ### Step 2 — Check completion
 
-If `verdict in {SHIPPABLE, SHIPPABLE_WITH_CAVEATS}` AND no critical issue requires more work, output exactly:
+If `verdict in {SHIPPABLE, SHIPPABLE_WITH_CAVEATS}` AND no critical issue requires more work, emit the promise marker AT THE VERY END of your response — **plain text, isolated on its own line, NO backticks, NO fenced code blocks, NO markdown wrapping**. Ralph-loop's regex matches the literal sequence outside of inline code; wrapping breaks detection.
 
-```
+Correct emission (place exactly this on its own line at end of response):
+
 <promise>PLAN_IMPROVED</promise>
-```
 
-Then describe what you changed across iterations in a 5-line summary.
+You may precede the marker with a 5-line summary of what changed across iterations, but the marker must be the last content of the response.
 
 ### Step 3 — Apply deterministic fixes (Phase A)
 
@@ -86,13 +86,7 @@ If after Phase A the verdict still does not meet target, address the issues that
 
 ### Step 5 — Re-score
 
-Run the scorer again (Step 1). If improved, continue. If not improved (same or lower score), STOP and emit:
-
-```
-<promise>PLAN_IMPROVED</promise>
-```
-
-with an honest summary saying which issues remain and why the loop could not fix them automatically.
+Run the scorer again (Step 1). If improved, continue. If not improved (same or lower score), STOP and emit the promise marker per the Step 2 emission discipline (plain text, isolated line, end of response). Precede with an honest summary of remaining issues and why the loop could not fix them automatically.
 
 ## Invariants you SHALL NOT violate
 

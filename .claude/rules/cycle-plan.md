@@ -103,7 +103,7 @@ A `/to-plan` invocation is NOT considered complete until either:
 1. **`/plan-confidence` Coverage Matrix < 100%** — gaps not mapped to tasks. Score capped at 49 (INVALID). Cycle MUST loop back to `/to-plan` OR add tasks/ADRs manually.
 2. **`/plan-confidence` ADR without alternatives** — capped at 70 (SHIPPABLE_WITH_CAVEATS at most). Cycle continues but with WITH_CAVEATS verdict; `/plan-improve` Phase B attempts to write alternatives.
 3. **`/plan-confidence` bug-fix task without TDD** — capped at 70. `/plan-improve` Phase A injects TDD template.
-4. **Fabricated citation in plan** (`referencia/` or `src/` path that doesn't exist) — **planned hard cap (M3 future)**. Not enforced by the M2 deterministic runner yet (see `plan-confidence/SKILL.md § What This Skill Does NOT Do`); human reviewers are expected to catch fabricated citations until M3 (SAFE adapted to `ripgrep + tree-sitter`) lands. The sibling `discover-confidence` already enforces this for blueprints today.
+4. **Fabricated citation in plan** (`.claude/knowledge-base/references/` or `src/` path that doesn't exist) — **planned hard cap (M3 future)**. Not enforced by the M2 deterministic runner yet (see `plan-confidence/SKILL.md § What This Skill Does NOT Do`); human reviewers are expected to catch fabricated citations until M3 (SAFE adapted to `ripgrep + tree-sitter`) lands. The sibling `discover-confidence` already enforces this for blueprints today.
 5. **`/plan-improve` max iterations reached without target verdict** — surface remaining issues honestly; do NOT pretend the plan passes.
 6. **`/deps-audit` verdict FAIL_INSECURE (CRITICAL/HIGH CVE in declared dep)** — v1.1; caps plan-confidence at 49 (INVALID). Stable identifiers `plan_dep_critical_cve` / `plan_dep_high_cve`. Cycle MUST loop back: either bump the dep in the plan, allowlist with sunset ≤ 30/60 days (CRITICAL/HIGH respectively), OR replace the dep entirely via Rule 9 re-evaluation.
 7. **`/deps-audit` verdict INVALID_PLAN_DEPS** — v1.1; plan missing `## Dependencies` section OR dep without version pin OR NEW dep without Rule 9 evaluation. Caps at 49 (INVALID). Cycle MUST loop back to `/to-plan` to populate the missing structure.
@@ -129,7 +129,7 @@ A `/to-plan` invocation is NOT considered complete until either:
 1. **NEVER skip `/edge-case-plan`** — edge cases found pre-implementation are 100x cheaper than post-implementation.
 2. **NEVER advance to cycle-implement with verdict INVALID or NON_SHIPPABLE** — implementation built on a broken plan produces unwirable code.
 3. **NEVER write tasks without TDD** for bug-fix tasks (Inquebrável Rule 5). Bug fixes ship a regression test FIRST.
-4. **NEVER fabricate `referencia/` or `src/` paths** in the plan — confidence checker catches it; honest "(NEW)" for files that don't exist yet is required.
+4. **NEVER fabricate `.claude/knowledge-base/references/` or `src/` paths** in the plan — confidence checker catches it; honest "(NEW)" for files that don't exist yet is required.
 5. **NEVER override a Pattern from a `*-patterns` skill silently** — must include an ADR naming the patterns skill + the specific pattern + the reason for divergence.
 6. **NEVER write a plan without reading `.claude/rules/`** — Step 0 is mandatory; fabricated rules are worse than missing rules.
 7. **NEVER set time budgets vaguely** ("TBD") — every plan declares time-shape per phase OR an ADR deferring it.
