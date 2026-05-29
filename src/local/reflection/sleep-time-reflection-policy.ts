@@ -24,11 +24,11 @@
 
 import { Cron } from 'croner';
 
-import { InvalidCronExpressionError } from '../../core/errors.js';
 import type {
   ReflectionPolicy,
   ReflectionTrigger,
 } from '../../core/dip/reflection-policy.js';
+import { InvalidCronExpressionError } from '../../core/errors.js';
 import type { Scope } from '../../core/scope.js';
 
 export interface SleepTimeReflectionPolicyConfig {
@@ -90,7 +90,9 @@ export class SleepTimeReflectionPolicy implements ReflectionPolicy {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async shouldReflect(_scope: Scope, _trigger: ReflectionTrigger): Promise<boolean> {
+  async shouldReflect(scope: Scope, trigger: ReflectionTrigger): Promise<boolean> {
+    void scope;
+    void trigger;
     if (this._tickPending) {
       this._tickPending = false;
       return true;

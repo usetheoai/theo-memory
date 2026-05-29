@@ -83,12 +83,12 @@ if (PG_URI === undefined || PG_URI === '') {
       }
 
       // Step 5: assert all 100 rows have kind='extracted'
-      const countResult = await pool.query(
+      const countResult = await pool.query<{ total: string; extracted: string }>(
         `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE kind = 'extracted') AS extracted
          FROM memories`,
       );
-      expect(countResult.rows[0].total).toBe('100');
-      expect(countResult.rows[0].extracted).toBe('100');
+      expect(countResult.rows[0]?.total).toBe('100');
+      expect(countResult.rows[0]?.extracted).toBe('100');
     });
   });
 }
