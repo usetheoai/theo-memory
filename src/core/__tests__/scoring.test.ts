@@ -2,7 +2,7 @@
  * RED-phase tests for src/core/scoring.ts — T1.3 of v0-1-local-runtime plan v1.3.
  *
  * Pure-core scoring functions ported verbatim from REDACTED's
- * referencia/REDACTED/reference TS port/src/oss/src/utils/scoring.ts:1-138 per blueprint D2.
+ * .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/utils/scoring.ts:1-138 per blueprint D2.
  *
  * EC-1 absorbed: combineScores guards maxPossible=0 → returns 0 (no divide-by-zero NaN).
  * EC-8 absorbed: NaN propagates predictably; Phase 5 threshold gate drops NaN-scored results.
