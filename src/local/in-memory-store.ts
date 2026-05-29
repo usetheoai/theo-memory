@@ -184,6 +184,37 @@ export class InMemoryVectorStore implements VectorStore {
   }
 
   /**
+   * Look up the cached importance score by content hash (parity with
+   * PgvectorStore.getImportanceByHash). Per plan T5.2 + ADR D8.
+   */
+  async getImportanceByHash(hash: string): Promise<number | null> {
+    for (const row of this.rows.values()) {
+      if (row.payload['hash'] === hash) {
+        const score = row.payload['llm_importance_score'];
+        if (typeof score === 'number') {
+          return score;
+        }
+        return null;
+      }
+    }
+    await Promise.resolve();
+    return null;
+  }
+
+  /** Persist a cached importance score (parity). */
+  async setImportanceByHash(hash: string, score: number): Promise<void> {
+    for (const row of this.rows.values()) {
+      if (row.payload['hash'] === hash) {
+        (row.payload as Record<string, string | number | boolean | null>)[
+          'llm_importance_score'
+        ] = score;
+        await Promise.resolve();
+        return;
+      }
+    }
+  }
+
+  /**
    * Persist a derived memory (parity with PgvectorStore.insertDerivedMemory)
    * per plan T4.3 + ADR D6 + ADR D7. In-memory adapter stores kind +
    * derived_from in payload (no schema columns).
