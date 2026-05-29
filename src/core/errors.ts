@@ -60,6 +60,31 @@ export class ReflectionNotConfigured extends Error {
 }
 
 /**
+ * @see plan v0-4a-reflection-pipeline § T1.2 EC-1
+ *
+ * Thrown by AdditiveWeightedScoring's constructor when ALL three weights are 0.
+ * A strategy with all-zero weights would return NaN (0/0) per memory; fail fast
+ * with this guard. providedWeights field lets the caller log what was misconfigured.
+ */
+export class InvalidScoringWeightsError extends Error {
+  override readonly name = 'InvalidScoringWeightsError' as const;
+
+  readonly providedWeights: { readonly recency: number; readonly relevance: number; readonly importance: number };
+
+  constructor(
+    providedWeights: { recency: number; relevance: number; importance: number },
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Invalid scoring weights: at least one weight must be > 0. Provided: recency=${String(providedWeights.recency)}, relevance=${String(providedWeights.relevance)}, importance=${String(providedWeights.importance)}.`,
+      options,
+    );
+    this.providedWeights = { ...providedWeights };
+    Object.setPrototypeOf(this, InvalidScoringWeightsError.prototype);
+  }
+}
+
+/**
  * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
  *
  * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
