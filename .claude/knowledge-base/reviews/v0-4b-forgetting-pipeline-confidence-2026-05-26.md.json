@@ -1,0 +1,141 @@
+{
+  "blueprint_slug": "v0-4b-forgetting-pipeline",
+  "blueprint_path": "/home/paulo/Projetos/usetheo/theo-memory/.claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md",
+  "blueprint_version": null,
+  "scored_at": "2026-05-26T21:39:22.476247+00:00",
+  "research_coverage_score": 100.0,
+  "reference_citations_score": 100.0,
+  "blueprint_completeness_score": 100.0,
+  "risco_estrutural_score": 71.0,
+  "active_dimensions": [
+    "research_coverage",
+    "reference_citations",
+    "blueprint_completeness",
+    "risco_estrutural"
+  ],
+  "weight_normalization_factor": 1.0,
+  "weighted_avg": 95.7,
+  "hard_caps_triggered": [
+    "soft_floor_citation_density_low"
+  ],
+  "final_score_after_caps": 89.0,
+  "verdict": "SHIPPABLE_WITH_CAVEATS",
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  },
+  "motivos": {
+    "research_coverage": {
+      "contributors": [
+        "Corner 'tests' populated",
+        "Corner 'deps' populated",
+        "Corner 'tools' populated"
+      ],
+      "detractors": []
+    },
+    "reference_citations": {
+      "contributors": [
+        "16 verified .claude/knowledge-base/references/ citation(s)"
+      ],
+      "detractors": []
+    },
+    "blueprint_completeness": {
+      "contributors": [
+        "10/10 mandatory sections present",
+        "5 ADR(s) found in ADRs section"
+      ],
+      "detractors": []
+    },
+    "risco_estrutural": {
+      "contributors": [],
+      "detractors": [
+        "weak_imperatives: 7 hits",
+        "subjective_adjectives: 2 hits",
+        "vague_pronouns: 2 hits"
+      ]
+    }
+  },
+  "sub_reports": {
+    "research_coverage": {
+      "corners_populated": 4,
+      "corners_total": 4,
+      "corners_status": [
+        {
+          "corner": "tests",
+          "present": true,
+          "populated": true
+        },
+        {
+          "corner": "deps",
+          "present": true,
+          "populated": true
+        },
+        {
+          "corner": "tools",
+          "present": true,
+          "populated": true
+        },
+        {
+          "corner": "techniques",
+          "present": true,
+          "populated": true
+        }
+      ],
+      "empty_corners": [],
+      "contributors": [
+        "Corner 'tests' populated",
+        "Corner 'deps' populated",
+        "Corner 'tools' populated"
+      ],
+      "detractors": []
+    },
+    "reference_citations": {
+      "total": 16,
+      "verified": 16,
+      "fabricated": 0,
+      "explicitly_blocked": 0,
+      "fabricated_paths": [],
+      "blocked_paths": [],
+      "word_count": 7055,
+      "citation_density_per_200w": 0.45,
+      "contributors": [
+        "16 verified .claude/knowledge-base/references/ citation(s)"
+      ],
+      "detractors": []
+    },
+    "blueprint_completeness": {
+      "total_required": 10,
+      "found": 10,
+      "present": [
+        "Header",
+        "Context",
+        "Objective",
+        "Coverage Corner 1",
+        "Coverage Corner 2",
+        "Coverage Corner 3",
+        "Coverage Corner 4",
+        "Cross-cutting Comparison",
+        "ADRs",
+        "Recommendations"
+      ],
+      "missing_mandatory": [],
+      "adr_count": 5,
+      "contributors": [
+        "10/10 mandatory sections present",
+        "5 ADR(s) found in ADRs section"
+      ],
+      "detractors": []
+    },
+    "risco_estrutural": {
+      "total_hits": 11,
+      "by_category": {
+        "subjective_adjectives": 2,
+        "vague_pronouns": 2,
+        "weak_imperatives": 7
+      },
+      "total_penalty": -29
+    }
+  }
+}
