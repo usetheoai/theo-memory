@@ -86,13 +86,13 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 ## Reference projects (study material)
 
-The `referencia/` directory contains three clones (`--depth 1`, 2026-05-21) used for design study. **Read-only — never `npm install`, `pip install`, or edit them.**
+The `.claude/knowledge-base/references/` directory contains three clones (`--depth 1`, 2026-05-21) used for design study. **Read-only — never `npm install`, `pip install`, or edit them.**
 
 | Project | Tamanho | License | Status of exploration |
 |---|---|---|---|
-| [`REDACTED`](./referencia/REDACTED/) | 78 MB | Apache-2.0 | Pending exploration — primary architectural reference (vector + LLM extraction + hybrid retrieval) |
-| [`REDACTED`](./referencia/REDACTED/) | 34 MB | Apache-2.0 | Pending exploration — relevant for Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
-| [`REDACTED`](./referencia/REDACTED/) | 3.9 MB | MIT | Pending exploration — relevant for procedural memory via prompt rewriting |
+| [`REDACTED`](./.claude/knowledge-base/references/REDACTED/) | 78 MB | Apache-2.0 | Pending exploration — primary architectural reference (vector + LLM extraction + hybrid retrieval) |
+| [`REDACTED`](./.claude/knowledge-base/references/REDACTED/) | 34 MB | Apache-2.0 | Pending exploration — relevant for Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
+| [`REDACTED`](./.claude/knowledge-base/references/REDACTED/) | 3.9 MB | MIT | Pending exploration — relevant for procedural memory via prompt rewriting |
 
 The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 
@@ -104,7 +104,7 @@ The roadmap below mirrors the consolidated view in the root `CLAUDE.md § Roadma
 
 | Artifact | Status |
 |---|---|
-| `referencia/` clones (REDACTED + REDACTED + REDACTED, `--depth 1`, gitignored) | Shipped 2026-05-21 |
+| `.claude/knowledge-base/references/` clones (REDACTED + REDACTED + REDACTED, `--depth 1`, gitignored) | Shipped 2026-05-21 |
 | `README.md` + strategic placement (Community auxiliary MIT, TheoKit-native, vector-based hybrid, two runtimes) | Shipped 2026-05-21 |
 | This `CLAUDE.md` (3 root overrides documented) | Shipped 2026-05-21 |
 

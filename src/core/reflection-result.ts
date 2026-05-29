@@ -11,4 +11,16 @@ export interface ReflectionResult {
 
   /** Memory ids the reflection drew from. Provenance for higherOrderMemories. */
   readonly sourceIds: readonly string[];
+
+  /**
+   * v0.4a: count of derived memories persisted in this cycle. Equals
+   * `higherOrderMemories.length` on success.
+   */
+  readonly derivedMemoriesCreated: number;
+
+  /**
+   * v0.4a: optional reason when `derivedMemoriesCreated === 0`. Distinguishes
+   * "no source memories" (EC-5) from "LLM said no consolidation" (EC-13).
+   */
+  readonly reason?: 'no-source-memories' | 'no-consolidation';
 }
