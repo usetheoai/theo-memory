@@ -17,7 +17,7 @@
  *  - text_lemmatized: jsonb storing string[] (pre-computed BM25 tokens, blueprint Recommendation 3)
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1 + ADR D1.7
- * @see referencia/REDACTED/REDACTED/orm/passage.py:1-105
+ * @see .claude/knowledge-base/references/REDACTED/REDACTED/orm/passage.py:1-105
  */
 import { sql } from 'drizzle-orm';
 import {

@@ -16,7 +16,7 @@
  * NULL columns are skipped (passthrough — no `IS NULL` filter).
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
- * @see referencia/REDACTED/reference TS port/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
+ * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
  */
 import type { Tracer } from '@opentelemetry/api';
 import type { Pool, QueryResultRow } from 'pg';
