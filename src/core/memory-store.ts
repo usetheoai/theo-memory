@@ -89,6 +89,20 @@ export interface Memory {
 
   /** Administrative wipe of a scope. Explicit scope required (no implicit cross-scope reset). */
   reset(scope: Scope): Promise<void>;
+
+  /**
+   * v0.4a (T4.3 EC-7): wait for all in-flight async reflections to settle.
+   *
+   * When a configured ReflectionPolicy auto-fires reflect() (e.g.,
+   * ThresholdReflectionPolicy after N writes), the reflection runs as a
+   * fire-and-forget background promise tracked in a private pending set.
+   * flushReflections() returns `Promise.allSettled([...pending])`, completing
+   * once every started reflection has settled (success OR failure).
+   *
+   * Critical for deterministic observability in tests (THE GOAL TEST T6.1)
+   * and graceful shutdown.
+   */
+  flushReflections(): Promise<void>;
 }
 
 /**
