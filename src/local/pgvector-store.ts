@@ -19,7 +19,7 @@
  * @see .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
  */
 import type { Tracer } from '@opentelemetry/api';
-import type { Pool, QueryResultRow } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
@@ -345,6 +345,69 @@ export class PgvectorStore implements VectorStore {
    * @param scope Scope-tuple (userId / sessionId / agentId; at least one non-null)
    * @returns the new counter value AFTER the increment
    */
+  /**
+   * Persist a derived memory (kind='derived') with non-empty derived_from per
+   * plan T4.3 + ADR D6 (kind discriminator) + ADR D7 (provenance fail-fast).
+   *
+   * Atomic per-call: a single INSERT statement. Multi-draft transactional
+   * wrapping is the caller's responsibility (v0.4a Memory.reflect uses BEGIN/
+   * COMMIT/ROLLBACK around the for-loop per EC-6).
+   *
+   * @param args row data; embedding length must match MAX_EMBEDDING_DIM
+   * @returns the generated memory id
+   */
+  async insertDerivedMemory(args: {
+    text: string;
+    hash: string;
+    embedding: readonly number[];
+    derivedFrom: readonly string[];
+    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+  }): Promise<string> {
+    const vectorLiteral = `[${args.embedding.join(',')}]`;
+    const sql = `
+      INSERT INTO memories (
+        text, hash, embedding, payload,
+        user_id, session_id, agent_id,
+        kind, derived_from
+      ) VALUES (
+        $1, $2, $3::vector, '{}'::jsonb,
+        $4, $5, $6,
+        'derived', $7::jsonb
+      )
+      RETURNING id
+    `;
+    const result = await this.pool.query<{ id: string }>(sql, [
+      args.text,
+      args.hash,
+      vectorLiteral,
+      args.scope.userId ?? null,
+      args.scope.sessionId ?? null,
+      args.scope.agentId ?? null,
+      JSON.stringify([...args.derivedFrom]),
+    ]);
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error('insertDerivedMemory: INSERT returned no rows');
+    }
+    return row.id;
+  }
+
+  /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
+  async withTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async bumpReflectionCounter(scope: {
     userId?: string | null;
     sessionId?: string | null;
