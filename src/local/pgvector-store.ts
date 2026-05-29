@@ -330,4 +330,70 @@ export class PgvectorStore implements VectorStore {
   async setUserId(userId: string): Promise<void> {
     this.currentUserId = userId;
   }
+
+  /**
+   * Atomically bump the reflection counter for a given scope and return the new value.
+   *
+   * Uses two-step find-then-modify with IS NOT DISTINCT FROM to handle the
+   * Postgres NULL-comparison semantics correctly (composite-unique index
+   * UPSERT semantics differ when ANY of the keys is NULL).
+   *
+   * Per plan v0-4a-reflection-pipeline § T2.1 + ADR D4. Consumer
+   * (ThresholdReflectionPolicy) validates scope non-emptiness BEFORE calling
+   * this — the reflection_counters CHECK constraint guards as final defense.
+   *
+   * @param scope Scope-tuple (userId / sessionId / agentId; at least one non-null)
+   * @returns the new counter value AFTER the increment
+   */
+  async bumpReflectionCounter(scope: {
+    userId?: string | null;
+    sessionId?: string | null;
+    agentId?: string | null;
+  }): Promise<number> {
+    const userId = scope.userId ?? null;
+    const sessionId = scope.sessionId ?? null;
+    const agentId = scope.agentId ?? null;
+
+    // Find existing row using IS NOT DISTINCT FROM (treats NULL = NULL)
+    const findSql = `
+      SELECT id, count FROM reflection_counters
+      WHERE scope_user_id IS NOT DISTINCT FROM $1
+        AND scope_session_id IS NOT DISTINCT FROM $2
+        AND scope_agent_id IS NOT DISTINCT FROM $3
+      LIMIT 1
+    `;
+    const found = await this.pool.query<{ id: string; count: string }>(findSql, [userId, sessionId, agentId]);
+
+    if (found.rows.length > 0) {
+      const row = found.rows[0];
+      if (row === undefined) {
+        throw new Error('unreachable: rows.length > 0 but row undefined');
+      }
+      const updateSql = `
+        UPDATE reflection_counters
+        SET count = count + 1, updated_at = NOW()
+        WHERE id = $1
+        RETURNING count
+      `;
+      const updateResult = await this.pool.query<{ count: string }>(updateSql, [row.id]);
+      const updatedRow = updateResult.rows[0];
+      if (updatedRow === undefined) {
+        throw new Error('reflection_counters UPDATE returned no rows');
+      }
+      return Number(updatedRow.count);
+    }
+
+    // No existing row — insert with count=1 (CHECK upstream blocks all-NULL)
+    const insertSql = `
+      INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
+      VALUES ($1, $2, $3, 1)
+      RETURNING count
+    `;
+    const insertResult = await this.pool.query<{ count: string }>(insertSql, [userId, sessionId, agentId]);
+    const insertedRow = insertResult.rows[0];
+    if (insertedRow === undefined) {
+      throw new Error('reflection_counters INSERT returned no rows');
+    }
+    return Number(insertedRow.count);
+  }
 }

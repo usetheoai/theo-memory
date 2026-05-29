@@ -85,6 +85,28 @@ export class InvalidScoringWeightsError extends Error {
 }
 
 /**
+ * @see plan v0-4a-reflection-pipeline § T2.1 EC-3
+ *
+ * Thrown by ThresholdReflectionPolicy.shouldReflect when the supplied Scope
+ * has NO non-empty userId/sessionId/agentId field. The reflection_counters
+ * table's CHECK constraint (T0.2 EC-3) would reject the row at SQL level;
+ * this fail-fast guard surfaces a typed error to the consumer BEFORE the SQL
+ * round-trip, avoiding raw Postgres CHECK violation propagation.
+ */
+export class EmptyScopeError extends Error {
+  override readonly name = 'EmptyScopeError' as const;
+
+  constructor(options?: ErrorOptions) {
+    super(
+      'Scope is empty: at least one of userId / sessionId / agentId must be non-empty. ' +
+        'All-NULL scopes cannot be persisted in reflection_counters per the table CHECK constraint.',
+      options,
+    );
+    Object.setPrototypeOf(this, EmptyScopeError.prototype);
+  }
+}
+
+/**
  * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
  *
  * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
