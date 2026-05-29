@@ -23,16 +23,16 @@ Produce a blueprint capturing Letta's full architectural shape: tier model, func
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `referencia/letta/letta/` | `agents/`, `agent.py`, `interfaces/`, `orm/`, `schemas/` | Architecture surface |
+| `.claude/knowledge-base/references/letta/letta/` | `agents/`, `agent.py`, `interfaces/`, `orm/`, `schemas/` | Architecture surface |
 
 ### Out-of-Scope
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `referencia/letta/llm_api/` | Provider-specific, not architecture |
-| `referencia/letta/sandbox/` | Tool execution, not memory |
-| `referencia/letta/docs/`, `examples/` | Documentation, not source |
-| `referencia/mem0/`, `referencia/langmem/` | Separate discoveries |
+| `.claude/knowledge-base/references/letta/llm_api/` | Provider-specific, not architecture |
+| `.claude/knowledge-base/references/letta/sandbox/` | Tool execution, not memory |
+| `.claude/knowledge-base/references/letta/docs/`, `examples/` | Documentation, not source |
+| `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/langmem/` | Separate discoveries |
 
 ## ADRs
 
@@ -60,12 +60,12 @@ Produce a blueprint capturing Letta's full architectural shape: tier model, func
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | How does Letta represent the agent state in code? | techniques | `referencia/letta/letta/agent.py`, `agents/` | `ast-grep run --pattern 'class $NAME($BASE): $$$' --lang python referencia/letta/letta/agents/` | Read each agent class | Class hierarchy + state fields |
-| Q2 | How does Letta implement the 4 MemGPT tiers (core/buffer/recall/archival)? | techniques | `referencia/letta/letta/schemas/`, `orm/` | `ast-grep run --pattern 'class $NAME($BASE): $$$' --lang python referencia/letta/letta/schemas/` | Read schemas + corresponding ORM models | Tier-to-table mapping |
-| Q3 | How does Letta wire memory function-calls to LLM tool execution? | techniques | `referencia/letta/letta/agents/`, `letta/interfaces/` | `ast-grep run --pattern 'def memory_$NAME($$$): $$$' --lang python referencia/letta/letta/` | Read each memory function | Function catalog + tool-schema definitions |
-| Q4 | Where is the sleep-time agent pattern implemented? | techniques | `referencia/letta/letta/agents/` | `ast-grep run --pattern 'class Sleep$$$($$$): $$$' --lang python; OR Grep 'sleep_time'` | Read the matching file(s) | Scheduler design + transaction model |
-| Q5 | How is the agent loop structured (turn taking, state machine)? | techniques | `referencia/letta/letta/agent.py` | `ast-grep run --pattern 'def step($$$): $$$' --lang python referencia/letta/letta/` | Read step / loop method | State machine diagram |
-| Q6 | How does Letta serialize agent state for persistence? | techniques | `referencia/letta/letta/orm/`, `letta/schemas/agent.py` | `ast-grep run --pattern 'def to_dict($$$): $$$' --lang python referencia/letta/letta/` | Read serialize/deserialize methods | Serialization shape |
+| Q1 | How does Letta represent the agent state in code? | techniques | `.claude/knowledge-base/references/letta/letta/agent.py`, `agents/` | `ast-grep run --pattern 'class $NAME($BASE): $$$' --lang python .claude/knowledge-base/references/letta/letta/agents/` | Read each agent class | Class hierarchy + state fields |
+| Q2 | How does Letta implement the 4 MemGPT tiers (core/buffer/recall/archival)? | techniques | `.claude/knowledge-base/references/letta/letta/schemas/`, `orm/` | `ast-grep run --pattern 'class $NAME($BASE): $$$' --lang python .claude/knowledge-base/references/letta/letta/schemas/` | Read schemas + corresponding ORM models | Tier-to-table mapping |
+| Q3 | How does Letta wire memory function-calls to LLM tool execution? | techniques | `.claude/knowledge-base/references/letta/letta/agents/`, `letta/interfaces/` | `ast-grep run --pattern 'def memory_$NAME($$$): $$$' --lang python .claude/knowledge-base/references/letta/letta/` | Read each memory function | Function catalog + tool-schema definitions |
+| Q4 | Where is the sleep-time agent pattern implemented? | techniques | `.claude/knowledge-base/references/letta/letta/agents/` | `ast-grep run --pattern 'class Sleep$$$($$$): $$$' --lang python; OR Grep 'sleep_time'` | Read the matching file(s) | Scheduler design + transaction model |
+| Q5 | How is the agent loop structured (turn taking, state machine)? | techniques | `.claude/knowledge-base/references/letta/letta/agent.py` | `ast-grep run --pattern 'def step($$$): $$$' --lang python .claude/knowledge-base/references/letta/letta/` | Read step / loop method | State machine diagram |
+| Q6 | How does Letta serialize agent state for persistence? | techniques | `.claude/knowledge-base/references/letta/letta/orm/`, `letta/schemas/agent.py` | `ast-grep run --pattern 'def to_dict($$$): $$$' --lang python .claude/knowledge-base/references/letta/letta/` | Read serialize/deserialize methods | Serialization shape |
 
 ## Coverage Matrix
 
@@ -82,7 +82,7 @@ Produce a blueprint capturing Letta's full architectural shape: tier model, func
 
 | Checkpoint | Assertion | Action if fails |
 |---|---|---|
-| Before answering any Q | `referencia/letta/letta/agents/` exists | Mark BLOCKED |
+| Before answering any Q | `.claude/knowledge-base/references/letta/letta/agents/` exists | Mark BLOCKED |
 | Per-question Fase A | At least 1 hotspot OR 3 retries | BLOCKED with reason "Fase A exhausted" |
 | Per-project time budget | 4h not exhausted | Mark remaining BLOCKED |
 | Before promising complete | All 4 coverage corners populated | Refuse promise |

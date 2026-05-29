@@ -363,7 +363,7 @@ Expected per-step events (per 9-step search in blueprint D2 + plan T5.1 acceptan
 - **File:** `src/core/retrieval/pipeline.ts`
 - **Evidence:**
 
-  Code structure matches blueprint D2 + referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:1037-1269:
+  Code structure matches blueprint D2 + .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:1037-1269:
   
   Step 1 (preprocess): Line 78 → lemmatizeForBm25(query)
   Step 2 (embed): Line 82 → await deps.embedder.embed(query)

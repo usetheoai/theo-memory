@@ -144,7 +144,7 @@ These are the **ONLY** valid reasons for `/implement` to exit before `IMPLEMENTA
 1. **Task fails to GREEN after 3 implementation attempts** — mark task BLOCKED with reason "implementation strategy not viable"; surface to human. Do NOT skip and continue (poisons the chain).
 2. **Halt-loop max iterations reached** — emit promise with honest "tasks N through M remaining" report.
 3. **External dependency missing** — Postgres down for integration test, npm package not installed. Halt; surface for human to fix the environment.
-4. **Plan task assumes behavior contradicted by reality** — e.g., a borrowed pattern doesn't actually exist in `referencia/` even though plan cited it. Halt; loop back to cycle-discover or cycle-plan.
+4. **Plan task assumes behavior contradicted by reality** — e.g., a borrowed pattern doesn't actually exist in `.claude/knowledge-base/references/` even though plan cited it. Halt; loop back to cycle-discover or cycle-plan.
 5. **Real-tree validation surfaces a HIGH/CRITICAL CVE** on a declared dep (e.g., `npm audit` post-install) — halt; loop back to cycle-plan for ADR + dep bump. After the plan is corrected, **re-invoke ralph-loop per the resume protocol below** — do NOT drive remaining tasks manually.
 
 ### Resume after recovered blocker (canonical protocol)

@@ -37,7 +37,7 @@ nodes:
     weight: 0.30
   - id: 2
     dimension: reference_citations
-    description: "Every referencia/{project}/{path} cited in the blueprint exists on disk (Path.exists() == True). No fabricated citations."
+    description: "Every .claude/knowledge-base/references/{project}/{path} cited in the blueprint exists on disk (Path.exists() == True). No fabricated citations."
     detector: reference_citations
     failure_action: hard_cap
     hard_cap_value: 49
@@ -125,7 +125,7 @@ smells:
 Beyond the hard caps above, soft caps may fire when signals indicate risk:
 
 - `soft_floor_smell_density_high` — ≥ 20 weak-imperative / loophole / vague hits in prose (cap at 89).
-- `soft_floor_citation_density_low` — < 1 `referencia/` citation per 200 words of blueprint prose (cap at 89).
+- `soft_floor_citation_density_low` — < 1 `.claude/knowledge-base/references/` citation per 200 words of blueprint prose (cap at 89).
 - `soft_floor_per_project_asymmetry` — one in-scope project gets > 80% of blueprint content while others get < 5% each (cap at 89). **Planned for M2.1; no Python checker exists yet — this cap is not fired by M2.**
 
 Soft caps appear in `hard_caps_triggered` with prefix `soft_floor_` but do NOT trigger `verdict == INVALID`.

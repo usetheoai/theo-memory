@@ -36,7 +36,7 @@ Halt-loop picks the next `pending` task whose dependencies are `committed`. The 
 | T3.3 | Phase 3 / T3.3 | `src/core/dip/vector-store.ts` (11 methods + EC-6 JSDoc) | pending | — | — | — | — |
 | T3.4 | Phase 3 / T3.4 | `src/core/dip/reflection-policy.ts` (ReflectionPolicy + ManualReflectionPolicy) | pending | — | — | — | — |
 | T4.1 | Phase 4 / T4.1 | `src/core/index.ts` barrel + `package.json#exports.contract` | pending | — | — | — | — |
-| T5.1 | Phase 5 / T5.1 | Final validation chain + 3 grep gates + referencia/ Path.exists() audit | pending | n/a | n/a | n/a | — |
+| T5.1 | Phase 5 / T5.1 | Final validation chain + 3 grep gates + .claude/knowledge-base/references/ Path.exists() audit | pending | n/a | n/a | n/a | — |
 
 Status legend: `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`
 Wiring legend: `[OK]` = passed; `[FAIL]` = failed; `defer` = ADR-deferred; `n/a` = not applicable; `--` = not yet checked.
@@ -91,7 +91,7 @@ Plan ref: § Phase 3 / T3.4. New symbols: `ReflectionPolicy`, `ReflectionTrigger
 Plan ref: § Phase 4 / T4.1. Re-exports all Phase 2/3 types. EC-3 `default` points to real path (not `null`). Wiring (a): the barrel IS the public surface — symbols are exposed for external consumption. Wiring (b): test-d at `src/core/__tests__/external-import.test-d.ts` validates `import type { Memory } from '@usetheo/memory/contract'` resolves.
 
 ### T5.1 — Integration Validation gate
-Plan ref: § Phase 5 / T5.1. No new symbols. Runs `npm install && npm run typecheck && npm test && npm run lint` + 3 grep gates (production-ready, emoji, referencia/ existence). Wiring n/a. This is the final gate, not an implementation task per se — emits the report consumed by /implement-validate.
+Plan ref: § Phase 5 / T5.1. No new symbols. Runs `npm install && npm run typecheck && npm test && npm run lint` + 3 grep gates (production-ready, emoji, .claude/knowledge-base/references/ existence). Wiring n/a. This is the final gate, not an implementation task per se — emits the report consumed by /implement-validate.
 
 ## Acceptance Criteria (mirrors plan's Global Definition of Done)
 
@@ -106,7 +106,7 @@ Plan ref: § Phase 5 / T5.1. No new symbols. Runs `npm install && npm run typech
 - [ ] CHANGELOG.md `[Unreleased]` updated as tasks ship (per Inquebrável Rule 6)
 - [ ] Grep gate: no `production-ready` claims (context-aware exclusion)
 - [ ] Grep gate: no emoji
-- [ ] Grep gate: every `referencia/...` path resolves via `Path.exists()`
+- [ ] Grep gate: every `.claude/knowledge-base/references/...` path resolves via `Path.exists()`
 
 ## Halt-loop audit trail
 

@@ -28,7 +28,7 @@
 | #10 `token-budget.md` — bump `/discover-execute` estimate by +30k tokens/question | NOT updated |
 | #11 `.gitignore` confirm `snapshots/` IS committed | **EFFECTIVELY DONE** — `git ls-files .claude/knowledge-base/discoveries/snapshots/` returns 4 files (v0-3 cycle wrote them); allowlist is also `git ls-files` tracked |
 
-**Net:** 2/11 items shipped (#4 + #11); 9/11 items pending. The cycle is **operationally silent** — the v0-3-agent-tools-mcp blueprint successfully wrote 4 snapshots + cited URLs from the allowlist, but `/discover-confidence` did NOT verify them (the URL never reached `check_reference_citations.py` because its regex still only matches `referencia/{...}`). A future blueprint could cite a fabricated `https://made-up-paper.example/x` and pass confidence, defeating Inquebrável Rule 3 (extreme honesty).
+**Net:** 2/11 items shipped (#4 + #11); 9/11 items pending. The cycle is **operationally silent** — the v0-3-agent-tools-mcp blueprint successfully wrote 4 snapshots + cited URLs from the allowlist, but `/discover-confidence` did NOT verify them (the URL never reached `check_reference_citations.py` because its regex still only matches `.claude/knowledge-base/references/{...}`). A future blueprint could cite a fabricated `https://made-up-paper.example/x` and pass confidence, defeating Inquebrável Rule 3 (extreme honesty).
 
 ### Evidence of the gap
 
@@ -61,9 +61,9 @@ INVALID|0|2027-01-31|YOUR_ADR_REF
 
 - [ ] Sub-goal 1 — `discover-plan-golden-rule.md` + `discover-blueprint-golden-rule.md` document 5-corner + URL hard caps (file content carries `fabricated_url_citation`, `domain_not_in_allowlist`, `snapshot_missing_or_corrupt`, `empty_corner_prior_art`, `rule9_verdict_missing` stable identifiers)
 - [ ] Sub-goal 2 — `discover-plan-thresholds.txt` + `discover-blueprint-thresholds.txt` cite v1.1 ADR (no `YOUR_ADR_REF` placeholder remaining), sunset bumped to 2027-07-31
-- [ ] Sub-goal 3 — `check_reference_citations.py` accepts URL citations alongside `referencia/{...}`; validates allowlist + snapshot file + sha256 match; emits `fabricated_url_citation` / `domain_not_in_allowlist` / `snapshot_missing_or_corrupt` per cap
+- [ ] Sub-goal 3 — `check_reference_citations.py` accepts URL citations alongside `.claude/knowledge-base/references/{...}`; validates allowlist + snapshot file + sha256 match; emits `fabricated_url_citation` / `domain_not_in_allowlist` / `snapshot_missing_or_corrupt` per cap
 - [ ] Sub-goal 4 — `check_research_coverage.py` + `check_blueprint_completeness.py` recognize the 5th corner (`prior_art`) and emit `empty_corner_prior_art` when missing
-- [ ] Sub-goal 5 — `discover-plan/SKILL.md` + `discovery-plan-template.md` document the `prior_art` corner + per-question `source:` field (`referencia/{project}` OR `web`)
+- [ ] Sub-goal 5 — `discover-plan/SKILL.md` + `discovery-plan-template.md` document the `prior_art` corner + per-question `source:` field (`.claude/knowledge-base/references/{project}` OR `web`)
 - [ ] Sub-goal 6 — `discover-execute/SKILL.md` + halt-loop prompt + `blueprint-template.md` instruct iteration on WebSearch/WebFetch invocation + snapshot-write-before-cite
 - [ ] Sub-goal 7 — `discover-improve/` Phase A handles URL markers (`<!-- BLOCKED: url-fabricated -->`, `<!-- BLOCKED: snapshot-missing -->`)
 - [ ] Sub-goal 8 — `token-budget.md` § `cycle-discover` estimates updated (`+30k tokens per active prior_art question`)
@@ -215,7 +215,7 @@ Phase A does NOT automatically re-WebFetch (would silently mask drift) or auto-a
 - (a) Auto re-WebFetch on snapshot-missing — opaque to reviewer; honest sentinel is better.
 - (b) Auto-add to allowlist with `TODO` rationale — Inquebrável Rule 3 (extreme honesty) forbids — every allowlist entry needs rationale at add time, not later.
 
-**Rationale:** mirrors how Phase A handles fabricated `referencia/` paths today (marks `<!-- BLOCKED: path not found -->`, never invents alternatives).
+**Rationale:** mirrors how Phase A handles fabricated `.claude/knowledge-base/references/` paths today (marks `<!-- BLOCKED: path not found -->`, never invents alternatives).
 
 **Consequences:** Halt-loop may not converge if all URLs are off-allowlist; surfaces to human honestly per `discover-improve` stop condition. Better than auto-fixing into a worse state.
 
@@ -479,7 +479,7 @@ Current state:
 $ grep -c "https://\|allowlist\|snapshot" .claude/skills/discover-confidence/scripts/check_reference_citations.py
 0
 ```
-The file only matches `referencia/{...}` pattern. URLs are silently ignored.
+The file only matches `.claude/knowledge-base/references/{...}` pattern. URLs are silently ignored.
 
 #### Files to edit
 ```text
@@ -491,7 +491,7 @@ The file only matches `referencia/{...}` pattern. URLs are silently ignored.
 #### Deep file dependency analysis
 - File is imported by `run_blueprint_score.py` (top-level entry) — extension preserves existing function signature; just adds new fields to the returned dict.
 - `_find_project_root()` helper reused; new `_load_allowlist()` and `_compute_snapshot_sha256()` added as private helpers.
-- Existing `referencia/{...}` extraction continues to work — URL extraction is additive.
+- Existing `.claude/knowledge-base/references/{...}` extraction continues to work — URL extraction is additive.
 
 #### Deep Dives
 **New regex:** `URL_CITATION_RE = re.compile(r"https?://[^\s)>\"\\]+")` — matches URLs in markdown prose, table cells, JSDoc-style citations.
@@ -563,7 +563,7 @@ def _expected_snapshot_path(slug: str, url: str, content: str) -> Path:
 
 #### Tasks
 1. Add `URL_CITATION_RE` constant + `_load_allowlist()` + `_expected_snapshot_path()` + `_check_url_citation()` helpers
-2. Extend the main extraction loop to find URL citations alongside `referencia/` citations
+2. Extend the main extraction loop to find URL citations alongside `.claude/knowledge-base/references/` citations
 3. For each URL: domain check → snapshot file exists → sha256 match (3 separate ID emission paths)
 4. Add `--check-urls-live` argparse flag to `run_blueprint_score.py` (forwards to this checker)
 5. Update returned dict shape: add `url_citations_total`, `url_citations_allowlisted`, `url_citations_snapshotted`
@@ -777,7 +777,7 @@ VERIFY:  pytest .claude/skills/discover-confidence/tests/test_check_blueprint_co
 ### T3.1 — `discover-plan/SKILL.md` + `discovery-plan-template.md` document prior_art corner
 
 #### Objective
-Update the skill prose to declare the 5th corner; add a `source:` field to the per-question table requiring `referencia/{project}` OR `web`.
+Update the skill prose to declare the 5th corner; add a `source:` field to the per-question table requiring `.claude/knowledge-base/references/{project}` OR `web`.
 
 #### Evidence
 `grep -l "prior_art\|prior-art\|priorArt" .claude/skills/discover-*/SKILL.md` returns nothing. Skill is still 4-corner-only.
@@ -797,7 +797,7 @@ Update the skill prose to declare the 5th corner; add a `source:` field to the p
 
 **Question budget:** keep at 5-10 total, but rebalance — `prior_art` corner caps at 3 (consistent with other corners' max-3 rule per cycle rule v1.1). 1-3 prior_art questions per plan typical.
 
-**`source:` field:** new column in per-question table. Values: `referencia/{project}` (local) OR `web` (will use WebSearch + WebFetch + snapshot). When source is `web`, the question's "Method" column MUST cite at least one expected domain from the allowlist (sanity gate; verified at confidence time).
+**`source:` field:** new column in per-question table. Values: `.claude/knowledge-base/references/{project}` (local) OR `web` (will use WebSearch + WebFetch + snapshot). When source is `web`, the question's "Method" column MUST cite at least one expected domain from the allowlist (sanity gate; verified at confidence time).
 
 #### Tasks
 1. Read current `discover-plan/SKILL.md` (~200 LoC); identify insertion points
@@ -830,7 +830,7 @@ NEW test file: `test_discover_skill_prose_consistency.py` (~40 lines) reads the 
 ### T3.2 — `discover-execute/SKILL.md` + halt-loop prompt + `blueprint-template.md` document WebSearch/WebFetch/snapshot protocol
 
 #### Objective
-The halt-loop iteration protocol expands from "iterate over `referencia/`" to "iterate over `referencia/` OR `web` per question source". Document the 7-step prior_art protocol (per D5).
+The halt-loop iteration protocol expands from "iterate over `.claude/knowledge-base/references/`" to "iterate over `.claude/knowledge-base/references/` OR `web` per question source". Document the 7-step prior_art protocol (per D5).
 
 #### Evidence
 Same `grep` result — no skill mentions WebSearch.
@@ -922,7 +922,7 @@ VERIFY:  pytest .claude/skills/discover-confidence/tests/test_discover_skill_pro
 ### T4.1 — Extend `apply_fixes.py` to recognize URL hard cap IDs + insert sentinel markers
 
 #### Objective
-The deterministic Phase A of `discover-improve` reads `hard_caps_triggered` from a previous `discover-confidence` score and applies fixes. Today it handles `fabricated_citation` (for `referencia/`). Extend for the 3 new URL caps per D7.
+The deterministic Phase A of `discover-improve` reads `hard_caps_triggered` from a previous `discover-confidence` score and applies fixes. Today it handles `fabricated_citation` (for `.claude/knowledge-base/references/`). Extend for the 3 new URL caps per D7.
 
 #### Evidence
 `apply_fixes.py` exists at `.claude/skills/discover-improve/scripts/apply_fixes.py`. Sibling pattern proven.
@@ -1032,7 +1032,7 @@ VERIFY:  pytest .claude/skills/discover-improve/tests/test_apply_fixes.py -v
 Bump the `/discover-execute` cost band by +30k tokens per active prior_art question (per cycle rule v1.1 § Downstream change #10).
 
 #### Evidence
-Current `token-budget.md` § `cycle-discover` shows `/discover-execute | 30-100k`. With 1-3 prior_art questions adding +30k each, new band: `30-190k` (30k base + max 3 questions × 30k each + ~70k for referencia/ work).
+Current `token-budget.md` § `cycle-discover` shows `/discover-execute | 30-100k`. With 1-3 prior_art questions adding +30k each, new band: `30-190k` (30k base + max 3 questions × 30k each + ~70k for .claude/knowledge-base/references/ work).
 
 #### Files to edit
 ```text
@@ -1164,7 +1164,7 @@ VERIFY:  pytest .claude/skills/discover-confidence/tests -v
 - [ ] Verdict == INVALID
 - [ ] Both stable IDs appear in `hard_caps_triggered`
 - [ ] Final score == 49 (capped)
-- [ ] Existing referencia/ citation still counted (regression)
+- [ ] Existing .claude/knowledge-base/references/ citation still counted (regression)
 - [ ] EC-12 positive metrics: 3 total URLs, 2 allowlisted, 1 fully snapshotted (the others fail at different gates)
 - [ ] Test runtime < 5 seconds (deterministic, no network)
 
@@ -1267,7 +1267,7 @@ VERIFY:  All commands above.
 - [ ] Zero lint warnings — `npm run lint` (sanity — no TS changed)
 - [ ] File-size budget respected — every touched file ≤ 500 lines (`architecture.md § Module hygiene`)
 - [ ] CHANGELOG.md updated under `[Unreleased]` with one Added entry referencing this plan slug + the 11 downstream items closed (Inquebrável Rule 6)
-- [ ] Backward compatibility preserved — existing `referencia/` citation extraction unchanged; existing 4-corner blueprints either pass with explicit DEFER-CORNER OR fail with `empty_corner_prior_art` (breaking change documented in commit body)
+- [ ] Backward compatibility preserved — existing `.claude/knowledge-base/references/` citation extraction unchanged; existing 4-corner blueprints either pass with explicit DEFER-CORNER OR fail with `empty_corner_prior_art` (breaking change documented in commit body)
 - [ ] Runtime-metric proof — T6.1 smoke test demonstrates verdict==INVALID with both new stable IDs observed in `hard_caps_triggered` JSON output (the runtime metric is this test passing)
 - [ ] Plan archived — after `/review` returns `READY_TO_MERGE` AND the PR has been merged to `main`, move `.claude/knowledge-base/plans/discover-web-v0-1-plan.md` to `.claude/knowledge-base/plans/completed/discover-web-v0-1-plan.md` per `audit-trail-rotation.md`
 - [ ] Cycle-discover.md v1.1 § Downstream block updated — strike through items 1-11 OR add a "DONE 2026-MM-DD" annotation per item; do NOT remove the change-log entry (audit trail)

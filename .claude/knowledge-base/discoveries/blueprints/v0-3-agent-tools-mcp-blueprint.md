@@ -1,6 +1,6 @@
 # Blueprint: v0.3 — Agent tools (MCP) — `@usetheo/memory/agent-tools`
 
-> **Version 1.0** — Synthesizes how `referencia/letta/` (primary, full MCP impl), `referencia/mem0/` (secondary, plugin-only), `referencia/langmem/` (tertiary, BaseStore tool pattern) AND prior_art on the official MCP spec + `../theokit-sdk/` tool-provider contract solve agent-tool exposure. Informs `/to-plan v0-3-agent-tools-mcp` by locking: transport choice (stdio vs SSE vs streamable-HTTP), tool schema shape + validation, cross-tool state isolation, integration surface with `@usetheo/sdk`, test pyramid for JSON-RPC roundtrip + malformed payload rejection.
+> **Version 1.0** — Synthesizes how `.claude/knowledge-base/references/letta/` (primary, full MCP impl), `.claude/knowledge-base/references/mem0/` (secondary, plugin-only), `.claude/knowledge-base/references/langmem/` (tertiary, BaseStore tool pattern) AND prior_art on the official MCP spec + `../theokit-sdk/` tool-provider contract solve agent-tool exposure. Informs `/to-plan v0-3-agent-tools-mcp` by locking: transport choice (stdio vs SSE vs streamable-HTTP), tool schema shape + validation, cross-tool state isolation, integration surface with `@usetheo/sdk`, test pyramid for JSON-RPC roundtrip + malformed payload rejection.
 
 **Slug:** `v0-3-agent-tools-mcp`
 **Source plan:** `.claude/knowledge-base/discoveries/plans/v0-3-agent-tools-mcp-plan.md` (v1.1)
@@ -29,20 +29,20 @@ Lock 5 decisions for `/to-plan v0-3-agent-tools-mcp`: transport choice, tool sch
 
 Three test files interrogated:
 
-1. **`test_mcp.py` (396 LoC) — E2E integration** (`referencia/letta/tests/mcp_tests/test_mcp.py:73-271`):
-   - **Server-in-thread fixture** (`referencia/letta/tests/mcp_tests/test_mcp.py:76-121`): spawns Letta REST server in background `threading.Thread(target=_run_server, daemon=True)` + `wait_for_server(url, timeout=60)` (60s for provider model syncing).
-   - **stdio transport happy path** (`referencia/letta/tests/mcp_tests/test_mcp.py:213-270` — `test_stdio_mcp_server`): creates fresh `venv` via `create_virtualenv_and_install_requirements(requirements_path, name='venv', force_recreate=True)` + pip-installs requirements; configures `StdioServerConfig(server_name, command=python3, args=[weather.py])`; registers MCP server via `client.mcp_servers.create(server_name, config=config_dict)`; tools auto-register; calls `client.mcp_servers.tools.list(mcp_server_id)` to get `tools/list` equivalent; attaches tool to agent; sends user message; asserts `ToolCallMessage` and `ToolReturnMessage` with `status == 'success'` and `len(tool_return.strip()) >= 10`.
-   - **try/finally cleanup** (`referencia/letta/tests/mcp_tests/test_mcp.py:266-270`): every test deletes the MCP server registration on exit + asserts it's removed from `client.mcp_servers.list()`. State isolation at fixture-level.
-   - **Cleanup fixture** (`referencia/letta/tests/mcp_tests/test_mcp.py:92-107` — `cleanup_test_venvs autouse=True`): wipes `weather/venv/` BEFORE each test.
-   - **SSE transport test** (`referencia/letta/tests/mcp_tests/test_mcp.py:154-211` — `test_sse_mcp_server`): SKIPPED via `@pytest.mark.skip(reason='The deepwiki SSE MCP server is deprecated')`. Pattern preserved as template but no longer runs.
-   - **Fixture file** (`referencia/letta/tests/mcp_tests/weather/weather.py`): the actual MCP server tested against — a tiny weather-API stub exposing tools including `get_alerts`.
+1. **`test_mcp.py` (396 LoC) — E2E integration** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:73-271`):
+   - **Server-in-thread fixture** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:76-121`): spawns Letta REST server in background `threading.Thread(target=_run_server, daemon=True)` + `wait_for_server(url, timeout=60)` (60s for provider model syncing).
+   - **stdio transport happy path** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:213-270` — `test_stdio_mcp_server`): creates fresh `venv` via `create_virtualenv_and_install_requirements(requirements_path, name='venv', force_recreate=True)` + pip-installs requirements; configures `StdioServerConfig(server_name, command=python3, args=[weather.py])`; registers MCP server via `client.mcp_servers.create(server_name, config=config_dict)`; tools auto-register; calls `client.mcp_servers.tools.list(mcp_server_id)` to get `tools/list` equivalent; attaches tool to agent; sends user message; asserts `ToolCallMessage` and `ToolReturnMessage` with `status == 'success'` and `len(tool_return.strip()) >= 10`.
+   - **try/finally cleanup** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:266-270`): every test deletes the MCP server registration on exit + asserts it's removed from `client.mcp_servers.list()`. State isolation at fixture-level.
+   - **Cleanup fixture** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:92-107` — `cleanup_test_venvs autouse=True`): wipes `weather/venv/` BEFORE each test.
+   - **SSE transport test** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:154-211` — `test_sse_mcp_server`): SKIPPED via `@pytest.mark.skip(reason='The deepwiki SSE MCP server is deprecated')`. Pattern preserved as template but no longer runs.
+   - **Fixture file** (`.claude/knowledge-base/references/letta/tests/mcp_tests/weather/weather.py`): the actual MCP server tested against — a tiny weather-API stub exposing tools including `get_alerts`.
 
-2. **`test_mcp_schema_validation.py` (819 LoC) — unit with mocks** (`referencia/letta/tests/mcp_tests/test_mcp_schema_validation.py:1-76`):
-   - **Mock pattern** (`referencia/letta/tests/mcp_tests/test_mcp_schema_validation.py:15-49`): `mock_client = AsyncMock(); mock_client.list_tools = AsyncMock(return_value=mock_tools)`. Bypasses real MCP transport — exercises ONLY the schema-health-enrichment layer.
-   - **Health enrichment at LIST time** (`referencia/letta/tests/mcp_tests/test_mcp_schema_validation.py:49-75`): calls `actual_server.get_tools_from_mcp_server('test_server')` which returns `MCPTool` instances with `health: MCPToolHealth(status, reasons)`. Three test inputs cover each enum value: strict-compliant (no reasons), non-strict-only (reasons mention "additionalProperties"), invalid (reasons mention "type").
+2. **`test_mcp_schema_validation.py` (819 LoC) — unit with mocks** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp_schema_validation.py:1-76`):
+   - **Mock pattern** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp_schema_validation.py:15-49`): `mock_client = AsyncMock(); mock_client.list_tools = AsyncMock(return_value=mock_tools)`. Bypasses real MCP transport — exercises ONLY the schema-health-enrichment layer.
+   - **Health enrichment at LIST time** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp_schema_validation.py:49-75`): calls `actual_server.get_tools_from_mcp_server('test_server')` which returns `MCPTool` instances with `health: MCPToolHealth(status, reasons)`. Three test inputs cover each enum value: strict-compliant (no reasons), non-strict-only (reasons mention "additionalProperties"), invalid (reasons mention "type").
    - **Importantly**: malformed payload rejection happens at the LIST step (catalog-time), NOT at the CALL step (call-time). Schema health is a META-FIELD on the tool, not a runtime error in the JSON-RPC response.
 
-3. **`test_schema_validator.py` (307 LoC) — pure unit** (`referencia/letta/tests/mcp_tests/test_schema_validator.py:11-77`):
+3. **`test_schema_validator.py` (307 LoC) — pure unit** (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_schema_validator.py:11-77`):
    - Pure function tests of `validate_complete_json_schema(schema)` → `(SchemaHealth, reasons)` tuple.
    - 6+ schema-shape variants exercised: valid strict-compliant; free-form object (NON_STRICT_ONLY); empty-object-in-required (INVALID); missing-type (INVALID); array-without-items (INVALID); and more.
    - Zero I/O — runs in milliseconds.
@@ -53,8 +53,8 @@ Three test files interrogated:
 - **Pure unit (~5 tests):** schema validator + tool-name-stability + payload-shape contracts.
 
 **Test discipline applicable to v0.3** (LIFTABLE from Letta verbatim):
-- try/finally cleanup of any registration state (per `referencia/letta/tests/mcp_tests/test_mcp.py:266-270` pattern)
-- Pre-test fixture wipes any cached state (per `cleanup_test_venvs` pattern, `referencia/letta/tests/mcp_tests/test_mcp.py:92-107`)
+- try/finally cleanup of any registration state (per `.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:266-270` pattern)
+- Pre-test fixture wipes any cached state (per `cleanup_test_venvs` pattern, `.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:92-107`)
 - 3-tier `SchemaHealth(STRICT_COMPLIANT | NON_STRICT_ONLY | INVALID)` enum + `reasons: list[str]` shape is a portable contract — adopt for v0.3's `tools/list` response enrichment
 
 ---
@@ -101,15 +101,15 @@ Three test files interrogated:
 
 **Finding: Letta and LangMem ship FUNDAMENTALLY DIFFERENT tool-provider models — they are not comparable apples-to-apples and the divergence is itself the answer. Letta packages a CLIENT-SIDE MCP integration (`letta/services/mcp/base_client.py`, 153 LoC) that consumes external MCP servers via the official `mcp` Python package (sibling of `@modelcontextprotocol/sdk` from Q2). LangMem packages a FRAMEWORK-NATIVE tool-FACTORY pattern (`langmem/knowledge/tools.py`, ≥530 LoC) that returns LangChain `StructuredTool` instances bound to a LangGraph `BaseStore` — no MCP, no JSON-RPC, no transport. Neither ships a first-party MCP SERVER. The implication for v0.3 is unambiguous: there is no template to copy verbatim — v0.3 must compose the MCP server fresh on top of `@modelcontextprotocol/sdk` (Q2), borrowing Letta's lifecycle DISCIPLINE (AsyncExitStack + ExceptionGroup-aware cleanup) and LangMem's tool-FACTORY pattern (runtime namespace resolution + StructuredTool factory shape).**
 
-**Letta — client-side MCP packaging** (`referencia/letta/letta/services/mcp/base_client.py:1-153`):
+**Letta — client-side MCP packaging** (`.claude/knowledge-base/references/letta/letta/services/mcp/base_client.py:1-153`):
 
 - **Imports**: `from mcp import ClientSession, Tool as MCPTool`, `from mcp.client.auth import OAuthClientProvider`, `from mcp.types import TextContent` (line 1-12) — i.e. consumes the official Python MCP package (the Python mirror of `@modelcontextprotocol/sdk`).
 - **Package shape**: `letta/services/mcp/` is the directory; `base_client.py` is the abstract base class. `__init__.py` is **empty** (0 LoC — pre-confirmed per EC-4 of source plan v1.1). No re-exports; subclasses must import the full path.
 - **Class**: `AsyncBaseMCPClient` (line 80+) — abstract, with one class constant `AGENT_ID_HEADER = "X-Agent-Id"`, an `AsyncExitStack` for resource management (line 84), optional `ClientSession` (line 85), and an `initialized` boolean (line 86).
-- **4-method lifecycle** (`referencia/letta/letta/services/mcp/base_client.py:90-153`): `connect_to_server()` (sets up transport, opens session), `list_tools(serialize: bool = False) -> list[MCPTool]` (handles pydantic v1/v2 + `__dict__` + `str()` fallbacks for schema serialization), `execute_tool(tool_name, tool_args) -> Tuple[str, bool]` (parses `TextContent` pieces, joins with `" "`, returns `(content, not result.isError)`), `cleanup()` (uses Python 3.11+ `except* Exception as eg:` ExceptionGroup syntax for nested cancel-safe cleanup).
+- **4-method lifecycle** (`.claude/knowledge-base/references/letta/letta/services/mcp/base_client.py:90-153`): `connect_to_server()` (sets up transport, opens session), `list_tools(serialize: bool = False) -> list[MCPTool]` (handles pydantic v1/v2 + `__dict__` + `str()` fallbacks for schema serialization), `execute_tool(tool_name, tool_args) -> Tuple[str, bool]` (parses `TextContent` pieces, joins with `" "`, returns `(content, not result.isError)`), `cleanup()` (uses Python 3.11+ `except* Exception as eg:` ExceptionGroup syntax for nested cancel-safe cleanup).
 - **Error taxonomy** (line 26-50): `EXPECTED_MCP_TOOL_ERRORS` is a 14-entry tuple of error CLASS NAME strings ("McpError", "ToolError", "HTTPStatusError", "ConnectError", etc.) — used at runtime to classify exceptions as `info`-level (expected) vs `warning`-level (unexpected) in logs. This is a portable discipline: catalog the protocol's expected failure modes so the log signal stays useful.
 
-**LangMem — framework-native tool factory packaging** (`referencia/langmem/src/langmem/knowledge/tools.py:1-80`):
+**LangMem — framework-native tool factory packaging** (`.claude/knowledge-base/references/langmem/src/langmem/knowledge/tools.py:1-80`):
 
 - **Imports** (line 1-10): `from langchain_core.tools import StructuredTool`, `from langgraph.store.base import BaseStore`, `from langgraph.utils.config import get_store`, `from langmem import errors, utils`. **Zero MCP imports.** This is purely LangChain + LangGraph.
 - **Public function**: `create_manage_memory_tool(namespace, *, instructions, schema, actions_permitted, store, name='manage_memory')` (line 25-69) — a FACTORY that returns a `StructuredTool`. Not a class; not a server; not a protocol implementation.
@@ -149,21 +149,21 @@ Three test files interrogated:
 
 Four transport files interrogated:
 
-1. **`stdio_client.py` (26 LoC)** (`referencia/letta/letta/services/mcp/stdio_client.py:1-26`):
+1. **`stdio_client.py` (26 LoC)** (`.claude/knowledge-base/references/letta/letta/services/mcp/stdio_client.py:1-26`):
    - Imports: `from mcp.client.stdio import stdio_client` + `StdioServerParameters` (line 3-4). Uses the official Python MCP package directly (mirror of `@modelcontextprotocol/sdk/client/stdio` from Q2).
    - Class: `AsyncStdioMCPClient(AsyncBaseMCPClient)` (line 14).
    - **Single overridden method**: `async def _initialize_connection(self, server_config: StdioServerConfig) -> None:` (line 18-26).
    - Pattern: arg-flatten via list comprehension (line 19-21) → builds `StdioServerParameters(command, args, env)` → opens `stdio_client(server_params)` via `self.exit_stack.enter_async_context(...)` → unpacks `(self.stdio, self.write)` → wraps in `ClientSession(self.stdio, self.write)` on the same exit stack.
    - **Key discipline**: BOTH the transport context manager AND the `ClientSession` are entered on the same `AsyncExitStack`. Cleanup propagates correctly regardless of which step fails.
 
-2. **`sse_client.py` (52 LoC)** (`referencia/letta/letta/services/mcp/sse_client.py:1-52`):
+2. **`sse_client.py` (52 LoC)** (`.claude/knowledge-base/references/letta/letta/services/mcp/sse_client.py:1-52`):
    - Imports: `from mcp.client.sse import sse_client` + `OAuthClientProvider` (line 3-5). One-line URL comment: `# see: https://modelcontextprotocol.io/quickstart/user` (line 12) — pointer to the canonical spec quickstart.
    - Class: `AsyncSSEMCPClient(AsyncBaseMCPClient)` (line 19).
    - **Header composition** (line 26-34): builds dict from `server_config.custom_headers`, then optional `auth_header / auth_token` pair, then optional `AGENT_ID_HEADER` (the class constant from `base_client.py` from Q3). Constructive layering — never replaces, always merges.
    - **OAuth fork** (line 39-44): branches on `self.oauth_provider`: with provider uses `sse_client(url, headers, auth, timeout)`; without uses `sse_client(url, headers, timeout)`. Same template, two arg shapes.
    - **Module-level constant**: `MCP_CONFIG_TOPLEVEL_KEY = "mcpServers"` (line 13) — Claude Desktop / Cursor config-file shape compatibility.
 
-3. **`streamable_http_client.py` (82 LoC)** (`referencia/letta/letta/services/mcp/streamable_http_client.py:1-82`):
+3. **`streamable_http_client.py` (82 LoC)** (`.claude/knowledge-base/references/letta/letta/services/mcp/streamable_http_client.py:1-82`):
    - Imports: `from mcp.client.streamable_http import streamablehttp_client` + `from datetime import timedelta` (line 1-6). Timeout typed as `timedelta` (not seconds-int) per streamable-HTTP requirement (line 44).
    - Class: `AsyncStreamableHTTPMCPClient(AsyncBaseMCPClient)` (line 16).
    - **Type guard** (line 26-27): `if not isinstance(server_config, StreamableHTTPServerConfig): raise ValueError("Expected StreamableHTTPServerConfig")`. Defensive — same parent class accepts any `BaseServerConfig` so subclasses self-check.
@@ -175,14 +175,14 @@ Four transport files interrogated:
      - `"JSON"` AND `"validation"` → "MCP server at {url} is not returning valid JSON-RPC responses. The server may not be a proper MCP server or may be returning empty/invalid JSON."
      - Else → wraps original with "Failed to initialize streamable HTTP connection to {url}: {str(e)}"
 
-4. **`fastmcp_client.py` (lines 1-80 of 384)** (`referencia/letta/letta/services/mcp/fastmcp_client.py:1-80`):
+4. **`fastmcp_client.py` (lines 1-80 of 384)** (`.claude/knowledge-base/references/letta/letta/services/mcp/fastmcp_client.py:1-80`):
    - Module docstring is load-bearing (line 1-9 quoted verbatim): "FastMCP-based MCP clients with server-side OAuth support. ... **These clients replace the existing AsyncSSEMCPClient and AsyncStreamableHTTPMCPClient implementations that used the lower-level MCP SDK directly.**"
    - **Architectural pivot signal**: Letta evolved from raw `mcp` SDK clients to `fastmcp`-based clients SPECIFICALLY for OAuth flow control (server-side OAuth where the auth URL is forwarded to a web client rather than opening a browser locally — see line 3-5).
    - Class: `AsyncFastMCPSSEClient` (line 28) — does NOT extend `AsyncBaseMCPClient`. Re-implements the lifecycle because `fastmcp.Client` has its own contract (`await self.client._connect()`).
    - Same `AGENT_ID_HEADER = "X-Agent-Id"` constant (line 41) — copied because no base-class inheritance.
    - `AsyncExitStack` retained (line 54) — pattern is portable even when the base class isn't.
 
-**`types.py` (58 LoC)** (`referencia/letta/letta/services/mcp/types.py:1-58`):
+**`types.py` (58 LoC)** (`.claude/knowledge-base/references/letta/letta/services/mcp/types.py:1-58`):
 - `MCPServerType` enum (line 12-15): only `SSE` and `STDIO`. **`StreamableHTTPServerConfig` exists but is NOT enumerated** — suggesting it was added AFTER the enum was locked and the team accepted the asymmetry rather than breaking config-schema compatibility (operational lesson: don't put transport types in an enum if you expect to add more).
 - `BaseServerConfig` (line 17-19): only `server_name` + `type`. Subclasses extend.
 - `StdioServerConfig.to_dict()` (line 40-48): emits `{transport: "stdio", command, args, env?}` shape — Claude Desktop / Cursor config compatibility.
@@ -209,19 +209,19 @@ Four transport files interrogated:
 - Cross-references Q1's `SchemaHealth` 3-tier enum: v0.3's `tools/list` response should include per-tool health metadata (probably STRICT_COMPLIANT for all 4 — we author them, we control them).
 
 **Implication for ADR D-test-pyramid** (refines Q1 finding):
-- v0.3 E2E test should spawn the v0.3 stdio server as subprocess + send `tools/list` + `tools/call` JSON-RPC messages over stdin/stdout pipes. Mirror Letta's `test_stdio_mcp_server` (`referencia/letta/tests/mcp_tests/test_mcp.py:213-270`) approach but compressed — no venv-per-test, no real-agent loop.
+- v0.3 E2E test should spawn the v0.3 stdio server as subprocess + send `tools/list` + `tools/call` JSON-RPC messages over stdin/stdout pipes. Mirror Letta's `test_stdio_mcp_server` (`.claude/knowledge-base/references/letta/tests/mcp_tests/test_mcp.py:213-270`) approach but compressed — no venv-per-test, no real-agent loop.
 - v0.3 streamable-HTTP test should mirror Q1's mock pattern: mock the transport at request-handler boundary, exercise the 4-tool dispatch + scope binding.
 
 ### Technique 2 — Mem0 first-party MCP presence (Q5)
 
-**Finding: ADR D5 v1.1 + EC-5's assumption ("Mem0 ships NO first-party MCP server, plugin-pointer only") is INCORRECT and OVERTURNED by this investigation. Mem0 ships a 574-LoC first-party MCP server at `referencia/mem0/openmemory/api/app/mcp_server.py` using the `mcp.server.fastmcp.FastMCP` decorator pattern (Python equivalent of `@modelcontextprotocol/sdk`'s high-level Server class from Q2). It wires BOTH `SseServerTransport` (line 35) AND `StreamableHTTPServerTransport` (line 36) and runs them via FastAPI request handlers. Exposes **5 tools** (`add_memories`, `search_memories`, `list_memories`, `delete_memories`, `delete_all_memories`) — NOT 9 (the 9-tool count in `referencia/mem0/CLAUDE.md § MCP Integration` refers to the `mem0-plugin/` tool list, which is the OpenMemory hosted product, not this self-hosted FastMCP server). Scope binding via Python `contextvars.ContextVar` (`user_id_var`, `client_name_var`) populated from FastAPI request path-parameters. Streamable HTTP runs in `stateless=True` mode (line 546). The Mem0 SKILL.md at `referencia/mem0/mem0-plugin/skills/mem0-mcp/SKILL.md` is the AGENT-FACING prompt (decide-to-search heuristics, metadata filter shapes, expiration rules) — a separate artifact from the server code.**
+**Finding: ADR D5 v1.1 + EC-5's assumption ("Mem0 ships NO first-party MCP server, plugin-pointer only") is INCORRECT and OVERTURNED by this investigation. Mem0 ships a 574-LoC first-party MCP server at `.claude/knowledge-base/references/mem0/openmemory/api/app/mcp_server.py` using the `mcp.server.fastmcp.FastMCP` decorator pattern (Python equivalent of `@modelcontextprotocol/sdk`'s high-level Server class from Q2). It wires BOTH `SseServerTransport` (line 35) AND `StreamableHTTPServerTransport` (line 36) and runs them via FastAPI request handlers. Exposes **5 tools** (`add_memories`, `search_memories`, `list_memories`, `delete_memories`, `delete_all_memories`) — NOT 9 (the 9-tool count in `.claude/knowledge-base/references/mem0/CLAUDE.md § MCP Integration` refers to the `mem0-plugin/` tool list, which is the OpenMemory hosted product, not this self-hosted FastMCP server). Scope binding via Python `contextvars.ContextVar` (`user_id_var`, `client_name_var`) populated from FastAPI request path-parameters. Streamable HTTP runs in `stateless=True` mode (line 546). The Mem0 SKILL.md at `.claude/knowledge-base/references/mem0/mem0-plugin/skills/mem0-mcp/SKILL.md` is the AGENT-FACING prompt (decide-to-search heuristics, metadata filter shapes, expiration rules) — a separate artifact from the server code.**
 
 **Paired-pass results (per ADR D5 v1.1 + EC-5 broadened grep):**
 
-- Pass 1: `referencia/mem0/mem0-plugin/skills/mem0-mcp/SKILL.md` EXISTS (~188 lines). Content: agent-facing protocol — when to search, how to phrase queries (nouns not sentences), metadata filter shape (`{"AND": [...]}` v2 spec rooted in logical operator), expiration discipline (`expiration_date` for session_state vs durable types), `infer=False` for pre-extracted content. This is a PROMPT, not server code.
-- Pass 2: `grep -rln 'tools/list\|tools/call\|@modelcontextprotocol\|JSONRPCRequest' referencia/mem0 --include="*.py"` returned 1 file: `openmemory/api/tests/test_mcp_server.py`. BUT a broader `find -path '*mcp*' -type f` revealed `openmemory/api/app/mcp_server.py` (574 LoC server) + 5 other MCP-named artifacts (`.mcp.json` configs, docs `.mdx`). The grep missed `mcp_server.py` because it uses `from mcp.server.fastmcp import FastMCP` rather than the lower-level `tools/list` / `tools/call` JSON-RPC method names. Operational lesson: greps for protocol-string literals miss higher-level SDK wrappers — `find` with path glob is the more reliable first-pass instrument.
+- Pass 1: `.claude/knowledge-base/references/mem0/mem0-plugin/skills/mem0-mcp/SKILL.md` EXISTS (~188 lines). Content: agent-facing protocol — when to search, how to phrase queries (nouns not sentences), metadata filter shape (`{"AND": [...]}` v2 spec rooted in logical operator), expiration discipline (`expiration_date` for session_state vs durable types), `infer=False` for pre-extracted content. This is a PROMPT, not server code.
+- Pass 2: `grep -rln 'tools/list\|tools/call\|@modelcontextprotocol\|JSONRPCRequest' .claude/knowledge-base/references/mem0 --include="*.py"` returned 1 file: `openmemory/api/tests/test_mcp_server.py`. BUT a broader `find -path '*mcp*' -type f` revealed `openmemory/api/app/mcp_server.py` (574 LoC server) + 5 other MCP-named artifacts (`.mcp.json` configs, docs `.mdx`). The grep missed `mcp_server.py` because it uses `from mcp.server.fastmcp import FastMCP` rather than the lower-level `tools/list` / `tools/call` JSON-RPC method names. Operational lesson: greps for protocol-string literals miss higher-level SDK wrappers — `find` with path glob is the more reliable first-pass instrument.
 
-**Server architecture (`referencia/mem0/openmemory/api/app/mcp_server.py:1-574`):**
+**Server architecture (`.claude/knowledge-base/references/mem0/openmemory/api/app/mcp_server.py:1-574`):**
 
 | Concern | Implementation | Citation |
 |---|---|---|
@@ -264,9 +264,9 @@ Four transport files interrogated:
 
 ### Technique 3 — LangMem framework-native tool pattern (Q6)
 
-**Finding: LangMem ships TWO tool factories (`create_manage_memory_tool` and `create_search_memory_tool`) in `referencia/langmem/src/langmem/knowledge/tools.py` (530 LoC). Both return LangChain `StructuredTool` (or the custom `_ToolWithRequired` subclass for `manage_memory` to force `required` array emission). Each factory writes BOTH sync and async function variants (`manage_memory`/`amanage_memory`, `search_memory`/`asearch_memory`) and passes both to `StructuredTool.from_function(sync, async, ...)` — cross-runtime compatibility for LangGraph nodes that may be either. Scope is resolved at INVOCATION time via `_get_store(initial_store)` which tries the constructor-injected store first, then falls back to LangGraph's runtime resolver `get_store()` (from `langgraph.utils.config`). Wraps `RuntimeError` in domain `ConfigurationError`. Defensive serialization (`_ensure_json_serializable`) handles primitives + Pydantic `model_dump(mode='json')` + str() fallback. The `manage_memory` tool collapses create/update/delete into a single tool via an `actions_permitted` enum + per-action argument validation (ID required for update/delete; ID forbidden for create). Description string is dynamically composed from `actions_permitted` cardinality (1/2/N+) producing natural-language verb lists.**
+**Finding: LangMem ships TWO tool factories (`create_manage_memory_tool` and `create_search_memory_tool`) in `.claude/knowledge-base/references/langmem/src/langmem/knowledge/tools.py` (530 LoC). Both return LangChain `StructuredTool` (or the custom `_ToolWithRequired` subclass for `manage_memory` to force `required` array emission). Each factory writes BOTH sync and async function variants (`manage_memory`/`amanage_memory`, `search_memory`/`asearch_memory`) and passes both to `StructuredTool.from_function(sync, async, ...)` — cross-runtime compatibility for LangGraph nodes that may be either. Scope is resolved at INVOCATION time via `_get_store(initial_store)` which tries the constructor-injected store first, then falls back to LangGraph's runtime resolver `get_store()` (from `langgraph.utils.config`). Wraps `RuntimeError` in domain `ConfigurationError`. Defensive serialization (`_ensure_json_serializable`) handles primitives + Pydantic `model_dump(mode='json')` + str() fallback. The `manage_memory` tool collapses create/update/delete into a single tool via an `actions_permitted` enum + per-action argument validation (ID required for update/delete; ID forbidden for create). Description string is dynamically composed from `actions_permitted` cardinality (1/2/N+) producing natural-language verb lists.**
 
-**Five top-level definitions** (`referencia/langmem/src/langmem/knowledge/tools.py`):
+**Five top-level definitions** (`.claude/knowledge-base/references/langmem/src/langmem/knowledge/tools.py`):
 
 1. **`create_manage_memory_tool(namespace, *, instructions, schema, actions_permitted, store, name)` (line 25)** — returns `_ToolWithRequired.from_function(manage_memory, amanage_memory, name, description)`.
    - **Action collapsing** (line 263-268): `actions_permitted` enum determines the tool's allowed verbs; default action is `create` if present else the first listed.

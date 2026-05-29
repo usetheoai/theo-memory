@@ -8,7 +8,7 @@ A 4-cycle pipeline for taking a software feature from **idea → discovery → p
 
 ```
 DISCOVER → PLAN → IMPLEMENT → REVIEW → MERGE
-(referencia/   (knowledge-base   (code +     (most rigorous
+(.claude/knowledge-base/references/   (knowledge-base   (code +     (most rigorous
  → blueprint)   /plans/)          tests)      gate)
 ```
 
@@ -36,7 +36,7 @@ Each arrow above is an **inquebrável chain** — you do not skip cycles, you do
   → reviews plan; surfaces MUST FIX
 [absorb MUST FIX into plan v1.1]
 /discover-execute letta-pgvector-schema
-  → halt-loop investigates referencia/letta; produces blueprint
+  → halt-loop investigates .claude/knowledge-base/references/letta; produces blueprint
 /discover-confidence letta-pgvector-schema
   → scores blueprint; if ≥ SHIPPABLE_WITH_CAVEATS:
 /skill-writer letta-pgvector-schema
@@ -123,7 +123,7 @@ These are the **load-bearing documents**. Read the cycle rule BEFORE invoking a 
 
 | Rule | Skills it governs | Read when |
 |---|---|---|
-| `cycle-discover.md` | discover-plan, discover-edge-cases, discover-execute, discover-confidence, discover-improve, skill-writer, skill-validator, skill-register | Investigating `referencia/` |
+| `cycle-discover.md` | discover-plan, discover-edge-cases, discover-execute, discover-confidence, discover-improve, skill-writer, skill-validator, skill-register | Investigating `.claude/knowledge-base/references/` |
 | `cycle-plan.md` | to-plan, edge-case-plan, plan-confidence, plan-improve | Designing a feature |
 | `cycle-implement.md` | implement | Coding the planned feature |
 | `cycle-review.md` | review | Reviewing before merge |
@@ -172,7 +172,7 @@ Before invoking any cycle skill, verify:
 ### "When do I use /to-plan vs /discover-plan?"
 
 - `/to-plan` produces an **implementation plan** (what to build, how, in what order)
-- `/discover-plan` produces a **discovery plan** (what to investigate in `referencia/`)
+- `/discover-plan` produces a **discovery plan** (what to investigate in `.claude/knowledge-base/references/`)
 
 If you don't know how someone else solved a problem → `/discover-plan`. If you know the problem and need to plan the implementation → `/to-plan`.
 

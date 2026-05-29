@@ -100,4 +100,4 @@ Multiple manifestations of the same root advisory in the dev-only esbuild chain 
 - Allowlist downgrade applied (not silent hiding) — findings appear in full in this report ✓
 - Auditor unavailable gracefully reported (osv-scanner not installed; pip/cargo/go skipped due to absent manifests) ✓
 - No `--force` / `--skip-audit` flags used (do not exist per golden rule) ✓
-- `referencia/` clones excluded from audit surface ✓
+- `.claude/knowledge-base/references/` clones excluded from audit surface ✓

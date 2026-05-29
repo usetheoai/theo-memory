@@ -20,7 +20,7 @@ Read the source blueprint carefully. Then fill the template substitution markers
 | `{PATTERNS}` | One pattern section per blueprint ADR. See pattern template below. | Markdown H3 sections |
 | `{RECOMMENDATIONS}` | The blueprint's `## Recommendations` table or list, lightly normalized | Table or bulleted list, preserve linked rules |
 | `{QUICK_REF_TABLE}` | Blueprint's `## Cross-cutting Comparison` table, condensed to 3-5 most relevant columns | Markdown table |
-| `{KEY_CITATIONS}` | Top 5-10 load-bearing citations. A citation is "load-bearing" if it appears in 2+ different blueprint sections. | Bulleted list of `referencia/{project}/{path}:N — {1-line description}` |
+| `{KEY_CITATIONS}` | Top 5-10 load-bearing citations. A citation is "load-bearing" if it appears in 2+ different blueprint sections. | Bulleted list of `.claude/knowledge-base/references/{project}/{path}:N — {1-line description}` |
 | `{BLUEPRINT_VERDICT}` | Read from `.claude/knowledge-base/reviews/{slug}-confidence-*.md` if exists; otherwise re-run `/discover-confidence` quickly | SHIPPABLE / SHIPPABLE_WITH_CAVEATS |
 | `{BLUEPRINT_SCORE}` | Same source as verdict | Numeric 0-100 |
 
@@ -39,7 +39,7 @@ For each `### D{N}` in the blueprint's `## ADRs` section, generate:
 
 **When this pattern fits / doesn't:** {ADR Consequences, rephrased as "fits when X / doesn't fit when Y" if possible; otherwise verbatim Consequences}
 
-**Evidence:** {extract `referencia/...` citations from the blueprint sections that ground this ADR — limit to 3}
+**Evidence:** {extract `.claude/knowledge-base/references/...` citations from the blueprint sections that ground this ADR — limit to 3}
 ```
 
 ### Description guidelines (LOAD-BEARING for /to-plan Step 0 discovery)
@@ -49,13 +49,13 @@ The `description` field in the frontmatter is what `/to-plan` Step 0 scans to de
 Good description shape:
 
 ```
-Patterns for <domain> distilled from <source>. Use when planning <specific area 1>, when designing <specific area 2>, or when weighing <specific decision>. Anchored on <evidence — referencia/ paths or project rule names>.
+Patterns for <domain> distilled from <source>. Use when planning <specific area 1>, when designing <specific area 2>, or when weighing <specific decision>. Anchored on <evidence — .claude/knowledge-base/references/ paths or project rule names>.
 ```
 
 Concrete example (good):
 
 ```
-Patterns for pgvector schema design distilled from Letta's production-shaped implementation. Use when planning src/local/ adapter for TheMemory, when designing the schema of vector-bearing tables, when choosing pgvector index type (HNSW vs IVFFlat), or when wiring Alembic migrations for embedding-dimension changes. Anchored on referencia/letta/letta/orm/ and the Letta exploration ADRs.
+Patterns for pgvector schema design distilled from Letta's production-shaped implementation. Use when planning src/local/ adapter for TheMemory, when designing the schema of vector-bearing tables, when choosing pgvector index type (HNSW vs IVFFlat), or when wiring Alembic migrations for embedding-dimension changes. Anchored on .claude/knowledge-base/references/letta/letta/orm/ and the Letta exploration ADRs.
 ```
 
 Concrete example (bad — vague):
@@ -69,7 +69,7 @@ The validator will WARN if `description` has <2 "Use when..." phrases OR lacks c
 ## Hard rules (cannot bend)
 
 1. **Never invent patterns.** If the blueprint has 2 ADRs, the generated skill has 2 patterns. Not 3, not 1.
-2. **Never invent citations.** Every `referencia/{path}:N` in your output MUST appear verbatim in the source blueprint. The validator will FAIL the skill if any citation doesn't.
+2. **Never invent citations.** Every `.claude/knowledge-base/references/{path}:N` in your output MUST appear verbatim in the source blueprint. The validator will FAIL the skill if any citation doesn't.
 3. **Never include shell-execution patterns.** Generated skills are informational. Anything that looks executable (bash blocks with rm/curl/sudo, Bash() permissions, hooks) is forbidden — validator will FAIL.
 4. **Never overwrite.** If `.claude/skills/generated/{TOPIC_SLUG}-patterns/` already exists OR `.claude/skills/{TOPIC_SLUG}-patterns/` already exists, abort with error. Do not merge automatically.
 5. **Source blueprint must be ≥ SHIPPABLE_WITH_CAVEATS.** If verdict is INVALID or NON_SHIPPABLE, abort BEFORE writing anything.

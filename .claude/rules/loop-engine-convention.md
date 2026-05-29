@@ -33,7 +33,7 @@ This ecosystem uses three distinct mechanisms that look superficially similar bu
 
 **Examples in this ecosystem:**
 
-- `/discover-execute` — iterates over research questions in `referencia/`; emits `<promise>BLUEPRINT_COMPLETE</promise>` when all questions answered
+- `/discover-execute` — iterates over research questions in `.claude/knowledge-base/references/`; emits `<promise>BLUEPRINT_COMPLETE</promise>` when all questions answered
 - `/discover-improve` — iterates Phase A (deterministic) + Phase B (LLM) until blueprint reaches target verdict
 - `/plan-improve` — same pattern for implementation plans
 - `/implement` — iterates over plan tasks, one TDD cycle per iteration
@@ -96,7 +96,7 @@ Each iteration, ralph-loop replays this short positional prompt; Claude reads th
 **Examples in this ecosystem:**
 
 - `/review` — spawns 5-7 specialized agents in PARALLEL (architecture, tests, wiring, cross-validation, domain-specific); each emits findings; orchestrator consolidates
-- `/discover-plan` Step 3 — may spawn a sub-agent to enumerate referencia/ structure when grep is insufficient
+- `/discover-plan` Step 3 — may spawn a sub-agent to enumerate .claude/knowledge-base/references/ structure when grep is insufficient
 
 **Anti-pattern:** Using Agent tool for an iterative refinement task. Each invocation is one-shot; if you need 5 retries, you'll spawn 5 agents instead of running 1 halt-loop with 5 iterations.
 
@@ -160,7 +160,7 @@ Each iteration, ralph-loop replays this short positional prompt; Claude reads th
 | `/plan-confidence` | Bash (python script) | Deterministic; no LLM loop |
 | `/plan-improve` | ralph-loop | Multi-iteration refinement with state |
 | `/discover-plan` | Skill tool + Read/Grep | Sequential, shared context |
-| `/discover-execute` | ralph-loop | Long iteration over `referencia/` |
+| `/discover-execute` | ralph-loop | Long iteration over `.claude/knowledge-base/references/` |
 | `/discover-confidence` | Bash (python script) | Deterministic; no LLM loop |
 | `/implement` | ralph-loop | 50 iterations × 5 phases per task |
 | `/review` | Agent (parallel) | 5-7 specialized agents in parallel |

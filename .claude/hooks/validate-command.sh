@@ -48,21 +48,21 @@ if echo "$COMMAND" | grep -qE 'rm[[:space:]]+-rf?[[:space:]]+(/[[:space:]]*$|/[[
   exit 2
 fi
 
-# --- referencia/ is read-only study material ---
-# Only block clear WRITE/MODIFY operations targeting referencia/.
+# --- .claude/knowledge-base/references/ is read-only study material ---
+# Only block clear WRITE/MODIFY operations targeting .claude/knowledge-base/references/.
 # Read-only ops (test, ls, cat, head, tail, find, grep, for-loops, Read/Glob tools)
 # are explicitly allowed — they are needed for /discover-execute and /discover-plan.
 #
 # Anchor the verb to a shell-segment boundary (start, space, `;`, `&&`, `||`, `|`, `(`)
 # so substrings like "cp" inside "docker-compose" don't false-positive.
-# Permits intermediate args/flags between verb and referencia/ via `[^;&|]*`.
+# Permits intermediate args/flags between verb and .claude/knowledge-base/references/ via `[^;&|]*`.
 #
-# Known limitation: regex-based shell parsing cannot distinguish bare `rm referencia/`
+# Known limitation: regex-based shell parsing cannot distinguish bare `rm .claude/knowledge-base/references/`
 # from `rm` appearing inside a quoted string (e.g., `echo 'this rm in a string'
-# referencia/foo`). The latter false-positives. Workaround: rephrase the echo
+# .claude/knowledge-base/references/foo`). The latter false-positives. Workaround: rephrase the echo
 # without the verb-name keyword, or use `printf '%s\n' "$VAR"` style.
-if echo "$COMMAND" | grep -qE '(^|[[:space:]]|;|&&|\|\||\||\()[[:space:]]*((rm|mv|cp|sed[[:space:]]+-i|tee)[[:space:]]+[^;&|]*(\./)?referencia/|>{1,2}[[:space:]]+(\./)?referencia/)'; then
-  echo "BLOCKED: 'referencia/' contains read-only study clones (Mem0, Letta, LangMem). Never modify, delete, install dependencies in, or rename anything inside it. Use docs/exploration-reports/ to capture findings instead." >&2
+if echo "$COMMAND" | grep -qE '(^|[[:space:]]|;|&&|\|\||\||\()[[:space:]]*((rm|mv|cp|sed[[:space:]]+-i|tee)[[:space:]]+[^;&|]*(\./)?.claude/knowledge-base/references/|>{1,2}[[:space:]]+(\./)?.claude/knowledge-base/references/)'; then
+  echo "BLOCKED: '.claude/knowledge-base/references/' contains read-only study clones (Mem0, Letta, LangMem). Never modify, delete, install dependencies in, or rename anything inside it. Use docs/exploration-reports/ to capture findings instead." >&2
   exit 2
 fi
 
@@ -91,9 +91,9 @@ if echo "$COMMAND" | grep -qE 'npm[[:space:]]+(publish|unpublish)'; then
   exit 2
 fi
 
-# --- pip / pip install / poetry inside referencia/ (Python sub-projects exist there) ---
-if echo "$COMMAND" | grep -qE '(pip|poetry|uv)[[:space:]]+install' && pwd | grep -q 'referencia/'; then
-  echo "BLOCKED: never install dependencies inside referencia/. Those are read-only clones." >&2
+# --- pip / pip install / poetry inside .claude/knowledge-base/references/ (Python sub-projects exist there) ---
+if echo "$COMMAND" | grep -qE '(pip|poetry|uv)[[:space:]]+install' && pwd | grep -q '.claude/knowledge-base/references/'; then
+  echo "BLOCKED: never install dependencies inside .claude/knowledge-base/references/. Those are read-only clones." >&2
   exit 2
 fi
 

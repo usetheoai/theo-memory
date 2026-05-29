@@ -10,7 +10,7 @@
 
 DIP (Dependency Inversion Principle) interfaces define the seams between `src/core/` (the domain logic) and the adapters in `src/local/` and `src/cloud/` (runtime implementations). The interfaces' exact method counts determine:
 
-- How portable adapters are from Mem0's reference (`referencia/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts`)
+- How portable adapters are from Mem0's reference (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts`)
 - ISP compliance: are consumers forced to depend on methods they don't call?
 - Forward-compat surface: each new method is a new contract obligation for every implementer
 
@@ -20,7 +20,7 @@ Roadmap Item 1 acceptance criterion says: "4 DIP interfaces declared (VectorStor
 
 ## Decision
 
-Lock the five DIP surfaces at the following method counts (verified against `referencia/mem0/mem0-ts/src/oss/src/`):
+Lock the five DIP surfaces at the following method counts (verified against `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/`):
 
 ### Embedder (2 required)
 
@@ -31,7 +31,7 @@ export interface Embedder {
 }
 ```
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (verified to exist; 5 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (verified to exist; 5 LoC).
 
 ### LLM (2 required)
 
@@ -51,7 +51,7 @@ Notes:
 - `tools` is DELIBERATELY opaque (`ReadonlyArray<unknown>`) at v0.0. v0.3 (agent-tools layer) locks a typed tool schema — at that point this DIP gains a generic parameter `LLM<TToolShape>`. JSDoc on the field documents the forward-compat path (EC-10).
 - `generateResponse` return is `unknown` because providers return varying shapes; the LLM adapter normalizes at v0.1.
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/llms/base.ts` (verified to exist; 20 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/llms/base.ts` (verified to exist; 20 LoC).
 
 ### VectorStore (11 required)
 
@@ -96,7 +96,7 @@ Notes:
 - `update` exists on `VectorStore` but NOT on the public `Memory` surface (ADR-0003) — internal-only, used by reflection / consolidation paths to refresh vectors.
 - `getUserId / setUserId` are SESSION METADATA (Mem0 telemetry parity), NOT tenant-isolation keys. Tenant isolation always uses `Filters` (EC-6 from edge-case review). JSDoc on the methods documents this.
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (verified to exist; 35 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (verified to exist; 35 LoC).
 
 ### HistoryManager (4 required + 3 optional)
 
@@ -127,7 +127,7 @@ Notes vs Mem0:
 - `isDeleted: boolean` not `number`.
 - `createdAt` / `updatedAt` are `Date` not `string` (parsed at the adapter boundary).
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/storage/base.ts` (verified to exist; 37 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts` (verified to exist; 37 LoC).
 
 ### ReflectionPolicy (1 required + 2 optional)
 
@@ -145,7 +145,7 @@ New DIP introduced by ADR-0005 (no Mem0 equivalent — Mem0 doesn't ship reflect
 
 **Positive:**
 
-- Mem0-ts adapters port with minimal adaptation. The pgvector adapter at `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` ships 11 methods that map 1:1 onto our surface.
+- Mem0-ts adapters port with minimal adaptation. The pgvector adapter at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` ships 11 methods that map 1:1 onto our surface.
 - ISP compliance: optional methods on `HistoryManager` are the right shape — not every backend supports V3 message history. Same logic on `ReflectionPolicy`.
 - v0.5 cloud adapter is bounded by the same surface — no scope creep into adapter-specific methods leaking into core.
 - DIP boundary is enforced by `.claude/hooks/boundary-check.sh` (architecture.md § 3).
@@ -177,8 +177,8 @@ New DIP introduced by ADR-0005 (no Mem0 equivalent — Mem0 doesn't ship reflect
 - ADR-0001 (Mem0-shape — these surfaces are part of the "Adopt" list).
 - ADR-0003 (no public `update` — `VectorStore.update` is internal-only).
 - ADR-0005 (`ReflectionPolicy` introduction).
-- `referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts`
-- `referencia/mem0/mem0-ts/src/oss/src/llms/base.ts`
-- `referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts`
-- `referencia/mem0/mem0-ts/src/oss/src/storage/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/embeddings/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/llms/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts`
 - Global CLAUDE.md PARTE II § 13.4 ISP — optional methods justified.

@@ -72,15 +72,15 @@ Agent asks "is this MCP-spec-conformant?" or "does this match Postgres recommend
 4. Compare to diff's implementation. Return: matches / diverges / partial.
 
 ### Mode C — Referencia/ clone consultation (cheap, ~2k tokens)
-For domains with referencia/ clones (mem0, letta, langmem):
+For domains with .claude/knowledge-base/references/ clones (mem0, letta, langmem):
 
-1. Read relevant file in `referencia/{project}/{path}`. NEVER modify.
+1. Read relevant file in `.claude/knowledge-base/references/{project}/{path}`. NEVER modify.
 2. Compare patterns vs diff.
 3. Cite verbatim with path:line.
 
 ## Boundaries you NEVER cross
 
-- NEVER edit anything in `referencia/` (read-only zone — enforced by `.claude/hooks/boundary-check.sh`).
+- NEVER edit anything in `.claude/knowledge-base/references/` (read-only zone — enforced by `.claude/hooks/boundary-check.sh`).
 - NEVER recommend a domain pattern outside the plan's declared scope.
 - NEVER cite vendor docs from memory — WebSearch + WebFetch with snapshot per discover-web protocol when shipped.
 - NEVER classify a domain finding "MUST FIX" — that's the agent's authority.
@@ -93,7 +93,7 @@ For domains with referencia/ clones (mem0, letta, langmem):
 ## Sources consulted
 - [verbatim] Plan ADRs + blueprints + patterns skill (if any) — frozen {DATE}
 - [if Mode B] Vendor docs URLs (allowlisted)
-- [if Mode C] referencia/{project}/{path}:line citations
+- [if Mode C] .claude/knowledge-base/references/{project}/{path}:line citations
 
 ## Finding for agent
 - (verbatim canonical quote when relevant)

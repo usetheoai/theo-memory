@@ -1,6 +1,6 @@
 """Reference-citation checker for /discover-plan discovery plans (M2 deterministic).
 
-Extracts every referencia/{...} pattern in the discovery plan and verifies each
+Extracts every .claude/knowledge-base/references/{...} pattern in the discovery plan and verifies each
 path exists in the project's filesystem. Any fabricated citation triggers the
 fabricated_citation hard cap (=49).
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-CITATION_RE = re.compile(r"referencia/[A-Za-z0-9_\-./]+")
+CITATION_RE = re.compile(r".claude/knowledge-base/references/[A-Za-z0-9_\-./]+")
 BLOCKED_MARKER_RE = re.compile(r"<!--\s*BLOCKED:.*?-->", re.IGNORECASE | re.DOTALL)
 LINE_SUFFIX_RE = re.compile(r":\d+(:\d+)?$")
 WORD_RE = re.compile(r"\b\w+\b")
@@ -36,7 +36,7 @@ def _find_project_root(start: Path) -> Path:
 
 
 def _strip_line_suffix(citation: str) -> str:
-    """Remove :line:col suffix (e.g., 'referencia/mem0/x.py:42' -> 'referencia/mem0/x.py')."""
+    """Remove :line:col suffix (e.g., '.claude/knowledge-base/references/mem0/x.py:42' -> '.claude/knowledge-base/references/mem0/x.py')."""
     return LINE_SUFFIX_RE.sub("", citation)
 
 
@@ -86,7 +86,7 @@ def check_reference_citations(blueprint_path: Path) -> dict[str, Any]:
 
     contributors: list[str] = []
     if verified:
-        contributors.append(f"{len(verified)} verified referencia/ citation(s)")
+        contributors.append(f"{len(verified)} verified .claude/knowledge-base/references/ citation(s)")
     if blocked:
         contributors.append(f"{len(blocked)} explicitly BLOCKED citation(s) (honest gaps)")
     detractors = [f"Fabricated citation: {c}" for c in fabricated[:3]]

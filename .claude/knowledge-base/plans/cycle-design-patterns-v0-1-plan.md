@@ -102,7 +102,7 @@
 
 **Rationale:** Inquebrável Rule 9 (Não Reinvente) — discover-web already solves the citation-with-snapshot problem. Reuse.
 
-**Consequences:** `cycle-design-patterns-v0-1`'s Phase 0 audit MUST verify `discover-web-v0-1` is committed AND `check_reference_citations.py` handles URL citations (NOT just `referencia/`). If not, this plan's `/implement` halts. Project ordering invariant locked: discover-web FIRST, then cycle-design-patterns.
+**Consequences:** `cycle-design-patterns-v0-1`'s Phase 0 audit MUST verify `discover-web-v0-1` is committed AND `check_reference_citations.py` handles URL citations (NOT just `.claude/knowledge-base/references/`). If not, this plan's `/implement` halts. Project ordering invariant locked: discover-web FIRST, then cycle-design-patterns.
 
 ### D5 — 5-verdict classification rubric (APPLIED_CORRECTLY / MISAPPLIED / MISSING_RECOMMENDED / OVER_ENGINEERED / NOT_APPLICABLE)
 

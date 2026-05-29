@@ -1,6 +1,6 @@
 ---
 name: discover-edge-cases
-description: Analisa um discovery plan e identifica edge cases não previstos — focado em deep-research em referencia/ (Mem0 / Letta / LangMem). Pragmático — aponta riscos reais sem complicar o plano. Use após /discover-plan ou quando revisar qualquer plano em .claude/knowledge-base/discoveries/plans/.
+description: Analisa um discovery plan e identifica edge cases não previstos — focado em deep-research em .claude/knowledge-base/references/ (Mem0 / Letta / LangMem). Pragmático — aponta riscos reais sem complicar o plano. Use após /discover-plan ou quando revisar qualquer plano em .claude/knowledge-base/discoveries/plans/.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash
 argument-hint: "[plan-slug|plan-file-path]"
@@ -35,7 +35,7 @@ Regras de ouro:
 2. **Nunca sugira aumentar o escopo do plano** — a solução para um edge case é uma pergunta extra ou um método de fallback, não uma nova fase
 3. **KISS prevalece** — se o fix para o edge case requer reescrever o plano todo, documente o risco e siga em frente
 4. **Cada edge case apontado DEVE ter uma sugestão de fix em ≤1 linha de método ou ≤1 frase de mudança no plano**
-5. **Corner cases (múltiplos edges combinados) só se forem realistas no contexto de `referencia/`** — esquecer que uma versão pode estar desatualizada é realista; "e se a Postgres muda de spec durante a leitura" não é
+5. **Corner cases (múltiplos edges combinados) só se forem realistas no contexto de `.claude/knowledge-base/references/`** — esquecer que uma versão pode estar desatualizada é realista; "e se a Postgres muda de spec durante a leitura" não é
 
 ## Processo
 
@@ -70,7 +70,7 @@ Para cada research question, passe por este checklist. Marque ✅ se o plano cob
 
 ```
 REFERENCIAS:
-  [ ] O path em referencia/ realmente existe?
+  [ ] O path em .claude/knowledge-base/references/ realmente existe?
   [ ] A versão do clone (--depth 1, data) é mencionada quando relevante?
   [ ] O subdirectory tem o conteúdo esperado? (Mem0 mudou de Python pra TS — pode ter migrado o file)
 
@@ -169,7 +169,7 @@ Edge cases encontrados: N (MUST FIX: N, SHOULD TEST: N, DOCUMENT: N)
 
 1. **Sugerir nova reference project** — "E se a gente também olhar Zep?" → NÃO. O plano já declarou escopo. Edge case é dentro do que foi planejado, não fora.
 
-2. **Especulação sobre versões futuras** — "E se Mem0 mudar a API no próximo release?" → NÃO. Analise o plano contra o clone que EXISTE em `referencia/`.
+2. **Especulação sobre versões futuras** — "E se Mem0 mudar a API no próximo release?" → NÃO. Analise o plano contra o clone que EXISTE em `.claude/knowledge-base/references/`.
 
 3. **Paranoia de citação** — "Precisamos verificar cada palavra em cada arquivo" → NÃO. Confie no plano; só flague se há claim verificável e errado.
 

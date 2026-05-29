@@ -8,7 +8,7 @@ argument-hint: "{blueprint-slug}"
 
 # Skill-Writer — Blueprint → Candidate Skill
 
-Reads a blueprint produced by `/discover-execute`, extracts the load-bearing knowledge (ADRs, Recommendations, key citations to `referencia/`), and writes a candidate SKILL.md that can later be promoted to a first-class skill consumed by `/to-plan`.
+Reads a blueprint produced by `/discover-execute`, extracts the load-bearing knowledge (ADRs, Recommendations, key citations to `.claude/knowledge-base/references/`), and writes a candidate SKILL.md that can later be promoted to a first-class skill consumed by `/to-plan`.
 
 ## Cycle contract
 
@@ -54,7 +54,7 @@ A blueprint contains 4 coverage corners + ADRs + Recommendations + Cross-cutting
 - **ADRs** — each `### Dx` becomes a "Pattern" section in the generated skill. The Decision becomes "Pattern", the Rationale becomes "Why", the Alternatives become "Other approaches considered". Consequences become "When this pattern is the right fit / wrong fit".
 - **Recommendations** — each `## Recommendations` entry becomes an "Apply when planning" bullet point in the generated skill, with the linked rule + research question.
 - **Cross-cutting Comparison table** — becomes a "Quick reference" table in the skill (collapsed to the most relevant columns).
-- **Key citations** — every `referencia/{project}/path:N` that appears in 2+ different blueprint sections is "load-bearing" — include as Evidence link.
+- **Key citations** — every `.claude/knowledge-base/references/{project}/path:N` that appears in 2+ different blueprint sections is "load-bearing" — include as Evidence link.
 
 **Discard (these are blueprint metadata, not skill knowledge):**
 
@@ -73,7 +73,7 @@ Use the template at `templates/generated-skill-template.md` and substitute:
 - `{RECOMMENDATIONS}` — extracted from blueprint Recommendations section
 - `{APPLIES_WHEN}` — derived from the blueprint's Objective + Recommendations linkage
 - `{QUICK_REF_TABLE}` — derived from blueprint Cross-cutting Comparison
-- `{KEY_CITATIONS}` — top 5-10 load-bearing referencia/ paths
+- `{KEY_CITATIONS}` — top 5-10 load-bearing .claude/knowledge-base/references/ paths
 
 The generated frontmatter MUST follow Claude Code conventions:
 
@@ -120,7 +120,7 @@ Next: /skill-validator {topic}-patterns
 ## Quality rules (non-negotiable)
 
 1. **Never fabricate a pattern.** If the blueprint has < 1 ADR, the generated skill has < 1 Pattern section — do NOT invent.
-2. **Never fabricate citations.** Every `referencia/` path in the generated SKILL.md must come VERBATIM from the source blueprint. The validator will check this.
+2. **Never fabricate citations.** Every `.claude/knowledge-base/references/` path in the generated SKILL.md must come VERBATIM from the source blueprint. The validator will check this.
 3. **Description trigger phrases must be specific.** Generated `description` must include 2-3 concrete trigger phrases ("Use when planning pgvector schema", "Use when designing src/local/", etc.). Vague descriptions ("Use for memory stuff") fail validation.
 4. **Never overwrite an existing skill.** If `.claude/skills/{topic}-patterns/` (production) OR `.claude/skills/generated/{topic}-patterns/` (staging) already exists, abort with error and report. Manual decision needed: replace, merge, or skip.
 5. **No production code patterns.** Generated skills inform `/to-plan`; they do NOT contain executable scripts, hooks, or templates that run. Pure knowledge in markdown.

@@ -38,7 +38,7 @@ Edge cases encontrados: 7 (MUST FIX: 2, SHOULD TEST: 3, DOCUMENT: 2)
 ### EC-5: D5 find pattern pode missar arquivos Python MCP escondidos no Mem0
 
 - **Question afetada:** Q5 (techniques/mem0)
-- **Halt-loop checkpoint sugerido:** D5 atual diz "find `referencia/mem0 -name '*.py' -path '*mcp*'`". Isso casa apenas com paths/nomes contendo "mcp". Um arquivo nomeado `tools_server.py` que IMPLEMENTA MCP wouldn't match. Sugerido: além do `find -path '*mcp*'`, rodar `grep -rln 'tools/list\|tools/call\|@modelcontextprotocol\|JSONRPCRequest' referencia/mem0 --include="*.py"`. Se a segunda busca retornar zero hits, a conclusão "Mem0 sem MCP first-party" fica mais forte; se retornar algum hit, ajustar Q5 para investigar esse arquivo extra.
+- **Halt-loop checkpoint sugerido:** D5 atual diz "find `.claude/knowledge-base/references/mem0 -name '*.py' -path '*mcp*'`". Isso casa apenas com paths/nomes contendo "mcp". Um arquivo nomeado `tools_server.py` que IMPLEMENTA MCP wouldn't match. Sugerido: além do `find -path '*mcp*'`, rodar `grep -rln 'tools/list\|tools/call\|@modelcontextprotocol\|JSONRPCRequest' .claude/knowledge-base/references/mem0 --include="*.py"`. Se a segunda busca retornar zero hits, a conclusão "Mem0 sem MCP first-party" fica mais forte; se retornar algum hit, ajustar Q5 para investigar esse arquivo extra.
 
 ## DOCUMENT
 
@@ -48,7 +48,7 @@ Edge cases encontrados: 7 (MUST FIX: 2, SHOULD TEST: 3, DOCUMENT: 2)
 
 ### EC-7: `../theokit-sdk/` working state não-pinado a um SHA
 
-- **Risco aceito:** Q8 cita arquivos em `../theokit-sdk/packages/sdk/src/` mas o sibling repo é um working tree (não um clone --depth 1 imutável como `referencia/`). Mudanças locais no ../theokit-sdk/ poderiam invalidar as citações entre /discover-execute write e /discover-confidence read. Aceito: mesmo standard que `referencia/` (clone-at-a-moment-in-time); per D4, paths são held to Path.exists() standard, e o blueprint pode incluir o SHA do HEAD de ../theokit-sdk/ no momento do /discover-execute (`git -C ../theokit-sdk rev-parse HEAD`) como audit-trail signal. Não bloqueia o plano; documentar o snapshot mechanism + a SHA stamping na ADR D4 do blueprint produzido.
+- **Risco aceito:** Q8 cita arquivos em `../theokit-sdk/packages/sdk/src/` mas o sibling repo é um working tree (não um clone --depth 1 imutável como `.claude/knowledge-base/references/`). Mudanças locais no ../theokit-sdk/ poderiam invalidar as citações entre /discover-execute write e /discover-confidence read. Aceito: mesmo standard que `.claude/knowledge-base/references/` (clone-at-a-moment-in-time); per D4, paths são held to Path.exists() standard, e o blueprint pode incluir o SHA do HEAD de ../theokit-sdk/ no momento do /discover-execute (`git -C ../theokit-sdk rev-parse HEAD`) como audit-trail signal. Não bloqueia o plano; documentar o snapshot mechanism + a SHA stamping na ADR D4 do blueprint produzido.
 
 ## Resumo
 

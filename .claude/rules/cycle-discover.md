@@ -9,7 +9,7 @@ phases:
   - skill-writer
   - skill-validator
   - skill-register
-trigger: when a question about referencia/ (Mem0, Letta, LangMem) AND/OR external prior art (papers, RFCs, vendor docs, engineering blogs, dependency-candidate libs) needs a blueprint-shaped answer
+trigger: when a question about .claude/knowledge-base/references/ (Mem0, Letta, LangMem) AND/OR external prior art (papers, RFCs, vendor docs, engineering blogs, dependency-candidate libs) needs a blueprint-shaped answer
 output: technical blueprint at .claude/knowledge-base/discoveries/blueprints/{slug}-blueprint.md + URL snapshots at .claude/knowledge-base/discoveries/snapshots/{slug}/{sha256}.md AND (optionally) a generated patterns skill at .claude/skills/{slug}-patterns/
 ---
 
@@ -23,17 +23,17 @@ output: technical blueprint at .claude/knowledge-base/discoveries/blueprints/{sl
 >
 > Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
 
-Source of truth for the deep-research investigation cycle over `referencia/` **and external prior art on the open web**. Every phase below has its own SKILL.md, but the contract — chain order, anti-patterns, gates, stop conditions, rollback — lives here. SKILL.md files point HERE, not the other way around.
+Source of truth for the deep-research investigation cycle over `.claude/knowledge-base/references/` **and external prior art on the open web**. Every phase below has its own SKILL.md, but the contract — chain order, anti-patterns, gates, stop conditions, rollback — lives here. SKILL.md files point HERE, not the other way around.
 
 ## Purpose
 
 Convert a question about a reference project (Mem0 / Letta / LangMem) **and/or the state of the art outside the monorepo** into:
 
 1. A **discovery plan** declaring what to investigate (Coverage Matrix of **5 corners**: tests / deps / tools / techniques / **prior_art**)
-2. A **technical blueprint** populated by deep-research over `referencia/` (local) AND over external prior art (papers, RFCs, vendor docs, engineering blogs, dependency-candidate libs per Inquebrável Rule 9 "Não Reinvente a Roda") using halt-loop iteration
+2. A **technical blueprint** populated by deep-research over `.claude/knowledge-base/references/` (local) AND over external prior art (papers, RFCs, vendor docs, engineering blogs, dependency-candidate libs per Inquebrável Rule 9 "Não Reinvente a Roda") using halt-loop iteration
 3. (Optional) A **generated patterns skill** that distills the blueprint's load-bearing knowledge into a first-class skill consumed by `/to-plan`
 
-The `prior_art` corner exists because investigating only `referencia/` (Mem0 / Letta / LangMem) leaves three honesty gaps closed by external research: (a) **Rule 9 compliance** — before committing to in-house impl, check if a mature lib already solves it; (b) **state-of-the-art grounding** — academic papers (Generative Agents, MemGPT, etc.) describe constraints the three clones don't surface; (c) **competitor delta** — vendor docs (Pinecone, Qdrant, Weaviate, OpenAI Memory) reveal feature parity gaps and design choices made in production.
+The `prior_art` corner exists because investigating only `.claude/knowledge-base/references/` (Mem0 / Letta / LangMem) leaves three honesty gaps closed by external research: (a) **Rule 9 compliance** — before committing to in-house impl, check if a mature lib already solves it; (b) **state-of-the-art grounding** — academic papers (Generative Agents, MemGPT, etc.) describe constraints the three clones don't surface; (c) **competitor delta** — vendor docs (Pinecone, Qdrant, Weaviate, OpenAI Memory) reveal feature parity gaps and design choices made in production.
 
 ## Trigger conditions
 
@@ -48,7 +48,7 @@ Invoke this cycle when:
 Do NOT invoke when:
 
 - The question is text-shaped (file content, README, raw config) — use direct `Read` + `Grep`
-- The reference project clone in `referencia/` is missing or stale AND no prior_art questions are in scope
+- The reference project clone in `.claude/knowledge-base/references/` is missing or stale AND no prior_art questions are in scope
 - A prior blueprint at `.claude/knowledge-base/discoveries/blueprints/` already covers the question
 - The web question can be answered by a single canonical URL fetch (e.g., reading one RFC) — use `WebFetch` directly without a cycle
 
@@ -56,13 +56,13 @@ Do NOT invoke when:
 
 ```
 /discover-plan {topic-slug}
-  ↓ declares 5-corner Coverage Matrix (incl. prior_art) + per-question source: referencia/{project} OR web
+  ↓ declares 5-corner Coverage Matrix (incl. prior_art) + per-question source: .claude/knowledge-base/references/{project} OR web
   ↓ produces .claude/knowledge-base/discoveries/plans/{slug}-plan.md
 /discover-edge-cases {slug}
   ↓ incorporates MUST FIX entries; bumps plan version 1.0 → 1.1
 /discover-execute {slug}
   ↓ halt-loop iterates over BOTH:
-  ↓   (a) referencia/ via Read + Grep + ast-grep
+  ↓   (a) .claude/knowledge-base/references/ via Read + Grep + ast-grep
   ↓   (b) external prior art via WebSearch + WebFetch (allowlisted domains only)
   ↓ for every URL cited, writes snapshot at
   ↓   .claude/knowledge-base/discoveries/snapshots/{slug}/{sha256}.md
@@ -71,7 +71,7 @@ Do NOT invoke when:
 /discover-confidence {slug}
   ↓ scores blueprint structurally (M2: research_coverage + reference_citations + completeness + smells)
   ↓ reference_citations now validates BOTH:
-  ↓   (a) referencia/{...}  → Path.exists()
+  ↓   (a) .claude/knowledge-base/references/{...}  → Path.exists()
   ↓   (b) https://{...}     → 3-layer check: allowlist domain + snapshot exists + hash matches
   ↓                          (optional WebFetch HTTP 200 as soft cap)
   ↓ if verdict < SHIPPABLE_WITH_CAVEATS:
@@ -103,9 +103,9 @@ Each phase has a SKILL.md with full operational detail. The contract below is th
 
 | Phase | Input | Output | Success criterion |
 |---|---|---|---|
-| `discover-plan` | `{topic-slug}` + `.claude/rules/` + `referencia/{project}/` top-level + prior reports in `docs/exploration-reports/` + **web allowlist** (`.claude/rules/discover-web-allowlist.txt`) | `plans/{slug}-plan.md` v1.0 with 10 mandatory sections, 6-12 research questions (5-10 local + 1-3 prior_art), Coverage Matrix 100% across 5 corners | All five corners (tests/deps/tools/techniques/prior_art) mapped OR ADR-deferred. Prior_art questions explicitly declare candidate sources (paper IDs, RFC numbers, vendor URLs, dependency-candidate libs) |
+| `discover-plan` | `{topic-slug}` + `.claude/rules/` + `.claude/knowledge-base/references/{project}/` top-level + prior reports in `docs/exploration-reports/` + **web allowlist** (`.claude/rules/discover-web-allowlist.txt`) | `plans/{slug}-plan.md` v1.0 with 10 mandatory sections, 6-12 research questions (5-10 local + 1-3 prior_art), Coverage Matrix 100% across 5 corners | All five corners (tests/deps/tools/techniques/prior_art) mapped OR ADR-deferred. Prior_art questions explicitly declare candidate sources (paper IDs, RFC numbers, vendor URLs, dependency-candidate libs) |
 | `discover-edge-cases` | `plans/{slug}-plan.md` | Report inline (or saved); plan may be bumped v1.0 → v1.1 with MUST FIX absorbed | Veredict OK or NEEDS ADJUSTMENT delivered honestly |
-| `discover-execute` | Plan v1.x + `referencia/{project}/` (read-only) + WebSearch/WebFetch tools + allowlist | `blueprints/{slug}-blueprint.md` populated; `.progress-{slug}.json` audit trail; URL snapshots at `snapshots/{slug}/{sha256}.md` | `<promise>BLUEPRINT_COMPLETE</promise>` emitted (or honest BLOCKED report). Every cited URL has a corresponding snapshot file |
+| `discover-execute` | Plan v1.x + `.claude/knowledge-base/references/{project}/` (read-only) + WebSearch/WebFetch tools + allowlist | `blueprints/{slug}-blueprint.md` populated; `.progress-{slug}.json` audit trail; URL snapshots at `snapshots/{slug}/{sha256}.md` | `<promise>BLUEPRINT_COMPLETE</promise>` emitted (or honest BLOCKED report). Every cited URL has a corresponding snapshot file |
 | `discover-confidence` | Blueprint .md + snapshots dir + allowlist | JSON score report + verdict (SHIPPABLE / SHIPPABLE_WITH_CAVEATS / NON_SHIPPABLE / INVALID) | Hard caps audited (incl. URL allowlist + snapshot integrity); soft caps surfaced (incl. URL unreachable) |
 | `discover-improve` | Blueprint + previous confidence verdict | Patched blueprint + diff | Verdict ≥ target (default SHIPPABLE_WITH_CAVEATS) OR honest exhaustion. Broken URLs replaced or marked BLOCKED |
 | `skill-writer` | Blueprint + verdict ≥ SHIPPABLE_WITH_CAVEATS | `generated/{slug}-patterns/SKILL.md` + `.source-blueprint` marker | Candidate written without fabrication; URL citations preserved with snapshot hash |
@@ -146,9 +146,9 @@ Each phase has a SKILL.md with full operational detail. The contract below is th
 1. **NEVER skip `/discover-edge-cases`** — Coverage Matrix flaws found here are 10x cheaper than during `/discover-execute`.
 2. **NEVER run `/discover-execute` with an unincorporated MUST FIX** — fix the plan v1.0 → v1.1 first.
 3. **NEVER run `/skill-writer` when blueprint verdict is INVALID or NON_SHIPPABLE** — propagates defect downstream into a first-class skill.
-4. **NEVER fabricate a `referencia/` citation** — every path in plan, blueprint, generated skill MUST exist. Confidence will catch it; better to mark BLOCKED honestly.
-5. **NEVER modify anything inside `referencia/`** — read-only zone, enforced by `.claude/hooks/boundary-check.sh`. No `npm install`, no `pip install`, no edits.
-6. **NEVER use `cd` into `referencia/`** — investigate from project root with full paths.
+4. **NEVER fabricate a `.claude/knowledge-base/references/` citation** — every path in plan, blueprint, generated skill MUST exist. Confidence will catch it; better to mark BLOCKED honestly.
+5. **NEVER modify anything inside `.claude/knowledge-base/references/`** — read-only zone, enforced by `.claude/hooks/boundary-check.sh`. No `npm install`, no `pip install`, no edits.
+6. **NEVER use `cd` into `.claude/knowledge-base/references/`** — investigate from project root with full paths.
 7. **NEVER promote a NEEDS_REVIEW skill without human edit + re-validation returning PASS** — `/skill-register` refuses on principle.
 8. **NEVER auto-overwrite an existing generated or first-class skill with same name** — `/skill-writer` aborts; human resolves manually.
 9. **NEVER cite a URL without writing the snapshot** — the snapshot is what the blueprint asserts as truth; the live URL is volatile. Snapshot-first, cite second. If WebFetch failed, the URL CANNOT be cited; mark BLOCKED.
@@ -171,7 +171,7 @@ Each phase has a SKILL.md with full operational detail. The contract below is th
 | URL snapshots in `snapshots/{slug}/` | `find .claude/knowledge-base/discoveries/snapshots/{slug} -delete`. Snapshots are commit-tracked (audit trail); deletion is reversible via `git checkout` of the affected files in another branch (NOT on `main`, per Rule 4). |
 | Allowlist additions in `discover-web-allowlist.txt` | Standard git revert of the line addition. Audit trail of WHY a domain was added lives in the line's inline comment. |
 
-`referencia/` is read-only by hook enforcement — there is nothing to rollback there.
+`.claude/knowledge-base/references/` is read-only by hook enforcement — there is nothing to rollback there.
 
 ## Cross-references
 
@@ -193,7 +193,7 @@ This cycle rule is **v1.1** as of 2026-05-22. Changes that ADD phases or hard ga
 
 | Version | Date | Change | Rationale |
 |---|---|---|---|
-| v1.0 | 2026-05-21 | Initial cycle rule, 4-corner Coverage Matrix, `referencia/`-only scope. | Baseline contract for the discover cycle. |
+| v1.0 | 2026-05-21 | Initial cycle rule, 4-corner Coverage Matrix, `.claude/knowledge-base/references/`-only scope. | Baseline contract for the discover cycle. |
 | v1.1 | 2026-05-22 | Added 5th Coverage Matrix corner `prior_art`; expanded inputs to include WebSearch/WebFetch; added 3 hard gates (allowlist, snapshot, Rule 9 verdict); added 3 soft gates (URL unreachable, stale blog, unpinned dep); added 6 anti-patterns; new rollback rows; new cross-references for allowlist + snapshots dir. Strategic review required for golden rules downstream (see below). | User directive 2026-05-22: "Revise nosso ciclo de discover ele deve incluir pesquisar na web (deep research)". Decisions captured via AskUserQuestion: 5º corner separado (prior_art); URL fabrication enforcement via combined allowlist + snapshot + WebFetch; sources include papers + RFCs + vendor docs + engineering blogs + dependency-candidate libs (Rule 9). |
 
 ### Downstream changes required (NOT yet shipped — follow-up work)
@@ -204,7 +204,7 @@ This cycle rule extension is a **contract extension**, not a softening. Per the 
 2. `.claude/rules/discover-blueprint-golden-rule.md` — same expansions, applied to blueprint shape.
 3. `.claude/rules/discover-plan-thresholds.txt` (and `discover-blueprint-thresholds.txt`) — bump sunset date; cite this v1.1 entry as the ADR.
 4. `.claude/rules/discover-web-allowlist.txt` — NEW FILE. Seed with: `arxiv.org`, `www.rfc-editor.org`, `www.w3.org`, `datatracker.ietf.org`, `github.com`, `npmjs.com`, `pypi.org`, `docs.pinecone.io`, `docs.weaviate.io`, `qdrant.tech`, `platform.openai.com`, `docs.anthropic.com`, `mem0.ai`, `letta.com`, `langchain.com`. Each line carries inline rationale.
-5. `.claude/skills/discover-plan/SKILL.md` + template — declare prior_art questions in plan; require source field (`referencia/{project}` OR `web`).
+5. `.claude/skills/discover-plan/SKILL.md` + template — declare prior_art questions in plan; require source field (`.claude/knowledge-base/references/{project}` OR `web`).
 6. `.claude/skills/discover-execute/SKILL.md` + halt-loop prompt — wire WebSearch/WebFetch into Fase A/B; snapshot-write before citation.
 7. `.claude/skills/discover-confidence/scripts/check_reference_citations.py` — extend to handle URL citations (allowlist + snapshot validation + optional WebFetch HTTP 200).
 8. `.claude/skills/discover-confidence/scripts/check_research_coverage.py` — recognize the 5th corner.

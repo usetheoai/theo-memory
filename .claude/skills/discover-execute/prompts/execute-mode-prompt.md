@@ -1,6 +1,6 @@
 # Discover-Execute Halt-Loop Driver Prompt
 
-You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked `/discover-execute {PLAN_SLUG}` to drive a deep-research investigation across `referencia/`.
+You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked `/discover-execute {PLAN_SLUG}` to drive a deep-research investigation across `.claude/knowledge-base/references/`.
 
 **Discovery plan:** `{PLAN_PATH}`
 **Blueprint (in progress):** `{BLUEPRINT_PATH}`
@@ -34,8 +34,8 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 
    Examples by question shape:
 
-   - "How does Mem0 implement `Memory` class surface?" → Fase A: `ast-grep scan --rule .claude/skills/ast-grep/rules/method-in-class-ts.yml referencia/mem0/mem0-ts/src/oss/src/memory/` → 27 methods, each with line range.
-   - "What async pipeline does Letta run?" → Fase A: `ast-grep scan --rule async-function-python.yml referencia/letta/letta/` → list of async entry points.
+   - "How does Mem0 implement `Memory` class surface?" → Fase A: `ast-grep scan --rule .claude/skills/ast-grep/rules/method-in-class-ts.yml .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/` → 27 methods, each with line range.
+   - "What async pipeline does Letta run?" → Fase A: `ast-grep scan --rule async-function-python.yml .claude/knowledge-base/references/letta/letta/` → list of async entry points.
    - "Where is `.embed()` called?" → Fase A: edit `method-call-ts.yml` rule pattern to `$OBJ.embed($$$)` (default) and scan the target dir.
    - "Compare class hierarchies between Mem0 and LangMem" → Fase A: run `class-extends-ts.yml` against both, then a Python-equivalent rule against LangMem.
 
@@ -45,7 +45,7 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 
    For each entry in the Fase A hotspot list, `Read` the file at that line range. Goal of Fase B: capture intent, comments, edge cases — what ast-grep cannot see — and produce the prose + line-exact citation that goes into the blueprint.
 
-   Each Read in Fase B produces ONE paragraph or one table row in the blueprint, with citation `referencia/{project}/{path}:N`.
+   Each Read in Fase B produces ONE paragraph or one table row in the blueprint, with citation `.claude/knowledge-base/references/{project}/{path}:N`.
 
    ### When to skip Fase A
 
@@ -67,7 +67,7 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 4. **Append the answer to the blueprint.** Edit `{BLUEPRINT_PATH}`:
    - Locate the section mapped to the question's corner (Coverage Corner 1-4) and the subsection mapped to the reference project
    - Replace any `<!-- TBD: Qx -->` placeholder with the synthesis
-   - Cite every claim with `referencia/{project}/{path}:{line}` references
+   - Cite every claim with `.claude/knowledge-base/references/{project}/{path}:{line}` references
    - Ensure each paragraph or table row has at least one citation
 
 5. **Update the progress file.** Set the question's status to either `done` or `blocked` (with `blocked_reason`). Increment `iterations_used`.
@@ -76,9 +76,9 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 
    a. Every question in the progress file has status `done` OR `blocked` with reason.
 
-   b. Every citation in the blueprint (every `referencia/...` reference) exists in the filesystem. Run:
+   b. Every citation in the blueprint (every `.claude/knowledge-base/references/...` reference) exists in the filesystem. Run:
       ```bash
-      grep -oE 'referencia/[^ )`":]+' {BLUEPRINT_PATH} | sort -u | while read -r path; do
+      grep -oE '.claude/knowledge-base/references/[^ )`":]+' {BLUEPRINT_PATH} | sort -u | while read -r path; do
         [ -e "$path" ] || echo "FABRICATED: $path"
       done
       ```
@@ -98,8 +98,8 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 
 ## Inviolable rules
 
-- NEVER write to anything under `referencia/`. The `boundary-check.sh` hook blocks Edit and Write there.
-- NEVER `npm install`, `pip install`, `poetry install`, or any dependency installer inside `referencia/`.
+- NEVER write to anything under `.claude/knowledge-base/references/`. The `boundary-check.sh` hook blocks Edit and Write there.
+- NEVER `npm install`, `pip install`, `poetry install`, or any dependency installer inside `.claude/knowledge-base/references/`.
 - NEVER modify `{PLAN_PATH}`. The plan is the contract — to revise it, the user must invoke `/discover-plan` again.
 - NEVER fabricate a citation. If you cannot find a real path that supports a claim, REMOVE the claim or mark it BLOCKED.
 - NEVER skip a corner. All four must be populated before the promise.

@@ -39,7 +39,7 @@ Cross-cutting comparison condensed from the blueprint's `## Cross-cutting Compar
 
 ## Key evidence
 
-These citations to `referencia/` appeared in 2+ different sections of the source blueprint — they are load-bearing for the patterns above. Re-verify them when revisiting this skill (paths may drift if `referencia/` clones are refreshed).
+These citations to `.claude/knowledge-base/references/` appeared in 2+ different sections of the source blueprint — they are load-bearing for the patterns above. Re-verify them when revisiting this skill (paths may drift if `.claude/knowledge-base/references/` clones are refreshed).
 
 {KEY_CITATIONS}
 

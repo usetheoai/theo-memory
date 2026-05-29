@@ -1,6 +1,6 @@
 # Discovery Plan: Good Fixture for Discover-Plan-Confidence Tests
 
-> **Version 1.0** — Reference discovery plan used as the positive fixture in `/discover-plan-confidence` unit tests. All four coverage corners populated; all `referencia/` citations resolve via `Path.exists()`; question budget 6 (within 5-10); each Q has a method.
+> **Version 1.0** — Reference discovery plan used as the positive fixture in `/discover-plan-confidence` unit tests. All four coverage corners populated; all `.claude/knowledge-base/references/` citations resolve via `Path.exists()`; question budget 6 (within 5-10); each Q has a method.
 
 **Slug:** `good-discover-plan-fixture`
 **Owner:** test-author
@@ -9,13 +9,13 @@
 
 ## Context
 
-This fixture exists to drive the happy-path tests of every `discover-plan-confidence` checker. The shape mirrors a realistic discovery plan that would emerge from `/discover-plan` against the `referencia/` clones, so the checker is exercised against production-shape input rather than synthetic noise.
+This fixture exists to drive the happy-path tests of every `discover-plan-confidence` checker. The shape mirrors a realistic discovery plan that would emerge from `/discover-plan` against the `.claude/knowledge-base/references/` clones, so the checker is exercised against production-shape input rather than synthetic noise.
 
 ## Objective
 
 Validate that the four deterministic checkers (`check_research_coverage`, `check_reference_citations`, `check_plan_completeness`, `check_spec_smells`) all accept a structurally complete discovery plan and emit `verdict in {SHIPPABLE, SHIPPABLE_WITH_CAVEATS}` when invoked through `run_discover_plan_score.py`.
 
-- [ ] All research questions answered with citations to `referencia/`
+- [ ] All research questions answered with citations to `.claude/knowledge-base/references/`
 - [ ] Cross-cutting comparison table populated for every in-scope reference project
 - [ ] `/discover-confidence` verdict on the future blueprint is at least SHIPPABLE_WITH_CAVEATS
 
@@ -25,16 +25,16 @@ Validate that the four deterministic checkers (`check_research_coverage`, `check
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `referencia/mem0/` | mem0-ts source | Mem0-shape architecture is locked for v0.1 |
-| `referencia/letta/` | services + orm layers | Pgvector schema reference |
-| `referencia/langmem/` | procedural memory module | v0.4 reference shape |
+| `.claude/knowledge-base/references/mem0/` | mem0-ts source | Mem0-shape architecture is locked for v0.1 |
+| `.claude/knowledge-base/references/letta/` | services + orm layers | Pgvector schema reference |
+| `.claude/knowledge-base/references/langmem/` | procedural memory module | v0.4 reference shape |
 
 ### Out-of-Scope (explicit)
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `referencia/mem0/` build artifacts | Generated outputs are not source of truth |
-| Any project NOT cloned into `referencia/` | Cross-Project Rule — never claim a feature without reading source |
+| `.claude/knowledge-base/references/mem0/` build artifacts | Generated outputs are not source of truth |
+| Any project NOT cloned into `.claude/knowledge-base/references/` | Cross-Project Rule — never claim a feature without reading source |
 
 ## ADRs
 
@@ -66,12 +66,12 @@ Validate that the four deterministic checkers (`check_research_coverage`, `check
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | How does Mem0 test the LLM-extraction pipeline against Postgres? | tests | `referencia/mem0/` | ast-grep run --pattern describe blocks --lang typescript | Read each test fixture + setup block | Table: test name → fixture used → assertion type |
-| Q2 | What pgvector versions does Letta support? | deps | `referencia/letta/` | SKIP — text-shape; Glob pyproject.toml | Read each match in context | Version range + supported index types |
-| Q3 | What is Mem0's local-dev story? | tools | `referencia/mem0/` | SKIP — text-shape; Glob docker-compose + Makefile | Read each file fully | Step-by-step instructions + dependency list |
-| Q4 | LangMem procedural memory: prompt rewriting or structured class? | techniques | `referencia/langmem/` | ast-grep run --pattern class definitions --lang python referencia/langmem/src/langmem/prompts/ | Read each candidate class | Architecture description + key citations |
-| Q5 | Compare add() operation across Mem0 TS and Letta Python | techniques | `referencia/mem0/`, `referencia/letta/` | ast-grep TS add() + ast-grep Python add() | Read both methods side-by-side | Side-by-side signature table |
-| Q6 | How does Letta seed integration tests with pgvector data? | tests | `referencia/letta/` | ast-grep run --pattern pytest fixture --lang python | Read each fixture body | Setup pattern catalog |
+| Q1 | How does Mem0 test the LLM-extraction pipeline against Postgres? | tests | `.claude/knowledge-base/references/mem0/` | ast-grep run --pattern describe blocks --lang typescript | Read each test fixture + setup block | Table: test name → fixture used → assertion type |
+| Q2 | What pgvector versions does Letta support? | deps | `.claude/knowledge-base/references/letta/` | SKIP — text-shape; Glob pyproject.toml | Read each match in context | Version range + supported index types |
+| Q3 | What is Mem0's local-dev story? | tools | `.claude/knowledge-base/references/mem0/` | SKIP — text-shape; Glob docker-compose + Makefile | Read each file fully | Step-by-step instructions + dependency list |
+| Q4 | LangMem procedural memory: prompt rewriting or structured class? | techniques | `.claude/knowledge-base/references/langmem/` | ast-grep run --pattern class definitions --lang python .claude/knowledge-base/references/langmem/src/langmem/prompts/ | Read each candidate class | Architecture description + key citations |
+| Q5 | Compare add() operation across Mem0 TS and Letta Python | techniques | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/` | ast-grep TS add() + ast-grep Python add() | Read both methods side-by-side | Side-by-side signature table |
+| Q6 | How does Letta seed integration tests with pgvector data? | tests | `.claude/knowledge-base/references/letta/` | ast-grep run --pattern pytest fixture --lang python | Read each fixture body | Setup pattern catalog |
 
 ## Coverage Matrix
 
@@ -88,7 +88,7 @@ Validate that the four deterministic checkers (`check_research_coverage`, `check
 
 | Checkpoint | Assertion | Action if fails |
 |---|---|---|
-| Before answering Qx | Cited `referencia/` paths exist | Mark Qx BLOCKED |
+| Before answering Qx | Cited `.claude/knowledge-base/references/` paths exist | Mark Qx BLOCKED |
 | Per-question Fase A budget | Returns at least one hotspot OR 3 retries attempted | After 3 retries, mark Qx BLOCKED |
 | After answering Qx | Blueprint section has at least one citation | Re-iterate Qx (1 retry max) |
 | Per-project time budget | Project budget not exhausted | When exhausted, mark remaining Qx BLOCKED |
@@ -96,9 +96,9 @@ Validate that the four deterministic checkers (`check_research_coverage`, `check
 
 ## Acceptance Criteria
 
-- [ ] All 6 questions answered with citations to `referencia/`
+- [ ] All 6 questions answered with citations to `.claude/knowledge-base/references/`
 - [ ] All 4 coverage corners populated in the blueprint
-- [ ] Every citation points to a real `referencia/{...}` path
+- [ ] Every citation points to a real `.claude/knowledge-base/references/{...}` path
 - [ ] At least one ADR in the blueprint synthesizes decisions
 - [ ] `/discover-confidence` verdict on the blueprint is SHIPPABLE_WITH_CAVEATS or higher
 

@@ -30,11 +30,11 @@ def smelly_blueprint(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def fab_citation_blueprint(tmp_path: Path) -> Path:
-    """Blueprint with a fabricated referencia/ citation."""
+    """Blueprint with a fabricated .claude/knowledge-base/references/ citation."""
     bp = tmp_path / "fab.md"
     bp.write_text(
         "# Blueprint: Fab\n\n"
-        "Cite a fake path: referencia/mem0/never-exists-zzz.py:99\n",
+        "Cite a fake path: .claude/knowledge-base/references/mem0/never-exists-zzz.py:99\n",
         encoding="utf-8",
     )
     return bp

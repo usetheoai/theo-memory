@@ -45,7 +45,7 @@ def bad_fabricated_citation_skill(tmp_path: Path) -> Path:
         "generated-from-blueprint: fake\n"
         "generated-at: 2026-05-21\n"
         "---\n\n"
-        "# Bad citation\n\n`referencia/mem0/does-not-exist-xyz.py:42`\n",
+        "# Bad citation\n\n`.claude/knowledge-base/references/mem0/does-not-exist-xyz.py:42`\n",
         encoding="utf-8",
     )
     return skill_md
