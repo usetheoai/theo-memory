@@ -45,8 +45,9 @@ test('ManualReflectionPolicy extends ReflectionPolicy with kind="manual"', () =>
   expectTypeOf<ManualReflectionPolicy['kind']>().toEqualTypeOf<'manual'>();
 });
 
-test('minimal stub implementing only shouldReflect compiles', () => {
+test('minimal stub implementing kind + shouldReflect compiles', () => {
   class MinimalStub implements ReflectionPolicy {
+    readonly kind = 'manual' as const;
     async shouldReflect(_scope: Scope, _trigger: ReflectionTrigger): Promise<boolean> {
       return true;
     }
@@ -56,6 +57,7 @@ test('minimal stub implementing only shouldReflect compiles', () => {
 
 test('full stub implementing all 3 hooks compiles', () => {
   class FullStub implements ReflectionPolicy {
+    readonly kind = 'threshold' as const;
     async shouldReflect(_scope: Scope, _trigger: ReflectionTrigger): Promise<boolean> {
       return true;
     }

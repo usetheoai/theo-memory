@@ -136,11 +136,13 @@ class LocalScopedMemory implements ScopedMemory {
     private readonly filters: Filters,
     private readonly config: LocalMemoryConfig,
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
+    /** v0.4a EC-7: shared pending-reflections set owned by LocalMemory. */
+    private readonly pendingReflections: Set<Promise<unknown>> = new Set(),
   ) {}
 
   async remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]> {
     const messages: readonly Message[] = [{ role: 'user', content: text }];
-    return runExtractionPipeline(messages, this.filters, {
+    const result = await runExtractionPipeline(messages, this.filters, {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
       llm: this.config.llm,
@@ -148,6 +150,29 @@ class LocalScopedMemory implements ScopedMemory {
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       ...(this.config.customInstructions !== undefined ? { customInstructions: this.config.customInstructions } : {}),
     }, options);
+
+    // v0.4a: after successful write, check ReflectionPolicy. If it says fire,
+    // launch reflect() as fire-and-forget tracked via pendingReflections (EC-7).
+    if (this.reflectionPolicy !== undefined && this.reflectionPolicy.kind !== 'manual') {
+      try {
+        const trigger = { kind: this.reflectionPolicy.kind } as const;
+        const fire = await this.reflectionPolicy.shouldReflect(this.scope, trigger);
+        if (fire) {
+          const promise = this.reflect()
+            .catch(() => {
+              // EC-12: failed reflection does NOT roll back the counter; orchestrator surfaces via onReflectionEnd.
+            })
+            .finally(() => {
+              this.pendingReflections.delete(promise);
+            });
+          this.pendingReflections.add(promise);
+        }
+      } catch {
+        // Policy decision failures must not block remember(); surface via flushReflections settled-but-rejected.
+      }
+    }
+
+    return result;
   }
 
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
@@ -299,6 +324,9 @@ class LocalScopedMemory implements ScopedMemory {
 }
 
 class LocalMemory implements Memory {
+  /** v0.4a (T4.3 EC-7): in-flight reflection promises tracked for flushReflections(). */
+  private readonly pendingReflections = new Set<Promise<unknown>>();
+
   constructor(
     private readonly config: LocalMemoryConfig,
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
@@ -306,17 +334,41 @@ class LocalMemory implements Memory {
 
   user(userId: string): ScopedMemory {
     const scope: Scope = { kind: 'user', userId };
-    return new LocalScopedMemory(scope, filtersFromScope(scope), this.config, this.reflectionPolicy);
+    return new LocalScopedMemory(
+      scope,
+      filtersFromScope(scope),
+      this.config,
+      this.reflectionPolicy,
+      this.pendingReflections,
+    );
   }
 
   session(sessionId: string): ScopedMemory {
     const scope: Scope = { kind: 'session', sessionId };
-    return new LocalScopedMemory(scope, filtersFromScope(scope), this.config, this.reflectionPolicy);
+    return new LocalScopedMemory(
+      scope,
+      filtersFromScope(scope),
+      this.config,
+      this.reflectionPolicy,
+      this.pendingReflections,
+    );
   }
 
   agent(agentId: string): ScopedMemory {
     const scope: Scope = { kind: 'agent', agentId };
-    return new LocalScopedMemory(scope, filtersFromScope(scope), this.config, this.reflectionPolicy);
+    return new LocalScopedMemory(
+      scope,
+      filtersFromScope(scope),
+      this.config,
+      this.reflectionPolicy,
+      this.pendingReflections,
+    );
+  }
+
+  async flushReflections(): Promise<void> {
+    // Snapshot the current set; new reflections may be added during iteration.
+    const snapshot = [...this.pendingReflections];
+    await Promise.allSettled(snapshot);
   }
 
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
