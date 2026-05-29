@@ -74,7 +74,11 @@ export function MemorySidebar({ userId, reloadKey }: Props) {
           ? `Consolidated into ${json.derivedMemoriesCreated} higher-order fact(s).`
           : `No consolidation (reason: ${json.reason ?? "no source"}).`,
       );
-      await load(query);
+      // Reset to the full list — recall(query) would only show items
+      // semantically close to the prior search, making the sidebar look
+      // empty even though Memory.reflect() never deletes source facts.
+      setQuery("");
+      await load("");
     } finally {
       setReflecting(false);
     }

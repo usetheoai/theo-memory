@@ -1,8 +1,16 @@
 /**
- * theo-memory singleton — boots once per process.
+ * theo-memory singleton — boots once per Node process.
  *
  * Default backend: InMemoryVectorStore (zero infra). Swap to pgvector by
  * setting THEOMEM_PG_URI in `.env` and importing PgvectorStore here.
+ *
+ * Why `globalThis`: in Next.js dev mode (`next dev`), each route handler
+ * is compiled into its own module instance with its own module-scope state.
+ * A bare `let memoryPromise = null` would fragment the singleton — writes
+ * via /api/chat would land in a different store than reads via
+ * /api/memory/recall. `globalThis` shares state across every route handler
+ * within the same Node process. Standard Next.js pattern (see
+ * https://nextjs.org/docs/app/building-your-application/configuring/prisma).
  */
 import "server-only";
 import {
@@ -33,11 +41,14 @@ class DemoManualReflectionPolicy implements ManualReflectionPolicy {
   }
 }
 
-let memoryPromise: Promise<Memory> | null = null;
+declare global {
+  // eslint-disable-next-line no-var
+  var _themory_demo_memory: Promise<Memory> | undefined;
+}
 
 export function getMemory(): Promise<Memory> {
-  if (memoryPromise === null) {
-    memoryPromise = (async () => {
+  if (globalThis._themory_demo_memory === undefined) {
+    globalThis._themory_demo_memory = (async () => {
       const embedder = new OpenAIEmbedder();
       const llm = new OpenAILLM();
       const vectorStore = new InMemoryVectorStore();
@@ -45,5 +56,5 @@ export function getMemory(): Promise<Memory> {
       return createMemory({ embedder, llm, vectorStore, reflectionPolicy });
     })();
   }
-  return memoryPromise;
+  return globalThis._themory_demo_memory;
 }
