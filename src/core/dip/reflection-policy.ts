@@ -19,6 +19,13 @@ export interface ReflectionTrigger {
 }
 
 export interface ReflectionPolicy {
+  /**
+   * Discriminator — identifies the policy variant. Used by the runtime auto-fire
+   * wiring (LocalScopedMemory.remember() invokes shouldReflect iff kind !== 'manual').
+   * v0.4a values: 'manual' | 'threshold' | 'sleep-time'.
+   */
+  readonly kind: 'manual' | 'threshold' | 'sleep-time';
+
   /** Called by the runtime to decide whether to start a reflection cycle for the given scope. */
   shouldReflect(scope: Scope, trigger: ReflectionTrigger): Promise<boolean>;
 
