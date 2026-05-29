@@ -1,6 +1,6 @@
 # Reference projects — study material only, never committed.
 # Clones live here for inspiration / design study.
-referencia/**
+.claude/knowledge-base/references/**
 
 # Node.js
 node_modules/
