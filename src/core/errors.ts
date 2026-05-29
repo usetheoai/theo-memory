@@ -133,6 +133,28 @@ export class InvalidCronExpressionError extends Error {
 }
 
 /**
+ * @see plan v0-4a-reflection-pipeline § T4.1
+ *
+ * Thrown by executeReflection() when the LLM returns content that cannot be
+ * parsed as a strict JSON array of `{text, derived_from}` objects. Distinct
+ * from ReflectionProvenanceMissingError (T4.2) which validates IDs against
+ * the source set.
+ *
+ * Exposes the raw LLM response for debugging.
+ */
+export class ReflectionLLMResponseError extends Error {
+  override readonly name = 'ReflectionLLMResponseError' as const;
+
+  readonly rawResponse: string;
+
+  constructor(rawResponse: string, message: string, options?: ErrorOptions) {
+    super(`Reflection LLM response error: ${message}`, options);
+    this.rawResponse = rawResponse;
+    Object.setPrototypeOf(this, ReflectionLLMResponseError.prototype);
+  }
+}
+
+/**
  * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
  *
  * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
