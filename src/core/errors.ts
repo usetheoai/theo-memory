@@ -155,6 +155,40 @@ export class ReflectionLLMResponseError extends Error {
 }
 
 /**
+ * @see plan v0-4a-reflection-pipeline § T4.2 + ADR D7
+ *
+ * Thrown by validateProvenance() when a DerivedMemoryDraft has either:
+ *  - empty `derivedFrom` array (no source citation), OR
+ *  - `derivedFrom` referencing IDs not present in the source set sent to the LLM.
+ *
+ * Fail-fast invariant per ADR D7: every derived memory MUST cite at least one
+ * SOURCE memory; LLM hallucinations of fake IDs are rejected BEFORE persist.
+ *
+ * Exposes unknownIds + offendingDraftIndex for debugging.
+ */
+export class ReflectionProvenanceMissingError extends Error {
+  override readonly name = 'ReflectionProvenanceMissingError' as const;
+
+  readonly unknownIds: readonly string[];
+  readonly offendingDraftIndex: number;
+
+  constructor(
+    offendingDraftIndex: number,
+    unknownIds: readonly string[],
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `Reflection provenance missing at draft[${String(offendingDraftIndex)}]: ${message} (unknown ids: ${unknownIds.length === 0 ? '(empty)' : unknownIds.join(', ')})`,
+      options,
+    );
+    this.offendingDraftIndex = offendingDraftIndex;
+    this.unknownIds = [...unknownIds];
+    Object.setPrototypeOf(this, ReflectionProvenanceMissingError.prototype);
+  }
+}
+
+/**
  * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
  *
  * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
