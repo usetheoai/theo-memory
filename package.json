@@ -53,6 +53,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "croner": "^10.0.1",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.13.0",
     "zod": "^3.25.0",

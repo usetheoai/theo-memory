@@ -54,6 +54,8 @@ import type {
   ReflectOptions,
   RememberOptions,
 } from '../core/options.js';
+import { executeReflection } from '../core/reflection/execute.js';
+import { validateProvenance } from '../core/reflection/provenance.js';
 import type { ReflectionResult } from '../core/reflection-result.js';
 import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, Scope } from '../core/scope.js';
@@ -103,17 +105,44 @@ function assertScopeIsNonEmpty(scope: Scope): void {
   }
 }
 
+interface VectorStoreWithDerivedInsert {
+  insertDerivedMemory(args: {
+    text: string;
+    hash: string;
+    embedding: readonly number[];
+    derivedFrom: readonly string[];
+    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+  }): Promise<string>;
+}
+
+function scopeToCounterTuple(scope: Scope): {
+  userId: string | null;
+  sessionId: string | null;
+  agentId: string | null;
+} {
+  switch (scope.kind) {
+    case 'user':
+      return { userId: scope.userId, sessionId: null, agentId: null };
+    case 'session':
+      return { userId: scope.userId ?? null, sessionId: scope.sessionId, agentId: null };
+    case 'agent':
+      return { userId: scope.userId ?? null, sessionId: null, agentId: scope.agentId };
+  }
+}
+
 class LocalScopedMemory implements ScopedMemory {
   constructor(
     private readonly scope: Scope,
     private readonly filters: Filters,
     private readonly config: LocalMemoryConfig,
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
+    /** v0.4a EC-7: shared pending-reflections set owned by LocalMemory. */
+    private readonly pendingReflections: Set<Promise<unknown>> = new Set(),
   ) {}
 
   async remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]> {
     const messages: readonly Message[] = [{ role: 'user', content: text }];
-    return runExtractionPipeline(messages, this.filters, {
+    const result = await runExtractionPipeline(messages, this.filters, {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
       llm: this.config.llm,
@@ -121,6 +150,29 @@ class LocalScopedMemory implements ScopedMemory {
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       ...(this.config.customInstructions !== undefined ? { customInstructions: this.config.customInstructions } : {}),
     }, options);
+
+    // v0.4a: after successful write, check ReflectionPolicy. If it says fire,
+    // launch reflect() as fire-and-forget tracked via pendingReflections (EC-7).
+    if (this.reflectionPolicy !== undefined && this.reflectionPolicy.kind !== 'manual') {
+      try {
+        const trigger = { kind: this.reflectionPolicy.kind } as const;
+        const fire = await this.reflectionPolicy.shouldReflect(this.scope, trigger);
+        if (fire) {
+          const promise = this.reflect()
+            .catch(() => {
+              // EC-12: failed reflection does NOT roll back the counter; orchestrator surfaces via onReflectionEnd.
+            })
+            .finally(() => {
+              this.pendingReflections.delete(promise);
+            });
+          this.pendingReflections.add(promise);
+        }
+      } catch {
+        // Policy decision failures must not block remember(); surface via flushReflections settled-but-rejected.
+      }
+    }
+
+    return result;
   }
 
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
@@ -134,15 +186,124 @@ class LocalScopedMemory implements ScopedMemory {
     }, options);
   }
 
-  reflect(_options?: ReflectOptions): Promise<ReflectionResult> {
+  async reflect(options?: ReflectOptions): Promise<ReflectionResult> {
+    void options;
     if (this.reflectionPolicy === undefined) {
-      return Promise.reject(new ReflectionNotConfigured());
+      throw new ReflectionNotConfigured();
     }
-    void this.scope;
-    void _options;
-    // v0.1 ships only ManualReflectionPolicy; the policy DIP is wired but the
-    // actual reflection algorithm lands at v0.4a per roadmap Item 5.
-    return Promise.reject(new ReflectionNotConfigured());
+
+    // Fetch source memories
+    const [results] = await this.config.vectorStore.list(this.filters, 100);
+    const sourceMemories: MemoryItem[] = results.map((r) => ({
+      id: r.id,
+      text: String(r.payload['text'] ?? ''),
+      hash: String(r.payload['hash'] ?? r.id),
+      scope: this.scope,
+      metadata: { ...r.payload },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      tValid: new Date(),
+      tInvalid: null,
+    }));
+
+    // EC-5: empty-source short-circuit
+    if (sourceMemories.length === 0) {
+      const result: ReflectionResult = {
+        higherOrderMemories: [],
+        sourceIds: [],
+        derivedMemoriesCreated: 0,
+        reason: 'no-source-memories',
+      };
+      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
+        await this.reflectionPolicy.onReflectionEnd(this.scope, result);
+      }
+      return result;
+    }
+
+    // Run policy hook
+    if (this.reflectionPolicy.onReflectionStart !== undefined) {
+      await this.reflectionPolicy.onReflectionStart(this.scope, options ?? {});
+    }
+
+    try {
+      // Execute reflection LLM call
+      const drafts = await executeReflection({
+        llm: this.config.llm,
+        sourceMemories,
+        scope: this.scope,
+      });
+
+      const sourceIds = sourceMemories.map((m) => m.id);
+
+      // EC-13: LLM returned empty array (no consolidation)
+      if (drafts.length === 0) {
+        const result: ReflectionResult = {
+          higherOrderMemories: [],
+          sourceIds,
+          derivedMemoriesCreated: 0,
+          reason: 'no-consolidation',
+        };
+        if (this.reflectionPolicy.onReflectionEnd !== undefined) {
+          await this.reflectionPolicy.onReflectionEnd(this.scope, result);
+        }
+        return result;
+      }
+
+      // Provenance validation (throws ReflectionProvenanceMissingError on fail)
+      validateProvenance(drafts, sourceIds);
+
+      // Embed + persist drafts. Store extension provides insertDerivedMemory.
+      const storeWithDerived = this.config.vectorStore as unknown as VectorStoreWithDerivedInsert;
+      if (typeof storeWithDerived.insertDerivedMemory !== 'function') {
+        throw new Error(
+          'reflect: configured vector store does not implement insertDerivedMemory; ' +
+            'pass a PgvectorStore or InMemoryVectorStore from @usetheo/memory/local.',
+        );
+      }
+
+      const counterTuple = scopeToCounterTuple(this.scope);
+      const persisted: MemoryItem[] = [];
+      for (const draft of drafts) {
+        const embedding = await this.config.embedder.embed(draft.text);
+        const hash = `derived-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+        const id = await storeWithDerived.insertDerivedMemory({
+          text: draft.text,
+          hash,
+          embedding,
+          derivedFrom: draft.derivedFrom,
+          scope: counterTuple,
+        });
+        persisted.push({
+          id,
+          text: draft.text,
+          hash,
+          scope: this.scope,
+          metadata: { kind: 'derived' },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          tValid: new Date(),
+          tInvalid: null,
+        });
+      }
+
+      const result: ReflectionResult = {
+        higherOrderMemories: persisted,
+        sourceIds,
+        derivedMemoriesCreated: persisted.length,
+      };
+      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
+        await this.reflectionPolicy.onReflectionEnd(this.scope, result);
+      }
+      return result;
+    } catch (err) {
+      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
+        await this.reflectionPolicy.onReflectionEnd(
+          this.scope,
+          err instanceof Error ? err : new Error(String(err)),
+        );
+      }
+      throw err;
+    }
   }
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
@@ -163,6 +324,9 @@ class LocalScopedMemory implements ScopedMemory {
 }
 
 class LocalMemory implements Memory {
+  /** v0.4a (T4.3 EC-7): in-flight reflection promises tracked for flushReflections(). */
+  private readonly pendingReflections = new Set<Promise<unknown>>();
+
   constructor(
     private readonly config: LocalMemoryConfig,
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
@@ -170,17 +334,41 @@ class LocalMemory implements Memory {
 
   user(userId: string): ScopedMemory {
     const scope: Scope = { kind: 'user', userId };
-    return new LocalScopedMemory(scope, filtersFromScope(scope), this.config, this.reflectionPolicy);
+    return new LocalScopedMemory(
+      scope,
+      filtersFromScope(scope),
+      this.config,
+      this.reflectionPolicy,
+      this.pendingReflections,
+    );
   }
 
   session(sessionId: string): ScopedMemory {
     const scope: Scope = { kind: 'session', sessionId };
-    return new LocalScopedMemory(scope, filtersFromScope(scope), this.config, this.reflectionPolicy);
+    return new LocalScopedMemory(
+      scope,
+      filtersFromScope(scope),
+      this.config,
+      this.reflectionPolicy,
+      this.pendingReflections,
+    );
   }
 
   agent(agentId: string): ScopedMemory {
     const scope: Scope = { kind: 'agent', agentId };
-    return new LocalScopedMemory(scope, filtersFromScope(scope), this.config, this.reflectionPolicy);
+    return new LocalScopedMemory(
+      scope,
+      filtersFromScope(scope),
+      this.config,
+      this.reflectionPolicy,
+      this.pendingReflections,
+    );
+  }
+
+  async flushReflections(): Promise<void> {
+    // Snapshot the current set; new reflections may be added during iteration.
+    const snapshot = [...this.pendingReflections];
+    await Promise.allSettled(snapshot);
   }
 
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
