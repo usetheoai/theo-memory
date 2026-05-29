@@ -392,6 +392,40 @@ export class PgvectorStore implements VectorStore {
     return row.id;
   }
 
+  /**
+   * Look up the cached LLM-importance score for a memory by content hash.
+   *
+   * Per plan T5.2 + ADR D8: hash-keyed cache lookup is the v0.4a strategy for
+   * avoiding LLM re-invocation on identical-content writes. The
+   * memories_hash_unique_idx UNIQUE constraint guarantees at most one row per
+   * hash, so `LIMIT 1` is exact (not first-of-many).
+   *
+   * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories);
+   * collision-SAFE by virtue of v0.1's UNIQUE constraint — a collision would
+   * fail the UNIQUE insert BEFORE this lookup is reached on the cached row.
+   *
+   * @returns cached score in [1, 10] OR null when no row exists OR row has NULL score
+   */
+  async getImportanceByHash(hash: string): Promise<number | null> {
+    const result = await this.pool.query<{ llm_importance_score: string | null }>(
+      `SELECT llm_importance_score FROM memories WHERE hash = $1 LIMIT 1`,
+      [hash],
+    );
+    const row = result.rows[0];
+    if (row === undefined || row.llm_importance_score === null) {
+      return null;
+    }
+    return Number(row.llm_importance_score);
+  }
+
+  /** Persist a cached importance score for the row identified by content hash. */
+  async setImportanceByHash(hash: string, score: number): Promise<void> {
+    await this.pool.query(
+      `UPDATE memories SET llm_importance_score = $1, updated_at = NOW() WHERE hash = $2`,
+      [score, hash],
+    );
+  }
+
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
   async withTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
