@@ -58,6 +58,29 @@ The plan SHALL:
 
 If the agent does not honor Step 0, `/plan-confidence` will deduct via the `architecture_compliance` sub-report and may apply `soft_floor_low_architecture_compliance` (cap 89).
 
+#### Pre-flight path validation (added 2026-05-26 — closes v0-4a T0.1 retrospective gap)
+
+Every plan task's `#### Files to edit` AND `#### TDD` test paths MUST be reachable by an existing test runner config. The `/to-plan` author MUST validate path patterns BEFORE writing the plan, by running:
+
+```bash
+# Project test runner configs (typical for TheMemory)
+grep -E "include|exclude" vitest.*.config.ts 2>/dev/null
+# Tsconfig globs that affect typecheck
+grep -E '"include"|"exclude"' tsconfig*.json 2>/dev/null
+```
+
+When writing a task that creates a NEW test path, verify against the runner configs:
+
+| Test tier | Runner config | Include pattern | Valid task path examples |
+|---|---|---|---|
+| Unit (contract) | `vitest.contract.config.ts` | `src/{core,local,theokit,agent-tools}/**/__tests__/**/*.test.ts`, `tests/unit/**/*.test.ts` | `src/local/__tests__/foo.test.ts`, `tests/unit/deps/croner-import.test.ts` |
+| Integration | `vitest.integration.config.ts` | `tests/integration/**/*.test.ts` | `tests/integration/forgetting/triadic-eviction.test.ts` |
+| E2E | `vitest.e2e.config.ts` | `tests/e2e/**/*.test.ts` | `tests/e2e/theokit-binding.test.ts` |
+
+**Failure mode caught here:** if a plan task declares a test at `tests/unit/deps/foo.test.ts` but `vitest.contract.config.ts` only includes `src/**/__tests__/**`, the RED test will be UNREACHABLE by `npm test` and `/implement` halts at Stop Condition #4 (plan defect — Files to edit unreachable). The fix: either pick a path that matches the existing include, OR add the include update as a sub-step in the SAME task's "Files to edit".
+
+When in doubt, prefer placing unit tests under `src/{domain}/__tests__/` (existing convention) over `tests/unit/{domain}/` (newer convention requires explicit include).
+
 ### Step 1 — Explore the repo
 
 After reading the rules, explore the codebase to understand the current state, patterns, and architecture in light of those rules.

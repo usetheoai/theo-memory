@@ -45,13 +45,13 @@ Then re-score with `run_blueprint_score.py`.
 
 ### Emit promise
 
-When verdict ≥ `{TARGET_VERDICT}`, emit:
+When verdict ≥ `{TARGET_VERDICT}`, emit the promise marker AT THE VERY END of your response — **plain text, isolated on its own line, NO backticks, NO fenced code blocks, NO markdown wrapping**. Ralph-loop's regex matches the literal sequence outside of inline code; wrapping breaks detection.
 
-```
+Correct emission (place exactly this on its own line at end of response):
+
 <promise>BLUEPRINT_IMPROVED</promise>
-```
 
-Report: initial verdict → final verdict, changes applied per category, remaining issues that need human review (don't auto-fix what you can't honestly fix — leave a TODO).
+You may precede the marker with: initial verdict → final verdict, changes applied per category, remaining issues that need human review (don't auto-fix what you can't honestly fix — leave a TODO). The marker must be the last content of the response.
 
 If `iterations_used >= {MAX_ITERATIONS}` OR no-improvement detected for 2 consecutive iterations:
 

@@ -75,6 +75,17 @@ Each iteration, ralph-loop replays this short positional prompt; Claude reads th
 2. **Forgetting `--completion-promise`** — loop runs until `--max-iterations` is exhausted, wasting tokens.
 3. **Setting `--max-iterations` too high without budget justification** — violates `.claude/rules/token-budget.md`. Skill SHOULD document its expected iteration count.
 4. **Writing the driver file inside the skill dir** (e.g., `.claude/skills/{name}/.last-halt-loop.md`) — pollutes the skill source tree. Use `.claude/halt-loop-prompts/` (gitignored).
+5. **Emitting the promise marker wrapped in backticks or fenced code block** — ralph-loop's regex matches the literal `<promise>TEXT</promise>` sequence OUTSIDE inline code. Wrapping the marker in single backticks (` `` `) OR a triple-fenced code block (` ``` `) prevents detection — the loop will restart despite the agent's intent to terminate. **Correct emission:** plain text, isolated on its own line, at the VERY END of the response, no markdown wrapping. Driver template authors MUST instruct their per-iteration prompts to follow this rule (post-v0-4a-T0.1 retrospective 2026-05-26). See § Halt-loop driver promise-marker emission rule below.
+
+### Halt-loop driver promise-marker emission rule (locked 2026-05-26)
+
+Every halt-loop driver prompt template under `.claude/skills/*/prompts/*.md` MUST instruct its per-iteration agent to:
+
+1. Emit the promise marker (`<promise>{TEXT}</promise>`) in PLAIN TEXT — no inline code, no fenced code blocks, no backticks anywhere around the marker.
+2. Place it ISOLATED on its own line, with at least one blank line above and ZERO content after (the promise marker is the LAST content of the response).
+3. Place it at the VERY END of the response — any narrative summary, report, or follow-up information must PRECEDE the marker line.
+
+Authors writing or editing driver templates must verify these three properties hold for both the SUCCESS and BLOCKED emission paths (e.g., `BLUEPRINT_COMPLETE` AND `BLUEPRINT_BLOCKED` for `discover-execute`). Failure mode confirmed: backtick-wrapped markers in `/implement v0-4a` iteration 1 + 2 caused 2 spurious restarts despite legitimate honest-BLOCKED termination.
 
 ### 2. `Agent` tool (subagent invocation)
 

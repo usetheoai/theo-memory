@@ -88,11 +88,11 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 
    d. The blueprint contains at least one ADR section under `## ADRs`.
 
-7. **If halt conditions met**, emit:
-   ```
+7. **If halt conditions met**, emit the promise marker AT THE VERY END of your response — **plain text, isolated on its own line, NO backticks, NO fenced code blocks, NO markdown wrapping**. Ralph-loop's regex matches the literal sequence outside of inline code. The correct emission (place exactly this on its own line at end of response):
+
    <promise>BLUEPRINT_COMPLETE</promise>
-   ```
-   Report: questions answered / questions blocked / iterations used / citations verified.
+
+   Wrapping the marker in backticks OR a fenced code block BREAKS detection and forces another iteration. After emitting, a one-paragraph summary may follow ABOVE the marker but the marker must be the last content. Report: questions answered / questions blocked / iterations used / citations verified.
 
 8. **If halt conditions NOT met**, do NOT emit the promise. The loop will resume. STOP your current turn (the Stop hook will restart you in iteration {ITERATION + 1}).
 
