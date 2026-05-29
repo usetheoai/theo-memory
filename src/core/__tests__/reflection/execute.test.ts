@@ -30,7 +30,7 @@ function mockMemory(id: string, text: string, scope: Scope): MemoryItem {
     text,
     hash: 'mock-hash',
     scope,
-    payload: {},
+    metadata: {},
     tValid: new Date('2026-05-26'),
     tInvalid: null,
     createdAt: new Date('2026-05-26'),
