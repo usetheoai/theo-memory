@@ -57,5 +57,5 @@ export interface ScoringWeights {
  *  - Handle min === max gracefully (no NaN; see AdditiveWeightedScoring T1.2 EC-8 docs)
  */
 export interface ScoringStrategy {
-  score(items: ReadonlyArray<ScoreInput>): readonly number[];
+  score(items: readonly ScoreInput[]): readonly number[];
 }

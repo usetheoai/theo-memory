@@ -16,6 +16,7 @@
  */
 import { ReflectionLLMResponseError } from '../errors.js';
 import type { Role } from '../message.js';
+
 import { buildReflectionPrompt } from './prompt.js';
 import type {
   DerivedMemoryDraft,
@@ -50,8 +51,9 @@ function parseDraftsResponse(raw: string): DerivedMemoryDraft[] {
       throw new ReflectionLLMResponseError(raw, `draft[${String(i)}].derived_from is not an array`);
     }
     const ids: string[] = [];
-    for (let j = 0; j < candidate.derived_from.length; j++) {
-      const id = candidate.derived_from[j];
+    const derivedFromArray = candidate.derived_from as unknown[];
+    for (let j = 0; j < derivedFromArray.length; j++) {
+      const id = derivedFromArray[j];
       if (typeof id !== 'string') {
         throw new ReflectionLLMResponseError(
           raw,

@@ -17,8 +17,8 @@
  *
  * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T5.1
  */
-import { ImportanceScoringError } from '../errors.js';
 import type { LLM } from '../dip/llm.js';
+import { ImportanceScoringError } from '../errors.js';
 
 /** Prompt version. Bump on prompt-shape change. See EC-16 for invalidation policy. */
 export const IMPORTANCE_PROMPT_VERSION = '1.0';
