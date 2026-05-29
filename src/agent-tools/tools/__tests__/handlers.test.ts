@@ -151,7 +151,11 @@ describe('dispatch handlers — happy paths (T5.1)', () => {
 
   it('reflect handler invokes ScopedMemory.reflect', async () => {
     const scoped = mockScopedMemory();
-    vi.mocked(scoped.reflect).mockResolvedValue({ higherOrderMemories: [], sourceIds: [] });
+    vi.mocked(scoped.reflect).mockResolvedValue({
+      higherOrderMemories: [],
+      sourceIds: [],
+      derivedMemoriesCreated: 0,
+    });
     const memory = mockMemory(scoped);
 
     const result = await withScope(ALICE_CTX, () =>
