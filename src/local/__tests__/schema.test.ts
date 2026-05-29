@@ -19,6 +19,7 @@ describe('memories table', () => {
     const colNames = cfg.columns.map((c) => c.name).sort();
     expect(colNames).toEqual(
       [
+        // v0.1
         'id',
         'text',
         'hash',
@@ -32,6 +33,10 @@ describe('memories table', () => {
         'text_lemmatized',
         'created_at',
         'updated_at',
+        // v0.4a additions (T0.2 — see schema-v0-4a.test.ts for ADR D6/D8 details)
+        'kind',
+        'derived_from',
+        'llm_importance_score',
       ].sort(),
     );
   });
