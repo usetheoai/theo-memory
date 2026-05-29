@@ -12,7 +12,7 @@
  * pass through unaltered). Multilingual support deferred to v0.2+.
  *
  * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § Recommendation 3
- * @see referencia/REDACTED/reference TS port/src/oss/src/utils/lemmatization.ts:246-278
+ * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/utils/lemmatization.ts:246-278
  */
 
 // Try to load `natural` (optional peer). Use createRequire for CommonJS interop

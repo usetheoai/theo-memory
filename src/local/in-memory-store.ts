@@ -182,4 +182,68 @@ export class InMemoryVectorStore implements VectorStore {
   async setUserId(userId: string): Promise<void> {
     this.currentUserId = userId;
   }
+
+  /**
+   * Look up the cached importance score by content hash (parity with
+   * PgvectorStore.getImportanceByHash). Per plan T5.2 + ADR D8.
+   */
+  async getImportanceByHash(hash: string): Promise<number | null> {
+    for (const row of this.rows.values()) {
+      if (row.payload['hash'] === hash) {
+        const score = row.payload['llm_importance_score'];
+        if (typeof score === 'number') {
+          return score;
+        }
+        return null;
+      }
+    }
+    await Promise.resolve();
+    return null;
+  }
+
+  /** Persist a cached importance score (parity). */
+  async setImportanceByHash(hash: string, score: number): Promise<void> {
+    for (const row of this.rows.values()) {
+      if (row.payload['hash'] === hash) {
+        (row.payload as Record<string, string | number | boolean | null>)[
+          'llm_importance_score'
+        ] = score;
+        await Promise.resolve();
+        return;
+      }
+    }
+  }
+
+  /**
+   * Persist a derived memory (parity with PgvectorStore.insertDerivedMemory)
+   * per plan T4.3 + ADR D6 + ADR D7. In-memory adapter stores kind +
+   * derived_from in payload (no schema columns).
+   */
+  async insertDerivedMemory(args: {
+    text: string;
+    hash: string;
+    embedding: readonly number[];
+    derivedFrom: readonly string[];
+    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+  }): Promise<string> {
+    const id = `derived-${String(this.rows.size)}-${Date.now()}-${String(Math.random()).slice(2, 8)}`;
+    const payload: Payload = {
+      text: args.text,
+      hash: args.hash,
+      kind: 'derived',
+      derived_from: JSON.stringify([...args.derivedFrom]),
+    };
+    if (args.scope.userId !== undefined && args.scope.userId !== null) {
+      payload['user_id'] = args.scope.userId;
+    }
+    if (args.scope.sessionId !== undefined && args.scope.sessionId !== null) {
+      payload['session_id'] = args.scope.sessionId;
+    }
+    if (args.scope.agentId !== undefined && args.scope.agentId !== null) {
+      payload['agent_id'] = args.scope.agentId;
+    }
+    this.rows.set(id, { vector: args.embedding, payload });
+    await Promise.resolve();
+    return id;
+  }
 }
