@@ -44,14 +44,14 @@ test('ScoringWeights.importance is a number', () => {
 
 test('ScoringStrategy.score is REQUIRED (no `?`)', () => {
   expectTypeOf<ScoringStrategy['score']>().parameters.toEqualTypeOf<
-    [ReadonlyArray<ScoreInput>]
+    [readonly ScoreInput[]]
   >();
   expectTypeOf<ScoringStrategy['score']>().returns.toEqualTypeOf<readonly number[]>();
 });
 
 test('minimal stub implementing only score compiles', () => {
   class MinimalStub implements ScoringStrategy {
-    score(items: ReadonlyArray<ScoreInput>): readonly number[] {
+    score(items: readonly ScoreInput[]): readonly number[] {
       return items.map(() => 0);
     }
   }

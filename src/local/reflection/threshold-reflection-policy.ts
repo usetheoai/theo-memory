@@ -18,11 +18,11 @@
  * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D8
  */
 
-import { EmptyScopeError } from '../../core/errors.js';
 import type {
   ReflectionPolicy,
   ReflectionTrigger,
 } from '../../core/dip/reflection-policy.js';
+import { EmptyScopeError } from '../../core/errors.js';
 import type { Scope } from '../../core/scope.js';
 import type { PgvectorStore } from '../pgvector-store.js';
 
@@ -86,7 +86,8 @@ export class ThresholdReflectionPolicy implements ReflectionPolicy {
     this.store = config.store;
   }
 
-  async shouldReflect(scope: Scope, _trigger: ReflectionTrigger): Promise<boolean> {
+  async shouldReflect(scope: Scope, trigger: ReflectionTrigger): Promise<boolean> {
+    void trigger;
     const tuple = scopeToCounterTuple(scope);
     if (isEmptyTuple(tuple)) {
       throw new EmptyScopeError();

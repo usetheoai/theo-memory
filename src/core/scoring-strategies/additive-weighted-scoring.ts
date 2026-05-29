@@ -21,12 +21,12 @@
  * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D9
  */
 
-import { InvalidScoringWeightsError } from '../errors.js';
 import type {
   ScoreInput,
   ScoringStrategy,
   ScoringWeights,
 } from '../dip/scoring-strategy.js';
+import { InvalidScoringWeightsError } from '../errors.js';
 
 /**
  * Default weights — uniform (recency = relevance = importance).
@@ -87,7 +87,7 @@ export class AdditiveWeightedScoring implements ScoringStrategy {
     this.weightSum = sum;
   }
 
-  score(items: ReadonlyArray<ScoreInput>): readonly number[] {
+  score(items: readonly ScoreInput[]): readonly number[] {
     if (items.length === 0) {
       return [];
     }
