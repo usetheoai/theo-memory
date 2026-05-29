@@ -107,6 +107,32 @@ export class EmptyScopeError extends Error {
 }
 
 /**
+ * @see plan v0-4a-reflection-pipeline § T3.1 EC-4
+ *
+ * Thrown by SleepTimeReflectionPolicy's constructor when the provided cron
+ * expression is empty OR cannot be parsed by `croner`. Validation is EAGER
+ * (at construction, not lazily at start()) so misconfiguration surfaces at
+ * boot — not on first tick.
+ *
+ * Exposes the providedExpression field so the caller can log / report the bad config.
+ */
+export class InvalidCronExpressionError extends Error {
+  override readonly name = 'InvalidCronExpressionError' as const;
+
+  readonly providedExpression: string;
+
+  constructor(providedExpression: string, options?: ErrorOptions) {
+    super(
+      `Invalid cron expression: ${providedExpression === '' ? '(empty string)' : `"${providedExpression}"`}. ` +
+        `Must be a valid croner-parseable cron expression (5 or 6 fields).`,
+      options,
+    );
+    this.providedExpression = providedExpression;
+    Object.setPrototypeOf(this, InvalidCronExpressionError.prototype);
+  }
+}
+
+/**
  * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
  *
  * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
