@@ -67,3 +67,37 @@ export async function scoreImportance(text: string, llm: LLM): Promise<number> {
   // Clamp to [1, 10]
   return Math.max(1, Math.min(10, parsed));
 }
+
+/**
+ * Hash-keyed importance score cache (T5.2 + ADR D8).
+ *
+ * Looks up `store.getImportanceByHash(hash)`; on hit returns the cached score
+ * WITHOUT invoking the LLM. On miss, computes via `scoreImportance`, persists
+ * via `store.setImportanceByHash`, returns the new score.
+ *
+ * CLAUDE.md Item 5 acceptance verbatim: "LLM-importance score persisted on
+ * first write; second-write same content does NOT re-invoke LLM."
+ *
+ * Wiring into the v0.1 extraction pipeline (`runExtractionPipeline`) is
+ * DEFERRED to F-importance-pipeline-wiring followup — this helper is the
+ * load-bearing primitive; pipeline integration is a downstream consumer.
+ */
+export interface ImportanceCacheStore {
+  getImportanceByHash(hash: string): Promise<number | null>;
+  setImportanceByHash(hash: string, score: number): Promise<void>;
+}
+
+export async function scoreAndCacheImportance(
+  text: string,
+  hash: string,
+  store: ImportanceCacheStore,
+  llm: LLM,
+): Promise<number> {
+  const cached = await store.getImportanceByHash(hash);
+  if (cached !== null) {
+    return cached;
+  }
+  const score = await scoreImportance(text, llm);
+  await store.setImportanceByHash(hash, score);
+  return score;
+}
