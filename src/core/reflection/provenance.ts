@@ -13,6 +13,7 @@
  * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T4.2
  */
 import { ReflectionProvenanceMissingError } from '../errors.js';
+
 import type { DerivedMemoryDraft } from './types.js';
 
 /**

@@ -25,7 +25,6 @@ import {
   bigserial,
   check,
   index,
-  integer,
   jsonb,
   pgTable,
   real,
