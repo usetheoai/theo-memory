@@ -189,6 +189,24 @@ export class ReflectionProvenanceMissingError extends Error {
 }
 
 /**
+ * @see plan v0-4a-reflection-pipeline § T5.1
+ *
+ * Thrown by scoreImportance() when the LLM response cannot be parsed into a
+ * number in [1, 10]. Exposes rawResponse for debugging.
+ */
+export class ImportanceScoringError extends Error {
+  override readonly name = 'ImportanceScoringError' as const;
+
+  readonly rawResponse: string;
+
+  constructor(rawResponse: string, message: string, options?: ErrorOptions) {
+    super(`Importance scoring error: ${message}`, options);
+    this.rawResponse = rawResponse;
+    Object.setPrototypeOf(this, ImportanceScoringError.prototype);
+  }
+}
+
+/**
  * @see ADR D4 — binding 3-state resolver fail-loud errors (plan v0-2-theokit-binding)
  *
  * Thrown by `@usetheo/memory/theokit`'s `memoryFromCtx` when consumer-supplied
