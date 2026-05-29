@@ -27,7 +27,7 @@ Each check produces PASS / WARN / FAIL. The overall verdict is the worst result 
 | Check | What it asserts | Failure level |
 |---|---|---|
 | **Frontmatter conformance** | Required fields present (`name`, `description`, `user-invocable`, `allowed-tools`, `generated-from-blueprint`, `generated-at`); allowed-tools is read-only (no Bash, no Write outside specific permits) | FAIL → REJECT |
-| **Citation existence** | Every `referencia/{path}` in SKILL.md exists on disk (Path.exists()) | FAIL → REJECT |
+| **Citation existence** | Every `.claude/knowledge-base/references/{path}` in SKILL.md exists on disk (Path.exists()) | FAIL → REJECT |
 | **No duplication** | `name` field does NOT collide with an existing skill in `.claude/skills/` (production) — case-insensitive | FAIL → REJECT |
 | **Description trigger-phrase clarity** | `description` contains at least 2 specific "Use when..." phrases AND ≥1 reference to a concrete context (a path, a domain term, a project rule) | WARN → NEEDS_REVIEW |
 | **No forbidden patterns** | No `Bash(` permissions, no `Write` outside `Read` family, no shell-execution patterns, no fabricated source paths in `generated-from-blueprint` | FAIL → REJECT |

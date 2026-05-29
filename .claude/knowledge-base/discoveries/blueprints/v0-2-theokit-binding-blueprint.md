@@ -1,6 +1,6 @@
 # Blueprint: v0.2 — TheoKit binding (`@usetheo/memory/theokit`)
 
-> **Version 1.0** — Technical synthesis of how `../theokit/` exposes request context + middleware contract + scaffolding mechanism, plus how `referencia/mem0/` and `referencia/letta/` solve framework binding precedent. Informs the v0.2 `/to-plan` for the `@usetheo/memory/theokit` subpath that auto-resolves `user_id` / `session_id` / `agent_id` from TheoKit request context and ships default-on in scaffolded TheoKit apps.
+> **Version 1.0** — Technical synthesis of how `../theokit/` exposes request context + middleware contract + scaffolding mechanism, plus how `.claude/knowledge-base/references/mem0/` and `.claude/knowledge-base/references/letta/` solve framework binding precedent. Informs the v0.2 `/to-plan` for the `@usetheo/memory/theokit` subpath that auto-resolves `user_id` / `session_id` / `agent_id` from TheoKit request context and ships default-on in scaffolded TheoKit apps.
 
 **Slug:** `v0-2-theokit-binding`
 **Source plan:** `.claude/knowledge-base/discoveries/plans/v0-2-theokit-binding-plan.md` (v1.0)
@@ -28,18 +28,18 @@ Enable `/to-plan v0-2-theokit-binding` to lock concrete decisions for: (a) bindi
 
 Three sources interrogated:
 
-1. **TypeScript SDK integrations dir** (`referencia/mem0/mem0-ts/src/community/src/integrations/`): contains exactly ONE subdirectory — `langchain/` — with 2 files: `index.ts` + `mem0.ts`. The pattern is converting Mem0 `Memory[]` results into LangChain `BaseMessage[]` for use inside a chain's prompt context (`referencia/mem0/mem0-ts/src/community/src/integrations/langchain/mem0.ts:31-44` — `mem0MemoryContextToSystemPrompt`). This is NOT a server adapter; it's an LLM-prompt-shape adapter. Consumer still calls `MemoryClient.add()` directly from their handler.
+1. **TypeScript SDK integrations dir** (`.claude/knowledge-base/references/mem0/mem0-ts/src/community/src/integrations/`): contains exactly ONE subdirectory — `langchain/` — with 2 files: `index.ts` + `mem0.ts`. The pattern is converting Mem0 `Memory[]` results into LangChain `BaseMessage[]` for use inside a chain's prompt context (`.claude/knowledge-base/references/mem0/mem0-ts/src/community/src/integrations/langchain/mem0.ts:31-44` — `mem0MemoryContextToSystemPrompt`). This is NOT a server adapter; it's an LLM-prompt-shape adapter. Consumer still calls `MemoryClient.add()` directly from their handler.
 
-2. **OSS examples** (`referencia/mem0/mem0-ts/src/oss/examples/basic.ts:1-40`): canonical usage shows `const memory = new Memory(); await memory.add(text, { userId: "john" });` — the consumer hardcodes `userId` in their own code or passes it via their own scoping mechanism. Zero framework-binding indirection.
+2. **OSS examples** (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/examples/basic.ts:1-40`): canonical usage shows `const memory = new Memory(); await memory.add(text, { userId: "john" });` — the consumer hardcodes `userId` in their own code or passes it via their own scoping mechanism. Zero framework-binding indirection.
 
-3. **Mem0's Python FastAPI server** (`referencia/mem0/server/main.py:351-356`):
+3. **Mem0's Python FastAPI server** (`.claude/knowledge-base/references/mem0/server/main.py:351-356`):
    ```python
    if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
        raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
    ...
    response = get_memory_instance().add(messages=[m.model_dump() for m in memory_create.messages], **params)
    ```
-   The auth layer (`referencia/mem0/server/auth.py:145` — `verify_auth`) returns a `User` object via FastAPI `Depends()`, but route handlers do NOT pipe `user.id` into `memory.add()`. Instead, the request body (`MemoryCreate.user_id`) carries the scope explicitly. The auth pattern guards access; scope still travels in the payload.
+   The auth layer (`.claude/knowledge-base/references/mem0/server/auth.py:145` — `verify_auth`) returns a `User` object via FastAPI `Depends()`, but route handlers do NOT pipe `user.id` into `memory.add()`. Instead, the request body (`MemoryCreate.user_id`) carries the scope explicitly. The auth pattern guards access; scope still travels in the payload.
 
 **Implication for TheMemory v0.2 binding**: there is NO Mem0 precedent to port for "auto-resolve user_id from auth context and pass to `memory.add()`". The TheoKit binding will be the first adapter in this design space. The closest precedent is Mem0's `verify_auth → User`, but the link from `User` to `memory.add(user_id=...)` is left to the handler author — not automated.
 
@@ -49,9 +49,9 @@ Three sources interrogated:
 
 Five sources interrogated:
 
-1. **`HeaderParams` Pydantic model** (`referencia/letta/letta/server/rest_api/dependencies.py:30-39`): declares `actor_id`, `user_agent`, `project_id`, `letta_source`, `sdk_version`, `experimental_params`, `billing_context`. The `actor_id` is the per-request user identifier.
+1. **`HeaderParams` Pydantic model** (`.claude/knowledge-base/references/letta/letta/server/rest_api/dependencies.py:30-39`): declares `actor_id`, `user_agent`, `project_id`, `letta_source`, `sdk_version`, `experimental_params`, `billing_context`. The `actor_id` is the per-request user identifier.
 
-2. **`get_headers` dependency function** (`referencia/letta/letta/server/rest_api/dependencies.py:41-44`):
+2. **`get_headers` dependency function** (`.claude/knowledge-base/references/letta/letta/server/rest_api/dependencies.py:41-44`):
    ```python
    def get_headers(
        actor_id: Optional[str] = Header(None, alias="user_id"),
@@ -62,7 +62,7 @@ Five sources interrogated:
    ```
    FastAPI's `Header()` declarator parses the request header `user_id` (or `X-Project-Id`, etc.) into the function arg. Validation happens inline (line 56: `PRIMITIVE_ID_PATTERNS[PrimitiveType.USER.value].match(actor_id)`).
 
-3. **Route consumption** (`referencia/letta/letta/server/rest_api/routers/v1/voice.py:36-37`):
+3. **Route consumption** (`.claude/knowledge-base/references/letta/letta/server/rest_api/routers/v1/voice.py:36-37`):
    ```python
    async def create_voice_chat_completions(
        agent_id: str,
@@ -72,15 +72,15 @@ Five sources interrogated:
    ```
    Two DI dependencies per handler — `server` (the singleton `SyncServer` instance) + `headers` (per-request scope). Path params (`agent_id`) come from the URL. No `request: Request` arg unless the handler needs body/streaming control.
 
-4. **Auth is SEPARATE from scope** (`referencia/letta/letta/server/rest_api/auth_token.py:11-22`): `get_current_user` returns `uuid.UUID` for ADMIN Bearer-token auth, but it's NOT chained into `get_headers`. The per-request user_id for memory scoping flows from the `user_id` HEADER (consumer-supplied), independent of the Bearer auth identity.
+4. **Auth is SEPARATE from scope** (`.claude/knowledge-base/references/letta/letta/server/rest_api/auth_token.py:11-22`): `get_current_user` returns `uuid.UUID` for ADMIN Bearer-token auth, but it's NOT chained into `get_headers`. The per-request user_id for memory scoping flows from the `user_id` HEADER (consumer-supplied), independent of the Bearer auth identity.
 
-5. **`request.state` is auxiliary** (`referencia/letta/letta/server/rest_api/middleware/request_id.py:62-64`, `middleware/logging.py:146-149`): used to store `request_id` (for streaming-response correlation where Python contextvars don't propagate) and `user_id`/`org_id` for logging context. NOT the primary scope-propagation mechanism — that's `Depends(get_headers)`.
+5. **`request.state` is auxiliary** (`.claude/knowledge-base/references/letta/letta/server/rest_api/middleware/request_id.py:62-64`, `middleware/logging.py:146-149`): used to store `request_id` (for streaming-response correlation where Python contextvars don't propagate) and `user_id`/`org_id` for logging context. NOT the primary scope-propagation mechanism — that's `Depends(get_headers)`.
 
 **Implication for TheMemory v0.2 binding**:
 - Letta confirms the "arg-passed structured object" pattern for per-request scope — same shape as TheoKit's `handler({ ctx, request, ... })`, just via a different FastAPI primitive (`Depends`).
 - The primitive choice (Depends vs arg) is framework-determined; the SHAPE (one structured object containing scope IDs, separate from auth) is portable.
 - TheoKit binding should NOT chain to auth output — let consumer's middleware do the auth → ctx assembly; binding reads from `ctx.session.userId` directly, mirroring Letta's "headers carry scope" decoupling.
-- Test pattern: `referencia/letta/tests/test_sdk_client.py:1-50` uses a real server-in-thread fixture + `LettaSDKClient` against `localhost:8283`. For TheoKit binding tests, the equivalent is an in-process TheoKit `defineRoute` invocation with a mocked `ctx` — no server-in-thread needed (TheoKit doesn't have a SDK client to test against).
+- Test pattern: `.claude/knowledge-base/references/letta/tests/test_sdk_client.py:1-50` uses a real server-in-thread fixture + `LettaSDKClient` against `localhost:8283`. For TheoKit binding tests, the equivalent is an in-process TheoKit `defineRoute` invocation with a mocked `ctx` — no server-in-thread needed (TheoKit doesn't have a SDK client to test against).
 
 ### LangMem
 
@@ -402,7 +402,7 @@ Two-phase evidence:
 | Consumer code verbosity | Higher — every handler must thread `ctx` to `memoryFromCtx(ctx)`. AsyncLocalStorage would hide this, but TheoKit's choice is explicit-over-implicit. The binding inherits this trade-off. |
 | Memory instance lifecycle | Memory instance is `app-scoped` (created once at startup, captured in closure or imported as singleton); per-REQUEST scoping happens via `memoryFromCtx(ctx, memory)` returning a scoped view. Mirrors v0.1's `memory.user(id)` factory (shipped 2026-05-23). |
 
-**Implication for `referencia/` precedent comparison**:
+**Implication for `.claude/knowledge-base/references/` precedent comparison**:
 
 | Project | Propagation mechanism | Per-request isolation |
 |---|---|---|
@@ -601,7 +601,7 @@ A consolidated side-by-side view across the binding target + precedents:
 | E2E | `create-theo --template=saas` scaffolds; the scaffolded app's demo `memory.ts` route accepts a POST and persists under correct userId | Spawn scaffolded app in subprocess + HTTP client + assert via DB query |
 
 **Alternatives considered:**
-- (A) Server-in-thread fixture (Letta-style, Q2 evidence `referencia/letta/tests/test_sdk_client.py:1-50`) — REJECTED (TheoKit has no SDK client to test against; overkill).
+- (A) Server-in-thread fixture (Letta-style, Q2 evidence `.claude/knowledge-base/references/letta/tests/test_sdk_client.py:1-50`) — REJECTED (TheoKit has no SDK client to test against; overkill).
 - (B) Skip E2E entirely; trust integration tests — REJECTED (acceptance criterion from discovery plan mandates "Scaffolded template snapshot test" + "E2E with HTTP request").
 - (C) Selected: 3-layer pyramid — derived from Q2 (Letta tests) + Q4 (scaffolding snapshot).
 
@@ -638,7 +638,7 @@ A consolidated side-by-side view across the binding target + precedents:
 - Iterations used: 7 / 30
 - Questions answered: 7 / 7
 - Questions blocked: 0
-- Citations verified: all referencia/ + ../theokit/ paths confirmed via `Path.exists()`
+- Citations verified: all .claude/knowledge-base/references/ + ../theokit/ paths confirmed via `Path.exists()`
 - Promise emitted at iteration: 7
 
 ## Related

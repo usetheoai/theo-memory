@@ -304,7 +304,7 @@ task_table:
         - production-ready: only matches in README pre-existing competitive table (excluded by post-filter)
         - emoji: only matches in README pre-existing competitive table (✓/✗ check marks); plan
           gate scopes to "added by this plan" via git diff — confirmed clean per validate report
-        - referencia/ existence: one false-positive ("referencia/mem0/..." literal ellipsis used
+        - .claude/knowledge-base/references/ existence: one false-positive (".claude/knowledge-base/references/mem0/..." literal ellipsis used
           as inline citation prose in the plan); not a real path. All real paths resolve.
 
 findings:

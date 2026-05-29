@@ -9,7 +9,7 @@
 # Does NOT apply to:
 #   - docs/exploration-reports/*.md  (technical, can mention Mem0/Qdrant/pgvector by name)
 #   - CLAUDE.md, CHANGELOG.md, source code
-#   - referencia/** (already blocked by boundary-check)
+#   - .claude/knowledge-base/references/** (already blocked by boundary-check)
 #
 # Banned terms (cross-referenced to CLAUDE.md):
 #   - "Mem0-clone" / "Mem0 clone"          → Architecture is Mem0-SHAPE, not clone (root override 2026-05-21).

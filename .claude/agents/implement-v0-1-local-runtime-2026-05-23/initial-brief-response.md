@@ -18,7 +18,7 @@ Generated 2026-05-23 (initial brief). Agent ID: `aaed38c487866ac35` (continuable
 
 - **[INFO]** Phase count nomenclature: brief preamble says "8 phases" (referring to Mem0 write pipeline), plan body says "Phase 0-8" (= 9 plan phases). Plan v1.2 D1.0 explicitly says "8 named Mem0 pipeline phases (numbered 0 through 8 with 4-5 merged as dedup+payload) inside T4.3" — clean. But T4.3 test `test_pipeline_emits_8_completed_events` needs to reconcile: if phases 0+1 are merged in actual events, that's 7 + entity-link + save-messages = 9 names. Lock the mapping at T4.3 pre-RED.
 
-- **[INFO]** T4.1 reads Mem0 prompt content from `referencia/mem0/mem0-ts/src/oss/src/prompts/` — surface the exact filename at T4.1 pre-RED to prevent drift from blueprint Recommendation 5.
+- **[INFO]** T4.1 reads Mem0 prompt content from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/prompts/` — surface the exact filename at T4.1 pre-RED to prevent drift from blueprint Recommendation 5.
 
 - **[INFO]** T7.1 dimension probe uses literal string `'__themem_probe__'`. Verify it's reserved (never user-supplied) and that embedder stubs return deterministic 1536-dim for ANY input.
 

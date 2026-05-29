@@ -61,11 +61,11 @@ def test_question_count_below_min_detected(under_budget_plan: Path) -> None:
 def test_question_count_above_max_detected(tmp_path: Path) -> None:
     """11 Qs is above the 5-10 budget. Build a synthetic plan inline."""
     rows = "\n".join(
-        f"| Q{i} | q | tests | `referencia/mem0/` | SKIP | Read | text |" for i in range(1, 12)
+        f"| Q{i} | q | tests | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |" for i in range(1, 12)
     )
     body = (
         "# Discovery Plan: Over Budget\n\n## Context\n\nx\n\n## Objective\n\nx\n\n"
-        "## In-Scope / Out-of-Scope\n\n| P | In | Why |\n|---|---|---|\n| `referencia/mem0/` | x | y |\n\n"
+        "## In-Scope / Out-of-Scope\n\n| P | In | Why |\n|---|---|---|\n| `.claude/knowledge-base/references/mem0/` | x | y |\n\n"
         "## ADRs\n\n### D1 — x\n\n**Decision:** x.\n\n### D2 — x\n\n**Decision:** x.\n\n"
         "## Research Questions\n\n"
         "| # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |\n"
@@ -86,17 +86,17 @@ def test_question_count_above_max_detected(tmp_path: Path) -> None:
 def test_per_corner_max_exceeded_detected(tmp_path: Path) -> None:
     """4 Qs in one corner (tests) violates per-corner max (3)."""
     rows = "\n".join(
-        f"| Q{i} | q | tests | `referencia/mem0/` | SKIP | Read | text |" for i in range(1, 5)
+        f"| Q{i} | q | tests | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |" for i in range(1, 5)
     )
     body = (
         "# Discovery Plan: Corner Overflow\n\n## Context\n\nx\n\n## Objective\n\nx\n\n"
-        "## In-Scope / Out-of-Scope\n\n| P | In | Why |\n|---|---|---|\n| `referencia/mem0/` | x | y |\n\n"
+        "## In-Scope / Out-of-Scope\n\n| P | In | Why |\n|---|---|---|\n| `.claude/knowledge-base/references/mem0/` | x | y |\n\n"
         "## ADRs\n\n### D1 — x\n\n**Decision:** x.\n\n### D2 — x\n\n**Decision:** x.\n\n"
         "## Research Questions\n\n"
         "| # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |\n"
         "|---|---|---|---|---|---|---|\n"
         f"{rows}\n"
-        "| Q5 | q | deps | `referencia/mem0/` | SKIP | Read | text |\n\n"
+        "| Q5 | q | deps | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |\n\n"
         "## Coverage Matrix\n\n| Corner | Q | Status |\n|---|---|---|\n"
         "| Integration tests | Q1, Q2, Q3, Q4 | x |\n"
         "| Dependencies | Q5 | x |\n"

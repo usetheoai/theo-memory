@@ -84,4 +84,4 @@ If a caller invokes `reflect()` without configuring a policy, throw `ReflectionN
 - Roadmap Item 5 (`v0.4a — Reflection pipeline`) — destination for `ThresholdReflectionPolicy` + `SleepTimeReflectionPolicy`.
 - ADR-0004 (`reflect` locked as a public verb).
 - ADR-0008 (DIP method counts — `ReflectionPolicy` interface shape).
-- `referencia/letta/letta/orm/` — Letta's sleep-time agent reference (no `t_valid` columns; sleep-time worker is the trigger mechanism).
+- `.claude/knowledge-base/references/letta/letta/orm/` — Letta's sleep-time agent reference (no `t_valid` columns; sleep-time worker is the trigger mechanism).

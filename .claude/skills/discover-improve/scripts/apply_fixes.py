@@ -6,8 +6,8 @@ Idempotent. Same input always produces same output. Cost: $0.
 Fixes applied (in order):
   1. Weak imperatives in prose: should/could/may/might/deveria/poderia → must/can/deve/pode
   2. Loopholes stripped: "if possible", "as appropriate", "se possível", "quando aplicável", ...
-  3. Fabricated citations: paths in `referencia/{...}` that don't exist on disk are
-     marked with `<!-- BLOCKED: path not found in referencia/ -->`
+  3. Fabricated citations: paths in `.claude/knowledge-base/references/{...}` that don't exist on disk are
+     marked with `<!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->`
 
 Code blocks (```...```) are skipped — fixes only apply to prose.
 """
@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 
-CITATION_RE = re.compile(r"referencia/[A-Za-z0-9_\-./]+")
+CITATION_RE = re.compile(r".claude/knowledge-base/references/[A-Za-z0-9_\-./]+")
 LINE_SUFFIX_RE = re.compile(r":\d+(:\d+)?$")
 WEAK_IMPERATIVES_RE = re.compile(
     r"\b(should|could|may|might|deveria|poderia|talvez|possivelmente|deveriam|poderiam)\b",
@@ -134,7 +134,7 @@ def _mark_fabricated_citations(content: str, blueprint_path: Path) -> tuple[str,
         already_blocked = bool(BLOCKED_MARKER_RE.search(following))
 
         if not already_blocked and not is_real(cit):
-            out_parts.append(f"{cit} <!-- BLOCKED: path not found in referencia/ -->")
+            out_parts.append(f"{cit} <!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->")
             counter += 1
         else:
             out_parts.append(cit)

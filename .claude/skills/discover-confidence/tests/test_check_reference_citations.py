@@ -15,7 +15,7 @@ def test_good_blueprint_all_citations_verified(good_blueprint: Path) -> None:
 
 
 def test_synthetic_no_citations_passes(synthetic_blueprint: Path) -> None:
-    """When blueprint has zero referencia/ citations, that's not a failure."""
+    """When blueprint has zero .claude/knowledge-base/references/ citations, that's not a failure."""
     report = check_reference_citations(synthetic_blueprint)
     assert report["total"] == 0
     assert report["fabricated"] == 0
@@ -25,7 +25,7 @@ def test_fabricated_citation_detected(tmp_path: Path, project_root: Path) -> Non
     bp = tmp_path / "fab.md"
     bp.write_text(
         "# Blueprint: Test\n\n"
-        "We cite a fake path: referencia/mem0/this-does-not-exist.py:42\n",
+        "We cite a fake path: .claude/knowledge-base/references/mem0/this-does-not-exist.py:42\n",
         encoding="utf-8",
     )
     # Use the real project root so the path lookup is consistent
@@ -46,7 +46,7 @@ def test_blocked_citation_not_counted_as_fabricated(tmp_path: Path, project_root
     bp = tmp_path / "blocked.md"
     bp.write_text(
         "# Blueprint: Test\n\n"
-        "We cite a fake path: referencia/mem0/this-does-not-exist.py:42 <!-- BLOCKED: path not found in referencia/ -->\n",
+        "We cite a fake path: .claude/knowledge-base/references/mem0/this-does-not-exist.py:42 <!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->\n",
         encoding="utf-8",
     )
     import check_reference_citations as crc

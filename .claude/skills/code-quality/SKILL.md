@@ -157,7 +157,7 @@ Per [`code-quality-golden-rule.md § Severity rubric`](../../rules/code-quality-
 3. **NEVER fabricate findings** — every Finding MUST come from a real detector run (subprocess + parse).
 4. **NEVER claim "no dead code" when D1 auditor failed** — emit `auditor_unavailable_{tool}` SOFT_CAP honestly.
 5. **NEVER consume the allowlist silently for malformed entries** — emit `allowlist_malformed_entry` HARD (EC-4).
-6. **NEVER scan `referencia/`** — `DEFAULT_SKIP_DIRS` covers it; read-only zone for the entire ecosystem.
+6. **NEVER scan `.claude/knowledge-base/references/`** — `DEFAULT_SKIP_DIRS` covers it; read-only zone for the entire ecosystem.
 
 ---
 

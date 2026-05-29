@@ -21,7 +21,7 @@ Cause `check_plan_completeness` to report `adr_count == 0`.
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `referencia/mem0/` | top-level | Reference |
+| `.claude/knowledge-base/references/mem0/` | top-level | Reference |
 
 ### Out-of-Scope
 
@@ -37,11 +37,11 @@ Cause `check_plan_completeness` to report `adr_count == 0`.
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | tests q | tests | `referencia/mem0/` | SKIP | Read | text |
-| Q2 | deps q | deps | `referencia/mem0/` | SKIP | Read | text |
-| Q3 | tools q | tools | `referencia/mem0/` | SKIP | Read | text |
-| Q4 | tech q | techniques | `referencia/mem0/` | ast-grep | Read | text |
-| Q5 | tech q2 | techniques | `referencia/mem0/` | ast-grep | Read | text |
+| Q1 | tests q | tests | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |
+| Q2 | deps q | deps | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |
+| Q3 | tools q | tools | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |
+| Q4 | tech q | techniques | `.claude/knowledge-base/references/mem0/` | ast-grep | Read | text |
+| Q5 | tech q2 | techniques | `.claude/knowledge-base/references/mem0/` | ast-grep | Read | text |
 
 ## Coverage Matrix
 

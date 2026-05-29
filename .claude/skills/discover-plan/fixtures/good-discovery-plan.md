@@ -30,14 +30,14 @@ Success criteria for the blueprint:
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `referencia/mem0/mem0-ts/` | `src/oss/src/memory/`, `src/oss/src/llms/`, `src/oss/src/prompts/` (if exists) | Where extraction happens |
+| `.claude/knowledge-base/references/mem0/mem0-ts/` | `src/oss/src/memory/`, `src/oss/src/llms/`, `src/oss/src/prompts/` (if exists) | Where extraction happens |
 
 ### Out-of-Scope
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `referencia/mem0/mem0-ts/src/client/` | API client, not extraction logic |
-| `referencia/letta/`, `referencia/langmem/` | Different write architectures — separate discoveries |
+| `.claude/knowledge-base/references/mem0/mem0-ts/src/client/` | API client, not extraction logic |
+| `.claude/knowledge-base/references/letta/`, `.claude/knowledge-base/references/langmem/` | Different write architectures — separate discoveries |
 | Mem0 docs and marketing | Not authoritative — code is source of truth |
 
 ## ADRs
@@ -60,11 +60,11 @@ Success criteria for the blueprint:
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | Where is the extraction prompt defined? | techniques | `referencia/mem0/mem0-ts/` | `ast-grep run --pattern 'const $NAME = `$$$`' --lang typescript referencia/mem0/mem0-ts/src/` for template literals; OR Grep `EXTRACTION_PROMPT` | Read the file(s) holding the prompt verbatim | Prompt body + citation `mem0-ts/src/.../prompts.ts:N` |
-| Q2 | How is the prompt rendered with conversation context? | techniques | `referencia/mem0/mem0-ts/` | Reuse Q1 hotspots; `ast-grep run --pattern 'replace($$$)' --lang typescript` | Read the call site of the prompt render | Diagram: input → render → output |
-| Q3 | What model parameters (temperature, max_tokens, etc.) does Mem0 use for extraction? | deps | `referencia/mem0/mem0-ts/` | `ast-grep run --pattern '$OBJ.generateResponse($$$)' --lang typescript referencia/mem0/mem0-ts/src/` | Read each call site for params | Table: param → value → rationale (if commented) |
-| Q4 | How is extraction integration-tested? Real LLM? Stubs? | tests | `referencia/mem0/mem0-ts/` | `ast-grep run --pattern 'describe($$$, ($$$) => { $$$ })' --lang typescript referencia/mem0/mem0-ts/tests/` | Read 2-3 extraction-related test blocks | Fixture pattern + assertion style |
-| Q5 | Are there test commands or local-dev scripts specific to extraction? | tools | `referencia/mem0/mem0-ts/` | SKIP Fase A — text-shape. Read `package.json` scripts; Glob for `*extraction*` | Read each found file | Step list: how to run extraction tests locally |
+| Q1 | Where is the extraction prompt defined? | techniques | `.claude/knowledge-base/references/mem0/mem0-ts/` | `ast-grep run --pattern 'const $NAME = `$$$`' --lang typescript .claude/knowledge-base/references/mem0/mem0-ts/src/` for template literals; OR Grep `EXTRACTION_PROMPT` | Read the file(s) holding the prompt verbatim | Prompt body + citation `mem0-ts/src/.../prompts.ts:N` |
+| Q2 | How is the prompt rendered with conversation context? | techniques | `.claude/knowledge-base/references/mem0/mem0-ts/` | Reuse Q1 hotspots; `ast-grep run --pattern 'replace($$$)' --lang typescript` | Read the call site of the prompt render | Diagram: input → render → output |
+| Q3 | What model parameters (temperature, max_tokens, etc.) does Mem0 use for extraction? | deps | `.claude/knowledge-base/references/mem0/mem0-ts/` | `ast-grep run --pattern '$OBJ.generateResponse($$$)' --lang typescript .claude/knowledge-base/references/mem0/mem0-ts/src/` | Read each call site for params | Table: param → value → rationale (if commented) |
+| Q4 | How is extraction integration-tested? Real LLM? Stubs? | tests | `.claude/knowledge-base/references/mem0/mem0-ts/` | `ast-grep run --pattern 'describe($$$, ($$$) => { $$$ })' --lang typescript .claude/knowledge-base/references/mem0/mem0-ts/tests/` | Read 2-3 extraction-related test blocks | Fixture pattern + assertion style |
+| Q5 | Are there test commands or local-dev scripts specific to extraction? | tools | `.claude/knowledge-base/references/mem0/mem0-ts/` | SKIP Fase A — text-shape. Read `package.json` scripts; Glob for `*extraction*` | Read each found file | Step list: how to run extraction tests locally |
 
 ## Coverage Matrix
 
@@ -81,7 +81,7 @@ Success criteria for the blueprint:
 
 | Checkpoint | Assertion | Action if fails |
 |---|---|---|
-| Before answering any Q | `referencia/mem0/mem0-ts/src/` exists | Mark Q BLOCKED with reason "path not found" |
+| Before answering any Q | `.claude/knowledge-base/references/mem0/mem0-ts/src/` exists | Mark Q BLOCKED with reason "path not found" |
 | Per-question Fase A budget | At least one hotspot OR 3 retries | BLOCKED with reason "Fase A exhausted" |
 | Per-project time budget | 3h not exhausted | Mark remaining BLOCKED with reason "budget exhausted" |
 | Before promising complete | All 4 corners populated AND verbatim prompt captured (Q1) | Refuse promise |

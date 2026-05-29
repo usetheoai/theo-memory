@@ -11,7 +11,7 @@ domain_specific_patterns_checked:
 verdict: PASS_NO_BLOCKERS
 summary: |
   The memory-layer domain review validates Mem0-shape architecture fidelity against
-  referencia/mem0/mem0-ts/src/oss/src/{vector_stores,llms,embeddings,storage}/base.ts.
+  .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/{vector_stores,llms,embeddings,storage}/base.ts.
   All five DIPs (VectorStore, LLM, Embedder, HistoryManager, ReflectionPolicy) match
   Mem0 method counts per ADR-0008. Three-tier scope (ADR-0002) correctly maps to Mem0's
   user_id/agent_id/run_id filter shape (run_id → session_id rename only). Type contract
@@ -31,25 +31,25 @@ notes: |
   1. VectorStore DIP (src/core/dip/vector-store.ts)
      - 11 required methods: initialize, insert, search, keywordSearch, get, update,
        delete, deleteCol, list, getUserId, setUserId
-     - Matches referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts 1:1
+     - Matches .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts 1:1
      - Signature enhancement: payloads typed as Readonly<Record<string, string|number|boolean|null>>
        (Mem0 uses Record<string, any>) — tighter typing is strengthening, not divergence
      - Required method keywordSearch retained (ADR-0001)
 
   2. Embedder DIP (src/core/dip/embedder.ts)
      - 2 required methods: embed, embedBatch
-     - Matches referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts
+     - Matches .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/embeddings/base.ts
      - Return types readonly arrays (immutability stricture, compatible)
 
   3. LLM DIP (src/core/dip/llm.ts)
      - 2 required methods: generateResponse, generateChat
-     - Matches referencia/mem0/mem0-ts/src/oss/src/llms/base.ts
+     - Matches .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/llms/base.ts
      - Signature enhancement: responseFormat.type typed as 'json'|'text' (Mem0 uses string)
      - tools parameter opaque (unknown[]) per ADR-0008 JSDoc (v0.3 locks schema)
      - LLMResponse type tighter (Role as string-union, not raw string) — strengthening
 
   4. HistoryManager DIP (src/core/dip/history-manager.ts)
-     - 4 required + 3 optional methods match referencia/mem0/mem0-ts/src/oss/src/storage/base.ts
+     - 4 required + 3 optional methods match .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts
      - Required: addHistory, getHistory, reset, close
      - Optional: saveMessages, getLastMessages, batchAddHistory
      - Signature enhancement: action typed as 'remember'|'forget'|'reflect' (Mem0 uses string)
@@ -147,7 +147,7 @@ notes: |
 
   None of these divergences violate Mem0-shape adoption or contradict the principle
   (Inquebrável Rule 9: Não Reinvente a Roda). All architectural decisions are rooted
-  in referencia/ analysis and explicit trade-off documentation.
+  in .claude/knowledge-base/references/ analysis and explicit trade-off documentation.
 
 certification: |
   This domain review certifies that the memory-contract-v0-0 feature branch

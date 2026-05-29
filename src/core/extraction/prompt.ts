@@ -13,7 +13,7 @@
  * text for an authoritative section header.
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T4.1 + EC-4
- * @see referencia/mem0/mem0-ts/src/oss/src/prompts/ (Mem0 reference prompt)
+ * @see .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/prompts/ (Mem0 reference prompt)
  */
 import { z } from 'zod';
 

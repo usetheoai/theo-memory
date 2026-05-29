@@ -31,7 +31,7 @@ Five deterministic checkers, four dimensions:
 | Dimension | Checker script | Hard cap | Default weight |
 |---|---|---|---|
 | **research_coverage** | `check_research_coverage.py` | ≤49 if any of the 4 corners (tests/deps/tools/techniques) is empty | 0.30 |
-| **reference_citations** | `check_reference_citations.py` | ≤49 if ANY cited path in `referencia/` is fabricated (file does not exist) | 0.30 |
+| **reference_citations** | `check_reference_citations.py` | ≤49 if ANY cited path in `.claude/knowledge-base/references/` is fabricated (file does not exist) | 0.30 |
 | **blueprint_completeness** | `check_blueprint_completeness.py` | ≤70 if any mandatory section is missing or empty | 0.25 |
 | **risco_estrutural** (smells) | `check_spec_smells.py` (adapted from plan-confidence) | penalty only (no hard cap) | 0.15 |
 
@@ -54,7 +54,7 @@ In M2, future dimensions return empty `motivos`. The four active dimensions alre
 A blueprint is INVALID and CANNOT score above 49 when any of these fire:
 
 - **Empty coverage corner** — at least one of `## Integration tests`, `## Dependencies`, `## Tools`, `## Techniques` sections is missing or has zero content lines (only header / TBD placeholder).
-- **Fabricated citation** — at least one `referencia/{project}/{path}` referenced in the blueprint does not exist when checked via `Path.exists()`.
+- **Fabricated citation** — at least one `.claude/knowledge-base/references/{project}/{path}` referenced in the blueprint does not exist when checked via `Path.exists()`.
 
 A blueprint caps at 70 (SHIPPABLE_WITH_CAVEATS at most) when:
 

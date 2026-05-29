@@ -84,15 +84,15 @@ Locked architectural decisions reach v0.1 unchanged: ADR-0001 (Mem0-shape archit
 
 ### What evidence motivates this work (blueprint citations)
 
-`/discover-execute v0-1-local-runtime` synthesized the blueprint at `.claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md` (785 LoC, SHIPPABLE_WITH_CAVEATS 89/100, 18 verified `referencia/` citations, 7 ADRs D1-D7, 15 Recommendations). Key code-grounded findings:
+`/discover-execute v0-1-local-runtime` synthesized the blueprint at `.claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md` (785 LoC, SHIPPABLE_WITH_CAVEATS 89/100, 18 verified `.claude/knowledge-base/references/` citations, 7 ADRs D1-D7, 15 Recommendations). Key code-grounded findings:
 
-- **8-phase write pipeline** is the code reality at `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994` (comments at L588, 606, 626, 695, 716, 783, 851, 976). ADR-0001's "6-phase" narrative folds phases 0+1 → "context+retrieval" and 4+5 → "dedup+payload". Blueprint D1 directs v0.1 to adopt the 8-phase shape verbatim.
+- **8-phase write pipeline** is the code reality at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994` (comments at L588, 606, 626, 695, 716, 783, 851, 976). ADR-0001's "6-phase" narrative folds phases 0+1 → "context+retrieval" and 4+5 → "dedup+payload". Blueprint D1 directs v0.1 to adopt the 8-phase shape verbatim.
 - **9-step search** at `index.ts:1037-1269` MATCHES ADR-0001 narrative exactly (comments at L1108, 1112, 1115, 1123, 1142, 1155, 1217, 1224, 1233).
-- **Additive scoring** at `referencia/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138` — `combined = min((semantic + bm25 + entity_boost) / max_possible, 1.0)`, `max_possible ∈ {1.0, 1.5, 2.0, 2.5}`, `ENTITY_BOOST_WEIGHT = 0.5`, sigmoid BM25 (query-length-adaptive), spread-attenuated entity boost `1 / (1 + 0.001 * (numLinked - 1)^2)`.
+- **Additive scoring** at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138` — `combined = min((semantic + bm25 + entity_boost) / max_possible, 1.0)`, `max_possible ∈ {1.0, 1.5, 2.0, 2.5}`, `ENTITY_BOOST_WEIGHT = 0.5`, sigmoid BM25 (query-length-adaptive), spread-attenuated entity boost `1 / (1 + 0.001 * (numLinked - 1)^2)`.
 - **Hash dedup** = MD5 of raw extracted text (no normalization) at `index.ts:735`. Blueprint D3.
 - **Lemmatization** via Porter stemmer at `utils/lemmatization.ts:246-278` with try-require `natural` + in-house `simpleStem` fallback.
 - **No pgvector npm wrapper** at Mem0-ts — raw SQL through `pg` client (`vector_stores/pgvector.ts:105,144,169,271,310`). Blueprint D4.
-- **Letta uses `pgvector.Vector` Python column + Alembic-on-startup** (`referencia/letta/orm/passage.py`, `referencia/letta/compose.yaml`). TS equivalent is Drizzle ORM + `drizzle-kit push:pg` for dev / `generate:pg` for production. Blueprint D5.
+- **Letta uses `pgvector.Vector` Python column + Alembic-on-startup** (`.claude/knowledge-base/references/letta/orm/passage.py`, `.claude/knowledge-base/references/letta/compose.yaml`). TS equivalent is Drizzle ORM + `drizzle-kit push:pg` for dev / `generate:pg` for production. Blueprint D5.
 - **Two test configs** (Mem0 `jest.config.js` + `jest.integration.config.js`). Blueprint D7.
 - **`ankane/pgvector:v0.5.1`** is the convergent Docker image (both Mem0 and Letta compose use it).
 
@@ -137,7 +137,7 @@ Locked architectural decisions reach v0.1 unchanged: ADR-0001 (Mem0-shape archit
 
 | Package | Version | Rule 9 evaluation (rejected alternatives + adoption rationale) |
 |---|---|---|
-| `pg` | `^8.13.0` | **Rejected `postgres` (postgres-js)**: smaller pkg + faster I/O but TS types lagged behind `pg` as of 2026; less mature `Date`/`bytea` handling. **Rejected `pgvector` npm wrapper**: adds bundle weight (~20 KB) and a thin type layer with zero functional value over `pg.query(sql, [params])`; Mem0-ts proves raw-SQL works at `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310`. **Adopted `pg`**: 18 M weekly downloads, native types, Mem0-ts choice (blueprint D4), MIT. Audit (2026-05-23): latest 8.21.0; ^8.13.0 resolves to 8.21.0; clean. |
+| `pg` | `^8.13.0` | **Rejected `postgres` (postgres-js)**: smaller pkg + faster I/O but TS types lagged behind `pg` as of 2026; less mature `Date`/`bytea` handling. **Rejected `pgvector` npm wrapper**: adds bundle weight (~20 KB) and a thin type layer with zero functional value over `pg.query(sql, [params])`; Mem0-ts proves raw-SQL works at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310`. **Adopted `pg`**: 18 M weekly downloads, native types, Mem0-ts choice (blueprint D4), MIT. Audit (2026-05-23): latest 8.21.0; ^8.13.0 resolves to 8.21.0; clean. |
 | `drizzle-orm` | `^0.45.0` (BUMPED from ^0.36.0 per ADR D1.10 — security; ADR D1.9 RETIRED) | **Rejected Prisma**: heavyweight (Rust query engine), opinionated client, slow cold start. **Rejected Kysely**: strong contender but pgvector type plugins less mature than Drizzle's as of 2026. **Rejected raw SQL migrations only**: loses schema-as-code type safety. **Adopted Drizzle**: TS-first, `drizzle-kit push` dev workflow matches Mem0's run-on-startup ergonomics + `drizzle-kit generate` produces committed SQL for production (Letta's Alembic pattern in TS shape — blueprint D5). MIT. |
 | `zod` | `^3.24.0` (pinned per ADR D1.8 — latest is 4.4.3 but ecosystem migration to v4 < 50 % as of 2026-05) | Industry standard for runtime schema validation (LLM extraction response → `AdditiveExtractionSchema.parse(...)`). **Rejected `yup`/`joi`**: heavier + worse TS inference. **Rejected `ajv`**: JSON-Schema-first, awkward TS narrowing. Adopted because Mem0-ts also uses it + 38 M weekly downloads + MIT. |
 
@@ -155,7 +155,7 @@ Locked architectural decisions reach v0.1 unchanged: ADR-0001 (Mem0-shape archit
 
 | Package | Version | Rule 9 evaluation |
 |---|---|---|
-| `natural` | `^8.1.0` | Porter stemmer + tokenizer + stop words for BM25 lemmatization. **Rejected `compromise`**: smaller + more rule-based, but different paradigm (rule grammar vs Porter algorithm); not the BM25 industry standard. **Rejected pure in-house Porter port**: ~600 LoC for ~80 % stem quality vs `natural`'s mature impl. **Adopted as OPTIONAL PEER**: TheMemory ships `simpleStem` (suffix-rule fallback ~30 LoC) by default; tries `require('natural')` and uses it when present (Mem0 pattern at `referencia/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts:246-278`). 14 M weekly downloads. MIT. |
+| `natural` | `^8.1.0` | Porter stemmer + tokenizer + stop words for BM25 lemmatization. **Rejected `compromise`**: smaller + more rule-based, but different paradigm (rule grammar vs Porter algorithm); not the BM25 industry standard. **Rejected pure in-house Porter port**: ~600 LoC for ~80 % stem quality vs `natural`'s mature impl. **Adopted as OPTIONAL PEER**: TheMemory ships `simpleStem` (suffix-rule fallback ~30 LoC) by default; tries `require('natural')` and uses it when present (Mem0 pattern at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts:246-278`). 14 M weekly downloads. MIT. |
 
 ### Removed
 
@@ -214,7 +214,7 @@ None. v0.0 deps remain intact; v0.1 only ADDS.
 ### D1.6 — Drizzle schema migrations committed to repo from day one (`src/local/migrations/`)
 
 - **Decision.** Even though v0.1 uses `drizzle-kit push:pg` for dev, the generated SQL migrations land under `src/local/migrations/` and ship in the npm package. Consumers who run their own production Postgres apply migrations via the Drizzle migrator at app boot (`migrate(db, { migrationsFolder: './migrations' })`).
-- **Rationale.** Letta's Alembic-on-startup proves the pattern (`referencia/letta/compose.yaml` invokes `alembic upgrade head` in the entrypoint at scale, 167 migration revisions). Committing migrations avoids the "schema drift at deploy" failure mode.
+- **Rationale.** Letta's Alembic-on-startup proves the pattern (`.claude/knowledge-base/references/letta/compose.yaml` invokes `alembic upgrade head` in the entrypoint at scale, 167 migration revisions). Committing migrations avoids the "schema drift at deploy" failure mode.
 - **Alternatives evaluated.** (a) `push:pg` only — rejected: zero production migration story. (b) Hand-written SQL migrations — rejected: loses schema-as-code coherence with Drizzle types. (c) Defer migrations to v0.5 (cloud) — rejected: local consumers still need them to upgrade between v0.1.x versions.
 - **Consequences.** Each schema-changing PR commits the generated `src/local/migrations/{timestamp}_{name}.sql` alongside the schema change. `package.json#files` includes `src/local/migrations/`. Adds ~2 KB to the npm tarball at v0.1; grows over time but bounded by minor-release cadence.
 
@@ -389,7 +389,7 @@ VERIFY:  npm test && npm run test:integration
 Provide a single-service compose for the integration test + dev quickstart, matching the convergent Mem0+Letta choice.
 
 #### Evidence
-Blueprint § Cross-cutting Comparison + Recommendation 9. Referenced files: `referencia/mem0/server/docker-compose.yaml:1-76` + `referencia/letta/compose.yaml:1-65`.
+Blueprint § Cross-cutting Comparison + Recommendation 9. Referenced files: `.claude/knowledge-base/references/mem0/server/docker-compose.yaml:1-76` + `.claude/knowledge-base/references/letta/compose.yaml:1-65`.
 
 #### Files to edit
 ```
@@ -494,7 +494,7 @@ VERIFY:  npx drizzle-kit --version && npx tsc --noEmit -p tsconfig.local.json
 ### T1.1 — `src/core/dedup.ts` (MD5 dedup, blueprint D3)
 
 #### Objective
-Hash function over raw extracted text using `node:crypto.createHash('md5')`. Exact-text dedup, no normalization (matches Mem0 behavior at `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:735`).
+Hash function over raw extracted text using `node:crypto.createHash('md5')`. Exact-text dedup, no normalization (matches Mem0 behavior at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:735`).
 
 #### Evidence
 Blueprint D3 + Recommendation 4. Mem0 code reference at `index.ts:735`.
@@ -557,7 +557,7 @@ VERIFY:  npm test -- src/core/__tests__/dedup.test.ts
 Token-level lemmatization for BM25. Try-require `natural` for Porter stemmer; fall back to in-house `simpleStem` (suffix-rule) when `natural` is unavailable.
 
 #### Evidence
-Blueprint Recommendation 3. Mem0 code reference at `referencia/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts:1-278` (full file).
+Blueprint Recommendation 3. Mem0 code reference at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts:1-278` (full file).
 
 #### Files to edit
 ```
@@ -572,7 +572,7 @@ src/core/__tests__/lemmatization.test.ts — (NEW) RED tests
 
 #### Deep Dives
 - `lemmatizeForBm25` flow: tokenize (lowercase, split on /\W+/) → drop stop words → stem each token (Porter via `natural` if present, else `simpleStem`) → return non-empty token array.
-- `STOP_WORDS` set ports the list from `referencia/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts` (verified ~127 words English).
+- `STOP_WORDS` set ports the list from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/lemmatization.ts` (verified ~127 words English).
 - `simpleStem` rules: lower-case, drop trailing `'s`, `s` (preserve `ss`), `ing`, `ed`, `ly`. Returns at least 1 char. ~30 LoC.
 - Try-require pattern: `let natural: typeof import('natural') | null = null; try { natural = require('natural'); } catch {}`. The TS-level type stays optional so the project compiles without `natural` installed.
 - Tests use `vi.doMock('natural', () => ...)` to assert both branches (with + without `natural`).
@@ -623,7 +623,7 @@ VERIFY:  npm test -- src/core/__tests__/lemmatization.test.ts
 ### T1.3 — `src/core/scoring.ts` (additive scoring + sigmoid BM25 + spread-attenuated entity boost)
 
 #### Objective
-Pure scoring functions ported verbatim from `referencia/mem0/mem0-ts/src/oss/src/utils/scoring.ts:1-138` (blueprint D2).
+Pure scoring functions ported verbatim from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:1-138` (blueprint D2).
 
 #### Evidence
 Blueprint D2 + Recommendation 13. Mem0 reference `scoring.ts:1-138`.
@@ -650,7 +650,7 @@ src/core/__tests__/scoring.test.ts — (NEW) RED tests with known fixtures
 #### Tasks
 1. Create `src/core/scoring.ts` with five exports
 2. Port constants from Mem0 reference verbatim
-3. Add JSDoc citing `referencia/mem0/...:scoring.ts:N`
+3. Add JSDoc citing `.claude/knowledge-base/references/mem0/...:scoring.ts:N`
 4. Re-export from `src/core/index.ts`
 
 #### TDD
@@ -701,7 +701,7 @@ VERIFY:  npm test -- src/core/__tests__/scoring.test.ts
 Declare three tables using Drizzle `pgTable` with: `memories` (id UUID PK, text, hash MD5 BTREE-indexed, embedding `vector(dims)` HNSW-indexed, payload JSONB, scope columns, `tValid`/`tInvalid` nullable per ADR-0006, `textLemmatized` JSONB array, createdAt/updatedAt), `entities` (id, name, embedding, payload), `history` (memoryId FK, event enum, prevText, newText, timestamp).
 
 #### Evidence
-Blueprint Recommendation 7. Letta reference `referencia/letta/letta/orm/passage.py:1-105`. ADR-0006 (bi-temporal local schema). ADR-0007 (entity store opt-out — schema still has the table; instantiation gated by `entityBoost` config).
+Blueprint Recommendation 7. Letta reference `.claude/knowledge-base/references/letta/letta/orm/passage.py:1-105`. ADR-0006 (bi-temporal local schema). ADR-0007 (entity store opt-out — schema still has the table; instantiation gated by `entityBoost` config).
 
 #### Files to edit
 ```
@@ -913,7 +913,7 @@ VERIFY:  npm run typecheck (tests compile)
 Implement `VectorStore` DIP using a JS Map. Pure JS — zero I/O. Passes the conformance suite from T3.1.
 
 #### Evidence
-Blueprint D6 + Recommendation 6. Mem0 pattern at `referencia/mem0/mem0-ts/src/oss/tests/memory.add.test.ts:68-75`.
+Blueprint D6 + Recommendation 6. Mem0 pattern at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/tests/memory.add.test.ts:68-75`.
 
 #### Files to edit
 ```
@@ -971,7 +971,7 @@ VERIFY:  npm test -- src/local/__tests__/in-memory-store.test.ts
 Implement `VectorStore` DIP using raw SQL via `pg.Client` (or `pg.Pool`). Passes the same conformance suite, gated by `THEOMEM_PG_URI` env var.
 
 #### Evidence
-Blueprint D4 + Recommendation 1. Mem0 reference `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310`.
+Blueprint D4 + Recommendation 1. Mem0 reference `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310`.
 
 #### Files to edit
 ```
@@ -1026,7 +1026,7 @@ VERIFY:  npm run compose:up && npm run db:push && npm run test:integration -- pg
 
 ## Phase 4: Extraction pipeline (8-phase write per blueprint D1)
 
-**Objective:** Port `addToVectorStore` (`referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`) as `src/core/extraction/pipeline.ts`, preserving the 8 named phases + per-row fallback + OTel spans (per D1.3) + MemoryEvent emission (per D1.4).
+**Objective:** Port `addToVectorStore` (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`) as `src/core/extraction/pipeline.ts`, preserving the 8 named phases + per-row fallback + OTel spans (per D1.3) + MemoryEvent emission (per D1.4).
 
 ### T4.1 — `src/core/extraction/prompt.ts` (ADDITIVE_EXTRACTION_PROMPT + UUID→int mapping)
 
@@ -1034,7 +1034,7 @@ VERIFY:  npm run compose:up && npm run db:push && npm run test:integration -- pg
 Compose the LLM extraction prompt with UUID→integer-string mapping (anti-hallucination per blueprint Recommendation 5). Returns `{ prompt: string, uuidByInt: Map<number, string> }`.
 
 #### Evidence
-Blueprint Recommendation 5 + 15 (deferred to v0.1 — now resolved here). Mem0 reference at `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:614-624` (UUID-int mapping construction).
+Blueprint Recommendation 5 + 15 (deferred to v0.1 — now resolved here). Mem0 reference at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:614-624` (UUID-int mapping construction).
 
 #### Files to edit
 ```
@@ -1060,7 +1060,7 @@ src/core/__tests__/extraction-prompt.test.ts — (NEW) RED tests
   Mem0's stock prompt has the same vulnerability — user text containing `## Existing Memories` or `## New Messages` injects fake authoritative entries. The fix is a 3-line helper applied at composition time. JSDoc cites EC-4 and the OWASP LLM01 (Prompt Injection) advisory.
 
 #### Tasks
-1. Read Mem0 prompt content at `referencia/mem0/mem0-ts/src/oss/src/prompts/` (the file is large — extract just the additive-extraction template)
+1. Read Mem0 prompt content at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/prompts/` (the file is large — extract just the additive-extraction template)
 2. Create `src/core/extraction/prompt.ts` with the composer function
 3. Implement UUID→int mapping
 4. Implement `escapeMarkdownHeaders` helper (EC-4 absorption) and apply to every interpolated user-controlled string
@@ -1155,7 +1155,7 @@ VERIFY:  npm test -- src/core/__tests__/memory-event.test.ts
 Port Mem0's `addToVectorStore` shape verbatim into `runExtractionPipeline(messages, scope, deps): Promise<MemoryItem[]>`. Phases 0-8 named per blueprint D1; per-row fallback at every I/O boundary; OTel spans per D1.3; MemoryEvent per D1.4.
 
 #### Evidence
-Blueprint D1 + Recommendation 1. Mem0 reference `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`.
+Blueprint D1 + Recommendation 1. Mem0 reference `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994`.
 
 #### Files to edit
 ```
@@ -1862,7 +1862,7 @@ npm run compose:down -v                           # clean up
 
 `@usetheo/memory` is a managed three-tier memory layer (User / Session / Agent) shipping in two runtimes (local pgvector + TheoCloud-managed). Before v0.0 contract design starts, the strategic question was: do we invent an architecture, fork Mem0, clone Mem0, or adopt Mem0's surface and diverge only on user-facing ergonomics?
 
-Mem0 (Apache-2.0, available at `referencia/mem0/`) is the production-tested baseline in the memory-layer space. Its write pipeline and retrieval algorithm have been iterated against 30+ vector store / 24+ LLM / 15+ embedding implementations. Inquebrável Rule 9 (Não Reinvente a Roda) drives the question: when a proven shape exists, reinventing it is vanity.
+Mem0 (Apache-2.0, available at `.claude/knowledge-base/references/mem0/`) is the production-tested baseline in the memory-layer space. Its write pipeline and retrieval algorithm have been iterated against 30+ vector store / 24+ LLM / 15+ embedding implementations. Inquebrável Rule 9 (Não Reinvente a Roda) drives the question: when a proven shape exists, reinventing it is vanity.
 
 ## Decision
 
@@ -1896,7 +1896,7 @@ Adopt Mem0's architectural shape — **adopt**, **diverge**, and **defer** expli
 **Positive:**
 
 - Clean inheritance of Mem0's hard-won lessons (anti-hallucination integer mapping, sigmoid normalization, BM25-vs-semantic gating, fallback paths).
-- Reduces v0.1 implementation risk: every pipeline step has a battle-tested reference in `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts`.
+- Reduces v0.1 implementation risk: every pipeline step has a battle-tested reference in `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts`.
 - Honors Rule 9: do not reinvent the wheel.
 
 **Negative:**
@@ -1923,7 +1923,7 @@ Adopt Mem0's architectural shape — **adopt**, **diverge**, and **defer** expli
 ## References
 
 - `.claude/rules/architecture.md § 4 Mem0-shape architecture` — the locked list of "Adopt / Diverge / Defer" items this ADR ratifies.
-- `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts` — the canonical TypeScript implementation of the six-phase + nine-step pipelines.
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts` — the canonical TypeScript implementation of the six-phase + nine-step pipelines.
 - `CLAUDE.md § Architectural Decisions Locked` — strategic context.
 - Roadmap Item 1 acceptance criteria (CLAUDE.md § Macro roadmap).
 ```
@@ -1977,7 +1977,7 @@ Session and Agent allow optional `userId` for cross-tier filtering ("recall my s
 
 - TypeScript narrows: `memory.user('alice').remember('text')` returns `Promise<readonly MemoryItem[]>`; the user_id is part of the type, not just runtime.
 - Mental model is clear: each scope has a distinct call surface.
-- Trivial internal mapping onto Mem0's filter shape — adapters from `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` port with minimal change.
+- Trivial internal mapping onto Mem0's filter shape — adapters from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` port with minimal change.
 - TheoKit's request-context resolver (v0.2) can return one of the three sub-objects directly.
 
 **Negative:**
@@ -2004,7 +2004,7 @@ Session and Agent allow optional `userId` for cross-tier filtering ("recall my s
 
 - `.claude/rules/architecture.md § 1 Three-tier scope` — the canonical tier definition.
 - `CLAUDE.md § Locked names` — User / Session / Agent locked as strategic-review-only.
-- `referencia/mem0/mem0-ts/src/oss/src/types/index.ts:84-89` — Mem0's `SearchFilters` shape (source of internal filter rename).
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/types/index.ts:84-89` — Mem0's `SearchFilters` shape (source of internal filter rename).
 - ADR-0001 (Mem0-shape architecture).
 ```
 
@@ -2244,7 +2244,7 @@ If a caller invokes `reflect()` without configuring a policy, throw `ReflectionN
 - Roadmap Item 5 (`v0.4a — Reflection pipeline`) — destination for `ThresholdReflectionPolicy` + `SleepTimeReflectionPolicy`.
 - ADR-0004 (`reflect` locked as a public verb).
 - ADR-0008 (DIP method counts — `ReflectionPolicy` interface shape).
-- `referencia/letta/letta/orm/` — Letta's sleep-time agent reference (no `t_valid` columns; sleep-time worker is the trigger mechanism).
+- `.claude/knowledge-base/references/letta/letta/orm/` — Letta's sleep-time agent reference (no `t_valid` columns; sleep-time worker is the trigger mechanism).
 ```
 
 #### ADR-0006-bi-temporal-local-schema.md
@@ -2320,7 +2320,7 @@ Memory writes always set `tValid: now()` and `tInvalid: null` (currently-valid m
 - T2.2 `MemoryItem` shape (ships `tValid: Date | null` + `tInvalid: Date | null` fields).
 - T2.4 `errors.ts` exports `BiTemporalNotSupportedLocally`.
 - T2.3 `options.ts` ships `RecallOptions.asOf?: Date` with `@throws` JSDoc.
-- `referencia/letta/letta/orm/` — Letta's schema does NOT have bi-temporal columns; Letta uses standard `created_at`/`updated_at` and tracks history via Alembic migrations. This ADR diverges from Letta's choice.
+- `.claude/knowledge-base/references/letta/letta/orm/` — Letta's schema does NOT have bi-temporal columns; Letta uses standard `created_at`/`updated_at` and tracks history via Alembic migrations. This ADR diverges from Letta's choice.
 ```
 
 #### ADR-0007-entity-store-opt-out.md
@@ -2402,7 +2402,7 @@ export interface MemoryConfig {
 - ADR-0001 § "Adopt" list — entity store is in the locked set.
 - ADR-0008 (DIP method counts) — `VectorStore` shape supports the entity store as a second instance of the same interface.
 - T2.5 `MemoryConfig` shape — declares `entityBoost?: boolean`.
-- `referencia/mem0/mem0-ts/src/oss/src/memory/index.ts:151` — Mem0's `_entityStore?: VectorStore` field, used optionally for entity vectors.
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:151` — Mem0's `_entityStore?: VectorStore` field, used optionally for entity vectors.
 ```
 
 #### ADR-0008-dip-method-counts.md
@@ -2419,7 +2419,7 @@ export interface MemoryConfig {
 
 DIP (Dependency Inversion Principle) interfaces define the seams between `src/core/` (the domain logic) and the adapters in `src/local/` and `src/cloud/` (runtime implementations). The interfaces' exact method counts determine:
 
-- How portable adapters are from Mem0's reference (`referencia/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts`)
+- How portable adapters are from Mem0's reference (`.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/{storage,vector_stores,llms,embeddings}/base.ts`)
 - ISP compliance: are consumers forced to depend on methods they don't call?
 - Forward-compat surface: each new method is a new contract obligation for every implementer
 
@@ -2429,7 +2429,7 @@ Roadmap Item 1 acceptance criterion says: "4 DIP interfaces declared (VectorStor
 
 ## Decision
 
-Lock the five DIP surfaces at the following method counts (verified against `referencia/mem0/mem0-ts/src/oss/src/`):
+Lock the five DIP surfaces at the following method counts (verified against `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/`):
 
 ### Embedder (2 required)
 
@@ -2440,7 +2440,7 @@ export interface Embedder {
 }
 ```
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (verified to exist; 5 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/embeddings/base.ts` (verified to exist; 5 LoC).
 
 ### LLM (2 required)
 
@@ -2460,7 +2460,7 @@ Notes:
 - `tools` is DELIBERATELY opaque (`ReadonlyArray<unknown>`) at v0.0. v0.3 (agent-tools layer) locks a typed tool schema — at that point this DIP gains a generic parameter `LLM<TToolShape>`. JSDoc on the field documents the forward-compat path (EC-10).
 - `generateResponse` return is `unknown` because providers return varying shapes; the LLM adapter normalizes at v0.1.
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/llms/base.ts` (verified to exist; 20 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/llms/base.ts` (verified to exist; 20 LoC).
 
 ### VectorStore (11 required)
 
@@ -2505,7 +2505,7 @@ Notes:
 - `update` exists on `VectorStore` but NOT on the public `Memory` surface (ADR-0003) — internal-only, used by reflection / consolidation paths to refresh vectors.
 - `getUserId / setUserId` are SESSION METADATA (Mem0 telemetry parity), NOT tenant-isolation keys. Tenant isolation always uses `Filters` (EC-6 from edge-case review). JSDoc on the methods documents this.
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (verified to exist; 35 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts` (verified to exist; 35 LoC).
 
 ### HistoryManager (4 required + 3 optional)
 
@@ -2536,7 +2536,7 @@ Notes vs Mem0:
 - `isDeleted: boolean` not `number`.
 - `createdAt` / `updatedAt` are `Date` not `string` (parsed at the adapter boundary).
 
-Source-of-truth: `referencia/mem0/mem0-ts/src/oss/src/storage/base.ts` (verified to exist; 37 LoC).
+Source-of-truth: `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts` (verified to exist; 37 LoC).
 
 ### ReflectionPolicy (1 required + 2 optional)
 
@@ -2554,7 +2554,7 @@ New DIP introduced by ADR-0005 (no Mem0 equivalent — Mem0 doesn't ship reflect
 
 **Positive:**
 
-- Mem0-ts adapters port with minimal adaptation. The pgvector adapter at `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` ships 11 methods that map 1:1 onto our surface.
+- Mem0-ts adapters port with minimal adaptation. The pgvector adapter at `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` ships 11 methods that map 1:1 onto our surface.
 - ISP compliance: optional methods on `HistoryManager` are the right shape — not every backend supports V3 message history. Same logic on `ReflectionPolicy`.
 - v0.5 cloud adapter is bounded by the same surface — no scope creep into adapter-specific methods leaking into core.
 - DIP boundary is enforced by `.claude/hooks/boundary-check.sh` (architecture.md § 3).
@@ -2586,10 +2586,10 @@ New DIP introduced by ADR-0005 (no Mem0 equivalent — Mem0 doesn't ship reflect
 - ADR-0001 (Mem0-shape — these surfaces are part of the "Adopt" list).
 - ADR-0003 (no public `update` — `VectorStore.update` is internal-only).
 - ADR-0005 (`ReflectionPolicy` introduction).
-- `referencia/mem0/mem0-ts/src/oss/src/embeddings/base.ts`
-- `referencia/mem0/mem0-ts/src/oss/src/llms/base.ts`
-- `referencia/mem0/mem0-ts/src/oss/src/vector_stores/base.ts`
-- `referencia/mem0/mem0-ts/src/oss/src/storage/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/embeddings/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/llms/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts`
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts`
 - Global CLAUDE.md PARTE II § 13.4 ISP — optional methods justified.
 ```
 

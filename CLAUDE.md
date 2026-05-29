@@ -86,13 +86,13 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 ## Reference projects (study material)
 
-The `referencia/` directory contains three clones (`--depth 1`, 2026-05-21) used for design study. **Read-only — never `npm install`, `pip install`, or edit them.**
+The `.claude/knowledge-base/references/` directory contains three clones (`--depth 1`, 2026-05-21) used for design study. **Read-only — never `npm install`, `pip install`, or edit them.**
 
 | Project | Tamanho | License | Status of exploration |
 |---|---|---|---|
-| [`mem0`](./referencia/mem0/) | 78 MB | Apache-2.0 | Pending exploration — primary architectural reference (vector + LLM extraction + hybrid retrieval) |
-| [`letta`](./referencia/letta/) | 34 MB | Apache-2.0 | Pending exploration — relevant for Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
-| [`langmem`](./referencia/langmem/) | 3.9 MB | MIT | Pending exploration — relevant for procedural memory via prompt rewriting |
+| [`mem0`](./.claude/knowledge-base/references/mem0/) | 78 MB | Apache-2.0 | Pending exploration — primary architectural reference (vector + LLM extraction + hybrid retrieval) |
+| [`letta`](./.claude/knowledge-base/references/letta/) | 34 MB | Apache-2.0 | Pending exploration — relevant for Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
+| [`langmem`](./.claude/knowledge-base/references/langmem/) | 3.9 MB | MIT | Pending exploration — relevant for procedural memory via prompt rewriting |
 
 The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 
@@ -104,7 +104,7 @@ The roadmap below mirrors the consolidated view in the root `CLAUDE.md § Roadma
 
 | Artifact | Status |
 |---|---|
-| `referencia/` clones (Mem0 + Letta + LangMem, `--depth 1`, gitignored) | Shipped 2026-05-21 |
+| `.claude/knowledge-base/references/` clones (Mem0 + Letta + LangMem, `--depth 1`, gitignored) | Shipped 2026-05-21 |
 | `README.md` + strategic placement (Community auxiliary MIT, TheoKit-native, Mem0-shape, two runtimes) | Shipped 2026-05-21 |
 | This `CLAUDE.md` (3 root overrides documented) | Shipped 2026-05-21 |
 

@@ -53,7 +53,7 @@ Do NOT invoke when:
 /deps-audit
 ```
 
-Detects all manifests in repo root (excluding `node_modules/`, `.venv/`, `__pycache__/`, `referencia/`, `dist/`, `build/`, `target/`), runs the matching auditors, prints a report to stdout. No plan binding; advisory only.
+Detects all manifests in repo root (excluding `node_modules/`, `.venv/`, `__pycache__/`, `.claude/knowledge-base/references/`, `dist/`, `build/`, `target/`), runs the matching auditors, prints a report to stdout. No plan binding; advisory only.
 
 ### Mode 2 — Plan-bound audit (RECOMMENDED for cycle-plan)
 
@@ -285,7 +285,7 @@ Allowlisted findings (within sunset) downgrade by ONE severity level: CRITICAL �
 9. **NEVER skip Rule 9 column on NEW deps** — see golden rule; this is a hard cap. "Picked X because it's popular" is NOT Rule 9 evaluation. Need rejected alternatives + reasons.
 10. **NEVER allowlist a CRITICAL CVE without sunset ≤ 30 days** — golden rule requires aggressive sunset for high severity; rejecting it via allowlist is a stopgap, not a destination.
 11. **NEVER bypass via `--force` / `--skip-audit` / `--accept-cves` flags** — they do not exist by design (golden rule constructor invariant).
-12. **NEVER use `referencia/` clones as part of the audit surface** — read-only zone; their deps are not OUR responsibility.
+12. **NEVER use `.claude/knowledge-base/references/` clones as part of the audit surface** — read-only zone; their deps are not OUR responsibility.
 
 ---
 

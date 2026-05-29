@@ -155,7 +155,7 @@ task_verification_samples:
     test_count: 10
     test_pass_count: 10
     pipeline_phases_implemented: 8
-    evidence: "8-phase implementation (0: context, 1: existing retrieval, 2: LLM extraction, 3: batch embed, 4-5: dedup+payload, 6: batch persist, 6.5: batch history, 7: entity linking, 8: save messages) ported verbatim from referencia/mem0 blueprint D1"
+    evidence: "8-phase implementation (0: context, 1: existing retrieval, 2: LLM extraction, 3: batch embed, 4-5: dedup+payload, 6: batch persist, 6.5: batch history, 7: entity linking, 8: save messages) ported verbatim from .claude/knowledge-base/references/mem0 blueprint D1"
     adr_d1_0_compliance: "✓ (inherits blueprint D1 8-phase shape without re-litigation)"
     wiring_pillars:
       a: "DEFER — T7.1 factory closes this pillar"

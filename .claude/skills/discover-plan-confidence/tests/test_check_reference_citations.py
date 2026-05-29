@@ -1,4 +1,4 @@
-"""Tests for check_reference_citations.py — verifies referencia/ citation path validation.
+"""Tests for check_reference_citations.py — verifies .claude/knowledge-base/references/ citation path validation.
 
 RED tests of T0.3. MUST fail with ModuleNotFoundError until T1.2 lands.
 """
@@ -12,7 +12,7 @@ from check_reference_citations import check_reference_citations  # noqa: E402
 
 
 def test_good_plan_all_citations_verified(good_discover_plan: Path) -> None:
-    """good-discover-plan.md cites only real referencia/ paths."""
+    """good-discover-plan.md cites only real .claude/knowledge-base/references/ paths."""
     report = check_reference_citations(good_discover_plan)
     assert report["fabricated"] == 0
     assert report["verified"] >= 3

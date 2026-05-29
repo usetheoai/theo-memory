@@ -17,7 +17,7 @@ Sibling of [`plan-confidence-golden-rule.md`](./plan-confidence-golden-rule.md) 
 **A discovery plan is INVALID and CANNOT produce a SHIPPABLE verdict when any of these fire:**
 
 1. **Empty coverage corner** — the plan's `## Research Questions` table does NOT map at least one question to a given coverage corner (`tests`, `deps`, `tools`, `techniques`) AND no `<!-- DEFER-CORNER: {corner} | {reason} -->` marker exists for that corner.
-2. **Fabricated `referencia/` citation** — at least one `referencia/{project}/{path}` referenced in the plan does NOT exist when checked via `Path.exists()`.
+2. **Fabricated `.claude/knowledge-base/references/` citation** — at least one `.claude/knowledge-base/references/{project}/{path}` referenced in the plan does NOT exist when checked via `Path.exists()`.
 
 **Additional inquebráveis that cap verdict at 70 (SHIPPABLE_WITH_CAVEATS at most):**
 
@@ -56,7 +56,7 @@ The deferral mechanism (DEFER-CORNER marker per D5 of the source plan) exists to
 | Rule | Enforcement |
 |---|---|
 | All 4 coverage corners populated OR explicitly DEFER-CORNER marker | M2 — `check_research_coverage.py` |
-| All `referencia/{...}` citations resolve via `Path.exists()` | M2 — `check_reference_citations.py` (sibling of `discover-confidence`'s) |
+| All `.claude/knowledge-base/references/{...}` citations resolve via `Path.exists()` | M2 — `check_reference_citations.py` (sibling of `discover-confidence`'s) |
 | All 10 mandatory sections present | M2 — `check_plan_completeness.py` (sub-check 1) |
 | ADR count ≥ 2 in `## ADRs` section | M2 — `check_plan_completeness.py` (sub-check 4) |
 | Question budget 5 ≤ N ≤ 10, per-corner ≤ 3, per-corner ≥ 1 OR DEFER-CORNER | M2 — `check_plan_completeness.py` (sub-check 2) |
@@ -70,7 +70,7 @@ The deferral mechanism (DEFER-CORNER marker per D5 of the source plan) exists to
 These are NOT inquebrável — they downgrade verdict from `SHIPPABLE` (90+) to `SHIPPABLE_WITH_CAVEATS` (cap 89), not to `INVALID`:
 
 1. **High smell density** — ≥ 20 weak-imperative / loophole / vague-pronoun hits in prose. Stable identifier `soft_floor_smell_density_high`.
-2. **Citation density low** — < 1 `referencia/` citation per 200 words of plan prose, AND at least one citation exists. Stable identifier `soft_floor_citation_density_low`.
+2. **Citation density low** — < 1 `.claude/knowledge-base/references/` citation per 200 words of plan prose, AND at least one citation exists. Stable identifier `soft_floor_citation_density_low`.
 
 Soft caps appear in `hard_caps_triggered` with prefix `soft_floor_` for auditability. They do NOT trigger `verdict == INVALID`.
 

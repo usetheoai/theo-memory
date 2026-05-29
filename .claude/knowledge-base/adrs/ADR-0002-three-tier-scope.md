@@ -45,7 +45,7 @@ Session and Agent allow optional `userId` for cross-tier filtering ("recall my s
 
 - TypeScript narrows: `memory.user('alice').remember('text')` returns `Promise<readonly MemoryItem[]>`; the user_id is part of the type, not just runtime.
 - Mental model is clear: each scope has a distinct call surface.
-- Trivial internal mapping onto Mem0's filter shape — adapters from `referencia/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` port with minimal change.
+- Trivial internal mapping onto Mem0's filter shape — adapters from `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/pgvector.ts` port with minimal change.
 - TheoKit's request-context resolver (v0.2) can return one of the three sub-objects directly.
 
 **Negative:**
@@ -72,5 +72,5 @@ Session and Agent allow optional `userId` for cross-tier filtering ("recall my s
 
 - `.claude/rules/architecture.md § 1 Three-tier scope` — the canonical tier definition.
 - `CLAUDE.md § Locked names` — User / Session / Agent locked as strategic-review-only.
-- `referencia/mem0/mem0-ts/src/oss/src/types/index.ts:84-89` — Mem0's `SearchFilters` shape (source of internal filter rename).
+- `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/types/index.ts:84-89` — Mem0's `SearchFilters` shape (source of internal filter rename).
 - ADR-0001 (Mem0-shape architecture).

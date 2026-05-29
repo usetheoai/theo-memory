@@ -1,6 +1,6 @@
 # Discovery Plan: v0.2 — TheoKit binding (`@usetheo/memory/theokit`)
 
-> **Version 1.0** — Investigation to inform the v0.2 implementation plan for the `@usetheo/memory/theokit` subpath: auto-resolves `user_id` / `session_id` / `agent_id` from TheoKit request context so handlers call `memory.remember(text)` without explicit scoping, and ships default-on in scaffolded TheoKit apps via `create-theo` templates. **Primary investigation target: `../theokit/`** (sibling project — the binding target itself); **secondary: `referencia/mem0/`** (framework-adapter precedent) + **`referencia/letta/`** (per-request scope in FastAPI). LangMem deferred per D3.
+> **Version 1.0** — Investigation to inform the v0.2 implementation plan for the `@usetheo/memory/theokit` subpath: auto-resolves `user_id` / `session_id` / `agent_id` from TheoKit request context so handlers call `memory.remember(text)` without explicit scoping, and ships default-on in scaffolded TheoKit apps via `create-theo` templates. **Primary investigation target: `../theokit/`** (sibling project — the binding target itself); **secondary: `.claude/knowledge-base/references/mem0/`** (framework-adapter precedent) + **`.claude/knowledge-base/references/letta/`** (per-request scope in FastAPI). LangMem deferred per D3.
 
 **Slug:** `v0-2-theokit-binding`
 **Owner:** TheMemory v0.2 cycle-discover
@@ -32,7 +32,7 @@ Produce a blueprint that lets `/to-plan v0-2-theokit-binding` lock concrete deci
 
 Measurable success criteria:
 
-- [ ] All 7 research questions answered with citations to `../theokit/` and/or `referencia/`
+- [ ] All 7 research questions answered with citations to `../theokit/` and/or `.claude/knowledge-base/references/`
 - [ ] Cross-cutting comparison table populated (TheoKit vs Mem0 server vs Letta FastAPI) for at least: request→ctx flow, scope resolution mechanism, default-on integration pattern, test approach
 - [ ] Recommendations section provides at least one concrete decision proposal per research question
 - [ ] `/discover-confidence` verdict ≥ SHIPPABLE_WITH_CAVEATS
@@ -44,26 +44,26 @@ Measurable success criteria:
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
 | `../theokit/` (PRIMARY) | `packages/theo/src/server/` (define-route, middleware-runner, middleware-scan), `packages/create-theo/src/`, `packages/create-theo/templates/`, `examples/full-stack-agent/server/`, `fixtures/*/server/context.ts` | The binding target. Need: ctx shape, middleware contract, scaffolding mechanism, real handler patterns |
-| `referencia/mem0/` | `mem0-ts/src/community/src/integrations/`, `mem0-ts/src/oss/examples/`, `server/auth.py`, `server/db.py`, `docs/integrations/` (text-shape) | Framework-adapter precedent: how does Mem0 bind to a server / which integration shape? |
-| `referencia/letta/` | `letta/letta/server/rest_api/`, `letta/letta/server/server.py`, `letta/tests/test_sdk_client.py` | Per-request scope resolution in a FastAPI server; how Letta propagates session_id across handlers |
+| `.claude/knowledge-base/references/mem0/` | `mem0-ts/src/community/src/integrations/`, `mem0-ts/src/oss/examples/`, `server/auth.py`, `server/db.py`, `docs/integrations/` (text-shape) | Framework-adapter precedent: how does Mem0 bind to a server / which integration shape? |
+| `.claude/knowledge-base/references/letta/` | `letta/letta/server/rest_api/`, `letta/letta/server/server.py`, `letta/tests/test_sdk_client.py` | Per-request scope resolution in a FastAPI server; how Letta propagates session_id across handlers |
 
 ### Out-of-Scope (explicit)
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `referencia/langmem/` (entire project) | DEFERRED via ADR D3 — LangMem is for procedural memory (prompt rewriting); no HTTP server framework binding surface. Will revisit at v0.6 (Voyager skill library) per Roadmap Item 8. |
+| `.claude/knowledge-base/references/langmem/` (entire project) | DEFERRED via ADR D3 — LangMem is for procedural memory (prompt rewriting); no HTTP server framework binding surface. Will revisit at v0.6 (Voyager skill library) per Roadmap Item 8. |
 | `../theokit/packages/theo/dist/` | Build artifacts; source of truth is `src/` |
 | `../theokit/coverage/`, `../theokit/test-results/` | Generated artifacts |
-| `referencia/mem0/embedchain/` | Different product (RAG framework, not memory primitive); not relevant to binding |
-| `referencia/mem0/docs/` (except `integrations/` subdirectory) | Marketing docs; integrations subdirectory is the only useful slice for adapter patterns |
-| `referencia/letta/letta/server/ws_api/` | WebSocket API; v0.2 binding targets HTTP routes only (WebSocket binding is v0.3+ if relevant) |
-| Any project NOT cloned into `referencia/` OR `../theokit/` | Cross-Project Rule: never claim a project feature without reading its source |
+| `.claude/knowledge-base/references/mem0/embedchain/` | Different product (RAG framework, not memory primitive); not relevant to binding |
+| `.claude/knowledge-base/references/mem0/docs/` (except `integrations/` subdirectory) | Marketing docs; integrations subdirectory is the only useful slice for adapter patterns |
+| `.claude/knowledge-base/references/letta/letta/server/ws_api/` | WebSocket API; v0.2 binding targets HTTP routes only (WebSocket binding is v0.3+ if relevant) |
+| Any project NOT cloned into `.claude/knowledge-base/references/` OR `../theokit/` | Cross-Project Rule: never claim a project feature without reading its source |
 
 ## ADRs
 
 ### D1 — Time budget + stop conditions
 
-**Decision:** TheoKit (`../theokit/`): 4h (primary target); Mem0 (`referencia/mem0/`): 2h (framework-adapter precedent); Letta (`referencia/letta/`): 1h (per-request FastAPI scope); LangMem: 0h (D3 deferred). Total: 7h.
+**Decision:** TheoKit (`../theokit/`): 4h (primary target); Mem0 (`.claude/knowledge-base/references/mem0/`): 2h (framework-adapter precedent); Letta (`.claude/knowledge-base/references/letta/`): 1h (per-request FastAPI scope); LangMem: 0h (D3 deferred). Total: 7h.
 
 **Rationale:** TheoKit IS the binding target — without deep understanding of its middleware contract + ctx shape + scaffolding mechanism, the binding API will fight the framework. Mem0 + Letta are precedent for "how does a memory primitive bind to a server" — Mem0's `server/` shows the server-style integration; Letta's FastAPI shows per-request session handling. LangMem has no binding-relevant surface (deferred via D3).
 
@@ -79,13 +79,13 @@ Measurable success criteria:
 
 ### D2 — Investigation depth: read-end-to-end for binding-target files; Grep-then-spot-read for precedents
 
-**Decision:** For `../theokit/` core surface (`define-route.ts`, `middleware-runner.ts`, `middleware-scan.ts`, all 5 fixtures' `context.ts`, `create-theo/src/cli.ts` + `install.ts`, all 5 templates' top-level `theo.config.ts` + `server/routes/*.ts`): Read end-to-end. For `referencia/mem0/` + `referencia/letta/`: Grep to identify hotspots, then Read specific functions/classes in detail (not full-file end-to-end).
+**Decision:** For `../theokit/` core surface (`define-route.ts`, `middleware-runner.ts`, `middleware-scan.ts`, all 5 fixtures' `context.ts`, `create-theo/src/cli.ts` + `install.ts`, all 5 templates' top-level `theo.config.ts` + `server/routes/*.ts`): Read end-to-end. For `.claude/knowledge-base/references/mem0/` + `.claude/knowledge-base/references/letta/`: Grep to identify hotspots, then Read specific functions/classes in detail (not full-file end-to-end).
 
-**Rationale:** TheoKit IS the binding target — fragmentary understanding produces a fragile binding. `referencia/` projects are precedent, not contract; full-file reads exceed budget without proportional payoff (the binding doesn't need to know every Mem0 server detail, only the adapter shape).
+**Rationale:** TheoKit IS the binding target — fragmentary understanding produces a fragile binding. `.claude/knowledge-base/references/` projects are precedent, not contract; full-file reads exceed budget without proportional payoff (the binding doesn't need to know every Mem0 server detail, only the adapter shape).
 
 **Alternatives considered:** (a) Read end-to-end everywhere — rejected: budget-blowing (TheoKit alone has ~30+ relevant files). (b) Grep-only everywhere — rejected: TheoKit's middleware contract has subtle ordering rules (per-route vs global) that require contextual reading.
 
-**Consequences:** TheoKit citations land with line-exact context; `referencia/` citations land with function/class-exact context but may miss surrounding nuance. Blueprint marks the asymmetry explicitly in its Sources section.
+**Consequences:** TheoKit citations land with line-exact context; `.claude/knowledge-base/references/` citations land with function/class-exact context but may miss surrounding nuance. Blueprint marks the asymmetry explicitly in its Sources section.
 
 ### D3 — Defer LangMem: no binding-relevant surface
 
@@ -97,11 +97,11 @@ Measurable success criteria:
 
 **Consequences:** LangMem revisited at v0.6 (Voyager skill library, Roadmap Item 8) where procedural memory is the actual scope. Blueprint marks LangMem as "deferred D3" in the LangMem column of any per-project synthesis.
 
-### D4 — Cite `../theokit/` paths with the same hygiene as `referencia/` paths
+### D4 — Cite `../theokit/` paths with the same hygiene as `.claude/knowledge-base/references/` paths
 
-**Decision:** Every `../theokit/{path}` citation in this plan AND in the resulting blueprint MUST pass `Path.exists()` check on the filesystem at plan-write time AND blueprint-write time. Treat fabricated `../theokit/` paths the same as fabricated `referencia/` paths.
+**Decision:** Every `../theokit/{path}` citation in this plan AND in the resulting blueprint MUST pass `Path.exists()` check on the filesystem at plan-write time AND blueprint-write time. Treat fabricated `../theokit/` paths the same as fabricated `.claude/knowledge-base/references/` paths.
 
-**Rationale:** The discover-confidence hard cap on fabricated citations targets `referencia/` explicitly. `../theokit/` is outside that scope, but a fabricated TheoKit path is equally dishonest. Inquebrável Rule 3 + Rule 9 (Não Reinvente — verify before claiming) both apply.
+**Rationale:** The discover-confidence hard cap on fabricated citations targets `.claude/knowledge-base/references/` explicitly. `../theokit/` is outside that scope, but a fabricated TheoKit path is equally dishonest. Inquebrável Rule 3 + Rule 9 (Não Reinvente — verify before claiming) both apply.
 
 **Alternatives considered:** (a) Cite `../theokit/` paths loosely since they're outside the confidence script's check — rejected: violates Inquebrável Rule 3. (b) Skip `../theokit/` entirely — rejected: the binding target IS TheoKit; you cannot design the binding without reading the target.
 
@@ -121,12 +121,12 @@ Measurable success criteria:
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep / Grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | How does Mem0 bind to a server framework? Does the `referencia/mem0/mem0-ts/src/community/src/integrations/` directory contain framework adapters (express middleware, fastify plugin), or just LangChain integration? | tests | `referencia/mem0/` | `ls referencia/mem0/mem0-ts/src/community/src/integrations/` (text-shape; verified at plan-write time — only `langchain/`); `find referencia/mem0/mem0-ts/src/oss/examples -type f` for OSS examples; `find referencia/mem0/docs/integrations -type f` for docs-side integration list | Read each adapter file end-to-end; capture the adapter pattern (factory + middleware vs decorator vs HOC vs direct-call); identify request-context resolution mechanism (if any) | Table: integration target → adapter pattern → request-context resolution → citation. Conclusion: does Mem0 have a server-framework adapter we can mirror, OR is the precedent purely "consumer calls `MemoryClient.add()` directly inside their handler"? |
-| Q2 | How does Letta's FastAPI server propagate per-request session state through its handlers? Does it use FastAPI `Depends()` (DI-style) or a global request-scoped context object? | tests | `referencia/letta/` | `find referencia/letta/letta/server/rest_api -type f -name "*.py"` to list route files; `Grep -rn "Depends\|Request\|request.state" referencia/letta/letta/server/rest_api/` to identify the propagation primitive; `Grep -rn "test_sdk_client\|integration_test_" referencia/letta/tests/ | head` to find route tests | Read 2-3 route handlers + `server.py` + global_exception_handler + 1 integration test that exercises per-request scope; capture the propagation flow end-to-end | Description: FastAPI primitive used (Depends DI / request.state / global async-local) + 1-2 code snippets + citation to a route file + citation to a test that exercises scope isolation |
+| Q1 | How does Mem0 bind to a server framework? Does the `.claude/knowledge-base/references/mem0/mem0-ts/src/community/src/integrations/` directory contain framework adapters (express middleware, fastify plugin), or just LangChain integration? | tests | `.claude/knowledge-base/references/mem0/` | `ls .claude/knowledge-base/references/mem0/mem0-ts/src/community/src/integrations/` (text-shape; verified at plan-write time — only `langchain/`); `find .claude/knowledge-base/references/mem0/mem0-ts/src/oss/examples -type f` for OSS examples; `find .claude/knowledge-base/references/mem0/docs/integrations -type f` for docs-side integration list | Read each adapter file end-to-end; capture the adapter pattern (factory + middleware vs decorator vs HOC vs direct-call); identify request-context resolution mechanism (if any) | Table: integration target → adapter pattern → request-context resolution → citation. Conclusion: does Mem0 have a server-framework adapter we can mirror, OR is the precedent purely "consumer calls `MemoryClient.add()` directly inside their handler"? |
+| Q2 | How does Letta's FastAPI server propagate per-request session state through its handlers? Does it use FastAPI `Depends()` (DI-style) or a global request-scoped context object? | tests | `.claude/knowledge-base/references/letta/` | `find .claude/knowledge-base/references/letta/letta/server/rest_api -type f -name "*.py"` to list route files; `Grep -rn "Depends\|Request\|request.state" .claude/knowledge-base/references/letta/letta/server/rest_api/` to identify the propagation primitive; `Grep -rn "test_sdk_client\|integration_test_" .claude/knowledge-base/references/letta/tests/ | head` to find route tests | Read 2-3 route handlers + `server.py` + global_exception_handler + 1 integration test that exercises per-request scope; capture the propagation flow end-to-end | Description: FastAPI primitive used (Depends DI / request.state / global async-local) + 1-2 code snippets + citation to a route file + citation to a test that exercises scope isolation |
 | Q3 | What's the minimum dependency surface `@usetheo/memory/theokit` needs from TheoKit? Open Request / ctx interface (no peer-dep on `theokit` package), OR explicit peer-dep on `theokit` for typed `RouteConfig` + `MiddlewareFn`? Will the binding work against any consumer's `ctx` shape, or only against TheoKit's canonical `createContext` output? | deps | `../theokit/` | Read `../theokit/packages/theo/src/server/define-route.ts` end-to-end (RouteConfig signature); Read `../theokit/packages/theo/src/server/middleware-runner.ts` end-to-end (MiddlewareFn contract); Grep `../theokit/packages/theo/package.json` for exports map (what does `theokit/server` export?) | Already done end-to-end during plan-write Step-1 probe; recapture for blueprint: RouteConfig has `handler({ ctx, request, ... })` where `ctx` is `TCtx = unknown` (consumer-defined). Implication: the binding can be agnostic of TheoKit if it accepts any `ctx` extends `{ session?: { userId?: string } }`; OR can peer-dep TheoKit for first-class types. | Decision table: peer-dep TheoKit (full types) vs structural typing on `ctx` (no peer-dep, looser types) — trade-offs, with code snippets of both binding shapes |
 | Q4 | How does `create-theo` scaffold templates? What's the file-tree shape produced? Where would "default-on memory module" land (separate `server/memory.ts`? merged into existing `server/context.ts`? new `server/routes/memory.ts`)? | tools | `../theokit/` | Read `../theokit/packages/create-theo/src/cli.ts` + `install.ts` + `bare-transform.ts` end-to-end (~3 files); `find ../theokit/packages/create-theo/templates -maxdepth 3 -type f \( -name "*.ts*" -o -name "package.json" \)` for full template file tree; pick 2 templates to compare (`default` + `saas`) | Read `templates/default/theo.config.ts` + `templates/default/server/routes/chat.ts` + `templates/saas/theo.config.ts` + `templates/saas/server/context.ts` end-to-end | Description: scaffolding mechanism (file copy + variable substitution? AST transform via bare-transform?), file tree of `default` template, proposed insertion point for "default-on memory module" (with 1 alternative + rationale) |
 | Q5 | TheoKit `ctx` contract — what shape does `createContext({ request, response })` return across the 5 fixture variants? Does every fixture produce a `session: { userId: string } \| null`-style shape, OR do shapes diverge enough that the binding cannot rely on a canonical shape? | techniques | `../theokit/` | Read all 5 fixture `context.ts` files (`../theokit/fixtures/{sessions-auth,template-saas,auth-providers-with-authjs,template-postgres,auth-providers-diy-github}/server/context.ts`) end-to-end | Side-by-side compare the 5 `RequestContext` shapes; identify common subset (does `session.userId: string` appear in all? what about `session.id` / `session.sub`? Auth.js may use different field name); identify whether a structural-typing protocol (`{ session?: { userId?: string } }`) covers all 5 OR if there's divergence requiring an explicit `extractScope(ctx)` callback in `MemoryConfig` | Table: fixture name → RequestContext type → `session` field shape → user-id field name + type. Conclusion: structural-typing-safe SUBSET (works as a default) OR explicit `extractScope` callback REQUIRED (no safe default). |
-| Q6 | Request-scoped context propagation across async boundaries — TheoKit does NOT use `AsyncLocalStorage` (verified: zero grep hits in `../theokit/packages/`). Implications for binding ergonomics: is implicit `memory.remember(text)` (no `ctx` arg) achievable inside an async chain (`await getUser(); await memory.remember()`), OR is `memory.user(ctx.userId).remember(text)` the cleanest possible API? | techniques | `../theokit/` + Node.js `node:async_hooks` docs | `Grep -rn "AsyncLocalStorage\|async_hooks" ../theokit/packages/` (already done — zero hits); `Grep -rn "AsyncLocalStorage" referencia/mem0/ referencia/letta/` to check if precedents use it; check Node.js stable since 16+; check perf cost (cited from Node docs + benchmarks) | Read 1-2 handler examples from `../theokit/examples/full-stack-agent/server/routes/` to see actual async patterns + propagate decision: introduce `AsyncLocalStorage` wrapper inside binding (cost: setup ceremony) vs keep explicit `ctx` arg (cost: noise in every call) | Recommendation: bind shape (`bindMemory(memory)(ctx)` HOC pattern vs `memory.fromCtx(ctx)` named ctor vs explicit `memory.user(ctx.userId)`) with trade-offs. At least one prototype-code snippet per option. |
+| Q6 | Request-scoped context propagation across async boundaries — TheoKit does NOT use `AsyncLocalStorage` (verified: zero grep hits in `../theokit/packages/`). Implications for binding ergonomics: is implicit `memory.remember(text)` (no `ctx` arg) achievable inside an async chain (`await getUser(); await memory.remember()`), OR is `memory.user(ctx.userId).remember(text)` the cleanest possible API? | techniques | `../theokit/` + Node.js `node:async_hooks` docs | `Grep -rn "AsyncLocalStorage\|async_hooks" ../theokit/packages/` (already done — zero hits); `Grep -rn "AsyncLocalStorage" .claude/knowledge-base/references/mem0/ .claude/knowledge-base/references/letta/` to check if precedents use it; check Node.js stable since 16+; check perf cost (cited from Node docs + benchmarks) | Read 1-2 handler examples from `../theokit/examples/full-stack-agent/server/routes/` to see actual async patterns + propagate decision: introduce `AsyncLocalStorage` wrapper inside binding (cost: setup ceremony) vs keep explicit `ctx` arg (cost: noise in every call) | Recommendation: bind shape (`bindMemory(memory)(ctx)` HOC pattern vs `memory.fromCtx(ctx)` named ctor vs explicit `memory.user(ctx.userId)`) with trade-offs. At least one prototype-code snippet per option. |
 | Q7 | Auth-side identity propagation: how does TheoKit's `createSessionManager` (cited in `fixtures/sessions-auth/server/context.ts`) construct `session.userId`? Is it stable across requests for the same user? Is it the same value that `memory.user(userId)` would key on? | techniques | `../theokit/` | `Grep -rn "createSessionManager\|SessionManager" ../theokit/packages/theo/src/` to find the implementation; `Grep -rn "userId" ../theokit/packages/theo/src/session*` to find userId construction | Read `createSessionManager` implementation end-to-end; capture how userId is set (from cookie? from JWT claim? from OAuth provider response?) | Description: identity-construction flow + 1 worked example (e.g., GitHub OAuth → userId = `gh:${profile.id}`); stability guarantees; whether the binding needs to namespace the userId (e.g., `theokit:${session.userId}`) to avoid collision with consumer-provided IDs |
 
 ## Coverage Matrix
@@ -146,10 +146,10 @@ Question budget check: 7 total questions (within 5-10 range), 3 max per corner (
 
 | Checkpoint | Assertion | Action if fails |
 |---|---|---|
-| Before answering Qx | Every `../theokit/{path}` and `referencia/{project}/{path}` declared in Fase A exists per `Path.exists()` | Mark Qx BLOCKED with reason "path not found", continue to next |
+| Before answering Qx | Every `../theokit/{path}` and `.claude/knowledge-base/references/{project}/{path}` declared in Fase A exists per `Path.exists()` | Mark Qx BLOCKED with reason "path not found", continue to next |
 | Per-question Fase A budget | Fase A returned at least one hotspot OR 3 query-variant retries attempted | After 3 retries with empty results, mark Qx BLOCKED with reason "Fase A exhausted"; continue |
-| After answering Qx | Blueprint section under Qx has at least one citation to either `../theokit/` or `referencia/` | Re-iterate Qx (1 retry max) |
-| Mid-loop sanity | Total citations to `../theokit/` + `referencia/` ≥ 1 / 200 words of blueprint prose | Add citations to under-cited paragraphs (1 retry max); soft-cap at 89 if density stays low (acceptable for synthesis prose) |
+| After answering Qx | Blueprint section under Qx has at least one citation to either `../theokit/` or `.claude/knowledge-base/references/` | Re-iterate Qx (1 retry max) |
+| Mid-loop sanity | Total citations to `../theokit/` + `.claude/knowledge-base/references/` ≥ 1 / 200 words of blueprint prose | Add citations to under-cited paragraphs (1 retry max); soft-cap at 89 if density stays low (acceptable for synthesis prose) |
 | Per-project time budget | TheoKit ≤ 4h, Mem0 ≤ 2h, Letta ≤ 1h | When exhausted, mark all remaining Qx for that project BLOCKED with reason "budget exhausted"; advance to next project |
 | Before promising complete | All 4 coverage corners have populated sections AND every cited `../theokit/` path passes `Path.exists()` (D4 enforcement) | Refuse promise, continue iterating |
 
@@ -157,7 +157,7 @@ Question budget check: 7 total questions (within 5-10 range), 3 max per corner (
 
 - [ ] All 7 research questions answered OR explicitly marked BLOCKED with reason
 - [ ] All four coverage corners have populated sections in the blueprint
-- [ ] Every citation in the blueprint points to a real path (`../theokit/{...}` per D4 OR `referencia/{...}` per existing golden rule)
+- [ ] Every citation in the blueprint points to a real path (`../theokit/{...}` per D4 OR `.claude/knowledge-base/references/{...}` per existing golden rule)
 - [ ] At least one ADR section in the blueprint synthesizes decisions taken (D4 + D5 from this plan + new D6+ from the synthesis)
 - [ ] Cross-cutting comparison table populated for at least 4 dimensions (request→ctx flow, scope resolution mechanism, default-on integration pattern, test approach)
 - [ ] Recommendations section provides at least 1 concrete decision proposal per research question (7 recommendations minimum)
@@ -169,7 +169,7 @@ Question budget check: 7 total questions (within 5-10 range), 3 max per corner (
 
 - [ ] All phases completed (this plan → `/discover-edge-cases` → `/discover-execute` → `/discover-confidence` → optional `/discover-improve` → re-score)
 - [ ] Final `/discover-confidence` verdict recorded in the blueprint header
-- [ ] No fabricated citations (per D4: `../theokit/` paths held to same standard as `referencia/`)
+- [ ] No fabricated citations (per D4: `../theokit/` paths held to same standard as `.claude/knowledge-base/references/`)
 - [ ] Coverage Matrix 100 % covered (already 4/4 in this plan)
 - [ ] ADRs reference at least one project rule (`architecture.md § 3 DIP` for the binding-isolation rule, `architecture.md § 5 Two runtimes` for runtime-agnostic surface, `public-copy.md § 2` for positioning anchor preservation) — D1-D5 above already cite these
 - [ ] Plan archived to `.claude/knowledge-base/discoveries/plans/completed/` after the blueprint reaches SHIPPABLE_WITH_CAVEATS+ and the v0.2 implementation plan ships (mirroring the v0-1 lifecycle)

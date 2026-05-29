@@ -15,7 +15,7 @@ What motivates this discovery NOW, what evidence (e.g., a contract gap, a benchm
 
 One clear sentence: what should the produced blueprint enable us to decide? Then a short list of measurable success criteria for the blueprint:
 
-- [ ] All research questions in this plan answered with citations to `referencia/`
+- [ ] All research questions in this plan answered with citations to `.claude/knowledge-base/references/`
 - [ ] Cross-cutting comparison table populated for every in-scope reference project
 - [ ] Recommendations section provides at least one concrete decision proposal per in-scope research question
 - [ ] `/discover-confidence` verdict ≥ SHIPPABLE_WITH_CAVEATS
@@ -26,17 +26,17 @@ One clear sentence: what should the produced blueprint enable us to decide? Then
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `referencia/mem0/` | e.g., `mem0-ts/src/memory/`, `mem0-ts/tests/` | Mem0-shape architecture is locked; we need the integration-test pattern |
-| `referencia/letta/` | e.g., `letta/services/`, `letta/orm/` | Pgvector schema reference |
-| `referencia/langmem/` | e.g., `langmem/procedural/` | Procedural memory pattern — out-of-scope for v0.1 contract, but useful for v0.4 |
+| `.claude/knowledge-base/references/mem0/` | e.g., `mem0-ts/src/memory/`, `mem0-ts/tests/` | Mem0-shape architecture is locked; we need the integration-test pattern |
+| `.claude/knowledge-base/references/letta/` | e.g., `letta/services/`, `letta/orm/` | Pgvector schema reference |
+| `.claude/knowledge-base/references/langmem/` | e.g., `langmem/procedural/` | Procedural memory pattern — out-of-scope for v0.1 contract, but useful for v0.4 |
 
 ### Out-of-Scope (explicit)
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `referencia/mem0/docs/` | Marketing docs, not source of truth |
-| `referencia/*/build/`, `dist/`, `.venv/` | Build artifacts |
-| Any project NOT cloned into `referencia/` | Cross-Project Rule: never claim a project feature without reading its source |
+| `.claude/knowledge-base/references/mem0/docs/` | Marketing docs, not source of truth |
+| `.claude/knowledge-base/references/*/build/`, `dist/`, `.venv/` | Build artifacts |
+| Any project NOT cloned into `.claude/knowledge-base/references/` | Cross-Project Rule: never claim a project feature without reading its source |
 
 ## ADRs
 
@@ -79,11 +79,11 @@ Numbered list. Each question maps to a Coverage Corner (tests / deps / tools / t
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | How does Mem0 test the LLM-extraction pipeline against a real Postgres? | tests | `referencia/mem0/mem0-ts/` | `ast-grep scan --rule rules/decorated-function-python.yml referencia/mem0/` to list test fixtures; OR `ast-grep run --pattern 'describe($$$, ($$$) => { $$$ })' --lang typescript` for TS test blocks | Read each test fixture + its setup block; capture which Postgres / pgvector container is wired | Table: test name → fixture used → assertion type, with `referencia/.../path:line` per row |
-| Q2 | What pg-vector versions does Letta support? | deps | `referencia/letta/` | `ast-grep run --pattern 'pgvector $$$' --lang python` OR Grep for `pgvector` in `pyproject.toml` / `requirements*.txt` (text-shape — Fase A may be skipped) | Read each match in context to capture version range + index type | Version range + supported index types + citations |
-| Q3 | What's Mem0's local-dev story? Docker? Just Postgres? | tools | `referencia/mem0/` | SKIP Fase A — text-shape question. Glob for `docker-compose*.yml`, `Makefile`, `README*.md` | Read each file fully | Step-by-step instructions + dependency list |
-| Q4 | Does LangMem implement procedural memory as prompt-rewriting or as a structured memory class? | techniques | `referencia/langmem/` | `ast-grep run --pattern 'class $NAME($$$): $$$' --lang python referencia/langmem/src/langmem/prompts/` to list candidate classes | Read each candidate class to determine architecture pattern | Architecture description + class diagram + key citations |
-| Q5 | Compare how Mem0 (TS) and Letta (Python) define the `add()` operation | techniques | `referencia/mem0/`, `referencia/letta/` | `ast-grep run -p 'async add($$$) { $$$ }' --lang typescript ref/mem0/` AND `ast-grep run -p 'def add($$$): $$$' --lang python ref/letta/` — TWO Fase A queries, one per language | Read both candidate methods side-by-side to compare signatures + bodies | Side-by-side table with TS and Python signatures + citations |
+| Q1 | How does Mem0 test the LLM-extraction pipeline against a real Postgres? | tests | `.claude/knowledge-base/references/mem0/mem0-ts/` | `ast-grep scan --rule rules/decorated-function-python.yml .claude/knowledge-base/references/mem0/` to list test fixtures; OR `ast-grep run --pattern 'describe($$$, ($$$) => { $$$ })' --lang typescript` for TS test blocks | Read each test fixture + its setup block; capture which Postgres / pgvector container is wired | Table: test name → fixture used → assertion type, with `.claude/knowledge-base/references/.../path:line` per row |
+| Q2 | What pg-vector versions does Letta support? | deps | `.claude/knowledge-base/references/letta/` | `ast-grep run --pattern 'pgvector $$$' --lang python` OR Grep for `pgvector` in `pyproject.toml` / `requirements*.txt` (text-shape — Fase A may be skipped) | Read each match in context to capture version range + index type | Version range + supported index types + citations |
+| Q3 | What's Mem0's local-dev story? Docker? Just Postgres? | tools | `.claude/knowledge-base/references/mem0/` | SKIP Fase A — text-shape question. Glob for `docker-compose*.yml`, `Makefile`, `README*.md` | Read each file fully | Step-by-step instructions + dependency list |
+| Q4 | Does LangMem implement procedural memory as prompt-rewriting or as a structured memory class? | techniques | `.claude/knowledge-base/references/langmem/` | `ast-grep run --pattern 'class $NAME($$$): $$$' --lang python .claude/knowledge-base/references/langmem/src/langmem/prompts/` to list candidate classes | Read each candidate class to determine architecture pattern | Architecture description + class diagram + key citations |
+| Q5 | Compare how Mem0 (TS) and Letta (Python) define the `add()` operation | techniques | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/` | `ast-grep run -p 'async add($$$) { $$$ }' --lang typescript ref/mem0/` AND `ast-grep run -p 'def add($$$): $$$' --lang python ref/letta/` — TWO Fase A queries, one per language | Read both candidate methods side-by-side to compare signatures + bodies | Side-by-side table with TS and Python signatures + citations |
 
 ## Coverage Matrix
 
@@ -106,10 +106,10 @@ For `/discover-execute`: what intermediate state MUST hold before the loop can m
 
 | Checkpoint | Assertion | Action if fails |
 |---|---|---|
-| Before answering Qx | `referencia/{project}/{path}` declared in Fase A exists | Mark Qx BLOCKED with reason "path not found", continue to next |
+| Before answering Qx | `.claude/knowledge-base/references/{project}/{path}` declared in Fase A exists | Mark Qx BLOCKED with reason "path not found", continue to next |
 | Per-question Fase A budget | Fase A returned at least one hotspot OR 3 query-variant retries attempted | After 3 retries with empty results, mark Qx BLOCKED with reason "Fase A exhausted"; continue |
 | After answering Qx | Blueprint section under Qx has at least one citation | Re-iterate Qx (1 retry max) |
-| Mid-loop sanity | Total citations to `referencia/` ≥ N / 200 words of blueprint prose | Add citations to under-cited paragraphs (1 retry max) |
+| Mid-loop sanity | Total citations to `.claude/knowledge-base/references/` ≥ N / 200 words of blueprint prose | Add citations to under-cited paragraphs (1 retry max) |
 | Per-project time budget | Project time budget not exhausted | When exhausted, mark all remaining Qx for that project BLOCKED with reason "budget exhausted"; advance to next project |
 | Before promising complete | All 4 coverage corners have populated sections | Refuse promise, continue iterating |
 
@@ -119,7 +119,7 @@ Observable conditions for "this discovery is done":
 
 - [ ] All research questions answered OR explicitly marked BLOCKED with reason
 - [ ] All four coverage corners have populated sections in the blueprint
-- [ ] Every citation in the blueprint points to a real `referencia/{...}` path
+- [ ] Every citation in the blueprint points to a real `.claude/knowledge-base/references/{...}` path
 - [ ] At least one ADR section in the blueprint synthesizes decisions taken
 - [ ] Time budget respected per project
 - [ ] `/discover-confidence` verdict ≥ SHIPPABLE_WITH_CAVEATS

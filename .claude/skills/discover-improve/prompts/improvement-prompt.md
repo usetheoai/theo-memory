@@ -14,7 +14,7 @@ Run `python3 .claude/skills/discover-improve/scripts/apply_fixes.py {BLUEPRINT_P
 
 1. Replaces weak imperatives (should/could/may/might/deveria/poderia) with `must` / `deve` in prose (skips code blocks and citation tables).
 2. Strips loopholes ("if possible", "as appropriate", "se possível", "quando aplicável", ...).
-3. Detects fabricated citations (paths in `referencia/{...}` that don't exist on disk) and marks them with `<!-- BLOCKED: path not found in referencia/ -->`.
+3. Detects fabricated citations (paths in `.claude/knowledge-base/references/{...}` that don't exist on disk) and marks them with `<!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->`.
 4. Reports diff to stdout.
 
 Then re-score:
@@ -37,7 +37,7 @@ For each detractor in the latest `motivos`:
 
 2. **Per-project asymmetry** — one project dominates content. Trim repetitive paragraphs in the dominant project's subsections; do NOT pad the under-represented projects with fabricated detail.
 
-3. **Low citation density** — paragraphs without citations should EITHER receive a real `referencia/{...}` citation OR be rewritten as opinion ("the synthesis suggests...") rather than claim.
+3. **Low citation density** — paragraphs without citations should EITHER receive a real `.claude/knowledge-base/references/{...}` citation OR be rewritten as opinion ("the synthesis suggests...") rather than claim.
 
 4. **Risco_estrutural detractors** — fix specific smells listed in motivos by rewriting the affected sentence.
 
@@ -62,7 +62,7 @@ If `iterations_used >= {MAX_ITERATIONS}` OR no-improvement detected for 2 consec
 
 - NEVER touch files outside `{BLUEPRINT_PATH}`.
 - NEVER modify the upstream discovery plan. To revise the plan, the user must invoke `/discover-plan` again.
-- NEVER modify `referencia/` (boundary-check hook enforces).
+- NEVER modify `.claude/knowledge-base/references/` (boundary-check hook enforces).
 - NEVER fabricate a citation. If a path doesn't exist, mark it BLOCKED and move on.
 - NEVER emit the promise while a hard cap is still active. INVALID verdict cannot be auto-improved past 49 without resolving the underlying structural defect (empty corner / fabricated citation).
 - NEVER iterate beyond `{MAX_ITERATIONS}`.
