@@ -21,6 +21,7 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   check,
@@ -53,12 +54,25 @@ export const memories = pgTable(
     tValid: timestamp('t_valid', { withTimezone: true }).defaultNow(),
     tInvalid: timestamp('t_invalid', { withTimezone: true }),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
-    /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6. */
+    /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
+     *  v0.6: also accepts 'skill' (Voyager code-as-skill) per voyager-skill-library plan ADR D3. */
     kind: varchar('kind', { length: 20 }).notNull().default('extracted'),
-    /** v0.4a: provenance for kind='derived' memories — array of source memory UUIDs per ADR D6. */
+    /** v0.4a: provenance for kind='derived' memories — array of source memory UUIDs per ADR D6;
+     *  v0.6: also populated by `consolidate()` on derived skill rows (kind='skill'). */
     derivedFrom: jsonb('derived_from').$type<string[]>(),
     /** v0.4a: LLM-judged importance cached at write per ADR D8 (REUSED by v0.4b forgetting). */
     llmImportanceScore: real('llm_importance_score'),
+    /** v0.6: Voyager-style supersession chain — newer skill points back to ancestor.
+     *  Self-FK with ON DELETE SET NULL preserves audit trail when an ancestor is hard-deleted. */
+    supersededBy: uuid('superseded_by').references((): AnyPgColumn => memories.id, {
+      onDelete: 'set null',
+    }),
+    /** v0.6: Voyager code-as-skill payload — executable TypeScript/JavaScript snippet. NULL for non-skills. */
+    code: text('code'),
+    /** v0.6: Natural-language description of the skill — embedding target for kind='skill' rows. */
+    description: text('description'),
+    /** v0.6: Language tag of the `code` payload (typescript | javascript). NULL for non-skills. */
+    codeLanguage: varchar('code_language', { length: 20 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -69,9 +83,12 @@ export const memories = pgTable(
     index('memories_agent_id_idx').on(table.agentId),
     index('memories_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
     check(
+      // EC-1 absorption (voyager-skill-library plan v1.1): name verbatim, cited by
+      // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
       'memories_kind_derived_from_check',
       sql`(${table.kind} = 'extracted' AND ${table.derivedFrom} IS NULL)
-       OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)`,
+       OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)
+       OR (${table.kind} = 'skill' AND (${table.derivedFrom} IS NULL OR jsonb_array_length(${table.derivedFrom}) >= 1))`,
     ),
   ],
 );
