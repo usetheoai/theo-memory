@@ -304,6 +304,41 @@ export class InMemoryVectorStore implements VectorStore {
     await Promise.resolve();
     return id;
   }
+
+  /**
+   * v0.6 — set `superseded_by` on every row whose id is in `sourceIds`.
+   *
+   * Iterates the Map and patches the payload in place. NEVER deletes rows.
+   */
+  async markSuperseded(
+    sourceIds: readonly string[],
+    supersededBy: string,
+  ): Promise<void> {
+    for (const id of sourceIds) {
+      const row = this.rows.get(id);
+      if (row !== undefined) {
+        row.payload['superseded_by'] = supersededBy;
+      }
+    }
+    await Promise.resolve();
+  }
+
+  /**
+   * v0.6 — best-effort sequential `insertDerivedSkill` + `markSuperseded`.
+   *
+   * In-memory has no transactional semantics — if insertDerivedSkill succeeds
+   * and markSuperseded throws, the derived skill row stays in the Map without
+   * the sources being marked. Per plan v1.1 EC-2 absorption, this is documented
+   * accepted-risk for tests/dev only; production path is always PgvectorStore.
+   */
+  async insertDerivedSkillAtomic(
+    args: InsertDerivedSkillArgs,
+    sourceIdsToSupersede: readonly string[],
+  ): Promise<string> {
+    const derivedId = await this.insertDerivedSkill(args);
+    await this.markSuperseded(sourceIdsToSupersede, derivedId);
+    return derivedId;
+  }
 }
 
 const ALLOWED_SKILL_LANGUAGES: ReadonlySet<SkillLanguage> = new Set<SkillLanguage>([
