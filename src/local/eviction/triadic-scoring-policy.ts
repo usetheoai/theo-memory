@@ -95,6 +95,24 @@ export interface NearestNeighborProvider {
 /** Max isolation distance when scope has no other memories (singleton fallback). */
 const MAX_ISOLATION_DISTANCE = 1;
 
+/** Long-tail multiplier bounds per blueprint D9 — clamp(0.1, 1.0, ratio). */
+const MIN_PROTECTION_MULTIPLIER = 0.1;
+const MAX_PROTECTION_MULTIPLIER = 1;
+
+/**
+ * Extracts the scope identifier used for nearest-neighbor scoping. RepoScope
+ * maps to `agent_id` per ADR-0010 / EC-4 absorption from the v0.6 cycle.
+ */
+function getNeighborScopeId(scope: MemoryItem['scope']): string | null {
+  if (scope.kind === 'agent') {
+    return scope.agentId;
+  }
+  if (scope.kind === 'repo') {
+    return scope.repoId;
+  }
+  return null;
+}
+
 /**
  * EC-6 absorption (plan v1.1 edge-case review): TriadicScoringPolicy
  * constructor rejects weights that sum to zero (degenerate; would make
@@ -228,9 +246,50 @@ export class TriadicScoringPolicy implements EvictionPolicy {
     }
     const recency = computeRecency(memory.lastAccessedAt ?? null, context.now, halfLife);
     const frequency = computeFrequency(memory.accessCount ?? 0, this.constants.accessCountNorm);
-    return this.weights.recency * recency
+    const baseScore = this.weights.recency * recency
       + this.weights.frequency * frequency
       + this.weights.importance * importance;
+    const multiplier = await this.computeProtectionMultiplier(memory, context);
+    return baseScore * multiplier;
+  }
+
+  /**
+   * v0.4b T4.2 (D9): long-tail protection multiplier
+   *   `clamp(0.1, 1.0, isolation_distance / mean_isolation_distance)`
+   * applied multiplicatively on top of the additive triadic base score.
+   *
+   * Plan-prose framing inversion absorbed: T4.2 § Deep Dives line 712 reads
+   * "LOWER multiplier = STRONGER protection (lower eviction-score = stays
+   * longer)" which assumes an eviction-score convention (LOW = stays). T2.1
+   * ships a value-score convention (HIGH = stays). The formula produces
+   * correct long-tail protection in EITHER convention — clustered memories
+   * get penalized into the victim band; isolated memories survive.
+   *
+   * Short-circuits to 1.0 (no penalty) when (a) no provider wired AND no
+   * cache present, OR (b) mean_isolation_distance <= 0 (no pass-level mean
+   * available). selectVictims pre-populates the cache + mean per pass.
+   */
+  private async computeProtectionMultiplier(
+    memory: MemoryItem,
+    context: ScoreContext,
+  ): Promise<number> {
+    if (context.meanIsolationDistance <= 0) {
+      return MAX_PROTECTION_MULTIPLIER;
+    }
+    const cached = context.neighborDistances?.get(memory.id);
+    let isolation: number | null = cached ?? null;
+    if (isolation === null && this.neighborProvider !== null) {
+      const scopeId = getNeighborScopeId(memory.scope);
+      if (scopeId === null) {
+        return MAX_PROTECTION_MULTIPLIER;
+      }
+      isolation = await this.neighborProvider.distance(memory.id, scopeId);
+    }
+    if (isolation === null) {
+      return MAX_PROTECTION_MULTIPLIER;
+    }
+    const ratio = isolation / context.meanIsolationDistance;
+    return Math.max(MIN_PROTECTION_MULTIPLIER, Math.min(MAX_PROTECTION_MULTIPLIER, ratio));
   }
 
   async selectVictims(
@@ -239,11 +298,49 @@ export class TriadicScoringPolicy implements EvictionPolicy {
     context: ScoreContext,
   ): Promise<readonly string[]> {
     assertValidFraction(fraction);
+    const enrichedContext = await this.maybeCacheNeighborDistances(candidates, context);
     const scored = await Promise.all(
-      candidates.map(async (memory) => ({ id: memory.id, score: await this.score(memory, context) })),
+      candidates.map(async (memory) => ({
+        id: memory.id,
+        score: await this.score(memory, enrichedContext),
+      })),
     );
     scored.sort((a, b) => a.score - b.score);
     const victimCount = Math.floor(candidates.length * fraction);
     return scored.slice(0, victimCount).map((s) => s.id);
+  }
+
+  /**
+   * v0.4b T4.2 § REFACTOR: cache mean_isolation_distance + per-memory
+   * distances on ScoreContext so score() reads from the cache instead of
+   * re-querying. Net: N nearest-neighbor queries per selectVictims pass
+   * (not N² and not 2N).
+   *
+   * Returns the original context unchanged when (a) caller already provided
+   * a meanIsolationDistance (> 0), OR (b) no neighborProvider is wired.
+   */
+  private async maybeCacheNeighborDistances(
+    candidates: readonly MemoryItem[],
+    context: ScoreContext,
+  ): Promise<ScoreContext> {
+    if (context.meanIsolationDistance > 0 || this.neighborProvider === null
+        || candidates.length === 0) {
+      return context;
+    }
+    const cache = new Map<string, number>();
+    for (const memory of candidates) {
+      const scopeId = getNeighborScopeId(memory.scope);
+      const isolation = scopeId !== null
+        ? await this.neighborProvider.distance(memory.id, scopeId)
+        : MAX_ISOLATION_DISTANCE;
+      cache.set(memory.id, isolation);
+    }
+    const distances = [...cache.values()];
+    const mean = distances.reduce((sum, d) => sum + d, 0) / distances.length;
+    return {
+      meanIsolationDistance: mean,
+      now: context.now,
+      neighborDistances: cache,
+    };
   }
 }
