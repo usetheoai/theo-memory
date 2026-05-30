@@ -41,8 +41,8 @@ test('Scope discriminator extracts each tier correctly', () => {
   expectTypeOf<WhenAgent>().toEqualTypeOf<AgentScope>();
 });
 
-test('Scope.kind union is exactly the three locked tiers', () => {
-  expectTypeOf<Scope['kind']>().toEqualTypeOf<'user' | 'session' | 'agent'>();
+test('Scope.kind union covers the four tiers (v0.6 adds repo)', () => {
+  expectTypeOf<Scope['kind']>().toEqualTypeOf<'user' | 'session' | 'agent' | 'repo'>();
 });
 
 test('UserScope has exactly kind + userId (no extras)', () => {
