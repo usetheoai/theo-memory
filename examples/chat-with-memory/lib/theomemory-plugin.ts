@@ -25,7 +25,14 @@ const REFLECTION_THRESHOLD = (() => {
   return Number.isFinite(n) && n > 0 ? n : 10;
 })();
 
-const writeCounts = new Map<string, number>();
+declare global {
+  // eslint-disable-next-line no-var
+  var _themory_demo_writeCounts: Map<string, number> | undefined;
+}
+
+function getWriteCounts(): Map<string, number> {
+  return (globalThis._themory_demo_writeCounts ??= new Map<string, number>());
+}
 
 const BASE_SYSTEM_PROMPT = [
   "You are a helpful, concise assistant powered by Theokit.",
@@ -98,10 +105,10 @@ export async function rememberTurn(opts: {
   if (REFLECTION_THRESHOLD === 0) {
     return { fired: false, nextThreshold: 0, writesSinceLastReflection: 0 };
   }
-  const prev = writeCounts.get(opts.userId) ?? 0;
+  const prev = getWriteCounts().get(opts.userId) ?? 0;
   const next = prev + 1;
   if (next >= REFLECTION_THRESHOLD) {
-    writeCounts.set(opts.userId, 0);
+    getWriteCounts().set(opts.userId, 0);
     userScoped.reflect().catch((err) => {
       // eslint-disable-next-line no-console
       console.warn("[theomemory] reflect() failed:", err);
@@ -112,7 +119,7 @@ export async function rememberTurn(opts: {
       writesSinceLastReflection: 0,
     };
   }
-  writeCounts.set(opts.userId, next);
+  getWriteCounts().set(opts.userId, next);
   return {
     fired: false,
     nextThreshold: REFLECTION_THRESHOLD,
