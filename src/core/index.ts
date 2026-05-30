@@ -13,6 +13,7 @@
 export type {
   AgentScope,
   Filters,
+  RepoScope,
   Scope,
   SessionScope,
   UserScope,

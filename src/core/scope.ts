@@ -24,7 +24,22 @@ export interface AgentScope {
   readonly userId?: string;
 }
 
-export type Scope = UserScope | SessionScope | AgentScope;
+/**
+ * v0.6 — code-as-skill repository scope.
+ *
+ * Issued by `Memory.skills(repoId)`. At the store layer, `repoId` is persisted
+ * as the row's `agent_id` column (the cross-user semantic fits a code repo).
+ * Disambiguation between regular agent memories and skill memories happens via
+ * the `kind='skill'` discriminator on the row — same column, different kind.
+ *
+ * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T4.1 + ADR D3
+ */
+export interface RepoScope {
+  readonly kind: 'repo';
+  readonly repoId: string;
+}
+
+export type Scope = UserScope | SessionScope | AgentScope | RepoScope;
 
 /**
  * `ScopedContext` — structural interface consumed by `memoryFromCtx` (v0.2 PR-A)

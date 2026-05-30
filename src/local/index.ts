@@ -31,6 +31,7 @@ import type { Pool } from 'pg';
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { Embedder } from '../core/dip/embedder.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
+import type { VectorStore } from '../core/dip/vector-store.js';
 import {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
@@ -60,6 +61,9 @@ import type { ReflectionResult } from '../core/reflection-result.js';
 import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, Scope } from '../core/scope.js';
 import type { ScopedSkillMemory } from '../core/skill.js';
+
+import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
+import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 
 export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
@@ -116,14 +120,19 @@ function filtersFromScope(scope: Scope): Filters {
       return scope.userId !== undefined
         ? { user_id: scope.userId, agent_id: scope.agentId }
         : { agent_id: scope.agentId };
+    case 'repo':
+      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column. The
+      // `kind='skill'` discriminator (added by Skill-specific recall/getAll paths)
+      // disambiguates skill rows from regular agent memories under the same id.
+      return { agent_id: scope.repoId };
   }
 }
 
 function assertScopeIsNonEmpty(scope: Scope): void {
   // Type-safe runtime guard — rejects {} or any malformed input lacking a valid kind.
   const kind = (scope as { kind?: string }).kind;
-  if (kind !== 'user' && kind !== 'session' && kind !== 'agent') {
-    throw new InvalidScope('reset requires a Scope with kind user/session/agent (EC-13)');
+  if (kind !== 'user' && kind !== 'session' && kind !== 'agent' && kind !== 'repo') {
+    throw new InvalidScope('reset requires a Scope with kind user/session/agent/repo (EC-13)');
   }
   if (scope.kind === 'user' && scope.userId === '') {
     throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
@@ -132,6 +141,9 @@ function assertScopeIsNonEmpty(scope: Scope): void {
     throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
   }
   if (scope.kind === 'agent' && scope.agentId === '') {
+    throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
+  }
+  if (scope.kind === 'repo' && scope.repoId === '') {
     throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
   }
 }
@@ -158,6 +170,10 @@ function scopeToCounterTuple(scope: Scope): {
       return { userId: scope.userId ?? null, sessionId: scope.sessionId, agentId: null };
     case 'agent':
       return { userId: scope.userId ?? null, sessionId: null, agentId: scope.agentId };
+    case 'repo':
+      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column at the
+      // store layer (see filtersFromScope). Counter rows mirror that mapping.
+      return { userId: null, sessionId: null, agentId: scope.repoId };
   }
 }
 
@@ -464,18 +480,26 @@ class LocalMemory implements Memory {
   /**
    * v0.6: code-as-skill memory entry-point.
    *
-   * T1.1 lands the type contract per plan ADR D5; the runtime implementation
-   * (`LocalScopedSkillMemory` class + factory wiring) ships in T4.1 alongside
-   * the RepoScope union extension. Until then this placeholder satisfies the
-   * `Memory` interface without fabricating behavior — invocation surfaces an
-   * honest BLOCKED state rather than a silent no-op (Inquebrável Rule 3).
+   * Returns a `LocalScopedSkillMemory` bound to `repoId`. Internally maps to
+   * the existing `agent_id` column at the store layer per the EC-4 absorption
+   * in `filtersFromScope`; the `kind='skill'` discriminator disambiguates skill
+   * rows from regular agent memories sharing the same id.
    *
+   * @throws InvalidScope on empty `repoId`.
    * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T4.1
    */
   skills(repoId: string): ScopedSkillMemory {
-    throw new Error(
-      `LocalMemory.skills(${JSON.stringify(repoId)}) is not yet wired — lands at T4.1 (LocalScopedSkillMemory + RepoScope).`,
-    );
+    // The local stores (PgvectorStore + InMemoryVectorStore) implement the
+    // VectorStoreWithSkillInsert extension as duck-typed methods (off-DIP per
+    // T2.1 design note); narrow at the boundary so the orchestrator sees the
+    // augmented surface.
+    const skillStore = this.config.vectorStore as VectorStore & VectorStoreWithSkillInsert;
+    return new LocalScopedSkillMemory(repoId, {
+      vectorStore: skillStore,
+      embedder: this.config.embedder,
+      llm: this.config.llm,
+      ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
+    });
   }
 }
 
