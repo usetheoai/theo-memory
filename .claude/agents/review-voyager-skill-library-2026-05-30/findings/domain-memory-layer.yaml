@@ -1,0 +1,640 @@
+agent: review-voyager-skill-library-domain-memory-layer
+review_target: develop..HEAD for plan voyager-skill-library v1.1
+domain: memory-layer
+date: 2026-05-30
+domain_specific_patterns_checked:
+  - ADR D1 — REUSE v0.4a Memory.reflect chain (executeReflection + validateProvenance + insertDerivedMemory) for skill consolidation
+  - ADR D2 — code-as-skill payload (code/description/codeLanguage); description as embedding target
+  - ADR D3 — REUSE pgvector + Drizzle schema with kind='skill' discriminator (no separate skills table)
+  - ADR D4 — 4-phase orchestrator at src/local/skills/, NOT inside LocalScopedSkillMemory
+  - ADR D5 — public-API in default barrel; no new @usetheo/memory/skills subpath in v0.6
+  - EC-3 — includeSuperseded + onlySkills on BOTH RecallOptions AND GetAllOptions
+  - EC-4 — case 'repo' arm in all 4 switch sites (filtersFromScope, assertScopeIsNonEmpty, scopeToCounterTuple×2, scope identifier in prompt.ts)
+  - 4-verb ScopedSkillMemory parity (add / recall / consolidate / forget; no reflect exposed)
+  - ADD-only invariant — consolidate never deletes source rows
+  - Mem0-shape architectural anchor — additive scoring; nine-step retrieval reused via runRetrievalPipeline
+  - Three-tier scope vocabulary preserved (User / Session / Agent) + RepoScope as a 4th scope kind (note below)
+findings:
+  - id: F-dom-mem-1
+    severity: CRITICAL
+    file: src/local/scoped-skill-memory.ts
+    line: 116-118
+    plan_ref: ADR D2 + T4.1 Deep Dives ("repoId empty string → reject with EmptyScopeError")
+    domain_anchor: src/core/errors.ts:96-107 (EmptyScopeError message scoped to reflection_counters semantics)
+    summary: |
+      LocalScopedSkillMemory.add() throws `EmptyScopeError` on an empty
+      `description`, but `EmptyScopeError`'s canonical message ("Scope is empty:
+      at least one of userId / sessionId / agentId must be non-empty. All-NULL
+      scopes cannot be persisted in reflection_counters per the table CHECK
+      constraint.") is a reflection-counter contract — totally unrelated to a
+      missing skill description.
+
+      The correct error here is the typed `InvalidSkillError('empty-description', ...)`
+      that the underlying stores (`pgvector-store.ts:72`,
+      `in-memory-store.ts:354`) already raise for the same condition. Per the
+      "fail-fast at the boundary" rule, the façade either (a) delegates to the
+      store and lets InvalidSkillError surface, or (b) raises InvalidSkillError
+      itself with the same code — but never reuses EmptyScopeError for a
+      non-scope condition. The consumer sees a misleading message pointing at
+      reflection-counter internals.
+
+      Also note: the throw happens BEFORE `embedder.embed` is called, so the
+      store-level validation is unreachable for the empty-description path
+      through `add()`. The error message is the only signal the consumer gets.
+    evidence: |
+      // src/local/scoped-skill-memory.ts:115-118
+      async add(draft: SkillDraft): Promise<Skill> {
+        if (draft.description.trim().length === 0) {
+          throw new EmptyScopeError();   // ← wrong error class for this condition
+        }
+        ...
+
+      // src/core/errors.ts:96-107
+      export class EmptyScopeError extends Error {
+        constructor(options?: ErrorOptions) {
+          super(
+            'Scope is empty: at least one of userId / sessionId / agentId must be non-empty. ' +
+              'All-NULL scopes cannot be persisted in reflection_counters per the table CHECK constraint.',
+            options,
+          );
+          ...
+    recommended_action: |
+      Replace `throw new EmptyScopeError()` with
+      `throw new InvalidSkillError('empty-description',
+        'description is required and must not be whitespace-only (it is the embedding target)')`
+      to mirror the store-layer guard and keep the typed-error vocabulary
+      consistent. Add a unit test asserting the error code/class so future
+      regressions are caught.
+
+  - id: F-dom-mem-2
+    severity: MAJOR
+    file: src/local/skills/consolidate.ts
+    line: 305-334
+    plan_ref: T3.1 Deep Dives § Phase 1 (Orient) + plan acceptance test ("scope isolation")
+    domain_anchor: ADR D3 (REUSE pgvector schema with kind='skill' discriminator) + architecture.md § 1 (three-tier scope filter shape)
+    summary: |
+      The Orient phase calls `deps.vectorStore.list(orientFilters, ORIENT_PAGE_SIZE)`
+      with `orientFilters = { ...deps.filters, kind: 'skill', excludeSuperseded: true }`.
+      `deps.filters` is the Filters value injected by `LocalScopedSkillMemory.consolidate()`,
+      which sets `{ agent_id: repoId }` at construction time
+      (scoped-skill-memory.ts:112). That is correct for the SQL pgvector path.
+
+      However, Phase 1 then calls `await deps.vectorStore.get(row.id)` inside
+      the for-loop solely to gate `if (get === null) continue;` — the value is
+      stored in a local named `get` and the only field read is its presence.
+      `vectorStore.get(row.id)` performs ANOTHER SQL roundtrip per row already
+      returned by `list()`. Two issues:
+
+      (1) **N+1 query.** For 500 skills (ORIENT_PAGE_SIZE) the Orient phase
+          fires up to 501 SQL queries instead of 1. At pgvector load this
+          dominates the consolidate latency budget; the OTel span
+          `skills.consolidate.orient` will report misleadingly long durations
+          attributed to "skills_found = N" but actually caused by per-row
+          re-fetch.
+
+      (2) **Dead semantics.** A row returned by `list()` cannot be `null` on
+          `get()` in the same transaction without a concurrent delete, which
+          the v0.6 ADD-only contract forbids. The guard is impossible-by-design.
+
+      The accompanying comment ("Conformance contract does not include direct
+      vector access; re-embed from the description as the deterministic source
+      for clustering.") justifies the `embedder.embed(skill.description)` call
+      that follows, NOT the `get` call. The `get` call is unrelated dead I/O.
+    evidence: |
+      // src/local/skills/consolidate.ts:317-330
+      for (const row of rawRows) {
+        const skill = rowToSkill(row.id, row.payload, deps.scope);
+        if (skill === null) {
+          continue;
+        }
+        const get = await deps.vectorStore.get(row.id);   // ← N+1, dead semantics
+        // Conformance contract does not include direct vector access; re-embed
+        // from the description as the deterministic source for clustering.
+        if (get === null) {
+          continue;
+        }
+        const embedding = await deps.embedder.embed(skill.description);
+        acc.push({ skill, embedding });
+      }
+    recommended_action: |
+      Remove the `await deps.vectorStore.get(row.id)` call and its null-guard
+      entirely. The re-embed via `deps.embedder.embed(skill.description)` is
+      the deterministic clustering source and is what the comment was
+      protecting. After removal, add an integration-test sanity that consolidate
+      across N seeded skills fires exactly 1 list() call (use a vi spy on
+      vectorStore.get to assert it stays at 0 during Orient).
+
+  - id: F-dom-mem-3
+    severity: MAJOR
+    file: src/local/skills/consolidate.ts
+    line: 240-285 (rowToSkill) AND src/local/scoped-skill-memory.ts:48-97 (payloadToSkill)
+    plan_ref: architecture.md § DIP boundaries + plan ADR D4 (SRP — orchestrator lives at src/local/skills/, NOT in scoped-skill-memory)
+    domain_anchor: Inquebrável § 12 DRY (knowledge duplication, not line duplication)
+    summary: |
+      Two near-identical functions project a stored skill row's payload into a
+      `Skill` (or `SkillWithScore`) object:
+
+        - `src/local/scoped-skill-memory.ts:48 — payloadToSkill(id, payload, scope, score?): SkillWithScore | null`
+        - `src/local/skills/consolidate.ts:240 — rowToSkill(id, payload, scope): Skill | null`
+
+      Both:
+        - read `payload['kind']` and short-circuit to null if != 'skill'
+        - read + narrow `code_language` against {typescript, javascript}
+        - read + null-coerce `superseded_by`
+        - JSON.parse `derived_from` with try/catch defending malformed JSON
+        - synthesize the same `Skill` row shape (createdAt/updatedAt = new Date(), metadata = {...payload})
+
+      This is exactly the DRY violation the rule talks about: two sites of the
+      payload-decoding KNOWLEDGE. If the v0.6.1 plan adds a new skill column
+      (e.g., `nl_spec` per the reserved `SkillRepresentationStrategy`), both
+      functions must be updated in lock-step or recall and consolidate diverge.
+      Worse, a malformed-`derived_from` row currently surfaces as an
+      empty-array skill in BOTH places — the swallowed exception is duplicated.
+
+      Per architecture.md the canonical home for "project a stored skill row to
+      a Skill" is the orchestrator subtree (`src/local/skills/`), since that
+      module is where skill semantics already live; the façade in
+      `scoped-skill-memory.ts` is supposed to be thin (per its own JSDoc
+      "thin façade — every method delegates to a primitive"). Right now the
+      façade carries duplicated projection logic that contradicts its own SRP
+      claim.
+    evidence: |
+      // src/local/scoped-skill-memory.ts:48-97 — payloadToSkill
+      function payloadToSkill(id, payload, scope, score?) {
+        if (payload['kind'] !== 'skill') return null;
+        const codeLanguageRaw = payload['code_language'];
+        if (codeLanguageRaw !== 'typescript' && codeLanguageRaw !== 'javascript') return null;
+        ...
+        const derivedFromRaw = payload['derived_from'];
+        ...
+        return { id, text: description, ..., kind: 'skill', code, description, ... };
+      }
+
+      // src/local/skills/consolidate.ts:240-285 — rowToSkill
+      function rowToSkill(id, payload, scope) {
+        if (payload['kind'] !== 'skill') return null;
+        const codeLanguageRaw = payload['code_language'];
+        if (codeLanguageRaw !== 'typescript' && codeLanguageRaw !== 'javascript') return null;
+        ...
+        // identical body, differs only by absence of `score` field
+      }
+    recommended_action: |
+      Extract a single `projectPayloadToSkill(id, payload, scope): Skill | null`
+      into `src/local/skills/payload.ts` (or similar). Have the façade call it
+      and tack on `score` post-projection where needed. Both call sites become
+      one-liners; the malformed-`derived_from` handling and any future skill
+      column live in one place. Add a unit test in
+      `src/local/skills/__tests__/payload.test.ts` covering:
+        - happy path
+        - kind != 'skill' → null
+        - code_language not in {typescript, javascript} → null
+        - derived_from malformed JSON → empty array (not throw)
+        - supersededBy preserved verbatim
+
+  - id: F-dom-mem-4
+    severity: MAJOR
+    file: src/local/skills/consolidate.ts
+    line: 401-426 (Phase 3 — Consolidate)
+    plan_ref: ADR D2 ("`description` field is the embedding target ... code as value")
+    domain_anchor: blueprint Q4 + ADR D2 — code-as-skill primary representation; embedding target is description; code is the verbatim payload
+    summary: |
+      In Phase 3 the orchestrator extracts a single merged-skill `draft` from
+      `executeReflection()` and synthesizes the derived skill insert with:
+
+        const description = draft.text;
+        const embedding = await deps.embedder.embed(description);
+        ...
+        const insertArgs = { embedding, hash, code: description, description, codeLanguage: 'typescript', ... };
+
+      The `code` field is being assigned the LLM's text output verbatim (i.e.
+      `code = description = draft.text`). Per ADR D2 the v0.6 contract is:
+        - `description` = the natural-language summary, embedding target
+        - `code` = the executable code-as-skill payload
+      These are SEMANTICALLY DIFFERENT and have different lifecycles
+      (description embeds for recall; code executes for the consumer).
+
+      The current behavior means: after consolidation, the derived skill row's
+      `code` column is the LLM-produced description string — NOT actual code.
+      A TheoCode consumer (per CLAUDE.md Item 8 — "primary consumer needs code
+      skills") that calls `recall(...)` and tries to execute the derived row's
+      `code` payload runs the LLM's prose as TypeScript. That's a runtime
+      failure mode hidden behind a contract-typed `codeLanguage: 'typescript'`
+      label.
+
+      A nearby comment acknowledges the gap ("LLM produces a single merged
+      text; code = description until v0.6.1 expands the draft shape with
+      structured code/description"). Two problems with shipping this as v0.6:
+
+      (1) It's a CRITICAL contract violation against ADR D2's primary anchor
+          ("code-as-skill primary"), surfaced as a MAJOR finding because the
+          fix is local — but it MUST be addressed before merge OR the ADR
+          needs an explicit acceptance note recording the gap. The plan does
+          not currently carry that acceptance.
+
+      (2) THE GOAL TEST (consolidate-two-skills.test.ts:135-137) asserts
+          `derivedFrom` ids match — but it never asserts that the derived
+          skill's `code` is a valid TypeScript-ish payload (because it can't,
+          since the LLM stub returns prose). The contract violation is not
+          test-detectable today.
+    evidence: |
+      // src/local/skills/consolidate.ts:401-426 — Phase 3
+      validateProvenance(drafts, cluster.sourceIds);
+      const draft = drafts[0];
+      ...
+      const description = draft.text;
+      const embedding = await deps.embedder.embed(description);
+      const hash = ...
+      const insertArgs: InsertDerivedSkillArgs = {
+        embedding,
+        hash,
+        // LLM produces a single merged text; code = description until v0.6.1
+        // expands the draft shape with structured code/description.
+        code: description,                  // ← contract violation per ADR D2
+        description,
+        codeLanguage: 'typescript',         // ← labeled TS but holds prose
+        ...
+      };
+    recommended_action: |
+      One of two paths (Option A is the right fix; Option B is the honest
+      shortcut if v0.6.1 is firmly committed):
+
+      Option A (correct, blueprint Recommendation #7 path):
+        Extend `executeReflection`'s draft shape to return
+        `{ description, code, codeLanguage }` and update the reflection
+        prompt at `src/core/reflection/prompt.ts` to instruct the LLM to
+        return that structured shape. The orchestrator then assigns
+        `code: draft.code, description: draft.description` honestly. Cost:
+        small surface change to the reflection prompt + draft type.
+
+      Option B (acceptance-note fallback):
+        Promote the v0.6.1 plan to a binding ADR Consequence row in
+        ADR D2 and add a `derived_skill_code_is_description: true` flag
+        on the row (NOT in the SQL — in the comment) so a TheoCode
+        consumer can detect-and-skip. Open a follow-up at
+        voyager-skill-library-followups.md with a sunset date.
+
+  - id: F-dom-mem-5
+    severity: MINOR
+    file: src/local/scoped-skill-memory.ts
+    line: 194-198 (forget) + tests confirming absence at src/local/__tests__/scoped-skill-memory.test.ts
+    plan_ref: T1.1 Deep Dives ("forget(skillId): Promise<void> — soft-delete (sets superseded_by to NULL with self-reference convention, OR uses bi-temporal tInvalid per ADR-0006)")
+    domain_anchor: ADR-0006 (bi-temporal local schema; tInvalid soft-delete is cloud-only at v0.5+) + plan check #10 from the role brief
+    summary: |
+      Per the review role-brief check #10: "forget() hard-deletes via
+      store.delete (not bi-temporal soft-delete — ADR-0006 cloud-only)" — the
+      implementation honors this (calls `vectorStore.delete(skillId)`). Good.
+
+      However, two papercuts:
+
+      (a) The plan T1.1 description left both options open ("OR uses
+          bi-temporal tInvalid per ADR-0006"). The shipped code picked
+          hard-delete and the inline comment correctly cites ADR-0006, BUT
+          this contradicts the plan text. Either the plan should be updated
+          to lock the choice or the JSDoc on `ScopedSkillMemory.forget` (in
+          src/core/skill.ts:147) should be tightened (it says "soft-delete
+          via supersession-by-self OR bi-temporal tInvalid" — both wrong).
+
+      (b) The hard-delete bypasses the `history` table. `LocalMemory.forget`
+          (src/local/index.ts:424-444) writes a 'forget' history row when a
+          historyManager is configured; `LocalScopedSkillMemory.forget` does
+          not. The Survey §6.8 audit-trail requirement that ADR D3 cites as
+          "satisfied by derived_from" is NOT satisfied for skill DELETION
+          events — a TheoCloud auditor cannot reconstruct that
+          `skills(repoId).forget(id)` happened.
+
+      Both are MINOR because the GOAL TEST does not depend on either, and ADD-only
+      is preserved. Consequences land at v1.0 production-readiness gate.
+    evidence: |
+      // src/local/scoped-skill-memory.ts:194-198
+      async forget(skillId: string): Promise<void> {
+        // v0.6 ships hard-delete via store.delete. Soft-delete via bi-temporal
+        // `tInvalid` is ADR-0006 cloud-only territory (v0.5+) and out of scope here.
+        await this.deps.vectorStore.delete(skillId);
+      }
+
+      // src/core/skill.ts:138-147 (JSDoc on ScopedSkillMemory)
+      //   - `forget`      — soft-delete via supersession-by-self OR bi-temporal `tInvalid`
+      // ← contradicts the impl (hard-delete) and contradicts ADR-0006 (cloud-only soft)
+
+      // src/local/index.ts:424-444 — LocalMemory.forget DOES write to history.
+      // LocalScopedSkillMemory.forget does NOT. Audit-trail gap.
+    recommended_action: |
+      (a) Update `src/core/skill.ts:138-147` JSDoc on `ScopedSkillMemory` to
+          say "hard-delete via store.delete; bi-temporal soft-delete deferred
+          to ADR-0006 cloud runtime at v0.5+". Mirror in plan T1.1 Deep Dives.
+
+      (b) Mirror the historyManager block from `LocalMemory.forget` inside
+          `LocalScopedSkillMemory.forget` so a 'forget' event is recorded
+          when a history manager is configured. Same silent-swallow pattern
+          per the existing Mem0 parity convention.
+
+  - id: F-dom-mem-6
+    severity: MINOR
+    file: src/core/scope.ts
+    line: 27-42 (RepoScope added to Scope union)
+    plan_ref: architecture.md § 1 — Three-tier scope (User / Session / Agent) — locked; "Never introduce a fourth tier without a strategic review"
+    domain_anchor: CLAUDE.md § Locked names — "Memory tiers: User · Session · Agent" marked `strategic`
+    summary: |
+      `RepoScope` is added to `Scope` union as a 4th discriminated kind. The
+      JSDoc honestly notes the design decision: "RepoScope persists `repoId`
+      in the `agent_id` column. The kind='skill' discriminator disambiguates
+      skill rows from regular agent memories under the same id."
+
+      This is a sensible reuse — `repo` is NOT a runtime tier, it's a sub-form
+      of the agent_id key with a discriminator. The implementation correctly
+      maps to `{ agent_id: scope.repoId }` at the storage layer and adds the
+      `case 'repo':` arm in all 4 EC-4 switch sites (verified).
+
+      HOWEVER, `architecture.md § 1` locks the public API to three tiers, and
+      CLAUDE.md § Locked names lists "Memory tiers" as `strategic`. The fact
+      that this is a key-projection trick (RepoScope → agent_id column) does
+      not change the type-level optics: at `Memory.user / .session / .agent /
+      .skills`, a consumer SEES four scope-shaped factories returning four
+      scope-shaped sub-objects. From the public-surface perspective, this IS
+      a fourth tier-shape, and the architecture rule says "never without
+      strategic review".
+
+      The plan ADR D5 ("Public-API surface stays in @usetheo/memory default
+      barrel") covers subpath exports but does NOT explicitly cover the
+      Scope-union extension. CLAUDE.md's "Three tiers (User / Session / Agent)
+      mapped 1:1 onto Mem0's user_id / agent_id / run_id filter shape
+      internally" anchor is intentionally three-tier.
+
+      Outcome surfaced for the architecture reviewer — this domain reviewer
+      flags it because the Scope union touches the memory-layer contract.
+      Either:
+        - the locked Scope tier list in CLAUDE.md is updated to acknowledge
+          RepoScope as a sub-form of agent_id (not a 4th tier), with rationale
+          captured as a new ADR (ADR-0010-repo-scope-projection.md); OR
+        - the public surface uses `memory.agent(repoId).skills(...)` instead
+          of `memory.skills(repoId)`, keeping the tier count at 3.
+
+      Today, ADR D5 of the plan describes neither path explicitly — the
+      RepoScope addition lives only in code + scope.ts comments.
+    evidence: |
+      // src/core/scope.ts:42
+      export type Scope = UserScope | SessionScope | AgentScope | RepoScope;
+
+      // .claude/rules/architecture.md § 1
+      //   "Never introduce a fourth tier without a strategic review."
+
+      // CLAUDE.md § Locked names
+      //   "Memory tiers: User · Session · Agent  | strategic"
+    recommended_action: |
+      Surface for architecture review. Most economical resolution: author a
+      new ADR-0010 ("RepoScope as a code-as-skill projection of agent_id,
+      NOT a 4th tier") documenting that RepoScope is a discriminated form
+      of AgentScope at the storage layer + the `kind='skill'` discriminator
+      provides isolation. Reference it from `src/core/scope.ts` JSDoc and
+      from `architecture.md § 1`. Reviewer: project owner per the
+      "strategic" lock on the Memory tiers row.
+
+  - id: F-dom-mem-7
+    severity: INFO
+    file: src/local/skills/consolidate.ts
+    line: 41-119 (withSpan helper + OTel parent + child spans)
+    plan_ref: T3.1 Acceptance Criteria ("OTel tracer spans emitted: one parent span skills.consolidate; child spans per phase")
+    domain_anchor: architecture.md § 7 — module hygiene; observability via OTel tracer per plan + architecture.md § Telemetry
+    summary: |
+      Acceptance criterion T3.1 calls for "one parent span `skills.consolidate`;
+      child spans per phase". Verified all 4 child spans exist:
+      `skills.consolidate.orient`, `skills.consolidate.gather`,
+      `skills.consolidate.consolidate`, `skills.consolidate.report`. The
+      withSpan helper records exceptions + sets ERROR status on throw; this
+      is correct OTel discipline.
+
+      One observation (not a defect): the `Phase 4 (Report)` span wraps a
+      `Promise.resolve(...)` only — no async work. Its span lifetime is
+      effectively zero and provides no observability signal beyond a
+      timestamp. Either inline it into the parent span (skipping the child)
+      OR enrich it with a `parentSpan?.setAttribute('skills.consolidate.report.*', ...)`
+      pass over the result so the Report phase carries one or two genuinely
+      useful attributes (e.g., supersededCount, durationMsBreakdown).
+    evidence: |
+      // src/local/skills/consolidate.ts:457-466
+      return withSpan(deps.tracer, 'skills.consolidate.report', () => {
+        parentSpan?.setAttribute('skills.consolidate.derived_skills', derivedSkills.length);
+        return Promise.resolve({
+          sourceClusters, derivedSkills, supersededIds, durationMs: Date.now() - startedAt,
+        });
+      });
+    recommended_action: |
+      Optional cleanup. If kept, add a few attributes on the report span so
+      it's not a no-op observation; if removed, set the parent-span attributes
+      directly. Not a blocker for v0.6.
+
+  - id: F-dom-mem-8
+    severity: INFO
+    file: src/core/memory-store.ts
+    line: 64-69 (ScopedMemory interface)
+    plan_ref: T4.1 Tasks ("LocalScopedSkillMemory composes LocalScopedMemory ... NOT extend it — composition over inheritance per architecture.md § SOLID")
+    domain_anchor: ADR D4 + architecture.md § SRP
+    summary: |
+      Verified `LocalScopedSkillMemory` composes (does not extend)
+      `LocalScopedMemory` — `LocalScopedSkillMemory` constructs its own
+      `Filters` and calls `runRetrievalPipeline` directly, never inheriting
+      from `LocalScopedMemory`. SRP honored. The 4-verb façade is exposed
+      cleanly, no leak of `remember` / `reflect` / `getAll` from the
+      ScopedMemory shape. Reflect IS NOT exposed (verified via type test
+      `ScopedSkillMemory` keys equal `'add' | 'recall' | 'consolidate' | 'forget'`).
+
+      This is good architecture — flagged INFO to confirm the role-brief
+      check #9 ("4 verbs on ScopedSkillMemory ... NO reflect exposed").
+    evidence: |
+      // src/core/skill.ts:143-148
+      export interface ScopedSkillMemory {
+        add(skill: SkillDraft): Promise<Skill>;
+        recall(query: string, options?: SkillRecallOptions): Promise<readonly SkillWithScore[]>;
+        consolidate(options?: ConsolidateOptions): Promise<ConsolidationResult>;
+        forget(skillId: string): Promise<void>;
+      }
+
+      // src/core/__tests__/skill.test-d.ts:86-89
+      test('ScopedSkillMemory has exactly the 4 keys ...', () => {
+        type Keys = keyof ScopedSkillMemory;
+        expectTypeOf<Keys>().toEqualTypeOf<'add' | 'recall' | 'consolidate' | 'forget'>();
+      });
+    recommended_action: |
+      None — record the check as passing.
+
+  - id: F-dom-mem-9
+    severity: INFO
+    file: package.json
+    line: 7 (exports map)
+    plan_ref: ADR D5 ("public-API surface stays in @usetheo/memory default barrel; NO new subpath in v0.6")
+    domain_anchor: CLAUDE.md § Locked names — subpath exports row marked strategic
+    summary: |
+      Verified via `git diff develop -- package.json` that the `exports` map
+      is UNCHANGED on this branch. ADR D5 invariant holds. No
+      `@usetheo/memory/skills` subpath has been introduced.
+    evidence: |
+      $ git diff develop -- package.json   # empty
+    recommended_action: |
+      None — record the check as passing.
+
+  - id: F-dom-mem-10
+    severity: INFO
+    file: src/local/index.ts AND src/local/reflection/threshold-reflection-policy.ts AND src/core/reflection/prompt.ts
+    line: index.ts:111-128, 131-149, 161-178; threshold-reflection-policy.ts:46-69; prompt.ts:17-30
+    plan_ref: EC-4 absorption ("4 switch sites all gain 'case repo:' arm")
+    domain_anchor: TypeScript --strict exhaustiveness — discriminated-union switches
+    summary: |
+      Verified all 4 switch sites carry a `case 'repo':` arm:
+
+        1. src/local/index.ts:123 — filtersFromScope → `{ agent_id: scope.repoId }`
+        2. src/local/index.ts:134 — assertScopeIsNonEmpty includes 'repo' in
+            the allowed kind set + an empty-repoId guard at line 146-148
+        3. src/local/index.ts:173 — scopeToCounterTuple →
+            `{ userId: null, sessionId: null, agentId: scope.repoId }`
+        4. src/local/reflection/threshold-reflection-policy.ts:61 —
+            scopeToCounterTuple (parity with index.ts:161 site) same projection
+        5. src/core/reflection/prompt.ts:25 — scopeIdentifier returns
+            `repo "<repoId>"` for LLM prompt formatting
+
+      Five sites updated (the role brief said 4; the actual count is 5 because
+      `scopeToCounterTuple` exists in two files — both updated). Exhaustiveness
+      gate would catch any omission at typecheck time.
+
+      All 5 projections agree: `repoId → agent_id column` at storage; LLM
+      prompt format is `repo "<repoId>"`. Mapping is documented inline in
+      EVERY arm. EC-4 absorption is complete.
+    evidence: |
+      // src/local/index.ts:123
+      case 'repo':
+        return { agent_id: scope.repoId };
+
+      // src/local/index.ts:134
+      if (kind !== 'user' && kind !== 'session' && kind !== 'agent' && kind !== 'repo') {
+
+      // src/local/index.ts:173
+      case 'repo':
+        return { userId: null, sessionId: null, agentId: scope.repoId };
+
+      // src/local/reflection/threshold-reflection-policy.ts:61
+      case 'repo':
+        return { userId: null, sessionId: null, agentId: scope.repoId };
+
+      // src/core/reflection/prompt.ts:25
+      case 'repo':
+        return `repo "${scope.repoId}"`;
+    recommended_action: |
+      None — record EC-4 as fully absorbed across 5 sites.
+
+  - id: F-dom-mem-11
+    severity: INFO
+    file: src/core/options.ts AND src/local/index.ts (applySkillFilters)
+    line: options.ts:37-53 + 73-91; index.ts:89-109
+    plan_ref: EC-3 absorption ("includeSuperseded + onlySkills on BOTH RecallOptions AND GetAllOptions")
+    domain_anchor: T2.2 deep dive (Orient phase requires getAll filter parity to prevent superseded re-clustering)
+    summary: |
+      Verified EC-3 absorption:
+        - RecallOptions has `onlySkills?: boolean` + `includeSuperseded?: boolean`
+        - GetAllOptions has `onlySkills?: boolean` + `includeSuperseded?: boolean`
+        - `applySkillFilters(baseFilters, options)` translates both to
+          Filters.kind + Filters.excludeSuperseded consistently.
+
+      One subtle nuance worth recording: `applySkillFilters` only sets
+      `excludeSuperseded` when `onlySkills === true` OR when
+      `includeSuperseded === false` (option present, explicitly false).
+      For v0.4a callers (no options), behavior is unchanged. For skill
+      consolidate Orient path, the orchestrator builds the orientFilters
+      directly (not through applySkillFilters) so the implicit default
+      is moot for that path.
+    evidence: |
+      // src/core/options.ts:37-53
+      readonly onlySkills?: boolean;
+      readonly includeSuperseded?: boolean;
+      // src/core/options.ts:80-91
+      readonly onlySkills?: boolean;
+      readonly includeSuperseded?: boolean;
+
+      // src/local/index.ts:89-109
+      function applySkillFilters(baseFilters, options): Filters {
+        if (options === undefined) return baseFilters;
+        const next: Filters = { ...baseFilters };
+        if (options.onlySkills === true) {
+          return { ...next, kind: 'skill',
+            excludeSuperseded: options.includeSuperseded === true ? false : true };
+        }
+        if (options.includeSuperseded === false) {
+          return { ...next, excludeSuperseded: true };
+        }
+        return next;
+      }
+    recommended_action: |
+      None — record EC-3 as fully absorbed.
+
+  - id: F-dom-mem-12
+    severity: INFO
+    file: src/local/skills/consolidate.ts AND src/local/pgvector-store.ts AND src/local/in-memory-store.ts
+    line: consolidate.ts:376-455, pgvector-store.ts:618-665, in-memory-store.ts:334-341
+    plan_ref: ADD-only invariant (Inquebrável § 3); plan acceptance ("Source skills get supersededBy === derived.id")
+    domain_anchor: ADR-0003 (ADD-only public API); ADR D3 (supersession via column, not erasure)
+    summary: |
+      Verified ADD-only invariant for consolidate:
+        - Phase 3 calls `insertDerivedSkillAtomic(args, cluster.sourceIds)` —
+          pgvector wraps INSERT + UPDATE in BEGIN/COMMIT (EC-2 absorption).
+        - On pgvector, the UPDATE only writes `superseded_by`; NEVER `DELETE`.
+        - On in-memory store, `insertDerivedSkillAtomic` runs
+          `insertDerivedSkill` then `markSuperseded` sequentially — no
+          delete; payload mutated to add `superseded_by` field.
+        - When LLM returns 0 drafts (consolidate.ts:391), the cluster is
+          SKIPPED entirely — no markSuperseded call. No partial consolidation
+          where sources get marked but no derived row exists.
+        - When draft has `derivedFrom.length < 2` (consolidate.ts:396), the
+          cluster is SKIPPED — degenerate single-source provenance is rejected.
+
+      Source rows are never deleted. The supersession chain is metadata only.
+      THE GOAL TEST asserts the SQL row state directly via raw pool.query
+      after consolidate (lines 154-163) — strong evidence the atomicity
+      holds in real pgvector.
+    evidence: |
+      // src/local/pgvector-store.ts:618-665 — insertDerivedSkillAtomic
+      return this.withTransaction(async (client) => {
+        const insertResult = await client.query(... INSERT INTO memories ...);
+        ...
+        if (sourceIdsToSupersede.length > 0) {
+          await client.query(`UPDATE memories SET superseded_by = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])`, ...);
+        }
+        return derivedId;
+      });
+
+      // src/local/skills/consolidate.ts:390-393
+      if (drafts.length === 0) {
+        continue;  // no partial consolidation
+      }
+      ...
+      if (draft === undefined || draft.derivedFrom.length < 2) {
+        continue;  // degenerate provenance rejected
+      }
+    recommended_action: |
+      None — record ADD-only invariant as honored.
+
+summary:
+  total_findings: 12
+  by_severity:
+    CRITICAL: 1
+    MAJOR: 3
+    MINOR: 2
+    INFO: 6
+  passing_checks:
+    - ADR D1 — REUSE v0.4a Memory.reflect chain (executeReflection + validateProvenance reused; insertDerivedSkillAtomic replaces insertDerivedMemory for skill path; no sibling chain forked)
+    - ADR D3 — REUSE pgvector + Drizzle schema with kind='skill' discriminator (no separate skills table; 4 nullable columns added; CHECK constraint extended)
+    - ADR D4 — orchestrator lives at src/local/skills/consolidate.ts, NOT inside LocalScopedSkillMemory; SRP honored
+    - ADR D5 — package.json exports map unchanged on this branch
+    - EC-3 — onlySkills + includeSuperseded on both RecallOptions AND GetAllOptions
+    - EC-4 — 'case repo:' arm across 5 switch sites (4 declared + 1 extra in threshold-reflection-policy)
+    - 4-verb ScopedSkillMemory parity (add / recall / consolidate / forget); reflect NOT exposed
+    - forget() hard-deletes via store.delete (matches role-brief check #10)
+    - ADD-only — supersession via column, never DELETE on source rows; partial-consolidation paths refuse to mark superseded without an insert
+  blocking_findings:
+    - F-dom-mem-1 (CRITICAL: EmptyScopeError misuse on empty description in add — wrong error class with misleading message)
+  pre-merge_recommended_fixes:
+    - F-dom-mem-1 (CRITICAL — fix before merge)
+    - F-dom-mem-2 (MAJOR — N+1 + dead get() call in Orient phase)
+    - F-dom-mem-3 (MAJOR — DRY violation: payloadToSkill vs rowToSkill duplicate projection knowledge)
+    - F-dom-mem-4 (MAJOR — ADR D2 contract gap: derived skill `code` field receives LLM prose, not code)
+  post-merge_followups:
+    - F-dom-mem-5 (MINOR — JSDoc on forget contradicts impl + audit-trail gap)
+    - F-dom-mem-6 (MINOR — RepoScope as 4th Scope union arm needs ADR-0010 or strategic-review acknowledgement)
+    - F-dom-mem-7 (INFO — Report-phase OTel span is a no-op observation)
