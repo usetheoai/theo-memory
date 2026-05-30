@@ -62,6 +62,7 @@ export {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
   InvalidScope,
+  InvalidSkillError,
   MemoryNotFound,
   MissingScopeError,
   ReflectionNotConfigured,
