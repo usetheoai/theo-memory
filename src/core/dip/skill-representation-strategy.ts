@@ -13,7 +13,7 @@
  *
  * Divergence from plan literal text: the plan's example tags
  * `'voyager' | 'procmem'` are replaced with neutral
- * `'code' | 'nl-spec'` per the project's no-paper-names-in-code policy. The
+ * `'code' | 'nl-spec'` per `.claude/rules/no-paper-names-in-code.md`. The
  * DIP slot's INTENT (a future representation extension point) is unchanged.
  *
  * Method count: 1 readonly tag + 2 methods (serialize / deserialize).
