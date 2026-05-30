@@ -138,6 +138,10 @@ if (PG_URI === undefined || PG_URI === '') {
       // EC-2 atomicity: source rows are marked superseded by the derived.
       expect([...result.supersededIds].sort()).toEqual([srcFetch.id, srcAxios.id].sort());
 
+      // T0.2 / F1 absorption (v0.6.1): derived skill carries NULL code + codeLanguage.
+      expect(derived?.code).toBeNull();
+      expect(derived?.codeLanguage).toBeNull();
+
       // And: recall({onlySkills:true, includeSuperseded:false}) returns ONLY
       // the derived skill — the source skills are filtered out as superseded.
       // Query by the merged description so the deterministic embedder lands

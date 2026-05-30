@@ -349,25 +349,37 @@ const ALLOWED_SKILL_LANGUAGES: ReadonlySet<SkillLanguage> = new Set<SkillLanguag
 /**
  * Validate `insertSkill` / `insertDerivedSkill` args at the in-memory store
  * boundary — mirrors the pgvector store guard so both adapters surface
- * identical typed errors.
+ * identical typed errors. T0.2 split: codeLanguage check accepts NULL on
+ * derived skills (ADR D2).
  */
-function assertSkillArgs(args: InsertSkillArgs): void {
+function assertSkillArgs(args: { description: string; codeLanguage: SkillLanguage | null }): void {
   if (args.description.trim().length === 0) {
     throw new InvalidSkillError(
       'empty-description',
       'description is required and must not be whitespace-only (it is the embedding target)',
     );
   }
-  if (!ALLOWED_SKILL_LANGUAGES.has(args.codeLanguage)) {
+  if (args.codeLanguage != null && !ALLOWED_SKILL_LANGUAGES.has(args.codeLanguage)) {
     throw new InvalidSkillError(
       'invalid-code-language',
-      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}]; got ${JSON.stringify(args.codeLanguage)}`,
+      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}] OR null; got ${JSON.stringify(args.codeLanguage)}`,
     );
   }
 }
 
 /** Build a Payload Record for a skill row (`derivedFrom = null` for non-derived skills). */
-function skillPayload(args: InsertSkillArgs, derivedFrom: readonly string[] | null): Payload {
+function skillPayload(
+  args: {
+    hash: string;
+    code: string | null;
+    description: string;
+    codeLanguage: SkillLanguage | null;
+    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+  },
+  derivedFrom: readonly string[] | null,
+): Payload {
+  // T0.2: code + codeLanguage may be NULL on derived skills; persist as NULL,
+  // not coerced to empty string (decoder distinguishes between the two states).
   const payload: Payload = {
     text: args.description,
     hash: args.hash,

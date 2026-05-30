@@ -28,13 +28,13 @@ import type {
   ScopedSkillMemory,
   Skill,
   SkillDraft,
-  SkillLanguage,
   SkillRecallOptions,
   SkillWithScore,
 } from '../core/skill.js';
 
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 import { consolidate } from './skills/consolidate.js';
+import { decodeSkillPayload } from './skills/payload.js';
 
 /** Dependencies the local skill memory closes over (mirrors LocalMemoryConfig subset). */
 export interface LocalScopedSkillMemoryDeps {
@@ -44,57 +44,7 @@ export interface LocalScopedSkillMemoryDeps {
   readonly tracer?: Tracer;
 }
 
-/** Project a payload Record + id into a `Skill` row shape. */
-function payloadToSkill(
-  id: string,
-  payload: Readonly<Record<string, string | number | boolean | null>>,
-  scope: RepoScope,
-  score?: number,
-): SkillWithScore | null {
-  if (payload['kind'] !== 'skill') {
-    return null;
-  }
-  const codeLanguageRaw = payload['code_language'];
-  if (codeLanguageRaw !== 'typescript' && codeLanguageRaw !== 'javascript') {
-    return null;
-  }
-  const codeLanguage: SkillLanguage = codeLanguageRaw;
-  const supersededByRaw = payload['superseded_by'];
-  const supersededBy =
-    typeof supersededByRaw === 'string' && supersededByRaw.length > 0 ? supersededByRaw : null;
-  const derivedFromRaw = payload['derived_from'];
-  let derivedFrom: readonly string[] = [];
-  if (typeof derivedFromRaw === 'string' && derivedFromRaw.length > 0) {
-    try {
-      const parsed: unknown = JSON.parse(derivedFromRaw);
-      if (Array.isArray(parsed)) {
-        derivedFrom = parsed.filter((s): s is string => typeof s === 'string');
-      }
-    } catch {
-      derivedFrom = [];
-    }
-  }
-  const description = String(payload['description'] ?? '');
-  const code = String(payload['code'] ?? '');
-  return {
-    id,
-    text: description,
-    hash: String(payload['hash'] ?? id),
-    scope,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    metadata: { ...payload },
-    tValid: new Date(),
-    tInvalid: null,
-    kind: 'skill',
-    code,
-    description,
-    codeLanguage,
-    supersededBy,
-    derivedFrom,
-    score: score ?? 0,
-  };
-}
+// T3.3: payloadToSkill extraction — see src/local/skills/payload.ts:decodeSkillPayload.
 
 export class LocalScopedSkillMemory implements ScopedSkillMemory {
   private readonly scope: RepoScope;
@@ -170,7 +120,7 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     );
     const skills: SkillWithScore[] = [];
     for (const r of results) {
-      const projected = payloadToSkill(r.id, r.metadata, this.scope, r.score);
+      const projected = decodeSkillPayload(r.id, r.metadata, this.scope, r.score);
       if (projected !== null) {
         skills.push(projected);
       }

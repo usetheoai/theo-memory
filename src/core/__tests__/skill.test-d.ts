@@ -27,11 +27,11 @@ test('Skill structurally extends MemoryItem (v0.6 type discipline)', () => {
   expectTypeOf<Skill>().toMatchTypeOf<MemoryItem>();
 });
 
-test('Skill carries the discriminant kind=\'skill\' + code-as-skill payload + supersession chain', () => {
+test('Skill carries the discriminant kind=\'skill\' + code-as-skill payload + supersession chain (v0.6.1: code+codeLanguage NULLABLE per T0.2)', () => {
   expectTypeOf<Skill['kind']>().toEqualTypeOf<'skill'>();
-  expectTypeOf<Skill['code']>().toEqualTypeOf<string>();
+  expectTypeOf<Skill['code']>().toEqualTypeOf<string | null>();
   expectTypeOf<Skill['description']>().toEqualTypeOf<string>();
-  expectTypeOf<Skill['codeLanguage']>().toEqualTypeOf<'typescript' | 'javascript'>();
+  expectTypeOf<Skill['codeLanguage']>().toEqualTypeOf<'typescript' | 'javascript' | null>();
   expectTypeOf<Skill['supersededBy']>().toEqualTypeOf<string | null>();
   expectTypeOf<Skill['derivedFrom']>().toEqualTypeOf<readonly string[]>();
 });

@@ -36,8 +36,17 @@ export interface InsertSkillArgs {
  * Args for `insertDerivedSkill` — writes a `kind='skill'` row with non-empty
  * `derived_from` provenance (output of the v0.6 consolidate orchestrator).
  * The store rejects empty `derivedFrom` with `InvalidSkillError`.
+ *
+ * v0.6.1 T0.2 (F1 absorption): `code` and `codeLanguage` are nullable on the
+ * derived variant — `consolidate()` writes NULL for both (the LLM-merged
+ * narrative lives in `description` only; structured-draft extraction defers
+ * per voyager-skill-library-fixes-v0-6-1 plan ADR D2). `InsertSkillArgs`
+ * (used by `add()`) keeps both required-non-null — consumers writing skills
+ * must always supply code.
  */
-export interface InsertDerivedSkillArgs extends InsertSkillArgs {
+export interface InsertDerivedSkillArgs extends Omit<InsertSkillArgs, 'code' | 'codeLanguage'> {
+  readonly code: string | null;
+  readonly codeLanguage: SkillLanguage | null;
   readonly derivedFrom: readonly string[];
 }
 
