@@ -8,6 +8,7 @@
  */
 import { describe, expect, test } from 'vitest';
 
+import { hashFact } from '../../core/dedup.js';
 import { InvalidScope, InvalidSkillError } from '../../core/errors.js';
 import { createLocalMemory, StubEmbedder, StubLLM } from '../index.js';
 import { InMemoryVectorStore } from '../in-memory-store.js';
@@ -97,6 +98,17 @@ describe('LocalScopedSkillMemory.add — T4.1', () => {
       expect(err).toBeInstanceOf(InvalidSkillError);
       expect((err as InvalidSkillError).reason).toBe('empty-description');
     }
+  });
+
+  test('hash is hashFact(description) — content-derived per architecture.md § 4 (T1.2 / F7)', async () => {
+    const { memory } = await buildMemory();
+    const scoped = memory.skills('repo-alpha');
+    const added = await scoped.add({
+      code: 'export const x = 1;',
+      description: 'feature flag toggle',
+      codeLanguage: 'typescript',
+    });
+    expect(added.hash).toBe(hashFact('feature flag toggle'));
   });
 });
 

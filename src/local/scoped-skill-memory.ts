@@ -12,10 +12,9 @@
  *
  * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T4.1
  */
-import { createHash } from 'node:crypto';
-
 import type { Tracer } from '@opentelemetry/api';
 
+import { hashFact } from '../core/dedup.js';
 import type { Embedder } from '../core/dip/embedder.js';
 import type { LLM } from '../core/dip/llm.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
@@ -68,7 +67,12 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     // (reason='empty-description'). The early throw used to use `EmptyScopeError`
     // which is the reflection-counters contract — wrong class entirely.
     const embedding = await this.deps.embedder.embed(draft.description);
-    const hash = createHash('md5').update(draft.code).update('|').update(draft.description).digest('hex');
+    // T1.2 / F7: hash MUST be content-derived via canonical hashFact per
+    // architecture.md § 4. description IS the embedding target AND the
+    // canonical identity of the skill — two add() calls with same
+    // description (different code) DO collide on the UNIQUE(hash) index.
+    // Consumer rewriting the same skill must use a distinct description.
+    const hash = hashFact(draft.description);
     const id = await this.deps.vectorStore.insertSkill({
       embedding,
       hash,
