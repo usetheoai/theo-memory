@@ -8,7 +8,7 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { InvalidScope } from '../../core/errors.js';
+import { InvalidScope, InvalidSkillError } from '../../core/errors.js';
 import { createLocalMemory, StubEmbedder, StubLLM } from '../index.js';
 import { InMemoryVectorStore } from '../in-memory-store.js';
 
@@ -79,6 +79,24 @@ describe('LocalScopedSkillMemory.add — T4.1', () => {
     expect(skill.codeLanguage).toBe('typescript');
     expect(skill.derivedFrom).toEqual([]);
     expect(skill.supersededBy).toBeNull();
+  });
+
+  test('empty description rejects with InvalidSkillError (reason="empty-description"), NOT EmptyScopeError — F2 absorption', async () => {
+    const { memory } = await buildMemory();
+    const scoped = memory.skills('repo-alpha');
+    await expect(
+      scoped.add({
+        code: 'x',
+        description: '   ',
+        codeLanguage: 'typescript',
+      }),
+    ).rejects.toBeInstanceOf(InvalidSkillError);
+    try {
+      await scoped.add({ code: 'x', description: '', codeLanguage: 'typescript' });
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidSkillError);
+      expect((err as InvalidSkillError).reason).toBe('empty-description');
+    }
   });
 });
 
