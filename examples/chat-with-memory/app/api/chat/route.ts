@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 interface ChatRequest {
   userId: string;
+  sessionId: string;
   message: string;
 }
 
@@ -29,13 +30,16 @@ export async function POST(req: NextRequest) {
   if (typeof body.userId !== "string" || body.userId === "") {
     return bad("userId is required");
   }
+  if (typeof body.sessionId !== "string" || body.sessionId === "") {
+    return bad("sessionId is required");
+  }
   if (typeof body.message !== "string" || body.message === "") {
     return bad("message is required");
   }
 
-  const { userId, message } = body;
+  const { userId, sessionId, message } = body;
 
-  const agent = await getAgent(userId);
+  const agent = await getAgent(userId, sessionId);
   const run = await agent.send(message);
 
   const stream = new ReadableStream<Uint8Array>({
@@ -61,15 +65,21 @@ export async function POST(req: NextRequest) {
         const finalResult = await run.wait();
         const reply = finalResult.result ?? assistantText;
 
-        // Persist after the response is complete. Background reflect is
+        // Persist into BOTH User + Session scopes. Background reflect is
         // handled inside rememberTurn() when threshold crossed.
-        await rememberTurn({ userId, prompt: message, reply });
+        const reflectionEvent = await rememberTurn({
+          userId,
+          sessionId,
+          prompt: message,
+          reply,
+        });
 
         controller.enqueue(
           sseFrame("done", {
             runId: finalResult.id,
             status: finalResult.status,
             tokens: finalResult.durationMs,
+            reflection: reflectionEvent,
           }),
         );
       } catch (err) {
