@@ -20,6 +20,12 @@ T2.1 plan declared a separate types file for `TriadicWeights` + `TriadicConstant
 
 **Recommended owner:** T4.2 implementer evaluates whether splitting types out makes the multiplier integration cleaner.
 
+## F4 — `rowToMemoryItem` + `ScopeCandidateRow` duplicated across T5.1 + T5.2 (surfaced at iter 9 / T5.2)
+
+DRY rule-of-three not yet hit (2 copies in capacity-based-trigger.ts + time-based-trigger.ts). T6.1 evict orchestration becomes the 3rd consumer of "load all active candidates in scope" → extract to shared helper `src/local/eviction/scope-candidate-loader.ts` (or co-locate in a barrel) at that point.
+
+**Recommended owner:** T6.1 implementer.
+
 ## F3.5 — v0.4a CHECK constraint `memories_kind_derived_from_check` missing IS NOT NULL guard for kind='derived' (surfaced at iter 5 / T3.1)
 
 Pre-existing bug surfaced by running the full integration suite. The CHECK constraint is:
