@@ -437,6 +437,64 @@ describe('consolidate — transitive cluster (greedy union-find)', () => {
   });
 });
 
+describe('consolidate — T2.1 / F4: Orient phase uses embedBatch (drops dead get + per-row embed loop)', () => {
+  test('Orient phase calls embedBatch once with N descriptions when N skills exist', async () => {
+    const { store } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged retry helper', basisVector(0)],
+      ]),
+    );
+    const batchSpy = vi.spyOn(embedder, 'embedBatch');
+    const llm = new FixtureLLM(() => ({ drafts: [] }));
+    await consolidate({
+      vectorStore: store,
+      llm,
+      embedder,
+      scope: SCOPE,
+      filters: FILTERS,
+    });
+    // Orient phase: 1 batch call with 3 descriptions (the 3 seeded skills).
+    // Phase 3 doesn't run (LLM returns empty drafts), so no per-row embed for
+    // the merged description either — only the batch call exists.
+    expect(batchSpy).toHaveBeenCalledTimes(1);
+    expect(batchSpy.mock.calls[0]?.[0]).toHaveLength(3);
+  });
+
+  test('Orient phase falls back to per-row embed when embedBatch throws', async () => {
+    const { store } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged retry helper', basisVector(0)],
+      ]),
+    );
+    vi.spyOn(embedder, 'embedBatch').mockImplementation(async () => {
+      await Promise.resolve();
+      throw new Error('batch endpoint down');
+    });
+    const embedSpy = vi.spyOn(embedder, 'embed');
+    const llm = new FixtureLLM(() => ({ drafts: [] }));
+    const result = await consolidate({
+      vectorStore: store,
+      llm,
+      embedder,
+      scope: SCOPE,
+      filters: FILTERS,
+    });
+    // Fallback ran: per-row embed called for each of the 3 seeded skills.
+    expect(embedSpy).toHaveBeenCalledTimes(3);
+    // Consolidate completed without throwing — result is well-formed even
+    // when batch endpoint is down.
+    expect(result.derivedSkills).toEqual([]);
+  });
+});
+
 describe('consolidate — T1.1 / F6: hashFact + idempotency on re-run', () => {
   test('derived skill hash is hashFact(description) — content-derived, deterministic', async () => {
     const { store, similarA, similarB } = await seedThreeSkills();
