@@ -33,6 +33,7 @@
     "next": "^15.5.18",
     "openai": "^4.77.0",
     "perfect-freehand": "^1.2.3",
+    "pg": "^8.13.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "roughjs": "^4.6.6",
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "eslint": "^9.18.0",
