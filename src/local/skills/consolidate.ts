@@ -374,86 +374,93 @@ export async function consolidate(
             // No-consolidation outcome: skip cluster entirely; do NOT mark superseded.
             continue;
           }
+          // T2.2 / F5: validateProvenance is fail-fast across ALL drafts
+          // (matches v0.4a reflect contract); a hallucinated id in any draft
+          // throws ReflectionProvenanceMissingError and aborts the cluster.
           validateProvenance(drafts, cluster.sourceIds);
-          const draft = drafts[0];
-          if (draft === undefined || draft.derivedFrom.length < 2) {
-            // Skip degenerate provenance (single-source derived skill is not a
-            // valid consolidation outcome per plan invariant).
-            continue;
-          }
-          const description = draft.text;
-          const embedding = await deps.embedder.embed(description);
-          // T1.1 / F6: hash MUST be content-derived per architecture.md § 4
-          // (MD5 of normalized text via hashFact). Date.now+random non-determinism
-          // breaks dedup + makes consolidate() non-idempotent on re-run.
-          const hash = hashFact(description);
-          // RepoScope maps repoId → agent_id at the store layer per the EC-4
-          // absorption in `filtersFromScope` (src/local/index.ts). Mirror that
-          // mapping here so the derived skill row carries the right scope key.
-          const scopeForArgs = {
-            userId: 'userId' in deps.scope ? deps.scope.userId : null,
-            sessionId: 'sessionId' in deps.scope ? deps.scope.sessionId : null,
-            agentId:
-              deps.scope.kind === 'agent'
-                ? deps.scope.agentId
-                : deps.scope.kind === 'repo'
-                  ? deps.scope.repoId
-                  : null,
-          };
-          const insertArgs: InsertDerivedSkillArgs = {
-            embedding,
-            hash,
-            // T0.2 / F1 absorption: derived skills carry NULL code + codeLanguage
-            // in v0.6.1 — the v0.4a reflection draft shape returns a single
-            // merged narrative (`draft.text`) without separated executable code.
-            // Persisting that prose into `code` labeled `codeLanguage: 'typescript'`
-            // would lie to consumers (TheoCode would try to `eval(code)` as TS).
-            // Structured-draft LLM extraction defers per plan ADR D2.
-            code: null,
-            description,
-            codeLanguage: null,
-            derivedFrom: draft.derivedFrom,
-            scope: scopeForArgs,
-          };
-          // T1.1 / F6: with hashFact(description), 2 distinct clusters that
-          // happen to merge to identical text would collide on UNIQUE(hash).
-          // Graceful skip — log via tracer + don't mark sources superseded
-          // (no partial consolidation per plan invariant).
-          let derivedId: string;
-          try {
-            derivedId = await deps.vectorStore.insertDerivedSkillAtomic(
-              insertArgs,
-              cluster.sourceIds,
-            );
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            if (message.includes('memories_hash_unique_idx') || message.includes('duplicate key')) {
-              parentSpan?.addEvent('skills.consolidate.consolidate.hash_collision_skipped', {
-                description,
-                cluster_source_count: cluster.sourceIds.length,
-              });
+          // T2.2 / F5: iterate ALL drafts (parity with v0.4a reflect chain).
+          // Each draft passing the length≥2 invariant produces its own derived
+          // skill row. Degenerate-provenance drafts (length<2) are skipped
+          // silently; UNIQUE collisions are skipped via the catch below.
+          let clusterProducedDerived = false;
+          for (const draft of drafts) {
+            if (draft.derivedFrom.length < 2) {
+              // Skip degenerate provenance (single-source derived skill is not
+              // a valid consolidation outcome per plan invariant).
               continue;
             }
-            throw err;
+            const description = draft.text;
+            const embedding = await deps.embedder.embed(description);
+            // T1.1 / F6: content-derived hash per architecture.md § 4.
+            const hash = hashFact(description);
+            // RepoScope maps repoId → agent_id at the store layer per the EC-4
+            // absorption in `filtersFromScope` (src/local/index.ts).
+            const scopeForArgs = {
+              userId: 'userId' in deps.scope ? deps.scope.userId : null,
+              sessionId: 'sessionId' in deps.scope ? deps.scope.sessionId : null,
+              agentId:
+                deps.scope.kind === 'agent'
+                  ? deps.scope.agentId
+                  : deps.scope.kind === 'repo'
+                    ? deps.scope.repoId
+                    : null,
+            };
+            const insertArgs: InsertDerivedSkillArgs = {
+              embedding,
+              hash,
+              // T0.2 / F1: derived skills carry NULL code + codeLanguage.
+              code: null,
+              description,
+              codeLanguage: null,
+              derivedFrom: draft.derivedFrom,
+              scope: scopeForArgs,
+            };
+            // T1.1 / F6: graceful skip on UNIQUE(hash) collision (2 drafts that
+            // happen to produce identical text — within or across clusters).
+            let derivedId: string;
+            try {
+              derivedId = await deps.vectorStore.insertDerivedSkillAtomic(
+                insertArgs,
+                clusterProducedDerived ? [] : cluster.sourceIds,
+              );
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              if (
+                message.includes('memories_hash_unique_idx')
+                || message.includes('duplicate key')
+              ) {
+                parentSpan?.addEvent('skills.consolidate.consolidate.hash_collision_skipped', {
+                  description,
+                  cluster_source_count: cluster.sourceIds.length,
+                });
+                continue;
+              }
+              throw err;
+            }
+            derived.push({
+              id: derivedId,
+              text: description,
+              hash,
+              scope: deps.scope,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              metadata: { kind: 'skill' },
+              tValid: new Date(),
+              tInvalid: null,
+              kind: 'skill',
+              code: null,
+              description,
+              codeLanguage: null,
+              supersededBy: null,
+              derivedFrom: draft.derivedFrom,
+            });
+            // Mark sources superseded only ONCE per cluster (the first
+            // successful derived row owns the supersession edge).
+            if (!clusterProducedDerived) {
+              superseded.push(...cluster.sourceIds);
+              clusterProducedDerived = true;
+            }
           }
-          derived.push({
-            id: derivedId,
-            text: description,
-            hash,
-            scope: deps.scope,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            metadata: { kind: 'skill' },
-            tValid: new Date(),
-            tInvalid: null,
-            kind: 'skill',
-            code: null,
-            description,
-            codeLanguage: null,
-            supersededBy: null,
-            derivedFrom: draft.derivedFrom,
-          });
-          superseded.push(...cluster.sourceIds);
         }
         span?.setAttribute('skills.consolidate.consolidate.derived_count', derived.length);
         span?.setAttribute('skills.consolidate.consolidate.superseded_count', superseded.length);

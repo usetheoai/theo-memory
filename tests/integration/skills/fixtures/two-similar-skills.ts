@@ -12,6 +12,15 @@ export interface SkillFixture {
   readonly codeLanguage: 'typescript' | 'javascript';
 }
 
+// Descriptions are semantically equivalent (both about "retry HTTP fetch on
+// transient failures with exponential backoff") but distinct strings — T1.2
+// of voyager-skill-library-fixes-v0-6-1 made hashFact(description) the
+// canonical identity, so byte-identical descriptions would collide on the
+// UNIQUE(hash) index. The deterministic embedder in the GOAL TEST hashes
+// the string to a basis vector, so both descriptions need to land on the
+// SAME vector index to cluster together — we achieve that by tuning the
+// strings so their hash spreads modulo 64 to the same index.
+
 export const SKILL_FETCH: SkillFixture = {
   code: `export async function retryFetch(url: string, max = 3): Promise<Response> {
   for (let attempt = 0; attempt < max; attempt += 1) {
@@ -25,7 +34,7 @@ export const SKILL_FETCH: SkillFixture = {
   }
   throw new Error('retryFetch: all attempts failed');
 }`,
-  description: 'retry HTTP fetch on transient failures with exponential backoff',
+  description: 'plain fetch: retry HTTP request on transient failures with exponential backoff',
   codeLanguage: 'typescript',
 };
 
@@ -41,6 +50,6 @@ export async function retryAxios(url: string, max = 3) {
     }
   }
 }`,
-  description: 'retry HTTP fetch on transient failures with exponential backoff',
+  description: 'via axios: retry HTTP request on transient failures with exponential backoff',
   codeLanguage: 'typescript',
 };
