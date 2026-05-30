@@ -101,6 +101,13 @@ export type {
   SkillRepresentationStrategy,
 } from './dip/skill-representation-strategy.js';
 
+export type {
+  EvictionPolicy,
+  EvictionResult,
+  ScoreContext,
+} from './dip/eviction-policy.js';
+export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
+
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
 export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
