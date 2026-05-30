@@ -1,154 +1,116 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input } from "@usetheo/ui";
-import { Brain, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Brain } from "lucide-react";
+import { UserTab } from "./memory-tabs/user-tab";
+import { SessionTab } from "./memory-tabs/session-tab";
+import { SkillsTab } from "./memory-tabs/skills-tab";
+import { HistoryTab } from "./memory-tabs/history-tab";
 
-interface MemoryRow {
-  id: string;
-  text: string;
-  score?: number;
-  createdAt: string;
-}
+type TabKey = "user" | "session" | "skills" | "history";
 
 interface Props {
   userId: string;
+  sessionId: string;
   reloadKey: number;
 }
 
-export function MemorySidebar({ userId, reloadKey }: Props) {
-  const [items, setItems] = useState<MemoryRow[]>([]);
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [reflecting, setReflecting] = useState(false);
-  const [reflectInfo, setReflectInfo] = useState<string | null>(null);
+interface BackendInfo {
+  backend: "pgvector" | "in-memory";
+  reflectionThreshold: number;
+}
 
-  const load = async (q = "") => {
-    setLoading(true);
-    try {
-      const url = new URL("/api/memory/recall", window.location.origin);
-      url.searchParams.set("userId", userId);
-      if (q !== "") url.searchParams.set("q", q);
-      const resp = await fetch(url);
-      const json = (await resp.json()) as { items: MemoryRow[] };
-      setItems(json.items);
-    } finally {
-      setLoading(false);
-    }
-  };
+const TABS: readonly { key: TabKey; label: string }[] = [
+  { key: "user", label: "User" },
+  { key: "session", label: "Session" },
+  { key: "skills", label: "Skills" },
+  { key: "history", label: "History" },
+];
+
+export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
+  const [active, setActive] = useState<TabKey>("user");
+  const [info, setInfo] = useState<BackendInfo | null>(null);
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    void load(query);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, reloadKey]);
+    (async () => {
+      try {
+        const resp = await fetch("/api/info");
+        const json = (await resp.json()) as BackendInfo;
+        setInfo(json);
+      } catch {
+        // info badge is purely informational; failure is non-fatal
+      }
+    })();
+  }, []);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await load(query);
-  };
-
-  const handleForget = async (id: string) => {
-    await fetch("/api/memory/forget", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, id }),
-    });
-    await load(query);
-  };
-
-  const handleReflect = async () => {
-    setReflecting(true);
-    setReflectInfo(null);
-    try {
-      const resp = await fetch("/api/memory/reflect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      const json = (await resp.json()) as {
-        derivedMemoriesCreated: number;
-        reason?: string;
-      };
-      setReflectInfo(
-        json.derivedMemoriesCreated > 0
-          ? `Consolidated into ${json.derivedMemoriesCreated} higher-order fact(s).`
-          : `No consolidation (reason: ${json.reason ?? "no source"}).`,
-      );
-      // Reset to the full list — recall(query) would only show items
-      // semantically close to the prior search, making the sidebar look
-      // empty even though Memory.reflect() never deletes source facts.
-      setQuery("");
-      await load("");
-    } finally {
-      setReflecting(false);
-    }
+  const handleInspect = (memoryId: string) => {
+    setInspectedId(memoryId);
+    setActive("history");
   };
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col gap-3 border-l border-border p-4">
+    <aside className="flex w-[400px] shrink-0 flex-col gap-3 border-l border-border p-4">
       <div className="flex items-center gap-2">
         <Brain className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold">TheMemory</h2>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {items.length} fact(s)
-        </span>
+        {info !== null && (
+          <span
+            className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              info.backend === "pgvector"
+                ? "bg-emerald-500/20 text-emerald-700"
+                : "bg-amber-500/20 text-amber-700"
+            }`}
+            title={
+              info.backend === "pgvector"
+                ? "Persisting to Postgres + pgvector"
+                : "In-memory only — restarts wipe state"
+            }
+          >
+            {info.backend}
+          </span>
+        )}
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <Input
-          placeholder="Search facts…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <Button type="submit" variant="ghost" size="icon" disabled={loading}>
-          <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-        </Button>
-      </form>
+      <nav className="flex gap-1 rounded-md bg-muted/50 p-1">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setActive(t.key)}
+            className={`flex-1 rounded px-2 py-1 text-xs font-medium transition ${
+              active === t.key
+                ? "bg-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-      <Button
-        variant="secondary"
-        onClick={handleReflect}
-        disabled={reflecting}
-        className="w-full justify-start"
-      >
-        <Sparkles className="mr-2 h-4 w-4" />
-        {reflecting ? "Reflecting…" : "Run reflection (v0.4a)"}
-      </Button>
-      {reflectInfo !== null && (
-        <p className="text-xs text-muted-foreground">{reflectInfo}</p>
-      )}
-
-      <div className="flex-1 overflow-y-auto pr-1">
-        <ul className="flex flex-col gap-2">
-          {items.length === 0 && !loading && (
-            <li className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-              No memories yet — the assistant will start remembering as you
-              chat.
-            </li>
-          )}
-          {items.map((it) => (
-            <li key={it.id}>
-              <Card size="sm" className="p-3">
-                <p className="text-xs leading-relaxed">{it.text}</p>
-                <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    {it.score !== undefined
-                      ? `score ${it.score.toFixed(2)}`
-                      : new Date(it.createdAt).toLocaleString()}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void handleForget(it.id)}
-                    className="rounded p-1 hover:bg-muted"
-                    aria-label="Forget"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              </Card>
-            </li>
-          ))}
-        </ul>
+      <div className="flex-1 overflow-hidden">
+        {active === "user" && (
+          <UserTab
+            userId={userId}
+            reloadKey={reloadKey}
+            onInspectHistory={handleInspect}
+          />
+        )}
+        {active === "session" && (
+          <SessionTab
+            sessionId={sessionId}
+            reloadKey={reloadKey}
+            onInspectHistory={handleInspect}
+          />
+        )}
+        {active === "skills" && <SkillsTab defaultRepoId="repo-demo" />}
+        {active === "history" && (
+          <HistoryTab
+            inspectedId={inspectedId}
+            onInspectedIdChange={setInspectedId}
+          />
+        )}
       </div>
     </aside>
   );

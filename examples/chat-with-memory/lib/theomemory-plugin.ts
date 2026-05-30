@@ -4,18 +4,14 @@
  * Two public-API levers wire theo-memory into the agent loop:
  *
  *   1. `systemPromptResolver(ctx)` — called by the SDK on every `agent.send()`.
- *      We recall the top-K relevant facts for this user and inject them as a
- *      `<memory-context>` block ahead of the model's instructions.
+ *      Recalls the top-K relevant facts from BOTH the User scope AND the
+ *      current Session scope (v0.6.1 demo expansion) and injects them
+ *      as a `<memory-context>` block ahead of the model's instructions.
  *
- *   2. `rememberTurn({prompt, reply})` — invoked AFTER `run.wait()` in the
- *      chat route; writes the user message + assistant reply to theo-memory.
- *      Triggers `reflect()` in the background after N writes (v0.4a
- *      consolidation pipeline).
- *
- * The SDK's `kind: "memory"` plugin path is intentionally not used because
- * its `MemoryProviderFactory` type alias is not exposed in @usetheo/sdk
- * v1.3.0's published .d.ts. This module sticks to surfaces that are stable
- * + fully typed.
+ *   2. `rememberTurn({prompt, reply})` — invoked AFTER `run.wait()`; writes
+ *      the user message + assistant reply to BOTH the User scope (long-lived,
+ *      cross-session) AND the Session scope (mid-lived, this conversation).
+ *      Triggers `reflect()` in the background after N writes per user.
  */
 import "server-only";
 import type { SystemPromptContext } from "@usetheo/sdk";
@@ -34,46 +30,92 @@ const writeCounts = new Map<string, number>();
 const BASE_SYSTEM_PROMPT = [
   "You are a helpful, concise assistant powered by Theokit.",
   "You have access to a persistent memory layer (TheMemory) that remembers facts about the user across sessions.",
-  "When the <memory-context> block is present, treat each fact as established prior knowledge about THIS user — use it naturally, do not restate it verbatim, and do not pretend you do not know it.",
+  "The <memory-context> block carries two layers: <user-facts> (cross-session knowledge about this user) and <session-facts> (recall from THIS conversation only).",
+  "Treat both as established prior knowledge — use naturally, do not restate verbatim.",
   "Never invent facts and never store the memory as conversation. Just answer the user.",
 ].join("\n");
 
-function formatMemoryBlock(facts: readonly MemoryItemWithScore[]): string {
+function formatBlock(label: string, facts: readonly MemoryItemWithScore[]): string {
   if (facts.length === 0) return "";
   const lines = facts.map((f, i) => `${i + 1}. ${f.text}`).join("\n");
-  return `\n\n<memory-context>\n${lines}\n</memory-context>`;
+  return `\n<${label}>\n${lines}\n</${label}>`;
 }
 
-export function createSystemPromptResolver(opts: { userId: string }) {
-  const { userId } = opts;
+function formatMemoryContext(
+  userFacts: readonly MemoryItemWithScore[],
+  sessionFacts: readonly MemoryItemWithScore[],
+): string {
+  if (userFacts.length === 0 && sessionFacts.length === 0) return "";
+  return [
+    "\n\n<memory-context>",
+    formatBlock("user-facts", userFacts),
+    formatBlock("session-facts", sessionFacts),
+    "</memory-context>",
+  ]
+    .filter((s) => s.length > 0)
+    .join("");
+}
+
+export function createSystemPromptResolver(opts: {
+  userId: string;
+  sessionId: string;
+}) {
+  const { userId, sessionId } = opts;
   return async (ctx: SystemPromptContext): Promise<string> => {
     const memory = await getMemory();
-    const facts = await memory.user(userId).recall(ctx.userMessage, {
-      topK: DEFAULT_RECALL_K,
-    });
-    return `${BASE_SYSTEM_PROMPT}${formatMemoryBlock(facts)}`;
+    const [userFacts, sessionFacts] = await Promise.all([
+      memory.user(userId).recall(ctx.userMessage, { topK: DEFAULT_RECALL_K }),
+      memory.session(sessionId).recall(ctx.userMessage, { topK: DEFAULT_RECALL_K }),
+    ]);
+    return `${BASE_SYSTEM_PROMPT}${formatMemoryContext(userFacts, sessionFacts)}`;
   };
+}
+
+export interface ReflectionEvent {
+  readonly fired: boolean;
+  readonly nextThreshold: number;
+  readonly writesSinceLastReflection: number;
 }
 
 export async function rememberTurn(opts: {
   userId: string;
+  sessionId: string;
   prompt: string;
   reply: string;
-}): Promise<void> {
+}): Promise<ReflectionEvent> {
   const memory = await getMemory();
-  const scoped = memory.user(opts.userId);
+  const userScoped = memory.user(opts.userId);
+  const sessionScoped = memory.session(opts.sessionId);
   const conversation = `User: ${opts.prompt}\nAssistant: ${opts.reply}`;
-  await scoped.remember(conversation);
+  // Persist into BOTH scopes — User for cross-session recall + Session for
+  // this-conversation-only recall. Same two-stage write pipeline runs twice
+  // (ADD-only per ADR-0003; the LLM extracts facts independently in each scope).
+  await Promise.all([
+    userScoped.remember(conversation),
+    sessionScoped.remember(conversation),
+  ]);
 
-  if (REFLECTION_THRESHOLD === 0) return;
+  if (REFLECTION_THRESHOLD === 0) {
+    return { fired: false, nextThreshold: 0, writesSinceLastReflection: 0 };
+  }
   const prev = writeCounts.get(opts.userId) ?? 0;
   const next = prev + 1;
-  writeCounts.set(opts.userId, next);
   if (next >= REFLECTION_THRESHOLD) {
     writeCounts.set(opts.userId, 0);
-    scoped.reflect().catch((err) => {
+    userScoped.reflect().catch((err) => {
       // eslint-disable-next-line no-console
       console.warn("[theomemory] reflect() failed:", err);
     });
+    return {
+      fired: true,
+      nextThreshold: REFLECTION_THRESHOLD,
+      writesSinceLastReflection: 0,
+    };
   }
+  writeCounts.set(opts.userId, next);
+  return {
+    fired: false,
+    nextThreshold: REFLECTION_THRESHOLD,
+    writesSinceLastReflection: next,
+  };
 }
