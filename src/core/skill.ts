@@ -70,6 +70,17 @@ export interface Skill extends MemoryItem {
  * Input shape to `ScopedSkillMemory.add()`. The caller supplies just the
  * code-as-skill payload; the implementation assigns the id, hash, scope,
  * timestamps, `kind='skill'`, empty `derivedFrom`, and `supersededBy=null`.
+ *
+ * **Identity / dedup invariant (v0.6.1+):** the row hash is derived from
+ * `description` only via the canonical `hashFact` helper (architecture.md
+ * § 4). Two `add()` calls with IDENTICAL `description` but DIFFERENT `code`
+ * COLLIDE on `UNIQUE(hash)`; the second call surfaces the raw Postgres
+ * unique-violation error (no domain wrapper at v0.6.1). To rewrite an
+ * existing skill with new code, use `forget(id) + add(...)` AND revise the
+ * `description` so the new row carries a distinct hash. Rationale:
+ * `description` IS the embedding target (recall semantics), so it IS the
+ * canonical identity — keeping code out of the hash recipe keeps semantic
+ * dedup stable across refactors that leave description unchanged.
  */
 export interface SkillDraft {
   readonly code: string;
@@ -141,7 +152,10 @@ export interface ConsolidationResult {
  * Scoped sub-object returned by `Memory.skills(repoId)`.
  *
  * Exposes 4 verbs (per plan ADR D4):
- *   - `add`         — write a new skill (no LLM extraction; payload is the contract)
+ *   - `add`         — write a new skill (no LLM extraction; payload is the contract).
+ *                     Identity is `hashFact(description)` per architecture.md § 4;
+ *                     same-description-different-code pairs collide on UNIQUE(hash).
+ *                     See `SkillDraft` JSDoc for the full dedup invariant.
  *   - `recall`      — semantic search over skill descriptions
  *   - `consolidate` — 4-phase orchestrator (Orient → Gather → Consolidate → Report)
  *   - `forget`      — hard-delete (scope-isolated); appends 'forget' to history;
