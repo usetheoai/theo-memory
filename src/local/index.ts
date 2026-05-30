@@ -74,6 +74,36 @@ export interface LocalMemoryConfig extends MemoryConfig {
 
 export const PROBE_TEXT = '__themem_probe__';
 
+/**
+ * v0.6 (T2.2): translate skill-aware RecallOptions / GetAllOptions flags into
+ * `Filters.kind` + `Filters.excludeSuperseded` before the store call.
+ *
+ * `includeSuperseded` defaults to `false` (recall returns only tip-of-chain),
+ * so when the caller omits the option we still emit `excludeSuperseded=true`
+ * — BUT only when `onlySkills` is also set, so v0.4a callers see no change.
+ */
+function applySkillFilters(
+  baseFilters: Filters,
+  options?: { onlySkills?: boolean; includeSuperseded?: boolean },
+): Filters {
+  if (options === undefined) {
+    return baseFilters;
+  }
+  const next: Filters = { ...baseFilters };
+  if (options.onlySkills === true) {
+    return {
+      ...next,
+      kind: 'skill',
+      // Default for skill recall: exclude superseded unless the caller explicitly opts in.
+      excludeSuperseded: options.includeSuperseded === true ? false : true,
+    };
+  }
+  if (options.includeSuperseded === false) {
+    return { ...next, excludeSuperseded: true };
+  }
+  return next;
+}
+
 function filtersFromScope(scope: Scope): Filters {
   switch (scope.kind) {
     case 'user':
@@ -180,7 +210,7 @@ class LocalScopedMemory implements ScopedMemory {
     if (options?.asOf !== undefined) {
       throw new BiTemporalNotSupportedLocally();
     }
-    return runRetrievalPipeline(query, this.filters, {
+    return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
@@ -309,7 +339,10 @@ class LocalScopedMemory implements ScopedMemory {
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
     const limit = options?.topK ?? 100;
-    const [results] = await this.config.vectorStore.list(this.filters, limit);
+    const [results] = await this.config.vectorStore.list(
+      applySkillFilters(this.filters, options),
+      limit,
+    );
     return results.map((r) => ({
       id: r.id,
       text: String(r.payload['text'] ?? ''),

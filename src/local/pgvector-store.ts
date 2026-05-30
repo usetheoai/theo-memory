@@ -158,6 +158,16 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
     params.push(value);
     idx += 1;
   }
+  // v0.6: kind discriminator and supersession filter per skill-library T2.2.
+  if (filters.kind !== undefined) {
+    parts.push(`kind = $${idx}`);
+    params.push(filters.kind);
+    idx += 1;
+  }
+  if (filters.excludeSuperseded === true) {
+    // `superseded_by IS NULL` does not parameterize — embed the literal SQL fragment.
+    parts.push(`superseded_by IS NULL`);
+  }
   if (parts.length === 0) {
     return { sql: '', params: [], nextParamIndex: startParamIndex };
   }
