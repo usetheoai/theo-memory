@@ -20,6 +20,30 @@ T2.1 plan declared a separate types file for `TriadicWeights` + `TriadicConstant
 
 **Recommended owner:** T4.2 implementer evaluates whether splitting types out makes the multiplier integration cleaner.
 
+## F3.5 — v0.4a CHECK constraint `memories_kind_derived_from_check` missing IS NOT NULL guard for kind='derived' (surfaced at iter 5 / T3.1)
+
+Pre-existing bug surfaced by running the full integration suite. The CHECK constraint is:
+```sql
+((kind='derived' AND jsonb_array_length(derived_from) >= 1) OR ...)
+```
+`jsonb_array_length(NULL) IS NULL` evaluates to NULL, and `NULL >= 1` is NULL (unknown). Postgres CHECK constraints treat NULL as PASSING (only FALSE rejects). So an INSERT with `kind='derived', derived_from=NULL` succeeds when the test `kind='derived' with derived_from=NULL violates CHECK` expects it to fail.
+
+**Verified pre-existing:** `git stash` + re-run on 0739d26 reproduced both this failure AND the threshold-policy.test.ts pool setup failure. NOT caused by T3.1.
+
+**Fix:** add explicit `derived_from IS NOT NULL` guard to the kind='derived' arm:
+```sql
+(kind='derived' AND derived_from IS NOT NULL AND jsonb_array_length(derived_from) >= 1)
+```
+Requires a new migration `0005_fix_kind_derived_from_check.sql` (DROP + ADD constraint atomically).
+
+**Recommended owner:** next v0.4b iteration that needs to touch v0.4a constraints OR a small follow-up plan.
+
+## F3.6 — `tests/integration/reflection/threshold-policy.test.ts` setup failure: `this.pool.query is not a function` (surfaced at iter 5 / T3.1)
+
+Pre-existing test-setup bug at `PgvectorStore.initialize` line 134; suite fails to bootstrap. Likely a stale fixture pattern; not caused by T3.1 (verified via stash + re-run).
+
+**Recommended owner:** next pass over v0.4a integration test fixtures.
+
 ## F3 — Plan T1.1 § Files to edit lists `src/core/dip/index.ts` (UPDATE) — barrel does not exist
 
 T1.1 plan declared adding `export * from './eviction-policy'` to `src/core/dip/index.ts`. That file does NOT exist; established convention re-exports DIPs directly from `src/core/index.ts` (verified against `ReflectionPolicy`, `ScoringStrategy`, `SkillRepresentationStrategy` re-export sites). T1.1 followed convention.

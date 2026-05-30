@@ -237,7 +237,45 @@ export class PgvectorStore implements VectorStore {
       ...filter.params,
       topK,
     ]);
-    return result.rows.map(rowToResult);
+    const mapped = result.rows.map(rowToResult);
+    // v0.4b T3.1 / D15: batched LRU/LFU write-back. Fire-and-forget — failures
+    // log + degrade gracefully (bookkeeping is best-effort, not invariant).
+    await this.recordAccess(mapped.map((r) => r.id));
+    return mapped;
+  }
+
+  /**
+   * v0.4b T3.1: single batched UPDATE incrementing access_count + setting
+   * last_accessed_at = NOW() for the given memory ids.
+   *
+   * EC-8 absorption: SQL uses `SELECT DISTINCT unnest($1::uuid[])` so a
+   * duplicate id in the input is incremented ONCE (defensive against future
+   * code paths that might pass duplicates).
+   *
+   * Plan T3.1 § Deep Dives "Fire-and-forget telemetry": on failure, console.warn
+   * + degrade gracefully (caller still receives the recall results unchanged).
+   * OTel counter `theo.memory.lru_update_failures` is declared at T8.1 wiring
+   * re-run per the existing OTel-counter exposure pattern.
+   */
+  private async recordAccess(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    try {
+      await this.pool.query(
+        `UPDATE memories
+            SET access_count = access_count + 1,
+                last_accessed_at = NOW()
+          WHERE id IN (SELECT DISTINCT unnest($1::uuid[]))`,
+        [ids],
+      );
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[v0.4b] LRU bookkeeping UPDATE failed (recall results returned unchanged):',
+        err,
+      );
+    }
   }
 
   async keywordSearch(
