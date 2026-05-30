@@ -223,12 +223,15 @@ export class PgvectorStore implements VectorStore {
       );
     }
     const filter = composeFilters(filters, 2);
+    // v0.4b T6.1 / D17: exclude soft-deleted rows (t_invalid IS NOT NULL)
+    // from semantic recall. Audit query (raw SQL WHERE t_invalid IS NOT NULL)
+    // still returns them per ADR-0006 bi-temporal contract.
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,
              kind, code, description, code_language, derived_from, superseded_by,
              embedding <=> $1::vector AS distance
       FROM memories
-      WHERE 1=1${filter.sql}
+      WHERE t_invalid IS NULL${filter.sql}
       ORDER BY distance ASC
       LIMIT $${filter.nextParamIndex}
     `;
@@ -284,12 +287,14 @@ export class PgvectorStore implements VectorStore {
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[] | null> {
     const filter = composeFilters(filters, 2);
+    // v0.4b T6.1 / D17: exclude soft-deleted rows from keyword recall.
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,
              kind, code, description, code_language, derived_from, superseded_by,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
-      WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)${filter.sql}
+      WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)
+        AND t_invalid IS NULL${filter.sql}
       ORDER BY rank DESC
       LIMIT $${filter.nextParamIndex}
     `;
