@@ -103,6 +103,15 @@ export interface Filters {
   readonly session_id?: string;
   /** v0.6: discriminate kind at the SQL/store layer ('extracted' | 'derived' | 'skill'). */
   readonly kind?: 'extracted' | 'derived' | 'skill';
-  /** v0.6: when true, omit rows whose `superseded_by IS NOT NULL`. */
+  /**
+   * v0.6: when `true`, omit rows whose `superseded_by IS NOT NULL`.
+   *
+   * Polarity is INVERTED relative to the public `RecallOptions.includeSuperseded`:
+   * the pipeline layer translates `includeSuperseded: false` (the consumer-facing
+   * default — "don't show supersession noise") into `excludeSuperseded: true`
+   * (the store-facing instruction — "filter them out"). The inversion sits at
+   * the pipeline boundary so the store layer reasons about ONE direction
+   * ("which rows to skip") instead of carrying the consumer's double-negative.
+   */
   readonly excludeSuperseded?: boolean;
 }
