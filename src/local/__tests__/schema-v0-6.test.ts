@@ -29,7 +29,7 @@ describe('memories v0.6 additions (T0.1)', () => {
     expect(col?.dataType).toBe('string');
   });
 
-  test('adds code column (TEXT nullable — REDACTED code-as-skill payload)', () => {
+  test('adds code column (TEXT nullable — code-as-skill payload)', () => {
     const cfg = getTableConfig(memories);
     const col = cfg.columns.find((c) => c.name === 'code');
     expect(col).toBeDefined();
