@@ -63,6 +63,23 @@ export const DEFAULT_TRIADIC_CONSTANTS: TriadicConstants = {
 };
 
 /**
+ * Side-effect collaborator that persists a computed `half_life_seconds` back
+ * to storage during `score()`. Optional — when omitted (e.g., in pure-math
+ * unit tests), `score()` computes on-the-fly without DB I/O. Real-runtime
+ * consumers inject a `PgHalfLifePersister` via constructor.
+ *
+ * EC-1 absorption (plan v1.1): the persister UPDATE is guarded by
+ * `WHERE half_life_seconds IS NULL` for idempotency — second scoring of the
+ * same row issues no DB mutation. Re-backfill after `llm_importance_score`
+ * updates is handled by the DB-layer trigger
+ * `memories_reset_half_life_on_importance_update_trg` (migration 0004),
+ * NOT by the persister.
+ */
+export interface HalfLifePersister {
+  persist(memoryId: string, halfLifeSeconds: number): Promise<void>;
+}
+
+/**
  * EC-6 absorption (plan v1.1 edge-case review): TriadicScoringPolicy
  * constructor rejects weights that sum to zero (degenerate; would make
  * the additive score undefined under normalization).
@@ -153,23 +170,30 @@ export class TriadicScoringPolicy implements EvictionPolicy {
 
   private readonly weights: TriadicWeights;
   private readonly constants: TriadicConstants;
+  private readonly halfLifePersister: HalfLifePersister | null;
 
   constructor(
     weights: TriadicWeights = DEFAULT_TRIADIC_WEIGHTS,
     constants: TriadicConstants = DEFAULT_TRIADIC_CONSTANTS,
+    halfLifePersister: HalfLifePersister | null = null,
   ) {
     this.weights = normalizeWeights(weights);
     this.constants = constants;
+    this.halfLifePersister = halfLifePersister;
   }
 
   async score(memory: MemoryItem, context: ScoreContext): Promise<number> {
-    await Promise.resolve();
     const importance = computeImportance(
       memory.llmImportanceScore ?? null,
       this.constants.importanceDefault,
     );
-    const halfLife = memory.halfLifeSeconds
-      ?? computeHalfLifeSeconds(importance, this.constants.halfLifeBaseSeconds);
+    let halfLife = memory.halfLifeSeconds ?? null;
+    if (halfLife === null) {
+      halfLife = computeHalfLifeSeconds(importance, this.constants.halfLifeBaseSeconds);
+      if (this.halfLifePersister !== null) {
+        await this.halfLifePersister.persist(memory.id, halfLife);
+      }
+    }
     const recency = computeRecency(memory.lastAccessedAt ?? null, context.now, halfLife);
     const frequency = computeFrequency(memory.accessCount ?? 0, this.constants.accessCountNorm);
     return this.weights.recency * recency
