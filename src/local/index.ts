@@ -46,6 +46,7 @@ import type {
   MemoryConfig,
   ScopedMemory,
 } from '../core/memory-store.js';
+import type { ScopedSkillMemory } from '../core/skill.js';
 import type { Message } from '../core/message.js';
 import type {
   ForgetOptions,
@@ -425,6 +426,23 @@ class LocalMemory implements Memory {
     for (const r of results) {
       await this.config.vectorStore.delete(r.id);
     }
+  }
+
+  /**
+   * v0.6: code-as-skill memory entry-point.
+   *
+   * T1.1 lands the type contract per plan ADR D5; the runtime implementation
+   * (`LocalScopedSkillMemory` class + factory wiring) ships in T4.1 alongside
+   * the RepoScope union extension. Until then this placeholder satisfies the
+   * `Memory` interface without fabricating behavior — invocation surfaces an
+   * honest BLOCKED state rather than a silent no-op (Inquebrável Rule 3).
+   *
+   * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.1
+   */
+  skills(repoId: string): ScopedSkillMemory {
+    throw new Error(
+      `LocalMemory.skills(${JSON.stringify(repoId)}) is not yet wired — lands at T4.1 (LocalScopedSkillMemory + RepoScope).`,
+    );
   }
 }
 

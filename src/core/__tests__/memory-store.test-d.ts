@@ -36,10 +36,10 @@ test('Memory top-level surface has forget + get + history + reset (parity helper
   expectTypeOf<Memory['reset']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('Memory has exactly the 8 top-level keys (no update, no recall, no remember; v0.4a adds flushReflections)', () => {
+test('Memory has exactly the 9 top-level keys (v0.4a adds flushReflections; v0.6 adds skills)', () => {
   type Keys = keyof Memory;
   expectTypeOf<Keys>().toEqualTypeOf<
-    'user' | 'session' | 'agent' | 'forget' | 'get' | 'history' | 'reset' | 'flushReflections'
+    'user' | 'session' | 'agent' | 'skills' | 'forget' | 'get' | 'history' | 'reset' | 'flushReflections'
   >();
 });
 
