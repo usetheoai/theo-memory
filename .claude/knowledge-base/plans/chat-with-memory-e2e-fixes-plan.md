@@ -90,6 +90,31 @@ Both fixes are **demo-environment concerns**. The @usetheo/memory contract is he
   - Each fix's "TDD" cycle in this plan defines RED as "re-run the corresponding scenario, observe the documented FAIL"; GREEN as "scenario PASSes after the change".
   - The Final Phase ("Integration Validation") is a full `/test-chat-with-memory` re-run, not `npm test`.
 
+## Dependencies
+
+This plan introduces **ZERO new dependencies** and removes **ZERO**. Per ADR D3, the entire scope is `examples/chat-with-memory/` source-code edits + README docs — no `package.json` / `package-lock.json` touch in either the root `@usetheo/memory` package OR the demo's package.
+
+### Existing — use as-is (no version bump)
+
+| Package | Version | Ecosystem | Why |
+|---|---|---|---|
+| `@usetheo/memory` (workspace `file:../..`) | rc.2 | npm (demo) | Memory contract consumed by the demo; T1.1 uses `ConsolidateOptions.clusterThreshold` which is already exposed at `src/core/skill.ts:122-123` — no new surface needed. |
+| `next` | ^15.5.18 | npm (demo) | Dev server hosting the demo; T0.1's `globalThis` fix is a runtime pattern, not a Next.js version dep. |
+| `@usetheo/sdk` | 1.3.0 | npm (demo) | Agent harness — unchanged. |
+| `pg` | ^8.13.1 | npm (demo) | pgvector connector — added in the demo-expansion baseline commit (22f148b), not by this plan. |
+
+### New — to be introduced
+
+| Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
+|---|---|---|---|---|
+| (none) | | | | |
+
+### Removed
+
+| Package | Last version | Why removed |
+|---|---|---|
+| (none) | | |
+
 ## Dependency Graph
 
 ```
