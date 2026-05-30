@@ -1,33 +1,20 @@
 /**
- * pgvector VectorStore — T3.3 of v0-1-local-runtime plan v1.3.
- *
- * Implements the VectorStore DIP via raw SQL through `pg.Pool` (per blueprint
- * D4 — no pgvector npm wrapper; raw SQL is enough). Schema is owned by
- * src/local/schema.ts + migrations from T2.2.
- *
- * Per-row fallback: batch insert wrapped in try/catch; on failure iterates
- * each row and attempts single-row insert in its own try/catch (per blueprint
- * D1 + Recommendation 1).
- *
- * Vector serialization: pgvector accepts `[0.1, 0.2, ...]` literal string OR
- * parameterized via `$N::vector`. We use the latter for SQL safety.
- *
- * Filter composition: ANDs each non-undefined Filters key as `col = $idx`.
- * NULL columns are skipped (passthrough — no `IS NULL` filter).
- *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
- * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
+ * pgvector VectorStore — implements the {@link VectorStore} DIP via raw SQL
+ * through `pg.Pool`. Schema lives in `src/local/schema.ts` + migrations.
+ * Per-row fallback: batch INSERT in try/catch; on failure, iterate per-row.
+ * Vector serialization via {@link vectorLiteral} ($N::vector). Skill CRUD
+ * delegated to {@link PgvectorSkillStore} (T3.1 / F3).
  */
 import type { Tracer } from '@opentelemetry/api';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
-import { InvalidSkillError } from '../core/errors.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
-import type { SkillLanguage } from '../core/skill.js';
 
+import { PgvectorSkillStore } from './pgvector-skill-store.js';
+import { vectorLiteral } from './pgvector-vector-literal.js';
 import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args.js';
 
 type Payload = Record<string, string | number | boolean | null>;
@@ -48,61 +35,6 @@ interface MemoriesRow extends QueryResultRow {
   readonly superseded_by?: string | null;
   readonly distance?: number;
   readonly rank?: number;
-}
-
-/**
- * Convert a number[] into pgvector's `[v1,v2,...]` literal syntax.
- *
- * F-dom-1 absorption: guards every component against NaN / Infinity / -Infinity.
- * Without the guard, malformed vectors would reach pgvector and fail with a
- * cryptic `invalid input syntax for type vector` error at the SQL layer. With
- * the guard, callers see a clear JS error pointing at the offending index.
- */
-const ALLOWED_SKILL_LANGUAGES: ReadonlySet<SkillLanguage> = new Set<SkillLanguage>([
-  'typescript',
-  'javascript',
-]);
-
-/**
- * Validate `insertSkill` / `insertDerivedSkill` args at the store boundary.
- * Rejects empty description (the embedding target cannot be empty) and
- * invalid `codeLanguage` BEFORE the SQL INSERT — typed errors over Postgres
- * CHECK violations per error-handling rules.
- *
- * T0.2 split: description check always runs; codeLanguage check only runs
- * when codeLanguage is non-null (derived skills carry NULL per ADR D2).
- */
-function assertDescriptionPresent(description: string): void {
-  if (description.trim().length === 0) {
-    throw new InvalidSkillError(
-      'empty-description',
-      'description is required and must not be whitespace-only (it is the embedding target)',
-    );
-  }
-}
-
-function assertCodeLanguageIfPresent(codeLanguage: SkillLanguage | null): void {
-  if (codeLanguage != null && !ALLOWED_SKILL_LANGUAGES.has(codeLanguage)) {
-    throw new InvalidSkillError(
-      'invalid-code-language',
-      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}] OR null; got ${JSON.stringify(codeLanguage)}`,
-    );
-  }
-}
-
-function assertSkillArgs(args: { description: string; codeLanguage: SkillLanguage | null }): void {
-  assertDescriptionPresent(args.description);
-  assertCodeLanguageIfPresent(args.codeLanguage);
-}
-
-function vectorLiteral(vector: readonly number[]): string {
-  for (let i = 0; i < vector.length; i += 1) {
-    const n = vector[i] as number;
-    if (!Number.isFinite(n)) {
-      throw new Error(`vectorLiteral: vector[${i}] is not finite (${String(n)}); pgvector requires finite numbers`);
-    }
-  }
-  return `[${vector.join(',')}]`;
 }
 
 function rowToResult(row: MemoriesRow): VectorStoreResult {
@@ -187,17 +119,15 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
 
 export class PgvectorStore implements VectorStore {
   private currentUserId = '';
+  private readonly skillStore: PgvectorSkillStore;
 
-  /**
-   * @param pool   — connected pg.Pool
-   * @param tracer — optional OTel tracer for observability of internal per-row fallback paths
-   *                 (F-arch-3 absorption — defense-in-depth event emission below the pipeline level).
-   *                 When absent, fallback is silent (matches v0.1.0 behavior).
-   */
+  /** `tracer` is optional OTel for F-arch-3 per-row fallback observability. */
   constructor(
     private readonly pool: Pool,
     private readonly tracer?: Tracer,
-  ) {}
+  ) {
+    this.skillStore = new PgvectorSkillStore(pool, this.withTransaction.bind(this));
+  }
 
   async initialize(): Promise<void> {
     // Schema is owned by Drizzle migrations (T2.2). Just verify connectivity.
@@ -215,11 +145,8 @@ export class PgvectorStore implements VectorStore {
     try {
       await this.insertBatch(vectors, ids, payloads);
     } catch {
-      // Per-row fallback (blueprint D1 / Recommendation 1)
-      // F-arch-3 absorption: emit persist_fallback event so consumers observing the
-      // tracer can detect partial-batch degradation. Per-row failures are still
-      // skipped (do not poison the rest of the batch), but at least one
-      // persist_fallback span fires per fallback invocation.
+      // F-arch-3: persist_fallback fires per batch invocation; per-row failures
+      // are skipped (do not poison the rest of the batch) and tallied below.
       emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
       let failed = 0;
       for (let i = 0; i < vectors.length; i += 1) {
@@ -288,11 +215,8 @@ export class PgvectorStore implements VectorStore {
     topK = 10,
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[]> {
-    // F-dom-4 absorption: guard query vector dimension. The factory probes the
-    // embedder at construction time (EC-5) but the retrieval pipeline could
-    // still pass a malformed query (e.g., empty array from a failed embed).
-    // Surface the bug here with a clear error rather than letting pgvector
-    // silently return wrong results from a dimension mismatch.
+    // F-dom-4: guard query dimension so a malformed embed surfaces here, not
+    // as silently-wrong pgvector results from a dimension mismatch.
     if (query.length !== MAX_EMBEDDING_DIM) {
       throw new Error(
         `PgvectorStore.search: query vector dimension ${query.length} does not match MAX_EMBEDDING_DIM ${MAX_EMBEDDING_DIM}`,
@@ -415,29 +339,9 @@ export class PgvectorStore implements VectorStore {
   }
 
   /**
-   * Atomically bump the reflection counter for a given scope and return the new value.
-   *
-   * Uses two-step find-then-modify with IS NOT DISTINCT FROM to handle the
-   * Postgres NULL-comparison semantics correctly (composite-unique index
-   * UPSERT semantics differ when ANY of the keys is NULL).
-   *
-   * Per plan v0-4a-reflection-pipeline § T2.1 + ADR D4. Consumer
-   * (ThresholdReflectionPolicy) validates scope non-emptiness BEFORE calling
-   * this — the reflection_counters CHECK constraint guards as final defense.
-   *
-   * @param scope Scope-tuple (userId / sessionId / agentId; at least one non-null)
-   * @returns the new counter value AFTER the increment
-   */
-  /**
    * Persist a derived memory (kind='derived') with non-empty derived_from per
    * plan T4.3 + ADR D6 (kind discriminator) + ADR D7 (provenance fail-fast).
-   *
-   * Atomic per-call: a single INSERT statement. Multi-draft transactional
-   * wrapping is the caller's responsibility (v0.4a Memory.reflect uses BEGIN/
-   * COMMIT/ROLLBACK around the for-loop per EC-6).
-   *
-   * @param args row data; embedding length must match MAX_EMBEDDING_DIM
-   * @returns the generated memory id
+   * Caller wraps multi-draft writes in BEGIN/COMMIT/ROLLBACK per v0.4a EC-6.
    */
   async insertDerivedMemory(args: {
     text: string;
@@ -475,103 +379,19 @@ export class PgvectorStore implements VectorStore {
     return row.id;
   }
 
-  /**
-   * v0.6 — persist a `kind='skill'` row with the code-as-skill payload.
-   *
-   * Rejects empty `description` (the embedding target cannot be empty) and
-   * invalid `codeLanguage` BEFORE the SQL INSERT, surfacing typed
-   * `InvalidSkillError` to the caller instead of a Postgres CHECK violation.
-   *
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.1
-   */
+  /** T3.1 / F3: skill CRUD delegated to {@link PgvectorSkillStore} (composition seam). */
   async insertSkill(args: InsertSkillArgs): Promise<string> {
-    assertSkillArgs(args);
-    const result = await this.pool.query<{ id: string }>(
-      `INSERT INTO memories (
-         text, hash, embedding, payload,
-         user_id, session_id, agent_id,
-         kind, code, description, code_language
-       ) VALUES (
-         $1, $2, $3::vector, '{}'::jsonb,
-         $4, $5, $6,
-         'skill', $7, $8, $9
-       ) RETURNING id`,
-      [
-        args.description, // text mirrors description for non-skill recall fallback
-        args.hash,
-        vectorLiteral(args.embedding),
-        args.scope.userId ?? null,
-        args.scope.sessionId ?? null,
-        args.scope.agentId ?? null,
-        args.code,
-        args.description,
-        args.codeLanguage,
-      ],
-    );
-    const row = result.rows[0];
-    if (row === undefined) {
-      throw new Error('insertSkill: INSERT returned no rows');
-    }
-    return row.id;
+    return this.skillStore.insertSkill(args);
   }
 
-  /**
-   * v0.6 — persist a `kind='skill'` row with non-empty `derived_from`
-   * provenance (output of the consolidate orchestrator).
-   *
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.1
-   */
   async insertDerivedSkill(args: InsertDerivedSkillArgs): Promise<string> {
-    assertSkillArgs(args);
-    if (args.derivedFrom.length === 0) {
-      throw new InvalidSkillError(
-        'empty-derived-from',
-        'insertDerivedSkill requires at least one source skill id',
-      );
-    }
-    const result = await this.pool.query<{ id: string }>(
-      `INSERT INTO memories (
-         text, hash, embedding, payload,
-         user_id, session_id, agent_id,
-         kind, derived_from, code, description, code_language
-       ) VALUES (
-         $1, $2, $3::vector, '{}'::jsonb,
-         $4, $5, $6,
-         'skill', $7::jsonb, $8, $9, $10
-       ) RETURNING id`,
-      [
-        args.description,
-        args.hash,
-        vectorLiteral(args.embedding),
-        args.scope.userId ?? null,
-        args.scope.sessionId ?? null,
-        args.scope.agentId ?? null,
-        JSON.stringify([...args.derivedFrom]),
-        args.code,
-        args.description,
-        args.codeLanguage,
-      ],
-    );
-    const row = result.rows[0];
-    if (row === undefined) {
-      throw new Error('insertDerivedSkill: INSERT returned no rows');
-    }
-    return row.id;
+    return this.skillStore.insertDerivedSkill(args);
   }
 
   /**
-   * Look up the cached LLM-importance score for a memory by content hash.
-   *
-   * Per plan T5.2 + ADR D8: hash-keyed cache lookup is the v0.4a strategy for
-   * avoiding LLM re-invocation on identical-content writes. The
-   * memories_hash_unique_idx UNIQUE constraint guarantees at most one row per
-   * hash, so `LIMIT 1` is exact (not first-of-many).
-   *
-   * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories);
-   * collision-SAFE by virtue of v0.1's UNIQUE constraint — a collision would
-   * fail the UNIQUE insert BEFORE this lookup is reached on the cached row.
-   *
-   * @returns cached score in [1, 10] OR null when no row exists OR row has NULL score
+   * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories) —
+   * collision-SAFE by the UNIQUE constraint, so LIMIT 1 is exact.
+   * Returns score in [1, 10] OR null when no row OR row has NULL score.
    */
   async getImportanceByHash(hash: string): Promise<number | null> {
     const result = await this.pool.query<{ llm_importance_score: string | null }>(
@@ -593,86 +413,18 @@ export class PgvectorStore implements VectorStore {
     );
   }
 
-  /**
-   * v0.6 — set `superseded_by = supersededBy` for every row whose id is in `sourceIds`.
-   *
-   * Idempotent: writing the same value twice is a no-op. NEVER deletes source rows
-   * (ADD-only per Inquebrável Rule 3 — supersession is metadata, not erasure).
-   *
-   * Used standalone OR transitively via `insertDerivedSkillAtomic` (preferred for
-   * the consolidate orchestrator per plan EC-2 atomicity absorption).
-   */
   async markSuperseded(
     sourceIds: readonly string[],
     supersededBy: string,
   ): Promise<void> {
-    if (sourceIds.length === 0) {
-      return;
-    }
-    await this.pool.query(
-      `UPDATE memories SET superseded_by = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])`,
-      [supersededBy, sourceIds],
-    );
+    return this.skillStore.markSuperseded(sourceIds, supersededBy);
   }
 
-  /**
-   * v0.6 — atomically insert a derived skill row AND mark its sources as superseded.
-   *
-   * EC-2 absorption (plan v1.1): the INSERT + UPDATE pair run inside a single
-   * `BEGIN/COMMIT` so the supersession chain stays consistent even if a network
-   * blip or deadlock interrupts the second statement. Either both rows commit or
-   * neither — no orphan derived skill pointing to non-superseded ancestors.
-   *
-   * @returns the new derived skill id
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § T3.1 + EC-2
-   */
   async insertDerivedSkillAtomic(
     args: InsertDerivedSkillArgs,
     sourceIdsToSupersede: readonly string[],
   ): Promise<string> {
-    assertSkillArgs(args);
-    if (args.derivedFrom.length === 0) {
-      throw new InvalidSkillError(
-        'empty-derived-from',
-        'insertDerivedSkillAtomic requires at least one source skill id',
-      );
-    }
-    return this.withTransaction(async (client) => {
-      const insertResult = await client.query<{ id: string }>(
-        `INSERT INTO memories (
-           text, hash, embedding, payload,
-           user_id, session_id, agent_id,
-           kind, derived_from, code, description, code_language
-         ) VALUES (
-           $1, $2, $3::vector, '{}'::jsonb,
-           $4, $5, $6,
-           'skill', $7::jsonb, $8, $9, $10
-         ) RETURNING id`,
-        [
-          args.description,
-          args.hash,
-          vectorLiteral(args.embedding),
-          args.scope.userId ?? null,
-          args.scope.sessionId ?? null,
-          args.scope.agentId ?? null,
-          JSON.stringify([...args.derivedFrom]),
-          args.code,
-          args.description,
-          args.codeLanguage,
-        ],
-      );
-      const derivedId = insertResult.rows[0]?.id;
-      if (derivedId === undefined) {
-        throw new Error('insertDerivedSkillAtomic: INSERT returned no rows');
-      }
-      if (sourceIdsToSupersede.length > 0) {
-        await client.query(
-          `UPDATE memories SET superseded_by = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])`,
-          [derivedId, sourceIdsToSupersede],
-        );
-      }
-      return derivedId;
-    });
+    return this.skillStore.insertDerivedSkillAtomic(args, sourceIdsToSupersede);
   }
 
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
