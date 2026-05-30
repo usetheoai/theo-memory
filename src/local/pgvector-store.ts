@@ -68,20 +68,31 @@ const ALLOWED_SKILL_LANGUAGES: ReadonlySet<SkillLanguage> = new Set<SkillLanguag
  * Rejects empty description (the embedding target cannot be empty) and
  * invalid `codeLanguage` BEFORE the SQL INSERT — typed errors over Postgres
  * CHECK violations per error-handling rules.
+ *
+ * T0.2 split: description check always runs; codeLanguage check only runs
+ * when codeLanguage is non-null (derived skills carry NULL per ADR D2).
  */
-function assertSkillArgs(args: InsertSkillArgs): void {
-  if (args.description.trim().length === 0) {
+function assertDescriptionPresent(description: string): void {
+  if (description.trim().length === 0) {
     throw new InvalidSkillError(
       'empty-description',
       'description is required and must not be whitespace-only (it is the embedding target)',
     );
   }
-  if (!ALLOWED_SKILL_LANGUAGES.has(args.codeLanguage)) {
+}
+
+function assertCodeLanguageIfPresent(codeLanguage: SkillLanguage | null): void {
+  if (codeLanguage != null && !ALLOWED_SKILL_LANGUAGES.has(codeLanguage)) {
     throw new InvalidSkillError(
       'invalid-code-language',
-      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}]; got ${JSON.stringify(args.codeLanguage)}`,
+      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}] OR null; got ${JSON.stringify(codeLanguage)}`,
     );
   }
+}
+
+function assertSkillArgs(args: { description: string; codeLanguage: SkillLanguage | null }): void {
+  assertDescriptionPresent(args.description);
+  assertCodeLanguageIfPresent(args.codeLanguage);
 }
 
 function vectorLiteral(vector: readonly number[]): string {

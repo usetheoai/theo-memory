@@ -35,14 +35,23 @@ export interface Skill extends MemoryItem {
   /** Discriminator on the v0.4a `kind` column. v0.6: `'skill'` is the third value alongside `'extracted'`/`'derived'`. */
   readonly kind: 'skill';
 
-  /** Executable code-as-skill payload preserved verbatim. */
-  readonly code: string;
+  /**
+   * Executable code-as-skill payload preserved verbatim. NULL on derived skills
+   * produced by `consolidate()` in v0.6.1 (the LLM-merged narrative lives in
+   * `description` only; structured-draft extraction defers to a future cycle
+   * per skill-library-fixes-v0-6-1 plan ADR D2). Skills written via
+   * `add(SkillDraft)` always carry non-null code — see `SkillDraft.code`.
+   */
+  readonly code: string | null;
 
   /** Natural-language description of the skill. Embedding target for recall. */
   readonly description: string;
 
-  /** Language tag of the `code` payload. */
-  readonly codeLanguage: SkillLanguage;
+  /**
+   * Language tag of the `code` payload. NULL on derived skills (mirrors `code`).
+   * Skills written via `add(SkillDraft)` always carry a non-null language tag.
+   */
+  readonly codeLanguage: SkillLanguage | null;
 
   /**
    * Supersession chain — id of the newer skill that replaced this row.
