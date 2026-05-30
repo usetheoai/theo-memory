@@ -12,14 +12,26 @@ export interface SkillFixture {
   readonly codeLanguage: 'typescript' | 'javascript';
 }
 
-// Descriptions are semantically equivalent (both about "retry HTTP fetch on
-// transient failures with exponential backoff") but distinct strings — T1.2
-// of voyager-skill-library-fixes-v0-6-1 made hashFact(description) the
-// canonical identity, so byte-identical descriptions would collide on the
-// UNIQUE(hash) index. The deterministic embedder in the GOAL TEST hashes
-// the string to a basis vector, so both descriptions need to land on the
-// SAME vector index to cluster together — we achieve that by tuning the
-// strings so their hash spreads modulo 64 to the same index.
+// LOAD-BEARING INVARIANT — do not edit the two descriptions below without
+// re-tuning both halves of the chain. Two opposing constraints must hold
+// simultaneously:
+//
+//   (1) DISTINCT strings. T1.2 of voyager-skill-library-fixes-v0-6-1 made
+//       hashFact(description) the canonical row hash. Byte-identical
+//       descriptions collide on the UNIQUE(hash) index at insert time, so
+//       the second add() would throw before the consolidate phase runs.
+//
+//   (2) SAME modulo-64 basis-vector bucket. The deterministic FixtureEmbedder
+//       in tests/integration/skills/consolidate-two-skills.test.ts hashes
+//       each description and sets `vector[hash % 64] = 1`. The cluster
+//       phase needs both source skills to land on the SAME vector index;
+//       otherwise sourceClusters.length stays at 0 and the GOAL TEST fails.
+//
+// The two strings below ('plain fetch:' and 'via axios:') were selected so
+// `(hash(s) % 64) === 58` for both, while their full byte content differs.
+// If either string is edited, recompute the bucket with the same hash recipe
+// (`h = (h * 31 + charCode) >>> 0; bucket = h % 64`) and confirm both halves
+// still land on the same index BEFORE running the GOAL TEST.
 
 export const SKILL_FETCH: SkillFixture = {
   code: `export async function retryFetch(url: string, max = 3): Promise<Response> {

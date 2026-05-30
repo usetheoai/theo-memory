@@ -350,7 +350,6 @@ export class PgvectorStore implements VectorStore {
     derivedFrom: readonly string[];
     scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string> {
-    const vectorLiteral = `[${args.embedding.join(',')}]`;
     const sql = `
       INSERT INTO memories (
         text, hash, embedding, payload,
@@ -366,7 +365,7 @@ export class PgvectorStore implements VectorStore {
     const result = await this.pool.query<{ id: string }>(sql, [
       args.text,
       args.hash,
-      vectorLiteral,
+      vectorLiteral(args.embedding),
       args.scope.userId ?? null,
       args.scope.sessionId ?? null,
       args.scope.agentId ?? null,
