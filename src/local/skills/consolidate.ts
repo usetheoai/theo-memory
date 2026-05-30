@@ -40,6 +40,7 @@
  */
 import { context as otelContext, trace as otelTrace, SpanStatusCode, type Span, type Tracer } from '@opentelemetry/api';
 
+import { hashFact } from '../../core/dedup.js';
 import type { Embedder } from '../../core/dip/embedder.js';
 import type { LLM } from '../../core/dip/llm.js';
 import type { VectorStore } from '../../core/dip/vector-store.js';
@@ -356,7 +357,10 @@ export async function consolidate(
           }
           const description = draft.text;
           const embedding = await deps.embedder.embed(description);
-          const hash = `derived-skill-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+          // T1.1 / F6: hash MUST be content-derived per architecture.md § 4
+          // (MD5 of normalized text via hashFact). Date.now+random non-determinism
+          // breaks dedup + makes consolidate() non-idempotent on re-run.
+          const hash = hashFact(description);
           // RepoScope maps repoId → agent_id at the store layer per the EC-4
           // absorption in `filtersFromScope` (src/local/index.ts). Mirror that
           // mapping here so the derived skill row carries the right scope key.
@@ -385,10 +389,27 @@ export async function consolidate(
             derivedFrom: draft.derivedFrom,
             scope: scopeForArgs,
           };
-          const derivedId = await deps.vectorStore.insertDerivedSkillAtomic(
-            insertArgs,
-            cluster.sourceIds,
-          );
+          // T1.1 / F6: with hashFact(description), 2 distinct clusters that
+          // happen to merge to identical text would collide on UNIQUE(hash).
+          // Graceful skip — log via tracer + don't mark sources superseded
+          // (no partial consolidation per plan invariant).
+          let derivedId: string;
+          try {
+            derivedId = await deps.vectorStore.insertDerivedSkillAtomic(
+              insertArgs,
+              cluster.sourceIds,
+            );
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes('memories_hash_unique_idx') || message.includes('duplicate key')) {
+              parentSpan?.addEvent('skills.consolidate.consolidate.hash_collision_skipped', {
+                description,
+                cluster_source_count: cluster.sourceIds.length,
+              });
+              continue;
+            }
+            throw err;
+          }
           derived.push({
             id: derivedId,
             text: description,
