@@ -49,7 +49,8 @@
     "db:generate": "drizzle-kit generate",
     "compose:up": "docker compose up -d pgvector",
     "compose:down": "docker compose down",
-    "publish:check": "npm publish --dry-run --tag next"
+    "publish:check": "npm publish --dry-run --tag next",
+    "eval:forgetting": "tsx docs/forgetting-evaluation/run.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
