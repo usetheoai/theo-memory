@@ -437,6 +437,99 @@ describe('consolidate — transitive cluster (greedy union-find)', () => {
   });
 });
 
+describe('consolidate — T2.2 / F5: Phase 3 iterates ALL drafts', () => {
+  test('LLM returns 2 valid drafts for a cluster → 2 derived skills (parity with v0.4a reflect)', async () => {
+    const { store, similarA, similarB } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged perspective A', basisVector(0)],
+        ['merged perspective B', basisVector(1)],
+      ]),
+    );
+    const llm = new FixtureLLM(() => ({
+      drafts: [
+        { text: 'merged perspective A', derived_from: [similarA, similarB] },
+        { text: 'merged perspective B', derived_from: [similarA, similarB] },
+      ],
+    }));
+    const result = await consolidate({
+      vectorStore: store,
+      llm,
+      embedder,
+      scope: SCOPE,
+      filters: FILTERS,
+    });
+    expect(result.derivedSkills.length).toBe(2);
+    expect(result.derivedSkills.map((s) => s.description).sort()).toEqual(
+      ['merged perspective A', 'merged perspective B'].sort(),
+    );
+  });
+
+  test('LLM returns 3 drafts; 1 has degenerate provenance (length<2) → only 2 derived skills', async () => {
+    const { store, similarA, similarB } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged 1', basisVector(0)],
+        ['merged 2', basisVector(1)],
+        ['merged 3 degenerate', basisVector(2)],
+      ]),
+    );
+    const llm = new FixtureLLM(() => ({
+      drafts: [
+        { text: 'merged 1', derived_from: [similarA, similarB] },
+        { text: 'merged 3 degenerate', derived_from: [similarA] }, // length < 2 → skipped
+        { text: 'merged 2', derived_from: [similarA, similarB] },
+      ],
+    }));
+    const result = await consolidate({
+      vectorStore: store,
+      llm,
+      embedder,
+      scope: SCOPE,
+      filters: FILTERS,
+    });
+    expect(result.derivedSkills.length).toBe(2);
+    expect(result.derivedSkills.map((s) => s.description).sort()).toEqual(
+      ['merged 1', 'merged 2'].sort(),
+    );
+  });
+
+  test('EC-6: validateProvenance throws mid-loop → error propagates (fail-fast, no silent skip)', async () => {
+    const { store, similarA, similarB } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged 1', basisVector(0)],
+      ]),
+    );
+    // 2nd draft has a hallucinated id that's NOT in cluster.sourceIds →
+    // validateProvenance throws ReflectionProvenanceMissingError.
+    const llm = new FixtureLLM(() => ({
+      drafts: [
+        { text: 'merged 1', derived_from: [similarA, similarB] },
+        { text: 'bad', derived_from: ['hallucinated-id', similarB] },
+      ],
+    }));
+    await expect(
+      consolidate({
+        vectorStore: store,
+        llm,
+        embedder,
+        scope: SCOPE,
+        filters: FILTERS,
+      }),
+    ).rejects.toThrow(/derivedFrom references unknown ids/);
+  });
+});
+
 describe('consolidate — T2.1 / F4: Orient phase uses embedBatch (drops dead get + per-row embed loop)', () => {
   test('Orient phase calls embedBatch once with N descriptions when N skills exist', async () => {
     const { store } = await seedThreeSkills();
