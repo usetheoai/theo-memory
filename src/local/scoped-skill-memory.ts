@@ -18,7 +18,8 @@ import { hashFact } from '../core/dedup.js';
 import type { Embedder } from '../core/dip/embedder.js';
 import type { LLM } from '../core/dip/llm.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
-import { InvalidScope } from '../core/errors.js';
+import { InvalidScope, MemoryNotFound } from '../core/errors.js';
+import type { MemoryItem } from '../core/memory-item.js';
 import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, RepoScope } from '../core/scope.js';
 import type {
@@ -41,6 +42,19 @@ export interface LocalScopedSkillMemoryDeps {
   readonly embedder: Embedder;
   readonly llm: LLM;
   readonly tracer?: Tracer;
+  /**
+   * v0.6.1 T4.1 / F10: `forget(skillId)` delegates here so the canonical
+   * `LocalMemory.forget` path runs — that path writes the `'forget'` history
+   * event via the configured `HistoryManager`. The delegate is `LocalMemory.forget`
+   * bound by the `Memory.skills()` factory.
+   */
+  readonly forgetDelegate: (memoryId: string) => Promise<void>;
+  /**
+   * v0.6.1 T4.1 EC-2: `forget(skillId)` reads the row first and rejects with
+   * `MemoryNotFound` when the row is not a skill in this repo's scope. The
+   * delegate is `LocalMemory.get` bound by the `Memory.skills()` factory.
+   */
+  readonly getDelegate: (memoryId: string) => Promise<MemoryItem | null>;
 }
 
 // T3.3: payloadToSkill extraction — see src/local/skills/payload.ts:decodeSkillPayload.
@@ -147,8 +161,26 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
   }
 
   async forget(skillId: string): Promise<void> {
-    // v0.6 ships hard-delete via store.delete. Soft-delete via bi-temporal
-    // `tInvalid` is ADR-0006 cloud-only territory (v0.5+) and out of scope here.
-    await this.deps.vectorStore.delete(skillId);
+    // T4.1 / F10 + v1.1 EC-2: scope-isolation guard BEFORE delegating to the
+    // canonical LocalMemory.forget path. The guard reads the row, then rejects
+    // with MemoryNotFound when:
+    //   (a) the row does not exist (parity with LocalMemory.forget EC-12),
+    //   (b) the row belongs to another repoId (cross-scope erasure attempt),
+    //   (c) the row is not a skill (kind mismatch — a user/agent memory id was
+    //       passed to memory.skills(...).forget).
+    // All three failures surface the SAME error class — consumers cannot
+    // distinguish "you don't own it" from "doesn't exist" (information-leak
+    // prevention; intentional per plan T4.1 deep-dives § behavior matrix).
+    const row = await this.deps.getDelegate(skillId);
+    const isOwnedSkill =
+      row !== null
+      && row.metadata['kind'] === 'skill'
+      && row.metadata['agent_id'] === this.scope.repoId;
+    if (!isOwnedSkill) {
+      throw new MemoryNotFound(
+        `skillId ${skillId} not found in repo '${this.scope.repoId}' (cross-scope or non-skill)`,
+      );
+    }
+    await this.deps.forgetDelegate(skillId);
   }
 }

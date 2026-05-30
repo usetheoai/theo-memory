@@ -498,6 +498,11 @@ class LocalMemory implements Memory {
       vectorStore: skillStore,
       embedder: this.config.embedder,
       llm: this.config.llm,
+      // T4.1 / F10 + EC-2: forget delegates to LocalMemory.forget (canonical
+      // path: writes the 'forget' history event); get delegates to LocalMemory.get
+      // for the pre-delegate scope-isolation guard.
+      forgetDelegate: (id: string) => this.forget(id),
+      getDelegate: (id: string) => this.get(id),
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
     });
   }

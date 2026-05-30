@@ -144,7 +144,9 @@ export interface ConsolidationResult {
  *   - `add`         — write a new skill (no LLM extraction; payload is the contract)
  *   - `recall`      — semantic search over skill descriptions
  *   - `consolidate` — 4-phase orchestrator (Orient → Gather → Consolidate → Report)
- *   - `forget`      — soft-delete via supersession-by-self OR bi-temporal `tInvalid`
+ *   - `forget`      — hard-delete (scope-isolated); appends 'forget' to history;
+ *                     throws `MemoryNotFound` for cross-scope or non-existent ids.
+ *                     v0.6.1 T4.1 / F10 + v1.1 EC-2 absorption.
  *
  * `reflect` is intentionally NOT exposed here — consolidation IS the skill-specific
  * sleep-time work; users invoke it explicitly via `consolidate()` per ADR-0005 + D5.
