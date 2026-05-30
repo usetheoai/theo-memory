@@ -189,27 +189,32 @@ THEOMEM_PG_URI=postgres://... \
 
 
 
-## Status — v0.2 PR-A (TheoKit binding) shipped; PR-B + cloud + reflection in design
+## Status — v0.6 (voyager-skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
 
-> `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23; v0.2 PR-A (TheoKit binding) shipped via PR #11 on 2026-05-23. **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
+> `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23; v0.2 PR-A (TheoKit binding) shipped via PR #11 on 2026-05-23; v0.3 (MCP agent tools) shipped via PRs #17+#18 on 2026-05-25; v0.4a (reflection pipeline) shipped on `develop` 2026-05-23 (`494bceb`); v0.6 (Voyager-style skill library) shipped on `feat/v0-6-voyager-skill-library` on 2026-05-30 — closed with the v0.6.1 fixes cycle (14 commits, b6aead6 `/review READY_TO_MERGE`) + `chat-with-memory-e2e-fixes` demo cycle (4 commits, 9e09bb9 `/test-chat-with-memory READY 30/30`). **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
 >
-> What works today (v0.1 local runtime, against `ankane/pgvector:v0.5.1`):
+> What works today (v0.1 → v0.6 against `ankane/pgvector:v0.5.1`):
 > - **`createMemory` factory** + `runMigrations` helper + public barrel at `@usetheo/memory`.
-> - **Three-tier scope** (`memory.user(id)` / `memory.session(id)` / `memory.agent(id)`) with isolation enforced at the SQL `WHERE` level.
+> - **Three-tier scope** (`memory.user(id)` / `memory.session(id)` / `memory.agent(id)`) with isolation enforced at the SQL `WHERE` level — plus **`RepoScope` 4th tier** (v0.6, ADR-0010) exposed via `memory.skills(repoId)`.
 > - **8-phase write pipeline** ported verbatim from Mem0 with per-row fallback at every I/O boundary + OpenTelemetry spans per phase.
 > - **9-step search** with additive `(semantic + BM25 + entity_boost) / max_possible` scoring, threshold-gates-semantic-BEFORE-combining invariant, BM25 via Postgres `to_tsvector` + sigmoid normalization adapted to query length.
 > - **MD5 hash dedup** (no normalization; matches Mem0 byte-level behavior) + **Porter lemmatization** (optional `natural` peer + in-house `simpleStem` fallback).
 > - **Two `VectorStore` adapters**: in-memory (Map-backed, ~200 LoC) for unit tests + dev quickstart; pgvector (raw SQL via `pg`) for production. Both pass identical 17-test conformance suite.
 > - **`DrizzleHistoryManager`** for append-only audit trail (`Memory.history(id)` reverse-chronological).
 > - **Drizzle schema** with bi-temporal columns (`tValid`/`tInvalid` nullable per ADR-0006), HNSW pgvector index on 1536-dim embedding column (cap locked per plan ADR D1.7 due to pgvector 0.5.1's 2000-dim HNSW limit).
-> - **Test coverage**: 229 contract tests (unit + type) + 28 integration tests against real pgvector. Zero CRITICAL/HIGH CVE (4 MODERATE allowlisted, dev-only `esbuild` chain via drizzle-kit, sunset 2026-08-23).
+> - **v0.4a reflection pipeline**: `reflect()` async via sleep-time worker (Letta pattern) behind `ReflectionPolicy` DIP — `ManualReflectionPolicy` (v0.0 default) + `ThresholdReflectionPolicy` (counter persisted in `reflection_counters` Postgres table) + scoring strategy interface (additive Mem0 default OR multiplicative Generative Agents opt-in). LLM-importance cached at write to avoid per-query cost.
+> - **v0.6 voyager-skill-library**: `memory.skills(repoId)` returns `ScopedSkillMemory` exposing `add(SkillDraft)` / `recall(query, options)` / `consolidate(options)` / `forget(skillId)`. Reuses the v0.4a chain via `executeReflection` + `validateProvenance`. `clusterThreshold` (default 0.85) opt-in per consumer. Identity is `hashFact(description)` — same-description-different-code collides on `UNIQUE(hash)` per v0.6.1 T1.2 contract. Forget is scope-isolated: cross-repo deletion attempts return the same `MemoryNotFound` shape as non-existent ids (information-leak prevention per v0.6.1 T4.1 EC-2).
+> - **`@usetheo/memory/agent-tools`** subpath: 4 MCP tools (`remember`/`recall`/`forget`/`reflect`) over stdio + streamable-HTTP transports for `@usetheo/sdk` agents; AsyncLocalStorage scope binding via `memoryFromCtx`.
+> - **`@usetheo/memory/theokit`** subpath: `memoryFromCtx(ctx, memory)` auto-scopes `user_id` from `ctx.session.userId` via structural typing (zero peer-dep, ADR D1).
+> - **`examples/chat-with-memory/`**: Next.js 15 demo combining `@usetheo/memory` + `@usetheo/sdk` + `@usetheo/ui` to demonstrate every Scope tier + skills + history + reflection through a tabbed UI. Backend auto-detect (pgvector if `THEOMEM_PG_URI` set, in-memory otherwise). Validated end-to-end by the `/test-chat-with-memory` skill — 30/30 PASS on 2026-05-30 (verdict `READY`).
+> - **Test coverage**: 490 contract tests (unit + type) + 67 integration tests against real pgvector (THE GOAL TEST for v0.6 + scope-isolation for v0.6.1 T4.1). Zero CRITICAL/HIGH CVE (6 MODERATE: 4 dev-only `esbuild` chain via drizzle-kit allowlisted to 2026-08-23; 2 demo-side `next`+`postcss` transitive not introduced by current plans).
 >
 > What is still honest:
-> - **Pre-release.** No package published. No "production-ready" claim until v1.0 with reproduced benchmarks (LongMemEval + LoCoMo + DMR) per the macro roadmap.
+> - **Pre-release.** No package published. No "production-ready" claim until v1.0 with reproduced benchmarks (LongMemEval + LoCoMo + DMR) per the macro roadmap + `/dogfood` returning `EVIDENCE_SUFFICIENT`.
 > - **Cloud runtime not built yet.** v0.5 depends on TheoCloud (pre-release) GA.
-> - **Reflection algorithm not built yet.** `reflect()` throws `ReflectionNotConfigured` at v0.1; v0.4a roadmap Item 5 lands the actual algorithm behind the `ReflectionPolicy` DIP.
-> - **TheoKit binding shipped (PR-A).** `@usetheo/memory/theokit` subpath exports `memoryFromCtx(ctx, memory)` — auto-scopes `user_id` from `ctx.session.userId` via structural typing (zero peer-dep on `theokit`, ADR D1). 3-state resolver per ADR D4 throws `MissingScopeError` for session-null / session-absent / userId-empty. PR-B (sibling `theokit` repo) coordinates default-on memory in scaffolded `create-theo` templates per ADR D7 — pending; until then consumers add `@usetheo/memory` as a dep + wire the singleton manually per the binding example above.
-> - **MCP tools not built yet.** `@usetheo/memory/agent-tools` subpath ships at v0.3 (roadmap Item 4).
+> - **Long-tail forgetting not built yet.** v0.4b (roadmap Item 6) is the open problem: triadic signal (Ebbinghaus decay + LRU/LFU + LLM-judged importance) with explicit anti-long-tail guardrail. Required before v0.8 benchmark reproduction.
+> - **Episodic→Semantic distillation pipeline not built yet.** v0.7 (roadmap Item 9). Required before v1.0 contract freeze.
+> - **TheoKit binding PR-B still pending.** Default-on memory in scaffolded `create-theo` templates per ADR D7 lives in the sibling `theokit` repo — pending; until then consumers wire the singleton manually per the binding example above.
 > - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). Maximum permissiveness for proprietary embeds.
 >
 > If you are evaluating *today* and need something running in production *today*, mature alternatives exist ([Mem0](https://mem0.ai), [Letta](https://www.letta.com), [Zep](https://www.getzep.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud OR you want a Mem0-shape memory primitive without the framework lock-in.
@@ -445,12 +450,16 @@ The contract above is the target. The shipping order is:
 | **0.0 — Contract** | Type contract for `Memory`, `MemoryStore`, three tiers, retrieval scorer, two-stage pipeline. | **Shipped 2026-05-22** (PR #4) |
 | **0.1 — Core + local runtime** | `core/` + `local/` (Postgres + pgvector). Single backend, three tiers, additive scoring, 8-phase write + 9-step search. | **Shipped 2026-05-23** (PR #8) |
 | **0.2 — TheoKit binding** | `theokit/` subpath: `memoryFromCtx(ctx, memory)` auto-scopes from `ctx.session.userId` via structural typing. Default-on in scaffolded TheoKit apps deferred to sibling repo PR-B per ADR D7. | **PR-A shipped 2026-05-23** (PR #11); PR-B pending |
-| **0.3 — Agent tools** | `agent-tools/` package: MCP tools for `@usetheo/sdk` agents. | Planned |
-| **0.4 — Reflection + forgetting** | `reflect()` pipeline (Generative Agents-shaped). LLM-importance-aware forgetting that preserves long-tail. | Planned |
-| **0.5 — TheoCloud runtime** | `cloud/` package + TheoCloud-managed backend. Premium capabilities (graph, multi-region, audit). Depends on Theo PaaS general availability. | Planned |
-| **1.0** | Contract stable, benchmarks reproduced independently, production claims allowed. | Planned |
+| **0.3 — Agent tools (MCP)** | `agent-tools/` package: 4 MCP tools (`remember`/`recall`/`forget`/`reflect`) over stdio + streamable-HTTP for `@usetheo/sdk` agents. | **Shipped 2026-05-25** (PRs #17 + #18) |
+| **0.4a — Reflection pipeline** | `reflect()` async via sleep-time worker behind `ReflectionPolicy` DIP. Additive Mem0 (default) OR multiplicative Generative Agents (opt-in strategy). Counter persisted in `reflection_counters` Postgres table. | **Shipped 2026-05-23** (`develop` `494bceb`) |
+| **0.4b — Long-tail forgetting** | OPEN PROBLEM #1 — triadic signal (Ebbinghaus decay + LRU/LFU + LLM-judged importance) with explicit anti-long-tail guardrail. | Planned |
+| **0.5 — TheoCloud runtime** | `cloud/` package + TheoCloud-managed backend. Bi-temporal `t_valid`/`t_invalid` audit history exposed in paid tier. Multi-region replication. Depends on Theo PaaS GA. | Planned |
+| **0.6 — Voyager-style skill library** | OPEN PROBLEM #2 — `memory.skills(repoId)` 4-phase consolidate orchestrator (Orient → Gather → Consolidate → Report). Identity via `hashFact(description)`. Scope-isolated forget. | **Shipped 2026-05-30** (b6aead6 `/review READY_TO_MERGE` after the v0.6.1 fixes cycle; 9e09bb9 `/test-chat-with-memory READY 30/30` after the demo `chat-with-memory-e2e-fixes` cycle) |
+| **0.7 — Episodic→Semantic distillation** | OPEN PROBLEM #3 — managed pipeline: raw episodes → entity extraction → conflict resolution (LLM-judged) → semantic facts with `derived_from` provenance. | Planned |
+| **0.8 — Independent benchmark reproduction** | Reproduce LongMemEval + LoCoMo + DMR. Publish matrix (P95 latency, recall@10, cost/session, temporal accuracy) at `docs/benchmarks/`. | Planned |
+| **1.0** | Contract stable. `production-ready` claim allowed ONLY after v0.8 reproduced independently AND `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario `running` ≥ 30 days). | Planned |
 
-Honest claims only — v0.0 + v0.1 + v0.2 PR-A shipped to git (`main`); package is NOT yet published to npm; no "production-ready" claim until v1.0 with reproduced benchmarks per CLAUDE.md § honesty discipline. The roadmap is the commitment, not the receipt.
+Honest claims only — v0.0 + v0.1 + v0.2 PR-A + v0.3 + v0.4a + v0.6 shipped to git (`feat/v0-6-voyager-skill-library` branch awaiting merge to `develop` → `main`); package is NOT yet published to npm; no "production-ready" claim until v1.0 per CLAUDE.md § honesty discipline. The roadmap is the commitment, not the receipt.
 
 ## Where this fits
 
