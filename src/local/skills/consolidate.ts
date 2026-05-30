@@ -58,6 +58,8 @@ import type {
   VectorStoreWithSkillInsert,
 } from '../skill-store-args.js';
 
+import { decodeSkillPayload } from './payload.js';
+
 /** Default embedding-cosine threshold for cluster membership (KISS — calibrate at v0.6.1+). */
 const DEFAULT_CLUSTER_THRESHOLD = 0.85;
 
@@ -130,8 +132,11 @@ async function withSpan<T>(
  * @internal exported for unit-test introspection only.
  */
 export function projectSkillToMemoryItem(skill: Skill): MemoryItem {
+  // T0.2: skill.code may be NULL on derived skills. Fall back to
+  // description-only text so the LLM extraction (`executeReflection`) still
+  // sees a meaningful source signal.
   const text =
-    skill.code.length === 0
+    skill.code == null || skill.code.length === 0
       ? skill.description
       : `${skill.description}\n\nCode:\n${skill.code}`;
   return {
@@ -233,56 +238,7 @@ function clusterByEmbedding(
   return [...clusters.values()];
 }
 
-/**
- * Reconstruct a Skill from a store row. The store projects v0.6 columns into
- * payload (per T2.1 rowToResult extension) so the fields are present here.
- */
-function rowToSkill(
-  id: string,
-  payload: Readonly<Record<string, string | number | boolean | null>>,
-  scope: Scope,
-): Skill | null {
-  if (payload['kind'] !== 'skill') {
-    return null;
-  }
-  const description = String(payload['description'] ?? '');
-  const code = String(payload['code'] ?? '');
-  const codeLanguageRaw = payload['code_language'];
-  if (codeLanguageRaw !== 'typescript' && codeLanguageRaw !== 'javascript') {
-    return null;
-  }
-  const supersededBy = payload['superseded_by'];
-  const derivedFromRaw = payload['derived_from'];
-  let derivedFrom: readonly string[] = [];
-  if (typeof derivedFromRaw === 'string' && derivedFromRaw.length > 0) {
-    try {
-      const parsed: unknown = JSON.parse(derivedFromRaw);
-      if (Array.isArray(parsed)) {
-        derivedFrom = parsed.filter((s): s is string => typeof s === 'string');
-      }
-    } catch {
-      derivedFrom = [];
-    }
-  }
-  return {
-    id,
-    text: description,
-    hash: String(payload['hash'] ?? id),
-    scope,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    metadata: { ...payload },
-    tValid: new Date(),
-    tInvalid: null,
-    kind: 'skill',
-    code,
-    description,
-    codeLanguage: codeLanguageRaw,
-    supersededBy:
-      typeof supersededBy === 'string' && supersededBy.length > 0 ? supersededBy : null,
-    derivedFrom,
-  };
-}
+// T3.3: rowToSkill extraction — delegates to src/local/skills/payload.ts:decodeSkillPayload.
 
 /**
  * Run the 4-phase consolidation orchestrator.
@@ -315,7 +271,7 @@ export async function consolidate(
         const [rawRows] = await deps.vectorStore.list(orientFilters, ORIENT_PAGE_SIZE);
         const acc: { skill: Skill; embedding: readonly number[] }[] = [];
         for (const row of rawRows) {
-          const skill = rowToSkill(row.id, row.payload, deps.scope);
+          const skill = decodeSkillPayload(row.id, row.payload, deps.scope);
           if (skill === null) {
             continue;
           }
@@ -417,11 +373,15 @@ export async function consolidate(
           const insertArgs: InsertDerivedSkillArgs = {
             embedding,
             hash,
-            // LLM produces a single merged text; code = description until v0.6.1
-            // expands the draft shape with structured code/description.
-            code: description,
+            // T0.2 / F1 absorption: derived skills carry NULL code + codeLanguage
+            // in v0.6.1 — the v0.4a reflection draft shape returns a single
+            // merged narrative (`draft.text`) without separated executable code.
+            // Persisting that prose into `code` labeled `codeLanguage: 'typescript'`
+            // would lie to consumers (TheoCode would try to `eval(code)` as TS).
+            // Structured-draft LLM extraction defers per plan ADR D2.
+            code: null,
             description,
-            codeLanguage: 'typescript',
+            codeLanguage: null,
             derivedFrom: draft.derivedFrom,
             scope: scopeForArgs,
           };
@@ -440,9 +400,9 @@ export async function consolidate(
             tValid: new Date(),
             tInvalid: null,
             kind: 'skill',
-            code: description,
+            code: null,
             description,
-            codeLanguage: 'typescript',
+            codeLanguage: null,
             supersededBy: null,
             derivedFrom: draft.derivedFrom,
           });

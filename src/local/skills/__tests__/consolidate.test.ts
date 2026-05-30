@@ -182,6 +182,9 @@ describe('consolidate — Phase 2 + 3 happy path', () => {
       [similarA, similarB].sort(),
     );
     expect([...result.supersededIds].sort()).toEqual([similarA, similarB].sort());
+    // T0.2 / F1 absorption: derived skill carries NULL code + codeLanguage.
+    expect(result.derivedSkills[0]?.code).toBeNull();
+    expect(result.derivedSkills[0]?.codeLanguage).toBeNull();
   });
 
   test('source skills get superseded_by = derived skill id after consolidate', async () => {
