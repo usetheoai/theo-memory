@@ -210,6 +210,26 @@ examples/chat-with-memory/
   `userId` from real auth (NextAuth, Clerk) and `sessionId` from your
   conversation-thread model.
 
+- **Why `clusterThreshold = 0.6` in the Skills consolidate route?** The
+  core `ConsolidateOptions.clusterThreshold` default is `0.85` — calibrated
+  to favor precision against typical embedding pairs. Real OpenAI
+  `text-embedding-3-small` vectors for natural-language skill descriptions
+  sit around 0.65-0.78 (empirical), so the demo lowers the threshold to
+  `0.6` to make the showcase observable. Production users should leave the
+  `0.85` default OR tune empirically against their corpus + benchmarks
+  (NOT against ad-hoc demo descriptions). See `app/api/skills/consolidate/
+  route.ts` `DEMO_DEFAULT_CLUSTER_THRESHOLD` for the call-site rationale.
+
+- **Why `writeCounts` lives on `globalThis`?** Same pattern as the memory
+  singleton in `lib/memory.ts` (`globalThis._themory_demo_singleton`).
+  Next.js dev-mode HMR rebuilds modules on file changes, which would reset
+  a module-scoped `Map` and skip the reflection-threshold trigger between
+  edits. Lifting the counter to `globalThis._themory_demo_writeCounts`
+  shares state across HMR rebuilds within the same Node process.
+  Production deployments should prefer `ThresholdReflectionPolicy` (v0.4a),
+  which persists the counter in the `reflection_counters` Postgres table
+  for cross-process durability.
+
 - **TheMemory is pre-release.** Resolved via `file:../..` workspace link
   from this `package.json`. `npm publish` is a v1.0 milestone gated by
   `/dogfood` per `dogfood-golden-rule.md`.
