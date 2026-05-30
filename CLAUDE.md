@@ -26,7 +26,7 @@ Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](.
 | Canonical install command | `npm install @usetheo/memory` (reserved; not yet published) | strategic |
 | License | **MIT** | strategic — root override 2026-05-21 |
 | Tier | Community auxiliary (OSS) | strategic |
-| Memory tiers | `User` · `Session` · `Agent` | strategic |
+| Memory tiers | `User` · `Session` · `Agent` (+ `Repo` for skills only, v0.6, [ADR-0010](.claude/knowledge-base/adrs/ADR-0010-repo-scope-fourth-tier.md)) | strategic |
 | API verbs | `remember` / `recall` / `forget` / `reflect` | strategic |
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
@@ -71,6 +71,10 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 - **Cross-Project Rule 6 — vendor lock-in exception.** TheoKit + TheMemory + TheoCloud is a deliberate single-platform consolidation. Walk-away from this specific combination costs a memory migration. Local OSS runtime stays open; the rest of the funnel remains lock-in-free. Source: root `CLAUDE.md` § Cross-Project Rules 6.
 - **Phase 1 scope expansion — TheoCloud completeness.** TheMemory enters Phase 1 as expansion of TheoCloud capacity, NOT as a 7th vertical productization. Classified as "line item on the TheoCloud invoice", analog Vercel KV. Source: root `CLAUDE.md` § Phase (now), "Expanded into scope 2026-05-21".
 - **License standardization exception — MIT instead of Apache-2.0.** The 2026-05-14 license standardization mandates Apache-2.0 for every OSS product. TheMemory is the explicit MIT exception, for maximum permissiveness in proprietary embeds. Source: root `CLAUDE.md` § Product Hierarchy footnote.
+
+### Fourth scope tier — RepoScope (2026-05-30, v0.6)
+
+- **ADR-0010 — `RepoScope` for skill memory.** `Memory.skills(repoId)` returns a `ScopedSkillMemory` bound to `RepoScope{ kind: 'repo', repoId }`. Exposed ONLY through `Memory.skills(...)` (not on the public 4 verbs); maps internally to `filters.agent_id` per EC-4. Extends ADR-0002's 3-tier contract; does not soften it. Source: [`ADR-0010-repo-scope-fourth-tier.md`](.claude/knowledge-base/adrs/ADR-0010-repo-scope-fourth-tier.md).
 
 ## Relationship to other pillars
 
