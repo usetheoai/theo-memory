@@ -401,10 +401,18 @@ export async function consolidate(
           const description = draft.text;
           const embedding = await deps.embedder.embed(description);
           const hash = `derived-skill-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+          // RepoScope maps repoId → agent_id at the store layer per the EC-4
+          // absorption in `filtersFromScope` (src/local/index.ts). Mirror that
+          // mapping here so the derived skill row carries the right scope key.
           const scopeForArgs = {
             userId: 'userId' in deps.scope ? deps.scope.userId : null,
             sessionId: 'sessionId' in deps.scope ? deps.scope.sessionId : null,
-            agentId: 'agentId' in deps.scope ? deps.scope.agentId : null,
+            agentId:
+              deps.scope.kind === 'agent'
+                ? deps.scope.agentId
+                : deps.scope.kind === 'repo'
+                  ? deps.scope.repoId
+                  : null,
           };
           const insertArgs: InsertDerivedSkillArgs = {
             embedding,
