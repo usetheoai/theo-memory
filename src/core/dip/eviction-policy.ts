@@ -43,6 +43,17 @@ import type { Scope } from '../scope.js';
 export interface ScoreContext {
   readonly meanIsolationDistance: number;
   readonly now: Date;
+  /**
+   * Optional per-memory isolation-distance cache populated by
+   * `selectVictims()` once per pass per blueprint D9 + T4.2 § REFACTOR
+   * (cache mean_isolation_distance on ScoreContext). Each entry maps
+   * `memoryId -> cosine distance to nearest non-self non-invalidated
+   * neighbor in scope`. When present, `score()` reads from this cache
+   * to compute the long-tail multiplier without re-querying. When
+   * absent (e.g., direct `score()` calls from tests), `score()` falls
+   * back to `neighborProvider.distance(...)` or skips the multiplier.
+   */
+  readonly neighborDistances?: ReadonlyMap<string, number>;
 }
 
 /**
