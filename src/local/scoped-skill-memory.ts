@@ -19,7 +19,7 @@ import type { Tracer } from '@opentelemetry/api';
 import type { Embedder } from '../core/dip/embedder.js';
 import type { LLM } from '../core/dip/llm.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
-import { EmptyScopeError, InvalidScope } from '../core/errors.js';
+import { InvalidScope } from '../core/errors.js';
 import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, RepoScope } from '../core/scope.js';
 import type {
@@ -113,9 +113,10 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
   }
 
   async add(draft: SkillDraft): Promise<Skill> {
-    if (draft.description.trim().length === 0) {
-      throw new EmptyScopeError();
-    }
+    // T0.1 / F2 absorption: empty-description rejection happens at the store layer
+    // via assertSkillArgs, which throws the correctly-typed `InvalidSkillError`
+    // (reason='empty-description'). The early throw used to use `EmptyScopeError`
+    // which is the reflection-counters contract — wrong class entirely.
     const embedding = await this.deps.embedder.embed(draft.description);
     const hash = createHash('md5').update(draft.code).update('|').update(draft.description).digest('hex');
     const id = await this.deps.vectorStore.insertSkill({
