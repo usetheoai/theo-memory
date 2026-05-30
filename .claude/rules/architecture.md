@@ -28,7 +28,7 @@ Locked. Map directly onto Mem0's filter shape internally — rename only the sur
 
 - The internal `filters` object is identical in shape to Mem0's `{ user_id, agent_id, run_id }` — we rename only `run_id → session_id`.
 - The public API uses the scoped sub-object form for TypeScript narrowing. Both shapes converge to the same `filters` before reaching the store.
-- Never introduce a fourth tier without a strategic review.
+- Never introduce a fourth tier without a strategic review. `RepoScope` is the 4th tier added by v0.6 — see [ADR-0010](../knowledge-base/adrs/ADR-0010-repo-scope-fourth-tier.md); it is exposed ONLY through `Memory.skills(repoId)` and maps internally to `filters.agent_id` per EC-4.
 
 ## 2. ADD-only by design
 

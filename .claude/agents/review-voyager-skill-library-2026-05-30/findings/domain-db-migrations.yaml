@@ -1,0 +1,310 @@
+agent: review-voyager-skill-library-domain-db-migrations
+review_target: develop..HEAD for plan voyager-skill-library (Sub-goal 1 / T0.1)
+domain: db-migrations
+domain_specific_patterns_checked:
+  - "forward-only migration (no DROP COLUMN of v0.4a columns)"
+  - "idempotency via ADD COLUMN IF NOT EXISTS + DROP CONSTRAINT IF EXISTS"
+  - "DDL statement ordering (ADD COLUMN before ADD CHECK; DROP CONSTRAINT before ADD CONSTRAINT)"
+  - "drizzle-kit snapshot CHECK verbatim parity with schema.ts:86-92"
+  - "journal entry tag matches filename (no auto-generated random tag)"
+  - "compatibility with runMigrations() orphan-schema warning path (architecture.md § 10.2)"
+  - "EC-1 absorption: constraint name `memories_kind_derived_from_check` verbatim"
+  - "forward-only-only convention (no down-migration declared) per Drizzle ecosystem default"
+  - "self-FK ON DELETE SET NULL preserves audit-trail when ancestor hard-deleted"
+  - "new columns nullable (no DEFAULT needed; existing v0.4a rows survive)"
+
+# ---------------------------------------------------------------------------
+# SUMMARY
+# ---------------------------------------------------------------------------
+# Verdict: PASS WITH ONE MINOR DEFERRED OBSERVATION.
+# All 10 migration-domain checks pass cleanly. The 0002 migration is forward-only,
+# idempotent on re-apply, correctly ordered, and matches schema.ts byte-for-byte
+# on the EC-1 CHECK constraint relaxation. The journal entry tag is stable.
+# Compatibility with runMigrations() orphan-schema detection is preserved.
+# ---------------------------------------------------------------------------
+
+findings:
+  - id: F-dom-1
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 1-4
+    plan_ref: "T0.1 step 1 — `4 ADD COLUMN IF NOT EXISTS` statements"
+    domain_anchor: "architecture.md § 10.2 (forward-only convention) + role-contract check #2 (idempotency)"
+    summary: |
+      Migration is forward-only and idempotent. All 4 new columns use
+      `ADD COLUMN IF NOT EXISTS`; both `DROP CONSTRAINT IF EXISTS` pairs
+      precede their `ADD CONSTRAINT` so name collisions on re-apply are
+      structurally impossible.
+    evidence: |
+      Lines 1-4 (forward-only, idempotent ADD COLUMN):
+        ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "superseded_by" uuid;
+        ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "code" text;
+        ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "description" text;
+        ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "code_language" varchar(20);
+      Lines 5-7 (idempotent DROP CONSTRAINT before ADD):
+        ALTER TABLE "memories" DROP CONSTRAINT IF EXISTS "memories_superseded_by_memories_id_fk";
+        ALTER TABLE "memories" ADD CONSTRAINT "memories_superseded_by_memories_id_fk" ...
+        ALTER TABLE "memories" DROP CONSTRAINT IF EXISTS "memories_kind_derived_from_check";
+      None of the existing v0.4a columns (`kind`, `derived_from`, `llm_importance_score`)
+      are dropped or altered. v0.4a rows survive untouched.
+    recommended_action: None. Honors role-contract checks #1, #2, #3, #10.
+
+  - id: F-dom-2
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 7-10
+    plan_ref: "T0.1 step 1 — extend kind CHECK to include 'skill'; plan v1.1 EC-1 absorption"
+    domain_anchor: "schema.ts:86-92 (verbatim source-of-truth for CHECK)"
+    summary: |
+      The 3-arm CHECK SQL in the .sql file is the verbatim text from schema.ts:88-91.
+      drizzle-kit generated correctly. Constraint name is `memories_kind_derived_from_check`
+      identically across v0.4a (0001) and v0.6 (0002), matching role-contract check #7
+      EC-1 absorption.
+    evidence: |
+      schema.ts:86-92 (source of truth):
+          'memories_kind_derived_from_check',
+          sql`(${table.kind} = 'extracted' AND ${table.derivedFrom} IS NULL)
+           OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)
+           OR (${table.kind} = 'skill' AND (${table.derivedFrom} IS NULL OR jsonb_array_length(${table.derivedFrom}) >= 1))`,
+      0002_skill_columns.sql:7-10 (verbatim materialization):
+          ALTER TABLE "memories" DROP CONSTRAINT IF EXISTS "memories_kind_derived_from_check";
+          ALTER TABLE "memories" ADD CONSTRAINT "memories_kind_derived_from_check" CHECK (("memories"."kind" = 'extracted' AND "memories"."derived_from" IS NULL)
+                 OR ("memories"."kind" = 'derived' AND jsonb_array_length("memories"."derived_from") >= 1)
+                 OR ("memories"."kind" = 'skill' AND ("memories"."derived_from" IS NULL OR jsonb_array_length("memories"."derived_from") >= 1)));
+      The 0001 constraint had only 2 arms (extracted, derived). 0002 drops that constraint
+      and replaces with a relaxed 3-arm form. Existing v0.4a rows (kind='extracted' OR
+      kind='derived') trivially satisfy the new constraint — no row-level migration needed.
+    recommended_action: None. Verbatim parity confirmed via direct read of schema.ts and SQL file.
+
+  - id: F-dom-3
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 19-25
+    plan_ref: "T0.1 step 3 — `npm run db:generate` bumps _journal.json"
+    domain_anchor: "role-contract check #5 (journal entry tag matches filename)"
+    summary: |
+      Journal entry idx=2 has tag `0002_skill_columns` matching the .sql filename
+      exactly. No auto-generated random tag (e.g., `0002_sudden_william_stryker`).
+      Author appears to have used `--name skill_columns` (or post-renamed) before
+      committing — exactly per plan T0.1 step 3.
+    evidence: |
+      _journal.json:19-25:
+            {
+              "idx": 2,
+              "version": "7",
+              "when": 1780138536776,
+              "tag": "0002_skill_columns",
+              "breakpoints": true
+            }
+      Matches filename 0002_skill_columns.sql (no drift).
+      (Note: idx=0 has tag `0000_crazy_mimic` — that's the v0.1 legacy random-named
+      migration. The 0001 reflection migration and 0002 skill migration both use
+      stable descriptive names, which is the correct forward-going convention.)
+    recommended_action: None.
+
+  - id: F-dom-4
+    severity: INFO
+    file: src/local/migrations/meta/0002_snapshot.json
+    line: 411-415
+    plan_ref: "T0.1 step 3 — drizzle-kit generate emits snapshot"
+    domain_anchor: "schema.ts:86-92 (verbatim parity)"
+    summary: |
+      The snapshot's checkConstraints.memories_kind_derived_from_check.value
+      string contains the same 3-arm SQL form (with `"memories"."kind"` qualified
+      identifiers) as the .sql migration and schema.ts source. Snapshot is the
+      drift-detection artifact; future schema diffs against this baseline will
+      correctly recognize the v0.6 state.
+    evidence: |
+      meta/0002_snapshot.json:411-415:
+          "checkConstraints": {
+            "memories_kind_derived_from_check": {
+              "name": "memories_kind_derived_from_check",
+              "value": "(\"memories\".\"kind\" = 'extracted' AND \"memories\".\"derived_from\" IS NULL)\n       OR (\"memories\".\"kind\" = 'derived' AND jsonb_array_length(\"memories\".\"derived_from\") >= 1)\n       OR (\"memories\".\"kind\" = 'skill' AND (\"memories\".\"derived_from\" IS NULL OR jsonb_array_length(\"memories\".\"derived_from\") >= 1))"
+            }
+          }
+      Also at lines 276-299 — `superseded_by`, `code`, `description`, `code_language`
+      columns all declared `notNull: false` and (for `superseded_by`) FK with
+      `onDelete: "set null"`, `onUpdate: "no action"`.
+    recommended_action: None.
+
+  - id: F-dom-5
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 5-6
+    plan_ref: "schema.ts:67-69 — supersededBy self-FK with onDelete='set null'"
+    domain_anchor: "role-contract check #9 (self-FK + ON DELETE SET NULL audit-trail invariant)"
+    summary: |
+      Self-FK `memories.superseded_by → memories.id` is correctly declared with
+      `ON DELETE set null ON UPDATE no action`. When an ancestor skill is hard-deleted,
+      its successors' `superseded_by` pointer becomes NULL — preserving the row
+      without dangling FK violation. Audit-trail invariant honored: the supersession
+      chain is broken safely, not silently corrupted.
+    evidence: |
+      0002_skill_columns.sql:5-6:
+          ALTER TABLE "memories" DROP CONSTRAINT IF EXISTS "memories_superseded_by_memories_id_fk";
+          ALTER TABLE "memories" ADD CONSTRAINT "memories_superseded_by_memories_id_fk" FOREIGN KEY ("superseded_by") REFERENCES "public"."memories"("id") ON DELETE set null ON UPDATE no action;
+      schema.ts:67-69 (source of truth):
+          supersededBy: uuid('superseded_by').references((): AnyPgColumn => memories.id, {
+            onDelete: 'set null',
+          }),
+      Identical semantics. ON DELETE cascade would have been the wrong choice here
+      (would propagate ancestor deletion to all descendants, defeating the
+      "preserve audit trail when source hard-deleted" invariant per the plan).
+    recommended_action: None.
+
+  - id: F-dom-6
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 1-4
+    plan_ref: "schema.ts:71-75 — code/description/codeLanguage nullable, no default"
+    domain_anchor: "role-contract check #10 (NULLABLE new columns; existing v0.4a rows survive)"
+    summary: |
+      All 4 new columns are nullable with no DEFAULT clause. Existing v0.4a rows
+      survive `ALTER TABLE ADD COLUMN` instantly (Postgres ≥ 11 metadata-only ADD
+      COLUMN for NULLABLE-without-default; O(1) on any table size). No rewrite of
+      existing memories rows; migration applies in O(metadata) regardless of memory
+      count. Important for production fresh-DB AND running-DB migration cost.
+    evidence: |
+      Lines 1-4 (no DEFAULT, no NOT NULL):
+          ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "superseded_by" uuid;
+          ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "code" text;
+          ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "description" text;
+          ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "code_language" varchar(20);
+      schema.ts:67-75 declares all four as nullable Drizzle column builders without
+      `.notNull()` or `.default(...)`. Behavior verified consistent.
+    recommended_action: None.
+
+  - id: F-dom-7
+    severity: INFO
+    file: src/local/index.ts
+    line: 547-589
+    plan_ref: "architecture.md § 10.2 — drizzle-kit push vs runMigrations() conflict"
+    domain_anchor: "role-contract check #6 (compatibility with orphan-schema warning path)"
+    summary: |
+      The orphan-schema detection in runMigrations() (lines 547-589) is unaffected
+      by the 0002 migration. The detection probes for `drizzle.__drizzle_migrations`
+      table existence + `public.memories` table existence; neither check depends on
+      column-set of `memories`. The added columns (`superseded_by`, `code`,
+      `description`, `code_language`) are completely transparent to the orphan-schema
+      detection logic.
+    evidence: |
+      src/local/index.ts:554-559 (journal probe — table-existence only, column-agnostic):
+          const journalCheck = await pool.query<{ exists: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM information_schema.tables
+               WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'
+             ) AS exists`,
+          );
+      src/local/index.ts:563-568 (memories probe — table-existence only):
+          const memoriesCheck = await pool.query<{ exists: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM information_schema.tables
+               WHERE table_schema = 'public' AND table_name = 'memories'
+             ) AS exists`,
+          );
+      Both queries operate on information_schema.tables — schema_name + table_name
+      only. Column-level changes (additions OR drops) do not affect these probes.
+      The "tables present + journal absent" detection survives 0002 cleanly.
+    recommended_action: None.
+
+  - id: F-dom-8
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 1-10
+    plan_ref: "role-contract check #3 — statement ordering"
+    domain_anchor: "Postgres DDL convention: identifiers MUST exist before CHECK can reference them"
+    summary: |
+      Statement ordering is correct end-to-end:
+        1. ADD COLUMN (4 statements) — declares new columns first
+        2. DROP+ADD self-FK constraint — referencing `superseded_by` (now exists)
+        3. DROP+ADD kind CHECK constraint — referencing `kind` + `derived_from` (legacy) only
+      The CHECK constraint at lines 8-10 does NOT actually reference any of the new
+      columns (`superseded_by`, `code`, `description`, `code_language`) — it only
+      relaxes the prior CHECK to permit a new `kind` value (`'skill'`). This is
+      semantically clean: the new columns are orthogonal to the kind-discriminator
+      logic.
+    evidence: |
+      The 4 ADD COLUMN statements at lines 1-4 land before the constraint operations
+      at lines 5-10. The self-FK ADD (line 6) references column `superseded_by` which
+      was added in line 1 — ordering is mandatory here. The CHECK at lines 8-10 only
+      references `kind` and `derived_from` (both pre-existing v0.4a columns), so
+      strictly speaking the CHECK could have appeared anywhere — but co-locating with
+      the rest of the ALTER block is the clearest convention.
+    recommended_action: None.
+
+  - id: F-dom-9
+    severity: LOW
+    file: src/local/migrations/0002_skill_columns.sql
+    line: N/A (file-level observation)
+    plan_ref: "role-contract check #8 — down-migration / rollback strategy"
+    domain_anchor: "Drizzle ecosystem convention: migrations are forward-only by default; no .down.sql convention"
+    summary: |
+      No down-migration file accompanies 0002. Drizzle's ecosystem convention is
+      forward-only — `drizzle-kit` does NOT generate paired up/down files by default
+      (unlike Alembic, Knex, or TypeORM). This is consistent with the v0.0 (`0000_crazy_mimic.sql`)
+      and v0.4a (`0001_reflection_columns.sql`) migrations in the same directory,
+      neither of which ships a down-migration either.
+
+      The project-wide convention is therefore "forward-only" — to roll back, the
+      operator either restores from backup OR writes a follow-up migration that
+      reverses the change. This is acceptable per industry convention for ADD-only
+      schemas (memories table is append-only by design per ADD-only invariant in
+      architecture.md § 2; rolling back column adds is rarely needed).
+
+      LOW (not INFO) because: it's a real architectural choice that's never been
+      explicitly documented in `.claude/rules/architecture.md` or a migration ADR.
+      If a future operator hits a production incident and asks "how do I roll back
+      0002?", the answer is currently "write 0003_drop_skill_columns.sql manually"
+      — that should be written down somewhere.
+    evidence: |
+      ls -la src/local/migrations/:
+        -rw-rw-r-- 0000_crazy_mimic.sql            (no .down equivalent)
+        -rw-rw-r-- 0001_reflection_columns.sql     (no .down equivalent)
+        -rw-rw-r-- 0002_skill_columns.sql          (no .down equivalent)
+      drizzle-kit ecosystem default: no down migrations generated.
+    recommended_action: |
+      OPTIONAL — Not a blocker for T0.1. Consider adding a single sentence to
+      `.claude/rules/architecture.md` § 10 documenting "Drizzle migrations in this
+      project are forward-only. To revert, write a new migration that reverses the
+      change; do not edit prior migration files." Surface this once, then forget it.
+
+  - id: F-dom-10
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 2-25
+    plan_ref: "role-contract check (implicit) — Drizzle journal monotonicity"
+    domain_anchor: "Drizzle journal contract: idx is monotonic; `when` is Unix-ms timestamp; no gaps"
+    summary: |
+      Journal entries idx=0, idx=1, idx=2 are contiguous (no gaps), monotonic in
+      `when` (1779543498602 < 1780023972631 < 1780138536776 — three timestamps in
+      ascending order). `breakpoints: true` consistent across all three entries.
+      `version: "7"` consistent. drizzle-kit's `migrate()` will replay them in idx
+      order on a fresh DB — exactly the production flow declared by plan T0.1.
+    evidence: |
+      _journal.json shows 3 entries, all idx values present (0, 1, 2), all
+      timestamps ascending, no missing entries.
+    recommended_action: None.
+
+# ---------------------------------------------------------------------------
+# OVERALL VERDICT
+# ---------------------------------------------------------------------------
+#
+# READY FOR MERGE — 0 BLOCKER, 0 CRITICAL, 0 MAJOR, 0 MINOR, 1 LOW (deferred
+# documentation observation), 9 INFO confirmations.
+#
+# All 10 role-contract migration-domain checks PASS:
+#   #1  forward-only ........................... PASS (F-dom-1)
+#   #2  idempotency ............................ PASS (F-dom-1)
+#   #3  statement ordering ..................... PASS (F-dom-8)
+#   #4  CHECK SQL verbatim parity .............. PASS (F-dom-2, F-dom-4)
+#   #5  journal entry tag matches filename ..... PASS (F-dom-3)
+#   #6  runMigrations() orphan-schema compat ... PASS (F-dom-7)
+#   #7  EC-1 constraint name verbatim .......... PASS (F-dom-2)
+#   #8  down-migration / rollback strategy ..... ACCEPTABLE w/ LOW doc gap (F-dom-9)
+#   #9  self-FK ON DELETE SET NULL ............. PASS (F-dom-5)
+#   #10 new columns nullable, no DEFAULT ....... PASS (F-dom-6)
+#
+# No blocking findings. The migration is correctly authored, drizzle-kit generated,
+# and ready to be applied via `npm run db:push` (dev) or `runMigrations()` (prod) per
+# the plan's T0.1 acceptance criterion.
+# ---------------------------------------------------------------------------

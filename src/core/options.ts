@@ -33,6 +33,23 @@ export interface RecallOptions {
    * @throws BiTemporalNotSupportedLocally — on the local runtime until v0.5+ backports the asOf query support.
    */
   readonly asOf?: Date;
+
+  /**
+   * v0.6: when `true`, restrict recall to `kind='skill'` rows. Default `false`.
+   * Translated by the runtime into `Filters.kind = 'skill'` before reaching the store.
+   *
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.2
+   */
+  readonly onlySkills?: boolean;
+
+  /**
+   * v0.6: when `false` (default), exclude rows whose `superseded_by IS NOT NULL`.
+   * When `true`, include the full supersession history. Translated by the runtime
+   * into `Filters.excludeSuperseded = !includeSuperseded` before reaching the store.
+   *
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.2 + EC-3
+   */
+  readonly includeSuperseded?: boolean;
 }
 
 export interface ForgetOptions {
@@ -59,4 +76,16 @@ export interface GetAllOptions {
 
   /** Raw filter access for advanced consumers (admin paths, debugging). Most consumers use ScopedMemory.getAll which derives Filters from the scope. */
   readonly filters?: Filters;
+
+  /**
+   * v0.6 (EC-3 absorption): mirrors `RecallOptions.onlySkills` so T3.1's
+   * `consolidate()` Orient phase can call `scope.getAll({onlySkills: true,
+   * includeSuperseded: false})` with consistent semantics.
+   */
+  readonly onlySkills?: boolean;
+
+  /**
+   * v0.6 (EC-3 absorption): mirrors `RecallOptions.includeSuperseded`.
+   */
+  readonly includeSuperseded?: boolean;
 }

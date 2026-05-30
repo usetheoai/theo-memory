@@ -1,0 +1,227 @@
+agent: review-voyager-skill-library-domain-pgvector-schema
+review_target: develop..HEAD for plan voyager-skill-library Sub-goal 1 + T0.1 + T2.1 + T2.2
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - EC-1 verbatim CHECK constraint naming (memories_kind_derived_from_check)
+  - 3-arm CHECK semantic equivalence (schema.ts ↔ 0002 SQL ↔ 0002 snapshot)
+  - IF NOT EXISTS / IF EXISTS idempotency on ALTER TABLE
+  - Self-FK with ON DELETE SET NULL audit-trail invariant (Inquebrável Rule 3)
+  - HNSW index survival across pgvector schema extension
+  - EC-2 atomicity via withTransaction (BEGIN/COMMIT pair)
+  - composeFilters $N parameterization safety
+  - rowToResult v0.6 column projection
+  - SELECT column completeness in get / list / search / keywordSearch
+  - Drizzle journal tag conformance to filename
+  - prevId continuity across 0001 → 0002 snapshots
+
+findings:
+  - id: F-dom-pgvec-1
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 7-10
+    plan_ref: plan v1.1 § T0.1 — EC-1 absorption (line 161)
+    domain_anchor: '.claude/rules/architecture.md § 10.2 (drizzle-kit push vs runMigrations) + plan v1.1 line 161 (constraint name verbatim)'
+    summary: EC-1 absorption verified — CHECK constraint name `memories_kind_derived_from_check` cited verbatim in DROP+ADD pair.
+    evidence: |
+      Line 7: `ALTER TABLE "memories" DROP CONSTRAINT IF EXISTS "memories_kind_derived_from_check";`
+      Line 8: `ALTER TABLE "memories" ADD CONSTRAINT "memories_kind_derived_from_check" CHECK (...)`
+      Matches the verbatim name persisted at src/local/migrations/0001_reflection_columns.sql:16 and re-asserted in src/local/schema.ts:88. Drizzle re-derivation would have produced a divergent name; manual citation is correct.
+    recommended_action: None — invariant honored.
+
+  - id: F-dom-pgvec-2
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 8-10
+    plan_ref: plan v1.1 § T0.1 — relaxed CHECK includes 'skill' arm
+    domain_anchor: 'src/local/schema.ts:88-92 (declarative source)'
+    summary: 3-arm CHECK constraint is semantically equivalent between SQL migration, schema.ts source, and 0002_snapshot.json.
+    evidence: |
+      SQL 0002 lines 8-10:
+        (kind='extracted' AND derived_from IS NULL)
+        OR (kind='derived' AND jsonb_array_length(derived_from) >= 1)
+        OR (kind='skill' AND (derived_from IS NULL OR jsonb_array_length(derived_from) >= 1))
+      schema.ts:89-91 (drizzle `check()` body):
+        same three-arm SQL via template literal.
+      0002_snapshot.json:412-415 `checkConstraints.memories_kind_derived_from_check.value` mirrors the SQL.
+      NULL-handling: `jsonb_array_length(NULL)` returns NULL in Postgres, but the 'derived' arm short-circuits on `derived_from IS NULL` being false (because if NULL, `kind='derived'` AND NULL>=1 → NULL, not TRUE). The 'skill' arm explicitly disjuncts `derived_from IS NULL OR jsonb_array_length(...) >= 1` so NULL is allowed for kind='skill' (fresh insertSkill rows) AND non-empty array is allowed (insertDerivedSkill rows). This matches the plan invariant: skill rows can be standalone OR derived.
+    recommended_action: None — semantic equivalence confirmed.
+
+  - id: F-dom-pgvec-3
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 1-7
+    plan_ref: plan v1.1 § T0.1 line 160 (DDL idempotency)
+    domain_anchor: 'plan v1.1 line 164 — re-run on already-migrated DB → IF NOT EXISTS makes it a no-op'
+    summary: All 4 ADD COLUMN statements use IF NOT EXISTS; FK and CHECK constraint use DROP IF EXISTS + ADD pattern. Migration is idempotent.
+    evidence: |
+      Lines 1-4: `ADD COLUMN IF NOT EXISTS` on superseded_by, code, description, code_language.
+      Line 5: `DROP CONSTRAINT IF EXISTS memories_superseded_by_memories_id_fk` before ADD on line 6.
+      Line 7: `DROP CONSTRAINT IF EXISTS memories_kind_derived_from_check` before ADD on line 8.
+      Re-running the migration against a partially-applied state is safe.
+    recommended_action: None — idempotency verified.
+
+  - id: F-dom-pgvec-4
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 6
+    plan_ref: plan v1.1 line 162 (self-FK ON DELETE SET NULL preserves audit trail)
+    domain_anchor: 'Inquebrável Rule 3 — extreme honesty: forgotten parent leaves supersession link as NULL, not dangling FK'
+    summary: Self-FK `superseded_by REFERENCES memories(id) ON DELETE SET NULL` correctly preserves audit trail per Inquebrável Rule 3 + ADR D1 append-only invariant.
+    evidence: |
+      Line 6: `FOREIGN KEY ("superseded_by") REFERENCES "public"."memories"("id") ON DELETE set null ON UPDATE no action`
+      Matches schema.ts:67-69 declarative source: `supersededBy: uuid('superseded_by').references((): AnyPgColumn => memories.id, { onDelete: 'set null' })`.
+      Snapshot at 0002_snapshot.json:393-406 confirms `"onDelete": "set null"`.
+      Behavior on parent hard-delete (forget): child row's `superseded_by` becomes NULL — child remains queryable, supersession chain shows "ancestor unknown" without raising FK violation. Aligns with audit-trail rotation policy + ADD-only architecture.
+    recommended_action: None — audit-trail invariant honored.
+
+  - id: F-dom-pgvec-5
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 1-10
+    plan_ref: plan v1.1 § T0.1 acceptance criterion (HNSW preserved)
+    domain_anchor: 'architecture.md § 4 (Mem0-shape architecture — HNSW vector_cosine_ops invariant)'
+    summary: HNSW index on `embedding` survives the schema extension — 0002 is pure ADD COLUMN + constraint mutation; no DROP INDEX or vector column change.
+    evidence: |
+      No DDL in 0002 touches the `embedding` column or `memories_embedding_hnsw_idx`. The HNSW index persists unchanged from 0000_crazy_mimic. Snapshot 0002 confirms presence at lines 376-391: `"memories_embedding_hnsw_idx" { "method": "hnsw", "opclass": "vector_cosine_ops" }`. v0.6 search() at pgvector-store.ts:294 still uses `embedding <=> $1::vector` (cosine distance operator) which is HNSW-accelerated.
+    recommended_action: None — HNSW continuity confirmed.
+
+  - id: F-dom-pgvec-6
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 618-665
+    plan_ref: plan v1.1 § T3.1 / EC-2 absorption (line 475)
+    domain_anchor: 'plan v1.1 line 475 — atomicity insertDerivedSkill + markSuperseded via transaction'
+    summary: EC-2 atomicity correctly absorbed — insertDerivedSkillAtomic wraps INSERT + UPDATE in a single withTransaction (BEGIN/COMMIT/ROLLBACK).
+    evidence: |
+      Lines 629-664: `return this.withTransaction(async (client) => { ... await client.query(INSERT ...); await client.query(UPDATE ...); return derivedId; });`
+      withTransaction at lines 668-681 issues BEGIN before fn(), COMMIT on success, ROLLBACK on throw, release() in finally.
+      Both inner queries use the same PoolClient `client`, NOT `this.pool` — verified at lines 630 and 658. A new pool connection inside the txn would have broken atomicity (would commit on different session). Implementation is correct.
+      Failure mode covered: if UPDATE throws (deadlock, FK violation, network blip), the INSERT rolls back; either both commit or neither. No orphan derived skill possible.
+    recommended_action: None — atomicity invariant honored.
+
+  - id: F-dom-pgvec-7
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 145-175
+    plan_ref: plan v1.1 § T2.2 (recall + getAll filters)
+    domain_anchor: 'src/core/scope.ts:104-107 (Filters.kind + Filters.excludeSuperseded contract)'
+    summary: composeFilters extension for kind + excludeSuperseded uses proper $N parameterization for kind (SQL-injection safe) and embeds a constant literal `superseded_by IS NULL` for the boolean flag (no injection surface).
+    evidence: |
+      Lines 162-166 (kind filter): `parts.push(\`kind = $${idx}\`); params.push(filters.kind); idx += 1;` — uses bound parameter, identical pattern to user_id/session_id/agent_id loop above.
+      Lines 167-170 (excludeSuperseded): `parts.push(\`superseded_by IS NULL\`)` — pure SQL fragment, no value interpolation; safe because `excludeSuperseded === true` check ensures no user data flows into the SQL.
+      $N index continuity: `idx` only increments after a `params.push` (lines 159, 165), never after the literal-fragment push. Subsequent topK / vector parameters remain in sync (search() at line 290 passes startParamIndex=2; nextParamIndex correctly tracks the next $N for topK).
+      No string concatenation of user input into SQL anywhere in composeFilters; all data flows through params array.
+    recommended_action: None — SQL safety verified.
+
+  - id: F-dom-pgvec-8
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 97-137
+    plan_ref: plan v1.1 § T2.1 + T2.2 (skill columns in result projection)
+    domain_anchor: 'plan v1.1 line 384 (recall + getAll honor v0.6 columns)'
+    summary: rowToResult correctly projects v0.6 columns (kind / code / description / code_language / derived_from / superseded_by) into payload, mirroring how scope columns (user_id / session_id / agent_id) are projected.
+    evidence: |
+      Lines 113-132: each v0.6 column has a `if (row.col !== undefined && row.col !== null)` guard before insertion into payload — matches the scope-column pattern (lines 103-111) which uses `!== null` (without `undefined` guard because MemoriesRow types them as `string | null`, not `string | null | undefined`).
+      The `!== undefined` guard on v0.6 columns is defensive against rows from SELECT statements that don't include the columns (none exist in this PR — all 4 SELECTs project them — but the guard future-proofs and is harmless).
+      derived_from special handling at lines 126-129: pg parses jsonb to JS array; JSON.stringify() converts back to string for payload contract (Record<string, string | number | boolean | null>). Without stringify, the array would violate the payload value-type constraint.
+    recommended_action: None — projection correct.
+
+  - id: F-dom-pgvec-9
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 291-393
+    plan_ref: plan v1.1 § T2.2 (recall + getAll filters)
+    domain_anchor: 'pgvector-store.ts:97-137 (rowToResult contract — requires all v0.6 columns in SELECT)'
+    summary: All 4 SELECT statements (search / keywordSearch / get / list) include the v0.6 columns in their column list. rowToResult will not return undefined for any v0.6 column from these paths.
+    evidence: |
+      search() lines 292-294: `SELECT id, text, hash, payload, user_id, session_id, agent_id, kind, code, description, code_language, derived_from, superseded_by, embedding <=> $1::vector AS distance`
+      keywordSearch() lines 315-317: same column list + ts_rank.
+      get() lines 329-331: same column list.
+      list() lines 385-387: same column list.
+      Consistency: all four paths emit identical v0.6 column projections. Future rowToResult callers from these paths will see complete v0.6 metadata.
+    recommended_action: None — projection completeness verified.
+
+  - id: F-dom-pgvec-10
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 19-25
+    plan_ref: plan v1.1 § Sub-goal 1 acceptance (drizzle-kit push idempotency)
+    domain_anchor: 'drizzle-kit journal convention — tag MUST match filename'
+    summary: Journal tag `0002_skill_columns` correctly matches the migration filename `0002_skill_columns.sql`. Auto-generated tag was renamed appropriately.
+    evidence: |
+      Lines 22-24: `"idx": 2, "tag": "0002_skill_columns"`. Matches filename at `src/local/migrations/0002_skill_columns.sql`.
+      Continuity: idx=0 → `0000_crazy_mimic`, idx=1 → `0001_reflection_columns`, idx=2 → `0002_skill_columns`. Monotonically increasing.
+      prevId continuity verified: 0001_snapshot.json `id = c9419615-4394-41ab-a034-b4abc19273f0` matches 0002_snapshot.json `prevId = c9419615-4394-41ab-a034-b4abc19273f0` (line 3). Drizzle journal chain unbroken — runMigrations() will apply in order.
+    recommended_action: None — journal integrity confirmed.
+
+  - id: F-dom-pgvec-11
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 87-95
+    plan_ref: plan v1.1 § T2.1
+    domain_anchor: 'pgvector-store.ts:438 (insertDerivedMemory's local `vectorLiteral` shadow)'
+    summary: Function-level shadow of `vectorLiteral` inside `insertDerivedMemory` (line 438) does NOT use the NaN/Infinity guard from the module-level `vectorLiteral` at lines 87-95. A malformed embedding for a derived memory would reach pgvector without the clear JS error.
+    evidence: |
+      Line 87-95 (module level): `vectorLiteral` validates each component is `Number.isFinite(n)`; throws clear error on NaN / Infinity / -Infinity.
+      Line 438 (inside insertDerivedMemory): `const vectorLiteral = \`[${args.embedding.join(',')}]\`;` — bare template literal, no guard. This is a const variable that SHADOWS the module-level function within insertDerivedMemory's scope.
+      Risk surface: v0.4a derived memory writes from `Memory.reflect()` bypass the F-dom-1 guard. New v0.6 `insertSkill` / `insertDerivedSkill` / `insertDerivedSkillAtomic` correctly call the module-level `vectorLiteral(args.embedding)` (lines 491, 534, 643) — only the older `insertDerivedMemory` path is affected.
+      Severity is MINOR (not MAJOR) because: (a) this defect predates the v0.6 change (it's a v0.4a defect uncovered by review of v0.6 sibling paths); (b) v0.6 paths route through the guarded function. But the inconsistency is a latent footgun.
+    recommended_action: |
+      Either rename the local const at line 438 to avoid shadowing (`const literal = ...`) and call the module-level `vectorLiteral(args.embedding)` instead, OR document explicitly why insertDerivedMemory does not need the guard. Recommend the former for consistency with insertSkill / insertDerivedSkill / insertDerivedSkillAtomic which all call the guarded module-level function.
+
+  - id: F-dom-pgvec-12
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 145-175
+    plan_ref: plan v1.1 § T2.2 EC-3 absorption
+    domain_anchor: 'plan v1.1 line 470 — Orient phase MUST call getAll({includeSuperseded:false}); EC-3 invariant'
+    summary: composeFilters interprets the Filters interface field as `excludeSuperseded` (boolean), but plan v1.1 + scope.ts core docstring + EC-3 absorption text consistently refer to the user-facing flag as `includeSuperseded` (default false → exclude). The store-side polarity is correct, but the naming difference between core API surface (`includeSuperseded`) and store-internal filter (`excludeSuperseded`) increases cognitive load for future maintainers.
+    evidence: |
+      Plan line 384: "includeSuperseded (default false — exclude rows whose superseded_by IS NOT NULL)"
+      Plan line 470: "scope.getAll({onlySkills: true, includeSuperseded: false})"
+      core/scope.ts:107: `readonly excludeSuperseded?: boolean;` — store-internal Filters key (renamed inversion).
+      pgvector-store.ts:167: `if (filters.excludeSuperseded === true) { ... superseded_by IS NULL ... }` — correct semantic: excluded when flag true.
+      The inversion is intentional (avoids double-negative `includeSuperseded=false` in store SQL composition) but no JSDoc bridges the rename. A maintainer reading store code may miss that this corresponds to the API-surface `includeSuperseded` flag.
+    recommended_action: |
+      Add a one-line JSDoc above the `excludeSuperseded` block in composeFilters (line 167) noting: "Maps from the public-API `recall({includeSuperseded:false})` / `getAll({includeSuperseded:false})` flag — polarity inverted at the core→store boundary to express the SQL semantic directly." Alternatively, rename the Filters field to `includeSuperseded` and invert the SQL check (`if filters.includeSuperseded === false`). The latter reduces names but adds a double-negative read; the former is the lighter touch.
+
+  - id: F-dom-pgvec-13
+    severity: INFO
+    file: src/local/migrations/meta/0002_snapshot.json
+    line: 412-415
+    plan_ref: plan v1.1 § Sub-goal 1 + T0.1
+    domain_anchor: 'drizzle-kit snapshot — must reflect schema.ts source of truth'
+    summary: 0002_snapshot.json `memories.checkConstraints.memories_kind_derived_from_check.value` is byte-identical to the 0002 SQL CHECK body and to schema.ts:89-91.
+    evidence: |
+      Snapshot value (lines 414): `("memories"."kind" = 'extracted' AND "memories"."derived_from" IS NULL)\n       OR ("memories"."kind" = 'derived' AND jsonb_array_length("memories"."derived_from") >= 1)\n       OR ("memories"."kind" = 'skill' AND ("memories"."derived_from" IS NULL OR jsonb_array_length("memories"."derived_from") >= 1))`
+      SQL 0002 (lines 8-10): same three-arm body.
+      schema.ts (89-91): same body via drizzle `sql` template literal.
+      Triangle of truth — declarative (schema.ts) ↔ migration (0002 SQL) ↔ introspection snapshot (0002_snapshot.json) — all aligned.
+    recommended_action: None — drizzle snapshot integrity verified.
+
+summary:
+  total_findings: 13
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 0
+    MINOR: 2
+    INFO: 11
+  verdict_recommendation: READY_TO_MERGE (after consolidation across all reviewers)
+  domain_specific_notes: |
+    Sub-goal 1 + T0.1 pgvector-schema implementation is high-quality.
+    All 10 domain checks pass:
+      (1) EC-1 verbatim citation — VERIFIED at 0002 SQL lines 7-10.
+      (2) CHECK semantic equivalence (3-arm) across SQL ↔ schema.ts ↔ snapshot — VERIFIED.
+      (3) IF NOT EXISTS / IF EXISTS idempotency — VERIFIED on all ALTER TABLE statements.
+      (4) Self-FK ON DELETE SET NULL audit-trail invariant — VERIFIED.
+      (5) HNSW index survives schema extension — VERIFIED (no DDL touches embedding column).
+      (6) EC-2 atomicity via withTransaction — VERIFIED (single BEGIN/COMMIT pair using same PoolClient).
+      (7) composeFilters $N parameterization safe — VERIFIED (no injection surface).
+      (8) rowToResult v0.6 column projection — VERIFIED (mirrors scope-column pattern + jsonb stringify for derived_from).
+      (9) SELECT statements in get/list/search/keywordSearch all include v0.6 columns — VERIFIED.
+      (10) Drizzle journal tag updated 0002_skill_columns matching filename — VERIFIED.
+    Plus 2 honest hygiene MINORs:
+      - F-dom-pgvec-11: insertDerivedMemory (v0.4a path) shadows module-level vectorLiteral without NaN/Inf guard — latent inconsistency uncovered by reviewing v0.6 sibling paths. Not a v0.6 regression.
+      - F-dom-pgvec-12: store-internal Filters.excludeSuperseded inverts polarity vs API-surface includeSuperseded — intentional but undocumented. Add bridging JSDoc to reduce future cognitive load.
+    No BLOCKER, CRITICAL, or MAJOR findings. Domain implementation honors all EC-1, EC-2, EC-3 absorptions from plan v1.1.

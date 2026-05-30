@@ -36,6 +36,7 @@ import type {
 } from './options.js';
 import type { ReflectionResult } from './reflection-result.js';
 import type { Scope } from './scope.js';
+import type { ScopedSkillMemory } from './skill.js';
 
 /**
  * Underlying primitive that adapters (src/local/, src/cloud/) implement.
@@ -77,6 +78,17 @@ export interface Memory {
   user(userId: string): ScopedMemory;
   session(sessionId: string): ScopedMemory;
   agent(agentId: string): ScopedMemory;
+
+  /**
+   * v0.6: code-as-skill procedural memory entry-point.
+   *
+   * Scopes the returned skill memory to a single repository identifier;
+   * skills written under one `repoId` are isolated from skills under another.
+   *
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § ADR D5 (no new subpath in v0.6)
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § ADR D1 (REUSE v0.4a reflect() chain)
+   */
+  skills(repoId: string): ScopedSkillMemory;
 
   /** Globally unique memoryId — no scope required. Soft delete by default; pass { hard: true } for GDPR-style erasure. */
   forget(memoryId: string, options?: ForgetOptions): Promise<void>;

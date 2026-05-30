@@ -22,6 +22,10 @@ function scopeIdentifier(scope: Scope): string {
       return `session "${scope.sessionId}"${scope.userId !== undefined ? ` (user "${scope.userId}")` : ''}`;
     case 'agent':
       return `agent "${scope.agentId}"${scope.userId !== undefined ? ` (user "${scope.userId}")` : ''}`;
+    case 'repo':
+      // v0.6 (EC-4): RepoScope identifier for LLM prompt formatting in the
+      // skills/consolidate flow per plan T4.1.
+      return `repo "${scope.repoId}"`;
   }
 }
 
