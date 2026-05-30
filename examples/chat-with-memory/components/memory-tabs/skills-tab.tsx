@@ -99,7 +99,8 @@ export function SkillsTab({ defaultRepoId }: Props) {
       const resp = await fetch("/api/skills/consolidate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoId }),
+        // DEMO showcase tuning per plan ADR D1 (core ConsolidateOptions default is 0.85).
+        body: JSON.stringify({ repoId, clusterThreshold: 0.6 }),
       });
       const json = (await resp.json()) as {
         sourceClustersCount?: number;
