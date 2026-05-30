@@ -286,3 +286,32 @@ export class ContentTooLargeError extends Error {
     Object.setPrototypeOf(this, ContentTooLargeError.prototype);
   }
 }
+
+/**
+ * @see plan skill-library § T2.1 (insertSkill / insertDerivedSkill edge cases)
+ *
+ * Thrown by VectorStore.insertSkill / insertDerivedSkill when the supplied
+ * skill payload violates the v0.6 contract. The store layer rejects at the
+ * boundary BEFORE the SQL INSERT so consumers see a typed error instead of a
+ * Postgres CHECK violation or a confusing empty-string round-trip.
+ *
+ * Reasons enumerated:
+ *  - `'empty-description'`     — `description` is empty/whitespace (embedding target cannot be empty).
+ *  - `'invalid-code-language'` — `codeLanguage` is not one of the SkillLanguage union members.
+ *  - `'empty-derived-from'`    — `insertDerivedSkill` called with zero source ids.
+ */
+export class InvalidSkillError extends Error {
+  override readonly name = 'InvalidSkillError' as const;
+
+  readonly reason: 'empty-description' | 'invalid-code-language' | 'empty-derived-from';
+
+  constructor(
+    reason: 'empty-description' | 'invalid-code-language' | 'empty-derived-from',
+    detail: string,
+    options?: ErrorOptions,
+  ) {
+    super(`Invalid skill (${reason}): ${detail}`, options);
+    this.reason = reason;
+    Object.setPrototypeOf(this, InvalidSkillError.prototype);
+  }
+}

@@ -18,25 +18,59 @@ interface UIMsg {
   parts: { type: "text"; text: string; state?: "streaming" | "done" }[];
 }
 
-function generateUserId(): string {
+function getPersistedId(storageKey: string, prefix: string): string {
   if (typeof window === "undefined") return "guest";
-  const key = "themory-demo:userId";
-  const existing = window.localStorage.getItem(key);
+  const existing = window.localStorage.getItem(storageKey);
   if (existing !== null && existing !== "") return existing;
-  const generated = `demo-${Math.random().toString(36).slice(2, 10)}`;
-  window.localStorage.setItem(key, generated);
+  const generated = `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+  window.localStorage.setItem(storageKey, generated);
   return generated;
+}
+
+interface ReflectionEvent {
+  fired: boolean;
+  nextThreshold: number;
+  writesSinceLastReflection: number;
 }
 
 export function ChatSurface() {
   const [userId, setUserId] = useState("guest");
-  useEffect(() => setUserId(generateUserId()), []);
+  const [sessionId, setSessionId] = useState("session-pending");
+
+  useEffect(() => {
+    setUserId(getPersistedId("themory-demo:userId", "user"));
+    // Session is per-browser-tab — sessionStorage. New tab → new session.
+    if (typeof window !== "undefined") {
+      const key = "themory-demo:sessionId";
+      const fromTab = window.sessionStorage.getItem(key);
+      if (fromTab !== null && fromTab !== "") {
+        setSessionId(fromTab);
+      } else {
+        const fresh = `session-${Math.random().toString(36).slice(2, 10)}`;
+        window.sessionStorage.setItem(key, fresh);
+        setSessionId(fresh);
+      }
+    }
+  }, []);
+
+  const newSession = () => {
+    if (typeof window === "undefined") return;
+    const fresh = `session-${Math.random().toString(36).slice(2, 10)}`;
+    window.sessionStorage.setItem("themory-demo:sessionId", fresh);
+    setSessionId(fresh);
+    setMessages([]);
+    setTurnCount(0);
+    setReflectionStatus(null);
+    setReloadKey((k) => k + 1);
+  };
 
   const [messages, setMessages] = useState<UIMsg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [turnCount, setTurnCount] = useState(0);
+  const [reflectionStatus, setReflectionStatus] =
+    useState<ReflectionEvent | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when messages change.
@@ -70,7 +104,7 @@ export function ChatSurface() {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, message: trimmed }),
+        body: JSON.stringify({ userId, sessionId, message: trimmed }),
       });
       if (resp.body === null) throw new Error("no response body");
 
@@ -125,6 +159,8 @@ export function ChatSurface() {
                   : m,
               ),
             );
+            const r = (data as { reflection?: ReflectionEvent }).reflection;
+            if (r !== undefined) setReflectionStatus(r);
           } else if (event === "error") {
             setMessages((prev) =>
               prev.map((m) =>
@@ -186,14 +222,35 @@ export function ChatSurface() {
           </div>
           <span className="ml-auto text-xs text-muted-foreground">
             user: <code className="font-mono">{userId}</code>
+            {" · "}
+            session: <code className="font-mono">{sessionId}</code>
           </span>
+          <Button size="sm" variant="ghost" onClick={newSession}>
+            New session
+          </Button>
         </header>
 
-        <section className="grid grid-cols-3 gap-3 border-b border-border px-6 py-3">
+        <section className="grid grid-cols-4 gap-3 border-b border-border px-6 py-3">
           <StatTile label="Turns" value={String(turnCount)} />
           <StatTile label="Messages" value={String(messages.length)} />
           <StatTile label="Model" value={process.env.NEXT_PUBLIC_AGENT_MODEL_ID ?? "composer-2"} />
+          <StatTile
+            label="Reflection"
+            value={
+              reflectionStatus === null
+                ? "—"
+                : reflectionStatus.fired
+                  ? "fired"
+                  : `${reflectionStatus.writesSinceLastReflection}/${reflectionStatus.nextThreshold}`
+            }
+          />
         </section>
+        {reflectionStatus !== null && reflectionStatus.fired && (
+          <div className="border-b border-border bg-sky-500/10 px-6 py-2 text-xs text-sky-700">
+            ✨ reflect() fired in the background — derived facts arriving in the
+            Skills/User tabs.
+          </div>
+        )}
 
         <ChatThread
           ref={threadRef}
@@ -258,7 +315,11 @@ export function ChatSurface() {
         </form>
       </main>
 
-      <MemorySidebar userId={userId} reloadKey={reloadKey} />
+      <MemorySidebar
+        userId={userId}
+        sessionId={sessionId}
+        reloadKey={reloadKey}
+      />
     </div>
   );
 }
