@@ -16,6 +16,7 @@
  */
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { hashFact } from '../../../core/dedup.js';
 import type { Embedder } from '../../../core/dip/embedder.js';
 import type { LLM } from '../../../core/dip/llm.js';
 import type { LLMResponse, Message } from '../../../core/message.js';
@@ -433,5 +434,60 @@ describe('consolidate — transitive cluster (greedy union-find)', () => {
       [aId, bId, cId].sort(),
     );
     expect(result.derivedSkills.length).toBe(1);
+  });
+});
+
+describe('consolidate — T1.1 / F6: hashFact + idempotency on re-run', () => {
+  test('derived skill hash is hashFact(description) — content-derived, deterministic', async () => {
+    const { store, similarA, similarB } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged retry helper', basisVector(0)],
+      ]),
+    );
+    const llm = new FixtureLLM(() => ({
+      drafts: [{ text: 'merged retry helper', derived_from: [similarA, similarB] }],
+    }));
+    const result = await consolidate({
+      vectorStore: store,
+      llm,
+      embedder,
+      scope: SCOPE,
+      filters: FILTERS,
+    });
+    const derived = result.derivedSkills[0];
+    expect(derived).toBeDefined();
+    // Architecture.md § 4: hash must be content-derived (MD5 via hashFact).
+    expect(derived?.hash).toBe(hashFact('merged retry helper'));
+  });
+
+  test('running consolidate twice on the same cluster is idempotent (no duplicate derived rows after supersession)', async () => {
+    const { store, similarA, similarB } = await seedThreeSkills();
+    const embedder = new FixtureEmbedder(
+      new Map([
+        ['retry helper A', basisVector(0)],
+        ['retry helper B', tiltedVector(0, 5)],
+        ['pagination helper', basisVector(7)],
+        ['merged retry helper', basisVector(0)],
+      ]),
+    );
+    const llm = new FixtureLLM(() => ({
+      drafts: [{ text: 'merged retry helper', derived_from: [similarA, similarB] }],
+    }));
+    const deps = {
+      vectorStore: store,
+      llm,
+      embedder,
+      scope: SCOPE,
+      filters: FILTERS,
+    };
+    const first = await consolidate(deps);
+    expect(first.derivedSkills.length).toBe(1);
+    const second = await consolidate(deps);
+    // Sources are now superseded; Orient filters them out; no cluster forms.
+    expect(second.derivedSkills.length).toBe(0);
   });
 });
