@@ -37,6 +37,39 @@ export interface MemoryItem {
 
   /** Bi-temporal: when the fact stopped being valid. NULL = currently valid. Set by `forget(id)` (soft delete). */
   readonly tInvalid: Date | null;
+
+  /**
+   * v0.4a: LLM-judged importance ∈ [0, 1] cached at write per ADR D8.
+   * Optional + nullable on the type to preserve backward compatibility with
+   * pre-v0.4a callers; v0.4a writes populate it, v0.4b TriadicScoringPolicy
+   * reads it (falling back to a neutral default when absent).
+   *
+   * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § ADR D8
+   */
+  readonly llmImportanceScore?: number | null;
+
+  /**
+   * v0.4b: timestamp of last recall() touching this row — drives exponential
+   * half-life decay + LRU bookkeeping per plan T2.1 + T3.1. NULL means never
+   * recalled since insert. Optional on the type for pre-v0.4b backward compat.
+   *
+   * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (D13)
+   */
+  readonly lastAccessedAt?: Date | null;
+
+  /**
+   * v0.4b: monotonic access counter incremented by `recall()` write-back hook
+   * per plan T3.1. Drives the access-frequency dimension of triadic scoring.
+   * Optional on the type for pre-v0.4b backward compat (treated as 0 when absent).
+   */
+  readonly accessCount?: number;
+
+  /**
+   * v0.4b: per-row half-life in seconds; lazy-backfilled from llmImportanceScore
+   * on first scoring per plan T2.2 (D14). NULL until first backfill; consumer
+   * computes via the D14 formula at scoring time.
+   */
+  readonly halfLifeSeconds?: number | null;
 }
 
 /**
