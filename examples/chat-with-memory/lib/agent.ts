@@ -1,30 +1,36 @@
 /**
- * Lazy-cached @usetheo/sdk agent per userId.
+ * Lazy-cached @usetheo/sdk agent per (userId, sessionId) pair.
  *
- * One Agent per user so the SDK can persist its own conversation context
- * (and so the systemPromptResolver closure carries the right userId).
+ * The systemPromptResolver closure carries BOTH scope ids so each
+ * conversation thread sees its own session-scoped recall while still
+ * benefitting from the user's long-lived facts.
  */
 import "server-only";
 import { Agent } from "@usetheo/sdk";
 import type { SDKAgent } from "@usetheo/sdk";
 import { createSystemPromptResolver } from "./theomemory-plugin";
 
-const agentByUser = new Map<string, Promise<SDKAgent>>();
+const agentByKey = new Map<string, Promise<SDKAgent>>();
 
 const MODEL_ID = process.env.NEXT_PUBLIC_AGENT_MODEL_ID ?? "composer-2";
 
-export function getAgent(userId: string): Promise<SDKAgent> {
-  const existing = agentByUser.get(userId);
+function agentKey(userId: string, sessionId: string): string {
+  return `${userId}::${sessionId}`;
+}
+
+export function getAgent(userId: string, sessionId: string): Promise<SDKAgent> {
+  const key = agentKey(userId, sessionId);
+  const existing = agentByKey.get(key);
   if (existing !== undefined) return existing;
 
   const created = Agent.create({
     apiKey: process.env.THEOKIT_API_KEY,
     model: { id: MODEL_ID },
-    name: `themory-demo-${userId}`,
+    name: `themory-demo-${userId}-${sessionId}`,
     local: { cwd: process.cwd() },
-    systemPrompt: createSystemPromptResolver({ userId }),
+    systemPrompt: createSystemPromptResolver({ userId, sessionId }),
   });
 
-  agentByUser.set(userId, created);
+  agentByKey.set(key, created);
   return created;
 }
