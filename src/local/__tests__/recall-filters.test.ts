@@ -112,7 +112,7 @@ describe('Filters honor excludeSuperseded (T2.2)', () => {
     expect(results[0]?.id).toBe(head?.id);
   });
 
-  test('list() WITHOUT excludeSuperseded returns BOTH the head and the superseded skill', async () => {
+  test('list() WITHOUT excludeSuperseded returns the head plus its superseded ancestor', async () => {
     const { store } = await seedStore();
     const [results] = await store.list({ user_id: 'alice', kind: 'skill' }, 100);
     expect(results.length).toBe(2);

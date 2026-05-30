@@ -116,7 +116,7 @@ describe('LocalMemory.skills(repoId) — T4.1', () => {
 });
 
 describe('LocalScopedSkillMemory.add — T4.1', () => {
-  test('persists a kind=\'skill\' row and returns a Skill with valid id', async () => {
+  test('persists a kind=\'skill\' row returning a Skill with valid id', async () => {
     const { memory } = await buildMemory();
     const scoped = memory.skills('repo-alpha');
     const skill = await scoped.add({
