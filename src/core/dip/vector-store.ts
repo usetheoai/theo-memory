@@ -3,6 +3,15 @@
  *
  * @see ADR-0008 — DIP method counts (VectorStore: 11 required).
  * @see ADR-0001 — Mem0-shape architecture (nine-step search requires keywordSearch BM25 fallback).
+ *
+ * v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the
+ * concrete local stores as duck-typed extensions (matching the v0.4a
+ * `insertDerivedMemory` precedent), NOT on this DIP. External adapters (Qdrant,
+ * Pinecone, etc.) are not required to implement skill semantics; the
+ * consolidate path uses runtime `typeof store.insertSkill === 'function'`
+ * guards (see `src/local/index.ts` v0.4a reflect chain for the pattern).
+ *
+ * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.1
  */
 import type { Filters } from '../scope.js';
 

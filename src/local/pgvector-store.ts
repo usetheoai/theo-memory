@@ -23,8 +23,12 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import { InvalidSkillError } from '../core/errors.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
+import type { SkillLanguage } from '../core/skill.js';
+
+import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -36,6 +40,12 @@ interface MemoriesRow extends QueryResultRow {
   readonly user_id: string | null;
   readonly session_id: string | null;
   readonly agent_id: string | null;
+  readonly kind?: string | null;
+  readonly code?: string | null;
+  readonly description?: string | null;
+  readonly code_language?: string | null;
+  readonly derived_from?: unknown;
+  readonly superseded_by?: string | null;
   readonly distance?: number;
   readonly rank?: number;
 }
@@ -48,6 +58,32 @@ interface MemoriesRow extends QueryResultRow {
  * cryptic `invalid input syntax for type vector` error at the SQL layer. With
  * the guard, callers see a clear JS error pointing at the offending index.
  */
+const ALLOWED_SKILL_LANGUAGES: ReadonlySet<SkillLanguage> = new Set<SkillLanguage>([
+  'typescript',
+  'javascript',
+]);
+
+/**
+ * Validate `insertSkill` / `insertDerivedSkill` args at the store boundary.
+ * Rejects empty description (the embedding target cannot be empty) and
+ * invalid `codeLanguage` BEFORE the SQL INSERT — typed errors over Postgres
+ * CHECK violations per error-handling rules.
+ */
+function assertSkillArgs(args: InsertSkillArgs): void {
+  if (args.description.trim().length === 0) {
+    throw new InvalidSkillError(
+      'empty-description',
+      'description is required and must not be whitespace-only (it is the embedding target)',
+    );
+  }
+  if (!ALLOWED_SKILL_LANGUAGES.has(args.codeLanguage)) {
+    throw new InvalidSkillError(
+      'invalid-code-language',
+      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}]; got ${JSON.stringify(args.codeLanguage)}`,
+    );
+  }
+}
+
 function vectorLiteral(vector: readonly number[]): string {
   for (let i = 0; i < vector.length; i += 1) {
     const n = vector[i] as number;
@@ -72,6 +108,27 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   }
   if (row.agent_id !== null) {
     payload['agent_id'] = row.agent_id;
+  }
+  // v0.6 — project skill columns into payload when present (kind/code/description/code_language)
+  // + provenance + supersession. Mirrors how user_id/session_id/agent_id are projected above.
+  if (row.kind !== undefined && row.kind !== null) {
+    payload['kind'] = row.kind;
+  }
+  if (row.code !== undefined && row.code !== null) {
+    payload['code'] = row.code;
+  }
+  if (row.description !== undefined && row.description !== null) {
+    payload['description'] = row.description;
+  }
+  if (row.code_language !== undefined && row.code_language !== null) {
+    payload['code_language'] = row.code_language;
+  }
+  if (row.derived_from !== undefined && row.derived_from !== null) {
+    // pg returns jsonb as a parsed value (string[] here); stringify for the payload contract.
+    payload['derived_from'] = JSON.stringify(row.derived_from);
+  }
+  if (row.superseded_by !== undefined && row.superseded_by !== null) {
+    payload['superseded_by'] = row.superseded_by;
   }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   return score !== undefined
@@ -223,6 +280,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, 2);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,
+             kind, code, description, code_language, derived_from, superseded_by,
              embedding <=> $1::vector AS distance
       FROM memories
       WHERE 1=1${filter.sql}
@@ -245,6 +303,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, 2);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,
+             kind, code, description, code_language, derived_from, superseded_by,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
       WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)${filter.sql}
@@ -257,7 +316,9 @@ export class PgvectorStore implements VectorStore {
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
-      'SELECT id, text, hash, payload, user_id, session_id, agent_id FROM memories WHERE id = $1',
+      `SELECT id, text, hash, payload, user_id, session_id, agent_id,
+              kind, code, description, code_language, derived_from, superseded_by
+         FROM memories WHERE id = $1`,
       [vectorId],
     );
     if (result.rows.length === 0) {
@@ -311,7 +372,8 @@ export class PgvectorStore implements VectorStore {
     const total = countResult.rows[0]?.total ?? 0;
 
     const pageSql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id
+      SELECT id, text, hash, payload, user_id, session_id, agent_id,
+             kind, code, description, code_language, derived_from, superseded_by
       FROM memories
       WHERE 1=1${filter.sql}
       ORDER BY created_at ASC
@@ -388,6 +450,90 @@ export class PgvectorStore implements VectorStore {
     const row = result.rows[0];
     if (row === undefined) {
       throw new Error('insertDerivedMemory: INSERT returned no rows');
+    }
+    return row.id;
+  }
+
+  /**
+   * v0.6 — persist a `kind='skill'` row with the code-as-skill payload.
+   *
+   * Rejects empty `description` (the embedding target cannot be empty) and
+   * invalid `codeLanguage` BEFORE the SQL INSERT, surfacing typed
+   * `InvalidSkillError` to the caller instead of a Postgres CHECK violation.
+   *
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.1
+   */
+  async insertSkill(args: InsertSkillArgs): Promise<string> {
+    assertSkillArgs(args);
+    const result = await this.pool.query<{ id: string }>(
+      `INSERT INTO memories (
+         text, hash, embedding, payload,
+         user_id, session_id, agent_id,
+         kind, code, description, code_language
+       ) VALUES (
+         $1, $2, $3::vector, '{}'::jsonb,
+         $4, $5, $6,
+         'skill', $7, $8, $9
+       ) RETURNING id`,
+      [
+        args.description, // text mirrors description for non-skill recall fallback
+        args.hash,
+        vectorLiteral(args.embedding),
+        args.scope.userId ?? null,
+        args.scope.sessionId ?? null,
+        args.scope.agentId ?? null,
+        args.code,
+        args.description,
+        args.codeLanguage,
+      ],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error('insertSkill: INSERT returned no rows');
+    }
+    return row.id;
+  }
+
+  /**
+   * v0.6 — persist a `kind='skill'` row with non-empty `derived_from`
+   * provenance (output of the consolidate orchestrator).
+   *
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.1
+   */
+  async insertDerivedSkill(args: InsertDerivedSkillArgs): Promise<string> {
+    assertSkillArgs(args);
+    if (args.derivedFrom.length === 0) {
+      throw new InvalidSkillError(
+        'empty-derived-from',
+        'insertDerivedSkill requires at least one source skill id',
+      );
+    }
+    const result = await this.pool.query<{ id: string }>(
+      `INSERT INTO memories (
+         text, hash, embedding, payload,
+         user_id, session_id, agent_id,
+         kind, derived_from, code, description, code_language
+       ) VALUES (
+         $1, $2, $3::vector, '{}'::jsonb,
+         $4, $5, $6,
+         'skill', $7::jsonb, $8, $9, $10
+       ) RETURNING id`,
+      [
+        args.description,
+        args.hash,
+        vectorLiteral(args.embedding),
+        args.scope.userId ?? null,
+        args.scope.sessionId ?? null,
+        args.scope.agentId ?? null,
+        JSON.stringify([...args.derivedFrom]),
+        args.code,
+        args.description,
+        args.codeLanguage,
+      ],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error('insertDerivedSkill: INSERT returned no rows');
     }
     return row.id;
   }
