@@ -54,8 +54,23 @@ function matchesFilters(payload: Payload, filters: Filters | undefined): boolean
   if (filters === undefined) {
     return true;
   }
+  // v0.6: skill-aware filter fields are not generic equality checks — handle them first.
+  if (filters.excludeSuperseded === true) {
+    const supersededBy = payload['superseded_by'];
+    if (supersededBy !== undefined && supersededBy !== null && supersededBy !== '') {
+      return false;
+    }
+  }
+  if (filters.kind !== undefined && payload['kind'] !== filters.kind) {
+    return false;
+  }
+  // Generic equality loop for the scope keys (user_id / session_id / agent_id). Skip the
+  // v0.6 fields handled above so they don't get mis-evaluated as payload-equality checks.
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined) {
+      continue;
+    }
+    if (key === 'kind' || key === 'excludeSuperseded') {
       continue;
     }
     if (payload[key] !== value) {
