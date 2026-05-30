@@ -46,7 +46,6 @@ import type {
   MemoryConfig,
   ScopedMemory,
 } from '../core/memory-store.js';
-import type { ScopedSkillMemory } from '../core/skill.js';
 import type { Message } from '../core/message.js';
 import type {
   ForgetOptions,
@@ -60,6 +59,7 @@ import { validateProvenance } from '../core/reflection/provenance.js';
 import type { ReflectionResult } from '../core/reflection-result.js';
 import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, Scope } from '../core/scope.js';
+import type { ScopedSkillMemory } from '../core/skill.js';
 
 export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
