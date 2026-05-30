@@ -43,6 +43,19 @@ export type { HistoryEntry } from './history-entry.js';
 
 export type { ReflectionResult } from './reflection-result.js';
 
+// v0.6 — code-as-skill procedural memory (skill-library)
+export type {
+  ConsolidateOptions,
+  ConsolidationResult,
+  ScopedSkillMemory,
+  Skill,
+  SkillDraft,
+  SkillLanguage,
+  SkillRecallOptions,
+  SkillWithScore,
+  SourceCluster,
+} from './skill.js';
+
 // Domain errors (real classes — not types)
 export {
   BiTemporalNotSupportedLocally,
@@ -80,6 +93,11 @@ export type {
   ReflectionPolicy,
   ReflectionTrigger,
 } from './dip/reflection-policy.js';
+
+export type {
+  SkillRepresentation,
+  SkillRepresentationStrategy,
+} from './dip/skill-representation-strategy.js';
 
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
