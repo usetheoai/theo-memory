@@ -1,0 +1,426 @@
+agent: review-v0-4b-forgetting-pipeline-cross-validation
+review_target: main..HEAD for plan v0-4b-forgetting-pipeline
+plan: .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md
+plan_version_at_review: v1.2 (frozen 2026-05-30 14:20:57; first impl commit 2026-05-30 14:42:17 — NO mid-flight drift)
+summary: |
+  All 14 plan tasks have semantically matched commits, both THE GOAL TEST acceptance criteria pass
+  by construction (recall@10 = 1.000 ≥ 0.70; rare survives 5 LRU passes), and CLAUDE.md § Macro
+  roadmap Item 6 acceptance is genuinely achieved. Most plan-vs-impl deviations are honestly
+  documented (in commit bodies and followups F1-F5). However, two contract gaps were NOT raised
+  as deviations and warrant a MAJOR + a MINOR: (1) ADR D12's locked `EvictionPolicy` shape
+  (4 methods: shouldEvict, selectVictims, evict, scoreMemory) was silently replaced with a
+  different shape (2 required: score + selectVictims; 2 optional hooks: onEvictionStart +
+  onEvictionEnd; no shouldEvict; no evict on the interface; scoreMemory renamed to score);
+  (2) the Global DoD § Wiring triad pillar (a) verbatim requirement "TriadicScoringPolicy
+  referenced in src/local/index.ts user-facing barrel" is unmet — src/local/index.ts imports
+  zero eviction symbols. The /implement validation report's "6 PASS + 8 defer-foundation" for
+  pillar (a) substitutes internal callers (triggers + tests) for the user-facing barrel that
+  the plan explicitly named, which is an honest gate degradation only acceptable if reframed
+  as a deviation. Coverage SKIP is honestly disclosed and acceptable per cycle-implement.md
+  anti-pattern #7. NO BLOCKERs; THE GOAL is met.
+
+plan_tasks_summary:
+  total_tasks: 14
+  fully_implemented: 12
+  partial: 2  # T1.1 (interface shape diverged from ADR D12); T8.1 (coverage SKIP + pillar-a interpretation)
+  missing: 0
+  diverged: 0  # no task whose semantics were inverted; all touched the right files
+
+acceptance_criteria_summary:
+  total: 56  # approx; counted across all tasks' Acceptance Criteria checkboxes
+  satisfied: 53
+  unverified: 2  # complexity ≤ 10 + coverage ≥ 90% per task (no automated proof — coverage SKIP)
+  false_claims: 1  # T8.1 wiring triad pillar (a) claimed PASS via "defer-foundation" interpretation that doesn't match plan's verbatim DoD
+
+adr_compliance:
+  total_adrs: 11  # D1 (inherits D7-D11 by ref) + D12-D18 (without D11 since it's blueprint-side)
+  respected: 10
+  diverged_without_new_adr: 1  # D12: 4-method interface shape replaced with different method names + count
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan v1.2 frozen at commit a7a40ef (2026-05-30 14:20:57). First implementation commit
+    2a1a206 (T0.1) at 2026-05-30 14:42:17 — 21 minutes after plan freeze. No further plan edits
+    in the commit history between freeze and HEAD. Plan contract preserved.
+
+claude_md_macro_roadmap_item_6_acceptance:
+  recall_at_10_threshold: 0.70
+  recall_at_10_observed: 1.000 (50/50 hits in T7.1 deterministic seed) — VERIFIED GENUINE via fixture analysis (cluster multiplier ≈ 0.1 → score 0.02; rare multiplier ≈ 1.0 → score 0.2 → rare in survivor set)
+  guardrail_rare_survives_5_passes: PASS (T7.2 tests/integration/forgetting/guardrail-long-tail.test.ts: rare-isolated NOT in softDeleted across 5 passes; final t_invalid IS NULL assertion)
+  docs_artifact_present: PASS (docs/forgetting-evaluation.md committed with 4-row matrix; reproducible via npm run eval:forgetting which is wired in package.json)
+  verdict: Item 6 acceptance MET. The 1.000 recall@10 is honest because the topology guarantees it by construction (all uniform-base seeds, only multiplier discriminates); honesty signal is in the documented (b)/(c) collapse caveat in docs/forgetting-evaluation.md.
+
+findings:
+
+  - id: F-xval-1
+    severity: MAJOR
+    file: src/core/dip/eviction-policy.ts
+    plan_ref: Plan v1.2 ADR D12 (lines 78-91)
+    summary: EvictionPolicy interface shape diverged from ADR D12 without an inline ADR-deviation marker
+    evidence: |
+      Plan ADR D12 (verbatim, line 82-91):
+        export interface EvictionPolicy {
+          shouldEvict(scope: ScopeFilter, currentSize: number): Promise<boolean>;
+          selectVictims(scope: ScopeFilter, fraction: number): Promise<MemoryId[]>;
+          evict(ids: MemoryId[]): Promise<EvictionResult>;
+          scoreMemory(memory: PersistedMemory, context: ScoreContext): Promise<number>;
+        }
+
+      Actual implementation (src/core/dip/eviction-policy.ts:97-111):
+        export interface EvictionPolicy {
+          readonly kind: string;
+          score(memory: MemoryItem, context: ScoreContext): Promise<number>;
+          selectVictims(candidates: readonly MemoryItem[], fraction: number, context: ScoreContext): Promise<readonly string[]>;
+          onEvictionStart?(scope: Scope, fraction: number): Promise<void>;
+          onEvictionEnd?(scope: Scope, result: EvictionResult | Error): Promise<void>;
+        }
+
+      Substantive differences:
+      1. `shouldEvict` REMOVED — moved into CapacityBasedTrigger.fire() + TimeBasedTrigger.tickNow() (probably the right call, but ADR D12 made shouldEvict a DIP-level concern).
+      2. `evict(ids)` REMOVED from interface — exists only as a public method on the TriadicScoringPolicy class (lines 237-242). Delegated to injected Evictor. Consumers using the EvictionPolicy interface type CANNOT call evict.
+      3. `scoreMemory` RENAMED to `score`.
+      4. `selectVictims` signature changed: takes `candidates: readonly MemoryItem[]` (not `scope: ScopeFilter`); takes `context: ScoreContext` (not implicit).
+      5. Two NEW optional lifecycle hooks added (`onEvictionStart`, `onEvictionEnd`) — these are NEVER called anywhere in the implementation (grep returns zero call sites).
+      6. NEW `kind: string` discriminator field — not in ADR D12.
+
+      The T1.1 commit body says "Interface shape (4 method entries + kind discriminator)" but does NOT explicitly cite this as a deviation from ADR D12's declared shape (which had different method names + a required `evict` on the interface). The plan's ADR D12 § Rationale (line 96) specifically defended the 4-method shape: "4 methods separate the lifecycle: decision (shouldEvict), selection (selectVictims), execution (evict), scoring (scoreMemory exposed for testing)." That rationale is now stale; the shipped interface only directly exposes 2 of those concerns.
+    recommended_action: |
+      Either (a) add an ADR D19 to the plan documenting the interface-shape decision
+      (rationale: triggers absorb shouldEvict; evict moves to TriadicScoringPolicy class via Evictor
+      DIP; score/scoreMemory rename per ScoreContext signature), OR (b) tighten the EvictionPolicy
+      interface back to match ADR D12 verbatim. Path (a) is honest absorption per cycle-plan.md
+      pattern; path (b) is needless rework. The onEvictionStart/onEvictionEnd hooks should also be
+      either WIRED in (CapacityBasedTrigger could call them) OR REMOVED (currently they are
+      dead code on the interface — see F-xval-2 below).
+
+  - id: F-xval-2
+    severity: MINOR
+    file: src/core/dip/eviction-policy.ts (lines 108-110)
+    plan_ref: ADR D12 4-method shape
+    summary: Optional lifecycle hooks `onEvictionStart` / `onEvictionEnd` declared on interface but NEVER invoked anywhere in src/
+    evidence: |
+      The interface declares two optional hooks:
+        onEvictionStart?(scope: Scope, fraction: number): Promise<void>;
+        onEvictionEnd?(scope: Scope, result: EvictionResult | Error): Promise<void>;
+
+      grep -rn "onEvictionStart\|onEvictionEnd" src/ returns ZERO call sites outside the interface
+      definition itself. CapacityBasedTrigger.fire() and TimeBasedTrigger.tickNow() never invoke
+      them. TriadicScoringPolicy doesn't implement them.
+
+      Per the no-paper-names-in-code.md style rule + KISS + YAGNI, optional methods on an interface
+      that have zero callers AND zero implementations are dead surface area. They were apparently
+      added to compensate for the removal of `shouldEvict` + `evict` from the original 4-method
+      ADR D12 shape, but the triggers never wired them.
+    recommended_action: |
+      Either (a) wire CapacityBasedTrigger.fire() and TimeBasedTrigger.tickNow() to invoke
+      onEvictionStart before the COUNT+evict path AND onEvictionEnd after the UPDATE returns
+      (5-10 LoC each), enabling consumers to inject telemetry/audit policies, OR (b) remove
+      the two optional methods from the interface. Decision can ride alongside F-xval-1's
+      ADR D19.
+
+  - id: F-xval-3
+    severity: MAJOR
+    file: src/local/index.ts
+    plan_ref: Plan v1.2 § Global Definition of Done > Wiring triad > (a) line 1089
+    summary: Global DoD wiring-triad pillar (a) verbatim — "TriadicScoringPolicy referenced in src/local/index.ts user-facing barrel" — is UNMET
+    evidence: |
+      Plan Global DoD line 1089 (verbatim):
+        "(a) Static caller: `TriadicScoringPolicy` referenced in `src/local/index.ts` user-facing barrel"
+
+      Actual state of src/local/index.ts:
+        $ grep -n "TriadicScoring\|CapacityBased\|TimeBased\|PgEvictor\|EvictionPolicy\|eviction" src/local/index.ts
+        (no matches)
+
+      The TriadicScoringPolicy / CapacityBasedTrigger / TimeBasedTrigger / PgEvictor /
+      PgNearestNeighborProvider / PgHalfLifePersister are NOT exported via the user-facing barrel.
+      A consumer doing `import { ... } from '@usetheo/memory'` cannot reach any v0.4b symbol.
+
+      The validation report at .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-implement-validate-2026-05-30.md
+      claims pillar (a) PASS with "6 pass + 8 defer-foundation" but the 6 PASS are all internal
+      callers (triggers consuming TriadicScoringPolicy; tests invoking it directly). The plan's
+      verbatim acceptance was specifically "user-facing barrel" — the consumer-facing surface.
+
+      The T8.1 commit body acknowledges this reframing ("8 tasks marked defer-foundation via
+      documented absorption pattern — consumer tasks wire the symbol; T6.1/T7.1 satisfy the chain")
+      but the validation gate's PASS verdict is over-strong: the user-facing barrel was named
+      specifically because the Global DoD wanted v0.4b to be reachable from outside the eviction
+      subtree. As-shipped, a consumer would have to import directly from
+      `src/local/eviction/triadic-scoring-policy.ts` — a deep-path import that the user-facing
+      barrel was meant to abstract over.
+    recommended_action: |
+      Either (a) export the v0.4b public surface via src/local/index.ts (single new export block:
+      `export { TriadicScoringPolicy, type TriadicWeights, type TriadicConstants } from './eviction/triadic-scoring-policy.js';`
+      plus triggers + Pg* impls), satisfying the Global DoD verbatim — likely a 10-15 LoC change.
+      OR (b) revise the Global DoD entry to reflect the "consumer of the consumer" interpretation
+      shipped at T8.1 — but this is a CONTRACT softening that requires user approval.
+      Path (a) preferred — small, mechanical, honors the plan.
+
+  - id: F-xval-4
+    severity: MINOR
+    file: src/local/migrations/0004_eviction_half_life_trigger.sql
+    plan_ref: ADR D14 (lazy half_life backfill) + Coverage Matrix gap #5
+    summary: NEW migration 0004 introduced by T2.2 not documented in plan ADRs or Coverage Matrix
+    evidence: |
+      Plan ADR D13 declared exactly ONE migration: 0003_eviction_columns.sql. Coverage Matrix gap
+      #2 says "T0.1: Drizzle migration `0003_eviction_columns.sql`" — no migration named in any
+      other gap.
+
+      T2.2 commit (0739d26) introduces a SECOND migration: 0004_eviction_half_life_trigger.sql
+      (15 LoC PL/pgSQL trigger + function definition for EC-1 invariant).
+
+      The T2.2 commit body documents the choice ("Trigger uses CREATE OR REPLACE TRIGGER... Choice
+      over Drizzle middleware (plan T2.2 deep dive line 548 left it to impl): enforces invariant
+      at data layer regardless of caller path") which is honest scope-clarification — the plan
+      left "Postgres trigger OR Drizzle middleware (decide at impl)" open.
+
+      The deviation is minor because the plan EXPLICITLY allowed the decision at impl time, but
+      the addition of a second numbered migration affects ADR D13's "Single Drizzle migration"
+      framing. Coverage Matrix would benefit from row #2 being updated to "0003 + 0004 (trigger)".
+    recommended_action: |
+      Update Coverage Matrix row #2 to "Drizzle migrations 0003_eviction_columns.sql +
+      0004_eviction_half_life_trigger.sql" in a plan-archival commit, OR add a note to ADR D13
+      that T2.2 ships migration 0004 as part of the EC-1 absorption mechanism. Either is honest;
+      both are 1-line.
+
+  - id: F-xval-5
+    severity: INFO
+    file: src/local/__tests__/schema-v0-4b.test.ts (vs plan-declared src/local/__tests__/schema.test.ts)
+    plan_ref: T0.1 § Files to edit
+    summary: T0.1 schema test file path diverged from plan but follows established per-version convention
+    evidence: |
+      Plan T0.1 § Files to edit line 332:
+        `src/local/__tests__/schema.test.ts — RED test added first: assert 3 columns present + index exists`
+
+      Actual:
+        src/local/__tests__/schema-v0-4b.test.ts (NEW, 4 RED tests for the 3 columns + index)
+        src/local/__tests__/schema.test.ts (touched, see commit diff)
+
+      The commit body T0.1 (2a1a206) honestly documents this: "Test-file path reconciliation:
+      plan declares src/local/__tests__/schema.test.ts" + follows per-version convention precedent
+      (v0.1 has v0-1-specific tests; v0.4a + v0.6 follow same pattern). This is a documented
+      deviation that is acceptable per the established repo convention.
+    recommended_action: None — accepted as documented deviation.
+
+  - id: F-xval-6
+    severity: INFO
+    file: tests/integration/forgetting/guardrail-long-tail.test.ts (vs plan-declared src/local/eviction/__tests__/guardrail-long-tail.test.ts)
+    plan_ref: T7.2 § Files to edit
+    summary: T7.2 promoted from unit tier to integration tier per ADR D18 fallback (EC-3 absorption)
+    evidence: |
+      Plan T7.2 § Files to edit declared unit-tier path:
+        `src/local/eviction/__tests__/guardrail-long-tail.test.ts — NEW`
+
+      ADR D18 (line 235-250) explicitly authorizes the fallback: "If the addition would push
+      InMemoryVectorStore beyond its KISS scope, PROMOTE T7.2 to integration tier (real
+      ankane/pgvector:v0.5.1 container)." Path (C) is the fallback explicitly named.
+
+      T7.2 commit (fd4b90b) commit body confirms: "Plan deviation absorbed (D18 / EC-3 fallback):
+      plan T7.2 declares UNIT tier with InMemoryVectorStore... ADR D18 fallback prescribes
+      integration tier when InMemoryVectorStore lacks cosine-distance NN — which is the current
+      state."
+
+      Deviation is sanctioned by ADR D18 itself; behavior preserved.
+    recommended_action: None — accepted as ADR-sanctioned fallback.
+
+  - id: F-xval-7
+    severity: INFO
+    file: T8.1 validation report
+    plan_ref: Plan v1.2 § Global DoD > Quality gates > coverage line 1082
+    summary: Coverage SKIP at T8.1 (no test:coverage script) honestly disclosed; F5 followup logged
+    evidence: |
+      Plan Global DoD line 1082:
+        "Coverage ≥ 90% on changed files; 100% on `triadic-scoring-policy.ts` (critical path)"
+
+      Validation report:
+        coverage: SKIP — Reason: no 'test:coverage' script in package.json
+
+      The followup F5 (lines 23-31 of followups.md) is the honest record:
+      "v0.4b cannot mechanically prove the 90%/100% coverage thresholds today" — followed by
+      a SEPA audit trail substitution argument (15 unit + 3 multiplier + 3 lazy-half-life +
+      GOAL TEST). The substitution is reasonable but is NOT mechanical proof of the threshold;
+      the SKIP is the right verdict and the F5 followup with v1.0 owner is the right escalation.
+    recommended_action: None — F5 followup is the honest disclosure path.
+
+  - id: F-xval-8
+    severity: INFO
+    file: src/local/eviction/triadic-scoring-policy.ts
+    plan_ref: T2.1 § Deep Dives line 479
+    summary: T2.1 recency formula sign typo in plan absorbed with explicit documentation
+    evidence: |
+      Plan T2.1 § Deep Dives line 479 declares `recency = 1 - 2^(-Δ/h)`.
+      Implementation (line 152): `return Math.pow(2, -deltaSeconds / halfLifeSeconds);` — i.e.,
+      `recency = 2^(-Δt/h)` WITHOUT the `1 -` prefix.
+
+      The plan's adjacent RED test names (line 497-499) demand:
+        test_recency_zero_when_last_accessed_null
+        test_recency_approaches_one_for_just_accessed
+        test_recency_approaches_zero_for_long_idle
+      which require the impl form (high score = recently accessed). With `1 - 2^(-Δ/h)`,
+      just-accessed would give 0 (close to formula) → test would fail.
+
+      T2.1 commit body (553cc20) explicitly documents the typo absorption: "PLAN DEFECT
+      absorbed: plan T2.1 § Deep Dives line 479 declares `recency = 1 - 2^(-Δ/h)` which
+      contradicts adjacent RED test names... Implemented as `recency = 2^(-Δt/h)` (no `1 -`)
+      which matches the tests + the 'higher score = more valuable, less likely to be evicted'
+      contract."
+    recommended_action: Update plan T2.1 § Deep Dives line 479 to `recency = 2^(-Δt/h)` in
+      a plan-archival commit so future re-reads cite the correct formula.
+
+  - id: F-xval-9
+    severity: INFO
+    file: src/local/eviction/triadic-scoring-policy.ts (long-tail multiplier)
+    plan_ref: T4.2 § Deep Dives line 712
+    summary: T4.2 plan-prose "LOWER multiplier = STRONGER protection" inversion absorbed via convention switch
+    evidence: |
+      Plan T4.2 § Deep Dives line 712 reads "LOWER multiplier = STRONGER protection (lower
+      eviction-score = stays longer)" which assumes EVICTION-SCORE convention (LOW = stays).
+
+      T2.1 ships VALUE-SCORE convention (HIGH = stays). T4.2 implementation (line 257-276 +
+      278-315) ships the multiplier formula `clamp(0.1, 1.0, isolation/mean_isolation)` and
+      multiplies the value score by it. Under value-score convention, LOWER multiplier =
+      LOWER final score = MORE likely to be evicted — the opposite of plan prose framing,
+      but the OUTCOME is correct (clustered → low isolation → low multiplier → low score →
+      evicted; isolated → high isolation → high multiplier → high score → survives).
+
+      T4.2 commit body (044e16c) documents the prose-inversion absorption explicitly: "PLAN
+      PROSE INVERSION absorbed... The formula produces correct long-tail protection in EITHER
+      convention — clustered memories get penalized into the victim band; isolated memories
+      survive at baseline."
+
+      THE GOAL TEST result (recall@10 = 1.000) confirms the behavior is correct end-to-end.
+    recommended_action: Update plan T4.2 § Deep Dives line 712 to align with the shipped
+      value-score convention.
+
+  - id: F-xval-10
+    severity: INFO
+    file: docs/forgetting-evaluation.md
+    plan_ref: T7.3 § Deep Dives line 973 (4-row matrix)
+    summary: docs/forgetting-evaluation.md matrix shows (b)/(c)/(a) all at 0.960 — collapse caveat honestly disclosed
+    evidence: |
+      Plan T7.3 expected a matrix that "VALIDATES the multiplier's contribution honestly" via
+      4 strategies: (a) random, (b) pure LRU, (c) triadic no multiplier, (d) triadic + multiplier.
+
+      Observed (docs/forgetting-evaluation.md lines 65-68):
+        (a) random:                                0.960 (48/50)
+        (b) pure LRU (uniform last_accessed → collapses to random):  0.960
+        (c) triadic, no multiplier (uniform base → collapses to random):  0.960
+        (d) triadic + multiplier:                  1.000 (50/50)
+
+      Why (b)/(c) collapse: uniform-base-score seed means LRU and pure-triadic have no
+      information to rank candidates on; selectVictims picks arbitrary 30%. The matrix
+      genuinely VALIDATES the multiplier's contribution (1.000 vs 0.960 = 2 saved rare
+      targets per pass) but the differential between (d) and (a)/(b)/(c) is smaller than
+      expected because (a) baseline benefits from the test fixture's sort-not-shuffle
+      determinism.
+
+      The doc transparently discloses this in lines 75-80: "for a rigorous random baseline,
+      replace the sort with Fisher-Yates. The observed 0.96 is on the high tail because
+      [seed is sort-order-deterministic]. (d) achieves the perfect 1.0 every run because
+      the multiplier is [topology-deterministic]."
+
+      Honesty signal: the differential exists + is documented + is reproducible. Item 6
+      acceptance does NOT require differential > X; just recall@10 ≥ 0.70. (d) at 1.000 meets.
+    recommended_action: None — honest disclosure satisfies Inquebrável Rule 3.
+
+  - id: F-xval-11
+    severity: INFO
+    file: src/core/index.ts barrel (vs plan's src/core/dip/index.ts)
+    plan_ref: T1.1 § Files to edit line 403
+    summary: T1.1 barrel re-export deviation accepted — src/core/dip/index.ts doesn't exist; convention is src/core/index.ts
+    evidence: |
+      Plan T1.1 § Files to edit line 403:
+        `src/core/dip/index.ts — UPDATE: add `export * from './eviction-policy'`
+
+      Actual: src/core/dip/index.ts does NOT exist. The established convention (verified across
+      reflection-policy, scoring-strategy, skill-representation-strategy re-export sites) is
+      to re-export DIPs from src/core/index.ts. T1.1 followed convention (lines 105-109).
+
+      Followup F3 documents this clearly: "Plan v1.3 (post-cycle) should be patched to point
+      at src/core/index.ts to prevent future tasks re-hitting the same defect during plan re-reads."
+    recommended_action: Plan archival commit updates T1.1 § Files to edit line 403 to
+      `src/core/index.ts` per followup F3.
+
+  - id: F-xval-12
+    severity: INFO
+    file: src/local/eviction/capacity-based-trigger.ts + time-based-trigger.ts (F4 duplication)
+    plan_ref: Plan-implicit DRY rule of 3
+    summary: F4 followup honestly logs 2/3 duplication of rowToMemoryItem + ScopeCandidateRow across triggers
+    evidence: |
+      Plan implicitly expects DRY via the architecture.md rules. T5.1 and T5.2 both define
+      private rowToMemoryItem + ScopeCandidateRow helpers (~25 LoC each). T6.1 commit (8e3951e)
+      body explicitly acknowledges the choice not to extract:
+        "T5.1/T5.2 keep their own in-tx UPDATEs (F4 accepted-divergence: advisory-lock atomicity
+         > zero duplication)"
+
+      F4 (followups.md lines 33-37): "DRY rule-of-three not yet hit (2 copies in
+      capacity-based-trigger.ts + time-based-trigger.ts). T6.1 evict orchestration becomes the
+      3rd consumer — at that point extract to shared helper."
+
+      Per /home/paulo/.claude/CLAUDE.md § DRY: "Aplique a 'Regra de 3': só extraia uma
+      abstração quando o mesmo conhecimento aparece pela terceira vez." Currently 2 copies =
+      below threshold. Honestly logged.
+    recommended_action: None — F4 followup is the honest record.
+
+dod_verification:
+  global_dod_code:
+    all_8_phases_completed: PASS (T0.1 → T8.1 commits all present in main..HEAD)
+    all_red_tests_green: PASS (T8.1 validation: 520 contract + 39 integration green)
+    eviction_policy_exported_via_src_core_dip_index: DEVIATION_ABSORBED (re-exported via src/core/index.ts per F3 / F-xval-11)
+    triadic_policy_exported_via_local_index: FAIL — see F-xval-3 (BLOCKING per verbatim DoD; not blocking THE GOAL)
+    migration_0003_applies_cleanly: PASS (validation report npm test PASS implies migrations applied)
+
+  global_dod_tests:
+    npm_test_green: PASS (520 + 39)
+    integration_pgvector_pass: PASS (T7.1 / T7.2 / all integration tests green per validation)
+    guardrail_passes_in_memory: DEVIATION_ABSORBED (D18 fallback — integration tier — per F-xval-6)
+    docs_forgetting_evaluation_reproducible: PASS (npm run eval:forgetting wired in package.json per T7.3)
+
+  global_dod_quality_gates:
+    every_file_lte_500_loc: ASSUMED_PASS (lint zero warnings; manual spot-check OK)
+    complexity_lte_10: NOT_MECHANICALLY_VERIFIED (no automated complexity check shipped; honest gap)
+    coverage_gte_90_changed: SKIP (F5 followup; F-xval-7)
+    coverage_100_triadic_critical_path: SKIP (F5)
+    typecheck_zero_errors: PASS
+    lint_zero_warnings: PASS
+
+  global_dod_wiring_triad:
+    pillar_a_static_caller_user_facing_barrel: FAIL_VERBATIM — see F-xval-3
+    pillar_b_integration_test_exists: PASS (tests/integration/forgetting/triadic-eviction.test.ts)
+    pillar_c_runtime_metric_observed: PASS (theo.memory.eviction.soft_deletes_total emitted by PgEvictor + observed via 300 soft-deletes in T7.1)
+
+  global_dod_documentation:
+    docs_forgetting_evaluation_committed: PASS
+    run_ts_reproduces_matrix: PASS
+    changelog_unreleased_added: NOT_VERIFIED (CHANGELOG.md may not exist yet per project state)
+
+  global_dod_architecture:
+    eviction_policy_zero_local_cloud_imports: PASS (verified: only imports from ../memory-item.js + ../scope.js — pure core)
+    eviction_dir_imports_only_core_and_schema: PASS (verified spot-check)
+    no_new_public_mutation_methods_add_only_preserved: PASS (evict is internal not on public Memory facade)
+    soft_delete_via_t_invalid_honors_adr_0006: PASS (PgEvictor SQL UPDATE memories SET t_invalid = NOW())
+
+  global_dod_plan_archival:
+    plan_moved_to_completed_post_merge: NOT_APPLICABLE (review precedes merge per cycle-review.md)
+
+overall_verdict: |
+  Plan-vs-impl semantic match is HIGH. CLAUDE.md § Macro roadmap Item 6 acceptance is GENUINELY
+  MET (recall@10 = 1.000 ≥ 0.70; guardrail PASS). The implementation is honest about its
+  deviations and ships followups F1-F5 capturing them.
+
+  Two MAJOR findings (F-xval-1: interface shape diverged from ADR D12 without new ADR; F-xval-3:
+  Global DoD pillar (a) user-facing barrel unmet) and one MINOR (F-xval-2: dead optional hooks)
+  represent the contract gaps that warrant attention before /review hands off to merge.
+
+  All other deviations are honestly documented (in commit bodies or followups) and acceptable per
+  the cycle-plan.md absorption pattern. No silent divergences. No false acceptance-criteria checks
+  that aren't disclosed.
+
+  NO BLOCKERs. NO CRITICALs. The Item 6 acceptance is met by construction and verified by T7.1's
+  exact threshold assertion (recall@10 ≥ 0.70 with topology guaranteeing ≥ 0.90 by multiplier
+  protection alone, observed 1.000).
+
+  Recommend READY_TO_MERGE conditional on either (a) F-xval-3 closure via 10-LoC
+  src/local/index.ts re-export block to honor the verbatim Global DoD, or (b) explicit user
+  acknowledgment that the user-facing barrel requirement is relaxed for v0.4b given the
+  internal-consumer pattern.

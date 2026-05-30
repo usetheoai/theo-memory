@@ -1,0 +1,282 @@
+agent: review-v0-4b-forgetting-pipeline-domain-db-migrations
+review_target: main..HEAD for plan v0-4b-forgetting-pipeline
+domain: db-migrations
+domain_specific_patterns_checked:
+  - drizzle-kit journal sync (snapshots + _journal.json)
+  - idempotency guards (IF NOT EXISTS / CREATE OR REPLACE)
+  - postbuild:copy-migrations glob coverage
+  - migration lex-ordering invariant (0000 → 0004)
+  - drizzle-kit push vs runMigrations() interaction with raw-SQL trigger
+  - architecture.md § 10.1 (postbuild) + § 10.2 (push vs migrate)
+  - DOWN/rollback story
+
+summary: >
+  Migration 0003 + 0004 ship correct SQL with proper idempotency guards
+  (IF NOT EXISTS / CREATE OR REPLACE) and the postbuild:copy-migrations glob
+  picks them up — but the Drizzle journal (`src/local/migrations/meta/_journal.json`)
+  and the paired snapshot JSON files (`0003_snapshot.json`, `0004_snapshot.json`)
+  are MISSING from the PR. This is a BLOCKER: prod consumers calling
+  `runMigrations(pool)` will silently skip both migrations because Drizzle's
+  `migrate()` API reads `_journal.json` to know what to apply, NOT the .sql files
+  on disk. A second CRITICAL issue compounds it — the raw-SQL PG trigger added in
+  0004 lives outside Drizzle's schema model, so any subsequent `drizzle-kit push`
+  (the dev workflow) will diff against `schema.ts` and not see the trigger as
+  drift; it will not drop the trigger but neither will it recreate it on fresh
+  push-only databases. Combined with the absent rollback story, v0.4b has real
+  production deployment risk that the integration test suite (which assumes the
+  schema already exists) does not surface.
+
+findings:
+  - id: F-dom-db-1
+    severity: BLOCKER
+    file: src/local/migrations/meta/_journal.json
+    line: 26
+    plan_ref: v0-4b plan § T0.1 (migration 0003), § T2.2 (migration 0004)
+    domain_anchor: architecture.md § 10.2 "Production deployments use runMigrations() against a fresh DB"
+    summary: >
+      Drizzle journal `_journal.json` stops at entry `0002_skill_columns` and has
+      ZERO entries for `0003_eviction_columns` and `0004_eviction_half_life_trigger`.
+      The paired snapshot files `meta/0003_snapshot.json` and `meta/0004_snapshot.json`
+      do not exist either. Drizzle's `migrate()` API (used by `runMigrations()` at
+      src/local/index.ts:593) reads ONLY the journal — files on disk that are not
+      journal-tracked are silently ignored. Net effect on a fresh prod DB:
+      `runMigrations(pool)` applies 0000-0002 and then `createMemory()` runs
+      against a schema missing `last_accessed_at`, `access_count`, `half_life_seconds`,
+      the `idx_memories_eviction_score` partial index, AND the
+      `memories_reset_half_life_on_importance_update_trg` trigger. The eviction
+      pipeline will fail at first `recall()` write-back hook with `column does
+      not exist`. Verified via comparison with prior migrations: commit `4b75a20`
+      (0002) added the snapshot AND bumped `_journal.json` in the same commit;
+      commits `2a1a206` (T0.1) and `0739d26` (T2.2) added the .sql files only.
+    evidence: |
+      $ ls src/local/migrations/meta/
+      0000_snapshot.json
+      0001_snapshot.json
+      0002_snapshot.json
+      _journal.json
+
+      $ jq '.entries[].tag' src/local/migrations/meta/_journal.json
+      "0000_crazy_mimic"
+      "0001_reflection_columns"
+      "0002_skill_columns"
+      # <-- stops here; 0003 + 0004 absent
+
+      $ git log --diff-filter=A --name-only -- 'src/local/migrations/meta/*'
+      # Last entry: commit 4b75a20 added meta/0002_snapshot.json
+      # No subsequent commit added meta/0003_snapshot.json or meta/0004_snapshot.json
+    recommended_action: >
+      Before merging this PR, run `npm run db:generate` against a clean DB state
+      to materialize the snapshots, OR hand-author both snapshot files + the two
+      journal entries with the correct `idx`, `version: "7"`, `when` timestamps,
+      `tag` strings, and `breakpoints: true` fields. Add an integration test that
+      asserts `_journal.json` entries match every .sql file in the same directory
+      (publish-readiness gate parity for the migration-set, not just the glob).
+
+  - id: F-dom-db-2
+    severity: CRITICAL
+    file: src/local/migrations/0004_eviction_half_life_trigger.sql
+    line: 17
+    plan_ref: v0-4b plan § T2.2 (EC-1 trigger absorption)
+    domain_anchor: architecture.md § 10.2 "drizzle-kit push vs runMigrations() conflict"
+    summary: >
+      The PG trigger `memories_reset_half_life_on_importance_update_trg` and its
+      function live outside Drizzle's schema model (schema.ts has zero
+      `trigger`/`function` declarations — Drizzle v0.45 does not model triggers).
+      Consequence: on the dev workflow `npm run db:push` against a fresh DB,
+      drizzle-kit introspects schema.ts, sees no trigger declared, and creates
+      the schema WITHOUT the trigger. The .sql file 0004 is NOT applied by `push`
+      — only by `migrate()`. Mixed dev sessions where someone runs `npm run db:push`
+      to refresh schema after a pull will silently lose the trigger. The
+      `lazy-half-life.test.ts` EC-1 invariant test only catches this if the dev
+      remembers to apply 0004 manually via `psql -f`. Idempotent re-push will
+      NOT drop the trigger (because push only diffs the declared schema), so the
+      damage is bounded — but a fresh push-only database is broken for EC-1.
+    evidence: |
+      $ grep -n "trigger\|memories_reset_half_life" src/local/schema.ts
+      src/local/schema.ts:115: * v0.4a: per-scope reflection trigger counter — bumped on each remember() per ADR D4.
+      # (only the COMMENT about reflection_counters — no schema-level trigger declaration)
+
+      package.json db:push:
+        "db:push": "node -e \"... CREATE EXTENSION vector ...\" && drizzle-kit push"
+      # drizzle-kit push does NOT read .sql files — only schema.ts.
+    recommended_action: >
+      Either (a) update the `db:push` script to also run
+      `psql $THEOMEM_PG_URI -f src/local/migrations/0004_eviction_half_life_trigger.sql`
+      after `drizzle-kit push` so dev environments get the trigger; OR (b) document
+      the limitation explicitly in architecture.md § 10.2 with a callout
+      "v0.4b adds a raw-SQL trigger; dev push workflow MUST follow up with the
+      manual psql apply"; OR (c) collapse the trigger logic into application-level
+      enforcement at the PgHalfLifePersister boundary (would lose the data-layer
+      guarantee against raw-SQL UPDATE paths the migration comment promises).
+      Option (a) is cheapest and preserves the data-layer invariant.
+
+  - id: F-dom-db-3
+    severity: MAJOR
+    file: src/local/migrations/0003_eviction_columns.sql
+    line: 2
+    plan_ref: v0-4b plan § T0.1 (eviction columns)
+    domain_anchor: idempotency contract for ADD COLUMN with NOT NULL DEFAULT
+    summary: >
+      Line 2 `ADD COLUMN IF NOT EXISTS "access_count" integer DEFAULT 0 NOT NULL`
+      is correct standalone, but the IF NOT EXISTS guard combined with `NOT NULL
+      DEFAULT 0` is a footgun under partial-recovery scenarios. If a prior
+      partial apply ALREADY added the column WITHOUT the default (which `IF NOT
+      EXISTS` cannot detect), subsequent re-runs will skip silently and the
+      column may exist as nullable. The 0003 file does NOT use a defensive
+      `ALTER COLUMN ... SET DEFAULT 0 / SET NOT NULL` follow-up pair. PG 11+
+      makes the original `ADD COLUMN ... NOT NULL DEFAULT 0` non-blocking
+      (constant-time rewrite), so the idempotency-vs-correctness tradeoff favors
+      defensive: prefer `ALTER COLUMN access_count SET DEFAULT 0;` then
+      `ALTER COLUMN access_count SET NOT NULL` as separate post-add statements
+      under their own `IF NOT EXISTS`-equivalent guards, or remove `IF NOT EXISTS`
+      and let Drizzle's journal handle re-run prevention (the journal is the
+      idempotency layer the prior migrations 0000 + 0001 trust).
+    evidence: |
+      $ grep -c "IF NOT EXISTS\|IF EXISTS" src/local/migrations/000*.sql
+      0000_crazy_mimic.sql:1
+      0001_reflection_columns.sql:0       # <-- trusts journal
+      0002_skill_columns.sql:6
+      0003_eviction_columns.sql:4         # <-- belt-and-suspenders
+      0004_eviction_half_life_trigger.sql:0
+      # 0001 trusts the journal; 0003 mixes journal + IF NOT EXISTS. Inconsistent.
+    recommended_action: >
+      Pick one idempotency model and apply consistently. Recommended: trust the
+      Drizzle journal (as 0000 and 0001 do) for re-run prevention, drop the
+      `IF NOT EXISTS` on `ADD COLUMN` statements, and add an integration test
+      that asserts `runMigrations()` is idempotent across two calls (covers the
+      partial-apply scenario explicitly). Mixing belt-and-suspenders adds
+      complexity and masks the journal-corruption failure mode.
+
+  - id: F-dom-db-4
+    severity: MAJOR
+    file: src/local/migrations/0003_eviction_columns.sql
+    line: N/A
+    plan_ref: v0-4b plan § T0.1, § T2.2 — no rollback declared
+    domain_anchor: architecture.md § 10 (build pipeline) does not address rollback
+    summary: >
+      Zero DOWN migrations exist for 0003 + 0004 (none for 0000-0002 either,
+      but this PR is the moment v0.4b makes the rollback story load-bearing).
+      Drizzle does not auto-generate DOWN migrations, and the project has no
+      `*.down.sql` convention. If a v0.4b deployment must rollback (e.g., the
+      `memories_reset_half_life_on_importance_update_trg` trigger causes
+      production deadlock under high write contention), the recovery path
+      requires hand-authored SQL: `DROP TRIGGER`, `DROP FUNCTION`, drop columns
+      (with `IF EXISTS` because 0003 used `IF NOT EXISTS`), drop the partial
+      index, then manually delete the journal entries to allow re-apply later.
+      This is the same gap that exists for all prior migrations, so it is not
+      a v0.4b regression strictly — but v0.4b is the first migration that
+      introduces a STORED PROCEDURE side effect (the trigger), which compounds
+      the rollback cost: simple column drops are reversible; a trigger that
+      mutates rows during normal write traffic is not.
+    evidence: |
+      $ find src/local/migrations -name "*.down.sql" -o -name "down_*.sql"
+      # (empty)
+      $ grep -rn "DROP TRIGGER\|rollback" src/local/migrations/ docs/ 2>/dev/null
+      # (empty)
+    recommended_action: >
+      Add CHANGELOG.md or RUNBOOK.md entry under "v0.4b deployment notes" listing
+      the manual rollback SQL for 0003 + 0004 (DROP TRIGGER, DROP FUNCTION,
+      ALTER TABLE DROP COLUMN IF EXISTS for each column, DROP INDEX IF EXISTS
+      for idx_memories_eviction_score) AND the journal-entry-removal procedure.
+      Defer the broader "introduce *.down.sql convention" decision to a separate
+      ADR; this PR just needs the v0.4b-specific runbook so on-call has a path.
+
+  - id: F-dom-db-5
+    severity: MINOR
+    file: src/local/migrations/0001_reflection_columns.sql
+    line: 17
+    plan_ref: N/A (pre-existing v0.4a defect surfaced by v0.4b review scope)
+    domain_anchor: editorconfig discipline — trailing newline on .sql files
+    summary: >
+      `0001_reflection_columns.sql` lacks a trailing newline (`No newline at
+      end of file` in the diff). 0002, 0003, 0004 all have trailing newlines.
+      Minor consistency issue; not v0.4b's fault but discovered while
+      diffing migration shapes. Some psql variants warn on missing-newline
+      input.
+    evidence: |
+      $ git diff main..HEAD -- src/local/migrations/0001_reflection_columns.sql | tail -3
+      +       OR ("memories"."kind" = 'derived' AND jsonb_array_length("memories"."derived_from") >= 1));
+      \ No newline at end of file
+    recommended_action: >
+      Out of scope for v0.4b but worth a follow-up trivial commit to fix
+      0001 EOF. Add a pre-commit hook check for trailing-newline on
+      `src/local/migrations/*.sql` to prevent regressions.
+
+  - id: F-dom-db-6
+    severity: INFO
+    file: tests/integration/forgetting/triadic-eviction.test.ts
+    line: 59
+    plan_ref: v0-4b plan § T7.1 (THE GOAL TEST)
+    domain_anchor: testing.md § Integration — "Real Postgres + pgvector via Docker"
+    summary: >
+      THE GOAL test `triadic-eviction.test.ts` and `lazy-half-life.test.ts`
+      both assume the DB schema (including columns and trigger from 0003 + 0004)
+      is already present — `beforeAll` only opens a Pool, does not apply
+      migrations. With the F-dom-db-1 journal gap, this means the
+      test ONLY passes if the dev manually applied 0003 + 0004 via psql OR
+      ran `npm run db:push` (which still misses the 0004 trigger per F-dom-db-2).
+      The test suite cannot serve as a regression gate for the F-dom-db-1
+      production deployment failure because the test harness silently
+      relies on out-of-band schema setup. This explains why CI may have been
+      green on this PR despite the journal gap.
+    evidence: |
+      $ grep -n "beforeAll\|psql\|runMigrations\|migrations/" \
+          tests/integration/forgetting/triadic-eviction.test.ts \
+          tests/integration/eviction/lazy-half-life.test.ts
+      # only beforeAll() opening the Pool; zero migration-apply calls.
+    recommended_action: >
+      Add a single integration test at `tests/integration/migrations.test.ts`
+      that drops `__drizzle_migrations`, runs `runMigrations(pool)` end-to-end,
+      and asserts every expected column + index + trigger from 0003 + 0004
+      exists (via `information_schema.columns` + `pg_trigger` queries). This
+      gate would have caught F-dom-db-1 + F-dom-db-2 automatically and
+      should be a permanent regression guard going forward, not v0.4b-specific.
+
+  - id: F-dom-db-7
+    severity: INFO
+    file: package.json
+    line: 33
+    plan_ref: v0-4b plan does not call out a postbuild change
+    domain_anchor: architecture.md § 10.1 (non-.ts assets copy)
+    summary: >
+      Verified `postbuild:copy-migrations` script uses `cpSync('src/local/migrations',
+      'dist/local/migrations', {recursive: true})` and the `files` glob in
+      package.json includes `"src/local/migrations/**"`. Both unconditionally
+      capture 0003 + 0004 .sql files (and would capture the snapshots once
+      F-dom-db-1 is fixed). No v0.4b regression on the build/publish path.
+    evidence: |
+      $ cat package.json | grep -A3 '"files"'
+      "files": [
+        "src/**/*.ts",
+        "!src/**/__tests__/**",
+        "!src/**/*.test.ts",
+        "!src/**/*.test-d.ts",
+        "src/local/migrations/**"     # <-- captures all migration .sql + meta/
+      ]
+    recommended_action: >
+      None for v0.4b. After F-dom-db-1 fix lands, verify
+      `tests/integration/publish-readiness.test.ts` runs green to confirm
+      the snapshots ship in the tarball.
+
+  - id: F-dom-db-8
+    severity: INFO
+    file: src/local/migrations/0003_eviction_columns.sql + 0004_eviction_half_life_trigger.sql
+    line: N/A
+    plan_ref: v0-4b plan rename from `0002_` → `0003_` per commit a7a40ef
+    domain_anchor: lex-sort ordering invariant
+    summary: >
+      Migration ordering is lex-sorted (Drizzle and most migration tools rely
+      on this); the rename from `0002_eviction_columns.sql` → `0003_eviction_columns.sql`
+      preserves the invariant after v0.6's `0002_skill_columns.sql` landed.
+      0004 depends on the `half_life_seconds` column added in 0003 — ordering
+      is correct (0003 before 0004 alphabetically). No issue here, just
+      confirming the rename did not introduce a dependency-order regression.
+    evidence: |
+      $ ls src/local/migrations/*.sql
+      0000_crazy_mimic.sql
+      0001_reflection_columns.sql
+      0002_skill_columns.sql
+      0003_eviction_columns.sql
+      0004_eviction_half_life_trigger.sql
+      # Lex-sort matches dependency-sort: 0003 (columns) before 0004 (trigger on column).
+    recommended_action: None.
