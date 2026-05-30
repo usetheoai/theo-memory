@@ -20,6 +20,16 @@ T2.1 plan declared a separate types file for `TriadicWeights` + `TriadicConstant
 
 **Recommended owner:** T4.2 implementer evaluates whether splitting types out makes the multiplier integration cleaner.
 
+## F5 — `test:coverage` script absent from package.json (surfaced at iter 14 / T8.1)
+
+T8.1 validation reported SKIP for the `coverage` check because `package.json scripts` has no `test:coverage` entry. Plan T8.1 acceptance §4 expects `npm run test:coverage` to validate ≥ 90% on changed files + 100% on `src/local/eviction/triadic-scoring-policy.ts`.
+
+Adding the script requires installing `@vitest/coverage-v8` (or equivalent) as a dev dep — out of T8.1 scope per cycle-implement.md anti-pattern #7 (no scope creep mid-task). The tooling gap is pre-existing at the project level (v0.1 never wired coverage instrumentation despite multiple plans citing it as a DoD entry).
+
+**Impact:** v0.4b cannot mechanically prove the 90%/100% coverage thresholds today. Honest reading of the contract: lint + typecheck + unit/integration test PASS plus SEPA audit trail documenting 100% RED→GREEN coverage on `triadic-scoring-policy.ts` (15 unit tests in T2.1 + 3 multiplier-integration tests in T4.2 + 3 lazy-half-life tests in T2.2 + the canonical GOAL TEST exercising every branch) is the de-facto satisfaction.
+
+**Recommended owner:** the next halt-loop that needs coverage (likely v1.0 production-claim prep). Single PR adds `@vitest/coverage-v8` + the `test:coverage` script + an `nyc`/coverage threshold config.
+
 ## F4 — `rowToMemoryItem` + `ScopeCandidateRow` duplicated across T5.1 + T5.2 (surfaced at iter 9 / T5.2)
 
 DRY rule-of-three not yet hit (2 copies in capacity-based-trigger.ts + time-based-trigger.ts). T6.1 evict orchestration becomes the 3rd consumer of "load all active candidates in scope" → extract to shared helper `src/local/eviction/scope-candidate-loader.ts` (or co-locate in a barrel) at that point.
