@@ -26,6 +26,7 @@ import {
   bigserial,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   real,
@@ -73,6 +74,16 @@ export const memories = pgTable(
     description: text('description'),
     /** v0.6: Language tag of the `code` payload (typescript | javascript). NULL for non-skills. */
     codeLanguage: varchar('code_language', { length: 20 }),
+    /** v0.4b: timestamp of last recall() touching this row — drives exponential half-life decay
+     *  and LRU/LFU bookkeeping per plan T2.1 + T3.1. NULL means never recalled since insert.
+     *  @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13). */
+    lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
+    /** v0.4b: monotonic counter incremented by recall() write-back hook per plan T3.1.
+     *  Used by the access-frequency dimension of triadic scoring per plan T2.1. */
+    accessCount: integer('access_count').notNull().default(0),
+    /** v0.4b: per-row half-life in seconds for exponential time decay; lazy-backfilled from
+     *  llm_importance_score on first scoring per plan T2.2 (D14). NULL until first backfill. */
+    halfLifeSeconds: integer('half_life_seconds'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -82,6 +93,13 @@ export const memories = pgTable(
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),
     index('memories_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
+    // v0.4b: partial index on active (non-invalidated) rows ordered by (agent_id, last_accessed_at)
+    // supports CapacityBasedTrigger scope-count + LRU-ordered eviction queries per plan T5.1 + T6.1.
+    // WHERE t_invalid IS NULL keeps the index small (soft-deleted rows excluded per ADR D17).
+    // @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13).
+    index('idx_memories_eviction_score')
+      .on(table.agentId, table.lastAccessedAt)
+      .where(sql`${table.tInvalid} IS NULL`),
     check(
       // EC-1 absorption (plan v1.1): name verbatim, cited by
       // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
