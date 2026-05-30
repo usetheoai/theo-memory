@@ -80,6 +80,22 @@ export interface HalfLifePersister {
 }
 
 /**
+ * Side-effect collaborator that returns the cosine distance from a memory to
+ * its nearest non-self non-invalidated neighbor in the same scope per
+ * blueprint D16. Optional — when omitted (e.g., pure-math unit tests), the
+ * long-tail multiplier short-circuits to 1.0 (no isolation-based protection
+ * adjustment).
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1
+ */
+export interface NearestNeighborProvider {
+  distance(memoryId: string, agentId: string): Promise<number>;
+}
+
+/** Max isolation distance when scope has no other memories (singleton fallback). */
+const MAX_ISOLATION_DISTANCE = 1;
+
+/**
  * EC-6 absorption (plan v1.1 edge-case review): TriadicScoringPolicy
  * constructor rejects weights that sum to zero (degenerate; would make
  * the additive score undefined under normalization).
@@ -171,15 +187,31 @@ export class TriadicScoringPolicy implements EvictionPolicy {
   private readonly weights: TriadicWeights;
   private readonly constants: TriadicConstants;
   private readonly halfLifePersister: HalfLifePersister | null;
+  private readonly neighborProvider: NearestNeighborProvider | null;
 
   constructor(
     weights: TriadicWeights = DEFAULT_TRIADIC_WEIGHTS,
     constants: TriadicConstants = DEFAULT_TRIADIC_CONSTANTS,
     halfLifePersister: HalfLifePersister | null = null,
+    neighborProvider: NearestNeighborProvider | null = null,
   ) {
     this.weights = normalizeWeights(weights);
     this.constants = constants;
     this.halfLifePersister = halfLifePersister;
+    this.neighborProvider = neighborProvider;
+  }
+
+  /**
+   * v0.4b T4.1 (D9 + D16): nearest-neighbor cosine distance for the long-tail
+   * multiplier. Delegates to the injected `NearestNeighborProvider`. When no
+   * provider is wired (e.g., pure-math unit tests), returns the max-isolation
+   * fallback 1.0 — equivalent to full long-tail protection.
+   */
+  async nearestNeighborDistance(memoryId: string, agentId: string): Promise<number> {
+    if (this.neighborProvider === null) {
+      return MAX_ISOLATION_DISTANCE;
+    }
+    return this.neighborProvider.distance(memoryId, agentId);
   }
 
   async score(memory: MemoryItem, context: ScoreContext): Promise<number> {
