@@ -270,19 +270,45 @@ export async function consolidate(
           excludeSuperseded: true,
         };
         const [rawRows] = await deps.vectorStore.list(orientFilters, ORIENT_PAGE_SIZE);
-        const acc: { skill: Skill; embedding: readonly number[] }[] = [];
+        // T2.1 / F4: decode all skill rows; collect descriptions to embed in
+        // a single batch call. The conformance contract does not expose direct
+        // vector access, so we re-embed from the description as the
+        // deterministic source for clustering.
+        const decoded: Skill[] = [];
+        const descriptions: string[] = [];
         for (const row of rawRows) {
           const skill = decodeSkillPayload(row.id, row.payload, deps.scope);
           if (skill === null) {
             continue;
           }
-          const get = await deps.vectorStore.get(row.id);
-          // Conformance contract does not include direct vector access; re-embed
-          // from the description as the deterministic source for clustering.
-          if (get === null) {
+          decoded.push(skill);
+          descriptions.push(skill.description);
+        }
+        if (descriptions.length === 0) {
+          span?.setAttribute('skills.consolidate.orient.skills_found', 0);
+          return [];
+        }
+        // Prefer embedBatch (single round-trip); fall back to per-row embed
+        // when the batch endpoint fails — matches the v0.1 runExtractionPipeline
+        // resilience pattern.
+        let embeddings: readonly (readonly number[])[];
+        try {
+          embeddings = await deps.embedder.embedBatch(descriptions);
+        } catch (err) {
+          span?.addEvent('skills.consolidate.orient.embed_batch_failed_fallback', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          embeddings = await Promise.all(
+            descriptions.map((d) => deps.embedder.embed(d)),
+          );
+        }
+        const acc: { skill: Skill; embedding: readonly number[] }[] = [];
+        for (let i = 0; i < decoded.length; i += 1) {
+          const skill = decoded[i];
+          const embedding = embeddings[i];
+          if (skill === undefined || embedding === undefined) {
             continue;
           }
-          const embedding = await deps.embedder.embed(skill.description);
           acc.push({ skill, embedding });
         }
         span?.setAttribute('skills.consolidate.orient.skills_found', acc.length);
