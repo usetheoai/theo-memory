@@ -9,9 +9,61 @@
 import { describe, expect, test } from 'vitest';
 
 import { hashFact } from '../../core/dedup.js';
-import { InvalidScope, InvalidSkillError } from '../../core/errors.js';
+import type { HistoryBatchRecord, HistoryEntry, HistoryManager } from '../../core/dip/history-manager.js';
+import type { Message } from '../../core/dip/llm.js';
+import { InvalidScope, InvalidSkillError, MemoryNotFound } from '../../core/errors.js';
 import { createLocalMemory, StubEmbedder, StubLLM } from '../index.js';
 import { InMemoryVectorStore } from '../in-memory-store.js';
+
+class InMemoryHistoryManager implements HistoryManager {
+  private readonly entries = new Map<string, HistoryEntry[]>();
+
+  async addHistory(
+    memoryId: string,
+    previousValue: string | null,
+    newValue: string | null,
+    action: 'remember' | 'forget' | 'reflect',
+    createdAt?: Date,
+  ): Promise<void> {
+    await Promise.resolve();
+    const bucket = this.entries.get(memoryId) ?? [];
+    bucket.push({
+      action,
+      at: createdAt ?? new Date(),
+      previousValue,
+      newValue,
+    });
+    this.entries.set(memoryId, bucket);
+  }
+
+  async getHistory(memoryId: string): Promise<readonly HistoryEntry[]> {
+    await Promise.resolve();
+    const bucket: readonly HistoryEntry[] = this.entries.get(memoryId) ?? [];
+    return bucket;
+  }
+
+  async reset(): Promise<void> {
+    await Promise.resolve();
+    this.entries.clear();
+  }
+
+  close(): void {
+    // no-op
+  }
+
+  async saveMessages(_messages: readonly Message[], _sessionScope: string): Promise<void> {
+    await Promise.resolve();
+  }
+
+  async getLastMessages(): Promise<readonly (Message & { readonly createdAt: Date })[]> {
+    await Promise.resolve();
+    return [];
+  }
+
+  async batchAddHistory(_records: readonly HistoryBatchRecord[]): Promise<void> {
+    await Promise.resolve();
+  }
+}
 
 const DIM = 1536;
 const SCOPED_VECTOR = (() => {
@@ -153,5 +205,55 @@ describe('LocalScopedSkillMemory.forget — T4.1', () => {
     await scoped.forget(added.id);
     const after = await scoped.recall('feature flag toggle helper');
     expect(after.map((s) => s.id)).not.toContain(added.id);
+  });
+
+  test('appends a forget history event when historyManager is wired (F10)', async () => {
+    const store = new InMemoryVectorStore();
+    const memory = await createLocalMemory({
+      vectorStore: store,
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      historyManager: new InMemoryHistoryManager(),
+    });
+    const scoped = memory.skills('repo-alpha');
+    const added = await scoped.add({
+      code: 'export const x = 1;',
+      description: 'feature flag toggle helper for forget history',
+      codeLanguage: 'typescript',
+    });
+
+    await scoped.forget(added.id);
+
+    const trail = await memory.history(added.id);
+    expect(trail.some((e) => e.action === 'forget')).toBe(true);
+  });
+
+  test('rejects cross-scope forget with MemoryNotFound; victim row stays recallable (v1.1 EC-2)', async () => {
+    const { memory } = await buildMemory();
+    const repoA = memory.skills('repo-alpha');
+    const repoB = memory.skills('repo-beta');
+    const skillA = await repoA.add({
+      code: 'code-alpha',
+      description: 'alpha-only payment retry strategy',
+      codeLanguage: 'typescript',
+    });
+
+    await expect(repoB.forget(skillA.id)).rejects.toBeInstanceOf(MemoryNotFound);
+
+    const stillThere = await repoA.recall('alpha-only payment retry strategy');
+    expect(stillThere.map((s) => s.id)).toContain(skillA.id);
+  });
+
+  test('rejects forget on a non-skill memory id with MemoryNotFound (v1.1 EC-2 kind mismatch)', async () => {
+    const { memory } = await buildMemory();
+    const userMems = await memory
+      .user('alice')
+      .remember('plain user fact about coffee preference', { infer: false });
+    const userMemId = userMems[0]?.id;
+    expect(typeof userMemId).toBe('string');
+
+    await expect(
+      memory.skills('repo-alpha').forget(userMemId as string),
+    ).rejects.toBeInstanceOf(MemoryNotFound);
   });
 });
