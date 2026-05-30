@@ -74,9 +74,20 @@ export interface ScopedContext {
  * Internal filter shape passed to the VectorStore + HistoryManager DIPs.
  * Maps 1:1 onto REDACTED's `SearchFilters` shape (snake_case keys);
  * `session_id` is the only rename (REDACTED uses `run_id`).
+ *
+ * v0.6 adds two skill-aware filter fields (kind + excludeSuperseded) per
+ * skill-library plan ADR D3 / T2.2. These are honored by the local
+ * stores' composeFilters / matchesFilters via dedicated branches (not the
+ * generic equality loop); the pipeline layer derives them from
+ * `RecallOptions.onlySkills` / `RecallOptions.includeSuperseded` before
+ * calling into the store.
  */
 export interface Filters {
   readonly user_id?: string;
   readonly agent_id?: string;
   readonly session_id?: string;
+  /** v0.6: discriminate kind at the SQL/store layer ('extracted' | 'derived' | 'skill'). */
+  readonly kind?: 'extracted' | 'derived' | 'skill';
+  /** v0.6: when true, omit rows whose `superseded_by IS NOT NULL`. */
+  readonly excludeSuperseded?: boolean;
 }
