@@ -34,9 +34,12 @@
 import {
   assertValidFraction,
   type EvictionPolicy,
+  type EvictionResult,
   type ScoreContext,
 } from '../../core/dip/eviction-policy.js';
 import type { MemoryItem } from '../../core/memory-item.js';
+
+import type { Evictor } from './pg-evictor.js';
 
 export interface TriadicWeights {
   readonly recency: number;
@@ -206,17 +209,36 @@ export class TriadicScoringPolicy implements EvictionPolicy {
   private readonly constants: TriadicConstants;
   private readonly halfLifePersister: HalfLifePersister | null;
   private readonly neighborProvider: NearestNeighborProvider | null;
+  private readonly evictor: Evictor | null;
 
   constructor(
     weights: TriadicWeights = DEFAULT_TRIADIC_WEIGHTS,
     constants: TriadicConstants = DEFAULT_TRIADIC_CONSTANTS,
     halfLifePersister: HalfLifePersister | null = null,
     neighborProvider: NearestNeighborProvider | null = null,
+    evictor: Evictor | null = null,
   ) {
     this.weights = normalizeWeights(weights);
     this.constants = constants;
     this.halfLifePersister = halfLifePersister;
     this.neighborProvider = neighborProvider;
+    this.evictor = evictor;
+  }
+
+  /**
+   * v0.4b T6.1 (D17): soft-delete eviction via the injected Evictor. Returns
+   * an EvictionResult distinguishing softDeleted (newly invalidated) from
+   * alreadyInvalid (idempotent — t_invalid was already set). EC-10: empty
+   * input array short-circuits without a SQL roundtrip.
+   *
+   * When no evictor is wired (e.g., pure-math unit tests), returns an
+   * empty result — callers that need real persistence MUST inject one.
+   */
+  async evict(memoryIds: readonly string[]): Promise<EvictionResult> {
+    if (this.evictor === null) {
+      return { softDeleted: [], alreadyInvalid: [], errors: [] };
+    }
+    return this.evictor.evict(memoryIds);
   }
 
   /**
