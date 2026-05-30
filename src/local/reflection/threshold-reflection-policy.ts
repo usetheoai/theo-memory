@@ -58,6 +58,14 @@ function scopeToCounterTuple(scope: Scope): {
         sessionId: null,
         agentId: scope.agentId,
       };
+    case 'repo':
+      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column at the
+      // store layer; reflection counter rows mirror that mapping for consistency.
+      return {
+        userId: null,
+        sessionId: null,
+        agentId: scope.repoId,
+      };
   }
 }
 
