@@ -45,8 +45,18 @@ export interface InsertDerivedSkillArgs extends InsertSkillArgs {
  * Type guard: narrow a `VectorStore` reference to one that supports skill
  * insertion. Mirrors the v0.4a `VectorStoreWithDerivedInsert` pattern in
  * `src/local/index.ts`.
+ *
+ * v0.6 T3.1 additions: `markSuperseded` + `insertDerivedSkillAtomic` carry the
+ * supersession contract. The atomic combo is the consolidate orchestrator's
+ * preferred entry-point (pgvector wraps INSERT + UPDATE in BEGIN/COMMIT per
+ * plan EC-2 absorption; in-memory runs them sequentially as best-effort).
  */
 export interface VectorStoreWithSkillInsert {
   insertSkill(args: InsertSkillArgs): Promise<string>;
   insertDerivedSkill(args: InsertDerivedSkillArgs): Promise<string>;
+  markSuperseded(sourceIds: readonly string[], supersededBy: string): Promise<void>;
+  insertDerivedSkillAtomic(
+    args: InsertDerivedSkillArgs,
+    sourceIdsToSupersede: readonly string[],
+  ): Promise<string>;
 }

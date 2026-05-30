@@ -582,6 +582,88 @@ export class PgvectorStore implements VectorStore {
     );
   }
 
+  /**
+   * v0.6 — set `superseded_by = supersededBy` for every row whose id is in `sourceIds`.
+   *
+   * Idempotent: writing the same value twice is a no-op. NEVER deletes source rows
+   * (ADD-only per Inquebrável Rule 3 — supersession is metadata, not erasure).
+   *
+   * Used standalone OR transitively via `insertDerivedSkillAtomic` (preferred for
+   * the consolidate orchestrator per plan EC-2 atomicity absorption).
+   */
+  async markSuperseded(
+    sourceIds: readonly string[],
+    supersededBy: string,
+  ): Promise<void> {
+    if (sourceIds.length === 0) {
+      return;
+    }
+    await this.pool.query(
+      `UPDATE memories SET superseded_by = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])`,
+      [supersededBy, sourceIds],
+    );
+  }
+
+  /**
+   * v0.6 — atomically insert a derived skill row AND mark its sources as superseded.
+   *
+   * EC-2 absorption (plan v1.1): the INSERT + UPDATE pair run inside a single
+   * `BEGIN/COMMIT` so the supersession chain stays consistent even if a network
+   * blip or deadlock interrupts the second statement. Either both rows commit or
+   * neither — no orphan derived skill pointing to non-superseded ancestors.
+   *
+   * @returns the new derived skill id
+   * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T3.1 + EC-2
+   */
+  async insertDerivedSkillAtomic(
+    args: InsertDerivedSkillArgs,
+    sourceIdsToSupersede: readonly string[],
+  ): Promise<string> {
+    assertSkillArgs(args);
+    if (args.derivedFrom.length === 0) {
+      throw new InvalidSkillError(
+        'empty-derived-from',
+        'insertDerivedSkillAtomic requires at least one source skill id',
+      );
+    }
+    return this.withTransaction(async (client) => {
+      const insertResult = await client.query<{ id: string }>(
+        `INSERT INTO memories (
+           text, hash, embedding, payload,
+           user_id, session_id, agent_id,
+           kind, derived_from, code, description, code_language
+         ) VALUES (
+           $1, $2, $3::vector, '{}'::jsonb,
+           $4, $5, $6,
+           'skill', $7::jsonb, $8, $9, $10
+         ) RETURNING id`,
+        [
+          args.description,
+          args.hash,
+          vectorLiteral(args.embedding),
+          args.scope.userId ?? null,
+          args.scope.sessionId ?? null,
+          args.scope.agentId ?? null,
+          JSON.stringify([...args.derivedFrom]),
+          args.code,
+          args.description,
+          args.codeLanguage,
+        ],
+      );
+      const derivedId = insertResult.rows[0]?.id;
+      if (derivedId === undefined) {
+        throw new Error('insertDerivedSkillAtomic: INSERT returned no rows');
+      }
+      if (sourceIdsToSupersede.length > 0) {
+        await client.query(
+          `UPDATE memories SET superseded_by = $1, updated_at = NOW() WHERE id = ANY($2::uuid[])`,
+          [derivedId, sourceIdsToSupersede],
+        );
+      }
+      return derivedId;
+    });
+  }
+
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
   async withTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
