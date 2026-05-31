@@ -129,6 +129,19 @@ export class PgvectorStore implements VectorStore {
     this.skillStore = new PgvectorSkillStore(pool, this.withTransaction.bind(this));
   }
 
+  /**
+   * v0.4b-fixes T4.1 — exposes the underlying `Pool` to the eviction
+   * pipeline wired by `createLocalMemory({ eviction: {...} })`. The eviction
+   * triggers + half-life persister + nearest-neighbor provider all share the
+   * same pool the store already holds; without this accessor the factory
+   * would have to require consumers to pass `pool` twice.
+   *
+   * @internal Not part of the VectorStore DIP — adapter-specific.
+   */
+  get poolForEviction(): Pool {
+    return this.pool;
+  }
+
   async initialize(): Promise<void> {
     // Schema is owned by Drizzle migrations (T2.2). Just verify connectivity.
     await this.pool.query('SELECT 1');
