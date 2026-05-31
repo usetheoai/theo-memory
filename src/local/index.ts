@@ -31,6 +31,7 @@ import type { Pool } from 'pg';
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { Embedder } from '../core/dip/embedder.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
+import type { VectorStore } from '../core/dip/vector-store.js';
 import {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
@@ -59,19 +60,100 @@ import { validateProvenance } from '../core/reflection/provenance.js';
 import type { ReflectionResult } from '../core/reflection-result.js';
 import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, Scope } from '../core/scope.js';
+import type { ScopedSkillMemory } from '../core/skill.js';
+
+import {
+  CapacityBasedTrigger,
+  PgEvictor,
+  PgHalfLifePersister,
+  PgNearestNeighborProvider,
+  TimeBasedTrigger,
+  TriadicScoringPolicy,
+} from './eviction/index.js';
+import type { LocalEvictionConfig } from './eviction/index.js';
+import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
+import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
+import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 
 export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { entities, history, memories } from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
+export * from './eviction/index.js';
 
 /** Extended MemoryConfig with the OTel tracer slot from ADR D1.3. */
 export interface LocalMemoryConfig extends MemoryConfig {
   readonly tracer?: Tracer;
+  /**
+   * v0.4b-fixes T4.1 — opt-in eviction pipeline. Requires `vectorStore` to
+   * be a `PgvectorStore` instance (advisory locks + pgvector cosine distance
+   * are PG-only). `createLocalMemory` throws `EvictionNotSupported` when this
+   * field is set with an `InMemoryVectorStore`.
+   *
+   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 + ADR D6
+   */
+  readonly eviction?: LocalEvictionConfig;
+  /**
+   * @internal v0.4b-fixes T4.1 — async hook fired by `LocalScopedMemory.remember()`
+   * post-pipeline. Used by the factory to wire `CapacityBasedTrigger.fire()`
+   * when `eviction.trigger === 'capacity'`. NOT a public field; consumers
+   * configure eviction via the `eviction` option above.
+   */
+  readonly postRememberHook?: (scope: Scope) => Promise<void>;
+}
+
+/**
+ * Thrown when `createLocalMemory({ eviction: {...} })` is called with a
+ * non-PgvectorStore vector store. Advisory locks + pgvector cosine distance
+ * are PG-only; eviction is not implemented for `InMemoryVectorStore`.
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 (SEPA iter 5 pre-RED CRITICAL #3)
+ */
+export class EvictionNotSupported extends Error {
+  override readonly name = 'EvictionNotSupported' as const;
+
+  constructor(storeKind: string, options?: ErrorOptions) {
+    super(
+      `Eviction config requires a PgvectorStore (got ${storeKind}). ` +
+        'Advisory locks + pgvector cosine distance are PostgreSQL-only.',
+      options,
+    );
+    Object.setPrototypeOf(this, EvictionNotSupported.prototype);
+  }
 }
 
 export const PROBE_TEXT = '__themem_probe__';
+
+/**
+ * v0.6 (T2.2): translate skill-aware RecallOptions / GetAllOptions flags into
+ * `Filters.kind` + `Filters.excludeSuperseded` before the store call.
+ *
+ * `includeSuperseded` defaults to `false` (recall returns only tip-of-chain),
+ * so when the caller omits the option we still emit `excludeSuperseded=true`
+ * — BUT only when `onlySkills` is also set, so v0.4a callers see no change.
+ */
+function applySkillFilters(
+  baseFilters: Filters,
+  options?: { onlySkills?: boolean; includeSuperseded?: boolean },
+): Filters {
+  if (options === undefined) {
+    return baseFilters;
+  }
+  const next: Filters = { ...baseFilters };
+  if (options.onlySkills === true) {
+    return {
+      ...next,
+      kind: 'skill',
+      // Default for skill recall: exclude superseded unless the caller explicitly opts in.
+      excludeSuperseded: options.includeSuperseded === true ? false : true,
+    };
+  }
+  if (options.includeSuperseded === false) {
+    return { ...next, excludeSuperseded: true };
+  }
+  return next;
+}
 
 function filtersFromScope(scope: Scope): Filters {
   switch (scope.kind) {
@@ -85,14 +167,19 @@ function filtersFromScope(scope: Scope): Filters {
       return scope.userId !== undefined
         ? { user_id: scope.userId, agent_id: scope.agentId }
         : { agent_id: scope.agentId };
+    case 'repo':
+      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column. The
+      // `kind='skill'` discriminator (added by Skill-specific recall/getAll paths)
+      // disambiguates skill rows from regular agent memories under the same id.
+      return { agent_id: scope.repoId };
   }
 }
 
 function assertScopeIsNonEmpty(scope: Scope): void {
   // Type-safe runtime guard — rejects {} or any malformed input lacking a valid kind.
   const kind = (scope as { kind?: string }).kind;
-  if (kind !== 'user' && kind !== 'session' && kind !== 'agent') {
-    throw new InvalidScope('reset requires a Scope with kind user/session/agent (EC-13)');
+  if (kind !== 'user' && kind !== 'session' && kind !== 'agent' && kind !== 'repo') {
+    throw new InvalidScope('reset requires a Scope with kind user/session/agent/repo (EC-13)');
   }
   if (scope.kind === 'user' && scope.userId === '') {
     throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
@@ -101,6 +188,9 @@ function assertScopeIsNonEmpty(scope: Scope): void {
     throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
   }
   if (scope.kind === 'agent' && scope.agentId === '') {
+    throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
+  }
+  if (scope.kind === 'repo' && scope.repoId === '') {
     throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
   }
 }
@@ -127,6 +217,10 @@ function scopeToCounterTuple(scope: Scope): {
       return { userId: scope.userId ?? null, sessionId: scope.sessionId, agentId: null };
     case 'agent':
       return { userId: scope.userId ?? null, sessionId: null, agentId: scope.agentId };
+    case 'repo':
+      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column at the
+      // store layer (see filtersFromScope). Counter rows mirror that mapping.
+      return { userId: null, sessionId: null, agentId: scope.repoId };
   }
 }
 
@@ -150,6 +244,19 @@ class LocalScopedMemory implements ScopedMemory {
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       ...(this.config.customInstructions !== undefined ? { customInstructions: this.config.customInstructions } : {}),
     }, options);
+
+    // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline
+    // wired by `createLocalMemory({ eviction: { trigger: 'capacity', ... } })`.
+    // Awaited inline so consumers' next remember() sees the post-evict state.
+    // Errors do NOT block remember() result — surface via OTel span on the
+    // PgEvictor counter (T10.1 will lazy-init the meter).
+    if (this.config.postRememberHook !== undefined) {
+      try {
+        await this.config.postRememberHook(this.scope);
+      } catch {
+        // Eviction failures are observability-only; do not poison remember().
+      }
+    }
 
     // v0.4a: after successful write, check ReflectionPolicy. If it says fire,
     // launch reflect() as fire-and-forget tracked via pendingReflections (EC-7).
@@ -179,7 +286,7 @@ class LocalScopedMemory implements ScopedMemory {
     if (options?.asOf !== undefined) {
       throw new BiTemporalNotSupportedLocally();
     }
-    return runRetrievalPipeline(query, this.filters, {
+    return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
@@ -308,7 +415,10 @@ class LocalScopedMemory implements ScopedMemory {
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
     const limit = options?.topK ?? 100;
-    const [results] = await this.config.vectorStore.list(this.filters, limit);
+    const [results] = await this.config.vectorStore.list(
+      applySkillFilters(this.filters, options),
+      limit,
+    );
     return results.map((r) => ({
       id: r.id,
       text: String(r.payload['text'] ?? ''),
@@ -371,13 +481,52 @@ class LocalMemory implements Memory {
     await Promise.allSettled(snapshot);
   }
 
+  /**
+   * v0.4b-fixes T7.1 — PUBLIC API BREAKING CHANGE (ADR D7 + EC-3 absorption).
+   *
+   * Behavior contract delta vs v0.1:
+   * - **v0.1 (shipped)**: physical DELETE via `vectorStore.delete()`; raw
+   *   `SELECT * FROM memories WHERE id = $1` post-forget returned 0 rows. This
+   *   violated the documented `ForgetOptions.hard?: false` default at
+   *   `src/core/options.ts:55-62`.
+   * - **v0.4b-fixes (this)**: soft-delete via `t_invalid = NOW()` through the
+   *   `PgEvictor` path (consistent with auto-eviction). Raw SELECT post-forget
+   *   returns 1 row with `t_invalid IS NOT NULL`. Use `{ hard: true }` for
+   *   GDPR-style physical delete.
+   * - **Migration**: replace `assert count_after_forget == 0` with
+   *   `assert count_where_t_invalid_null_after_forget == 0`. Historical rows
+   *   recoverable via `WHERE t_invalid IS NOT NULL`.
+   * - **Cascade**: v0.6 `ScopedSkillMemory.forget()` routes through this same
+   *   path via `LocalScopedSkillMemory.forgetDelegate` — skill consumers also
+   *   see the BREAKING change.
+   *
+   * `InMemoryVectorStore` consumers (dev/test) keep the v0.1 hard-delete
+   * behavior — `t_invalid` is a Postgres-only concept; the in-memory adapter
+   * does not model it. This preserves unit-test ergonomics while the
+   * Postgres production path gains the soft-delete contract.
+   *
+   * @see CHANGELOG.md [Unreleased] § Changed `**BREAKING**` entry
+   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T7.1 + ADR D7
+   * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-3
+   */
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
-    void options;
     const existing = await this.config.vectorStore.get(memoryId);
     if (existing === null) {
       throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: divergence from REDACTED's silent no-op)`);
     }
-    await this.config.vectorStore.delete(memoryId);
+    const hardDelete = options?.hard === true;
+    const isPgStore = this.config.vectorStore instanceof PgvectorStoreClass;
+    if (hardDelete || !isPgStore) {
+      // GDPR-style physical delete (ForgetOptions.hard=true) OR non-Pg adapter
+      // fallback (InMemoryVectorStore has no t_invalid concept).
+      await this.config.vectorStore.delete(memoryId);
+    } else {
+      // Default soft-delete via PgEvictor — consistent with the v0.4b
+      // auto-eviction path. Idempotent: a row already carrying t_invalid is
+      // returned in `alreadyInvalid` without an exception.
+      const evictor = new PgEvictor(this.config.vectorStore.poolForEviction);
+      await evictor.evict([memoryId]);
+    }
     if (this.config.historyManager !== undefined) {
       try {
         await this.config.historyManager.addHistory(
@@ -426,6 +575,36 @@ class LocalMemory implements Memory {
       await this.config.vectorStore.delete(r.id);
     }
   }
+
+  /**
+   * v0.6: code-as-skill memory entry-point.
+   *
+   * Returns a `LocalScopedSkillMemory` bound to `repoId`. Internally maps to
+   * the existing `agent_id` column at the store layer per the EC-4 absorption
+   * in `filtersFromScope`; the `kind='skill'` discriminator disambiguates skill
+   * rows from regular agent memories sharing the same id.
+   *
+   * @throws InvalidScope on empty `repoId`.
+   * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.1
+   */
+  skills(repoId: string): ScopedSkillMemory {
+    // The local stores (PgvectorStore + InMemoryVectorStore) implement the
+    // VectorStoreWithSkillInsert extension as duck-typed methods (off-DIP per
+    // T2.1 design note); narrow at the boundary so the orchestrator sees the
+    // augmented surface.
+    const skillStore = this.config.vectorStore as VectorStore & VectorStoreWithSkillInsert;
+    return new LocalScopedSkillMemory(repoId, {
+      vectorStore: skillStore,
+      embedder: this.config.embedder,
+      llm: this.config.llm,
+      // T4.1 / F10 + EC-2: forget delegates to LocalMemory.forget (canonical
+      // path: writes the 'forget' history event); get delegates to LocalMemory.get
+      // for the pre-delegate scope-isolation guard.
+      forgetDelegate: (id: string) => this.forget(id),
+      getDelegate: (id: string) => this.get(id),
+      ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
+    });
+  }
 }
 
 async function probeEmbedder(embedder: Embedder): Promise<void> {
@@ -436,13 +615,86 @@ async function probeEmbedder(embedder: Embedder): Promise<void> {
 }
 
 /**
+ * v0.4b-fixes T4.1 extension: returned Memory carries a `dispose()` method
+ * that stops the cron job + releases trigger resources. Non-eviction memories
+ * still expose `dispose()` as a no-op so consumers can `await memory.dispose()`
+ * unconditionally without runtime branching.
+ *
+ * Decision per SEPA iter 5 pre-RED CRITICAL #1 option (C): widen ONLY the
+ * local factory return type — `Memory` interface stays unchanged so the cloud
+ * runtime is not affected.
+ */
+export type DisposableMemory = Memory & { dispose(): Promise<void> };
+
+/**
  * Public factory. Probes embedder dimension first; throws EmbeddingMismatch
  * before the first user call if mismatched.
+ *
+ * v0.4b-fixes T4.1: when `config.eviction` is set, wires the capacity-trigger
+ * post-remember hook OR the time-trigger cron lifecycle. Throws
+ * `EvictionNotSupported` if `vectorStore` is not a `PgvectorStore` (per
+ * SEPA iter 5 pre-RED CRITICAL #3 — eviction is PG-only).
  */
-export async function createLocalMemory(config: LocalMemoryConfig): Promise<Memory> {
+export async function createLocalMemory(config: LocalMemoryConfig): Promise<DisposableMemory> {
   await probeEmbedder(config.embedder);
   await config.vectorStore.initialize();
-  return new LocalMemory(config, config.reflectionPolicy);
+
+  if (config.eviction === undefined) {
+    const memory = new LocalMemory(config, config.reflectionPolicy);
+    return Object.assign(memory, { dispose: (): Promise<void> => Promise.resolve() });
+  }
+
+  if (!(config.vectorStore instanceof PgvectorStoreClass)) {
+    throw new EvictionNotSupported(config.vectorStore.constructor.name);
+  }
+  const pool = config.vectorStore.poolForEviction;
+
+  const evictor = new PgEvictor(pool);
+  const halfLifePersister = new PgHalfLifePersister(pool);
+  const neighborProvider = new PgNearestNeighborProvider(pool);
+  const policy = new TriadicScoringPolicy({
+    evictor,
+    halfLifePersister,
+    neighborProvider,
+  });
+
+  let postRememberHook: ((scope: Scope) => Promise<void>) | undefined;
+  let stopCron: (() => void) | undefined;
+
+  if (config.eviction.trigger === 'capacity') {
+    const capacityTrigger = new CapacityBasedTrigger(
+      pool,
+      policy,
+      config.eviction.maxMemoriesPerScope,
+    );
+    postRememberHook = async (scope: Scope): Promise<void> => {
+      await capacityTrigger.fire(scope, new Date());
+    };
+  } else {
+    const timeTrigger = new TimeBasedTrigger(pool, policy, {
+      cronExpression: config.eviction.cronExpression,
+      evictionFraction: config.eviction.evictionFraction,
+      scope: config.eviction.scope,
+    });
+    timeTrigger.start();
+    stopCron = (): void => {
+      timeTrigger.stop();
+    };
+  }
+
+  const augmentedConfig: LocalMemoryConfig =
+    postRememberHook !== undefined
+      ? { ...config, postRememberHook }
+      : config;
+
+  const memory = new LocalMemory(augmentedConfig, config.reflectionPolicy);
+  const dispose = (): Promise<void> => {
+    if (stopCron !== undefined) {
+      stopCron();
+    }
+    return Promise.resolve();
+  };
+  return Object.assign(memory, { dispose });
 }
 
 /** Alias matching the public surface name (T7.2 re-exports). */

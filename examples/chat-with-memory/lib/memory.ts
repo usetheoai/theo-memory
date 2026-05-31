@@ -1,39 +1,35 @@
 /**
  * theo-memory singleton — boots once per Node process.
  *
- * Default backend: InMemoryVectorStore (zero infra). Swap to pgvector by
- * setting THEOMEM_PG_URI in `.env` and importing PgvectorStore here.
+ * Backend auto-detect (v0.6.1 demo expansion):
+ *   - `THEOMEM_PG_URI` set    → `PgvectorStore` + `runMigrations` (real persistence)
+ *   - `THEOMEM_PG_URI` unset  → `InMemoryVectorStore` (zero infra)
  *
- * Why `globalThis`: in Next.js dev mode (`next dev`), each route handler
- * is compiled into its own module instance with its own module-scope state.
- * A bare `let memoryPromise = null` would fragment the singleton — writes
- * via /api/chat would land in a different store than reads via
- * /api/memory/recall. `globalThis` shares state across every route handler
- * within the same Node process. Standard Next.js pattern (see
- * https://nextjs.org/docs/app/building-your-application/configuring/prisma).
+ * Demonstrates both runtimes of the contract from a single binary surface,
+ * and persistence survives `npm run dev` restarts when pgvector is wired.
+ *
+ * `globalThis` shares the singleton across Next.js dev's per-route module
+ * instances (writes via /api/chat must land in the SAME store as reads via
+ * /api/memory/recall — standard Next.js pattern).
  */
 import "server-only";
 import {
   createMemory,
   InMemoryVectorStore,
+  PgvectorStore,
+  runMigrations,
   type Memory,
 } from "@usetheo/memory";
 import type {
   ManualReflectionPolicy,
   ReflectionTrigger,
   Scope,
+  VectorStore,
 } from "@usetheo/memory/contract";
+import pg from "pg";
 import { OpenAIEmbedder, OpenAILLM } from "./openai-adapters";
 
-/**
- * Tiny ManualReflectionPolicy — explicit-only firing (ADR-0005).
- *
- * v0.0 ships this as the only built-in. ThresholdReflectionPolicy +
- * SleepTimeReflectionPolicy (v0.4a) are coupled to PgvectorStore via
- * `bumpReflectionCounter`; for the in-memory demo path we wire the manual
- * policy so the "Run reflection" UI button works AND Memory.reflect() in
- * the route handler does not throw ReflectionNotConfigured.
- */
+/** Explicit-only reflection policy (ADR-0005). */
 class DemoManualReflectionPolicy implements ManualReflectionPolicy {
   readonly kind = "manual" as const;
   async shouldReflect(_scope: Scope, _trigger: ReflectionTrigger): Promise<boolean> {
@@ -41,20 +37,66 @@ class DemoManualReflectionPolicy implements ManualReflectionPolicy {
   }
 }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var _themory_demo_memory: Promise<Memory> | undefined;
+export type BackendKind = "pgvector" | "in-memory";
+
+interface MemorySingleton {
+  readonly memory: Memory;
+  readonly backend: BackendKind;
+  readonly pgPool: pg.Pool | null;
 }
 
-export function getMemory(): Promise<Memory> {
-  if (globalThis._themory_demo_memory === undefined) {
-    globalThis._themory_demo_memory = (async () => {
+declare global {
+  // eslint-disable-next-line no-var
+  var _themory_demo_singleton: Promise<MemorySingleton> | undefined;
+}
+
+async function buildStore(): Promise<{
+  vectorStore: VectorStore;
+  backend: BackendKind;
+  pgPool: pg.Pool | null;
+}> {
+  const pgUri = process.env.THEOMEM_PG_URI;
+  if (typeof pgUri === "string" && pgUri.length > 0) {
+    const pgPool = new pg.Pool({ connectionString: pgUri });
+    await runMigrations(pgPool);
+    return {
+      vectorStore: new PgvectorStore(pgPool),
+      backend: "pgvector",
+      pgPool,
+    };
+  }
+  return {
+    vectorStore: new InMemoryVectorStore(),
+    backend: "in-memory",
+    pgPool: null,
+  };
+}
+
+export function getSingleton(): Promise<MemorySingleton> {
+  if (globalThis._themory_demo_singleton === undefined) {
+    globalThis._themory_demo_singleton = (async () => {
       const embedder = new OpenAIEmbedder();
       const llm = new OpenAILLM();
-      const vectorStore = new InMemoryVectorStore();
       const reflectionPolicy = new DemoManualReflectionPolicy();
-      return createMemory({ embedder, llm, vectorStore, reflectionPolicy });
+      const { vectorStore, backend, pgPool } = await buildStore();
+      const memory = await createMemory({
+        embedder,
+        llm,
+        vectorStore,
+        reflectionPolicy,
+      });
+      // eslint-disable-next-line no-console
+      console.log(`[theomemory-demo] backend=${backend}`);
+      return { memory, backend, pgPool };
     })();
   }
-  return globalThis._themory_demo_memory;
+  return globalThis._themory_demo_singleton;
+}
+
+export async function getMemory(): Promise<Memory> {
+  return (await getSingleton()).memory;
+}
+
+export async function getBackend(): Promise<BackendKind> {
+  return (await getSingleton()).backend;
 }
