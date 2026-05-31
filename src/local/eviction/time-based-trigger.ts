@@ -28,13 +28,21 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
 import type { MemoryItem } from '../../core/memory-item.js';
+import type { Scope } from '../../core/scope.js';
 
+import { advisoryLockKey, scopeWhereClause } from './scope-where.js';
 import type { TriadicScoringPolicy } from './triadic-scoring-policy.js';
 
 export interface TimeBasedTriggerConfig {
   readonly cronExpression: string;
   readonly evictionFraction: number;
-  readonly scopeId: string;
+  /**
+   * Scope tier the cron-driven eviction operates on. v0.4b-fixes T3.1 widened
+   * this from the previous `scopeId: string` (agent_id-only) to the full
+   * `Scope` discriminated union so cron-scheduled evictions honor all 3
+   * tiers (User / Session / Agent) per ADR-0002.
+   */
+  readonly scope: Scope;
 }
 
 /**
@@ -96,7 +104,7 @@ type OnTickCallback = (result: EvictionResult | null) => void;
 export class TimeBasedTrigger {
   private readonly cronExpression: string;
   private readonly evictionFraction: number;
-  private readonly scopeId: string;
+  private readonly scope: Scope;
   private cronJob: Cron | null = null;
   private tickListener: OnTickCallback | null = null;
 
@@ -116,7 +124,7 @@ export class TimeBasedTrigger {
     }
     this.cronExpression = config.cronExpression;
     this.evictionFraction = config.evictionFraction;
-    this.scopeId = config.scopeId;
+    this.scope = config.scope;
   }
 
   /**
@@ -179,20 +187,21 @@ export class TimeBasedTrigger {
     try {
       const lockResult = await client.query<{ locked: boolean }>(
         'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
-        [`eviction_${this.scopeId}`],
+        [advisoryLockKey(this.scope)],
       );
       if (lockResult.rows[0]?.locked !== true) {
         await client.query('COMMIT');
         return null;
       }
+      const where = scopeWhereClause(this.scope);
       const candidatesResult = await client.query<ScopeCandidateRow>(
         `SELECT id, text, hash, user_id, session_id, agent_id, payload,
                 t_valid, t_invalid, created_at, updated_at,
                 last_accessed_at, access_count, half_life_seconds, llm_importance_score
            FROM memories
-          WHERE agent_id = $1
+          WHERE ${where.sql}
             AND t_invalid IS NULL`,
-        [this.scopeId],
+        [...where.params],
       );
       if (candidatesResult.rows.length === 0) {
         await client.query('COMMIT');

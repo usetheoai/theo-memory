@@ -100,6 +100,17 @@ export const memories = pgTable(
     index('idx_memories_eviction_score')
       .on(table.agentId, table.lastAccessedAt)
       .where(sql`${table.tInvalid} IS NULL`),
+    // v0.4b-fixes T3.1: per-tier partial indexes so generalized
+    // CapacityBasedTrigger + TimeBasedTrigger queries stay performant when
+    // scoped on User or Session tiers (previously they targeted the agent_id
+    // partial index above and silently degraded for other tiers).
+    // @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
+    index('idx_memories_eviction_score_user')
+      .on(table.userId, table.lastAccessedAt)
+      .where(sql`${table.tInvalid} IS NULL`),
+    index('idx_memories_eviction_score_session')
+      .on(table.sessionId, table.lastAccessedAt)
+      .where(sql`${table.tInvalid} IS NULL`),
     check(
       // EC-1 absorption (plan v1.1): name verbatim, cited by
       // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
