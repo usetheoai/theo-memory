@@ -30,7 +30,9 @@ Adding the script requires installing `@vitest/coverage-v8` (or equivalent) as a
 
 **Recommended owner:** the next halt-loop that needs coverage (likely v1.0 production-claim prep). Single PR adds `@vitest/coverage-v8` + the `test:coverage` script + an `nyc`/coverage threshold config.
 
-## F4 — `rowToMemoryItem` + `ScopeCandidateRow` duplicated across T5.1 + T5.2 (surfaced at iter 9 / T5.2)
+## F4 — `rowToMemoryItem` + `ScopeCandidateRow` duplicated across T5.1 + T5.2 (surfaced at iter 9 / T5.2) — **RESOLVED v0.4b-fixes T6.1 (commit pending)**
+
+Extracted to `src/local/eviction/scope-candidate.ts` exporting `ScopeCandidateRow` + `rowToMemoryItem` + `loadCandidates(client, scope)`. Both trigger files (`capacity-based-trigger.ts` -50 LoC + `time-based-trigger.ts` -51 LoC) now import from the shared helper; T7.1 forget() delegation becomes the third consumer when shipped.
 
 DRY rule-of-three not yet hit (2 copies in capacity-based-trigger.ts + time-based-trigger.ts). T6.1 evict orchestration becomes the 3rd consumer of "load all active candidates in scope" → extract to shared helper `src/local/eviction/scope-candidate-loader.ts` (or co-locate in a barrel) at that point.
 
