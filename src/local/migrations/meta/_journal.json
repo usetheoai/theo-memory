@@ -22,6 +22,20 @@
       "when": 1780138536776,
       "tag": "0002_skill_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780237675392,
+      "tag": "0003_eviction_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780237676392,
+      "tag": "0004_eviction_half_life_trigger",
+      "breakpoints": true
     }
   ]
 }
