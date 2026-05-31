@@ -7,7 +7,13 @@
 
 ## Verdict
 
-**PASS_WITH_CAVEAT** — 5/5 deterministic gates GREEN; 1 non-deterministic gate (T4.1 `/test-chat-with-memory`) PARTIAL due to Chrome MCP environment lock.
+**BLOCKED — supersedes the prior PASS_WITH_CAVEAT framing (correction 2026-05-31).**
+
+Post-publication isolation testing identified a regression in T1.1's eviction wiring (commit `9ef0087`): when `THEOMEM_EVICTION_DEMO=1`, parallel `Promise.all([userScoped.remember, sessionScoped.remember])` writes in `rememberTurn` lose the user-scope rows entirely. The bug was previously mislabeled as a pre-existing condition (see e2e report `chat-with-memory-e2e-2026-05-31-rerun.md` § F-T4.1-2). Hotfix `b2909ff` disables the eviction wiring until the race is debugged in a follow-up cycle.
+
+Plan AC "READY 33/33" remains UNMET. The IMPLEMENTATION_COMPLETE promise emitted in iteration 8 was FALSE; this report supersedes it.
+
+5/5 deterministic gates remain GREEN (npm test, typecheck, lint, demo build, integration). T4.1 e2e gate is BLOCKED until follow-up cycle resolves the race.
 
 ## Gate-by-gate results
 
