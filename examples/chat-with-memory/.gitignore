@@ -12,3 +12,5 @@ tsconfig.tsbuildinfo
 # Distinct from @usetheo/memory — kept out of git so the demo stays reproducible.
 .theokit/
 memory.txt
+# @usetheo/sdk also writes per-fact side-channel files in newer versions:
+*.txt

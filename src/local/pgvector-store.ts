@@ -1,22 +1,9 @@
 /**
- * pgvector VectorStore — T3.3 of v0-1-local-runtime plan v1.3.
- *
- * Implements the VectorStore DIP via raw SQL through `pg.Pool` (per blueprint
- * D4 — no pgvector npm wrapper; raw SQL is enough). Schema is owned by
- * src/local/schema.ts + migrations from T2.2.
- *
- * Per-row fallback: batch insert wrapped in try/catch; on failure iterates
- * each row and attempts single-row insert in its own try/catch (per blueprint
- * D1 + Recommendation 1).
- *
- * Vector serialization: pgvector accepts `[0.1, 0.2, ...]` literal string OR
- * parameterized via `$N::vector`. We use the latter for SQL safety.
- *
- * Filter composition: ANDs each non-undefined Filters key as `col = $idx`.
- * NULL columns are skipped (passthrough — no `IS NULL` filter).
- *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
- * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/vector_stores/pgvector.ts:105,144,169,271,310
+ * pgvector VectorStore — implements the {@link VectorStore} DIP via raw SQL
+ * through `pg.Pool`. Schema lives in `src/local/schema.ts` + migrations.
+ * Per-row fallback: batch INSERT in try/catch; on failure, iterate per-row.
+ * Vector serialization via {@link vectorLiteral} ($N::vector). Skill CRUD
+ * delegated to {@link PgvectorSkillStore} (T3.1 / F3).
  */
 import type { Tracer } from '@opentelemetry/api';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
@@ -25,6 +12,10 @@ import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
+
+import { PgvectorSkillStore } from './pgvector-skill-store.js';
+import { vectorLiteral } from './pgvector-vector-literal.js';
+import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -36,26 +27,14 @@ interface MemoriesRow extends QueryResultRow {
   readonly user_id: string | null;
   readonly session_id: string | null;
   readonly agent_id: string | null;
+  readonly kind?: string | null;
+  readonly code?: string | null;
+  readonly description?: string | null;
+  readonly code_language?: string | null;
+  readonly derived_from?: unknown;
+  readonly superseded_by?: string | null;
   readonly distance?: number;
   readonly rank?: number;
-}
-
-/**
- * Convert a number[] into pgvector's `[v1,v2,...]` literal syntax.
- *
- * F-dom-1 absorption: guards every component against NaN / Infinity / -Infinity.
- * Without the guard, malformed vectors would reach pgvector and fail with a
- * cryptic `invalid input syntax for type vector` error at the SQL layer. With
- * the guard, callers see a clear JS error pointing at the offending index.
- */
-function vectorLiteral(vector: readonly number[]): string {
-  for (let i = 0; i < vector.length; i += 1) {
-    const n = vector[i] as number;
-    if (!Number.isFinite(n)) {
-      throw new Error(`vectorLiteral: vector[${i}] is not finite (${String(n)}); pgvector requires finite numbers`);
-    }
-  }
-  return `[${vector.join(',')}]`;
 }
 
 function rowToResult(row: MemoriesRow): VectorStoreResult {
@@ -72,6 +51,27 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   }
   if (row.agent_id !== null) {
     payload['agent_id'] = row.agent_id;
+  }
+  // v0.6 — project skill columns into payload when present (kind/code/description/code_language)
+  // + provenance + supersession. Mirrors how user_id/session_id/agent_id are projected above.
+  if (row.kind !== undefined && row.kind !== null) {
+    payload['kind'] = row.kind;
+  }
+  if (row.code !== undefined && row.code !== null) {
+    payload['code'] = row.code;
+  }
+  if (row.description !== undefined && row.description !== null) {
+    payload['description'] = row.description;
+  }
+  if (row.code_language !== undefined && row.code_language !== null) {
+    payload['code_language'] = row.code_language;
+  }
+  if (row.derived_from !== undefined && row.derived_from !== null) {
+    // pg returns jsonb as a parsed value (string[] here); stringify for the payload contract.
+    payload['derived_from'] = JSON.stringify(row.derived_from);
+  }
+  if (row.superseded_by !== undefined && row.superseded_by !== null) {
+    payload['superseded_by'] = row.superseded_by;
   }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   return score !== undefined
@@ -101,6 +101,16 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
     params.push(value);
     idx += 1;
   }
+  // v0.6: kind discriminator and supersession filter per skill-library T2.2.
+  if (filters.kind !== undefined) {
+    parts.push(`kind = $${idx}`);
+    params.push(filters.kind);
+    idx += 1;
+  }
+  if (filters.excludeSuperseded === true) {
+    // `superseded_by IS NULL` does not parameterize — embed the literal SQL fragment.
+    parts.push(`superseded_by IS NULL`);
+  }
   if (parts.length === 0) {
     return { sql: '', params: [], nextParamIndex: startParamIndex };
   }
@@ -109,17 +119,28 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
 
 export class PgvectorStore implements VectorStore {
   private currentUserId = '';
+  private readonly skillStore: PgvectorSkillStore;
 
-  /**
-   * @param pool   — connected pg.Pool
-   * @param tracer — optional OTel tracer for observability of internal per-row fallback paths
-   *                 (F-arch-3 absorption — defense-in-depth event emission below the pipeline level).
-   *                 When absent, fallback is silent (matches v0.1.0 behavior).
-   */
+  /** `tracer` is optional OTel for F-arch-3 per-row fallback observability. */
   constructor(
     private readonly pool: Pool,
     private readonly tracer?: Tracer,
-  ) {}
+  ) {
+    this.skillStore = new PgvectorSkillStore(pool, this.withTransaction.bind(this));
+  }
+
+  /**
+   * v0.4b-fixes T4.1 — exposes the underlying `Pool` to the eviction
+   * pipeline wired by `createLocalMemory({ eviction: {...} })`. The eviction
+   * triggers + half-life persister + nearest-neighbor provider all share the
+   * same pool the store already holds; without this accessor the factory
+   * would have to require consumers to pass `pool` twice.
+   *
+   * @internal Not part of the VectorStore DIP — adapter-specific.
+   */
+  get poolForEviction(): Pool {
+    return this.pool;
+  }
 
   async initialize(): Promise<void> {
     // Schema is owned by Drizzle migrations (T2.2). Just verify connectivity.
@@ -137,11 +158,8 @@ export class PgvectorStore implements VectorStore {
     try {
       await this.insertBatch(vectors, ids, payloads);
     } catch {
-      // Per-row fallback (blueprint D1 / Recommendation 1)
-      // F-arch-3 absorption: emit persist_fallback event so consumers observing the
-      // tracer can detect partial-batch degradation. Per-row failures are still
-      // skipped (do not poison the rest of the batch), but at least one
-      // persist_fallback span fires per fallback invocation.
+      // F-arch-3: persist_fallback fires per batch invocation; per-row failures
+      // are skipped (do not poison the rest of the batch) and tallied below.
       emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
       let failed = 0;
       for (let i = 0; i < vectors.length; i += 1) {
@@ -210,22 +228,23 @@ export class PgvectorStore implements VectorStore {
     topK = 10,
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[]> {
-    // F-dom-4 absorption: guard query vector dimension. The factory probes the
-    // embedder at construction time (EC-5) but the retrieval pipeline could
-    // still pass a malformed query (e.g., empty array from a failed embed).
-    // Surface the bug here with a clear error rather than letting pgvector
-    // silently return wrong results from a dimension mismatch.
+    // F-dom-4: guard query dimension so a malformed embed surfaces here, not
+    // as silently-wrong pgvector results from a dimension mismatch.
     if (query.length !== MAX_EMBEDDING_DIM) {
       throw new Error(
         `PgvectorStore.search: query vector dimension ${query.length} does not match MAX_EMBEDDING_DIM ${MAX_EMBEDDING_DIM}`,
       );
     }
     const filter = composeFilters(filters, 2);
+    // v0.4b T6.1 / D17: exclude soft-deleted rows (t_invalid IS NOT NULL)
+    // from semantic recall. Audit query (raw SQL WHERE t_invalid IS NOT NULL)
+    // still returns them per ADR-0006 bi-temporal contract.
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,
+             kind, code, description, code_language, derived_from, superseded_by,
              embedding <=> $1::vector AS distance
       FROM memories
-      WHERE 1=1${filter.sql}
+      WHERE t_invalid IS NULL${filter.sql}
       ORDER BY distance ASC
       LIMIT $${filter.nextParamIndex}
     `;
@@ -234,7 +253,45 @@ export class PgvectorStore implements VectorStore {
       ...filter.params,
       topK,
     ]);
-    return result.rows.map(rowToResult);
+    const mapped = result.rows.map(rowToResult);
+    // v0.4b T3.1 / D15: batched LRU/LFU write-back. Fire-and-forget — failures
+    // log + degrade gracefully (bookkeeping is best-effort, not invariant).
+    await this.recordAccess(mapped.map((r) => r.id));
+    return mapped;
+  }
+
+  /**
+   * v0.4b T3.1: single batched UPDATE incrementing access_count + setting
+   * last_accessed_at = NOW() for the given memory ids.
+   *
+   * EC-8 absorption: SQL uses `SELECT DISTINCT unnest($1::uuid[])` so a
+   * duplicate id in the input is incremented ONCE (defensive against future
+   * code paths that might pass duplicates).
+   *
+   * Plan T3.1 § Deep Dives "Fire-and-forget telemetry": on failure, console.warn
+   * + degrade gracefully (caller still receives the recall results unchanged).
+   * OTel counter `theo.memory.lru_update_failures` is declared at T8.1 wiring
+   * re-run per the existing OTel-counter exposure pattern.
+   */
+  private async recordAccess(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    try {
+      await this.pool.query(
+        `UPDATE memories
+            SET access_count = access_count + 1,
+                last_accessed_at = NOW()
+          WHERE id IN (SELECT DISTINCT unnest($1::uuid[]))`,
+        [ids],
+      );
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[v0.4b] LRU bookkeeping UPDATE failed (recall results returned unchanged):',
+        err,
+      );
+    }
   }
 
   async keywordSearch(
@@ -243,11 +300,14 @@ export class PgvectorStore implements VectorStore {
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[] | null> {
     const filter = composeFilters(filters, 2);
+    // v0.4b T6.1 / D17: exclude soft-deleted rows from keyword recall.
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id,
+             kind, code, description, code_language, derived_from, superseded_by,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
-      WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)${filter.sql}
+      WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)
+        AND t_invalid IS NULL${filter.sql}
       ORDER BY rank DESC
       LIMIT $${filter.nextParamIndex}
     `;
@@ -257,7 +317,9 @@ export class PgvectorStore implements VectorStore {
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
-      'SELECT id, text, hash, payload, user_id, session_id, agent_id FROM memories WHERE id = $1',
+      `SELECT id, text, hash, payload, user_id, session_id, agent_id,
+              kind, code, description, code_language, derived_from, superseded_by
+         FROM memories WHERE id = $1`,
       [vectorId],
     );
     if (result.rows.length === 0) {
@@ -311,7 +373,8 @@ export class PgvectorStore implements VectorStore {
     const total = countResult.rows[0]?.total ?? 0;
 
     const pageSql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id
+      SELECT id, text, hash, payload, user_id, session_id, agent_id,
+             kind, code, description, code_language, derived_from, superseded_by
       FROM memories
       WHERE 1=1${filter.sql}
       ORDER BY created_at ASC
@@ -332,29 +395,9 @@ export class PgvectorStore implements VectorStore {
   }
 
   /**
-   * Atomically bump the reflection counter for a given scope and return the new value.
-   *
-   * Uses two-step find-then-modify with IS NOT DISTINCT FROM to handle the
-   * Postgres NULL-comparison semantics correctly (composite-unique index
-   * UPSERT semantics differ when ANY of the keys is NULL).
-   *
-   * Per plan v0-4a-reflection-pipeline § T2.1 + ADR D4. Consumer
-   * (ThresholdReflectionPolicy) validates scope non-emptiness BEFORE calling
-   * this — the reflection_counters CHECK constraint guards as final defense.
-   *
-   * @param scope Scope-tuple (userId / sessionId / agentId; at least one non-null)
-   * @returns the new counter value AFTER the increment
-   */
-  /**
    * Persist a derived memory (kind='derived') with non-empty derived_from per
    * plan T4.3 + ADR D6 (kind discriminator) + ADR D7 (provenance fail-fast).
-   *
-   * Atomic per-call: a single INSERT statement. Multi-draft transactional
-   * wrapping is the caller's responsibility (v0.4a Memory.reflect uses BEGIN/
-   * COMMIT/ROLLBACK around the for-loop per EC-6).
-   *
-   * @param args row data; embedding length must match MAX_EMBEDDING_DIM
-   * @returns the generated memory id
+   * Caller wraps multi-draft writes in BEGIN/COMMIT/ROLLBACK per v0.4a EC-6.
    */
   async insertDerivedMemory(args: {
     text: string;
@@ -363,7 +406,6 @@ export class PgvectorStore implements VectorStore {
     derivedFrom: readonly string[];
     scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string> {
-    const vectorLiteral = `[${args.embedding.join(',')}]`;
     const sql = `
       INSERT INTO memories (
         text, hash, embedding, payload,
@@ -379,7 +421,7 @@ export class PgvectorStore implements VectorStore {
     const result = await this.pool.query<{ id: string }>(sql, [
       args.text,
       args.hash,
-      vectorLiteral,
+      vectorLiteral(args.embedding),
       args.scope.userId ?? null,
       args.scope.sessionId ?? null,
       args.scope.agentId ?? null,
@@ -392,19 +434,19 @@ export class PgvectorStore implements VectorStore {
     return row.id;
   }
 
+  /** T3.1 / F3: skill CRUD delegated to {@link PgvectorSkillStore} (composition seam). */
+  async insertSkill(args: InsertSkillArgs): Promise<string> {
+    return this.skillStore.insertSkill(args);
+  }
+
+  async insertDerivedSkill(args: InsertDerivedSkillArgs): Promise<string> {
+    return this.skillStore.insertDerivedSkill(args);
+  }
+
   /**
-   * Look up the cached LLM-importance score for a memory by content hash.
-   *
-   * Per plan T5.2 + ADR D8: hash-keyed cache lookup is the v0.4a strategy for
-   * avoiding LLM re-invocation on identical-content writes. The
-   * memories_hash_unique_idx UNIQUE constraint guarantees at most one row per
-   * hash, so `LIMIT 1` is exact (not first-of-many).
-   *
-   * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories);
-   * collision-SAFE by virtue of v0.1's UNIQUE constraint — a collision would
-   * fail the UNIQUE insert BEFORE this lookup is reached on the cached row.
-   *
-   * @returns cached score in [1, 10] OR null when no row exists OR row has NULL score
+   * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories) —
+   * collision-SAFE by the UNIQUE constraint, so LIMIT 1 is exact.
+   * Returns score in [1, 10] OR null when no row OR row has NULL score.
    */
   async getImportanceByHash(hash: string): Promise<number | null> {
     const result = await this.pool.query<{ llm_importance_score: string | null }>(
@@ -424,6 +466,20 @@ export class PgvectorStore implements VectorStore {
       `UPDATE memories SET llm_importance_score = $1, updated_at = NOW() WHERE hash = $2`,
       [score, hash],
     );
+  }
+
+  async markSuperseded(
+    sourceIds: readonly string[],
+    supersededBy: string,
+  ): Promise<void> {
+    return this.skillStore.markSuperseded(sourceIds, supersededBy);
+  }
+
+  async insertDerivedSkillAtomic(
+    args: InsertDerivedSkillArgs,
+    sourceIdsToSupersede: readonly string[],
+  ): Promise<string> {
+    return this.skillStore.insertDerivedSkillAtomic(args, sourceIdsToSupersede);
   }
 
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
