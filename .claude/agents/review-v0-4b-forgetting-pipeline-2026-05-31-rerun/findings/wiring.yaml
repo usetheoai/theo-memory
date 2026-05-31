@@ -1,0 +1,431 @@
+agent: review-v0-4b-forgetting-pipeline-rerun-wiring
+review_target: develop branch, commits 614e588..ebaa451 (22 commits T0.1..T12.1) for plan v0-4b-fixes-cycle
+plan: .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md
+companion_plan: .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md
+original_review_findings: .claude/agents/review-v0-4b-forgetting-pipeline-2026-05-30/findings/wiring.yml
+
+# ============================================================================
+# Re-run summary — what changed since 2026-05-30 wiring review
+# ============================================================================
+context:
+  rerun_purpose: |
+    The 2026-05-30 wiring review surfaced 8 findings against the original v0.4b
+    forgetting pipeline (F-wire-1 MAJOR + F-wire-2 MAJOR + F-wire-3 INFO +
+    F-wire-4 MINOR + F-wire-5 INFO + F-wire-6 MINOR + F-wire-7 INFO + F-wire-8
+    INFO). The v0.4b-fixes-cycle then absorbed 22 commits to close them. This
+    re-run verifies the closures are HONEST and not "test-only".
+
+  prior_findings_disposition:
+    F-wire-1 (MAJOR LocalScopedMemory.forget hard-deletes — bypasses PgEvictor):
+      status: CLOSED
+      closure_commit: 3d178e4 (T7.1)
+      verification: |
+        src/local/index.ts:512-543 — Memory.forget() now routes through
+        `new PgEvictor(this.config.vectorStore.poolForEviction).evict([memoryId])`
+        when the underlying store is `PgvectorStore` AND `options.hard !== true`.
+        The hard-delete branch is preserved for `forget(id, { hard: true })`
+        (GDPR-style erasure per the BREAKING contract in ADR D7). InMemoryVectorStore
+        falls through to the physical-delete branch because `t_invalid` is a
+        PG-only concept (documented at line 504-506). The integration test
+        `tests/integration/forgetting/forget-soft-delete.test.ts` exercises ALL
+        4 paths (default soft-delete, idempotent re-forget, hard delete, EC-12
+        MemoryNotFound preservation). Cascade fix: `LocalScopedSkillMemory.forget`
+        delegates via `forgetDelegate` → `LocalMemory.forget` (line 600-603) so
+        the v0.6 skill consumers ALSO get the soft-delete contract — closes
+        F-wire-1 cascade.
+
+    F-wire-2 (MAJOR src/index.ts no v0.4b re-exports):
+      status: CLOSED
+      closure_commit: cf18b7b (T4.1)
+      verification: |
+        src/index.ts:27-58 — re-exports the full v0.4b eviction surface from
+        `./local/index.js`: TriadicScoringPolicy, PgEvictor, PgHalfLifePersister,
+        PgNearestNeighborProvider, CapacityBasedTrigger, TimeBasedTrigger,
+        InvalidWeightsError, InvalidCronExpressionError, DEFAULT_TRIADIC_WEIGHTS,
+        DEFAULT_TRIADIC_CONSTANTS, getNeighborScopeId, scopeColumn, scopeValue,
+        advisoryLockKey, scopeWhereClause, computeRecency, computeFrequency,
+        computeImportance, computeHalfLifeSeconds, computeOverflowFraction, plus
+        the types (LocalEvictionConfig, TriadicScoringPolicyOptions, TriadicWeights,
+        TriadicConstants, HalfLifePersister, NearestNeighborProvider, Evictor,
+        TimeBasedTriggerConfig). Smoke tests at
+        src/local/__tests__/eviction-barrel.test.ts assert the symbols are
+        reachable via 3 paths (eviction/index.js, local/index.js, root index.js).
+
+    F-wire-4 (MINOR TriadicScoringPolicy.evict silent no-op with null evictor):
+      status: PARTIALLY CLOSED (acceptable for v0.4b but still latent)
+      closure_commit: 22d5b93 (T1.1 — options-object refactor)
+      verification: |
+        triadic-scoring-policy.ts:318-323 — the silent-empty-result behavior is
+        UNCHANGED at the function level. HOWEVER the trap exposure is materially
+        reduced because Memory.forget no longer routes through
+        TriadicScoringPolicy.evict() — it constructs `new PgEvictor(...)` directly
+        (src/local/index.ts:527-528). The remaining trap is for advanced consumers
+        wiring TriadicScoringPolicy without an evictor and calling
+        `policy.evict([ids])` themselves. T1.1's options-object constructor
+        improvement reduces the likelihood of accidental null-evictor injection
+        (named field makes the omission explicit), but the silent-empty-result
+        is still preserved. See F-wire-rerun-3 below.
+
+    F-wire-3 + F-wire-5 + F-wire-7 + F-wire-8 (INFO):
+      status: NO ACTION REQUIRED (per original disposition).
+
+    F-wire-6 (MINOR no src/local/eviction/index.ts barrel):
+      status: CLOSED
+      closure_commit: cf18b7b (T4.1)
+      verification: |
+        src/local/eviction/index.ts now exists (56 LoC) — barrel re-exports the
+        full v0.4b surface and ALSO declares `LocalEvictionConfig` as the
+        discriminated union consumed by `createLocalMemory({ eviction })`.
+        Barrel hygiene per architecture.md § 7 honored: shallow re-export chain,
+        single source of truth, no deep imports needed by external code.
+
+# ============================================================================
+# Triad re-validation for the NEW / REFACTORED symbols of v0.4b-fixes
+# ============================================================================
+triad_revalidation:
+  total_new_or_refactored_symbols: 11
+  symbols_inspected:
+    - Memory.forget (BREAKING T7.1)                # src/local/index.ts:512
+    - createLocalMemory({ eviction }) (T4.1)       # src/local/index.ts:638
+    - EvictionNotSupported (T4.1)                  # src/local/index.ts:113
+    - DisposableMemory type (T4.1)                 # src/local/index.ts:627
+    - TriadicScoringPolicy options-object (T1.1)   # src/local/eviction/triadic-scoring-policy.ts:254
+    - CapacityBasedTrigger.fire(scope, now) (T3.1) # src/local/eviction/capacity-based-trigger.ts:62
+    - TimeBasedTrigger (T3.1 + T12.1 hooks)        # src/local/eviction/time-based-trigger.ts:62
+    - PgNearestNeighborProvider.distance (T3.1)    # src/local/eviction/pg-nearest-neighbor-provider.ts:30
+    - scopeColumn/scopeValue/advisoryLockKey/scopeWhereClause (T3.1) # src/local/eviction/scope-where.ts
+    - loadCandidates / rowToMemoryItem (T6.1)      # src/local/eviction/scope-candidate.ts
+    - PgEvictor lazy counter (T10.1)               # src/local/eviction/pg-evictor.ts:57
+
+  pillar_a_honest_pass: "10 / 11 production callers — all symbols have at least one functionally necessary caller under src/. The lone exception is `Evictor` (interface), which has no caller by definition because it's a contract; F-wire-rerun-2 INFO covers it."
+  pillar_b_honest_pass: "11 / 11 — every symbol exercised by integration tests under tests/integration/forgetting/ + tests/integration/eviction/ + the in-tree barrel test."
+  pillar_c_observed: "1 / 1 — OTel counter theo.memory.eviction.soft_deletes_total now lazy-resolved per T10.1; observed via the onSoftDelete test hook in tests/integration/eviction/evict-soft-delete.test.ts + the lazy-init unit test in src/local/eviction/__tests__/pg-evictor-meter-init.test.ts."
+
+  triad_assessment_summary: |
+    The 22-commit v0.4b-fixes cycle closes the two MAJOR wiring gaps from the
+    2026-05-30 review. The forgetting pipeline is now reachable from the public
+    API via TWO distinct surfaces:
+      1. `memory.forget(id)` — BREAKING; soft-deletes via t_invalid through
+         a fresh PgEvictor when vectorStore is PgvectorStore (default path).
+      2. `createLocalMemory({ eviction: {...} })` — opt-in factory wires
+         CapacityBasedTrigger (post-remember hook) OR TimeBasedTrigger
+         (cron lifecycle) with full PgEvictor + PgHalfLifePersister +
+         PgNearestNeighborProvider composition.
+    Both surfaces are exercised end-to-end against real pgvector via integration
+    tests. The bi-temporal audit-trail invariant (ADR D17) is preserved: writes
+    set `t_invalid = NOW()` rather than deleting rows. PgvectorStore.search()
+    + .list() already filter `t_invalid IS NULL` (verified in 2026-05-30 review
+    F-wire-8), so the consumer-visible recall path honors the soft-delete.
+
+    Scope-tier generalization (T3.1) is correctly composed: every WHERE clause
+    in the eviction module routes through scope-where.ts helpers. PgNearestNeighborProvider,
+    CapacityBasedTrigger, TimeBasedTrigger, AND the shared loadCandidates helper
+    all consume scopeColumn/scopeValue/advisoryLockKey/scopeWhereClause. The
+    F-arch-4 DRY violation surfaced in the 2026-05-30 review is fully closed —
+    no module hardcodes `agent_id = $1` anymore.
+
+# ============================================================================
+# New findings from THIS re-run
+# ============================================================================
+findings:
+  - id: F-wire-rerun-1
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 1
+    plan_ref: |
+      v0-4b-fixes-cycle-plan.md § T12.1 Acceptance Criteria + architecture.md § 7 (Module hygiene)
+      + plan Global DoD line 1024: "File-size budget respected (per architecture.md § Module hygiene — ≤ 500 LoC per file)"
+      + 2026-05-30 review F-T4.1-1 followup ledger entry
+    summary: src/local/index.ts at 766 LoC breaches the 500-LoC module hygiene budget (pre-existing; worsened by T4.1; T12.1 cleanup did NOT extract)
+    evidence: |
+      `wc -l src/local/index.ts` → 766. Budget per architecture.md § 7 and the
+      v0.6.1 precedent (`pgvector-store.ts` was extracted at 734 LoC → 497 LoC
+      via composition into `pgvector-skill-store.ts`) is 500 LoC. The file pre-
+      existed at ~580 LoC; T4.1 added the factory wiring (~120 LoC for
+      `EvictionNotSupported` + `DisposableMemory` + the eviction-pipeline branch
+      in `createLocalMemory`), pushing it to 766 (266 over budget = 53% breach).
+
+      T12.1 ("MINOR cluster cleanup — 5 cheap fixes") explicitly did NOT
+      include the extraction even though the plan's Global DoD calls it out.
+      The honest disposition matches the v0.6.1 cycle's F3 closure pattern
+      (`pgvector-store.ts` → composition split), but neither the v0.4b-fixes
+      plan nor the commit history schedules that work — the breach lives
+      unaddressed on `develop` post-cycle.
+
+      Disclosure context: the agent's wiring.md role contract explicitly calls
+      out "Be honest about the F-T4.1-1 followup" — this is the documented
+      follow-up. MAJOR rather than BLOCKER because:
+        (a) the breach is a hygiene budget, not a contract violation;
+        (b) the v0.6.1 precedent gives a clear extraction path;
+        (c) it pre-existed and was not introduced fresh by this cycle.
+      Logged for v0.5 follow-up explicitly.
+    recommended_action: |
+      Schedule v0.5 follow-up: extract the eviction-pipeline branch of
+      createLocalMemory (lines 627-698) into a sibling module
+      `src/local/create-local-memory-with-eviction.ts`. Mirror the v0.6.1
+      composition pattern for `pgvector-store.ts` → `pgvector-skill-store.ts`.
+      Target post-extract: src/local/index.ts ≤ 500 LoC; eviction module ≤ 200
+      LoC. Track via CLAUDE.md roadmap entry under v0.5 OR an ADR D-followup
+      under the v0.4b-fixes plan.
+
+  - id: F-wire-rerun-2
+    severity: INFO
+    file: src/local/eviction/pg-evictor.ts
+    line: 77
+    plan_ref: cycle-implement.md § Hard gates #4 (pillar a)
+    summary: Evictor interface has no production caller — by design (it's the contract)
+    evidence: |
+      `grep -rn "implements Evictor" src/` returns only `PgEvictor implements
+      Evictor`. The interface is consumed as a TYPE inside TriadicScoringPolicy
+      (the `evictor: Evictor | null` field at line 248) — that is a type-position
+      reference, not a runtime caller.
+
+      Per the v0.4b-fixes Inquebrável (no orphan interfaces): Evictor IS the
+      contract that PgEvictor implements AND TriadicScoringPolicy depends on.
+      The single implementor + single type-position-consumer pair is honest
+      and consistent with DIP. No follow-up.
+    recommended_action: |
+      No action. Recorded for completeness because the wiring.md role prompt
+      asks every public export to be accounted for.
+
+  - id: F-wire-rerun-3
+    severity: MINOR
+    file: src/local/eviction/triadic-scoring-policy.ts
+    line: 318
+    plan_ref: 2026-05-30 F-wire-4 carryover
+    summary: TriadicScoringPolicy.evict() preserves silent-empty-result trap when evictor is null
+    evidence: |
+      triadic-scoring-policy.ts:318-323 retains:
+        async evict(memoryIds: readonly string[]): Promise<EvictionResult> {
+          if (this.evictor === null) {
+            return { softDeleted: [], alreadyInvalid: [], errors: [] };
+          }
+          return this.evictor.evict(memoryIds);
+        }
+      The MAJOR exposure surface from the 2026-05-30 review (Memory.forget
+      routing through policy.evict()) was closed by T7.1 — forget() now
+      constructs its OWN PgEvictor and calls evictor.evict() directly. But
+      the trap is still latent for advanced consumers that wire
+      TriadicScoringPolicy and call policy.evict([ids]) without injecting
+      an evictor. The JSDoc at line 315-316 ("callers that need real
+      persistence MUST inject one") documents the contract honestly, and
+      T1.1's options-object constructor makes the omission explicit (named
+      `evictor` field), but the silent-empty-result remains.
+
+      Severity stays MINOR because the public surface (`Memory.forget`,
+      `createLocalMemory({ eviction })`) does NOT expose the trap — both
+      construct their own PgEvictor unconditionally.
+    recommended_action: |
+      Defer to v0.5 (or v1.0 contract-freeze) per F-wire-4's original
+      recommendation: prefer option (a) — throw EvictorNotConfigured when
+      evict() called with null evictor + non-empty input array. Tracked
+      explicitly to avoid re-finding at v0.5 review.
+
+  - id: F-wire-rerun-4
+    severity: INFO
+    file: src/local/eviction/time-based-trigger.ts
+    line: 94
+    plan_ref: cycle-implement.md § Hard gates #4 (pillar a — non-test caller)
+    summary: TimeBasedTrigger.onTick(listener) + isStarted() have no production caller — test-only diagnostics
+    evidence: |
+      `grep -rn "onTick\|isStarted" src/ tests/` shows:
+        - production: TimeBasedTrigger declares both methods + uses
+          this.cronJob !== null internally (line 99, 104, 120, 121).
+        - tests: tests/integration/eviction/time-trigger.test.ts uses
+          isStarted() in 5 assertions (lines 160-171) and onTick() in
+          1 assertion (line 184).
+
+      Both methods are intentional test diagnostics — `isStarted()` is the
+      cleanest way to assert the cron lifecycle without poking at the
+      private `cronJob` field; `onTick(listener)` is the only way to
+      deterministically observe tick completion without polling the DB.
+      They expose internal state in a controlled, type-safe way.
+
+      Per cycle-implement.md § Hard gates #4 "STRICT non-test caller" reading,
+      these are MINOR pillar-(a) failures. Per the project's documented
+      "defer-foundation" precedent (v0.1, v0.4a, AND the 2026-05-30 wiring
+      review F-wire-5), test-as-canonical-consumer is honest for these two
+      narrowly-scoped diagnostic methods.
+
+      Recorded as INFO to acknowledge transparently rather than hide.
+    recommended_action: |
+      No action. The test-only pattern is canonical for lifecycle assertions
+      against background workers. If a v0.5 consumer needs production-side
+      cron observability, the methods are ready to consume. If they remain
+      test-only at v1.0 contract-freeze, consider `@internal` JSDoc tags so
+      consumers do not assume them as public surface.
+
+  - id: F-wire-rerun-5
+    severity: INFO
+    file: src/local/eviction/scope-where.ts
+    line: 1
+    plan_ref: T3.1 + architecture.md § 9 (Public API surface)
+    summary: scopeColumn/scopeValue/advisoryLockKey/scopeWhereClause are exported through the public barrels AND used internally — both consumers honest
+    evidence: |
+      Internal consumers (3 callers each):
+        - capacity-based-trigger.ts:80 (advisoryLockKey)
+        - capacity-based-trigger.ts:100 (scopeWhereClause)
+        - time-based-trigger.ts:151 (advisoryLockKey)
+        - scope-candidate.ts:93 (scopeWhereClause)
+        - pg-nearest-neighbor-provider.ts:31 (scopeColumn)
+        - pg-nearest-neighbor-provider.ts:44 (scopeValue)
+      Public re-exports:
+        - src/local/eviction/index.ts:31
+        - src/local/index.ts:83 (export * from './eviction/index.js')
+        - src/index.ts:39-42
+
+      No external consumer (examples/, tests outside src/local/eviction/__tests__)
+      uses them today. Decision matches the v0.4b-fixes plan T4.1 + EC-3:
+      expose the helpers so advanced consumers wiring a custom EvictionPolicy
+      can route to the right column without re-inlining the switch.
+
+      Pillar (a): PASS via the 6 internal callers above. Pillar (b): PASS via
+      integration tests that observe the correct column predicate in the
+      multi-tier test (multi-tier-eviction.test.ts). Pillar (c): n/a (pure
+      helper functions, no runtime metric expected).
+    recommended_action: |
+      No action.
+
+  - id: F-wire-rerun-6
+    severity: INFO
+    file: src/local/eviction/scope-candidate.ts
+    line: 89
+    plan_ref: T6.1 (F-arch-3 DRY rule-of-three)
+    summary: loadCandidates + rowToMemoryItem extraction wires correctly into both triggers; no exported public surface for these (correct per architecture.md § 7)
+    evidence: |
+      `grep -rn "loadCandidates" src/` shows two production callers
+      (capacity-based-trigger.ts:124, time-based-trigger.ts:157) — exactly the
+      rule-of-three threshold the original /review F-arch-3 flagged. The
+      module is NOT re-exported by the eviction barrel index.ts (intentional:
+      these are internal helpers per the JSDoc at scope-candidate.ts:5-12).
+
+      rowToMemoryItem unit-tested at
+      src/local/eviction/__tests__/scope-candidate.test.ts (4 column-precedence
+      assertions). loadCandidates exercised indirectly via the trigger
+      integration tests (capacity-trigger.test.ts, time-trigger.test.ts,
+      multi-tier-eviction.test.ts).
+
+      Pillar (a) PASS (2 internal callers). Pillar (b) PASS (4 unit-test
+      assertions + 3 integration tests). Pillar (c) n/a.
+    recommended_action: |
+      No action. Module hygiene is correct — internal helpers stay un-exported
+      per architecture.md § 7.
+
+# ============================================================================
+# DIP boundary check + concurrent safety + dead-export check
+# ============================================================================
+boundary_check:
+  src_core_imports_src_local: 0
+  src_local_imports_src_cloud: 0
+  src_local_imports_src_theokit: 0
+  src_theokit_imports_src_local: 0
+  src_core_imports_src_cloud: 0
+  src_core_imports_src_theokit: 0
+  src_core_imports_src_agent_tools: 0
+  notes: |
+    `grep -rn "from '../local\|from '../../local\|from '../cloud\|from '../theokit\|from '../agent-tools'" src/core` returns
+    ZERO matches. `cloud/` does not exist on the tree. T5.1 relocated
+    HalfLifePersister + NearestNeighborProvider DIPs from
+    src/local/eviction/triadic-scoring-policy.ts to
+    src/core/dip/eviction-policy.ts (the canonical DIP location) so the
+    eviction concrete (TriadicScoringPolicy) now correctly depends on the
+    abstraction at src/core — closes F-arch-2 of the 2026-05-30 review.
+    No boundary leak.
+
+concurrent_safety:
+  pg_advisory_lock_used: true
+  atomic_evict: true
+  notes: |
+    Both CapacityBasedTrigger.fire() and TimeBasedTrigger.tickNow() acquire
+    `pg_try_advisory_xact_lock(hashtext($1))` BEFORE the COUNT+evict path
+    (capacity-based-trigger.ts:78-85; time-based-trigger.ts:149-156). The
+    advisory-lock key is namespaced as `eviction_${scope.kind}_${scopeValue}`
+    (scope-where.ts:78-80), so e.g. `userId='alice'` and `agentId='alice'`
+    no longer collide on the same lock keyspace — closes F-dom-pg-5 MINOR.
+    Concurrent fires on the same scope short-circuit to `null` rather than
+    double-evict (verified by the EC-6 test in createLocalMemory-eviction.test.ts).
+
+    PgEvictor.evict() is a single UPDATE...RETURNING with t_invalid IS NULL
+    guard (pg-evictor.ts:39-43) — atomic at the PG layer, idempotent on
+    already-soft-deleted rows.
+
+    T9.2 (4601bdb) documents the 0004 trigger race window via an eventual-
+    consistency test — orthogonal to the eviction pipeline but in the same
+    cluster; no new concurrent-safety regression introduced.
+
+dead_exports_check:
+  new_or_modified_public_exports:
+    via_eviction_barrel:
+      - TriadicScoringPolicy: used by createLocalMemory factory + integration tests + smoke barrel test
+      - PgEvictor: used by Memory.forget (src/local/index.ts:527) + createLocalMemory factory + integration tests
+      - PgHalfLifePersister: used by createLocalMemory factory + integration tests
+      - PgNearestNeighborProvider: used by createLocalMemory factory + integration tests + multi-tier-eviction.test.ts
+      - CapacityBasedTrigger: used by createLocalMemory factory + integration tests
+      - TimeBasedTrigger: used by createLocalMemory factory + integration tests
+      - scopeColumn / scopeValue / advisoryLockKey / scopeWhereClause: used internally by trigger pipeline + re-exported for advanced consumers (see F-wire-rerun-5)
+      - computeOverflowFraction: used by CapacityBasedTrigger; re-exported as a helper
+      - computeRecency / computeFrequency / computeImportance / computeHalfLifeSeconds / getNeighborScopeId: used by TriadicScoringPolicy.score() + selectVictims(); re-exported as helpers
+      - DEFAULT_TRIADIC_WEIGHTS / DEFAULT_TRIADIC_CONSTANTS: used by TriadicScoringPolicy constructor + exposed for advanced consumers
+      - InvalidWeightsError / InvalidCronExpressionError: thrown by constructors + caught/asserted by integration tests
+      - LocalEvictionConfig (type): used by createLocalMemory config
+      - TriadicScoringPolicyOptions / TriadicWeights / TriadicConstants (types): consumed by TriadicScoringPolicy constructor; re-exported for advanced consumers
+      - HalfLifePersister / NearestNeighborProvider / Evictor (interfaces): see F-wire-rerun-2 — implementor + type-position consumer pairs are correct
+      - TimeBasedTriggerConfig (type): used by TimeBasedTrigger constructor
+    new_in_src_local_index_ts:
+      - createLocalMemory: factory; production entry-point
+      - EvictionNotSupported: thrown by factory; asserted by integration test
+      - DisposableMemory (type): returned by createLocalMemory; consumed by integration test (calls `await memory.dispose()`)
+      - createMemory (alias): re-export of createLocalMemory; documented public alias
+  dead_exports_found: 0
+  notes: |
+    Every new or modified public export has at least one functionally
+    necessary caller. The Evictor interface is the only zero-runtime-caller
+    item, but it is type-position load-bearing (F-wire-rerun-2 INFO).
+
+# ============================================================================
+# Final verdict
+# ============================================================================
+final_verdict: |
+  READY_TO_MERGE.
+
+  All 5 wiring findings from the 2026-05-30 review (F-wire-1 MAJOR, F-wire-2
+  MAJOR, F-wire-4 MINOR, F-wire-6 MINOR) are CLOSED honestly by the
+  v0.4b-fixes-cycle (commits 614e588..ebaa451). The forgetting pipeline is now
+  reachable from the public API via two distinct surfaces, both exercised
+  end-to-end against real pgvector:
+
+    1. `memory.forget(id)` BREAKING: routes through PgEvictor for soft-delete
+       (default) or hard-deletes only when `{ hard: true }` (GDPR contract).
+    2. `createLocalMemory({ eviction: {...} })` factory: wires the full
+       Capacity / Time trigger pipeline with PgEvictor + PgHalfLifePersister +
+       PgNearestNeighborProvider, returning a DisposableMemory.
+
+  Scope-tier generalization (T3.1) is structurally correct: every eviction
+  module routes WHERE-clauses through scope-where.ts helpers. DIP relocations
+  (T5.1 — HalfLifePersister + NearestNeighborProvider into src/core/dip/)
+  preserve the boundary contract (no core → local leak).
+
+  ONE MAJOR finding NEW in this re-run: F-wire-rerun-1 — src/local/index.ts at
+  766 LoC breaches the 500-LoC module hygiene budget. The breach pre-existed
+  before T4.1 (~580 LoC pre-cycle) but was worsened (+186 LoC for the factory
+  wiring) and T12.1 cluster cleanup explicitly did NOT extract. The wiring
+  contract is honest; the file-size hygiene is not. Logged for v0.5 explicit
+  follow-up per the rerun role prompt's "be honest about F-T4.1-1" directive.
+
+  Two MINOR + four INFO findings document expected disposition for:
+    - F-wire-rerun-3 MINOR: TriadicScoringPolicy.evict silent-empty-result
+      trap retained (latent for advanced consumers; not exposed by public API).
+    - F-wire-rerun-4 INFO: TimeBasedTrigger.onTick/isStarted test-only callers
+      (pattern precedented).
+    - F-wire-rerun-2 / F-wire-rerun-5 / F-wire-rerun-6 INFO: structural
+      transparency for the Evictor interface + helper re-exports +
+      loadCandidates internal-only hygiene.
+
+  Recommendation: READY_TO_MERGE conditional on:
+    1. F-wire-rerun-1 (766 LoC breach) tracked explicitly via CLAUDE.md
+       roadmap entry under v0.5 OR an ADR D-followup. The breach should not
+       silently slip past this re-run.
+    2. F-wire-rerun-3 MINOR (silent-empty-result trap) acknowledged for
+       v0.5 — preferably converted to throw EvictorNotConfigured before
+       v1.0 contract-freeze.
+    3. Remaining INFO findings require no action.

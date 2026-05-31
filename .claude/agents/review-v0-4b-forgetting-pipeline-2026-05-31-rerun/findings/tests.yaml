@@ -1,0 +1,471 @@
+agent: review-v0-4b-forgetting-pipeline-rerun-tests
+review_target: main..HEAD for plan v0-4b-forgetting-pipeline-rerun (post v0-4b-fixes-cycle 614e588..ebaa451)
+plan: .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md
+empirical_baseline:
+  npm_test: "544 passing / 546 total (2 skipped: 1 contract; 1 file env-gated skipif)"
+  npm_test_integration_eviction_forgetting: "67/67 PASS"
+  pre_existing_failures_documented:
+    - "F3.5 — memories_kind_derived_from_check NULL semantics (pre-v0.4b)"
+    - "F3.6 — threshold-policy.test.ts pool setup (pre-v0.4b)"
+  source: .claude/knowledge-base/implementations/v0-4b-forgetting-pipeline-followups.md
+test_pyramid:
+  unit_added_in_fixes: 5  # get-neighbor-scope-id + pg-evictor-meter-init + scope-candidate + triadic-scoring-options + eviction-barrel
+  integration_added_in_fixes: 12  # db-push/missing-psql + db-push/trigger-applied + lifecycle-hooks + multiplier-tier-coverage + multi-tier-eviction + trigger-race-window + createLocalMemory-eviction + forget-soft-delete + migrations/idempotency + migrations/repair-partial-state + deterministic-hash unit + deterministic-hash helper
+  e2e_added_in_fixes: 0
+  total_files_added_in_fixes: 17
+  total_test_files_added_main_to_HEAD: 56  # incl. original v0.4b cycle
+  pyramid_shape: HEALTHY  # consistent with original v0.4b: integration-tier-heavy because every meaningful eviction path touches pgvector cosine + advisory locks. testing.md § Pyramid honestly satisfied per F-dom-8 doctrine.
+edge_cases_from_plan_v1_3:
+  covered: 13
+  covered_list:
+    - "EC-1 (T0.1 unclean throwaway DB) — tests/integration/migrations/journal-sync.test.ts"
+    - "EC-2 (T1.1 isOptionsObject undefined first-arg) — src/local/eviction/__tests__/triadic-scoring-options.test.ts"
+    - "EC-3 (T7.1 PUBLIC API BREAKING soft-delete contract) — tests/integration/forgetting/forget-soft-delete.test.ts line 110 (raw SELECT returns 1 row, NOT 0)"
+    - "EC-4 reversal (T11.1 IF NOT EXISTS kept) — tests/integration/migrations/repair-partial-state.test.ts"
+    - "EC-7 (T9.1 2-roundtrip NN runtime ≤ 30s) — covered by goal-test wall-clock baseline 22s preserved; F-tests-NEW-2 below"
+    - "EC-8 (T11.2 same-seed byte-identical recall@10) — tests/integration/forgetting/fixtures/__tests__/deterministic-hash.test.ts line 38"
+    - "EC-10 (T7.1+T13.1 re-loop trigger documented inline) — N/A test; documented in plan T13.1 line 957"
+    - "EC-11 (T9.2 trigger race window) — tests/integration/eviction/trigger-race-window.test.ts"
+    - "T7.2 multiplier User+Session tier coverage — tests/integration/eviction/multiplier-tier-coverage.test.ts (2 tests)"
+    - "T10.1 lazy meter init — src/local/eviction/__tests__/pg-evictor-meter-init.test.ts (2 tests)"
+    - "T12.1 lifecycle hooks fire from CapacityBasedTrigger — tests/integration/eviction/lifecycle-hooks.test.ts (2 tests)"
+    - "T7.1 hard:true preserves GDPR contract — tests/integration/forgetting/forget-soft-delete.test.ts line 128"
+    - "T7.1 forget idempotency — tests/integration/forgetting/forget-soft-delete.test.ts line 92"
+  missing_or_partial:
+    - "T12.1 TimeBasedTrigger lifecycle-hooks NOT exercised — only CapacityBasedTrigger tested (plan T12.1 § TDD requires capacity only, so plan-compliant but coverage gap)"
+    - "T7.1 cascade impact on v0.6 ScopedSkillMemory.forget() NOT integration-tested (JSDoc src/local/index.ts:499-501 declares cascade; no test verifies soft-delete via skill memory path)"
+    - "T7.1 InMemoryVectorStore preserves v0.1 hard-delete (JSDoc src/local/index.ts:503-506 claims this; no test asserts the divergence)"
+    - "T10.1 'consumer registers MeterProvider after import' label not actually exercised in the test body — assertion is just call-count-based (lazy-init verified, but the named scenario doesn't run setGlobalMeterProvider)"
+
+findings:
+  - id: F-tests-NEW-1
+    severity: MAJOR
+    file: tests/integration/eviction/{capacity-trigger,time-trigger,lazy-half-life,evict-soft-delete,multiplier-integration,nearest-neighbor,trigger-race-window}.test.ts + tests/integration/forgetting/{guardrail-long-tail,recall-bookkeeping,forget-soft-delete}.test.ts
+    line: |
+      capacity-trigger.test.ts:75, time-trigger.test.ts:100, lazy-half-life.test.ts:70,
+      evict-soft-delete.test.ts:51, multiplier-integration.test.ts:158,
+      nearest-neighbor.test.ts:55, trigger-race-window.test.ts:51,
+      guardrail-long-tail.test.ts:78 + 98, recall-bookkeeping.test.ts:55,
+      forget-soft-delete.test.ts:51
+    plan_ref: 'T11.2 § Files to edit — "tests/integration/eviction/*.test.ts (~10 files) — UPDATE deterministic seed counter for hash column"'
+    summary: |
+      T11.2 plan v1.3 § Files to edit declares "tests/integration/eviction/*.test.ts (~10 files) — UPDATE:
+      deterministic seed counter for hash column". The shipped commit (4a19bea) only touched
+      rare-target-seed.ts (1 file) + docs/forgetting-evaluation/run.ts. 11 Math.random() sites remain
+      across the original v0.4b test surface — the very sites enumerated in /review's original F-tests-1.
+      The commit body documents the rationale ("per-test prefix conventions are already unique within a
+      test scope — the Math.random() suffix was redundant + actively harmful to debuggability") and
+      acknowledges this conscious divergence. However:
+        1. lazy-half-life.test.ts:70 (`h-${Math.random().toString(36).slice(2)}`) and similar bare-prefix
+           sites have NO per-test prefix structure — they DO rely on Math.random() for uniqueness.
+        2. multiplier-tier-coverage.test.ts:96+111 (NEW T7.2 test file shipped in this very cycle)
+           introduces Date.now() suffixes — a NEW non-determinism source the fixes cycle could have
+           prevented.
+        3. The plan declared "(~10 files)" as the resolution scope; the actual delta covered 1.
+      The commit message's rationale defends 9 of the 11 sites; sites 1+10 (lazy-half-life.test.ts:70 +
+      forget-soft-delete.test.ts:51 using Date.now()+Math.random()) genuinely depend on randomness for
+      uniqueness rather than carrying a per-test prefix counter.
+    evidence: |
+      grep -rn 'Math.random' tests/integration/eviction tests/integration/forgetting | wc -l → 11
+      git show 4a19bea --stat → only 5 files touched (1 test fixture, 1 doc, 1 changelog, 2 new helpers)
+      Plan v1.3 § T11.2 line 891-892 → "tests/integration/eviction/*.test.ts (~10 files)"
+      Commit 4a19bea body line ~10-15 → conscious divergence rationale
+    recommended_action: |
+      OPTIONAL — close partially in a follow-up MINOR cleanup PR by either:
+        (a) extending the rationale to the 2 sites without prefix structure (lazy-half-life.test.ts:70 +
+            forget-soft-delete.test.ts:51) using the new makeHashCounter helper, OR
+        (b) amending plan v1.3 § T11.2 to explicitly scope the cleanup to "fixtures only" since the
+            per-test prefix sites are already unique-by-construction.
+      Not a release blocker — the v0.4b-fixes test runs are deterministic in observable outcomes
+      (all 67/67 integration tests PASS; goal-test recall@10 = 1.000 preserved). The new T7.2
+      multiplier-tier-coverage.test.ts introducing Date.now() (NEW regression source) is the most
+      load-bearing of the 11; consider patching that one inline before the PR lands.
+
+  - id: F-tests-NEW-2
+    severity: MAJOR
+    file: tests/integration/forgetting/triadic-eviction.test.ts (THE GOAL TEST — verbatim CLAUDE.md Item 6 acceptance)
+    line: 42 (RECALL_AT_10_THRESHOLD = 0.7); fixture rare-target-seed.ts:14-25 (topology forces recall@10 = 1.0 by construction)
+    plan_ref: CLAUDE.md § Macro roadmap Item 6 acceptance verbatim + plan T7.1 § Deep Dives line 898
+    summary: |
+      The original review's F-tests-7 (INFO-level) and the v0.4b-fixes plan acknowledge that THE GOAL
+      TEST's topology forces recall@10 = 1.0 BY CONSTRUCTION (all 1000 memories share identical base
+      score; the long-tail multiplier is the SOLE discriminator; bottom 30% by score = 300 cluster
+      members; all 50 rare survive). The 0.70 threshold is therefore not a contested empirical bound
+      under this topology — it's a load-bearing check that the multiplier wired correctly, NOT that
+      the algorithm hits a contested threshold on heterogeneous workloads.
+      The fixes cycle had an opportunity to either (a) add a heterogeneous-workload variant
+      (heterogeneous lastAccessedAt × access_count × importance) asserting a weaker but more general
+      recall@10 ≥ 0.50 signal, OR (b) update docs/forgetting-evaluation.md § Caveat to make the
+      topology-forced-1.0 explicit in the public artifact. Neither happened; the original honesty
+      gap surfaced by F-tests-7 persists. Re-promoting to MAJOR because the GOAL TEST is the
+      acceptance gate the v0.4b ship narrative leans on most heavily.
+    evidence: |
+      tests/integration/forgetting/triadic-eviction.test.ts:42 → RECALL_AT_10_THRESHOLD = 0.7
+      fixtures/rare-target-seed.ts:14-26 → "All 50 rare targets survive → recall@10 on rare queries = 1.0"
+      docs/forgetting-evaluation.md (unchanged in fixes cycle)
+      Original /review F-tests-7 (INFO-level) at .claude/agents/review-v0-4b-forgetting-pipeline-2026-05-30/findings/tests.yml:96-107
+    recommended_action: |
+      Track as v0.4b.1 follow-up:
+        (a) Add tests/integration/forgetting/triadic-eviction-heterogeneous.test.ts with non-uniform
+            seed distributions (varied lastAccessedAt × access_count × importance) asserting
+            recall@10 ≥ 0.50 — a weaker but more honest general-purpose claim, OR
+        (b) Tighten docs/forgetting-evaluation.md § Caveats § (d) to call out the by-construction
+            determinism explicitly.
+      Not a release blocker — CLAUDE.md Item 6 acceptance text is satisfied verbatim. The 0.70
+      threshold IS validated; the honest framing of WHAT it validates is the gap. v0.4b can ship
+      with this caveat documented in the PR description as "GOAL TEST verifies multiplier wiring
+      end-to-end; heterogeneous-workload generalization deferred to v0.4b.1".
+
+  - id: F-tests-NEW-3
+    severity: MAJOR
+    file: src/local/eviction/__tests__/pg-evictor-meter-init.test.ts
+    line: 27 (test name claim) vs 27-49 (test body)
+    plan_ref: T10.1 § TDD — "test_meter_resolves_after_consumer_provider_registration"
+    summary: |
+      The plan T10.1 RED test name is "test_meter_resolves_after_consumer_provider_registration" —
+      the failure mode is "consumer registers MeterProvider AFTER importing @usetheo/memory". The
+      shipped test is named "resolves metrics.getMeter() on the FIRST evict() call, not at module
+      load" — which is a different (weaker) claim. The test body verifies:
+        1. Construction does NOT call getMeter (correct — module-load lazy-init verified).
+        2. evict([]) does NOT call getMeter (EC-10 short-circuit verified).
+      But it NEVER actually exercises the "consumer-registers-provider-AFTER-import" sequence:
+        - No call to `metrics.setGlobalMeterProvider(newProvider)` after import.
+        - No assertion that emissions route to `newProvider` instead of the default no-op.
+      The test exercises LAZY init (correct) but not the F-dom-6-named failure mode (consumer-
+      registered-after-import). The lazy-init invariant IS necessary for the F-dom-6 fix to work, so
+      the test is not lying — it just doesn't cover the named scenario verbatim. This is a TEST-LABEL
+      MISMATCH per testing.md § BDD "describe behavior, not method".
+    evidence: |
+      Plan T10.1 § TDD line 779 → "RED: test_meter_resolves_after_consumer_provider_registration"
+      pg-evictor-meter-init.test.ts:27 → "resolves metrics.getMeter() on the FIRST evict() call"
+      pg-evictor-meter-init.test.ts:32-48 → no setGlobalMeterProvider() call; no provider-routing
+        assertion
+      Compare to e.g. /opentelemetry/api docs showing how MeterProvider routing is verified:
+        spy on `provider.getMeter().createCounter().add()` — not on `metrics.getMeter()` itself.
+    recommended_action: |
+      Add a 3rd test in the same file:
+        ```ts
+        it('emits to consumer-registered MeterProvider when registered after import (F-dom-6)', async () => {
+          const { metrics, NoopMeterProvider } = await import('@opentelemetry/api');
+          // ... construct PgEvictor, register provider AFTER, run evict, assert add() called on
+          // the registered provider's counter — not on the no-op default.
+        });
+        ```
+      ~15 LoC. Closes the named scenario for the next review cycle. Optional for v0.4b ship —
+      the lazy-init invariant IS verified; the named scenario is structurally implied by it.
+
+  - id: F-tests-NEW-4
+    severity: MAJOR
+    file: tests/integration/eviction/lifecycle-hooks.test.ts
+    line: 101-137 (test body covers CapacityBasedTrigger only)
+    plan_ref: T12.1 § Files to edit — both CapacityBasedTrigger + TimeBasedTrigger wire lifecycle hooks; T12.1 § TDD declares 2 RED tests for capacity only
+    summary: |
+      The fix (commit ebaa451) correctly wires onEvictionStart + onEvictionEnd at BOTH
+      capacity-based-trigger.ts:117/140 AND time-based-trigger.ts:165/191. The integration test only
+      exercises CapacityBasedTrigger. Plan T12.1 § TDD line 919-920 only required capacity tests
+      (so plan-compliant), but the symmetric wiring at TimeBasedTrigger goes untested. F-xval-2 closed
+      the dead-lifecycle-hooks finding for CapacityBasedTrigger; TimeBasedTrigger's hook wiring is
+      structurally identical but uncovered. A regression that breaks TimeBasedTrigger's hook
+      invocation (e.g., a future refactor of the cron callback) would not surface in CI.
+    evidence: |
+      grep -n "onEvictionStart\|onEvictionEnd" src/local/eviction/time-based-trigger.ts → lines 165-193
+      tests/integration/eviction/lifecycle-hooks.test.ts → no `TimeBasedTrigger` import
+      Plan T12.1 line 919-920 → "RED: test_onEvictionStart_invoked_by_capacity_trigger"
+    recommended_action: |
+      Add a 3rd test in the same file using TimeBasedTrigger with tickNow() (the deterministic
+      cron entry point established at T5.2):
+        ```ts
+        it('onEvictionStart + onEvictionEnd fire from TimeBasedTrigger via tickNow()', async () => {
+          // similar TracingPolicy + 6 seed rows + time-trigger.tickNow() instead of trigger.fire()
+        });
+        ```
+      ~25 LoC. Optional for v0.4b ship — symmetric wiring is verified by hand; CI gap exists but
+      surface is small.
+
+  - id: F-tests-NEW-5
+    severity: MINOR
+    file: tests/integration/eviction/multiplier-tier-coverage.test.ts
+    line: 96 (`h-t7-2-isolated-${scopeColumn}-${Date.now()}`); 111 (`h-t7-2-clustered-${scopeColumn}-${i}-${Date.now()}`)
+    plan_ref: T7.2 + T11.2 — NEW non-determinism source introduced by the fix cycle
+    summary: |
+      The NEW T7.2 multiplier-tier-coverage.test.ts (commit f95322c) introduces Date.now() suffixes
+      for hash uniqueness. This is exactly the kind of non-deterministic seed pattern T11.2 was
+      meant to retire. While Date.now() is more debuggable than Math.random() (re-running at the
+      same millisecond would collide; rarer than random), it's strictly weaker than the
+      `${scopeColumn}-${i}` per-test-prefix conventions used elsewhere in the v0.4b suite. The
+      makeHashCounter helper shipped by T11.2 is available; this test should consume it OR drop the
+      Date.now() entirely (the `i` index in the cluster loop is already unique per row; the
+      isolated row has only ONE per scope).
+    evidence: |
+      tests/integration/eviction/multiplier-tier-coverage.test.ts:96, 111 → Date.now() suffixes
+      tests/integration/forgetting/fixtures/deterministic-hash.ts → `makeHashCounter` helper available
+    recommended_action: |
+      Replace Date.now() with deterministic suffixes:
+        - line 96: `t7-2-isolated-${scopeColumn}` (no suffix needed — beforeEach DELETE makes it unique)
+        - line 111: `t7-2-clustered-${scopeColumn}-${i}` (already has `i`)
+      ~2 LoC change. MINOR severity because beforeEach DELETE makes cross-run collision impossible.
+
+  - id: F-tests-NEW-6
+    severity: MINOR
+    file: tests/integration/forgetting/forget-soft-delete.test.ts
+    line: 51 (`t7-1-hash-${Date.now()}-${Math.random()}`)
+    plan_ref: T7.1 + T11.2 — same pattern as F-tests-NEW-5
+    summary: |
+      The NEW T7.1 forget-soft-delete.test.ts (commit 3d178e4) uses both Date.now() AND Math.random()
+      for hash uniqueness on the seed insert. This is the strongest non-determinism source in the
+      v0.4b-fixes new test surface. seedRow() is called multiple times per test, so a deterministic
+      counter is required for uniqueness — but makeHashCounter is the right tool.
+    evidence: |
+      tests/integration/forgetting/forget-soft-delete.test.ts:51 → `${Date.now()}-${Math.random()}`
+    recommended_action: |
+      Convert to a local counter:
+        ```ts
+        let seedN = 0;
+        async function seedRow(): Promise<string> {
+          const n = seedN++;
+          const hash = `t7-1-hash-${n}`;
+          // ...
+        }
+        ```
+      And reset `seedN = 0` in beforeEach. ~5 LoC change.
+
+  - id: F-tests-NEW-7
+    severity: MINOR
+    file: tests/integration/forgetting/forget-soft-delete.test.ts (entire file)
+    line: 1-156
+    plan_ref: T7.1 JSDoc src/local/index.ts:503-506 declares InMemoryVectorStore preserves v0.1 hard-delete
+    summary: |
+      T7.1's JSDoc at src/local/index.ts:503-506 makes a load-bearing claim: "InMemoryVectorStore
+      consumers (dev/test) keep the v0.1 hard-delete behavior — t_invalid is a Postgres-only concept;
+      the in-memory adapter does not model it." No test verifies this divergence. A future refactor
+      that accidentally routes InMemoryVectorStore through PgEvictor would not surface. The contract
+      delta document declares two execution paths (Pg → soft-delete; InMemory → hard-delete) but
+      only one path is integration-tested.
+    evidence: |
+      src/local/index.ts:518 → `const isPgStore = this.config.vectorStore instanceof PgvectorStoreClass`
+      src/local/index.ts:503-506 → JSDoc declaring InMemoryVectorStore preserves v0.1 behavior
+      grep for 'InMemoryVectorStore.*forget' in tests/ → no matches
+    recommended_action: |
+      Add a small unit test in src/local/__tests__/forget-inmemory-hard-delete.test.ts:
+        ```ts
+        it('forget(id) on InMemoryVectorStore preserves v0.1 hard-delete (no t_invalid concept)', ...);
+        ```
+      ~30 LoC. Closes the contract-asymmetry test gap.
+
+  - id: F-tests-NEW-8
+    severity: INFO
+    file: src/local/eviction/__tests__/pg-evictor-meter-init.test.ts
+    line: '40 (pool stub: `{ query: vi.fn() } as any`)'
+    plan_ref: T10.1 + testing.md § Mocks
+    summary: |
+      The pg-evictor-meter-init test uses an inline pool stub with `query: vi.fn()` cast through `any`
+      to satisfy the Pool type. Two precision issues:
+        1. The vi.fn() has no resolved value in test 1, so calling pool.query() inside a non-empty
+           evict() would reject with `TypeError: undefined is not a function` if the EC-10 short-circuit
+           ever broke. The test only exercises evict([]) which short-circuits before the SQL call —
+           so the missing return value is fine for the named scenario but fragile if the test is
+           extended. Test 2 (line 51-73) correctly stubs `.mockResolvedValue({ rows: [...] })`.
+        2. Per testing.md § Mocks: "Mocks in unit tests must be precise — mock the dependency, not the
+           world." The bare `as any` cast is the minimum precision; a better-typed Pool stub helper
+           reused across the v0.4b suite would surface fewer eslint-disable comments (currently 2
+           per test). The eslint-disable trail is the architectural smell here.
+    evidence: |
+      pg-evictor-meter-init.test.ts:39-41 → `// eslint-disable-next-line ... { query: vi.fn() } as any`
+      pg-evictor-meter-init.test.ts:60-62 → same pattern
+      testing.md § Mocks → "Mocks in unit tests must be precise — mock the dependency, not the world."
+    recommended_action: |
+      Acceptable as-is. The test is correctly scoped and the eslint-disable is honest. Future
+      cleanup: extract a `makeTestPgPool(opts?): jest.Mocked<Pool>` helper in
+      `src/local/__tests__/test-helpers/pg-pool.ts` to consolidate the cast site (~20 LoC). Would
+      eliminate the eslint-disable across 10+ test files in v0.4b. Not v0.4b-blocker.
+
+  - id: F-tests-NEW-9
+    severity: INFO
+    file: tests/integration/forgetting/fixtures/__tests__/deterministic-hash.test.ts
+    line: 14-76
+    plan_ref: T11.2 § TDD — 3 RED tests declared; impl ships 7 unit tests
+    summary: |
+      T11.2 § TDD declared 3 RED tests:
+        - test_rare_target_seed_produces_byte_for_byte_same_hashes_across_runs
+        - test_eval_random_baseline_recall_at_10_within_0_60_to_0_80
+        - test_random_baseline_two_runs_same_seed_produce_identical_recall_at_10 (EC-8)
+      The impl ships 7 unit tests of the helpers (makeSeededRandom × 2, shuffleDeterministic × 3,
+      makeHashCounter × 2) + the EC-8 invariant (line 38). This is HEALTHY over-coverage of helper
+      contracts — the helpers have clear invariants, tests assert them precisely. However, the
+      plan-declared tests are NOT verbatim present:
+        - "byte-for-byte same hashes across runs" → no test asserts this against rare-target-seed.ts
+          (the consumer); only the helper-level shuffleDeterministic equivalence is tested.
+        - "eval random baseline recall@10 within 0.60-0.80" → not tested at unit tier (would require
+          running the full eval pipeline which needs pgvector).
+        - EC-8 IS tested at the helper level (line 38 "same seed produces byte-identical permutation").
+      Substantively equivalent + arguably better (testing the helper's invariant covers all consumers)
+      but the plan-declared test names are NOT honored verbatim per testing.md § BDD.
+    evidence: |
+      Plan T11.2 § TDD line 898-902 → 3 RED test names
+      tests/integration/forgetting/fixtures/__tests__/deterministic-hash.test.ts:14-76 → 7 actual tests
+    recommended_action: |
+      Accept as-is. The 7 tests cover the contract semantics more rigorously than the 3 plan-declared
+      ones; the "byte-for-byte across runs" and "EC-8" invariants are verified at the helper level
+      where they originate. The "recall@10 within 0.60-0.80" plan-declared test would require an
+      integration tier that pulls in pgvector — outside the unit-tier scope of the helper file.
+
+  - id: F-tests-NEW-10
+    severity: INFO
+    file: tests/integration/forgetting/triadic-eviction.test.ts (still uses non-deterministic Date.now() in fixture)
+    line: 75 (`await pool.query(\`DELETE FROM memories WHERE agent_id = $1\`, [TEST_AGENT_ID]);`)
+    plan_ref: T7.1 + general beforeEach isolation pattern
+    summary: |
+      Cross-test isolation pattern is consistent + correct: every integration test deletes its
+      scope-bounded rows in beforeEach via `WHERE agent_id = $1` / `WHERE user_id = $1` /
+      `WHERE session_id = $2`. afterAll calls reset() + pool.end(). This guarantees per-test
+      isolation even with overlapping prefixes across test files. The beforeEach + afterAll
+      pattern is the canonical fix for the F-tests-NEW-1 concerns: even if Math.random() collides
+      across runs, beforeEach DELETE prevents the collision from affecting test outcomes. Solid
+      hygiene across the v0.4b suite.
+    evidence: |
+      grep -rn 'beforeEach.*DELETE' tests/integration/eviction tests/integration/forgetting →
+        consistent pattern across all files
+    recommended_action: |
+      Accept. The isolation discipline is strong; this informs why F-tests-NEW-1 is MAJOR
+      (load-bearing claim) rather than CRITICAL (test outcomes affected).
+
+  - id: F-tests-NEW-11
+    severity: INFO
+    file: src/local/eviction/__tests__/{get-neighbor-scope-id,scope-candidate,triadic-scoring-options}.test.ts + src/local/__tests__/eviction-barrel.test.ts
+    line: file-level
+    plan_ref: T3.1 + T6.1 + T1.1 + T4.1 — unit-tier helpers added
+    summary: |
+      The v0.4b-fixes cycle correctly shipped UNIT-tier tests for refactor-introduced helpers:
+        - get-neighbor-scope-id.test.ts (T3.1 scope-tier generalization)
+        - scope-candidate.test.ts (T6.1 shared scope-candidate.ts helper)
+        - triadic-scoring-options.test.ts (T1.1 options-object overload)
+        - eviction-barrel.test.ts (T4.1 public barrel surface)
+      This consolidates the unit tier with pure-function logic that was previously tested only
+      transitively through integration. The unit-tier balance improves: 5 net-new unit test files
+      complementing 12 net-new integration test files. testing.md § Pyramid moves closer to its
+      "unit-dominant" target for the v0.4b surface.
+    evidence: |
+      git log --diff-filter=A --name-only 614e588..ebaa451 -- 'src/**/__tests__/**' → 5 unit files added
+    recommended_action: |
+      Accept. The unit-tier additions are well-scoped and exercise pure logic. Solid TDD execution.
+
+  - id: F-tests-NEW-12
+    severity: INFO
+    file: tests/integration/migrations/{idempotency,repair-partial-state,journal-sync}.test.ts + tests/integration/db-push/{missing-psql,trigger-applied}.test.ts
+    line: file-level
+    plan_ref: T0.1 + T2.1 + T11.1b — migration + db:push integration tier
+    summary: |
+      The fixes cycle added 5 NEW migration + db:push integration tests:
+        - migrations/idempotency.test.ts (T11.1b: runMigrations × 2 is no-op)
+        - migrations/repair-partial-state.test.ts (T11.1b: repair script restores journal)
+        - migrations/journal-sync.test.ts (T0.1: snapshots + journal entries materialized)
+        - db-push/missing-psql.test.ts (T2.1: anchored error on missing psql)
+        - db-push/trigger-applied.test.ts (T2.1: trigger applied via psql sidecar)
+      These close the F-dom-db-1 + F-dom-db-2 + F-dom-db-3 + F-dom-db-4 family of MAJOR/CRITICAL
+      findings from the original review. The migration test cluster is now a permanent regression
+      guard against future Drizzle journal drift + trigger-bypass-via-push defects. Excellent
+      defensive coverage addition.
+    evidence: |
+      tests/integration/migrations/journal-sync.test.ts (T0.1 — closes F-dom-db-1)
+      tests/integration/db-push/trigger-applied.test.ts (T2.1 — closes F-dom-db-2)
+    recommended_action: |
+      Accept. The migration test cluster is the highest-value addition in the fixes cycle from a
+      regression-resistance standpoint.
+
+  - id: F-tests-NEW-13
+    severity: INFO
+    file: tests/integration/forgetting/forget-soft-delete.test.ts (test 'EC-3 PUBLIC API BREAKING')
+    line: 110-126
+    plan_ref: T7.1 EC-3 absorption — BREAKING contract test
+    summary: |
+      The EC-3 PUBLIC API BREAKING contract test (forget-soft-delete.test.ts:110) is the strongest
+      single addition in the cycle: it asserts COUNT(*) == 1 post-forget (NOT 0 as v0.1) — a direct
+      regression catcher for any future code path that accidentally reverts to hard-delete. The
+      comment block at lines 122-123 documents both contracts inline:
+        "// v0.1 contract: COUNT(*) == 0 after forget (hard delete).
+         // v0.4b contract: COUNT(*) == 1 after forget (soft delete via t_invalid)."
+      This is exactly the kind of locked-contract-via-test that protects BREAKING changes from
+      silent revert. Pair with the GDPR-preserved test at line 128 (`hard: true → COUNT == 0`)
+      and the MemoryNotFound preservation test at line 144 — the T7.1 BREAKING contract is locked
+      from all three angles (default behavior, opt-out, error-path).
+    evidence: |
+      tests/integration/forgetting/forget-soft-delete.test.ts:110-126 → EC-3 BREAKING contract
+      tests/integration/forgetting/forget-soft-delete.test.ts:128-142 → GDPR escape hatch
+      tests/integration/forgetting/forget-soft-delete.test.ts:144-154 → EC-12 unchanged
+    recommended_action: |
+      Accept. T7.1 BREAKING tests are the gold standard for this cycle. CHANGELOG.md and JSDoc
+      contract-delta block are mirrored exactly in the test assertions.
+
+  - id: F-tests-NEW-14
+    severity: INFO
+    file: tests/integration/eviction/multi-tier-eviction.test.ts (NEW — T3.1)
+    line: file-level
+    plan_ref: T3.1 — scope-tier generalization (User + Session + Agent)
+    summary: |
+      multi-tier-eviction.test.ts is a NEW T3.1 integration test that exercises eviction across
+      ALL THREE tiers (User + Session + Agent) in one test file, closing the F-dom-1 / F-arch-4
+      family of CRITICAL findings from the original review (CapacityBasedTrigger silently dropping
+      User-scope + Session-scope memories). This is exactly the kind of cross-tier acceptance test
+      that catches regressions in the typed-Scope discriminated union refactor T3.1 performed.
+      Combined with the T7.2 multiplier-tier-coverage tests, the 3-tier eviction surface now has
+      end-to-end integration verification for both the trigger path AND the multiplier path.
+    evidence: |
+      git log -- tests/integration/eviction/multi-tier-eviction.test.ts → 88b9b3b (T3.1)
+      Plan T3.1 § Files to edit declares this file
+    recommended_action: |
+      Accept. Net-new tier-coverage test is the right shape; T3.1 closure is well-evidenced.
+
+summary: |
+  v0.4b-fixes-cycle ships a strongly-disciplined test suite layered on top of the original v0.4b
+  cycle. 17 net-new test files (5 unit + 12 integration) add ~3000 LoC of test coverage. The four
+  user-flagged areas all check out at the contract level:
+
+    1. T11.2 deterministic shuffle: helpers are correctly implemented + tested (7 unit tests in
+       deterministic-hash.test.ts; LCG + Fisher-Yates invariants locked; same-seed = byte-
+       identical permutation). EC-8 absorption verified. BUT the cleanup itself is partial:
+       11 Math.random() sites remain across the v0.4b test surface vs the plan-declared
+       "(~10 files)" scope. The commit message documents the conscious divergence ("per-test
+       prefixes are already unique within a test scope") for 9 of the 11; the remaining 2
+       (lazy-half-life.test.ts:70 + forget-soft-delete.test.ts:51) genuinely depend on
+       Math.random(). See F-tests-NEW-1 MAJOR + F-tests-NEW-6 MINOR.
+
+    2. T12.1 lifecycle hook integration tests: correctly verify onEvictionStart + onEvictionEnd
+       fire from CapacityBasedTrigger (2 tests in lifecycle-hooks.test.ts). The TracingPolicy
+       harness is well-scoped. BUT TimeBasedTrigger's symmetric hook wiring goes untested;
+       plan-compliant per T12.1 § TDD but coverage gap surfaces if the cron-callback path
+       regresses. See F-tests-NEW-4 MAJOR.
+
+    3. T10.1 lazy-meter spy tests: correctly verify lazy init via spy on metrics.getMeter
+       (2 tests in pg-evictor-meter-init.test.ts). Construction does NOT call getMeter;
+       evict([]) does NOT call getMeter (EC-10 short-circuit); first non-empty evict() does;
+       subsequent calls reuse the cached counter. BUT the named scenario "consumer registers
+       MeterProvider AFTER importing @usetheo/memory" is NOT actually exercised — the test
+       verifies lazy-init (necessary condition) but doesn't run setGlobalMeterProvider against
+       a spy-routed MeterProvider. See F-tests-NEW-3 MAJOR.
+
+    4. T7.1 BREAKING tests: GOLD STANDARD for the cycle. 5 tests in forget-soft-delete.test.ts
+       lock the BREAKING contract from all three angles:
+         (a) soft-delete via t_invalid (default behavior)
+         (b) hard:true preserves GDPR physical-delete (opt-out)
+         (c) EC-12 MemoryNotFound on unknown id (error path preserved)
+       Plus idempotency on already-evicted rows and the EC-3 PUBLIC API BREAKING contract test
+       asserting COUNT(*) == 1 post-forget (NOT 0 as v0.1) with inline contract-delta comment.
+       This is exactly the kind of locked-contract-via-test that protects BREAKING changes
+       from silent revert. ONE small gap: the cascade impact on v0.6 ScopedSkillMemory.forget()
+       (JSDoc src/local/index.ts:499-501) is NOT integration-tested; nor is the InMemoryVectorStore
+       hard-delete preservation (JSDoc src/local/index.ts:503-506). See F-tests-NEW-7 MINOR.
+
+  Empirical evidence: 544/546 npm test pass; 67/67 integration eviction+forgetting pass; 2
+  pre-existing failures (F3.5 + F3.6) honestly tracked in followups.md and pre-date v0.4b-fixes.
+  No skipped tests outside env-gated `describe.skipIf(PG_URI === '')` (legitimate per integration
+  test policy). Zero `it.only` / `xit` leaks. All v0.4b-fixes new test names describe BEHAVIOR;
+  none use anti-pattern "and" conjunctions or test_N naming.
+
+  TDD compliance: every v0.4b-fixes test file was committed in the SAME commit as its impl
+  (atomic RED+GREEN+REFACTOR pattern). Plan-allowed; not strictly RED-first-committed but
+  documented per file JSDoc + commit body declaring RED ordering.
+
+  Verdict shape: 4 MAJOR (none release-blockers; all documented honest gaps), 3 MINOR (test-
+  hygiene polish), 7 INFO (positive observations + plan-vs-impl deviations all documented).
+  Recommend READY_TO_MERGE with the 4 MAJOR findings tracked as v0.4b.1 follow-ups OR closed
+  inline in a small polish commit before PR merges.
