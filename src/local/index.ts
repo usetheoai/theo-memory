@@ -62,6 +62,16 @@ import { runRetrievalPipeline } from '../core/retrieval/pipeline.js';
 import type { Filters, Scope } from '../core/scope.js';
 import type { ScopedSkillMemory } from '../core/skill.js';
 
+import {
+  CapacityBasedTrigger,
+  PgEvictor,
+  PgHalfLifePersister,
+  PgNearestNeighborProvider,
+  TimeBasedTrigger,
+  TriadicScoringPolicy,
+} from './eviction/index.js';
+import type { LocalEvictionConfig } from './eviction/index.js';
+import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 
@@ -70,10 +80,47 @@ export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { entities, history, memories } from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
+export * from './eviction/index.js';
 
 /** Extended MemoryConfig with the OTel tracer slot from ADR D1.3. */
 export interface LocalMemoryConfig extends MemoryConfig {
   readonly tracer?: Tracer;
+  /**
+   * v0.4b-fixes T4.1 — opt-in eviction pipeline. Requires `vectorStore` to
+   * be a `PgvectorStore` instance (advisory locks + pgvector cosine distance
+   * are PG-only). `createLocalMemory` throws `EvictionNotSupported` when this
+   * field is set with an `InMemoryVectorStore`.
+   *
+   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 + ADR D6
+   */
+  readonly eviction?: LocalEvictionConfig;
+  /**
+   * @internal v0.4b-fixes T4.1 — async hook fired by `LocalScopedMemory.remember()`
+   * post-pipeline. Used by the factory to wire `CapacityBasedTrigger.fire()`
+   * when `eviction.trigger === 'capacity'`. NOT a public field; consumers
+   * configure eviction via the `eviction` option above.
+   */
+  readonly postRememberHook?: (scope: Scope) => Promise<void>;
+}
+
+/**
+ * Thrown when `createLocalMemory({ eviction: {...} })` is called with a
+ * non-PgvectorStore vector store. Advisory locks + pgvector cosine distance
+ * are PG-only; eviction is not implemented for `InMemoryVectorStore`.
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 (SEPA iter 5 pre-RED CRITICAL #3)
+ */
+export class EvictionNotSupported extends Error {
+  override readonly name = 'EvictionNotSupported' as const;
+
+  constructor(storeKind: string, options?: ErrorOptions) {
+    super(
+      `Eviction config requires a PgvectorStore (got ${storeKind}). ` +
+        'Advisory locks + pgvector cosine distance are PostgreSQL-only.',
+      options,
+    );
+    Object.setPrototypeOf(this, EvictionNotSupported.prototype);
+  }
 }
 
 export const PROBE_TEXT = '__themem_probe__';
@@ -197,6 +244,19 @@ class LocalScopedMemory implements ScopedMemory {
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       ...(this.config.customInstructions !== undefined ? { customInstructions: this.config.customInstructions } : {}),
     }, options);
+
+    // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline
+    // wired by `createLocalMemory({ eviction: { trigger: 'capacity', ... } })`.
+    // Awaited inline so consumers' next remember() sees the post-evict state.
+    // Errors do NOT block remember() result — surface via OTel span on the
+    // PgEvictor counter (T10.1 will lazy-init the meter).
+    if (this.config.postRememberHook !== undefined) {
+      try {
+        await this.config.postRememberHook(this.scope);
+      } catch {
+        // Eviction failures are observability-only; do not poison remember().
+      }
+    }
 
     // v0.4a: after successful write, check ReflectionPolicy. If it says fire,
     // launch reflect() as fire-and-forget tracked via pendingReflections (EC-7).
@@ -516,13 +576,86 @@ async function probeEmbedder(embedder: Embedder): Promise<void> {
 }
 
 /**
+ * v0.4b-fixes T4.1 extension: returned Memory carries a `dispose()` method
+ * that stops the cron job + releases trigger resources. Non-eviction memories
+ * still expose `dispose()` as a no-op so consumers can `await memory.dispose()`
+ * unconditionally without runtime branching.
+ *
+ * Decision per SEPA iter 5 pre-RED CRITICAL #1 option (C): widen ONLY the
+ * local factory return type — `Memory` interface stays unchanged so the cloud
+ * runtime is not affected.
+ */
+export type DisposableMemory = Memory & { dispose(): Promise<void> };
+
+/**
  * Public factory. Probes embedder dimension first; throws EmbeddingMismatch
  * before the first user call if mismatched.
+ *
+ * v0.4b-fixes T4.1: when `config.eviction` is set, wires the capacity-trigger
+ * post-remember hook OR the time-trigger cron lifecycle. Throws
+ * `EvictionNotSupported` if `vectorStore` is not a `PgvectorStore` (per
+ * SEPA iter 5 pre-RED CRITICAL #3 — eviction is PG-only).
  */
-export async function createLocalMemory(config: LocalMemoryConfig): Promise<Memory> {
+export async function createLocalMemory(config: LocalMemoryConfig): Promise<DisposableMemory> {
   await probeEmbedder(config.embedder);
   await config.vectorStore.initialize();
-  return new LocalMemory(config, config.reflectionPolicy);
+
+  if (config.eviction === undefined) {
+    const memory = new LocalMemory(config, config.reflectionPolicy);
+    return Object.assign(memory, { dispose: (): Promise<void> => Promise.resolve() });
+  }
+
+  if (!(config.vectorStore instanceof PgvectorStoreClass)) {
+    throw new EvictionNotSupported(config.vectorStore.constructor.name);
+  }
+  const pool = config.vectorStore.poolForEviction;
+
+  const evictor = new PgEvictor(pool);
+  const halfLifePersister = new PgHalfLifePersister(pool);
+  const neighborProvider = new PgNearestNeighborProvider(pool);
+  const policy = new TriadicScoringPolicy({
+    evictor,
+    halfLifePersister,
+    neighborProvider,
+  });
+
+  let postRememberHook: ((scope: Scope) => Promise<void>) | undefined;
+  let stopCron: (() => void) | undefined;
+
+  if (config.eviction.trigger === 'capacity') {
+    const capacityTrigger = new CapacityBasedTrigger(
+      pool,
+      policy,
+      config.eviction.maxMemoriesPerScope,
+    );
+    postRememberHook = async (scope: Scope): Promise<void> => {
+      await capacityTrigger.fire(scope, new Date());
+    };
+  } else {
+    const timeTrigger = new TimeBasedTrigger(pool, policy, {
+      cronExpression: config.eviction.cronExpression,
+      evictionFraction: config.eviction.evictionFraction,
+      scope: config.eviction.scope,
+    });
+    timeTrigger.start();
+    stopCron = (): void => {
+      timeTrigger.stop();
+    };
+  }
+
+  const augmentedConfig: LocalMemoryConfig =
+    postRememberHook !== undefined
+      ? { ...config, postRememberHook }
+      : config;
+
+  const memory = new LocalMemory(augmentedConfig, config.reflectionPolicy);
+  const dispose = (): Promise<void> => {
+    if (stopCron !== undefined) {
+      stopCron();
+    }
+    return Promise.resolve();
+  };
+  return Object.assign(memory, { dispose });
 }
 
 /** Alias matching the public surface name (T7.2 re-exports). */
