@@ -202,6 +202,41 @@ function normalizeWeights(raw: TriadicWeights): TriadicWeights {
   };
 }
 
+/**
+ * Options bag for the recommended single-argument TriadicScoringPolicy
+ * constructor introduced in v0.4b-fixes T1.1 (closes F-arch-1 CRITICAL,
+ * per ADR D5). All fields are optional; omitted fields fall back to the
+ * v0.4b defaults (DEFAULT_TRIADIC_WEIGHTS, DEFAULT_TRIADIC_CONSTANTS, null
+ * collaborators).
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T1.1 + ADR D5
+ */
+export interface TriadicScoringPolicyOptions {
+  readonly weights?: TriadicWeights;
+  readonly constants?: TriadicConstants;
+  readonly halfLifePersister?: HalfLifePersister | null;
+  readonly neighborProvider?: NearestNeighborProvider | null;
+  readonly evictor?: Evictor | null;
+}
+
+/**
+ * Discriminates between TriadicWeights (has `recency`) and other object shapes.
+ * Returns false for `null` (typeof null === 'object') to avoid the EC-2 trap.
+ */
+function isWeightsLike(arg: unknown): arg is TriadicWeights {
+  return typeof arg === 'object' && arg !== null && 'recency' in arg;
+}
+
+/**
+ * Discriminates between TriadicScoringPolicyOptions (object without `recency`)
+ * and the deprecated positional TriadicWeights. EC-2 absorption: guards
+ * explicitly against `undefined` AND `null` BEFORE the `'recency' in arg` check,
+ * because `'recency' in undefined` and `'recency' in null` both throw TypeError.
+ */
+function isOptionsObject(arg: unknown): arg is TriadicScoringPolicyOptions {
+  return typeof arg === 'object' && arg !== null && !('recency' in arg);
+}
+
 export class TriadicScoringPolicy implements EvictionPolicy {
   readonly kind = 'triadic' as const;
 
@@ -211,18 +246,63 @@ export class TriadicScoringPolicy implements EvictionPolicy {
   private readonly neighborProvider: NearestNeighborProvider | null;
   private readonly evictor: Evictor | null;
 
+  /**
+   * Recommended single-argument options-object constructor (v0.4b-fixes T1.1).
+   * Omitted fields fall back to v0.4b defaults.
+   */
+  constructor(options: TriadicScoringPolicyOptions);
+
+  /**
+   * @deprecated Prefer the options-object form
+   *   `new TriadicScoringPolicy({ weights, constants, halfLifePersister,
+   *   neighborProvider, evictor })`. The 5-positional signature is preserved
+   *   for one release to give existing call sites time to migrate; EC-2
+   *   absorption: `undefined` and `null` are accepted as the first positional
+   *   arg without TypeError.
+   */
   constructor(
-    weights: TriadicWeights = DEFAULT_TRIADIC_WEIGHTS,
-    constants: TriadicConstants = DEFAULT_TRIADIC_CONSTANTS,
-    halfLifePersister: HalfLifePersister | null = null,
-    neighborProvider: NearestNeighborProvider | null = null,
-    evictor: Evictor | null = null,
+    weights?: TriadicWeights | null,
+    constants?: TriadicConstants | null,
+    halfLifePersister?: HalfLifePersister | null,
+    neighborProvider?: NearestNeighborProvider | null,
+    evictor?: Evictor | null,
+  );
+
+  constructor(
+    arg?: TriadicWeights | TriadicScoringPolicyOptions | null,
+    constants?: TriadicConstants | null,
+    halfLifePersister?: HalfLifePersister | null,
+    neighborProvider?: NearestNeighborProvider | null,
+    evictor?: Evictor | null,
   ) {
-    this.weights = normalizeWeights(weights);
-    this.constants = constants;
-    this.halfLifePersister = halfLifePersister;
-    this.neighborProvider = neighborProvider;
-    this.evictor = evictor;
+    let resolvedWeights: TriadicWeights;
+    let resolvedConstants: TriadicConstants;
+    let resolvedPersister: HalfLifePersister | null;
+    let resolvedProvider: NearestNeighborProvider | null;
+    let resolvedEvictor: Evictor | null;
+
+    if (isOptionsObject(arg)) {
+      // Options-object path (the recommended T1.1 shape).
+      resolvedWeights = arg.weights ?? DEFAULT_TRIADIC_WEIGHTS;
+      resolvedConstants = arg.constants ?? DEFAULT_TRIADIC_CONSTANTS;
+      resolvedPersister = arg.halfLifePersister ?? null;
+      resolvedProvider = arg.neighborProvider ?? null;
+      resolvedEvictor = arg.evictor ?? null;
+    } else {
+      // Positional path (deprecated). arg is undefined | null | TriadicWeights.
+      // EC-2: `isWeightsLike` rejects null/undefined safely.
+      resolvedWeights = isWeightsLike(arg) ? arg : DEFAULT_TRIADIC_WEIGHTS;
+      resolvedConstants = constants ?? DEFAULT_TRIADIC_CONSTANTS;
+      resolvedPersister = halfLifePersister ?? null;
+      resolvedProvider = neighborProvider ?? null;
+      resolvedEvictor = evictor ?? null;
+    }
+
+    this.weights = normalizeWeights(resolvedWeights);
+    this.constants = resolvedConstants;
+    this.halfLifePersister = resolvedPersister;
+    this.neighborProvider = resolvedProvider;
+    this.evictor = resolvedEvictor;
   }
 
   /**

@@ -95,7 +95,7 @@ if (PG_URI === undefined || PG_URI === '') {
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: PG_URI });
       persister = new PgHalfLifePersister(pool);
-      policy = new TriadicScoringPolicy(undefined, undefined, persister);
+      policy = new TriadicScoringPolicy({ halfLifePersister: persister });
     });
 
     afterAll(async () => {
