@@ -36,6 +36,7 @@ import type {
 } from './options.js';
 import type { ReflectionResult } from './reflection-result.js';
 import type { Scope } from './scope.js';
+import type { ScopedSkillMemory } from './skill.js';
 
 /**
  * Underlying primitive that adapters (src/local/, src/cloud/) implement.
@@ -78,7 +79,34 @@ export interface Memory {
   session(sessionId: string): ScopedMemory;
   agent(agentId: string): ScopedMemory;
 
-  /** Globally unique memoryId — no scope required. Soft delete by default; pass { hard: true } for GDPR-style erasure. */
+  /**
+   * v0.6: code-as-skill procedural memory entry-point.
+   *
+   * Scopes the returned skill memory to a single repository identifier;
+   * skills written under one `repoId` are isolated from skills under another.
+   *
+   * @see .claude/knowledge-base/plans/skill-library-plan.md § ADR D5 (no new subpath in v0.6)
+   * @see .claude/knowledge-base/plans/skill-library-plan.md § ADR D1 (REUSE v0.4a reflect() chain)
+   */
+  skills(repoId: string): ScopedSkillMemory;
+
+  /**
+   * Globally unique memoryId — no scope required. Soft delete by default;
+   * pass `{ hard: true }` for GDPR-style erasure.
+   *
+   * **v0.4b-fixes T7.1 — PUBLIC API BREAKING CHANGE** (ADR D7 + EC-3
+   * absorption): the v0.1 shipped runtime physically deleted the row
+   * (`raw SELECT post-forget returned 0 rows`) despite this JSDoc already
+   * documenting soft-delete as the default. v0.4b aligns the runtime with
+   * the documented contract: raw `SELECT * FROM memories WHERE id = $1`
+   * post-forget returns 1 row with `t_invalid IS NOT NULL`. Consumers
+   * asserting `count == 0 after forget()` must migrate to
+   * `count_where_t_invalid_null == 0`. Historical rows are recoverable via
+   * `WHERE t_invalid IS NOT NULL`. The cascade applies to v0.6
+   * `ScopedSkillMemory.forget()` (routes through the same path).
+   *
+   * @see CHANGELOG.md [Unreleased] § Changed `**BREAKING**` entry
+   */
   forget(memoryId: string, options?: ForgetOptions): Promise<void>;
 
   /** Fetch a single memory by id, or null if not present. */

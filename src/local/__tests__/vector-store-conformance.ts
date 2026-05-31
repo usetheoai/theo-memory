@@ -19,7 +19,9 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { VectorStore } from '../../core/dip/vector-store.js';
+import { InvalidSkillError } from '../../core/errors.js';
 import type { Filters } from '../../core/scope.js';
+import type { VectorStoreWithSkillInsert } from '../skill-store-args.js';
 
 import { VEC_A, VEC_B, VEC_C } from './fixtures/deterministic-vectors.js';
 
@@ -28,8 +30,14 @@ function uuid(): string {
   return randomUUID();
 }
 
+/**
+ * Local-tier conformance context. `store` is intersected with
+ * `VectorStoreWithSkillInsert` because both PgvectorStore + InMemoryVectorStore
+ * implement the v0.6 skill insertion methods as duck-typed extensions
+ * (mirroring the v0.4a `insertDerivedMemory` pattern — not on the DIP).
+ */
 export interface ConformanceContext {
-  readonly store: VectorStore;
+  readonly store: VectorStore & VectorStoreWithSkillInsert;
   readonly truncate: () => Promise<void>;
 }
 
@@ -205,6 +213,92 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
       await ctx.truncate();
       const result = await ctx.store.get(id);
       expect(result).toBeNull();
+    });
+
+    // v0.6 — code-as-skill insertion (T2.1)
+    describe('insertSkill (v0.6 T2.1)', () => {
+      test('writes a kind=\'skill\' row and returns a UUID id', async () => {
+        const id = await ctx.store.insertSkill({
+          embedding: VEC_A,
+          hash: 'h-skill-1',
+          code: 'export const retry = async () => {/* impl */};',
+          description: 'retry helper with exponential backoff',
+          codeLanguage: 'typescript',
+          scope: { userId: 'alice' },
+        });
+        expect(typeof id).toBe('string');
+        expect(id.length).toBeGreaterThan(0);
+        const result = await ctx.store.get(id);
+        expect(result).not.toBeNull();
+        expect(result?.payload['kind']).toBe('skill');
+        expect(result?.payload['code']).toContain('retry');
+        expect(result?.payload['description']).toContain('exponential backoff');
+        expect(result?.payload['code_language']).toBe('typescript');
+      });
+
+      test('rejects empty description with InvalidSkillError (embedding target cannot be empty)', async () => {
+        await expect(
+          ctx.store.insertSkill({
+            embedding: VEC_A,
+            hash: 'h-skill-empty-desc',
+            code: 'noop',
+            description: '   ',
+            codeLanguage: 'typescript',
+            scope: { userId: 'alice' },
+          }),
+        ).rejects.toBeInstanceOf(InvalidSkillError);
+      });
+    });
+
+    describe('insertDerivedSkill (v0.6 T2.1)', () => {
+      test('writes a derived skill row whose derived_from carries both source ids', async () => {
+        const srcA = await ctx.store.insertSkill({
+          embedding: VEC_A,
+          hash: 'h-src-a',
+          code: 'srcA',
+          description: 'source skill A',
+          codeLanguage: 'typescript',
+          scope: { userId: 'alice' },
+        });
+        const srcB = await ctx.store.insertSkill({
+          embedding: VEC_B,
+          hash: 'h-src-b',
+          code: 'srcB',
+          description: 'source skill B',
+          codeLanguage: 'typescript',
+          scope: { userId: 'alice' },
+        });
+        const derivedId = await ctx.store.insertDerivedSkill({
+          embedding: VEC_C,
+          hash: 'h-derived',
+          code: 'merged impl',
+          description: 'consolidated retry helper',
+          codeLanguage: 'typescript',
+          derivedFrom: [srcA, srcB],
+          scope: { userId: 'alice' },
+        });
+        const result = await ctx.store.get(derivedId);
+        expect(result).not.toBeNull();
+        expect(result?.payload['kind']).toBe('skill');
+        const derivedFromRaw = result?.payload['derived_from'];
+        const parsed: unknown =
+          typeof derivedFromRaw === 'string' ? JSON.parse(derivedFromRaw) : derivedFromRaw;
+        expect(parsed).toEqual([srcA, srcB]);
+      });
+
+      test('rejects empty derivedFrom with InvalidSkillError (a derived skill must cite at least one source)', async () => {
+        await expect(
+          ctx.store.insertDerivedSkill({
+            embedding: VEC_A,
+            hash: 'h-derived-empty',
+            code: 'noop',
+            description: 'consolidated retry helper',
+            codeLanguage: 'typescript',
+            derivedFrom: [],
+            scope: { userId: 'alice' },
+          }),
+        ).rejects.toBeInstanceOf(InvalidSkillError);
+      });
     });
 
     // Run LAST: deleteCol exercise. After this test, the schema is gone;

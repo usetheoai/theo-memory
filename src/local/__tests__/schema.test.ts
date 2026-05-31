@@ -37,6 +37,15 @@ describe('memories table', () => {
         'kind',
         'derived_from',
         'llm_importance_score',
+        // v0.6 additions (T0.1 — see schema-v0-6.test.ts for ADR D3 + EC-1 details)
+        'superseded_by',
+        'code',
+        'description',
+        'code_language',
+        // v0.4b additions (T0.1 — see schema-v0-4b.test.ts for ADR D13 details)
+        'last_accessed_at',
+        'access_count',
+        'half_life_seconds',
       ].sort(),
     );
   });

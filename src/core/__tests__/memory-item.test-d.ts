@@ -14,6 +14,11 @@ test('MemoryItem has the locked field shape', () => {
     readonly metadata: Readonly<Record<string, string | number | boolean | null>>;
     readonly tValid: Date | null;
     readonly tInvalid: Date | null;
+    // v0.4a/v0.4b eviction-related extensions; optional+nullable for backward compat.
+    readonly llmImportanceScore?: number | null;
+    readonly lastAccessedAt?: Date | null;
+    readonly accessCount?: number;
+    readonly halfLifeSeconds?: number | null;
   }>();
 });
 
