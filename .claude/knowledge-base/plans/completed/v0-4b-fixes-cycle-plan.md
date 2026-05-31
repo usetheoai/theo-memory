@@ -94,6 +94,17 @@ Plan honors `architecture.md § 3` (DIP — moving HalfLifePersister + NearestNe
 - **Rationale:** hand-authored snapshots risk version-string drift (Drizzle's snapshot schema is non-trivial JSON). Tooling-generated snapshots are byte-for-byte what the next `drizzle-kit` run would emit, eliminating divergence risk. Trade-off: requires a temporary DB; acceptable cost.
 - **Consequences:** T0.1 also adds a publish-readiness integration test (`tests/integration/migrations/journal-sync.test.ts`) that asserts every `.sql` file under `src/local/migrations/` has a matching `meta/{name}_snapshot.json` AND a journal entry — prevents future drift.
 
+**Amendment (v0.4b-fixes F1 followup, 2026-05-31, post-merge in PR #24 / merge commit `9a8bca3`):** D4's literal mechanism (`drizzle-kit generate` emits 2 snapshots for 0003 + 0004) is **mechanically false for trigger-only migrations**. Drizzle ORM v0.45 does NOT model triggers or functions in `pgTable` declarations (verified: zero `pgTrigger` / `pgFunction` exports in `src/local/schema.ts`), so `drizzle-kit generate` cannot emit a `0004_snapshot.json` for the BEFORE-UPDATE-OF trigger migration — there is no schema-column delta to diff.
+
+ADR D4's spirit (Drizzle as the snapshot author, NOT humans typing JSON from scratch) is preserved for column-tracked migrations. For trigger-only migrations, T0.1 used a documented mechanism deviation:
+
+1. `drizzle-kit generate --name=eviction_columns` against a clean throwaway DB → produces `0003_eviction_columns.sql` (bare DDL) + `0003_snapshot.json` + journal idx=3.
+2. Bare DDL replaced with the existing `IF NOT EXISTS`-guarded content per EC-4 REVERSAL (snapshot tracks schema state, not DDL details).
+3. `0004_snapshot.json` = identity-copy of `0003_snapshot.json` with new UUID v7 `id` + repaired `prevId` chained to `0003.id`. Snapshot is column-shape-identical pre/post trigger because triggers are not tracked.
+4. Manual journal entry idx=4 with tag `0004_eviction_half_life_trigger`, `when` = `idx=3.when + 1000`.
+
+**Rule going forward:** column-bearing migrations stay drizzle-kit-authored; trigger/function-only migrations require identity-copy snapshots with manual `id` + `prevId` repair + manual journal-entry insertion. The pattern is reproducible + minimal-divergence + does NOT touch the snapshot's `tables` block. See `scripts/db-repair-v0-4b-partial-state.mjs` (T11.1b) for the automated journal-only recovery path consumers can run when the same partial-state situation arises in their deployed environments.
+
 ### D5 — F-arch-1 options-object constructor introduces a new public type but does NOT break existing call sites at T1.1
 
 - **Decision:** the new options-object constructor accepts `TriadicScoringPolicyOptions` interface. The existing 5-positional signature stays as a deprecated overload for ONE release cycle (v0.4b ships both; v0.4c removes the positional form).

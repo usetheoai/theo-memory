@@ -107,6 +107,27 @@ export interface EvictionPolicy {
 - Adds an 8th DIP to `src/core/dip/index.ts` barrel.
 - `src/local/eviction/triadic-scoring-policy.ts` implements all 4 methods; the impl is the ONE shipped strategy at v0.4b.
 
+**Amendment (v0.4b-fixes T8.1, 2026-05-31, post-merge in PR #24 / merge commit `9a8bca3`):** the shipped `EvictionPolicy` shape diverged from the original D12 declaration during T1.1 implementation. The CANONICAL shape (verified at `src/core/dip/eviction-policy.ts:97`) is:
+
+```ts
+interface EvictionPolicy {
+  readonly kind: string;
+  score(memory, context): Promise<number>;
+  selectVictims(candidates, fraction, context): Promise<readonly string[]>;
+  onEvictionStart?(scope, fraction): Promise<void>;
+  onEvictionEnd?(scope, result): Promise<void>;
+}
+```
+
+5 method entries (`kind` discriminator + 2 required + 2 optional lifecycle hooks). The original D12 declaration listed `shouldEvict, selectVictims, evict, scoreMemory` — those names were notional and were superseded during T1.1 design. The shipped shape is the canonical contract going forward; this amendment locks the record.
+
+Reasoning trail:
+
+- `shouldEvict` → folded into the trigger layer (`CapacityBasedTrigger.fire()` + `TimeBasedTrigger.tickNow()`). The DIP no longer carries the decision-to-evict because the trigger conditions are runtime context, not policy semantics.
+- `evict` → relocated to a separate `Evictor` DIP at `src/local/eviction/pg-evictor.ts` so non-Pg adapters can plug in a different soft-delete primitive without re-implementing the scoring policy.
+- `scoreMemory` → renamed to `score` for shape consistency with `ReflectionPolicy.shouldReflect` (one-word verb).
+- `onEvictionStart` / `onEvictionEnd` → added as optional lifecycle hooks for observability per ADR D17's bi-temporal audit contract. v0.4b-fixes T12.1 (F-xval-2) wired the call sites in both triggers.
+
 ### D13 — Single Drizzle migration `0003_eviction_columns.sql` adds three columns + one index
 
 **Decision:** ONE migration adds three columns to `memories`:
