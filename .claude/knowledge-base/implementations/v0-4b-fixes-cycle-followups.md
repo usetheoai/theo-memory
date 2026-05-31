@@ -4,6 +4,25 @@ Tracking items observed during the halt-loop but DEFERRED to avoid scope creep p
 `cycle-implement.md § Anti-pattern #7`. Add new entries below; archive when the
 entry ships in its own follow-up plan or post-merge plan-archival step.
 
+## F2 — architecture.md generated-code exemption clause (surfaced at iter 1 / T0.1)
+
+architecture.md § 7 Module hygiene + the implicit ≤500 LoC file-size budget
+do not explicitly carve out an exemption for tooling-generated artifacts
+(drizzle-kit snapshot JSON, ast-grep output, protoc-emitted types, etc.).
+
+T0.1 commits `0003_snapshot.json` (562 LoC) + `0004_snapshot.json` (562 LoC),
+both drizzle-kit-authored serializations of the Drizzle schema model state.
+These are NOT human-maintained code; the budget conceptually applies to
+hand-written modules where complexity correlates with file size.
+
+**Recommended owner:** next halt-loop touching architecture.md OR a small
+follow-up plan. One-line addendum to § 7:
+
+> File-size budget (≤500 LoC) applies to human-authored source under `src/`
+> and `tests/`. Tooling-generated artifacts (Drizzle snapshots, ast-grep
+> output, protoc-emitted types, etc.) are exempt — measure complexity at the
+> generating tool's schema, not the artifact.
+
 ## F1 — ADR D4 amendment opportunity (surfaced at iter 1 / T0.1)
 
 Plan T0.1 § Deep Dives lines 200-202 + ADR D4 ("Generate, don't hand-author")
