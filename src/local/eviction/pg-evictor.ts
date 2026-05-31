@@ -44,10 +44,35 @@ RETURNING id`;
 
 const SOFT_DELETE_COUNTER_NAME = 'theo.memory.eviction.soft_deletes_total';
 
-const meter = metrics.getMeter('@usetheo/memory');
-const softDeleteCounter: Counter = meter.createCounter(SOFT_DELETE_COUNTER_NAME, {
-  description: 'Count of memories soft-deleted by an eviction policy (cumulative)',
-});
+/**
+ * v0.4b-fixes T10.1 (F-dom-6): the OTel counter is lazily resolved on the
+ * first `evict()` call instead of at module load. Consumers that register
+ * their MeterProvider AFTER importing `@usetheo/memory` (the canonical
+ * pattern when boot order is `createLocalMemory()` THEN
+ * `MeterProvider.setGlobalMeterProvider(...)`) now see counter emissions
+ * routed to their provider. Module-load resolution captured the no-op
+ * default provider permanently — the F-dom-6 bug fixed here.
+ */
+let lazyCounter: Counter | undefined;
+function getSoftDeleteCounter(): Counter {
+  if (lazyCounter === undefined) {
+    const meter = metrics.getMeter('@usetheo/memory');
+    lazyCounter = meter.createCounter(SOFT_DELETE_COUNTER_NAME, {
+      description: 'Count of memories soft-deleted by an eviction policy (cumulative)',
+    });
+  }
+  return lazyCounter;
+}
+
+/**
+ * @internal Test-only — resets the lazy counter cache so a subsequent
+ * `evict()` call re-resolves `metrics.getMeter()` against the now-current
+ * MeterProvider. Production paths do NOT call this; the counter is
+ * cached for the lifetime of the process per OTel guidance.
+ */
+export function __resetCounterCacheForTesting(): void {
+  lazyCounter = undefined;
+}
 
 export interface Evictor {
   evict(memoryIds: readonly string[]): Promise<EvictionResult>;
@@ -87,7 +112,7 @@ export class PgEvictor implements Evictor {
     }
     if (softDeleted.length > 0) {
       const attrs = { policy: 'triadic_scoring' };
-      softDeleteCounter.add(softDeleted.length, attrs);
+      getSoftDeleteCounter().add(softDeleted.length, attrs);
       this.onSoftDelete?.(softDeleted.length, attrs);
     }
     return { softDeleted, alreadyInvalid, errors: [] };
