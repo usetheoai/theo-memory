@@ -75,7 +75,14 @@ async function runRandomEviction(
   await reset(pool);
   const seed = await seedRareTargetTopology(pool, EVAL_AGENT_ID);
   const allIds = [...seed.clusterMemberIds, ...seed.rareTargetIds];
-  const shuffled = [...allIds].sort(() => Math.random() - 0.5);
+  // v0.4b-fixes T11.2 / F-tests-2: Fisher-Yates shuffle via seeded RNG
+  // produces byte-identical permutations across runs for the same seed
+  // (EC-8 absorption). Previous `Array.sort(() => Math.random() - 0.5)`
+  // was not a uniform shuffle and could not be reproduced.
+  const { shuffleDeterministic } = await import(
+    '../../tests/integration/forgetting/fixtures/deterministic-hash.js'
+  );
+  const shuffled = shuffleDeterministic(allIds, 0x4b_11_2);
   const victims = shuffled.slice(0, Math.floor(TOTAL_SEED_COUNT * EVICTION_FRACTION));
   const result = await evictor.evict(victims);
   const rareSurvivors = seed.rareTargetIds.filter(

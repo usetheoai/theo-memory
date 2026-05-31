@@ -85,7 +85,7 @@ export async function seedRareTargetTopology(
          RETURNING id`,
         [
           `cluster-${c}-member-${m}`,
-          `h-t7-1-cluster-${c}-${m}-${Math.random().toString(36).slice(2)}`,
+          `h-t7-1-cluster-${c}-${m}`,
           vectorLiteral(clusterMemberVector(c, m)),
           {},
           agentId,
@@ -105,7 +105,7 @@ export async function seedRareTargetTopology(
        RETURNING id`,
       [
         `rare-target-${r}`,
-        `h-t7-1-rare-${r}-${Math.random().toString(36).slice(2)}`,
+        `h-t7-1-rare-${r}`,
         vectorLiteral(rareTargetVector(r)),
         {},
         agentId,
