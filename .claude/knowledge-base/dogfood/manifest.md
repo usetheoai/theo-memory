@@ -111,3 +111,19 @@ Future decisions modifying the anchor scenario MUST be appended here with an ADR
 - **Latest evidence:** update the `**Latest evidence:**` field whenever a new evidence file is logged. The `/dogfood log-evidence` flow suggests this update.
 - **Adding scenarios:** append to `## Other scenarios`. Promoting an optional scenario to `required` for v1.0 requires the strategic-review process documented in the golden rule.
 - **NEVER edit this file to claim evidence that does not exist** — Inquebrável Rule 3 (Honestidade Extrema). The `/dogfood` audit reads evidence files, not the manifest; lying in the manifest produces a verdict that immediately contradicts the file system.
+
+---
+
+## Appendix — Process dogfood (NON-counted secondary scenario)
+
+Added 2026-05-31 by plan `examples-chat-with-memory-v0-4b-expansion` ADR D4.
+
+The `evidence/` directory may contain files with frontmatter `scenario: process-dogfood`. These document the **process** by which TheMemory's cycles (cycle-plan + cycle-implement + cycle-review) were validated against running infrastructure — `npm test`, `/test-chat-with-memory`, integration suites against real pgvector, etc.
+
+**Process-dogfood files do NOT count toward S1 advancement or `EVIDENCE_SUFFICIENT`.** They carry `unlocks_production_ready_claim: false` in their frontmatter. The `/dogfood` audit reads the `scenario:` field and only counts entries that match the anchor slug `claude-code-auto-memory` AND where the manifest status of S1 is `running`. Anything else is informational.
+
+This appendix exists because the absence of any evidence files (the directory contained only `.gitkeep` before 2026-05-31) was itself an honesty risk per `dogfood-golden-rule.md` § Anti-pattern 5 (`no_anchor_evidence` stable identifier). Process-dogfood files surface the process work that DOES happen, without contaminating the anchor-scenario gate.
+
+Files registered to date under `scenario: process-dogfood`:
+
+- `2026-05-31-process-v0-4b-fixes-cycle-validation.md` — validates PR #24 merge + the v0.4b-expansion follow-on cycle.
