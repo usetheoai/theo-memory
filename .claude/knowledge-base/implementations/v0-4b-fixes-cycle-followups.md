@@ -4,6 +4,33 @@ Tracking items observed during the halt-loop but DEFERRED to avoid scope creep p
 `cycle-implement.md § Anti-pattern #7`. Add new entries below; archive when the
 entry ships in its own follow-up plan or post-merge plan-archival step.
 
+## F3 — `drizzle-kit push` requires TTY (surfaced at iter 3 / T2.1)
+
+Empirical observation during T2.1 GREEN: `npm run db:push` invokes
+`drizzle-kit push` which on drizzle-kit 0.31.x renders an interactive
+prompt requiring `process.stdin.isTTY === true` even when the `--force`
+flag is passed. In non-interactive environments (CI, piped shells, the
+`Bash` tool invocations used by this halt-loop), drizzle-kit errors with
+`Interactive prompts require a TTY terminal`. The trigger-apply tail step
+(`node scripts/apply-trigger-migrations.mjs`) runs cleanly non-interactively,
+but the upstream drizzle-kit failure prevents schema provisioning so the
+trigger has no `memories` table to attach to.
+
+This is a pre-existing constraint of drizzle-kit 0.31 + the v0.1 `db:push`
+script shape, NOT introduced by T2.1. Workaround during testing: provision
+schema via `runMigrations(pool)` (non-interactive) then run the helper
+directly — proven via integration test
+`tests/integration/db-push/trigger-applied.test.ts` (3/3 PASS against real
+pgvector) + manual smoke documented in T2.1 commit body.
+
+**Recommended owner:** future halt-loop touching the `db:push` script
+(likely v0.5 cloud runtime prep). Options:
+- Bump drizzle-kit to a version that honors `--force` non-interactively (verify the release notes — drizzle-kit upstream tracks this).
+- Replace `drizzle-kit push` in `db:push` with a programmatic
+  `migrate()` call so dev + prod converge on the journal-driven path.
+- Document the TTY requirement in `### Prerequisites` and let consumers
+  run `db:push` from an interactive terminal.
+
 ## F2 — architecture.md generated-code exemption clause (surfaced at iter 1 / T0.1)
 
 architecture.md § 7 Module hygiene + the implicit ≤500 LoC file-size budget

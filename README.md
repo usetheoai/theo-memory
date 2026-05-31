@@ -87,7 +87,17 @@ Below this line, full technical vocabulary is in play. Installation, the two run
 
 > **Pre-release.** Not production-ready. Status: dogfooding via the `/dogfood` gate. The embedding dimension is capped at **1536** at v0.1 (see plan ADR D1.7 in `.claude/knowledge-base/plans/v0-1-local-runtime-plan.md`).
 
-The v0.1 local runtime ships as: TypeScript library + Postgres + pgvector container + your-supplied LLM and Embedder. Wiring:
+The v0.1 local runtime ships as: TypeScript library + Postgres + pgvector container + your-supplied LLM and Embedder.
+
+### Prerequisites
+
+`npm run db:push` requires the following dev tools on `PATH`:
+
+- **Node.js** 20.x or later (matches `package.json#engines.node`)
+- **Docker** + **docker compose** v2 (for the `pgvector` container)
+- **psql** — PostgreSQL 14+ client tools. `db:push` invokes `psql` directly to apply trigger-bearing migrations (e.g. `0004_eviction_half_life_trigger.sql`) because Drizzle ORM does not model triggers in its schema language. If `psql` is missing, the script aborts with a clear message pointing back at this section.
+
+### Wiring
 
 ```bash
 # 1. Boot the local pgvector container

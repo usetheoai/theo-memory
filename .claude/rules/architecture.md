@@ -149,6 +149,19 @@ Current consumer: `src/local/migrations/**` copied via `postbuild:copy-migration
 
 F-T7.1-2.
 
+### 10.3 Trigger-bearing migrations require a psql side-channel in `db:push`
+
+Drizzle ORM v0.45 does not model triggers or functions in `pgTable` declarations. Migrations that include `CREATE TRIGGER` or `CREATE FUNCTION` (e.g., `0004_eviction_half_life_trigger.sql`) are invisible to `drizzle-kit push` — its schema introspection sees only columns + indexes. Without intervention, the dev DB ends up with the columns but no trigger, while `runMigrations()` (which reads the journal directly) applies everything correctly in prod. The two paths silently diverge.
+
+**Mitigation (shipped 2026-05-31 / v0.4b-fixes T2.1, closes F-dom-db-2):** `npm run db:push` chains `node scripts/apply-trigger-migrations.mjs` as its final step. The helper scans `src/local/migrations/*.sql` for files matching `/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TRIGGER|FUNCTION)\b/i` and applies each via `psql -v ON_ERROR_STOP=1 -f <file>` against `$THEOMEM_PG_URI`. Idempotency relies on each trigger migration using `CREATE OR REPLACE` semantics (PG 14+); re-running `db:push` is a no-op at the SQL layer.
+
+**Rule:**
+- Any new migration that contains `CREATE TRIGGER`, `CREATE FUNCTION`, or other DDL outside Drizzle's schema model MUST use `CREATE OR REPLACE` so the helper stays idempotent.
+- Regex-based detection in the helper is sufficient while migrations are hand-authored (< 20 files); revisit if migration count grows or comments start carrying false-positive `CREATE TRIGGER` strings.
+- `psql` (PostgreSQL 14+ client tools) is now a dev prerequisite — surfaced in `README.md § Quickstart › Prerequisites` and enforced by the helper's anchored error message when `psql` is absent from `PATH`.
+
+F-dom-db-2.
+
 ## Reference
 
 - `CLAUDE.md § Architectural Decisions Locked` — the source of truth.
