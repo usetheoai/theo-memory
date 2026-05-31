@@ -93,7 +93,7 @@ async function runTriadicWithMultiplier(
 ): Promise<ScenarioResult> {
   await reset(pool);
   const seed = await seedRareTargetTopology(pool, EVAL_AGENT_ID);
-  const policy = new TriadicScoringPolicy(undefined, undefined, null, neighborProvider, evictor);
+  const policy = new TriadicScoringPolicy({ neighborProvider, evictor });
   const candidatesResult = await pool.query<{
     id: string;
     user_id: string | null;
