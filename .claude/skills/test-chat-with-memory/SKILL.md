@@ -1,11 +1,11 @@
 ---
 name: test-chat-with-memory
-description: End-to-end test runner for the `examples/chat-with-memory` Next.js demo via Chrome DevTools MCP. Spawns the dev server in background, drives the browser through 30 exhaustive scenarios covering User / Session / Skills / History / chat round-trip / edge cases against a real pgvector backend, cleans up, and writes a structured PASS/FAIL audit report.
+description: End-to-end test runner for the `examples/chat-with-memory` Next.js demo via Chrome DevTools MCP. Spawns the dev server in background, drives the browser through 33 exhaustive scenarios covering User / Session / Skills / History / chat round-trip / edge cases / v0.4b eviction tab against a real pgvector backend, cleans up, and writes a structured PASS/FAIL audit report.
 ---
 
 # Test Chat-with-Memory — exhaustive E2E via Chrome DevTools MCP
 
-Drives `examples/chat-with-memory` through 30 scenarios covering every feature the demo exposes (User scope, Session scope, Skills/RepoScope, History audit, chat round-trip + reflection, edge cases). Backend is **pgvector only** — the suite requires `THEOMEM_PG_URI` + a running pgvector container.
+Drives `examples/chat-with-memory` through 33 scenarios covering every feature the demo exposes (User scope, Session scope, Skills/RepoScope, History audit, chat round-trip + reflection, edge cases, v0.4b eviction tab). Backend is **pgvector only** — the suite requires `THEOMEM_PG_URI` + a running pgvector container.
 
 ## When to trigger
 
@@ -70,11 +70,11 @@ PG_URI="$THEOMEM_PG_URI" psql "$PG_URI" -c "TRUNCATE memories, entities, history
 
 ### Step 2 — Spawn the dev server in background
 
-The skill exports `THEOMEM_REFLECTION_THRESHOLD=2` so scenario F3 (threshold-cross banner) fires after 2 turns instead of the default 10. The user's `.env` is NOT mutated — the env var only lives for the spawned subprocess.
+The skill exports `THEOMEM_REFLECTION_THRESHOLD=2` so scenario F3 (threshold-cross banner) fires after 2 turns instead of the default 10. It ALSO exports `THEOMEM_EVICTION_DEMO=1` so Group H scenarios (v0.4b eviction tab) can observe the live capacity-trigger pipeline. The user's `.env` is NOT mutated — both env vars only live for the spawned subprocess.
 
 ```bash
 cd examples/chat-with-memory
-THEOMEM_REFLECTION_THRESHOLD=2 nohup npm run dev > /tmp/themory-demo.log 2>&1 &
+THEOMEM_REFLECTION_THRESHOLD=2 THEOMEM_EVICTION_DEMO=1 nohup npm run dev > /tmp/themory-demo.log 2>&1 &
 echo $! > /tmp/themory-demo.pid
 cd - > /dev/null
 ```
@@ -100,7 +100,7 @@ Open a single page and reuse it across scenarios (each scenario takes a fresh sn
 new_page(url="http://localhost:3000")
 ```
 
-Then iterate through the 30 scenarios below. Each scenario follows the same template:
+Then iterate through the 33 scenarios below. Each scenario follows the same template:
 
 1. Setup (DB truncate / new session / specific input)
 2. Action sequence via `click` / `fill` / `type_text`
@@ -116,7 +116,7 @@ Then iterate through the 30 scenarios below. Each scenario follows the same temp
 - NEVER swallow console errors — `list_console_messages` after each scenario; any uncaught exception is a FAIL regardless of the scenario's primary assertion.
 - NEVER leave the page in a state that pollutes the next scenario — between scenarios that need a clean slate, call the appropriate New Session button OR DB-TRUNCATE.
 
-### Scenario catalogue (30 total, 7 groups)
+### Scenario catalogue (33 total, 8 groups)
 
 Scenarios reference DOM elements by accessible text or `aria-label`. The agent reads the current `take_snapshot` to discover the live `uid` for each click target — DO NOT hardcode uids across runs (they change on every snapshot).
 
@@ -185,6 +185,16 @@ Scenarios reference DOM elements by accessible text or `aria-label`. The agent r
 | G4 | Foreign skill forget — silent same-class error | See D6 but issue against a randomly-generated UUID that DOES NOT exist anywhere | Same as D6 with a known-bad id | 404 with the same generic "not found" message shape (information-leak prevention per v0.6.1 T4.1 EC-2) |
 | G5 | Refresh mid-stream does not corrupt state | Send a long message; while streaming, call `navigate_page("http://localhost:3000")` | After reload, snapshot shows the chat thread empty (browser state wiped) but User tab still lists prior facts; `list_console_messages` reports no uncaught exception |
 
+#### Group H — Eviction tab (v0.4b, 3 scenarios)
+
+Requires `THEOMEM_EVICTION_DEMO=1` exported into the spawned dev server (already wired in Step 2). The plan that introduced this group: `.claude/knowledge-base/plans/examples-chat-with-memory-v0-4b-expansion-plan.md` § Phase T3.
+
+| # | Name | Setup | Action | Pass criterion |
+|---|---|---|---|---|
+| H1 | EvictionTab visible when env var set | Fresh page; dev server spawned with `THEOMEM_EVICTION_DEMO=1` | Click the "Eviction" tab (5th tab after History) | `take_snapshot` shows backend badge text `pgvector` AND `capacity` trigger badge AND a stat tile/card matching `/Active rows:?\s*\d+\s*\/\s*10/`; `list_network_requests` shows `GET /api/memory/eviction-status?userId=...` returned 200 with `enabled:true` |
+| H2 | Capacity overflow fires evict | Seed 11 user-scope memories via 11 successive `B1`-shaped sends OR direct POST to `/api/memory/recall` then `/api/chat` sends; observe state via `/api/memory/eviction-status` | After the 11th remember, `evaluate_script` fetches `/api/memory/eviction-status?userId=<scope>` | Response shows `softDeletedCount >= 1` (capacity-trigger fired); EvictionTab snapshot reflects the same counter; `activeCount <= 10` |
+| H3 | `forget(id, { hard: true })` physically deletes | Pick a User-tab fact's id (visible after B1) | `evaluate_script` constructs `await fetch('/api/memory/forget', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId, id, hard: true }) }).then(r => r.json())` | Response `{ ok: true }`; subsequent `GET /api/memory/eviction-status?userId=<scope>` shows that `softDeletedCount` did NOT increment (hard-delete = row gone, not soft-deleted); a follow-up `evaluate_script` confirming `await fetch('/api/memory/recall?userId=<scope>')` does NOT contain the id |
+
 ### Step 4 — Cleanup (ALWAYS runs, even on FAIL/abort)
 
 ```bash
@@ -219,8 +229,8 @@ Verdict mapping:
 
 | Result | Verdict |
 |---|---|
-| All 30 PASS (skips OK) | `READY` |
-| 1-2 FAIL on edge-case scenarios only (G group) | `READY_WITH_CAVEATS` |
+| All 33 PASS (skips OK) | `READY` |
+| 1-2 FAIL on edge-case scenarios only (G or H group) | `READY_WITH_CAVEATS` |
 | Any FAIL on A/B/C/D/F group | `NEEDS_FIXES` |
 | Pre-flight refused | `BLOCKED` |
 
@@ -237,7 +247,7 @@ Verdict mapping:
 
 ## Cost
 
-Per invocation: ~80-150k tokens (30 scenarios × Chrome MCP round-trips). Higher than `/dogfood audit` (3-8k) by 1-2 orders of magnitude — invoke before each demo-related commit, NOT every change.
+Per invocation: ~90-165k tokens (33 scenarios × Chrome MCP round-trips; H group adds ~10-15k for the 3 eviction scenarios). Higher than `/dogfood audit` (3-8k) by 1-2 orders of magnitude — invoke before each demo-related commit, NOT every change.
 
 ## Cross-references
 
