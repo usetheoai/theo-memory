@@ -17,7 +17,12 @@
  */
 import type { Scope } from '../../core/scope.js';
 
-export { TriadicScoringPolicy, type TriadicScoringPolicyOptions, type TriadicWeights, type TriadicConstants, type HalfLifePersister, type NearestNeighborProvider, getNeighborScopeId, DEFAULT_TRIADIC_WEIGHTS, DEFAULT_TRIADIC_CONSTANTS, InvalidWeightsError, computeRecency, computeFrequency, computeImportance, computeHalfLifeSeconds } from './triadic-scoring-policy.js';
+export { TriadicScoringPolicy, type TriadicScoringPolicyOptions, type TriadicWeights, type TriadicConstants, getNeighborScopeId, DEFAULT_TRIADIC_WEIGHTS, DEFAULT_TRIADIC_CONSTANTS, InvalidWeightsError, computeRecency, computeFrequency, computeImportance, computeHalfLifeSeconds } from './triadic-scoring-policy.js';
+// v0.4b-fixes T5.1: HalfLifePersister + NearestNeighborProvider relocated to
+// core/dip/eviction-policy.ts per F-arch-2 (concrete depends on abstraction;
+// abstraction does NOT live with concrete). Re-exported here so the eviction
+// barrel remains the one-stop-shop for v0.4b consumers.
+export type { HalfLifePersister, NearestNeighborProvider } from '../../core/dip/eviction-policy.js';
 export { PgEvictor, type Evictor } from './pg-evictor.js';
 export { PgHalfLifePersister } from './pg-half-life-persister.js';
 export { PgNearestNeighborProvider } from './pg-nearest-neighbor-provider.js';

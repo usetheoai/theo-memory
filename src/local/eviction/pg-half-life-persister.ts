@@ -17,7 +17,7 @@
  */
 import type { Pool } from 'pg';
 
-import type { HalfLifePersister } from './triadic-scoring-policy.js';
+import type { HalfLifePersister } from '../../core/dip/eviction-policy.js';
 
 const PERSIST_HALF_LIFE_SQL = `UPDATE memories
    SET half_life_seconds = $1

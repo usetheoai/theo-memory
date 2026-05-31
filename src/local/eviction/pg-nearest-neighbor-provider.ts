@@ -17,10 +17,10 @@
  */
 import type { Pool } from 'pg';
 
+import type { NearestNeighborProvider } from '../../core/dip/eviction-policy.js';
 import type { Scope } from '../../core/scope.js';
 
 import { scopeColumn, scopeValue } from './scope-where.js';
-import type { NearestNeighborProvider } from './triadic-scoring-policy.js';
 
 const MAX_ISOLATION_DISTANCE = 1;
 
