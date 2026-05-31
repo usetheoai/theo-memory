@@ -481,13 +481,52 @@ class LocalMemory implements Memory {
     await Promise.allSettled(snapshot);
   }
 
+  /**
+   * v0.4b-fixes T7.1 — PUBLIC API BREAKING CHANGE (ADR D7 + EC-3 absorption).
+   *
+   * Behavior contract delta vs v0.1:
+   * - **v0.1 (shipped)**: physical DELETE via `vectorStore.delete()`; raw
+   *   `SELECT * FROM memories WHERE id = $1` post-forget returned 0 rows. This
+   *   violated the documented `ForgetOptions.hard?: false` default at
+   *   `src/core/options.ts:55-62`.
+   * - **v0.4b-fixes (this)**: soft-delete via `t_invalid = NOW()` through the
+   *   `PgEvictor` path (consistent with auto-eviction). Raw SELECT post-forget
+   *   returns 1 row with `t_invalid IS NOT NULL`. Use `{ hard: true }` for
+   *   GDPR-style physical delete.
+   * - **Migration**: replace `assert count_after_forget == 0` with
+   *   `assert count_where_t_invalid_null_after_forget == 0`. Historical rows
+   *   recoverable via `WHERE t_invalid IS NOT NULL`.
+   * - **Cascade**: v0.6 `ScopedSkillMemory.forget()` routes through this same
+   *   path via `LocalScopedSkillMemory.forgetDelegate` — skill consumers also
+   *   see the BREAKING change.
+   *
+   * `InMemoryVectorStore` consumers (dev/test) keep the v0.1 hard-delete
+   * behavior — `t_invalid` is a Postgres-only concept; the in-memory adapter
+   * does not model it. This preserves unit-test ergonomics while the
+   * Postgres production path gains the soft-delete contract.
+   *
+   * @see CHANGELOG.md [Unreleased] § Changed `**BREAKING**` entry
+   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T7.1 + ADR D7
+   * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-3
+   */
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
-    void options;
     const existing = await this.config.vectorStore.get(memoryId);
     if (existing === null) {
       throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: divergence from Mem0's silent no-op)`);
     }
-    await this.config.vectorStore.delete(memoryId);
+    const hardDelete = options?.hard === true;
+    const isPgStore = this.config.vectorStore instanceof PgvectorStoreClass;
+    if (hardDelete || !isPgStore) {
+      // GDPR-style physical delete (ForgetOptions.hard=true) OR non-Pg adapter
+      // fallback (InMemoryVectorStore has no t_invalid concept).
+      await this.config.vectorStore.delete(memoryId);
+    } else {
+      // Default soft-delete via PgEvictor — consistent with the v0.4b
+      // auto-eviction path. Idempotent: a row already carrying t_invalid is
+      // returned in `alreadyInvalid` without an exception.
+      const evictor = new PgEvictor(this.config.vectorStore.poolForEviction);
+      await evictor.evict([memoryId]);
+    }
     if (this.config.historyManager !== undefined) {
       try {
         await this.config.historyManager.addHistory(
