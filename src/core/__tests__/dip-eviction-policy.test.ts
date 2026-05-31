@@ -22,6 +22,8 @@ import {
   InvalidFractionError,
   type EvictionPolicy,
   type EvictionResult,
+  type HalfLifePersister,
+  type NearestNeighborProvider,
   type ScoreContext,
 } from '../dip/eviction-policy.js';
 import type { MemoryItem } from '../memory-item.js';
@@ -73,6 +75,29 @@ describe('EvictionPolicy DIP (T1.1 / D12)', () => {
     };
     expect(context.meanIsolationDistance).toBe(0.42);
     expect(context.now.toISOString()).toBe('2026-05-30T00:00:00.000Z');
+  });
+
+  test('exports HalfLifePersister interface implementable by a stub (T5.1 / F-arch-2)', async () => {
+    const persisted: { id: string; h: number }[] = [];
+    const persister: HalfLifePersister = {
+      async persist(memoryId: string, halfLifeSeconds: number): Promise<void> {
+        await Promise.resolve();
+        persisted.push({ id: memoryId, h: halfLifeSeconds });
+      },
+    };
+    await persister.persist('mem-a', 86_400);
+    expect(persisted).toEqual([{ id: 'mem-a', h: 86_400 }]);
+  });
+
+  test('exports NearestNeighborProvider interface implementable by a stub (T5.1 / F-arch-2)', async () => {
+    const provider: NearestNeighborProvider = {
+      async distance(memoryId: string, scope: Scope): Promise<number> {
+        await Promise.resolve();
+        return scope.kind === 'user' && memoryId === 'rare' ? 0.95 : 0.5;
+      },
+    };
+    const dist = await provider.distance('rare', { kind: 'user', userId: 'alice' });
+    expect(dist).toBe(0.95);
   });
 });
 

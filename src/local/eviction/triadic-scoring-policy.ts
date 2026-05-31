@@ -35,12 +35,24 @@ import {
   assertValidFraction,
   type EvictionPolicy,
   type EvictionResult,
+  type HalfLifePersister,
+  type NearestNeighborProvider,
   type ScoreContext,
 } from '../../core/dip/eviction-policy.js';
 import type { MemoryItem } from '../../core/memory-item.js';
 import type { Scope } from '../../core/scope.js';
 
 import type { Evictor } from './pg-evictor.js';
+
+// Re-export DIP interfaces for backward compatibility — local code that
+// previously imported these from this file continues to compile. New code
+// should import directly from `src/core/dip/eviction-policy.js`.
+//
+// v0.4b-fixes T5.1: closes F-arch-2 by physically relocating the interface
+// declarations to the DIP file; this barrel re-export preserves the
+// pre-existing public surface (`src/local/eviction/index.ts` + the root
+// `@usetheo/memory` re-export chain).
+export type { HalfLifePersister, NearestNeighborProvider } from '../../core/dip/eviction-policy.js';
 
 export interface TriadicWeights {
   readonly recency: number;
@@ -65,45 +77,6 @@ export const DEFAULT_TRIADIC_CONSTANTS: TriadicConstants = {
   halfLifeBaseSeconds: 30 * 86400,
   importanceDefault: 0.5,
 };
-
-/**
- * Side-effect collaborator that persists a computed `half_life_seconds` back
- * to storage during `score()`. Optional — when omitted (e.g., in pure-math
- * unit tests), `score()` computes on-the-fly without DB I/O. Real-runtime
- * consumers inject a `PgHalfLifePersister` via constructor.
- *
- * EC-1 absorption (plan v1.1): the persister UPDATE is guarded by
- * `WHERE half_life_seconds IS NULL` for idempotency — second scoring of the
- * same row issues no DB mutation. Re-backfill after `llm_importance_score`
- * updates is handled by the DB-layer trigger
- * `memories_reset_half_life_on_importance_update_trg` (migration 0004),
- * NOT by the persister.
- */
-export interface HalfLifePersister {
-  persist(memoryId: string, halfLifeSeconds: number): Promise<void>;
-}
-
-/**
- * Side-effect collaborator that returns the cosine distance from a memory to
- * its nearest non-self non-invalidated neighbor in the same scope per
- * blueprint D16. Optional — when omitted (e.g., pure-math unit tests), the
- * long-tail multiplier short-circuits to 1.0 (no isolation-based protection
- * adjustment).
- *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1
- */
-export interface NearestNeighborProvider {
-  /**
-   * Returns the cosine distance from `memoryId` to its nearest non-self
-   * non-invalidated neighbor in the same scope.
-   *
-   * Widened in v0.4b-fixes T3.1 from `agentId: string` to the full `Scope`
-   * union so triggers + multiplier operate on User/Session/Agent/Repo tiers
-   * uniformly. Implementations dispatch on `scope.kind` to pick the column
-   * predicate (user_id / session_id / agent_id).
-   */
-  distance(memoryId: string, scope: Scope): Promise<number>;
-}
 
 /** Max isolation distance when scope has no other memories (singleton fallback). */
 const MAX_ISOLATION_DISTANCE = 1;

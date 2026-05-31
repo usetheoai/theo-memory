@@ -104,6 +104,8 @@ export type {
 export type {
   EvictionPolicy,
   EvictionResult,
+  HalfLifePersister,
+  NearestNeighborProvider,
   ScoreContext,
 } from './dip/eviction-policy.js';
 export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
