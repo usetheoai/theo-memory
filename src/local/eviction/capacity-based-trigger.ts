@@ -20,12 +20,11 @@
  */
 import type { Pool, PoolClient } from 'pg';
 
-import type { EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
+import type { EvictionPolicy, EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
 import type { Scope } from '../../core/scope.js';
 
 import { loadCandidates } from './scope-candidate.js';
 import { advisoryLockKey, scopeWhereClause } from './scope-where.js';
-import type { TriadicScoringPolicy } from './triadic-scoring-policy.js';
 
 const MAX_OVERFLOW_FRACTION = 0.5;
 
@@ -49,7 +48,7 @@ export function computeOverflowFraction(
 export class CapacityBasedTrigger {
   constructor(
     private readonly pool: Pool,
-    private readonly policy: TriadicScoringPolicy,
+    private readonly policy: EvictionPolicy,
     private readonly maxMemoriesPerScope: number,
   ) {}
 
@@ -111,19 +110,40 @@ export class CapacityBasedTrigger {
     if (fraction <= 0) {
       return null;
     }
+    // v0.4b-fixes T12.1 (F-xval-2): invoke EvictionPolicy lifecycle hooks
+    // declared by ADR D12 so consumers wiring an observability policy receive
+    // the eviction boundary signals. Hooks are optional on the DIP; we
+    // call only when present + swallow errors (observability is best-effort).
+    if (this.policy.onEvictionStart !== undefined) {
+      try {
+        await this.policy.onEvictionStart(scope, fraction);
+      } catch {
+        // observability-only — do NOT poison the eviction
+      }
+    }
     const candidates = await loadCandidates(client, scope);
     const context: ScoreContext = { meanIsolationDistance: 0, now };
     const victimIds = await this.policy.selectVictims(candidates, fraction, context);
+    let result: EvictionResult;
     if (victimIds.length === 0) {
-      return { softDeleted: [], alreadyInvalid: [], errors: [] };
+      result = { softDeleted: [], alreadyInvalid: [], errors: [] };
+    } else {
+      await client.query(
+        `UPDATE memories
+            SET t_invalid = NOW()
+          WHERE id = ANY($1::uuid[])
+            AND t_invalid IS NULL`,
+        [victimIds],
+      );
+      result = { softDeleted: victimIds, alreadyInvalid: [], errors: [] };
     }
-    await client.query(
-      `UPDATE memories
-          SET t_invalid = NOW()
-        WHERE id = ANY($1::uuid[])
-          AND t_invalid IS NULL`,
-      [victimIds],
-    );
-    return { softDeleted: victimIds, alreadyInvalid: [], errors: [] };
+    if (this.policy.onEvictionEnd !== undefined) {
+      try {
+        await this.policy.onEvictionEnd(scope, result);
+      } catch {
+        // observability-only
+      }
+    }
+    return result;
   }
 }

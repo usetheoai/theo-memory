@@ -63,7 +63,17 @@ export function scopeValue(scope: Scope): string {
  * collision would manifest as cross-tier serialization (unrelated evictions
  * blocking each other) — semantically harmless but a debugging surprise.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1 (SEPA iter 4 pre-RED MAJOR)
+ * v0.4b-fixes T12.1 (F-dom-pg-5 MINOR): Postgres advisory locks live in a
+ * shared 64-bit keyspace; `pg_try_advisory_xact_lock(hashtext($1))` further
+ * narrows the effective key to the 32-bit `hashtext` output. The collision
+ * surface is therefore ~`2^32` distinct keys across the entire cluster —
+ * astronomically large in practice (we'd need ~65k distinct scope-keys to
+ * hit a 50% birthday-collision probability). False collisions just block
+ * for the duration of the other tx's eviction pass, then release; the lock
+ * is per-transaction (`_xact_`) so the blast radius is bounded by the
+ * holding tx's lifetime. No data-corruption risk.
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1 + T12.1 (F-dom-pg-5)
  */
 export function advisoryLockKey(scope: Scope): string {
   return `eviction_${scope.kind}_${scopeValue(scope)}`;

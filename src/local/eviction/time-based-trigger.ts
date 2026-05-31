@@ -26,12 +26,11 @@
 import { Cron } from 'croner';
 import type { Pool, PoolClient } from 'pg';
 
-import type { EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
+import type { EvictionPolicy, EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
 import type { Scope } from '../../core/scope.js';
 
 import { loadCandidates } from './scope-candidate.js';
 import { advisoryLockKey } from './scope-where.js';
-import type { TriadicScoringPolicy } from './triadic-scoring-policy.js';
 
 export interface TimeBasedTriggerConfig {
   readonly cronExpression: string;
@@ -69,7 +68,7 @@ export class TimeBasedTrigger {
 
   constructor(
     private readonly pool: Pool,
-    private readonly policy: TriadicScoringPolicy,
+    private readonly policy: EvictionPolicy,
     config: TimeBasedTriggerConfig,
   ) {
     if (config.cronExpression === '') {
@@ -107,6 +106,9 @@ export class TimeBasedTrigger {
     }
     this.cronJob = new Cron(this.cronExpression, () => {
       void this.tickNow(new Date()).catch((err: unknown) => {
+        // @todo v0.5 — replace with structured logger DIP once
+        // src/core/dip/logger.ts ships (F-arch-6 MINOR; no logger interface
+        // exists at v0.4b so console.warn stays as the diagnostic channel).
         // eslint-disable-next-line no-console
         console.warn('[v0.4b TimeBasedTrigger] tick failed:', err);
       });
@@ -157,25 +159,44 @@ export class TimeBasedTrigger {
         await client.query('COMMIT');
         return null;
       }
+      // v0.4b-fixes T12.1 (F-xval-2): invoke EvictionPolicy lifecycle hooks
+      // declared by ADR D12 so consumers wiring an observability policy
+      // receive eviction boundary signals. Hooks are optional + best-effort.
+      if (this.policy.onEvictionStart !== undefined) {
+        try {
+          await this.policy.onEvictionStart(this.scope, this.evictionFraction);
+        } catch {
+          // observability-only — do NOT poison the eviction
+        }
+      }
       const context: ScoreContext = { meanIsolationDistance: 0, now };
       const victimIds = await this.policy.selectVictims(
         candidates,
         this.evictionFraction,
         context,
       );
+      let result: EvictionResult;
       if (victimIds.length === 0) {
-        await client.query('COMMIT');
-        return { softDeleted: [], alreadyInvalid: [], errors: [] };
+        result = { softDeleted: [], alreadyInvalid: [], errors: [] };
+      } else {
+        await client.query(
+          `UPDATE memories
+              SET t_invalid = NOW()
+            WHERE id = ANY($1::uuid[])
+              AND t_invalid IS NULL`,
+          [victimIds],
+        );
+        result = { softDeleted: victimIds, alreadyInvalid: [], errors: [] };
       }
-      await client.query(
-        `UPDATE memories
-            SET t_invalid = NOW()
-          WHERE id = ANY($1::uuid[])
-            AND t_invalid IS NULL`,
-        [victimIds],
-      );
+      if (this.policy.onEvictionEnd !== undefined) {
+        try {
+          await this.policy.onEvictionEnd(this.scope, result);
+        } catch {
+          // observability-only
+        }
+      }
       await client.query('COMMIT');
-      return { softDeleted: victimIds, alreadyInvalid: [], errors: [] };
+      return result;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
