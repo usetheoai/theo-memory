@@ -80,7 +80,7 @@ if (PG_URI === undefined || PG_URI === '') {
         expect(seed.clusterMemberIds.length).toBe(CLUSTER_COUNT * MEMBERS_PER_CLUSTER);
         expect(seed.rareTargetIds.length).toBe(RARE_TARGET_COUNT);
 
-        const result = await trigger.fire(TEST_AGENT_ID, new Date());
+        const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
         expect(result).not.toBeNull();
         // (1000 - 700) / 1000 = 0.30 raw overflow → cap 0.5 → expect 300 evicted.
         expect(result?.softDeleted.length ?? 0).toBe(
@@ -114,7 +114,7 @@ if (PG_URI === undefined || PG_URI === '') {
       async () => {
         const seed = await seedRareTargetTopology(pool, TEST_AGENT_ID);
 
-        const result = await trigger.fire(TEST_AGENT_ID, new Date());
+        const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
         expect(result).not.toBeNull();
 
         const evictedSet = new Set(result?.softDeleted ?? []);

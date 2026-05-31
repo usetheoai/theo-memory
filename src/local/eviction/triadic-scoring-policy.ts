@@ -38,6 +38,7 @@ import {
   type ScoreContext,
 } from '../../core/dip/eviction-policy.js';
 import type { MemoryItem } from '../../core/memory-item.js';
+import type { Scope } from '../../core/scope.js';
 
 import type { Evictor } from './pg-evictor.js';
 
@@ -92,7 +93,16 @@ export interface HalfLifePersister {
  * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1
  */
 export interface NearestNeighborProvider {
-  distance(memoryId: string, agentId: string): Promise<number>;
+  /**
+   * Returns the cosine distance from `memoryId` to its nearest non-self
+   * non-invalidated neighbor in the same scope.
+   *
+   * Widened in v0.4b-fixes T3.1 from `agentId: string` to the full `Scope`
+   * union so triggers + multiplier operate on User/Session/Agent/Repo tiers
+   * uniformly. Implementations dispatch on `scope.kind` to pick the column
+   * predicate (user_id / session_id / agent_id).
+   */
+  distance(memoryId: string, scope: Scope): Promise<number>;
 }
 
 /** Max isolation distance when scope has no other memories (singleton fallback). */
@@ -103,17 +113,35 @@ const MIN_PROTECTION_MULTIPLIER = 0.1;
 const MAX_PROTECTION_MULTIPLIER = 1;
 
 /**
- * Extracts the scope identifier used for nearest-neighbor scoping. RepoScope
- * maps to `agent_id` per ADR-0010 / EC-4 absorption from the v0.6 cycle.
+ * Extracts the scope-tier identifier used for nearest-neighbor scoping.
+ *
+ * Dispatches on `scope.kind` — the discriminator is authoritative. The function
+ * never inspects row columns (it only sees the typed `Scope`); EC-5 absorption
+ * locks the rule that when a row has both `user_id='X' AND session_id='Y'`
+ * populated (legal — no CHECK constraint forbids it), passing
+ * `scope={kind:'session', sessionId:'Y'}` returns `'Y'`, not `'X'`.
+ *
+ * RepoScope maps to its `repoId` field; the local store column-aliases that
+ * id to `agent_id` per ADR-0010 / EC-4 absorption from the v0.6 cycle, so the
+ * PgNearestNeighborProvider's WHERE clause uses `m.agent_id = $repoId` for
+ * `kind='repo'`.
+ *
+ * Exported for unit-testing in `__tests__/get-neighbor-scope-id.test.ts`.
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
+ * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-5
  */
-function getNeighborScopeId(scope: MemoryItem['scope']): string | null {
-  if (scope.kind === 'agent') {
-    return scope.agentId;
+export function getNeighborScopeId(scope: Scope): string | null {
+  switch (scope.kind) {
+    case 'user':
+      return scope.userId;
+    case 'session':
+      return scope.sessionId;
+    case 'agent':
+      return scope.agentId;
+    case 'repo':
+      return scope.repoId;
   }
-  if (scope.kind === 'repo') {
-    return scope.repoId;
-  }
-  return null;
 }
 
 /**
@@ -327,11 +355,11 @@ export class TriadicScoringPolicy implements EvictionPolicy {
    * provider is wired (e.g., pure-math unit tests), returns the max-isolation
    * fallback 1.0 — equivalent to full long-tail protection.
    */
-  async nearestNeighborDistance(memoryId: string, agentId: string): Promise<number> {
+  async nearestNeighborDistance(memoryId: string, scope: Scope): Promise<number> {
     if (this.neighborProvider === null) {
       return MAX_ISOLATION_DISTANCE;
     }
-    return this.neighborProvider.distance(memoryId, agentId);
+    return this.neighborProvider.distance(memoryId, scope);
   }
 
   async score(memory: MemoryItem, context: ScoreContext): Promise<number> {
@@ -385,7 +413,7 @@ export class TriadicScoringPolicy implements EvictionPolicy {
       if (scopeId === null) {
         return MAX_PROTECTION_MULTIPLIER;
       }
-      isolation = await this.neighborProvider.distance(memory.id, scopeId);
+      isolation = await this.neighborProvider.distance(memory.id, memory.scope);
     }
     if (isolation === null) {
       return MAX_PROTECTION_MULTIPLIER;
@@ -433,7 +461,7 @@ export class TriadicScoringPolicy implements EvictionPolicy {
     for (const memory of candidates) {
       const scopeId = getNeighborScopeId(memory.scope);
       const isolation = scopeId !== null
-        ? await this.neighborProvider.distance(memory.id, scopeId)
+        ? await this.neighborProvider.distance(memory.id, memory.scope)
         : MAX_ISOLATION_DISTANCE;
       cache.set(memory.id, isolation);
     }

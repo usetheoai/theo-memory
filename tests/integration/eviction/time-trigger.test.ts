@@ -35,7 +35,7 @@ describe('TimeBasedTrigger constructor (EC-9 cron validation)', () => {
         new TimeBasedTrigger(
           { connect: async () => null } as unknown as pg.Pool,
           {} as unknown as TriadicScoringPolicy,
-          { cronExpression: '* * * * * *', evictionFraction: 0.3, scopeId: 'x' },
+          { cronExpression: '* * * * * *', evictionFraction: 0.3, scope: { kind: 'agent', agentId: 'x' } },
         ),
     ).not.toThrow();
   });
@@ -46,7 +46,7 @@ describe('TimeBasedTrigger constructor (EC-9 cron validation)', () => {
         new TimeBasedTrigger(
           { connect: async () => null } as unknown as pg.Pool,
           {} as unknown as TriadicScoringPolicy,
-          { cronExpression: '* * * * *', evictionFraction: 0.3, scopeId: 'x' },
+          { cronExpression: '* * * * *', evictionFraction: 0.3, scope: { kind: 'agent', agentId: 'x' } },
         ),
     ).not.toThrow();
   });
@@ -57,7 +57,7 @@ describe('TimeBasedTrigger constructor (EC-9 cron validation)', () => {
         new TimeBasedTrigger(
           { connect: async () => null } as unknown as pg.Pool,
           {} as unknown as TriadicScoringPolicy,
-          { cronExpression: '', evictionFraction: 0.3, scopeId: 'x' },
+          { cronExpression: '', evictionFraction: 0.3, scope: { kind: 'agent', agentId: 'x' } },
         ),
     ).toThrow(InvalidCronExpressionError);
   });
@@ -68,7 +68,7 @@ describe('TimeBasedTrigger constructor (EC-9 cron validation)', () => {
         new TimeBasedTrigger(
           { connect: async () => null } as unknown as pg.Pool,
           {} as unknown as TriadicScoringPolicy,
-          { cronExpression: 'not-a-cron-string', evictionFraction: 0.3, scopeId: 'x' },
+          { cronExpression: 'not-a-cron-string', evictionFraction: 0.3, scope: { kind: 'agent', agentId: 'x' } },
         ),
     ).toThrow(InvalidCronExpressionError);
   });
@@ -139,7 +139,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const trigger = new TimeBasedTrigger(pool, policy, {
         cronExpression: '* * * * * *',
         evictionFraction: 0.3,
-        scopeId: TEST_AGENT_ID,
+        scope: { kind: 'agent', agentId: TEST_AGENT_ID },
       });
 
       await trigger.tickNow(new Date());
@@ -154,7 +154,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const trigger = new TimeBasedTrigger(pool, policy, {
         cronExpression: '* * * * * *',
         evictionFraction: 0.3,
-        scopeId: TEST_AGENT_ID,
+        scope: { kind: 'agent', agentId: TEST_AGENT_ID },
       });
 
       expect(trigger.isStarted()).toBe(false);
@@ -177,7 +177,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const trigger = new TimeBasedTrigger(pool, policy, {
         cronExpression: '* * * * * *',
         evictionFraction: 0.3,
-        scopeId: TEST_AGENT_ID,
+        scope: { kind: 'agent', agentId: TEST_AGENT_ID },
       });
 
       let fireCount = 0;

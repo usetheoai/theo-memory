@@ -33,6 +33,7 @@ import pg from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
 import type { NearestNeighborProvider } from '../../../src/local/eviction/triadic-scoring-policy.js';
+import type { Scope } from '../../../src/core/scope.js';
 import { PgNearestNeighborProvider } from '../../../src/local/eviction/pg-nearest-neighbor-provider.js';
 import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
 import type { MemoryItem } from '../../../src/core/memory-item.js';
@@ -66,7 +67,7 @@ class SpyNeighborProvider implements NearestNeighborProvider {
 
   constructor(private readonly distances: ReadonlyMap<string, number>) {}
 
-  async distance(memoryId: string, _agentId: string): Promise<number> {
+  async distance(memoryId: string, _scope: Scope): Promise<number> {
     await Promise.resolve();
     this.callCount += 1;
     this.callsById.set(memoryId, (this.callsById.get(memoryId) ?? 0) + 1);
