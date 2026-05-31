@@ -6,8 +6,9 @@ import { UserTab } from "./memory-tabs/user-tab";
 import { SessionTab } from "./memory-tabs/session-tab";
 import { SkillsTab } from "./memory-tabs/skills-tab";
 import { HistoryTab } from "./memory-tabs/history-tab";
+import { EvictionTab } from "./memory-tabs/eviction-tab";
 
-type TabKey = "user" | "session" | "skills" | "history";
+type TabKey = "user" | "session" | "skills" | "history" | "eviction";
 
 interface Props {
   userId: string;
@@ -25,6 +26,7 @@ const TABS: readonly { key: TabKey; label: string }[] = [
   { key: "session", label: "Session" },
   { key: "skills", label: "Skills" },
   { key: "history", label: "History" },
+  { key: "eviction", label: "Eviction" },
 ];
 
 export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
@@ -110,6 +112,9 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
             inspectedId={inspectedId}
             onInspectedIdChange={setInspectedId}
           />
+        )}
+        {active === "eviction" && (
+          <EvictionTab userId={userId} reloadKey={reloadKey} />
         )}
       </div>
     </aside>
