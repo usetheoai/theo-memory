@@ -27,10 +27,10 @@ import { Cron } from 'croner';
 import type { Pool, PoolClient } from 'pg';
 
 import type { EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
-import type { MemoryItem } from '../../core/memory-item.js';
 import type { Scope } from '../../core/scope.js';
 
-import { advisoryLockKey, scopeWhereClause } from './scope-where.js';
+import { loadCandidates } from './scope-candidate.js';
+import { advisoryLockKey } from './scope-where.js';
 import type { TriadicScoringPolicy } from './triadic-scoring-policy.js';
 
 export interface TimeBasedTriggerConfig {
@@ -56,47 +56,6 @@ export class InvalidCronExpressionError extends Error {
     super(`Invalid cron expression: ${JSON.stringify(cronExpression)}`, options);
     Object.setPrototypeOf(this, InvalidCronExpressionError.prototype);
   }
-}
-
-interface ScopeCandidateRow {
-  readonly id: string;
-  readonly text: string;
-  readonly hash: string;
-  readonly user_id: string | null;
-  readonly session_id: string | null;
-  readonly agent_id: string | null;
-  readonly payload: Record<string, string | number | boolean | null>;
-  readonly t_valid: Date | null;
-  readonly t_invalid: Date | null;
-  readonly created_at: Date;
-  readonly updated_at: Date;
-  readonly last_accessed_at: Date | null;
-  readonly access_count: number;
-  readonly half_life_seconds: number | null;
-  readonly llm_importance_score: number | null;
-}
-
-function rowToMemoryItem(row: ScopeCandidateRow): MemoryItem {
-  const scope: MemoryItem['scope'] = row.agent_id !== null
-    ? { kind: 'agent', agentId: row.agent_id }
-    : row.session_id !== null
-      ? { kind: 'session', sessionId: row.session_id }
-      : { kind: 'user', userId: row.user_id ?? '' };
-  return {
-    id: row.id,
-    text: row.text,
-    hash: row.hash,
-    scope,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    metadata: row.payload,
-    tValid: row.t_valid,
-    tInvalid: row.t_invalid,
-    llmImportanceScore: row.llm_importance_score,
-    lastAccessedAt: row.last_accessed_at,
-    accessCount: row.access_count,
-    halfLifeSeconds: row.half_life_seconds,
-  };
 }
 
 type OnTickCallback = (result: EvictionResult | null) => void;
@@ -193,21 +152,11 @@ export class TimeBasedTrigger {
         await client.query('COMMIT');
         return null;
       }
-      const where = scopeWhereClause(this.scope);
-      const candidatesResult = await client.query<ScopeCandidateRow>(
-        `SELECT id, text, hash, user_id, session_id, agent_id, payload,
-                t_valid, t_invalid, created_at, updated_at,
-                last_accessed_at, access_count, half_life_seconds, llm_importance_score
-           FROM memories
-          WHERE ${where.sql}
-            AND t_invalid IS NULL`,
-        [...where.params],
-      );
-      if (candidatesResult.rows.length === 0) {
+      const candidates = await loadCandidates(client, this.scope);
+      if (candidates.length === 0) {
         await client.query('COMMIT');
         return null;
       }
-      const candidates = candidatesResult.rows.map(rowToMemoryItem);
       const context: ScoreContext = { meanIsolationDistance: 0, now };
       const victimIds = await this.policy.selectVictims(
         candidates,
