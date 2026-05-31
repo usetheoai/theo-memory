@@ -96,6 +96,7 @@ npm run dev
 | `NEXT_PUBLIC_AGENT_MODEL_ID` | `composer-2` | Model id passed to `Agent.create` |
 | `THEOMEM_REFLECTION_THRESHOLD` | `10` | Auto-fire `memory.reflect()` every N turns. Set `0` to disable |
 | `THEOMEM_PG_URI` | _(unset)_ | When set, swap `InMemoryVectorStore` → `PgvectorStore` + run migrations automatically |
+| `THEOMEM_EVICTION_DEMO` | _(unset)_ | When set to `1` AND `THEOMEM_PG_URI` is set, opt in to the v0.4b capacity-trigger eviction pipeline (`maxMemoriesPerScope: 10` — low cap chosen so a normal demo session triggers eviction). The `Eviction` tab surfaces live state. Strict equality with `1` (POSIX convention); other truthy values are ignored. |
 
 ## Walk-through
 
