@@ -61,7 +61,7 @@ if (PG_URI === undefined || PG_URI === '') {
       store = new PgvectorStore(pool);
       const neighborProvider = new PgNearestNeighborProvider(pool);
       const evictor = new PgEvictor(pool);
-      policy = new TriadicScoringPolicy(undefined, undefined, null, neighborProvider, evictor);
+      policy = new TriadicScoringPolicy({ neighborProvider, evictor });
       trigger = new CapacityBasedTrigger(pool, policy, TARGET_CAP);
     }, 30_000);
 

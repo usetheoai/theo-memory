@@ -116,7 +116,7 @@ if (PG_URI === undefined || PG_URI === '') {
       pool = new pg.Pool({ connectionString: PG_URI });
       const neighborProvider = new PgNearestNeighborProvider(pool);
       const evictor = new PgEvictor(pool);
-      policy = new TriadicScoringPolicy(undefined, undefined, null, neighborProvider, evictor);
+      policy = new TriadicScoringPolicy({ neighborProvider, evictor });
       trigger = new CapacityBasedTrigger(pool, policy, TARGET_CAP);
     });
 
