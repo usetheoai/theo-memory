@@ -38,3 +38,7 @@ npm|esbuild|<=0.24.2|GHSA-67mh-4wv8-2f99|MODERATE dev-server-request-leak chaine
 npm|@esbuild-kit/core-utils|*|GHSA-67mh-4wv8-2f99|Same root cause as esbuild entry above — deprecated dep chained from drizzle-kit; will disappear when drizzle-kit migrates to tsx.|2026-08-23
 npm|@esbuild-kit/esm-loader|*|GHSA-67mh-4wv8-2f99|Same root cause; deprecated upstream (merged into tsx).|2026-08-23
 npm|drizzle-kit|^0.31.0|GHSA-67mh-4wv8-2f99|Surface manifestation of the esbuild dev-server-request-leak — drizzle-kit's transitive @esbuild-kit chain. devDep only; dev-server never invoked in our usage.|2026-08-23
+
+# Active entries — examples-chat-with-memory-v0-4b-expansion cycle (plan v1.1, /deps-audit 2026-05-31)
+npm|postcss|<8.5.10|GHSA-qx2v-qp2m-jg93|MODERATE XSS in PostCSS CSS-stringify path (CWE-79, CVSS 6.1); transitive via next ^15.5.18 in examples/chat-with-memory/. Demo API surface (the part this plan modifies) does NOT consume PostCSS stringify output; risk confined to dev-server/build tooling. Pre-existing from PR #24; not introduced by this plan. Real fix requires upstream next to bundle postcss>=8.5.10; tracked at https://github.com/vercel/next.js. Re-audit at sunset to verify upstream fix or escalate.|2026-08-29
+npm|next|^15.5.18|GHSA-qx2v-qp2m-jg93|Surface manifestation of the postcss XSS chain above — next's transitive postcss dep. Same risk envelope as the postcss entry; remove both when next bundles postcss>=8.5.10.|2026-08-29
