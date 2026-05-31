@@ -120,7 +120,7 @@ if (PG_URI === undefined || PG_URI === '') {
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: PG_URI });
       const provider = new PgNearestNeighborProvider(pool);
-      policy = new TriadicScoringPolicy(undefined, undefined, null, provider);
+      policy = new TriadicScoringPolicy({ neighborProvider: provider });
     });
 
     afterAll(async () => {

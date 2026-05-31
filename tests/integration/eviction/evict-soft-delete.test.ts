@@ -64,7 +64,7 @@ if (PG_URI === undefined || PG_URI === '') {
       pool = new pg.Pool({ connectionString: PG_URI });
       store = new PgvectorStore(pool);
       evictor = new PgEvictor(pool);
-      policy = new TriadicScoringPolicy(undefined, undefined, null, null, evictor);
+      policy = new TriadicScoringPolicy({ evictor });
     });
 
     afterAll(async () => {
@@ -159,13 +159,7 @@ if (PG_URI === undefined || PG_URI === '') {
           counterEmissions.push({ count, attrs });
         },
       });
-      const observedPolicy = new TriadicScoringPolicy(
-        undefined,
-        undefined,
-        null,
-        null,
-        observedEvictor,
-      );
+      const observedPolicy = new TriadicScoringPolicy({ evictor: observedEvictor });
 
       await observedPolicy.evict([idA, idB]);
 

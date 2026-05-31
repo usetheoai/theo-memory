@@ -82,7 +82,7 @@ describe('T4.2 long-tail multiplier formula clamp + counting (D9; stub provider)
       ['mem-tightly-clustered', 0.001],
     ]);
     const spy = new SpyNeighborProvider(distances);
-    const policy = new TriadicScoringPolicy(undefined, undefined, null, spy);
+    const policy = new TriadicScoringPolicy({ neighborProvider: spy });
 
     const candidates = [
       buildMemory('mem-isolated', agentId),
@@ -110,7 +110,7 @@ describe('T4.2 long-tail multiplier formula clamp + counting (D9; stub provider)
       ['mem-5', 0.7],
     ]);
     const spy = new SpyNeighborProvider(distances);
-    const policy = new TriadicScoringPolicy(undefined, undefined, null, spy);
+    const policy = new TriadicScoringPolicy({ neighborProvider: spy });
 
     const candidates = Array.from(distances.keys()).map((id) => buildMemory(id, agentId));
     await policy.selectVictims(candidates, 0.2, { meanIsolationDistance: 0, now: NOW });
@@ -174,7 +174,7 @@ if (PG_URI === undefined || PG_URI === '') {
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: PG_URI });
       const provider = new PgNearestNeighborProvider(pool);
-      policy = new TriadicScoringPolicy(undefined, undefined, null, provider);
+      policy = new TriadicScoringPolicy({ neighborProvider: provider });
     });
 
     afterAll(async () => {
