@@ -139,3 +139,54 @@ export function assertValidFraction(fraction: number): void {
     throw new InvalidFractionError(fraction);
   }
 }
+
+/**
+ * Side-effect collaborator that persists a computed `half_life_seconds` back
+ * to storage during `EvictionPolicy.score()`. Optional — when omitted (e.g.,
+ * in pure-math unit tests), `score()` computes on-the-fly without DB I/O.
+ * Real-runtime consumers inject a `PgHalfLifePersister` via the policy
+ * constructor.
+ *
+ * EC-1 absorption (plan v1.1): the persister UPDATE is guarded by
+ * `WHERE half_life_seconds IS NULL` for idempotency — second scoring of the
+ * same row issues no DB mutation. Re-backfill after `llm_importance_score`
+ * updates is handled by the DB-layer trigger
+ * `memories_reset_half_life_on_importance_update_trg` (migration 0004),
+ * NOT by the persister.
+ *
+ * v0.4b-fixes T5.1: relocated from `src/local/eviction/triadic-scoring-policy.ts`
+ * to live next to its DIP siblings per architecture.md § 3 (the concrete
+ * `TriadicScoringPolicy` depends on the abstraction; the abstraction must NOT
+ * live with the concrete). Closes F-arch-2 MAJOR.
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T5.1 + F-arch-2
+ */
+export interface HalfLifePersister {
+  persist(memoryId: string, halfLifeSeconds: number): Promise<void>;
+}
+
+/**
+ * Side-effect collaborator that returns the cosine distance from a memory to
+ * its nearest non-self non-invalidated neighbor in the same scope per
+ * blueprint D16. Optional — when omitted (e.g., pure-math unit tests), the
+ * long-tail multiplier short-circuits to 1.0 (no isolation-based protection
+ * adjustment).
+ *
+ * v0.4b-fixes T5.1: relocated from `src/local/eviction/triadic-scoring-policy.ts`
+ * to live next to its DIP siblings per architecture.md § 3 (F-arch-2 closure).
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T5.1 + F-arch-2
+ */
+export interface NearestNeighborProvider {
+  /**
+   * Returns the cosine distance from `memoryId` to its nearest non-self
+   * non-invalidated neighbor in the same scope.
+   *
+   * Widened in v0.4b-fixes T3.1 from `agentId: string` to the full `Scope`
+   * union so triggers + multiplier operate on User/Session/Agent/Repo tiers
+   * uniformly. Implementations dispatch on `scope.kind` to pick the column
+   * predicate (user_id / session_id / agent_id).
+   */
+  distance(memoryId: string, scope: Scope): Promise<number>;
+}
