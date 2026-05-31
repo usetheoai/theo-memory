@@ -4,40 +4,44 @@
  *
  * Computes the cosine distance from a memory to its nearest non-self
  * non-invalidated neighbor in the same scope via the pgvector `<=>` operator.
- * The partial index `idx_memories_eviction_score` (T0.1) supports the
- * `(agent_id, ...) WHERE t_invalid IS NULL` filter; the embedding HNSW index
- * `memories_embedding_hnsw_idx` (v0.1) supports the `<=>` ordering.
+ * v0.4b-fixes T3.1 generalized the scope tier from the previous
+ * `agent_id`-only WHERE clause to the full `Scope` discriminated union; the
+ * column predicate is selected at runtime via `scopeColumn(scope)`.
  *
  * Singleton-scope fallback: when no other memory exists in the scope, the
  * query returns 0 rows and this provider returns 1.0 (max isolation → full
  * long-tail protection per blueprint D9).
  *
  * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1 (D9 + D16)
+ * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
  */
 import type { Pool } from 'pg';
 
-import type { NearestNeighborProvider } from './triadic-scoring-policy.js';
+import type { Scope } from '../../core/scope.js';
 
-const NEAREST_NEIGHBOR_SQL = `WITH self AS (
-    SELECT embedding FROM memories WHERE id = $1
-  )
-  SELECT m.embedding <=> (SELECT embedding FROM self) AS distance
-    FROM memories m
-   WHERE m.agent_id = $2
-     AND m.id <> $1
-     AND m.t_invalid IS NULL
-   ORDER BY m.embedding <=> (SELECT embedding FROM self) ASC
-   LIMIT 1`;
+import { scopeColumn, scopeValue } from './scope-where.js';
+import type { NearestNeighborProvider } from './triadic-scoring-policy.js';
 
 const MAX_ISOLATION_DISTANCE = 1;
 
 export class PgNearestNeighborProvider implements NearestNeighborProvider {
   constructor(private readonly pool: Pool) {}
 
-  async distance(memoryId: string, agentId: string): Promise<number> {
+  async distance(memoryId: string, scope: Scope): Promise<number> {
+    const column = scopeColumn(scope);
+    const sql = `WITH self AS (
+        SELECT embedding FROM memories WHERE id = $1
+      )
+      SELECT m.embedding <=> (SELECT embedding FROM self) AS distance
+        FROM memories m
+       WHERE m.${column} = $2
+         AND m.id <> $1
+         AND m.t_invalid IS NULL
+       ORDER BY m.embedding <=> (SELECT embedding FROM self) ASC
+       LIMIT 1`;
     const result = await this.pool.query<{ distance: number | string }>(
-      NEAREST_NEIGHBOR_SQL,
-      [memoryId, agentId],
+      sql,
+      [memoryId, scopeValue(scope)],
     );
     const row = result.rows[0];
     if (row === undefined) {

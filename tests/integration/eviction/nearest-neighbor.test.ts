@@ -87,14 +87,14 @@ if (PG_URI === undefined || PG_URI === '') {
       await seedMemory(makeEmbedding(0, 0.95));
       await seedMemory(makeEmbedding(1000, 1.0));
 
-      const distance = await policy.nearestNeighborDistance(idA, TEST_AGENT_ID);
+      const distance = await policy.nearestNeighborDistance(idA, { kind: 'agent', agentId: TEST_AGENT_ID });
       // A's nearest is the second one (cosine similarity 1.0 → cosine distance 0)
       expect(distance).toBeLessThan(0.01);
     });
 
     test('returns 1.0 for singleton scope (no other memories)', async () => {
       const id = await seedMemory(makeEmbedding(0));
-      const distance = await policy.nearestNeighborDistance(id, TEST_AGENT_ID);
+      const distance = await policy.nearestNeighborDistance(id, { kind: 'agent', agentId: TEST_AGENT_ID });
       expect(distance).toBe(1);
     });
 
@@ -102,7 +102,7 @@ if (PG_URI === undefined || PG_URI === '') {
       // Only one memory — if self were included, the "nearest neighbor" would be
       // self with distance 0. Verify it returns the singleton fallback (1.0).
       const id = await seedMemory(makeEmbedding(42));
-      const distance = await policy.nearestNeighborDistance(id, TEST_AGENT_ID);
+      const distance = await policy.nearestNeighborDistance(id, { kind: 'agent', agentId: TEST_AGENT_ID });
       expect(distance).toBe(1);
     });
 
@@ -113,7 +113,7 @@ if (PG_URI === undefined || PG_URI === '') {
       // Active row far from A.
       await seedMemory(makeEmbedding(1000, 1.0));
 
-      const distance = await policy.nearestNeighborDistance(idA, TEST_AGENT_ID);
+      const distance = await policy.nearestNeighborDistance(idA, { kind: 'agent', agentId: TEST_AGENT_ID });
       // Only the orthogonal active row counts → distance ≈ 1.0
       expect(distance).toBeGreaterThan(0.5);
     });

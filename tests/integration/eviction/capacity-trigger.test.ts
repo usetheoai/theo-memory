@@ -116,7 +116,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const before = await countActive();
       expect(before).toBe(CAP + 1);
 
-      const result = await trigger.fire(TEST_AGENT_ID, new Date());
+      const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
 
       expect(result?.softDeleted.length ?? 0).toBeGreaterThanOrEqual(1);
       const after = await countActive();
@@ -128,7 +128,7 @@ if (PG_URI === undefined || PG_URI === '') {
       // The first 5 seeds have importance ∈ {0/55, 1/55, 2/55, 3/55, 4/55} — lowest.
       const expectedFirstEvicted = new Set(ids.slice(0, 5));
 
-      const result = await trigger.fire(TEST_AGENT_ID, new Date());
+      const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
 
       expect(result?.softDeleted.length).toBeGreaterThanOrEqual(1);
       // At least one of the lowest-importance ids should be in the evicted set.
@@ -143,7 +143,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const before = await countActive();
       expect(before).toBe(200);
 
-      const result = await trigger.fire(TEST_AGENT_ID, new Date());
+      const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
 
       // Raw overflow = (200-50)/200 = 0.75 → clamp to 0.5 → evict 100 max.
       expect(result?.softDeleted.length ?? 0).toBeLessThanOrEqual(100);
@@ -156,7 +156,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const before = await countActive();
       expect(before).toBe(10);
 
-      const result = await trigger.fire(TEST_AGENT_ID, new Date());
+      const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
 
       expect(result).toBeNull();
       const after = await countActive();
@@ -172,8 +172,8 @@ if (PG_URI === undefined || PG_URI === '') {
       // ensures at most one runs the COUNT+evict path; the other sees the
       // lock taken and returns null.
       const [r1, r2] = await Promise.all([
-        trigger.fire(TEST_AGENT_ID, new Date()),
-        trigger.fire(TEST_AGENT_ID, new Date()),
+        trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date()),
+        trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date()),
       ]);
       const evictedTotal = (r1?.softDeleted.length ?? 0) + (r2?.softDeleted.length ?? 0);
 

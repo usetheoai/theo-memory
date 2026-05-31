@@ -135,7 +135,7 @@ if (PG_URI === undefined || PG_URI === '') {
         await seedFrequent(INITIAL_FREQUENT, 'initial');
 
         for (let pass = 1; pass <= NUMBER_OF_PASSES; pass++) {
-          const result = await trigger.fire(TEST_AGENT_ID, new Date());
+          const result = await trigger.fire({ kind: 'agent', agentId: TEST_AGENT_ID }, new Date());
           expect(result).not.toBeNull();
           // Rare must NEVER be in the evicted set.
           expect(result?.softDeleted ?? []).not.toContain(rareId);
