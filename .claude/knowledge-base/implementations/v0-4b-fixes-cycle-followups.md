@@ -4,6 +4,35 @@ Tracking items observed during the halt-loop but DEFERRED to avoid scope creep p
 `cycle-implement.md § Anti-pattern #7`. Add new entries below; archive when the
 entry ships in its own follow-up plan or post-merge plan-archival step.
 
+## F-T4.1-1 — `src/local/index.ts` 727 LoC breaches 500 budget (surfaced at iter 5 / T4.1)
+
+After T4.1 wired `createLocalMemory({ eviction })` + the factory return widening
++ post-remember hook + `EvictionNotSupported` error, `src/local/index.ts` grew
+from ~590 to 727 LoC — exceeds `architecture.md § 7` ≤500 LoC budget. The cap
+was already breached pre-T4.1 (v0.6 added ~90 LoC at line 540-568 for
+`memory.skills(repoId)`); T4.1 worsens but did not introduce the violation.
+
+**Recommended owner:** T12.1 MINOR cluster absorption, OR a fast-follow split
+commit. Mirror v0.6.1 F3 composition-extraction precedent: extract
+`createLocalMemory` + `runMigrations` + `LocalEvictionConfig` factory logic
+into a sibling `src/local/factory.ts`, keep `src/local/index.ts` as pure barrel
++ `LocalMemory` / `LocalScopedMemory` classes. Target ≤ 500 LoC parent.
+
+## F-T4.1-EC6-strict — EC-6 test could exercise factory-CAPACITY-via-remember concurrent with manual TIME (surfaced at iter 5 / T4.1)
+
+The shipped EC-6 absorption test
+(`tests/integration/forgetting/createLocalMemory-eviction.test.ts` test #4)
+exercises factory CONSTRUCTION + manual `new CapacityBasedTrigger(...)` + manual
+`new TimeBasedTrigger(...)` firing concurrently — the lock-invariant
+(`eviction_${kind}_${scopeKey}`, T3.1) is proven across both paths. A strictly
+stronger version would drive the factory's PRIVATE `postRememberHook` via
+`memory.agent(...).remember(...)` concurrently with the manual `TimeBasedTrigger
+.tickNow()` — same lock, exercised through the natural opt-in surface.
+
+**Recommended owner:** T12.1 MINOR cluster OR optional hardening pass before
+T13.1 GATE. The lock invariant holds in both formulations; this is a strictness
+delta, not a correctness gap.
+
 ## F3 — `drizzle-kit push` requires TTY (surfaced at iter 3 / T2.1)
 
 Empirical observation during T2.1 GREEN: `npm run db:push` invokes
