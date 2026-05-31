@@ -36,6 +36,13 @@
       "when": 1780237676392,
       "tag": "0004_eviction_half_life_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780240669003,
+      "tag": "0005_eviction_partial_indexes",
+      "breakpoints": true
     }
   ]
 }

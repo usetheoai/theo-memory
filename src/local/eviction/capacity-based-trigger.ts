@@ -22,7 +22,9 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
 import type { MemoryItem } from '../../core/memory-item.js';
+import type { Scope } from '../../core/scope.js';
 
+import { advisoryLockKey, scopeWhereClause } from './scope-where.js';
 import type { TriadicScoringPolicy } from './triadic-scoring-policy.js';
 
 const MAX_OVERFLOW_FRACTION = 0.5;
@@ -99,10 +101,10 @@ export class CapacityBasedTrigger {
    * already held by another transaction (EC-2 absorption — the other
    * writer's eviction will resolve the overflow).
    */
-  async fire(scopeId: string, now: Date): Promise<EvictionResult | null> {
+  async fire(scope: Scope, now: Date): Promise<EvictionResult | null> {
     const client = await this.pool.connect();
     try {
-      return await this.fireInTransaction(client, scopeId, now);
+      return await this.fireInTransaction(client, scope, now);
     } finally {
       client.release();
     }
@@ -110,20 +112,20 @@ export class CapacityBasedTrigger {
 
   private async fireInTransaction(
     client: PoolClient,
-    scopeId: string,
+    scope: Scope,
     now: Date,
   ): Promise<EvictionResult | null> {
     await client.query('BEGIN');
     try {
       const lockResult = await client.query<{ locked: boolean }>(
         'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
-        [`eviction_${scopeId}`],
+        [advisoryLockKey(scope)],
       );
       if (lockResult.rows[0]?.locked !== true) {
         await client.query('COMMIT');
         return null;
       }
-      const result = await this.runEvictionPass(client, scopeId, now);
+      const result = await this.runEvictionPass(client, scope, now);
       await client.query('COMMIT');
       return result;
     } catch (err) {
@@ -134,15 +136,16 @@ export class CapacityBasedTrigger {
 
   private async runEvictionPass(
     client: PoolClient,
-    scopeId: string,
+    scope: Scope,
     now: Date,
   ): Promise<EvictionResult | null> {
+    const where = scopeWhereClause(scope);
     const countResult = await client.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
          FROM memories
-        WHERE agent_id = $1
+        WHERE ${where.sql}
           AND t_invalid IS NULL`,
-      [scopeId],
+      [...where.params],
     );
     const currentSize = Number(countResult.rows[0]?.count ?? '0');
     const fraction = computeOverflowFraction(currentSize, this.maxMemoriesPerScope);
@@ -154,9 +157,9 @@ export class CapacityBasedTrigger {
               t_valid, t_invalid, created_at, updated_at,
               last_accessed_at, access_count, half_life_seconds, llm_importance_score
          FROM memories
-        WHERE agent_id = $1
+        WHERE ${where.sql}
           AND t_invalid IS NULL`,
-      [scopeId],
+      [...where.params],
     );
     const candidates = candidatesResult.rows.map(rowToMemoryItem);
     const context: ScoreContext = { meanIsolationDistance: 0, now };
