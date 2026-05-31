@@ -4,6 +4,30 @@ Tracking items observed during the halt-loop but DEFERRED to avoid scope creep p
 `cycle-implement.md § Anti-pattern #7`. Add new entries below; archive when the
 entry ships in its own follow-up plan or post-merge plan-archival step.
 
+## F-T8.1-1 — POST-MERGE: amend ADR D12 in completed v0-4b plan with shipped shape (surfaced at iter 10 / T8.1)
+
+Plan T8.1 acceptance line 689 declares a POST-MERGE action:
+
+> T1.1 of original v0-4b plan body (in plans/completed/) amended post-merge with note
+
+Amendment text to append to `.claude/knowledge-base/plans/completed/v0-4b-forgetting-pipeline-plan.md § ADR D12`:
+
+> **Amendment (v0.4b-fixes T8.1, 2026-05-31):** the shipped `EvictionPolicy` shape diverged from the original D12 declaration during T1.1 implementation. The CANONICAL shape (verified at `src/core/dip/eviction-policy.ts:97`) is:
+>
+> ```ts
+> interface EvictionPolicy {
+>   readonly kind: string;
+>   score(memory, context): Promise<number>;
+>   selectVictims(candidates, fraction, context): Promise<readonly string[]>;
+>   onEvictionStart?(scope, fraction): Promise<void>;
+>   onEvictionEnd?(scope, result): Promise<void>;
+> }
+> ```
+>
+> 5 method entries (`kind` discriminator + 2 required + 2 optional lifecycle hooks). The original D12 declaration listed `shouldEvict, selectVictims, evict, scoreMemory` — those names were notional and were superseded during T1.1 design. The shipped shape is the canonical contract going forward; this amendment locks the record.
+
+**Recommended owner:** plan-archival step AFTER v0-4b-fixes-cycle PR merges to `main`. Simple 1-paragraph append to ADR D12 in the completed-plan file. PR description for the v0.4b-fixes-cycle merge MUST carry this amendment text per plan T8.1 DoD line 694.
+
 ## F-T4.1-1 — `src/local/index.ts` 727 LoC breaches 500 budget (surfaced at iter 5 / T4.1)
 
 After T4.1 wired `createLocalMemory({ eviction })` + the factory return widening
