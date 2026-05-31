@@ -1,6 +1,7 @@
 # Plan: v0.4b — Forgetting pipeline with long-tail preservation (`EvictionPolicy` + `TriadicScoringPolicy`)
 
-> **Version 1.1** — Absorbed 4 MUST FIX + 6 SHOULD TEST + 2 DOCUMENT from `.claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-edge-cases-plan-2026-05-26.md` (EC-1 stale half_life on importance update → T2.2 trigger; EC-2 concurrent remember race → T5.1 advisory lock; EC-3 InMemoryVectorStore cosine-distance gap → ADR D18 + T7.2 strategy; EC-4 OTel counter undefined → T6.1 + T8.1; EC-5..EC-10 RED tests added; EC-11+EC-12 documented). v1.0 (2026-05-26): initial plan from `/to-plan`.
+> **Version 1.2** (2026-05-30) — Pre-`/implement` patch closing two stale-plan defects detected at pre-flight (this plan was authored 2026-05-26; v0.6 voyager-skill-library shipped 2026-05-30 between authoring and `/implement`). Defect 1: renamed Drizzle migration filename from `0002_…` to `0003_eviction_columns.sql` to deconflict with `0002_skill_columns.sql` shipped by v0.6 (mechanical rename across D13, T0.1, Coverage Matrix, Dependencies table, Global DoD; migration ordering reference in T0.1 also updated to point at the new lex-order predecessor `0002_skill_columns.sql`). Defect 2: D12's "NEW 7th DIP" reframed as "NEW 8th DIP" — v0.6 introduced `src/core/dip/skill-representation-strategy.ts`, so the current DIP count under `src/core/dip/` is 7 (embedder, history-manager, llm, reflection-policy, scoring-strategy, skill-representation-strategy, vector-store); EvictionPolicy becomes the 8th. No ADR substance changed; Coverage Matrix unchanged; `/plan-confidence` re-score skipped (cosmetic counts, not Coverage gap).
+> **Version 1.1** (2026-05-26) — Absorbed 4 MUST FIX + 6 SHOULD TEST + 2 DOCUMENT from `.claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-edge-cases-plan-2026-05-26.md` (EC-1 stale half_life on importance update → T2.2 trigger; EC-2 concurrent remember race → T5.1 advisory lock; EC-3 InMemoryVectorStore cosine-distance gap → ADR D18 + T7.2 strategy; EC-4 OTel counter undefined → T6.1 + T8.1; EC-5..EC-10 RED tests added; EC-11+EC-12 documented). v1.0 (2026-05-26): initial plan from `/to-plan`.
 >
 > Ships the AUTOMATED forgetting layer of TheMemory's roadmap Item 6 (CLAUDE.md flagged **OPEN PROBLEM #1** — "no competitor solved this"; empirically confirmed by `/discover-execute v0-4b-forgetting-pipeline` blueprint SHIPPABLE_WITH_CAVEATS 89/100). Adds ONE new `EvictionPolicy` DIP at `src/core/dip/eviction-policy.ts` plus ONE drop-in `TriadicScoringPolicy` impl combining 3 dimensions (Ebbinghaus exponential time decay via Half-Life Regression `p = 2^(-Δ/h)` per Settles & Meeder ACL 2016, LRU/LFU access bookkeeping, REUSED `llm_importance_score` from v0.4a) WITH a long-tail protection multiplier `clamp(0.1, 1.0, isolation_distance / mean_isolation_distance)` that defeats frequency bias for rare-but-semantically-isolated memories. Adds three new columns on `memories` (`last_accessed_at TIMESTAMPTZ`, `access_count INTEGER NOT NULL DEFAULT 0`, `half_life_seconds INTEGER`) via Drizzle migration. Wires two composable `EvictionTrigger` implementations: `CapacityBasedTrigger` (fires on `remember()` when scope exceeds `maxMemoriesPerScope`) and `TimeBasedTrigger` (cron-driven via REUSED `croner` from v0.4a — zero new runtime dep). Forget = soft-delete via `t_invalid = NOW()` reusing v0.1's bi-temporal schema (per ADR-0006) — NOT physical DELETE. Closes CLAUDE.md § Macro roadmap Item 6 acceptance verbatim: seed 1000 memories with 50 rare-query targets; remove 30% by triadic score; assert `recall@10` on rare-query set ≥ locked threshold AND guardrail unit test (rare-isolated survives ≥ 5 consecutive LRU eviction passes against frequent siblings) AND `docs/forgetting-evaluation.md` artifact reproducible.
 
@@ -49,7 +50,7 @@ Plan honors `architecture.md § 1` (three-tier scope unchanged — eviction oper
 
 - [ ] Sub-goal 1 — Add `EvictionPolicy` DIP at `src/core/dip/eviction-policy.ts` mirroring `ReflectionPolicy` v0.4a shape; types only, ZERO impl in `src/core/`
 - [ ] Sub-goal 2 — Ship one `TriadicScoringPolicy` implementation at `src/local/eviction/triadic-scoring-policy.ts` parameterized by weights `{w_r, w_f, w_i}` + half-life base `h_base`
-- [ ] Sub-goal 3 — Drizzle migration `0002_eviction_columns.sql` adds `last_accessed_at TIMESTAMPTZ`, `access_count INTEGER NOT NULL DEFAULT 0`, `half_life_seconds INTEGER` columns to `memories`
+- [ ] Sub-goal 3 — Drizzle migration `0003_eviction_columns.sql` adds `last_accessed_at TIMESTAMPTZ`, `access_count INTEGER NOT NULL DEFAULT 0`, `half_life_seconds INTEGER` columns to `memories`
 - [ ] Sub-goal 4 — `recall()` write-back hook updates `last_accessed_at = NOW()` + `access_count = access_count + 1` for every returned row (single batched UPDATE)
 - [ ] Sub-goal 5 — Long-tail protection multiplier `clamp(0.1, 1.0, isolation_distance / mean_isolation_distance)` computed via pgvector cosine-distance nearest-neighbor at scoring time
 - [ ] Sub-goal 6 — Two `EvictionTrigger` impls: `CapacityBasedTrigger({ maxMemoriesPerScope })` + `TimeBasedTrigger({ cronExpression, evictionFraction })` (REUSES `croner` from v0.4a)
@@ -74,9 +75,9 @@ Plan honors `architecture.md § 1` (three-tier scope unchanged — eviction oper
 
 **Consequences:** Readers reach for blueprint when reading D7-D11; this plan focuses on impl-shape decisions D12-D17.
 
-### D12 — `EvictionPolicy` is a NEW 7th DIP at `src/core/dip/eviction-policy.ts` (ADR-0008's locked counts unchanged)
+### D12 — `EvictionPolicy` is a NEW 8th DIP at `src/core/dip/eviction-policy.ts` (ADR-0008's locked counts unchanged)
 
-**Decision:** Add `EvictionPolicy` interface as the 7th DIP in `src/core/dip/`, alongside `VectorStore`, `LLM`, `Embedder`, `HistoryManager`, `ReflectionPolicy`, `ScoringStrategy` (v0.4a). Method count of the NEW interface is documented in this plan; ADR-0008's locked counts apply to the ORIGINAL 5 DIPs only — adding a NEW DIP is not a contract change to existing locked counts.
+**Decision:** Add `EvictionPolicy` interface as the 8th DIP in `src/core/dip/`, alongside `VectorStore`, `LLM`, `Embedder`, `HistoryManager`, `ReflectionPolicy` (v0.4a), `ScoringStrategy` (v0.4a), `SkillRepresentationStrategy` (v0.6). Method count of the NEW interface is documented in this plan; ADR-0008's locked counts apply to the ORIGINAL 5 DIPs only — adding a NEW DIP is not a contract change to existing locked counts.
 
 The interface (4 methods):
 
@@ -103,10 +104,10 @@ export interface EvictionPolicy {
 
 **Consequences:**
 
-- Adds a 7th DIP to `src/core/dip/index.ts` barrel.
+- Adds an 8th DIP to `src/core/dip/index.ts` barrel.
 - `src/local/eviction/triadic-scoring-policy.ts` implements all 4 methods; the impl is the ONE shipped strategy at v0.4b.
 
-### D13 — Single Drizzle migration `0002_eviction_columns.sql` adds three columns + one index
+### D13 — Single Drizzle migration `0003_eviction_columns.sql` adds three columns + one index
 
 **Decision:** ONE migration adds three columns to `memories`:
 
@@ -316,7 +317,7 @@ T1 can start in parallel with T0 once T0.1 (migration drafted) is reviewed. T2-T
 
 **Objective:** Land the Drizzle migration adding 3 columns + 1 partial index; verify v0.4a was merged first (PRE-REQ).
 
-### T0.1 — Verify v0.4a shipped + draft `0002_eviction_columns.sql`
+### T0.1 — Verify v0.4a shipped + draft `0003_eviction_columns.sql`
 
 #### Objective
 Confirm v0.4a is in `plans/completed/` (PR merged); draft the migration adding `last_accessed_at`, `access_count`, `half_life_seconds` + partial index.
@@ -326,7 +327,7 @@ v0.4a discovery blueprint (companion file, SHIPPABLE_WITH_CAVEATS 89/100) ships 
 
 #### Files to edit
 ```
-src/local/migrations/0002_eviction_columns.sql — NEW: ALTER TABLE + CREATE INDEX
+src/local/migrations/0003_eviction_columns.sql — NEW: ALTER TABLE + CREATE INDEX
 src/local/schema.ts — UPDATE: add 3 new column definitions to memories table
 src/local/__tests__/schema.test.ts — RED test added first: assert 3 columns present + index exists
 ```
@@ -339,7 +340,7 @@ src/local/__tests__/schema.test.ts — RED test added first: assert 3 columns pr
 
 #### Deep Dives
 
-- **Migration ordering:** `0002_eviction_columns.sql` MUST run after `0001_reflection_columns.sql`. Drizzle file-naming convention enforces; CI fails fast on out-of-order migrations.
+- **Migration ordering:** `0003_eviction_columns.sql` MUST run after `0002_skill_columns.sql` (the immediate lex-order predecessor as of 2026-05-30 — v0.6 shipped `0002_skill_columns.sql`). Drizzle file-naming convention enforces; CI fails fast on out-of-order migrations.
 - **Partial index:** `WHERE t_invalid IS NULL` keeps the index small (active memories only); the index is keyed on the eviction-relevant fields.
 - **Backfill:** `access_count INTEGER NOT NULL DEFAULT 0` is set in DDL — Postgres ALTER ADD COLUMN with DEFAULT is fast (no full table rewrite in Postgres 11+; metadata-only operation).
 
@@ -348,7 +349,7 @@ src/local/__tests__/schema.test.ts — RED test added first: assert 3 columns pr
 1. Verify `.claude/knowledge-base/plans/completed/v0-4a-reflection-pipeline-plan.md` exists. If NOT, HALT with honest report — v0.4b cannot proceed.
 2. Write RED test in `src/local/__tests__/schema.test.ts`: assert `memories.last_accessed_at`, `memories.access_count`, `memories.half_life_seconds` columns exist; assert index `idx_memories_eviction_score` exists.
 3. Run RED — confirms test fails.
-4. Write migration SQL in `src/local/migrations/0002_eviction_columns.sql`.
+4. Write migration SQL in `src/local/migrations/0003_eviction_columns.sql`.
 5. Update Drizzle schema in `src/local/schema.ts`.
 6. Run GREEN — `drizzle-kit push` + test passes.
 7. REFACTOR: ensure SQL formatting matches `0001_reflection_columns.sql` style.
@@ -373,7 +374,7 @@ VERIFY:   npm test -- src/local/__tests__/schema.test.ts
 - [ ] Pass: complexity ≤ 10 per file
 - [ ] Pass: coverage ≥ 90% on changed files
 - [ ] Pass: lint zero warnings
-- [ ] Pass: size — `0002_eviction_columns.sql` ≤ 30 LoC, `schema.ts` additions ≤ 20 LoC
+- [ ] Pass: size — `0003_eviction_columns.sql` ≤ 30 LoC, `schema.ts` additions ≤ 20 LoC
 
 #### DoD
 
@@ -386,7 +387,7 @@ VERIFY:   npm test -- src/local/__tests__/schema.test.ts
 
 ## Phase T1: `EvictionPolicy` DIP
 
-**Objective:** Define the 7th DIP interface in `src/core/dip/` mirroring `ReflectionPolicy` shape.
+**Objective:** Define the 8th DIP interface in `src/core/dip/` mirroring `ReflectionPolicy` shape.
 
 ### T1.1 — `EvictionPolicy` interface at `src/core/dip/eviction-policy.ts`
 
@@ -1019,8 +1020,8 @@ docs/forgetting-evaluation/README.md — NEW: how to reproduce
 
 | # | Gap / Requirement | Task(s) | Resolution |
 |---|---|---|---|
-| 1 | `EvictionPolicy` DIP missing | T1.1 | New 7th DIP at `src/core/dip/eviction-policy.ts` |
-| 2 | `last_accessed_at` + `access_count` + `half_life_seconds` columns | T0.1 | Drizzle migration `0002_eviction_columns.sql` |
+| 1 | `EvictionPolicy` DIP missing | T1.1 | New 8th DIP at `src/core/dip/eviction-policy.ts` |
+| 2 | `last_accessed_at` + `access_count` + `half_life_seconds` columns | T0.1 | Drizzle migration `0003_eviction_columns.sql` |
 | 3 | HLR exponential time decay | T2.1 | `recency_component = 1 - 2^(-Δ/h)` |
 | 4 | Additive triadic scoring (vs multiplicative) | T2.1 | `score = w_r·R + w_f·F + w_i·I` |
 | 5 | Lazy `half_life_seconds` backfill from `llm_importance_score` | T2.2 | `h = h_base × (0.1 + 2.9 × importance)` + persist on first scoring |
@@ -1044,7 +1045,7 @@ docs/forgetting-evaluation/README.md — NEW: how to reproduce
 |---|---|---|---|
 | `pg` | `^8.11.0` | `pgvector-store.ts` (T3.1) + `evict()` UPDATE (T6.1) | v0.1 |
 | `drizzle-orm` | `^0.36.0` | schema + migrations (T0.1) | v0.1 |
-| `drizzle-kit` | `^0.30.0` | `0002_eviction_columns.sql` push | v0.1 |
+| `drizzle-kit` | `^0.30.0` | `0003_eviction_columns.sql` push | v0.1 |
 | `croner` | (pinned at v0.4a; verify exact at /implement) | `TimeBasedTrigger` (T5.2) | v0.4a ADR D10 |
 | `pgvector` extension | `v0.5.1` | `<=>` operator for nearest-neighbor (T4.1) | v0.1 |
 | `vitest` | `^2.x` | all RED tests | v0.1 |
@@ -1065,7 +1066,7 @@ NONE.
 - [ ] All RED tests GREEN
 - [ ] `EvictionPolicy` DIP exported via `src/core/dip/index.ts`
 - [ ] `TriadicScoringPolicy` exported via `src/local/eviction/index.ts` AND `src/local/index.ts`
-- [ ] Migration `0002_eviction_columns.sql` applies cleanly via `drizzle-kit push`
+- [ ] Migration `0003_eviction_columns.sql` applies cleanly via `drizzle-kit push`
 
 ### Tests
 

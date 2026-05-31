@@ -1,0 +1,232 @@
+agent: review-v0-4b-forgetting-pipeline-rerun-domain-db-migrations
+review_target: main..HEAD for plan v0-4b-forgetting-pipeline-rerun (post v0.4b-fixes-cycle)
+domain: db-migrations
+date: 2026-05-31
+domain_specific_patterns_checked:
+  - Drizzle journal sync (meta/_journal.json idx + tag alignment with .sql filenames)
+  - Drizzle snapshot integrity (meta/{NNNN}_snapshot.json per .sql migration)
+  - Drizzle v0.45 trigger-model gap workaround (apply-trigger-migrations.mjs hook chained to db:push)
+  - EC-4 reversal — IF NOT EXISTS guards preserved on 0003 for cross-version partial-state recovery
+  - Idempotency of runMigrations(pool) via journal hash-skip
+  - Rollback runbook completeness (atomic SQL block + journal cleanup + verification queries + cross-version recovery)
+  - Cross-version partial-state detect+repair script (db-repair-v0-4b-partial-state.mjs reportRepairState / applyRepair)
+  - Migration suite shape: 6 .sql files (0000-0006) + 7 journal entries + 7 snapshots
+  - Trailing-newline hygiene on 0003 (F-dom-db-5)
+
+verification_summary:
+  migration_sql_files:
+    - 0000_crazy_mimic.sql
+    - 0001_reflection_columns.sql
+    - 0002_skill_columns.sql
+    - 0003_eviction_columns.sql
+    - 0004_eviction_half_life_trigger.sql
+    - 0005_eviction_partial_indexes.sql
+    - 0006_drop_dead_index_columns.sql
+    count: 7  # plan said 6 (0000-0006) — there are 7 files indexed 0-6
+    note: |
+      Brief mentioned "0000-0006*.sql (6 .sql files)" — that is a count miscount in the
+      review brief. There are SEVEN files (idx 0 through 6 inclusive). All 7 are
+      properly reflected in journal + snapshots. NOT a defect.
+  journal_entries: 7
+  journal_idx_range: "0..6 contiguous"
+  journal_tags_match_filenames: true
+  snapshot_files: 7
+  snapshot_idx_alignment: "perfect (each .sql has matching {NNNN}_snapshot.json)"
+  trigger_migration_strategy: "apply-trigger-migrations.mjs scans for CREATE [OR REPLACE] (TRIGGER|FUNCTION); wired into db:push npm script after drizzle-kit push"
+  rollback_runbook_present: true
+  cross_version_repair_script_present: true
+  cross_version_repair_test_coverage: "3 scenarios: fresh / aligned / partial-state recoverable (repair-partial-state.test.ts)"
+
+original_review_findings_status:
+  F-dom-db-1:
+    severity_original: BLOCKER
+    fix_task: T0.1 (Drizzle journal sync)
+    closed: true
+    verification: |
+      meta/_journal.json contains 7 entries (idx 0-6), tags exactly match
+      filenames. meta/0003_snapshot.json + meta/0004_snapshot.json + 0005 + 0006
+      all exist (15096 + 15096 + 16400 + 15887 bytes respectively). The
+      journal-sync.test.ts integration test enforces this invariant going
+      forward (3 assertions: count match, tag presence, idx presence).
+  F-dom-db-2:
+    severity_original: CRITICAL
+    fix_task: T2.1 (db:push triggers via psql hook)
+    closed: true
+    verification: |
+      package.json line 48: "db:push" chains drizzle-kit push + node
+      scripts/apply-trigger-migrations.mjs. The helper scans for trigger-bearing
+      .sql files (regex on CREATE [OR REPLACE] (TRIGGER|FUNCTION)) and applies
+      each via psql -v ON_ERROR_STOP=1. EC-9 absorbed (clear error message
+      pointing at README § Quickstart when psql not on PATH). Idempotent
+      because 0004 uses CREATE OR REPLACE.
+  F-dom-db-3:
+    severity_original: MAJOR
+    fix_task: T11.1b (runMigrations idempotency verification)
+    closed: true
+    verification: |
+      tests/integration/migrations/idempotency.test.ts asserts:
+      (a) runMigrations() called twice in succession is a no-op on second call
+      (b) drizzle.__drizzle_migrations row count stays identical
+      (c) memories table column count for the 3 v0.4b columns stays at exactly 3
+      Plus the cross-version partial-state script (db-repair-v0-4b-partial-state.mjs)
+      has its own 3-scenario test (repair-partial-state.test.ts).
+  F-dom-db-4:
+    severity_original: MAJOR
+    fix_task: T11.1a (rollback runbook)
+    closed: true
+    verification: |
+      docs/runbook-v0-4b-rollback.md (128 lines) ships:
+      - TL;DR (5-step flow)
+      - § 1 — atomic SQL DROP block in a single BEGIN/COMMIT transaction,
+        ordering DROP INDEX → DROP TRIGGER → DROP FUNCTION → ALTER TABLE DROP COLUMN
+      - § 2 — journal cleanup (DELETE 4 most-recent rows from drizzle.__drizzle_migrations)
+      - § 3 — 4 verification queries (columns/trigger/indexes/function all return 0 rows)
+      - § 4 — EC-4 cross-version partial-state recovery (psql -f workaround between
+        v0.4b ship + v0.4b-fixes ship); REFERENCES db:repair-v0-4b-partial-state
+        as the preferred non-destructive path.
+  F-dom-db-5:
+    severity_original: MINOR
+    fix_task: T12.1 (trailing newline 0003)
+    closed: true
+    verification: |
+      `tail -c 5 0003_eviction_columns.sql | xxd` confirms ULL;\n (0x0a) at EOF.
+      0003 line 4 ends with semicolon + newline.
+
+ec4_reversal_locked:
+  status: VERIFIED
+  evidence: |
+    src/local/migrations/0003_eviction_columns.sql lines 1-4 all use
+    IF NOT EXISTS / ADD COLUMN IF NOT EXISTS / CREATE INDEX IF NOT EXISTS guards.
+    The runbook § 4 explicitly anchors at EC-4 reversal as the rationale.
+    The repair script (db-repair-v0-4b-partial-state.mjs) detects exactly the
+    partial-state scenario these guards defend against.
+
+f1_followup_status:
+  description: ADR D4 amendment opportunity (Drizzle v0.45 trigger model gap)
+  documented_at: .claude/knowledge-base/implementations/v0-4b-fixes-cycle-followups.md § F1 (lines 124-161)
+  owner_assigned: post-merge plan archival step
+  acceptable: true
+  rationale: |
+    F1 properly captures that drizzle-kit generate does not auto-emit a
+    0004_snapshot.json for trigger-only migrations (because triggers aren't
+    modeled in schema.ts in Drizzle ORM v0.45). T0.1 worked around this via
+    identity-copy of 0003_snapshot.json → 0004_snapshot.json with fresh UUID v7
+    for `id` and `prevId = 0003.id`. ADR D4's spirit honored maximally —
+    documented + deferred to plan-archival step where ADR D4 will be amended to
+    clarify column/index vs trigger-only migration scopes. Single 5-LoC addendum.
+
+findings:
+  - id: F-T9.1-1
+    refers_to_original: F-dom-pg-2 (HNSW NN refactor deferral)
+    severity: INFO
+    category: deferral-disclosure
+    file: src/local/migrations/0006_drop_dead_index_columns.sql
+    line: 4-9
+    plan_ref: v0-4b-fixes-cycle-plan.md § T9.1 + EC-7 safeguard
+    domain_anchor: pgvector HNSW partial-index re-keying without dead `last_accessed_at` column
+    summary: |
+      F-dom-pg-2's original HNSW NN refactor is deferred. EC-7 safeguard fired
+      correctly when the recall@10 regression was empirically demonstrated; the
+      v0.4b-fixes cycle re-keyed the eviction partial indexes (migration 0006)
+      to drop the dead `last_accessed_at` column from the index keys, leaving
+      the NN query path unaltered. This is the accepted-deferral path declared
+      in the original review's EC-7 framework.
+    evidence: |
+      0006 ships 3 DROP INDEX IF EXISTS (eviction_score / _user / _session)
+      followed by 3 CREATE INDEX IF NOT EXISTS keyed only on (agent_id) /
+      (user_id) / (session_id) with `WHERE t_invalid IS NULL` partial predicate.
+      The HNSW NN cosine index on memories.embedding is unmodified — refactor
+      is properly out-of-scope.
+    recommended_action: |
+      None — accepted deferral. F-dom-pg-2 will be re-opened in a future cycle
+      if/when the NN refactor is sequenced explicitly (likely Phase II once
+      capacity thresholds for forgetting force the refactor).
+
+  - id: F-dom-db-rerun-1
+    severity: MINOR
+    file: docs/runbook-v0-4b-rollback.md
+    line: 127
+    plan_ref: v0-4b-fixes-cycle-plan.md § T11.1a (Cross-references list)
+    domain_anchor: file-extension consistency in cross-references
+    summary: |
+      Cross-references list cites the repair script as
+      `scripts/db-repair-v0-4b-partial-state.ts` but the actual file is `.mjs`.
+      Same script is correctly referenced as `.mjs` everywhere else
+      (package.json line 50, the script's own header @see comments,
+      the test's `pathToFileURL` resolve). The `.ts` extension on runbook line
+      127 is a stale carryover from an earlier draft when the script was
+      planned to be TypeScript.
+    evidence: |
+      docs/runbook-v0-4b-rollback.md:127
+        - `scripts/db-repair-v0-4b-partial-state.ts` — automated cross-version recovery (T11.1b)
+      package.json:50
+        "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs"
+      Actual file: scripts/db-repair-v0-4b-partial-state.mjs (223 LoC, .mjs).
+    recommended_action: |
+      Single-character fix in runbook line 127: change `.ts` → `.mjs`. Trivial
+      doc hygiene; non-blocking. Would matter if a future operator copy-pasted
+      the path into a terminal expecting a TypeScript file.
+
+  - id: F-dom-db-rerun-2
+    severity: INFO
+    file: src/local/migrations/
+    line: n/a
+    plan_ref: review-brief framing
+    domain_anchor: migration count
+    summary: |
+      Review brief says "src/local/migrations/0000-0006*.sql (6 .sql files)".
+      The directory has SEVEN files (idx 0 through 6 inclusive = 7 files).
+      Journal correctly has 7 entries; snapshots are 7. The brief miscount
+      is a transcription artifact, not a defect.
+    evidence: |
+      ls src/local/migrations/*.sql → 7 files
+      meta/_journal.json entries → 7
+      meta/*_snapshot.json → 7
+    recommended_action: |
+      None — informational only. Brief author should be aware for future
+      re-review framings (matters because mis-stated counts in review briefs
+      can mask off-by-one journal-sync defects in other cycles).
+
+  - id: F-dom-db-rerun-3
+    severity: INFO
+    file: src/local/migrations/0004_eviction_half_life_trigger.sql
+    line: 1-42
+    plan_ref: v0-4b-fixes-cycle-plan.md § T9.2 (F-dom-pg-4 doc)
+    domain_anchor: documentation completeness on isolation-level race-window
+    summary: |
+      0004 ships 42 lines of comment header that documents 3 race-window
+      scenarios under READ COMMITTED (concurrent reads on OLD value, concurrent
+      UPDATEs on same row, read-modify-write on half_life_seconds). This is
+      best-practice migration-as-documentation. The eventual-consistency
+      invariant is asserted in tests/integration/eviction/trigger-race-window.test.ts
+      per EC-11 absorption (vitest worker_threads limitation noted honestly).
+    evidence: |
+      Comment block spans 42 lines describing READ COMMITTED behavior + explicit
+      EC-11 absorption rationale for the testing strategy.
+    recommended_action: |
+      None — exemplary documentation. Worth holding up as a pattern for future
+      trigger-bearing migrations.
+
+overall_verdict: PASS
+overall_summary: |
+  All 5 original db-migrations findings (F-dom-db-1 BLOCKER through F-dom-db-5
+  MINOR) are closed with verifiable artifacts. EC-4 reversal locked correctly
+  (IF NOT EXISTS guards preserved on 0003). F1 followup (ADR D4 amendment)
+  properly deferred to post-merge plan archival with a clear owner + 5-LoC
+  scope.
+
+  The journal sync is end-to-end verified: 7 .sql files ↔ 7 journal entries
+  (idx 0-6 contiguous, tags matching filenames) ↔ 7 snapshot files. The
+  Drizzle v0.45 trigger-model gap is bridged honestly via apply-trigger-migrations.mjs
+  chained into db:push, with EC-9 prerequisite-error guidance. runMigrations
+  idempotency proven by the integration test. Cross-version partial-state
+  recovery has both a CLI script (3-scenario detect+repair) AND a manual
+  runbook flow (§ 4) — defense in depth.
+
+  Two MINOR / INFO findings on this rerun (F-dom-db-rerun-1 = trivial doc
+  ext typo, F-dom-db-rerun-2 = brief miscount note). F-T9.1-1 records the
+  F-dom-pg-2 HNSW NN refactor deferral honestly per EC-7 safeguard.
+
+  Verdict: READY_TO_MERGE on the db-migrations axis. Plan should ship; the
+  single recommended follow-up is the trivial `.ts` → `.mjs` correction in
+  runbook line 127 (can ride a future commit; non-blocking).

@@ -1,0 +1,307 @@
+agent: review-v0-4b-forgetting-pipeline-rerun-domain-memory-layer
+review_target: develop branch post v0-4b-fixes-cycle (commit 8e3951e + earlier T0.1–T6.1 commits)
+domain: memory-layer
+plan_ref: .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md
+adrs_verified:
+  - ADR-0002 (three-tier scope User/Session/Agent)
+  - ADR-0010 (RepoScope 4th tier; ScopedSkillMemory surface)
+  - ADR D7 v0-4b-fixes (forget BREAKING soft-delete declaration)
+  - ADR D5 v0-4b-fixes (options-object constructor T1.1)
+  - ADR D6 v0-4b-fixes (eviction barrel + factory wiring T4.1)
+domain_specific_patterns_checked:
+  - scope-tier discriminated dispatch via scopeColumn/scopeValue (T3.1)
+  - public barrel exposure of eviction surface via src/index.ts (T4.1)
+  - soft-delete uniformity via PgEvictor (T7.1 BREAKING + ADR D7)
+  - long-tail multiplier scope-aware via getNeighborScopeId widening (T7.2 / EC-4)
+  - OTel meter lazy init pattern (T10.1, F-dom-6)
+  - EvictionPolicy DIP lifecycle hooks (T12.1 / F-xval-2)
+  - DIP relocation HalfLifePersister/NearestNeighborProvider to core (T5.1 / F-arch-2)
+
+# ============================================================
+# FINDINGS — original review F-dom-* closure verification
+# ============================================================
+findings:
+  - id: F-dom-1
+    original_severity: CRITICAL
+    rerun_severity: INFO
+    status: CLOSED
+    file: src/local/eviction/scope-where.ts
+    lines: 26-58
+    plan_ref: T3.1 + F-dom-1 / F-dom-pg-3
+    domain_anchor: architecture.md § 1 (three-tier scope)
+    summary: |
+      Hardcoded `m.agent_id = $2` predicate replaced by scope-tier discriminated dispatch.
+      `scopeColumn(scope)` returns user_id/session_id/agent_id, and `scopeValue(scope)`
+      returns the matching id. `scopeWhereClause(scope, paramStart)` composes the WHERE
+      predicate + positional params. All 3 consumers (CapacityBasedTrigger:100-105,
+      TimeBasedTrigger via loadCandidates, PgNearestNeighborProvider:30-45) route
+      through this helper. The 5 inline `agent_id` references that remain in eviction/
+      are either (a) JSDoc commentary documenting the historical bug, (b) the
+      `kind='repo' → agent_id` mapping required by ADR-0010 / EC-4 (RepoScope persists
+      via agent_id with kind='skill' discriminator), or (c) the `rowToMemoryItem`
+      read-side reconstruction in scope-candidate.ts:53-59 (which is a separate concern
+      — write-side WHERE is correct, read-side scope rehydration is precedence-based).
+      User and Session tiers now correctly evict.
+    evidence: |
+      src/local/eviction/scope-where.ts:26-41 (scopeColumn dispatch)
+      src/local/eviction/capacity-based-trigger.ts:100-105 (uses scopeWhereClause)
+      src/local/eviction/pg-nearest-neighbor-provider.ts:30-45 (uses scopeColumn)
+      src/local/eviction/time-based-trigger.ts:65 + 85 (Scope union, not scopeId)
+    recommended_action: none — closed.
+
+  - id: F-dom-2
+    original_severity: CRITICAL
+    rerun_severity: INFO
+    status: CLOSED
+    file: src/index.ts
+    lines: 14-58
+    plan_ref: T4.1 + F-dom-2 / F-arch-5 / F-wire-2 / F-xval-3
+    domain_anchor: architecture.md § 9 (public API surface)
+    summary: |
+      Public barrel now exposes the full v0.4b eviction surface — 16 named exports
+      covering TriadicScoringPolicy + 3 Pg* adapters + 2 triggers + 2 error classes
+      + 2 defaults constants + 5 helper functions + 1 EvictionNotSupported + 8 named
+      types. Closes the gap where consumers had to import via deep paths
+      `@usetheo/memory/local/eviction/...`. `createLocalMemory({ eviction: {...} })`
+      factory wiring (src/local/index.ts:638-697) gives the canonical opt-in shape;
+      the manual-composition path stays accessible for advanced consumers.
+      The `LocalEvictionConfig` discriminated union is exported as type-only.
+      The `DisposableMemory` type (factory return — Memory + dispose) is also exported.
+    evidence: |
+      src/index.ts:14 (EvictionNotSupported)
+      src/index.ts:27-48 (16 value exports)
+      src/index.ts:49-58 (8 type exports including LocalEvictionConfig)
+      src/local/index.ts:638-697 (createLocalMemory factory wiring)
+      src/local/eviction/index.ts:1-57 (local barrel which src/index.ts re-exports)
+    recommended_action: none — closed.
+
+  - id: F-dom-3
+    original_severity: MAJOR
+    rerun_severity: INFO
+    status: CLOSED
+    file: src/local/index.ts
+    lines: 484-543
+    plan_ref: T7.1 + ADR D7 + EC-3 + F-dom-3 / F-wire-1
+    domain_anchor: architecture.md § 2 (ADD-only); ADR-0006 (bi-temporal); CHANGELOG.md
+    summary: |
+      `LocalMemory.forget(id)` now soft-deletes via PgEvictor on PgvectorStore (default
+      path); GDPR escape hatch `{ hard: true }` preserved for physical delete; the
+      `InMemoryVectorStore` adapter keeps hard-delete (no t_invalid concept). This
+      aligns the runtime with the v0.1 JSDoc that had ALREADY promised soft-delete-by-
+      default — the bug was the v0.1 runtime contradicting its own contract.
+      The BREAKING semantic is properly declared:
+        (a) ADR D7 in v0-4b-fixes-cycle-plan.md:117-120 explicitly marks it BREAKING
+        (b) CHANGELOG.md:24 ships the `**BREAKING**:` prefix entry with migration
+            guidance (`count == 0` → `count_where_t_invalid_null == 0`), recoverability
+            note, and ScopedSkillMemory cascade declaration
+        (c) JSDoc on Memory.forget (src/core/memory-store.ts:97-110) and
+            LocalMemory.forget (src/local/index.ts:484-511) carry the v0.4b-fixes T7.1
+            PUBLIC API BREAKING CHANGE annotation
+        (d) Cascade through skills.ts → LocalScopedSkillMemory.forgetDelegate
+            (src/local/scoped-skill-memory.ts:45-50) honored
+      Verified per agent's contract requirement: BOTH the `**BREAKING**:` CHANGELOG
+      prefix AND ADR D7 declaration ship.
+    evidence: |
+      CHANGELOG.md:24 (`**BREAKING**:` prefix entry)
+      .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md:117-120 (ADR D7 declaration)
+      src/core/memory-store.ts:97-110 (Memory.forget JSDoc BREAKING annotation)
+      src/local/index.ts:484-543 (forget impl with isPgStore branching + history event)
+      src/local/scoped-skill-memory.ts:45-50 (forgetDelegate cascade)
+    recommended_action: none — closed.
+
+  - id: F-dom-4
+    original_severity: MAJOR
+    rerun_severity: INFO
+    status: CLOSED (per plan T3.1 + T9.1 — schema validated by domain-pgvector-schema agent)
+    file: (migrations validated separately)
+    plan_ref: T3.1 (per-tier indexes via migration 0005) + T9.1 (drop dead last_accessed_at via 0006)
+    domain_anchor: architecture.md § 1 (three-tier scope)
+    summary: |
+      Closure documented in the v0-4b-fixes plan T3.1 + T9.1 deliverables. Memory-layer
+      runtime side (this agent's scope) routes through scopeColumn/scopeValue so the
+      index choice is now exercised correctly per scope tier. Detailed schema +
+      migration review is the domain-pgvector-schema agent's responsibility; from this
+      agent's vantage the runtime code-paths read-write the correct columns per tier.
+    evidence: |
+      src/local/eviction/scope-where.ts:26-41 (dispatch routes the index lookup correctly)
+    recommended_action: none — closure delegated to schema agent; this agent confirms the runtime side.
+
+  - id: F-dom-5
+    original_severity: MAJOR
+    rerun_severity: INFO
+    status: CLOSED
+    file: src/local/eviction/triadic-scoring-policy.ts
+    lines: 107-118 + 375-396
+    plan_ref: T7.2 + EC-4 + F-dom-5 + F-arch-7 (long-tail multiplier scope widening)
+    domain_anchor: blueprint D9 (long-tail multiplier); ADR-0002 (three-tier scope)
+    summary: |
+      `getNeighborScopeId(scope)` now dispatches on the full Scope union — returns
+      userId/sessionId/agentId/repoId per kind. `computeProtectionMultiplier` consumes
+      `memory.scope` (typed Scope) and calls `neighborProvider.distance(memory.id,
+      memory.scope)` — no more agent_id-only short-circuit. The cache path in
+      `maybeCacheNeighborDistances` (line 425-448) ALSO uses `getNeighborScopeId`
+      consistently. The User and Session tiers now receive long-tail protection.
+      `NearestNeighborProvider.distance(memoryId, scope: Scope)` signature widened
+      in core/dip/eviction-policy.ts:191 with the same dispatch contract on the
+      PgNearestNeighborProvider side.
+    evidence: |
+      src/local/eviction/triadic-scoring-policy.ts:107-118 (getNeighborScopeId)
+      src/local/eviction/triadic-scoring-policy.ts:375-396 (computeProtectionMultiplier)
+      src/local/eviction/triadic-scoring-policy.ts:425-448 (cache path)
+      src/core/dip/eviction-policy.ts:181-192 (NearestNeighborProvider.distance widened)
+      src/local/eviction/pg-nearest-neighbor-provider.ts:30-45 (impl dispatches via scopeColumn)
+    recommended_action: none — closed.
+
+  - id: F-dom-6
+    original_severity: MAJOR
+    rerun_severity: INFO
+    status: CLOSED
+    file: src/local/eviction/pg-evictor.ts
+    lines: 45-65
+    plan_ref: T10.1 + F-dom-6 (OTel meter eager init)
+    domain_anchor: blueprint EC-4 (OTel counter); OTel best-practice (lazy meter resolution)
+    summary: |
+      Counter resolution moved to lazy `getSoftDeleteCounter()` function (module load
+      no longer captures the no-op default MeterProvider). On first evict() call,
+      `metrics.getMeter('@usetheo/memory')` is queried, and the resolved Counter is
+      cached in module-local `lazyCounter`. Consumers that register their MeterProvider
+      AFTER importing `@usetheo/memory` — the canonical boot order — now see counter
+      emissions routed correctly. The `__resetCounterCacheForTesting()` escape hatch
+      (line 73) is properly marked `@internal` so production paths cannot leak it.
+      Cache discipline matches OTel guidance (resolve once per process; cache for
+      lifetime).
+    evidence: |
+      src/local/eviction/pg-evictor.ts:45-65 (lazy resolution + cache)
+      src/local/eviction/pg-evictor.ts:73-75 (__resetCounterCacheForTesting @internal)
+      src/local/eviction/pg-evictor.ts:113-117 (counter.add + onSoftDelete callback)
+    recommended_action: none — closed.
+
+# ============================================================
+# ADR CONTRACT VERIFICATION
+# ============================================================
+adr_findings:
+  - id: ADR-0002
+    status: PRESERVED
+    summary: |
+      Three-tier scope (User / Session / Agent) is now correctly honored by EVERY
+      eviction code path. The Scope discriminated union flows through:
+        - filtersFromScope (src/local/index.ts:158-176)
+        - scopeColumn / scopeValue / scopeWhereClause / advisoryLockKey (scope-where.ts)
+        - loadCandidates (scope-candidate.ts:89-102)
+        - CapacityBasedTrigger (capacity-based-trigger.ts:62-148)
+        - TimeBasedTrigger (time-based-trigger.ts:65 + 143-204)
+        - PgNearestNeighborProvider (pg-nearest-neighbor-provider.ts:30-45)
+        - TriadicScoringPolicy.getNeighborScopeId (triadic-scoring-policy.ts:107-118)
+        - NearestNeighborProvider DIP (core/dip/eviction-policy.ts:181-192)
+      No `scopeId: string` (agent-id-shaped) parameter remains in the trigger pipeline
+      after T3.1. The contract is restored: User and Session tiers now evict with
+      the same fidelity as Agent.
+
+  - id: ADR-0010
+    status: PRESERVED (NOT REGRESSED)
+    summary: |
+      RepoScope (4th tier) is exposed ONLY via `Memory.skills(repoId)` per ADR-0010.
+      The Memory interface (src/core/memory-store.ts:91) declares
+      `skills(repoId: string): ScopedSkillMemory`; the LocalMemory impl
+      (src/local/index.ts:590-607) wires it to `LocalScopedSkillMemory`. The
+      RepoScope kind is RECOGNIZED by every eviction scope-aware function
+      (scopeColumn:34-40 maps `kind='repo' → agent_id` per ADR-0010 / EC-4; same for
+      scopeValue, advisoryLockKey, getNeighborScopeId, filtersFromScope).
+      assertScopeIsNonEmpty (src/local/index.ts:178-196) accepts `kind='repo'`. The
+      skills surface itself is unchanged from v0.6 — no regression. EC-4's
+      `agent_id`-column-aliasing with the `kind='skill'` row discriminator is
+      preserved.
+
+  - id: "ADR-D7-v0-4b-fixes"
+    status: HONESTLY DECLARED + IMPLEMENTED
+    summary: |
+      The forget() BREAKING change is properly declared per the agent's contract
+      requirement:
+        (1) ADR D7 in .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md:117-120
+            explicitly marks "T7.1 forget() soft-delete is a PUBLIC API BREAKING CHANGE"
+            and gives the rationale (F-dom-3 inconsistency vs ADR D17 § Consequences claim).
+        (2) CHANGELOG.md:24 ships the `**BREAKING**:` prefix entry under [Unreleased]
+            § Changed with: migration guidance (raw SELECT post-state contract change),
+            recovery path (WHERE t_invalid IS NOT NULL), GDPR escape hatch
+            ({ hard: true }), InMemoryVectorStore exception note, ScopedSkillMemory
+            cascade declaration, and F-dom-3/F-wire-1 finding closure citation.
+        (3) Two JSDoc surfaces (Memory.forget at src/core/memory-store.ts:97-110 +
+            LocalMemory.forget at src/local/index.ts:484-511) carry the BREAKING
+            annotation pointing back to CHANGELOG.md + plan T7.1 + ADR D7.
+      Honesty discipline (Inquebrável Rule 3) satisfied — both `**BREAKING**:` CHANGELOG
+      prefix AND ADR D7 declaration ship as the agent contract required.
+
+# ============================================================
+# ADDITIONAL OBSERVATIONS (no original review F-id)
+# ============================================================
+additional_observations:
+  - id: OBS-1
+    severity: INFO
+    file: src/local/eviction/scope-candidate.ts
+    lines: 53-59
+    summary: |
+      `rowToMemoryItem` reads `row.agent_id !== null ? agent : row.session_id !== null
+      ? session : user` precedence to rehydrate scope at READ time. The JSDoc at
+      lines 44-52 is explicit that this REVERSES the write-side rule where
+      `scope.kind` is authoritative (per T3.1 / EC-5). This is a deliberate
+      asymmetry — when reading rows back, we only have columns (not kind), and the
+      `agent → session → user` precedence is the canonical reproduction shape.
+      Documented + correct. Not a regression. Flagged here so reviewers don't
+      mistake it for a remaining F-dom-1 surface.
+
+  - id: OBS-2
+    severity: INFO
+    file: src/local/eviction/triadic-scoring-policy.ts
+    lines: 318-323
+    summary: |
+      `TriadicScoringPolicy.evict()` is a thin wrapper that delegates to the
+      injected Evictor when wired, returning empty EvictionResult when null. This
+      is correct for pure-math unit tests (no DB roundtrip) and acceptable for
+      production paths (consumers wire the PgEvictor via the
+      options-object constructor or the createLocalMemory factory). Not a defect.
+
+  - id: OBS-3
+    severity: INFO
+    file: src/local/eviction/triadic-scoring-policy.ts
+    lines: 226-239 + 285-307
+    summary: |
+      The dual-constructor design (T1.1 options-object + deprecated positional) is
+      cleanly implemented via overload signatures + an `isOptionsObject` type guard
+      that explicitly handles `undefined`/`null` per EC-2. The
+      `Object.setPrototypeOf` pattern is used on both InvalidWeightsError and
+      InvalidFractionError so `instanceof` survives ESM/CJS. Good DIP discipline.
+
+  - id: OBS-4
+    severity: INFO
+    file: src/core/dip/eviction-policy.ts
+    lines: 158-192
+    summary: |
+      T5.1 relocation of HalfLifePersister + NearestNeighborProvider interfaces into
+      `src/core/dip/eviction-policy.ts` is architecturally correct per
+      architecture.md § 3 (concrete depends on abstraction; abstraction MUST NOT
+      live with concrete). The local/eviction barrel re-exports them via type-only
+      `export type` for backward compatibility. The DIP file remains pure (no
+      runtime impl, no I/O, no import from src/local). Closes F-arch-2 cleanly.
+
+# ============================================================
+# VERDICT
+# ============================================================
+verdict:
+  blockers: 0
+  criticals: 0
+  majors: 0
+  minors: 0
+  info: 4
+  status: ALL_ORIGINAL_DOMAIN_FINDINGS_CLOSED
+  ready_for_merge: true
+  notes: |
+    All 6 original F-dom-* findings from v0-4b-forgetting-pipeline-review-2026-05-30
+    (2 CRITICAL + 4 MAJOR) are CLOSED on the memory-layer surface. ADR-0002 is
+    restored. ADR-0010 is preserved (no regression). ADR D7's BREAKING semantic
+    is honestly declared with both the CHANGELOG `**BREAKING**:` prefix and the
+    plan ADR D7 entry, per the agent contract requirement. The four additional
+    observations are informational — no further action required from the
+    memory-layer reviewer.
+
+    Domain-pgvector-schema verification of F-dom-4 (partial index keying) and
+    F-dom-pg-* findings is delegated to the sibling agent per role separation.

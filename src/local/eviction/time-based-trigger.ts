@@ -1,0 +1,205 @@
+/**
+ * TimeBasedTrigger — cron-scheduled background eviction per blueprint D10.
+ *
+ * Fires at the configured cron schedule (single scope per trigger; consumers
+ * instantiate multiple triggers for multi-scope coverage). On tick, runs a
+ * fixed-fraction eviction pass against the configured scope — independent of
+ * any size threshold (different from CapacityBasedTrigger which fires only
+ * on overflow).
+ *
+ * REUSES `croner` from v0.4a's SleepTimeReflectionPolicy — ZERO new runtime
+ * dep per blueprint Q2 Rule 9 REJECT-all verdict (lru-cache / quick-lru /
+ * keyv all rejected as wrong-abstraction-layer).
+ *
+ * EC-9 absorption (cron format guard): constructor eagerly probes the
+ * expression via `new Cron(expr, { paused: true })` so format errors surface
+ * at construction, not at first tick. Croner natively supports both 5-field
+ * (minute-resolution) and 6-field (second-resolution) cron expressions.
+ *
+ * Advisory lock pattern: each tick acquires
+ * `pg_try_advisory_xact_lock(hashtext('eviction_' || scope))` inside a
+ * transaction so a concurrent CapacityBasedTrigger fire on the same scope
+ * does not double-evict.
+ *
+ * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T5.2 (D10 + EC-9)
+ */
+import { Cron } from 'croner';
+import type { Pool, PoolClient } from 'pg';
+
+import type { EvictionPolicy, EvictionResult, ScoreContext } from '../../core/dip/eviction-policy.js';
+import type { Scope } from '../../core/scope.js';
+
+import { loadCandidates } from './scope-candidate.js';
+import { advisoryLockKey } from './scope-where.js';
+
+export interface TimeBasedTriggerConfig {
+  readonly cronExpression: string;
+  readonly evictionFraction: number;
+  /**
+   * Scope tier the cron-driven eviction operates on. v0.4b-fixes T3.1 widened
+   * this from the previous `scopeId: string` (agent_id-only) to the full
+   * `Scope` discriminated union so cron-scheduled evictions honor all 3
+   * tiers (User / Session / Agent) per ADR-0002.
+   */
+  readonly scope: Scope;
+}
+
+/**
+ * EC-9 absorption — TimeBasedTrigger rejects empty or unparseable cron
+ * expressions at construction so format errors surface BEFORE start().
+ */
+export class InvalidCronExpressionError extends Error {
+  override readonly name = 'InvalidCronExpressionError' as const;
+
+  constructor(cronExpression: string, options?: ErrorOptions) {
+    super(`Invalid cron expression: ${JSON.stringify(cronExpression)}`, options);
+    Object.setPrototypeOf(this, InvalidCronExpressionError.prototype);
+  }
+}
+
+type OnTickCallback = (result: EvictionResult | null) => void;
+
+export class TimeBasedTrigger {
+  private readonly cronExpression: string;
+  private readonly evictionFraction: number;
+  private readonly scope: Scope;
+  private cronJob: Cron | null = null;
+  private tickListener: OnTickCallback | null = null;
+
+  constructor(
+    private readonly pool: Pool,
+    private readonly policy: EvictionPolicy,
+    config: TimeBasedTriggerConfig,
+  ) {
+    if (config.cronExpression === '') {
+      throw new InvalidCronExpressionError(config.cronExpression);
+    }
+    try {
+      const probe = new Cron(config.cronExpression, { paused: true });
+      probe.stop();
+    } catch (err) {
+      throw new InvalidCronExpressionError(config.cronExpression, { cause: err });
+    }
+    this.cronExpression = config.cronExpression;
+    this.evictionFraction = config.evictionFraction;
+    this.scope = config.scope;
+  }
+
+  /**
+   * Register a callback invoked on every tick (after the eviction pass
+   * completes). Receives the EvictionResult (or null on lock contention /
+   * no-op). Useful for testing real-cron timing AND for telemetry hooks.
+   * At most ONE listener is supported — second call replaces the first.
+   */
+  onTick(listener: OnTickCallback): void {
+    this.tickListener = listener;
+  }
+
+  isStarted(): boolean {
+    return this.cronJob !== null;
+  }
+
+  /** Start the cron job. Idempotent: second invocation is a no-op. */
+  start(): void {
+    if (this.cronJob !== null) {
+      return;
+    }
+    this.cronJob = new Cron(this.cronExpression, () => {
+      void this.tickNow(new Date()).catch((err: unknown) => {
+        // @todo v0.5 — replace with structured logger DIP once
+        // src/core/dip/logger.ts ships (F-arch-6 MINOR; no logger interface
+        // exists at v0.4b so console.warn stays as the diagnostic channel).
+        // eslint-disable-next-line no-console
+        console.warn('[v0.4b TimeBasedTrigger] tick failed:', err);
+      });
+    });
+  }
+
+  /** Stop the cron job. Idempotent — calling on a non-started or already-stopped instance is a no-op. */
+  stop(): void {
+    if (this.cronJob !== null) {
+      this.cronJob.stop();
+      this.cronJob = null;
+    }
+  }
+
+  /**
+   * Deterministic-test entry point: bypasses the cron schedule and runs
+   * one eviction pass immediately. Production code path uses the same
+   * function via the cron callback registered in `start()`.
+   */
+  async tickNow(now: Date): Promise<EvictionResult | null> {
+    const client = await this.pool.connect();
+    let result: EvictionResult | null = null;
+    try {
+      result = await this.runFixedFractionPass(client, now);
+    } finally {
+      client.release();
+    }
+    this.tickListener?.(result);
+    return result;
+  }
+
+  private async runFixedFractionPass(
+    client: PoolClient,
+    now: Date,
+  ): Promise<EvictionResult | null> {
+    await client.query('BEGIN');
+    try {
+      const lockResult = await client.query<{ locked: boolean }>(
+        'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
+        [advisoryLockKey(this.scope)],
+      );
+      if (lockResult.rows[0]?.locked !== true) {
+        await client.query('COMMIT');
+        return null;
+      }
+      const candidates = await loadCandidates(client, this.scope);
+      if (candidates.length === 0) {
+        await client.query('COMMIT');
+        return null;
+      }
+      // v0.4b-fixes T12.1 (F-xval-2): invoke EvictionPolicy lifecycle hooks
+      // declared by ADR D12 so consumers wiring an observability policy
+      // receive eviction boundary signals. Hooks are optional + best-effort.
+      if (this.policy.onEvictionStart !== undefined) {
+        try {
+          await this.policy.onEvictionStart(this.scope, this.evictionFraction);
+        } catch {
+          // observability-only — do NOT poison the eviction
+        }
+      }
+      const context: ScoreContext = { meanIsolationDistance: 0, now };
+      const victimIds = await this.policy.selectVictims(
+        candidates,
+        this.evictionFraction,
+        context,
+      );
+      let result: EvictionResult;
+      if (victimIds.length === 0) {
+        result = { softDeleted: [], alreadyInvalid: [], errors: [] };
+      } else {
+        await client.query(
+          `UPDATE memories
+              SET t_invalid = NOW()
+            WHERE id = ANY($1::uuid[])
+              AND t_invalid IS NULL`,
+          [victimIds],
+        );
+        result = { softDeleted: victimIds, alreadyInvalid: [], errors: [] };
+      }
+      if (this.policy.onEvictionEnd !== undefined) {
+        try {
+          await this.policy.onEvictionEnd(this.scope, result);
+        } catch {
+          // observability-only
+        }
+      }
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    }
+  }
+}

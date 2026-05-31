@@ -1,0 +1,414 @@
+agent: review-voyager-skill-library-architecture
+review_target: develop..HEAD for plan voyager-skill-library
+plan: .claude/knowledge-base/plans/voyager-skill-library-plan.md
+findings:
+  - id: F-arch-1
+    severity: CRITICAL
+    file: src/local/skills/consolidate.ts
+    line: 422
+    plan_ref: ADR D2 ("v0.6 skill payload is {code, description, codeLanguage}") + T5.1 Goal metric
+    summary: >-
+      Consolidated derived skill writes `code = description` — discarding the executable
+      payload of every source skill. The v0.4a `executeReflection` returns
+      `DerivedMemoryDraft { text, derivedFrom }` (no code field) so the orchestrator
+      stuffs the LLM's merged-description string into the `code` column. This
+      contradicts ADR D2's "code-as-skill (Voyager pattern) is primary" mandate —
+      consumers calling `consolidate()` then `recall()` will get rows whose `code`
+      field is the description, not executable TypeScript. The Goal-metric test
+      passes only because it asserts on `derivedFrom`, never inspecting `code`.
+    evidence: |
+      consolidate.ts:401-424
+        const description = draft.text;
+        ...
+        const insertArgs: InsertDerivedSkillArgs = {
+          embedding,
+          hash,
+          // LLM produces a single merged text; code = description until v0.6.1
+          // expands the draft shape with structured code/description.
+          code: description,
+          description,
+          codeLanguage: 'typescript',
+          ...
+      executeReflection signature (src/core/reflection/execute.ts:65):
+        drafts.push({ text: candidate.text, derivedFrom: ids });
+      Goal metric in T5.1 only checks derivedFrom (consolidate-two-skills.test.ts:9-15).
+    recommended_action: >-
+      Either (a) extend `DerivedMemoryDraft` with optional `code: string` + update
+      reflection prompt to emit merged code when source memories carry a code field
+      (preserves ADR D2 intent), OR (b) add an explicit ADR amendment to the plan
+      documenting that v0.6 ships description-only consolidated skills and v0.6.1
+      will add code merging. Current inline comment is not an ADR. Also add an
+      integration assertion that `derivedSkills[0].code` differs from the LLM-merged
+      description text when source skills carry code.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 734
+    plan_ref: architecture.md § Module hygiene (≤500 LoC); T2.1 Acceptance Criteria ("pgvector-store.ts still ≤ 500 LoC (or split into a pgvector-skill-store.ts sibling if budget exceeded)")
+    summary: >-
+      pgvector-store.ts is 734 LoC — 47% over the 500 LoC architecture budget. T2.1's
+      acceptance criterion explicitly required splitting into a sibling
+      `pgvector-skill-store.ts` when the budget is exceeded; the split did not happen.
+      Pre-v0.6 file was 496 LoC; the 5 new skill methods (assertSkillArgs +
+      insertSkill + insertDerivedSkill + markSuperseded + insertDerivedSkillAtomic)
+      blew past the cap.
+    evidence: |
+      $ wc -l src/local/pgvector-store.ts
+      734 src/local/pgvector-store.ts
+      $ git show develop:src/local/pgvector-store.ts | wc -l
+      496
+      Plan T2.1 Acceptance Criteria bullet 7:
+        "Pass: size — pgvector-store.ts still ≤ 500 LoC (or split into a
+         pgvector-skill-store.ts sibling if budget exceeded)"
+    recommended_action: >-
+      Extract skill-specific methods (assertSkillArgs, ALLOWED_SKILL_LANGUAGES,
+      insertSkill, insertDerivedSkill, markSuperseded, insertDerivedSkillAtomic,
+      and the v0.6 column projection branches in rowToResult) into
+      `src/local/pgvector-skill-store.ts` as a mixin or sibling class composed
+      into PgvectorStore. Target: parent file back under 500 LoC; sibling under
+      300 LoC.
+
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/local/scoped-skill-memory.ts
+    line: 117
+    plan_ref: architecture.md § 8 (Error handling — "Domain errors are typed classes")
+    summary: >-
+      `LocalScopedSkillMemory.add()` throws `EmptyScopeError` on empty description.
+      `EmptyScopeError`'s semantic per src/core/errors.ts:97 is "Scope is empty: at
+      least one of userId / sessionId / agentId must be non-empty" — it refers to
+      the reflection_counters CHECK constraint, NOT to skill descriptions. Wrong
+      error type sent to consumer; debuggers reading the stack/message will be
+      misled into looking at scope wiring instead of the description field.
+    evidence: |
+      scoped-skill-memory.ts:115-118
+        async add(draft: SkillDraft): Promise<Skill> {
+          if (draft.description.trim().length === 0) {
+            throw new EmptyScopeError();
+          }
+      errors.ts:96-107 EmptyScopeError message refers to
+        "userId / sessionId / agentId must be non-empty"
+      The correct typed error already exists: InvalidSkillError('empty-description',...)
+      and is the exact error thrown by the pgvector store boundary in
+      assertSkillArgs at src/local/pgvector-store.ts:73.
+    recommended_action: >-
+      Replace `throw new EmptyScopeError()` with
+      `throw new InvalidSkillError('empty-description', 'description must not be
+      whitespace-only — it is the embedding target')`. Matches the store-level
+      guard and the InvalidSkillError reason union.
+
+  - id: F-arch-4
+    severity: MAJOR
+    file: src/local/skills/consolidate.ts
+    line: 322
+    plan_ref: T3.1 Phase 1 Orient ("count total skills … via embedding similarity") + architecture.md § 8 (no silent dropping)
+    summary: >-
+      Orient phase performs an unused `await deps.vectorStore.get(row.id)` for every
+      candidate skill, then computes `embedding = await deps.embedder.embed(skill.description)`
+      one-at-a-time. The `get()` result is checked for null and discarded; the
+      embedding loop bypasses the bulk `embedBatch` interface and serializes N
+      embedder calls. For a repo with 500 skills (the ORIENT_PAGE_SIZE cap) this is
+      500 wasted DB round-trips plus 500 sequential LLM/embedder calls per
+      consolidate() invocation. The follow-up comment ("Conformance contract does
+      not include direct vector access; re-embed from the description as the
+      deterministic source for clustering") acknowledges the issue but ships it
+      anyway.
+    evidence: |
+      consolidate.ts:317-330
+        for (const row of rawRows) {
+          const skill = rowToSkill(row.id, row.payload, deps.scope);
+          if (skill === null) continue;
+          const get = await deps.vectorStore.get(row.id);
+          // Conformance contract does not include direct vector access; re-embed
+          // from the description as the deterministic source for clustering.
+          if (get === null) continue;
+          const embedding = await deps.embedder.embed(skill.description);
+          acc.push({ skill, embedding });
+        }
+      Embedder DIP (src/core/dip/embedder.ts) exposes `embedBatch(texts)`.
+    recommended_action: >-
+      (a) Remove the dead `await deps.vectorStore.get(row.id)` call — no value used.
+      (b) Replace the per-row `embed()` with a single `embedBatch(descriptions)`
+      after the projection loop, mapping vectors back onto the skills array. (c) If
+      direct vector access is needed later, extend the DIP with a typed
+      `getVector(id)` method via ADR amendment rather than living with the
+      re-embed workaround.
+
+  - id: F-arch-5
+    severity: MAJOR
+    file: src/local/skills/consolidate.ts
+    line: 395
+    plan_ref: T3.1 Deep Dives ("for each cluster, call memory.reflect"); architecture.md § 8 (fail-loud, no silent dropping)
+    summary: >-
+      Phase 3 (Consolidate) silently drops every draft after `drafts[0]`. If the
+      LLM returns N drafts for a single cluster (e.g., two distinct facets of the
+      merged skill), only the first is consolidated; the others are discarded
+      without log, span attribute, or even a comment acknowledging the drop. Per
+      `executeReflection`'s signature (`Promise<DerivedMemoryDraft[]>`) and v0.4a
+      `LocalScopedMemory.reflect` (src/local/index.ts loops over all drafts at
+      line ~280), the multi-draft case is explicitly supported upstream. The v0.6
+      orchestrator regresses that capability for skills.
+    evidence: |
+      consolidate.ts:394-400
+        validateProvenance(drafts, cluster.sourceIds);
+        const draft = drafts[0];
+        if (draft === undefined || draft.derivedFrom.length < 2) {
+          continue;
+        }
+        const description = draft.text;
+      v0.4a LocalScopedMemory.reflect (src/local/index.ts ~277+) iterates ALL drafts.
+    recommended_action: >-
+      Either (a) iterate `for (const draft of drafts)` to consolidate each draft as
+      its own derived skill, OR (b) document in the orchestrator comment + plan
+      ADR D4 that v0.6 enforces "one derived skill per cluster" and reject drafts
+      with length > 1 via a typed error (fail-loud per architecture.md § 8). The
+      silent slice-to-first is the wrong middle ground.
+
+  - id: F-arch-6
+    severity: MAJOR
+    file: src/local/skills/consolidate.ts
+    line: 403
+    plan_ref: architecture.md § 4 ("Hash dedup via MD5 of normalized text (exact match only)"); T3.1 Deep Dives ("Hash dedup invariant preserved")
+    summary: >-
+      Derived skill hash is generated via
+      `Date.now() + Math.random().slice(2,8)` rather than the content-derived MD5
+      hash used everywhere else in TheMemory (LocalScopedSkillMemory.add() at
+      scoped-skill-memory.ts:120 uses
+      `createHash('md5').update(code).update('|').update(description)`).
+      Consequence: running `consolidate()` twice on identical inputs produces
+      different `hash` values, defeating the v0.1 `memories_hash_unique_idx`
+      constraint's purpose for skill rows AND breaking the EC-3 invariant
+      ("running consolidate() twice → second call's derivedSkills.length === 0").
+      Currently EC-3 happens to be honored only because Phase 1's
+      `excludeSuperseded` filter masks the second-call cluster — but if the
+      first call's derived skill hash collided with anything else, the second
+      call's insert would still go through.
+    evidence: |
+      consolidate.ts:403
+        const hash = `derived-skill-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+      scoped-skill-memory.ts:120 (the canonical pattern)
+        const hash = createHash('md5').update(draft.code).update('|').update(draft.description).digest('hex');
+      architecture.md § 4: "Hash dedup via MD5 of normalized text (exact match only)"
+    recommended_action: >-
+      Compute hash as
+      `createHash('md5').update(description).update('|').update(JSON.stringify([...draft.derivedFrom].sort())).digest('hex')`.
+      Idempotent across repeated consolidate() invocations on the same source
+      cluster; ON CONFLICT (hash) DO NOTHING then enforces single-write
+      semantics at the SQL layer.
+
+  - id: F-arch-7
+    severity: MAJOR
+    file: src/core/scope.ts
+    line: 38
+    plan_ref: architecture.md § 1 ("Three-tier scope. Never introduce a fourth tier without a strategic review.")
+    summary: >-
+      v0.6 adds a fourth scope kind `RepoScope` to the Scope discriminated union.
+      architecture.md § 1 explicitly states "Never introduce a fourth tier without
+      a strategic review." Neither the plan, nor the ADRs (D1-D5), nor CLAUDE.md
+      reflect a strategic-review record approving the locked rule's relaxation —
+      the plan ADR D5 talks about the public-API surface but does not address the
+      § 1 invariant. The plan calls this a "NEW scope kind" in T4.1 Evidence and
+      proceeds without citing the strategic-review trail. This is exactly the
+      kind of architectural relaxation the locked rule guards against.
+    evidence: |
+      scope.ts:42 — Scope union now: UserScope | SessionScope | AgentScope | RepoScope
+      architecture.md § 1: "Never introduce a fourth tier without a strategic review."
+      CLAUDE.md § Locked names table lists only User/Session/Agent as the three tiers (strategic).
+      Plan T4.1 Evidence: "The `repoId` scope is a NEW scope kind, distinct from User/Session/Agent"
+      — admits the new tier but does NOT cite a strategic-review approval.
+    recommended_action: >-
+      Either (a) surface this as a strategic-review item explicitly and update
+      architecture.md § 1 + CLAUDE.md § Locked names to reflect the fourth tier
+      decision (with date, rationale, and reviewer), OR (b) drop the RepoScope
+      kind and reuse AgentScope with a documented convention that
+      `Memory.skills(repoId)` constructs `AgentScope { agentId: repoId, kind:
+      'agent' }` underneath — the store-layer mapping (`repoId → agent_id`) already
+      does this; the user-facing scope discriminator was unnecessary.
+
+  - id: F-arch-8
+    severity: MINOR
+    file: src/local/index.ts
+    line: 496
+    plan_ref: architecture.md § 3 (DIP) + § 7 ("No `any`. If you must escape the type system, use `unknown` with a runtime assertion.")
+    summary: >-
+      `LocalMemory.skills(repoId)` casts the VectorStore via
+      `as VectorStore & VectorStoreWithSkillInsert` without a runtime guard. The
+      cast assumes the concrete store implements the extra duck-typed methods;
+      if a consumer wires a custom VectorStore implementation (the DIP is public)
+      lacking these methods, the cast silently succeeds and the failure surfaces
+      far downstream at the first `insertSkill` call. Per architecture.md § 7,
+      `unknown + runtime assertion` is required when escaping the type system.
+    evidence: |
+      src/local/index.ts:496
+        const skillStore = this.config.vectorStore as VectorStore & VectorStoreWithSkillInsert;
+        return new LocalScopedSkillMemory(repoId, { vectorStore: skillStore, ... });
+      VectorStore DIP (src/core/dip/vector-store.ts) is public; consumers can
+      ship custom implementations. No runtime typeof guard exists here.
+    recommended_action: >-
+      Add a runtime guard: e.g., a helper
+      `assertSkillCapable(vs: VectorStore): asserts vs is VectorStore & VectorStoreWithSkillInsert`
+      that checks `typeof vs.insertSkill === 'function'` etc., throwing a typed
+      `Error('configured VectorStore does not implement skill methods — wire
+      PgvectorStore or InMemoryVectorStore')` when missing. Mirrors the v0.4a
+      `VectorStoreWithDerivedInsert` precedent the file comments cite.
+
+  - id: F-arch-9
+    severity: MINOR
+    file: src/local/skills/consolidate.ts
+    line: 240
+    plan_ref: ADR-0001 ("UUID → integer mapping for LLM prompts; auto-detected embedding dimension via probe call"); plan T3.1 Deep Dives ("Reconstruct a Skill from a store row")
+    summary: >-
+      `rowToSkill()` synthesizes timestamps (`createdAt: new Date()`, `updatedAt:
+      new Date()`, `tValid: new Date()`) instead of reading them from the row. Per
+      MemoryItem semantics (src/core/memory-item.ts), these fields represent
+      persistence facts ("when was this row written?") and synthesizing them at
+      read time corrupts audit semantics — every read of the same row produces a
+      different `createdAt`. Same defect repeats in `LocalScopedSkillMemory.recall()`
+      payloadToSkill (scoped-skill-memory.ts:84-88) and in the orchestrator's
+      derived-skill push (consolidate.ts:437-441).
+    evidence: |
+      consolidate.ts:272-277
+        return {
+          ...
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...
+          tValid: new Date(),
+          tInvalid: null,
+          ...
+        };
+      scoped-skill-memory.ts:84-88 (same defect in recall projection)
+      Pgvector schema (src/local/schema.ts) has actual createdAt/updatedAt
+      columns; the v0.4a reflect path at src/local/index.ts:251 does the same
+      synthesize-on-read trick — this is a pre-existing defect amplified by v0.6,
+      not introduced by it.
+    recommended_action: >-
+      Extend the PgvectorStore SELECTs to include `created_at`, `updated_at` and
+      project them through rowToResult.payload. Update rowToSkill/payloadToSkill
+      to read them with safe fallbacks. File a follow-up to fix the same defect
+      in the v0.4a reflect path under a separate commit.
+
+  - id: F-arch-10
+    severity: MINOR
+    file: src/core/dip/skill-representation-strategy.ts
+    line: 14
+    plan_ref: plan T1.2 ("Default `'voyager'` strategy... future `'procmem'` lands as a separate impl")
+    summary: >-
+      Plan T1.2 specifies the discriminant tags as `'voyager' | 'procmem'`;
+      implementation ships `'code' | 'nl-spec'`. The file comment acknowledges the
+      divergence and justifies it via "the project's no-paper-names-in-code policy"
+      but no such policy is documented in `.claude/rules/` (architecture.md /
+      public-copy.md / testing.md). The intent is sound (and the followups file
+      flags more paper-name references for cleanup), but the divergence reads as
+      ad-hoc rather than rule-grounded.
+    evidence: |
+      Plan T1.2 Deep Dives: "The interface declares: readonly kind: 'voyager' | 'procmem'"
+      skill-representation-strategy.ts:34
+        export type SkillRepresentation = 'code' | 'nl-spec';
+      File comment 14-17: "Divergence from plan literal text: the plan's example tags
+        'voyager' | 'procmem' are replaced with neutral 'code' | 'nl-spec' per the
+        project's no-paper-names-in-code policy."
+      $ grep -r "no-paper-names-in-code" .claude/rules/  # no hits
+    recommended_action: >-
+      Either (a) add a one-line rule to `.claude/rules/public-copy.md` codifying
+      the no-paper-names-in-code policy and cite it from the skill-representation
+      file header, OR (b) author an ADR in the plan (D6) documenting the
+      divergence as a deliberate post-plan refinement. Pre-existing
+      followups.md mentions a paper-name cleanup pass — the rule should land
+      with it.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/local/migrations/0002_skill_columns.sql
+    line: 7
+    plan_ref: T0.1 EC-1 absorption (constraint name `memories_kind_derived_from_check`)
+    summary: >-
+      EC-1 verbatim absorption is correct. DDL drops + re-adds the constraint by
+      its exact pre-existing name `memories_kind_derived_from_check`. CHECK
+      relaxation correctly admits all 3 kinds + preserves derived_from invariants.
+      `superseded_by` FK uses `ON DELETE SET NULL` per plan T0.1 Deep Dives.
+    evidence: |
+      Line 7: ALTER TABLE "memories" DROP CONSTRAINT IF EXISTS "memories_kind_derived_from_check";
+      Line 6: ON DELETE set null (preserves audit trail on parent hard-delete)
+    recommended_action: None — EC-1 honored.
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/local/index.ts (filtersFromScope, assertScopeIsNonEmpty)
+                src/local/reflection/threshold-reflection-policy.ts (scopeToCounterTuple)
+                src/core/reflection/prompt.ts (scopeIdentifier)
+    line: 123, 146, 173, 25 (respectively)
+    plan_ref: T4.1 EC-4 absorption (4 switch sites on Scope.kind)
+    summary: >-
+      EC-4 verbatim absorption is correct across all 4 enumerated switch sites.
+      Each handles the new `'repo'` case with consistent semantics: maps repoId
+      to agent_id column / counter tuple / LLM-prompt identifier.
+    evidence: |
+      $ grep -rn "switch.*scope.kind" src/
+      src/local/index.ts:112 (filtersFromScope — 'repo' → { agent_id: scope.repoId })
+      src/local/index.ts:166 (scopeToCounterTuple — 'repo' → agentId: scope.repoId)
+      src/local/reflection/threshold-reflection-policy.ts:46 ('repo' → agentId: scope.repoId)
+      src/core/reflection/prompt.ts:18 ('repo' → `repo "${scope.repoId}"`)
+      All 4 arms typecheck under TypeScript exhaustive-switch.
+    recommended_action: None — EC-4 honored; discriminant exhaustiveness preserved.
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/local/pgvector-store.ts (insertDerivedSkillAtomic)
+                src/local/in-memory-store.ts (insertDerivedSkillAtomic)
+    line: 618 (pg), 334 (in-memory)
+    plan_ref: T3.1 EC-2 absorption (atomic INSERT+UPDATE via withTransaction)
+    summary: >-
+      EC-2 absorption is correct on PgvectorStore — INSERT + UPDATE pair runs
+      inside `withTransaction()` (BEGIN/COMMIT/ROLLBACK). InMemoryVectorStore's
+      best-effort sequential implementation is correctly documented as accepted
+      risk per the EC-2 absorption note (test/dev only; production path is
+      always pgvector per ADR D3).
+    evidence: |
+      pgvector-store.ts:629 — return this.withTransaction(async (client) => { ... });
+      in-memory-store.ts:328-333 — comment "In-memory has no transactional semantics"
+    recommended_action: None — EC-2 honored.
+
+  - id: F-arch-14
+    severity: INFO
+    file: src/core/options.ts (RecallOptions, GetAllOptions)
+                src/local/index.ts (applySkillFilters)
+    line: 43, 85, 89 (respectively)
+    plan_ref: T2.2 EC-3 absorption (filter parity onlySkills + includeSuperseded on RecallOptions AND GetAllOptions)
+    summary: >-
+      EC-3 absorption is correct on both RecallOptions and GetAllOptions —
+      `onlySkills` + `includeSuperseded` declared on both with consistent default
+      semantics (`onlySkills: false`, `includeSuperseded: false`). `applySkillFilters`
+      translates them into the store-layer Filters shape.
+    evidence: |
+      options.ts:43, 52 — RecallOptions: onlySkills?: boolean; includeSuperseded?: boolean;
+      options.ts:85, 90 — GetAllOptions: same two fields with identical docs
+      index.ts:89 — applySkillFilters honors both
+    recommended_action: None — EC-3 honored.
+
+  - id: F-arch-15
+    severity: INFO
+    file: src/core/dip/vector-store.ts
+    line: 6
+    plan_ref: T2.1 ("skill methods OFF the VectorStore DIP" deliberate divergence)
+    summary: >-
+      Deliberate divergence from plan T2.1's literal "extend VectorStore interface
+      with insertSkill + insertDerivedSkill" is sound AND documented. The DIP
+      header explicitly cites the v0.6 deviation: skill methods live on the
+      concrete local stores as duck-typed extensions (matching the v0.4a
+      `insertDerivedMemory` precedent), so external adapters (Qdrant, Pinecone,
+      etc.) are not forced into a v0.6 surface they don't need. Argument types
+      live in `src/local/skill-store-args.ts` with a `VectorStoreWithSkillInsert`
+      capability interface for the consolidate orchestrator to narrow against.
+      Honors architecture.md § 3 DIP minimality and ISP (interfaces role-shaped).
+    evidence: |
+      vector-store.ts:6-13
+        "v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the
+         concrete local stores as duck-typed extensions (matching the v0.4a
+         `insertDerivedMemory` precedent), NOT on this DIP."
+      skill-store-args.ts:54-62 — VectorStoreWithSkillInsert capability interface
+    recommended_action: >-
+      None on the deviation itself — it is correctly executed. See F-arch-8 for
+      the related minor (runtime narrowing) and F-arch-2 for the file-size
+      consequence on pgvector-store.ts that the deviation exposed.

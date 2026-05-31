@@ -24,7 +24,22 @@ export interface AgentScope {
   readonly userId?: string;
 }
 
-export type Scope = UserScope | SessionScope | AgentScope;
+/**
+ * v0.6 — code-as-skill repository scope.
+ *
+ * Issued by `Memory.skills(repoId)`. At the store layer, `repoId` is persisted
+ * as the row's `agent_id` column (the cross-user semantic fits a code repo).
+ * Disambiguation between regular agent memories and skill memories happens via
+ * the `kind='skill'` discriminator on the row — same column, different kind.
+ *
+ * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T4.1 + ADR D3
+ */
+export interface RepoScope {
+  readonly kind: 'repo';
+  readonly repoId: string;
+}
+
+export type Scope = UserScope | SessionScope | AgentScope | RepoScope;
 
 /**
  * `ScopedContext` — structural interface consumed by `memoryFromCtx` (v0.2 PR-A)
@@ -74,9 +89,29 @@ export interface ScopedContext {
  * Internal filter shape passed to the VectorStore + HistoryManager DIPs.
  * Maps 1:1 onto Mem0's `SearchFilters` shape (snake_case keys);
  * `session_id` is the only rename (Mem0 uses `run_id`).
+ *
+ * v0.6 adds two skill-aware filter fields (kind + excludeSuperseded) per
+ * voyager-skill-library plan ADR D3 / T2.2. These are honored by the local
+ * stores' composeFilters / matchesFilters via dedicated branches (not the
+ * generic equality loop); the pipeline layer derives them from
+ * `RecallOptions.onlySkills` / `RecallOptions.includeSuperseded` before
+ * calling into the store.
  */
 export interface Filters {
   readonly user_id?: string;
   readonly agent_id?: string;
   readonly session_id?: string;
+  /** v0.6: discriminate kind at the SQL/store layer ('extracted' | 'derived' | 'skill'). */
+  readonly kind?: 'extracted' | 'derived' | 'skill';
+  /**
+   * v0.6: when `true`, omit rows whose `superseded_by IS NOT NULL`.
+   *
+   * Polarity is INVERTED relative to the public `RecallOptions.includeSuperseded`:
+   * the pipeline layer translates `includeSuperseded: false` (the consumer-facing
+   * default — "don't show supersession noise") into `excludeSuperseded: true`
+   * (the store-facing instruction — "filter them out"). The inversion sits at
+   * the pipeline boundary so the store layer reasons about ONE direction
+   * ("which rows to skip") instead of carrying the consumer's double-negative.
+   */
+  readonly excludeSuperseded?: boolean;
 }

@@ -1,0 +1,393 @@
+agent: review-v0-4b-forgetting-pipeline-architecture
+review_target: main..HEAD for plan v0-4b-forgetting-pipeline
+plan: .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md
+summary: |
+  v0.4b forgetting pipeline lands with the DIP boundary clean (src/core/dip/eviction-policy.ts is pure
+  types; src/local/* concrete impls correctly import from core, not the other way around). The Strategy +
+  Adapter patterns are applied honestly and the MemoryItem extension is verifiable via the locked-shape
+  test-d.ts (4 new fields, all optional+nullable, backward-compat preserved). Real architectural debt
+  surfaces in three areas: (1) TriadicScoringPolicy has a 5-positional-optional-param constructor that
+  callers already invoke as `new TriadicScoringPolicy(undefined, undefined, null, null, evictor)` — the
+  call-site shape is the smell SOLID predicts and warrants refactor before the public surface lands
+  (CRITICAL); (2) two collaborator interfaces (HalfLifePersister, NearestNeighborProvider) are declared
+  inside src/local/eviction/triadic-scoring-policy.ts, the file of their primary CONSUMER — this is a
+  DIP inversion (concrete depends on abstraction, but the abstraction LIVES with the concrete) and
+  should move to src/core/dip/ alongside their sibling EvictionPolicy interface (MAJOR); (3) the two
+  trigger classes (CapacityBasedTrigger + TimeBasedTrigger) duplicate ~60 LoC each of identical
+  ScopeCandidateRow + rowToMemoryItem + candidate-fetch SQL + soft-delete SQL — load-bearing DRY
+  violation that will compound when a third trigger lands (MAJOR). Two further architectural concerns
+  surface: (4) triggers hardcode `WHERE agent_id = $1` and accept `scopeId: string`, silently dropping
+  the User/Session tiers of the locked 3-tier scope contract (MAJOR — partial impl of architecture.md
+  § 1); (5) the v0.4b classes are NOT wired into createLocalMemory and have no barrel export — the
+  pipeline ships unreachable from the public surface (MAJOR — overlaps wiring reviewer's scope).
+findings:
+  - id: F-arch-1
+    severity: CRITICAL
+    file: src/local/eviction/triadic-scoring-policy.ts
+    line: 214
+    plan_ref: T2.1 + T4.1 + T6.1 (TriadicScoringPolicy constructor evolution)
+    summary: |
+      TriadicScoringPolicy constructor takes 5 positional optional/nullable parameters
+      (weights, constants, halfLifePersister, neighborProvider, evictor); callers already exhibit
+      the SOLID smell with `new TriadicScoringPolicy(undefined, undefined, null, null, evictor)`
+      and `new TriadicScoringPolicy(undefined, undefined, null, neighborProvider, evictor)` —
+      positional placeholders defeat readability + force every future collaborator addition to
+      either break call sites or extend the param list (SRP + OCP + ergonomics regression).
+    evidence: |
+      ```ts
+      // src/local/eviction/triadic-scoring-policy.ts:214
+      constructor(
+        weights: TriadicWeights = DEFAULT_TRIADIC_WEIGHTS,
+        constants: TriadicConstants = DEFAULT_TRIADIC_CONSTANTS,
+        halfLifePersister: HalfLifePersister | null = null,
+        neighborProvider: NearestNeighborProvider | null = null,
+        evictor: Evictor | null = null,
+      ) { ... }
+
+      // tests/integration/eviction/evict-soft-delete.test.ts:67
+      policy = new TriadicScoringPolicy(undefined, undefined, null, null, evictor);
+
+      // tests/integration/forgetting/triadic-eviction.test.ts:64
+      policy = new TriadicScoringPolicy(undefined, undefined, null, neighborProvider, evictor);
+      ```
+    recommended_action: |
+      Refactor to a single options-object constructor:
+        ```ts
+        export interface TriadicScoringPolicyOptions {
+          readonly weights?: TriadicWeights;
+          readonly constants?: TriadicConstants;
+          readonly halfLifePersister?: HalfLifePersister | null;
+          readonly neighborProvider?: NearestNeighborProvider | null;
+          readonly evictor?: Evictor | null;
+        }
+        constructor(options: TriadicScoringPolicyOptions = {}) { ... }
+        ```
+      Call sites become `new TriadicScoringPolicy({ evictor })` /
+      `new TriadicScoringPolicy({ neighborProvider, evictor })` — readable, append-only
+      forward, no positional shifting. Update the 8 production+test call sites in the same PR.
+      Add an ADR row to the plan documenting the options-object convention as the policy
+      for future EvictionPolicy collaborators.
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/local/eviction/triadic-scoring-policy.ts
+    line: 81
+    plan_ref: T2.2 + T4.1 (collaborator DIPs)
+    summary: |
+      HalfLifePersister and NearestNeighborProvider interfaces are declared INSIDE
+      src/local/eviction/triadic-scoring-policy.ts (file: 81-96), which is the file of their
+      primary CONSUMER. Concrete impls (pg-half-life-persister.ts, pg-nearest-neighbor-provider.ts)
+      then re-import them via `import type { HalfLifePersister } from './triadic-scoring-policy.js'`.
+      This is a DIP inversion: the abstraction lives with the concrete it abstracts away from.
+      Sibling EvictionPolicy lives correctly at src/core/dip/eviction-policy.ts; these two should
+      follow the same convention.
+    evidence: |
+      ```ts
+      // src/local/eviction/triadic-scoring-policy.ts:81-96
+      export interface HalfLifePersister {
+        persist(memoryId: string, halfLifeSeconds: number): Promise<void>;
+      }
+      export interface NearestNeighborProvider {
+        distance(memoryId: string, agentId: string): Promise<number>;
+      }
+
+      // src/local/eviction/pg-half-life-persister.ts:20
+      import type { HalfLifePersister } from './triadic-scoring-policy.js';
+
+      // src/local/eviction/pg-nearest-neighbor-provider.ts:19
+      import type { NearestNeighborProvider } from './triadic-scoring-policy.js';
+      ```
+    recommended_action: |
+      Move both interfaces into src/core/dip/eviction-policy.ts (or new sibling files
+      src/core/dip/half-life-persister.ts + src/core/dip/nearest-neighbor-provider.ts mirroring
+      the existing per-DIP file convention shown by embedder.ts / history-manager.ts / llm.ts).
+      Update the 3 import sites (the policy file itself + the 2 Pg impls). The plan's ADR D12
+      narrative ("8th DIP") already names them as DIPs; moving them to src/core/dip/ aligns
+      file layout with the documented contract.
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/local/eviction/capacity-based-trigger.ts
+    line: 47
+    plan_ref: T5.1 + T5.2 (DRY across triggers)
+    summary: |
+      CapacityBasedTrigger (lines 47-86 ScopeCandidateRow + rowToMemoryItem) and TimeBasedTrigger
+      (lines 53-92 ScopeCandidateRow + rowToMemoryItem) duplicate ~60 LoC each verbatim — same
+      interface, same row-mapping helper. They also duplicate the same candidate-fetch SQL
+      (SELECT id, text, hash, ... FROM memories WHERE agent_id = $1 AND t_invalid IS NULL) and
+      the same soft-delete SQL (UPDATE memories SET t_invalid = NOW() WHERE id = ANY($1)). When a
+      third trigger lands (e.g., per-user-session trigger after the scope concern in F-arch-4 is
+      addressed), this becomes a 3-way fork. DRY violation per architecture.md and
+      CLAUDE.md § PARTE II-12 (DRY — duplication of knowledge, not lines: same row-mapping rule
+      lives in two files).
+    evidence: |
+      ```ts
+      // src/local/eviction/capacity-based-trigger.ts:47-86
+      interface ScopeCandidateRow { readonly id: string; readonly text: string; ... }
+      function rowToMemoryItem(row: ScopeCandidateRow): MemoryItem { ... }
+
+      // src/local/eviction/time-based-trigger.ts:53-92  (verbatim duplicate)
+      interface ScopeCandidateRow { readonly id: string; readonly text: string; ... }
+      function rowToMemoryItem(row: ScopeCandidateRow): MemoryItem { ... }
+      ```
+    recommended_action: |
+      Extract a shared helper module src/local/eviction/scope-candidate.ts exporting
+      `ScopeCandidateRow`, `rowToMemoryItem`, and the two SQL constants
+      (`SCOPE_CANDIDATES_SQL`, `SOFT_DELETE_BY_IDS_SQL`). Both triggers import. Bonus: a single
+      `EvictionPass` helper class that takes (client, scopeId, fraction, policy, now) and runs
+      lock-acquire → candidate-fetch → score → soft-delete → return would also fold the two
+      `runEvictionPass`/`runFixedFractionPass` methods into one (they differ only in how
+      `fraction` is computed). Split into 2 commits: extract helper (no behavior change), then
+      consolidate the pass orchestration.
+  - id: F-arch-4
+    severity: MAJOR
+    file: src/local/eviction/capacity-based-trigger.ts
+    line: 143
+    plan_ref: T5.1 + T5.2 (scope contract honored?)
+    summary: |
+      Both triggers hardcode `WHERE agent_id = $1` and accept `scopeId: string` — silently
+      restricting eviction to AGENT-scoped (and via ADR-0010, REPO-scoped) memories. The locked
+      3-tier scope (architecture.md § 1) covers User + Session + Agent + Repo. User-scoped and
+      Session-scoped memories CANNOT be evicted by these triggers and there is no compile-time
+      indication of this restriction — the scope type is `string`, not the discriminated `Scope`.
+      Either (a) the partial implementation needs an ADR documenting "v0.4b only evicts agent
+      scope" with a roadmap entry for the other tiers, or (b) the trigger should accept
+      `scope: Scope` and the SQL should branch on `scope.kind`.
+    evidence: |
+      ```ts
+      // src/local/eviction/capacity-based-trigger.ts:143
+      `SELECT COUNT(*)::text AS count FROM memories WHERE agent_id = $1 AND t_invalid IS NULL`
+      // src/local/eviction/time-based-trigger.ts:193
+      WHERE agent_id = $1 AND t_invalid IS NULL
+      ```
+      Compare: src/core/scope.ts:42 — `export type Scope = UserScope | SessionScope | AgentScope | RepoScope`
+      The PgNearestNeighborProvider.distance(memoryId, agentId) signature has the same shape.
+    recommended_action: |
+      Short term (v0.4b acceptance): add an explicit ADR row to the plan (e.g., ADR D18) +
+      JSDoc on both trigger constructors documenting "scope hardcoded to agent_id at v0.4b;
+      User/Session tier coverage tracked at roadmap Item N". Surface in CHANGELOG as a known
+      limitation. Long term (v0.4c or v0.5): widen the signature to
+      `fire(scope: Scope, now: Date)` / `TimeBasedTriggerConfig { scope: Scope }` so the
+      partial impl is visible at the type system level. Same for
+      `NearestNeighborProvider.distance(memoryId, scopeKey)` — accept the full Scope and derive
+      the filter key internally. Without this, a consumer wiring `Memory.user(id).remember(...)`
+      memories ships an eviction pipeline that silently doesn't apply to them.
+  - id: F-arch-5
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 1
+    plan_ref: T8.1 (final wiring + validation)
+    summary: |
+      None of the v0.4b classes (TriadicScoringPolicy, PgEvictor, PgHalfLifePersister,
+      PgNearestNeighborProvider, CapacityBasedTrigger, TimeBasedTrigger) are re-exported via
+      src/local/index.ts, src/index.ts, or wired into createLocalMemory(). Per
+      architecture.md § 9 "Public API surface" + CLAUDE.md § Locked names "subpath exports",
+      the v0.4b pipeline ships UNREACHABLE from any consumer who uses the public surface —
+      they can only be instantiated via integration tests' deep relative imports
+      (`../../../src/local/eviction/triadic-scoring-policy.js`). Cycle-implement wiring triad
+      pillar (a) static caller / (b) integration test passes via the test suite; but for an
+      end-consumer the public-API caller is zero.
+    evidence: |
+      ```sh
+      $ grep -rEn "from '.*eviction'" src/ | grep -v __tests__
+      # only internal imports inside src/local/eviction/* itself.
+      $ grep -n "TriadicScoringPolicy\|PgEvictor\|CapacityBasedTrigger\|TimeBasedTrigger" \
+            src/local/index.ts src/index.ts
+      # no output
+      ```
+    recommended_action: |
+      Either (a) add a src/local/eviction/index.ts barrel + re-export from src/local/index.ts +
+      src/index.ts so consumers can `import { TriadicScoringPolicy, CapacityBasedTrigger } from
+      '@usetheo/memory/local'`, OR (b) extend MemoryConfig with optional eviction wiring
+      (`evictionPolicy?: EvictionPolicy`, `evictionTriggers?: ReadonlyArray<{ start, stop }>`)
+      so createLocalMemory composes the pipeline by default. Plan acceptance criteria for T8.1
+      lists wiring validation; per architecture.md § 9 the public surface bump requires
+      package.json#exports + README update too. Surface the choice to the user via ADR; current
+      state ships dead code from the consumer's point of view.
+  - id: F-arch-6
+    severity: MINOR
+    file: src/local/eviction/time-based-trigger.ts
+    line: 144
+    plan_ref: T5.2 (logging discipline)
+    summary: |
+      TimeBasedTrigger.start() handler uses `console.warn` inside the cron callback
+      (`console.warn('[v0.4b TimeBasedTrigger] tick failed:', err)`), suppressed via
+      `eslint-disable-next-line no-console`. Per architecture.md § 7 ("No `console.log` in
+      production code paths. Use a structured logger interface defined in `src/core/`"), this
+      should route through a structured logger. Pre-existing pattern: pgvector-store.ts:277
+      `recordAccess` has the same shape (also disabled). The v0.4b cycle inherits the
+      pre-existing inconsistency rather than introducing a new defect; tracking here so the
+      next contact with these files cleans it (per pre-existing-references clause in
+      no-paper-names-in-code.md, which generalizes to "clean adjacent rot when next touched").
+    evidence: |
+      ```ts
+      // src/local/eviction/time-based-trigger.ts:142-145
+      this.cronJob = new Cron(this.cronExpression, () => {
+        void this.tickNow(new Date()).catch((err: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[v0.4b TimeBasedTrigger] tick failed:', err);
+        });
+      });
+      ```
+    recommended_action: |
+      When src/core/logger.ts (or equivalent structured-logger DIP) is introduced, route
+      these warnings through it. Track as a follow-up in
+      `.claude/knowledge-base/implementations/v0-4b-forgetting-pipeline-followups.md`. Not
+      blocking for v0.4b merge given the pattern was inherited; flagging for visibility.
+  - id: F-arch-7
+    severity: MINOR
+    file: src/core/dip/eviction-policy.ts
+    line: 47
+    plan_ref: T4.1 + T4.2 (ScoreContext cache contract)
+    summary: |
+      `ScoreContext.neighborDistances` is documented as a cache pre-populated by
+      `selectVictims()` for use by `score()`. This couples the two methods via shared mutable-
+      via-readonly state on the context object — a "smart" but subtle convention. A consumer
+      who calls `score(memory, context)` directly without going through `selectVictims()` (the
+      tests already do this for pure-math unit tests, lines 30-50 of scoring-math.test.ts) gets
+      DIFFERENT semantics: long-tail multiplier short-circuits to 1.0 instead of querying the
+      provider. This is documented in the JSDoc but is an undocumented protocol on the
+      EvictionPolicy DIP shape — implementers of a non-Triadic future policy don't have a
+      structural signal of this contract.
+    evidence: |
+      ```ts
+      // src/core/dip/eviction-policy.ts:46-57
+      /**
+       * Optional per-memory isolation-distance cache populated by
+       * `selectVictims()` once per pass per blueprint D9 + T4.2 ...
+       * When absent (e.g., direct `score()` calls from tests), `score()` falls
+       * back to `neighborProvider.distance(...)` or skips the multiplier.
+       */
+      readonly neighborDistances?: ReadonlyMap<string, number>;
+      ```
+    recommended_action: |
+      Acceptable for v0.4b — single concrete impl, documented thoroughly. When a 2nd
+      EvictionPolicy impl lands, consider whether the cache should be inverted: either
+      (a) the policy returns "what context do I need" + the runtime pre-fills it (visitor
+      pattern), or (b) `score(memory, context)` is renamed `scoreOne` and a batch
+      `scoreBatch(memories, context)` becomes the primary method (the cache lives inside
+      scoreBatch, never on the context). Track as ADR candidate for v0.4c / cycle-discover
+      "eviction-policy-batch-shape".
+  - id: F-arch-8
+    severity: INFO
+    file: src/core/dip/eviction-policy.ts
+    line: 1
+    plan_ref: T1.1 (DIP boundary)
+    summary: |
+      DIP boundary correctly honored. src/core/dip/eviction-policy.ts imports only from
+      ../memory-item.js + ../scope.js (no src/local/, no src/cloud/). No paper names
+      (Mem0/Letta/LangMem/etc.) in the new eviction surface — no-paper-names-in-code.md
+      respected. The InvalidFractionError + assertValidFraction helper correctly use
+      Object.setPrototypeOf for ESM/CJS instanceof robustness (matches existing pattern in
+      src/core/errors.ts). The 8th-DIP narrative in the file's header docblock is
+      load-bearing (clarifies it is NEW, does NOT alter ADR-0008's locked 5).
+    evidence: |
+      ```ts
+      // src/core/dip/eviction-policy.ts:26-27
+      import type { MemoryItem } from '../memory-item.js';
+      import type { Scope } from '../scope.js';
+      ```
+      grep -rEn "from '(\.\./)*(local|cloud)" src/core/ → no production-code matches.
+    recommended_action: |
+      No action — clean. Hook boundary-check.sh confirms the rule mechanically; this
+      finding documents the intentional state.
+  - id: F-arch-9
+    severity: INFO
+    file: src/core/memory-item.ts
+    line: 49
+    plan_ref: T0.1 (MemoryItem extension + backward compat)
+    summary: |
+      MemoryItem extension is honest + backward-compatible: 4 new fields
+      (llmImportanceScore, lastAccessedAt, accessCount, halfLifeSeconds) are ALL
+      `field?: T | null` — optional AND nullable. The locked-shape test-d.ts at
+      src/core/__tests__/memory-item.test-d.ts:7-23 was updated in the same commit to
+      include the new fields with the same modifiers, so any future field-shape regression
+      surfaces as a TypeScript compile error. JSDoc on each field cites the ADR that
+      introduced it (D8 / D13 / D14) so provenance survives.
+    evidence: |
+      ```ts
+      // src/core/memory-item.ts:49,58,65,72
+      readonly llmImportanceScore?: number | null;
+      readonly lastAccessedAt?: Date | null;
+      readonly accessCount?: number;
+      readonly halfLifeSeconds?: number | null;
+      ```
+    recommended_action: |
+      No action — clean. The locked test-d.ts is the contract; v0.4b honored it.
+  - id: F-arch-10
+    severity: INFO
+    file: src/local/eviction/pg-evictor.ts
+    line: 47
+    plan_ref: T6.1 (OTel counter at module scope)
+    summary: |
+      OTel counter `theo.memory.eviction.soft_deletes_total` is registered at MODULE SCOPE
+      (lines 47-50, executed at import time) rather than in the PgEvictor constructor. This is
+      acceptable per the OTel SDK contract (`metrics.getMeter` is no-op-safe until a
+      MeterProvider is registered) and matches the existing pattern at v0.4a. But it means the
+      counter is process-singleton: a test that imports pg-evictor.ts twice gets the SAME
+      counter, which is desired for telemetry but unexpected for test isolation. The
+      `onSoftDelete` callback test hook correctly separates the deterministic verification
+      channel from the telemetry channel — clean design.
+    evidence: |
+      ```ts
+      // src/local/eviction/pg-evictor.ts:45-50
+      const SOFT_DELETE_COUNTER_NAME = 'theo.memory.eviction.soft_deletes_total';
+      const meter = metrics.getMeter('@usetheo/memory');
+      const softDeleteCounter: Counter = meter.createCounter(SOFT_DELETE_COUNTER_NAME, {
+        description: 'Count of memories soft-deleted by an eviction policy (cumulative)',
+      });
+      ```
+    recommended_action: |
+      No action — clean. Document in the next OTel naming-convention review whether the
+      module-scope vs constructor-scope pattern should be standardized; not a v0.4b concern.
+  - id: F-arch-11
+    severity: INFO
+    file: src/local/migrations/0003_eviction_columns.sql
+    line: 4
+    plan_ref: T0.1 (additive migration + partial index)
+    summary: |
+      Migration 0003 is purely additive (3 ADD COLUMN IF NOT EXISTS + 1 CREATE INDEX IF NOT
+      EXISTS), no DROP / no NOT NULL on new columns without DEFAULT, no ALTER on existing
+      columns. Backward compatibility preserved at the data layer. Partial index
+      `idx_memories_eviction_score (agent_id, last_accessed_at) WHERE t_invalid IS NULL`
+      matches the SELECT pattern used by CapacityBasedTrigger + TimeBasedTrigger (modulo
+      F-arch-4 scope-only-agent concern). Migration 0004 (half-life reset trigger) enforces
+      the EC-1 invariant at the data layer correctly — raw SQL UPDATE paths (e.g., /reflect
+      re-extraction) cannot bypass the half-life-stale guard.
+    evidence: |
+      ```sql
+      -- 0003_eviction_columns.sql
+      ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "last_accessed_at" timestamp with time zone;
+      ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "access_count" integer DEFAULT 0 NOT NULL;
+      ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "half_life_seconds" integer;
+      CREATE INDEX IF NOT EXISTS "idx_memories_eviction_score"
+        ON "memories" USING btree ("agent_id","last_accessed_at") WHERE "t_invalid" IS NULL;
+      ```
+    recommended_action: |
+      No action — clean migration shape. Schema-domain reviewer covers correctness more deeply.
+  - id: F-arch-12
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 226
+    plan_ref: T6.1 + T3.1 (soft-delete filter + recordAccess)
+    summary: |
+      Both PgvectorStore.search() and PgvectorStore.keywordSearch() correctly added
+      `WHERE t_invalid IS NULL` (lines 234 + 297) so soft-deleted rows are excluded from
+      semantic + keyword recall per ADR D17. The `recordAccess` private method (lines
+      263-282) correctly: (a) batches the UPDATE; (b) deduplicates ids via
+      `SELECT DISTINCT unnest($1::uuid[])` per EC-8; (c) wraps in try/catch with console.warn
+      so a bookkeeping failure does NOT corrupt the recall result — matches "Fire-and-forget
+      telemetry" deep-dive in plan T3.1. SRP respected: recordAccess is a single-purpose
+      private side-effect.
+    evidence: |
+      ```ts
+      // src/local/pgvector-store.ts:229-237 + 263-282
+      const sql = `SELECT ... FROM memories WHERE t_invalid IS NULL${filter.sql} ...`;
+      private async recordAccess(ids: readonly string[]): Promise<void> {
+        if (ids.length === 0) return;
+        try {
+          await this.pool.query(`UPDATE memories SET access_count = ...
+            WHERE id IN (SELECT DISTINCT unnest($1::uuid[]))`, [ids]);
+        } catch (err) { console.warn(...); }
+      }
+      ```
+    recommended_action: |
+      No action — clean. Same console.warn concern as F-arch-6 applies (pre-existing pattern).

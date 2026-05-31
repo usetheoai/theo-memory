@@ -1,0 +1,340 @@
+agent: review-v0-4b-forgetting-pipeline-domain-pgvector-schema
+review_target: main..HEAD for plan v0-4b-forgetting-pipeline
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - "Partial index supports COUNT + LRU ORDER BY for eviction"
+  - "pgvector cosine distance <=> uses HNSW index (vector_cosine_ops opclass)"
+  - "t_invalid IS NULL filter is index-aligned"
+  - "BEFORE UPDATE OF column trigger correctness + race resistance"
+  - "pg_try_advisory_xact_lock keyspace + auto-release semantics"
+  - "Idempotency guards on backfill/soft-delete UPDATEs"
+  - "ankane/pgvector:v0.5.1 = PG 16 (CREATE OR REPLACE TRIGGER >= PG 14)"
+  - "ctid as UPDATE-counter under autovacuum/HOT-update behavior"
+findings:
+  - id: F-dom-pg-1
+    severity: MAJOR
+    file: src/local/migrations/0003_eviction_columns.sql
+    line: 4
+    plan_ref: "Plan T0.1 (ADR D13) — partial index supports CapacityBasedTrigger scope-count + LRU-ordered eviction queries"
+    domain_anchor: "schema.ts:100-102 declares the index as `(agent_id, last_accessed_at) WHERE t_invalid IS NULL`"
+    summary: |
+      The partial index `idx_memories_eviction_score` is **misaligned with both queries it claims to support**:
+      (a) Capacity COUNT query in `capacity-based-trigger.ts:141-146` is `SELECT COUNT(*) WHERE agent_id = $1 AND t_invalid IS NULL`.
+          A B-tree index on `(agent_id, last_accessed_at) WHERE t_invalid IS NULL` is **technically usable** for COUNT,
+          but PG planners typically prefer the existing single-column `memories_agent_id_idx` for COUNT (cheaper to scan).
+          The composite is only a win when index-only scan is achievable, which requires `last_accessed_at` to be in the index
+          AND `agent_id` predicate to be selective.
+      (b) The eviction code path never issues a `WHERE agent_id = $X ORDER BY last_accessed_at LIMIT N` query — the candidates
+          query (`capacity-based-trigger.ts:152-159`) fetches ALL active rows in scope and scoring is done in-memory.
+          The partial-index leading column `last_accessed_at` is therefore **never used as a B-tree sort key**.
+      Net: the index is half-useful (helps filter to active rows in scope) but the LRU ordering payoff justified in the
+      docstring/plan does not exist at the SQL level. The plan T0.1 acceptance criterion ("EXPLAIN ANALYZE verify partial
+      index used") was not met for the LRU dimension — only the singleton-scope verification was logged in T4.1 commit body.
+    evidence: |
+      schema.ts:96-102:
+        // supports CapacityBasedTrigger scope-count + LRU-ordered eviction queries per plan T5.1 + T6.1.
+        index('idx_memories_eviction_score')
+          .on(table.agentId, table.lastAccessedAt)
+          .where(sql`${table.tInvalid} IS NULL`),
+
+      capacity-based-trigger.ts:152-159 (no ORDER BY last_accessed_at):
+        const candidatesResult = await client.query<ScopeCandidateRow>(
+          `SELECT ... FROM memories WHERE agent_id = $1 AND t_invalid IS NULL`, ...
+    recommended_action: |
+      Either (a) drop the partial index entirely (the single-column `memories_agent_id_idx` already covers
+      `agent_id = $X` lookups, and the `t_invalid IS NULL` filter is selectivity-friendly on a normally
+      mostly-active table), OR (b) keep it and add an actual `ORDER BY last_accessed_at ASC NULLS FIRST LIMIT N`
+      query path to the eviction pass (push the LRU ordering into the DB instead of streaming all rows and
+      scoring in-memory). Option (b) is the higher-ROI change because it also fixes the implicit O(N) memory
+      cost of `capacity-based-trigger.ts:152` for large scopes. Either way, run EXPLAIN ANALYZE against a
+      seeded scope of 10k+ rows to verify the planner's actual choice; the plan T0.1 acceptance criterion
+      requires this evidence and the commit body acknowledges it is missing.
+
+  - id: F-dom-pg-2
+    severity: MAJOR
+    file: src/local/eviction/pg-nearest-neighbor-provider.ts
+    line: 21-30
+    plan_ref: "Plan T4.1 acceptance criterion — EXPLAIN ANALYZE verify HNSW index is used"
+    domain_anchor: "schema.ts:95 `memories_embedding_hnsw_idx` declared with vector_cosine_ops"
+    summary: |
+      The NEAREST_NEIGHBOR_SQL query has **three properties that may individually defeat the HNSW index**:
+      (a) `WITH self AS (SELECT embedding FROM memories WHERE id = $1)` is referenced inline via subquery
+          `(SELECT embedding FROM self)` inside both SELECT and ORDER BY. Postgres may NOT inline the CTE
+          enough to let the HNSW planner see a constant vector for `<=>`. HNSW index is only used when
+          the right-hand side of `<=>` is a literal/parameter, not a subquery result.
+      (b) The query has TWO additional WHERE predicates (`agent_id = $2`, `id <> $1`, `t_invalid IS NULL`)
+          that the HNSW index does NOT cover. PG planner often falls back to Seq Scan + filter when the
+          composite predicate cardinality is low relative to total rows — exactly the case for a scope-filtered
+          search.
+      (c) Plan T4.1 acceptance said "EXPLAIN ANALYZE verify HNSW index is used". The commit body for
+          0739d26 explicitly admits: "verified only Seq Scan on empty scope was tested". This is **NOT
+          equivalent verification** — Seq Scan on empty data is the planner's correct cheap-table fallback;
+          it tells you NOTHING about whether HNSW is reached on a populated scope.
+      The combination means the long-tail multiplier (D9) likely degrades to O(N) per scored memory at
+      production scale, NOT the O(log N) the plan implies. At 10k memories × 100 evictions per pass,
+      that's 1M cosine ops vs the HNSW-expected ~5k.
+    evidence: |
+      pg-nearest-neighbor-provider.ts:21-30:
+        const NEAREST_NEIGHBOR_SQL = `WITH self AS (
+            SELECT embedding FROM memories WHERE id = $1
+          )
+          SELECT m.embedding <=> (SELECT embedding FROM self) AS distance
+            FROM memories m
+           WHERE m.agent_id = $2
+             AND m.id <> $1
+             AND m.t_invalid IS NULL
+           ORDER BY m.embedding <=> (SELECT embedding FROM self) ASC
+           LIMIT 1`;
+
+      Plan acceptance unmet (commit 0739d26 body): "verified only Seq Scan on empty scope was tested"
+    recommended_action: |
+      Two-step refactor: (1) fetch the self embedding as a separate roundtrip into a literal parameter
+      (`SELECT embedding INTO $self_vec FROM memories WHERE id = $1`), then (2) the second query becomes
+      `SELECT embedding <=> $self_vec::vector AS distance FROM memories WHERE agent_id = $2 AND id <> $1
+      AND t_invalid IS NULL ORDER BY embedding <=> $self_vec::vector ASC LIMIT 1` — with a literal
+      parameter on the RHS of `<=>`, the HNSW planner has the constant it needs. THEN run EXPLAIN ANALYZE
+      against a seeded scope of 10k+ memories and assert the plan node is `Index Scan using
+      memories_embedding_hnsw_idx`. Land the EXPLAIN evidence in the T4.1 commit body or a new integration
+      test that grep-asserts on `EXPLAIN (FORMAT JSON)` output. The current "Seq Scan on empty scope"
+      evidence does NOT satisfy the plan T4.1 acceptance criterion.
+
+  - id: F-dom-pg-3
+    severity: CRITICAL
+    file: src/local/eviction/capacity-based-trigger.ts
+    line: 88-93 + 141-146
+    plan_ref: "Plan ADR D17 + EC-2 — capacity-based eviction supports User / Session / Agent scopes"
+    domain_anchor: "CLAUDE.md § Architectural Decisions Locked — three-tier scope (User / Session / Agent)"
+    summary: |
+      `CapacityBasedTrigger` is **hard-wired to `agent_id`** at every SQL boundary:
+        - COUNT query: `WHERE agent_id = $1 AND t_invalid IS NULL`
+        - Candidates query: `WHERE agent_id = $1 AND t_invalid IS NULL`
+        - Advisory lock key: `hashtext('eviction_' || scopeId)` where scopeId is conflated with agentId
+      The same pattern repeats in `TimeBasedTrigger` (`time-based-trigger.ts:188-196`) and the partial index
+      (`schema.ts:100-102`) is `(agent_id, last_accessed_at) WHERE t_invalid IS NULL` — also agent-only.
+      This **silently violates the three-tier scope contract locked in CLAUDE.md and architecture.md § 1**.
+      A consumer instantiating `CapacityBasedTrigger(pool, policy, 50)` and calling `.fire(userId, ...)`
+      will SILENTLY MISS every memory whose `agent_id IS NULL` even though the user has hit the cap.
+      Worse: the consumer has no way to evict User-scope or Session-scope memories at all.
+      This is a contract-level domain defect, not a perf concern — the public abstraction promises
+      tier-shape compatibility but the SQL hardcodes one tier.
+    evidence: |
+      capacity-based-trigger.ts:141-146:
+        SELECT COUNT(*)::text AS count
+          FROM memories
+         WHERE agent_id = $1
+           AND t_invalid IS NULL
+
+      capacity-based-trigger.ts:152-159 (same pattern in candidates):
+        SELECT ... FROM memories WHERE agent_id = $1 AND t_invalid IS NULL
+
+      time-based-trigger.ts:188-196 (same hardcoded agent_id):
+        SELECT ... FROM memories WHERE agent_id = $1 AND t_invalid IS NULL
+
+      schema.ts:100-102 (partial index is agent_id-only):
+        index('idx_memories_eviction_score')
+          .on(table.agentId, table.lastAccessedAt)
+          .where(sql`${table.tInvalid} IS NULL`),
+    recommended_action: |
+      Pre-merge gate. Either (a) extend the trigger interface to accept a `Scope` discriminant union and
+      generate the WHERE clause via the existing `Filters` composition in `pgvector-store.ts` (reusing
+      `composeFilters`), AND extend the partial index to cover all three scope columns (likely a
+      multi-column index with `COALESCE(agent_id, session_id, user_id)` or three separate partials),
+      OR (b) document the contract narrowing explicitly in the constructor JSDoc + add a runtime
+      check that throws on User/Session-scope callers, AND raise a follow-up issue + roadmap row to
+      cover the gap before v0.4b ships to consumers. Option (a) preserves the locked three-tier
+      contract; option (b) honors honesty principle (extreme honesty, root rule 3) but defers the work.
+      The current state silently does (b) with NO defense, which is the worst option.
+
+  - id: F-dom-pg-4
+    severity: MAJOR
+    file: src/local/migrations/0004_eviction_half_life_trigger.sql
+    line: 7-20
+    plan_ref: "Plan T2.2 (EC-1) — DB-layer invariant: importance update resets half_life_seconds = NULL"
+    domain_anchor: "PG docs — BEFORE UPDATE OF column triggers + race window with concurrent UPDATE"
+    summary: |
+      Two concerns with the trigger:
+      (a) **Concurrent UPDATE race.** The trigger fires `BEFORE UPDATE OF llm_importance_score`. A
+          concurrent transaction T_A that UPDATEs `llm_importance_score = NEW1` will fire the trigger
+          and set `half_life_seconds = NULL`. A second concurrent T_B that also UPDATEs
+          `llm_importance_score = NEW2` AND `half_life_seconds = computedValue` (the lazy-backfill UPDATE
+          from `PgHalfLifePersister`) running interleaved may produce: T_A commits with NULL → T_B's
+          half_life UPDATE went through (its WHERE half_life_seconds IS NULL was true at T_B start) →
+          inconsistent state where importance changed but half_life persists the OLD-importance value.
+          The lazy-backfill UPDATE (`pg-half-life-persister.ts:22-25`) reads MVCC-snapshot-stale data, not
+          the value AFTER the BEFORE-UPDATE-OF trigger fired. Under READ COMMITTED isolation (PG default),
+          the persister's UPDATE will succeed (its WHERE is true at its snapshot), defeating the trigger's
+          invariant.
+      (b) **Idempotency of trigger payload reset.** `NEW.half_life_seconds := NULL` runs even when the
+          caller's UPDATE statement did NOT touch `half_life_seconds`. If the caller's UPDATE was
+          `UPDATE memories SET llm_importance_score = $1 WHERE id = $2` with no other SET, then NEW will
+          have `half_life_seconds` carrying the OLD-row's value at trigger entry, and the trigger
+          overrides it to NULL. This is the intended behavior. BUT: if the caller's UPDATE is
+          `UPDATE memories SET llm_importance_score = $1, half_life_seconds = $2 WHERE id = $3` — the
+          trigger silently overrides the caller's explicit half_life write to NULL. No code path today
+          does this, but the trigger creates an invariant that's surprising to a future caller who
+          attempts an atomic dual-column UPDATE.
+    evidence: |
+      migrations/0004_eviction_half_life_trigger.sql:9-14:
+        IF NEW.llm_importance_score IS DISTINCT FROM OLD.llm_importance_score THEN
+          NEW.half_life_seconds := NULL;
+        END IF;
+        RETURN NEW;
+
+      pg-half-life-persister.ts:22-25 (race-vulnerable):
+        UPDATE memories
+           SET half_life_seconds = $1
+         WHERE id = $2
+           AND half_life_seconds IS NULL
+    recommended_action: |
+      For (a): document the race window in the trigger SQL comment AND add an integration test that
+      seeds the race deterministically (T_A starts BEFORE T_B's persister UPDATE, T_A commits AFTER).
+      Verify the post-state matches the intended invariant. If it doesn't (likely), then either
+      (1) raise the isolation level on the persister UPDATE to SERIALIZABLE with retry, OR (2) make
+      the persister UPDATE additionally check `WHERE half_life_seconds IS NULL AND llm_importance_score
+      IS NOT DISTINCT FROM $expected_importance` so an interleaved importance change invalidates the
+      write. Option (2) is cheaper and matches the lazy-backfill semantics.
+      For (b): add a comment to the trigger source explicitly documenting "this trigger
+      OVERRIDES any caller-supplied half_life_seconds value when llm_importance_score also changes
+      in the same UPDATE statement" — so future maintainers don't add atomic dual-column UPDATEs that
+      silently lose data.
+
+  - id: F-dom-pg-5
+    severity: MINOR
+    file: src/local/eviction/capacity-based-trigger.ts
+    line: 118-125
+    plan_ref: "Plan EC-2 — advisory lock serializes concurrent fires on same scope"
+    domain_anchor: "PG advisory-lock docs — hashtext() collision space + transaction-scoped semantics"
+    summary: |
+      `pg_try_advisory_xact_lock(hashtext('eviction_' || scopeId))` reduces an arbitrary-string scopeId
+      to a 32-bit integer (`int4`) via `hashtext`. Collision probability across a multi-tenant deployment
+      with millions of scopes is non-negligible (birthday-paradox sqrt(2^32) ≈ 65536 scopes for ~50%
+      collision probability). When two DIFFERENT scopes hash to the same int4, the second scope's
+      fire() will see `locked=false` and short-circuit — silently NOT evicting when it should.
+      Honest mitigation: the lock is advisory-only and the consequence of a missed eviction is bounded
+      (next fire on that scope will catch it). But under sustained capacity pressure on the colliding
+      scope, this can manifest as "memories aren't being evicted as expected" with no error signal.
+      Auto-release on transaction commit/rollback IS correct (xact_lock is the right variant).
+    evidence: |
+      capacity-based-trigger.ts:118-125:
+        const lockResult = await client.query<{ locked: boolean }>(
+          'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
+          [`eviction_${scopeId}`],
+        );
+
+      time-based-trigger.ts:180-187 (same pattern, same exposure):
+        const lockResult = await client.query<{ locked: boolean }>(
+          'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
+          [`eviction_${this.scopeId}`],
+        );
+    recommended_action: |
+      Use `pg_try_advisory_xact_lock(key1::int, key2::int)` 2-int form with `(hashtext($1)::int,
+      hashtextextended($1, 0)::int)` to get a 64-bit lock key space (collision probability becomes
+      negligible). OR use a dedicated lock-key table keyed on scope with an `int4 PRIMARY KEY` autoincrement,
+      and use that integer as the lock key. The 2-int form is cheaper to ship. Add a comment in the SQL
+      explaining the collision mitigation. Severity is MINOR not MAJOR because the consequence is bounded
+      (missed eviction on next pass catches up); promote to MAJOR if this lands in a multi-tenant
+      production deployment.
+
+  - id: F-dom-pg-6
+    severity: MINOR
+    file: tests/integration/eviction/lazy-half-life.test.ts
+    line: 238-248
+    plan_ref: "Plan T2.2 — lazy backfill UPDATE is idempotent (second call must not re-UPDATE)"
+    domain_anchor: "PG docs — ctid is the physical row pointer; HOT updates may NOT change ctid"
+    summary: |
+      The test uses `ctid` as a proxy for "did an UPDATE happen". Two correctness concerns:
+      (a) **HOT (Heap-Only Tuple) updates do NOT change ctid** under certain conditions (when no indexed
+          column is updated AND there's room on the same page). The half_life_seconds UPDATE on its own
+          may HOT-update — neither the (id, hash) unique nor the agent_id index nor the embedding index
+          nor the partial index reference half_life_seconds. The partial index COVERS (agent_id,
+          last_accessed_at) so a half_life_seconds-only update qualifies for HOT — ctid MAY be unchanged.
+          If HOT fires, the test would FALSELY report "no UPDATE happened" when one did.
+      (b) **Autovacuum/VACUUM moves tuples.** Even when no caller UPDATE happens between two ctid reads,
+          a concurrent autovacuum can move the tuple to a different ctid. Test would falsely report
+          "an UPDATE happened" when one didn't.
+      The test comment acknowledges xmin precision concerns but does not acknowledge these ctid concerns.
+    evidence: |
+      tests/integration/eviction/lazy-half-life.test.ts:239-247:
+        // Track via ctid: physical row pointer. UPDATE moves the row to a new ctid
+        // under MVCC, so two ctids being equal across two calls proves no UPDATE
+        // happened. More precise than xmin (which loses precision when cast to
+        // Number on long-running DBs).
+        const result = await pool.query<{ ctid: string }>(
+          `SELECT ctid::text AS ctid FROM memories WHERE id = $1`,
+          [memoryId],
+        );
+    recommended_action: |
+      Replace ctid with `xmin::text` (string compare avoids the Number-cast precision issue) OR add a
+      `(SELECT autovacuum_count FROM pg_stat_user_tables WHERE relname = 'memories')` snapshot around
+      the test so a concurrent autovacuum surfaces. Lowest-friction fix: capture `xmin::text` for
+      both readings and assert string-equal (strings preserve full xid precision). The current
+      ctid-based assertion can produce flaky tests in CI if autovacuum is active OR when HOT updates
+      apply. Severity is MINOR because the test is short-lived (autovacuum unlikely in the test window)
+      but worth fixing pre-merge to avoid future CI churn.
+
+  - id: F-dom-pg-7
+    severity: INFO
+    file: src/local/migrations/0004_eviction_half_life_trigger.sql
+    line: 17
+    plan_ref: "n/a"
+    domain_anchor: "PG docs — CREATE OR REPLACE TRIGGER added in PG 14"
+    summary: |
+      `CREATE OR REPLACE TRIGGER` requires PostgreSQL >= 14. Project uses
+      `ankane/pgvector:v0.5.1` (per `docker-compose.yaml:19`) which bundles PG 16 — OK. Documenting
+      explicitly for future ops reference: if a consumer pins an older PG image (PG 13 or earlier),
+      the migration will fail at `CREATE OR REPLACE TRIGGER` with "syntax error at or near OR REPLACE".
+      No action required for current targets; raised because a runtime-supported version downgrade
+      would be silent until migration time.
+    evidence: |
+      migrations/0004_eviction_half_life_trigger.sql:17:
+        CREATE OR REPLACE TRIGGER memories_reset_half_life_on_importance_update_trg
+
+      docker-compose.yaml:19:
+        image: ankane/pgvector:v0.5.1   (PG 16)
+    recommended_action: |
+      Document the PG >= 14 requirement in the migration comment header OR in the project README's
+      "Local runtime requirements" section. No code change required while ankane/pgvector:v0.5.1 is
+      pinned. Optional follow-up: pin PG version explicitly in docker-compose.yaml comment.
+
+  - id: F-dom-pg-8
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 226-247
+    plan_ref: "Plan T3.1 § Fire-and-forget telemetry — recall results returned unchanged on UPDATE failure"
+    domain_anchor: "Mem0 search pipeline — additive scoring (CLAUDE.md § 4)"
+    summary: |
+      `recordAccess()` is `await`ed (line 246) but its error is caught and console.warn'd (line 275-281).
+      The caller still pays the round-trip latency cost — it's NOT fire-and-forget in the latency sense,
+      only in the failure-isolation sense. Plan T3.1 acknowledges this. Confirming the comment is precise:
+      "fire-and-forget" applies to ERROR semantics, not LATENCY semantics. Recall callers will see
+      `search()` latency = `vector-distance query + recordAccess UPDATE round-trip`. The UPDATE has
+      `SET access_count = access_count + 1, last_accessed_at = NOW()` against the partial index — the
+      access_count column is NOT in the partial index, so the UPDATE qualifies for HOT (no index update).
+      Cost is one heap page write per recall, plus the UNNEST + DISTINCT setup. Likely acceptable but
+      worth a P95 latency probe.
+    evidence: |
+      pgvector-store.ts:243-247:
+        const mapped = result.rows.map(rowToResult);
+        // v0.4b T3.1 / D15: batched LRU/LFU write-back. Fire-and-forget — failures
+        // log + degrade gracefully (bookkeeping is best-effort, not invariant).
+        await this.recordAccess(mapped.map((r) => r.id));
+        return mapped;
+    recommended_action: |
+      Either (a) drop the `await` and let `recordAccess` run in the background (true fire-and-forget
+      in latency too — but Node's unhandled-promise-rejection trap requires care), OR (b) tighten
+      the comment to "fire-and-forget in error semantics; recall round-trip latency includes the
+      UPDATE cost". The current code matches (b)'s actual behavior but the comment implies (a).
+      No correctness defect — clarity only.
+
+summary: |
+  Two MAJOR + one CRITICAL schema/SQL findings to surface before merge:
+  (1) F-dom-pg-3 CRITICAL — `CapacityBasedTrigger` / `TimeBasedTrigger` / partial index are hard-wired
+      to `agent_id` and silently violate the locked three-tier scope contract (User/Session/Agent);
+  (2) F-dom-pg-1 MAJOR — partial index `idx_memories_eviction_score` keying `last_accessed_at` is
+      half-useful: no query actually exploits the LRU ORDER BY (eviction streams all candidates and
+      scores in-memory); and
+  (3) F-dom-pg-2 MAJOR — nearest-neighbor SQL uses a subquery on the RHS of `<=>` plus extra WHERE
+      predicates likely defeating HNSW; plan T4.1 acceptance ("EXPLAIN ANALYZE verify HNSW used") not
+      met per commit body. F-dom-pg-4 (trigger race window vs lazy-backfill persister) and F-dom-pg-5
+      (hashtext 32-bit collision space) are MAJOR/MINOR follow-ups. F-dom-pg-6 (ctid fragile under HOT
+      + autovacuum) is MINOR test-hygiene. F-dom-pg-7 + F-dom-pg-8 INFO.

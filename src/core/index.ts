@@ -13,6 +13,7 @@
 export type {
   AgentScope,
   Filters,
+  RepoScope,
   Scope,
   SessionScope,
   UserScope,
@@ -43,11 +44,25 @@ export type { HistoryEntry } from './history-entry.js';
 
 export type { ReflectionResult } from './reflection-result.js';
 
+// v0.6 — code-as-skill procedural memory (voyager-skill-library)
+export type {
+  ConsolidateOptions,
+  ConsolidationResult,
+  ScopedSkillMemory,
+  Skill,
+  SkillDraft,
+  SkillLanguage,
+  SkillRecallOptions,
+  SkillWithScore,
+  SourceCluster,
+} from './skill.js';
+
 // Domain errors (real classes — not types)
 export {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
   InvalidScope,
+  InvalidSkillError,
   MemoryNotFound,
   MissingScopeError,
   ReflectionNotConfigured,
@@ -80,6 +95,20 @@ export type {
   ReflectionPolicy,
   ReflectionTrigger,
 } from './dip/reflection-policy.js';
+
+export type {
+  SkillRepresentation,
+  SkillRepresentationStrategy,
+} from './dip/skill-representation-strategy.js';
+
+export type {
+  EvictionPolicy,
+  EvictionResult,
+  HalfLifePersister,
+  NearestNeighborProvider,
+  ScoreContext,
+} from './dip/eviction-policy.js';
+export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
 
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';

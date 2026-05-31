@@ -1,0 +1,310 @@
+agent: review-voyager-skill-library-wiring
+review_target: develop..HEAD for plan voyager-skill-library
+branch: feat/v0-6-voyager-skill-library
+plan: .claude/knowledge-base/plans/voyager-skill-library-plan.md
+implementation: .claude/knowledge-base/implementations/voyager-skill-library-implementation.md
+review_method: |
+  Re-ran python3 .claude/skills/implement/scripts/check_wiring.py against
+  11 new public symbols. Cross-checked ADR-DEFER-WIRING-B markers against
+  the integration suite indirection. Read every new file's exports and
+  traced call paths from the public barrel down through LocalMemory.skills(),
+  LocalScopedSkillMemory, consolidate(), insertDerivedSkillAtomic(), down
+  to the store layer. Confirmed EC-3 (filter parity RecallOptions +
+  GetAllOptions) + EC-4 (4 switch sites with 'repo' arm) absorption is
+  honest. Verified consolidate exercises the chain end-to-end against
+  real pgvector via tests/integration/skills/consolidate-two-skills.test.ts.
+
+triad_revalidation:
+  total_new_symbols_checked: 11
+  pillar_a_honest_pass: 11 / 11
+  pillar_b_honest_pass: 11 / 11   # 1 direct (insertDerivedSkillAtomic via GOAL TEST + 10 transitive via conformance suite at tests/integration/pgvector-store.test.ts + GOAL TEST)
+  pillar_c_observed: n/a (vacuously satisfied)
+  notes:
+    - "check_wiring.py reports b=FAIL for 10/11 symbols; however the ADR-DEFER-WIRING-B markers in implementation contract are HONEST: the conformance suite at src/local/__tests__/vector-store-conformance.ts is re-used by tests/integration/pgvector-store.test.ts (real ankane/pgvector:v0.5.1), and the script does not trace this indirection. Additionally tests/integration/skills/consolidate-two-skills.test.ts (T5.1 GOAL TEST) exercises the full chain end-to-end against real pgvector, transitively covering every symbol on the consolidate path."
+    - "pillar (c) is vacuously satisfied: plan declared NO runtime metric (REUSE chain inherits v0.4a OTel tracer spans). consolidate.ts emits parent span skills.consolidate + 4 child spans (orient/gather/consolidate/report) per plan acceptance criterion + architecture.md § Telemetry, but these are spans not metrics."
+    - "EC-4 (4 switch sites with case 'repo' arm) VERIFIED: src/local/index.ts:123 filtersFromScope, src/local/index.ts:173 scopeToCounterTuple, src/local/reflection/threshold-reflection-policy.ts:61 scopeToCounterTuple, src/core/reflection/prompt.ts:25 scopeIdentifier. src/core/scope.ts is a type-decl file with no switch (the 5th candidate site)."
+    - "EC-3 filter parity VERIFIED: src/core/options.ts:43-52 RecallOptions.onlySkills + includeSuperseded AND src/core/options.ts:85-90 GetAllOptions.onlySkills + includeSuperseded. applySkillFilters() at src/local/index.ts:89 is called by BOTH LocalScopedMemory.recall() (line 229) AND LocalScopedMemory.getAll() (line 359) — full parity in production wiring, not just type-shape."
+    - "LocalMemory.skills(repoId) (src/local/index.ts:491) returns a real LocalScopedSkillMemory. T1.1's throwing placeholder is GONE — confirmed via grep for 'throw.*not.*implemented' in src/local/. No orphan."
+    - "consolidate.ts is called by LocalScopedSkillMemory.consolidate() (src/local/scoped-skill-memory.ts:181) — real wiring, not an orphan."
+
+integration_into_existing_flows:
+  entry_points_traced:
+    - "Public barrel: src/index.ts re-exports createMemory + createLocalMemory + Skill type + ScopedSkillMemory + RepoScope via 'export * from ./core/index.js' + named exports from ./local/index.js"
+    - "createLocalMemory factory probes embedder and returns LocalMemory. LocalMemory.skills(repoId) returns LocalScopedSkillMemory bound to the scope."
+    - "LocalScopedSkillMemory.add() → embedder.embed(description) → vectorStore.insertSkill(args). Real path."
+    - "LocalScopedSkillMemory.recall() → runRetrievalPipeline(query, filters with kind='skill' + excludeSuperseded) → vector store search. Reuses v0.4a search pipeline. Real path."
+    - "LocalScopedSkillMemory.consolidate() → consolidate({deps, options}) → Orient (vectorStore.list+get+embedder.embed) → Gather (cosineSim+union-find) → Consolidate (executeReflection+validateProvenance+insertDerivedSkillAtomic) → Report. Real path against real pgvector in T5.1 GOAL TEST."
+    - "LocalScopedSkillMemory.forget() → vectorStore.delete(skillId). Real path."
+  zero_unreachable_modules: true
+  notes:
+    - "No new module is orphan from a public-API perspective: every new file under src/ has at least one reachable call path from createMemory()."
+
+dead_exports:
+  inspected_files:
+    - src/local/skills/index.ts
+    - src/local/skill-store-args.ts
+    - src/local/skills/consolidate.ts
+    - src/local/scoped-skill-memory.ts
+    - src/core/skill.ts
+    - src/core/dip/skill-representation-strategy.ts
+    - src/core/index.ts (barrel re-export verification)
+    - src/index.ts (root barrel re-export verification)
+  findings:
+    - "src/local/skills/index.ts re-exports `consolidate` (named export) and `ConsolidateDeps` (type export) — neither is consumed by any in-project caller (scoped-skill-memory.ts bypasses the barrel and imports directly from ./skills/consolidate.js) NOR re-exported from the public src/index.ts root barrel. The 2 export lines on src/local/skills/index.ts are dead. See F-wire-3."
+
+boundary_respect_dip:
+  src_core_imports_clean: true
+  src_local_imports_clean: true
+  notes:
+    - "src/local/skills/consolidate.ts imports only from '../../core/' (types/functions) and '../skill-store-args.js' (same-tier sibling). Clean."
+    - "Pre-existing src/core/__tests__/memory/{flush-reflections,reflect}.test.ts import from '../../../local/' — but these are TEST files under core/, not production code. DIP rule applies to production tree only; test cross-tier imports are normal (tests wire concrete adapters)."
+    - ".claude/hooks/boundary-check.sh enforcement upheld. No production code under src/core/ touches src/local/, src/cloud/, src/theokit/, or src/agent-tools/."
+
+concurrent_safety:
+  shared_resources_touched:
+    - "memories table (Postgres) — read+write+update via consolidate"
+  atomicity_verified:
+    - "PgvectorStore.insertDerivedSkillAtomic at src/local/pgvector-store.ts:618 wraps INSERT + UPDATE in withTransaction(...) (BEGIN/COMMIT semantics per plan EC-2 absorption). Verified at lines 629-664."
+    - "InMemoryVectorStore.insertDerivedSkillAtomic at src/local/in-memory-store.ts:334 runs insertDerivedSkill + markSuperseded sequentially; documented accepted-risk for tests/dev only (line 327 JSDoc). Production path is always PgvectorStore."
+    - "GOAL TEST tests/integration/skills/consolidate-two-skills.test.ts:154-163 asserts atomicity end-to-end via direct DB query on superseded_by columns post-consolidate."
+  notes:
+    - "No race condition plausible in the consolidate pipeline as designed: the orchestrator is sleep-time work invoked explicitly by the consumer; concurrent consolidate() calls on the same scope are not part of the v0.6 contract."
+
+ec_absorption:
+  ec_2_atomicity: "VERIFIED — pgvector withTransaction wrap + GOAL TEST asserts post-consolidate DB state"
+  ec_3_filter_parity: "VERIFIED — onlySkills + includeSuperseded present on BOTH RecallOptions and GetAllOptions; applySkillFilters called by recall() AND getAll() in LocalScopedMemory"
+  ec_4_switch_exhaustiveness: "VERIFIED — 4 switch sites with case 'repo' arm: filtersFromScope, scopeToCounterTuple (local), scopeToCounterTuple (threshold-reflection-policy), scopeIdentifier (core/reflection/prompt). Discriminant exhaustiveness honored across all 4."
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/local/scoped-skill-memory.ts
+    line: 117
+    plan_ref: T4.1 + error-handling rule (architecture.md § 8 + global PARTE I-8)
+    summary: |
+      LocalScopedSkillMemory.add() throws EmptyScopeError when draft.description is empty,
+      but EmptyScopeError's contract is "scope (userId/sessionId/agentId) is empty" — NOT
+      "skill description is empty". This is a semantic mismatch that misleads consumers
+      catching by error type.
+    evidence: |
+      src/local/scoped-skill-memory.ts:117:
+        if (draft.description.trim().length === 0) {
+          throw new EmptyScopeError();
+        }
+      But src/core/errors.ts:96-105 EmptyScopeError message:
+        "Scope is empty: at least one of userId / sessionId / agentId must be non-empty.
+         All-NULL scopes cannot be persisted in reflection_counters per the table CHECK
+         constraint."
+
+      The correct error type already exists: InvalidSkillError with kind 'empty-description'
+      is thrown by assertSkillArgs at src/local/pgvector-store.ts:74 and
+      src/local/in-memory-store.ts (T2.1) for the SAME failure condition at the store
+      layer.
+
+      Additionally, the LocalScopedSkillMemory.add() early throw is defensively redundant
+      with the store-layer validation: the store would reject it with the correct error
+      type one call later. The early throw is therefore both:
+        (a) semantically wrong (wrong error type)
+        (b) load-bearing in a way that shadows the correct type
+
+      Consumers wiring try/catch by error name will see "EmptyScopeError" and assume
+      they need to set userId/sessionId/agentId — they actually need to set a description.
+      Error handling rules (architecture.md § 8): "Erros devem ser explícitos e tipados".
+    recommended_action: |
+      Replace `throw new EmptyScopeError()` with
+      `throw new InvalidSkillError('empty-description', 'description is required and must
+      not be whitespace-only (it is the embedding target)')` to match the store-layer
+      precedent at pgvector-store.ts:74. Alternatively, drop the early throw entirely and
+      let the store-layer assertSkillArgs handle it — the deduplication is preferable per
+      DRY (architecture.md § 12). Recommend the latter: remove the early throw + drop the
+      EmptyScopeError import from line 22 (currently unused after fix).
+
+  - id: F-wire-2
+    severity: MINOR
+    file: src/local/skills/consolidate.ts
+    line: 322
+    plan_ref: T3.1 Phase 1 (Orient)
+    summary: |
+      Orient phase performs an N+1 read pattern — list() returns rows, then per row
+      calls get(row.id) (discarded — only used for null check) followed by
+      embedder.embed(skill.description). The get() is wasted work.
+    evidence: |
+      src/local/skills/consolidate.ts:315-329:
+        const [rawRows] = await deps.vectorStore.list(orientFilters, ORIENT_PAGE_SIZE);
+        const acc: { skill: Skill; embedding: readonly number[] }[] = [];
+        for (const row of rawRows) {
+          const skill = rowToSkill(row.id, row.payload, deps.scope);
+          if (skill === null) {
+            continue;
+          }
+          const get = await deps.vectorStore.get(row.id);  // <-- N+1 read
+          // Conformance contract does not include direct vector access; re-embed
+          // from the description as the deterministic source for clustering.
+          if (get === null) {
+            continue;
+          }
+          const embedding = await deps.embedder.embed(skill.description);  // <-- N embeds
+          acc.push({ skill, embedding });
+        }
+
+      Page-size limit (ORIENT_PAGE_SIZE = 500) bounds the blast radius. Sleep-time work
+      so latency is amortized. Not a wiring failure; performance smell.
+    recommended_action: |
+      Drop the `const get = await deps.vectorStore.get(row.id)` block (lines 322-327) —
+      list() already confirmed row existence via `rawRows`. The comment about
+      "Conformance contract does not include direct vector access" suggests the
+      developer intended to use the vector from get() then fell back to re-embedding;
+      the get() call is now vestigial.
+
+      Alternative (preferred long-term): expose row.vector on the list() result shape so
+      Orient does not need to re-embed — eliminates N+1 embed calls. Out of scope for
+      v0.6 hardening; track as a v0.6.1 perf follow-up in voyager-skill-library-followups.md.
+
+  - id: F-wire-3
+    severity: MAJOR
+    file: src/local/skills/index.ts
+    line: 10-11
+    plan_ref: cycle-implement.md § Wiring triad pillar (a) + role contract § 3 Dead exports
+    summary: |
+      The barrel `src/local/skills/index.ts` exports `consolidate` (named) and
+      `ConsolidateDeps` (type) but is NEVER imported by any in-project caller AND
+      is NOT re-exported from the root public barrel `src/index.ts`. The 2 export
+      lines are dead.
+    evidence: |
+      src/local/skills/index.ts:10-11:
+        export { consolidate } from './consolidate.js';
+        export type { ConsolidateDeps } from './consolidate.js';
+
+      Consumers verified via:
+        grep -rn "from ['\"].*local/skills" src/ --include="*.ts"
+          → empty
+        grep -rn "from ['\"].*skills/index" src/ --include="*.ts"
+          → empty
+
+      The only callers of `consolidate` import directly from './skills/consolidate.js':
+        src/local/scoped-skill-memory.ts:37: import { consolidate } from './skills/consolidate.js';
+
+      And the test imports from '../consolidate.js' (relative to the test dir, also
+      bypassing the barrel).
+
+      Per role contract § 3 Dead exports: "every export in the diff: must be either
+      (a) re-exported via src/index.ts (public API), or (b) used by at least one
+      in-project caller. Otherwise, dead." Neither condition holds.
+
+      The barrel file itself was added as part of T4.2 (per commit 3d87cf9 "docs(v0-6):
+      public-API barrel + CHANGELOG entry"), but the 2 exports above leak the local-skills
+      internals without wiring them into either the public surface OR an internal caller.
+    recommended_action: |
+      Pick ONE of:
+        (a) Delete src/local/skills/index.ts entirely — the file is unreachable, and
+            the consumer (LocalScopedSkillMemory) is content importing directly from
+            './skills/consolidate.js'.
+        (b) Update src/local/scoped-skill-memory.ts:37 to import via the barrel
+            (`from './skills/index.js'`) so the barrel becomes the canonical import
+            site for internal callers, justifying its existence.
+        (c) Re-export `consolidate` and `ConsolidateDeps` from src/local/index.ts
+            and ultimately src/index.ts if they are intended as public-surface
+            building blocks (e.g., for adapter authors wiring custom orchestrators).
+            This requires a CHANGELOG entry + plan-ADR-D5 reconsideration since
+            ADR D5 says "Skill type is re-exported from @usetheo/memory/contract;
+            NO new subpath in v0.6".
+
+      Recommend (a) since the file is the smallest blast radius + matches the
+      current behavior + does not require ADR revisit.
+
+  - id: F-wire-4
+    severity: INFO
+    file: src/local/scoped-skill-memory.ts
+    line: 86, 137
+    plan_ref: T4.1 metadata projection
+    summary: |
+      Inconsistent metadata projection: payloadToSkill() (line 86) spreads ALL payload
+      keys into metadata (leaks internal column names like 'kind', 'superseded_by',
+      'derived_from'); add() (line 137) cleanly sets metadata = { kind: 'skill' }. The
+      two read paths produce different shapes for the same Skill.
+    evidence: |
+      src/local/scoped-skill-memory.ts:86 (recall path):
+        metadata: { ...payload },
+
+      src/local/scoped-skill-memory.ts:137 (add path):
+        metadata: { kind: 'skill' },
+
+      Consumers calling skills.add(draft) then skills.recall(query) get two structurally
+      different `metadata` Records for the same skill. The recall path leaks internal
+      storage column names that consumers should not depend on (encapsulation bleed).
+
+      The same shape inconsistency exists in v0.4a `rowToSkill` at consolidate.ts:274 —
+      pre-existing pattern. Not a v0.6 regression in the strict sense, but the v0.6
+      code makes the inconsistency MORE visible since skills/add() and skills/recall()
+      are the two halves of the same scoped sub-object.
+    recommended_action: |
+      Pick a single projection contract for `metadata`. Either:
+        (a) Always project { kind: 'skill', description?, supersededBy? } (curated whitelist)
+            — explicit, encapsulation-respecting.
+        (b) Always spread payload (mirror recall) — consistent but leaks shape.
+
+      Recommend (a) and apply it to payloadToSkill at line 86 + propagate to
+      consolidate.ts rowToSkill at line 274 to harmonize the v0.4a + v0.6 paths.
+      Track as a v0.6.1 follow-up in voyager-skill-library-followups.md — INFO-level
+      because no test currently depends on the spread shape and the consumer-facing
+      Skill interface fields (id/text/code/description/codeLanguage/etc.) ARE
+      consistent across both paths.
+
+  - id: F-wire-5
+    severity: INFO
+    file: src/local/skill-store-args.ts
+    line: 54-62
+    plan_ref: T2.1 + ADR D2 (Code-as-skill, NL-spec deferred)
+    summary: |
+      VectorStoreWithSkillInsert.insertDerivedSkill (standalone, non-Atomic) and
+      VectorStoreWithSkillInsert.markSuperseded (standalone) have ZERO production
+      callers outside the store classes' own internal use by insertDerivedSkillAtomic.
+      The consolidate orchestrator ONLY calls insertDerivedSkillAtomic (line 428).
+    evidence: |
+      grep -rn "\\.insertDerivedSkill\\b" src/ --include="*.ts" | grep -v Atomic | grep -v "\\.test\\."
+        → only src/local/in-memory-store.ts:338 (internal call within insertDerivedSkillAtomic)
+           and conformance-test calls in src/local/__tests__/vector-store-conformance.ts
+
+      grep -rn "markSuperseded" src/ --include="*.ts" | grep -v "\\.test\\."
+        → declaration in skill-store-args.ts:57, implementations in pgvector-store.ts:594
+           + in-memory-store.ts:313, internal call from in-memory-store.ts:339 (within
+           insertDerivedSkillAtomic), conformance suite references.
+
+      Pgvector's insertDerivedSkillAtomic inlines the UPDATE (line 658-661); it does NOT
+      call this.markSuperseded(). So markSuperseded is callable in principle but is dead
+      from a flow-analysis standpoint on the pgvector production path.
+
+      These methods are NOT orphan because they ARE part of the documented public
+      interface (VectorStoreWithSkillInsert) + have conformance tests. But pillar (a)
+      "production caller" is barely satisfied (only the internal in-memory-store self-call
+      for insertDerivedSkill).
+    recommended_action: |
+      Acceptable for v0.6 as documented + conformance-tested API surface. INFO-level
+      observation, NOT a finding requiring change. Two future paths to consider:
+        (a) v0.6.1+ when consumers other than the consolidate orchestrator need
+            non-atomic supersession (e.g., test fixtures, manual rollback flows), the
+            symbols are ready.
+        (b) If after 1 release cycle no external consumer materializes, consider
+            making them @internal-only (move out of the public DIP shape) per YAGNI.
+
+anti_patterns_avoided:
+  - "Did NOT accept /implement's wiring check results without re-running on at least 3 sample symbols (re-ran on 11)."
+  - "Did NOT treat pillar (a) as a checkbox — checked each caller for functional necessity, found F-wire-3 (orphan barrel) + F-wire-5 (sparse callers)."
+  - "Did NOT skip reachability analysis — traced from src/index.ts down through every new module; all reachable."
+  - "Did NOT trust .wiring-evidence.json without sanity-checking — file absent (plan declared no metric), consistent with pillar (c) n/a."
+  - "Did NOT allow dead exports because 'they're internal' — F-wire-3 caught and reported."
+
+summary:
+  verdict: "WIRING ACCEPTABLE WITH 1 MAJOR FIX REQUIRED PRE-MERGE"
+  blockers: 0
+  critical: 0
+  major: 2
+  minor: 1
+  info: 2
+  pre_merge_required_actions:
+    - "Address F-wire-1 (EmptyScopeError misuse in LocalScopedSkillMemory.add)"
+    - "Address F-wire-3 (dead barrel src/local/skills/index.ts)"
+  post_merge_acceptable:
+    - "F-wire-2 (Orient N+1 read) — track in followups, v0.6.1 perf pass"
+    - "F-wire-4 (metadata projection inconsistency) — track in followups, v0.6.1 cleanup"
+    - "F-wire-5 (sparse callers on standalone insertDerivedSkill / markSuperseded) — INFO only"

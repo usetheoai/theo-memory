@@ -41,8 +41,13 @@ test('Scope discriminator extracts each tier correctly', () => {
   expectTypeOf<WhenAgent>().toEqualTypeOf<AgentScope>();
 });
 
-test('Scope.kind union is exactly the three locked tiers', () => {
-  expectTypeOf<Scope['kind']>().toEqualTypeOf<'user' | 'session' | 'agent'>();
+// EC-4 (v0.6): `RepoScope.repoId` is the 4th Scope arm but maps internally to
+// `filters.agent_id` at the store layer per the EC-4 absorption in
+// `filtersFromScope`. The discriminator stays separate on the public side; the
+// column mapping is implementation detail. See ADR-0010 + the v0.6.1 T5.1 docs
+// bundle.
+test('Scope.kind union covers the four tiers (v0.6 adds repo)', () => {
+  expectTypeOf<Scope['kind']>().toEqualTypeOf<'user' | 'session' | 'agent' | 'repo'>();
 });
 
 test('UserScope has exactly kind + userId (no extras)', () => {

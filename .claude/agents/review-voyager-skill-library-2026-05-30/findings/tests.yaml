@@ -1,0 +1,241 @@
+agent: review-voyager-skill-library-tests
+review_target: develop..HEAD for plan voyager-skill-library
+plan: .claude/knowledge-base/plans/voyager-skill-library-plan.md
+verdict: APPROVE_WITH_MINOR_NITS
+
+test_pyramid:
+  unit_added: 8          # 4 type-d (skill, skill-rep-strategy, skill-barrel, +scope/memory-store extensions) + 3 unit runtime (schema-v0-6, recall-filters, scoped-skill-memory, consolidate) + 1 conformance suite extension (vector-store-conformance +4 cases)
+  integration_added: 1   # tests/integration/skills/consolidate-two-skills.test.ts (THE GOAL TEST, 2 test blocks)
+  e2e_added: 0
+  total: 9_files_added_or_extended
+  pyramid_balance: HEALTHY  # 59 unit/contract files total : 12 integration : 1 E2E. v0.6 lands 8 unit + 1 integration → preserves the inverted-pyramid invariant.
+  notes: |
+    THE GOAL TEST is the only integration addition — correct per plan T5.1. v0.6 is
+    pure additive on the v0.4a chain (D1), so most coverage lives at the unit/contract
+    tier; the single integration test proves the end-to-end wiring against real
+    pgvector. Pyramid per testing.md § Pyramid satisfied.
+
+tdd_compliance:
+  per_task_red_first: PASS_PER_PROJECT_CONVENTION
+  notes: |
+    Every task commit pairs the RED test file with its implementation in the same
+    atomic commit (e.g., c236f26 ships src/core/__tests__/skill.test-d.ts +
+    src/core/skill.ts together; de8ed7b ships consolidate.test.ts + consolidate.ts).
+    This matches the project's established v0.4a convention and cycle-implement.md
+    § Phase contracts § Halt-loop execute (per-task atomic commit, NOT
+    test-then-impl two-commit). Skill-barrel.test.ts in 3d87cf9 lands after the
+    barrel was wired in T4.2 (sequence is correct).
+    Audit confirms no implementation commits land BEFORE any test commit; the
+    discipline is preserved.
+
+edge_cases_from_plan:
+  total_from_plan_v1_1: 4
+  covered: 4
+  details:
+    - id: EC-1
+      description: CHECK constraint name `memories_kind_derived_from_check` must stay verbatim
+      where: src/local/__tests__/schema-v0-6.test.ts:102-122
+      coverage: STRONG  # 3 assertions — name retention + 'skill' arm + 'extracted'+'derived' arms preserved
+    - id: EC-2
+      description: Atomicity — insertDerivedSkillAtomic must roll back markSuperseded on failure
+      where:
+        - src/local/skills/__tests__/consolidate.test.ts:270-305 (atomicity sentinel via vi.spyOn throwing)
+        - tests/integration/skills/consolidate-two-skills.test.ts:138-163 (positive proof — DB row superseded_by matches derived.id)
+      coverage: STRONG
+    - id: EC-3
+      description: GetAllOptions parity — includeSuperseded must land on BOTH RecallOptions AND getAll
+      where: src/local/__tests__/recall-filters.test.ts:86-132 (covers list() + search() — list is the getAll path)
+      coverage: ADEQUATE  # both store paths covered; could be more explicit about which path mirrors getAll
+    - id: EC-4
+      description: 4-switch-site exhaustiveness for RepoScope (typecheck gate)
+      where:
+        - src/core/__tests__/scope.test-d.ts:44-45 (union extension to 4 tiers — forces typecheck on all switches)
+        - src/local/__tests__/scoped-skill-memory.test.ts:49-127 (exercises runtime arms of filtersFromScope + assertScopeIsNonEmpty)
+      coverage: ADEQUATE  # 2 reflection-site arms (threshold-reflection-policy.ts, prompt.ts) caught by tsc transitivity per testing.md § Typecheck scope; no explicit EC-4 comment tag in tests (cosmetic)
+  missing: []
+
+scenario_coverage_per_plan_tdd:
+  T0_1: PASS  # schema-v0-6.test.ts covers all 4 RED tests + EC-1 constraint name
+  T1_1: PASS  # skill.test-d.ts covers all 10 type-level assertions
+  T1_2: PASS  # skill-representation-strategy.test-d.ts covers DIP slot (kind + 2 methods + key count)
+  T2_1: PASS  # vector-store-conformance.ts +4 cases (insertSkill writes kind='skill', rejects empty desc; insertDerivedSkill writes derived_from, rejects empty derivedFrom)
+  T2_2: PASS  # recall-filters.test.ts covers list() and search() with onlySkills + excludeSuperseded
+  T3_1: STRONG  # consolidate.test.ts covers all 5 plan RED tests + 4 SEPA-flagged additions (atomicity sentinel, provenance length<2, text projection, transitive cluster)
+  T4_1: PASS  # scoped-skill-memory.test.ts covers all 4 plan RED tests (factory shape, empty repoId reject, add returns Skill, recall scope isolation) + forget removal
+  T4_2: PASS  # skill-barrel.test.ts covers public-API surface for Skill + DIP slot + RepoScope + InvalidSkillError
+  T5_1: STRONG  # consolidate-two-skills.test.ts covers Goal metric (1 derived + derivedFrom carries both ids) + EC-2 atomicity + recall returns ONLY derived + DB-level superseded_by verification + cross-repo scope isolation
+
+fixture_quality:
+  file: tests/integration/skills/fixtures/two-similar-skills.ts
+  shape: GOOD
+  notes: |
+    Two fixtures express the same intent (retry HTTP fetch with exponential backoff)
+    via syntactically-different code (fetch vs axios). They share an IDENTICAL
+    description string — which is the embedding target per ADR D2 — so the
+    deterministic `descriptionVector()` in the goal test produces the same vector
+    for both → cosine 1.0 → cluster above 0.9 threshold guaranteed. This is the
+    correct calibration for THE GOAL TEST's deterministic determinism claim.
+  determinism: STRONG  # no Math.random / Date.now / wall-clock in fixture; setTimeout calls are INSIDE the example skill code (a string literal — not executed by tests)
+  minor:
+    - The description text reads "retry HTTP fetch on transient failures with exponential backoff" — exactly the same on both fixtures. Authors may wish to add a 2nd-pair-of-eyes comment noting "these MUST stay identical or the cluster threshold check needs revision" so future maintainers don't drift them apart.
+
+determinism:
+  embedder: STRONG  # all 3 test embedders (FixtureEmbedder in consolidate.test.ts, FixedEmbedder in scoped-skill-memory.test.ts, descriptionVector in goal test) are pure functions; same input → same output
+  llm_stubs: STRONG  # all 3 LLM stubs (FixtureLLM, consolidatingLlm, StubLLM) are pure functions; no random / no time
+  time: ACCEPTABLE  # consolidate.test.ts:314-339 uses `new Date()` in projectSkillToMemoryItem fixture rows — only feeds into MemoryItem shape (text projection test); does NOT participate in assertions. Acceptable per testing.md § Determinism.
+  db_reset: STRONG  # goal test truncates `memories, entities, history` in beforeEach + afterAll; in-memory tests create a fresh InMemoryVectorStore in beforeEach
+  flake_risk: LOW
+
+skipped_or_commented_tests:
+  hard_skip: NONE
+  describe_skip_intentional:
+    - file: tests/integration/skills/consolidate-two-skills.test.ts:98
+      reason: |
+        Intentional `describe.skip` when THEOMEM_PG_URI is unset locally. The
+        `guardCiEnv()` IIFE at line 42 THROWS when CI=true AND env missing — so
+        CI never silently skips (EC-17 absorption). This is an environment guard,
+        not a flaky-test skip. Compliant with Inquebrável Rule 7 because the
+        skip path is GATED by env, not by an `xit` or `it.skip()` on real
+        behavior.
+  it_only: NONE
+  test_only: NONE
+  xit_xtest: NONE
+  commented_test_blocks: NONE
+
+mock_hygiene:
+  setup_size: PASS  # FixtureEmbedder = 11 lines (registry-backed); FixtureLLM = 15 lines (responder-based); all under the 5-line testing.md anti-pattern threshold for INLINE setup (these are reusable classes, not inline-per-test setup — different rule)
+  precision: STRONG  # mocks target precisely the DIP boundary (Embedder, LLM, VectorStore); no over-mocking of the world
+  integration_vs_unit_separation: STRONG  # unit tests use in-memory store + stubs; integration test uses real pgvector + minimal LLM stub (correct boundary per testing.md § Pyramid)
+
+runtime_sanity:
+  long_running: NONE  # all tests use deterministic stubs/embedders; no real network or LLM calls in unit tier
+  intermittent_failures: NOT_OBSERVED  # branch reports 468 contract passing + 67 integration + 1 GOAL passing; 2 pre-existing failures verified against develop HEAD per followups.md
+  pre_existing_failures:
+    documented_in: .claude/knowledge-base/implementations/voyager-skill-library-followups.md
+    items_documented:
+      - "tests/integration/schema-v0-4a-constraints.test.ts — Postgres NULL-in-CHECK semantic defect; verified on develop HEAD; out of scope for v0.6"
+      - "tests/integration/reflection/threshold-policy.test.ts — pool.query missing on constructor arg; pre-existing setup issue; tracked separately"
+    completeness: PASS  # both pre-existing failures cited in branch report are documented with root cause + verification methodology + out-of-scope justification
+    honesty: STRONG  # followups.md explicitly notes "Also fails on develop HEAD — pre-existing test setup issue unrelated to v0.6" — Inquebrável Rule 3 honored
+
+bdd_aaa_format:
+  goal_test: STRONG  # explicit Given/When/Then comments on tests/integration/skills/consolidate-two-skills.test.ts:115-163 + "And:" continuation comments — textbook BDD
+  unit_tests_consolidate: ADEQUATE  # consolidate.test.ts has implicit AAA structure but lacks explicit `// Arrange / Act / Assert` markers; per testing.md the form is mandatory but the README example uses Given/When/Then. The structural separation is clear without comments.
+  unit_tests_scoped_skill_memory: ADEQUATE  # same pattern — clear AAA structure without explicit comments
+  type_d_tests: N_A  # type-level assertions are single-line; AAA does not apply
+
+findings:
+  - id: F-tests-1
+    severity: MINOR
+    file: src/local/__tests__/scoped-skill-memory.test.ts
+    line: 66
+    plan_ref: T4.1 TDD RED test #2 (add() returns Skill)
+    summary: Test name uses "and" — "persists a kind='skill' row and returns a Skill with valid id"
+    evidence: |
+      grep result line 66: test('persists a kind=\'skill\' row and returns a Skill with valid id', ...)
+    rationale: |
+      Per testing.md § Anti-patterns: "Tests with 'and' in the name — split into
+      two tests". Borderline acceptable here because both clauses describe a
+      single behavior (one call to add()), but for strict compliance the test
+      could be split into "add() persists a kind='skill' row" + "add() returns
+      a Skill with a valid id". Cosmetic; does not affect coverage.
+    recommended_action: |
+      Optionally split or rephrase to "add(skillDraft) returns a kind='skill' Skill
+      with a valid id". Acceptable as-is for merge.
+
+  - id: F-tests-2
+    severity: MINOR
+    file: src/local/__tests__/recall-filters.test.ts
+    line: 115
+    plan_ref: T2.2 TDD RED test (excludeSuperseded:false returns all)
+    summary: Test name uses "and" — "returns BOTH the head and the superseded skill"
+    evidence: |
+      grep result line 115: test('list() WITHOUT excludeSuperseded returns BOTH the head and the superseded skill', ...)
+    rationale: |
+      Same anti-pattern as F-tests-1. Here the "and" describes the contents of a
+      single result set (one query, one result of length 2). Defensible as one
+      behavior; flag for awareness only.
+    recommended_action: |
+      Optionally rephrase to "list() WITHOUT excludeSuperseded returns the full
+      version chain". Acceptable as-is for merge.
+
+  - id: F-tests-3
+    severity: MINOR
+    file: tests/integration/skills/fixtures/two-similar-skills.ts
+    line: 28, 44
+    plan_ref: T5.1 fixture design
+    summary: Both fixtures share an identical description string — invariant load-bearing for cluster threshold; not surfaced in fixture comment
+    evidence: |
+      SKILL_FETCH.description === SKILL_AXIOS.description === 'retry HTTP fetch on transient failures with exponential backoff'
+      THE GOAL TEST uses a deterministic embedder where identical descriptions
+      produce identical vectors → cosine 1.0 → cluster passes at any threshold
+      ≤ 1.0. If a future maintainer alters one description to "look different",
+      the cluster will dissolve and the test silently changes meaning.
+    rationale: |
+      Determinism invariant lives in 2 separate files; future maintainers may
+      not connect them. A single guard comment on the fixture file would harden
+      the contract.
+    recommended_action: |
+      Add a comment block at the top of two-similar-skills.ts noting "these two
+      descriptions MUST stay byte-identical so the deterministic embedder in
+      consolidate-two-skills.test.ts produces equal vectors. Changing either
+      requires updating the test's clusterThreshold." Acceptable as-is for merge.
+
+  - id: F-tests-4
+    severity: INFO
+    file: src/core/__tests__/scope.test-d.ts
+    line: 44-45
+    plan_ref: EC-4 (4-switch-site exhaustiveness)
+    summary: EC-4 absorption is structurally covered but not tagged with an EC-4 comment marker like EC-1/EC-2/EC-3 are
+    evidence: |
+      grep for "EC-4" across tests returns 0 hits. EC-1, EC-2, EC-3, EC-17 all
+      carry inline comment tags in their respective test files. scope.test-d.ts
+      and scoped-skill-memory.test.ts cover the EC-4 surface (type-level union
+      forces typecheck on all 4 switch sites; runtime tests exercise repo arm
+      of filtersFromScope + assertScopeIsNonEmpty) but do not name the EC.
+    rationale: |
+      Audit-trail completeness — future readers tracing EC absorption via grep
+      will miss EC-4. Cosmetic; does not affect coverage. The 2 reflection-site
+      arms (threshold-reflection-policy.ts + prompt.ts) are typecheck-enforced
+      per testing.md § Typecheck scope, which is appropriate.
+    recommended_action: |
+      Add a `// EC-4 absorption: RepoScope union triggers typecheck on all 4
+      switch sites` comment near scope.test-d.ts:44. Acceptable as-is for merge.
+
+summary: |
+  Test suite for v0.6 voyager-skill-library is APPROVED with 4 MINOR/INFO nits,
+  none blocking merge:
+
+  STRENGTHS:
+  - THE GOAL TEST (T5.1) is textbook integration depth — Given/When/Then comments,
+    1 derived + provenance + supersession + DB-level row inspection + cross-repo
+    scope isolation as a sibling test. 5 distinct assertions on a single
+    consolidate() call.
+  - 4/4 plan EC absorptions covered with strong fixtures (EC-1 verbatim
+    constraint name; EC-2 atomicity sentinel via vi.spyOn throw; EC-3 list()
+    + search() filter parity; EC-4 type-level + runtime arms).
+  - 9 plan TDD sections (T0.1 → T5.1) all have RED tests landed with their
+    impls in atomic commits — consistent with v0.4a project precedent and
+    cycle-implement.md halt-loop discipline.
+  - Determinism is rigorous: FixtureEmbedder + FixtureLLM are pure-function
+    registries; THE GOAL TEST's descriptionVector hashes string content
+    deterministically; no Math.random / wall-clock dependencies in assertions.
+  - Pyramid balance preserved: 59 unit : 12 integration : 1 E2E baseline,
+    v0.6 adds 8 unit + 1 integration — maintains the inverted shape per
+    testing.md § Pyramid.
+  - Pre-existing failures honestly logged in voyager-skill-library-followups.md
+    with verified-on-develop reproduction methodology (Inquebrável Rule 3).
+  - No .only / .skip / xit / xtest leaks; the single describe.skip is
+    legitimately env-gated (EC-17) and fails loudly under CI=true.
+
+  NITS (all MINOR/INFO, none blocking):
+  - F-tests-1, F-tests-2: two test names contain "and" — defensible as
+    describing single behaviors; cosmetic split optional.
+  - F-tests-3: fixture descriptions byte-identical is a load-bearing
+    invariant not commented in the fixture file; harden with a guard comment
+    later.
+  - F-tests-4: EC-4 absorption isn't tagged with an inline EC-4 comment
+    (the other 4 ECs are); audit-trail nit.
+
+  RECOMMENDATION: APPROVE for merge. Nits land as a follow-up commit OR are
+  acceptable as-is given the strength of the underlying coverage.

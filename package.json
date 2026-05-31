@@ -45,11 +45,13 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "pretest:e2e": "npm run build",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push",
+    "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push && node scripts/apply-trigger-migrations.mjs",
     "db:generate": "drizzle-kit generate",
+    "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs",
     "compose:up": "docker compose up -d pgvector",
     "compose:down": "docker compose down",
-    "publish:check": "npm publish --dry-run --tag next"
+    "publish:check": "npm publish --dry-run --tag next",
+    "eval:forgetting": "tsx docs/forgetting-evaluation/run.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

@@ -21,10 +21,12 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   real,
@@ -53,12 +55,35 @@ export const memories = pgTable(
     tValid: timestamp('t_valid', { withTimezone: true }).defaultNow(),
     tInvalid: timestamp('t_invalid', { withTimezone: true }),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
-    /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6. */
+    /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
+     *  v0.6: also accepts 'skill' (code-as-skill) per plan ADR D3. */
     kind: varchar('kind', { length: 20 }).notNull().default('extracted'),
-    /** v0.4a: provenance for kind='derived' memories — array of source memory UUIDs per ADR D6. */
+    /** v0.4a: provenance for kind='derived' memories — array of source memory UUIDs per ADR D6;
+     *  v0.6: also populated by `consolidate()` on derived skill rows (kind='skill'). */
     derivedFrom: jsonb('derived_from').$type<string[]>(),
     /** v0.4a: LLM-judged importance cached at write per ADR D8 (REUSED by v0.4b forgetting). */
     llmImportanceScore: real('llm_importance_score'),
+    /** v0.6: supersession chain — newer skill points back to ancestor.
+     *  Self-FK with ON DELETE SET NULL preserves audit trail when an ancestor is hard-deleted. */
+    supersededBy: uuid('superseded_by').references((): AnyPgColumn => memories.id, {
+      onDelete: 'set null',
+    }),
+    /** v0.6: code-as-skill payload — executable TypeScript/JavaScript snippet. NULL for non-skills. */
+    code: text('code'),
+    /** v0.6: Natural-language description of the skill — embedding target for kind='skill' rows. */
+    description: text('description'),
+    /** v0.6: Language tag of the `code` payload (typescript | javascript). NULL for non-skills. */
+    codeLanguage: varchar('code_language', { length: 20 }),
+    /** v0.4b: timestamp of last recall() touching this row — drives exponential half-life decay
+     *  and LRU/LFU bookkeeping per plan T2.1 + T3.1. NULL means never recalled since insert.
+     *  @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13). */
+    lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
+    /** v0.4b: monotonic counter incremented by recall() write-back hook per plan T3.1.
+     *  Used by the access-frequency dimension of triadic scoring per plan T2.1. */
+    accessCount: integer('access_count').notNull().default(0),
+    /** v0.4b: per-row half-life in seconds for exponential time decay; lazy-backfilled from
+     *  llm_importance_score on first scoring per plan T2.2 (D14). NULL until first backfill. */
+    halfLifeSeconds: integer('half_life_seconds'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -68,10 +93,36 @@ export const memories = pgTable(
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),
     index('memories_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
+    // v0.4b: partial index on active (non-invalidated) rows keyed on the
+    // scope-tier column. Supports CapacityBasedTrigger COUNT(*) + loadCandidates
+    // SELECT queries per plan T5.1 + T6.1. `WHERE t_invalid IS NULL` keeps the
+    // index small (soft-deleted rows excluded per ADR D17).
+    //
+    // v0.4b-fixes T9.1 (F-dom-pg-1): `last_accessed_at` was originally listed
+    // as the second key column for LRU-style ORDER BY support — but no
+    // eviction query actually uses ORDER BY on this column (TriadicScoringPolicy
+    // computes the eviction order in-app, NOT via SQL). The column was dead
+    // index weight. Migration 0006 drops + recreates these 3 indexes keyed
+    // only on the scope-tier column.
+    //
+    // @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13)
+    // @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T9.1 (F-dom-pg-1)
+    index('idx_memories_eviction_score')
+      .on(table.agentId)
+      .where(sql`${table.tInvalid} IS NULL`),
+    index('idx_memories_eviction_score_user')
+      .on(table.userId)
+      .where(sql`${table.tInvalid} IS NULL`),
+    index('idx_memories_eviction_score_session')
+      .on(table.sessionId)
+      .where(sql`${table.tInvalid} IS NULL`),
     check(
+      // EC-1 absorption (plan v1.1): name verbatim, cited by
+      // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
       'memories_kind_derived_from_check',
       sql`(${table.kind} = 'extracted' AND ${table.derivedFrom} IS NULL)
-       OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)`,
+       OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)
+       OR (${table.kind} = 'skill' AND (${table.derivedFrom} IS NULL OR jsonb_array_length(${table.derivedFrom}) >= 1))`,
     ),
   ],
 );

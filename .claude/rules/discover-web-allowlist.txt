@@ -38,3 +38,9 @@ langchain.com                   # added for cycle-discover.md v1.1 seed at 2026-
 anthropic.com                   # added for v0-3-agent-tools-mcp Q7 at 2026-05-23 — root domain for /news/model-context-protocol announcement post
 spec.modelcontextprotocol.io    # added for v0-3-agent-tools-mcp Q7 at 2026-05-23 — canonical MCP specification subdomain
 modelcontextprotocol.io         # added for v0-3-agent-tools-mcp Q7 at 2026-05-23 — root domain fallback if spec subdomain redirects
+
+# voyager-skill-library additions (per plan v1.1 checkpoints EC-5 + EC-6 — 2026-05-29):
+
+raw.githubusercontent.com       # added for voyager-skill-library Q2+Q3 at 2026-05-29 — raw file content (requirements.txt, package.json, source files) from public GitHub repos; subdomain of github.com but separate per allowlist subdomain rule
+api.github.com                   # added for voyager-skill-library Q3+Q6 at 2026-05-29 — structured repo listings via GitHub API; HTML tree pages do not WebFetch cleanly (per plan v1.1 EC-6 checkpoint)
+ar5iv.labs.arxiv.org             # added for voyager-skill-library Q4 at 2026-05-29 — arXiv HTML rendering fallback when PDF chunking misses algorithmic content (per plan v1.1 EC-5 checkpoint)

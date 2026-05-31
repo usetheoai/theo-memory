@@ -11,6 +11,7 @@ markers.
 from __future__ import annotations
 
 import enum
+import fnmatch
 import json
 import os
 import re
@@ -235,11 +236,19 @@ def is_allowlisted(
 ) -> AllowlistMatch:
     """Match a Finding against the allowlist; return ACTIVE / EXPIRED / NOT_LISTED."""
     for entry in allowlist:
+        # Patch 2026-05-30 — file_path uses fnmatch (literal-match still works when entry has no wildcards;
+        # glob patterns like `examples/**/lib/*.ts` now match real findings). Symbol stays substring-match
+        # for backward compat (entries without `*` continue to work as before; entries with `*` now glob).
+        symbol_match = (
+            fnmatch.fnmatch(finding.symbol_or_line, f"*{entry.symbol}*")
+            if any(c in entry.symbol for c in "*?[")
+            else entry.symbol in finding.symbol_or_line
+        )
         if (
             entry.ecosystem == finding.language
-            and entry.file_path == finding.file_path
+            and fnmatch.fnmatch(finding.file_path, entry.file_path)
             and finding.detector.startswith("d") and _detector_to_finding_type(finding.detector) == entry.finding_type
-            and entry.symbol in finding.symbol_or_line
+            and symbol_match
         ):
             if today <= entry.sunset_date:
                 return AllowlistMatch.ACTIVE

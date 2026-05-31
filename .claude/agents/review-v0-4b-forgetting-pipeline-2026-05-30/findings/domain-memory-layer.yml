@@ -1,0 +1,496 @@
+agent: review-v0-4b-forgetting-pipeline-domain-memory-layer
+review_target: 2a1a206..1a64c0d (14 commits) for plan v0-4b-forgetting-pipeline v1.2
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Mem0-shape ADD-only invariant (architecture.md § 4 + ADR-0003)"
+  - "Three-tier scope User/Session/Agent + Repo (architecture.md § 1 + ADR-0002 + ADR-0010)"
+  - "Bi-temporal contract t_valid/t_invalid + asOf divergence (ADR-0006)"
+  - "DIP boundary src/core → src/local (architecture.md § 3)"
+  - "MemoryItem field-shape backward compatibility (memory-item.test-d.ts contract)"
+  - "Long-tail multiplier semantics (blueprint D9)"
+  - "OPEN PROBLEM #1 claim vs deliverable surface"
+  - "OTel telemetry pattern (Tracer-only at v0.1) vs new Counter introduction"
+
+findings:
+  - id: F-dom-1
+    severity: CRITICAL
+    file: src/local/eviction/capacity-based-trigger.ts
+    line: 142
+    plan_ref: "plan T5.1 § Deep Dives + ADR-0002 + ADR-0010"
+    domain_anchor: "architecture.md § 1 — three-tier scope User/Session/Agent (+ Repo for skills via agent_id mapping)"
+    summary: >
+      CapacityBasedTrigger silently drops User-scope + Session-scope memories
+      from eviction. The COUNT + candidate SELECT both filter exclusively
+      `WHERE agent_id = $1 AND t_invalid IS NULL`; user_id-scoped and
+      session_id-scoped scopes are NEVER counted, NEVER selected as candidates,
+      and therefore NEVER evicted. `scopeId: string` collapses the typed
+      Scope discriminated union into one stringly-typed parameter without a
+      `kind` discriminator. The same defect is reproduced in
+      `time-based-trigger.ts` (lines 188-196) and the partial index
+      `idx_memories_eviction_score` in migration 0003 (line 4: keyed on
+      `agent_id`). This is a contract violation of three-tier scope
+      (ADR-0002): a User-scope memory that should be evicted by capacity
+      grows unbounded silently. The plan goal text repeatedly says
+      "per-scope" / "in one scope" without a tier qualifier, and ADR D17
+      cross-references ADR-0006 (which is tier-uniform). Either the runtime
+      MUST honor the three tiers (preferred — implies refactoring
+      `scopeId: string` → typed `Scope` + scope-key-aware SQL) OR the plan
+      MUST add an explicit ADR declaring agent-tier-only restriction at
+      v0.4b with a roadmap note for User/Session tiers at v0.4c+.
+    evidence: |
+      capacity-based-trigger.ts L140-160:
+        const countResult = await client.query(
+          `SELECT COUNT(*)::text AS count
+             FROM memories
+            WHERE agent_id = $1
+              AND t_invalid IS NULL`,
+          [scopeId],
+        );
+        ...
+        WHERE agent_id = $1 AND t_invalid IS NULL  (candidate SELECT, same)
+
+      time-based-trigger.ts L188-196: identical agent_id-only filter.
+
+      migrations/0003_eviction_columns.sql L4:
+        CREATE INDEX ... ON "memories" USING btree ("agent_id","last_accessed_at")
+        WHERE "t_invalid" IS NULL
+
+      Architecture says three tiers; impl honors only one. RepoScope works
+      because it maps to agent_id internally (ADR-0010); User/Session do not.
+    recommended_action: >
+      Either (preferred) refactor triggers to accept `Scope` (the typed
+      discriminated union) and derive the WHERE clause via
+      `filtersFromScope` shape — matching how `pgvector-store.search()`
+      already composes filters — OR add an explicit ADR D19 declaring
+      "v0.4b eviction is agent-tier-only (User/Session deferred to v0.4c)"
+      AND constructor-validate that the caller supplied an agent-scope
+      identifier, throwing a typed error on misuse. Bump the public-copy
+      framing in CLAUDE.md Item 6 + docs/forgetting-evaluation.md to declare
+      the tier restriction honestly per Inquebrável Rule 3.
+
+  - id: F-dom-2
+    severity: CRITICAL
+    file: src/local/index.ts
+    line: 68
+    plan_ref: "plan T8.1 § wiring triad pillar (a) + Global DoD § Wiring triad"
+    domain_anchor: "architecture.md § 9 — public API surface; cycle-implement.md § Hard gate 4 (pillar a non-negotiable)"
+    summary: >
+      TriadicScoringPolicy, CapacityBasedTrigger, TimeBasedTrigger, PgEvictor,
+      PgNearestNeighborProvider, PgHalfLifePersister are NOT exported via
+      `src/local/index.ts` (the public local barrel) nor via `src/index.ts`.
+      Grep against barrels returns ZERO occurrences. Plan T8.1 acceptance
+      explicitly requires "(a) Static caller: `TriadicScoringPolicy`
+      referenced in `src/local/index.ts` user-facing barrel" — this is the
+      cycle-implement Hard gate 4 pillar (a) non-negotiable requirement.
+      The validate report claims "Pillar (a) static caller: pass 6/0" but
+      no class is reachable through the public API; consumers using the
+      barrel cannot construct an eviction pipeline without reaching into
+      `src/local/eviction/*` deep paths (escape of encapsulation). Also no
+      `evict()` method on `Memory` / `ScopedMemory` is wired in
+      `LocalScopedMemory` — auto-eviction is detached from the public
+      Memory facade entirely. The integration test bypasses the barrel and
+      imports from deep paths directly, which is why validate's pillar (a)
+      check did not catch the gap.
+    evidence: |
+      grep "eviction\|Triadic\|Capacity\|TimeBased\|PgEvictor"
+        in src/local/index.ts + src/index.ts → ZERO HITS
+
+      tests/integration/forgetting/triadic-eviction.test.ts L26-30:
+        import { CapacityBasedTrigger } from '../../../src/local/eviction/capacity-based-trigger.js';
+        import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
+        import { PgNearestNeighborProvider } from '...';
+        import { PgvectorStore } from '../../../src/local/pgvector-store.js';
+        import { TriadicScoringPolicy } from '...';
+
+      LocalScopedMemory.forget (src/local/index.ts L424-444) still uses
+      vectorStore.delete() — physical DELETE — does NOT delegate to
+      PgEvictor and does NOT use the soft-delete path.
+    recommended_action: >
+      Add to `src/local/index.ts`:
+        export { TriadicScoringPolicy, ... } from './eviction/triadic-scoring-policy.js';
+        export { CapacityBasedTrigger } from './eviction/capacity-based-trigger.js';
+        export { TimeBasedTrigger } from './eviction/time-based-trigger.js';
+        export { PgEvictor, type Evictor } from './eviction/pg-evictor.js';
+        export { PgNearestNeighborProvider } from './eviction/pg-nearest-neighbor-provider.js';
+      Plus a documented wiring shape (factory or example) showing how a
+      consumer composes them with `createLocalMemory`. Without this, pillar
+      (a) is materially false despite the script reporting pass.
+
+  - id: F-dom-3
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 430
+    plan_ref: "ADR D17 — 'forget() public API (v0.1) ALSO uses t_invalid UPDATE (already true) — auto-eviction is consistent with caller-driven forget'"
+    domain_anchor: "ADR-0006 bi-temporal local schema + ADR D17 soft-delete; architecture.md § 4 ADD-only"
+    summary: >
+      ADR D17 § Consequences asserts: "forget(id) public API (v0.1) ALSO uses
+      t_invalid UPDATE (already true) — auto-eviction is consistent with
+      caller-driven forget." This is FALSE in the shipped runtime.
+      `LocalScopedMemory.forget()` at src/local/index.ts:430 calls
+      `vectorStore.delete(memoryId)`, which at the pgvector adapter
+      (pgvector-store.ts:345-347) issues `DELETE FROM memories WHERE id = $1`
+      — physical delete, no `t_invalid` UPDATE, no RETURNING audit trail,
+      no `MemoryNotFound` separation between already-deleted vs missing.
+      Caller-driven forget therefore PERMANENTLY drops the audit row,
+      while auto-eviction (PgEvictor) keeps it. The "bi-temporal local
+      schema" promise in ADR-0006 is half-honored: schema has the columns,
+      forget() bypasses them. This also creates an asymmetry consumers
+      cannot reason about: a row evicted via CapacityBasedTrigger is
+      recoverable via raw `SELECT WHERE t_invalid IS NOT NULL`, but the
+      same row evicted via caller's `memory.forget(id)` is gone forever.
+    evidence: |
+      src/local/index.ts L424-444:
+        async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
+          ...
+          await this.config.vectorStore.delete(memoryId);  // ← physical
+          ...
+        }
+
+      src/local/pgvector-store.ts L345-347:
+        async delete(vectorId: string): Promise<void> {
+          await this.pool.query('DELETE FROM memories WHERE id = $1', [vectorId]);
+        }
+
+      ADR D17 § Consequences:
+        "forget(id) public API (v0.1) ALSO uses t_invalid UPDATE (already true)"
+        ← contradicts the shipped code.
+
+      MemoryItem.tInvalid JSDoc (core/memory-item.ts L38):
+        "Set by forget(id) (soft delete)." ← also false.
+    recommended_action: >
+      Refactor `LocalScopedMemory.forget()` to issue the same soft-delete
+      UPDATE as `PgEvictor.evict()` — preferably by delegating to a shared
+      `evict()` primitive on a `VectorStore` extension or by injecting
+      `PgEvictor` into `LocalMemoryConfig`. Update the JSDoc on
+      `MemoryItem.tInvalid` and the wording of ADR D17 § Consequences if
+      the contract is intentionally split (caller-driven = hard delete,
+      trigger-driven = soft delete), OR fix the implementation if the
+      contract is what ADR D17 claims. Both options are valid; pick one
+      and document the chosen split. Add an integration test asserting
+      the post-state of forget() (physical absence vs t_invalid set).
+
+  - id: F-dom-4
+    severity: MAJOR
+    file: src/local/migrations/0003_eviction_columns.sql
+    line: 4
+    plan_ref: "ADR D13 — partial index spec '(CASE WHEN t_invalid IS NULL THEN 1 ELSE 0 END), last_accessed_at WHERE t_invalid IS NULL'"
+    domain_anchor: "ADR D13 + ADR-0002 three-tier scope"
+    summary: >
+      The shipped index columns drift from ADR D13's declared shape and
+      compound with F-dom-1. Plan D13 declared
+      `(CASE WHEN t_invalid IS NULL THEN 1 ELSE 0 END, last_accessed_at)
+       WHERE t_invalid IS NULL`. Shipped is
+      `(agent_id, last_accessed_at) WHERE t_invalid IS NULL`. The
+      `agent_id` keying choice is reasonable in isolation (it's the only
+      tier the runtime actually queries), but the deviation is undocumented
+      — there is no ADR amendment, no inline migration comment explaining
+      why D13's CASE expression was dropped. This is a silent contract
+      drift between plan and impl. Adjacent honesty risk: the index now
+      bakes the agent_id-only tier restriction (F-dom-1) into the
+      schema itself, making it harder to extend to User/Session tiers
+      later without an extra index migration.
+    evidence: |
+      ADR D13 (plan line 120-124):
+        CREATE INDEX idx_memories_eviction_score ON memories (
+          (CASE WHEN t_invalid IS NULL THEN 1 ELSE 0 END),
+          last_accessed_at
+        ) WHERE t_invalid IS NULL;
+
+      migrations/0003_eviction_columns.sql L4:
+        CREATE INDEX IF NOT EXISTS "idx_memories_eviction_score"
+          ON "memories" USING btree ("agent_id","last_accessed_at")
+          WHERE "t_invalid" IS NULL;
+
+      No ADR row, no commit-body note in 2a1a206 explains the drift.
+    recommended_action: >
+      Either amend ADR D13 in plan v1.3 to declare
+      "(agent_id, last_accessed_at) WHERE t_invalid IS NULL — partial
+      composite index optimized for the agent-tier-only eviction queries
+      (F-dom-1)" OR restore the originally-declared CASE-based index in a
+      follow-up migration. If F-dom-1 is fixed by adding User/Session
+      tier support, add (user_id, last_accessed_at) and (session_id,
+      last_accessed_at) partial indexes in the same migration.
+
+  - id: F-dom-5
+    severity: MAJOR
+    file: src/local/eviction/triadic-scoring-policy.ts
+    line: 271
+    plan_ref: "Blueprint D9 + plan T4.2 § Deep Dives line 712"
+    domain_anchor: "blueprint D9 — long-tail multiplier semantics; OPEN PROBLEM #1 claim"
+    summary: >
+      The long-tail multiplier (blueprint D9) is the ONLY mechanism that
+      makes v0.4b "ship the OPEN PROBLEM #1 solution." The current
+      implementation only ENGAGES the multiplier for scopes whose
+      memories carry `kind: 'agent'` or `kind: 'repo'` per
+      `getNeighborScopeId` (L109-117): `user` and `session` scopes return
+      `null`, which causes `computeProtectionMultiplier` (L304-307) to
+      short-circuit to `MAX_PROTECTION_MULTIPLIER` (1.0 — no penalty).
+      Combined with F-dom-1 (User/Session never reach the trigger anyway)
+      the deficiency is not user-visible today, but the JSDoc on
+      `NearestNeighborProvider.distance(memoryId, agentId)` bakes the
+      tier limitation into the DIP shape — `agentId: string` instead of
+      a generic scope key. This means even if F-dom-1 is fixed at the
+      trigger level, the multiplier remains agent-only. The CLAUDE.md
+      framing "OPEN PROBLEM #1 — no competitor solved this" is therefore
+      weaker than advertised: TheMemory ships triadic + multiplier ONLY
+      for one of three tiers. Honest framing requires either fixing the
+      tier coverage OR scoping the claim ("v0.4b solves long-tail
+      preservation in the agent-tier surface; User/Session tiers will land
+      in v0.4c per ADR-X").
+    evidence: |
+      triadic-scoring-policy.ts L109-117:
+        function getNeighborScopeId(scope: MemoryItem['scope']): string | null {
+          if (scope.kind === 'agent') return scope.agentId;
+          if (scope.kind === 'repo') return scope.repoId;
+          return null;   // ← user + session collapse to null
+        }
+
+      Same file L302-307:
+        const scopeId = getNeighborScopeId(memory.scope);
+        if (scopeId === null) {
+          return MAX_PROTECTION_MULTIPLIER;  // ← no protection penalty
+        }
+
+      NearestNeighborProvider DIP shape (L94-96):
+        distance(memoryId: string, agentId: string): Promise<number>;
+        ← `agentId: string` baked into the interface signature.
+    recommended_action: >
+      (1) Either generalize `NearestNeighborProvider.distance(memoryId,
+      scope: Scope)` to accept the typed scope union, OR keep the
+      restriction and rename the parameter (`scopeKey: string`) plus
+      `getNeighborScopeId` should fall back to userId/sessionId when
+      present (the schema columns exist).
+      (2) Adjust the CLAUDE.md Item 6 framing + docs/forgetting-evaluation.md
+      to honestly scope the OPEN PROBLEM #1 claim to the agent tier at
+      v0.4b, with a roadmap pointer to tier expansion.
+
+  - id: F-dom-6
+    severity: MAJOR
+    file: src/local/eviction/pg-evictor.ts
+    line: 47
+    plan_ref: "EC-4 plan reference 'src/local/telemetry.ts' + Global DoD pillar (c)"
+    domain_anchor: "architecture.md § 7 module hygiene + cycle-implement.md § Hard gate 6 pillar (c)"
+    summary: >
+      The OTel meter is acquired at MODULE LOAD time (L47:
+      `const meter = metrics.getMeter('@usetheo/memory');`) and the
+      Counter is created in module scope (L48). This is the first
+      Counter pattern in the codebase — v0.1 was Tracer-only. Two
+      domain-honesty risks: (a) the JSDoc comment "Plan EC-4 cites
+      src/local/telemetry.ts as the meter source; that file does not
+      exist in v0.1. Resolved by using `metrics.getMeter` directly"
+      acknowledges the gap honestly but the resolution diverges silently
+      from the plan — no ADR was added for the divergence; (b) the
+      module-scope Counter means the meter resolves at import time
+      against whatever MeterProvider is globally registered at that
+      moment — consumers wiring their MeterProvider AFTER importing
+      `@usetheo/memory` get a no-op counter forever (the API spec's
+      get-meter-then-attach behavior depends on SDK version). The
+      `onSoftDelete` test hook works around it but production telemetry
+      may silently no-op on common Node wiring orders.
+    evidence: |
+      pg-evictor.ts L34-50:
+        import { metrics, type Counter } from '@opentelemetry/api';
+        ...
+        const meter = metrics.getMeter('@usetheo/memory');
+        const softDeleteCounter: Counter = meter.createCounter(...);
+
+      JSDoc L26-30:
+        "Plan EC-4 cites src/local/telemetry.ts as the meter source; that
+         file does not exist in v0.1. Resolved by using `metrics.getMeter`
+         directly from @opentelemetry/api"
+    recommended_action: >
+      (1) Add an inline ADR row to plan v1.3 documenting the EC-4
+      resolution (telemetry.ts deferred; getMeter inline at PgEvictor).
+      (2) Move the meter/counter acquisition INTO the PgEvictor
+      constructor or to lazy-init at first evict() call so consumers
+      that register a MeterProvider after import see emissions. Pattern
+      precedent: most OTel SDK guides recommend lazy resolution unless
+      a global provider is guaranteed pre-import. (3) Land the missing
+      `src/local/telemetry.ts` module that the plan promised and route
+      both Tracer + Meter through it so the future LRU-failure counter
+      (T8.1 plan body cites `theo.memory.lru_update_failures`) does not
+      duplicate the inline pattern.
+
+  - id: F-dom-7
+    severity: MINOR
+    file: src/local/eviction/triadic-scoring-policy.ts
+    line: 25
+    plan_ref: "plan T2.1 § Deep Dives line 479 typo acknowledgment"
+    domain_anchor: "blueprint D7 HLR formula"
+    summary: >
+      The JSDoc at L25-29 honestly calls out a plan-prose typo
+      ("Plan T2.1 § Deep Dives line 479 has a sign-error typo
+      `recency = 1 - 2^(-Δ/h)` that contradicts the adjacent RED test
+      names"). The shipped formula `recency = 2^(-Δt/h)` matches the
+      blueprint + the test names, which is correct. However, this is a
+      plan defect that should be patched into the plan v1.3 in-line
+      rather than left as a "we silently corrected" note in the source —
+      future readers (including the SEPA agent for v0.4c) will encounter
+      the typo first when reading the plan. Plan-source-of-truth
+      discipline (cycle-plan.md anti-pattern #7) means the plan should
+      not carry stale prose.
+    evidence: |
+      triadic-scoring-policy.ts L25-29 (verbatim acknowledgment).
+      Plan v1.2 line 479 (Deep Dives § recency_component) still reads
+      "recency = 1 - 2^(-Δ/h)".
+    recommended_action: >
+      Patch plan v1.2 line 479 in a v1.3 cosmetic bump to read
+      `recency = 2^(-Δt/h)`. Remove the JSDoc workaround note from
+      triadic-scoring-policy.ts L25-29.
+
+  - id: F-dom-8
+    severity: MINOR
+    file: src/local/eviction/__tests__/scoring-math.test.ts
+    line: 1
+    plan_ref: "plan T2.2, T3.1, T4.1, T4.2, T5.1, T5.2, T6.1 TDD declarations"
+    domain_anchor: "testing.md § Pyramid — unit-dominant"
+    summary: >
+      The plan declared unit tests for many phases at
+      `src/local/eviction/__tests__/{lazy-half-life,recall-bookkeeping,
+      nearest-neighbor,multiplier-integration,capacity-trigger,
+      time-trigger,evict-soft-delete}.test.ts` — only `scoring-math.test.ts`
+      ships at the unit tier. The rest moved to
+      `tests/integration/forgetting/*` (which is honest — most need real
+      pgvector). The shape of the v0.4b test pyramid therefore inverts
+      the testing.md § Pyramid declaration ("unit-dominant") for this
+      domain: 1 unit test file + 3 integration test files. This is
+      defensible given pgvector's role in the multiplier path, but
+      should be acknowledged in plan v1.3 § Phase T7 with a brief
+      "v0.4b test pyramid skews integration-heavy because every
+      meaningful path touches pgvector cosine + advisory locks" note.
+    evidence: |
+      ls src/local/eviction/__tests__/ → 1 file (scoring-math.test.ts)
+      ls tests/integration/forgetting/ → 3 test files + fixtures dir
+      Plan T2.2 § TDD line 565 declares lazy-half-life.test.ts (NOT
+      shipped at unit tier). Same for T3.1 T4.1 T4.2 T5.1 T5.2 T6.1.
+    recommended_action: >
+      Document the skew in plan v1.3 with a brief "v0.4b honest test
+      pyramid" note + cross-reference D18 (which already establishes
+      the integration-promotion pattern). No code change required.
+
+  - id: F-dom-9
+    severity: MINOR
+    file: src/local/index.ts
+    line: 460
+    plan_ref: "ADR-0002 three-tier scope"
+    domain_anchor: "ADR-0002 + memory-item.ts L19-20 scope discriminated union"
+    summary: >
+      `LocalScopedMemory.get(memoryId)` hard-codes `scope: { kind: 'user',
+      userId: String(result.payload['user_id'] ?? '') }` regardless of
+      what the row actually carries (agent_id / session_id). This is a
+      v0.1 defect, NOT introduced by v0.4b, but the v0.4b code path
+      depends on it: the TriadicScoringPolicy reads `memory.scope` to
+      derive the nearest-neighbor scope key in `getNeighborScopeId`. If
+      v0.4b ever broadens (per F-dom-1) to accept rows fetched via
+      `get()`, scope misidentification will silently route an agent
+      memory through the user-tier nearest-neighbor query (which
+      returns 0 rows → multiplier = 1.0). Surfacing here because
+      F-dom-5's expansion path will trip over it.
+    evidence: |
+      src/local/index.ts L446-462:
+        async get(memoryId: string): Promise<MemoryItem | null> {
+          const result = await this.config.vectorStore.get(memoryId);
+          if (result === null) return null;
+          return {
+            ...
+            scope: { kind: 'user', userId: String(result.payload['user_id'] ?? '') },
+                  // ↑ always user, regardless of stored agent_id/session_id
+            ...
+          };
+        }
+    recommended_action: >
+      Reconstruct the Scope discriminated union from the row's payload
+      (`agent_id` if present → agent; `session_id` → session; otherwise
+      user). Pattern already exists in `capacity-based-trigger.ts`
+      L65-70 (`rowToMemoryItem`) — extract it to a shared helper and
+      reuse in `get()`. Out of v0.4b scope but blocks the tier-expansion
+      path opened by fixing F-dom-1.
+
+  - id: F-dom-10
+    severity: INFO
+    file: src/local/eviction/triadic-scoring-policy.ts
+    line: 237
+    plan_ref: "ADR D17 + EvictionPolicy DIP shape"
+    domain_anchor: "DIP method-count semantics (ADR-0008 spirit) + KISS"
+    summary: >
+      `TriadicScoringPolicy.evict()` (L237-242) delegates to the injected
+      `Evictor` — which is good composition — but `evict` is NOT part of
+      the `EvictionPolicy` DIP declared at
+      `src/core/dip/eviction-policy.ts` (the DIP shape declares only
+      `kind`, `score`, `selectVictims`, and optional lifecycle hooks).
+      So `policy.evict(ids)` is a public method on the impl that is
+      INVISIBLE through the DIP — consumers typing against
+      `EvictionPolicy` can call `score` + `selectVictims` but not
+      `evict`. The triggers (`CapacityBasedTrigger.fire`) issue the
+      soft-delete UPDATE inline rather than calling `policy.evict()`,
+      so the impl method is actually dead code reachable only by
+      cross-talk through the concrete type. INFO severity because it
+      may be intentional staging (the DIP declared evict as future
+      hook), but the asymmetry deserves a clarifying ADR row OR
+      removal of the impl method to keep the DIP+impl boundary clean.
+    evidence: |
+      eviction-policy.ts L97-111 (DIP shape): no `evict` method.
+      triadic-scoring-policy.ts L237-242 (extra method on the impl).
+      capacity-based-trigger.ts L168-173: issues UPDATE inline; does
+      NOT call `policy.evict(victimIds)`.
+    recommended_action: >
+      Decide: either lift `evict` into the EvictionPolicy DIP (declare
+      it as the 5th method; bump the v0.4b ADR D12 method count from
+      4 to 5) OR remove `evict` from TriadicScoringPolicy and route
+      eviction strictly through the injected `Evictor` from the
+      trigger. The current state is "half-public" which makes
+      future refactors brittle.
+
+  - id: F-dom-11
+    severity: INFO
+    file: src/core/memory-item.ts
+    line: 49
+    plan_ref: "MemoryItem field-shape evolution"
+    domain_anchor: "architecture.md § 4 + memory-item.test-d.ts"
+    summary: >
+      The four optional v0.4a/v0.4b fields (`llmImportanceScore`,
+      `lastAccessedAt`, `accessCount`, `halfLifeSeconds`) on `MemoryItem`
+      are correctly typed as optional + nullable for backward
+      compatibility, and the type-d test at
+      `core/__tests__/memory-item.test-d.ts` is updated to lock the
+      shape. ADD-only invariant honored: no public `update()` method.
+      Backward-compat for v0.1/v0.4a callers is preserved at the type
+      level. This is INFO confirming the v0.4b extension does NOT
+      regress the Mem0-shape architecture or the ADD-only ADR.
+    evidence: |
+      memory-item.ts L41-72: 4 fields added; all optional + nullable.
+      memory-item.test-d.ts L8-23: shape contract test locks the
+      union shape.
+      No public `update()` method introduced on `Memory` or
+      `ScopedMemory` — `forget()` stays the only mutation primitive,
+      and `remember()` stays ADD-only.
+    recommended_action: >
+      None. ADD-only + Mem0-shape contract preserved.
+
+  - id: F-dom-12
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 234
+    plan_ref: "ADR D17 + ADR-0006 + pgvector-store search() filter"
+    domain_anchor: "ADR-0006 bi-temporal local schema"
+    summary: >
+      `PgvectorStore.search()` (L234) and `PgvectorStore.keywordSearch()`
+      (L297) both add `WHERE t_invalid IS NULL`. This is NOT a regression
+      of v0.1's bi-temporal contract: ADR-0006 locked that local v0.1
+      `recall()` does NOT accept `asOf` (throws
+      `BiTemporalNotSupportedLocally`). The filter is correct and
+      consistent with the cloud divergence path; cloud at v0.5 will be
+      the first to honor `asOf` semantics. The audit-trail path (raw
+      SQL `WHERE t_invalid IS NOT NULL`) still works for soft-deleted
+      rows. INFO severity confirming concern #3 in the role contract
+      is NOT a contract violation.
+    evidence: |
+      ADR-0006 § Decision: "Local schema (v0.1) provisions t_valid and
+      t_invalid as nullable TIMESTAMPTZ columns ... The local runtime's
+      recall() does NOT accept an asOf parameter at v0.1".
+      src/local/index.ts L226-228: throws BiTemporalNotSupportedLocally
+      on asOf.
+      pgvector-store.ts L234 + L297: t_invalid IS NULL filter consistent.
+    recommended_action: >
+      None. Bi-temporal contract intact at v0.1 boundary; soft-delete
+      filter is a v0.4b additive concern wrapped inside that contract.

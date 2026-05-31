@@ -40,3 +40,21 @@ typescript|src/index.ts|symbol_fab|*|v0.1 pre-code phase; src/index.ts (public b
 
 # Active entries — v0.2 pre-code phase
 typescript|src/theokit/**|symbol_fab|*|v0.2 pre-code phase per plan v0-2-theokit-binding-plan.md v1.1; src/theokit/ tree does not exist yet (T0.2 + T1.1 create it). Forward references in the plan are intentional declarations that land during /implement. Re-validate after T1.1 lands the binding module.|2026-06-22
+
+# /code-quality predicate now supports fnmatch globs (patch 2026-05-30 applied to
+# .claude/skills/code-quality/scripts/_shared.py: file_path uses fnmatch.fnmatch;
+# symbol uses fnmatch when wildcards present else substring; backward-compat with
+# existing literal entries; 89 unit tests still pass). Glob entries below are
+# now first-class active matchers.
+
+# Active entries — code-quality checker false positives surfaced during /plan-confidence voyager-skill-library v1.1 (2026-05-30)
+# 26 findings (1 HARD + 25 SOFT_FLOOR) flagged across pre-existing files; all FPs caused by the scanner's
+# current limitations (no tsconfig path-alias resolution; no npm subpath-export verification).
+# Note finding.file_path format: absolute path without leading slash (e.g., `home/paulo/.../foo.ts`).
+
+typescript|*examples/chat-with-memory/lib/memory.ts|symbol_fab|@usetheo/memory|Pre-publication self-reference: @usetheo/memory IS this repo's own pre-release package; the demo at examples/chat-with-memory consumes it via 'file:../..' link in its package.json. Resolves cleanly once v1.0 ships to npm per dogfood-golden-rule. Re-validate after v1.0 publish.|2026-06-29
+typescript|*examples/chat-with-memory/**|symbol_fab|@usetheo/memory/contract|Self-subpath import via 'file:../..' workspace link; resolves at runtime via tsconfig path/exports. Same root cause as the @usetheo/memory entry above.|2026-08-28
+typescript|*src/core/__tests__/**|symbol_fab|@usetheo/memory/contract|Self-subpath import in type-tests — TheMemory's own contract subpath; resolves via tsconfig paths to ./src/core. /code-quality scanner queries npm registry instead of tsconfig.|2026-08-28
+typescript|*examples/chat-with-memory/**|symbol_fab|@/*|Next.js tsconfig.json path-alias resolution (@/components/*, @/lib/*); these are NOT npm packages but tsconfig path aliases defined in the demo's tsconfig.json. /code-quality scanner does not yet parse tsconfig path aliases.|2026-08-28
+typescript|*src/agent-tools/**|symbol_fab|@modelcontextprotocol/sdk/*|Valid npm subpath imports per @modelcontextprotocol/sdk@^1.29 package.json#exports map (verified on npmjs.com 2026-05-30). /code-quality scanner queries registry root + cannot resolve nested subpath exports yet.|2026-08-28
+typescript|*examples/chat-with-memory/**|symbol_fab|@modelcontextprotocol/sdk/*|Same root cause as src/agent-tools entry above — Next.js demo imports SDK subpaths when used as agent client.|2026-08-28

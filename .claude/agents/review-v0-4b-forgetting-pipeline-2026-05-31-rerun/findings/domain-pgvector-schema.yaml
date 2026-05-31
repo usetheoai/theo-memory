@@ -1,0 +1,324 @@
+agent: review-v0-4b-forgetting-pipeline-rerun-domain-pgvector-schema
+review_target: develop @ HEAD post v0.4b-fixes-cycle (commits 614e588..ebaa451)
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - "Drizzle migrations idempotency (CREATE OR REPLACE for triggers)"
+  - "pgvector index types (HNSW + cosine_ops)"
+  - "Per-scope-tier partial indexes (user_id / session_id / agent_id WHERE t_invalid IS NULL)"
+  - "Bi-temporal soft-delete (t_invalid IS NULL guard on eviction queries)"
+  - "Scope-tier generalization across NN query / advisory locks / candidate loaders"
+  - "Postgres advisory-lock keyspace namespacing (hashtext + kind prefix)"
+  - "OTel lazy meter resolution"
+  - "BEFORE-UPDATE-OF trigger race-window discipline under READ COMMITTED"
+  - "MVCC visibility (xmin vs ctid for snapshot reads)"
+
+summary: |
+  All six MAJOR/MINOR pgvector-schema domain findings from the original
+  /review v0.4b cycle have been closed or honestly deferred. Per the rerun
+  delta scope (commits 614e588 → ebaa451), no NEW domain regressions are
+  introduced; the GOAL TEST recall@10 = 1.000 remains intact (verified
+  empirically per T9.1 commit body). The HNSW deferral (F-T9.1-1) is an
+  explicit EC-7 ADR-row substitute and is recorded HONESTLY in
+  `.claude/knowledge-base/implementations/v0-4b-fixes-cycle-followups.md`
+  with root cause analysis, v0.5 owner assignment, and 4 investigation paths.
+
+findings:
+  # ----------------------------------------------------------------------------
+  # F-dom-pg-1 — CLOSED (dead last_accessed_at in eviction partial indexes)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-1-rerun
+    severity: INFO
+    file: src/local/migrations/0006_drop_dead_index_columns.sql
+    line: 1
+    plan_ref: v0-4b-fixes-cycle-plan.md § T9.1 (closes original F-dom-pg-1 MAJOR)
+    original_finding: F-dom-pg-1 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      architecture.md § 4 (Mem0-shape architecture — TriadicScoringPolicy
+      computes eviction order in-app, NOT via SQL ORDER BY)
+    status: CLOSED
+    summary: |
+      Migration 0006 drops + recreates the 3 eviction partial indexes
+      (idx_memories_eviction_score + *_user + *_session) keyed ONLY on the
+      scope-tier column. The original `last_accessed_at` second key column
+      was dead index weight (no eviction query ORDER BYs on it; scoring is
+      in-app per TriadicScoringPolicy). `src/local/schema.ts:110-118`
+      mirrors the change in the Drizzle declaration and the inline JSDoc
+      block (lines 100-109) documents the fix with cross-refs to both the
+      v0.4b plan T0.1 ADR D13 and the v0.4b-fixes T9.1 absorption row.
+    evidence: |
+      0006_drop_dead_index_columns.sql:
+        DROP INDEX IF EXISTS "idx_memories_eviction_score";
+        DROP INDEX IF EXISTS "idx_memories_eviction_score_user";
+        DROP INDEX IF EXISTS "idx_memories_eviction_score_session";
+        CREATE INDEX IF NOT EXISTS "idx_memories_eviction_score" ON "memories"
+          USING btree ("agent_id") WHERE "t_invalid" IS NULL;
+        CREATE INDEX IF NOT EXISTS "idx_memories_eviction_score_user" ON "memories"
+          USING btree ("user_id") WHERE "t_invalid" IS NULL;
+        CREATE INDEX IF NOT EXISTS "idx_memories_eviction_score_session" ON "memories"
+          USING btree ("session_id") WHERE "t_invalid" IS NULL;
+      schema.ts:110-118 — index() declarations updated to single-column.
+    recommended_action: |
+      No action. Closure verified.
+
+  # ----------------------------------------------------------------------------
+  # F-dom-pg-2 — DEFERRED to v0.5 via EC-7 safeguard (HNSW-friendly NN refactor)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-2-rerun
+    severity: INFO
+    file: .claude/knowledge-base/implementations/v0-4b-fixes-cycle-followups.md
+    line: 7
+    plan_ref: |
+      v0-4b-fixes-cycle-plan.md § T9.1 line 722 (EC-7 budget safeguard);
+      original F-dom-pg-2 MAJOR
+    original_finding: F-dom-pg-2 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      architecture.md § 4 (Mem0-shape — pgvector HNSW only satisfies ORDER BY
+      with literal-vector right-hand-side); CLAUDE.md Roadmap Item 6 acceptance
+      (recall@10 = 1.000 for v0.4b GOAL TEST).
+    status: DEFERRED (honest — EC-7 fired as designed)
+    summary: |
+      The 2-roundtrip HNSW-friendly NN-query refactor was attempted and
+      empirically regressed v0.4b T7.1 GOAL TEST recall@10 from 1.000 →
+      0.02 due to pg.js text-roundtrip binary-precision loss in
+      `embedding::text` → `$N::vector` parse-back. Plan T9.1 line 722 EC-7
+      explicitly anticipated this regression budget: "if runtime exceeds
+      budget, plan needs ADR row deferring HNSW-friendly refactor to v0.5".
+      Recall@10 collapse IS the budget signal. NN provider was reverted to
+      the v0.4b T3.1 CTE form (verified at
+      `src/local/eviction/pg-nearest-neighbor-provider.ts:32-41`).
+      Followup F-T9.1-1 records the deferral with root cause, v0.5 owner
+      assignment, and 4 concrete investigation paths (pgvector COPY
+      protocol / WITH MATERIALIZED / pg.types.setTypeParser /
+      pgvector npm toSql).
+    evidence: |
+      v0-4b-fixes-cycle-followups.md § F-T9.1-1 lines 7-23 — full record
+      including root-cause analysis + v0.5 owner + 4 investigation paths.
+
+      Commit a8bf77f body: "F-dom-pg-2 DEFERRED to v0.5 (EC-7 safeguard
+      fired)" with empirical numbers (recall@10 = 1.000 → 0.02).
+
+      pg-nearest-neighbor-provider.ts:32-41 — CTE form preserved:
+        WITH self AS (SELECT embedding FROM memories WHERE id = $1)
+        SELECT m.embedding <=> (SELECT embedding FROM self) AS distance ...
+        ORDER BY m.embedding <=> (SELECT embedding FROM self) ASC
+        LIMIT 1
+    recommended_action: |
+      No action at v0.4b — deferral is the contractually correct outcome
+      per EC-7. Followup F-T9.1-1 owns v0.5 investigation.
+
+  # ----------------------------------------------------------------------------
+  # F-dom-pg-3 — CLOSED (scope-tier generalization across NN query)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-3-rerun
+    severity: INFO
+    file: src/local/eviction/pg-nearest-neighbor-provider.ts
+    line: 31
+    plan_ref: v0-4b-fixes-cycle-plan.md § T3.1 (closes original F-dom-pg-3)
+    original_finding: F-dom-pg-3 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      architecture.md § 1 (Three-tier scope: User / Session / Agent —
+      generalized NN query MUST handle all 4 kinds including RepoScope per
+      ADR-0010 column-aliasing to agent_id).
+    status: CLOSED
+    summary: |
+      `PgNearestNeighborProvider.distance()` accepts a full `Scope`
+      discriminated union and routes the column predicate at runtime via
+      `scopeColumn(scope)` from `scope-where.ts`. The previous
+      `agent_id`-only hardcoded predicate (review F-dom-pg-3) is gone.
+      The same `scope-where.ts` helpers (`scopeColumn`, `scopeValue`,
+      `advisoryLockKey`, `scopeWhereClause`) are reused by
+      CapacityBasedTrigger + TimeBasedTrigger + PgNearestNeighborProvider,
+      eliminating the SRP duplication F-arch-4 also surfaced. RepoScope
+      column-aliases to `agent_id` (ADR-0010 / EC-4) and is documented
+      inline at scope-where.ts:33-40.
+    evidence: |
+      pg-nearest-neighbor-provider.ts:31-37:
+        const column = scopeColumn(scope);
+        const sql = `WITH self AS (SELECT embedding FROM memories WHERE id = $1)
+          SELECT m.embedding <=> (SELECT embedding FROM self) AS distance
+            FROM memories m
+           WHERE m.${column} = $2 AND m.id <> $1 AND m.t_invalid IS NULL ...
+      scope-where.ts:26-41 — `scopeColumn(scope)` covers all 4 kinds
+      including `repo → agent_id` per ADR-0010.
+    recommended_action: |
+      No action. Closure verified across all 3 consumer modules.
+
+  # ----------------------------------------------------------------------------
+  # F-dom-pg-4 — CLOSED (trigger race-window docs + eventual-consistency tests)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-4-rerun
+    severity: INFO
+    file: src/local/migrations/0004_eviction_half_life_trigger.sql
+    line: 8
+    plan_ref: v0-4b-fixes-cycle-plan.md § T9.2 (closes original F-dom-pg-4 MAJOR)
+    original_finding: F-dom-pg-4 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      Postgres READ COMMITTED isolation + BEFORE-UPDATE-OF trigger semantics;
+      architecture.md § 4 (Mem0-shape — ADD-only with bi-temporal
+      `t_invalid` audit trail; mutations must preserve invariant under MVCC).
+    status: CLOSED
+    summary: |
+      Migration 0004 carries a 35-line SQL comment block (lines 8-42)
+      documenting the 3 race-window scenarios under READ COMMITTED:
+      (1) concurrent reads on OLD value (MVCC standard);
+      (2) concurrent UPDATEs on the same row (row-lock + trigger
+          re-fires on second writer);
+      (3) read-modify-write on `half_life_seconds` (PgHalfLifePersister's
+          WHERE `half_life_seconds IS NULL` guard is the discipline).
+      The companion test
+      `tests/integration/eviction/trigger-race-window.test.ts` exercises
+      eventual consistency via `Promise.all` UPDATE + SELECT (test #1) +
+      idempotency via SAME-value UPDATE (test #2). EC-11 absorption notes
+      vitest worker_threads limitation and explicitly scopes the test to
+      eventual consistency (NOT specific interleaving).
+    evidence: |
+      0004_eviction_half_life_trigger.sql:8-42 — race-window discussion block.
+      0004_eviction_half_life_trigger.sql:43-56 — trigger function +
+        BEFORE UPDATE OF llm_importance_score binding.
+      trigger-race-window.test.ts:77-90 — eventual consistency test.
+      trigger-race-window.test.ts:92-109 — idempotency test (no-op when
+        OLD == NEW).
+    recommended_action: |
+      No action. Closure verified.
+
+  # ----------------------------------------------------------------------------
+  # F-dom-pg-5 — CLOSED (advisory-lock keyspace JSDoc extension)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-5-rerun
+    severity: INFO
+    file: src/local/eviction/scope-where.ts
+    line: 60
+    plan_ref: v0-4b-fixes-cycle-plan.md § T12.1 (closes original F-dom-pg-5 MINOR)
+    original_finding: F-dom-pg-5 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      Postgres advisory-lock keyspace semantics (`pg_try_advisory_xact_lock`
+      via `hashtext` — 32-bit narrowed key, ~2^32 distinct keys; birthday
+      collision @ ~65k scope-keys).
+    status: CLOSED
+    summary: |
+      `advisoryLockKey(scope)` returns `eviction_${scope.kind}_${scopeValue(scope)}`,
+      kind-namespaced so `userId='alice'` and `agentId='alice'` do NOT
+      collide. The JSDoc block (lines 60-77) discusses the 32-bit
+      keyspace narrowing via `hashtext`, birthday-collision math
+      (~65k keys → 50% collision probability), and explicitly clarifies
+      that false collisions just block for the holding tx's lifetime —
+      "no data-corruption risk". CapacityBasedTrigger and TimeBasedTrigger
+      both consume `advisoryLockKey()` (verified at
+      capacity-based-trigger.ts:80 + time-based-trigger.ts:151).
+    evidence: |
+      scope-where.ts:60-77 — advisoryLockKey JSDoc with hashtext
+        + 32-bit keyspace + birthday-collision math.
+      scope-where.ts:78-80 — return body.
+      capacity-based-trigger.ts:79-80 — usage.
+      time-based-trigger.ts:150-151 — usage.
+    recommended_action: |
+      No action. Closure verified.
+
+  # ----------------------------------------------------------------------------
+  # F-dom-pg-6 — VERIFIED (xmin vs ctid already correct, no defect)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-6-rerun
+    severity: INFO
+    file: src/local/eviction/scope-where.ts
+    line: 1
+    plan_ref: v0-4b-fixes-cycle-plan.md § T12.1 (verifies original F-dom-pg-6)
+    original_finding: F-dom-pg-6 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      MVCC snapshot visibility — `xmin` is the version-row identifier;
+      `ctid` is the physical row pointer (changes on UPDATE).
+    status: VERIFIED CORRECT (no defect pre-existed)
+    summary: |
+      The original F-dom-pg-6 review note flagged a potential xmin/ctid
+      confusion in the eviction WHERE clauses. Verified at T12.1: the
+      eviction query path uses `WHERE id = ANY($1::uuid[]) AND t_invalid
+      IS NULL` (see pg-evictor.ts:39-43), which is the application-level
+      primary key + bi-temporal soft-delete guard — NEITHER xmin NOR ctid
+      is invoked. No mutation needed; the original concern was a false
+      positive at review time. No code change shipped because none was
+      warranted (T12.1 commit body documents this).
+    evidence: |
+      pg-evictor.ts:39-43 — EVICT_SOFT_DELETE_SQL:
+        UPDATE memories
+           SET t_invalid = NOW()
+         WHERE id = ANY($1::uuid[]) AND t_invalid IS NULL
+        RETURNING id
+      No xmin/ctid reference exists in src/local/eviction/*.ts (verified
+      via grep at scope-where.ts + pg-evictor.ts + pg-nearest-neighbor
+      -provider.ts + capacity-based-trigger.ts + time-based-trigger.ts).
+    recommended_action: |
+      No action. Original review note was a false positive; verification at
+      T12.1 confirms the eviction path uses pk + soft-delete guard
+      (correct under MVCC).
+
+  # ----------------------------------------------------------------------------
+  # Bonus verification: PgEvictor OTel lazy counter (T10.1 / F-dom-6 from review)
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-otel-lazy
+    severity: INFO
+    file: src/local/eviction/pg-evictor.ts
+    line: 56
+    plan_ref: v0-4b-fixes-cycle-plan.md § T10.1 (closes F-dom-6)
+    original_finding: F-dom-6 (v0-4b-forgetting-pipeline review 2026-05-30)
+    domain_anchor: |
+      OpenTelemetry lazy-meter idiom — capture-on-first-use defeats the
+      module-load no-op-provider trap when consumer registers their
+      MeterProvider AFTER the first import of `@usetheo/memory`.
+    status: CLOSED
+    summary: |
+      The OTel counter `theo.memory.eviction.soft_deletes_total` is now
+      resolved on first `evict()` call via `getSoftDeleteCounter()` instead
+      of at module load. Test-only `__resetCounterCacheForTesting()` allows
+      tests to re-resolve against a freshly-registered MeterProvider.
+      Production caching is preserved per OTel guidance (one counter per
+      process lifetime).
+    evidence: |
+      pg-evictor.ts:56-65 — lazy resolver:
+        let lazyCounter: Counter | undefined;
+        function getSoftDeleteCounter(): Counter {
+          if (lazyCounter === undefined) {
+            const meter = metrics.getMeter('@usetheo/memory');
+            lazyCounter = meter.createCounter(...);
+          }
+          return lazyCounter;
+        }
+      pg-evictor.ts:73-75 — test-only cache reset hook.
+      pg-evictor.ts:115 — call site at evict() emit path.
+    recommended_action: |
+      No action. Closure verified.
+
+  # ----------------------------------------------------------------------------
+  # Coverage check: HNSW deferral honestly recorded?
+  # ----------------------------------------------------------------------------
+  - id: F-dom-pg-honesty-check
+    severity: INFO
+    file: .claude/knowledge-base/implementations/v0-4b-fixes-cycle-followups.md
+    line: 7
+    plan_ref: v0-4b-fixes-cycle-plan.md § T9.1 (EC-7 ADR-row substitute)
+    domain_anchor: |
+      Inquebrável Rule 3 (Honestidade Extrema) + cycle-implement.md
+      Anti-pattern #7 (scope-creep avoidance via followup tracking).
+    status: VERIFIED HONEST
+    summary: |
+      The F-T9.1-1 HNSW deferral is recorded with: (a) full root cause
+      analysis (pg.js text-roundtrip binary precision loss); (b) empirical
+      regression numbers (recall@10 = 1.000 → 0.02); (c) explicit EC-7
+      safeguard citation (plan line 722 "if runtime exceeds budget...");
+      (d) v0.5 owner assignment ("v0.5 cloud-runtime prep"); (e) 4 concrete
+      investigation paths for v0.5 follow-up. This is an EC-7 ADR-row
+      substitute, not a regression hidden as a followup.
+    evidence: |
+      v0-4b-fixes-cycle-followups.md:7-23 — full deferral record.
+      Commit a8bf77f body — explicit "F-dom-pg-2 DEFERRED to v0.5
+        (EC-7 safeguard fired)" with empirical numbers.
+      GOAL TEST recall@10 = 1.000 preserved (verified empirically per
+        commit body: "tests/integration/forgetting/triadic-eviction
+        .test.ts: 2/2 PASS in 12.47s").
+    recommended_action: |
+      No action. Honesty discipline observed per Inquebrável Rule 3.
+
+# Final verdict at the domain scope (pgvector-schema):
+#   All 6 original F-dom-pg-* findings closed/deferred-honestly. No new
+#   regressions detected in the v0.4b-fixes delta. The HNSW deferral is
+#   contractually correct per EC-7. No BLOCKER / CRITICAL / MAJOR / MINOR
+#   findings to raise from this domain re-review.
+overall_verdict: PASS (domain re-review post v0.4b-fixes-cycle)

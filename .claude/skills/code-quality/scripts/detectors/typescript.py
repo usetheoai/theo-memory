@@ -6,6 +6,7 @@ Other methods still stubs (T3.1 / T4.2).
 """
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -78,9 +79,49 @@ class TypescriptDetector(BaseDetector):
             ]
         return self._parse_knip_json(data, repo_root)
 
+    def _find_self_package_name(self, changed_files: list[Path]) -> str | None:
+        """Patch 2026-05-30 — walk up from any changed file to find the repo's package.json#name.
+
+        Used to skip self-reference imports (`@usetheo/memory` and its subpaths) when the
+        codebase is the package being imported — pre-publication code legitimately self-references
+        via workspace links (file:..) before the package ships to the npm registry. Cached on
+        the detector instance after first lookup.
+        """
+        if hasattr(self, "_cached_self_name"):
+            return self._cached_self_name
+        self._cached_self_name = None
+        for src_file in changed_files:
+            try:
+                cur = src_file.resolve().parent if src_file.exists() else Path.cwd()
+            except OSError:
+                continue
+            for parent in [cur, *cur.parents]:
+                pkg_json = parent / "package.json"
+                if pkg_json.is_file():
+                    try:
+                        data = json.loads(pkg_json.read_text(encoding="utf-8"))
+                        name = data.get("name")
+                        # We want the OUTERMOST (root) name when nested workspaces exist —
+                        # keep walking up after finding a name. Demo subdir name (@usetheo/memory-demo-chat)
+                        # is shadowed by root @usetheo/memory.
+                        if isinstance(name, str) and name:
+                            self._cached_self_name = name
+                    except (json.JSONDecodeError, OSError):
+                        pass
+            if self._cached_self_name:
+                break
+        return self._cached_self_name
+
+    @staticmethod
+    def _is_self_reference(module: str, self_name: str | None) -> bool:
+        if not self_name:
+            return False
+        return module == self_name or module.startswith(self_name + "/")
+
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
-        """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16)."""
+        """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30)."""
         findings: list[Finding] = []
+        self_name = self._find_self_package_name(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -99,6 +140,9 @@ class TypescriptDetector(BaseDetector):
                     continue
                 top = module.split("/")[0] if not module.startswith("@") else "/".join(module.split("/")[:2])
                 if top in _TS_NODE_BUILTINS:
+                    continue
+                # Patch 2026-05-30 — Self-reference (the workspace IS the package being imported)
+                if self._is_self_reference(module, self_name):
                     continue
                 # Package name for npm lookup
                 pkg = module if module.startswith("@") else module.split("/")[0]

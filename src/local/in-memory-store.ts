@@ -17,7 +17,11 @@
  * @see blueprint Recommendation 6 + ADR D6
  */
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import { InvalidSkillError } from '../core/errors.js';
 import type { Filters } from '../core/scope.js';
+import type { SkillLanguage } from '../core/skill.js';
+
+import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -50,8 +54,23 @@ function matchesFilters(payload: Payload, filters: Filters | undefined): boolean
   if (filters === undefined) {
     return true;
   }
+  // v0.6: skill-aware filter fields are not generic equality checks — handle them first.
+  if (filters.excludeSuperseded === true) {
+    const supersededBy = payload['superseded_by'];
+    if (supersededBy !== undefined && supersededBy !== null && supersededBy !== '') {
+      return false;
+    }
+  }
+  if (filters.kind !== undefined && payload['kind'] !== filters.kind) {
+    return false;
+  }
+  // Generic equality loop for the scope keys (user_id / session_id / agent_id). Skip the
+  // v0.6 fields handled above so they don't get mis-evaluated as payload-equality checks.
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined) {
+      continue;
+    }
+    if (key === 'kind' || key === 'excludeSuperseded') {
       continue;
     }
     if (payload[key] !== value) {
@@ -246,4 +265,140 @@ export class InMemoryVectorStore implements VectorStore {
     await Promise.resolve();
     return id;
   }
+
+  /**
+   * v0.6 — persist a `kind='skill'` row (parity with PgvectorStore.insertSkill).
+   *
+   * In-memory adapter stores all skill fields in the payload Record (no schema
+   * columns). Rejects empty description / invalid codeLanguage with typed
+   * InvalidSkillError BEFORE writing to the Map.
+   */
+  async insertSkill(args: InsertSkillArgs): Promise<string> {
+    assertSkillArgs(args);
+    const id = `skill-${String(this.rows.size)}-${Date.now()}-${String(Math.random()).slice(2, 8)}`;
+    this.rows.set(id, {
+      vector: args.embedding,
+      payload: skillPayload(args, null),
+    });
+    await Promise.resolve();
+    return id;
+  }
+
+  /**
+   * v0.6 — persist a `kind='skill'` row with non-empty derived_from provenance
+   * (parity with PgvectorStore.insertDerivedSkill).
+   */
+  async insertDerivedSkill(args: InsertDerivedSkillArgs): Promise<string> {
+    assertSkillArgs(args);
+    if (args.derivedFrom.length === 0) {
+      throw new InvalidSkillError(
+        'empty-derived-from',
+        'insertDerivedSkill requires at least one source skill id',
+      );
+    }
+    const id = `derived-skill-${String(this.rows.size)}-${Date.now()}-${String(Math.random()).slice(2, 8)}`;
+    this.rows.set(id, {
+      vector: args.embedding,
+      payload: skillPayload(args, args.derivedFrom),
+    });
+    await Promise.resolve();
+    return id;
+  }
+
+  /**
+   * v0.6 — set `superseded_by` on every row whose id is in `sourceIds`.
+   *
+   * Iterates the Map and patches the payload in place. NEVER deletes rows.
+   */
+  async markSuperseded(
+    sourceIds: readonly string[],
+    supersededBy: string,
+  ): Promise<void> {
+    for (const id of sourceIds) {
+      const row = this.rows.get(id);
+      if (row !== undefined) {
+        row.payload['superseded_by'] = supersededBy;
+      }
+    }
+    await Promise.resolve();
+  }
+
+  /**
+   * v0.6 — best-effort sequential `insertDerivedSkill` + `markSuperseded`.
+   *
+   * In-memory has no transactional semantics — if insertDerivedSkill succeeds
+   * and markSuperseded throws, the derived skill row stays in the Map without
+   * the sources being marked. Per plan v1.1 EC-2 absorption, this is documented
+   * accepted-risk for tests/dev only; production path is always PgvectorStore.
+   */
+  async insertDerivedSkillAtomic(
+    args: InsertDerivedSkillArgs,
+    sourceIdsToSupersede: readonly string[],
+  ): Promise<string> {
+    const derivedId = await this.insertDerivedSkill(args);
+    await this.markSuperseded(sourceIdsToSupersede, derivedId);
+    return derivedId;
+  }
+}
+
+const ALLOWED_SKILL_LANGUAGES: ReadonlySet<SkillLanguage> = new Set<SkillLanguage>([
+  'typescript',
+  'javascript',
+]);
+
+/**
+ * Validate `insertSkill` / `insertDerivedSkill` args at the in-memory store
+ * boundary — mirrors the pgvector store guard so both adapters surface
+ * identical typed errors. T0.2 split: codeLanguage check accepts NULL on
+ * derived skills (ADR D2).
+ */
+function assertSkillArgs(args: { description: string; codeLanguage: SkillLanguage | null }): void {
+  if (args.description.trim().length === 0) {
+    throw new InvalidSkillError(
+      'empty-description',
+      'description is required and must not be whitespace-only (it is the embedding target)',
+    );
+  }
+  if (args.codeLanguage != null && !ALLOWED_SKILL_LANGUAGES.has(args.codeLanguage)) {
+    throw new InvalidSkillError(
+      'invalid-code-language',
+      `codeLanguage must be one of [${[...ALLOWED_SKILL_LANGUAGES].join(', ')}] OR null; got ${JSON.stringify(args.codeLanguage)}`,
+    );
+  }
+}
+
+/** Build a Payload Record for a skill row (`derivedFrom = null` for non-derived skills). */
+function skillPayload(
+  args: {
+    hash: string;
+    code: string | null;
+    description: string;
+    codeLanguage: SkillLanguage | null;
+    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+  },
+  derivedFrom: readonly string[] | null,
+): Payload {
+  // T0.2: code + codeLanguage may be NULL on derived skills; persist as NULL,
+  // not coerced to empty string (decoder distinguishes between the two states).
+  const payload: Payload = {
+    text: args.description,
+    hash: args.hash,
+    kind: 'skill',
+    code: args.code,
+    description: args.description,
+    code_language: args.codeLanguage,
+  };
+  if (derivedFrom !== null) {
+    payload['derived_from'] = JSON.stringify([...derivedFrom]);
+  }
+  if (args.scope.userId !== undefined && args.scope.userId !== null) {
+    payload['user_id'] = args.scope.userId;
+  }
+  if (args.scope.sessionId !== undefined && args.scope.sessionId !== null) {
+    payload['session_id'] = args.scope.sessionId;
+  }
+  if (args.scope.agentId !== undefined && args.scope.agentId !== null) {
+    payload['agent_id'] = args.scope.agentId;
+  }
+  return payload;
 }

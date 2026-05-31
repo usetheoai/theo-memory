@@ -1,0 +1,242 @@
+agent: domain-pgvector-schema
+review_target: feature branch (v0.6.1 re-run, develop=858413b..730ce8c)
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - HNSW + vector_cosine_ops index preserved on memories.embedding
+  - "<=> cosine operator drives semantic recall through delegation"
+  - memories_hash_unique_idx UNIQUE(hash) catch-skip in consolidate
+  - vectorLiteral NaN/Infinity guard applied at every $N::vector callsite
+  - withTransaction injection seam (EC-2 atomicity) preserved across extraction
+  - architecture.md hard cap on pgvector-store.ts size (<=500 LoC)
+  - byte-for-byte SQL preservation post-extraction (insertSkill, insertDerivedSkill, markSuperseded, insertDerivedSkillAtomic)
+  - F-dom-pgvec-11 (vectorLiteral shadow) closure
+  - F-dom-pgvec-12 (excludeSuperseded polarity JSDoc bridge) closure
+
+findings:
+  - id: F-dom-pgvec-1
+    severity: INFO
+    file: src/local/pgvector-skill-store.ts
+    line: 70-199
+    plan_ref: T3.1 / F3
+    summary: PgvectorSkillStore extraction preserves SQL byte-for-byte. All four methods (insertSkill, insertDerivedSkill, markSuperseded, insertDerivedSkillAtomic) carry identical INSERT/UPDATE strings, identical column lists, identical parameter ordering, and identical 'skill' kind discriminator literal vs the pre-extraction pgvector-store.ts revision (verified against commit 4dc6555).
+    status: CLOSED
+    evidence: |
+      Pre-extraction (4dc6555) insertDerivedSkillAtomic:
+        INSERT INTO memories (text, hash, embedding, payload,
+          user_id, session_id, agent_id,
+          kind, derived_from, code, description, code_language)
+        VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, $6,
+          'skill', $7::jsonb, $8, $9, $10) RETURNING id
+
+      Post-extraction (pgvector-skill-store.ts:163-186) — identical SQL string,
+      identical 10-param positional order. Only diff: this.withTransaction →
+      this.withTransactionFn (composition seam, see F-dom-pgvec-2).
+    recommended_action: None — semantic-equivalence preserved.
+
+  - id: F-dom-pgvec-2
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 129, 430-443
+    plan_ref: T3.1 / EC-2
+    summary: Composition seam honors EC-2 atomicity. PgvectorStore.ctor passes `this.withTransaction.bind(this)` to PgvectorSkillStore, so the BEGIN/COMMIT/ROLLBACK wrapper still binds the SAME PoolClient across both INSERT and UPDATE inside the atomic write. No regression versus the pre-extraction in-process call.
+    status: CLOSED
+    evidence: |
+      pgvector-store.ts:129
+        this.skillStore = new PgvectorSkillStore(pool, this.withTransaction.bind(this));
+
+      pgvector-store.ts:430-443 (unchanged from pre-extraction):
+        async withTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
+          const client = await this.pool.connect();
+          try {
+            await client.query('BEGIN');
+            const result = await fn(client);
+            await client.query('COMMIT');
+            return result;
+          } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+          } finally { client.release(); }
+        }
+
+      pgvector-skill-store.ts:163-198 uses the injected callback's `client`
+      param for BOTH INSERT and UPDATE — same client, same transaction, EC-2
+      atomicity intact.
+    recommended_action: None.
+
+  - id: F-dom-pgvec-3
+    severity: INFO
+    file: src/local/pgvector-vector-literal.ts
+    line: 13-23
+    plan_ref: T3.1 sibling extraction
+    summary: vectorLiteral extracted to dedicated module; NaN/Infinity guard is shared by ALL callers. Grep confirmed zero local shadows in pgvector-store.ts (was the F-dom-pgvec-11 MINOR). All five callsites (pgvector-store.ts:195, 236, 298, 368 + pgvector-skill-store.ts:85, 122, 177) import the same guarded function.
+    status: CLOSED
+    evidence: |
+      `grep -c "const vectorLiteral\|function vectorLiteral" src/local/pgvector-store.ts` → 0
+      `grep -n "vectorLiteral" src/local/pgvector-store.ts` → 5 import + call sites,
+        all using the imported function. T5.3 (commit 9f5b2d8) replaced the
+        last local STRING shadow inside insertDerivedMemory per the commit body.
+
+      pgvector-vector-literal.ts:14-21:
+        for (let i = 0; i < vector.length; i += 1) {
+          const n = vector[i] as number;
+          if (!Number.isFinite(n)) {
+            throw new Error(`vectorLiteral: vector[${i}] is not finite ...`);
+          }
+        }
+
+      F-dom-1 NaN guard runs against every embedding before pgvector ever
+      sees it; insertDerivedMemory (v0.4a path) is no longer a bypass.
+    recommended_action: None — F-dom-pgvec-11 from first-pass is CLOSED.
+
+  - id: F-dom-pgvec-4
+    severity: INFO
+    file: src/local/skills/consolidate.ts
+    line: 395, 426-438
+    plan_ref: T1.1 / F6
+    summary: UNIQUE(hash) catch-skip matches BOTH `memories_hash_unique_idx` (Drizzle index name from schema.ts:80 + 0000_crazy_mimic.sql:47) AND the `duplicate key` substring (generic pg error surface). Both substring matches are necessary because pg may wrap the error in different driver layers; the dual check protects against pg.QueryError vs pg.DatabaseError vs Drizzle pre-flight wrappers surfacing different message shapes.
+    status: CLOSED
+    evidence: |
+      consolidate.ts:428-431:
+        if (
+          message.includes('memories_hash_unique_idx')
+          || message.includes('duplicate key')
+        ) {
+
+      Schema-side constraint name verified:
+        src/local/schema.ts:80
+          uniqueIndex('memories_hash_unique_idx').on(table.hash),
+        src/local/migrations/0000_crazy_mimic.sql:47
+          CREATE UNIQUE INDEX "memories_hash_unique_idx" ON "memories" ...
+
+      hashFact import + use at consolidate.ts:43 + 395 confirms T1.1 fix.
+    recommended_action: None.
+
+  - id: F-dom-pgvec-5
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 226-241
+    plan_ref: v0.1 architecture preserved
+    summary: pgvector `<=>` cosine operator + HNSW index continue to drive the recall path through delegation. The extraction did NOT touch the search() method; the index `memories_embedding_hnsw_idx` USING hnsw (embedding vector_cosine_ops) is intact in 0000_crazy_mimic.sql:51 and routes through PgvectorStore.search → composeFilters → SQL with `embedding <=> $1::vector AS distance`.
+    status: CLOSED
+    evidence: |
+      0000_crazy_mimic.sql:51:
+        CREATE INDEX "memories_embedding_hnsw_idx" ON "memories"
+        USING hnsw ("embedding" vector_cosine_ops);
+
+      pgvector-store.ts:229:
+        embedding <=> $1::vector AS distance
+        ORDER BY distance ASC
+
+      Recall flows through PgvectorStore (not the new PgvectorSkillStore);
+      skill rows participate via composeFilters' `kind = $N` predicate at
+      line 105-108, which the planner can intersect with the HNSW index.
+    recommended_action: None.
+
+  - id: F-dom-pgvec-6
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 496
+    plan_ref: T3.1 / architecture.md § 1 hard cap
+    summary: pgvector-store.ts is 496 LoC, satisfying the <=500 LoC hard cap declared in architecture.md § Module hygiene. Drop from 745 → 496 (-249 LoC). pgvector-skill-store.ts at 200 LoC + pgvector-vector-literal.ts at 23 LoC are both well under the cap.
+    status: CLOSED
+    evidence: |
+      `wc -l src/local/pgvector-store.ts` → 496
+      `wc -l src/local/pgvector-skill-store.ts` → 200
+      `wc -l src/local/pgvector-vector-literal.ts` → 23
+      Sum: 719 LoC across the three files (was 745 LoC in one file pre-extraction).
+    recommended_action: None.
+
+  - id: F-dom-pgvec-7
+    severity: INFO
+    file: src/core/scope.ts
+    line: 93-116
+    plan_ref: First-pass F-dom-pgvec-12
+    summary: First-pass MINOR F-dom-pgvec-12 ("Filters.excludeSuperseded inverts polarity from API-surface includeSuperseded; recommend bridging JSDoc") is CLOSED via inline JSDoc on Filters.excludeSuperseded. Documentation at scope.ts:109-115 explicitly notes "Polarity is INVERTED relative to the public RecallOptions.includeSuperseded" and shows the bridge step in filtersFromScope (src/local/index.ts:101-107).
+    status: CLOSED
+    evidence: |
+      src/core/scope.ts:109-115:
+        * Polarity is INVERTED relative to the public `RecallOptions.includeSuperseded`:
+        * the pipeline layer translates `includeSuperseded: false` (the consumer-facing
+        * default — "don't show supersession noise") into `excludeSuperseded: true`
+        ...
+        readonly excludeSuperseded?: boolean;
+
+      src/local/index.ts:102 confirms the translation:
+        excludeSuperseded: options.includeSuperseded === true ? false : true,
+    recommended_action: None — first-pass MINOR CLOSED.
+
+  - id: F-dom-pgvec-8
+    severity: INFO
+    file: src/local/__tests__/pgvector-skill-store.test.ts
+    line: 1-110
+    plan_ref: T3.1
+    summary: Direct unit tests for PgvectorSkillStore cover the four boundary contracts (empty description, invalid codeLanguage, empty derivedFrom, atomic seam exactly-once). Pool is stubbed (vi.fn) so any assertion failure surfaces as 'pool.query was unexpectedly called' rather than as cryptic SQL error — defensive test design.
+    status: CLOSED
+    evidence: |
+      pgvector-skill-store.test.ts:53, 70, 88 — `expect(poolQuery).not.toHaveBeenCalled()`
+      after each invalid-args reject, proving assertions run BEFORE SQL emission.
+      Line 91-109 — atomic seam contract: withTransactionFn called exactly once.
+    recommended_action: None.
+
+  - id: F-dom-pgvec-9
+    severity: MINOR
+    file: src/local/pgvector-skill-store.ts
+    line: 70-99
+    plan_ref: T3.1 (style observation)
+    summary: insertSkill omits the inline comment that pre-extraction code carried at the `args.description` parameter ("text mirrors description for non-skill recall fallback"). Useful comment lost in the move. Not a defect — the SQL still binds description into both `text` and `description` columns at $1 and $8.
+    status: NEW
+    evidence: |
+      Pre-extraction (4dc6555:pgvector-store.ts insertSkill):
+        [
+          args.description, // text mirrors description for non-skill recall fallback
+          args.hash,
+          ...
+
+      Post-extraction (pgvector-skill-store.ts:82-92):
+        [
+          args.description,    // <-- comment lost
+          args.hash,
+          ...
+          args.description,    // <-- bound twice (text + description columns)
+          args.codeLanguage,
+        ]
+    recommended_action: Restore the one-line comment when next editing this file (per no-paper-names-in-code.md § "Pre-existing references" — opportunistic cleanup on next touch).
+
+  - id: F-dom-pgvec-10
+    severity: MINOR
+    file: src/local/pgvector-skill-store.ts
+    line: 96, 134, 189
+    plan_ref: T3.1
+    summary: Error messages on the `result.rows[0] === undefined` defensive branch read 'insertSkill: INSERT returned no rows', 'insertDerivedSkill: INSERT returned no rows', 'insertDerivedSkillAtomic: INSERT returned no rows' — they include the function name (good for grep) but do NOT include the T3.1 plan-ref tag that no-paper-names-in-code.md § 'How to apply' #3 recommends ("Runtime error messages cite the task ID"). Style nit only; defensive branches are practically unreachable (INSERT ... RETURNING id always produces a row when the INSERT succeeds).
+    status: NEW
+    evidence: |
+      pgvector-skill-store.ts:96
+        throw new Error('insertSkill: INSERT returned no rows');
+
+      no-paper-names-in-code.md § "How to apply" #3:
+        "Runtime error messages cite the task ID. `Error: insertDerivedSkillAtomic:
+         INSERT returned no rows (T3.1)` is right; ..."
+    recommended_action: Opportunistically append "(T3.1)" suffix to all three messages next time this file is edited — same opportunistic-cleanup policy as F-dom-pgvec-9.
+
+  - id: F-dom-pgvec-11
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 368
+    plan_ref: First-pass F-dom-pgvec-11 + T5.3
+    summary: First-pass MINOR F-dom-pgvec-11 ("insertDerivedMemory shadows module-level vectorLiteral without NaN/Infinity guard") is CLOSED. T5.3 (commit 9f5b2d8 chore(docs)(v0-6-1)) replaced the local STRING shadow with the imported guarded function. All five callsites in pgvector-store.ts now route through pgvector-vector-literal.ts.
+    status: CLOSED
+    evidence: |
+      pgvector-store.ts:17  import { vectorLiteral } from './pgvector-vector-literal.js';
+      pgvector-store.ts:368 vectorLiteral(args.embedding),  ← insertDerivedMemory now guarded
+      Zero local definitions of `vectorLiteral` remain in the module.
+    recommended_action: None — first-pass MINOR CLOSED.
+
+  - id: F-dom-pgvec-12
+    severity: INFO
+    file: src/core/scope.ts, src/local/index.ts
+    line: scope.ts:93-116, index.ts:91-107
+    plan_ref: First-pass F-dom-pgvec-12
+    summary: Same as F-dom-pgvec-7 — first-pass MINOR F-dom-pgvec-12 (excludeSuperseded polarity bridge JSDoc) is CLOSED. Duplicate entry preserved here for explicit first-pass closure tracking per the rerun contract.
+    status: CLOSED
+    evidence: See F-dom-pgvec-7.
+    recommended_action: None — first-pass MINOR CLOSED.
