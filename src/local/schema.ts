@@ -93,23 +93,28 @@ export const memories = pgTable(
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),
     index('memories_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
-    // v0.4b: partial index on active (non-invalidated) rows ordered by (agent_id, last_accessed_at)
-    // supports CapacityBasedTrigger scope-count + LRU-ordered eviction queries per plan T5.1 + T6.1.
-    // WHERE t_invalid IS NULL keeps the index small (soft-deleted rows excluded per ADR D17).
-    // @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13).
+    // v0.4b: partial index on active (non-invalidated) rows keyed on the
+    // scope-tier column. Supports CapacityBasedTrigger COUNT(*) + loadCandidates
+    // SELECT queries per plan T5.1 + T6.1. `WHERE t_invalid IS NULL` keeps the
+    // index small (soft-deleted rows excluded per ADR D17).
+    //
+    // v0.4b-fixes T9.1 (F-dom-pg-1): `last_accessed_at` was originally listed
+    // as the second key column for LRU-style ORDER BY support — but no
+    // eviction query actually uses ORDER BY on this column (TriadicScoringPolicy
+    // computes the eviction order in-app, NOT via SQL). The column was dead
+    // index weight. Migration 0006 drops + recreates these 3 indexes keyed
+    // only on the scope-tier column.
+    //
+    // @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13)
+    // @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T9.1 (F-dom-pg-1)
     index('idx_memories_eviction_score')
-      .on(table.agentId, table.lastAccessedAt)
+      .on(table.agentId)
       .where(sql`${table.tInvalid} IS NULL`),
-    // v0.4b-fixes T3.1: per-tier partial indexes so generalized
-    // CapacityBasedTrigger + TimeBasedTrigger queries stay performant when
-    // scoped on User or Session tiers (previously they targeted the agent_id
-    // partial index above and silently degraded for other tiers).
-    // @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
     index('idx_memories_eviction_score_user')
-      .on(table.userId, table.lastAccessedAt)
+      .on(table.userId)
       .where(sql`${table.tInvalid} IS NULL`),
     index('idx_memories_eviction_score_session')
-      .on(table.sessionId, table.lastAccessedAt)
+      .on(table.sessionId)
       .where(sql`${table.tInvalid} IS NULL`),
     check(
       // EC-1 absorption (plan v1.1): name verbatim, cited by

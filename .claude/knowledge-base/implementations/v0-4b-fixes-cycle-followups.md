@@ -4,6 +4,24 @@ Tracking items observed during the halt-loop but DEFERRED to avoid scope creep p
 `cycle-implement.md § Anti-pattern #7`. Add new entries below; archive when the
 entry ships in its own follow-up plan or post-merge plan-archival step.
 
+## F-T9.1-1 — HNSW-friendly NN-query refactor DEFERRED to v0.5 (surfaced at iter 11 / T9.1; EC-7 absorption fired)
+
+Plan T9.1 F-dom-pg-2 proposed splitting `PgNearestNeighborProvider.distance()` into 2 roundtrips: (1) fetch self embedding as `embedding::text`, (2) NN search with the embedding as a `$N::vector` literal parameter. The goal: pgvector's HNSW index would satisfy `ORDER BY m.embedding <=> $1::vector` only when the right-hand side is a literal vector at planner time.
+
+An implementation attempt regressed the v0.4b T7.1 GOAL TEST's recall@10 from 1.000 (CLAUDE.md Roadmap Item 6 acceptance) → 0.02. Root cause: `embedding::text` roundtrip through `pg.js` driver does NOT preserve binary precision; the parsed-back `$N::vector` differs enough from the original vector to flip cosine-distance ordering, breaking long-tail multiplier protection.
+
+EC-7 safeguard fired explicitly: plan T9.1 line 722 states "if runtime exceeds budget, plan needs ADR row deferring HNSW-friendly refactor to v0.5". Recall@10 collapse IS the budget signal. NN refactor reverted to the v0.4b T3.1 CTE form; F-dom-pg-2 deferred to v0.5.
+
+**Recommended owner:** v0.5 cloud-runtime prep (HNSW-friendly NN search will matter more at 10k+ memories per scope; v0.4b at <1000 stays Seq Scan-acceptable).
+
+Investigation paths for v0.5:
+1. **pgvector COPY protocol** — bypass pg.js text serialization; use binary frame for vector params.
+2. **WITH MATERIALIZED hint** — `WITH self AS MATERIALIZED (SELECT embedding ...)` to force planner to materialize self once.
+3. **Direct pg.js type-parser override** — `pg.types.setTypeParser(...)` to keep vector as Float32Array end-to-end, bypassing text roundtrip.
+4. **Send embedding as `Array<number>` directly** — pgvector accepts JS arrays via the official `pgvector` npm package's `toSql()` helper, which does binary-safe serialization.
+
+T9.1's dead-index cleanup half (F-dom-pg-1) shipped successfully via migration 0006_drop_dead_index_columns.sql.
+
 ## F-T8.1-1 — POST-MERGE: amend ADR D12 in completed v0-4b plan with shipped shape (surfaced at iter 10 / T8.1)
 
 Plan T8.1 acceptance line 689 declares a POST-MERGE action:
