@@ -68,6 +68,19 @@ export interface ReflectOptions {
    * @see ADR-0005 — reflection trigger (explicit-only at v0.0).
    */
   readonly maxIterations?: number;
+
+  /**
+   * v0.7 episodic→semantic distillation per ADR D2. When supplied, the
+   * post-derivation phase passes the recall'd memories as a single cluster
+   * to `policy.consolidate(candidates, ctx)` and atomically soft-deletes
+   * the rejected rows + writes one `consolidation_history` audit row per
+   * returned result (EC-8). When omitted, behavior is byte-identical to
+   * v0.4a (no consolidation; `NoopConflictPolicy` would also short-circuit
+   * to the same result).
+   *
+   * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + ADR D2
+   */
+  readonly conflictResolution?: import('./dip/conflict-resolution-policy.js').ConflictResolutionPolicy;
 }
 
 export interface GetAllOptions {

@@ -9,6 +9,7 @@ import type { Tracer } from '@opentelemetry/api';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
+import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
@@ -480,6 +481,77 @@ export class PgvectorStore implements VectorStore {
     sourceIdsToSupersede: readonly string[],
   ): Promise<string> {
     return this.skillStore.insertDerivedSkillAtomic(args, sourceIdsToSupersede);
+  }
+
+  /**
+   * v0.7 T2.1 — pull (id, text, createdAt) for the scope's active memories so
+   * the conflict-resolution policy gets REAL timestamps (LWW comparator + EC-1
+   * tie-break). The reflect() `sourceMemories` array uses synthetic
+   * `createdAt: new Date()` per the v0.4a pipeline; that's fine for LLM
+   * derivation but breaks LWW determinism.
+   */
+  async recallConsolidationCandidates(
+    filters: Filters,
+  ): Promise<readonly { memoryId: string; text: string; createdAt: Date }[]> {
+    const where: string[] = ['t_invalid IS NULL'];
+    const params: unknown[] = [];
+    if (filters.user_id !== undefined) {
+      params.push(filters.user_id);
+      where.push(`user_id = $${String(params.length)}`);
+    }
+    if (filters.session_id !== undefined) {
+      params.push(filters.session_id);
+      where.push(`session_id = $${String(params.length)}`);
+    }
+    if (filters.agent_id !== undefined) {
+      params.push(filters.agent_id);
+      where.push(`agent_id = $${String(params.length)}`);
+    }
+    const { rows } = await this.pool.query<{ id: string; text: string; created_at: Date }>(
+      `SELECT id, text, created_at FROM memories WHERE ${where.join(' AND ')}`,
+      params,
+    );
+    return rows.map((r) => ({ memoryId: r.id, text: r.text, createdAt: r.created_at }));
+  }
+
+  /**
+   * v0.7 T2.1 — persist N `ConflictResolutionResult` rows atomically: for each
+   * result, soft-delete the rejected memory ids (`t_invalid = NOW()` per
+   * ADR-0006) AND insert one `consolidation_history` audit row. EC-8 absorbed:
+   * the entire batch runs inside a single `withTransaction` so a mid-batch
+   * `INSERT consolidation_history` failure rolls BOTH the soft-deletes AND
+   * any earlier inserts; the consumer never observes half-applied state.
+   *
+   * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + EC-8
+   */
+  async persistConsolidations(
+    results: readonly ConflictResolutionResult[],
+  ): Promise<void> {
+    if (results.length === 0) return;
+    await this.withTransaction(async (client) => {
+      for (const r of results) {
+        if (r.rejectedMemoryIds.length > 0) {
+          await client.query(
+            `UPDATE memories SET t_invalid = NOW()
+              WHERE id = ANY($1::uuid[]) AND t_invalid IS NULL`,
+            [[...r.rejectedMemoryIds]],
+          );
+        }
+        await client.query(
+          `INSERT INTO consolidation_history (
+             kept_memory_id, rejected_memory_ids, reason, policy_name,
+             original_episode_ids
+           ) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb)`,
+          [
+            r.keptMemoryId,
+            JSON.stringify([...r.rejectedMemoryIds]),
+            r.reason,
+            r.policyName,
+            JSON.stringify([...r.originalEpisodeIds]),
+          ],
+        );
+      }
+    });
   }
 
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
