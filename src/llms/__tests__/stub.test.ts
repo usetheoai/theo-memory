@@ -104,6 +104,43 @@ describe('DeterministicStubLLM.generateResponse (json type)', () => {
     expect(json.memory[0]!.text).toBe('hi there no period');
   });
 
+  it('strips role-prefix when content is in pipeline.ts inline format (F-dom-memory-2)', async () => {
+    // Production call site at src/core/extraction/pipeline.ts:230 passes a
+    // SINGLE synthetic user message whose `.content` is
+    // `messages.map((m) => `${m.role}: ${m.content}`).join('\n')`. Stub must
+    // strip role prefix BEFORE sentence-split or dedup hashes get polluted.
+    const llm = new DeterministicStubLLM();
+    const json = (await llm.generateResponse(
+      [userMsg('user: I like coffee\nassistant: noted\nuser: pgvector is fast')],
+      { type: 'json' },
+    )) as { memory: { id: string; text: string }[] };
+    expect(json.memory.length).toBeGreaterThan(0);
+    for (const m of json.memory) {
+      expect(m.text).not.toMatch(/^(user|assistant|system):/i);
+    }
+  });
+
+  it('composes strip + sentence-split correctly on multi-line pipeline-shape input (EC-2)', async () => {
+    // EC-2 absorption: validates that strip and sentence-split COMPOSE, not
+    // just that strip in isolation works. Source: edge-case-plan report
+    // adapters-stub-embedder-llm-cycle-1-fixes-edge-cases-2026-06-01.md § EC-2.
+    const llm = new DeterministicStubLLM();
+    const json = (await llm.generateResponse(
+      [
+        userMsg(
+          'user: I am Paulo.\nassistant: Nice.\nuser: I work at TheoCloud. My language is TS.',
+        ),
+      ],
+      { type: 'json' },
+    )) as { memory: { id: string; text: string }[] };
+    expect(json.memory.length).toBeGreaterThan(0);
+    for (const m of json.memory) {
+      expect(m.text).not.toMatch(/^(user|assistant|system):/i);
+    }
+    const texts = json.memory.map((m) => m.text);
+    expect(texts).toContain('I am Paulo');
+  });
+
   it('ignores the tools parameter (DIP signature compliance)', async () => {
     const llm = new DeterministicStubLLM();
     const j1 = await llm.generateResponse(
