@@ -1,0 +1,357 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-wiring
+review_target: 1d0a373..HEAD for plan adapters-stub-embedder-llm-cycle-1
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+date: 2026-06-01
+
+triad_revalidation:
+  total_new_symbols: 2
+  symbols_audited:
+    - DeterministicStubEmbedder
+    - DeterministicStubLLM
+  pillar_a_honest_pass: 2 / 2
+  pillar_b_honest_pass: 0 / 2
+  pillar_c_observed: 0 / 0
+  pillar_c_n_a: 2 / 2
+
+  notes: |
+    Pillar (a): both classes have functionally-necessary callers.
+      - `DeterministicStubEmbedder` is constructed at
+        `examples/chat-with-memory/lib/memory.ts:159` inside
+        `resolveAdapters()`, in the env-gated branch
+        (`THEOMEM_USE_STUB_ADAPTERS === "1"`). The env var IS
+        documented + reachable (README:100); the branch is NOT a
+        no-op gaming the metric.
+      - `DeterministicStubLLM` symmetric (same line, same branch).
+      - Barrel re-exports at `src/embedders/index.ts:10` and
+        `src/llms/index.ts:10` add a documentation surface but no
+        runtime caller imports the barrel today (per
+        ADR D4 + grep `from "@usetheo/memory/embedders"$`). Barrels
+        are verified-by-import via `exports.test.ts`.
+
+    Pillar (b): re-run of `check_wiring.py` returns FAIL for both
+    symbols (verdict HALT). Zero files under `tests/integration/**`
+    reference either class; zero `ADR-DEFER-WIRING-B` markers exist
+    in `.claude/knowledge-base/implementations/` scoped to these
+    symbols.
+
+    Pillar (c): plan declared no runtime metric for the cycle
+    (Goal recap `verb: ship`, metric is the test-suite gate, not a
+    runtime counter). Genuine N/A; no `.wiring-evidence.json`
+    expected.
+
+findings:
+  - id: F-wire-1
+    severity: CRITICAL
+    file: tests/integration/
+    line: n/a
+    plan_ref: |
+      cycle-implement.md § Hard gates #5: "Wiring triad pillar (b)
+      FAIL without ADR-DEFER — symbol not exercised in
+      tests/integration/. Halt; either add integration test OR add
+      explicit <!-- ADR-DEFER-WIRING-B: <reason> --> marker."
+      Plan task T1.1 + T1.2 Acceptance Criteria do not include any
+      integration assertion; plan does NOT carry an ADR-DEFER for
+      pillar (b).
+    summary: |
+      Both new public exports (`DeterministicStubEmbedder` and
+      `DeterministicStubLLM`) fail Wiring Pillar (b). No file under
+      `tests/integration/**` references either class, AND no
+      symbol-scoped `ADR-DEFER-WIRING-B` marker exists.
+    evidence: |
+      $ python3 .claude/skills/implement/scripts/check_wiring.py \
+          --symbol DeterministicStubEmbedder
+      → verdict HALT; pillar (b) tests_count=0;
+        reason="Symbol 'DeterministicStubEmbedder' is not
+        exercised in any integration test"
+
+      $ python3 .claude/skills/implement/scripts/check_wiring.py \
+          --symbol DeterministicStubLLM
+      → verdict HALT; pillar (b) tests_count=0; same reason.
+
+      $ grep -rn 'DeterministicStub' tests/
+      → (empty)
+
+      $ grep -rn 'ADR-DEFER-WIRING-B' \
+          .claude/knowledge-base/implementations/.progress-adapters-stub-embedder-llm-cycle-1.json \
+          .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+      → no matches scoped to DeterministicStubEmbedder or
+        DeterministicStubLLM. (The 13 markers that DO exist all
+        belong to earlier cycles — voyager-skill-library,
+        v0-3-agent-tools-mcp, v0-4b-forgetting-pipeline.)
+
+      The /implement validation report
+      `.claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-implement-validate-2026-06-01.md`
+      line 46 declares pillar (b) PASS with the rationale
+      "contract tests assert all determinism invariants via Zod
+      roundtrip + L2 norm + collision checks. Per testing.md §
+      Determinism, these ARE the integration evidence for
+      pure-function adapters." This rationale is NOT supported by
+      `.claude/rules/testing.md § Determinism` (lines 95-100),
+      which describes determinism as a property of tests (no
+      flaky tests; LLM stubs in unit tests; deterministic
+      fixtures; fake timers) — it does NOT say contract tests
+      substitute for `tests/integration/` coverage. Nor does
+      `cycle-implement.md § Hard gates #5` admit this substitution
+      — it requires either real integration coverage OR a
+      symbol-scoped `ADR-DEFER-WIRING-B` marker.
+
+      Existing pre-existing stubs (`StubEmbedder` / `StubLLM` at
+      `src/local/stubs.ts`) ARE used extensively in
+      `tests/integration/forgetting/*.test.ts` and other suites
+      — so the convention "integration tests need real coverage
+      of stub adapters" is already established in the repo. The
+      new deterministic flavors were not threaded into any
+      integration suite during T1.1/T1.2/T3.1.
+    recommended_action: |
+      Pick exactly one of (A), (B), or (C). Do NOT merge until one
+      lands:
+
+      (A) Add a lightweight integration test at
+          `tests/integration/adapters/deterministic-stub.test.ts`
+          that:
+            - constructs both adapters,
+            - wires them into `createLocalMemory({ embedder, llm,
+              vectorStore: new InMemoryVectorStore(), ... })`,
+            - asserts: `remember("same text")` produces the same
+              vector + same fact set on two cold-boot runs (this is
+              the actual F-T4.1-2-debug invariant the plan
+              promises to unblock).
+          This is ~30 LoC and exercises the symbol via the real
+          composition path the plan claims to enable.
+
+      (B) Add a symbol-scoped ADR-DEFER-WIRING-B marker to the
+          implementation contract, e.g., to a new file
+          `.claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md`:
+
+            <!-- ADR-DEFER-WIRING-B: DeterministicStubEmbedder:
+              pure-function adapter; determinism invariants
+              covered by contract suite at
+              src/embedders/__tests__/stub.test.ts; integration
+              landing site = F-T4.1-2 debug cycle (next-after-this)
+              which threads the stubs into a real `createLocalMemory`
+              round-trip against pgvector. -->
+            <!-- ADR-DEFER-WIRING-B: DeterministicStubLLM: same
+              rationale as above; landing site same. -->
+
+          Bare markers are rejected by the checker; the per-symbol
+          form is required.
+
+      (C) Strengthen the existing demo smoke into an automated
+          integration test by adding a Playwright/HTTP scenario
+          under `tests/e2e/` (or `tests/integration/`) that boots
+          the Next.js demo with `THEOMEM_USE_STUB_ADAPTERS=1` and
+          asserts deterministic DB state across two runs. Highest
+          fidelity to the plan's stated motivation; also the most
+          expensive option.
+
+      Whichever path is chosen, the /implement validation report
+      should be corrected — the current claim that determinism in
+      contract tests substitutes for pillar (b) is a fabricated
+      rationale and should be flagged so future cycles do not
+      copy it.
+
+  - id: F-wire-2
+    severity: MAJOR
+    file: .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-implement-validate-2026-06-01.md
+    line: 42-48
+    plan_ref: |
+      Same hard gate as F-wire-1, plus cycle-implement.md § Anti-
+      patterns #9: "NEVER fabricate runtime-metric proof — the
+      plan's Global DoD requires observing the metric non-zero.
+      Reading the code that emits the metric is NOT proof; the
+      metric must actually fire in an integration workload."
+      (Generalizes to pillar (b): reading the contract test that
+      asserts an invariant is NOT integration evidence.)
+    summary: |
+      Validation report's pillar (b) claim — "contract tests ARE
+      the integration evidence for pure-function adapters" —
+      cites `testing.md § Determinism` as authority, but that
+      section does not establish such a substitution. The same
+      pattern, if accepted, would weaken pillar (b) across the
+      ecosystem for any "pure-function" component (large fraction
+      of `src/core/`).
+    evidence: |
+      `.claude/rules/testing.md § Determinism` lines 95-100:
+
+        - **No flaky tests.** ...
+        - LLM calls in unit tests use stubs. ...
+        - Embeddings in unit tests use deterministic fixtures ...
+        - Time-dependent tests use a frozen clock ...
+
+      None of these clauses says contract suite substitutes for
+      `tests/integration/`. The section establishes determinism
+      requirements WITHIN tests, not the test tier.
+
+      `.claude/rules/testing.md § Pyramid` lines 67-76 lock the
+      distinction explicitly: integration tests live at
+      `tests/integration/**/*.test.ts` and "Cover the two-stage
+      write pipeline end-to-end. Reset DB state between tests."
+      The new stub classes were not threaded into this pipeline
+      end-to-end in any integration test.
+    recommended_action: |
+      In the same commit that closes F-wire-1, amend the
+      validation report's "Wiring triad summary" to either:
+        - cite the new integration test path (option A), OR
+        - cite the new ADR-DEFER-WIRING-B markers + landing site
+          (option B), OR
+        - cite the new e2e demo test (option C).
+      Remove the unsupported "contract tests ARE the integration
+      evidence" rationale so future cycles do not adopt it.
+
+  - id: F-wire-3
+    severity: MINOR
+    file: src/embedders/index.ts, src/llms/index.ts
+    line: 10
+    plan_ref: |
+      Plan ADR D4 + Coverage Matrix row 2: barrels are part of the
+      adapters-portfolio precedent. Acceptance criterion T2.1
+      requires barrels to exist and re-export the deterministic
+      stubs only.
+    summary: |
+      Barrel files `src/embedders/index.ts` and `src/llms/index.ts`
+      have zero in-repo runtime callers — only `exports.test.ts`
+      smoke tests verify them. Per cycle convention this is
+      acceptable for portfolio-scaffolding (future adapters extend
+      the barrel) but the LACK of any consumer should be
+      acknowledged so a future audit does not flag it as dead
+      code.
+    evidence: |
+      $ grep -rn 'from "@usetheo/memory/embedders"$\|from "@usetheo/memory/llms"$' \
+          --include='*.ts' --include='*.tsx' . | grep -v node_modules
+      → (empty; only `.../embedders/stub` and `.../llms/stub`
+        subpath consumers exist)
+
+      Plan ADR D4 anticipates: "Future adapters
+      (`./embedders/openai`, `./llms/anthropic`, etc.) will follow
+      the same pattern". The barrel is an empty-room-for-future
+      pattern, not dead code in the conventional sense.
+    recommended_action: |
+      Add a JSDoc line to each barrel: "@remarks Phase A — only
+      the deterministic stub is re-exported. Adding additional
+      adapters MUST extend this barrel AND declare a sibling
+      subpath in `package.json#exports`."
+      The barrels' `index.ts` files already carry @see references
+      to the roadmap; adding the Phase-A note documents the
+      intentional emptiness so a future `/code-quality` run does
+      not misclassify them as dead modules.
+
+  - id: F-wire-4
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 159
+    plan_ref: |
+      Plan T3.1 + ADR D5 — demo opt-in via
+      `THEOMEM_USE_STUB_ADAPTERS=1`. Plan stop-condition #4 hinges
+      on this branch being exercised.
+    summary: |
+      Demo's `resolveAdapters()` branch is the only runtime call
+      site for both new classes. The opt-in env var has zero CI
+      coverage today; the branch is exercised only via manual
+      smoke test (per plan T3.1 TDD note "n/a (ADR D5 of previous
+      cycle — demo has no unit-test infra; manual boot
+      verification)"). This is consistent with plan intent but
+      means a regression in `resolveAdapters` would not be caught
+      automatically.
+    evidence: |
+      $ grep -rn 'THEOMEM_USE_STUB_ADAPTERS' --include='*.ts' .
+      → examples/chat-with-memory/README.md:100 (docs)
+        examples/chat-with-memory/lib/memory.ts:151 (JSDoc)
+        examples/chat-with-memory/lib/memory.ts:158 (branch)
+
+      No CI-side execution of either env-var path exists.
+    recommended_action: |
+      Not a blocker for this cycle. Track as a follow-up: when
+      F-T4.1-2 debug cycle lands (which the plan declares as the
+      next consumer of these adapters), promote one of its
+      reproducibility runs to a CI integration test that boots
+      the demo with the env var and asserts deterministic DB
+      state. Option (C) above can absorb this.
+
+architecture_compliance:
+  dip_boundaries:
+    status: PASS
+    notes: |
+      `src/embedders/stub.ts` imports only `node:crypto` and
+      `src/core/{constants,dip/embedder}`; `src/llms/stub.ts`
+      imports only `node:crypto` and
+      `src/core/{dip/llm,message}`. No upward import (no
+      `src/local/`, `src/cloud/`, `src/theokit/`, `src/agent-
+      tools/`). Architecture.md § 3 honored.
+
+      Note: architecture.md § 3 dependency-direction diagram does
+      NOT yet list `src/embedders/` or `src/llms/` as sibling
+      branches of the core tree. The principle ("siblings of
+      local/cloud may only depend on core") is honored, but a
+      future architecture.md edit should declare the new sibling
+      branches explicitly so the boundary-check hook
+      (`.claude/hooks/boundary-check.sh`) can enforce them
+      automatically. Logging this here, not as a finding —
+      architecture.md edits live outside this cycle's scope.
+
+  reachability_from_entry_points:
+    status: PASS
+    notes: |
+      Entry-point trace:
+        `@usetheo/memory/embedders/stub` →
+          src/embedders/stub.ts → DeterministicStubEmbedder
+        `@usetheo/memory/llms/stub` →
+          src/llms/stub.ts → DeterministicStubLLM
+        `@usetheo/memory/embedders` →
+          src/embedders/index.ts → re-exports DeterministicStubEmbedder
+        `@usetheo/memory/llms` →
+          src/llms/index.ts → re-exports DeterministicStubLLM
+      All four subpaths are declared in package.json#exports and
+      land in npm publish --dry-run per the validation report
+      (line 19).
+
+  dead_exports:
+    status: PASS_WITH_NOTE
+    notes: |
+      No truly dead exports (every new symbol has at least the
+      smoke-test caller). Barrel re-exports have only smoke-test
+      callers (acceptable per ADR D4 — see F-wire-3).
+
+  concurrent_safety:
+    status: PASS
+    notes: |
+      Both stubs are pure functions with NO instance state
+      (`grep this. src/embedders/stub.ts src/llms/stub.ts`
+      surfaces only `this.embed(text)` method dispatch in
+      `embedBatch`; no field mutation). LCG is recomputed per
+      call (no shared `state` field). No `setInterval`, no
+      `setTimeout`, no file handle, no DB pool, no cache. Race
+      conditions are not plausible.
+
+      The `embedBatch` implementation iterates sequentially with
+      `await`. For a real OpenAI adapter this would be a
+      perf concern; for a pure-function stub it's correct + cheap.
+
+ec1_nan_guard_verification:
+  status: PASS
+  notes: |
+    `l2Normalize` at `src/embedders/stub.ts:63-75` guards
+    `if (norm < L2_DEGENERATE_THRESHOLD) return zeros` per plan
+    EC-1 absorption. Contract test
+    `src/embedders/__tests__/stub.test.ts:55-66` stresses 1000
+    random inputs without NaN; empty string also covered.
+    Plan v1.1 absorption verified.
+
+summary:
+  blockers: 0
+  criticals: 1
+  majors: 1
+  minors: 1
+  infos: 1
+
+  verdict: NEEDS_FIXES
+
+  rationale: |
+    The cycle ships clean code with honest static-caller wiring,
+    clean DIP boundaries, EC-1 NaN guard, and well-scoped contract
+    tests. BUT the pillar (b) gate fails per the project's own
+    cycle-implement.md hard gate #5, and the /implement validation
+    report papers over the failure with a rationale that
+    testing.md does not support. Either an integration test OR a
+    properly-scoped ADR-DEFER-WIRING-B marker MUST land before
+    merge. Lowest-cost remediation = option (B) in F-wire-1 (two
+    one-liner ADR-DEFER markers + landing-site declaration).

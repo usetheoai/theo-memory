@@ -1,0 +1,198 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-fixes-tests
+review_target: dc4ce2a..98f0b19 for plan adapters-stub-embedder-llm-cycle-1-fixes
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-fixes-plan.md
+
+test_pyramid:
+  unit_added: 3
+  integration_added: 1
+  e2e_added: 0
+  total_new_blocks_added: 4
+  baseline_contract_total: 570
+  post_cycle_contract_total: 573
+  note: |
+    Contract suite (tsconfig.contract.json) gained 3 unit tests
+    (llms stub +2 from T1.1 RED1+RED2; embedders stub +1 from T2.2 cross-run).
+    T2.1's +1 integration test runs outside the contract suite (vitest.integration.config.ts).
+    T2.3 strengthened 3 existing assertions in place (no count delta on contract suite).
+    Pyramid balance is appropriate for adapter contract checks.
+
+edge_cases_from_plan:
+  total: 11
+  covered_by_tests: 4  # EC-1 (stress), EC-2 (composition), EC-3 (text-type regex), EC-5 (named files)
+  covered_by_documentation: 7  # EC-4 (T0.1 gate), EC-6 (commit body), EC-7 (audit trail), EC-8 (JSDoc), EC-9 (JSDoc warning), EC-10 (followups table), EC-11 (test-count tolerance)
+  missing: []
+
+tdd_discipline:
+  t1_1_red1_red2: |
+    Committed in d5460fa (same commit as GREEN source fix). Per testing.md § Core rule
+    "Bug fixes ship a regression test in the same commit (test commits before the fix
+    when practical)" — bug-fix shape, single-commit shipping is the documented contract.
+    The pre-fix path produced role-prefix-polluted facts; both new tests (line 116-130
+    "strips role-prefix" + line 132-151 "composes strip + sentence-split") would have
+    failed against the pre-d5460fa source. Verified via inspection of the source diff
+    (`concatUserContent` now calls `.replace(ROLE_PREFIX_RE, '')` post-fix; pre-fix
+    joined raw `${m.role}: ${m.content}` lines verbatim).
+  t2_1_ec5: |
+    Committed in f295fcc; explicit named-file assertions for
+    src/embedders/{stub,index}.ts + src/llms/{stub,index}.ts. F1 followup test
+    (line 112-140) is INTACT and continues to iterate pkg.exports generically —
+    the new EC-5 block COMPLEMENTS, not replaces. Verified.
+  t2_2_lcg: |
+    Committed in f4afd02; seeded LCG inline (Numerical Recipes constants
+    a=1664525, c=1013904223) at src/embedders/__tests__/stub.test.ts:65-71.
+    No import from tests/integration/forgetting/fixtures/deterministic-hash.ts
+    (Option B per ADR D6 alternatives — correct cross-config-coupling avoidance).
+    New cross-run determinism test at lines 82-99 asserts byte-equality across
+    two runs with same seed (0xdeadbeef); catches regressions where someone
+    "modernizes" the LCG back to Math.random().
+  t2_3_regex: |
+    Committed in 58b6a86; STUB_CONTENT_RE = /^stub-response:[0-9a-f]{4}$/ extracted
+    as module-level constant at src/llms/__tests__/stub.test.ts:25. Applied to all
+    3 surfaces flagged in the plan: line 49 (generateChat with content), line 56
+    (generateChat with empty messages array), line 180 (generateResponse text-type
+    path — EC-3 absorption). grep for surviving `typeof.*content.*string` /
+    `typeof.*text.*string` patterns returns only the JSDoc comment at line 20
+    documenting the absorption — no live tautological typeof assertions remain.
+
+aaa_format_compliance:
+  - file: src/llms/__tests__/stub.test.ts:116-130
+    status: PASS
+    note: "Arrange (llm + msgs in single line) + Act (await generateResponse) + Assert (length>0 + per-fact regex not.toMatch)"
+  - file: src/llms/__tests__/stub.test.ts:132-151
+    status: PASS
+    note: "Arrange (llm) + Act (await generateResponse with multi-line content) + Assert (length>0 + per-fact not.toMatch + texts.toContain('I am Paulo'))"
+  - file: src/embedders/__tests__/stub.test.ts:73-80
+    status: PASS
+    note: "Arrange (embedder + nextSuffix LCG closure) + Act (loop 1000 embeds) + Assert (per-embed NaN check)"
+  - file: src/embedders/__tests__/stub.test.ts:82-99
+    status: PASS
+    note: "Arrange (embedder + run helper) + Act (two runs with same seed) + Assert (toEqual)"
+  - file: tests/integration/publish-readiness.test.ts:90-110
+    status: PASS
+    note: "Arrange (execFileSync npm pack) + Act (parse JSON + flatten to Set) + Assert (4 explicit has() calls)"
+
+skipped_or_only_tests_introduced: NONE
+commented_out_tests_introduced: NONE
+flaky_or_intermittent_signals_observed: NONE
+
+findings:
+  - id: F-tests-fixes-1
+    severity: INFO
+    file: src/embedders/__tests__/stub.test.ts
+    line: 82
+    plan_ref: T2.2 / ADR D6
+    summary: |
+      Inline LCG correctly chosen over cross-config import per ADR D6 rationale.
+      makeSeededLcg() at line 65 uses Numerical Recipes constants
+      (a=1664525, c=1013904223) with 32-bit unsigned arithmetic (>>> 0). Function
+      is locally scoped to the describe block — no module-scope pollution, no
+      cross-file coupling.
+    evidence: |
+      grep "import.*deterministic-hash\|from.*tests/integration" returned no
+      matches. LCG body (line 65-71) is self-contained 5-line implementation.
+    recommended_action: None — confirms ADR D6 implementation correctness.
+
+  - id: F-tests-fixes-2
+    severity: INFO
+    file: src/llms/__tests__/stub.test.ts
+    line: 25
+    plan_ref: T2.3 / EC-3
+    summary: |
+      STUB_CONTENT_RE module-level constant correctly DRY-applied across all 3
+      flagged surfaces (lines 49, 56, 180). Pre-fix tautological assertions
+      (typeof === 'string') are completely removed from live test code. The
+      only surviving `typeof r.content === 'string'` token is in the JSDoc
+      comment at line 20 documenting the absorption — that mention is
+      intentional traceability, not a regression.
+    evidence: |
+      grep "typeof.*content.*string\|typeof.*text.*string" matched only line 20
+      JSDoc context. Assertions at lines 49, 56, 180 all use .toMatch(STUB_CONTENT_RE).
+    recommended_action: None.
+
+  - id: F-tests-fixes-3
+    severity: INFO
+    file: tests/integration/publish-readiness.test.ts
+    line: 90
+    plan_ref: T2.1 / EC-5 / ADR D5
+    summary: |
+      EC-5 named-file assertions COMPLEMENT (not replace) the F1 followup loop
+      at line 112. Both blocks survive in the post-cycle file. Per ADR D5 of the
+      fix-up plan: "Replace `Math.random().toString(36)` ... otherwise inline a
+      5-line LCG" — and the F-tests-1 absorption rationale says "Add explicit
+      assertions, NOT replace the F1 followup". Implementation matches plan
+      intent verbatim.
+    evidence: |
+      Block at lines 90-110 has 4 explicit allPaths.has() calls; block at lines
+      112-140 retains the generic iteration over pkg.exports. Both pass.
+    recommended_action: None.
+
+  - id: F-tests-fixes-4
+    severity: INFO
+    file: src/llms/__tests__/stub.test.ts
+    line: 132
+    plan_ref: T1.1 RED2 / EC-2
+    summary: |
+      Test name "composes strip + sentence-split correctly on multi-line
+      pipeline-shape input" uses "+" between strip and sentence-split. Per
+      testing.md § Anti-patterns "Tests with `and` in the name — split into
+      two tests, each testing one thing." The "+" here describes the SINGLE
+      compositional behavior (strip and sentence-split must compose without
+      interference) — this is the EC-2 absorption rationale verbatim
+      (edge-case-plan v1.1 § EC-2: "the integration of strip + sentence-split
+      is the system under test"). Acceptable; not a violation.
+    evidence: |
+      Plan reference at line 303: "RED 2 (EC-2 absorption — multi-line +
+      sentence-split composition)" explicitly identifies composition as the
+      behavior tested.
+    recommended_action: None — composition test is the EC-2 contract.
+
+  - id: F-tests-fixes-5
+    severity: INFO
+    file: src/llms/__tests__/stub.test.ts
+    line: 116
+    plan_ref: T1.1 RED1 / F-dom-memory-2
+    summary: |
+      Assertion shape uses behavior-level matchers (not typeof checks):
+      (a) `expect(json.memory.length).toBeGreaterThan(0)` — extraction must
+      produce facts (not just return empty array); (b) `expect(m.text).not.toMatch(
+      /^(user|assistant|system):/i)` — actual content-level assertion that
+      strip happened. Pre-fix source would FAIL these assertions (joined raw
+      "user: ..." lines would surface as fact text with role prefix). TDD RED
+      shape verified by inspection of the source diff in d5460fa.
+    evidence: |
+      Source diff (d5460fa src/llms/stub.ts:54): `joined.replace(ROLE_PREFIX_RE,
+      '')` — pre-fix did NOT have this call. Test asserts post-fix invariant.
+    recommended_action: None.
+
+  - id: F-tests-fixes-6
+    severity: INFO
+    file: src/embedders/__tests__/stub.test.ts
+    line: 73
+    plan_ref: T2.2 / EC-1 stress
+    summary: |
+      EC-1 stress test (1000 inputs) retains its purpose post-LCG-swap. The
+      seed 0xec1 ("EC-1 reference") is documented in commit message and is a
+      readable mnemonic. Loop count and per-iteration assertion (NaN check)
+      identical to pre-cycle; only the input-generation mechanism changed
+      from Math.random() to seeded LCG. Determinism invariant locked
+      additionally by the +1 cross-run test at line 82.
+    evidence: |
+      Pre-cycle stress test diff:
+      - Math.random().toString(36) → nextSuffix() (seeded LCG)
+      Both inputs satisfy "1000 distinct strings to stress L2-norm guard".
+    recommended_action: None.
+
+summary: |
+  Test-quality fix-up cycle is CLEAN. All 4 plan task surfaces (T1.1 RED1+RED2,
+  T2.1 EC-5, T2.2 LCG, T2.3 regex) implemented as specified. Pyramid balance
+  appropriate (3 unit + 1 integration; no e2e needed for adapter contract checks).
+  All 11 ECs from the edge-case-plan absorbed (4 via test assertions, 7 via
+  documentation per design — DOCUMENT severity items). No skipped tests, no .only
+  leaks, no tautological typeof assertions remain on the 3 flagged surfaces.
+  Commit shape: bug-fix tests in same commit as source fix is per testing.md
+  contract for bug-fix cycles. ADR D6 inline-LCG choice correctly implemented
+  (no cross-config coupling). EC-3 absorption correctly extends regex to text-type
+  path. EC-5 named-file assertions correctly complement (not replace) the F1
+  followup. 6 INFO findings; 0 MINOR; 0 MAJOR; 0 CRITICAL; 0 BLOCKER.
+
+verdict: TESTS_READY_TO_MERGE

@@ -14,15 +14,16 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylistic,
   {
-    files: ['src/{core,local,theokit,agent-tools}/**/*.ts'],
+    files: ['src/{core,local,theokit,agent-tools,embedders,llms}/**/*.ts', 'src/__tests__/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
     languageOptions: {
       parserOptions: {
         project: ['./tsconfig.contract.json', './tsconfig.local.json'],
-        // tsconfig.contract.json now spans src/{core,theokit,agent-tools}; tsconfig.local.json spans src/{core,local}.
-        // Together they cover all linted files including src/agent-tools/__tests__/ (v0.3 T0.1 expanded contract glob).
+        // tsconfig.contract.json spans src/{core,theokit,agent-tools,embedders,llms};
+        // tsconfig.local.json spans src/{core,local}. Together they cover all linted files
+        // including src/__tests__/ (adapters-cycle-1 T2.1 — EC-6 root-no-reexport test).
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -41,7 +42,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/{core,local,theokit,agent-tools}/**/__tests__/**/*.test*.ts'],
+    files: ['src/{core,local,theokit,agent-tools,embedders,llms}/**/__tests__/**/*.test*.ts', 'src/__tests__/**/*.test*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',
@@ -50,6 +51,10 @@ export default tseslint.config(
       // `expect(mock.method).toHaveBeenCalled()`; unbound-method false-positives.
       '@typescript-eslint/unbound-method': 'off',
       'import/order': 'off',
+      // Barrel-scanner tests (adapters-cycle-1 T2.1 ADR D4 enforcement +
+      // subpath smoke tests) use `import * as barrel from "../index.js"`
+      // intentionally to introspect the export surface.
+      'import/no-namespace': 'off',
     },
   },
 );

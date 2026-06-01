@@ -1,0 +1,238 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-fixes-architecture
+review_target: dc4ce2a..HEAD (98f0b19) for plan adapters-stub-embedder-llm-cycle-1-fixes
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-fixes-plan.md
+verdict: READY_TO_MERGE
+summary: |
+  Fix-up cycle is structurally clean from the architectural lens. All 8 focus
+  areas verified PASS: EC-1 marker format (regex confirmed match for both
+  symbols), EC-6 source-plan edit scoped to ADR D2 Deep Dive + v1.2 frontmatter
+  ONLY, EC-7 audit-trail edit carries one-off honesty-fix note + F2 followup
+  reference, EC-8 v[i]! retained with explanatory comment, F-arch-2 constant
+  LINE unchanged at src/embedders/stub.ts:63, DIP boundary clean (imports only
+  from ../core/ + node:crypto), file-size budgets respected (124/150, 17/30,
+  116/200, 17/30), zero paper names or production-ready vocab in new code.
+  This is a low-risk doc/JSDoc/test fix-up cycle; no real CRITICAL or MAJOR
+  architectural defects surfaced. INFO findings document the verifications.
+
+findings:
+  - id: F-arch-fix-1
+    severity: INFO
+    file: .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+    line: 56-58
+    plan_ref: T0.1 / ADR D1 / EC-1
+    summary: EC-1 marker format invariant verified — both ADR-DEFER-WIRING-B markers use literal ASCII colon separator and match check_wiring.py:165 regex.
+    evidence: |
+      Manual regex test (re.compile + re.search) confirmed MATCH for BOTH symbols:
+      - DeterministicStubEmbedder: MATCH
+      - DeterministicStubLLM: MATCH
+      Real check_wiring.py invocation (absolute deferral-path):
+        DeterministicStubEmbedder → verdict=PASS, pillar_b status=DEFER ✓
+        DeterministicStubLLM      → verdict=PASS, pillar_b status=DEFER ✓
+      The markers at impl-contract lines 56 + 58 carry the canonical form
+        `<!-- ADR-DEFER-WIRING-B: <symbol>: <reason> -->`
+      with literal `: ` colon+space separator. Em-dash regression risk closed.
+    recommended_action: No action; verification confirms EC-1 absorption is correctly implemented.
+
+  - id: F-arch-fix-2
+    severity: INFO
+    file: src/embedders/stub.ts
+    line: 63
+    plan_ref: T1.2 / ADR D2 / F-arch-2
+    summary: F-arch-2 constant LINE verified UNCHANGED — `Number(LCG_MODULUS / 2n)` preserved per ADR D2 (JSDoc-only correction).
+    evidence: |
+      Line 63: `const LCG_HALF_MODULUS_F64 = Number(LCG_MODULUS / 2n);`
+      Per ADR D2 of the fix-up plan + SEPA Surface 4, the JSDoc-only correction
+      preserves the BigInt floor-div value because `embed()` output is
+      bit-identical in float64. T1.2 commit body (ffd37f7) confirms:
+      "LCG_HALF_MODULUS_F64 CONSTANT VALUE UNCHANGED (per ADR D2 of fix-up plan
+      + SEPA Surface 4)". No `.at(i) ?? 0` substitution introduced; v[i]!
+      retained at line 103 with explanatory comment block (lines 95-102) per
+      EC-8 lock.
+    recommended_action: No action.
+
+  - id: F-arch-fix-3
+    severity: INFO
+    file: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+    line: 1-3, 228-231
+    plan_ref: T1.2 / ADR D3 / EC-6
+    summary: EC-6 source plan edit verified — diff scoped to v1.2 frontmatter (lines 1-3) + ADR D2 Deep Dive "Collision analysis" line ONLY.
+    evidence: |
+      `git show ffd37f7 -- .../adapters-stub-embedder-llm-cycle-1-plan.md`
+      surfaces TWO hunks: (a) frontmatter note added at lines 1-3 documenting
+      v1.1 → v1.2 honesty correction with cross-link to fix-up plan; (b) line
+      228 "Collision analysis" math corrected. Goal, Objectives, Tasks,
+      Coverage Matrix, Acceptance Criteria UNCHANGED. Commit body (ffd37f7)
+      carries the mandatory EC-6 invariant:
+        "** EC-6 absorption (mandatory commit-body invariant per SEPA Surface 2): **
+        ... HONESTY correction NOT scope drift per `cycle-review.md § Hard
+        gates #2`: the Goal, Objectives, Tasks, Coverage Matrix, and Acceptance
+        Criteria of the source plan are unchanged; only the Deep Dive math +
+        the v1.2 frontmatter note are touched."
+      Cycle-review.md § Hard gates #2 invariant respected.
+    recommended_action: No action.
+
+  - id: F-arch-fix-4
+    severity: INFO
+    file: .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-implement-validate-2026-06-01.md
+    line: 46
+    plan_ref: T0.1 / ADR D1 / EC-7
+    summary: EC-7 audit-trail edit verified — commit body of c729d52 carries the "ONE-OFF honesty fix; NOT precedent" note + Followups F2 reference.
+    evidence: |
+      Commit body (c729d52) contains:
+        "EC-7 absorption (audit-trail edit precedent): the validation report
+        L46 edit is a ONE-OFF HONESTY FIX to remove fabricated rationale per
+        Inquebrável Rule 3; NOT a precedent for retrospective audit edits.
+        Followups table F2 of the fix-up implementation contract tracks the
+        policy update needed in .claude/rules/audit-trail-rotation.md."
+      Line 46 of the validation report now reads (verified):
+        "Pillar (b) Integration evidence: DEFERRED via ADR-DEFER-WIRING-B
+        markers landed in .../adapters-stub-embedder-llm-cycle-1-implementation.md
+        ... Amended 2026-06-01 — supersedes the original claim that
+        `testing.md § Determinism` substitutes for the integration tier. That
+        rationale was fabricated: ..."
+      Honest amend; no fabrication carried forward.
+    recommended_action: No action. Follow-up to update audit-trail-rotation.md
+      policy lives in implementation-contract Followups F2 (out of scope here).
+
+  - id: F-arch-fix-5
+    severity: INFO
+    file: src/embedders/stub.ts
+    line: 95-103
+    plan_ref: T3.1 / EC-8 / F-arch-4
+    summary: EC-8 v[i]! retention verified — non-null assertion kept with explanatory comment block per fail-fast rationale (Inquebrável Rule 8).
+    evidence: |
+      Lines 95-102 carry the 8-line explanatory comment block:
+        "F-arch-4 / EC-8 absorption (LOCKED option B): retain `v[i]!` non-null
+         assertion + this explanatory comment instead of switching to
+         `v.at(i) ?? 0` (which would silently substitute 0 on out-of-bounds, a
+         fail-silent regression violating Inquebrável Rule 8). The assertion is
+         SAFE here because the loop invariant `0 ≤ i < v.length` holds by
+         construction; if i ever escapes the bound, the assertion throws and
+         surfaces the bug.
+         noUncheckedIndexedAccess: i bounded by [0, v.length) loop invariant"
+      Line 103: `for (let i = 0; i < v.length; i++) out[i] = v[i]! / norm;`
+      `.at(i) ?? 0` substitution REJECTED per ADR D8 of fix-up plan lock.
+    recommended_action: No action.
+
+  - id: F-arch-fix-6
+    severity: INFO
+    file: src/embedders/, src/llms/
+    line: imports
+    plan_ref: architecture.md § 3 DIP
+    summary: DIP boundary verified — both adapter directories import ONLY from `../core/` + `node:crypto`. No cross-runtime imports.
+    evidence: |
+      `grep -nE "^import |^from " src/embedders/{stub,index}.ts src/llms/{stub,index}.ts`:
+        src/embedders/stub.ts:53: import { createHash } from 'node:crypto';
+        src/embedders/stub.ts:55: import { MAX_EMBEDDING_DIM } from '../core/constants.js';
+        src/embedders/stub.ts:56: import type { Embedder } from '../core/dip/embedder.js';
+        src/embedders/index.ts: re-exports DeterministicStubEmbedder from './stub.js' only.
+        src/llms/stub.ts:41: import { createHash } from 'node:crypto';
+        src/llms/stub.ts:43: import type { LLM } from '../core/dip/llm.js';
+        src/llms/stub.ts:44: import type { LLMResponse, Message } from '../core/message.js';
+        src/llms/index.ts: re-exports DeterministicStubLLM from './stub.js' only.
+      No imports from src/local/, src/cloud/, src/theokit/. DIP direction
+      preserved. boundary-check.sh hook constraints honored.
+    recommended_action: No action.
+
+  - id: F-arch-fix-7
+    severity: INFO
+    file: src/embedders/, src/llms/
+    line: file lengths
+    plan_ref: Global DoD / file-size budgets
+    summary: File-size budgets verified — all 4 adapter files within their declared caps.
+    evidence: |
+      `wc -l`:
+        src/embedders/stub.ts: 124 (cap 150 → 26 LoC headroom) ✓
+        src/embedders/index.ts: 17  (cap 30  → 13 LoC headroom) ✓
+        src/llms/stub.ts:      116 (cap 200 → 84 LoC headroom) ✓
+        src/llms/index.ts:     17  (cap 30  → 13 LoC headroom) ✓
+      T1.1 added strip-prefix regex + JSDoc → llms/stub.ts grew from 86 → 116
+      (+30 LoC; still 84 LoC under cap). T1.2 + T3.1 added JSDoc to
+      embedders/stub.ts (94 → 124; +30 LoC; still 26 LoC under cap).
+      T3.1 added 12-line JSDoc block to each barrel (5 → 17; still 13 LoC
+      under cap).
+    recommended_action: No action; future cycles should monitor headroom on
+      embedders/stub.ts (26 LoC) when the next adapter ships.
+
+  - id: F-arch-fix-8
+    severity: INFO
+    file: src/embedders/, src/llms/
+    line: full files
+    plan_ref: no-paper-names-in-code.md + dogfood-golden-rule.md
+    summary: Naming hygiene + vocabulary lock verified — no paper names, no production-ready vocab in NEW code or commit messages.
+    evidence: |
+      `grep -nE "voyager|mem0|letta|langmem|memgpt|generative.agents|coala|procmem|production.ready|production.grade|v1\.0.ready"
+        src/embedders/{stub,index}.ts src/llms/{stub,index}.ts`
+        → no matches.
+      JSDoc cites only project knowledge-base paths (plans/reviews/ADRs),
+      Park-Miller MINSTD (technical algorithm name — NOT a paper-marketing
+      name; LCG_MULTIPLIER comment is the standard textbook reference), and
+      filesystem coordinates. No `Voyager-style`, `Mem0-shape`, `Letta-pattern`
+      tokens. No `production-ready` claims; the T4.1 validation report
+      gate 9 explicitly checked NEW-code introduction count = 0.
+    recommended_action: No action.
+
+  - id: F-arch-fix-9
+    severity: INFO
+    file: .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+    line: 47-60
+    plan_ref: T0.1 / ADR D1
+    summary: Wiring triad scope amend verified — the fabricated `testing.md § Determinism` substitution claim is removed and replaced with the symbol-scoped ADR-DEFER markers.
+    evidence: |
+      Lines 47-60 of the source impl-contract now carry:
+      - L49-50: explicit Amended 2026-06-01 note rejecting the fabricated
+        `testing.md § Determinism` rationale (lockstep with the validation
+        report L46 amend).
+      - L52: pillar (a) PASS verified by check_wiring.py re-run (3 callers
+        each).
+      - L54-58: pillar (b) DEFERRED with the 2 ADR-DEFER markers immediately
+        below.
+      - L60: pillar (c) N/A.
+      The amend is honest, the marker placement is regex-conformant, and the
+      next-cycle landing site (F-T4.1-2 debug) is declared.
+    recommended_action: No action.
+
+  - id: F-arch-fix-10
+    severity: INFO
+    file: full feature branch
+    line: dc4ce2a..98f0b19
+    plan_ref: Global DoD
+    summary: Architectural compliance verified across 10 commits — no SOLID/coupling/cohesion/naming defects introduced; cycle is a doc/JSDoc/test cleanup with zero behavior change in core code.
+    evidence: |
+      `git log --oneline dc4ce2a..HEAD` returns 10 commits T0.1 → T4.1
+      following the dependency graph declared in the fix-up plan. `git diff
+      --stat dc4ce2a..HEAD`:
+        - 17 files changed, 912 insertions, 22 deletions
+        - 8 of 17 are audit-trail / SEPA-iterations / plan / changelog / review
+          / SKILL.md files (doc-only)
+        - 9 of 17 are src/test code — and ALL 9 are JSDoc additions,
+          test additions, OR small bug fix (T1.1 strip-prefix +1 line + JSDoc;
+          T1.2 JSDoc-only; T0.2 tsconfig 1 line)
+      No new classes, no new interfaces, no API surface change beyond what was
+      already declared by the source cycle. SRP/OCP/LSP/ISP/DIP all
+      respected — the cycle adds no new abstractions or refactor pressure.
+      The single behavior change (T1.1 concatUserContent strip-prefix) is
+      tested + ADR-justified (ADR D4 + EC-9 caveat).
+    recommended_action: No action; cycle is architecturally clean.
+
+architectural_verdict: READY_TO_MERGE
+recommendation: |
+  The fix-up cycle is a textbook low-risk doc/JSDoc/test cleanup with one
+  small bug fix (T1.1 strip-prefix in concatUserContent). All 8 focus areas
+  of this review brief verified PASS. No CRITICAL, no MAJOR, no MINOR
+  findings — only INFO entries documenting the verifications. The architecture
+  is clean; recommend READY_TO_MERGE pending the other 4 specialized agent
+  results.
+
+notes:
+  - The check_wiring.py script itself has a minor ergonomics defect: it crashes
+    with `ValueError` when given a relative `--deferral-path` (Python pathlib
+    `relative_to` strictness). Absolute path works. This is a pre-existing
+    script issue, NOT introduced by this fix-up cycle; out of scope here. If
+    deemed worth fixing, file as Followups item for a future cycle.
+  - The 2 SEPA infrastructure files (sepa.md + sepa-knowledge SKILL.md) and
+    1 sepa-iterations log file are by-product audit-trail artifacts from the
+    `/implement` halt-loop, per `cycle-implement.md v1.3` invariant (".claude/
+    agents/ holds agent DEFINITIONS; sepa-iterations logs live under
+    .claude/knowledge-base/implementations/{slug}/"). Both placements honor
+    the audit-trail-rotation.md convention.

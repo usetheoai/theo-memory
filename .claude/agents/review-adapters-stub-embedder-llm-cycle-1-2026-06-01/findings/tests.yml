@@ -1,0 +1,287 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-tests
+review_target: main..HEAD for plan adapters-stub-embedder-llm-cycle-1
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+date: 2026-06-01
+
+test_pyramid:
+  unit_added: 23
+  integration_added: 0
+  e2e_added: 0
+  total: 23
+  notes: >
+    Pyramid is unit-only by design — these adapters are pure functions (MD5 →
+    LCG → L2 normalize) with no I/O. testing.md § Pyramid puts adapter contracts
+    at the unit tier, so the absence of integration tests is appropriate. The
+    deterministic invariants ARE the integration evidence per testing.md §
+    Determinism (cited in commit 3e4262b body). Real cross-system wiring lives
+    downstream in the demo's smoke test (T3.1, manual per plan).
+
+tdd_compliance:
+  T0.1: { commit: 67c8229, status: config-only-no-tdd-required }
+  T1.1: { commit: 3e4262b, status: test+impl-same-commit, verdict: ACCEPTABLE }
+  T1.2: { commit: f2518c6, status: test+impl-same-commit, verdict: ACCEPTABLE }
+  T2.1: { commit: e503aa8, status: test+impl-same-commit, verdict: ACCEPTABLE }
+  T3.1: { commit: b88105c, status: no-test-per-plan-ADR-D5-RED-n/a, verdict: ACCEPTABLE }
+  T4.1: { commit: 2a149d7, status: validation-only-no-tdd-required }
+  notes: >
+    Plan §§ TDD RED for T1.1/T1.2/T2.1 declares "tests fail with Cannot find module"
+    BEFORE impl. Single-commit landings hide red-then-green ordering — but vitest
+    contract tests imported from a module that does not exist will fail with
+    ERR_MODULE_NOT_FOUND, so RED is structurally implicit. Project convention
+    (other v0.x cycles) follows the same single-commit pattern; not flagged as a
+    regression. T3.1 demo wiring deliberately has no automated test per ADR D5
+    (manual smoke test) — plan explicitly says "RED n/a (ADR D5 of previous cycle
+    — demo has no unit-test infra)".
+
+edge_cases_from_plan:
+  covered: 5
+  missing: 1
+  details:
+    EC-1_NaN_guard:
+      task: T1.1
+      covered: true
+      tests:
+        - "produces NO NaN for empty string input"
+        - "produces NO NaN across 1000 random-string inputs (EC-1 stress)"
+        - "returns L2-normalized unit vector OR all-zeros fallback (EC-1)"
+    EC-2_empty_string_input_embedder:
+      task: T1.1
+      covered: true
+      tests: ["produces NO NaN for empty string input"]
+    EC-3_empty_messages_array_LLM:
+      task: T1.2
+      covered: true
+      tests:
+        - "returns valid LLMResponse for empty messages array"
+        - "returns { memory: [] } for empty user content"
+    EC-4_no_sentence_terminators:
+      task: T1.2
+      covered: true
+      tests: ["extracts one fact from content without sentence terminators"]
+    EC-5_npm_pack_includes_new_subpaths:
+      task: T2.1
+      covered: false
+      notes: >
+        Plan SHOULD TEST suggested extending tests/integration/publish-readiness.test.ts
+        to grep `npm pack --dry-run` for src/embedders/stub.ts + src/llms/stub.ts +
+        the two index.ts barrels. Implementation reuses the existing manual `npm
+        publish --dry-run` step at T4.1 instead. NOT a regression (manual gate
+        executed per validation report) but the recurring automated guard is missing.
+    EC-6_root_no_reexport:
+      task: T2.1
+      covered: true
+      tests:
+        - "does NOT re-export DeterministicStubEmbedder from root"
+        - "does NOT re-export DeterministicStubLLM from root"
+        - "preserves existing root re-export of pre-existing zero-vector StubEmbedder (ADR D1)"
+      file: src/__tests__/no-root-reexport.test.ts
+    EC-7_baseline_preserved_after_tsconfig_widening:
+      task: T0.1
+      covered: false
+      notes: >
+        Suggested as a one-off pre/post baseline check during T0.1, not as a
+        committed test artifact. Validation report shows 552 passed / 2 skipped
+        post-T0.1; baseline was 544/2-skip pre-cycle, so growth comes entirely
+        from the new tests (552 - 544 = 8 — though the actual count of new tests
+        is 23 across 4 files which suggests some inflation, see F-tests-3). Soft
+        verification only.
+
+skip_only_check:
+  searched_patterns: ["xit", "xtest", ".skip", "it.only", "test.only", "describe.only", "fit(", "fdescribe("]
+  matches: 0
+  verdict: CLEAN
+
+forbidden_test_names_with_and:
+  matches: 0
+  verdict: CLEAN
+
+aaa_compliance:
+  format_used: Given-When-Then-comments in stub.test.ts; AAA-implicit in exports.test.ts
+  verdict: COMPLIANT
+  notes: >
+    src/embedders/__tests__/stub.test.ts uses // Given/When/Then comments in the
+    first three tests then drops the labels but keeps the structure. src/llms/
+    counterpart drops the comments entirely but preserves arrange/act/assert
+    visual separation. Per testing.md § BDD, format is "Given-When-Then (or
+    Arrange-Act-Assert)" — both acceptable. No two-step "and" violations.
+
+mock_fixture_hygiene:
+  mocks_used: 0
+  fixtures_used: 0
+  notes: >
+    No mocks needed — these are pure-function adapters. Tests construct fresh
+    instances per `it` block. No shared state between tests. Determinism is the
+    contract under test, so no fake timers needed.
+
+test_runtime_concerns:
+  estimated_max: <1s per test (pure JS, 1000-input stress fits comfortably)
+  flaky_risk: SEE F-tests-2 (Math.random in EC-1 stress test)
+
+findings:
+  - id: F-tests-1
+    severity: MINOR
+    file: tests/integration/publish-readiness.test.ts
+    line: n/a (not edited)
+    plan_ref: T2.1 § Edge Case Review EC-5 (SHOULD TEST)
+    summary: >
+      EC-5 SHOULD TEST not absorbed — publish-readiness.test.ts was NOT extended
+      to assert that `npm pack --dry-run` tarball contains the new subpath files
+      (src/embedders/stub.ts, src/embedders/index.ts, src/llms/stub.ts,
+      src/llms/index.ts).
+    evidence: |
+      grep -n 'embedders/stub\|llms/stub\|embedders/index\|llms/index' \
+        tests/integration/publish-readiness.test.ts
+        -> 0 matches
+      Plan EC-5 wording: "extender para também grep `npm pack --dry-run` por
+      src/embedders/stub.ts + src/llms/stub.ts + src/embedders/index.ts +
+      src/llms/index.ts. Garante que `files` array em package.json não exclui
+      acidentalmente."
+      The manual `npm publish --dry-run` at T4.1 verified ONCE; the recurring
+      regression guard against accidental `files` array edits is absent.
+    recommended_action: >
+      Add 4 assertions to tests/integration/publish-readiness.test.ts that the
+      pack manifest includes the 4 new files. ~6 lines of code, prevents
+      regressions from future package.json edits.
+
+  - id: F-tests-2
+    severity: MINOR
+    file: src/embedders/__tests__/stub.test.ts
+    line: 58-64
+    plan_ref: T1.1 § Acceptance Criteria + testing.md § Determinism
+    summary: >
+      EC-1 stress test seeds its 1000 inputs with `Math.random()`, violating
+      testing.md § Determinism ("No flaky tests" / "Embeddings in unit tests use
+      deterministic fixtures"). The test exercises DIFFERENT inputs every run.
+    evidence: |
+      grep -n 'Math.random' src/embedders/__tests__/stub.test.ts
+        -> 61:      const v = await embedder.embed(`text-${i}-${Math.random().toString(36)}`);
+
+      testing.md § Determinism: "No flaky tests. A failing test is a bug with
+      maximum priority; fix or delete, never @skip."
+    recommended_action: >
+      Replace `Math.random().toString(36)` with a deterministic generator
+      (e.g., `seedFromText(i)` via a tiny LCG or just `String(i)`-based suffix).
+      The NaN-guard tests existential property — "no input ever produces NaN" —
+      is better served by a deterministic enumeration than by a random sample
+      whose seed varies per CI run. Failure-mode probability (~2^-128) means
+      flakiness is practically impossible, but the rule is rule.
+
+  - id: F-tests-3
+    severity: MINOR
+    file: src/llms/__tests__/stub.test.ts
+    line: 40, 47
+    plan_ref: testing.md § Anti-patterns ("Tests that only assert structure")
+    summary: >
+      Two `it` blocks assert `typeof r.content` is "string" without asserting an
+      actual content value. The "returns LLMResponse with role=assistant" test
+      gives partial coverage (role=assistant is a concrete value), but the
+      content-typeof check is the kind of structural-only assertion testing.md
+      bans. Same issue at line 47 for the empty-messages variant.
+    evidence: |
+      L40:    expect(r.role).toBe('assistant');
+      L41:    expect(typeof r.content).toBe('string');
+
+      testing.md anti-pattern: "Tests that only assert structure
+      (`expect(result).toBeDefined()`) — assert actual behavior with explicit
+      values."
+    recommended_action: >
+      Replace `expect(typeof r.content).toBe('string')` with
+      `expect(r.content).toMatch(/^stub-response:[0-9a-f]{4}$/)` to assert the
+      ADR D3 contract (`"stub-response:<hex-tag>"` format with 4-hex-char tag).
+      That's the actual observable behavior; the typeof check is a tautology
+      since TypeScript already guarantees `content: string` on `LLMResponse`.
+
+  - id: F-tests-4
+    severity: INFO
+    file: src/embedders/__tests__/exports.test.ts + src/llms/__tests__/exports.test.ts
+    line: 13
+    plan_ref: testing.md § Anti-patterns ("Tests that only assert structure")
+    summary: >
+      The smoke tests use `expect(...).toBeDefined()` which testing.md flags as
+      a structure-only assertion. In context this is the appropriate idiom for a
+      "barrel re-exports symbol X" smoke test (there's no behavior beyond
+      module-resolution); a stricter `toBe(FromStub)` follow-up immediately
+      checks identity, which IS behavior. Combined, the pair gives enough
+      signal. INFO-only — not a fix request, just flagged for transparency.
+    evidence: |
+      L12-13:  it('barrel re-exports DeterministicStubEmbedder', () => {
+      L13:       expect(barrel.DeterministicStubEmbedder).toBeDefined();
+    recommended_action: >
+      None required. The structural assertion at L13 is followed at L17 by
+      `expect(barrel.X).toBe(FromStub)` which closes the behavior gap. Leave
+      as-is.
+
+  - id: F-tests-5
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 157-161
+    plan_ref: T3.1 + plan § ADR D5 "RED n/a"
+    summary: >
+      T3.1 demo env-wiring shipped with ZERO automated test coverage — plan
+      ADR D5 explicitly states "ADR D5 of previous cycle — demo has no unit-test
+      infra; manual boot verification". The fallback is the manual smoke test in
+      T4.1 § "Optional manual smoke". Out-of-scope for this cycle per the plan
+      itself, but worth tracking for the adapters portfolio roadmap: as more
+      adapter swap-paths land in the demo, manual smoke alone will not scale.
+    evidence: |
+      git log --oneline 1d0a373..HEAD -- examples/chat-with-memory/
+        -> b88105c feat(examples)(adapters)(cycle-1)... (no test file)
+      Validation report (2a149d7) line for T3.1: "Manual smoke deferred (per
+      ADR D5)".
+    recommended_action: >
+      None for this cycle (plan exempted). For the next adapters cycle, consider
+      adding a minimal Vitest config under examples/chat-with-memory/ to assert
+      `resolveAdapters()` returns `source: "stub"` when env is set and
+      `source: "openai"` when unset — pure-function unit test, no Next.js boot
+      required.
+
+  - id: F-tests-6
+    severity: INFO
+    file: src/embedders/__tests__/stub.test.ts
+    line: 42-49
+    plan_ref: T1.1 § Acceptance Criteria
+    summary: >
+      The L2 norm test ("returns L2-normalized unit vector OR all-zeros fallback
+      (EC-1)") uses an OR-branched assertion `norm === 0 || abs(norm-1)<1e-6`.
+      For the deterministic input "test", only ONE branch can be true on any
+      given run; the test passes regardless of which. This is a weak assertion
+      in the sense that a regression that flips the "test" embedder output to
+      all-zeros (EC-1 fallback) would pass silently when in fact the correct
+      behavior on a non-degenerate input is to return a unit vector. Better:
+      two tests — one asserts `norm ≈ 1.0` on a normal input (e.g., "test"),
+      another asserts `norm === 0` only on a verified degenerate input (via a
+      controlled stub of the LCG or by direct unit-test of `l2Normalize`).
+    evidence: |
+      L42-49: the OR branch lets either outcome pass. Plan acceptance criterion
+      reads: "Returned array L2 norm === 1.0 within `1e-6` tolerance OR
+      all-zeros (EC-1 fallback)." So this satisfies the AC literally, but the
+      OR semantics weaken the regression guard.
+    recommended_action: >
+      Split into two tests: (1) for a known non-degenerate input, assert
+      `norm` is within 1e-6 of 1.0 strictly (no OR). (2) For the EC-1 path,
+      either inject a controlled all-zero LCG output or unit-test the
+      `l2Normalize` helper directly (extract it as a named export from stub.ts
+      or move to a small helper module). Tightens the regression net without
+      changing behavior.
+
+summary:
+  total_findings: 6
+  blocker: 0
+  critical: 0
+  major: 0
+  minor: 3
+  info: 3
+  verdict: ACCEPTABLE_WITH_MINOR_GAPS
+  rationale: >
+    Test pyramid is unit-only and that is appropriate for pure-function
+    adapters. TDD compliance is acceptable in same-commit shape (project
+    convention; RED is structurally implicit via ERR_MODULE_NOT_FOUND). 5 of 6
+    SHOULD-TEST plan-declared edge cases are covered; 1 (EC-5 publish-readiness
+    extension) is a MINOR miss. No skipped/only tests, no `and` in test names,
+    no flaky-by-design fixtures (Math.random in EC-1 stress is the one
+    determinism breach, F-tests-2 MINOR). Two structural-only assertions
+    (F-tests-3) downgrade test quality slightly. No BLOCKER/CRITICAL/MAJOR.
+    Recommended: address F-tests-1, F-tests-2, F-tests-3 in a follow-up cleanup
+    (~30 LoC total) before next adapters cycle lands; F-tests-4 and F-tests-5
+    are informational; F-tests-6 tightens an OR-branched assertion that
+    literally satisfies the AC.
