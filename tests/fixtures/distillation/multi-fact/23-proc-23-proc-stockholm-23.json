@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-23-proc-stockholm-23",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Stockholm region: the postgres replica lags during peak; the build pipeline runs on every PR (across 8 parallel runners); Olivia from finance reviews every Friday.",
+  "expectedFacts": [
+    {
+      "text": "the postgres replica lags during peak"
+    },
+    {
+      "text": "the build pipeline runs on every PR — across 8 parallel runners"
+    },
+    {
+      "text": "Olivia from finance reviews every Friday"
+    }
+  ]
+}

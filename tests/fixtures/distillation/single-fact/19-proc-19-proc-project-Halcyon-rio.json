@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-19-proc-project-Halcyon-rio",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Rio deployment, project Halcyon launches in Q4 — 500 enterprise pilots.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4 (Rio deployment)"
+    }
+  ]
+}

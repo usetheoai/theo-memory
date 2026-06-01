@@ -1,0 +1,12 @@
+{
+  "id": "multi-fact-02-hand-trip-plan",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Booked flights to Tokyo for July 12-26. Staying in Shibuya the first week, then Kyoto for the second. Already got the JR Pass.",
+  "expectedFacts": [
+    { "text": "Trip to Japan from July 12 to July 26", "attributedTo": "user" },
+    { "text": "First week in Shibuya, Tokyo", "attributedTo": "user" },
+    { "text": "Second week in Kyoto", "attributedTo": "user" },
+    { "text": "Owns a JR Pass for the trip", "attributedTo": "user" }
+  ]
+}

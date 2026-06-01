@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-31-proc-the-postgres-replica-vienna",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Vienna deployment, the postgres replica lags during peak — by 200 to 400 milliseconds.",
+  "expectedFacts": [
+    {
+      "text": "the postgres replica lags during peak (Vienna deployment)"
+    }
+  ]
+}

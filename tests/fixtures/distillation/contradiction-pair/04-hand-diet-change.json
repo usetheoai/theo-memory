@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-04-hand-diet-change",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Started eating fish again last month — went pescatarian after years of being strictly vegetarian.",
+  "expectedFacts": [
+    { "text": "Currently pescatarian (eats fish but no other meat)", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Currently pescatarian (eats fish but no other meat)",
+    "rejected": "Vegetarian for over a decade, no fish or seafood"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-06-hand-language-progress",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Passed C1 German last week — Goethe-Zertifikat. Big jump from B2, finally.",
+  "expectedFacts": [
+    { "text": "German proficiency at C1 level (Goethe-Zertifikat)", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "German proficiency at C1 level (Goethe-Zertifikat)",
+    "rejected": "German proficiency at B2 level (Goethe-Institut certified 2024)"
+  }
+}

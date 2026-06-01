@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-12-proc-helena-12",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Helena mentors juniors — also a deep expert in security audits.",
+  "expectedFacts": [
+    {
+      "text": "Helena mentors juniors"
+    },
+    {
+      "text": "Helena is a deep expert in security audits"
+    }
+  ]
+}

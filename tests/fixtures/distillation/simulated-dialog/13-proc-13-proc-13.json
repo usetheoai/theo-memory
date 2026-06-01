@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-13-proc-13",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to schedule the offsite for the platform team.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: on-call covers business hours only; and the deadline is end of Q3.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: schedule the offsite for the platform team"
+    },
+    {
+      "text": "on-call covers business hours only"
+    },
+    {
+      "text": "the deadline is end of Q3"
+    }
+  ]
+}

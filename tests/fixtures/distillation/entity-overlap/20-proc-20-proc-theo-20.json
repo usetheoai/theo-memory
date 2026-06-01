@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-20-proc-theo-20",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Theo runs the SRE team — also a deep expert in security audits.",
+  "expectedFacts": [
+    {
+      "text": "Theo runs the SRE team"
+    },
+    {
+      "text": "Theo is a deep expert in security audits"
+    }
+  ]
+}

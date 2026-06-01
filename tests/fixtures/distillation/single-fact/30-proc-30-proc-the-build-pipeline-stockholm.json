@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-30-proc-the-build-pipeline-stockholm",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Stockholm deployment, the build pipeline runs on every PR — across 8 parallel runners.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR (Stockholm deployment)"
+    }
+  ]
+}

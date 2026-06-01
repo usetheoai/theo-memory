@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-24-proc-the-postgres-replica-berlin",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Berlin deployment, the postgres replica lags during peak — by 200 to 400 milliseconds.",
+  "expectedFacts": [
+    {
+      "text": "the postgres replica lags during peak (Berlin deployment)"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-39-proc-the-analytics-dashboard-tokyo",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Tokyo deployment, the analytics dashboard refreshes every 15 minutes — against a read replica.",
+  "expectedFacts": [
+    {
+      "text": "the analytics dashboard refreshes every 15 minutes (Tokyo deployment)"
+    }
+  ]
+}

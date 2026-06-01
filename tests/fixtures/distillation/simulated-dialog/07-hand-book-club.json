@@ -1,0 +1,11 @@
+{
+  "id": "simulated-dialog-07-hand-book-club",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: My book club is reading Project Hail Mary by Andy Weir this month.\nAGENT: How's it going so far?\nUSER: Loving it. Meeting next Tuesday at Helena's house — she usually hosts.",
+  "expectedFacts": [
+    { "text": "Book club is reading Project Hail Mary by Andy Weir", "attributedTo": "user" },
+    { "text": "Book club meets next Tuesday at Helena's house", "attributedTo": "user" },
+    { "text": "Helena usually hosts the book club", "attributedTo": "user" }
+  ]
+}

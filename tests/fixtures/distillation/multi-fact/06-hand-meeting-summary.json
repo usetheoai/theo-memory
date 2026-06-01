@@ -1,0 +1,11 @@
+{
+  "id": "multi-fact-06-hand-meeting-summary",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Quarterly planning meeting yesterday. Q3 priorities are: (1) ship the auth rewrite, (2) reduce p95 latency below 200ms, (3) onboard 3 new hires by end of August.",
+  "expectedFacts": [
+    { "text": "Q3 priority 1: ship the auth rewrite", "attributedTo": "user" },
+    { "text": "Q3 priority 2: reduce p95 latency below 200ms", "attributedTo": "user" },
+    { "text": "Q3 priority 3: onboard 3 new hires by end of August", "attributedTo": "user" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-11-proc-aditya-11",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Aditya speaks at conferences — also a deep expert in observability.",
+  "expectedFacts": [
+    {
+      "text": "Aditya speaks at conferences"
+    },
+    {
+      "text": "Aditya is a deep expert in observability"
+    }
+  ]
+}

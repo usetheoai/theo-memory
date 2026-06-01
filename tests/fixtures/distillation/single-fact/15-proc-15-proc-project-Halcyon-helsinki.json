@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-15-proc-project-Halcyon-helsinki",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Helsinki deployment, project Halcyon launches in Q4 — 500 enterprise pilots.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4 (Helsinki deployment)"
+    }
+  ]
+}

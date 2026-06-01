@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-32-proc-tokyo-32",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Tokyo region: the staging cluster auto-scales overnight; project Halcyon launches in Q4 (500 enterprise pilots); the postgres replica lags during peak.",
+  "expectedFacts": [
+    {
+      "text": "the staging cluster auto-scales overnight"
+    },
+    {
+      "text": "project Halcyon launches in Q4 — 500 enterprise pilots"
+    },
+    {
+      "text": "the postgres replica lags during peak"
+    }
+  ]
+}

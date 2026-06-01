@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-12-proc-project-Halcyon-stockholm",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Stockholm deployment, project Halcyon launches in Q4 — 500 enterprise pilots.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4 (Stockholm deployment)"
+    }
+  ]
+}

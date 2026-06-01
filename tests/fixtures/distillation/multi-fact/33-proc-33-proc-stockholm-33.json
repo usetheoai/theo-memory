@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-33-proc-stockholm-33",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Stockholm region: Theo from support rotates weekly; project Halcyon launches in Q4 (500 enterprise pilots); Olivia from finance reviews every Friday.",
+  "expectedFacts": [
+    {
+      "text": "Theo from support rotates weekly"
+    },
+    {
+      "text": "project Halcyon launches in Q4 — 500 enterprise pilots"
+    },
+    {
+      "text": "Olivia from finance reviews every Friday"
+    }
+  ]
+}
