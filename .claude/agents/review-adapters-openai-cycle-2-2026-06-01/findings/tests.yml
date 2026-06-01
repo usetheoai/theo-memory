@@ -1,0 +1,255 @@
+agent: review-adapters-openai-cycle-2-tests
+review_target: 75153fc..93c4ad2 for plan adapters-openai-cycle-2
+plan: .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md
+
+# ---------------------------------------------------------------------------
+# Test pyramid balance
+# ---------------------------------------------------------------------------
+# Cycle 2 is a MOVE-only adapter extraction (zero behavioral change per ADR D3).
+# All 8 new tests live at the unit/contract layer (`src/**/__tests__/*.test.ts`),
+# which is the correct level for DIP-shape + subpath-export discipline. No
+# integration tests in tests/integration/ are required for this cycle because:
+#   1. The adapters are MOVE-only — behavior was previously exercised in
+#      examples/chat-with-memory (consumer dogfood) and is preserved verbatim.
+#   2. ADR D5 explicitly defers real-API integration to consumer dogfood
+#      (chat-with-memory demo IS the real-API surface).
+#   3. EC-2 absorption: ANY method invocation in unit tests would hit live
+#      OpenAI (cost + 401 in CI without OPENAI_API_KEY) — correctly avoided.
+test_pyramid:
+  unit_added: 8
+  integration_added: 0
+  e2e_added: 0
+  total: 8
+
+# Breakdown of the +8 delta (matches review brief claim):
+#   - src/embedders/__tests__/openai.test.ts        : +1 (T1.1 smoke / DIP shape)
+#   - src/llms/__tests__/openai.test.ts             : +1 (T1.2 smoke / DIP shape)
+#   - src/__tests__/no-root-reexport.test.ts        : +2 (EC-3 guard, OpenAIEmbedder + OpenAILLM)
+#   - src/embedders/__tests__/exports.test.ts       : +2 (T2.1 barrel re-export + identity)
+#   - src/llms/__tests__/exports.test.ts            : +2 (T2.1 barrel re-export + identity)
+# Empirical confirmation: `npm test` -> 581 passed | 2 skipped (583 total).
+# Cycle 1 baseline was 573 passed; 581 - 573 = +8. Delta verified.
+
+# ---------------------------------------------------------------------------
+# Edge case coverage from plan
+# ---------------------------------------------------------------------------
+# The 10 EC findings absorbed at plan v1.1 are split across the plan tasks.
+# Tests-layer coverage focuses on EC-2 (no live API in smoke) and EC-3 (no
+# root re-export). Other ECs are covered at JSDoc + commit-message level
+# (EC-5/6/7/10) or are non-test-shaped (EC-1/4/8/9).
+edge_cases_from_plan:
+  covered: 2  # EC-2 (no live API in smoke) + EC-3 (no root re-export)
+  missing: []
+
+# EC-2 verification:
+#   grep '\.embed(\|\.embedBatch(\|\.generateChat(\|\.generateResponse('
+#     src/embedders/__tests__/openai.test.ts
+#     src/llms/__tests__/openai.test.ts
+#   -> All matches are inside JSDoc comments. Zero method invocations in
+#      test bodies. The smoke tests only do `typeof embedder.embed` (property
+#      access on the function reference, NOT invocation). Live-API path is
+#      not exercised.
+#
+# EC-3 verification: src/__tests__/no-root-reexport.test.ts lines 32-38 add
+# the two assertions verbatim — `(root as Record<string, unknown>)['OpenAIEmbedder']`
+# and `['OpenAILLM']` both `.toBeUndefined()`. Tests pass against the actual
+# barrel built by T2.1.
+
+# ---------------------------------------------------------------------------
+# TDD compliance per task
+# ---------------------------------------------------------------------------
+# Cycle 2 task-commit shape (verified via `git show --stat`):
+#   - d1ebfe1 (T1.1): includes BOTH src/embedders/openai.ts AND
+#     src/embedders/__tests__/openai.test.ts in the SAME atomic commit.
+#   - 548c23f (T1.2): includes BOTH src/llms/openai.ts AND
+#     src/llms/__tests__/openai.test.ts in the SAME atomic commit.
+#   - 9352d52 (T2.1): includes the barrel/package.json change AND the
+#     extensions to no-root-reexport.test.ts + both exports.test.ts files.
+#
+# This matches the Cycle 1 atomic-commit pattern. RED-GREEN-REFACTOR was run
+# locally before the squash (per implement halt-loop discipline); the audit
+# trail is in .claude/knowledge-base/implementations/adapters-openai-cycle-2/
+# sepa-iterations/. No commit shipping impl without its test was observed.
+
+# ---------------------------------------------------------------------------
+# Mock / fixture hygiene
+# ---------------------------------------------------------------------------
+# Tests are pure type/identity assertions:
+#   - `expect(OpenAIEmbedder).toBeDefined()` — class constructor reference
+#   - `expect(typeof embedder.embed).toBe('function')` — method type
+#   - `expect(barrel.OpenAIEmbedder).toBe(FromOpenAI)` — module identity
+#   - `expect(root['X']).toBeUndefined()` — barrel-surface absence
+# Zero mocks, zero fixtures, zero time/network/random dependency.
+# Deterministic per testing.md § Determinism.
+
+# ---------------------------------------------------------------------------
+# Skipped / commented tests
+# ---------------------------------------------------------------------------
+# grep '\.skip\|xit\|xtest\|it\.only\|test\.only' across all 5 touched
+# files -> zero matches. grep for commented `it(` blocks -> zero matches.
+# Inquebrável Rule 7 honored.
+
+# ---------------------------------------------------------------------------
+# Findings
+# ---------------------------------------------------------------------------
+findings:
+  - id: F-tests-1
+    severity: INFO
+    file: src/embedders/__tests__/openai.test.ts
+    line: 17
+    plan_ref: T1.1 + ADR D5 + EC-2
+    summary: |
+      Smoke test cleanly honors EC-2 (no live API invocation). Constructor
+      invocation `new OpenAIEmbedder()` is safe — the lazy-singleton pattern
+      defers OpenAI client construction to the first `.embed()` call, so the
+      constructor never touches `process.env.OPENAI_API_KEY` nor the network.
+      DIP-shape assertions (class + method type) are the correct surface
+      per ADR D5 (real-API integration deferred to consumer dogfood).
+    evidence: |
+      Lines 23-29 assert OpenAIEmbedder is defined + embed/embedBatch are
+      functions. No `.embed(...)` / `.embedBatch(...)` call anywhere. The
+      JSDoc preamble (lines 1-13) explicitly documents EC-2 absorption with
+      `@see` reference to the edge-case report. AAA/Given-When-Then comments
+      are present (lines 19-26).
+    recommended_action: |
+      None. Pattern is the canonical template for the next 51 adapter
+      smoke tests (anthropic, ollama, gemini, ...).
+
+  - id: F-tests-2
+    severity: INFO
+    file: src/llms/__tests__/openai.test.ts
+    line: 18
+    plan_ref: T1.2 + ADR D5 + EC-2
+    summary: |
+      Smoke test mirrors F-tests-1 for OpenAILLM. Constructor invocation
+      safe (lazy singleton); zero live-API method calls; DIP-shape
+      assertions cover `generateResponse` + `generateChat`. The JSDoc
+      preamble explicitly forbids `.generateResponse()` / `.generateChat()`
+      invocation and cites EC-2.
+    evidence: |
+      Lines 24-29 assert OpenAILLM is defined + generateResponse/generateChat
+      are functions. grep `\.generateResponse(\|\.generateChat(` returns
+      only comment-text hits (lines 4, 9). AAA/Given-When-Then comments
+      present (lines 20-27).
+    recommended_action: |
+      None. Pattern is the canonical template for the next 51 LLM-adapter
+      smoke tests.
+
+  - id: F-tests-3
+    severity: INFO
+    file: src/embedders/__tests__/exports.test.ts
+    line: 23
+    plan_ref: T2.1 + ADR D1
+    summary: |
+      Barrel re-export tests follow the Cycle 1 stub precedent exactly.
+      Two new it() blocks: (a) `barrel.OpenAIEmbedder` is defined, (b) the
+      barrel re-export is identity-equal to the direct subpath import
+      (`barrel.OpenAIEmbedder === FromOpenAI`). The identity check is the
+      strongest possible assertion that no double-instantiation or wrapper
+      drift occurred during T2.1.
+    evidence: |
+      Lines 23-29 (embedders/exports.test.ts) and lines 23-29
+      (llms/exports.test.ts) — symmetric, single-assertion blocks. Both
+      describe-blocks reuse the existing `@usetheo/memory/embedders subpath`
+      and `@usetheo/memory/llms subpath` groupings — no scope drift.
+    recommended_action: |
+      None.
+
+  - id: F-tests-4
+    severity: INFO
+    file: src/__tests__/no-root-reexport.test.ts
+    line: 32
+    plan_ref: T2.1 + EC-3 + ADR D1
+    summary: |
+      EC-3 absorption is locked: the regression guard against root-bundle
+      bloat is extended to the OpenAI adapter pair. Two new it() blocks
+      assert `root['OpenAIEmbedder']` and `root['OpenAILLM']` are both
+      `.toBeUndefined()`. The pre-existing assertion for
+      `StubEmbedder`/`StubLLM` (legacy v0.2 zero-vector stubs) is preserved
+      — backward-compat sentinel still holds.
+    evidence: |
+      Lines 32-38 add the two assertions. Lines 40-46 preserve the legacy
+      sentinel (root-re-export of v0.2 StubEmbedder + StubLLM remains
+      `.toBeDefined()`). The describe-block header
+      "@usetheo/memory root barrel — ADR D4 enforcement" is unchanged —
+      EC-3 is treated as an extension of ADR D4, which is correct (D4 set
+      the no-root-reexport discipline for adapters; D1 + EC-3 extend it to
+      the OpenAI pair).
+    recommended_action: |
+      None. When adapter #3 ships (anthropic per the portfolio roadmap),
+      extend this file with the matching 2 it() blocks. Pattern is locked.
+
+  - id: F-tests-5
+    severity: INFO
+    file: tests/integration/ (absence)
+    line: n/a
+    plan_ref: ADR D5
+    summary: |
+      Cycle 2 ships ZERO integration tests for the OpenAI adapters. This is
+      INTENTIONAL per ADR D5: real-API integration is deferred to consumer
+      dogfood via the chat-with-memory demo (which IS the real-API surface).
+      MOVE-only refactor (ADR D3) preserves the existing demo-side behavior
+      verbatim; no new integration risk surface was introduced.
+    evidence: |
+      git diff 75153fc..93c4ad2 --stat -- 'tests/integration/**' returns
+      zero matches. Demo lift at T3.1 (commit bce8182) imports the SDK
+      adapters into examples/chat-with-memory/lib/chat-stream.ts; the
+      previous integration coverage (test-chat-with-memory skill, 30/30
+      PASS at v0.4b-expansion baseline) carries forward unchanged.
+    recommended_action: |
+      None for this cycle. When Cycle 2.X adds model-name constructor
+      parameter (EC-7) or function-calling support (Cycle 2.X scope per
+      T1.2 commit message), revisit whether an integration test
+      gated by `CI=true` + `OPENAI_API_KEY` (per testing.md § Pyramid E2E)
+      becomes appropriate.
+
+  - id: F-tests-6
+    severity: INFO
+    file: n/a
+    line: n/a
+    plan_ref: Inquebrável Rule 7 + testing.md § Determinism
+    summary: |
+      Zero skipped tests, zero `.only` leaks, zero commented-out test
+      blocks across the 5 touched files. All assertions are pure
+      type/identity checks with no time/network/random dependency.
+      Determinism verified by `npm test` -> 581 passed | 2 skipped (583);
+      the 2 skips are PRE-EXISTING (not introduced by Cycle 2) — the
+      Cycle 1 baseline already had them.
+    evidence: |
+      grep '\.skip\|xit\|xtest\|it\.only\|test\.only' across all 5 touched
+      files returned zero matches. `npm test` final summary line:
+      "Tests  581 passed | 2 skipped (583)".
+    recommended_action: |
+      None.
+
+# ---------------------------------------------------------------------------
+# Naming conventions per testing.md § Anti-patterns
+# ---------------------------------------------------------------------------
+# Tests names verified to describe BEHAVIOR, not method names:
+#   - 'exposes the Embedder DIP shape (class + embed + embedBatch methods)'
+#     -> Behavior: the surface contract the adapter exposes. Method names
+#        inside parens are clarifiers, not the test subject.
+#   - 'barrel re-exports OpenAIEmbedder' -> Behavior of the barrel.
+#   - 'OpenAIEmbedder barrel export equals direct openai import'
+#     -> Behavior: identity preservation.
+#   - 'does NOT re-export OpenAIEmbedder from root (EC-3, ...)' -> Behavior
+#     of the root barrel boundary.
+# Zero tests use the forbidden "test_X_1" / "works correctly" / "and"
+# patterns.
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+summary:
+  blocker: 0
+  critical: 0
+  major: 0
+  minor: 0
+  info: 6
+  verdict: |
+    READY_TO_MERGE from the tests-review lens. The 8 new tests cleanly
+    cover the two test-shaped EC findings (EC-2 + EC-3), follow Cycle 1
+    precedent for adapter test patterns, honor TDD discipline (test +
+    impl in same atomic commit), and the absence of integration tests is
+    explicitly justified by ADR D5. The pattern is now locked for the 51
+    remaining adapters in the portfolio roadmap.

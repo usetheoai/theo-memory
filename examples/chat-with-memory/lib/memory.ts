@@ -43,10 +43,11 @@ import type {
   Scope,
   VectorStore,
 } from "@usetheo/memory/contract";
+import { OpenAIEmbedder } from "@usetheo/memory/embedders/openai";
 import { DeterministicStubEmbedder } from "@usetheo/memory/embedders/stub";
+import { OpenAILLM } from "@usetheo/memory/llms/openai";
 import { DeterministicStubLLM } from "@usetheo/memory/llms/stub";
 import pg from "pg";
-import { OpenAIEmbedder, OpenAILLM } from "./openai-adapters";
 
 /** Explicit-only reflection policy (ADR-0005). */
 class DemoManualReflectionPolicy implements ManualReflectionPolicy {

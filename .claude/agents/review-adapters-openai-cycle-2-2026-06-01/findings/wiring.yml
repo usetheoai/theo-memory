@@ -1,0 +1,227 @@
+agent: review-adapters-openai-cycle-2-wiring
+review_target: 75153fc..93c4ad2 for plan adapters-openai-cycle-2
+plan: .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md
+plan_version: v1.1 SHIPPABLE 90.8
+cycle_scope: MOVE-only (ADR D3) — zero behavioral change from demo lift
+
+triad_revalidation:
+  total_new_symbols: 2  # OpenAIEmbedder, OpenAILLM
+  pillar_a_honest_pass: 2 / 2  # static caller: barrel re-export + demo functional caller
+  pillar_b_honest_pass: 2 / 2  # smoke tests + barrel-identity tests + EC-3 regression guard
+  pillar_c_observed: n/a       # plan declares NO runtime metric (MOVE-only ADR D3); Global DoD has zero metric checkbox
+
+pillar_a_evidence:
+  symbol: OpenAIEmbedder
+  callers:
+    - file: src/embedders/index.ts
+      line: 19
+      kind: barrel-re-export
+      functional_necessity: not_gaming
+      rationale: |
+        Barrel re-export is the public-facing entry per ADR D1
+        (@usetheo/memory/embedders subpath). NOT a no-op: backed by
+        identity-equality test in __tests__/exports.test.ts (line 28)
+        AND consumed by the demo via the `@usetheo/memory/embedders/openai`
+        DIRECT subpath. Even with the demo direct-importing, the barrel is
+        the documented public API for future consumers per
+        adapters-portfolio-roadmap.md (52 adapters all enter through this
+        pattern).
+    - file: examples/chat-with-memory/lib/memory.ts
+      line: 46
+      kind: production-consumer
+      functional_necessity: required
+      rationale: |
+        Functional caller — `resolveAdapters()` at line 157-161 instantiates
+        `new OpenAIEmbedder()` when `THEOMEM_USE_STUB_ADAPTERS !== "1"`
+        (default branch). Real production code path for the chat-with-memory
+        demo, which IS the dogfood-evidence surface per ADR D5
+        (real-API integration test deferred to demo).
+
+  symbol: OpenAILLM
+  callers:
+    - file: src/llms/index.ts
+      line: 19
+      kind: barrel-re-export
+      functional_necessity: not_gaming
+      rationale: Same as OpenAIEmbedder barrel — backed by identity test.
+    - file: examples/chat-with-memory/lib/memory.ts
+      line: 48
+      kind: production-consumer
+      functional_necessity: required
+      rationale: |
+        `new OpenAILLM()` at line 160 in `resolveAdapters()` default branch.
+        Real production caller — receives chat-extraction pipeline traffic
+        on every demo turn when OPENAI_API_KEY is set.
+
+pillar_b_evidence:
+  symbol: OpenAIEmbedder
+  tests:
+    - file: src/embedders/__tests__/openai.test.ts
+      kind: smoke + DIP-shape
+      exercises_symbol: yes
+      rationale: |
+        Test instantiates `new OpenAIEmbedder()` and asserts class is defined
+        + `embed` and `embedBatch` are typeof function. EC-2 absorption
+        EXPLICITLY forbids calling .embed()/.embedBatch() (would hit live
+        OpenAI API + cost real tokens + fail 401 in CI). Per ADR D5,
+        real-API integration is deferred to the chat-with-memory demo.
+        Test IS honest about its scope (JSDoc lines 2-12 + plan DoD
+        EC-2 checkbox).
+    - file: src/embedders/__tests__/exports.test.ts
+      kind: barrel-identity
+      exercises_symbol: yes
+      rationale: |
+        Asserts `barrel.OpenAIEmbedder === FromOpenAI` (identity equality,
+        line 28). Catches future regressions where barrel re-exports a
+        different class than the source file.
+    - file: src/__tests__/no-root-reexport.test.ts
+      kind: regression-guard
+      exercises_symbol: negatively
+      rationale: |
+        EC-3 absorption — asserts root barrel does NOT re-export
+        OpenAIEmbedder (line 33). Locks adapter discipline before future
+        adapters (anthropic, ollama) land. NEGATIVE-shape test but
+        functionally exercises the import + access path.
+
+  symbol: OpenAILLM
+  tests:
+    - file: src/llms/__tests__/openai.test.ts
+      kind: smoke + DIP-shape
+      exercises_symbol: yes
+      rationale: Same EC-2 pattern as OpenAIEmbedder smoke test.
+    - file: src/llms/__tests__/exports.test.ts
+      kind: barrel-identity
+      exercises_symbol: yes
+    - file: src/__tests__/no-root-reexport.test.ts
+      kind: regression-guard
+      exercises_symbol: negatively
+      line: 37
+      rationale: Asserts root.OpenAILLM === undefined (EC-3 absorption).
+
+pillar_c_evidence:
+  declared: false
+  rationale: |
+    Plan Global DoD (lines 405-423) has ZERO runtime-metric checkbox.
+    ADR D3 (MOVE-only scope) explicitly bans behavioral change — including
+    NEW instrumentation. Cycle 2 lifts existing demo code verbatim; no
+    metric was instrumented in the source file
+    (examples/chat-with-memory/lib/openai-adapters.ts pre-deletion) so
+    none can land in the SDK target without violating MOVE-only.
+    Pillar (c) "n/a" is the HONEST verdict per the cycle-implement triad
+    contract — the wiring triad documents the metric-deferral via the
+    plan's MOVE-only ADR rather than fabricating a no-op metric.
+
+subpath_exports_check:
+  package_json_exports:
+    - subpath: ./embedders/openai
+      types: ./src/embedders/openai.ts
+      default: ./src/embedders/openai.ts
+      status: PRESENT (package.json lines 32-35)
+    - subpath: ./llms/openai
+      types: ./src/llms/openai.ts
+      default: ./src/llms/openai.ts
+      status: PRESENT (package.json lines 44-47)
+  verdict: PASS
+
+root_barrel_check:
+  file: src/index.ts
+  modified_in_cycle_2: false
+  re_exports_openai: false
+  verdict: PASS — root barrel intentionally does not re-export the new classes per ADR D1 + EC-3 regression guard.
+
+demo_adapter_routing_check:
+  file: examples/chat-with-memory/lib/memory.ts
+  function: resolveAdapters
+  line: 157-161
+  routing_logic: |
+    Returns DeterministicStub{Embedder,LLM} when THEOMEM_USE_STUB_ADAPTERS === "1"
+    (literal-equality, strict — matches ADR D5 of adapters-cycle-1). Returns
+    `new OpenAIEmbedder()` + `new OpenAILLM()` (from the SDK subpaths) on
+    the default branch. Stub path is the ONLY path that does not hit OpenAI.
+  verdict: PASS
+
+legacy_file_deletion_check:
+  file: examples/chat-with-memory/lib/openai-adapters.ts
+  exists: false  # verified via ls
+  residual_importers:
+    code_files: 0
+    doc_files: 1
+  verdict: NEEDS_NOTE — F-wire-1 below
+  evidence_grep: |
+    `grep -rn 'openai-adapters' examples/` returned only one match:
+    examples/chat-with-memory/README.md:185 (architecture diagram still
+    lists `openai-adapters.ts` as a lib/ file).
+
+dip_boundary_check:
+  src_core_imports_local: false
+  src_local_imports_cloud: false
+  src_embedders_isolation: clean (imports only from src/core/dip/embedder.js + external `openai`)
+  src_llms_isolation: clean (imports only from src/core/dip/llm.js + src/core/message.js + external `openai`)
+  verdict: PASS
+
+findings:
+  - id: F-wire-1
+    severity: MINOR
+    file: examples/chat-with-memory/README.md
+    line: 185
+    plan_ref: T3.2 (legacy file deletion)
+    summary: README architecture tree still lists deleted `openai-adapters.ts` under `lib/`
+    evidence: |
+      Line 185: `│   ├── openai-adapters.ts           # Embedder + LLM DIPs`
+      The file was deleted in commit 3e9d860 (T3.2). The README architecture
+      diagram on lines 175-188 was not updated to reflect the deletion —
+      readers will look for the file and not find it. The bullet should be
+      removed; the SDK subpath import (`@usetheo/memory/embedders/openai` +
+      `@usetheo/memory/llms/openai`) should be the canonical surface called
+      out instead, ideally with a short note under `## Notes on the
+      integration` matching the new lib/memory.ts:46-49 imports.
+    recommended_action: |
+      Remove line 185 from the architecture tree. Optionally add a one-line
+      note under `## Notes on the integration` documenting that adapters
+      now come from the SDK via subpath imports. Cosmetic — does NOT block
+      merge but should ship before PR is opened to keep public-facing demo
+      docs honest.
+    impact: |
+      DX nit — a new reader trying to understand the demo wiring will be
+      confused for ~30 seconds when the referenced file is missing. Not a
+      production risk; not a correctness risk.
+
+  - id: F-wire-2
+    severity: INFO
+    file: src/llms/openai.ts
+    line: 77
+    plan_ref: T1.2 DIP-mandated 3rd param + EC-4 absorption
+    summary: `_tools` param is discarded via `void _tools;` — intentional MOVE-only stub
+    evidence: |
+      `OpenAILLM.generateResponse` accepts `_tools?: readonly unknown[]`
+      as 3rd param (matches `LLM.generateResponse` DIP signature per
+      src/core/dip/llm.ts) but immediately discards it via `void _tools;`.
+      Function-calling support is explicitly deferred to Cycle 2.X
+      (line 37 `@todo`). This is HONEST: the param is present to match
+      the DIP contract; the impl docs that it is not yet wired.
+    recommended_action: |
+      None for this cycle. Track Cycle 2.X as the wiring follow-up so
+      callers don't surprise themselves with silent param drops. The
+      JSDoc already calls this out.
+    impact: |
+      No risk today — current production caller (chat-with-memory demo)
+      does not pass `_tools`. Future caller (e.g., @usetheo/sdk
+      function-calling flow) will need either Cycle 2.X impl OR explicit
+      "tools ignored by OpenAILLM" docs at the call site.
+
+summary:
+  blockers: 0
+  critical: 0
+  major: 0
+  minor: 1
+  info: 1
+  verdict: READY_TO_MERGE
+  notes: |
+    Wiring triad pillar (a) + (b) HONESTLY pass for both new symbols.
+    Pillar (c) is documented "n/a" via ADR D3 (MOVE-only, no metric
+    instrumentation) — confirmed in plan Global DoD. Subpath exports +
+    root barrel exclusion + EC-3 regression guard + demo functional
+    routing all PASS. Only finding is a stale README architecture tree
+    entry pointing at the deleted legacy file (cosmetic, MINOR). The
+    `_tools` discard is intentional MOVE-only scope and is documented
+    in JSDoc + @todo for Cycle 2.X.
