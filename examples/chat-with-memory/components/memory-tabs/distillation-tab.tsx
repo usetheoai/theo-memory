@@ -91,13 +91,21 @@ export function DistillationTab({ userId, reloadKey }: Props) {
       const url = new URL("/api/memory/consolidation-history", window.location.origin);
       url.searchParams.set("userId", userId);
       url.searchParams.set("limit", "50");
-      const resp = await fetch(url, { signal });
-      if (!resp.ok) {
-        setAudit({ rows: [], total: 0 });
-        return;
+      try {
+        const resp = await fetch(url, { signal });
+        if (!resp.ok) {
+          setAudit({ rows: [], total: 0 });
+          return;
+        }
+        const json = (await resp.json()) as AuditResponse;
+        setAudit(json);
+      } catch (err) {
+        // Aborted fetch is expected control-flow (userId changed mid-fetch
+        // OR component unmounted); swallow silently. Re-throw anything else.
+        if (signal.aborted) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        throw err;
       }
-      const json = (await resp.json()) as AuditResponse;
-      setAudit(json);
     },
     [userId],
   );
