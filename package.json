@@ -92,7 +92,8 @@
     "vitest-mock-extended": "^4.0.0"
   },
   "optionalDependencies": {
-    "natural": "^8.1.0"
+    "natural": "^8.1.0",
+    "openai": "^4.77.0"
   },
   "repository": {
     "type": "git",
