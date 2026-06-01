@@ -51,6 +51,17 @@ try {
   ];
   const missingIndexes = expectedIndexes.filter((n) => !indexNames.includes(n));
 
+  // EC-3 FK is the load-bearing GDPR contract — verify ON DELETE SET NULL
+  // is actually live; T2.1 integration test caught a real defect where the
+  // initial migration ran but the FK clause was silently dropped via
+  // CREATE TABLE IF NOT EXISTS no-op semantics.
+  const { rows: fkRows } = await pool.query(
+    `SELECT delete_rule FROM information_schema.referential_constraints
+      WHERE constraint_name = 'consolidation_history_kept_memory_id_fkey'`,
+  );
+  const fkRule = fkRows[0]?.delete_rule;
+  const fkOk = fkRule === 'SET NULL';
+
   let journal;
   try {
     journal = JSON.parse(
@@ -68,9 +79,10 @@ try {
   console.log(`table consolidation_history exists: ${tableExists}`);
   console.log(`indexes present: ${indexNames.join(', ') || '(none)'}`);
   console.log(`indexes missing: ${missingIndexes.join(', ') || '(none)'}`);
+  console.log(`FK kept_memory_id ON DELETE SET NULL live: ${fkOk} (delete_rule=${fkRule ?? 'absent'})`);
   console.log(`journal idx=7 (0007_distillation_columns) present: ${journalHasV07}`);
 
-  if (tableExists && missingIndexes.length === 0 && journalHasV07) {
+  if (tableExists && missingIndexes.length === 0 && fkOk && journalHasV07) {
     console.log('STATE: HEALTHY — no repair needed.');
     process.exit(0);
   }
@@ -99,6 +111,17 @@ try {
     );
     console.log(
       '    See git: git log --all -- src/local/migrations/meta/_journal.json',
+    );
+  }
+  if (tableExists && !fkOk) {
+    console.log(
+      '  Case E: table present but FK kept_memory_id ON DELETE SET NULL missing/wrong.',
+    );
+    console.log(
+      '    Re-apply DO-block FK section (lines 13-26 of 0007 SQL) OR ALTER TABLE manually:',
+    );
+    console.log(
+      `    psql "$THEOMEM_PG_URI" -f src/local/migrations/0007_distillation_columns.sql`,
     );
   }
 
