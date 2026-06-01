@@ -5,9 +5,29 @@
  *   1. MD5 of UTF-8 bytes of the input text.
  *   2. First 8 bytes of digest → BigInt seed for Lehmer LCG.
  *   3. Lehmer LCG (a=48271, m=2^31-1, the Park-Miller minimal standard) fills
- *      MAX_EMBEDDING_DIM floats in `[-1, 1]`.
+ *      MAX_EMBEDDING_DIM floats in `[-1, 1+~2e-9]` (slight asymmetry — see
+ *      F-arch-2 absorption note below).
  *   4. L2-normalize the resulting vector to lie on the unit hypersphere
  *      (cosine distance is well-defined).
+ *
+ * F-arch-2 absorption (range honesty): the LCG state lives in `[1, m-1]`
+ * (Mersenne prime modulus `2^31-1` is odd; `state` never reaches 0 with the
+ * full-period guarantee). `LCG_HALF_MODULUS_F64 = Number(LCG_MODULUS / 2n)`
+ * is BigInt floor div → `1073741823`. The mapping
+ * `(Number(state) - LCG_HALF_MODULUS_F64) / LCG_HALF_MODULUS_F64` produces
+ * output range `[-1, 1+2e-9]` (slight upper-bound overshoot from the odd-
+ * modulus asymmetry). L2-norm absorbs the asymmetry; output unit vectors
+ * live on the unit hypersphere regardless. NO behavioral impact; the
+ * previous `[-1, 1]` claim was inaccurate documentation.
+ *
+ * F-arch-3 absorption (collision math honesty): MD5's first 8 bytes give a
+ * raw seed space of `~2^64`, BUT the `seed % LCG_MODULUS` step at the LCG
+ * boundary collapses the EFFECTIVE seed space to `~2^31` (the modulus). Per
+ * the birthday paradox, 50% collision probability is reached at
+ * `sqrt(2^31 * pi / 2) ≈ 46k` distinct inputs — NOT `~2^32` as previously
+ * claimed. For F-T4.1-2 debug scale (single-digit to thousands of memories)
+ * this still gives effectively zero collision risk; the corrected math is
+ * documentation-honesty rather than capability change.
  *
  * EC-1 absorption: if the pre-norm L2 magnitude is below `1e-30` (degenerate
  * near-zero case, probability ~2^-128 per input but defensive), `l2Normalize`
@@ -18,15 +38,17 @@
  * Determinism invariants asserted in `__tests__/stub.test.ts`:
  *   - `embed(t)` is pure: same input → same output (deep equality).
  *   - `embed(t1) !== embed(t2)` for distinct texts (collision probability
- *     bounded by MD5 first-8-byte birthday ~ 2^32 inputs for 50% chance).
+ *     bounded by `seed % LCG_MODULUS` collapsing to ~2^31 effective space →
+ *     ~46k inputs at 50% birthday probability per F-arch-3 above).
  *   - Output length === MAX_EMBEDDING_DIM === 1536.
  *   - L2 norm === 1.0 ± 1e-6 OR all-zeros (EC-1 fallback). NEVER NaN.
  *
  * @experimental — debug only. Not semantically meaningful for actual recall;
  *   use for race/dedup reproducibility (e.g., F-T4.1-2 isolation) and CI.
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.1
+ * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.1 (corrected v1.2 — F-arch-2 + F-arch-3 honesty fix)
  * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-edge-cases-2026-06-01.md § EC-1
+ * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-arch-2 + F-arch-3
  */
 import { createHash } from 'node:crypto';
 
