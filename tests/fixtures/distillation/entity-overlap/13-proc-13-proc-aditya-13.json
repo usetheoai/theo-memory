@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-13-proc-aditya-13",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Aditya reviews architecture decisions — also a deep expert in developer ergonomics.",
+  "expectedFacts": [
+    {
+      "text": "Aditya reviews architecture decisions"
+    },
+    {
+      "text": "Aditya is a deep expert in developer ergonomics"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "multi-fact-09-hand-recipe",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Saving this carbonara recipe: 200g spaghetti, 100g guanciale, 2 egg yolks, 30g pecorino, black pepper. No cream — never cream.",
+  "expectedFacts": [
+    { "text": "Carbonara recipe uses 200g spaghetti", "attributedTo": "user" },
+    { "text": "Carbonara recipe uses 100g guanciale", "attributedTo": "user" },
+    { "text": "Carbonara recipe uses 2 egg yolks and 30g pecorino", "attributedTo": "user" },
+    { "text": "Carbonara recipe excludes cream", "attributedTo": "user" }
+  ]
+}

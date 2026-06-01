@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-19-proc-toronto-19",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Toronto region: the API gateway rate-limits per IP; Olivia from finance reviews every Friday (the quarterly burn rate); the API gateway rate-limits per IP.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP"
+    },
+    {
+      "text": "Olivia from finance reviews every Friday — the quarterly burn rate"
+    },
+    {
+      "text": "the API gateway rate-limits per IP"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-03-hand-job-change",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Left Stripe last month — joined Anthropic as Staff Engineer working on inference infrastructure.",
+  "expectedFacts": [
+    { "text": "Works at Anthropic as Staff Engineer on inference infrastructure", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Works at Anthropic as Staff Engineer on inference infrastructure",
+    "rejected": "Works at Stripe as Senior Engineering Manager on Treasury team"
+  }
+}

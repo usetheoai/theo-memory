@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-47-proc-47",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to draft the Q3 OKRs.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: the budget cap is 50k USD; and the team has 6 engineers and 1 EM.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: draft the Q3 OKRs"
+    },
+    {
+      "text": "the budget cap is 50k USD"
+    },
+    {
+      "text": "the team has 6 engineers and 1 EM"
+    }
+  ]
+}

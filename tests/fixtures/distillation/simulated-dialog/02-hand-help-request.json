@@ -1,0 +1,10 @@
+{
+  "id": "simulated-dialog-02-hand-help-request",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: Can you help me prep for a 1:1 with my manager tomorrow?\nAGENT: Of course. What's their name and what's the agenda?\nUSER: My manager is Priya. The topic is my promotion case for senior engineer.\nAGENT: Got it. Let's start with your strongest results.",
+  "expectedFacts": [
+    { "text": "Manager is named Priya", "attributedTo": "user" },
+    { "text": "User is preparing a promotion case for senior engineer", "attributedTo": "user" }
+  ]
+}

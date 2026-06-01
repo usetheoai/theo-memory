@@ -1,0 +1,11 @@
+{
+  "id": "entity-overlap-06-hand-mentor-multi-touch",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Catching up with Jon Park — he's still at Google, now leading the Gemini training infra team. He gave me design feedback last quarter too.",
+  "expectedFacts": [
+    { "text": "Jon Park works at Google", "attributedTo": "user" },
+    { "text": "Jon Park leads Gemini training infra team", "attributedTo": "user" },
+    { "text": "Jon Park gave design feedback last quarter", "attributedTo": "user" }
+  ]
+}

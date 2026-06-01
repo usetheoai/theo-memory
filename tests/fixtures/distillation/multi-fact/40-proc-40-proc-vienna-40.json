@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-40-proc-vienna-40",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Vienna region: Theo from support rotates weekly; the staging cluster auto-scales overnight (between 4 and 12 nodes); project Halcyon launches in Q4.",
+  "expectedFacts": [
+    {
+      "text": "Theo from support rotates weekly"
+    },
+    {
+      "text": "the staging cluster auto-scales overnight — between 4 and 12 nodes"
+    },
+    {
+      "text": "project Halcyon launches in Q4"
+    }
+  ]
+}

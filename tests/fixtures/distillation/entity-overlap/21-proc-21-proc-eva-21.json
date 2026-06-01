@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-21-proc-eva-21",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Eva mentors juniors — also a deep expert in security audits.",
+  "expectedFacts": [
+    {
+      "text": "Eva mentors juniors"
+    },
+    {
+      "text": "Eva is a deep expert in security audits"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-37-proc-project-Halcyon-vienna",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Vienna deployment, project Halcyon launches in Q4 — 500 enterprise pilots.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4 (Vienna deployment)"
+    }
+  ]
+}

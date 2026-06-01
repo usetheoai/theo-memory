@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-41-proc-tokyo-41",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Tokyo region: the build pipeline runs on every PR; Yuki from research publishes monthly (the model evaluation report); the analytics dashboard refreshes every 15 minutes.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR"
+    },
+    {
+      "text": "Yuki from research publishes monthly — the model evaluation report"
+    },
+    {
+      "text": "the analytics dashboard refreshes every 15 minutes"
+    }
+  ]
+}

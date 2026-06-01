@@ -1,0 +1,11 @@
+{
+  "id": "multi-fact-04-hand-home-stack",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Setup for home lab: NAS is Synology DS1821+, networking through UniFi Dream Machine Pro. Home automation runs on Home Assistant OS on a separate NUC.",
+  "expectedFacts": [
+    { "text": "NAS is Synology DS1821+", "attributedTo": "user" },
+    { "text": "Network managed by UniFi Dream Machine Pro", "attributedTo": "user" },
+    { "text": "Home automation runs on Home Assistant OS on a NUC", "attributedTo": "user" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-06-hand-family-pet",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "We adopted a tabby cat last weekend. Her name is Lua and she's about 3 years old.",
+  "expectedFacts": [
+    { "text": "Adopted a 3-year-old tabby cat named Lua", "attributedTo": "user" }
+  ]
+}

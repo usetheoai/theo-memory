@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-38-proc-the-API-gateway-tokyo",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Tokyo deployment, the API gateway rate-limits per IP — at 1000 requests per minute.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP (Tokyo deployment)"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-50-proc-the-build-pipeline-rio",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Rio deployment, the build pipeline runs on every PR — across 8 parallel runners.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR (Rio deployment)"
+    }
+  ]
+}
