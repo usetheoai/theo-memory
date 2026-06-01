@@ -45,8 +45,9 @@ export class LastWriteWinsConflictPolicy implements ConflictResolutionPolicy {
 
   async consolidate(
     candidates: readonly ConsolidationCandidate[],
-    _context: ConsolidationContext,
+    context: ConsolidationContext,
   ): Promise<readonly ConflictResolutionResult[]> {
+    void context;
     await Promise.resolve();
     if (candidates.length < 2) return [];
     const sorted = [...candidates].sort(compareCandidatesDesc);

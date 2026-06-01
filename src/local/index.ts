@@ -29,8 +29,8 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { Pool } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
-import type { Embedder } from '../core/dip/embedder.js';
 import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
+import type { Embedder } from '../core/dip/embedder.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
 import {
