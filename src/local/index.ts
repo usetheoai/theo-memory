@@ -30,6 +30,7 @@ import type { Pool } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { Embedder } from '../core/dip/embedder.js';
+import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
 import {
@@ -80,6 +81,13 @@ export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { entities, history, memories } from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
+// v0.7 T2.1 — re-export conflict-resolution policies for convenience
+// (integration tests + consumer apps).
+export {
+  NoopConflictPolicy,
+  LastWriteWinsConflictPolicy,
+  LlmJudgedMergeConflictPolicy,
+} from '../core/index.js';
 export * from './eviction/index.js';
 
 /** Extended MemoryConfig with the OTel tracer slot from ADR D1.3. */
@@ -203,6 +211,15 @@ interface VectorStoreWithDerivedInsert {
     derivedFrom: readonly string[];
     scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string>;
+}
+
+interface VectorStoreWithConsolidation {
+  recallConsolidationCandidates?: (
+    filters: Filters,
+  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date }[]>;
+  persistConsolidations?: (
+    results: readonly ConflictResolutionResult[],
+  ) => Promise<void>;
 }
 
 function scopeToCounterTuple(scope: Scope): {
@@ -333,6 +350,39 @@ class LocalScopedMemory implements ScopedMemory {
     }
 
     try {
+      // v0.7 T2.1: pre-derivation conflict-resolution phase.
+      // EC-7 absorbed: empty scope already short-circuited at line 317;
+      // here we additionally guard on sourceMemories.length < 2 (nothing
+      // to consolidate with a singleton). EC-8 absorbed: persistConsolidations
+      // wraps t_invalid UPDATE + insertConsolidationHistory INSERT in a
+      // single withTransaction (rollback on any error). Runs BEFORE
+      // executeReflection so LLM-extraction failure paths don't mask the
+      // consolidation's own failure modes.
+      const conflictPolicy = options?.conflictResolution;
+      if (conflictPolicy !== undefined && sourceMemories.length >= 2) {
+        const storeWithConsolidate = this.config.vectorStore as unknown as VectorStoreWithConsolidation;
+        if (
+          typeof storeWithConsolidate.recallConsolidationCandidates !== 'function' ||
+          typeof storeWithConsolidate.persistConsolidations !== 'function'
+        ) {
+          throw new Error(
+            'reflect: conflictResolution requires a vector store with ' +
+              'recallConsolidationCandidates() + persistConsolidations() — ' +
+              'use PgvectorStore from @usetheo/memory/local.',
+          );
+        }
+        const candidates = await storeWithConsolidate.recallConsolidationCandidates(
+          this.filters,
+        );
+        const consolidationResults = await conflictPolicy.consolidate(
+          candidates,
+          { scope: this.scope, observationDate: new Date() },
+        );
+        if (consolidationResults.length > 0) {
+          await storeWithConsolidate.persistConsolidations(consolidationResults);
+        }
+      }
+
       // Execute reflection LLM call
       const drafts = await executeReflection({
         llm: this.config.llm,
