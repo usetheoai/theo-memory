@@ -87,6 +87,28 @@ describe('publish-readiness — gate executable', () => {
     expect(forbidden).toEqual([]);
   }, 30_000);
 
+  test('EC-5 (F-tests-1): tarball POSITIVELY INCLUDES src/embedders/{stub,index}.ts + src/llms/{stub,index}.ts by name', () => {
+    // F-tests-1 absorption + EC-5 explicit regression guard for the
+    // 52-adapter portfolio per
+    // .claude/knowledge-base/plans/adapters-portfolio-roadmap.md. The F1
+    // followup test below iterates pkg.exports generically; this block
+    // makes the 4 cycle-1 subpath files explicitly auditable so a future
+    // package.json edit accidentally omitting any of them fails THIS test
+    // with a named-file assertion, not just an implicit loop miss.
+    const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>;
+    const allPaths = new Set(parsed.flatMap((entry) => entry.files.map((f) => f.path)));
+
+    expect(allPaths.has('src/embedders/stub.ts')).toBe(true);
+    expect(allPaths.has('src/embedders/index.ts')).toBe(true);
+    expect(allPaths.has('src/llms/stub.ts')).toBe(true);
+    expect(allPaths.has('src/llms/index.ts')).toBe(true);
+  }, 30_000);
+
   test('F1 followup: tarball POSITIVELY INCLUDES every source file backing a declared package.json#exports entry', () => {
     // Prevents the silent "published package missing the stub the consumer imports"
     // failure mode flagged by SEPA during T2.3. Logged at

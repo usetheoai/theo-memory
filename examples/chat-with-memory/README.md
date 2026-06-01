@@ -96,6 +96,8 @@ npm run dev
 | `NEXT_PUBLIC_AGENT_MODEL_ID` | `composer-2` | Model id passed to `Agent.create` |
 | `THEOMEM_REFLECTION_THRESHOLD` | `10` | Auto-fire `memory.reflect()` every N turns. Set `0` to disable |
 | `THEOMEM_PG_URI` | _(unset)_ | When set, swap `InMemoryVectorStore` → `PgvectorStore` + run migrations automatically |
+| `THEOMEM_EVICTION_DEMO` | _(unset)_ | When set to `1` AND `THEOMEM_PG_URI` is set, opt in to the v0.4b capacity-trigger eviction pipeline (`maxMemoriesPerScope: 10` — low cap chosen so a normal demo session triggers eviction). The `Eviction` tab surfaces live state. Strict equality with `1` (POSIX convention); other truthy values are ignored. |
+| `THEOMEM_USE_STUB_ADAPTERS` | _(unset)_ | When set to `1`, swap `OpenAIEmbedder` + `OpenAILLM` for `DeterministicStubEmbedder` + `DeterministicStubLLM` from `@usetheo/memory/embedders/stub` + `@usetheo/memory/llms/stub`. Useful when OpenAI quota is exhausted OR for offline/CI runs requiring 100% reproducible adapter behavior. Strict equality with `1`. Note: the demo singleton is read at first request — set the var before `npm run dev` (Next.js dev mode does not re-read env mid-session). |
 
 ## Walk-through
 
