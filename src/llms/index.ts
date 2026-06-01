@@ -1,0 +1,10 @@
+/**
+ * Barrel re-exports for `@usetheo/memory/llms`.
+ *
+ * Phase A of the adapters portfolio roadmap. Future adapters (openai,
+ * anthropic, ollama, etc.) extend this barrel as their cycles ship.
+ *
+ * @see .claude/knowledge-base/plans/adapters-portfolio-roadmap.md
+ * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T2.1
+ */
+export { DeterministicStubLLM } from './stub.js';

@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     include: [
       'src/{core,local,theokit,agent-tools,embedders,llms}/**/__tests__/**/*.test.ts',
+      'src/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
     ],
     passWithNoTests: true,
