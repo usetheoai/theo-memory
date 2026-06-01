@@ -1,0 +1,262 @@
+agent: review-adapters-openai-cycle-2-architecture
+review_target: 1b74f03..93c4ad2 (cycle-2 commits) on develop, plan adapters-openai-cycle-2
+plan: .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md
+plan_version: v1.1 (SHIPPABLE 90.8)
+project_rules_consulted:
+  - .claude/rules/architecture.md
+  - .claude/rules/testing.md (§ Pyramid, § Determinism)
+  - .claude/rules/no-paper-names-in-code.md
+  - .claude/rules/public-copy.md
+files_reviewed:
+  - src/embedders/openai.ts (NEW, 70 LoC)
+  - src/llms/openai.ts (NEW, 107 LoC)
+  - src/embedders/index.ts (UPDATED — barrel add)
+  - src/llms/index.ts (UPDATED — barrel add)
+  - src/embedders/__tests__/openai.test.ts (NEW)
+  - src/llms/__tests__/openai.test.ts (NEW)
+  - src/embedders/__tests__/exports.test.ts (UPDATED)
+  - src/llms/__tests__/exports.test.ts (UPDATED)
+  - src/__tests__/no-root-reexport.test.ts (UPDATED — EC-3 absorption)
+  - package.json (#exports + optionalDependencies)
+  - examples/chat-with-memory/lib/memory.ts (UPDATED — import swap)
+  - examples/chat-with-memory/lib/openai-adapters.ts (DELETED)
+  - examples/chat-with-memory/README.md (NOT TOUCHED — see F-arch-1)
+
+findings:
+
+  - id: F-arch-1
+    severity: MAJOR
+    file: examples/chat-with-memory/README.md
+    line: 185
+    plan_ref: T3.2 + ADR D4 (demo file DELETED, not retained as re-export)
+    summary: Demo README still documents `lib/openai-adapters.ts` in the file-tree section despite T3.2 deleting that file.
+    evidence: |
+      examples/chat-with-memory/README.md:185
+          │   ├── openai-adapters.ts           # Embedder + LLM DIPs
+      But: `test -f examples/chat-with-memory/lib/openai-adapters.ts` → DELETED (correct per T3.2).
+      The README file-tree block is stale; a contributor reading the README will look for a file that does not exist.
+    recommended_action: |
+      Edit `examples/chat-with-memory/README.md` line ~185 to either (a) remove the
+      `openai-adapters.ts` row from the file-tree block, or (b) replace it with a
+      note pointing to the SDK subpath: `# (moved to @usetheo/memory/{embedders,llms}/openai)`.
+      Should be a single trivial edit; cycle-implement T3.2's ADR D4 rationale
+      ("no dead files; single source of truth") demands the doc-side cleanup too.
+
+  - id: F-arch-2
+    severity: MINOR
+    file: src/embedders/openai.ts
+    line: 41-47
+    plan_ref: ADR D3 (MOVE-only) + EC-8 (one client per process)
+    summary: Lazy-singleton client is duplicated verbatim across `src/embedders/openai.ts` and `src/llms/openai.ts` — two singletons per process where one would suffice. The duplication is documented as an accepted trade-off in the JSDoc (EC-8 absorption) but it is a textbook DRY violation between sibling modules.
+    evidence: |
+      src/embedders/openai.ts:41-47
+          let _openai: OpenAI | null = null;
+          function client(): OpenAI {
+            if (_openai === null) {
+              _openai = new OpenAI({ apiKey: process.env['OPENAI_API_KEY'] });
+            }
+            return _openai;
+          }
+      src/llms/openai.ts:52-58 — IDENTICAL block, separate module-scope `_openai`.
+      Result: when both adapters are instantiated (the standard demo path),
+      the process holds TWO OpenAI client instances. They share API key, but
+      each maintains its own internal connection pool / agent / etc.
+    recommended_action: |
+      ACCEPTED as MINOR for this cycle — the JSDoc already documents the
+      trade-off as scope-creep avoidance per ADR D3 ("Sharing across modules
+      would require a new shared file not present in the demo"). When the
+      Cycle 2.X harden cycle lands (retry/backoff + structured errors), extract
+      a `src/_internal/openai-client.ts` shared lazy singleton. Until then, the
+      duplication is intentional and documented. NO action required this cycle;
+      filing as MINOR so the v0.6.1-style fix-up cycle has a tracked entry.
+
+  - id: F-arch-3
+    severity: INFO
+    file: src/embedders/openai.ts
+    line: 44, 55 (also src/llms/openai.ts:55)
+    plan_ref: ADR D3 MOVE-only — behavioral diff allowed = bracket-notation only
+    summary: `process.env['OPENAI_API_KEY']` bracket-notation switch vs demo's `process.env.OPENAI_API_KEY` dot-notation. This is one of the 5 declared MOVE-only behavioral deltas (TS strict `noPropertyAccessFromIndexSignature` lint compliance). Confirmed within scope.
+    evidence: |
+      Demo (deleted) line 20:        new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      SDK src/embedders/openai.ts:44: new OpenAI({ apiKey: process.env['OPENAI_API_KEY'] })
+      SDK src/llms/openai.ts:55:     identical
+      ADR D3 allows: (a) import path swap, (b) process.env bracket-notation,
+      (c) `_tools?` 3rd param + `void` discard, (d) removed `as` cast on toOpenAIMessages, (e) JSDoc absorption blocks.
+      This is delta (b). PASS.
+    recommended_action: |
+      No action — within ADR D3 scope. Filing as INFO so the audit trail has
+      explicit confirmation each of the 5 MOVE-only deltas was vetted.
+
+  - id: F-arch-4
+    severity: INFO
+    file: src/llms/openai.ts
+    line: 62-69
+    plan_ref: ADR D3 MOVE-only — delta (d) removed `as` cast on toOpenAIMessages
+    summary: The demo file ended `toOpenAIMessages` with `) as OpenAI.Chat.ChatCompletionMessageParam[]`; the SDK file removes the cast (the declared return type makes it redundant). This is a strict improvement (less type-system escape, no behavior change) and falls within ADR D3 delta (d).
+    evidence: |
+      Demo (deleted) lines 49-56:
+          function toOpenAIMessages(messages: readonly Message[]): OpenAI.Chat.ChatCompletionMessageParam[] {
+            return messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })) as OpenAI.Chat.ChatCompletionMessageParam[];
+          }
+      SDK src/llms/openai.ts:62-69:
+          function toOpenAIMessages(messages: readonly Message[]): OpenAI.Chat.ChatCompletionMessageParam[] {
+            return messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            }));
+          }
+      Cast removed; signature-typed return narrows the inferred object literal
+      type to match. Zero behavioral diff. Strict-mode-friendly.
+    recommended_action: |
+      No action — within ADR D3 scope. Filing as INFO to document the type-system
+      hygiene win (one fewer `as` cast in the codebase).
+
+  - id: F-arch-5
+    severity: INFO
+    file: src/llms/openai.ts
+    line: 72-77
+    plan_ref: ADR D3 MOVE-only — delta (c) `_tools?` 3rd param + `void` discard
+    summary: DIP-compliant signature extension. `generateResponse` now matches `src/core/dip/llm.ts:22-26` verbatim (3rd `tools?: readonly unknown[]` param). The leading-underscore `_tools` + `void _tools;` discard matches the Cycle 1 stub precedent at `src/llms/stub.ts:106-108`. ISP honored (the param exists for future v0.3+ tool-calling, currently no-op).
+    evidence: |
+      src/core/dip/llm.ts:22-26:
+          generateResponse(
+            messages: readonly Message[],
+            responseFormat?: { readonly type: 'json' | 'text' },
+            tools?: readonly unknown[],
+          ): Promise<unknown>;
+      src/llms/openai.ts:72-77 matches signature; line 77 has `void _tools;` discard.
+      src/llms/stub.ts:103-108 has the identical pattern (sibling precedent).
+      EC-4 pre-flight gate per plan was honored (grep `src/core/dip/llm.ts:LLM.generateResponse` for `tools?` 3rd param) — PASS at iter 4 per sepa-iterations/iteration-4-pre-red.md.
+    recommended_action: |
+      No action — design correct. Filing as INFO to document DIP-shape compliance
+      verification.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/embedders/openai.ts + src/llms/openai.ts
+    line: N/A (full-file)
+    plan_ref: architecture.md § 3 DIP + § 6 Naming + § 7 Module hygiene
+    summary: All architecture.md baseline rules honored.
+    evidence: |
+      DIP boundary (§ 3): grep "from .*embedders/openai\|from .*llms/openai" src/core/ → 0 results.
+        Adapters live OUTSIDE src/core/; src/core/ does not import them. PASS.
+      Naming (§ 6):
+        - Files: kebab-case (`openai.ts`) — PASS
+        - Classes: PascalCase (`OpenAIEmbedder`, `OpenAILLM`) — PASS
+        - Functions: camelCase (`client`, `toOpenAIMessages`) — PASS
+        - Constants: UPPER_SNAKE_CASE (`EMBED_MODEL`, `CHAT_MODEL`) — PASS
+        - Reserved-word collisions: `_tools` (leading underscore for unused
+          param matches stub precedent; not a reserved word) — PASS
+      Module hygiene (§ 7):
+        - ES modules: `import` / `export` only — PASS
+        - Destructured imports: `import OpenAI from 'openai'` is the OpenAI
+          SDK's published default export shape (canonical per their docs);
+          `import type { Embedder }` destructured — PASS
+        - No `any`: grep returns one substring match in JSDoc prose ("any
+          import of this module") — TS-level `any` count = 0 — PASS
+        - No `console.log`: grep returns 0 — PASS
+        - TS strict mode: noPropertyAccessFromIndexSignature compliant via
+          `process.env['OPENAI_API_KEY']` bracket notation (delta b) — PASS
+    recommended_action: |
+      No action — clean. Filing as INFO because architecture.md compliance
+      across the full surface is the architecture review's headline result.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/embedders/openai.ts + src/llms/openai.ts
+    line: N/A
+    plan_ref: no-paper-names-in-code.md
+    summary: Zero paper-name pollution in src/ surface. JSDoc cites plan + edge-case review by filesystem coordinate (the policy's encouraged form), never by paper name.
+    evidence: |
+      grep -iE "voyager|mem0|letta|langmem|memgpt|generative agents|coala|procmem" \
+        src/embedders/openai.ts src/llms/openai.ts \
+        src/embedders/index.ts src/llms/index.ts → 0 results.
+      JSDoc `@see` references all use `.claude/knowledge-base/plans/...` paths.
+    recommended_action: |
+      No action — clean. Filing as INFO to confirm the policy holds for this
+      surface (the policy was promoted to first-class rule via v0.6.1 T5.2).
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/embedders/index.ts + src/llms/index.ts
+    line: full barrel
+    plan_ref: ADR D1 (subpath shape) + ADR D4 of Cycle 1 (no root re-export)
+    summary: Barrel shape symmetric and correct. Each barrel re-exports exactly stub + openai = 2 classes, matching the Cycle 1 ADR D4 layout and the EC-3 regression guard (no-root-reexport.test.ts) which is now extended to assert OpenAI classes too.
+    evidence: |
+      src/embedders/index.ts:18-19:
+          export { DeterministicStubEmbedder } from './stub.js';
+          export { OpenAIEmbedder } from './openai.js';
+      src/llms/index.ts:18-19:
+          export { DeterministicStubLLM } from './stub.js';
+          export { OpenAILLM } from './openai.js';
+      src/__tests__/no-root-reexport.test.ts:32-38 — EC-3 absorption present.
+      package.json#exports — 6 entries total (embedders + embedders/stub +
+      embedders/openai + llms + llms/stub + llms/openai). Subpath topology
+      matches ADR D1.
+    recommended_action: |
+      No action — design correct. Filing as INFO to document the symmetric
+      adapter portfolio shape (1 stub + 1 openai pair per side, ready to
+      add anthropic/ollama/etc. as new sibling files in the same dirs).
+
+  - id: F-arch-9
+    severity: INFO
+    file: package.json
+    line: 100-104 (optionalDependencies)
+    plan_ref: ADR D2 (optionalDependencies per Inquebrável Rule 9)
+    summary: `openai: ^4.77.0` placed in `optionalDependencies` (not `dependencies`). Pin matches demo's existing pin per `/deps-audit` advisory. Mirrors the `natural ^8.1.0` precedent from v0.6.1 voyager-skill-library (Rule 9 + optionalDependencies discipline).
+    evidence: |
+      package.json#optionalDependencies (post-T0.1):
+          "natural": "^8.1.0",
+          "openai": "^4.77.0"
+      examples/chat-with-memory/package.json (verified): `"openai": "^4.77.0"`
+      — matched, prevents silent demo regression on `npm install` resolution.
+      Consumer DX: default `npm install` pulls openai transparently; stub-only
+      consumers can `npm install --no-optional`. Documented in EC-6 JSDoc on
+      both adapter files.
+    recommended_action: |
+      No action — design correct per ADR D2 + Inquebrável Rule 9. Filing as
+      INFO to document the supply-chain discipline.
+
+  - id: F-arch-10
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 43-48 + 157-161
+    plan_ref: T3.1 (demo redirects to SDK paths) + EC-1 (pre-flight grep)
+    summary: Demo's `resolveAdapters` now consumes the SDK subpaths (`@usetheo/memory/embedders/openai` + `@usetheo/memory/llms/openai`) instead of the local `./openai-adapters` file. EC-1 pre-flight grep confirmed exactly 1 importer per plan ADR D4 claim. The import block keeps stubs + openai colocated (one import per subpath), preserving the demo's `THEOMEM_USE_STUB_ADAPTERS=1` swap point unchanged.
+    evidence: |
+      Diff at examples/chat-with-memory/lib/memory.ts:
+          + import { OpenAIEmbedder } from "@usetheo/memory/embedders/openai";
+            import { DeterministicStubEmbedder } from "@usetheo/memory/embedders/stub";
+          + import { OpenAILLM } from "@usetheo/memory/llms/openai";
+            import { DeterministicStubLLM } from "@usetheo/memory/llms/stub";
+            import pg from "pg";
+          - import { OpenAIEmbedder, OpenAILLM } from "./openai-adapters";
+      Line 157-161 `resolveAdapters()` body UNCHANGED — only the import sources
+      switched. Confirms MOVE-only at the consumer side.
+    recommended_action: |
+      No action — design correct. Filing as INFO to confirm the consumer-side
+      MOVE-only discipline (zero call-site change) was achieved.
+
+summary:
+  total: 10
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 1
+    MINOR: 1
+    INFO: 8
+  headline: |
+    Cycle 2 adapter extraction honors architecture.md baseline rules in full —
+    DIP boundary holds (zero src/core/ imports of the new adapters), SOLID is
+    intact at the lifted-class shape, naming + module hygiene pass without
+    issue, no-paper-names-in-code is clean, and ADR D3 MOVE-only scope is
+    auditably respected across the 5 declared behavioral deltas. The single
+    MAJOR is a doc-side stale reference (README still names the deleted
+    `openai-adapters.ts` file); the single MINOR is the duplicated lazy
+    singleton between sibling adapter modules, which the JSDoc already
+    documents as accepted scope-creep avoidance per ADR D3 and which the
+    forthcoming Cycle 2.X harden cycle is the natural place to extract.
+  verdict: READY_TO_MERGE after F-arch-1 README cleanup (single trivial edit).

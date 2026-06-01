@@ -1,0 +1,362 @@
+agent: review-adapters-openai-cycle-2-cross-validation
+review_target: main..HEAD for plan adapters-openai-cycle-2
+plan: .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md
+plan_version: v1.1 (SHIPPABLE 90.8)
+commits_reviewed:
+  - 75153fc: Step 2.5 scaffolding (SEPA agent + paired skill + impl contract)
+  - f1834f7: T0.1 optionalDependencies openai ^4.77.0
+  - d1ebfe1: T1.1 extract OpenAIEmbedder
+  - 548c23f: T1.2 extract OpenAILLM
+  - 9352d52: T2.1 subpath exports + EC-3 root-no-reexport guard
+  - bce8182: T3.1 demo import redirect (EC-1)
+  - 3e9d860: T3.2 delete legacy openai-adapters.ts
+  - 93c4ad2: T4.1 validation gate + CHANGELOG + SEPA logs
+
+plan_tasks_summary:
+  total_tasks: 7
+  fully_implemented: 7
+  partial: 0
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total: 21
+  satisfied: 21
+  unverified: 0
+  false_claims: 0
+  notes: |
+    T0.1: 2/2 satisfied (npm ls openai shows ^4.77.0; tsconfig already covers paths).
+    T1.1: 5/5 satisfied (file exists, Embedder DIP implemented, smoke PASS without
+          network call, LoC 70 within 80-with-JSDoc budget, 4 EC JSDoc notes present).
+    T1.2: 6/6 satisfied (file exists, EC-4 pre-flight gate verified `tools?` on DIP
+          line 22-26 of src/core/dip/llm.ts, `_tools?: readonly unknown[]` 3rd param
+          present at line 75 with `void _tools;` discard, generateChat shape matches,
+          smoke PASS without network call, LoC 107 within 110-with-JSDoc budget,
+          5 EC JSDoc notes including EC-10 opaque error shape).
+    T2.1: 4/4 satisfied (package.json#exports has both new entries totaling 6
+          embedders+llms subpaths, barrels re-export 2+2 classes,
+          src/__tests__/no-root-reexport.test.ts extended with 2 new it() blocks
+          for OpenAI undefined, root index does NOT re-export — verified by tests).
+    T3.1: 4/4 satisfied (EC-1 pre-flight grep returned exactly 1 path,
+          post-redirect grep returns 0, demo build PASS per validation report,
+          THEOMEM_USE_STUB_ADAPTERS=1 path still works at lib/memory.ts:158-160).
+    T3.2: 3/3 satisfied (file deleted, demo build PASS, npm test PASS).
+    T4.1: 2/2 satisfied (all 9 validation checks PASS, validation report exists
+          at .claude/knowledge-base/reviews/adapters-openai-cycle-2-implement-validate-2026-06-01.md).
+
+adr_compliance:
+  total_adrs: 6
+  respected: 6
+  diverged_without_new_adr: 0
+  adr_details:
+    D1_subpath_mirror:
+      respected: true
+      evidence: |
+        package.json#exports has './embedders/openai' + './llms/openai' mirroring
+        the Cycle 1 './embedders/stub' + './llms/stub' shape. Contract-first
+        nested layout preserved.
+    D2_optionalDependencies:
+      respected: true
+      evidence: |
+        package.json optionalDependencies: { "natural": "^8.1.0", "openai": "^4.77.0" }
+        Sibling placement next to `natural` (v0.6.1 voyager precedent) confirmed.
+        NOT in `dependencies` block. Pin matches demo's existing pin per /deps-audit
+        advisory absorbed in plan v1.1.
+    D3_MOVE_only:
+      respected: true
+      evidence: |
+        Side-by-side diff of demo file (commit 75153fc:examples/chat-with-memory/lib/openai-adapters.ts)
+        vs new SDK files (src/embedders/openai.ts + src/llms/openai.ts) confirms
+        mechanical-only changes:
+          (a) import path `@usetheo/memory/contract` → `../core/dip/{embedder,llm}.js`
+              + `../core/message.js` (forced by SDK relative-path compile context)
+          (b) `process.env.OPENAI_API_KEY` → `process.env['OPENAI_API_KEY']`
+              (TS strict bracket access)
+          (c) `_tools?: readonly unknown[]` 3rd param added to generateResponse
+              with `void _tools;` discard — REQUIRED by DIP signature at
+              src/core/dip/llm.ts:22-26, NOT a behavioral change (param is
+              ignored at runtime; matches stub precedent at src/llms/stub.ts:106).
+          (d) JSDoc expanded with EC-6/7/8/9/10 absorption notes (additive,
+              non-behavioral).
+        Same models (text-embedding-3-small, gpt-4o-mini), same lazy singleton,
+        same empty-batch guard, same response_format routing, same opaque JSON-parse
+        error path `{ error: 'non_json_response', raw: content }` preserved verbatim.
+    D4_legacy_deleted:
+      respected: true
+      evidence: |
+        examples/chat-with-memory/lib/openai-adapters.ts file does NOT exist
+        post-commit 3e9d860 (verified via `test -f` check). NOT kept as 1-line
+        re-export. lib/memory.ts now imports directly from SDK subpaths.
+    D5_contract_smoke_only:
+      respected: true
+      evidence: |
+        src/embedders/__tests__/openai.test.ts: 1 test asserting class defined +
+        typeof embed === 'function' + typeof embedBatch === 'function'.
+        EXPLICIT EC-2 JSDoc comment "DO NOT call .embed() or .embedBatch()".
+        Same shape at src/llms/__tests__/openai.test.ts (typeof generateResponse
+        + generateChat === 'function'; explicit JSDoc warning).
+        NO live OPENAI_API_KEY calls. NO new files under tests/integration/.
+    D6_no_console_log:
+      respected: true
+      evidence: |
+        grep -c "console\.log" src/embedders/openai.ts src/llms/openai.ts
+        returns 0 on both files. lint PASS per validation gate.
+
+edge_case_absorption:
+  total_ecs: 10
+  absorbed: 10
+  ec_details:
+    EC-1_demo_wide_grep:
+      absorbed: true
+      mechanism: T3.1 pre-flight grep verified single importer (lib/memory.ts).
+                 Post-T3.1 grep returns 0 across all demo paths.
+    EC-2_no_live_api_calls:
+      absorbed: true
+      mechanism: Smoke tests at src/{embedders,llms}/__tests__/openai.test.ts
+                 use only DIP shape assertions (typeof checks); explicit JSDoc
+                 warning at top of each file.
+    EC-3_root_no_reexport:
+      absorbed: true
+      mechanism: src/__tests__/no-root-reexport.test.ts has 2 new it() blocks
+                 explicitly asserting root.OpenAIEmbedder + root.OpenAILLM are
+                 undefined. Test PASS verified via re-run.
+    EC-4_dip_3rd_param_preflight:
+      absorbed: true
+      mechanism: Verified src/core/dip/llm.ts:22-26 declares
+                 `tools?: readonly unknown[]` 3rd param on generateResponse.
+                 OpenAILLM.generateResponse matches with `_tools?: readonly unknown[]`
+                 at src/llms/openai.ts:75.
+    EC-5_no_MAX_EMBEDDING_DIM:
+      absorbed: true
+      mechanism: src/embedders/openai.ts does NOT import MAX_EMBEDDING_DIM.
+                 1536 dim is implicit via the EMBED_MODEL = 'text-embedding-3-small'
+                 constant (line 49). Documented in plan v1.1 correction.
+    EC-6_optional_deps_guidance:
+      absorbed: true
+      mechanism: JSDoc at src/embedders/openai.ts:9-13 + src/llms/openai.ts:13-17
+                 documents optionalDependencies + --no-optional fallback guidance.
+    EC-7_model_param_todo:
+      absorbed: true
+      mechanism: @todo blocks at src/embedders/openai.ts:28-30 + src/llms/openai.ts:37-39
+                 reference Cycle 2.X model parameterization.
+    EC-8_one_client_per_module:
+      absorbed: true
+      mechanism: JSDoc at src/embedders/openai.ts:15-19 + src/llms/openai.ts:19-23
+                 documents lazy-singleton scope = ONE per module per process
+                 (acknowledges 2-singletons-across-2-files trade-off vs MOVE-only).
+    EC-9_env_timing:
+      absorbed: true
+      mechanism: JSDoc at src/embedders/openai.ts:21-26 + src/llms/openai.ts:25-29
+                 documents process.env.OPENAI_API_KEY MUST be set BEFORE first
+                 .embed()/.generateResponse() call.
+    EC-10_opaque_error_shape:
+      absorbed: true
+      mechanism: JSDoc at src/llms/openai.ts:31-35 documents the
+                 `{ error: 'non_json_response', raw: <content> }` return shape
+                 preserved per ADR D3. Code at lines 88-92 implements exactly
+                 this return path.
+
+commit_subject_match:
+  total: 8
+  matching_plan_declared_subject: 8
+  notes: |
+    All 8 commits (scaffolding + T0.1 through T4.1) have subjects matching the
+    plan's COMMIT: declaration verbatim. Conventional-commits format preserved.
+
+tdd_shape_per_task:
+  T0.1: RED (npm ls openai = 0) → GREEN (added; npm ls shows openai@4.104.0) → REFACTOR (none) — VERIFIED via commit message.
+  T1.1: RED (smoke fails — file absent) → GREEN (file created; smoke PASS) → REFACTOR (zero-behavioral-diff verification) — VERIFIED.
+  T1.2: RED (smoke fails) → GREEN (file + _tools param per EC-4) → REFACTOR (verify only _tools delta) — VERIFIED.
+  T2.1: RED (subpath import fails) → GREEN (exports added) → REFACTOR (root-no-reexport assertions) — VERIFIED.
+  T3.1: RED (current build PASS w/ old import; pre-flight grep >= 1) → GREEN (redirect; grep = 0) → REFACTOR (none) — VERIFIED.
+  T3.2: RED (file exists) → GREEN (file deleted; demo build PASS) → REFACTOR (none) — VERIFIED.
+  T4.1: validation-only — no RED/GREEN/REFACTOR semantics (gate-only task) — VERIFIED.
+
+files_to_edit_match:
+  T0.1:
+    declared: [package.json]
+    actually_changed: [package.json, package-lock.json]
+    delta: package-lock.json is automatic from `npm install`; not declared but expected.
+    severity: INFO (not a scope creep; lockfile sync is mandatory).
+  T1.1:
+    declared: [src/embedders/openai.ts (NEW), src/embedders/__tests__/openai.test.ts (NEW)]
+    actually_changed: [src/embedders/openai.ts, src/embedders/__tests__/openai.test.ts]
+    delta: 0 — exact match.
+  T1.2:
+    declared: [src/llms/openai.ts (NEW), src/llms/__tests__/openai.test.ts (NEW)]
+    actually_changed: [src/llms/openai.ts, src/llms/__tests__/openai.test.ts]
+    delta: 0 — exact match.
+  T2.1:
+    declared: [src/embedders/index.ts, src/llms/index.ts, package.json, src/__tests__/no-root-reexport.test.ts (per EC-3)]
+    actually_changed: [package.json, src/__tests__/no-root-reexport.test.ts, src/embedders/__tests__/exports.test.ts, src/embedders/index.ts, src/llms/__tests__/exports.test.ts, src/llms/index.ts]
+    delta: |
+      Plan declared 4 files (counting EC-3 extension). Commit also touched
+      src/embedders/__tests__/exports.test.ts + src/llms/__tests__/exports.test.ts
+      adding 2 new it() blocks each to the pre-existing Cycle 1 tests
+      (barrel.OpenAIEmbedder defined + identity-equals direct import; same shape
+      for LLM). This is a test-only extension that mirrors Cycle 1's barrel
+      identity pattern and provides T2.1 acceptance-criterion-2 evidence
+      ("Barrels re-export 2 stubs + 2 OpenAI = 4 classes total per barrel-set").
+      Strictly speaking it is a scope addition beyond the plan's "Files to edit"
+      list, but it is purely additive test coverage and serves the same plan
+      acceptance criterion.
+    severity: F-xval-1 MINOR (scope addition; test-only; serves declared AC).
+  T3.1:
+    declared: [examples/chat-with-memory/lib/memory.ts]
+    actually_changed: [examples/chat-with-memory/lib/memory.ts]
+    delta: 0 — exact match.
+  T3.2:
+    declared: [examples/chat-with-memory/lib/openai-adapters.ts (DELETE)]
+    actually_changed: [examples/chat-with-memory/lib/openai-adapters.ts (deleted)]
+    delta: 0 — exact match.
+  T4.1:
+    declared: [validation report + CHANGELOG entry + SEPA audit logs]
+    actually_changed: [CHANGELOG.md, .claude/knowledge-base/reviews/adapters-openai-cycle-2-implement-validate-2026-06-01.md, 16 sepa-iterations files]
+    delta: 0 — exact match (all artifacts under .claude/knowledge-base/).
+
+global_dod_status:
+  total_items: 19
+  satisfied: 19
+  unverified: 0
+  notes: |
+    All 7 task groups committed (T0.1 through T4.1 + scaffolding).
+    npm test PASS: 581/2 skipped/0 type errors (baseline 573 + delta 8).
+    typecheck PASS, lint PASS, build PASS, pack PASS (2 new files), demo build PASS.
+    CHANGELOG [Unreleased] § Added entry present (grep matched 2 keyword hits).
+    No vocab-lock violations (verified by validation report + greps).
+    No paper names in src/ test code (no "Voyager"/"Mem0"/"Letta"/"MemGPT"
+    in src/embedders/openai.ts or src/llms/openai.ts or their test files).
+    File-size budgets: src/embedders/openai.ts = 70 LoC ≤ 80 with-JSDoc;
+                       src/llms/openai.ts = 107 LoC ≤ 110 with-JSDoc.
+    EC-1 through EC-10 absorbed (10/10 per absorption matrix in plan v1.1).
+    DIP boundaries preserved (src/core/ does NOT import from src/embedders or src/llms).
+    Pushed to origin/develop (per progress audit).
+    Plan archived to completed/ — pending /review READY_TO_MERGE verdict.
+
+coverage_matrix_status:
+  total_gaps: 8
+  resolved_by_implemented_tasks: 8
+  notes: All 8 gaps in plan's Coverage Matrix map to commits that landed.
+         (1) Subpath exposure — T1.1+T1.2+T2.1 shipped.
+         (2) Rule 9 dep — T0.1 shipped.
+         (3) Demo migration — T3.1+T3.2 shipped.
+         (4) MOVE-only — D3 honored per file-level diff.
+         (5) Subpath symmetry — D1 honored.
+         (6) Smoke tests — T1.1+T1.2 test files shipped.
+         (7) Root no re-export — EC-3 absorption in T2.1.
+         (8) Validation gate — T4.1 9-check gate PASS.
+
+plan_drift:
+  plan_edited_after_implement: false
+  plan_finalized_at: "2026-06-01 12:21:50 -0300 (commit 1b74f03)"
+  implement_started_at: "2026-06-01 12:35:13 -0300 (commit 75153fc)"
+  details: |
+    Plan v1.1 commit landed BEFORE the scaffolding commit started /implement.
+    Plan is frozen for the duration of the cycle. No drift detected.
+
+findings:
+  - id: F-xval-1
+    severity: MINOR
+    file: src/embedders/__tests__/exports.test.ts, src/llms/__tests__/exports.test.ts
+    plan_ref: T2.1 "Files to edit"
+    summary: |
+      T2.1 commit (9352d52) touched 6 files; plan declared 3 + EC-3 extension = 4.
+      The 2 additional files are pre-existing Cycle 1 tests (`exports.test.ts`
+      in both barrel dirs) extended with 2 new `it()` blocks each — adding
+      barrel.OpenAIEmbedder/OpenAILLM defined + identity-equals direct import.
+    evidence: |
+      Plan T2.1 § Files to edit lists:
+        - src/embedders/index.ts (UPDATE)
+        - src/llms/index.ts (UPDATE)
+        - package.json (UPDATE #exports)
+        - src/__tests__/no-root-reexport.test.ts (per EC-3 absorption)
+      Commit 9352d52 git show --name-only reports:
+        - package.json
+        - src/__tests__/no-root-reexport.test.ts
+        - src/embedders/__tests__/exports.test.ts  ← NOT declared
+        - src/embedders/index.ts
+        - src/llms/__tests__/exports.test.ts        ← NOT declared
+        - src/llms/index.ts
+      The 2 extra files contain purely additive test coverage mirroring the
+      Cycle 1 barrel-identity pattern. They directly support T2.1 Acceptance
+      Criteria item 2 ("Barrels re-export 2 stubs + 2 OpenAI = 4 classes total
+      per barrel-set"), so the scope addition serves the declared acceptance
+      criterion.
+    recommended_action: |
+      DOCUMENT only — no code change required. Either:
+        (a) accept as test-coverage strengthening that aligns with T2.1 AC #2; OR
+        (b) in a future plan-update PR, add these 2 files to the T2.1 "Files to
+            edit" list to make the scope creep visible upfront.
+      No BLOCKER / no CRITICAL impact: tests are additive, pass at validation gate,
+      and reinforce the declared acceptance criterion.
+
+  - id: F-xval-2
+    severity: INFO
+    file: src/embedders/openai.ts, src/llms/openai.ts
+    plan_ref: T1.1 + T1.2 EC-8 absorption ("one client per process")
+    summary: |
+      EC-8 absorption text in plan v1.1 says "one OpenAI client SHARED across
+      all OpenAIEmbedder + OpenAILLM instances in the process". The shipped
+      JSDoc accurately documents the actual architecture: TWO singletons (one
+      per module file). This is a deliberate trade-off accepted in the JSDoc
+      ("Acceptable trade-off vs ADR D3 MOVE-only — sharing across modules
+      would require a new shared file not present in the demo, which is
+      scope creep"). The JSDoc is more honest than the plan text and matches
+      both the original demo behavior and the MOVE-only ADR constraint.
+    evidence: |
+      Plan T1.1 EC-8 absorption: "Lazy module-level singleton — ONE OpenAI
+      client shared across all OpenAIEmbedder + OpenAILLM instances in the
+      process." (singular "ONE")
+      Source src/embedders/openai.ts:15-19: "ONE OpenAI client instance per
+      module per process (two total: one in embedders/openai.ts, one in
+      llms/openai.ts). Acceptable trade-off vs ADR D3 MOVE-only — sharing
+      across modules would require a new shared file not present in the demo,
+      which is scope creep."
+      Demo file (commit 75153fc): exact same 2-singletons-across-2-files
+      pattern would have been required if the demo file had been split; the
+      original demo file had ONE because it was a single file.
+    recommended_action: |
+      No code change required. The JSDoc text accurately documents reality
+      and the trade-off vs MOVE-only. Optional future cleanup: update plan
+      EC-8 absorption text to match the as-shipped JSDoc precisely (clarify
+      "ONE per module = TWO total across the 2 SDK files").
+
+  - id: F-xval-3
+    severity: INFO
+    file: CHANGELOG.md
+    plan_ref: T4.1 Global DoD item ("CHANGELOG [Unreleased] § Added entry mentions
+              OpenAI adapter extract + plan slug")
+    summary: |
+      CHANGELOG entry under [Unreleased] § Added is comprehensive and accurate
+      (mentions OpenAI adapter extract, plan slug `adapters-openai-cycle-2-plan.md`,
+      ADRs D1-D6, all 10 EC absorptions, validation results, dep impact, file-size
+      budgets, model identifiers). Two keyword hits in grep
+      (`OpenAIEmbedder|OpenAILLM|adapters-cycle-2|adapters-openai`) confirm
+      inclusion. Honors Inquebrável Rule 6.
+    evidence: |
+      CHANGELOG.md [Unreleased] § Added starts with:
+        "**OpenAI adapters extracted from demo to SDK** at
+         `@usetheo/memory/embedders/openai` + `@usetheo/memory/llms/openai`
+         (`adapters-openai-cycle-2-plan.md` v1.1 SHIPPABLE 90.8 ...)"
+    recommended_action: None.
+
+summary:
+  blocker: 0
+  critical: 0
+  major: 0
+  minor: 1
+  info: 2
+  verdict: READY_TO_MERGE
+  rationale: |
+    All 7 plan tasks fully implemented; all 6 ADRs honored (with strong evidence
+    on D3 MOVE-only via side-by-side diff); all 10 edge cases absorbed per
+    plan v1.1 matrix; Coverage Matrix 100% resolved; Global DoD 19/19 satisfied;
+    plan was frozen 14 minutes BEFORE /implement started (no drift); all 8
+    commit subjects match plan-declared subjects verbatim; TDD shape (RED-GREEN-
+    REFACTOR) preserved per task; smoke tests + EC-3 guard re-verified PASS at
+    review time (7 tests / 3 files). Only one minor scope addition (F-xval-1)
+    where T2.1 also extended 2 pre-existing Cycle 1 exports.test.ts files to
+    assert barrel identity for the new OpenAI classes — additive test coverage
+    that serves the declared acceptance criterion. No false claims detected;
+    no silent ADR divergence; no fabricated files; no production-ready vocab
+    introduced.
