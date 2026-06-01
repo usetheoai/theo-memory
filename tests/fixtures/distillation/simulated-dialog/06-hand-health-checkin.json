@@ -1,0 +1,11 @@
+{
+  "id": "simulated-dialog-06-hand-health-checkin",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: I've been sleeping poorly this week.\nAGENT: Want to talk through what might be different?\nUSER: New baby — 6 weeks old. Up every 3 hours.\nAGENT: That tracks. Any naps during the day?\nUSER: I try, but I'm working from home so I'm interrupted a lot.",
+  "expectedFacts": [
+    { "text": "Has a 6-week-old baby", "attributedTo": "user" },
+    { "text": "Sleep interrupted every 3 hours by the baby", "attributedTo": "user" },
+    { "text": "Works from home with frequent interruptions", "attributedTo": "user" }
+  ]
+}

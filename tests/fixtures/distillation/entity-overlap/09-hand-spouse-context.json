@@ -1,0 +1,11 @@
+{
+  "id": "entity-overlap-09-hand-spouse-context",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "My wife Maria is a pediatrician at Hospital Sírio-Libanês in São Paulo. We've been married since 2021.",
+  "expectedFacts": [
+    { "text": "User's wife is Maria", "attributedTo": "user" },
+    { "text": "Maria is a pediatrician at Hospital Sírio-Libanês", "attributedTo": "user" },
+    { "text": "User and Maria married in 2021", "attributedTo": "user" }
+  ]
+}

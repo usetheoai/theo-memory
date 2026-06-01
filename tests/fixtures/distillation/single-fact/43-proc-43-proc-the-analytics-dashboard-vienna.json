@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-43-proc-the-analytics-dashboard-vienna",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Vienna deployment, the analytics dashboard refreshes every 15 minutes — against a read replica.",
+  "expectedFacts": [
+    {
+      "text": "the analytics dashboard refreshes every 15 minutes (Vienna deployment)"
+    }
+  ]
+}

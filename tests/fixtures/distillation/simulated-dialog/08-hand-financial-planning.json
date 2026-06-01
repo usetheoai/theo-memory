@@ -1,0 +1,12 @@
+{
+  "id": "simulated-dialog-08-hand-financial-planning",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: Help me think about retirement savings. I'm 34 and contribute 12% to my 401k.\nAGENT: Any employer match?\nUSER: Yes, they match 50% up to 6%. I also max my Roth IRA every year.",
+  "expectedFacts": [
+    { "text": "Age 34", "attributedTo": "user" },
+    { "text": "Contributes 12% to 401k", "attributedTo": "user" },
+    { "text": "Employer matches 50% up to 6%", "attributedTo": "user" },
+    { "text": "Maxes Roth IRA every year", "attributedTo": "user" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-12-proc-tokyo-12",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Tokyo region: the analytics dashboard refreshes every 15 minutes; Yuki from research publishes monthly (the model evaluation report); the postgres replica lags during peak.",
+  "expectedFacts": [
+    {
+      "text": "the analytics dashboard refreshes every 15 minutes"
+    },
+    {
+      "text": "Yuki from research publishes monthly — the model evaluation report"
+    },
+    {
+      "text": "the postgres replica lags during peak"
+    }
+  ]
+}

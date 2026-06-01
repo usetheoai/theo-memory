@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-41-proc-41",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to schedule the offsite for the platform team.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: the stack is TypeScript + Node + Postgres; and the team has 6 engineers and 1 EM.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: schedule the offsite for the platform team"
+    },
+    {
+      "text": "the stack is TypeScript + Node + Postgres"
+    },
+    {
+      "text": "the team has 6 engineers and 1 EM"
+    }
+  ]
+}

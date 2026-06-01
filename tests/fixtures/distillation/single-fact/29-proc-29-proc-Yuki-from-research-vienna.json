@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-29-proc-Yuki-from-research-vienna",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Vienna deployment, Yuki from research publishes monthly — the model evaluation report.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly (Vienna deployment)"
+    }
+  ]
+}

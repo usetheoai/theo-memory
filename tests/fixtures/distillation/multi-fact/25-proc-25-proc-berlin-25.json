@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-25-proc-berlin-25",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Berlin region: the build pipeline runs on every PR; project Halcyon launches in Q4 (500 enterprise pilots); project Halcyon launches in Q4.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR"
+    },
+    {
+      "text": "project Halcyon launches in Q4 — 500 enterprise pilots"
+    },
+    {
+      "text": "project Halcyon launches in Q4"
+    }
+  ]
+}

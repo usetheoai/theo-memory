@@ -1,0 +1,12 @@
+{
+  "id": "multi-fact-07-hand-product-spec",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Spec for the new memory feature: scopes are user/session/agent, ADD-only semantics, MD5-based hash dedup, write pipeline has six phases.",
+  "expectedFacts": [
+    { "text": "Memory scopes are user, session, and agent", "attributedTo": "user" },
+    { "text": "ADD-only semantics; no in-place updates", "attributedTo": "user" },
+    { "text": "Hash dedup uses MD5", "attributedTo": "user" },
+    { "text": "Write pipeline has six phases", "attributedTo": "user" }
+  ]
+}

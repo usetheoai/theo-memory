@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-19-proc-helena-19",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Helena speaks at conferences — also a deep expert in observability.",
+  "expectedFacts": [
+    {
+      "text": "Helena speaks at conferences"
+    },
+    {
+      "text": "Helena is a deep expert in observability"
+    }
+  ]
+}

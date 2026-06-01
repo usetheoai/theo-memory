@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-30-proc-stockholm-30",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Stockholm region: the API gateway rate-limits per IP; the staging cluster auto-scales overnight (between 4 and 12 nodes); Theo from support rotates weekly.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP"
+    },
+    {
+      "text": "the staging cluster auto-scales overnight — between 4 and 12 nodes"
+    },
+    {
+      "text": "Theo from support rotates weekly"
+    }
+  ]
+}

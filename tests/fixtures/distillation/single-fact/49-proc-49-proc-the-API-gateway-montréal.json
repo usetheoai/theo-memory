@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-49-proc-the-API-gateway-montréal",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Montréal deployment, the API gateway rate-limits per IP — at 1000 requests per minute.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP (Montréal deployment)"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-02-hand-relocation",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Moved again — left Porto Alegre in October, now living in São Paulo for the new job.",
+  "expectedFacts": [
+    { "text": "Currently lives in São Paulo", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Currently lives in São Paulo",
+    "rejected": "Lives in Porto Alegre"
+  }
+}

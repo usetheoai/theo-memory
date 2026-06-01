@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-46-proc-auckland-46",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Auckland region: the postgres replica lags during peak; Theo from support rotates weekly (through the on-call schedule); Theo from support rotates weekly.",
+  "expectedFacts": [
+    {
+      "text": "the postgres replica lags during peak"
+    },
+    {
+      "text": "Theo from support rotates weekly — through the on-call schedule"
+    },
+    {
+      "text": "Theo from support rotates weekly"
+    }
+  ]
+}

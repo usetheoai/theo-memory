@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-28-proc-stockholm-28",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Stockholm region: the API gateway rate-limits per IP; the API gateway rate-limits per IP (at 1000 requests per minute); Olivia from finance reviews every Friday.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP"
+    },
+    {
+      "text": "the API gateway rate-limits per IP — at 1000 requests per minute"
+    },
+    {
+      "text": "Olivia from finance reviews every Friday"
+    }
+  ]
+}

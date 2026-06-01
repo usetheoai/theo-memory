@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-01-hand-coffee-preference",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "I just realized I always order oat milk in my coffee now — switched a few months back when I went dairy-free.",
+  "expectedFacts": [
+    { "text": "Prefers oat milk in coffee", "attributedTo": "user" }
+  ]
+}
