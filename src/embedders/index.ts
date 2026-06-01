@@ -2,16 +2,18 @@
  * Barrel re-exports for `@usetheo/memory/embedders`.
  *
  * @remarks
- * **Phase A** of the adapters portfolio roadmap. This barrel currently
- * exposes a single deterministic stub adapter and has no production
- * runtime callers — only smoke tests at `__tests__/exports.test.ts`. This
- * is INTENTIONAL portfolio scaffolding per ADR D4 of the source plan
- * (debug adapters NOT root-re-exported). Future cycles (openai, ollama,
- * huggingface) add their adapters here as the roadmap advances; once a
- * production adapter ships, this barrel becomes a primary import target.
+ * **Phase A** of the adapters portfolio roadmap. Exposes deterministic stub
+ * (Cycle 1) + OpenAI (Cycle 2, MOVE-only lift from
+ * `examples/chat-with-memory/lib/openai-adapters.ts`). Adapters are NOT
+ * root-re-exported per ADR D4 of Cycle 1 + EC-3 of Cycle 2 — consumers go
+ * through the subpath `@usetheo/memory/embedders/{stub,openai}` explicitly.
+ * Future cycles (ollama, huggingface, anthropic-embedding, ...) add their
+ * adapters here as the roadmap advances.
  *
  * @see .claude/knowledge-base/plans/adapters-portfolio-roadmap.md
  * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T2.1
+ * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T2.1
  * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-wire-3
  */
 export { DeterministicStubEmbedder } from './stub.js';
+export { OpenAIEmbedder } from './openai.js';

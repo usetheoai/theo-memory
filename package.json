@@ -29,6 +29,10 @@
       "types": "./src/embedders/stub.ts",
       "default": "./src/embedders/stub.ts"
     },
+    "./embedders/openai": {
+      "types": "./src/embedders/openai.ts",
+      "default": "./src/embedders/openai.ts"
+    },
     "./llms": {
       "types": "./src/llms/index.ts",
       "default": "./src/llms/index.ts"
@@ -36,6 +40,10 @@
     "./llms/stub": {
       "types": "./src/llms/stub.ts",
       "default": "./src/llms/stub.ts"
+    },
+    "./llms/openai": {
+      "types": "./src/llms/openai.ts",
+      "default": "./src/llms/openai.ts"
     }
   },
   "bin": {
