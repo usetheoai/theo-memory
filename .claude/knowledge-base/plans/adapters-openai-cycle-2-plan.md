@@ -1,5 +1,7 @@
 # Plan: Adapters portfolio Cycle 2 — extract OpenAI adapters from demo to SDK
 
+> **Version 1.1** (2026-06-01) — Absorbs ALL 10 edge cases from `/edge-case-plan` review at `.claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md`. 0 MUST FIX (MOVE-only scope bounds risk). **4 SHOULD TEST absorbed as sub-steps**: EC-1 demo-wide grep before T3.2 (catch orphan importers); EC-2 smoke tests NEVER call `.embed()`/`.embedBatch()` (would hit live API); EC-3 extend `src/__tests__/no-root-reexport.test.ts` to assert OpenAI classes undefined at root barrel; EC-4 T1.2 pre-flight verifies `src/core/dip/llm.ts:LLM.generateResponse` actually has `tools?` 3rd param. **6 DOCUMENT absorbed as JSDoc notes**: EC-5 plan-text correction (no MAX_EMBEDDING_DIM reference — 1536 dim is implicit via OpenAI model); EC-6 `optionalDependencies` + `--no-optional` consumer guidance; EC-7 hard-coded models deferred to Cycle 2.X; EC-8 lazy singleton = one client per process; EC-9 `OPENAI_API_KEY` late-set env hazard; EC-10 opaque JSON-parse error shape `{error:'non_json_response', raw}` preserved per ADR D3. **ALSO absorbs `/deps-audit` advisory**: openai pin bumped `^4.50.0` → `^4.77.0` to MATCH demo's existing pin in `examples/chat-with-memory/package.json` (prevents silent demo regression on `npm install` resolution). Plan dep audit verdict: PASS_WITH_CAVEATS (zero CVE on openai; 4 pre-existing MODERATE allowlisted unchanged; ADR D3 MOVE-only correctly defers major bumps to Cycle 2.X so `soft_floor_plan_dep_major_outdated_unpinned` does NOT fire).
+>
 > **Version 1.0** (2026-06-01) — Cycle 2 of the adapters-portfolio-roadmap (`.claude/knowledge-base/plans/adapters-portfolio-roadmap.md` § Cycle 2). Cycle 1 (stub adapters) shipped in PR #25 and proved out the subpath layout `@usetheo/memory/embedders/*` + `@usetheo/memory/llms/*`. This cycle MOVES the existing OpenAI implementations from `examples/chat-with-memory/lib/openai-adapters.ts` (~92 LoC) to the SDK at `@usetheo/memory/embedders/openai` + `@usetheo/memory/llms/openai`, scope locked to **MOVE-only** (zero behavioral change). Unblocks (a) other consumers of the SDK from instantiating OpenAI adapters without copy-pasting the demo code, (b) empirical validation of F-T4.1-2's hotfix-lift risk envelope with real OpenAI (PR #26).
 
 ## Goal
@@ -17,7 +19,7 @@ The action verb is **extract**; the named observable metric is `npm pack --dry-r
 - **`examples/chat-with-memory/package.json`** already has `"openai": "^X.Y.Z"` as a regular dep (demo-scoped).
 - **`@usetheo/memory` (root SDK) `package.json#dependencies`**: zero LLM provider SDKs today. `optionalDependencies` already used for `natural: "^8.1.0"` (per v0.6.1 voyager precedent + Inquebrável Rule 9 discipline).
 - **Subpath exports established by Cycle 1** in root `package.json#exports`: `./embedders` + `./embedders/stub` + `./llms` + `./llms/stub` (4 new entries from PR #25). Pattern is locked.
-- **`vitest.contract.config.ts` + `tsconfig.contract.json` + `tsconfig.build.json`**: all already cover `src/embedders/**/*.ts` + `src/llms/**/*.ts` (per PR #25 T0.1 + PR #25-fixes T0.2 widening).
+- **`vitest.contract.config.ts` + `tsconfig.contract.json` + `tsconfig.build.json`**: all already cover `src/embedders/**/*.ts` + `src/llms/**/*.ts` (per PR #25 T0.1 + PR #25-fixes `T0.2` widening).
 
 ### Why this matters NOW
 
@@ -49,7 +51,7 @@ Honors `architecture.md § 3 DIP` — adapters live OUTSIDE `src/core/`; `src/co
 
 | Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
 |---|---|---|---|---|
-| `openai` (NEW; `optionalDependencies`) | `^4.50.0` | npm | Evaluated: (a) `openai` (official, this) — official SDK from OpenAI, maintained by them, ~50KB minified; (b) `@anthropic-ai/sdk` — wrong vendor; (c) raw `fetch` against API — would reinvent error handling, retry logic, types, streaming. Per Inquebrável Rule 9 + the existing demo already pinning `openai ^4.x`. | Official OpenAI TypeScript SDK; demo already uses it; lift = move not rewrite |
+| `openai` (NEW; `optionalDependencies`) | `^4.77.0` | npm | Evaluated: (a) `openai` (official, this) — official SDK from OpenAI, maintained by them, ~50KB minified; (b) `@anthropic-ai/sdk` — wrong vendor; (c) raw `fetch` against API — would reinvent error handling, retry logic, types, streaming. Per Inquebrável Rule 9 + the existing demo already pinning `openai ^4.x`. | Official OpenAI TypeScript SDK; demo already uses it; lift = move not rewrite |
 
 ### Removed
 
@@ -59,7 +61,7 @@ Honors `architecture.md § 3 DIP` — adapters live OUTSIDE `src/core/`; `src/co
 
 ## Objective
 
-- [ ] T0.1 — Add `openai: ^4.50.0` to root `package.json#optionalDependencies` (same tier as `natural`); verify `npm install` resolves without error; confirm `tsconfig.contract.json` already covers `src/embedders/openai.ts` + `src/llms/openai.ts` paths (per PR #25 T0.1 widening, no further config change needed).
+- [ ] T0.1 — Add `openai: ^4.77.0` to root `package.json#optionalDependencies` (same tier as `natural`); verify `npm install` resolves without error; confirm `tsconfig.contract.json` already covers `src/embedders/openai.ts` + `src/llms/openai.ts` paths (per PR #25 T0.1 widening, no further config change needed).
 - [ ] T1.1 — Create `src/embedders/openai.ts` with `OpenAIEmbedder` class implementing `Embedder` DIP. Lift verbatim from `examples/chat-with-memory/lib/openai-adapters.ts:28-47`. Lazy-singleton client retained. `EMBED_MODEL = 'text-embedding-3-small'`, 1536 dims. Empty-batch guard (`if (texts.length === 0) return []`) retained.
 - [ ] T1.2 — Create `src/llms/openai.ts` with `OpenAILLM` class implementing `LLM` DIP. Lift verbatim from `examples/chat-with-memory/lib/openai-adapters.ts:49-92`. `CHAT_MODEL = 'gpt-4o-mini'`. JSON-parse error path returns `{ error: 'non_json_response', raw: content }` (UNCHANGED — explicit per ADR D3). `_tools?: readonly unknown[]` 3rd param on `generateResponse` to match the Cycle 1 stub's DIP shape (per `src/core/dip/llm.ts:22-26`).
 - [ ] T2.1 — Add `OpenAIEmbedder` to `src/embedders/index.ts` barrel + `OpenAILLM` to `src/llms/index.ts` barrel. Declare new subpath exports `./embedders/openai` + `./llms/openai` in root `package.json#exports`. Root `src/index.ts` does NOT re-export the OpenAI classes (per ADR D4 of Cycle 1 — consumer-opt-in via subpath only).
@@ -84,7 +86,7 @@ Honors `architecture.md § 3 DIP` — adapters live OUTSIDE `src/core/`; `src/co
 
 ### D2 — `openai` SDK added as `optionalDependencies` (Inquebrável Rule 9)
 
-**Decision:** `openai: ^4.50.0` added to root `package.json#optionalDependencies` (not `dependencies`).
+**Decision:** `openai: ^4.77.0` added to root `package.json#optionalDependencies` (not `dependencies`). Pin matches the demo's existing pin in `examples/chat-with-memory/package.json` to prevent silent regression on `npm install` resolution (per `/deps-audit` advisory absorbed in plan v1.1).
 
 **Alternatives considered:**
 - (A) Regular `dependencies` — REJECTED: forces stub-only consumers to install the openai package weight (~50KB minified) they don't need. Violates the spirit of the stub adapters' design intent ("offline + deterministic + no external API").
@@ -173,11 +175,11 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 **Plan reference:** ADR D2.
 
 **Files to edit:**
-- `package.json` (UPDATE — add `"openai": "^4.50.0"` to `optionalDependencies` block)
+- `package.json` (UPDATE — add `"openai": "^4.77.0"` to `optionalDependencies` block)
 
 **TDD:**
 - **RED:** `npm ls openai` returns 0 results in root (only demo has it).
-- **GREEN:** add to root `optionalDependencies`; `npm install` succeeds; `npm ls openai` shows ^4.50.0 in root.
+- **GREEN:** add to root `optionalDependencies`; `npm install` succeeds; `npm ls openai` shows ^4.77.0 in root.
 - **REFACTOR:** none.
 
 **Acceptance criteria:**
@@ -196,19 +198,27 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 
 **Deep file dependency analysis:**
 - Demo file imports `OpenAI` from `openai` SDK and `Embedder` from `@usetheo/memory/contract`. SDK file imports `OpenAI` directly (now via `optionalDependencies`) + `Embedder` from `../core/index.js` (internal relative path; matches Cycle 1 stub pattern).
-- `EMBED_MODEL = 'text-embedding-3-small'` (1536 dims; matches `pgvector(1536)`). MAX_EMBEDDING_DIM constant from `src/core/constants.ts` referenced via symbolic import (matches Cycle 1 stub pattern).
+- `EMBED_MODEL = 'text-embedding-3-small'` (1536 dims, implicit via the model name — the OpenAI API determines the dimension). **EC-5 absorption:** the file does NOT import `MAX_EMBEDDING_DIM` from `src/core/constants.ts` (unlike the stub adapter); the dim is model-implicit. Plan v1.0 misstated this; corrected in v1.1.
 - Lazy singleton client (`_openai: OpenAI | null`) retained verbatim. Build-time page-data collection without runtime env is the documented reason (per demo JSDoc).
 
 **TDD:**
 - **RED:** smoke test `expect(OpenAIEmbedder).toBeDefined()` + DIP shape `expect(typeof embedder.embed).toBe('function')` + `expect(typeof embedder.embedBatch).toBe('function')` — fails because file doesn't exist.
 - **GREEN:** create file with lifted code; tests PASS.
+- **EC-2 absorption (smoke tests NEVER hit network):** the smoke test asserts ONLY (a) class defined, (b) method types are `'function'`. It DOES NOT call `.embed()` or `.embedBatch()` (would hit live OpenAI API → cost + 401 + flakiness in CI). Add explicit JSDoc above the test block: `// DO NOT call .embed() / .embedBatch() in this smoke test — it would hit the live OpenAI API.`
 - **REFACTOR:** verify zero behavioral diff via `git diff examples/chat-with-memory/lib/openai-adapters.ts src/embedders/openai.ts` (only headers + import paths differ).
+
+**JSDoc requirements on the new file (EC-6, EC-7, EC-8, EC-9 absorption):** the class-level JSDoc MUST document:
+1. **EC-6 — `optionalDependencies` consumer guidance:** "Requires `openai` SDK as an `optionalDependency`. Consumers using `npm install --no-optional` will get TS compile errors if they import this module; use `@usetheo/memory/embedders/stub` instead for offline / deterministic dev."
+2. **EC-7 — model parameterization deferred:** `@todo Cycle 2.X — accept model name via constructor param (today hard-coded to text-embedding-3-small per MOVE-only ADR D3).`
+3. **EC-8 — one client per process:** `@remarks Lazy module-level singleton — ONE OpenAI client shared across all OpenAIEmbedder + OpenAILLM instances in the process. Multi-account support deferred to Cycle 2.X.`
+4. **EC-9 — env timing:** "process.env.OPENAI_API_KEY MUST be set BEFORE the first .embed() call. If using dotenv, ensure `import 'dotenv/config'` runs before any import of this module — the singleton captures the env at first .embed() invocation."
 
 **Acceptance criteria:**
 - [ ] `src/embedders/openai.ts` exists with `OpenAIEmbedder` class
 - [ ] Class implements `Embedder` DIP (compile-time check via TS)
-- [ ] Smoke test PASSes
-- [ ] LoC ≤ 60
+- [ ] Smoke test PASSes; smoke test does NOT call `.embed()` / `.embedBatch()` (EC-2)
+- [ ] LoC ≤ 60 (excluding JSDoc lines added per EC-6/7/8/9; ≤ 80 with JSDoc)
+- [ ] JSDoc carries the 4 absorption notes above
 
 **COMMIT:** `feat(embedders)(adapters-cycle-2): extract OpenAIEmbedder from demo (T1.1 / ADR D3)`
 
@@ -225,16 +235,32 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 - `CHAT_MODEL = 'gpt-4o-mini'` retained.
 - JSON-parse error path `{ error: 'non_json_response', raw: content }` PRESERVED verbatim per ADR D3.
 
+**EC-4 absorption — PRE-FLIGHT VERIFICATION before T1.2 GREEN:**
+
+```bash
+grep -A6 "generateResponse" src/core/dip/llm.ts | head -10
+```
+
+MUST confirm the LLM DIP signature actually includes `tools?: readonly unknown[]` (or equivalent) as the 3rd parameter. If absent, the `_tools` addition in this task is NOT MOVE-only (it would deviate from current DIP) — ESCALATE to plan revision before GREEN. This guards against the same gotcha that PR #25 fix-up SEPA pre-RED brief caught (plan ADR D3 of source cycle assumed `{facts: [...]}` schema but real schema was `{memory: [...]}`).
+
 **TDD:**
 - **RED:** smoke test + DIP shape — fails.
-- **GREEN:** create file with lifted code (plus `_tools` 3rd param to match DIP); tests PASS.
+- **GREEN:** create file with lifted code (plus `_tools` 3rd param to match DIP confirmed by EC-4 pre-flight); tests PASS.
+- **EC-2 absorption** (same as T1.1): smoke test asserts class defined + method types are `'function'`; does NOT call `.generateChat()` / `.generateResponse()`. Explicit JSDoc note in test file.
 - **REFACTOR:** verify behavioral diff is ONLY the `_tools` param addition (matches stub's pattern).
+
+**JSDoc requirements on the new file (EC-6, EC-7, EC-8, EC-9, EC-10 absorption):** the class-level JSDoc MUST document:
+1-4. Same as T1.1 EC-6/7/8/9 (one-client-per-process + env-timing + model-parameterization-deferred + optionalDependencies guidance).
+5. **EC-10 — opaque JSON-parse error shape:** `@remarks On JSON parse failure of generateResponse({type:'json'}), returns { error: 'non_json_response', raw: <content> } INSTEAD of throwing. Caller MUST check result.error before processing. Future Cycle 2.X may throw a typed OpenAIJsonParseError; current behavior preserved per ADR D3 MOVE-only.`
 
 **Acceptance criteria:**
 - [ ] `src/llms/openai.ts` exists with `OpenAILLM` class
+- [ ] **EC-4 pre-flight gate:** `src/core/dip/llm.ts:LLM.generateResponse` confirmed to have `tools?` 3rd parameter; otherwise plan revision triggered
 - [ ] `generateResponse` signature includes `_tools?: readonly unknown[]` 3rd param (per stub precedent)
 - [ ] `generateChat` signature matches DIP
-- [ ] LoC ≤ 80
+- [ ] Smoke test PASSes; does NOT call `.generateChat()` / `.generateResponse()` (EC-2)
+- [ ] LoC ≤ 80 (excluding JSDoc; ≤ 110 with JSDoc)
+- [ ] JSDoc carries the 5 absorption notes above
 
 **COMMIT:** `feat(llms)(adapters-cycle-2): extract OpenAILLM from demo (T1.2 / ADR D3)`
 
@@ -252,12 +278,22 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 - **GREEN:** add 2 new exports entries; subpath imports resolve.
 - **REFACTOR:** verify root `src/index.ts` does NOT re-export `OpenAIEmbedder` / `OpenAILLM` (ADR D4 of Cycle 1 — opt-in via subpath only).
 
-**Acceptance criteria:**
-- [ ] `package.json#exports` has 4 new entries (2 new + 4 existing from Cycle 1 = 8 subpath exports total for embedders+llms)
-- [ ] Barrels re-export 2 stubs + 2 OpenAI = 4 classes total
-- [ ] Root index NOT re-exporting OpenAI classes (regression guard via existing `src/__tests__/no-root-reexport.test.ts` from Cycle 1's EC-6)
+**EC-3 absorption — extend `src/__tests__/no-root-reexport.test.ts`:** add 2 new assertions to the existing test (Cycle 1 EC-6 file) verifying root barrel does NOT expose OpenAI classes:
 
-**COMMIT:** `feat(public-api)(adapters-cycle-2): subpath exports embedders/openai + llms/openai (T2.1 / ADR D1)`
+```ts
+expect(root.OpenAIEmbedder).toBeUndefined();
+expect(root.OpenAILLM).toBeUndefined();
+```
+
+The 2 assertions live in the same `it()` block (or sibling `it()` block) as the existing `DeterministicStubEmbedder`/`DeterministicStubLLM` undefined assertions. Preserves the regression guard discipline established by PR #25 fix-up cycle.
+
+**Acceptance criteria:**
+- [ ] `package.json#exports` has 2 new entries (`./embedders/openai` + `./llms/openai`) ON TOP of the 4 existing from Cycle 1 = 6 subpath exports total for embedders+llms
+- [ ] Barrels re-export 2 stubs + 2 OpenAI = 4 classes total per barrel-set
+- [ ] **EC-3 absorption:** `src/__tests__/no-root-reexport.test.ts` extended with `expect(root.OpenAIEmbedder).toBeUndefined()` + `expect(root.OpenAILLM).toBeUndefined()` assertions
+- [ ] Root index NOT re-exporting OpenAI classes (verified by the EC-3 extension above)
+
+**COMMIT:** `feat(public-api)(adapters-cycle-2): subpath exports embedders/openai + llms/openai + EC-3 root-no-reexport guard (T2.1 / ADR D1 + EC-3)`
 
 ### T3.1 — Update demo to import from SDK
 
@@ -265,18 +301,32 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 
 **Files to edit:**
 - `examples/chat-with-memory/lib/memory.ts` (UPDATE — change `import ... from "./openai-adapters"` to `import ... from "@usetheo/memory/embedders/openai"` + `... from "@usetheo/memory/llms/openai"`)
+- (EC-1 absorption — any OTHER demo files surfaced by the pre-flight grep below get their imports updated atomically in this task)
+
+**EC-1 absorption — PRE-FLIGHT GREP across ALL demo paths BEFORE T3.1 GREEN:**
+
+```bash
+find examples/chat-with-memory -name '*.ts' -o -name '*.tsx' | xargs grep -lE 'from .*openai-adapters'
+```
+
+MUST return exactly **1 path** (`examples/chat-with-memory/lib/memory.ts`). If returns:
+- **> 1 path**: update ALL importers atomically in T3.1 (extend "Files to edit" list); do NOT proceed to T3.2 delete until all consumers redirected.
+- **0 paths**: abort — plan's claim about the only importer was wrong; investigate before continuing.
+
+This guards against silent CI break by orphan importers (Inquebrável Rule 3 honesty).
 
 **TDD:**
-- **RED:** demo `npm run build` PASSes (current state with old import).
-- **GREEN:** update imports; demo build still PASSes.
+- **RED:** demo `npm run build` PASSes (current state with old import). Pre-flight grep returns ≥ 1.
+- **GREEN:** update ALL imports surfaced by the pre-flight; demo build still PASSes; pre-flight grep returns 0.
 - **REFACTOR:** none.
 
 **Acceptance criteria:**
-- [ ] `grep -E "from .*openai-adapters" examples/chat-with-memory/lib/*.ts` returns 0 (zero remaining consumers)
+- [ ] **EC-1 absorption:** pre-flight grep returned exactly 1 path before changes (plan claim verified) OR all surfaced importers updated atomically
+- [ ] Post-T3.1: `grep -E "from .*openai-adapters" examples/chat-with-memory/lib/*.ts examples/chat-with-memory/app/**/*.ts examples/chat-with-memory/components/**/*.tsx` returns 0 (zero remaining consumers across all demo paths, not just lib/)
 - [ ] Demo `npm run build` PASS
 - [ ] Demo's `THEOMEM_USE_STUB_ADAPTERS=1` env path still works
 
-**COMMIT:** `refactor(examples)(adapters-cycle-2): import OpenAI adapters from SDK (T3.1)`
+**COMMIT:** `refactor(examples)(adapters-cycle-2): import OpenAI adapters from SDK (T3.1 / EC-1)`
 
 ### T3.2 — Delete demo's legacy `openai-adapters.ts`
 
@@ -326,12 +376,29 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 | 2 | `openai` SDK introduced per Rule 9 with rejected alternatives documented | T0.1 | `optionalDependencies` per ADR D2 |
 | 3 | Demo migrated to SDK paths; no copy-paste residue | T3.1 + T3.2 | Update imports + delete legacy file |
 | 4 | Zero behavioral change (MOVE-only) | T1.1 + T1.2 ADR D3 | Verbatim lift with only the `_tools` DIP param addition |
-| 5 | Subpath shape symmetric with Cycle 1 | ADR D1 | `/embedders/openai` + `/llms/openai` mirror `/embedders/stub` + `/llms/stub` |
+| 5 | Subpath shape symmetric with Cycle 1 | T2.1 (declares exports per ADR D1) | `/embedders/openai` + `/llms/openai` mirror `/embedders/stub` + `/llms/stub` |
 | 6 | Smoke tests assert DIP shape compliance | T1.1 + T1.2 | New `__tests__/openai.test.ts` per dir |
 | 7 | Root index does NOT re-export OpenAI classes (ADR D4 of Cycle 1) | T2.1 | Regression guard via existing `src/__tests__/no-root-reexport.test.ts` |
 | 8 | Validation gate verifies all the above | T4.1 | 9-check validation gate |
 
 8 / 8 mapped. Coverage Matrix: 100%.
+
+### Edge-case absorption matrix (v1.1)
+
+| # | Severity | Resolved by | Mechanism |
+|---|---|---|---|
+| EC-1 | SHOULD TEST | T3.1 pre-flight grep | Atomic update of ALL demo importers (catch orphan files) |
+| EC-2 | SHOULD TEST | T1.1 + T1.2 smoke tests | Explicit JSDoc note "DO NOT call .embed()/.generateChat() — would hit live API" |
+| EC-3 | SHOULD TEST | T2.1 | Extend `src/__tests__/no-root-reexport.test.ts` with OpenAI undefined assertions |
+| EC-4 | SHOULD TEST | T1.2 pre-flight gate | grep `src/core/dip/llm.ts:LLM.generateResponse` for `tools?` 3rd param |
+| EC-5 | DOCUMENT (locked) | T1.1 plan-text correction | Removed misleading MAX_EMBEDDING_DIM claim; 1536 dim is model-implicit |
+| EC-6 | DOCUMENT | T1.1 + T1.2 JSDoc | optionalDependencies + --no-optional consumer guidance |
+| EC-7 | DOCUMENT | T1.1 + T1.2 JSDoc | `@todo Cycle 2.X — model parameterization via constructor param` |
+| EC-8 | DOCUMENT | T1.1 + T1.2 JSDoc | `@remarks` lazy singleton = ONE client per process |
+| EC-9 | DOCUMENT | T1.1 + T1.2 JSDoc | OPENAI_API_KEY must be set BEFORE first .embed() call |
+| EC-10 | DOCUMENT | T1.2 JSDoc | `@remarks` opaque `{error:'non_json_response', raw}` shape preserved per ADR D3 |
+
+10 / 10 edge cases absorbed. EC absorption Coverage: 100%.
 
 ## Global Definition of Done
 
@@ -345,7 +412,12 @@ T1.1 + T1.2 parallelizable. T3.1 + T3.2 sequential (T3.2 requires T3.1's import 
 - [ ] CHANGELOG `[Unreleased] § Added` entry mentions OpenAI adapter extract + plan slug
 - [ ] No vocab-lock violations
 - [ ] No paper names in src/test code
-- [ ] File-size budgets respected (`src/embedders/openai.ts` ≤ 60; `src/llms/openai.ts` ≤ 80)
+- [ ] File-size budgets respected (`src/embedders/openai.ts` ≤ 80 with EC-6/7/8/9 JSDoc; `src/llms/openai.ts` ≤ 110 with EC-6/7/8/9/10 JSDoc)
+- [ ] **EC-1 absorption:** demo-wide pre-flight grep returned 1 path BEFORE T3.1 (plan claim verified) OR all surfaced importers updated atomically
+- [ ] **EC-2 absorption:** smoke tests at `src/{embedders,llms}/__tests__/openai.test.ts` DO NOT call `.embed()`/`.embedBatch()`/`.generateChat()`/`.generateResponse()` (explicit JSDoc warning per file)
+- [ ] **EC-3 absorption:** `src/__tests__/no-root-reexport.test.ts` extended with `expect(root.OpenAIEmbedder).toBeUndefined()` + `expect(root.OpenAILLM).toBeUndefined()`
+- [ ] **EC-4 absorption:** T1.2 pre-flight gate verified `src/core/dip/llm.ts:LLM.generateResponse` has `tools?` 3rd param BEFORE GREEN
+- [ ] **EC-5/6/7/8/9/10 absorption:** JSDoc notes per the absorption matrix above present in `src/embedders/openai.ts` + `src/llms/openai.ts`
 - [ ] DIP boundaries preserved (no `src/core/` → `src/local|cloud/` reverse imports)
 - [ ] Pushed to origin/develop
 - [ ] Plan archived to `.claude/knowledge-base/plans/completed/` AFTER /review READY_TO_MERGE + PR merged
