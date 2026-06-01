@@ -1,0 +1,138 @@
+agent: review-f-t4-1-2-eviction-race-debug-tests
+review_target: f2d9d46..HEAD for plan f-t4-1-2-eviction-race-debug
+plan: .claude/knowledge-base/plans/f-t4-1-2-eviction-race-debug-plan.md
+diff_files_in_scope:
+  - tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts (NEW, 388 LoC, +388/-0)
+test_pyramid:
+  unit_added: 0
+  integration_added: 3
+  e2e_added: 0
+  total: 3
+  pyramid_balance_verdict: CORRECT
+  pyramid_rationale: |
+    Plan T1.1/T1.2/T1.3 all target pgvector eviction race; integration tier is the
+    correct home. No unit tests added because the test's whole purpose is to
+    exercise the multi-statement Promise.all interaction with real Postgres
+    advisory locks + soft-delete semantics — none of which a unit test can
+    reproduce. Plan task scope did not call for unit tests.
+tdd_compliance:
+  commit_sha: 7caad31
+  commit_message_prefix: "test(integration)(f-t4-1-2): stub-reproduction test with 3 race-attempt variants"
+  red_then_green: HONEST_NOTE
+  red_then_green_note: |
+    Commit message admits "HONEST FINDING T1.x PASSES, bug does NOT reproduce in
+    pure-SDK". Plan's T1.1 expected RED (bug reproduces); empirically the test
+    PASSED across all 3 variants. Plan ADR D2 anticipated this branch: "if T1.1
+    RED PASSES, the bug is demo-only — T1.2 fires" (extended to T1.3 deeper
+    fallback). This is NOT a TDD violation — it is the documented alternative
+    outcome of plan § Acceptance criteria T1.1 (line 244-250: "Alternative RED
+    outcome: if ALL 20 trials PASS, the bug is demo-only").
+edge_cases_from_plan:
+  covered:
+    - "EC-1 (heisenbug 20-iter loop): COVERED at T1.1 line 308 (TRIALS = 20)"
+    - "EC-2 (TRUNCATE per trial): COVERED — beforeEach line 101-103 AND intra-test truncate at lines 116, 204, 311"
+    - "EC-3 (t_invalid IS NULL guard): COVERED — every SELECT at lines 150, 155, 166, 250, 256, 268, 339, 345, 351 includes `WHERE t_invalid IS NULL`"
+    - "EC-4 (dumpPgLocks helper): COVERED — helper defined line 53-61"
+    - "EC-A vs EC-B branching (SDK vs demo): COVERED via 3-variant ladder (T1.1 single-conv → T1.2 multi-conv → T1.3 slow-embedder)"
+  missing: []
+findings:
+  - id: F-tests-1
+    severity: MAJOR
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 371
+    plan_ref: "Plan § EC-4 (dumpPgLocks visibility helper)"
+    summary: dumpPgLocks helper called ONLY in T1.1 (line 371); T1.2 and T1.3 also accumulate failingTrials but don't capture lock state for post-mortem.
+    evidence: |
+      grep -c 'dumpPgLocks' tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts -> 3 occurrences (1 docblock, 1 def, 1 call). Call site only in T1.1 line 371. T1.2 (line 278-283) and T1.3 (line 171-176) accumulate failingTrials with `details` array but no `locks` field. If T1.2 or T1.3 ever fires a regression, post-mortem diagnostic surface is poorer than T1.1.
+    recommended_action: |
+      Add `locks: await dumpPgLocks(pool)` to the failingTrials.push() calls at T1.2 line 279-282 and T1.3 line 172-175 for symmetric post-mortem capability.
+  - id: F-tests-2
+    severity: MAJOR
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 75
+    plan_ref: "testing.md § Determinism (`No flaky tests... Embeddings in unit tests use deterministic fixtures`)"
+    summary: SlowDeterministicEmbedder uses Math.random() for latency, introducing non-deterministic timing. This is the EXPLICIT design intent (widen race window to match real-OpenAI cadence per the inline comment lines 64-69) but is a controlled flakiness vector worth documenting.
+    evidence: |
+      Line 75: `const ms = this.minMs + Math.random() * (this.maxMs - this.minMs);`
+      Embedding VALUES remain deterministic (super.embed delegates to parent's MD5-seeded LCG). Only setTimeout duration varies. Intent is honest (simulating real OpenAI latency variance to widen race window). Risk: if F-T4.1-2 ever re-emerges intermittently in production, this test could PASS or FAIL depending on scheduling dice. Today (post-investigation): the variance is FINE because the assertion is `failingTrials === []` and any reproduction would surface as failure regardless of timing — but if a future maintainer assumes "test passed = bug absent" they may miss a 1/200 race.
+    recommended_action: |
+      Add inline comment at the SlowDeterministicEmbedder class noting (a) embedding VALUES stay deterministic (parent's MD5+LCG), (b) only LATENCY varies, (c) the intent is widening the race window, NOT introducing flakiness in the assertion path. Consider seeding `Math.random()` via a deterministic per-trial seed if the team wants to lock the variance pattern for CI reproducibility.
+  - id: F-tests-3
+    severity: MINOR
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 105
+    plan_ref: "testing.md § BDD format Given-When-Then"
+    summary: AAA / Given-When-Then sections not visually demarcated in the 3 `it()` bodies. Test names describe behavior correctly (no method names, no "and"); structural separation is implicit in code order but no // Given: / // When: / // Then: comments.
+    evidence: |
+      Compare lines 105-187 (T1.3) — Arrange (memory + stubs) at lines 117-126, Act (Promise.all) at line 137-140, Assert (pool.query + expect) at lines 147-186. Structure is correct, just not labeled. testing.md § BDD shows the canonical pattern with // Given / // When / // Then comments. The block-level docblocks (lines 105-110, 189-195, 296-299) cover the intent but per-test AAA labels would help future maintainers parsing 388 LoC.
+    recommended_action: |
+      Add // Arrange / // Act / // Assert (or // Given / // When / // Then) comments inside each `it()` to demarcate phases. Cosmetic — not blocking but improves readability for a regression-guard test that future devs will read when investigating eviction issues.
+  - id: F-tests-4
+    severity: MINOR
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: "n/a (commit message claim)"
+    plan_ref: "Inquebrável Rule 3 (extreme honesty)"
+    summary: Commit message implies "HONEST FINDING T1.x PASSES" without trial-count attribution. Caller's narrative cited "600+ race attempts × 0 reproductions" — actual count is 400 write-pairs (T1.1=100 + T1.2=200 + T1.3=100), or 800 individual remember() calls (each Promise.all calls remember twice).
+    evidence: |
+      T1.3: T1_3_TRIALS=5, CONVERSATIONS=4, WRITES_PER_TRIAL=5 -> 5*4*5 = 100 write-pairs (200 remember calls)
+      T1.2: T1_2_TRIALS=10, CONVERSATIONS=4, WRITES_PER_TRIAL=5 -> 10*4*5 = 200 write-pairs (400 remember calls)
+      T1.1: TRIALS=20, WRITES_PER_TRIAL=5 -> 20*5 = 100 write-pairs (200 remember calls)
+      TOTAL: 400 write-pair attempts OR 800 individual remember() calls. The "600+" claim in the caller's narrative is inaccurate either way.
+    recommended_action: |
+      If caller-narrative or downstream docs cite trial count, use precise figure: "400 parallel-remember pair attempts (800 individual remember calls) across 3 race-window variants × 35 trials × 5 writes/trial, 0 reproductions". Plan version-1.2 absorption update could record the empirical number for traceability.
+  - id: F-tests-5
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: "describe block 86"
+    plan_ref: "n/a — observation"
+    summary: describe() title says "20-iter heisenbug loop" but the suite now contains THREE iterations (20, 10×4, 5×4) per ADR D2 deeper-fallback evolution. Title is a v1.0 artifact.
+    evidence: |
+      Line 86: `describe('F-T4.1-2 eviction race — stub reproduction (20-iter heisenbug loop)', ...`
+      Suite actually runs 35 outer iterations × variable inner factors. Plan v1.1 absorbed T1.2 + T1.3 but the describe title was not updated.
+    recommended_action: |
+      Update describe title to e.g. `F-T4.1-2 eviction race — stub reproduction (3-variant ladder: 20 single-conv + 10×4 multi-conv + 5×4 slow-embedder)`. Optional cosmetic.
+  - id: F-tests-6
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 105-187
+    plan_ref: "Plan ADR D2 deeper-fallback"
+    summary: T1.3 SLOW-embedder variant exists in implementation but does NOT appear in the plan's task list. Plan documents T1.1 + T1.2; T1.3 was added during implementation under ADR D2's open-ended "deeper fallback" license. Honest extension but plan v1.1 was not updated to document T1.3.
+    evidence: |
+      Plan f-t4-1-2-eviction-race-debug-plan.md grep "T1.3" -> 0 occurrences. ADR D2 cites T1.2 as the explicit fallback; T1.3 (slow-embedder) is implementation-time extension. Test file's line 109-111 comment explains the rationale honestly: "T1.3 per ADR D2 deeper-fallback".
+    recommended_action: |
+      Either (a) update plan to v1.2 with T1.3 absorbed and ADR D2 extended, OR (b) leave as-is and rely on the test file's inline rationale + commit message. Option (b) is fine for a debug/investigation cycle where the test IS the artifact.
+skipped_or_only_tests:
+  scan_result: CLEAN
+  evidence: "grep -nE '\\.only|\\.skip|xit|xtest|xdescribe' returns 0 matches"
+no_paper_names_check:
+  scan_result: CLEAN
+  evidence: "No Voyager/Mem0/Letta/CoALA references in test file or describe/it names. Only ADR/EC/plan-task references which are filesystem-coordinate per project rule."
+test_runtime_sanity:
+  timeouts_declared:
+    - "T1.1: 60_000 ms"
+    - "T1.2: 120_000 ms"
+    - "T1.3: 240_000 ms"
+  flag: |
+    T1.3 timeout at 240s is large because of artificial sleep (20-80ms × 5 trials × 4 convs × 5 writes × 2 scopes ≈ 4-16s sleep minimum per trial × 5 trials = 20-80s + DB overhead). Within budget but the test is slow by design. cycle-implement.md soft warn threshold (>30s integration) is exceeded — should be flagged for human awareness but is not a blocker since the slowness is INTENTIONAL (race-window widening per ADR D2).
+verdict:
+  overall: SHIPPABLE_WITH_CAVEATS
+  rationale: |
+    Test file is a competent regression guard. All 4 EC absorptions present and
+    explicitly documented (EC-1 20-iter, EC-2 TRUNCATE, EC-3 t_invalid IS NULL,
+    EC-4 dumpPgLocks). 3-variant ladder honestly extends plan's T1.1+T1.2 under
+    ADR D2 license. Pyramid placement correct (integration tier). No skipped/only
+    tests. Honest acknowledgement in commit message that the bug did NOT
+    reproduce (HONEST_NOTE re: TDD: this is the plan's documented alternative
+    outcome, not a TDD violation).
+
+    Findings are 2 MAJOR (asymmetric dumpPgLocks usage; SlowDeterministicEmbedder
+    Math.random() not seeded — flakiness vector documented but uncomstrained), 2
+    MINOR (no AAA labels; trial count inflated in caller narrative from 400 to
+    "600+"), 2 INFO (describe title stale post-D2; T1.3 not in plan).
+
+    None of the findings block merge. The MAJOR findings are improvements that
+    increase post-mortem visibility (F-tests-1) and document a controlled
+    flakiness vector (F-tests-2). Recommend addressing them in a follow-up
+    commit if a stricter regression-guard posture is desired, OR absorbing them
+    into plan v1.2 if the team chooses to iterate. Branch is safe to merge as
+    a "honest investigation finding + regression guard" deliverable.

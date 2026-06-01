@@ -1,0 +1,184 @@
+agent: review-f-t4-1-2-eviction-race-debug-domain-memory-layer
+review_target: f2d9d46..c004d76 for plan f-t4-1-2-eviction-race-debug
+domain: memory-layer
+verdict: READY_TO_MERGE
+summary: |
+  Cycle is empirically HONEST and architecturally clean from the memory-layer lens.
+  Pure-SDK race-reproduction guard ships at the exact declared landing site.
+  Mem0-shape pipeline, ADD-only invariant, three-tier scope model, additive scoring
+  contract — all preserved. Zero src/core/ or src/local/eviction/ modifications.
+  Hotfix lift is matched 1:1 to the SDK contract (LocalEvictionConfig capacity variant).
+  Honest "T2.1 = empirical no-op" finding is recorded in the validate report with
+  the correct risk envelope (demo runtime + real OpenAI + HMR not exercised by guard).
+domain_specific_patterns_checked:
+  - Mem0-shape pipeline integrity (src/core/extraction/ + src/local/eviction/ unchanged)
+  - createLocalMemory({ eviction }) probe-safe boot semantics (ADR D8 v0-2-theokit-binding)
+  - F-T4.1-2 bug shape vs test assertion shape (user_id IS NULL signature)
+  - Three-tier scope (user_id / session_id) filter disjointness via WHERE clause
+  - Demo singleton resolveEviction → LocalEvictionConfig capacity variant shape match
+  - t_invalid soft-delete guards (v0-4b T7.1 BREAKING — WHERE t_invalid IS NULL)
+  - ADD-only invariant (no .update() public call)
+  - Additive (not multiplicative) scoring discipline
+  - EC-9 / no-paper-names-in-code policy
+findings:
+  - id: F-dom-1
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 14
+    plan_ref: plan § "What exists today" — bug signature
+    domain_anchor: hotfix b2909ff body — "DB state shows user_id IS NULL on all rows"
+    summary: |
+      Bug-signature documentation matches across all three layers (hotfix body /
+      plan / test file JSDoc). The orphan check at line 166/269/352 of the test
+      file (WHERE t_invalid IS NULL AND user_id IS NULL AND session_id IS NULL)
+      is the PRECISE F-T4.1-2 signature. Session-scope row counters use
+      `user_id IS NULL AND session_id = $1` which is the legitimate three-scope
+      column shape (a session-only row has user_id NULL by design); these are
+      NOT confused with the orphan check. Assertion shape is correct.
+    evidence: |
+      Test lines 164-167 (orphans assertion):
+        SELECT COUNT(*)::int AS n FROM memories
+        WHERE t_invalid IS NULL AND user_id IS NULL AND session_id IS NULL
+      This MATCHES hotfix body "user_id IS NULL on every row" signature.
+    recommended_action: none — keep as-is
+
+  - id: F-dom-2
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 128
+    plan_ref: ADR D4 — separate atomic commit for hotfix lift
+    domain_anchor: src/local/index.ts:72 LocalEvictionConfig type definition + src/local/eviction/index.ts:46 union
+    summary: |
+      Post-lift resolveEviction return shape ({ enabled: true, trigger: 'capacity',
+      maxMemoriesPerScope: 10 } in state; { trigger: 'capacity', maxMemoriesPerScope: 10 }
+      in config) matches the LocalEvictionConfig capacity-variant union member exactly
+      (src/local/eviction/index.ts:47-50). EvictionNotSupported throw-guard at
+      src/local/index.ts:109 honored — eviction only enabled when backend === 'pgvector'.
+      ADR D8 (probe-safe boot from v0-2-theokit-binding) preserved: in-memory backend
+      still gets { enabled: false, reason: 'backend' }, never throws.
+    evidence: |
+      lib/memory.ts:128-138 backend === 'pgvector' guard + config shape
+      matches the discriminated-union capacity variant 1:1.
+    recommended_action: none
+
+  - id: F-dom-3
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 326-348
+    plan_ref: plan § Hypothesis 4 — alternative hypothesis "advisory-lock key collision OR scope-where clause leaking across scopes"
+    domain_anchor: src/local/eviction/scope-where.ts (advisoryLockKey kind-namespaced per v0.4b-fixes T3.1 EC-5)
+    summary: |
+      The pure-SDK guard exercises memory.user(`u-${trial}`) + memory.session(`s-${trial}`)
+      against the SAME memory instance with capacity-trigger eviction enabled, then
+      asserts the SDK produces disjoint row sets (3 separate counters: user-only,
+      session-only, orphan). Across 300 + 200 + 100 = 600 effective race attempts
+      (across the 3 test variants) with t_invalid IS NULL guards, the assertion
+      shape correctly proves scope-where + advisory-lock-key composition is sound
+      at the SDK layer. This is genuine evidence that scope filtering is correct,
+      not a tautology.
+    recommended_action: none — keep as load-bearing regression guard
+
+  - id: F-dom-4
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 70-84
+    plan_ref: plan § Hypothesis 5 / EC-6 DOCUMENT
+    domain_anchor: SlowDeterministicEmbedder timing-simulation pattern
+    summary: |
+      T1.3's SlowDeterministicEmbedder extends DeterministicStubEmbedder with
+      setTimeout(20-80ms) per embed call. This is the SDK's best honest attempt
+      to simulate OpenAI cadence with a deterministic, in-process embedder.
+      Sequential per-text embedBatch (line 79-83) matches the actual pipeline
+      shape (PgvectorStore batch-then-fallback contract). Pattern is sound;
+      caveat correctly acknowledged in the validate report's Honest Findings
+      section: setTimeout does NOT faithfully reproduce TCP keep-alive, HTTP/2
+      multiplexing, retry-backoff jitter. This is honestly bounded, not hidden.
+    recommended_action: none
+
+  - id: F-dom-5
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 119
+    plan_ref: rule no-paper-names-in-code.md
+    domain_anchor: EC-9 absorption check
+    summary: |
+      grep across the 2 files modified by this cycle (tests/integration/forgetting/
+      f-t4-1-2-stub-reproduction.test.ts + examples/chat-with-memory/lib/memory.ts)
+      for the locked paper-name list (Voyager, Mem0, Letta, LangMem, MemGPT,
+      CoALA, Generative Agents, ProcMEM) returned ZERO hits. Neutral wording
+      preserved throughout. DisabledReason type union retains 'hotfix-2026-05-31'
+      string literal for backward-compat snapshot reads — date string is not a
+      paper name.
+    recommended_action: none
+
+  - id: F-dom-6
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    plan_ref: testing.md § Determinism + § Pyramid
+    domain_anchor: integration test discipline (real ankane/pgvector:v0.5.1, deterministic stubs)
+    summary: |
+      Test uses real Postgres + pgvector (THEOMEM_PG_URI), DeterministicStubEmbedder +
+      DeterministicStubLLM for determinism, beforeEach TRUNCATE for fresh state,
+      Given-When-Then structure per `it` block, behavior-shaped names (not
+      "test_1"), no live LLM calls, no shared mutable state across `it` blocks
+      (each test creates+disposes its own memory instance). EC-1/2/3/4
+      absorptions verified inline. Honors all 6 testing.md rules.
+    recommended_action: none
+
+  - id: F-dom-7
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    plan_ref: cycle-implement.md § Wiring triad pillar (b)
+    domain_anchor: integration test is pillar-b evidence
+    summary: |
+      This test IS the wiring triad pillar (b) evidence (integration test
+      exercising the eviction code path under the post-lift demo config shape).
+      Pillar (a) static callers — capacity-trigger eviction has 67 existing
+      passing integration tests in tests/integration/forgetting/ plus this one.
+      Pillar (c) runtime metric — out of scope for this cycle (no new metric).
+    recommended_action: none
+
+  - id: F-dom-8
+    severity: MINOR
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 119
+    plan_ref: KISS / vocabulary hygiene
+    domain_anchor: DisabledReason union retains "hotfix-2026-05-31" string
+    summary: |
+      The DisabledReason union retains "hotfix-2026-05-31" as a third member
+      "for backward compat with /api/memory/eviction-status snapshots" per the
+      inline JSDoc. Since resolveEviction post-lift NEVER emits this value
+      (only "env" or "backend"), the literal is dead in the encoder direction
+      but may still appear in archived JSON the API route reads. Worth a
+      followup audit (NOT a blocker): grep /api/memory/eviction-status route
+      to confirm consumer-side discrimination still safely handles the legacy
+      string OR the union can be tightened in a future cleanup.
+    recommended_action: |
+      Followup (NOT blocking this PR): grep app/api/memory/eviction-status/
+      for DisabledReason consumption and either (a) confirm legacy snapshot
+      compat is intentional, OR (b) tighten the union to "env" | "backend"
+      and update any persisted snapshot reader to coerce the legacy value.
+
+memory_layer_specific_recommendations:
+  - The 3 test variants (T1.1 sequential, T1.2 multi-conversation, T1.3 slow-embedder)
+    constitute the strongest SDK-layer race-condition regression guard the eviction
+    pipeline has ever had. 600+ effective race attempts × 0 reproductions is
+    genuinely informative — it strongly localizes any future F-T4.1-2-shaped bug
+    OUTSIDE the SDK call path (most likely candidate per validate report:
+    Next.js HMR + globalThis singleton state mutation under real OpenAI cadence).
+  - Recommend NOT inlining additional race-reproduction variants into this file
+    if a future debug cycle is needed for HMR/OpenAI surfaces — those belong in
+    a separate Playwright-style E2E test against the demo. This file's contract
+    is "pure SDK code path"; widening it would muddy the audit narrative.
+
+empirical_honesty_assessment:
+  rule_3_compliance: VERIFIED
+  notes: |
+    The validate report explicitly states "T2.1 = empirical no-op" and "this
+    does NOT prove the SDK is bug-free — it proves the bug is NOT in the
+    pure-SDK call path as deterministically exercised by the stubs." Risk
+    envelope for the lift is documented with specific re-application criteria
+    (re-apply hotfix b2909ff if F-T4.1-2 resurfaces in /test-chat-with-memory
+    with real OpenAI). Followup F1 captures the next investigation surface.
+    This is the correct application of Inquebrável Rule 3 for an
+    empirical-no-reproduction scenario.
