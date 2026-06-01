@@ -118,6 +118,15 @@ export type {
 } from './dip/conflict-resolution-policy.js';
 export { NoopConflictPolicy } from './conflict-resolution/noop.js';
 export { LastWriteWinsConflictPolicy, compareCandidatesDesc } from './conflict-resolution/last-write-wins.js';
+export {
+  LlmJudgedMergeConflictPolicy,
+  parseConsolidationResponse,
+  type LlmJudgedMergeConflictPolicyOptions,
+} from './conflict-resolution/llm-judged-merge.js';
+export {
+  CONFLICT_MERGE_PROMPT,
+  generateConflictMergePrompt,
+} from './conflict-resolution/prompts.js';
 
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
