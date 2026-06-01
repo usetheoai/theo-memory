@@ -43,7 +43,7 @@
   - `DeterministicStubEmbedder` consumed by `src/embedders/index.ts` (barrel) + `examples/chat-with-memory/lib/memory.ts` (demo).
   - `DeterministicStubLLM` consumed by `src/llms/index.ts` (barrel) + `examples/chat-with-memory/lib/memory.ts` (demo).
   - EC-6 test asserts root index does NOT re-export the deterministic classes (ADR D4 enforcement).
-- **(b) Integration evidence**: contract tests assert all determinism invariants via Zod roundtrip + L2 norm + collision checks. Per `testing.md § Determinism`, these ARE the integration evidence for pure-function adapters.
+- **(b) Integration evidence**: DEFERRED via ADR-DEFER-WIRING-B markers landed in `.claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md § Wiring triad scope` by the fix-up cycle `adapters-stub-embedder-llm-cycle-1-fixes` T0.1 on 2026-06-01. Landing site for the real integration test declared as the F-T4.1-2 debug cycle's `tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts`. **Amended 2026-06-01 — supersedes the original claim that `testing.md § Determinism` substitutes for the integration tier. That rationale was fabricated: `testing.md § Determinism` describes a PROPERTY of tests, not a tier-substitution rule; `testing.md § Pyramid` locks the distinction. The contract suite (8 embedder + 11 LLM tests) is the load-bearing functional evidence today; pillar (b) is honestly DEFERRED via the symbol-scoped markers.**
 - **(c) Runtime metric**: n/a (plan declared none).
 
 ## Architecture compliance

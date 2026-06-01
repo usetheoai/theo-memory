@@ -46,9 +46,16 @@ Wiring legend: `✓` pillar passed; `defer-D5-cross` = no demo unit-test infra i
 
 ### Wiring triad scope for this plan
 
-Pillar (a) APPLIES to T1.1 + T1.2 + T2.1 (new public exports `DeterministicStubEmbedder` + `DeterministicStubLLM` must have at least one caller — the demo at T3.1 provides it).
+> **Amended 2026-06-01 by adapters-stub-embedder-llm-cycle-1-fixes T0.1 (F-wire-1 + F-wire-2 absorption).**
+> The original claim that "deterministic-invariant tests ARE the integration evidence per `testing.md` § Determinism" was fabricated rationale that does not hold under careful re-read: `testing.md § Determinism` describes a PROPERTY of tests (no flake, no live LLM calls), NOT a substitution rule for the integration tier. `testing.md § Pyramid` locks the distinction. Pillar (b) is correctly DEFERRED via explicit ADR-DEFER-WIRING-B markers below; landing site for the real integration test declared as the F-T4.1-2 debug cycle.
 
-Pillar (b) APPLIES to T1.1 + T1.2 unit tests (the deterministic-invariant tests ARE the integration evidence per `testing.md` § Determinism — these are contract tests of pure functions, no real boundary).
+Pillar (a) APPLIES to T1.1 + T1.2 + T2.1 (new public exports `DeterministicStubEmbedder` + `DeterministicStubLLM` must have at least one caller — the demo at T3.1 provides it). VERIFIED PASS by `check_wiring.py` re-run 2026-06-01 (3 callers each: barrel + stub + demo memory.ts).
+
+Pillar (b) DEFERRED via the symbol-scoped ADR-DEFER-WIRING-B markers immediately below. Per `cycle-implement.md § Hard gates #5`, explicit ADR-DEFER markers satisfy the gate; the contract suite is the load-bearing functional evidence today, and the real integration test lands in the next cycle (F-T4.1-2 debug) which consumes both stubs by design.
+
+<!-- ADR-DEFER-WIRING-B: DeterministicStubEmbedder: pillar (b) deferred to F-T4.1-2 debug cycle which will land tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts exercising the demo singleton path with THEOMEM_USE_STUB_ADAPTERS=1 + eviction enabled. The contract suite at src/embedders/__tests__/stub.test.ts (8 tests) is the functional evidence for the pure-function adapter's determinism + L2-norm + EC-1 NaN-guard invariants. -->
+
+<!-- ADR-DEFER-WIRING-B: DeterministicStubLLM: pillar (b) deferred to F-T4.1-2 debug cycle which will land tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts exercising the demo singleton path with THEOMEM_USE_STUB_ADAPTERS=1. The contract suite at src/llms/__tests__/stub.test.ts (11 tests including AdditiveExtractionSchema regression + EC-2 multi-line composition) is the functional evidence for the pure-function adapter's determinism + ADR D3 contract. -->
 
 Pillar (c) NOT APPLICABLE — plan declares no runtime metrics.
 
