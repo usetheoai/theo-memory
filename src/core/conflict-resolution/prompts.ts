@@ -10,8 +10,8 @@
  *
  * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.3 + ADR D2
  */
-import type { Message } from '../dip/llm.js';
 import type { ConsolidationCandidate, ConsolidationContext } from '../dip/conflict-resolution-policy.js';
+import type { Message } from '../dip/llm.js';
 
 export const CONFLICT_MERGE_PROMPT = `You are a careful memory-conflict judge.
 

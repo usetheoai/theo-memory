@@ -16,13 +16,14 @@
  */
 import { metrics, type Counter } from '@opentelemetry/api';
 
-import type { LLM } from '../dip/llm.js';
 import type {
   ConflictResolutionPolicy,
   ConflictResolutionResult,
   ConsolidationCandidate,
   ConsolidationContext,
 } from '../dip/conflict-resolution-policy.js';
+import type { LLM } from '../dip/llm.js';
+
 import { generateConflictMergePrompt } from './prompts.js';
 
 const POLICY_NAME = 'llm-judged-merge' as const;
@@ -60,7 +61,7 @@ export function parseConsolidationResponse(
   clusterIds: ReadonlySet<string>,
 ): ParsedConsolidation | null {
   if (typeof raw !== 'object' || raw === null) return null;
-  if ('error' in raw && (raw as { error: unknown }).error === 'non_json_response') return null;
+  if ('error' in raw && (raw).error === 'non_json_response') return null;
   const obj = raw as Partial<ParsedConsolidation>;
   if (typeof obj.kept_id !== 'string' || obj.kept_id === '' || !clusterIds.has(obj.kept_id)) return null;
   if (!Array.isArray(obj.rejected_ids) || typeof obj.reason !== 'string') return null;

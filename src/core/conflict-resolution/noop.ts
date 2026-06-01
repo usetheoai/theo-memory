@@ -25,9 +25,11 @@ export class NoopConflictPolicy implements ConflictResolutionPolicy {
   readonly kind = 'noop' as const;
 
   async consolidate(
-    _candidates: readonly ConsolidationCandidate[],
-    _context: ConsolidationContext,
+    candidates: readonly ConsolidationCandidate[],
+    context: ConsolidationContext,
   ): Promise<readonly ConflictResolutionResult[]> {
+    void candidates;
+    void context;
     await Promise.resolve();
     return [];
   }
