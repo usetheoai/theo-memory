@@ -1,7 +1,7 @@
 /**
  * DeterministicStubLLM — debug-only LLM with pure-function determinism.
  *
- * Two contract surfaces per plan ADR D3:
+ * Three contract surfaces per plan ADR D3:
  *   - `generateChat(messages)` returns `{ content: "stub-response:<hex>",
  *     role: "assistant" }` where `<hex>` is the 4-char hex prefix of
  *     `MD5(JSON.stringify(messages))`. Same input → same tag.
@@ -11,16 +11,32 @@
  *     entries derived from concatenated user-role content split on sentence
  *     terminators (`.!?`). If no terminators are present, the whole content
  *     is one entry. If no user content is present, `{ memory: [] }`.
- *   - `generateResponse(messages, {type:'text'})` mirrors `generateChat`.
+ *   - `generateResponse(messages, {type:'text'})` mirrors `generateChat`'s
+ *     CONTENT field but returns a DIFFERENT shape `{ text: string }` (not
+ *     `{ content, role }`). **F-arch-6 absorption:** the shape divergence
+ *     is INTENTIONAL — `generateResponse` is the DIP signature for
+ *     extraction-style calls returning structured data, so its return
+ *     shape varies per `responseFormat.type`. Consumers reading
+ *     `(await generateResponse(_, { type: 'text' })).text` get the same
+ *     string as `(await generateChat(_)).content` — just a different field
+ *     name. Asserted in `__tests__/stub.test.ts` regex-locked by
+ *     STUB_CONTENT_RE.
  *
  * The `tools?` parameter is part of the DIP signature (per
  * `src/core/dip/llm.ts:22-26`) but stub behavior is `tools`-independent.
+ *
+ * **F-arch-8 absorption (i18n caveat):** `SENTENCE_SPLIT_RE = /[.!?]+\s+/`
+ * is Latin-script-only. CJK punctuation (`。`, `！`, `？`), Arabic
+ * punctuation (`؟`), and other non-Latin terminators are NOT matched. For
+ * F-T4.1-2 debug (English-language test inputs) this is sufficient; the
+ * production OpenAI adapter handles arbitrary text via the LLM itself.
  *
  * @experimental — debug only. Sentence-split pseudo-extraction is sufficient
  *   for F-T4.1-2 race-condition reproducibility but not for actual recall.
  *
  * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.2
  * @see src/core/extraction/prompt.ts § AdditiveExtractionSchema
+ * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-arch-6 + F-arch-8
  */
 import { createHash } from 'node:crypto';
 
