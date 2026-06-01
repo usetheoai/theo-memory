@@ -1,0 +1,314 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-cross-validation
+review_target: main..HEAD for plan adapters-stub-embedder-llm-cycle-1
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+plan_version: "v1.1 (SHIPPABLE 96.8)"
+review_date: 2026-06-01
+
+plan_tasks_summary:
+  total_tasks: 6
+  fully_implemented: 6
+  partial: 0
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total: 36
+  satisfied: 34
+  unverified: 2
+  false_claims: 0
+  notes: |
+    36 AC items counted across T0.1 (4 ACs) + T1.1 (9 ACs) + T1.2 (6 ACs) +
+    T2.1 (4 ACs) + T3.1 (6 ACs) + T4.1 (3 ACs) + Final Phase Integration (2).
+    34 verified satisfied via re-run of npm test (570/2-skip + 0 type errors),
+    npm run typecheck (exit 0), npm run lint (exit 0), npm run build (Next.js
+    15.5.18 emit OK), npm pack --dry-run (lists all 4 paths), file LoC counts
+    (94/86/10/10/198 — all under budget).
+    2 unverified are Global-DoD items:
+      (1) CHANGELOG.md `[Unreleased]` entry under `Added` for new subpath
+          exports + opt-in env var — NOT added. See F-xval-1.
+      (2) Plan archived to `plans/completed/` — CORRECTLY deferred (Global
+          DoD says "AFTER /review verdict ≥ READY_TO_MERGE OR after merge
+          to main"; this /review is currently running, so not yet due).
+
+adr_compliance:
+  total_adrs: 6
+  respected: 6
+  diverged_without_new_adr: 0
+  details:
+    - adr: D1 (existing zero-vector stubs untouched)
+      status: respected
+      evidence: |
+        `git log main..HEAD -- src/local/stubs.ts` returns empty — file byte-
+        identical pre/post the cycle. EC-6 test at
+        src/__tests__/no-root-reexport.test.ts explicitly asserts that
+        `StubEmbedder` + `StubLLM` REMAIN root-re-exported (ADR D1 backward
+        compat).
+    - adr: D2 (MD5 seed + Lehmer LCG + L2 normalize)
+      status: respected
+      evidence: |
+        src/embedders/stub.ts:31-75 implements exactly the algorithm declared
+        — `createHash('md5').update(text,'utf8').digest()` (line 46) →
+        `readBigUInt64BE(0)` seed (line 48) → Lehmer LCG with `a=48271n,
+        m=2147483647n` (Park-Miller MINSTD, lines 37-39) → `l2Normalize`
+        (line 63). EC-1 NaN-guard at line 67-71 absorbed from edge-case
+        review.
+    - adr: D3 (MD5 chat tag + sentence-split JSON extraction)
+      status: respected (with documented improvement)
+      evidence: |
+        src/llms/stub.ts implements `generateChat` returning `stub-response:
+        <hex>` tag (line 60-62) AND `generateResponse({type:'json'})`
+        returning AdditiveExtractionSchema-conforming shape. NOTE: plan ADR
+        D3 stated `{ facts: [...] }` shape but T1.2 SEPA pre-RED lock
+        correctly identified that core extraction expects
+        AdditiveExtractionSchema `{ memory: [{ id, text }] }`. Implementation
+        complies with the ACTUAL core contract, not the plan's stale shape
+        — this is honest divergence justified by SEPA pre-RED. Documented
+        explicitly in T1.2 commit message + implement-validate report § SEPA
+        pre-RED locks.
+    - adr: D4 (no root re-export)
+      status: respected
+      evidence: |
+        src/index.ts unchanged for deterministic classes (verified via
+        `git show` of commits + EC-6 test at
+        src/__tests__/no-root-reexport.test.ts asserts
+        `root.DeterministicStubEmbedder === undefined` + same for LLM).
+        package.json declares only `./embedders`, `./embedders/stub`,
+        `./llms`, `./llms/stub` subpaths — root surface unchanged.
+    - adr: D5 (THEOMEM_USE_STUB_ADAPTERS env-var opt-in)
+      status: respected
+      evidence: |
+        examples/chat-with-memory/lib/memory.ts:151-162 `resolveAdapters()`
+        uses strict equality `process.env.THEOMEM_USE_STUB_ADAPTERS === "1"`
+        (POSIX convention, parallel to existing `THEOMEM_EVICTION_DEMO`
+        pattern). Console log adds `adapters=stub|openai` line at line 183.
+        README updated per the commit.
+    - adr: D6 (1536-dim hardcoded via MAX_EMBEDDING_DIM constant)
+      status: respected
+      evidence: |
+        src/embedders/stub.ts:33 imports `MAX_EMBEDDING_DIM` from
+        '../core/constants.js'; line 81 uses it as the LCG fill length.
+        No constructor `dim` parameter exposed. Phase B migration will
+        track when the constant becomes runtime-resolved.
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    `git log .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md`
+    returns exactly ONE commit (`1d0a373 docs(plan): adapters-stub-embedder-
+    llm-cycle-1 plan v1.1 (SHIPPABLE 96.8)`). The plan was authored once at
+    v1.1 (after edge-case absorption) and was NOT modified during /implement.
+    Plan-as-contract integrity preserved.
+
+coverage_matrix_verification:
+  total_gaps: 7
+  resolved: 7
+  details:
+    - gap_1: F-T4.1-2 offline reproducibility (T1.1+T1.2+T3.1) — VERIFIED satisfied
+    - gap_2: Adapters Cycle 1 P0 (T1.1+T1.2+T2.1) — VERIFIED satisfied
+    - gap_3: Pre-existing zero-vector stubs preserved (T1.1+T1.2 NEW paths) — VERIFIED
+    - gap_4: Test runner config gate (T0.1) — VERIFIED
+    - gap_5: Demo opt-in parallel to THEOMEM_EVICTION_DEMO (T3.1) — VERIFIED
+    - gap_6: 1536-dim Phase A constraint (T1.1 via MAX_EMBEDDING_DIM) — VERIFIED
+    - gap_7: Final 5-gate validation (T4.1) — VERIFIED via /implement validation report
+
+baseline_preservation:
+  pre_cycle_tests: "544 passed + 2 skipped + 0 type errors"
+  post_cycle_tests: "570 passed + 2 skipped + 0 type errors"
+  delta: "+26 new tests (8 T1.1 + 11 T1.2 + 7 T2.1 = 26)"
+  regressions: 0
+  verification: |
+    Local re-run by reviewer: `npm test` → 570/2-skip + 0 errors (9.76s).
+    `npm run typecheck` → exit 0. `npm run lint` → exit 0.
+    `npm pack --dry-run` lists src/embedders/{stub,index}.ts + src/llms/
+    {stub,index}.ts (4 paths). Demo `npx next build` → all routes emitted.
+
+dip_boundary_check:
+  status: respected
+  evidence: |
+    `grep '^import' src/embedders/ src/llms/` (excluding __tests__) shows
+    imports ONLY from:
+      - node:crypto (Node built-in)
+      - ../core/constants.js (MAX_EMBEDDING_DIM)
+      - ../core/dip/embedder.js (Embedder type)
+      - ../core/dip/llm.js (LLM type)
+      - ../core/message.js (LLMResponse, Message types)
+    NO imports from src/local/, src/cloud/, src/theokit/, src/agent-tools/.
+    Honors architecture.md § 3 strictly.
+
+file_budget_check:
+  status: respected
+  details:
+    src/embedders/stub.ts: 94 LoC (budget ≤ 150) — 63% of budget
+    src/llms/stub.ts: 86 LoC (budget ≤ 200) — 43% of budget
+    src/embedders/index.ts: 10 LoC (budget ≤ 30) — 33% of budget
+    src/llms/index.ts: 10 LoC (budget ≤ 30) — 33% of budget
+    examples/chat-with-memory/lib/memory.ts: 198 LoC (budget ≤ 200) — 99% of budget
+
+vocabulary_lock_check:
+  status: clean
+  evidence: |
+    `grep -rE "production-ready|production-grade|v1\.0 ready" src/embedders/
+    src/llms/` returns empty. The dogfood golden rule lock is preserved.
+
+paper_names_check:
+  status: clean
+  evidence: |
+    `grep -rEi "voyager|mem0|letta|langmem|memgpt|generative agents|coala|
+    procmem" src/embedders/ src/llms/ src/__tests__/` returns empty.
+    Algorithm names "Lehmer LCG" + "Park-Miller MINSTD" appear in
+    src/embedders/stub.ts (lines 7, 36) but are mathematical algorithm
+    citations (Park & Miller's 1988 minimal-standard PRNG), NOT memory-
+    system paper or marketing names per no-paper-names-in-code.md scope.
+    Plan ADR D2 itself uses these terms as canonical algorithm vocabulary.
+
+scope_creep_check:
+  declared_files_per_task_match: mostly
+  details: |
+    T0.1: 2 files declared, 2 files changed — exact match.
+    T1.1: 2 files declared (src/embedders/stub.ts + tests), 2 changed — exact.
+    T1.2: 2 files declared (src/llms/stub.ts + tests), 2 changed — exact.
+    T2.1: 6 files declared (barrels, package.json, smoke tests, EC-6 test).
+          ACTUAL files changed: 9 — added eslint.config.ts,
+          vitest.contract.config.ts (second time, for src/__tests__/ glob),
+          tsconfig.contract.json (second time, for src/__tests__/ include).
+          The 3 undeclared files are CONFIG ENABLERS for the EC-6 test at
+          `src/__tests__/no-root-reexport.test.ts` (a declared file). The
+          test lives at `src/__tests__/` (project-wide test dir), NOT at
+          `src/embedders/__tests__/` or `src/llms/__tests__/` which T0.1
+          had already widened. EC-6 location is correct (it tests the ROOT
+          barrel, so it should NOT live under embedders/ or llms/). The
+          config widening was the minimum needed to make the declared
+          test runnable. Justified scope expansion, not creep.
+    T3.1: 2 files declared, 2 changed — exact.
+    T4.1: 0 source files (validation only) — only the validation report.
+
+findings:
+  - id: F-xval-1
+    severity: MAJOR
+    file: CHANGELOG.md
+    plan_ref: |
+      Plan § Global Definition of Done line 493:
+      "CHANGELOG.md `[Unreleased]` entry under `Added` documenting new
+      subpath exports + opt-in env var."
+      Implementation contract checkbox at
+      .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md:168
+      "- [ ] CHANGELOG.md `[Unreleased]` entry under `Added`" — still UNCHECKED.
+    summary: |
+      The Global DoD requires a CHANGELOG.md `[Unreleased]` entry under
+      `Added` documenting (a) the new subpath exports
+      (`@usetheo/memory/embedders` + `@usetheo/memory/embedders/stub` +
+      `@usetheo/memory/llms` + `@usetheo/memory/llms/stub`), (b) the new
+      classes `DeterministicStubEmbedder` + `DeterministicStubLLM`, and
+      (c) the demo opt-in env var `THEOMEM_USE_STUB_ADAPTERS`. None of
+      these tokens appear in CHANGELOG.md.
+    evidence: |
+      $ grep -ni "DeterministicStub|adapters-cycle-1|adapters-stub|THEOMEM_USE_STUB|embedders/stub|llms/stub" CHANGELOG.md
+      (no output — none of the cycle's surface mentioned)
+      $ grep -A 2 "CHANGELOG\|Plan archived" .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+      - [ ] CHANGELOG.md `[Unreleased]` entry under `Added`
+      - [ ] Pushed to origin/develop
+    recommended_action: |
+      Add an `[Unreleased]` § Added entry referencing the plan slug
+      `adapters-stub-embedder-llm-cycle-1`, the 4 new subpath exports,
+      the 2 new public classes, the `THEOMEM_USE_STUB_ADAPTERS=1` env
+      var, ADRs D1-D6, and the EC-1 NaN-guard absorption. Pattern to
+      follow: the existing v0.6.1 entry in CHANGELOG.md (one paragraph
+      with bold lead + parenthetical commits). Check the box in
+      .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+      and commit as `docs(changelog)(adapters-cycle-1): new subpath exports + THEOMEM_USE_STUB_ADAPTERS`.
+      This is a DoD violation but does not affect runtime/correctness, so
+      MAJOR is the appropriate severity (not BLOCKER).
+
+  - id: F-xval-2
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts (line count)
+    plan_ref: |
+      T3.1 Acceptance Criteria + DoD: "Demo file ≤ 200 LoC."
+    summary: |
+      Demo `lib/memory.ts` is now 198 LoC — 99% of the 200-LoC budget.
+      Healthy headroom is 2 LoC. Any subsequent demo wiring (e.g., a
+      future adapter migration) will breach the budget without a refactor.
+    evidence: |
+      $ wc -l examples/chat-with-memory/lib/memory.ts
+      198 examples/chat-with-memory/lib/memory.ts
+    recommended_action: |
+      Open a follow-up to extract demo singleton boot into a smaller
+      module (e.g., `lib/adapter-resolution.ts`) BEFORE the next demo
+      change. Not blocking for this cycle; document as a known
+      pressure point in `followups.md` for the next cycle. INFO-level
+      only — does not violate AC since 198 ≤ 200.
+
+  - id: F-xval-3
+    severity: INFO
+    file: .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+    plan_ref: Halt-loop audit trail
+    summary: |
+      The implementation contract's "Halt-loop audit trail" table at line
+      173-174 is empty (header only, no rows). Per cycle-implement.md v1.5
+      the table is a load-bearing audit artifact for each iteration's
+      task/phase/outcome. The .progress-{slug}.json shows iteration 1 only
+      (line 8) but multi-task /implement halt-loops typically log per-task
+      entries. The 6 commits did land cleanly so this is a reporting gap,
+      not a correctness gap.
+    evidence: |
+      $ sed -n '170,180p' .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+      ## Halt-loop audit trail
+
+      | Iteration | Task | Phase | Outcome | Notes |
+      |---|---|---|---|---|
+
+      ## Followups (scope-creep avoided)
+
+      | Iteration | Task | Phase | Outcome | Notes |
+      (empty)
+    recommended_action: |
+      INFO-level: backfill the halt-loop audit trail with the 6 commit
+      SHAs + their RED/GREEN/REFACTOR/WIRING/COMMIT outcomes from the
+      sepa-iterations/ logs (.claude/knowledge-base/implementations/
+      adapters-stub-embedder-llm-cycle-1/sepa-iterations/). Not blocking
+      the merge but improves audit-trail completeness for the cycle's
+      30-day rotation eligibility. Out of scope for this /review.
+
+summary: |
+  PLAN-VS-CODE SEMANTIC INTEGRITY: STRONG
+
+  All 6 plan tasks (T0.1 → T4.1) are committed in dependency order
+  with conventional-commits messages exactly matching the plan's
+  declared subjects. All 6 ADRs (D1-D6) are respected with explicit
+  evidence chains; D3 has a documented IMPROVEMENT (SEPA pre-RED
+  caught that core extraction uses AdditiveExtractionSchema rather
+  than the plan's `{ facts: [...] }` shape — implementation matches
+  core contract, divergence honest and audited).
+
+  All 7 Coverage Matrix gaps are resolved by mapped tasks. Plan was
+  authored once at v1.1 and NOT modified during /implement (no
+  drift). Baseline of 544 contract tests preserved + 26 new tests
+  added (570 total + 2 skipped). DIP boundary preserved (src/embedders/
+  and src/llms/ import ONLY from src/core/). File-size budgets
+  respected (94/86/10/10/198 LoC, all under budget). Vocabulary lock
+  + paper-name discipline + Inquebrável Rules 4/5/9 all clean.
+
+  ONE MAJOR finding (F-xval-1): the Global-DoD-mandated CHANGELOG.md
+  `[Unreleased]` entry is missing. The implementation contract's
+  checkbox is unchecked AND no adapter-related tokens appear in
+  CHANGELOG.md. This is a DoD violation, not a runtime defect — fix
+  by adding one paragraph and committing as a follow-up before merge.
+
+  TWO INFO findings (F-xval-2, F-xval-3) on tight LoC budget headroom
+  and incomplete halt-loop audit trail — non-blocking, document for
+  follow-up.
+
+  Verdict: NEEDS_FIXES (1 MAJOR addressable in single commit) → after
+  CHANGELOG.md update, READY_TO_MERGE.
+
+verdict: NEEDS_FIXES
+verdict_rationale: |
+  1 MAJOR DoD violation (CHANGELOG.md missing) blocks merge per
+  cycle-review.md § Hard gates / § Soft gates. The MAJOR finding is
+  trivially addressable (one paragraph + one commit). All other
+  cross-validation dimensions are GREEN: plan-to-code task mapping
+  100%, ADR compliance 100%, Coverage Matrix 100%, ADR D1 byte-
+  identical preservation verified, baseline preserved, DIP boundary
+  preserved, budgets respected, vocabulary clean, no plan drift.
+  After CHANGELOG.md remediation, cross-validation gate flips to
+  READY_TO_MERGE.

@@ -1,0 +1,414 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-architecture
+review_target: main..HEAD for plan adapters-stub-embedder-llm-cycle-1 (commits 67c8229..6c50ea5; isolated subset of feat branch)
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+notes: |
+  Reviewed the 7 production/config files introduced or modified by this plan:
+    - src/embedders/stub.ts (NEW)
+    - src/embedders/index.ts (NEW)
+    - src/llms/stub.ts (NEW)
+    - src/llms/index.ts (NEW)
+    - package.json (UPDATED — exports + lint glob)
+    - vitest.contract.config.ts (UPDATED — include glob)
+    - tsconfig.contract.json (UPDATED — include array)
+    - examples/chat-with-memory/lib/memory.ts (UPDATED — adapter resolver)
+    - examples/chat-with-memory/README.md (UPDATED — env table row)
+  Plus test surfaces (src/embedders/__tests__/**, src/llms/__tests__/**, src/__tests__/no-root-reexport.test.ts).
+
+  Approach: SOLID compliance per-task, design-pattern usage, coupling/cohesion, naming/module hygiene per
+  `.claude/rules/architecture.md`. Honored "no rubber-stamp INFO findings" — only ringfenced findings backed
+  by the diff and the plan's own ADR/AC are listed.
+
+  No registered `*-patterns/SKILL.md` skills exist in the repo (only `generated/` staging + per-plan SEPA
+  knowledge skills) — Step 4 of the pre-read is satisfied trivially.
+
+findings:
+  - id: F-arch-1
+    severity: MAJOR
+    file: tsconfig.build.json
+    line: 10
+    plan_ref: Global DoD "npm publish --dry-run lists src/embedders/ + src/llms/ files in the tarball" + Final Phase chain step 5
+    summary: Build tsconfig does NOT include src/embedders or src/llms, so any future migration from "ship source" to "ship dist" silently drops the new adapters.
+    evidence: |
+      ```json
+      // tsconfig.build.json (UNCHANGED by this plan)
+      "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts"],
+      ```
+      Compare to tsconfig.contract.json after the plan widened it:
+      ```json
+      "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts", "src/embedders/**/*.ts", "src/llms/**/*.ts", "src/__tests__/**/*.ts"],
+      ```
+      Today the package ships .ts source verbatim via `package.json#exports` → `./src/...` and `files: ["src/**/*.ts"]`,
+      so the resolution works at install time. But `npm run build` is invoked by `pretest:e2e` and is the
+      assumed exit path for any future shift to a compiled tarball. The asymmetry between contract/build
+      tsconfigs is the same shape of defect that produced `F-T7.1-3` (assets silently skipped at build) called
+      out as a learned lesson in `architecture.md § 10.1`. The plan did not amend tsconfig.build.json even
+      though T0.1 explicitly widened tsconfig.contract.json — the divergence is unjustified.
+    recommended_action: |
+      Add `src/embedders/**/*.ts` + `src/llms/**/*.ts` to `tsconfig.build.json#include` in a follow-up commit
+      under the same plan (or open a quick fix). One-line change. Honors `architecture.md § 10.1` consistency:
+      every tsconfig include set should track every other one OR have an explicit ADR for divergence.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/embedders/stub.ts
+    line: 41
+    plan_ref: ADR D2 (deterministic algorithm) + Deep Dive "L2-normalize the resulting vector to lie on the unit hypersphere"
+    summary: LCG_HALF_MODULUS_F64 is computed via BigInt floor-division and loses the trailing 0.5, producing an
+      asymmetric output map; JSDoc claims `[-1, 1]` but actual range is approximately `[-0.9999999990686774, 1.0]`.
+    evidence: |
+      ```ts
+      // src/embedders/stub.ts:39-41
+      const LCG_MODULUS = 2147483647n;                 // 2^31 - 1 (odd)
+      const LCG_HALF_MODULUS_F64 = Number(LCG_MODULUS / 2n);  // BigInt: 1073741823n → 1073741823 (lost .5)
+
+      // src/embedders/stub.ts:58
+      out[i] = (Number(state) - LCG_HALF_MODULUS_F64) / LCG_HALF_MODULUS_F64;
+      ```
+      Numerical verification (run via `node -e "..."`):
+        - max mapped value: `(2_147_483_646 - 1_073_741_823) / 1_073_741_823 = 1.0` exactly
+        - min mapped value: `(1 - 1_073_741_823) / 1_073_741_823 ≈ -0.9999999990686774`
+      The JSDoc at line 8 promises "fills MAX_EMBEDDING_DIM floats in `[-1, 1]`" and the plan ADR D2 stage 3
+      says "fill 1536 floats in `[-1, 1]`". The implementation produces `[-1+eps, 1]` with a DC bias of
+      ~4.7e-10 toward positive — negligible for stub determinism but a doc-vs-code mismatch that will surface
+      the next time someone tries to extend the algorithm.
+    recommended_action: |
+      Replace `Number(LCG_MODULUS / 2n)` with the precise half: `Number(LCG_MODULUS) / 2` (i.e., `1073741823.5`).
+      Single-line change, no API impact, restores symmetric `[-1, 1)` range matching the JSDoc + plan claim.
+      Alternative: keep the value as-is and amend JSDoc + ADR D2 to read `[-1+eps, 1]`. Either resolves the
+      divergence; the math fix is cleaner.
+
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/embedders/stub.ts
+    line: 28
+    plan_ref: T1.1 Deep Dive "Collision analysis" + AC item 2 "embed(t1) !== embed(t2) for distinct texts"
+    summary: JSDoc collision-analysis claim is incorrect — effective seed space after `seed % LCG_MODULUS` is
+      ~2^31, giving birthday-50% at ~46k inputs, NOT 2^32 as documented. Stub workloads stay safe but the
+      analysis as written is wrong and will mislead future cycles that rely on it.
+    evidence: |
+      ```ts
+      // src/embedders/stub.ts:20-22  (JSDoc claim)
+      *   - `embed(t1) !== embed(t2)` for distinct texts (collision probability
+      *     bounded by MD5 first-8-byte birthday ~ 2^32 inputs for 50% chance).
+      ```
+      But:
+      ```ts
+      // src/embedders/stub.ts:48-49
+      const raw = digest.readBigUInt64BE(0);
+      return raw === 0n ? 1n : raw % LCG_MODULUS === 0n ? raw + 1n : raw;
+
+      // src/embedders/stub.ts:54
+      let state = seed % LCG_MODULUS;        // entropy collapses here to ~31 bits
+      ```
+      Two distinct 64-bit seeds `A ≠ B` produce IDENTICAL embed output whenever `A ≡ B (mod 2^31 - 1)`.
+      Effective entropy is `log2(LCG_MODULUS) ≈ 31 bits`. Birthday boundary is √(2^31) ≈ 46_340 distinct
+      texts, NOT 2^32. The plan's own T1.1 Deep Dive (line 229) carries the same incorrect claim — the
+      defect was inherited verbatim into the source JSDoc.
+    recommended_action: |
+      EITHER (preferred): change `seedFromText` to seed the LCG with a value that preserves more entropy
+      (e.g., interleave two 4-byte words from the MD5 digest as `(hi * a + lo) mod m` for a wider seed
+      space) — preserves the original birthday claim. The JSDoc + plan deep-dive can stay as written.
+
+      OR: amend the JSDoc + plan ADR D2 / Deep Dive to declare the actual ~46k birthday boundary. Add a
+      sentence: "For demo/test workloads ≤10k distinct texts, collision probability is < 0.1%; not
+      suitable for higher cardinalities without a richer seed derivation." Honest, accurate, and surfaces
+      the math limit for future extensions.
+
+  - id: F-arch-4
+    severity: MINOR
+    file: src/embedders/stub.ts
+    line: 78
+    plan_ref: architecture.md § 7 "TypeScript strict mode. No `any`."
+    summary: Tiny non-null-assertion `v[i]!` on a non-empty array is safe but could be avoided with a stricter
+      loop bound; eslint won't catch it but it's the same family as the `any` escape the rule targets.
+    evidence: |
+      ```ts
+      // src/embedders/stub.ts:72-74
+      const out = new Array<number>(v.length);
+      for (let i = 0; i < v.length; i++) out[i] = v[i]! / norm;
+      ```
+      The `!` non-null assertion bypasses TS's noUncheckedIndexedAccess (if enabled in strict). Since the
+      loop iterates by integer index < length, the assertion is safe. But the rule prefers `unknown` +
+      runtime check OR pure refactor; assertions on indexed access are the same shape of "trust me" escape.
+    recommended_action: |
+      Refactor to `for (const x of v) out.push(x / norm);` (push, no pre-allocated length) OR use `v.map`.
+      Single readability improvement; no behavior change. Optional — flag for cosmetic cleanup in the next
+      cycle that touches this file. NOT a blocker.
+
+  - id: F-arch-5
+    severity: MINOR
+    file: src/llms/stub.ts
+    line: 78
+    plan_ref: architecture.md § 7 "TypeScript strict mode"
+    summary: Underscore-prefixed `_tools` is shadowed with `void _tools;` to suppress unused-var lint — same
+      pattern as the pre-existing zero-vector stub but adds a tiny readability cost; could be simplified.
+    evidence: |
+      ```ts
+      // src/llms/stub.ts:76-78
+      _tools?: readonly unknown[],
+      ): Promise<unknown> {
+      void _tools;
+      ```
+      Compare with `src/local/stubs.ts:86-90` which does the same `void` dance for `_responseFormat` and
+      `_tools`. Pattern is consistent across both stubs (consistency point); MINOR because parameter is part
+      of the DIP signature (per `src/core/dip/llm.ts:25`) so removing the binding is not an option — the
+      `void` is the canonical TS escape. Worth noting for future readers, not for action.
+    recommended_action: |
+      Optional: replace `void _tools;` with a JSDoc comment explaining the suppression OR remove the
+      underscore prefix and rely on the TS `noUnusedParameters` default behavior (it ignores params after
+      the last-used one in many configs). NO blocking action; flagged for the next cleanup cycle.
+
+  - id: F-arch-6
+    severity: MINOR
+    file: src/llms/stub.ts
+    line: 73-85
+    plan_ref: T1.2 Acceptance Criteria item 4 "generateResponse(msgs, {type:'text'}) matches generateChat shape"
+    summary: Plan AC says `{type:'text'}` should "match generateChat shape" but implementation returns
+      `{ text: ... }` shape, while `generateChat` returns `{ content: ..., role: 'assistant' }` (LLMResponse).
+      The two shapes are NOT equal even though the test at line 119 asserts `text.text === chat.content`.
+    evidence: |
+      ```ts
+      // src/llms/stub.ts:73-85
+      async generateResponse(messages, responseFormat?, _tools?) {
+        if (responseFormat?.type === 'json') {
+          return { memory: extractFacts(...) };
+        }
+        const tag = tagFromMessages(messages);
+        return await Promise.resolve({ text: chatContent(tag) });  // <-- shape: { text: string }
+      }
+
+      // vs generateChat shape (line 66-70)
+      async generateChat(messages): Promise<LLMResponse> {
+        return { content: chatContent(tagFromMessages(messages)), role: 'assistant' };  // shape: { content, role }
+      }
+      ```
+      Test at `src/llms/__tests__/stub.test.ts:120-130` asserts `text.text === chat.content` — which holds
+      because the strings agree — but does NOT assert shape equivalence. The plan AC is loosely interpreted:
+      it could mean "same string content" (current impl) or "same object shape" (would require `{ content,
+      role }`). Since the DIP returns `Promise<unknown>` for `generateResponse`, both shapes type-check.
+      Pre-existing zero-vector stub at `src/local/stubs.ts:91-93` returns `{}` for any non-chat call —
+      different shape again. There's no canonical "generateResponse text shape" in the DIP, so the
+      divergence is genuine ambiguity, not a bug. Worth surfacing in the next iteration so the DIP can be
+      tightened OR an explicit ADR documents the chosen shape.
+    recommended_action: |
+      Option A: amend plan ADR D3 with a one-line note: "generateResponse({type:'text'}) returns
+      `{ text: string }` (NOT `LLMResponse` shape) — caller branches on responseFormat to interpret".
+      Option B: make `generateResponse({type:'text'})` return `LLMResponse` for shape symmetry; update
+      the test to assert deep equality with `await generateChat(...)`. Either choice is acceptable;
+      undocumented divergence is the smell.
+
+  - id: F-arch-7
+    severity: MINOR
+    file: src/local/stubs.ts
+    line: N/A (pre-existing rot, NOT introduced by this plan)
+    plan_ref: architecture.md § 3 (DIP layering) + ADR D1 of this plan (existing stubs stay intact)
+    summary: Pre-existing `StubEmbedder`/`StubLLM` live at `src/local/stubs.ts` but neither imports from
+      `src/local/` nor depends on Postgres/pgvector. They are adapter implementations of `Embedder`/`LLM` DIPs
+      that should architecturally sit at `src/embedders/zero-vector-stub.ts` + `src/llms/safe-empty-stub.ts`.
+      The plan's ADR D1 consciously preserves the misplacement to avoid breaking ADR D8 backward-compat,
+      but the architectural defect persists.
+    evidence: |
+      ```ts
+      // src/local/stubs.ts:19-22 — imports
+      import { MAX_EMBEDDING_DIM } from '../core/constants.js';
+      import type { Embedder } from '../core/dip/embedder.js';
+      import type { LLM } from '../core/dip/llm.js';
+      import type { LLMResponse, Message } from '../core/message.js';
+      ```
+      Nothing in `src/local/stubs.ts` depends on `src/local/` siblings (no pg, no drizzle, no migrations).
+      Both classes are pure adapters that fit cleanly into the new `src/embedders/`+`src/llms/` shape now
+      established by this cycle. The cohabitation with `pgvector-store.ts`, `entity-store.ts`, etc. under
+      `src/local/` violates the package-by-feature principle.
+      This plan ADR D1 explicitly elects NOT to move them — that decision is locked, NOT softened by this
+      finding. The finding is a forward-looking flag: in a future adapter cycle, relocating these two
+      classes to `src/embedders/zero-vector-stub.ts` + `src/llms/safe-empty-stub.ts` (with re-export
+      shims at the old paths for backward compat per ADR D4 of v0-2-theokit-binding) closes the rot.
+    recommended_action: |
+      File a follow-up under the adapters-portfolio-roadmap to relocate the legacy stubs in a future cycle.
+      No action required for THIS plan — ADR D1 of adapters-stub-embedder-llm-cycle-1 explicitly preserves
+      the existing layout. Surfacing for completeness so the rot doesn't disappear in audit history.
+
+  - id: F-arch-8
+    severity: MINOR
+    file: src/llms/stub.ts
+    line: 30-32
+    plan_ref: T1.2 Deep Dive "split on sentence boundaries (regex `/[.!?]+\s+/`)"
+    summary: Sentence-split regex requires a whitespace AFTER the terminator, so the final sentence in a
+      string that ends without trailing whitespace is preserved but the split-then-replace logic gets a free
+      pass; edge-case-prone for non-English punctuation (no support for `?` `!` Chinese full-stop `。`, etc.).
+      Acceptable for the stub's debug purpose but the regex is brittle by design.
+    evidence: |
+      ```ts
+      // src/llms/stub.ts:31-32
+      /** Sentence terminators per common English convention. */
+      const SENTENCE_SPLIT_RE = /[.!?]+\s+/;
+      ```
+      For the F-T4.1-2 debug use case (where input is English chat text) this is fine. The JSDoc properly
+      restricts the claim to "common English convention". Worth flagging because if the demo includes any
+      i18n test scenarios (Portuguese/Spanish demos with `?` `!` — same chars BUT non-English text could
+      hit the inverted Spanish `¿`/`¡` opening punctuation), behavior diverges silently.
+    recommended_action: |
+      Acceptable as-is for the F-T4.1-2 isolation goal. If a future cycle tests i18n scenarios, expand the
+      regex or add a fallback "whole content as one fact" path. NOT a blocker.
+
+  - id: F-arch-9
+    severity: INFO
+    file: src/embedders/index.ts
+    line: 1-11
+    plan_ref: T2.1 Acceptance Criteria item 1 + ADR D4 "barrels + per-adapter subpaths"
+    summary: Barrel is minimal (one re-export), aligns with ADR D4 ("Phase A of the adapters portfolio
+      roadmap"), and forces consumers to opt-in via subpath. Pattern correct.
+    evidence: |
+      ```ts
+      // src/embedders/index.ts
+      export { DeterministicStubEmbedder } from './stub.js';
+      ```
+      Same for `src/llms/index.ts:10`. Both barrels respect the "Phase A" minimal-surface intent. Future
+      adapter cycles will extend each barrel; this iteration sets the precedent correctly.
+    recommended_action: No action — INFO acknowledgement that the barrel pattern is correct.
+
+  - id: F-arch-10
+    severity: INFO
+    file: src/__tests__/no-root-reexport.test.ts
+    line: 16-30
+    plan_ref: ADR D4 "Subpath exports: ./embedders/stub + ./llms/stub NOT re-exported from root" + EC-6 absorption
+    summary: ADR D4 is enforced by an automated contract test that asserts the root barrel does NOT carry
+      the new deterministic classes AND DOES preserve the pre-existing zero-vector stubs. This is the right
+      shape of architectural guard.
+    evidence: |
+      ```ts
+      // src/__tests__/no-root-reexport.test.ts:16-21
+      it('does NOT re-export DeterministicStubEmbedder from root', () => {
+        expect((root as Record<string, unknown>)['DeterministicStubEmbedder']).toBeUndefined();
+      });
+      it('does NOT re-export DeterministicStubLLM from root', () => {
+        expect((root as Record<string, unknown>)['DeterministicStubLLM']).toBeUndefined();
+      });
+      ```
+      Plus the positive assertion (lines 24-30) that the legacy `StubEmbedder`/`StubLLM` stay root-re-exported
+      per ADR D1. Good defensive coupling — when a future cycle accidentally adds a `export *` from
+      `src/embedders/` to `src/index.ts`, the test fires.
+    recommended_action: No action — INFO acknowledgement of correct guard pattern.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/embedders/stub.ts + src/llms/stub.ts
+    line: 33-34 / 27-28
+    plan_ref: architecture.md § 3 (Dependency direction DIP) + Compliance scope of the plan
+    summary: DIP boundary FULLY HONORED. Both stub files import ONLY from `../core/` (constants, DIPs, message
+      types). No imports from `src/local/`, `src/cloud/`, `src/theokit/`, or peer adapter dir. Hook
+      `boundary-check.sh` (per architecture.md § 3) would pass.
+    evidence: |
+      ```
+      $ grep -n "from " src/embedders/stub.ts src/llms/stub.ts | grep -v __tests__
+      src/embedders/stub.ts:31:import { createHash } from 'node:crypto';
+      src/embedders/stub.ts:33:import { MAX_EMBEDDING_DIM } from '../core/constants.js';
+      src/embedders/stub.ts:34:import type { Embedder } from '../core/dip/embedder.js';
+      src/llms/stub.ts:25:import { createHash } from 'node:crypto';
+      src/llms/stub.ts:27:import type { LLM } from '../core/dip/llm.js';
+      src/llms/stub.ts:28:import type { LLMResponse, Message } from '../core/message.js';
+      ```
+      The `node:` prefix is used for built-ins per `architecture.md § 7`. Type-only imports use `import type`
+      per ES modules discipline.
+    recommended_action: No action — INFO acknowledgement of clean DIP layering.
+
+  - id: F-arch-12
+    severity: INFO
+    file: package.json
+    line: 24-39
+    plan_ref: T2.1 + ADR D4 + architecture.md § 9 "Public API surface"
+    summary: Four new subpath exports declared in the canonical shape (`types` + `default` both pointing at
+      `.ts` source, mirroring the existing `./theokit`/`./agent-tools` pattern). Aligned with `architecture.md
+      § 9` and the plan's T2.1 AC.
+    evidence: |
+      ```json
+      "./embedders/stub": { "types": "./src/embedders/stub.ts", "default": "./src/embedders/stub.ts" },
+      "./llms/stub":      { "types": "./src/llms/stub.ts",     "default": "./src/llms/stub.ts" },
+      ```
+      The "ship .ts source" convention is established at v0.2/v0.3 and consistent across the package.
+      See finding F-arch-1 above for the build-pipeline gap that becomes load-bearing IF this convention
+      changes.
+    recommended_action: No action — INFO acknowledgement.
+
+  - id: F-arch-13
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 157-161
+    plan_ref: T3.1 + ADR D5 "Demo opt-in via THEOMEM_USE_STUB_ADAPTERS=1"
+    summary: `resolveAdapters()` mirrors the existing `resolveEviction()` pattern from the previous cycle
+      (env var strict-equality with `"1"`, branch returns a tagged result object with `source` field). SRP
+      respected — one function, one decision. Default behavior unchanged. Console log line follows the
+      existing `[theomemory-demo] backend=...` shape.
+    evidence: |
+      ```ts
+      // examples/chat-with-memory/lib/memory.ts:157-161
+      function resolveAdapters(): { embedder: Embedder; llm: LLM; source: "stub" | "openai" } {
+        return process.env.THEOMEM_USE_STUB_ADAPTERS === "1"
+          ? { embedder: new DeterministicStubEmbedder(), llm: new DeterministicStubLLM(), source: "stub" }
+          : { embedder: new OpenAIEmbedder(), llm: new OpenAILLM(), source: "openai" };
+      }
+      ```
+      Demo file post-edit: 198 LoC (budget AC was ≤ 200 — within bounds).
+    recommended_action: No action — INFO acknowledgement of consistent pattern.
+
+  - id: F-arch-14
+    severity: INFO
+    file: vitest.contract.config.ts + tsconfig.contract.json
+    line: vitest 6 / tsconfig 26
+    plan_ref: T0.1 (config gate)
+    summary: Test runner config gate correctly widened pre-RED. Vitest include glob covers both adapter
+      dirs + the new src/__tests__ root dir (used by no-root-reexport.test.ts). tsconfig include covers
+      the same set. Stop-Condition #4 (plan defect via unreachable test paths) avoided.
+    evidence: |
+      ```ts
+      // vitest.contract.config.ts:6-7
+      'src/{core,local,theokit,agent-tools,embedders,llms}/**/__tests__/**/*.test.ts',
+      'src/__tests__/**/*.test.ts',
+      ```
+      ```json
+      // tsconfig.contract.json:26
+      "include": [..., "src/embedders/**/*.ts", "src/llms/**/*.ts", "src/__tests__/**/*.ts"],
+      ```
+      Note the extra `src/__tests__/**/*.test.ts` line in vitest config was NOT in the original plan's T0.1
+      AC (which said "src/embedders + src/llms"). The widening also captures the cross-cutting root-barrel
+      enforcement test introduced via ADR D4 / EC-6 absorption. Honest extension; reflected in both
+      configs.
+    recommended_action: No action — INFO acknowledgement.
+
+  - id: F-arch-15
+    severity: INFO
+    file: src/llms/stub.ts
+    line: 36
+    plan_ref: ADR D3 + T1.2 Deep Dive "Chat response shape"
+    summary: ADR D3 stage 1 says hex tag is "4-hex-char tag derived from MD5(stringify(messages)).slice(0,2)"
+      (i.e., 2 bytes → 4 hex chars). Implementation `digest('hex').slice(0, 4)` produces 4 hex chars but via
+      hex-string slicing — equivalent result (each byte = 2 hex chars, so .slice(0,4) on hex = first 2 bytes).
+      Implementation matches intent; ADR phrasing is slightly imprecise but not contradictory.
+    evidence: |
+      ```ts
+      // src/llms/stub.ts:34-37
+      function tagFromMessages(messages: readonly Message[]): string {
+        const serialized = JSON.stringify(messages);
+        return createHash('md5').update(serialized, 'utf8').digest('hex').slice(0, 4);
+      }
+      ```
+      Output: 4 hex characters, equivalent to plan ADR D3 stage 1 "hex(MD5(...).slice(0,2))" semantically.
+      Slight ADR phrasing rot is a non-issue; the code is correct.
+    recommended_action: No action — INFO acknowledgement. Could amend ADR D3 phrasing in a doc-cleanup cycle.
+
+summary:
+  total: 15
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 3        # F-arch-1, F-arch-2, F-arch-3
+    MINOR: 5        # F-arch-4, F-arch-5, F-arch-6, F-arch-7, F-arch-8
+    INFO: 7         # F-arch-9, F-arch-10, F-arch-11, F-arch-12, F-arch-13, F-arch-14, F-arch-15
+  verdict_recommendation: |
+    NO BLOCKER, NO CRITICAL. Plan deliverables are architecturally correct: DIP boundaries honored,
+    SRP respected, OCP via DIP polymorphism, ISP via small barrels, LSP confirmed by the contract tests,
+    naming/module hygiene clean. The 3 MAJOR findings (build-tsconfig drift, LCG half-modulus rounding,
+    JSDoc collision-analysis claim) are all non-blocking but should be addressed in a quick follow-up
+    commit OR explicitly deferred via ADR. Recommend: APPROVE WITH SUGGESTED FIXES — fixes can land in
+    same PR (low surface, single-line each for F-arch-1 and F-arch-2; F-arch-3 needs either entropy
+    widening or JSDoc honesty edit).

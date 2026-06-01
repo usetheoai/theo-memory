@@ -1,0 +1,220 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-domain-memory-layer
+review_target: main..HEAD for plan adapters-stub-embedder-llm-cycle-1
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "DIP shape (Embedder/LLM interfaces per src/core/dip/*.ts)"
+  - "AdditiveExtractionSchema conformance (src/core/extraction/prompt.ts:89)"
+  - "1536-dim embedding lock (pgvector v0.5.1 HNSW per v0.1 ADR D1.7)"
+  - "no-paper-names-in-code rule"
+  - "vocabulary lock (production-ready/grade/v1.0 ready)"
+  - "ADD-only contract (no public update() — ADR-0003)"
+  - "Subpath exports + ADR D4 (no root re-export of Deterministic*)"
+  - "Demo wiring (strict env equality with '1' per ADR D5)"
+  - "Real call shape vs stub behavior (pipeline.ts:227 invocation pattern)"
+  - "L2 normalization invariant + EC-1 NaN guard"
+findings:
+  - id: F-dom-memory-1
+    severity: MINOR
+    file: src/embedders/__tests__/stub.test.ts
+    line: 58-64
+    plan_ref: T1.1 AC #5 + EC-1 absorption + testing.md § Determinism
+    domain_anchor: "testing.md (Determinism — 'Tests must be deterministic. If a test fails intermittently it is a bug.')"
+    summary: |
+      The "1000 random-string inputs" NaN-guard stress test uses `Math.random()`
+      to generate input — non-deterministic. While the asserted property
+      (`!Number.isNaN(x)`) is an invariant, using a non-deterministic seed in a
+      contract suite violates the project's testing.md determinism rule and
+      makes regression triage impossible: if a future NaN bug correlates with a
+      narrow input pattern, the test may pass or fail by luck.
+    evidence: |
+      src/embedders/__tests__/stub.test.ts:61
+        const v = await embedder.embed(`text-${i}-${Math.random().toString(36)}`);
+
+      testing.md § Determinism:
+        "No flaky tests. A failing test is a bug with maximum priority; fix or
+         delete, never @skip."
+    recommended_action: |
+      Replace `Math.random()` with a deterministic LCG-seeded counter or a
+      fixed corpus (e.g., `text-${i}-${(i * 2654435761 >>> 0).toString(36)}`).
+      Property preserved; test now reproducible. One-line change.
+  - id: F-dom-memory-2
+    severity: MINOR
+    file: src/llms/stub.ts
+    line: 39-44
+    plan_ref: T1.2 Deep Dive — "Verifying extraction contract"
+    domain_anchor: "src/core/extraction/pipeline.ts:230 — real invocation shape"
+    summary: |
+      `concatUserContent` filters `messages.filter(m => m.role === 'user')` and
+      joins their content with spaces. In the REAL production call from
+      `src/core/extraction/pipeline.ts:227-233`, the pipeline sends a single
+      synthetic user message whose `content` is
+      `messages.map(m => `${m.role}: ${m.content}`).join('\n')` — i.e., every
+      original message's role is INLINED into the user content as a `role: `
+      prefix. The stub then sentence-splits that string and produces facts that
+      carry the literal `user: ` / `assistant: ` prefix as part of `text`,
+      e.g. `{id: "1", text: "user: I am Paulo"}`. Persisted memory rows then
+      carry the role tag inside the fact text, polluting the dedup hash and
+      surfacing in `recall()` results. Plan's T1.2 Deep Dive flagged the need
+      to verify the contract; the contract shape (AdditiveExtractionSchema)
+      passes, but the SEMANTICS of the produced facts include unintended
+      noise.
+    evidence: |
+      src/llms/stub.ts:39-44
+        function concatUserContent(messages: readonly Message[]): string {
+          return messages
+            .filter((m) => m.role === 'user')
+            .map((m) => m.content)
+            .join(' ');
+        }
+
+      src/core/extraction/pipeline.ts:227-233
+        const raw = await deps.llm.generateResponse(
+          [
+            { role: 'system', content: prompt },
+            { role: 'user', content: messages.map((m) => `${m.role}: ${m.content}`).join('\n') },
+          ],
+          { type: 'json' },
+        );
+
+      Effect: facts contain literal "user: Paulo likes coffee" instead of
+      "Paulo likes coffee".
+    recommended_action: |
+      Strip leading `^(system|user|assistant):\s*` from each sentence before
+      wrapping into `{id, text}`, OR document in JSDoc explicitly that produced
+      facts carry the role prefix and dedup hashes will reflect that. Either
+      mitigation preserves determinism. Since the stub is `@experimental` for
+      debug, a JSDoc note is sufficient; prefer the strip for cleanliness.
+  - id: F-dom-memory-3
+    severity: INFO
+    file: src/embedders/stub.ts
+    line: 56-58
+    plan_ref: D2 algorithm specification
+    domain_anchor: "L2-normalization invariant — normalizer absorbs any small overshoot"
+    summary: |
+      The LCG output mapping `(Number(state) - HALF) / HALF` with HALF =
+      1073741823 and state ∈ [1, 2147483646] produces values in the half-open
+      range approximately `[-0.99999...90, 1.0000000018626452]`. The upper
+      bound exceeds the documented `[-1, 1]` range by ~2e-9 due to integer
+      vs half-modulus arithmetic. Inconsequential because L2-normalize
+      rescales the vector to unit norm regardless of pre-norm magnitude.
+      Flagging as INFO so future readers don't add a `[-1, 1]` precondition
+      assertion that would mis-fire.
+    evidence: |
+      src/embedders/stub.ts:41
+        const LCG_HALF_MODULUS_F64 = Number(LCG_MODULUS / 2n);  // 1073741823
+
+      src/embedders/stub.ts:58
+        out[i] = (Number(state) - LCG_HALF_MODULUS_F64) / LCG_HALF_MODULUS_F64;
+
+      Math: state_max = m - 1 = 2147483646;
+            (state_max - HALF) / HALF
+              = (2147483646 - 1073741823) / 1073741823
+              = 1073741823 / 1073741823 -> just over 1.0 due to JS double precision
+    recommended_action: |
+      Either (a) tighten denominator to `(LCG_MODULUS - 1) / 2n` for symmetric
+      mapping, or (b) update JSDoc to say `~[-1, 1+epsilon]`. Trivial; not
+      worth a fix unless a future test asserts strict `[-1, 1]`.
+  - id: F-dom-memory-4
+    severity: INFO
+    file: src/llms/stub.ts
+    line: 64-71
+    plan_ref: T1.2 Acceptance Criteria
+    domain_anchor: "DIP contract conformance (LLM.generateChat → LLMResponse)"
+    summary: |
+      `DeterministicStubLLM.generateChat` is async but body is purely
+      synchronous (constructs object literal). The eslint-disable comment at
+      line 65 acknowledges this. No behavioral concern. JSDoc on the class
+      could explicitly state that all "async" methods are pure-sync wrapped to
+      honor the Promise-returning DIP — helps readers stop wondering why the
+      methods aren't `Promise.resolve(...)` ed (a perfectly fine alternative).
+    evidence: |
+      src/llms/stub.ts:65-71
+        // eslint-disable-next-line @typescript-eslint/require-await -- DIP contract returns Promise; pure-function impl
+        async generateChat(messages: readonly Message[]): Promise<LLMResponse> {
+          return {
+            content: chatContent(tagFromMessages(messages)),
+            role: 'assistant',
+          };
+        }
+    recommended_action: |
+      No fix required. Optional: collapse the eslint-disable noise by using
+      `generateChat(messages): Promise<LLMResponse> { return Promise.resolve({...}); }`
+      — equivalent semantics, no disable comment needed.
+positive_findings:
+  - id: P-dom-memory-1
+    summary: |
+      ADR D4 (no root re-export of Deterministic*) is enforced by a dedicated
+      test at src/__tests__/no-root-reexport.test.ts that asserts neither
+      DeterministicStubEmbedder nor DeterministicStubLLM appears on the root
+      barrel import. This goes beyond the plan's textual AC ("src/index.ts is
+      UNCHANGED") by adding a regression gate.
+  - id: P-dom-memory-2
+    summary: |
+      EC-1 NaN-guard is correctly placed at the L2-normalize stage with
+      threshold 1e-30 and falls back to all-zeros — exactly matching the plan
+      v1.1 absorption text. The test suite asserts the property both for
+      empty-string input and 1000-input stress (though see F-dom-memory-1 on
+      stress-test determinism).
+  - id: P-dom-memory-3
+    summary: |
+      AdditiveExtractionSchema conformance is explicitly tested at
+      src/llms/__tests__/stub.test.ts:52-63 by piping the stub output through
+      `AdditiveExtractionSchema.safeParse()`. This is the strongest possible
+      schema-shape regression — any future drift in the core schema will
+      surface here before production extraction pipeline does.
+  - id: P-dom-memory-4
+    summary: |
+      ADR D5 strict-equality env check honored at examples/chat-with-memory/
+      lib/memory.ts:158 — `process.env.THEOMEM_USE_STUB_ADAPTERS === "1"`.
+      Console log line at memory.ts:183 surfaces `adapters=stub` or
+      `adapters=openai` per plan's T3.1 visibility requirement.
+  - id: P-dom-memory-5
+    summary: |
+      DIP shape compliance verified — both stubs implement the canonical
+      interfaces with identical signatures. The `tools?` opaque parameter on
+      LLM.generateResponse is correctly typed as `readonly unknown[]` matching
+      src/core/dip/llm.ts:25, preserving v0.0 contract for future v0.3+
+      tool-schema generic widening.
+  - id: P-dom-memory-6
+    summary: |
+      Embedding dim hardcoded via `MAX_EMBEDDING_DIM` constant import (D6
+      decision honored). No magic number 1536 in stub body — Phase B migration
+      can adjust the constant in one place.
+  - id: P-dom-memory-7
+    summary: |
+      No paper names detected in src/embedders/, src/llms/, or their tests.
+      Identifiers use neutral terms (`DeterministicStub*`, `Lehmer LCG`,
+      `Park-Miller MINSTD`, `MD5`). Knowledge-base plan citations live in
+      JSDoc `@see` blocks (filesystem coordinates, not concept names) per
+      no-paper-names-in-code.md.
+  - id: P-dom-memory-8
+    summary: |
+      Vocabulary lock honored — zero occurrences of `production-ready` /
+      `production-grade` / `v1.0 ready` in the new src or demo code. JSDoc
+      uses `@experimental` to surface the debug-only intent.
+  - id: P-dom-memory-9
+    summary: |
+      ADD-only contract preserved — no `update()` method on either stub. The
+      grep `\bupdate\b` matches only `crypto.createHash('md5').update()` which
+      is the standard Node builtin chained on the digest, not a public API
+      mutation.
+  - id: P-dom-memory-10
+    summary: |
+      File size budgets respected — stub.ts 94/150 LoC, llms/stub.ts 86/200
+      LoC, demo memory.ts 198/200 LoC, barrels 10 LoC each. Comfortable
+      margin on every budget.
+domain_review_verdict: |
+  PASS_WITH_MINOR_FINDINGS
+
+  Two MINOR findings (F-dom-memory-1: Math.random in determinism test;
+  F-dom-memory-2: pipeline-shape user-content includes role prefix that leaks
+  into produced fact text) plus two INFO observations. Neither MINOR blocks
+  merge; both can be addressed in a follow-up cleanup. All hard domain
+  invariants pass: DIP shape, AdditiveExtractionSchema conformance, 1536-dim
+  lock, no-paper-names, vocab lock, ADD-only, ADR D4 no-root-reexport, ADR D5
+  strict-equality demo wiring.
+
+  The implementation correctly absorbed the plan's SEPA pre-RED schema lock
+  (`{ memory: [...] }` matching real AdditiveExtractionSchema, NOT the plan
+  v1.0's incorrect `{ facts: [...] }` guess) — this is a positive signal of
+  active plan-vs-reality reconciliation during /implement.
