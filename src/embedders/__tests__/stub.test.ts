@@ -55,12 +55,47 @@ describe('DeterministicStubEmbedder.embed', () => {
     expect(v).toHaveLength(MAX_EMBEDDING_DIM);
   });
 
-  it('produces NO NaN across 1000 random-string inputs (EC-1 stress)', async () => {
+  /**
+   * F-tests-2 / F-dom-memory-1 absorption: seeded LCG counter replaces
+   * `Math.random()` per `testing.md § Determinism` — flaky-fixture rule
+   * forbids non-deterministic test inputs. Inline 5-line LCG (Numerical
+   * Recipes constants) gives byte-reproducible 1000-input sequence
+   * across runs.
+   */
+  function makeSeededLcg(seed: number): () => string {
+    let state = seed >>> 0;
+    return () => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state.toString(36);
+    };
+  }
+
+  it('produces NO NaN across 1000 seeded-LCG inputs (EC-1 stress)', async () => {
     const embedder = new DeterministicStubEmbedder();
+    const nextSuffix = makeSeededLcg(0xec1);
     for (let i = 0; i < 1000; i++) {
-      const v = await embedder.embed(`text-${i}-${Math.random().toString(36)}`);
+      const v = await embedder.embed(`text-${i}-${nextSuffix()}`);
       expect(v.some((x) => Number.isNaN(x))).toBe(false);
     }
+  });
+
+  it('seeded LCG inputs produce byte-reproducible embedding sequence across runs (F-tests-2)', async () => {
+    // Cross-run determinism: identical seeded sequence yields identical
+    // embedding arrays (the determinism invariant is locked at the seed
+    // level, not the Math.random() level).
+    const embedder = new DeterministicStubEmbedder();
+    async function run(): Promise<readonly number[][]> {
+      const next = makeSeededLcg(0xdeadbeef);
+      const out: number[][] = [];
+      for (let i = 0; i < 10; i++) {
+        const v = await embedder.embed(`text-${i}-${next()}`);
+        out.push([...v]);
+      }
+      return out;
+    }
+    const a = await run();
+    const b = await run();
+    expect(a).toEqual(b);
   });
 });
 
