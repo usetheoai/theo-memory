@@ -110,6 +110,13 @@ export type {
 } from './dip/eviction-policy.js';
 export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
 
+export type {
+  ConflictResolutionPolicy,
+  ConflictResolutionResult,
+  ConsolidationCandidate,
+  ConsolidationContext,
+} from './dip/conflict-resolution-policy.js';
+
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
 export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
