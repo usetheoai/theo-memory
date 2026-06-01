@@ -1,0 +1,192 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-fixes-domain-memory-layer
+review_target: dc4ce2a..98f0b19 for plan adapters-stub-embedder-llm-cycle-1-fixes
+domain: memory-layer
+verdict: READY_TO_MERGE
+domain_specific_patterns_checked:
+  - AdditiveExtractionSchema invariant (ADR D3 / src/core/extraction/prompt.ts:89)
+  - DIP shape compliance (Embedder + LLM per src/core/dip/{embedder,llm}.ts)
+  - MAX_EMBEDDING_DIM lock (1536)
+  - L2 normalization invariant (norm===1.0 ±1e-6 OR all-zeros EC-1 fallback)
+  - no-paper-names-in-code rule (Mem0/Voyager/Letta/MemGPT/CoALA/LangMem/Generative Agents)
+  - F-arch-3 collision math correction lockstep (src JSDoc + source plan ADR D2 Deep Dive)
+  - F-dom-memory-2 strip-prefix behavior (line-anchored regex `m` flag vs pipeline.ts:230 format)
+  - EC-9 JSDoc warning re: false-positive on legitimate "user:" prose
+  - Dogfood vocabulary lock (`production-ready` / `production-grade` / `v1.0 ready`)
+  - tools? parameter signature passthrough (DIP v0.0→v0.3 contract)
+findings: []
+positive_observations:
+  - id: P-dom-memory-1
+    file: src/llms/stub.ts
+    lines: "1-39"
+    summary: |
+      AdditiveExtractionSchema invariant HONORED after T1.1 + T1.2 + T2.3. The JSDoc explicitly
+      cites `AdditiveExtractionSchema from src/core/extraction/prompt.ts:89` and the runtime
+      output `{ memory: [{ id: "1"|"2"|"3", text: <sentence> }, ...] }` matches the Zod schema
+      verbatim. Confirmed empirically: `npx vitest run src/llms/__tests__/stub.test.ts` 13/13
+      PASS including `tests/integration/publish-readiness` cross-check
+      (`expect(parsed.success).toBe(true)` at stub.test.ts:71).
+  - id: P-dom-memory-2
+    file: src/llms/stub.ts
+    lines: "60-74"
+    summary: |
+      F-dom-memory-2 strip-prefix regex `/^(?:user|assistant|system):\\s+/gim` is CORRECTLY
+      formed for the pipeline.ts:230 production input shape. Verified pipeline.ts uses
+      `messages.map((m) => `${m.role}: ${m.content}`).join('\\n')` — multi-line content with
+      per-line `user:` / `assistant:` / `system:` prefixes. The `m` (multiline) + `g` (global)
+      + `i` (case-insensitive) flags together strip each line-anchored prefix as intended.
+      The `(?:...)` non-capturing group is idiomatic; the `\\s+` after `:` requires at least
+      one whitespace (mirrors the production format's literal space).
+  - id: P-dom-memory-3
+    file: src/llms/stub.ts
+    lines: "56-59"
+    summary: |
+      EC-9 JSDoc warning PRESENT and explicit: "legitimate prose containing user: / assistant:
+      / system: at line-start (e.g., quoting chat logs) WILL be affected. Acceptable because
+      the stub is @experimental — debug only". Honors plan T1.1 acceptance criteria EC-9
+      absorption row + cycle-implement.md Inquebrável Rule 3 (extreme honesty).
+  - id: P-dom-memory-4
+    file: src/embedders/stub.ts
+    lines: "23-30"
+    summary: |
+      F-arch-3 collision math correction LANDED lockstep in BOTH src JSDoc + source plan v1.2
+      ADR D2 Deep Dive. JSDoc now states `~2^31 effective seed space` and `sqrt(2^31 * pi / 2)
+      ≈ 46k inputs at 50% birthday probability` — matching the corrected text in plan line
+      231. The original `~2^32` claim appears only in NEGATING context ("NOT `~2^32` as
+      previously claimed") — never as an affirmative claim. Source plan v1.2 frontmatter
+      explicitly cites the honesty correction triggered by T1.2 of the fixes cycle.
+  - id: P-dom-memory-5
+    file: src/embedders/stub.ts
+    lines: "13-21"
+    summary: |
+      F-arch-2 LCG range honesty correction LANDED — JSDoc states `[-1, 1+2e-9]` output range
+      with explicit note that L2-norm absorbs the asymmetry. Behavior is byte-identical to
+      pre-fix (`LCG_HALF_MODULUS_F64` numeric constant unchanged per ADR D2 option B);
+      `npm test` 22/22 PASS confirms zero behavioral regression.
+  - id: P-dom-memory-6
+    file: src/embedders/stub.ts
+    lines: "85-105"
+    summary: |
+      L2 normalization invariant PRESERVED. The l2Normalize function still guards against
+      degenerate near-zero magnitude (norm < 1e-30 → all-zeros vector per EC-1) preventing
+      pgvector vector(1536) column NaN-rejection. Test at __tests__/stub.test.ts:42-49 asserts
+      `norm === 0 || Math.abs(norm - 1.0) < 1e-6` — the invariant locked in JSDoc Determinism
+      invariants block (line 44).
+  - id: P-dom-memory-7
+    file: src/embedders/stub.ts + src/llms/stub.ts
+    lines: "n/a"
+    summary: |
+      DIP shape compliance UNCHANGED in this cycle (verified by grep of src/core/dip/embedder.ts
+      + src/core/dip/llm.ts). DeterministicStubEmbedder.embed(text) + embedBatch(texts) and
+      DeterministicStubLLM.generateChat / generateResponse(messages, responseFormat?, _tools?)
+      match the contracted signatures exactly. The `_tools?: readonly unknown[]` 3rd parameter
+      is correctly named with underscore-prefix (intentional non-use) and discarded via
+      `void _tools` (line 108) — adapter test at stub.test.ts:153-162 explicitly verifies
+      `tools` parameter is ignored (DIP signature compliance test).
+  - id: P-dom-memory-8
+    file: src/core/constants.ts:21
+    lines: "21"
+    summary: |
+      MAX_EMBEDDING_DIM=1536 LOCK held. No file in this cycle changes the constant; lcgFill
+      call site at src/embedders/stub.ts:111 references `MAX_EMBEDDING_DIM` symbolically.
+      Test at __tests__/stub.test.ts:36-40 asserts `v.length === MAX_EMBEDDING_DIM`.
+  - id: P-dom-memory-9
+    file: src/embedders/* + src/llms/* + __tests__/*
+    lines: "n/a"
+    summary: |
+      no-paper-names-in-code RULE HONORED. Grep across `src/embedders/`, `src/llms/`, and their
+      `__tests__/` directories (case-insensitive: mem0, voyager, letta, memgpt, coala, langmem,
+      generative agents) returns ZERO hits. The plan, ADRs, reviews legitimately cite these
+      (allowed scope per `.claude/rules/no-paper-names-in-code.md`); the code surface stays
+      neutral — refers to "additive extraction", "Park-Miller minimal standard", "Mersenne
+      prime modulus", "birthday paradox", "two-stage write pipeline" instead.
+  - id: P-dom-memory-10
+    file: src/embedders/*, src/llms/* (cycle diff)
+    lines: "n/a"
+    summary: |
+      Dogfood vocabulary lock HELD. Grep across the cycle diff for `production-ready`,
+      `production-grade`, `v1.0 ready` returns ZERO hits in src/ + tests/. Stub adapters
+      consistently use `@experimental — debug only` JSDoc marker (src/llms/stub.ts:34,
+      src/embedders/stub.ts:46). Honors `dogfood-golden-rule.md` § Vocabulary lock + CLAUDE.md
+      § Honesty discipline (no production claims until v1.0 + reproduced benchmarks).
+  - id: P-dom-memory-11
+    file: src/llms/__tests__/stub.test.ts
+    lines: "116-151"
+    summary: |
+      T1.1 RED tests for F-dom-memory-2 are BOTH present and well-shaped: (a) line 116-130
+      single-line strip test asserts no fact text matches `/^(user|assistant|system):/i`;
+      (b) line 132-151 EC-2 multi-line composition test additionally asserts `texts` contains
+      `'I am Paulo'` — proving sentence-split survived after strip. The composition test is
+      load-bearing because strip-in-isolation could pass while sentence-split-after-strip
+      regresses; the explicit `toContain('I am Paulo')` locks the compose chain.
+  - id: P-dom-memory-12
+    file: src/embedders/__tests__/stub.test.ts
+    lines: "58-99"
+    summary: |
+      T2.2 seeded LCG counter implementation is determinism-clean per `testing.md § Determinism`.
+      Inline LCG (Numerical Recipes constants 1664525 + 1013904223 with `>>> 0` 32-bit mask)
+      gives byte-reproducible 1000-input stress sequence. New test at line 82-99 (cross-run
+      determinism) verifies 10-iteration seeded sequence produces identical embedding arrays
+      across two runs (`expect(a).toEqual(b)`). Honors plan T2.2 acceptance criteria.
+production_invariants_verified:
+  - id: I-1
+    name: Additive Mem0-shape extraction schema
+    status: HOLDS
+    evidence: |
+      `AdditiveExtractionSchema.safeParse(json).success === true` at stub.test.ts:71 — 13/13
+      tests PASS. Stub output `{ memory: [{ id: <string>, text: <string> }] }` matches the
+      Zod schema. Production pipeline.ts:233 uses the same parse with EC-10 string-fallback
+      (`AdditiveExtractionSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw)`).
+  - id: I-2
+    name: ADD-only API surface invariant
+    status: HOLDS
+    evidence: |
+      No code in this cycle adds an `update()` method. Both stubs implement only their DIP
+      contract methods (embedder: embed + embedBatch; LLM: generateChat + generateResponse).
+      ADR-0003 ADD-only invariant preserved.
+  - id: I-3
+    name: Additive scoring NOT multiplicative (v0.1 lock)
+    status: HOLDS
+    evidence: |
+      Stubs are upstream of scoring — they produce embeddings + extraction. No scoring code
+      touched in this cycle. The v0.4 deferral of multiplicative scoring (per architecture.md
+      § 4 "Defer to v0.4") is not affected.
+  - id: I-4
+    name: Pipeline two-stage write contract (extract → embed → persist)
+    status: HOLDS
+    evidence: |
+      Stubs do NOT alter the pipeline.ts orchestration. The T1.1 strip-prefix fix corrects an
+      input-shape mismatch (stub's `concatUserContent` now matches pipeline.ts:230's joined
+      format) — preserves the contract; does NOT change the contract.
+  - id: I-5
+    name: Three-tier scope (User / Session / Agent) unchanged
+    status: HOLDS
+    evidence: |
+      Stubs operate below the scope layer; no scope-related code touched.
+  - id: I-6
+    name: pgvector NaN-rejection guard
+    status: HOLDS
+    evidence: |
+      EC-1 NaN-guard fallback (l2Normalize returns all-zeros when norm < 1e-30) preserved at
+      src/embedders/stub.ts:89-93. Test asserts no NaN across 1000 seeded inputs + empty string.
+risk_assessment: |
+  No domain-layer risks identified. The fix-up cycle:
+  - Honors the AdditiveExtractionSchema contract via T1.1 (strip-prefix fix corrects input shape;
+    schema parse continues to pass).
+  - Honors the DIP method counts per ADR-0008 (Embedder: 2 methods; LLM: 2 methods).
+  - Honors the v0.1 additive scoring lock (no scoring code touched).
+  - Honors the L2 normalization invariant + EC-1 NaN-guard.
+  - Honors the no-paper-names-in-code rule (clean grep across src + tests).
+  - Honors the dogfood vocabulary lock (no production-ready claims).
+  - Honors the F-arch-3 collision math correction (lockstep src + source plan v1.2 Deep Dive).
+  - Honors the F-dom-memory-2 strip-prefix semantic via line-anchored regex `m` flag matching
+    pipeline.ts:230's per-line format; EC-9 JSDoc warning explicit re: false-positive trade-off.
+  All 5 domain-anchor checks PASS. T4.1 validation gate report at
+  `.claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-fixes-implement-validate-2026-06-01.md`
+  cited as evidence of clean integration gate.
+recommendation: |
+  READY_TO_MERGE from the memory-layer / adapter-contract domain perspective. No defects found.
+  The cycle correctly closes the 13 review findings declared in scope without introducing
+  domain-contract regressions. AdditiveExtractionSchema invariant explicitly preserved
+  (stub.test.ts:71 13/13 PASS). DIP shapes unchanged. F-arch-3 collision math correction
+  lockstep src + source plan. F-dom-memory-2 strip-prefix correctly formed for the
+  pipeline.ts:230 inline format. EC-9 caveat documented honestly.

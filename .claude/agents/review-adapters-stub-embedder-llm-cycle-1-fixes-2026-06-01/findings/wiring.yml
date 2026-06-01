@@ -1,0 +1,196 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-fixes-wiring
+review_target: dc4ce2a..98f0b19 for plan adapters-stub-embedder-llm-cycle-1-fixes
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-fixes-plan.md
+review_date: 2026-06-01
+
+triad_revalidation:
+  total_new_symbols: 2  # DeterministicStubEmbedder + DeterministicStubLLM (T2.1 surface)
+  pillar_a_honest_pass: 2 / 2
+  pillar_b_honest_pass: 2 / 2  # both DEFER via explicit ADR-DEFER-WIRING-B markers (Hard gate #5 of cycle-implement.md satisfied)
+  pillar_c_observed: 0 / 0  # plan declares no runtime metrics (n/a)
+
+# ============================================================
+# EC-4 MANDATORY REGEX GATE — THE SINGLE MOST LOAD-BEARING CHECK
+# ============================================================
+ec4_regex_gate:
+  command: python3 .claude/skills/implement/scripts/check_wiring.py --symbol {SYMBOL} --deferral-path $(realpath .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md)
+  symbol_DeterministicStubEmbedder:
+    exit_code: 0
+    verdict: PASS
+    pillar_b_status: DEFER
+    pillar_b_reason: "Explicit ADR-DEFER-WIRING-B marker scoped to 'DeterministicStubEmbedder' found"
+    pillar_a_callers_count: 3
+    pillar_a_callers: [examples/chat-with-memory/lib/memory.ts, src/embedders/stub.ts, src/embedders/index.ts]
+  symbol_DeterministicStubLLM:
+    exit_code: 0
+    verdict: PASS
+    pillar_b_status: DEFER
+    pillar_b_reason: "Explicit ADR-DEFER-WIRING-B marker scoped to 'DeterministicStubLLM' found"
+    pillar_a_callers_count: 3
+    pillar_a_callers: [examples/chat-with-memory/lib/memory.ts, src/llms/stub.ts, src/llms/index.ts]
+  gate_resolution: PASS  # F-wire-1 DEFINITIVELY RESOLVED — not BLOCKER
+
+# ============================================================
+# EC-1 MARKER FORMAT INVARIANT
+# ============================================================
+ec1_marker_format:
+  source_file: .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+  grep_DeterministicStubEmbedder_colon_space: 1  # expected 1
+  grep_DeterministicStubLLM_colon_space: 1  # expected 1
+  em_dash_separator_present: false  # regex pattern 'ADR-DEFER-WIRING-B:.*—' returned zero matches
+  marker_lines_exact:
+    - "L56: <!-- ADR-DEFER-WIRING-B: DeterministicStubEmbedder: pillar (b) deferred to F-T4.1-2 debug cycle ... -->"
+    - "L58: <!-- ADR-DEFER-WIRING-B: DeterministicStubLLM: pillar (b) deferred to F-T4.1-2 debug cycle ... -->"
+  verdict: PASS
+
+# ============================================================
+# F-WIRE-2 / VALIDATION REPORT L46 AMEND
+# ============================================================
+fwire2_validation_amend:
+  source_file: .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+  amended_at_line: 49  # "Amended 2026-06-01 by adapters-stub-embedder-llm-cycle-1-fixes T0.1"
+  fabricated_rationale_removed: true
+  removed_text_pattern: "deterministic-invariant tests ARE the integration evidence per testing.md § Determinism"
+  replacement_cites:
+    - "testing.md § Determinism (correctly described as a PROPERTY of tests, NOT substitution rule)"
+    - "testing.md § Pyramid (locks the distinction)"
+    - "ADR-DEFER-WIRING-B markers L56 + L58"
+    - "F-T4.1-2 debug cycle as the integration test landing site"
+  verdict: PASS  # honest amend; no residual fabrication
+
+# ============================================================
+# PILLAR (A) PRESERVED — SPOT CHECK
+# ============================================================
+pillar_a_spot_check:
+  symbol_DeterministicStubEmbedder:
+    production_caller: examples/chat-with-memory/lib/memory.ts:159
+    caller_call_site_kind: "constructor in resolveAdapters() → demo singleton (env-gated by THEOMEM_USE_STUB_ADAPTERS=1)"
+    functionally_necessary: true
+    is_no_op_or_dead_branch: false
+    notes: "Real caller — branch executed when env var is '1'; the adapters are passed into createLocalMemory({embedder, llm, ...})"
+  symbol_DeterministicStubLLM:
+    production_caller: examples/chat-with-memory/lib/memory.ts:159
+    caller_call_site_kind: same
+    functionally_necessary: true
+    is_no_op_or_dead_branch: false
+  verdict: PASS
+
+# ============================================================
+# DEAD-EXPORT CHECK (4 new JSDoc @remarks Phase A blocks)
+# ============================================================
+dead_export_check:
+  barrels_touched:
+    - src/embedders/index.ts
+    - src/llms/index.ts
+  new_exports_introduced: 0
+  rationale: |
+    The diff added @remarks JSDoc blocks to existing barrels documenting the
+    "Phase A — no production runtime callers yet" state per ADR D4 of source plan
+    (debug adapters NOT root-re-exported). Barrels themselves already re-export
+    DeterministicStubEmbedder + DeterministicStubLLM, which DO have production
+    callers (examples/chat-with-memory/lib/memory.ts) and contract tests at
+    __tests__/exports.test.ts + tests/integration/publish-readiness.test.ts.
+  orphan_exports_found: 0
+  verdict: PASS
+
+# ============================================================
+# INTEGRATION WITH EXISTING FLOWS — strip-prefix safety
+# ============================================================
+strip_prefix_pipeline_safety:
+  change_location: src/llms/stub.ts:concatUserContent
+  change_summary: |
+    ROLE_PREFIX_RE = /^(?:user|assistant|system):\s+/gim applied to joined
+    user-content BEFORE sentence-split + dedup.
+  matches_pipeline_call_site: true
+  pipeline_call_site: src/core/extraction/pipeline.ts:230 (messages.map((m) => `${m.role}: ${m.content}`).join('\n'))
+  schema_invariant_impact:
+    affected_schema: AdditiveExtractionSchema (src/core/extraction/prompt.ts:89)
+    schema_shape: "{ memory: [{ id, text, attributed_to?, linked_memory_ids? }] }"
+    schema_breaking_change: false
+    rationale: |
+      Schema is structural (field names + types). Strip-prefix only mutates
+      the `text` value content (removes prefix chars), not the schema shape.
+      AdditiveExtractionSchema.parse() continues to succeed; the only behavioral
+      change is that `text` no longer carries 'user: ' / 'assistant: ' /
+      'system: ' line-anchored prefixes that would otherwise pollute dedup
+      hashes (MD5 of normalized text).
+  contract_tests_pass: true  # 22/22 PASS across both stub.test.ts files
+  regression_test_added: true  # T1.1 + T2.3 added F-dom-memory-2 + EC-2 + EC-3 regression coverage
+  ec9_best_effort_caveat_documented: true  # legitimate prose containing 'user:' at line-start is acknowledged in JSDoc
+  verdict: PASS
+
+# ============================================================
+# BOUNDARY RESPECT (DIP)
+# ============================================================
+dip_boundary_check:
+  imports_in_src_embedders_stub_ts:
+    - "../core/constants.js"
+    - "../core/dip/embedder.js (type-only)"
+  imports_in_src_llms_stub_ts:
+    - "../core/dip/llm.js (type-only)"
+    - "../core/message.js (type-only)"
+  cross_tier_violations: 0
+  cycles_in_src: 0
+  verdict: PASS  # stubs depend ONLY on src/core/ (the contract layer)
+
+# ============================================================
+# CONCURRENT SAFETY
+# ============================================================
+concurrent_safety:
+  applicable: false
+  rationale: |
+    Stubs are pure functions (MD5 hash + Lehmer LCG + L2-normalize) with zero
+    shared mutable state, zero I/O, zero DB writes. Concurrent calls are safe
+    by construction. Note: F-T4.1-2 race condition (paused in v0-4b-fixes
+    hotfix b2909ff) lives in the EVICTION pipeline (postRememberHook +
+    CapacityBasedTrigger), NOT in the stub adapters themselves. The stubs are
+    the REPRODUCTION VEHICLE for that race (deterministic embeddings make the
+    race reproducible), not the SOURCE of it.
+
+# ============================================================
+# FINDINGS
+# ============================================================
+findings: []  # zero findings — all critical surfaces verified clean
+
+# ============================================================
+# SUMMARY
+# ============================================================
+summary:
+  blocker_count: 0
+  critical_count: 0
+  major_count: 0
+  minor_count: 0
+  info_count: 0
+  f_wire_1_status: DEFINITIVELY_RESOLVED
+  f_wire_2_status: RESOLVED
+  verdict: READY_TO_MERGE
+  rationale: |
+    The fix-up cycle definitively resolves F-wire-1 (CRITICAL, pillar b)
+    via two complementary actions:
+
+    1. T0.1 added explicit symbol-scoped ADR-DEFER-WIRING-B markers in the
+       source cycle's implementation contract at L56 + L58, format-conformant
+       with EC-1 (colon + space suffix; no em-dash separator).
+    2. T0.1 amended the source cycle's validation report rationale (L46/L49)
+       to remove the fabricated 'testing.md § Determinism' justification and
+       replace it with honest citation of: (a) the new ADR-DEFER markers, and
+       (b) the F-T4.1-2 debug cycle as the integration test landing site.
+
+    The EC-4 mandatory regex gate (the SINGLE most load-bearing check of this
+    cycle) PASSES for BOTH symbols: check_wiring.py with --deferral-path
+    returns exit 0 + JSON verdict=PASS + pillar_b status=DEFER for both
+    DeterministicStubEmbedder and DeterministicStubLLM.
+
+    All adjacent surfaces verified clean:
+    - Pillar (a) preserved: 3 production callers each, demo singleton path
+      functionally necessary (not no-op gaming).
+    - 4 new JSDoc @remarks Phase A blocks introduced ZERO orphan exports.
+    - Strip-prefix change at src/llms/stub.ts:concatUserContent (T1.1) is
+      schema-compatible with AdditiveExtractionSchema (structural shape
+      unchanged; only `text` value content normalized) and exercised by 2
+      new regression tests (F-dom-memory-2 + EC-2). 22/22 stub contract
+      tests PASS.
+    - DIP boundaries respected: stubs depend ONLY on src/core/.
+    - No concurrent-safety surface (pure functions, no I/O, no shared state).
+
+    F-wire-1 status: DEFINITIVELY RESOLVED. No BLOCKER.

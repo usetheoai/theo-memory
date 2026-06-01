@@ -1,0 +1,406 @@
+agent: review-adapters-stub-embedder-llm-cycle-1-fixes-cross-validation
+review_target: dc4ce2a..98f0b19 for plan adapters-stub-embedder-llm-cycle-1-fixes
+plan: .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-fixes-plan.md
+plan_version: v1.1 (SHIPPABLE_WITH_CAVEATS 84.4)
+
+# ============================================================================
+# SUMMARY TABLES
+# ============================================================================
+
+plan_tasks_summary:
+  total_tasks: 10
+  fully_implemented: 10
+  partial: 0
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total_per_task_aggregate: ~54
+  satisfied: ~54
+  unverified: 0
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 6  # D1-D6
+  respected: 6
+  diverged_without_new_adr: 0
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    The fix-up plan (adapters-stub-embedder-llm-cycle-1-fixes-plan.md) was last
+    touched at dc4ce2a (the diff base, before /implement started). git log --follow
+    confirms no edits between dc4ce2a..HEAD. Plan v1.1 has been the frozen
+    contract throughout the cycle.
+
+    The SOURCE plan (adapters-stub-embedder-llm-cycle-1-plan.md) WAS edited at
+    T1.2 (ffd37f7), v1.1 → v1.2, but that edit is the explicit EC-6 honesty
+    correction declared in fix-up plan ADR D3 — NOT plan drift. Only ADR D2
+    Deep Dive math + frontmatter note were touched. Goal, Objectives, Tasks,
+    Coverage Matrix, and Acceptance Criteria of the source plan are unchanged
+    (verified via git show ffd37f7 -- source plan).
+
+baseline_preserved:
+  npm_test: "573 PASS + 2 skipped (matches baseline 573/2-skip)"
+  npm_run_typecheck: "exit 0"
+  npm_run_lint: "exit 0"
+  verdict: "Baseline preserved"
+
+# ============================================================================
+# TASK-BY-TASK VERIFICATION
+# ============================================================================
+
+task_verification:
+  - task: T0.1
+    commit: c729d52
+    expected_closes: [F-wire-1, F-wire-2, EC-1, EC-4, EC-7]
+    cited_in_commit_body: [F-wire-1, F-wire-2, EC-1, EC-4, EC-7]
+    files_declared:
+      - .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md
+      - .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-implement-validate-2026-06-01.md
+    files_actually_changed:
+      - .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-implementation.md ✓
+      - .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-implement-validate-2026-06-01.md ✓
+      - .claude/agents/implement-adapters-stub-embedder-llm-cycle-1-fixes-2026-06-01/sepa.md (scaffold)
+      - .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-fixes-implementation.md (scaffold)
+      - .claude/knowledge-base/implementations/adapters-stub-embedder-llm-cycle-1-fixes/sepa-iterations/initial-brief-response.md (scaffold)
+      - .claude/skills/implement-adapters-stub-embedder-llm-cycle-1-fixes-sepa-knowledge/SKILL.md (scaffold)
+    scope_creep: "NONE — extra files are /implement v1.4 scaffolding per cycle-implement.md (sepa agent + paired knowledge skill + impl-contract + sepa-iterations log)"
+    ec_7_critical_surface: "PRESENT — commit body line 32: 'is a ONE-OFF HONESTY FIX to remove fabricated rationale per Inquebrável Rule 3; NOT a precedent for retrospective audit edits. Followups table F2 of the fix-up implementation contract tracks the policy update needed in .claude/rules/audit-trail-rotation.md.'"
+    acceptance: PASS
+
+  - task: T0.2
+    commit: 7ae9316
+    expected_closes: [F-arch-1]
+    cited_in_commit_body: [F-arch-1]
+    files_declared: [tsconfig.build.json]
+    files_actually_changed: [tsconfig.build.json ✓]
+    scope_creep: "NONE — single-file 1-line widening exactly per plan"
+    acceptance: PASS
+
+  - task: T0.3
+    commit: a918feb
+    expected_closes: [F-xval-1, EC-5]
+    cited_in_commit_body: [F-xval-1, EC-5]
+    files_declared: [CHANGELOG.md]
+    files_actually_changed: [CHANGELOG.md ✓]
+    scope_creep: "NONE — single bullet added to top [Unreleased] § Added section per EC-5 placement convention"
+    acceptance: PASS
+
+  - task: T1.1
+    commit: d5460fa
+    expected_closes: [F-dom-memory-2, EC-2, EC-9]
+    cited_in_commit_body: [F-dom-memory-2, EC-2, EC-9]
+    files_declared:
+      - src/llms/stub.ts
+      - src/llms/__tests__/stub.test.ts
+    files_actually_changed:
+      - src/llms/stub.ts ✓
+      - src/llms/__tests__/stub.test.ts ✓
+    scope_creep: "NONE — exactly the 2 declared files; +16 LoC for ROLE_PREFIX_RE module-level const + JSDoc + strip step + 2 new tests"
+    acceptance: PASS
+
+  - task: T1.2
+    commit: ffd37f7
+    expected_closes: [F-arch-2, F-arch-3, EC-6]
+    cited_in_commit_body: [F-arch-2, F-arch-3, EC-6]
+    files_declared:
+      - src/embedders/stub.ts
+      - .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md
+    files_actually_changed:
+      - src/embedders/stub.ts ✓
+      - .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md ✓
+    scope_creep: "NONE — exactly the 2 declared files"
+    ec_6_critical_surface: "PRESENT — commit body line 14: 'This edit is a HONESTY correction NOT scope drift: the Goal, Objectives, Tasks, Coverage Matrix, and Acceptance Criteria of the source plan are unchanged' AND line 11: 'Per `cycle-review.md § Hard gates #2`, plan edits after /implement of the source cycle are normally BLOCKER.'"
+    source_plan_edit_scope_check: |
+      git show ffd37f7 -- source plan diff: ONLY 2 changes
+        (a) New v1.2 frontmatter note (HONESTY correction NOT scope drift)
+        (b) ADR D2 Deep Dive 'Collision analysis' bullet — math corrected
+      Goal/Objectives/Tasks/Coverage Matrix/Acceptance Criteria UNTOUCHED ✓
+    acceptance: PASS
+
+  - task: T2.1
+    commit: f295fcc
+    expected_closes: [F-tests-1, EC-5, EC-10]
+    cited_in_commit_body: [F-tests-1, EC-5, EC-10]
+    files_declared: [tests/integration/publish-readiness.test.ts]
+    files_actually_changed: [tests/integration/publish-readiness.test.ts ✓]
+    scope_creep: "NONE — single new it() block with 4 named-file matchers per ADR D5"
+    acceptance: PASS
+
+  - task: T2.2
+    commit: f4afd02
+    expected_closes: [F-tests-2, F-dom-memory-1]
+    cited_in_commit_body: [F-tests-2, F-dom-memory-1]
+    files_declared: [src/embedders/__tests__/stub.test.ts]
+    files_actually_changed: [src/embedders/__tests__/stub.test.ts ✓]
+    scope_creep: "NONE — inline 5-line LCG + 1 new cross-run determinism it() block per ADR D6"
+    acceptance: PASS
+
+  - task: T2.3
+    commit: 58b6a86
+    expected_closes: [F-tests-3, EC-3]
+    cited_in_commit_body: [F-tests-3, EC-3]
+    files_declared: [src/llms/__tests__/stub.test.ts]
+    files_actually_changed: [src/llms/__tests__/stub.test.ts ✓]
+    scope_creep: "NONE — STUB_CONTENT_RE module-level const + regex matcher on 3 surfaces (lines 40, 47, 128 per EC-3)"
+    acceptance: PASS
+
+  - task: T3.1
+    commit: 848f7f0
+    expected_closes: [F-wire-3, F-arch-4, F-arch-6, F-arch-8, EC-8]
+    cited_in_commit_body: [F-wire-3, F-arch-4, F-arch-6, F-arch-8, EC-8]
+    files_declared:
+      - src/embedders/index.ts
+      - src/llms/index.ts
+      - src/embedders/stub.ts
+      - src/llms/stub.ts
+    files_actually_changed:
+      - src/embedders/index.ts ✓
+      - src/llms/index.ts ✓
+      - src/embedders/stub.ts ✓
+      - src/llms/stub.ts ✓
+    scope_creep: "NONE — exactly the 4 declared files; doc-only changes; EC-8 locked option B (retain v[i]! + add explanatory comment) honored"
+    acceptance: PASS
+
+  - task: T4.1
+    commit: 98f0b19
+    expected_closes: [validation gate + report]
+    cited_in_commit_body: [T4.1, 10 gates table]
+    files_declared:
+      - .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-fixes-implement-validate-2026-06-01.md
+    files_actually_changed:
+      - .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-fixes-implement-validate-2026-06-01.md ✓
+    scope_creep: "NONE — single validation report file"
+    ec_11_absorption: "Surfaced inside the validation report's EC absorption table (block on exit code 0 + zero new failures vs baseline 570, not strict count) — implicit via report, not commit body"
+    acceptance: PASS
+
+# ============================================================================
+# COVERAGE MATRIX VERIFICATION
+# ============================================================================
+
+coverage_matrix_verification:
+  findings_required: 14
+  findings_resolved: 14
+  ids_verified:
+    - {id: F-wire-1, severity: CRITICAL, by: T0.1 (c729d52), status: RESOLVED}
+    - {id: F-wire-2, severity: MAJOR, by: T0.1 (c729d52), status: RESOLVED}
+    - {id: F-arch-1, severity: MAJOR, by: T0.2 (7ae9316), status: RESOLVED}
+    - {id: F-arch-2, severity: MAJOR, by: T1.2 (ffd37f7), status: RESOLVED}
+    - {id: F-arch-3, severity: MAJOR, by: T1.2 (ffd37f7), status: RESOLVED}
+    - {id: F-xval-1, severity: MAJOR, by: T0.3 (a918feb), status: RESOLVED}
+    - {id: F-wire-3, severity: MINOR, by: T3.1 (848f7f0), status: RESOLVED}
+    - {id: F-tests-1, severity: MINOR, by: T2.1 (f295fcc), status: RESOLVED}
+    - {id: F-tests-2 / F-dom-memory-1, severity: MINOR, by: T2.2 (f4afd02), status: RESOLVED}
+    - {id: F-tests-3, severity: MINOR, by: T2.3 (58b6a86), status: RESOLVED}
+    - {id: F-dom-memory-2, severity: MINOR, by: T1.1 (d5460fa), status: RESOLVED}
+    - {id: F-arch-4, severity: MINOR, by: T3.1 (848f7f0), status: RESOLVED}
+    - {id: F-arch-6, severity: MINOR, by: T3.1 (848f7f0), status: RESOLVED}
+    - {id: F-arch-8, severity: MINOR, by: T3.1 (848f7f0), status: RESOLVED}
+
+  ecs_required: 11
+  ecs_resolved: 11
+  ec_ids_verified:
+    - {id: EC-1, by: T0.1 commit body, status: ABSORBED}
+    - {id: EC-2, by: T1.1 commit body, status: ABSORBED}
+    - {id: EC-3, by: T2.3 commit body, status: ABSORBED}
+    - {id: EC-4, by: T0.1 commit body, status: ABSORBED}
+    - {id: EC-5, by: T0.3 + T2.1 commit bodies, status: ABSORBED}
+    - {id: EC-6, by: T1.2 commit body, status: ABSORBED}
+    - {id: EC-7, by: T0.1 commit body, status: ABSORBED}
+    - {id: EC-8, by: T3.1 commit body, status: ABSORBED}
+    - {id: EC-9, by: T1.1 commit body, status: ABSORBED}
+    - {id: EC-10, by: T2.1 commit body, status: ABSORBED}
+    - {id: EC-11, by: T4.1 validation report (not commit body, but per plan EC-11 maps to T4.1 gate logic), status: ABSORBED}
+
+# ============================================================================
+# ADR COMPLIANCE
+# ============================================================================
+
+adr_compliance_per_decision:
+  - adr: D1
+    decision: "ADR-DEFER-WIRING-B markers (literal colon, not em-dash) in source implementation contract"
+    evidence: |
+      grep -c 'ADR-DEFER-WIRING-B: DeterministicStubEmbedder: ' source impl-contract = 1 ✓
+      grep -c 'ADR-DEFER-WIRING-B: DeterministicStubLLM: ' source impl-contract = 1 ✓
+      check_wiring.py both symbols PASS with status DEFER (verified at T4.1 gate)
+    compliance: RESPECTED
+
+  - adr: D2
+    decision: "F-arch-2 JSDoc-only correction; LCG_HALF_MODULUS_F64 constant value UNCHANGED"
+    evidence: |
+      src/embedders/stub.ts:63 still has `Number(LCG_MODULUS / 2n)` (not Number(LCG_MODULUS)/2) ✓
+      JSDoc lines 14-19 corrected range claim to [-1, 1+~2e-9] ✓
+    compliance: RESPECTED
+
+  - adr: D3
+    decision: "F-arch-3 collision math correction lands in BOTH src code AND source plan v1.1 → v1.2"
+    evidence: |
+      src/embedders/stub.ts:27 cites '~46k inputs at 50%' birthday + '~2^31 effective space' ✓
+      source plan v1.2 frontmatter + ADR D2 Deep Dive bullet updated in lockstep ✓
+    compliance: RESPECTED
+
+  - adr: D4
+    decision: "F-dom-memory-2 fix via strip-prefix regex, NOT JSDoc-only warning"
+    evidence: |
+      src/llms/stub.ts:61 ROLE_PREFIX_RE = /^(?:user|assistant|system):\\s+/gim ✓
+      src/llms/stub.ts:73 applied inside concatUserContent ✓
+      EC-9 JSDoc warning ALSO present (additive, not substitute) ✓
+    compliance: RESPECTED
+
+  - adr: D5
+    decision: "F-tests-1 add 1 new it() block to publish-readiness.test.ts; keep F1 followup intact"
+    evidence: |
+      grep 'EC-5 (F-tests-1)' tests/integration/publish-readiness.test.ts = 1 ✓
+      F1 followup intact (lines 90-118 of original file unchanged) ✓
+    compliance: RESPECTED
+
+  - adr: D6
+    decision: "F-tests-2 fix via inline seeded LCG (not const array, not cross-config import)"
+    evidence: |
+      src/embedders/__tests__/stub.test.ts:75 makeSeededLcg(0xec1) inline ✓
+      EC-1 stress still iterates 1000 distinct inputs deterministically ✓
+    compliance: RESPECTED
+
+# ============================================================================
+# CRITICAL SURFACE CHECKS (CALLED OUT BY DRIVER)
+# ============================================================================
+
+critical_surface_checks:
+  - check_id: EC-6_T1.2_commit_body
+    requirement: |
+      Commit ffd37f7 body MUST contain "HONESTY correction NOT scope drift" or close
+      equivalent + cycle-review.md § Hard gates #2 reference.
+    finding: |
+      VERIFIED. Commit body line 14 contains verbatim: "This edit is a HONESTY
+      correction NOT scope drift: the Goal, Objectives, Tasks, Coverage Matrix,
+      and Acceptance Criteria of the source plan are unchanged"
+      Line 11 contains verbatim: "Per `cycle-review.md § Hard gates #2`, plan
+      edits after /implement of the source cycle are normally BLOCKER."
+    source_plan_edit_scope: |
+      VERIFIED via git show ffd37f7 -- source plan: ONLY the v1.2 frontmatter
+      note + ADR D2 Deep Dive 'Collision analysis' bullet were touched. Goal,
+      Objectives, Tasks, Coverage Matrix, and Acceptance Criteria headings
+      untouched.
+    status: PASS
+
+  - check_id: EC-7_T0.1_commit_body
+    requirement: |
+      Commit c729d52 body MUST contain "ONE-OFF honesty fix; NOT precedent for
+      retrospective audit edits" + Followups F2 reference.
+    finding: |
+      VERIFIED. Commit body lines 30-33 contain: "EC-7 absorption (audit-trail
+      edit precedent): the validation report L46 edit is a ONE-OFF HONESTY FIX
+      to remove fabricated rationale per Inquebrável Rule 3; NOT a precedent
+      for retrospective audit edits. Followups table F2 of the fix-up
+      implementation contract tracks the policy update needed in
+      .claude/rules/audit-trail-rotation.md."
+    status: PASS
+
+# ============================================================================
+# COMMIT FORMAT CHECK
+# ============================================================================
+
+commit_format_check:
+  expected_pattern: "type(scope)(slug): subject (T-id / F-id)"
+  per_commit:
+    - {commit: c729d52, format: "docs(implement)(adapters-cycle-1-fixes): ... (T0.1 / F-wire-1 + F-wire-2)", verdict: PASS}
+    - {commit: 7ae9316, format: "chore(config)(adapters-cycle-1-fixes): ... (T0.2 / F-arch-1)", verdict: PASS}
+    - {commit: a918feb, format: "docs(changelog)(adapters-cycle-1-fixes): ... (T0.3 / F-xval-1)", verdict: PASS}
+    - {commit: d5460fa, format: "fix(llms)(adapters-cycle-1-fixes): ... (T1.1 / F-dom-memory-2 + EC-2 + EC-9)", verdict: PASS}
+    - {commit: ffd37f7, format: "docs(embedders)(adapters-cycle-1-fixes): ... (T1.2 / F-arch-2 + F-arch-3 + EC-6)", verdict: PASS}
+    - {commit: f295fcc, format: "test(integration)(adapters-cycle-1-fixes): ... (T2.1 / F-tests-1 / EC-5)", verdict: PASS}
+    - {commit: f4afd02, format: "test(embedders)(adapters-cycle-1-fixes): ... (T2.2 / F-tests-2 / testing.md § Determinism)", verdict: PASS_MINOR_DEVIATION}
+    - {commit: 58b6a86, format: "test(llms)(adapters-cycle-1-fixes): ... (T2.3 / F-tests-3 + EC-3)", verdict: PASS}
+    - {commit: 848f7f0, format: "docs(adapters-cycle-1-fixes): ... (T3.1 / F-wire-3 + F-arch-4 + F-arch-6 + F-arch-8 + EC-8)", verdict: MINOR_DEVIATION}
+    - {commit: 98f0b19, format: "chore(implement)(adapters-cycle-1-fixes): ... (T4.1)", verdict: PASS}
+  notes: |
+    Commit 848f7f0 (T3.1) uses `docs(adapters-cycle-1-fixes):` — single
+    parenthesis pair where the convention `type(scope)(slug):` requires two.
+    This is a MINOR deviation from the locked commit format; subject body
+    cites task + findings + ECs correctly. Plan T3.1's declared format string
+    at line 473 was `docs(adapters-cycle-1-fixes):` — so the commit MATCHES
+    the plan literally; the deviation is in the PLAN'S OWN format declaration
+    for T3.1 (the plan itself omits the inner scope for the doc-only batch).
+    Net: commit follows the plan; the plan declared a non-standard format
+    once. Not a blocker; flag as INFO.
+
+    Commit f4afd02 (T2.2) has `testing.md § Determinism` in the trailer
+    instead of `F-dom-memory-1`. The plan's declared trailer for T2.2 (line
+    415) was `(T2.2 / F-tests-2)`. F-dom-memory-1 was the duplicate-flag from
+    the domain-memory-layer reviewer agent (per Coverage Matrix). Commit body
+    cites both F-tests-2 AND F-dom-memory-1 (line 38) explicitly — only the
+    SUBJECT trailer omits it. Not a blocker.
+
+# ============================================================================
+# FINDINGS
+# ============================================================================
+
+findings:
+  - id: F-xval-1
+    severity: INFO
+    file: commits 848f7f0 (T3.1) + f4afd02 (T2.2)
+    plan_ref: T3.1 § Definition of Done line 473 + T2.2 § Definition of Done line 415 (commit format)
+    summary: Two commits deviate slightly from the canonical `type(scope)(slug)` format
+    evidence: |
+      848f7f0 subject: `docs(adapters-cycle-1-fixes): ...` (single parens — but the
+        plan T3.1's declared format ALSO omitted the inner scope, so the commit
+        matches the plan literally; deviation is in the plan, not the commit).
+      f4afd02 subject trailer: `(T2.2 / F-tests-2 / testing.md § Determinism)`
+        instead of the plan's declared `(T2.2 / F-tests-2)`. F-dom-memory-1 is
+        the duplicate flag for the same defect; commit body cites it on line 38.
+        Subject trailer carries a cycle-rule reference instead of the alias F-id.
+        Neither subject is wrong against the plan or contract; both deviate
+        from the strictest reading of the global "conventional commits" pattern.
+    recommended_action: |
+      No action required. Both deviations are sub-cosmetic. If future cycles want
+      stricter conformance, update to-plan template to enforce `type(scope)(slug)`
+      for ALL task formats including doc-only ones. Optionally normalize the T2.2
+      subject trailer to `(T2.2 / F-tests-2 / F-dom-memory-1)` for archaeology
+      consistency.
+
+# No BLOCKER, CRITICAL, MAJOR, or MINOR findings.
+# The fix-up cycle implements the plan line-by-line with zero scope creep,
+# zero plan drift, all 14 review findings resolved + 11 ECs absorbed,
+# all 6 ADRs respected, baseline tests preserved (573 PASS + 2 skipped),
+# both critical EC-6/EC-7 commit-body invariants verified verbatim,
+# and the source-plan honesty edit (T1.2) confined to the rationale-allowed
+# surfaces (v1.2 frontmatter + ADR D2 Deep Dive bullet) — Goal/Objectives/
+# Tasks/Coverage Matrix/Acceptance Criteria of the source plan untouched.
+
+# ============================================================================
+# OVERALL VERDICT
+# ============================================================================
+
+verdict: READY_TO_MERGE
+rationale: |
+  All 10 tasks (T0.1 → T4.1) shipped with the expected commits in the expected
+  order. Every commit body cites the required findings + ECs declared in the
+  plan's Coverage Matrix + Edge-case absorption matrix. Files actually changed
+  match files declared per task (plus expected /implement v1.4 scaffolding for
+  T0.1's startup). No scope creep — every diff stays within declared files.
+
+  The two CRITICAL surface checks called out by the review driver both pass:
+    - EC-6 (T1.2 / ffd37f7): commit body contains both "HONESTY correction
+      NOT scope drift" AND "cycle-review.md § Hard gates #2" reference; source
+      plan edit confined to v1.2 frontmatter + ADR D2 Deep Dive bullet.
+    - EC-7 (T0.1 / c729d52): commit body contains both "ONE-OFF HONESTY FIX
+      ... NOT a precedent for retrospective audit edits" AND "Followups table
+      F2" reference.
+
+  Plan drift check: the fix-up plan itself has had no modifications since
+  dc4ce2a (diff base). Source-plan edit is the explicit EC-6 honesty-correction
+  exception declared in fix-up ADR D3 — NOT plan drift.
+
+  ADR compliance: 6/6 ADRs (D1-D6) respected. Source-of-truth checks via grep
+  + file inspection confirm canonical patterns landed.
+
+  Baseline preserved: npm test 573 PASS + 2 skipped (matches baseline);
+  typecheck exit 0; lint exit 0.
+
+  Commit format: 8/10 strictly canonical; 2/10 have sub-cosmetic deviations
+  (one matches the plan's own non-canonical declaration at T3.1; one carries
+  a rule reference instead of a finding alias in the subject trailer). Neither
+  is a contract violation. INFO-level only.
+
+  Recommendation: merge.
