@@ -4,6 +4,7 @@
  * @see ADR-0004 — API verbs (remember / recall / forget / reflect + parity helpers).
  * @see ADR-0006 — bi-temporal columns (asOf is uniform at the type level; runtime divergence per local v0.1).
  */
+import type { ConflictResolutionPolicy } from './dip/conflict-resolution-policy.js';
 import type { Filters } from './scope.js';
 
 export interface RememberOptions {
@@ -80,7 +81,7 @@ export interface ReflectOptions {
    *
    * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + ADR D2
    */
-  readonly conflictResolution?: import('./dip/conflict-resolution-policy.js').ConflictResolutionPolicy;
+  readonly conflictResolution?: ConflictResolutionPolicy;
 }
 
 export interface GetAllOptions {
