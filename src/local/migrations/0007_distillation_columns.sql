@@ -1,0 +1,25 @@
+-- T0.1 / ADR D3 + EC-3 + EC-9 — v0.7 episodic→semantic distillation
+--
+-- Adds the new `consolidation_history` audit table backing
+-- `Memory.reflect({ conflictResolution: <Policy> })`. EC-3 absorbed:
+-- `kept_memory_id` declares ON DELETE SET NULL so GDPR
+-- `forget(memId, { hard: true })` (v0.4b T7.1) physical DELETE survives
+-- the audit row (regulatory trail preserved; only the FK reference is
+-- nullified). EC-9 honesty fix: `memories.derived_from` is ALREADY a
+-- JSONB array column shipped at v0.4a (`src/local/pgvector-store.ts:71`);
+-- no schema change to `memories` is required.
+--
+-- @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3
+-- @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-3 + EC-9
+CREATE TABLE IF NOT EXISTS "consolidation_history" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"kept_memory_id" uuid REFERENCES "memories"("id") ON DELETE SET NULL,
+	"rejected_memory_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"reason" text NOT NULL,
+	"policy_name" text NOT NULL,
+	"original_episode_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT NOW() NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_consolidation_history_kept" ON "consolidation_history" USING btree ("kept_memory_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_consolidation_history_created" ON "consolidation_history" USING btree ("created_at" DESC);
