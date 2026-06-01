@@ -75,7 +75,8 @@
     "compose:up": "docker compose up -d pgvector",
     "compose:down": "docker compose down",
     "publish:check": "npm publish --dry-run --tag next",
-    "eval:forgetting": "tsx docs/forgetting-evaluation/run.ts"
+    "eval:forgetting": "tsx docs/forgetting-evaluation/run.ts",
+    "eval:distillation": "tsx docs/distillation-evaluation/run.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
