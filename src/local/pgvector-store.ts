@@ -122,11 +122,38 @@ export class PgvectorStore implements VectorStore {
   private currentUserId = '';
   private readonly skillStore: PgvectorSkillStore;
 
-  /** `tracer` is optional OTel for F-arch-3 per-row fallback observability. */
+  /**
+   * adapters-openrouter-local-embedder T0.2: 2nd arg widened from positional
+   * `tracer?: Tracer` to options object carrying both `embeddingDim?` and
+   * `tracer?`. Backward-compat preserved for `new PgvectorStore(pool)`;
+   * empirical sweep at iteration 2 SEPA pre-RED confirmed ZERO callers use
+   * the positional-tracer form anywhere in the SDK + tests + examples.
+   *
+   * `embeddingDim` defaults to `MAX_EMBEDDING_DIM` (1536). When set to a
+   * smaller value (e.g., 384 for Xenova/all-MiniLM-L6-v2), the search guard
+   * at line ~240 asserts against `this.embeddingDim` instead of the
+   * constant — error message surfaces the CONFIGURED dim so the operator
+   * can pinpoint a misconfigured store vs a misbehaving embedder.
+   *
+   * `tracer` continues to be optional OTel for F-arch-3 per-row fallback
+   * observability.
+   *
+   * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.2
+   * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-2-pre-red.md (M2 widening rationale)
+   */
+  private readonly embeddingDim: number;
+  private readonly tracer?: Tracer;
   constructor(
     private readonly pool: Pool,
-    private readonly tracer?: Tracer,
+    options?: { readonly embeddingDim?: number; readonly tracer?: Tracer },
   ) {
+    this.embeddingDim = options?.embeddingDim ?? MAX_EMBEDDING_DIM;
+    // exactOptionalPropertyTypes: assign only when defined so the field
+    // stays `tracer?: Tracer` (not `Tracer | undefined`) — preserves the
+    // existing per-row fallback observability branch shape downstream.
+    if (options?.tracer !== undefined) {
+      this.tracer = options.tracer;
+    }
     this.skillStore = new PgvectorSkillStore(pool, this.withTransaction.bind(this));
   }
 
@@ -229,11 +256,14 @@ export class PgvectorStore implements VectorStore {
     topK = 10,
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[]> {
-    // F-dom-4: guard query dimension so a malformed embed surfaces here, not
-    // as silently-wrong pgvector results from a dimension mismatch.
-    if (query.length !== MAX_EMBEDDING_DIM) {
+    // F-dom-4 + T0.2: guard query dimension so a malformed embed surfaces
+    // here, not as silently-wrong pgvector results from a dimension mismatch.
+    // Reads from `this.embeddingDim` (default MAX_EMBEDDING_DIM) so a
+    // parametrically-configured store reports the CONFIGURED dim — operator
+    // can pinpoint misconfig vs misbehaving embedder per T0.2 § Deep Dives.
+    if (query.length !== this.embeddingDim) {
       throw new Error(
-        `PgvectorStore.search: query vector dimension ${query.length} does not match MAX_EMBEDDING_DIM ${MAX_EMBEDDING_DIM}`,
+        `PgvectorStore.search: query vector dimension ${String(query.length)} does not match configured embeddingDim ${String(this.embeddingDim)}`,
       );
     }
     const filter = composeFilters(filters, 2);
