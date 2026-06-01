@@ -117,3 +117,120 @@ describe('createLocalMemory factory', () => {
     expect(Array.isArray(trail)).toBe(true);
   });
 });
+
+describe('createLocalMemory factory — parametric embeddingDim (T0.1 + EC-1 absorption)', () => {
+  /**
+   * T0.1 absorption: LocalMemoryConfig.embeddingDim?: number (default = MAX_EMBEDDING_DIM).
+   * Probe asserts against configured dim, not the hard-coded constant.
+   *
+   * EC-1 absorption: pre-flight guard MUST use Number.isInteger to catch
+   * NaN/float/Infinity values that bare arithmetic comparison misses
+   * silently. All 5 pre-flight failure cases throw InvalidScope (per SEPA
+   * iter 1 pre-RED CRITICAL #1 — uniform error class for config-level
+   * rejection). EmbeddingMismatch is reserved for the probe-result mismatch
+   * path where the configured dim is VALID but the embedder returned
+   * a different length.
+   *
+   * Error messages MUST include the literal received value via String(received)
+   * so the operator can diagnose typos / wrong config in their .env.
+   */
+
+  test('accepts embeddingDim=384 with a matching 384-dim embedder', async () => {
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(384),
+      llm: makeLlm(),
+      embeddingDim: 384,
+    };
+    const memory = await createLocalMemory(config);
+    expect(memory).toBeDefined();
+  });
+
+  test('preserves default MAX_EMBEDDING_DIM when embeddingDim is omitted', async () => {
+    // Backward compat: existing callers (no embeddingDim) must continue to work.
+    const memory = await createLocalMemory(baseConfig());
+    expect(memory).toBeDefined();
+  });
+
+  test('EC-1: rejects embeddingDim=NaN with InvalidScope and literal value in message', async () => {
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(384),
+      llm: makeLlm(),
+      embeddingDim: Number.NaN,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(/NaN/);
+  });
+
+  test('EC-1: rejects embeddingDim=384.5 (non-integer) with InvalidScope and literal value in message', async () => {
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(384),
+      llm: makeLlm(),
+      embeddingDim: 384.5,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(/384\.5/);
+  });
+
+  test('EC-1: rejects embeddingDim=Infinity with InvalidScope and literal value in message', async () => {
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(384),
+      llm: makeLlm(),
+      embeddingDim: Number.POSITIVE_INFINITY,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(/Infinity/);
+  });
+
+  test('rejects embeddingDim=0 with InvalidScope and literal value in message', async () => {
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(384),
+      llm: makeLlm(),
+      embeddingDim: 0,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(/0/);
+  });
+
+  test('rejects embeddingDim > MAX_EMBEDDING_DIM with InvalidScope and literal value in message', async () => {
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(MAX_EMBEDDING_DIM + 512),
+      llm: makeLlm(),
+      embeddingDim: MAX_EMBEDDING_DIM + 512,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(new RegExp(String(MAX_EMBEDDING_DIM + 512)));
+  });
+
+  test('error message lists MAX_EMBEDDING_DIM upper bound when rejecting too-large embeddingDim', async () => {
+    // Operator-diagnosability: the error must point at the locked upper cap
+    // so they understand why their value was rejected.
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(384),
+      llm: makeLlm(),
+      embeddingDim: MAX_EMBEDDING_DIM + 1,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(new RegExp(String(MAX_EMBEDDING_DIM)));
+  });
+
+  test('probe-result mismatch (configured 384 vs embedder returns 768) throws EmbeddingMismatch with the configured dim', async () => {
+    // Pre-flight passes (384 is valid integer in range), but the embedder
+    // misbehaves and returns 768-dim vector. The EmbeddingMismatch error
+    // must surface the CONFIGURED dim (384), not MAX_EMBEDDING_DIM, so the
+    // operator can pinpoint the source of the mismatch.
+    const config = {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(768),
+      llm: makeLlm(),
+      embeddingDim: 384,
+    };
+    await expect(createLocalMemory(config)).rejects.toThrow(/expected 384/);
+    await expect(createLocalMemory(config)).rejects.toThrow(/got 768/);
+  });
+});
