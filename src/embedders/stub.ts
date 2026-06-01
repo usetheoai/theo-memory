@@ -92,6 +92,14 @@ function l2Normalize(v: number[]): number[] {
     return new Array<number>(v.length).fill(0);
   }
   const out = new Array<number>(v.length);
+  // F-arch-4 / EC-8 absorption (LOCKED option B): retain `v[i]!` non-null
+  // assertion + this explanatory comment instead of switching to
+  // `v.at(i) ?? 0` (which would silently substitute 0 on out-of-bounds, a
+  // fail-silent regression violating Inquebrável Rule 8). The assertion is
+  // SAFE here because the loop invariant `0 ≤ i < v.length` holds by
+  // construction; if i ever escapes the bound, the assertion throws and
+  // surfaces the bug.
+  // noUncheckedIndexedAccess: i bounded by [0, v.length) loop invariant
   for (let i = 0; i < v.length; i++) out[i] = v[i]! / norm;
   return out;
 }
