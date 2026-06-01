@@ -181,8 +181,9 @@ examples/chat-with-memory/
 │       └── history-tab.tsx
 ├── lib/
 │   ├── agent.ts                     # lazy SDKAgent per (userId, sessionId)
-│   ├── memory.ts                    # backend auto-detect (pgvector OR in-memory)
-│   ├── openai-adapters.ts           # Embedder + LLM DIPs
+│   ├── memory.ts                    # backend auto-detect; imports Embedder + LLM DIPs
+│   │                                #   from @usetheo/memory/embedders/openai
+│   │                                #   + @usetheo/memory/llms/openai (adapters-cycle-2)
 │   └── theomemory-plugin.ts         # systemPromptResolver + rememberTurn (dual-scope)
 └── README.md
 ```
