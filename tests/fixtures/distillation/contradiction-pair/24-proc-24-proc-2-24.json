@@ -1,0 +1,15 @@
+{
+  "id": "contradiction-pair-24-proc-2-24",
+  "category": "contradiction-pair",
+  "source": "procedural-seed",
+  "episodeText": "Update: staging cluster fixed at 6 nodes after cost review. (Previously: the staging cluster auto-scales overnight.)",
+  "expectedFacts": [
+    {
+      "text": "staging cluster fixed at 6 nodes after cost review"
+    }
+  ],
+  "expectedConflictPair": {
+    "kept": "staging cluster fixed at 6 nodes after cost review",
+    "rejected": "the staging cluster auto-scales overnight"
+  }
+}

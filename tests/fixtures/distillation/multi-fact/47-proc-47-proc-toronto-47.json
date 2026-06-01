@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-47-proc-toronto-47",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Toronto region: the build pipeline runs on every PR; Theo from support rotates weekly (through the on-call schedule); the build pipeline runs on every PR.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR"
+    },
+    {
+      "text": "Theo from support rotates weekly — through the on-call schedule"
+    },
+    {
+      "text": "the build pipeline runs on every PR"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-03-hand-allergy",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "Quick note for my health profile: I'm severely allergic to penicillin — anaphylaxis-level reaction.",
+  "expectedFacts": [
+    { "text": "Severe penicillin allergy with anaphylaxis-level reaction", "attributedTo": "user" }
+  ]
+}

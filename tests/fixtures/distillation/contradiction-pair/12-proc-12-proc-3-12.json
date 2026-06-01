@@ -1,0 +1,15 @@
+{
+  "id": "contradiction-pair-12-proc-3-12",
+  "category": "contradiction-pair",
+  "source": "procedural-seed",
+  "episodeText": "Update: Yuki paused monthly publication; switching to quarterly. (Previously: Yuki from research publishes monthly.)",
+  "expectedFacts": [
+    {
+      "text": "Yuki paused monthly publication; switching to quarterly"
+    }
+  ],
+  "expectedConflictPair": {
+    "kept": "Yuki paused monthly publication; switching to quarterly",
+    "rejected": "Yuki from research publishes monthly"
+  }
+}

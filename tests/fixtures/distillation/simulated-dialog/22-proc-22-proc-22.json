@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-22-proc-22",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to evaluate a vendor proposal.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: the team has 6 engineers and 1 EM; and the budget cap is 50k USD.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: evaluate a vendor proposal"
+    },
+    {
+      "text": "the team has 6 engineers and 1 EM"
+    },
+    {
+      "text": "the budget cap is 50k USD"
+    }
+  ]
+}

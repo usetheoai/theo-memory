@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-04-hand-location",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "I moved to Porto Alegre in March 2026 — staying long-term, not just a visit.",
+  "expectedFacts": [
+    { "text": "Lives in Porto Alegre (moved March 2026, long-term)", "attributedTo": "user" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-36-proc-berlin-36",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Berlin region: the staging cluster auto-scales overnight; the postgres replica lags during peak (by 200 to 400 milliseconds); the API gateway rate-limits per IP.",
+  "expectedFacts": [
+    {
+      "text": "the staging cluster auto-scales overnight"
+    },
+    {
+      "text": "the postgres replica lags during peak — by 200 to 400 milliseconds"
+    },
+    {
+      "text": "the API gateway rate-limits per IP"
+    }
+  ]
+}

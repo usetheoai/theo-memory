@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-24-proc-lin-24",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Lin owns the billing service — also a deep expert in security audits.",
+  "expectedFacts": [
+    {
+      "text": "Lin owns the billing service"
+    },
+    {
+      "text": "Lin is a deep expert in security audits"
+    }
+  ]
+}

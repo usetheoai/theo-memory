@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-08-hand-language-skill",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "I'm B2 in German — passed the Goethe-Institut exam in 2024.",
+  "expectedFacts": [
+    { "text": "German proficiency at B2 level (Goethe-Institut certified 2024)", "attributedTo": "user" }
+  ]
+}

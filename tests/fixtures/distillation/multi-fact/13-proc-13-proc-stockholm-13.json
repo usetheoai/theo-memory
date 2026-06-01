@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-13-proc-stockholm-13",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Stockholm region: project Halcyon launches in Q4; the postgres replica lags during peak (by 200 to 400 milliseconds); Theo from support rotates weekly.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4"
+    },
+    {
+      "text": "the postgres replica lags during peak — by 200 to 400 milliseconds"
+    },
+    {
+      "text": "Theo from support rotates weekly"
+    }
+  ]
+}

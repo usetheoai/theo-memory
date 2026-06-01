@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-44-proc-project-Halcyon-lagos",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Lagos deployment, project Halcyon launches in Q4 — 500 enterprise pilots.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4 (Lagos deployment)"
+    }
+  ]
+}

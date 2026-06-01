@@ -1,0 +1,10 @@
+{
+  "id": "entity-overlap-07-hand-vendor-relationship",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Using Vercel for the new dashboard and Supabase for auth + DB. Both vendors have been responsive when we hit issues.",
+  "expectedFacts": [
+    { "text": "Uses Vercel for the new dashboard", "attributedTo": "user" },
+    { "text": "Uses Supabase for auth and database", "attributedTo": "user" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-25-proc-25",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to set up a monitoring dashboard for the new service.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: the deadline is end of Q3; and on-call covers business hours only.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: set up a monitoring dashboard for the new service"
+    },
+    {
+      "text": "the deadline is end of Q3"
+    },
+    {
+      "text": "on-call covers business hours only"
+    }
+  ]
+}
