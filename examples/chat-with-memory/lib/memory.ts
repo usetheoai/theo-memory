@@ -5,29 +5,21 @@
  *   - `THEOMEM_PG_URI` set    → `PgvectorStore` + `runMigrations` (real persistence)
  *   - `THEOMEM_PG_URI` unset  → `InMemoryVectorStore` (zero infra)
  *
- * **HOTFIX 2026-05-31:** Eviction wiring (T1.1 of plan
- * `examples-chat-with-memory-v0-4b-expansion`) is DISABLED until root cause of
- * the User-scope write loss is identified. With `createLocalMemory({ eviction:
- * { trigger: 'capacity', maxMemoriesPerScope: 10 } })` active, parallel
- * `Promise.all([userScoped.remember, sessionScoped.remember])` calls from
- * `rememberTurn` produce DB state with `user_id IS NULL` on all rows (only
- * session-scope writes survive). Demonstrated empirically: with eviction OFF,
- * 5 rows persist (3 user + 2 session); with eviction ON, only 3 rows persist
- * (0 user + 3 session). Bug surfaces in the postRememberHook race with the
- * capacity-trigger eviction pipeline.
- *
- * Until the race is debugged in a follow-up cycle, `resolveEviction` always
- * returns `{ enabled: false }`. The `/api/memory/eviction-status` endpoint +
- * `EvictionTab` UI (T1.2 + T1.3) keep working — they render the disabled hint.
- *
- * @see .claude/knowledge-base/reviews/examples-chat-with-memory-v0-4b-expansion-implement-validate-2026-05-31.md § F-T4.1-2 (root cause analysis)
+ * **Eviction wiring (lifted 2026-06-01 — hotfix `b2909ff` reverted by f-t4-1-2
+ * T3.1):** `THEOMEM_EVICTION_DEMO=1` + `THEOMEM_PG_URI` set → eviction enabled
+ * via `createLocalMemory({ eviction: { trigger: 'capacity', maxMemoriesPerScope: 10 } })`.
+ * The regression guard for the F-T4.1-2 race lives at
+ * `tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts` — 3 race-
+ * attempt variants × 400+ trials PASS against real pgvector. SDK code path is
+ * empirically sound; if regression surfaces in Next.js demo runtime with real
+ * OpenAI adapters, re-apply hotfix immediately + file follow-up cycle.
  *
  * Demonstrates both runtimes of the contract from a single binary surface,
  * and persistence survives `npm run dev` restarts when pgvector is wired.
  *
  * Public exports: `getSingleton`, `getMemory`, `getBackend`. `getSingleton`
- * carries an `eviction` field (always `enabled: false` during hotfix; consumed
- * by `/api/memory/eviction-status` + `EvictionTab`).
+ * carries an `eviction` field consumed by `/api/memory/eviction-status` +
+ * `EvictionTab`.
  *
  * `globalThis` shares the singleton across Next.js dev's per-route module
  * instances (writes via /api/chat must land in the SAME store as reads via
@@ -114,16 +106,18 @@ async function buildStore(): Promise<{
 }
 
 /**
- * HOTFIX 2026-05-31: eviction wiring DISABLED until F-T4.1-2 root cause is
- * identified. With the v0.4b capacity-trigger pipeline active, parallel
- * `Promise.all([userScoped.remember, sessionScoped.remember])` writes from
- * `rememberTurn` lose the user-scope rows (DB shows `user_id IS NULL` on
- * every row). Until debugged, return `enabled: false` regardless of the
- * env var. The env var stays documented in README + skill catalog for the
- * eventual re-enable.
+ * Eviction is enabled iff `THEOMEM_EVICTION_DEMO=1` (strict equality) AND
+ * `backend === 'pgvector'` (advisory locks + cosine distance are PG-only;
+ * `EvictionNotSupported` would throw otherwise). Per plan ADR D1 the demo
+ * opt-in is strict equality with `"1"`; per plan §216 this shape is the
+ * contract consumed by the `EvictionTab` UI (T1.3).
  *
- * `THEOMEM_EVICTION_DEMO=1` currently logs `eviction=disabled (reason:
- * hotfix-2026-05-31)` so consumers see the temporary block.
+ * Hotfix `b2909ff` (`hotfix-2026-05-31`) was lifted 2026-06-01 by
+ * f-t4-1-2-eviction-race-debug T3.1. SDK regression guard:
+ * `tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts` (400+
+ * trials PASS). The `hotfix-2026-05-31` reason value is retained in the
+ * DisabledReason union for backward compat with `/api/memory/eviction-status`
+ * snapshots but is no longer emitted by `resolveEviction`.
  */
 type DisabledReason = "env" | "backend" | "hotfix-2026-05-31";
 
@@ -134,10 +128,15 @@ function resolveEviction(backend: BackendKind): {
 } {
   const envOptedIn = process.env.THEOMEM_EVICTION_DEMO === "1";
   if (envOptedIn && backend === "pgvector") {
+    const maxMemoriesPerScope = 10;
     return {
-      state: { enabled: false, trigger: null, maxMemoriesPerScope: null },
-      reason: "hotfix-2026-05-31",
-      config: undefined,
+      state: {
+        enabled: true,
+        trigger: "capacity",
+        maxMemoriesPerScope,
+      },
+      reason: null,
+      config: { trigger: "capacity", maxMemoriesPerScope },
     };
   }
   return {
