@@ -1,0 +1,191 @@
+agent: review-f-t4-1-2-eviction-race-debug-architecture
+review_target: f2d9d46..c004d76 for plan f-t4-1-2-eviction-race-debug
+plan: .claude/knowledge-base/plans/f-t4-1-2-eviction-race-debug-plan.md
+verdict: READY_TO_MERGE
+summary: |
+  Single source-code change (examples/chat-with-memory/lib/memory.ts, 197 LoC)
+  preserves DIP boundary — all imports through public subpath exports
+  (@usetheo/memory, /contract, /embedders/stub, /llms/stub). resolveEviction
+  remains SRP (one decision: should eviction be enabled, what config). No
+  src/core ↔ src/local reverse imports. File-size budget 197/500 well under.
+  SOLID compliance preserved across the hotfix lift. Test file (388 LoC)
+  introduces SlowDeterministicEmbedder as OCP-respecting subclass extension
+  preserving Embedder contract. No paper-names in src/test code; no
+  production-ready vocabulary violations in diff. DisabledReason union
+  retention of "hotfix-2026-05-31" literal is defensible (kept for symmetry
+  with prior snapshot reads, though never serialized via /api/memory/eviction-status).
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 122
+    plan_ref: T3.1 hotfix-lift Acceptance Criteria item 4
+    summary: DisabledReason union retains "hotfix-2026-05-31" literal post-lift; defensible but borderline dead-code
+    evidence: |
+      ```ts
+      type DisabledReason = "env" | "backend" | "hotfix-2026-05-31";
+
+      function resolveEviction(backend: BackendKind): {
+        state: EvictionState;
+        reason: DisabledReason | null;
+        config: LocalEvictionConfig | undefined;
+      } {
+        // ... only "env" and "backend" branches emit a reason now
+      }
+      ```
+      Grep confirms: zero consumers in app/ or components/ reference
+      "hotfix-2026-05-31"; the /api/memory/eviction-status endpoint
+      response shape (route.ts:67-73) does NOT serialize the `reason`
+      field at all — it only exposes enabled/trigger/maxMemoriesPerScope/
+      activeCount/softDeletedCount. The `reason` returned by resolveEviction
+      is internal-only and discarded after the boot-time console.log line
+      at memory.ts:179.
+    recommended_action: |
+      ACCEPT AS-IS. Retention rationale (JSDoc at lines 115-120) is honest
+      ("retained for backward compat with snapshots ... but no longer
+      emitted"). The literal is reachable only via type narrowing on
+      external callers of `resolveEviction`, but `resolveEviction` is
+      file-private (not exported). So this is closer to a documented
+      tombstone than dead code. If a follow-up cycle removes the literal,
+      callers won't break because no caller ever consumed it. Acceptable
+      as-shipped; flag for cleanup in next refactor cycle that touches
+      memory.ts.
+  - id: F-arch-2
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 124-147
+    plan_ref: T3.1 hotfix-lift Acceptance Criteria item 2 (SRP preservation)
+    summary: resolveEviction is SRP-clean post-lift — one decision (enable/disable + config)
+    evidence: |
+      ```ts
+      function resolveEviction(backend: BackendKind): { state, reason, config } {
+        const envOptedIn = process.env.THEOMEM_EVICTION_DEMO === "1";
+        if (envOptedIn && backend === "pgvector") {
+          // enabled path: return state + null reason + config
+        }
+        // disabled path: return state + reason + undefined config
+      }
+      ```
+      One decision point (envOptedIn && backend === 'pgvector'), one
+      return path per branch, no inheritance, no new parameters. Pure
+      function over (backend) → eviction triple. Diff from hotfix
+      version cleanly removes the unconditional disable shim while
+      preserving the function signature.
+    recommended_action: No action. SRP preserved; OCP not relevant (no
+      variation point introduced); LSP n/a (no class); ISP n/a; DIP
+      preserved (consumes only env + BackendKind primitive).
+  - id: F-arch-3
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 70-84
+    plan_ref: T1.3 SLOW-embedder variant
+    summary: SlowDeterministicEmbedder is OCP-respecting decorator-via-inheritance; LSP-compliant override
+    evidence: |
+      ```ts
+      class SlowDeterministicEmbedder extends DeterministicStubEmbedder {
+        constructor(private readonly minMs: number = 20, private readonly maxMs: number = 80) {
+          super();
+        }
+        override async embed(text: string): Promise<readonly number[]> {
+          const ms = this.minMs + Math.random() * (this.maxMs - this.minMs);
+          await new Promise((r) => setTimeout(r, ms));
+          return super.embed(text);
+        }
+        override async embedBatch(texts: readonly string[]): Promise<readonly (readonly number[])[]> {
+          const out: (readonly number[])[] = [];
+          for (const text of texts) out.push(await this.embed(text));
+          return out;
+        }
+      }
+      ```
+      - Preserves the Embedder contract signatures (return types unchanged).
+      - Strengthens NO post-condition (returns same normalized vectors via super).
+      - Adds latency-injection, a behavior orthogonal to extraction. Pure
+        decorator pattern realized via inheritance. Could equivalently be
+        composition (taking an inner Embedder), but inheritance is more
+        ergonomic for test code that needs default-arg construction.
+      - Scoped to one test file; not exported; not reachable from src/.
+    recommended_action: No action. OCP/LSP-compliant. If this pattern
+      needs to be reused (e.g., simulating Anthropic vs OpenAI cadence
+      separately) a future plan could promote it to a shared
+      `tests/helpers/latency-embedder.ts`. Not needed now.
+  - id: F-arch-4
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 28-49
+    plan_ref: T3.1 DIP boundary preservation
+    summary: All demo imports route through public @usetheo/memory subpath exports — DIP boundary clean
+    evidence: |
+      ```ts
+      import {
+        createLocalMemory,
+        InMemoryVectorStore,
+        PgvectorStore,
+        runMigrations,
+        type LocalEvictionConfig,
+        type LocalMemoryConfig,
+        type Memory,
+      } from "@usetheo/memory";
+      import type { ... } from "@usetheo/memory/contract";
+      import { DeterministicStubEmbedder } from "@usetheo/memory/embedders/stub";
+      import { DeterministicStubLLM } from "@usetheo/memory/llms/stub";
+      ```
+      Zero `src/core/` or `src/local/` reverse imports. The
+      `boundary-check.sh` hook applies to src/ only, but the demo's
+      adherence to public subpaths is an extra signal that the API
+      surface is being dogfooded correctly.
+    recommended_action: No action.
+  - id: F-arch-5
+    severity: INFO
+    file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+    line: 1-388
+    plan_ref: T1.1 + T1.2 + T1.3 — BUG FIX scope only
+    summary: Integration test file is scope-creep-free — 3 race-attempt variants exhaustively cover the F-T4.1-2 hypothesis space without expanding scope beyond the bug under investigation
+    evidence: |
+      Test count: 3 `it()` blocks, all targeting the F-T4.1-2 eviction-race
+      reproduction surface:
+      1. T1.1: parallel user/session Promise.all × 20 trials (line 296-387)
+      2. T1.2: overlapping multi-conversation × 10 trials × 4 conversations (line 189-294)
+      3. T1.3: SLOW-embedder latency-injection × 5 trials × 4 conversations (line 105-187)
+      Each test variant explicitly escalates race-window probability per
+      ADR D2 fallback (sequential → overlapping → latency-augmented). No
+      tests touch unrelated surfaces (no recall, no forget, no reflection,
+      no skill memory). File-level scope is BUG FIX only; honest "PASSED
+      with hypothesis exhausted" conclusion preserved.
+      Vocabulary lock check: `grep -E "Voyager|Mem0|Letta|MemGPT|CoALA|LangMem"`
+      returns zero hits in this file.
+    recommended_action: No action. File serves as the regression-guard
+      landing site declared in adapters-stub-embedder-llm-cycle-1-fixes
+      T0.1 ADR-DEFER-WIRING-B markers. Scope-creep-free; tests describe
+      behavior (not implementation); each test does ONE thing (per
+      anti-pattern list in testing.md). Naming convention OK
+      (snake-words separated by hyphens; describes scenario).
+  - id: F-arch-6
+    severity: INFO
+    file: '*'
+    line: n/a
+    plan_ref: Global vocabulary + naming compliance
+    summary: Diff is free of vocabulary-lock violations and paper-name violations in src/test code
+    evidence: |
+      `git diff f2d9d46..c004d76 | grep -E "^\+" | grep -iE
+      "(Voyager|Mem0|Letta|MemGPT|CoALA|LangMem|production-ready|
+      production-grade)"` returns 1 hit, in
+      `f-t4-1-2-eviction-race-debug-implement-validate-2026-06-01.md`
+      audit report stating "Vocabulary lock: zero actual production-ready
+      [...] claims (4 hits all in negation/forbidden-list context — plan
+      compliance scope + DoD checks)." This is itself a negation/audit-
+      report context — not a violation. No paper names in src/* or
+      tests/* added lines.
+    recommended_action: No action.
+verdict_detail: |
+  Architecture lens returns READY_TO_MERGE with zero BLOCKER / CRITICAL /
+  MAJOR / MINOR findings. All 6 findings are INFO (architectural
+  preservation confirmations). The cycle's NON-STANDARD outcome (bug did
+  NOT reproduce in pure-SDK; T2.1 EMPIRICAL NO-OP; T3.1 PROCEEDED with
+  advisory) is reflected honestly in the JSDoc at memory.ts lines 7-15
+  ("SDK code path is empirically sound; if regression surfaces in Next.js
+  demo runtime with real OpenAI adapters, re-apply hotfix immediately +
+  file follow-up cycle"). The architectural surface area changed is
+  minimal (one demo file + one test file); no src/core or src/local
+  changes; DIP boundary intact; SRP preserved on resolveEviction post-
+  lift; OCP/LSP preserved on SlowDeterministicEmbedder.

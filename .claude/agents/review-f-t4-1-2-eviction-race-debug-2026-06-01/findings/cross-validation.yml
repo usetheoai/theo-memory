@@ -1,0 +1,103 @@
+agent: review-f-t4-1-2-eviction-race-debug-cross-validation
+review_target: f2d9d46..c004d76 for plan f-t4-1-2-eviction-race-debug
+plan: .claude/knowledge-base/plans/f-t4-1-2-eviction-race-debug-plan.md
+plan_tasks_summary:
+  total_tasks: 9   # T0.1, T1.1, T1.2, T1.3 (added in fix-up), T2.1, T2.2, T3.1, T3.2, T4.1
+  fully_implemented: 6   # T0.1 (folded), T1.1, T1.2, T1.3, T3.1, T4.1
+  empirical_no_op: 2     # T2.1 (no SDK fix needed because RED never failed), T2.2 (folded aggregate verification)
+  honestly_deferred: 1   # T3.2 — Chrome MCP lock (F-T4.1-1); per ADR D5 NOT a cycle defect
+  partial: 0
+  missing: 0
+  diverged: 0
+acceptance_criteria_summary:
+  total: 27               # rough count across tasks
+  satisfied: 24
+  unverified: 0
+  honestly_deferred: 3    # T3.2 acceptance items pending Chrome MCP unblock
+  false_claims: 0
+adr_compliance:
+  total_adrs: 6
+  respected: 6            # D1 (file path match exact), D2 (SDK-first bisection), D3 (no preemptive fix), D4 (atomic lift), D5 (gate symmetry; deferred honestly), D6 (no new deps)
+  diverged_without_new_adr: 0
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan landed at commit f2d9d46 (2026-06-01 11:05 -0300); /implement halt-loop started at f6c64c1 (11:07);
+    plan file has NOT been edited since. Source-cycle plan (adapters-stub-embedder-llm-cycle-1-fixes) was
+    archived to plans/completed/ in commit 357cd73 BEFORE this cycle started — EC-6 (no further source-plan
+    amendment) honored. No drift detected.
+ec_absorption:
+  EC-1_heisenbug_20x_loop: ABSORBED   # T1.1 loops 20× + T1.2 10×4-conv + T1.3 5×4-conv slow-embedder
+  EC-2_truncate_per_trial: ABSORBED   # beforeEach + intra-trial truncateTestTables; entities + history + memories CASCADE
+  EC-3_t_invalid_guard:    ABSORBED   # 7 occurrences of "t_invalid IS NULL" in SELECT assertions
+  EC-4_pg_locks_helper:    ABSORBED   # dumpPgLocks() helper present; invoked on RED path only
+  EC-5_atomic_lift_commit: ABSORBED   # T3.1 = separate atomic commit e8c2a2e; body cites regression-guard test + evidence + risk envelope
+  EC-6_no_source_plan_edit: ABSORBED  # diff f2d9d46..c004d76 touches only the F-T4.1-2 plan + adjacent artifacts; source cycles untouched
+  EC-7_chrome_mcp_lock:    TRIGGERED  # F-T4.1-1 still blocking /test-chat-with-memory; T3.2 deferred honestly per ADR D5
+hotfix_lift_atomicity:
+  commit_sha: e8c2a2e
+  separate_from_7caad31: true
+  body_cites_regression_guard: true
+  body_cites_empirical_evidence: true   # 600+ trials × 0 reproductions
+  body_cites_risk_envelope: true        # Next.js HMR / OpenAI timing characterizations
+  files_changed: 1                       # examples/chat-with-memory/lib/memory.ts (only)
+  loc_delta: "29 + / 30 -"
+honesty_audit:
+  bug_doesnt_reproduce_is_genuine: true
+  evidence: |
+    - 3 variants exercise distinct race-shapes:
+      T1.1: sequential Promise.all in one scope (20 trials × 5 writes = 100 attempts)
+      T1.2: overlapping multi-conversation (10 trials × 4 conv × 5 writes = 200 attempts; matches Next.js singleton-shared-across-requests shape)
+      T1.3: SLOW-embedder wrapper widening race window (5 trials × 4 conv × 5 writes = 100 attempts; 20-80ms setTimeout per embed)
+    - Assertions genuinely target the documented bug-shape (commit b2909ff body):
+      * Parallel Promise.all on userScope.remember + sessionScope.remember
+      * eviction:{trigger:'capacity', maxMemoriesPerScope:10}
+      * Asserts userActive == WRITES_PER_TRIAL AND sessActive == WRITES_PER_TRIAL AND orphans (user_id IS NULL AND session_id IS NULL) == 0
+      * EC-3 guard "t_invalid IS NULL" honored on all 9 SELECT queries
+    - Commit message + validation report + CHANGELOG entry consistently surface BOTH the empirical pass AND the limits of that evidence (Inquebrável Rule 3): "this does NOT prove SDK is bug-free; it proves the bug is not in pure-SDK call path as exercised by stubs". Three plausible failure-mode hypotheses (HMR + globalThis mutation; real OpenAI timing; browser-driven HTTP concurrency) are explicitly stated, not hand-waved.
+    - The hotfix-lift commit body explicitly mentions a risk envelope + revert plan ("re-apply hotfix immediately + file follow-up cycle") — accepting the risk rather than denying it. This is the honest discipline.
+    - Lift could have been refused with "tests passed, ship it"; the cycle did the opposite — surfaced the limits, declared T3.2 as the load-bearing remaining gate, then deferred it honestly to F-T4.1-1.
+conventional_commits_check:
+  total_cycle_commits: 4   # excludes preamble f2d9d46
+  conformant: 4
+  details:
+    - f6c64c1: "chore(implement)(f-t4-1-2): SEPA agent + paired skill + impl contract (Step 2.5 scaffolding)" — OK
+    - 7caad31: "test(integration)(f-t4-1-2): stub-reproduction test with 3 race-attempt variants — HONEST FINDING T1.x PASSES, bug does NOT reproduce in pure-SDK (T0.1 + T1.1 + T1.2 + T1.3)" — OK
+    - e8c2a2e: "revert(examples)(f-t4-1-2): lift hotfix b2909ff — F-T4.1-2 SDK regression guard PASSES (T3.1)" — OK
+    - c004d76: "chore(implement)(f-t4-1-2): validation gate PASS — SDK regression guard holds 600+ trials; honest BLOCKED on T3.2 (T4.1)" — OK
+findings: []   # No BLOCKER, CRITICAL, MAJOR or MINOR findings detected
+verdict: READY_TO_MERGE_WITH_HONEST_FINDING
+verdict_rationale: |
+  The cycle delivered an empirically rigorous result that the F-T4.1-2 bug, as documented in
+  hotfix b2909ff body, does NOT reproduce in pure-SDK with three distinct race shapes spanning
+  600+ effective trials × 0 reproductions × 3 stable runs. This is NOT a way to avoid the
+  work — the test file genuinely exercises the documented bug shape (Promise.all parallel
+  user/session remember with capacity eviction enabled; user_id IS NULL assertion under
+  t_invalid IS NULL guard). The plan's ADRs D2 + D3 contemplated this outcome explicitly,
+  and the cycle followed the documented contingency:
+
+    1. T1.1 PASS → try harder (T1.2 multi-conversation)
+    2. T1.2 PASS → try even harder (T1.3 slow-embedder simulating OpenAI cadence)
+    3. T1.3 PASS → declare empirical no-op for SDK fix (T2.1 = NO-OP per ADR D3 "fix at layer where bug reproduces")
+    4. Hotfix lift PROCEEDS atomically (T3.1) with explicit risk envelope citing 3 plausible
+       failure-mode hypotheses + revert plan
+    5. T3.2 /test-chat-with-memory honestly DEFERRED via F-T4.1-1 Chrome MCP lock (per ADR
+       D5 NOT a cycle defect; pre-existing known blocker)
+    6. Validation gate PASS_WITH_HONEST_FINDING; 8/9 deterministic gates GREEN
+
+  ADR compliance: 6/6. Plan drift: 0. EC absorption: 6 ABSORBED + 1 honestly TRIGGERED.
+  Hotfix lift atomicity (ADR D4): satisfied — separate commit e8c2a2e, body cites the
+  regression-guard test + 600+ trial evidence + risk envelope + revert plan. EC-6 (no
+  source-plan amendment): honored — source-cycle plans archived to completed/ in 357cd73
+  BEFORE this cycle started; diff f2d9d46..c004d76 touches only this cycle's artifacts.
+  Conventional commits: 4/4 conformant. Vocabulary lock: 4 hits all in negation/gate
+  context per the implement-validate report.
+
+  The unique characteristic of this cycle is the HONEST FINDING that the deterministic
+  reproduction is not achievable in pure-SDK — and the cycle handles that finding by
+  (a) shipping a load-bearing regression guard, (b) lifting the hotfix with an explicit
+  risk envelope, (c) declaring the remaining empirical-validation gate (T3.2 with real
+  OpenAI) as future work blocked on F-T4.1-1, and (d) documenting follow-up F1 with a
+  clear re-apply-hotfix path if the bug resurfaces. This is the discipline of Inquebrável
+  Rule 3 (extreme honesty) applied correctly: surface the limits of evidence rather than
+  inventing a false fix.

@@ -1,0 +1,253 @@
+agent: review-f-t4-1-2-eviction-race-debug-wiring
+review_target: f2d9d46..c004d76 for plan f-t4-1-2-eviction-race-debug
+plan: .claude/knowledge-base/plans/f-t4-1-2-eviction-race-debug-plan.md
+branch: develop
+head: c004d76
+diff_base: f2d9d46
+
+# ============================================================================
+# Cycle character: DEBUG cycle with HONEST FINDING (no SDK code shipped).
+# Pillar (a) static-caller / pillar (c) runtime-metric triad checks DO NOT
+# APPLY in the canonical sense — there are no new public exports under src/.
+# The cycle's wiring deliverable IS the integration test + the hotfix lift.
+# ============================================================================
+
+triad_revalidation:
+  total_new_src_files: 0
+  total_new_src_symbols: 0
+  pillar_a_honest_pass: N/A (no new symbols)
+  pillar_b_honest_pass: 1/1 (the integration test IS pillar b; verified below)
+  pillar_c_observed: N/A (no new metric instrumentation)
+  evidence_command: |
+    $ git diff f2d9d46..c004d76 -- 'src/**' --name-only | wc -l
+    0
+  changed_files_outside_src:
+    - .claude/agents/implement-f-t4-1-2-eviction-race-debug-2026-06-01/sepa.md
+    - .claude/knowledge-base/implementations/f-t4-1-2-eviction-race-debug-implementation.md
+    - .claude/knowledge-base/reviews/f-t4-1-2-eviction-race-debug-implement-validate-2026-06-01.md
+    - .claude/skills/implement-f-t4-1-2-eviction-race-debug-sepa-knowledge/SKILL.md
+    - CHANGELOG.md
+    - examples/chat-with-memory/lib/memory.ts
+    - tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+
+# ============================================================================
+# Integration test depth check — does it ACTUALLY exercise the bug-shape?
+# ============================================================================
+integration_test_depth:
+  file: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+  exercises_create_local_memory_with_eviction: TRUE
+    # Lines 118, 207, 315: all 3 variants invoke
+    #   createLocalMemory({ vectorStore, embedder, llm,
+    #                       eviction: { trigger: 'capacity',
+    #                                   maxMemoriesPerScope: 10 } })
+    # This is the EXACT factory path the hotfix b2909ff disabled.
+  exercises_capacity_trigger_post_remember_hook: TRUE_TRANSITIVELY
+    # The eviction.trigger === 'capacity' branch in createLocalMemory
+    # registers CapacityBasedTrigger.fire on the postRememberHook.
+    # Every userScoped.remember(...) call thus exercises the trigger.
+    # 600+ remember calls across 3 variants → 600+ trigger invocations.
+  exercises_parallel_promise_all: TRUE
+    # All 3 variants use the EXACT documented bug shape:
+    #   await Promise.all([
+    #     userScoped.remember(...),
+    #     sessionScoped.remember(...),
+    #   ])
+    # Lines 137-140 (T1.3), 231-234 (T1.2), 330-333 (T1.1).
+  verdict: PASS_DEEP
+    # The test does not just import + ignore; it Acts against the exact
+    # factory + scope-pair + Promise.all surface the hotfix lift restores.
+    # 600+ effective race attempts × 0 reproductions per validation report.
+
+# ============================================================================
+# Hotfix-lift wiring check (T3.1) — resolveEviction shape post-lift
+# ============================================================================
+hotfix_lift_wiring:
+  file: examples/chat-with-memory/lib/memory.ts
+  lifted_via_commit: e8c2a2e
+  pre_lift_behavior: |
+    resolveEviction always returned { reason: 'hotfix-2026-05-31',
+    config: undefined } regardless of THEOMEM_EVICTION_DEMO=1.
+  post_lift_behavior_verified:
+    env_opted_in_plus_pgvector:
+      # Lines 129-141
+      returns: |
+        { state: { enabled: true, trigger: 'capacity',
+                   maxMemoriesPerScope: 10 },
+          reason: null,
+          config: { trigger: 'capacity', maxMemoriesPerScope: 10 } }
+      verdict: CORRECT_SHAPE
+    env_opted_in_plus_in_memory:
+      # Lines 142-146
+      returns: |
+        { state: { enabled: false, trigger: null, maxMemoriesPerScope: null },
+          reason: 'backend',
+          config: undefined }
+      verdict: CORRECT_SHAPE
+    env_not_opted_in:
+      returns: |
+        { state: { enabled: false, ... },
+          reason: 'env',
+          config: undefined }
+      verdict: CORRECT_SHAPE
+  factory_config_assembly_verified:
+    # Lines 169-175: spread is conditional on evictionConfig !== undefined.
+    # When eviction is enabled, LocalMemoryConfig carries the eviction key;
+    # when disabled, the key is omitted (not eviction: undefined). This
+    # respects exactOptionalPropertyTypes-style discipline and the v0.4b
+    # factory contract.
+    verdict: CORRECT
+  demo_build_status: PASS (per validation report Gate 5: "Next.js 15.5.18
+    production build emitted with eviction wiring restored")
+
+# ============================================================================
+# Findings
+# ============================================================================
+findings:
+  - id: F-wire-1
+    severity: MINOR
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 122
+    plan_ref: T3.1 / validation report § Gate 8 (hotfix reverted)
+    summary: |
+      `DisabledReason` union retains the `'hotfix-2026-05-31'` literal
+      post-lift, but ZERO consumers reference it. The validation report
+      claims it is "retained for backward compat with
+      /api/memory/eviction-status snapshots" — but the route at
+      examples/chat-with-memory/app/api/memory/eviction-status/route.ts
+      does NOT serialize the `reason` field at all (only enabled / trigger
+      / maxMemoriesPerScope / activeCount / softDeletedCount). The literal
+      is unreachable dead value in a type union.
+    evidence: |
+      $ grep -rn "hotfix-2026-05-31" --include="*.ts" --include="*.tsx" \
+          --include="*.json" --include="*.md"
+      examples/chat-with-memory/lib/memory.ts:115: (JSDoc comment)
+      examples/chat-with-memory/lib/memory.ts:118: (JSDoc comment)
+      examples/chat-with-memory/lib/memory.ts:122: (the union literal)
+      .claude/knowledge-base/plans/...                : (plan refs only)
+      # NO src or example runtime reference outside lib/memory.ts itself.
+      # The `reason` field is module-internal (DisabledReason | null is
+      # returned by resolveEviction → consumed by getSingleton's console.log
+      # only); it is NOT exposed on MemorySingleton, NOT exposed via the
+      # eviction-status route, NOT consumed by EvictionTab.tsx.
+    recommended_action: |
+      OPTIONAL cosmetic cleanup in a future follow-up: drop the
+      'hotfix-2026-05-31' literal from the union (leaving "env" | "backend")
+      and update the JSDoc to remove the backward-compat claim. Not a
+      BLOCKER — the literal is harmless dead value; type union narrowing
+      means the unreachable branch is simply never matched. Aligns with the
+      audit-trail-rotation.md "opportunistic cleanup on next touch" guidance
+      in `no-paper-names-in-code.md` § Pre-existing references.
+
+  - id: F-wire-2
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 115-120
+    plan_ref: validation report § Honest findings
+    summary: |
+      The JSDoc on `DisabledReason` claims retention "for backward compat
+      with /api/memory/eviction-status snapshots". The route does not
+      surface `reason` to its response payload. The backward-compat
+      rationale is unsupported by the actual API contract. This is a
+      documentation-vs-reality drift, not a runtime defect.
+    evidence: |
+      $ grep -n "reason\|hotfix" \
+          examples/chat-with-memory/app/api/memory/eviction-status/route.ts
+      (zero hits)
+      $ grep -n "reason\|hotfix" \
+          examples/chat-with-memory/components/memory-tabs/eviction-tab.tsx
+      (zero hits)
+    recommended_action: |
+      Tighten the JSDoc to state the actual rationale (e.g., "retained
+      transiently to allow rollback re-application without re-introducing
+      the type change") OR drop the literal entirely per F-wire-1.
+
+# ============================================================================
+# Integration with existing flows
+# ============================================================================
+integration_with_existing_flows:
+  entry_points_traced:
+    - point: tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts
+      path_to_changed_code: |
+        vitest → describe → 3 it-blocks → createLocalMemory
+        (src/local/index.js) → eviction-config branch → PgvectorStore +
+        CapacityBasedTrigger via postRememberHook → Promise.all parallel
+        userScoped.remember + sessionScoped.remember → DB writes.
+      verdict: REACHABLE
+    - point: examples/chat-with-memory dev server (npm run dev)
+      path_to_changed_code: |
+        Next.js boot → server-only lib/memory.ts module init →
+        getSingleton() lazy → resolveEviction(backend) →
+        (env=1 + pgvector) → createLocalMemory({ eviction }) → console.log
+        "eviction=enabled (capacity, max=10)" instead of "disabled
+        (reason: hotfix-2026-05-31)".
+      verdict: REACHABLE
+  dead_code_traced: F-wire-1 captures the only dead literal observed.
+
+# ============================================================================
+# Boundary respect (DIP)
+# ============================================================================
+boundary_respect:
+  src_core_imports: N/A (no src/** changes)
+  cross_tier_violations: NONE
+  examples_import_only_public_surface:
+    # examples/chat-with-memory/lib/memory.ts imports from:
+    #   @usetheo/memory          → main barrel (LocalEvictionConfig,
+    #                              LocalMemoryConfig, Memory,
+    #                              createLocalMemory, InMemoryVectorStore,
+    #                              PgvectorStore, runMigrations)
+    #   @usetheo/memory/contract → contract subpath (Embedder, LLM,
+    #                              ManualReflectionPolicy, ReflectionTrigger,
+    #                              Scope, VectorStore)
+    #   @usetheo/memory/embedders/stub → adapter subpath
+    #   @usetheo/memory/llms/stub      → adapter subpath
+    # All public-surface — zero deep imports into src/core/** or src/local/**.
+    verdict: COMPLIANT
+
+# ============================================================================
+# Concurrent-safety check (the cycle's actual subject)
+# ============================================================================
+concurrent_safety:
+  shared_resources_touched:
+    - postgres (memories table, advisory locks via CapacityBasedTrigger)
+  race_condition_analysis: |
+    The cycle is a DEBUG cycle FOR a race condition. The integration test
+    is designed to PROVOKE the race; 600+ trials × 0 reproductions per
+    validation report Gate 4. Three independent attack shapes:
+      T1.1 — sequential Promise.all in one scope (60 trials × 5 writes)
+      T1.2 — overlapping multi-conversation pattern (40 × 5 writes)
+      T1.3 — SLOW-embedder simulating OpenAI latency (20 × 5 writes)
+    All PASS deterministically. SDK code path is empirically race-free
+    under tested conditions. The validation report HONESTLY caveats that
+    this does NOT exonerate the production OpenAI + Next.js HMR path
+    (per Inquebrável Rule 3); the followup F1 envelope catches a
+    resurfacing.
+  verdict: REGRESSION_GUARD_HOLDS
+
+# ============================================================================
+# Regression check on existing integration suite
+# ============================================================================
+regression_check:
+  npm_test_baseline: 573 passed + 2 skipped (per validation report Gate 1)
+  delta_vs_pre_cycle: 0 regressions
+  new_tests_added: 3 (the 3 it-blocks in the stub-reproduction file)
+  verdict: NO_REGRESSION
+
+# ============================================================================
+# Overall verdict
+# ============================================================================
+verdict: READY_TO_MERGE
+verdict_rationale: |
+  This is a DEBUG cycle with HONEST FINDING. Zero src/** changes → zero new
+  symbols requiring canonical triad re-validation. The integration test
+  IS the wiring deliverable for the F-T4.1-2 regression guard, and it
+  exercises the exact bug shape (createLocalMemory + capacity trigger +
+  parallel Promise.all + multi-conversation singleton sharing + slow-
+  embedder OpenAI latency simulation) across 600+ effective race attempts
+  with 0 reproductions. Hotfix lift in examples/chat-with-memory/lib/memory.ts
+  restores eviction wiring with correct shape across all 3 resolveEviction
+  branches; demo build PASSes per validation report Gate 5. Boundary
+  respect, regression check, concurrent-safety all GREEN.
+
+  Only findings are MINOR / INFO cosmetic items on a dead union literal
+  + stale JSDoc rationale — not blocking, not load-bearing, captured as
+  follow-up opportunities.
