@@ -66,3 +66,7 @@ htmlcov/
 .claude/knowledge-base/implementations/.progress-*.json
 .claude/knowledge-base/discoveries/.progress-*.json
 
+# Compaction snapshots auto-written by Claude Code /compact (system-internal;
+# regenerable; not authoritative state).
+.claude/.compaction-snapshots/
+
