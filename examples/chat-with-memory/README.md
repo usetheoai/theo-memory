@@ -99,6 +99,42 @@ npm run dev
 | `THEOMEM_EVICTION_DEMO` | _(unset)_ | When set to `1` AND `THEOMEM_PG_URI` is set, opt in to the v0.4b capacity-trigger eviction pipeline (`maxMemoriesPerScope: 10` — low cap chosen so a normal demo session triggers eviction). The `Eviction` tab surfaces live state. Strict equality with `1` (POSIX convention); other truthy values are ignored. |
 | `THEOMEM_USE_STUB_ADAPTERS` | _(unset)_ | When set to `1`, swap `OpenAIEmbedder` + `OpenAILLM` for `DeterministicStubEmbedder` + `DeterministicStubLLM` from `@usetheo/memory/embedders/stub` + `@usetheo/memory/llms/stub`. Useful when OpenAI quota is exhausted OR for offline/CI runs requiring 100% reproducible adapter behavior. Strict equality with `1`. Note: the demo singleton is read at first request — set the var before `npm run dev` (Next.js dev mode does not re-read env mid-session). |
 
+## Distillation tab — v0.7 ConflictResolutionPolicy demo
+
+The `Distillation` tab (6th tab, after `Eviction`) wires the v0.7 episodic→semantic distillation pipeline into the demo. Pick one of 3 conflict-resolution policies, click `Distill now`, and watch the `consolidation_history` audit table populate.
+
+**Policies** (per ADR D2 of the v0.7 SDK cycle):
+
+- **Noop (DEFAULT)** — returns empty array; preserves ADD-only invariant (matches the SDK's silent default behavior).
+- **Last-Write-Wins** — deterministic: picks the most recent `created_at` per cluster; ties broken by lexicographic-DESC `memory_id` (EC-1 absorbed for batch-persist scenarios).
+- **LLM-Judged-Merge** — one LLM call per cluster via the OpenAI adapter; emits 4 OTel counters (`distillation.consolidation.{kept,rejected,abstain,cluster_too_large}`).
+
+**HTTP contract:**
+
+- `POST /api/memory/distill` — body `{userId, policy}`; returns `{derivedMemoriesCreated, reason, invocationId}`. Validates the policy enum **before** invoking the factory (EC-3 absorbed → 400, not 500). Returns `422 { code: 'OPENAI_API_KEY_MISSING' }` when LJM + no key (EC-B / Rule 3: no silent fallback). Returns `422 { code: 'STUB_LLM_NOT_USABLE_FOR_LJM' }` when LJM + `THEOMEM_USE_STUB_ADAPTERS=1` (EC-1 absorbed; stub returns empty `{}` → policy would abstain silently).
+- `GET /api/memory/consolidation-history?userId=...&limit=N&offset=M` — paginates (default 50, max 200); returns `{rows, total}` ordered by `created_at DESC`.
+
+**Operator walk-through** (after `npm run dev`):
+
+1. Seed two contradictory memories via chat: "I like oat milk in coffee" → wait → "Actually I switched back to whole milk".
+2. Click the `Distillation` tab.
+3. Pick `last-write-wins` → click `Distill now`.
+4. Watch the result: the older fact's row gets `t_invalid = NOW()` (visible by re-querying); the `Consolidation history` panel below shows the new audit row with `policy_name=last-write-wins`, `kept_memory_id` pointing at the newer fact, `rejected_memory_ids` listing the older.
+
+**EC-7 (idempotency expectation):** every `Distill now` click writes new `consolidation_history` rows by design (matches v0.7 SDK T2.1 contract; no client-side dedup). The audit-history list paginates so the UI never tries to render thousands of rows.
+
+**EC-8 (post-GDPR orphan audit rows):** when a memory is hard-deleted via `forget(memId, { hard: true })`, the v0.7 SDK migration 0007 declares `ON DELETE SET NULL` on `consolidation_history.kept_memory_id`. The audit row is preserved in DB (regulatory) but excluded from the `Distillation` tab view because the route uses `INNER JOIN memories ON ch.kept_memory_id = m.id`. Operators can query raw SQL for orphan audit rows:
+
+```sql
+SELECT * FROM consolidation_history WHERE kept_memory_id IS NULL ORDER BY created_at DESC;
+```
+
+A future cycle can add a separate `/api/memory/consolidation-history/orphans` view if needed.
+
+**UI verification status:** automated UI scenarios for the `Distillation` tab are BLOCKED-pending-Chrome-MCP-lift per the existing `F-T4.1-1` note in CHANGELOG. The HTTP-layer integration test at `tests/integration/examples/chat-with-memory-distillation.test.ts` (9 scenarios) is the load-bearing regression guard.
+
+@see plan `.claude/knowledge-base/plans/examples-chat-with-memory-v0-7-distillation-plan.md` + v0.7 SDK commit `7dc06f9` (shipped 2026-06-01).
+
 ## Walk-through
 
 1. **Send a few messages.** Tell it your name and something you're working
