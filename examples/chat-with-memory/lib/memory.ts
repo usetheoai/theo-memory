@@ -44,11 +44,15 @@ import {
   type Memory,
 } from "@usetheo/memory";
 import type {
+  Embedder,
+  LLM,
   ManualReflectionPolicy,
   ReflectionTrigger,
   Scope,
   VectorStore,
 } from "@usetheo/memory/contract";
+import { DeterministicStubEmbedder } from "@usetheo/memory/embedders/stub";
+import { DeterministicStubLLM } from "@usetheo/memory/llms/stub";
 import pg from "pg";
 import { OpenAIEmbedder, OpenAILLM } from "./openai-adapters";
 
@@ -143,11 +147,23 @@ function resolveEviction(backend: BackendKind): {
   };
 }
 
+/**
+ * T3.1 (adapters-cycle-1 / ADR D5): `THEOMEM_USE_STUB_ADAPTERS=1` swaps
+ * OpenAI for deterministic stubs. Unblocks offline debug + reproducible
+ * runs without external API.
+ *
+ * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T3.1
+ */
+function resolveAdapters(): { embedder: Embedder; llm: LLM; source: "stub" | "openai" } {
+  return process.env.THEOMEM_USE_STUB_ADAPTERS === "1"
+    ? { embedder: new DeterministicStubEmbedder(), llm: new DeterministicStubLLM(), source: "stub" }
+    : { embedder: new OpenAIEmbedder(), llm: new OpenAILLM(), source: "openai" };
+}
+
 export function getSingleton(): Promise<MemorySingleton> {
   if (globalThis._themory_demo_singleton === undefined) {
     globalThis._themory_demo_singleton = (async () => {
-      const embedder = new OpenAIEmbedder();
-      const llm = new OpenAILLM();
+      const { embedder, llm, source: adapters } = resolveAdapters();
       const reflectionPolicy = new DemoManualReflectionPolicy();
       const { vectorStore, backend, pgPool } = await buildStore();
       const { state: eviction, reason, config: evictionConfig } = resolveEviction(backend);
@@ -164,6 +180,7 @@ export function getSingleton(): Promise<MemorySingleton> {
         : `eviction=disabled (reason: ${reason})`;
       /* eslint-disable no-console */
       console.log(`[theomemory-demo] backend=${backend}`);
+      console.log(`[theomemory-demo] adapters=${adapters}`);
       console.log(`[theomemory-demo] ${evictionLine}`);
       /* eslint-enable no-console */
       return { memory, backend, pgPool, eviction };
