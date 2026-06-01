@@ -68,11 +68,20 @@ async function dumpPgLocks(pool: pg.Pool): Promise<unknown[]> {
  * `await setTimeout(_, randomMs)` per embed to simulate the OpenAI cadence.
  */
 class SlowDeterministicEmbedder extends DeterministicStubEmbedder {
+  // F-tests-2 absorption: seeded LCG (Numerical Recipes constants) replaces
+  // Math.random() per `testing.md § Determinism`. Same-seed across runs ⇒
+  // identical timing sequence; reproduction-attempt evidence becomes
+  // byte-reproducible.
+  private state: number = 0xb2909ff;
   constructor(private readonly minMs: number = 20, private readonly maxMs: number = 80) {
     super();
   }
+  private nextUnit(): number {
+    this.state = (this.state * 1664525 + 1013904223) >>> 0;
+    return this.state / 0xffffffff;
+  }
   override async embed(text: string): Promise<readonly number[]> {
-    const ms = this.minMs + Math.random() * (this.maxMs - this.minMs);
+    const ms = this.minMs + this.nextUnit() * (this.maxMs - this.minMs);
     await new Promise((r) => setTimeout(r, ms));
     return super.embed(text);
   }
@@ -172,6 +181,9 @@ describe('F-T4.1-2 eviction race — stub reproduction (20-iter heisenbug loop)'
           failingTrials.push({
             trial,
             details: [...details, { orphans: orphans.rows[0]?.n ?? -1 }],
+            // F-tests-1 absorption: capture pg_locks on failure for parity
+            // with T1.1 post-mortem diagnostics.
+            locks: await dumpPgLocks(pool),
           });
         }
       } finally {
@@ -279,6 +291,9 @@ describe('F-T4.1-2 eviction race — stub reproduction (20-iter heisenbug loop)'
           failingTrials.push({
             trial,
             details: [...details, { orphans: orphCount }],
+            // F-tests-1 absorption: capture pg_locks on failure for parity
+            // with T1.1 post-mortem diagnostics.
+            locks: await dumpPgLocks(pool),
           });
         }
       } finally {
