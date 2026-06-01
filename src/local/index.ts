@@ -109,6 +109,26 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * configure eviction via the `eviction` option above.
    */
   readonly postRememberHook?: (scope: Scope) => Promise<void>;
+  /**
+   * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
+   * declared embedding dimension produced by the embedder. Defaults to
+   * `MAX_EMBEDDING_DIM` (1536) to preserve backward compatibility with
+   * every existing caller. When set to a smaller value (e.g., 384 for
+   * Xenova/all-MiniLM-L6-v2), the probe asserts against this configured
+   * dim instead of the constant, and `PgvectorStore` / `runMigrations`
+   * accept the matching dim for the `vector(N)` schema column.
+   *
+   * Pre-flight validation rejects (with `InvalidScope`) any value that is
+   * NOT a positive integer ≤ `MAX_EMBEDDING_DIM`. The guard uses
+   * `Number.isInteger` to catch NaN / float / Infinity values that bare
+   * arithmetic comparisons miss silently. The error message includes the
+   * literal received value via `String(received)` for operator
+   * diagnosability.
+   *
+   * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.1 + ADR D2
+   * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
+   */
+  readonly embeddingDim?: number;
 }
 
 /**
@@ -657,11 +677,38 @@ class LocalMemory implements Memory {
   }
 }
 
-async function probeEmbedder(embedder: Embedder): Promise<void> {
+async function probeEmbedder(embedder: Embedder, expectedDim: number): Promise<void> {
   const vector = await embedder.embed(PROBE_TEXT);
-  if (vector.length !== MAX_EMBEDDING_DIM) {
-    throw new EmbeddingMismatch(MAX_EMBEDDING_DIM, vector.length);
+  if (vector.length !== expectedDim) {
+    throw new EmbeddingMismatch(expectedDim, vector.length);
   }
+}
+
+/**
+ * adapters-openrouter-local-embedder T0.1 (EC-1 absorption): pre-flight
+ * guard for `LocalMemoryConfig.embeddingDim`. Uses `Number.isInteger` to
+ * catch NaN / float / Infinity values that bare arithmetic comparisons
+ * miss silently (`NaN <= 0` is `false`, `NaN > MAX` is `false`, so an
+ * unguarded check lets them through). The error message includes the
+ * literal received value via `String(received)` so the operator can
+ * diagnose typos / wrong .env entries.
+ *
+ * Runs BEFORE `probeEmbedder` and BEFORE `vectorStore.initialize()` so
+ * config-level rejection happens at startup with zero side effects.
+ *
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
+ * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-1-pre-red.md (CRITICAL #1 — uniform InvalidScope for all pre-flight failures)
+ */
+function validateEmbeddingDim(received: number | undefined): number {
+  if (received === undefined) {
+    return MAX_EMBEDDING_DIM;
+  }
+  if (!Number.isInteger(received) || received <= 0 || received > MAX_EMBEDDING_DIM) {
+    throw new InvalidScope(
+      `embeddingDim must be a positive integer ≤ ${String(MAX_EMBEDDING_DIM)}; got ${String(received)}`,
+    );
+  }
+  return received;
 }
 
 /**
@@ -686,7 +733,10 @@ export type DisposableMemory = Memory & { dispose(): Promise<void> };
  * SEPA iter 5 pre-RED CRITICAL #3 — eviction is PG-only).
  */
 export async function createLocalMemory(config: LocalMemoryConfig): Promise<DisposableMemory> {
-  await probeEmbedder(config.embedder);
+  // adapters-openrouter-local-embedder T0.1 (EC-1 absorption): pre-flight
+  // FIRST — config-level rejection before any side effect (probe / store init).
+  const effectiveDim = validateEmbeddingDim(config.embeddingDim);
+  await probeEmbedder(config.embedder, effectiveDim);
   await config.vectorStore.initialize();
 
   if (config.eviction === undefined) {
