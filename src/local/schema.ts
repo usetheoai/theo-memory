@@ -222,3 +222,33 @@ export const history = pgTable(
     index('history_timestamp_idx').on(sql`${table.timestamp} DESC, ${table.id} DESC`),
   ],
 );
+
+/**
+ * v0.7 distillation pipeline audit trail — every conflict-resolution decision
+ * lands here as one row. `kept_memory_id` uses ON DELETE SET NULL so a GDPR
+ * `Memory.forget(id, { hard: true })` survives at the audit layer (the row
+ * stays, the FK pointer goes NULL). Closes /review F-C3: previously declared
+ * only in migration `0007_distillation_columns.sql` + `meta/0007_snapshot.json`
+ * but NOT here; `drizzle-kit push` would have computed a destructive diff
+ * (DROP TABLE) and silently lost all GDPR-survival audit rows.
+ *
+ * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3
+ * @see src/local/migrations/0007_distillation_columns.sql
+ * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md § F-C3
+ */
+export const consolidationHistory = pgTable(
+  'consolidation_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    keptMemoryId: uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' }),
+    rejectedMemoryIds: jsonb('rejected_memory_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    reason: text('reason').notNull(),
+    policyName: text('policy_name').notNull(),
+    originalEpisodeIds: jsonb('original_episode_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('idx_consolidation_history_kept').on(table.keptMemoryId),
+    index('idx_consolidation_history_created').on(sql`${table.createdAt} DESC`),
+  ],
+);
