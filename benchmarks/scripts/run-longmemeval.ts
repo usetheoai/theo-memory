@@ -10,35 +10,29 @@
  * /implement halt-loop TDD. Full 500-question run requires
  * BENCH_RUN=full + valid API keys.
  *
+ * v0-8-fixes-cycle-1 T3.2: shared scaffold (StubAnswerLlm,
+ * buildSmokeJudgePanel, buildLocalTracer, runBenchmark) extracted to
+ * `_runner-scaffold.ts` (F-arch-2 absorption); this file collapses to
+ * benchmark-specific config + main() wrapping the scaffold.
+ *
  * @see plan v1.2 § T5.1 + ADRs D2 / D4 / D7
+ * @see plan v0-8-fixes-cycle-1 § T3.2 + ADR D2
  */
 import { mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  BasicTracerProvider,
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
-
-import {
   loadLongMemEvalFixture,
   type LongMemEvalItem,
 } from '../../src/benchmarks/fixtures/index.js';
-import { LlmJudgePanel } from '../../src/benchmarks/llm-judge/judge-panel.js';
-import { BenchmarkRunner } from '../../src/benchmarks/runner/benchmark-runner.js';
-import { CostTracker } from '../../src/benchmarks/runner/cost-tracker.js';
-import { TiktokenTokenizer } from '../../src/benchmarks/runner/tiktoken-tokenizer.js';
-import { TheMemoryBenchmarkAdapter } from '../../src/benchmarks/themory/adapter.js';
-import type { LLM, LLMResponse, Message } from '../../src/core/dip/llm.js';
-import { createLocalMemory, InMemoryVectorStore, StubEmbedder } from '../../src/local/index.js';
+import type { RunReport } from '../../src/benchmarks/runner/benchmark-runner.js';
 import type {
   BenchmarkCorpus,
   BenchmarkQuery,
-  SearchResult,
 } from '../../src/core/dip/benchmark-adapter.js';
-import type { RunReport } from '../../src/benchmarks/runner/benchmark-runner.js';
+
+import { runBenchmark } from './_runner-scaffold.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -73,85 +67,17 @@ function buildCorpusAndQueries(
   return { corpus, queries };
 }
 
-/**
- * Minimal verbatim-extracting LLM for smoke runs without real keys.
- * Real BENCH_RUN should construct OpenAILLM here.
- */
-class StubAnswerLlm implements LLM {
-  private nextId = 0;
-  generateResponse(messages: readonly Message[]): Promise<unknown> {
-    const last = messages.at(-1)?.content ?? '';
-    const id = String(this.nextId);
-    this.nextId += 1;
-    return Promise.resolve({ memory: [{ id, text: last }] });
-  }
-  generateChat(messages: readonly Message[]): Promise<LLMResponse> {
-    const last = messages.at(-1)?.content ?? '';
-    return Promise.resolve({ role: 'assistant', content: `synthesized: ${last.slice(0, 40)}` });
-  }
-}
-
-/**
- * Build a JudgePanel. For BENCH_RUN=full a real OpenAI / OpenRouter LLM
- * should be passed in; in smoke mode we use a canned-response stub.
- */
-function buildSmokeJudgePanel(): LlmJudgePanel {
-  return new LlmJudgePanel([
-    {
-      name: 'smoke-gpt-4o',
-      llm: {
-        generateResponse: () =>
-          Promise.resolve({ text: '{"label":"CORRECT","reasoning":"smoke run"}' }),
-        generateChat: () =>
-          Promise.resolve({
-            role: 'assistant' as const,
-            content: '{"label":"CORRECT","reasoning":"smoke run"}',
-          }),
-      },
-    },
-  ]);
-}
-
 export async function main(opts: RunOpts): Promise<RunReport> {
   const items = await loadLongMemEvalFixture(opts.fixturePath);
   const { corpus, queries } = buildCorpusAndQueries(items, opts.limit);
-
-  // Local OTel provider (NOT setGlobalTracerProvider to avoid cross-test
-  // contamination when imported by the e2e suite).
-  const provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(new InMemorySpanExporter())],
-  });
-  const tracer = provider.getTracer('v0-8-longmemeval');
-
-  const tokenizer = new TiktokenTokenizer();
-  const modelId = opts.modelId ?? 'gpt-4o-mini';
-  const memory = await createLocalMemory({
-    embedder: new StubEmbedder(),
-    llm: new StubAnswerLlm(),
-    vectorStore: new InMemoryVectorStore(),
-  });
-  const adapter = new TheMemoryBenchmarkAdapter({
-    memory,
-    llm: new StubAnswerLlm(),
-    tokenizer,
-    modelId,
-  });
-  const judgePanel = buildSmokeJudgePanel();
-  const costTracker = new CostTracker({ tokenizer });
-
   mkdirSync(dirname(opts.resultsPath), { recursive: true });
-
-  const runner = new BenchmarkRunner({
-    adapter,
-    judgePanel,
-    costTracker,
-    tracer,
+  return runBenchmark({
+    tracerScope: 'v0-8-longmemeval',
+    corpus,
+    queries,
     resultsPath: opts.resultsPath,
+    ...(opts.modelId !== undefined && { modelId: opts.modelId }),
   });
-
-  const report = await runner.run(corpus, queries);
-  tokenizer.free();
-  return report;
 }
 
 // CLI entry — `node --import jiti/register benchmarks/scripts/run-longmemeval.ts`
@@ -168,8 +94,7 @@ if (isMain) {
     .then((report) => {
       console.log(`[run-longmemeval] aborted: ${String(report.aborted)}`);
       console.log(`[run-longmemeval] questionCount: ${String(report.aggregate.questionCount)}`);
-      // v0-8-fixes-cycle-1 T2.1 + ADR D7: CLI translates report.aborted to
-      // process.exit() — library does NOT mutate global state.
+      // v0-8-fixes-cycle-1 T2.1 + ADR D7
       process.exit(report.aborted ? 1 : 0);
     })
     .catch((err: unknown) => {
