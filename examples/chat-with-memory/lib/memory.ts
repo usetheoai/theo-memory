@@ -124,6 +124,33 @@ interface MemorySingleton {
 export type BackendMode = "stub" | "openai" | "local-openrouter";
 const VALID_BACKEND_MODES: readonly BackendMode[] = ["stub", "openai", "local-openrouter"];
 
+/**
+ * /review F-M12 EC-10 — exported for unit-testing the silent-misroute
+ * guard in isolation (so the test does NOT have to construct
+ * `LocalTransformerEmbedder` which would download the Xenova model).
+ *
+ * Emits a `console.warn` ONLY when the mode is `local-openrouter` AND
+ * `OPENAI_BASE_URL` is missing or empty. Operator's OpenRouter-only key
+ * would otherwise return 401 against the OpenAI default URL with no
+ * diagnostic context. Inquebrável Rule 8: fail-loud over silent misroute.
+ *
+ * @internal demo-only helper; not part of the SDK public API.
+ */
+export function warnIfLocalOpenrouterMissingBaseUrl(): void {
+  if (
+    process.env.OPENAI_BASE_URL === undefined ||
+    process.env.OPENAI_BASE_URL === ""
+  ) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[theomemory-demo] THEOMEM_DEMO_BACKEND=local-openrouter is set but " +
+        "OPENAI_BASE_URL is missing. OpenAILLM will route to the OpenAI " +
+        "default URL — if your key is OpenRouter-only this will 401. " +
+        "Set OPENAI_BASE_URL=https://openrouter.ai/api/v1 in .env.",
+    );
+  }
+}
+
 export function resolveBackendMode(): BackendMode {
   const raw = process.env.THEOMEM_DEMO_BACKEND;
   if (raw !== undefined && raw !== "") {
@@ -255,6 +282,11 @@ function resolveAdapters(
       // OPENAI_BASE_URL=https://openrouter.ai/api/v1 in .env. No SDK code
       // change required for LLM routing.
       // Embedder runs locally via Xenova Wasm (no OpenAI account needed).
+      //
+      // /review F-M12 EC-10: warn loudly when local-openrouter mode is
+      // selected but OPENAI_BASE_URL is missing (silent misroute → 401
+      // when the operator has an OpenRouter-only key).
+      warnIfLocalOpenrouterMissingBaseUrl();
       return {
         embedder: new LocalTransformerEmbedder(),
         llm: new OpenAILLM(),

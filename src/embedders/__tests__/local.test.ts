@@ -17,7 +17,7 @@
  * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T1.1 + ADR D1
  * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-4-pre-red.md (lazy singleton + L2 + batch slicing)
  */
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { LocalTransformerEmbedder } from '../local.js';
 
@@ -83,5 +83,72 @@ describe('LocalTransformerEmbedder — Embedder DIP contract (T1.1)', () => {
     const single = await emb.embed('exact text');
     const [batched] = await emb.embedBatch(['exact text']);
     expect(batched).toEqual(single);
+  }, 60_000);
+
+  // /review F-M12 EC-5 — empty-string embed contract. Edge-case review marked
+  // this as SHOULD TEST; we honor the contract by asserting the embedder
+  // returns a 384-dim vector even on '' input (Xenova's mean-pooling +
+  // L2-normalize produces a finite vector for any tokenizable input,
+  // including the empty string which tokenizes to BOS+EOS only).
+  test('EC-5: embed("") returns a 384-dim vector (no crash on empty input)', async () => {
+    const emb = new LocalTransformerEmbedder();
+    const v = await emb.embed('');
+    expect(v).toHaveLength(EXPECTED_DIM);
+    // Vector should be finite (no NaN/Inf from a divide-by-zero).
+    for (const x of v) {
+      expect(Number.isFinite(x)).toBe(true);
+    }
+  }, 60_000);
+});
+
+// /review F-M12 EC-7 — warmup network failure retry contract. Edge-case
+// review marked this as SHOULD TEST; the F-M5 fix promises that a transient
+// pipeline rejection no longer poisons the lazy singleton. We exercise
+// that fix here by mocking `@xenova/transformers` to reject on the FIRST
+// pipeline() call and succeed on the SECOND, then asserting that the
+// second `embed()` call recovers instead of returning the cached rejection.
+//
+// NOTE: this test re-imports `LocalTransformerEmbedder` via dynamic import
+// AFTER `vi.doMock` registers the mocked module, so the module-level
+// singleton in `src/embedders/local.ts` is a fresh instance for this test.
+describe('LocalTransformerEmbedder — F-M5 / EC-7 retry on transient pipeline failure', () => {
+  test('rejected singleton resets so the next call retries instead of caching the failure forever', async () => {
+    vi.resetModules();
+    let callCount = 0;
+    vi.doMock('@xenova/transformers', () => ({
+      pipeline: vi.fn().mockImplementation(() => {
+        callCount += 1;
+        if (callCount === 1) {
+          return Promise.reject(new Error('simulated HF CDN failure'));
+        }
+        // 2nd call: return a fake pipeline that mimics the Xenova output shape.
+        const fakePipeline = (
+          _input: string | readonly string[],
+          _opts: { pooling: string; normalize: boolean },
+        ) => {
+          // 384-dim zero-vector with one '1' set so the result is unit-norm.
+          const dim = 384;
+          const data = new Float32Array(dim);
+          data[0] = 1;
+          return Promise.resolve({ data, dims: [1, dim] });
+        };
+        return Promise.resolve(fakePipeline);
+      }),
+    }));
+
+    const { LocalTransformerEmbedder: Local } = await import('../local.js');
+    const emb = new Local();
+
+    // 1st call rejects (HF CDN simulated failure).
+    await expect(emb.embed('first')).rejects.toThrow(/simulated HF CDN failure/);
+
+    // /review F-M5 — the rejected promise MUST have been cleared from the
+    // singleton so this 2nd call invokes pipeline() again (callCount → 2).
+    const v = await emb.embed('second');
+    expect(v).toHaveLength(384);
+    expect(callCount).toBe(2);
+
+    vi.doUnmock('@xenova/transformers');
+    vi.resetModules();
   }, 60_000);
 });
