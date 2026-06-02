@@ -555,7 +555,23 @@ export class PgvectorStore implements VectorStore {
   async recallConsolidationCandidates(
     filters: Filters,
   ): Promise<readonly { memoryId: string; text: string; createdAt: Date }[]> {
-    const where: string[] = ['t_invalid IS NULL'];
+    // /review v0-7 F-C2: filter `kind = 'extracted'` to preserve the
+    // episodic→semantic boundary. Without this guard, v0.6 REDACTED skill
+    // rows (kind='skill') AND already-consolidated rows (kind='derived')
+    // would enter the cluster — a consumer running reflect({ conflictResolution })
+    // on an agent_id scope that ALSO holds a memory.skills(repoId) library
+    // would mass-tombstone the skill library. The 2nd reflect() call would
+    // also re-consolidate already-derived rows, breaking the boundary.
+    // /review v0-7 F-M7: forward-compat with v0.5 cloud bi-temporal — guard
+    // `t_valid <= NOW()` so future-valid rows (when ADR-0006 honors asOf
+    // in queries) do not enter consolidation prematurely. The current
+    // local runtime always inserts t_valid=NOW() so this is a no-op today
+    // but documents intent for the cloud backport.
+    const where: string[] = [
+      "kind = 'extracted'",
+      't_invalid IS NULL',
+      '(t_valid IS NULL OR t_valid <= NOW())',
+    ];
     const params: unknown[] = [];
     if (filters.user_id !== undefined) {
       params.push(filters.user_id);
