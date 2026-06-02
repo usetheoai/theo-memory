@@ -116,6 +116,31 @@ describe('TheMemoryBenchmarkAdapter.search', () => {
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
     expect(result.tokensUsed.prompt).toBeGreaterThan(0);
     expect(result.tokensUsed.completion).toBeGreaterThanOrEqual(0);
+    // Drift-T5.1-1: modelUsed is the load-bearing pricing key
+    expect(typeof result.modelUsed).toBe('string');
+    expect(result.modelUsed.length).toBeGreaterThan(0);
+  });
+
+  it('surfaces injected modelId via SearchResult.modelUsed (Drift-T5.1-1)', async () => {
+    const memory = await createLocalMemory({
+      embedder: new StubEmbedder(),
+      llm: new VerbatimExtractingChatLlm(),
+      vectorStore: new InMemoryVectorStore(),
+    });
+    const adapter = new TheMemoryBenchmarkAdapter({
+      memory,
+      llm: new VerbatimExtractingChatLlm(),
+      tokenizer,
+      modelId: 'anthropic/claude-3.5-sonnet',
+    });
+    const result = await adapter.search({
+      questionId: 'q1',
+      questionText: 'q',
+      conversationId: 'c1',
+      goldAnswer: 'a',
+      category: 'misc',
+    });
+    expect(result.modelUsed).toBe('anthropic/claude-3.5-sonnet');
   });
 
   it('searches across multiple speakers per EC-5 (does not throw on multi-speaker corpus)', async () => {
