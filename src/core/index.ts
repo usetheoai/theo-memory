@@ -129,6 +129,16 @@ export {
   generateConflictMergePrompt,
 } from './conflict-resolution/prompts.js';
 
+// v0.8 BenchmarkAdapter DIP (10th interface) — plan T0.1 / ADRs D1, D5, D6
+export type {
+  AddMetrics,
+  BenchmarkAdapter,
+  BenchmarkCorpus,
+  BenchmarkCorpusItem,
+  BenchmarkQuery,
+  SearchResult,
+} from './dip/benchmark-adapter.js';
+
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
 export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
