@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Tokenizer } from '../themory/adapter.js';
+import type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 import { PricingTableMiss } from './pricing-table-miss.js';
 
