@@ -1,0 +1,221 @@
+agent: review-v0-8-independent-benchmark-reproduction-domain-memory-layer
+review_target: 8784052..b67035f for plan v0-8-independent-benchmark-reproduction
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "BenchmarkAdapter uses TheMemory public verbs only (no MemoryStore bypass)"
+  - "Three-tier scope: User-tier composition with speakerId per EC-5"
+  - "Mem0-shape eight-phase write preserved (no re-implementation of extraction)"
+  - "ADD-only invariant (no update() pretense)"
+  - "no-paper-names-in-code.md compliance across src/benchmarks/"
+  - "DIP — src/benchmarks/ depends only down on src/core/"
+  - "Drift-T5.1-1 modelId → SearchResult.modelUsed flow (anti-silent-$0)"
+  - "coerceMetadata soundness (PrimitiveMetadataValue type contract)"
+
+# Summary: TheMemoryBenchmarkAdapter is architecturally clean — uses ONLY the
+# public verbs `memory.user(id).remember/recall`, never bypasses MemoryStore,
+# never pretends ADD-only is mutable, never re-implements the Mem0-shape
+# pipeline (which is honored end-to-end by createLocalMemory). DIP boundary is
+# respected — production code in src/benchmarks/ never imports from src/local/
+# or src/cloud/. The modelId → SearchResult.modelUsed flow is correct across
+# all 4 adapters (themory + mem0 + zep + letta). EC-5 scopedUserId composition
+# is consistent with the locked three-tier convention. TWO findings — both
+# MINOR — surface paper-name violations in JSDoc prose (the rule allows vendor
+# class identifiers, but bans paper/marketing names in JSDoc/comments) and a
+# soundness gap in coerceMetadata for an explicit `undefined` metadata value.
+
+findings:
+  - id: F-dom-mem-1
+    severity: MINOR
+    file: src/benchmarks/fixtures/dmr-loader.ts
+    line: 2
+    plan_ref: .claude/rules/no-paper-names-in-code.md § The rule + § How to apply (1)
+    domain_anchor: |
+      no-paper-names-in-code.md (promoted 2026-05-30) — "Research-paper and
+      marketing names — Voyager, Mem0, Letta, LangMem, MemGPT, MemGPT, ... —
+      SHALL NOT appear in src/** production code: JSDoc, inline comments".
+    summary: |
+      JSDoc prose includes the paper name "MemGPT" — "DMR fixture loader
+      (Deep Memory Retrieval, MemGPT-derived MSC subset)". This is a paper-name
+      reference in JSDoc prose, which the rule forbids. Two further
+      occurrences exist in JSDoc prose within src/benchmarks/ (not src/** at
+      large, scope-bounded to v0.8 diff): src/benchmarks/llm-judge/judge-prompt.ts
+      line 4 ("Anti-Mem0 instructional bias: Mem0's `metrics/llm_judge.py:22-23`")
+      and src/benchmarks/themory/adapter.ts line 47 ("Defaults to 'gpt-4o-mini'
+      when omitted (Mem0 evaluation default).").
+    evidence: |
+      ```ts
+      // src/benchmarks/fixtures/dmr-loader.ts:1-2
+      /**
+       * DMR fixture loader (Deep Memory Retrieval, MemGPT-derived MSC subset).
+
+      // src/benchmarks/llm-judge/judge-prompt.ts:1-5
+      /**
+       * Judge prompt template + renderer.
+       *
+       * Anti-Mem0 instructional bias: Mem0's `metrics/llm_judge.py:22-23`
+
+      // src/benchmarks/themory/adapter.ts:47
+      * Defaults to 'gpt-4o-mini' when omitted (Mem0 evaluation default).
+      ```
+    recommended_action: |
+      Rewrite the three JSDoc strings to be neutral and citation-via-@see.
+      Per "How to apply" §2, citations move to `@see` pointing to the
+      knowledge-base coordinates (the plan section + ADR + snapshot file
+      already capture the provenance):
+
+      - dmr-loader.ts: "DMR fixture loader (Deep Memory Retrieval subset
+        derived from MSC). @see plan § T2.1 + snapshot
+        2026-06-02-dmr-memgpt-zep.md" (snapshot file name itself stays — it's
+        a filesystem coordinate per the rule).
+      - judge-prompt.ts: "Anti-leniency instructional bias: vendor reference
+        judge prompts tell the judge to be generous; plan v1.2 ADR D3 inverts
+        that to 'be calibrated'. @see plan § ADR D3 + blueprint Q2".
+      - themory/adapter.ts:47: "Defaults to 'gpt-4o-mini' when omitted (matches
+        the vendor evaluation default convention)."
+
+      Cleanup is OPPORTUNISTIC per the rule's § Pre-existing references — but
+      these JSDoc blocks were authored in THIS diff (T2.1 / T1.2 / T3.1
+      commits), making them NOT pre-existing. The cleanup belongs in a v0.8
+      fix-up commit before /review re-runs, or accepted as a deferred MINOR
+      tracked in the merge audit.
+    severity_rationale: |
+      MINOR (not CRITICAL/MAJOR) because: (a) no behavioral impact — purely
+      docstring hygiene; (b) the rule's § Pre-existing references explicitly
+      allows opportunistic cleanup; (c) the vendor class identifiers
+      (Mem0BenchmarkAdapter, ZepBenchmarkAdapter, LettaBenchmarkAdapter) are
+      explicitly allowed by the spawn prompt and the rule's vendor-name
+      position carve-out — only the JSDoc prose hits qualify.
+
+  - id: F-dom-mem-2
+    severity: MINOR
+    file: src/benchmarks/themory/adapter.ts
+    line: 54-66
+    plan_ref: src/core/dip/benchmark-adapter.ts (BenchmarkCorpusItem.metadata type) + adapter Drift-T3.1-2 absorption
+    domain_anchor: |
+      architecture.md § 7 — "TypeScript strict mode. No `any`. If you must
+      escape the type system, use `unknown` with a runtime assertion." +
+      adapter's own PrimitiveMetadataValue = string | number | boolean | null
+      contract declared at line 52.
+    summary: |
+      `coerceMetadata()` claims to coerce arbitrary `unknown` metadata values
+      to PrimitiveMetadataValue (string | number | boolean | null), but the
+      type guard branch is incomplete: an explicit `undefined` value in the
+      metadata bag falls through to the else branch where `JSON.stringify(undefined)`
+      returns the JavaScript value `undefined` (not the string "undefined").
+      That `undefined` is then assigned to a field typed as PrimitiveMetadataValue,
+      breaking the declared invariant silently.
+
+      In practice this surfaces when BenchmarkCorpusItem.metadata is sourced
+      from a JSON-parsed fixture where a field was explicitly set to undefined
+      (e.g., csv-parse-derived row with empty cells coerced via
+      `coerceFieldToString` returning undefined for an unknown column). The
+      Drift-T3.1-2 JSDoc claims "honest, not silent drop" — but the undefined
+      case IS a silent drop wrapped in a type lie.
+    evidence: |
+      ```ts
+      // src/benchmarks/themory/adapter.ts:52-66
+      type PrimitiveMetadataValue = string | number | boolean | null;
+
+      function coerceMetadata(
+        raw: Readonly<Record<string, unknown>>,
+      ): Readonly<Record<string, PrimitiveMetadataValue>> {
+        const out: Record<string, PrimitiveMetadataValue> = {};
+        for (const [k, v] of Object.entries(raw)) {
+          if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+            out[k] = v;
+          } else {
+            out[k] = JSON.stringify(v);  // <-- JSON.stringify(undefined) === undefined
+          }
+        }
+        return out;
+      }
+      ```
+
+      Reproduction:
+      ```sh
+      node -e "for (const [k,v] of Object.entries({a: undefined, b: 1})) console.log(k, typeof v)"
+      # a undefined
+      # b number
+      ```
+    recommended_action: |
+      Add an explicit `undefined` branch BEFORE the else, choosing one of:
+
+      (a) Skip the field entirely (clear "honest drop" — preferred if
+          downstream RememberOptions metadata bag accepts sparse keys):
+      ```ts
+      if (v === undefined) continue;  // explicit drop; documented in JSDoc
+      ```
+
+      (b) Coerce to null (preserves the key, satisfies the type contract):
+      ```ts
+      if (v === undefined) { out[k] = null; continue; }
+      ```
+
+      Add a unit test in src/benchmarks/themory/__tests__/adapter.test.ts
+      that asserts the chosen behavior — currently the test suite covers
+      strings/numbers/booleans/null/nested objects via JSON.stringify but
+      not the explicit-undefined case.
+    severity_rationale: |
+      MINOR (not MAJOR) because: (a) the fixture loaders in src/benchmarks/fixtures/
+      use `coerceFieldToString` which returns string (never undefined), so the
+      bug is not hit by the current LongMemEval/LoCoMo/DMR pipeline at v0.8
+      acceptance time; (b) the impact is bounded — even if hit, the worst case
+      is a metadata field with JS undefined value (would silently disappear in
+      JSON serialization downstream); (c) easy fix with no API change.
+
+# Cross-validation notes (informational, not findings):
+#
+# - BenchmarkAdapter shape vs Memory shape: VERIFIED CLEAN. Adapter exclusively
+#   uses memory.user(id).remember + memory.user(id).recall (lines 96, 112). No
+#   imports from src/local/* or src/cloud/* in adapter.ts. The MemoryStore is
+#   reached only through the public Memory facade per architecture.md § 5.
+#
+# - Three-tier scope mapping (EC-5): VERIFIED CONSISTENT. scopedUserId composes
+#   `${conversationId}::${speakerId ?? 'unknown'}` and is delivered to
+#   memory.user(...). This honors CLAUDE.md § Locked names — the User tier is
+#   the long-lived account-equivalent scope; per-speaker boundary maps cleanly.
+#   Plan EC-5 absorption explicitly notes this choice as "preserves multi-speaker
+#   boundary per fixture (LongMemEval, LoCoMo each have ≥ 2 speakers per
+#   conversation)". The alternative (Session tier) would lose long-lived
+#   persistence across benchmark queries — User tier is correct.
+#
+# - Mem0-shape architecture preservation: VERIFIED. The adapter is a THIN
+#   wrapper — extraction/embed/dedup/persist all flow through
+#   createLocalMemory's eight-phase pipeline. The adapter does not paper over
+#   shape differences; it exposes what TheMemory IS.
+#
+# - ADD-only invariant: VERIFIED. Adapter has NO update() method, NO forget()
+#   call (forget is also out of scope for the BenchmarkAdapter DIP contract per
+#   src/core/dip/benchmark-adapter.ts — only add() + search()). The fact that
+#   neither verb names "update" nor "delete" propagates honestly.
+#
+# - no-paper-names-in-code.md vendor-name carve-out: VERIFIED ACCEPTABLE for
+#   Mem0BenchmarkAdapter, ZepBenchmarkAdapter, LettaBenchmarkAdapter class
+#   names + the Mem0VendorClient / ZepVendorClient / LettaVendorClient
+#   identifiers (vendor-name positions, allowed by the spawn prompt and
+#   inferred from the rule's "vendor product names" carve-out for code
+#   identifiers vs paper-name banned positions in prose). Only F-dom-mem-1
+#   covers the paper-name prose hits.
+#
+# - DIP compliance: VERIFIED. grep -E "from ['\"]\.\.\/\.\.\/(local|cloud)" returns
+#   ZERO hits across src/benchmarks/**/*.ts production code. The boundary-check
+#   hook would enforce this independently. Test files (src/benchmarks/themory/
+#   __tests__/adapter.test.ts) import createLocalMemory from src/local/index.js
+#   — acceptable per architecture.md § 3 (tests can use concrete adapters; the
+#   DIP boundary only applies to production code paths).
+#
+# - Drift-T5.1-1 modelId → modelUsed flow: VERIFIED CLEAN across all 4
+#   adapters. themory (line 138), mem0 (line 82), zep (line 78), letta (line 80)
+#   all set SearchResult.modelUsed = this.modelId. Default is consistently
+#   'gpt-4o-mini'. Cost computation per ADR D7 will produce correct non-zero
+#   values for all 4 adapters (closes the original silent-$0 defect).
+
+verdict_summary: |
+  Domain-memory-layer review: 2 MINOR findings. No CRITICAL or MAJOR defects.
+  The TheMemoryBenchmarkAdapter is architecturally sound — public-API-only,
+  ADD-only, three-tier-respecting, DIP-clean, modelId-aware. Findings are
+  hygiene-class: paper-name JSDoc cleanup (F-dom-mem-1) and a type-soundness
+  gap in coerceMetadata for explicit-undefined inputs (F-dom-mem-2). Both are
+  low-blast-radius and would not block merge on their own, but F-dom-mem-1
+  introduces NEW paper-name prose in this diff (not pre-existing) so cleanup
+  belongs in a fix-up commit before /review re-runs per the rule's intent.

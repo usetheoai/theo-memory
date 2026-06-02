@@ -1,0 +1,399 @@
+agent: review-v0-8-independent-benchmark-reproduction-tests
+review_target: 8784052..HEAD (b67035f) for plan v0-8-independent-benchmark-reproduction v1.2
+plan: .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md
+diff_base: 8784052
+diff_head: b67035f
+files_in_scope: 61
+
+test_inventory:
+  contract_suite:
+    files_passing: 102
+    files_skipped: 2
+    tests_passing: 800
+    tests_skipped: 8
+  benchmark_suite:
+    files_passing: 4
+    tests_passing: 12
+    tests_skipped: 1   # describe.skipIf BENCH_RUN=full (intentional)
+  benchmark_unit_tests_added: 91   # confirmed via verbose reporter
+  benchmark_tests_skipped_unexpectedly: 6   # bleu.test.ts entire suite, see F-tests-1
+
+test_pyramid:
+  unit_added:
+    metrics:
+      bleu.test.ts: 6
+      f1.test.ts: 8
+      exact-match.test.ts: 7
+    llm-judge:
+      single-judge.test.ts: 6
+      judge-panel.test.ts: 5
+      json-extractor.test.ts: 9
+      inter-judge-agreement.test.ts: 6
+      judge-prompt.test.ts: 6
+      no-anthropic-sdk.test.ts: 1   # ADR D3 regression guard
+    runner:
+      runner.test.ts: 9   # CostTracker 4 + ResultAggregator 3 + BenchmarkRunner 4 (EC-2/3/9/11/13)
+    fixtures:
+      loader.test.ts: 8
+    adapters:
+      themory/adapter.test.ts: 12   # add 4 + search 7 + name 1 (incl. Drift-T3.1-2, T5.1-1, T3.1-3)
+      mem0/adapter.test.ts: 5
+      zep/adapter.test.ts: 4
+      letta/adapter.test.ts: 4
+    types:
+      benchmark-adapter.test-d.ts: 23   # tsc-level type assertions
+    subtotal: 119
+  integration_added:
+    themory-adapter-pg.test.ts: 1   # multi-speaker pg round-trip, gated on THEOMEM_PG_URI
+    subtotal: 1
+  e2e_added:
+    matrix-publication.test.ts: 8   # THE FINAL GOAL TEST
+    longmemeval-themory.test.ts: 2  # smoke + describe.skipIf full
+    locomo-themory.test.ts: 1       # smoke
+    dmr-themory.test.ts: 1          # smoke
+    subtotal: 12
+  total: 132
+
+edge_cases_from_plan:
+  covered:
+    - EC-1 (json-extractor robustness)         # 9 tests in json-extractor.test.ts + nullable SingleJudge
+    - EC-2 (all-judges-fail abort policy)      # runner.test.ts L311-353 with fakeSleep
+    - EC-3 (PricingTableMiss)                  # runner.test.ts L98-103 + L276-309
+    - EC-4 (vitest.benchmark.config.ts 60-min) # config file exists; e2e suite passes against it
+    - EC-5 (multi-speaker scope discipline)    # themory/adapter.test.ts L146-189 + pg integration
+    - EC-7 (BLEU empty-string handling)        # bleu.test.ts L31-46 (BUT SUITE SKIPPED, see F-tests-1)
+    - EC-9 (incremental persistence)           # runner.test.ts L237-274
+    - EC-10 (inter-judge N=1 agreement)        # inter-judge-agreement.test.ts L15-26
+    - EC-11 (zero-token cost = 0)              # runner.test.ts L93-96
+    - EC-12 (robust markdown-table parser)     # matrix-publication.test.ts L81-83 + parseMatrix tolerance
+  missing_or_weakly_covered:
+    - EC-6 (downloader macOS/Linux/Win portable, no wget)  # NO TEST EXISTS — plan §T2.1 TDD declared one
+    - EC-8 (downloader idempotent re-run)                  # NO TEST EXISTS — plan §T2.1 TDD declared one
+    - EC-13 (pricing-table stale-warning emission)         # only fetchedAt() format asserted; no stale-warning path test
+  not_applicable:
+    - EC-14 (env-var skip-clean already established)       # acceptable per plan v1.1 footnote
+
+tdd_compliance:
+  notes: |
+    Per-task commit messages and date ordering confirm test+impl shipped together
+    (e.g., 0b1709a T1.2 LLM-judge orchestrator; e2fbb01 T4.1 runner; c1678f6 T3.1
+    TheMemory adapter). Multi-file commits prevent strict "test-first commit"
+    proof, but the plan's halt-loop discipline (cycle-implement.md § RED→GREEN)
+    was followed per the iteration logs at
+    .claude/knowledge-base/implementations/v0-8-independent-benchmark-reproduction/sepa-iterations/.
+  verdict: ACCEPTABLE
+
+findings:
+  - id: F-tests-1
+    severity: BLOCKER
+    file: src/benchmarks/metrics/bleu.ts
+    file_test: src/benchmarks/metrics/__tests__/bleu.test.ts
+    line: 53
+    plan_ref: T1.1 + ADR D1 + EC-7
+    summary: |
+      BLEU silently returns 0 for ALL benchmark records because `natural` v8.1.0
+      does NOT export `BleuScore`. The bleu.test.ts suite is wholly SKIPPED via
+      `describe.skipIf(!isBleuAvailable())` instead of failing, so this defect
+      passes through CI undetected. The benchmark runner reports `bleu = 0` for
+      every per-query record, which silently corrupts the matrix's BLEU column
+      published at docs/benchmarks/v0.8.md and any future v0.8.x update.
+    evidence: |
+      $ node -e "const n = require('natural'); console.log(Object.keys(n).filter(k => /Bleu|BLEU/i.test(k)));"
+      []
+      $ node -e "const r = require('natural'); console.log(typeof r.BleuScore);"
+      undefined
+
+      bleu.ts loadNaturalBleu() reads natural.BleuScore which is `undefined`,
+      sets probedAvailability=false, returns null. calculateBleuScore() then
+      silently returns 0 on line 69.
+
+      bleu.test.ts L18: describe.skipIf(!isBleuAvailable()) — when BleuScore is
+      undefined the WHOLE describe block is skipped (verified: 6 skipped tests in
+      contract run). EC-7 absorption assertions (L31-46) NEVER actually exercise
+      the BLEU path.
+
+      benchmark-runner.ts L161 wires this defective BLEU into every per-query
+      record, propagating bleu=0 to results aggregation + matrix publication.
+    recommended_action: |
+      Option A (preferred): replace `natural.BleuScore` lookup with the actual
+      `natural` v8 API (e.g., `new natural.BleuScore(reference, candidates,
+      weights).score`); confirm via `node -e ...` first. Add a non-skipped test
+      that asserts BLEU(identical) > 0.9 (canary against silent regression).
+      Option B: vendor a minimal BLEU-1 implementation (rule 9 trade-off — paper
+      cited in plan deep dives line 339-342). Remove the
+      describe.skipIf entirely so test failures surface CVE-style.
+    inquebravel_violations:
+      - "Testing rule § Determinism: silent skip masks broken behavior"
+      - "Inquebrável Rule 3 (Honestidade Extrema): bleu=0 silently published"
+      - "Testing rule § Anti-patterns: skipped tests = invisible technical debt"
+
+  - id: F-tests-2
+    severity: MAJOR
+    file: tests/e2e/benchmarks/longmemeval-themory.test.ts
+    file_secondary: benchmarks/scripts/run-longmemeval.ts
+    line: 98-113   # buildSmokeJudgePanel in run-longmemeval.ts
+    plan_ref: T5.1 THE GOAL TEST + plan v1.2 § Acceptance line 731
+    summary: |
+      The smoke "THE GOAL TEST" e2e at longmemeval-themory.test.ts asserts
+      judgeLabel ∈ ['CORRECT', 'WRONG', null] (L75) but `buildSmokeJudgePanel`
+      hardcodes ALL judge responses to `{"label":"CORRECT"}`. The smoke test
+      cannot detect a WRONG-path regression, BLEU silently returning 0
+      (F-tests-1), or judge-label propagation bugs. The same Stub+CORRECT
+      pattern is duplicated across run-locomo.ts + run-dmr.ts.
+    evidence: |
+      benchmarks/scripts/run-longmemeval.ts L98-113: buildSmokeJudgePanel
+      returns a LlmJudgePanel where the only judge always emits
+      `{"label":"CORRECT","reasoning":"smoke run"}`.
+
+      tests/e2e/benchmarks/longmemeval-themory.test.ts L75: expect(['CORRECT',
+      'WRONG', null]).toContain(record.judgeLabel) — the test passes as long as
+      the label is one of the 3; it cannot distinguish "judge correctly
+      classified" from "judge always says CORRECT".
+
+      grep buildSmokeJudgePanel: appears in run-longmemeval.ts, run-locomo.ts,
+      run-dmr.ts identically (DRY violation absorbed inside this finding for
+      tests scope; would otherwise be F-arch).
+    recommended_action: |
+      Add a non-smoke e2e assertion at the runner test level (src/benchmarks/
+      runner/__tests__/runner.test.ts) that injects a JudgePanel emitting WRONG
+      for a known fixture pair and verifies the perQuery record stores
+      judgeLabel === 'WRONG' + judgeAccuracy aggregate correctly excludes it.
+      Existing unit-level coverage of judge-panel + result-aggregator handles the
+      WRONG path in isolation; the e2e gap is that the WIRING is not
+      end-to-end-tested.
+
+  - id: F-tests-3
+    severity: MAJOR
+    file: benchmarks/scripts/download-fixtures.mjs
+    line: 104-108
+    plan_ref: T2.1 TDD block — EC-6 + EC-8
+    summary: |
+      Plan v1.2 § T2.1 TDD explicitly declared two RED tests for the fixture
+      downloader: (a) `test('download-fixtures script is idempotent — running
+      twice does not re-download files already present at expected size')` and
+      (b) `test('download-fixtures script runs on macOS without wget (Node fetch
+      only)')`. NEITHER test ships. EC-6 + EC-8 are implemented via
+      Content-Length HEAD-check but no test asserts the script's behavior.
+    evidence: |
+      $ find tests/ -name "*download*" -o -name "*fixture-download*"
+      (no results)
+      $ grep -rn "EC-8\|idempotent\|re-download" benchmarks/scripts/
+        benchmarks/scripts/download-fixtures.mjs:8: idempotent HEAD-checks ...
+      $ grep -rn "EC-6\|portable" src/benchmarks/ tests/integration/benchmarks/
+        (no test references)
+    recommended_action: |
+      Add tests/integration/benchmarks/download-fixtures.test.ts with a
+      `nock`-mocked HTTP server (or a vi.fn-mocked fetch) asserting: (a) calling
+      the script twice with the same fixture present skips the second download
+      (verify HEAD request count); (b) malformed Content-Length triggers a
+      re-download (regression guard); (c) the script does NOT shell out to wget
+      / curl (grep the spawnSync surface).
+
+  - id: F-tests-4
+    severity: MAJOR
+    file: tests/integration/benchmarks/
+    plan_ref: Phase 6 collective acceptance + plan §T4.1 DoD
+    summary: |
+      Plan declares 4 integration test files that DO NOT exist:
+        - tests/integration/benchmarks/runner-integration.test.ts (§T4.1 Files to edit)
+        - tests/integration/benchmarks/mem0-adapter.test.ts (§T6.1)
+        - tests/integration/benchmarks/zep-adapter.test.ts (§T6.2)
+        - tests/integration/benchmarks/letta-adapter.test.ts (§T6.3)
+      Only `tests/integration/benchmarks/themory-adapter-pg.test.ts` ships. Plan
+      §T4.1 DoD specifies "integration test asserts non-zero OTel spans
+      emitted"; the OTel span assertion exists in unit-level runner.test.ts
+      L231-234 (acceptable substitute), but the integration-level wiring vs.
+      real OTel BatchSpanProcessor + real Pg is not exercised. The vendor
+      adapter omissions are mitigated by Drift-T6.x-1 (VendorClient DIP + real
+      SDK deferred); this is documented in docs/benchmarks/v0.8.md so the gap
+      is honest, but it remains a plan-vs-code delta worth recording.
+    evidence: |
+      $ ls tests/integration/benchmarks/
+      themory-adapter-pg.test.ts
+      $ grep -rn "Drift-T6.x-1" docs/benchmarks/
+      (matches present — gap documented honestly)
+    recommended_action: |
+      (a) Verify §T4.1 DoD: rename runner.test.ts's OTel span test as the
+      integration substitute by moving it to tests/integration/benchmarks/
+      with an in-memory exporter + acknowledge Drift-T4.1-N. Or write a real
+      integration test that runs against pgvector + real adapter + verifies
+      spans propagate end-to-end. (b) For vendor adapters, Drift-T6.x-1 is
+      accepted; the follow-up cycle that ships real SDK wiring MUST add the
+      integration tests against staged keys.
+
+  - id: F-tests-5
+    severity: MINOR
+    file: src/benchmarks/runner/__tests__/runner.test.ts
+    line: 311-353
+    plan_ref: T4.1 EC-2 all-judges-fail policy
+    summary: |
+      EC-2 test asserts abort + sleep + exit-code, but never explicitly verifies
+      the RETRY happened on the failing query. The test uses
+      makeJudgePanelAlwaysNull so retry also returns null and abort fires.
+      There is no positive-path test ("retry succeeds → consecutiveNullCount
+      reset → run continues"). The runner code (benchmark-runner.ts L116-126)
+      contains a retry-succeeds branch that is unexercised.
+    evidence: |
+      benchmark-runner.ts L116-126 contains:
+        if (retryRecord.judgeLabel === null) { abort } else {
+          perQuery[perQuery.length - 1] = retryRecord;
+          this.persist(perQuery, false);
+          consecutiveNullCount = 0;
+        }
+      grep -n "retry succeed\|retry.*continue" src/benchmarks/runner/__tests__/
+      (no matches)
+    recommended_action: |
+      Add a third runner test variant ("retry-succeeds-resets-counter") with a
+      configurable JudgePanel that returns null 3× then CORRECT on retry of Q3;
+      assert (a) report.aborted === false, (b) perQuery[2].judgeLabel ===
+      'CORRECT' (the retry result replaces the original null), (c)
+      consecutiveNullCount reset (drive a 4th null and verify abort does NOT
+      fire until 3 more in a row).
+
+  - id: F-tests-6
+    severity: MINOR
+    file: src/benchmarks/runner/cost-tracker.ts
+    line: 79-95   # emitStaleWarning + constructor isStale path
+    plan_ref: T4.1 EC-13 pricing-table stale documentation
+    summary: |
+      EC-13 absorption ships `emitStaleWarning` + 30-day sunset check, but no
+      test asserts the warning is emitted. The runner test only checks
+      tracker.fetchedAt() format (L105-108). The stale-warning code path is
+      effectively dead from a test perspective; a regression that disables the
+      warning would not be caught.
+    evidence: |
+      grep -rn "isStale\|emitStaleWarning\|SUNSET_DAYS" src/benchmarks/runner/__tests__/
+      (no matches)
+      cost-tracker.ts L84: emitStaleWarning called from constructor when
+      isStale(this.table.fetched_at, config.now)
+    recommended_action: |
+      Add a unit test that (a) writes a temporary pricing-table.json with
+      fetched_at = 60 days ago, (b) captures process.stderr writes, (c)
+      instantiates `new CostTracker({ tokenizer, pricingTablePath: tmpPath,
+      now: new Date() })`, (d) asserts the warning string was emitted with the
+      stale date. Symmetric test for fresh-pricing-no-warning.
+
+  - id: F-tests-7
+    severity: MINOR
+    file: src/benchmarks/runner/__tests__/runner.test.ts
+    file_secondary: src/benchmarks/runner/otel-instrumented.ts
+    line: 196-235   # withSpan attribute setting
+    plan_ref: T4.1 ADR D8
+    summary: |
+      withSpan sets 3 attributes (benchmark.adapter, benchmark.method,
+      benchmark.question_id) but the runner test only asserts span name
+      (`benchmark.add`, `benchmark.search`). The attributes drive downstream
+      P95-by-adapter analysis; a regression that drops the adapter attribute
+      would not be detected by tests.
+    evidence: |
+      runner.test.ts L231-234 only checks span.name match.
+      otel-instrumented.ts L30-33 sets adapter/method/question_id attributes.
+    recommended_action: |
+      Strengthen the OTel span test to assert
+      `span.attributes['benchmark.adapter'] === 'themory'` +
+      `span.attributes['benchmark.question_id'] === 'q1'` for the search span.
+      InMemorySpanExporter exposes attributes via `.attributes`.
+
+  - id: F-tests-8
+    severity: MINOR
+    file: multiple — testing rule § Anti-patterns
+    line: various
+    plan_ref: testing.md § Anti-patterns ("no 'and' in test names")
+    summary: |
+      10 test names use "and" — testing.md anti-pattern lists "Tests with 'and'
+      in the name — split into two tests, each testing one thing". Examples:
+      `runs the LoCoMo smoke fixture end-to-end and produces a RunReport`,
+      `catches PricingTableMiss and persists pricing_table_miss flag (EC-3)`,
+      `is case-insensitive and strips common punctuation`,
+      `aggregates 2 disagreeing judges and surfaces the split in agreement`,
+      `embeds the question, gold answer, and generated answer in the user
+      message`. Several are idiomatic phrasing (`leading and trailing
+      whitespace`) — not all warrant splitting.
+    evidence: |
+      $ grep -rnE "it\(['\"].*\sand\s.*['\"]" src/benchmarks/ tests/e2e/benchmarks/
+      (10 matches enumerated in the agent transcript)
+    recommended_action: |
+      For the ones that genuinely test two behaviors (PricingTableMiss + persist
+      flag; judge-panel disagreement + split surface; smoke run + report
+      produced), split into 2 separate `it()` blocks. For idiomatic phrasing
+      (`leading and trailing whitespace`), accept as-is — testing.md anti-
+      pattern is about scope, not literal token.
+
+  - id: F-tests-9
+    severity: MINOR
+    file: src/benchmarks/llm-judge/__tests__/single-judge.test.ts
+    line: 50-54   # FailingLlm path
+    plan_ref: T1.2 EC-2 (network failure null)
+    summary: |
+      The "LLM throws" test uses FailingLlm but doesn't assert that the error
+      was actually caught at the judge boundary (rather than bubbling up). The
+      test just checks the outcome is null; that's structurally correct but
+      doesn't distinguish "judge returned null because LLM threw" from "judge
+      returned null because LLM returned malformed string". Per testing.md §
+      BDD: "tests describe behavior" — currently the test couples two
+      independent null-paths and the regression signal is muddied.
+    evidence: |
+      single-judge.test.ts L43-48 (malformed response) and L50-54 (LLM throws)
+      both end with `expect(outcome).toBeNull()` with no other distinguisher.
+    recommended_action: |
+      Either (a) split the FailingLlm test to also assert
+      `expect(loggerSpy).toHaveBeenCalledWith(expect.stringMatching(/LLM
+      error/))` — confirming the catch-and-log path; OR (b) assert the
+      rawResponse field captured `null` (or some sentinel) when the error path
+      is taken vs the literal raw string when the parse path is taken. Today
+      both return null indistinguishably.
+
+  - id: F-tests-10
+    severity: INFO
+    file: src/benchmarks/llm-judge/__tests__/no-anthropic-sdk.test.ts
+    line: 32
+    plan_ref: ADR D3 regression guard
+    summary: |
+      ADR D3 guard test scans src/benchmarks/llm-judge/*.ts (excluding
+      *.test.ts). The plan-level invariant per ADR D3 § "Consequences" is "NO
+      new SDK deps for claude access" — the guard should arguably scan
+      src/benchmarks/**/*.ts (all benchmark code, including future runner /
+      adapter additions), not just llm-judge/. Today an adapter could import
+      @anthropic-ai/sdk and the guard would NOT detect it.
+    evidence: |
+      no-anthropic-sdk.test.ts L18: SRC_DIR = dirname(dirname(...)) → resolves
+      to src/benchmarks/llm-judge/ only.
+    recommended_action: |
+      Widen the scan to walk src/benchmarks/ recursively via `glob`
+      (`src/benchmarks/**/*.ts` excluding *.test.ts + *.test-d.ts). Keeps the
+      regression guard robust against future surface expansion. Optional —
+      could be deferred since current scope is correct for the modules that
+      ship today.
+
+summary:
+  blockers: 1
+  major: 3
+  minor: 5
+  info: 1
+  total_findings: 10
+  edge_cases_missing: 3   # EC-6, EC-8, EC-13 (partial)
+  plan_declared_files_missing: 4   # 1 integration + 3 vendor integration (latter mitigated by Drift-T6.x-1)
+  test_pyramid_balance:
+    assessment: HEALTHY
+    note: |
+      Unit-heavy (119 tests), integration-thin (1 test — Drift-T6.x-1
+      acceptable), e2e-modest (12). Mirrors testing.md pyramid. Skips are
+      legitimate (BENCH_RUN gating, PG_URI gating) EXCEPT for the
+      describe.skipIf(!isBleuAvailable) bleu suite — see F-tests-1.
+  tdd_discipline:
+    assessment: ACCEPTABLE
+    note: |
+      Per-task commits ship test+impl together (cycle-implement.md halt-loop
+      RED→GREEN convention). No `.only` leaks, no commented test blocks. The
+      skipped suites are env-gated except F-tests-1.
+  verdict: NEEDS_FIXES
+  rationale: |
+    F-tests-1 is BLOCKER: BLEU silently returns 0 across the whole benchmark
+    matrix because natural v8 has no BleuScore export, and the test suite
+    skips rather than fails. Every published BLEU number in docs/benchmarks/
+    v0.8.md is potentially wrong (or honestly 0 — both bad). This MUST be
+    fixed before READY_TO_MERGE. The 3 MAJOR findings (smoke test cannot
+    detect regressions, downloader tests missing, plan-declared integration
+    tests missing) are not strictly merge-blockers when read against
+    Drift-T6.x-1 + Drift-T5.1-2 documented honesty, but their absence keeps
+    the implementation thinner than the plan declared.
