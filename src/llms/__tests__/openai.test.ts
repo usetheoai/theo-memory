@@ -12,8 +12,8 @@
  * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T1.2
  * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-2
  */
-import { describe, it, expect } from 'vitest';
-import { OpenAILLM } from '../openai.js';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { OpenAILLM, resolveChatModel } from '../openai.js';
 
 describe('OpenAILLM', () => {
   it('exposes the LLM DIP shape (class + generateResponse + generateChat methods)', () => {
@@ -27,5 +27,36 @@ describe('OpenAILLM', () => {
     expect(OpenAILLM).toBeDefined();
     expect(typeof llm.generateResponse).toBe('function');
     expect(typeof llm.generateChat).toBe('function');
+  });
+});
+
+describe('resolveChatModel — env-override bridge to OpenRouter-style provider/model ids', () => {
+  let prev: string | undefined;
+  beforeEach(() => {
+    prev = process.env['OPENAI_CHAT_MODEL'];
+    delete process.env['OPENAI_CHAT_MODEL'];
+  });
+  afterEach(() => {
+    if (prev === undefined) delete process.env['OPENAI_CHAT_MODEL'];
+    else process.env['OPENAI_CHAT_MODEL'] = prev;
+  });
+
+  it('falls back to gpt-4o-mini when OPENAI_CHAT_MODEL is unset', () => {
+    expect(resolveChatModel()).toBe('gpt-4o-mini');
+  });
+
+  it('falls back to gpt-4o-mini when OPENAI_CHAT_MODEL is empty', () => {
+    process.env['OPENAI_CHAT_MODEL'] = '';
+    expect(resolveChatModel()).toBe('gpt-4o-mini');
+  });
+
+  it('returns the env value when OPENAI_CHAT_MODEL is set to an OpenRouter-style id', () => {
+    process.env['OPENAI_CHAT_MODEL'] = 'openai/gpt-4o-mini';
+    expect(resolveChatModel()).toBe('openai/gpt-4o-mini');
+  });
+
+  it('returns the env value when OPENAI_CHAT_MODEL is set to a non-OpenAI provider', () => {
+    process.env['OPENAI_CHAT_MODEL'] = 'anthropic/claude-3-5-sonnet';
+    expect(resolveChatModel()).toBe('anthropic/claude-3-5-sonnet');
   });
 });
