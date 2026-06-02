@@ -109,6 +109,10 @@ test('SearchResult.tokensUsed has prompt + completion numeric fields', () => {
   }>();
 });
 
+test('SearchResult.modelUsed is a required string (Drift-T5.1-1)', () => {
+  expectTypeOf<SearchResult['modelUsed']>().toEqualTypeOf<string>();
+});
+
 test('BenchmarkAdapter.name is a required string', () => {
   expectTypeOf<BenchmarkAdapter['name']>().toEqualTypeOf<string>();
 });
@@ -135,6 +139,7 @@ test('minimal stub implementing BenchmarkAdapter compiles', () => {
         retrievedContext: [],
         latencyMs: 0,
         tokensUsed: { prompt: 0, completion: 0 },
+        modelUsed: 'stub',
       });
     }
   }
