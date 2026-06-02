@@ -556,8 +556,8 @@ export class PgvectorStore implements VectorStore {
     filters: Filters,
   ): Promise<readonly { memoryId: string; text: string; createdAt: Date }[]> {
     // /review v0-7 F-C2: filter `kind = 'extracted'` to preserve the
-    // episodic→semantic boundary. Without this guard, v0.6 REDACTED skill
-    // rows (kind='skill') AND already-consolidated rows (kind='derived')
+    // episodic→semantic boundary. Without this guard, v0.6 procedural
+    // skill rows (kind='skill') AND already-consolidated rows (kind='derived')
     // would enter the cluster — a consumer running reflect({ conflictResolution })
     // on an agent_id scope that ALSO holds a memory.skills(repoId) library
     // would mass-tombstone the skill library. The 2nd reflect() call would
