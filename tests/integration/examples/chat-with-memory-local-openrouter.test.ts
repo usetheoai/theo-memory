@@ -158,6 +158,63 @@ describe.skipIf(!reachable || PG_URI === '')(
       expect(res.status).toBe(200);
       const json = (await res.json()) as { invocationId?: string; reason?: string };
       expect(typeof json.invocationId).toBe('string');
+
+      // /review F-M8: previous coverage stopped at the 200 + invocationId
+      // contract. Plan T4.1 § AC line 918 requires "a non-zero
+      // consolidation_history row count returned by the new endpoint" —
+      // assert the audit table actually grew so a silent no-op regression
+      // (e.g., factory mis-wired to a no-op policy) is caught here.
+      const audit = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c
+           FROM consolidation_history
+          WHERE policy_name = 'last-write-wins'`,
+      );
+      expect(audit.rows[0]?.c).toBeGreaterThanOrEqual(1);
+    });
+
+    // /review F-M9 — end-to-end /api/chat test. Plan T4.1 TDD #3 declared
+    // `test_api_chat_seeds_memory_with_384_dim_embedding`. The existing
+    // atttypmod structural check is a proxy (does the column have the right
+    // dim) but does NOT exercise the chat → LLM → embed → INSERT path. This
+    // test posts a chat message and asserts a new 384-length embedding row
+    // landed in memories with the correct scope.
+    it('POST /api/chat seeds a memory row with embedding length 384 + scope user_id matching', async () => {
+      const res = await fetch(`${DEV_SERVER}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: TEST_USER,
+          sessionId: 't4-1-f-m9-session',
+          messages: [
+            { role: 'user', content: 'My favorite color is teal.' },
+          ],
+        }),
+      });
+      expect(res.status).toBe(200);
+
+      // The chat endpoint MAY return immediately (streamed response) — give
+      // the async embed+INSERT pipeline a brief window to commit, then poll
+      // the table.
+      const deadline = Date.now() + 5_000;
+      let rowCount = 0;
+      let rawEmb = '';
+      while (Date.now() < deadline) {
+        const probe = await pool.query<{ c: number; raw: string | null }>(
+          `SELECT COUNT(*)::int AS c, MAX(embedding::text) AS raw
+             FROM memories
+            WHERE user_id = $1`,
+          [TEST_USER],
+        );
+        rowCount = probe.rows[0]?.c ?? 0;
+        rawEmb = probe.rows[0]?.raw ?? '';
+        if (rowCount > 0) break;
+        await new Promise<void>((r) => setTimeout(r, 250));
+      }
+      expect(rowCount).toBeGreaterThanOrEqual(1);
+      // pgvector text-cast: `[v1,v2,...,v384]`. Count comma-separated entries
+      // by counting commas + 1 — robust to leading/trailing brackets.
+      const commaCount = (rawEmb.match(/,/g) ?? []).length;
+      expect(commaCount + 1).toBe(384);
     });
   },
 );
