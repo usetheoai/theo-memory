@@ -1,5 +1,7 @@
 # Plan: v0.8 — Independent Benchmark Reproduction
 
+> **Version 1.2** (2026-06-02) — Absorbs `/deps-audit` report (`audits/v0-8-...-deps-audit-2026-06-02.md`; verdict PASS_WITH_CAVEATS) + a **strategic directive** to AVOID Anthropic SDK lock-in. **THREE FIXES APPLIED:** (a) **@anthropic-ai/sdk REMOVED entirely** from Dependencies + ADR D3 rewritten — claude-sonnet judge access routes through OpenRouter (model id `anthropic/claude-3.5-sonnet`) via the EXISTING `openai` SDK + `OpenAILLM.resolveChatModel()` env-bridge shipped by the adapters-openrouter-local-embedder cycle (CLAUDE.md row 2026-06-02). Single SDK surface, zero new vendor coupling, mirrors v0.x precedent. (b) `csv-parse` bumped `^5.5.0` → `^6.0.0` (registry-confirmed latest 6.2.1, MIT, maintained); (c) factual correction: `csv-parse` license was erroneously declared "Apache-2.0" in v1.0/v1.1 — npm registry confirms **MIT**. Post-fix, `/deps-audit` re-run will produce PASS clean.
+>
 > **Version 1.1** (2026-06-02) — Absorbs the `/edge-case-plan` report at `.claude/knowledge-base/reviews/v0-8-independent-benchmark-reproduction-edge-cases-2026-06-02.md` (verdict NEEDS_ADJUSTMENT — 14 edge cases: 6 MUST FIX + 6 SHOULD TEST + 2 DOCUMENT). **SIX MUST FIX ABSORBED:** (a) **EC-1** T1.2 adds `src/benchmarks/llm-judge/json-extractor.ts` for robust JSON parse + SingleJudge returns `JudgeLabel | null`; (b) **EC-2** T4.1 declares all-judges-fail policy (3 consecutive null → 60s pause + 1 retry → partial-results persisted + non-zero exit code); (c) **EC-3** T4.1 adds `PricingTableMiss` typed error + runner persists `cost = NaN, pricing_table_miss: true` flag; (d) **EC-4** T5.1 Files to edit adds `vitest.benchmark.config.ts` (NEW) with 60-min testTimeout + `npm run test:benchmark` script; (e) **EC-5** T0.1 BenchmarkCorpusItem.metadata gains `speaker?: string` field + T3.1 adapter scoped userId becomes `${conversationId}::${speakerId || 'unknown'}`; (f) **EC-6** T2.1 replaces bash `download-fixtures.sh` with TypeScript `benchmarks/scripts/download-fixtures.ts` using Node 20+ native fetch (macOS-portable). **SIX SHOULD TEST CHECKPOINTS** added to respective task TDD blocks (EC-7 BLEU empty-string handling, EC-8 idempotent downloader, EC-9 runner partial-results persistence, EC-10 inter-judge agreement N=1, EC-11 zero-token cost-tracker, EC-12 robust markdown-table parser). **TWO DOCUMENT NOTES** inlined into T4.1 (EC-13 pricing-table staleness) and T6.x (EC-14 skip-clean already-established).
 >
 > **Version 1.0** (2026-06-02) — Initial plan. Ships an independent reproduction of LongMemEval + LoCoMo + DMR memory benchmarks against TheMemory v0.7 + Mem0 v3 + Zep + Letta on identical fixtures, publishing the matrix at `docs/benchmarks/v0.8.md`. Closes roadmap row 10 (v0.8) which row 11 (v1.0) explicitly depends on. **Heavily informed by the v0.8 discovery cycle**: blueprint `.claude/knowledge-base/discoveries/blueprints/v0-8-benchmark-methodology-blueprint.md` (SHIPPABLE_WITH_CAVEATS 89/100) provides 4 ADRs (D1-D4) + 10 R-recommendations + 6 URL snapshots + 13 verified local citations. Strategic anchors: **Mem0 ships LOCOMO-only** (we write LongMemEval + DMR adapters ourselves), **LongMemEval has ZERO third-party reproductions** (v0.8 is novel), **No Rule 9 candidate covers all 3** (we own the runner, reuse metric primitives).
@@ -69,17 +71,29 @@
 
 **Consequences:** v0.8 milestone may ship with LongMemEval-only if budget tight (Phase 5 alone satisfies "novel reproduction" claim). LoCoMo + DMR (Phase 7) are incremental adds. Acceptance criteria require ALL 3 — accept honest residual scope.
 
-### D3 — LLM-judge is configurable; default panel of 2-3 judges with inter-judge agreement (inherited from blueprint D3)
+### D3 — LLM-judge is configurable; default panel of 2-3 judges with inter-judge agreement; ALL judges accessed via OpenAI-compatible APIs (no Anthropic SDK lock-in)
 
-**Decision:** TheMemory's LLM-judge orchestrator exposes model / prompt / temperature / seed as config. Default panel: `gpt-4o` + `claude-sonnet` (+ optional open-source third). Per (question, gold, generated) triple, run ALL configured judges; report inter-judge agreement (Cohen's kappa OR simple % agreement). Persist raw judge responses alongside binary labels.
+**Decision:** TheMemory's LLM-judge orchestrator exposes model / prompt / temperature / seed as config. Default panel: `gpt-4o` (via OpenAI direct) + `anthropic/claude-3.5-sonnet` (via OpenRouter, OpenAI-compatible endpoint) + optional open-source third (via OpenRouter, e.g., `meta-llama/llama-3.1-70b-instruct`). Per (question, gold, generated) triple, run ALL configured judges; report inter-judge agreement (Cohen's kappa OR simple % agreement). Persist raw judge responses alongside binary labels.
 
-**Rationale:** Blueprint Q2 finding — Mem0's hardcoded `gpt-4o-mini` + temperature 0 + "be generous" instructional bias is opinionated single-judge. Production-grade reproduction requires variance reporting (Self-Consistency literature: Wang et al. 2023; LLM-as-judge benchmarks: Zheng et al. 2023). v0.7.1 LLM-measured eval (precision=recall=1.000 on 10 fixtures) already established this discipline at TheMemory; D3 extends it to v0.8.
+**Rationale (Anthropic SDK lock-in rejection — added v1.2):** v0.8 deliberately AVOIDS introducing `@anthropic-ai/sdk` as a new vendor SDK dependency. TheMemory already ships `OpenAILLM.resolveChatModel()` env-bridge (`OPENAI_CHAT_MODEL` env var) targeting OpenRouter provider/model ids (per CLAUDE.md row "adapters-openrouter-local-embedder" 2026-06-02, HEAD `aec5c33`). OpenRouter exposes claude-sonnet, claude-haiku, claude-opus + 100+ models behind a single OpenAI-compatible endpoint. Routing the multi-judge panel through OpenRouter:
+1. **Single SDK surface** — `openai` SDK only; no @anthropic-ai/sdk transitive deps
+2. **Mirrors v0.x precedent** — adapters-or-local cycle already shipped this pattern at HEAD `aec5c33`
+3. **Single vendor diversification surface** — switching judge models is a config change, not a code change
+4. **Reduces blast radius** — if a vendor SDK has a CVE, only `openai` is in our surface (and we already manage that)
+
+Blueprint Q2 finding — Mem0's hardcoded `gpt-4o-mini` + temperature 0 + "be generous" instructional bias is opinionated single-judge. Production-grade reproduction requires variance reporting (Self-Consistency literature: Wang et al. 2023; LLM-as-judge benchmarks: Zheng et al. 2023). v0.7.1 LLM-measured eval (precision=recall=1.000 on 10 fixtures) already established this discipline at TheMemory; D3 extends it to v0.8.
 
 **Alternatives considered:**
-- Copy Mem0's hardcoded judge — REJECTED: reproducibility hostage to OpenAI model versioning; bias unreported
+- Copy Mem0's hardcoded single judge — REJECTED: reproducibility hostage to OpenAI model versioning; bias unreported
 - Skip LLM-judge, BLEU/F1 only — REJECTED: BLEU/F1 weak for long-form answers per LongMemEval/LoCoMo design intent
+- Add `@anthropic-ai/sdk` for native claude access — REJECTED by user directive (Anthropic SDK lock-in unwanted) AND by Rule 9 / KISS — the OpenRouter path covers same model surface via the existing `openai` SDK
+- Vendor-specific SDK per judge (openai + anthropic + google + cohere) — REJECTED: multiplicative surface, multiplicative vulnerability exposure
 
-**Consequences:** v0.8 implementation gains 1 module (judge orchestrator). Cost per benchmark run 2-3× Mem0's. LongMemEval @ 500 questions × 3 judges = ~$0.50-2.50 per full run (v0.7.1 ran ~$0.01-0.05 per 10-question hand-set; extrapolation). Acceptable for an explicitly-budget-tracked CI run.
+**Consequences:**
+- v0.8 implementation gains 1 module (judge orchestrator) — NO new SDK deps for claude access
+- Each judge is configured with `{baseUrl, apiKey, model}` triple; OpenAI direct = `{baseUrl: undefined, apiKey: OPENAI_API_KEY, model: 'gpt-4o'}`; OpenRouter claude = `{baseUrl: 'https://openrouter.ai/api/v1', apiKey: OPENROUTER_API_KEY, model: 'anthropic/claude-3.5-sonnet'}`
+- OpenRouter pricing has a small markup over direct Anthropic API (~10-15% per OpenRouter pricing page; included in pricing-table.json per ADR D7) — acceptable trade for zero-SDK-lock-in
+- Cost per benchmark run 2-3× Mem0's single-judge. LongMemEval @ 500 questions × 3 judges ≈ $0.50-2.50 per full run (extrapolated from v0.7.1 LLM-measured ~$0.01-0.05 per 10-question hand-set). Acceptable for explicit budget-tracked CI run.
 
 ### D4 — Download-at-install pattern for ALL 3 datasets; NO fixture committed to TheMemory repo (inherited from blueprint D4)
 
@@ -197,9 +211,10 @@ Phase 0 (Protocol + types) ──▶ Phase 1 (metrics + LLM-judge) ──▶ Pha
 
 | Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
 |---|---|---|---|---|
-| `@dqbd/tiktoken` (NEW) | `^1.0.0` | npm | Evaluated: `gpt-tokenizer` (smaller bundle but missing claude-3 encodings); `js-tiktoken` (JS port, older, less-maintained). | OpenAI-compatible BPE tokenizer; ships claude-3 + gpt-4o + gpt-4o-mini encodings; widely used; maintained by `dqbd`. |
-| `@anthropic-ai/sdk` (NEW) | `^0.30.0` | npm (optional) | Evaluated: `claude-3-sdk` (alternate name, not official); rolling our own HTTP wrapper (rejected per Rule 9). | Official Anthropic SDK for claude-sonnet judge panel member per ADR D3. |
-| `csv-parse` (NEW) | `^5.5.0` | npm | Evaluated: `papaparse` (browser-focused), Node `fs.readFileSync + .split('\n')` rolling our own. | Stream-based CSV parsing for DMR fixture (MSC subset CSV). Apache-2.0 license, maintained. |
+| `@dqbd/tiktoken` (NEW) | `^1.0.0` | npm | Evaluated: `gpt-tokenizer` (smaller bundle but missing claude-3 encodings); `js-tiktoken` (JS port, older, less-maintained). | OpenAI-compatible BPE tokenizer; ships claude-3 + gpt-4o + gpt-4o-mini encodings; widely used; maintained by `dqbd`. MIT, latest 1.0.22 at audit time. |
+| `csv-parse` (NEW) | `^6.0.0` | npm | Evaluated: `papaparse` (browser-focused), Node `fs.readFileSync + .split('\n')` rolling our own. | Stream-based CSV parsing for DMR fixture (MSC subset CSV). **MIT** license (registry-verified — v1.0/v1.1 incorrectly stated Apache-2.0; corrected v1.2), latest 6.2.1 at audit time. v1.2 bumped from ^5.5.0 to ^6.0.0 to align with current major. |
+
+**Note on claude judge access (v1.2 — Anthropic SDK lock-in rejection):** The plan v1.0/v1.1 declared `@anthropic-ai/sdk` as a NEW dep for the claude-sonnet judge panel member. v1.2 REMOVES it. Claude access routes through OpenRouter (`anthropic/claude-3.5-sonnet` model id) via the existing `openai` SDK + `OpenAILLM.resolveChatModel()` env-bridge shipped by the adapters-openrouter-local-embedder cycle (CLAUDE.md row 2026-06-02, HEAD `aec5c33`). Zero new vendor SDK; single surface. See ADR D3 v1.2 rewrite for full rationale.
 
 ### Removed
 
