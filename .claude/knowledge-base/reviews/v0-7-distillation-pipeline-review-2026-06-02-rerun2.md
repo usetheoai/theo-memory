@@ -10,11 +10,9 @@
 
 ## Verdict
 
-**READY_TO_MERGE_WITH_CAVEATS** — 0 BLOCKER / 0 CRITICAL / 0 MAJOR / **2 actionable MINOR** (paper-name violations, doc-only) + 2 deferred-acceptable MINOR + ~26 INFO.
+**READY_TO_MERGE (clean)** — 0 BLOCKER / 0 CRITICAL / 0 MAJOR / 0 actionable MINOR / 2 deferred-acceptable MINOR / ~26 INFO.
 
-Two doc-only paper-name rule violations (`no-paper-names-in-code.md`) were introduced by fix-up cycle #1 commits (`17425af`, `ffa92d1`) on 2026-06-02, AFTER the rule was promoted to first-class status (2026-05-30). Strictly per the rule § Pre-existing references opportunistic-cleanup clause, these qualify as MINOR not BLOCKER, but they are *new* additions (not pre-existing rot) and warrant a 2-line cleanup before PR `develop → main`.
-
-If the user accepts the 2 MINORs as deferred per the same opportunistic-cleanup clause, the verdict promotes to **READY_TO_MERGE clean**.
+**Initial re-run #3 verdict was READY_TO_MERGE_WITH_CAVEATS** (2 actionable MINOR paper-name violations introduced by fix-up cycle #1 commits `17425af`, `ffa92d1` on 2026-06-02, after the `no-paper-names-in-code.md` rule was promoted to first-class status on 2026-05-30). **Path A chosen by user — fix-up #3 commit `f7f14e6` cleans those 2 violations + 3 additional opportunistic cleanups in `src/local/index.ts` (including a consumer-visible error message at line 587).** Post-commit grep confirms zero paper-name hits across the v0.7 surface. Verdict promoted to **READY_TO_MERGE clean**.
 
 ## Aggregate findings
 
@@ -150,23 +148,21 @@ Findings (per-agent YAML):
 
 ## Handoff decision
 
-**Two paths the user may choose:**
+**RESOLVED via Path A (commit `f7f14e6`).** User chose to ship clean. Fix-up #3 commit landed 5 paper-name cleanups:
 
-### Path A — Tiny doc-only fix-up #3 (~2 minutes, 2 lines)
+| File | Original | Fixed | Rule date |
+|---|---|---|---|
+| `src/core/conflict-resolution/last-write-wins.ts:48` | "Mem0 entity-link precedent" | "entity-link clustering precedent" | post-rule (NEW) |
+| `src/local/pgvector-store.ts:560` | "v0.6 Voyager skill rows" | "v0.6 procedural skill rows" | post-rule (NEW) |
+| `src/local/index.ts:587` (consumer-visible error) | "divergence from Mem0's silent no-op" | "strict-mode forget throws on missing id" | pre-rule (opportunistic) |
+| `src/local/index.ts:612` | "Silent swallow per Mem0 pattern" | "Silent swallow — history persistence failure must not block forget" | pre-rule (opportunistic) |
+| `src/local/index.ts:850` | "v0.6 Voyager skill supersession chains" | "v0.6 procedural skill supersession chains" | post-rule (NEW) |
 
-Rephrase comment/JSDoc at:
-- `src/core/conflict-resolution/last-write-wins.ts:48` (drop "Mem0 entity-link precedent" → "entity-link clustering precedent")
-- `src/local/pgvector-store.ts:560` (drop "v0.6 Voyager skill rows" → "v0.6 procedural skill rows")
+**Remaining out-of-v0.7-scope (next-edit opportunistic):**
+- `src/agent-tools/tools/forget-handler.ts:14` (commit `1e6656c7` 2026-05-25, pre-rule)
+- `src/agent-tools/tools/__tests__/handlers.test.ts:140` (same commit, test fixture)
 
-After: verdict promotes to **READY_TO_MERGE clean** (0 actionable across all severities).
-
-### Path B — Merge as READY_TO_MERGE_WITH_CAVEATS
-
-Accept the 2 paper-name MINORs as opportunistic next-edit cleanup per `no-paper-names-in-code.md § Pre-existing references` extended interpretation. Open PR `develop → main` referencing this report. The 2 paper-name fixes ship in the next /implement that touches those files.
-
-**Recommendation:** Path A is preferred because (a) these are genuinely *new* additions (not pre-existing rot), (b) the cleanup is trivial, (c) `READY_TO_MERGE clean` is the honest verdict for the v0.7 trunk before any benchmark or distillation refactor cycle. Path B is acceptable if the user prefers to ship now and clean opportunistically.
-
-Either path is non-blocking for merge — the verdict is NOT BLOCKER/CRITICAL/MAJOR.
+**Status:** v0.7 surface is clean. Branch ready for PR `develop → main` covering v0.7 episodic→semantic distillation pipeline + this paper-name cleanup commit.
 
 ## /dogfood gate reminder (separate concern)
 
