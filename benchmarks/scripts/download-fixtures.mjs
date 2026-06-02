@@ -69,6 +69,8 @@ async function getRemoteSize(url) {
   }
 }
 
+export { getRemoteSize };
+
 async function getLocalSize(path) {
   try {
     const s = await stat(path);
@@ -77,6 +79,8 @@ async function getLocalSize(path) {
     return null;
   }
 }
+
+export { getLocalSize };
 
 async function downloadToFile(url, destPath) {
   const response = await fetch(url);
@@ -93,6 +97,8 @@ async function downloadToFile(url, destPath) {
     stream.pipe(out);
   });
 }
+
+export { downloadToFile };
 
 async function downloadFixture(fixture) {
   const destPath = join(DATA_DIR, fixture.relPath);
@@ -113,6 +119,9 @@ async function downloadFixture(fixture) {
   console.log(`[${fixture.name}] done`);
 }
 
+export { downloadFixture };
+export { FIXTURES };
+
 async function main() {
   console.log('=== v0.8 benchmark fixture downloader ===');
   console.log(`data dir: ${DATA_DIR}`);
@@ -129,7 +138,14 @@ async function main() {
   console.log('[DMR] derived at T7.2 via benchmarks/scripts/derive-dmr-subset (not shipped yet).');
 }
 
-main().catch((err) => {
-  console.error('Downloader fatal:', err);
-  process.exit(1);
-});
+export { main };
+
+// v0-8-fixes-cycle-1 T1.3: isMain guard so tests can import the module
+// without triggering the download side-effect on load.
+const isMain = import.meta.url === `file://${process.argv[1] ?? ''}`;
+if (isMain) {
+  main().catch((err) => {
+    console.error('Downloader fatal:', err);
+    process.exit(1);
+  });
+}
