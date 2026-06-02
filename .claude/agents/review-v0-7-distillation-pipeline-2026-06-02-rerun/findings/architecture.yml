@@ -1,0 +1,206 @@
+agent: review-v0-7-distillation-pipeline-architecture-rerun
+review_target: 9d16db4^..HEAD (4 fix-up commits closing 3 CRITICAL + F-M5 + F-M7 + F-Mi2 + plan v1.2 amendment)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md (v1.2)
+previous_review: .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md
+fix_up_commits:
+  - 9d16db4 — F-C3 (consolidation_history pgTable + parity sentinel)
+  - ffa92d1 — F-C2 + F-M7 (kind filter + bi-temporal guard + skill-isolation test)
+  - 17425af — F-C1 (LWW maxRejectionRatio guard + 5 contract tests)
+  - 18e970f — F-M5 + F-Mi2 + plan v1.2 + CHANGELOG + CLAUDE.md
+findings:
+  # ============================================================
+  # Closures of previous CRITICAL findings (architecture-relevant)
+  # ============================================================
+  - id: F-arch-rr-1
+    severity: INFO
+    file: src/local/schema.ts:239-254
+    plan_ref: T0.1 / EC-3 / F-C3 closure
+    summary: "F-C3 closed by commit 9d16db4 — `consolidationHistory` pgTable declared with correct shape mirroring migration 0007 + meta/0007_snapshot.json."
+    evidence: |
+      `consolidationHistory` pgTable export now present at src/local/schema.ts:239
+      - id: uuid PK with defaultRandom()
+      - keptMemoryId: uuid().references(() => memories.id, { onDelete: 'set null' }) [matches EC-3 GDPR survival contract]
+      - rejectedMemoryIds: jsonb<string[]>().notNull().default(sql`'[]'::jsonb`)
+      - reason + policyName: text().notNull()
+      - originalEpisodeIds: jsonb<string[]>().notNull().default(sql`'[]'::jsonb`)
+      - createdAt: timestamp({ withTimezone: true }).defaultNow().notNull()
+      Plus the two btree indexes: idx_consolidation_history_kept (on keptMemoryId) + idx_consolidation_history_created (on createdAt DESC).
+      All 7 column shapes match meta/0007_snapshot.json verbatim. ON DELETE SET NULL preserves GDPR audit trail when keptMemoryId is hard-deleted via Memory.forget(id, { hard: true }) per EC-3.
+    recommended_action: None. Closure is architecturally clean.
+
+  - id: F-arch-rr-2
+    severity: INFO
+    file: tests/integration/schema-snapshot-parity.test.ts:1-81
+    plan_ref: T0.1 / F-C3 sentinel
+    summary: "Schema-snapshot parity sentinel test is architecturally sound: enumerates pgTable exports via Drizzle's Symbol.for('drizzle:Name') runtime tag + meta/*_snapshot.json tables; asserts bijection both directions."
+    evidence: |
+      The sentinel guards the failure mode that motivated F-C3 (table in migration but not in schema.ts → drizzle-kit push computes DROP TABLE diff). Two assertions:
+        1. every snapshot table appears in schema.ts (catches: forgot to add pgTable)
+        2. every pgTable in schema.ts has a snapshot (catches: forgot to generate migration)
+      The `import * as schema` form is JUSTIFIABLE here despite architecture.md § 7 ("Avoid `import * as ns`") because the test needs runtime enumeration of all exports via Object.keys(schema) — impossible with destructured imports. The use is load-bearing, not ergonomic shortcut.
+      Locating under tests/integration/ (vs tests/unit/) is correct: it touches the migrations + schema source-of-truth, which is integration-tier deployment-correctness concern. Runs without pgvector container (pure file inspection).
+    recommended_action: None. Sentinel design is appropriate.
+
+  - id: F-arch-rr-3
+    severity: INFO
+    file: src/local/pgvector-store.ts:555-593
+    plan_ref: T2.1 / F-C2 + F-M7 closure
+    summary: "F-C2 + F-M7 closed by commit ffa92d1 — `recallConsolidationCandidates` now filters `kind = 'extracted' AND t_invalid IS NULL AND (t_valid IS NULL OR t_valid <= NOW())`. Episodic↔semantic boundary preserved."
+    evidence: |
+      The WHERE clause composition (lines 570-574) now correctly excludes:
+        - kind='skill' rows (v0.6 Voyager skill library)
+        - kind='derived' rows (already-consolidated, prevents re-consolidation on 2nd reflect)
+        - future-valid rows via t_valid <= NOW() (forward-compat with v0.5 cloud bi-temporal per ADR-0006)
+      The skill-isolation.test.ts regression (2 tests, both PASS): test 1 seeds 2 skill rows + 2 extracted facts in same agent_id scope, asserts skills survive LWW reflect; test 2 seeds 1 derived row + 2 extracted, asserts derived survives. The test design correctly isolates the recall filter from LLM extraction by passing an `emptyJsonLlm` stub returning [].
+      Architectural note: the filter is encoded as raw SQL strings (not Drizzle query-builder). This is consistent with the rest of recallConsolidationCandidates and the pgvector-store.ts conventions; LSP-compatible with future cloud impl.
+    recommended_action: None. Closure mechanically correct.
+
+  - id: F-arch-rr-4
+    severity: INFO
+    file: src/core/conflict-resolution/last-write-wins.ts:80-122
+    plan_ref: T1.2 / F-C1 closure (plan v1.2 ADR D2 amendment)
+    summary: "F-C1 closed by commit 17425af — `LastWriteWinsConflictPolicyOptions.maxRejectionRatio` (default 0.95) clamped to [0,1] via Math.max(0, Math.min(1, raw)). 5 new contract tests cover all boundary cases."
+    evidence: |
+      LSP-clean: signature unchanged for default-construct path (existing call sites work unchanged with default 0.95 guard active). New options parameter is optional. Compatible with the `ConflictResolutionPolicy` DIP — no method-shape changes.
+      Boundary handling correctly verified by tests:
+        - 20 candidates → ratio 0.95 → consolidates (boundary inclusive)
+        - 21 candidates → ratio ~0.952 → ABSTAINS
+        - maxRejectionRatio=1.0 → opt-out, 50 candidates consolidate
+        - maxRejectionRatio=0 → effectively Noop (never reject)
+        - clamp [0,1]: 2.5 → 1.0, -0.5 → 0
+      Use of private class field (#maxRejectionRatio) is canonical ES private encapsulation.
+    recommended_action: None for closure. See F-arch-rr-NEW-1 for an observability gap discovered.
+
+  - id: F-arch-rr-5
+    severity: INFO
+    file: tests/integration/distillation/the-goal-test-llm-measured.test.ts:23-48
+    plan_ref: F-M5 closure (doc-only)
+    summary: "F-M5 closed by commit 18e970f — test header gains explicit `## /review v0-7-distillation-pipeline F-M5 honesty caveat (REQUIRED READING)` block enumerating what 1.000/1.000/1.000 PROVES vs does NOT PROVE."
+    evidence: |
+      The caveat block honestly states:
+      - PROVES: pipeline + persistence + audit round-trip; OpenRouter routing; JSON parsing; kept_id ∈ clusterIds semantic validation (EC-2)
+      - NOT PROVED: LLM judgment on ambiguous contradictions; near-duplicate discrimination; procedural-fixture quality
+      Plus v0.7.2 follow-up rubric (50+ ambiguous fixtures + measure precision drop vs unambiguous baseline; likely outcome ~0.6-0.8 precision for gpt-4o-mini).
+      This honors Inquebrável Rule 3 (Honestidade Extrema) + closes the "reads as if it validates ambiguous-fixture quality" gap the previous /review flagged. Doc-only change; no semantic impact.
+    recommended_action: None. Honest disclosure shipped.
+
+  - id: F-arch-rr-6
+    severity: INFO
+    file: examples/chat-with-memory/app/api/memory/distill/route.ts:59-74
+    plan_ref: F-Mi2 closure
+    summary: "F-Mi2 closed by commit 18e970f — `await getMemory()` triggered at line 63 BEFORE the OPENAI_API_KEY check at line 65; env-shift `adaptOpenrouterEnvForDemo()` now fires before env-var read."
+    evidence: |
+      Verified the call sequence:
+        line 50-57: policy validation
+        line 63: `await getMemory()` → cascades to `getSingleton()` → `resolveAdapters(mode)` which calls `adaptOpenrouterEnvForDemo()` at lib/memory.ts:386, promoting OPENROUTER_(API_)KEY → OPENAI_API_KEY
+        line 65: `process.env.OPENAI_API_KEY` check now sees the promoted value
+      The 422 message also updated to mention `OPENROUTER_(API_)KEY in local-openrouter mode` — consumers reading the error get accurate guidance.
+      Second `getMemory()` call at line 100 is idempotent (singleton pattern returns the same promise on subsequent calls); negligible overhead.
+    recommended_action: None. Architecturally correct ordering fix.
+
+  - id: F-arch-rr-7
+    severity: INFO
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md (header v1.2)
+    plan_ref: Plan v1.2 amendment + ADR D2 amendment
+    summary: "Plan v1.2 header is architecturally honest — explicitly dismisses T2.1 cosine-clustering precedent + lists all deferred-with-rationale MAJOR/MINOR items (F-M1/M2/M3/M4/M6/M8/M9/M10/M11). Trade-off documented."
+    evidence: |
+      Plan v1.2 header (line 3) declares:
+      - ADR D2 AMENDMENT: T2.1 Mem0 cosine-clustering at recall layer DISMISSED in favor of per-policy guard at decision layer
+      - rationale: backporting cosine clustering would rewrite the entire v0.7 wiring contract
+      - DEFERRED list enumerates F-M1/M2 (file size 1078/686 LoC), F-M3/M4 (OTel integration depth), F-M6 (wiring locus drift), F-M8 (baseline LLM-quality), F-M9 (outer reflect atomicity), F-M10/M11 (FK naming + ON UPDATE)
+      Net state per the v1.2 header: 0 BLOCKER / 0 CRITICAL / 9 MAJOR (6 deferred + 3 closed) / 11 MINOR / clean INFO.
+      CHANGELOG.md § Unreleased § Added gains a corresponding entry (lines visible at commit 18e970f). CLAUDE.md § Phase III Item 9 row amended from bare "Shipped 2026-06-02" to "Shipped 2026-06-02 + fix-up cycle plan v1.2 closing 3 CRITICAL findings from /review" — corrects the prematurely-flipped status from commit f1b4867.
+    recommended_action: None. Honest amendment shipped per Inquebrável Rule 3.
+
+  # ============================================================
+  # NEW architectural observations (introduced by fix-up commits)
+  # ============================================================
+  - id: F-arch-rr-NEW-1
+    severity: MINOR
+    file: src/core/conflict-resolution/last-write-wins.ts:104-111
+    plan_ref: F-C1 closure (post-closure observability gap)
+    summary: "F-C1 mass-tombstone guard ABSTAINS silently — no observability signal when LWW abstains due to rejectionRatio > maxRejectionRatio. Asymmetric with sibling LJM which emits a `cluster_too_large` counter on its analogous abort path."
+    evidence: |
+      LWW abstain path (lines 106-111):
+        if (rejectionRatio > this.#maxRejectionRatio) {
+          return [];
+        }
+      No counter emission. Consumer running `reflect({ conflictResolution: LWW })` against a 100-row scope gets back `{ derivedMemoriesCreated: 0 }` with no signal that the policy abstained (vs successfully consolidated 0 rows because of legitimately empty cluster).
+      Compare LJM (llm-judged-merge.ts:97-100):
+        if (candidates.length > this.#clusterCap) {
+          getCounter(CTR.CLUSTER_TOO_LARGE).add(1);
+          return [];
+        }
+      LJM has 4 distinct counters (KEPT / REJECTED / ABSTAIN / CLUSTER_TOO_LARGE) so an operator can distinguish "LJM decided no consolidation needed" from "LJM aborted because cluster too large".
+      Architectural impact: the existing /review F-M3 already flagged "LWW wiring path emits ZERO distillation.consolidation.* counters; only LJM fires them from its own consolidate()" — adding mass-tombstone abstain WITHOUT a counter widens the observability gap. An operator who tunes maxRejectionRatio cannot measure how often it triggers.
+    recommended_action: |
+      DEFER to the F-M3 follow-up cycle (already in the plan v1.2 deferred list as "OTel integration depth"). When that cycle adds the policy-agnostic counters at the wiring layer, also emit a `distillation.consolidation.lww_mass_tombstone_abstain` counter for the F-C1 abstain path. Document in plan v1.2 deferred MAJOR list (NOT a new BLOCKER — the guard is correct; observability is a follow-up).
+
+  - id: F-arch-rr-NEW-2
+    severity: MINOR
+    file: src/core/conflict-resolution/last-write-wins.ts:80
+    plan_ref: F-C1 closure (DRY observation)
+    summary: "`DEFAULT_MAX_REJECTION_RATIO = 0.95` is a magic number with no shared abstraction across policy siblings. Sibling LJM has `DEFAULT_CLUSTER_CAP = 20` — both are anti-mass-tombstone guards but expressed in different units."
+    evidence: |
+      LWW guards by RATIO (rejectionRatio > 0.95 → abstain)
+      LJM guards by COUNT (candidates.length > 20 → abstain)
+      The two-policy/two-guard-mechanism shape risks DRY violation if v0.7.2+ adds more policies: each new ConflictResolutionPolicy impl might invent its own anti-mass-tombstone heuristic. The DIP (`ConflictResolutionPolicy`) does not declare a shared interface for "abstain due to scope size".
+      Inquebrável Rule 12 (DRY) → only enact extraction when rule-of-3 hits. With 2 policies and 2 different mechanisms, the abstraction is premature. Document the design space.
+      Note: the per-policy guards are LEGITIMATELY different (LJM caps cluster size to bound LLM cost; LWW caps rejection ratio to bound damage from over-clustering). They are NOT duplicating the same concept. So this is a documentation observation, not a refactor demand.
+    recommended_action: Add a JSDoc cross-reference comment in last-write-wins.ts mentioning the sibling LJM clusterCap mechanism (and vice versa) so future policy authors understand the design space. Optional. Defer to refactor cycle that also addresses F-M1/M2 file-size budget.
+
+  - id: F-arch-rr-NEW-3
+    severity: MINOR
+    file: src/local/pgvector-store.ts:570-574
+    plan_ref: F-C2/F-M7 closure (constants extraction observation)
+    summary: "WHERE clause string literals `\"kind = 'extracted'\"` are embedded verbatim. The literal `'extracted'` is duplicated across schema.ts (default value), recallConsolidationCandidates filter, and elsewhere in the codebase."
+    evidence: |
+      In src/local/schema.ts:84: `kind: varchar('kind', { length: 20 }).notNull().default('extracted')`
+      In src/local/pgvector-store.ts:571: `"kind = 'extracted'"`
+      In src/local/schema.ts:146-149: check constraint logic uses the literal 'extracted' / 'derived' / 'skill' values.
+      A `const KIND_EXTRACTED = 'extracted' as const` (and siblings) exported from a `src/core/types/memory-kind.ts` would centralize the type vocabulary AND enable TypeScript-narrowing on the `kind` column reads.
+      Architectural impact: low — the values are stable enum-like strings and the check constraint enforces the closed set at the DB layer. But the type system is not currently enforcing it in TS code.
+    recommended_action: Defer. Not a blocker; cosmetic improvement that pairs naturally with F-M1/M2 refactor cycle (extracting LocalMemory + LocalScopedMemory from src/local/index.ts also touches kind-handling code).
+
+  - id: F-arch-rr-NEW-4
+    severity: INFO
+    file: src/local/pgvector-store.ts:570-574 / src/core/conflict-resolution/last-write-wins.ts:104-111
+    plan_ref: F-C2 + F-C1 interaction analysis
+    summary: "The two F-C1 + F-C2 guards COMPOSE correctly. F-C2's `kind = 'extracted'` filter NARROWS the candidate set BEFORE F-C1's ratio check evaluates. No double-mitigation, no gap."
+    evidence: |
+      Execution order in src/local/index.ts:395-403:
+        1. recallConsolidationCandidates(filters) — filters to kind='extracted' rows only
+        2. policy.consolidate(candidates, ctx) — LWW evaluates rejectionRatio over the FILTERED set
+      Implication: in a scope with 10 skill rows + 5 extracted rows, F-C2 reduces candidates to 5 extracted; F-C1's ratio is computed as 4/5 = 0.8 < 0.95, so LWW consolidates the 5 extracted rows correctly (1 kept + 4 rejected). The skill rows are entirely outside the cluster.
+      In a scope with 10 skill rows + 100 extracted rows, F-C2 yields 100 extracted; F-C1 ratio = 99/100 = 0.99 > 0.95, so LWW abstains. Both protections fire at their intended layer.
+      No architectural seam issues. The defense-in-depth is sound.
+    recommended_action: None. Documenting for the audit trail.
+
+  - id: F-arch-rr-NEW-5
+    severity: INFO
+    file: src/local/schema.ts:239-254
+    plan_ref: F-C3 — Drizzle conventions
+    summary: "`consolidationHistory` declaration uses Drizzle conventions matching the rest of schema.ts. FK `keptMemoryId.references(() => memories.id, ...)` uses the lazy-arrow form per the v0.6 supersededBy precedent on memories self-FK; consistent codebase style."
+    evidence: |
+      The FK syntax `references(() => memories.id, { onDelete: 'set null' })` matches the v0.6 supersededBy FK declaration style at schema.ts:92-94. Both are forward-referencing (FK declared before/after table — Drizzle requires lazy arrow for circularity).
+      JSDoc block above the export (lines 226-238) cross-references the plan + migration + meta snapshot + /review report. Good provenance documentation.
+      Architecture.md § 6 naming: file kept-case `schema.ts` (kebab) + class/type PascalCase (`consolidationHistory` is a const, exception is consistent with `memories`, `entities`, `history`, etc. — all lowercase pgTable consts). Consistent with codebase.
+      One MINOR observation: snapshot expects FK constraint name `consolidation_history_kept_memory_id_memories_id_fk` (Drizzle's standard `_<table>_<col>_fk` convention) but migration SQL creates `consolidation_history_kept_memory_id_fkey` (PG default `_fkey` suffix). This was F-M10 in the previous review and is still DEFERRED per plan v1.2 (cosmetic). Drizzle won't fail; future `drizzle-kit generate` would emit cleanup ALTERs.
+    recommended_action: None. F-M10 deferral is acknowledged in plan v1.2.
+
+  # ============================================================
+  # File-size budget reminder (deferred F-M1/F-M2, called out)
+  # ============================================================
+  - id: F-arch-rr-NEW-6
+    severity: INFO
+    file: src/local/index.ts (1078 LoC) + src/local/pgvector-store.ts (702 LoC)
+    plan_ref: F-M1 + F-M2 deferral confirmation
+    summary: "File-size budget violations from previous /review (F-M1 1078 LoC, F-M2 686→702 LoC) NOT regressed by fix-up commits. F-C2's +18 LoC in pgvector-store.ts pushes from 686 to 702 — slight expansion but still in the deferred budget."
+    evidence: |
+      wc -l results:
+        src/local/index.ts:           1078 LoC (was 1078; unchanged by fix-up)
+        src/local/pgvector-store.ts:   702 LoC (was 686; +16 net from F-C2 8-line comment block + new WHERE composition)
+        src/core/conflict-resolution/last-write-wins.ts: 122 LoC (was 66; +56 from F-C1 guard)
+      All three exceed the 500 LoC architecture.md § 7 module-hygiene budget. Plan v1.2 explicitly defers F-M1/M2 to a refactor cycle. The +16 LoC on pgvector-store.ts is HONEST (comment-heavy, contract-load-bearing) and does not warrant a new finding given the deferred status.
+      last-write-wins.ts at 122 LoC is below budget — F-C1 expansion is well-contained inside the single-file policy class.
+    recommended_action: None. Track in deferred backlog per plan v1.2.

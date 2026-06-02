@@ -1,0 +1,358 @@
+agent: review-v0-7-distillation-pipeline-domain-memory-layer
+review_target: 9d16db4^..HEAD for plan v0-7-distillation-pipeline (re-run after fix-up cycle)
+domain: memory-layer
+scope: 4 fix-up commits — 9d16db4 (F-C3) + ffa92d1 (F-C2 + F-M7) + 17425af (F-C1) + 18e970f (plan v1.2 + docs)
+domain_specific_patterns_checked:
+  - "ADD-only invariant (ADR-0003) under reflect({ conflictResolution }) wiring"
+  - "episodic↔semantic boundary (kind='extracted' vs kind='skill' vs kind='derived')"
+  - "derived_from non-empty constraint (ADR D7 provenance fail-fast)"
+  - "Letta sleeptime rejection (ADR D1) — no background worker introduced"
+  - "Three-tier scope preservation under recallConsolidationCandidates filter"
+  - "Bi-temporal forward-compat (t_valid guard for v0.5 cloud asOf)"
+  - "EC-1 lex tie-break determinism unbroken by mass-tombstone guard"
+  - "Mass-tombstone guard mitigation honesty vs Plan v1.2 ADR D2 dismissal"
+  - "F-M9 outer atomicity acknowledged as deferred"
+
+verdict: READY_TO_MERGE_WITH_MINOR_OBSERVATIONS
+verdict_rationale: |
+  All 3 CRITICAL findings from the 2026-06-02 /review are closed honestly. F-C2 (kind filter) +
+  F-M7 (t_valid guard) are one-line semantic SQL corrections with focused integration regression
+  tests; F-C1 (mass-tombstone guard) is a pragmatic decision-layer mitigation with a documented
+  ADR D2 amendment in plan v1.2 (cosine-clustering at recall layer dismissed). The fix-up
+  preserves ADD-only (ADR-0003), preserves Letta sleeptime rejection (ADR D1; zero background
+  worker code added), preserves derived_from non-empty (ADR D7; no changes to insertDerivedMemory),
+  and is forward-compatible with v0.5 cloud bi-temporal. EC-1 (3-candidate ratio 0.667 < 0.95)
+  unbroken — traced explicitly. The 2 observations below are minor honesty residuals, not blockers.
+
+findings:
+  - id: F-dom-mem-rerun-1
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 558-574
+    plan_ref: Plan v1.2 § F-C2 + F-M7 closure
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked — three-scope + ADD-only; ADR-0006 bi-temporal
+    summary: |
+      F-C2 closure is architecturally correct. The `kind = 'extracted'` filter is the minimal
+      one-line surface that restores the episodic→semantic boundary. v0.6 Voyager skill rows
+      (kind='skill') and already-consolidated derived rows (kind='derived') no longer enter
+      the cluster. Regression test `tests/integration/distillation/skill-isolation.test.ts`
+      seeds both surfaces (2 skill rows + 2 extracted in test 1; 1 derived + 2 extracted in
+      test 2) and asserts the boundary. 2/2 PASS against ankane/pgvector:v0.5.1.
+    evidence: |
+      pgvector-store.ts:570-574 — `kind = 'extracted'` AND `t_invalid IS NULL`
+      AND `(t_valid IS NULL OR t_valid <= NOW())`
+      skill-isolation.test.ts:101-147 — `expect(skillRows).toHaveLength(2)` and
+      `expect(row.t_invalid).toBeNull()` for both skill rows after reflect() with LWW.
+    confidence_level: HIGH
+
+  - id: F-dom-mem-rerun-2
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 565-574
+    plan_ref: Plan v1.2 § F-M7 closure
+    domain_anchor: ADR-0006 § bi-temporal local schema — t_valid/t_invalid columns
+    summary: |
+      F-M7 closure (`t_valid IS NULL OR t_valid <= NOW()`) is forward-compatible with the
+      ADR-0006 v0.5 cloud `asOf` queries. Current local runtime always inserts `t_valid=NOW()`
+      so the guard is a no-op today, but it documents intent. The OR-NULL branch handles
+      legacy rows pre-bi-temporal (defensive coding). Acceptable.
+    evidence: |
+      pgvector-store.ts:573 — `(t_valid IS NULL OR t_valid <= NOW())`
+      ADR-0006 § Local schema HAS columns from v0.1; cloud (v0.5) is first to honor asOf.
+      No-op on local today; ready for cloud backport without code change in v0.7 surface.
+    confidence_level: HIGH
+
+  - id: F-dom-mem-rerun-3
+    severity: INFO
+    file: src/core/conflict-resolution/last-write-wins.ts
+    line: 82-121
+    plan_ref: Plan v1.2 § ADR D2 amendment dismissing cosine clustering at recall layer
+    domain_anchor: ADR-0003 ADD-only; ADR D2 LWW policy
+    summary: |
+      EC-1 LWW tie-break (3 candidates, identical timestamp, lex DESC tie-break to 'ccc')
+      is preserved by the mass-tombstone guard. Traced explicitly:
+        - candidates.length = 3
+        - rejected.length = 2
+        - rejectionRatio = 2/3 = 0.667
+        - 0.667 > 0.95? NO → policy proceeds with consolidation
+      The EC-1 test (test at last-write-wins.test.ts:124-144) is unchanged and remains
+      a 10-run determinism assertion that the guard does NOT introduce nondeterminism.
+      ADD-only invariant preserved: rejected rows are soft-deleted via persistConsolidations
+      (t_invalid = NOW()) per ADR-0006; no row-content mutation. derived_from non-empty
+      is not in scope for LWW path (no kind='derived' insertion in v0.7 LWW pipeline).
+    evidence: |
+      last-write-wins.ts:105 — `const rejectionRatio = rejected.length / candidates.length;`
+      last-write-wins.ts:106 — `if (rejectionRatio > this.#maxRejectionRatio) return [];`
+      last-write-wins.test.ts:124-144 — EC-1 ten-run determinism test unbroken
+      last-write-wins.test.ts:61-72 — F-C1 test at 20-cluster confirms 0.95 threshold edge.
+    confidence_level: HIGH
+
+  - id: F-dom-mem-rerun-4
+    severity: MINOR
+    file: src/core/conflict-resolution/last-write-wins.ts
+    line: 104-111
+    plan_ref: Plan v1.2 § ADR D2 amendment — mass-tombstone guard as decision-layer mitigation
+    domain_anchor: Inquebrável Rule 3 (extreme honesty); ADR-0006 § audit trail
+    summary: |
+      The mass-tombstone guard is HONEST as a mitigation per Plan v1.2 ADR D2 amendment
+      (cosine clustering at recall layer dismissed; per-policy guard preserves 9/9 task
+      delivery without rewriting the wiring contract). BUT it has a SILENT-ABSTAIN failure
+      mode: when ratio > 0.95, the policy returns []; the wiring at src/local/index.ts:402
+      sees length 0 and skips persistConsolidations entirely. No `consolidation_history`
+      audit row records the abstention. No OTel metric fires for the abstain event. A
+      consumer who calls `reflect({ conflictResolution: LWW })` on a 100-extracted-row
+      scope observes a silent no-op identical to the empty-scope path.
+      Net effect: the user-facing behavior (no mass-tombstone) is correct; the
+      observability layer is incomplete. Future hardening (v0.7.2 or v1.0 benchmark cycle):
+      either emit a `distillation.consolidation.abstained` counter at the wiring or
+      audit an "abstained" row in `consolidation_history` (reason='ratio-guard'; kept_id=NULL).
+      Defer is acceptable; surfacing is the honest move.
+    evidence: |
+      last-write-wins.ts:106-111 — `return []` then comment block:
+        "ABSTAIN: refuse to mass-tombstone. Returning [] means the wiring
+         layer persists nothing — no consolidation_history audit row, no
+         soft-delete."
+      index.ts:402 — `if (consolidationResults.length > 0) { await ... persistConsolidations(...) }`
+      No abstain metric introduced; no audit row schema for abstain.
+    recommended_action: |
+      Add to v0.7.2 follow-up backlog (NOT a fix-up blocker): emit
+      `distillation.consolidation.abstained{policy="last-write-wins",reason="ratio-guard"}`
+      counter when the guard fires, OR insert an audit row with kept_memory_id=NULL +
+      reason='mass-tombstone-guard'. Documenting the silent-abstain failure mode in
+      JSDoc adjacent to the `return []` line would also satisfy Inquebrável Rule 3.
+    confidence_level: HIGH
+
+  - id: F-dom-mem-rerun-5
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 570-574
+    plan_ref: Plan v1.2 § F-C2 closure
+    domain_anchor: ADR-0010 RepoScope v0.6 + v0.6.1 superseded_by chain
+    summary: |
+      The `kind = 'extracted'` filter is sufficient for v0.7 today because:
+        (a) v0.6 skill rows use kind='skill' (filtered out)
+        (b) v0.4a/v0.7 derived rows use kind='derived' (filtered out)
+        (c) extracted rows in v0.7 never set superseded_by (that field is v0.6 skill-chain only)
+      HOWEVER: the previous /review F-C2 finding explicitly mentioned `superseded_by IS NULL`
+      as part of the canonical fix. The shipped fix omits that clause. This is acceptable
+      for v0.7 surface (no kind='extracted' rows have non-NULL superseded_by today) but is a
+      latent risk if future ADRs introduce extracted-row supersession chains (e.g., during
+      v0.7.2 episodic compaction). Defense-in-depth would add `AND superseded_by IS NULL`
+      to the filter as a forward guard.
+      Not a blocker. Worth noting in the v0.7.2 hardening backlog OR amending the JSDoc
+      comment to explain why superseded_by is intentionally omitted.
+    evidence: |
+      pgvector-store.ts:570-574 — three filter clauses: kind, t_invalid, t_valid
+      Original /review F-C2 finding: "does NOT filter `kind != 'skill'` nor `superseded_by IS NULL`"
+      schema.ts:90-94 — `supersededBy` is the v0.6 skill chain; current extracted rows
+      never populate it but the schema permits it.
+    recommended_action: |
+      Either (a) add `AND superseded_by IS NULL` to the where clauses as a forward guard, or
+      (b) annotate the JSDoc explaining why omission is safe for v0.7 surface today + flag
+      for v0.7.2 review. Both are honest; (a) is defense-in-depth, (b) is YAGNI.
+    confidence_level: MEDIUM
+
+  - id: F-dom-mem-rerun-6
+    severity: INFO
+    file: src/local/index.ts
+    line: 373-405
+    plan_ref: Plan v1.2 § F-M9 deferred-with-rationale
+    domain_anchor: ADR D1 sleeptime rejection; EC-8 atomic-tx (inner only)
+    summary: |
+      F-M9 (outer reflect() atomicity gap) remains acknowledged in plan v1.2 deferred list.
+      Confirmed by tracing the wiring: `persistConsolidations` runs at line 403 with full
+      EC-8 inner-tx atomicity (t_invalid UPDATE + insertConsolidationHistory INSERT in a
+      single withTransaction); `executeReflection` LLM call runs at line 408 AFTER the
+      commit. If the LLM throws, the consolidation_history row is durable but no derivation
+      lands — the audit trail records that LWW ran but no kind='derived' row exists.
+      This is a CORRECTNESS hazard for downstream reasoning that joins consolidation_history
+      ↔ memories.derived_from. NOT introduced by the fix-up cycle (pre-existing); the
+      mass-tombstone guard (F-C1) reduces blast radius indirectly (less likely to mass-commit
+      orphan audit rows on a 100-row scope). Acceptable to defer to v0.7.2 or later atomicity
+      cycle. Plan v1.2's "acknowledged" framing is honest.
+    evidence: |
+      index.ts:402-403 — persistConsolidations commits BEFORE executeReflection at line 408
+      index.ts:408 — `const drafts = await executeReflection({...})` — could throw mid-call
+      pgvector-store.ts:605+ — persistConsolidations uses withTransaction (inner atomicity)
+      Plan v1.2 line: "F-M9 outer reflect() flow atomicity (acknowledged)"
+    recommended_action: |
+      Defer. Future cycle should EITHER wrap the entire (recall + consolidate + persist +
+      reflect) in a single transaction (heavy — LLM call inside DB tx is anti-pattern) OR
+      add compensating-action discipline (on LLM failure, mark the consolidation_history
+      row with reason='partial-orphan' or insert a follow-up corrective row). Document the
+      decision in an ADR D3 amendment.
+    confidence_level: HIGH
+
+  - id: F-dom-mem-rerun-7
+    severity: INFO
+    file: tests/integration/distillation/skill-isolation.test.ts
+    line: 1-179
+    plan_ref: Plan v1.2 § F-C2 regression test
+    domain_anchor: testing.md § Integration pyramid; cycle-review.md § Edge-case coverage
+    summary: |
+      The skill-isolation regression test is well-designed: (a) gated correctly via
+      `describe.skipIf(PG_URI === '')` so CI without pgvector skips gracefully; (b) seeds
+      both v0.6 surfaces (kind='skill') AND v0.4a/v0.7 surfaces (kind='derived') to verify
+      both boundary sides; (c) uses the actual `createLocalMemory` + `LastWriteWinsConflictPolicy`
+      composition to exercise the wiring + policy together (no over-mocking — matches
+      testing.md § Pyramid integration tier); (d) BDD-shape Arrange-Act-Assert via Given/When/Then
+      comments; (e) reset hygiene between tests prevents cross-pollination.
+      ONE micro-observation: test 2 (derived rows) seeds `extractedOlderId` and
+      `extractedNewerId` but explicitly `void`s them (lines 173-174) without asserting their
+      t_invalid state. This is intentional (only the derived survival is the assertion target),
+      but a reader expecting the standard "older deleted, newer kept" assertion may be
+      confused. Could be amended to assert both extracted rows ALSO behave correctly under
+      LWW for a complete boundary picture. Cosmetic; doesn't affect correctness.
+    evidence: |
+      skill-isolation.test.ts:44-46 — `describe.skipIf(PG_URI === '')` correct PG_URI gate
+      skill-isolation.test.ts:101-147 — Test 1 asserts skill survival + LWW correctness
+      skill-isolation.test.ts:149-177 — Test 2 asserts derived survival but voids extracted
+    recommended_action: |
+      Cosmetic. Either add 2 lines to test 2 asserting `extractedOlder.t_invalid !== null`
+      and `extractedNewer.t_invalid === null`, OR remove the seeds entirely and pass just
+      a single extracted to keep N >= 2 for LWW to fire. Both are honest. NOT a fix-up blocker.
+    confidence_level: HIGH
+
+  - id: F-dom-mem-rerun-8
+    severity: INFO
+    file: src/local/schema.ts
+    line: 222-251
+    plan_ref: Plan v1.2 § F-C3 closure
+    domain_anchor: ADR D3 audit trail; ADR-0010 RepoScope; ADR-0006 bi-temporal
+    summary: |
+      F-C3 closure (consolidationHistory pgTable export) preserves the canonical drizzle-kit
+      shape used by every other table in src/local/schema.ts: uuid PK with defaultRandom(),
+      FK with onDelete: 'set null' for GDPR survival (EC-3), JSONB array columns with
+      `default sql\`'[]'::jsonb\`` matching the migration default, text NOT NULL on reason
+      and policy_name (correct — these are sentinel discriminators), timestamptz with
+      defaultNow().notNull() on createdAt, plus two btree indexes mirroring the migration.
+      The schema-snapshot-parity.test.ts sentinel asserts bijection both directions; this
+      is the right discipline to prevent recurrence.
+      ADD-only preserved: no `update()` semantics on consolidation_history; the table is
+      pure audit (write once, read forever). derived_from non-empty NOT applicable here
+      (consolidation_history has different shape; it carries rejectedMemoryIds + originalEpisodeIds
+      as JSONB arrays without nullability assertions enforced at SQL level — JSONB array
+      defaults '[]' so the columns are NOT NULL but can carry empty arrays).
+    evidence: |
+      schema.ts:236-251 — consolidationHistory pgTable mirror of 0007_snapshot.json:577-680
+      schema.ts:237 — `keptMemoryId: uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' })`
+      schema.ts:238-239 — rejectedMemoryIds + originalEpisodeIds JSONB with `default sql\`'[]'::jsonb\``
+      schema-snapshot-parity.test.ts:67-80 — bijection assertion (2 tests)
+    confidence_level: HIGH
+
+architectural_honesty_assessment:
+  plan_v1_2_dismissal_of_cosine_clustering:
+    rationale: |
+      Plan v1.2 dismisses T2.1's Mem0 cosine-clustering precedent at the recall layer
+      and pivots to the per-policy decision-layer guard. The dismissal arguments are:
+        (a) backporting cosine clustering rewrites the entire v0.7 wiring contract
+        (b) per-policy guard is the minimal surface that mitigates risk
+        (c) preserves the existing 9/9 task delivery
+
+      Honesty verdict: ACCEPTABLE per Inquebrável Rule 3, with caveats.
+
+      (a) is technically TRUE — cosine clustering at recall would change the SQL shape
+          (currently a flat WHERE, would become a self-join or sub-query with vector
+          distance) and the candidate-bag semantics (currently scope-bag, would become
+          per-cluster bag). Significant blast radius.
+      (b) is TRUE for the egregious case (100-row scope → 99 deleted) but is INCOMPLETE
+          for the semantically-correct case: a consumer with 30 ACTUAL semantic duplicates
+          AT N=30 (ratio 29/30 = 0.967) gets ABSTAINED inappropriately. The 0.95 threshold
+          is an empirical floor that protects against unrelated scopes BUT also misfires
+          on legitimate large-cluster consolidations. Future cosine clustering would solve
+          BOTH; the guard solves only the first.
+      (c) is TRUE for shipping velocity. Acceptable trade-off for fix-up cycle.
+
+      Verdict: the dismissal is HONEST about (a), partially honest about (b), and explicit
+      about the trade-off in (c). The "what this does NOT solve" framing in plan v1.2 §
+      ADR D2 AMENDMENT could be expanded to spell out the "legitimate-large-cluster"
+      false-negative case for downstream consumers. Worth a JSDoc amendment on
+      maxRejectionRatio (currently the JSDoc mentions opt-out but not the false-negative).
+    verdict: HONEST_WITH_INCOMPLETE_FRAMING
+
+  add_only_invariant:
+    verdict: PRESERVED
+    evidence: |
+      No public update() introduced. Soft-delete via t_invalid is canonical per ADR-0006.
+      consolidation_history is pure audit (write-once). LWW pure function — zero I/O,
+      zero state mutation.
+
+  letta_sleeptime_rejection:
+    verdict: PRESERVED
+    evidence: |
+      Zero new files under src/core/reflection/ or any background worker scaffolding.
+      Diff inspection: `git diff 1ab70c2..HEAD --name-only` returns 11 files, none of
+      which is a worker, scheduler, or sleep-time agent. ADR D1 honored.
+
+  derived_from_non_empty:
+    verdict: PRESERVED
+    evidence: |
+      No changes to insertDerivedMemory. JSONB derived_from constraint at the insert
+      path remains intact. T4.3 + ADR D7 provenance fail-fast unbroken.
+
+  three_scope_preservation_under_filter:
+    verdict: PRESERVED
+    evidence: |
+      pgvector-store.ts:575-587 — user_id, session_id, agent_id filter conditions
+      unchanged. New filter clauses (kind, t_invalid, t_valid) are appended via the
+      shared `where` array. Three-tier scope semantics intact.
+
+  ec_1_lex_tie_break_under_guard:
+    verdict: PRESERVED
+    evidence: |
+      Traced: 3 candidates → rejectionRatio 0.667 → not > 0.95 → policy proceeds →
+      lex DESC sort returns 'ccc' as kept, ['bbb', 'aaa'] as rejected. 10-run determinism
+      test unbroken (last-write-wins.test.ts:124-144).
+
+deferred_concerns_acceptable:
+  F-M9_outer_atomicity:
+    severity: known_hazard
+    status: acknowledged_in_plan_v1_2
+    blast_radius_after_fix_up: reduced
+    rationale: |
+      F-C1 guard (mass-tombstone) reduces the volume of audit rows that would be at risk
+      of orphaning on LLM failure. The hazard remains but is now bounded to "legitimate
+      consolidation that fails at LLM-extract step", which is a smaller surface than
+      "egregious mass-tombstone that fails at LLM-extract step".
+
+  silent_abstain_observability:
+    severity: minor_residual
+    status: surfaced_in_F-dom-mem-rerun-4
+    blocks_merge: false
+    rationale: |
+      The mass-tombstone guard's ABSTAIN path is silent (no metric, no audit row). This is
+      a defensible incremental position for fix-up; v0.7.2 hardening should add observability.
+
+merge_recommendation: |
+  READY_TO_MERGE from the memory-layer domain perspective.
+
+  All 3 CRITICAL findings are honestly closed with focused tests. ADD-only, three-scope,
+  derived_from, Letta sleeptime, and EC-1 are all preserved. The mass-tombstone guard is
+  a pragmatic mitigation per Plan v1.2 ADR D2 amendment; the dismissal of cosine clustering
+  is architecturally honest (with one framing residual on legitimate-large-cluster
+  false-negative — surfaced as F-dom-mem-rerun-4 + the assessment block above).
+
+  Two MINOR observations (F-dom-mem-rerun-4 silent abstain observability; F-dom-mem-rerun-5
+  superseded_by latent risk) are surfaced for v0.7.2 hardening backlog. Neither blocks
+  merge.
+
+  Final domain verdict: READY_TO_MERGE.
+
+audit_trail:
+  files_inspected:
+    - src/core/conflict-resolution/last-write-wins.ts
+    - src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+    - src/local/pgvector-store.ts (lines 555-593)
+    - src/local/index.ts (lines 370-410)
+    - src/local/schema.ts (lines 85-100, 222-251)
+    - tests/integration/distillation/skill-isolation.test.ts
+    - tests/integration/schema-snapshot-parity.test.ts
+    - .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md (v1.2 header)
+    - .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md
+    - .claude/knowledge-base/adrs/ADR-0003-add-only-public-api.md
+    - .claude/rules/architecture.md
+  commits_reviewed:
+    - 9d16db4 — fix(v0-7-distill): F-C3 — declare consolidation_history in schema.ts + parity sentinel
+    - ffa92d1 — fix(v0-7-distill): F-C2 + F-M7 — preserve episodic↔semantic boundary via kind filter
+    - 17425af — fix(v0-7-distill): F-C1 — mass-tombstone guard in LastWriteWinsConflictPolicy
+    - 18e970f — docs(v0-7-distill): plan v1.2 + CHANGELOG + roadmap + F-M5/F-Mi2 closures
