@@ -21,9 +21,16 @@
  * below is a lazy singleton holding the *Promise* of the pipeline (Xenova's
  * `pipeline()` is async). Two concurrent first-callers both observe the
  * non-null Promise after the synchronous assignment (race-safe per JS
- * single-thread invariant — see SEPA iter-4 pre-RED M1 + the OpenAIEmbedder
- * precedent at `src/embedders/openai.ts:42-47` which uses the same pattern
- * with a sync constructor).
+ * single-thread invariant — see SEPA iter-4 pre-RED M1).
+ *
+ * **F-M5 review finding — retry on transient failure:** if the first `pipeline()`
+ * call rejects (e.g., HF CDN hiccup at warmup), the rejected Promise was
+ * previously cached forever; every subsequent `embed()` returned the same
+ * rejection until process restart. The lazy getter below now resets
+ * `_pipelinePromise = null` on rejection so the next call retries from
+ * scratch. The OpenAIEmbedder precedent at `src/embedders/openai.ts:42-47`
+ * uses a sync constructor (cannot reject) and is qualitatively different —
+ * the rejected-cache failure mode does not apply there.
  *
  * **EC-A — first-use model download:** the first `embed()` call downloads
  * the ONNX model (~22 MB for `Xenova/all-MiniLM-L6-v2`) from
@@ -56,10 +63,22 @@ const EMBEDDING_DIM = 384;
 // Lazy singleton — instantiated on first call. Stores the Promise so two
 // concurrent first-callers share ONE pipeline instance (sync null check +
 // sync assignment is race-safe per JS single-thread invariant).
+// /review F-M5: on rejection, reset `_pipelinePromise = null` so the next
+// call retries from scratch instead of returning the cached failure forever.
 let _pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (_pipelinePromise === null) {
-    _pipelinePromise = pipeline('feature-extraction', MODEL_ID);
+    const created = pipeline('feature-extraction', MODEL_ID);
+    _pipelinePromise = created;
+    created.catch(() => {
+      // If this assignment loses the race against another caller that already
+      // overwrote `_pipelinePromise` with a fresh (succeeding) attempt, the
+      // reset is a no-op — we only null out the slot if it still holds the
+      // rejected promise instance from THIS call.
+      if (_pipelinePromise === created) {
+        _pipelinePromise = null;
+      }
+    });
   }
   return _pipelinePromise;
 }
