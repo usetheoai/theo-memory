@@ -584,7 +584,7 @@ class LocalMemory implements Memory {
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
     const existing = await this.config.vectorStore.get(memoryId);
     if (existing === null) {
-      throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: divergence from Mem0's silent no-op)`);
+      throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: strict-mode forget throws on missing id)`);
     }
     const hardDelete = options?.hard === true;
     const isPgStore = this.config.vectorStore instanceof PgvectorStoreClass;
@@ -609,7 +609,7 @@ class LocalMemory implements Memory {
           new Date(),
         );
       } catch {
-        // Silent swallow per Mem0 pattern (history failure must not block forget)
+        // Silent swallow — history persistence failure must not block forget
       }
     }
   }
@@ -847,7 +847,7 @@ export { createLocalMemory as createMemory };
  *   2. `consolidation_history.kept_memory_id ON DELETE SET NULL` → v0.7
  *      distillation provenance pointers nullified (audit rows survive but
  *      lose the FK back to the kept memory).
- *   3. `memories.superseded_by` self-FK ON DELETE SET NULL → v0.6 Voyager
+ *   3. `memories.superseded_by` self-FK ON DELETE SET NULL → v0.6 procedural
  *      skill supersession chains broken.
  *
  *   The original plan v1.0 ADR D3 specified `ALTER ... USING NULL` (only the

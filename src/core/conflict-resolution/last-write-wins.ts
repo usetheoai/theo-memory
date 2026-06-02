@@ -45,7 +45,7 @@ export function compareCandidatesDesc(
  *
  * The shipped `recallConsolidationCandidates` returns the ENTIRE active
  * scope as one bag — no cosine clustering at ≥ 0.95 (which plan T2.1's
- * Mem0 entity-link precedent declared). Combined with LWW returning
+ * entity-link clustering precedent declared). Combined with LWW returning
  * `{ kept: 1, rejected: N-1 }`, a single `reflect({ conflictResolution:
  * LWW })` against a 50-memory scope would soft-delete 49 unrelated facts.
  *
