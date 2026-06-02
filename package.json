@@ -33,6 +33,10 @@
       "types": "./src/embedders/openai.ts",
       "default": "./src/embedders/openai.ts"
     },
+    "./embedders/local": {
+      "types": "./src/embedders/local.ts",
+      "default": "./src/embedders/local.ts"
+    },
     "./llms": {
       "types": "./src/llms/index.ts",
       "default": "./src/llms/index.ts"

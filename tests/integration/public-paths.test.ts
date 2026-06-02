@@ -135,3 +135,27 @@ void ctx;
     });
   }
 });
+
+describe('@usetheo/memory/embedders/local — subpath resolution (T1.2 + ADR D7)', () => {
+  test('resolves and exports LocalTransformerEmbedder via @usetheo/memory/embedders/local', async () => {
+    // Given: package.json declares ./embedders/local subpath per ADR D7,
+    // mirroring the existing ./embedders/openai and ./embedders/stub
+    // precedents from Cycle 2 / Cycle 1.
+    // When: a consumer imports from the explicit subpath
+    const mod = await import('@usetheo/memory/embedders/local');
+
+    // Then: LocalTransformerEmbedder is available as a value export.
+    expect(typeof mod.LocalTransformerEmbedder).toBe('function');
+    const instance = new mod.LocalTransformerEmbedder();
+    expect(typeof instance.embed).toBe('function');
+    expect(typeof instance.embedBatch).toBe('function');
+  });
+
+  test('default barrel does NOT auto-export LocalTransformerEmbedder (subpath-only per ADR D7)', async () => {
+    // Per ADR D7, root barrel does NOT re-export the local embedder —
+    // consumers must use the explicit subpath. This mirrors how OpenAIEmbedder
+    // and DeterministicStubEmbedder are also subpath-only.
+    const mod = await import('@usetheo/memory');
+    expect(Object.keys(mod)).not.toContain('LocalTransformerEmbedder');
+  });
+});
