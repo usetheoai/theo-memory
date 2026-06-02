@@ -978,7 +978,12 @@ export async function runMigrations(
       // (the demo's existing dev DB was push-flow + dim change silently
       // skipped). When the operator explicitly passes embeddingDim, intent
       // is clear: apply the dim change regardless of journal state.
-      if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+      // /review F-M4: do NOT short-circuit on `embeddingDim === MAX_EMBEDDING_DIM`.
+      // The asymmetric guard blocked the legitimate 384 → 1536 revert (operator
+      // switches local-openrouter → openai). The inner atttypmod probe in
+      // applyDimChange already handles idempotency cleanly when the schema
+      // already matches the requested dim.
+      if (options?.embeddingDim !== undefined) {
         await applyDimChange(pool, options.embeddingDim);
       }
       return;
@@ -994,7 +999,9 @@ export async function runMigrations(
 
   // T0.3: post-migration parametric dim change for journal-tracked DBs.
   // Idempotency short-circuit in applyDimChange covers re-runs.
-  if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+  // /review F-M4: same symmetry — always invoke when caller passes embeddingDim;
+  // the inner atttypmod probe is the single source of truth for no-op detection.
+  if (options?.embeddingDim !== undefined) {
     await applyDimChange(pool, options.embeddingDim);
   }
 }
