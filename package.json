@@ -85,6 +85,7 @@
     "eval:distillation": "tsx docs/distillation-evaluation/run.ts"
   },
   "dependencies": {
+    "@dqbd/tiktoken": "^1.0.22",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.0",
