@@ -1,0 +1,564 @@
+agent: review-adapters-openrouter-local-embedder-architecture-rerun
+review_target: 4b5b0e7^..HEAD (8 fix-up commits closing 28 findings from /review 2026-06-02)
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md (v1.2)
+review_scope: |
+  Verification of the architectural quality of the 8 fix-up commits
+  (4b5b0e7..544f88e) plus a scan for any NEW architectural defects
+  introduced by the fix-up delta. Cycle-implement anti-pattern #3 angle
+  (plan edited mid-implement vs halt + loop back) was also checked.
+
+findings:
+  # -----------------------------------------------------------------
+  # CRITICAL closures
+  # -----------------------------------------------------------------
+  - id: F-arch-R1
+    severity: INFO
+    file: src/local/index.ts
+    line: 838-925
+    plan_ref: F-C1 / plan v1.2 ADR D3 + EC-B amendment
+    summary: |
+      F-C1 closed by commits 4b5b0e7 (plan v1.2 + README + CHANGELOG)
+      + d474a1a (runtime cascade enumeration in console.error). JSDoc
+      at src/local/index.ts:838-871 enumerates the full FK cascade
+      (history ON DELETE CASCADE, consolidation_history.kept_memory_id
+      ON DELETE SET NULL, memories.superseded_by ON DELETE SET NULL).
+      Runtime warning at lines 915-925 names all three arms verbatim
+      + cites plan v1.2 ADR D3 + F-C1. README at examples/chat-with-memory/README.md
+      lines 137-160 enumerates the cascade collateral.
+    evidence: |
+      ```ts
+      // src/local/index.ts:917-921
+      `[themory] runMigrations: dim change ${...} → ${...} — DESTRUCTIVE cascade: ` +
+        'DELETE FROM memories (FK→history.memory_id ON DELETE CASCADE wipes audit trail; ' +
+        'consolidation_history.kept_memory_id ON DELETE SET NULL nullifies v0.7 distillation provenance; ' +
+        'memories.superseded_by ON DELETE SET NULL breaks v0.6 supersession chains) + ' +
+        'DELETE FROM entities + DROP/RECREATE HNSW indexes (T0.3 / EC-3 + EC-4; plan v1.2 ADR D3; /review F-C1). '
+      ```
+    recommended_action: none — closure verified
+
+  # -----------------------------------------------------------------
+  # MAJOR closures (architecture-related)
+  # -----------------------------------------------------------------
+  - id: F-arch-R2
+    severity: INFO
+    file: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+    line: 3
+    plan_ref: F-M2 (architecture angle — ADR D3 stale)
+    summary: |
+      F-M2 architecturally closed but with a documentation seam — the
+      v1.2 amendment narrative (line 3 of the plan, ~600-word single
+      paragraph) documents the DELETE-before-ALTER substitution + the
+      cascade collateral. HOWEVER, the BODY of ADR D3 (lines 115-135)
+      still literally reads `ALTER ... USING NULL` and `truncates
+      existing embeddings`. A reader landing directly at the ADR
+      section does NOT see the amendment unless they read the version
+      header first. See F-arch-R3 below for the residual MINOR.
+    evidence: |
+      ```md
+      # Plan header (line 3): the amendment narrative present.
+      # ADR D3 body (line 120-124): pre-amendment recipe still literal:
+      ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+      ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+      ...
+      The `USING NULL` clause drops all existing data in those columns
+      ```
+    recommended_action: none — closure verified at the binding contract
+      surface (CHANGELOG + README + JSDoc + runtime log all aligned);
+      ADR-body residual flagged separately as F-arch-R3
+
+  - id: F-arch-R3
+    severity: MINOR
+    file: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+    line: 115-135
+    plan_ref: F-M2 follow-up (post-amendment ADR body hygiene)
+    summary: |
+      Plan v1.2 amendment narrative is ONLY in the header (line 3,
+      ~600-word paragraph). The ADR D3 body (lines 115-135) STILL
+      literally documents `USING NULL` and `truncates existing
+      embeddings` without an inline pointer to the amendment. A
+      reader reaching § ADRs by anchor/grep will see the stale recipe
+      first. CHANGELOG + README + runtime log all carry the corrected
+      cascade enumeration, so the seam is plan-doc-only.
+    evidence: |
+      ```md
+      # Plan lines 120-124 still say:
+      ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+      ...
+      The `USING NULL` clause drops all existing data in those columns
+      (pgvector does not support data-preserving dim change). The
+      helper logs `[runMigrations] WARN: dim change ${old} → ${new}
+      truncates existing embeddings` to stderr.
+      ```
+    recommended_action: add a `> **AMENDMENT (2026-06-02 v1.2):** see
+      plan header narrative — the shipped impl uses DELETE+ALTER, NOT
+      USING NULL, for the reasons enumerated in the version note above`
+      block immediately after the `### D3` heading. One-line marker; no
+      structural change. Defer-acceptable as MINOR (CHANGELOG +
+      README + JSDoc + runtime log are the load-bearing surfaces, all
+      aligned).
+
+  - id: F-arch-R4
+    severity: INFO
+    file: src/local/schema.ts
+    line: 19-44
+    plan_ref: F-M3 (parametric-dim drift constraint)
+    summary: |
+      F-M3 partially closed via document-only mitigation: schema.ts
+      lines 19-44 add an explicit `parametric-dim drift constraint
+      (LOCKED, document-only mitigation)` block warning that
+      `drizzle-kit push` MUST NOT be run against a parametric DB.
+      runMigrations console.error (src/local/index.ts:922-924) also
+      cites F-M3 at runtime. Acceptable closure per plan v1.2 narrative
+      ("full fix deferred to follow-up `/to-plan parametric-drizzle-schema`
+      cycle since the proper fix touches the SDK build pipeline").
+    evidence: |
+      ```ts
+      // src/local/schema.ts:27-31
+      // Consequence: **NEVER run `drizzle-kit push` against a database whose
+      //   live embedding dim diverges from this file.** drizzle-kit introspects
+      //   the live DB and computes a destructive ALTER back to 1536, silently
+      //   reverting the parametric change (and dropping all 384-dim rows in the
+      //   process).
+      ```
+    recommended_action: none — document-only mitigation accepted per plan v1.2;
+      follow-up cycle declared in CHANGELOG
+
+  - id: F-arch-R5
+    severity: INFO
+    file: src/local/index.ts
+    line: 1012-1019, 1033-1037
+    plan_ref: F-M4 (asymmetric guard for 384→1536 revert)
+    summary: |
+      F-M4 closed by commit de079ef. Both call sites
+      (lines 1017-1019 push-flow branch, lines 1035-1037 main branch)
+      now uniformly invoke `applyDimChange(pool, options.embeddingDim)`
+      whenever `options?.embeddingDim !== undefined` — the asymmetric
+      `embeddingDim !== MAX_EMBEDDING_DIM` short-circuit was removed.
+      The inner atttypmod probe (line 906) is the single source of
+      truth for no-op detection. The legitimate 384→1536 revert path
+      now works symmetrically.
+    evidence: |
+      ```ts
+      // src/local/index.ts:1017-1019 (push-flow branch)
+      if (options?.embeddingDim !== undefined) {
+        await applyDimChange(pool, options.embeddingDim);
+      }
+      // src/local/index.ts:1035-1037 (main branch)
+      if (options?.embeddingDim !== undefined) {
+        await applyDimChange(pool, options.embeddingDim);
+      }
+      ```
+    recommended_action: none — closure verified
+
+  - id: F-arch-R6
+    severity: INFO
+    file: src/embedders/local.ts
+    line: 67-84
+    plan_ref: F-M5 (rejected promise singleton retry)
+    summary: |
+      F-M5 closed by commit de079ef. Lazy pipeline singleton now
+      registers a `.catch()` handler that nulls `_pipelinePromise`
+      ONLY when the slot still holds the rejected promise instance
+      (race-safe via reference equality check at line 78). The next
+      `embed()` call therefore retries from scratch instead of
+      returning the cached failure. Implementation is idiomatic and
+      mirrors community patterns for retryable lazy singletons.
+    evidence: |
+      ```ts
+      // src/embedders/local.ts:69-84
+      function getPipeline(): Promise<FeatureExtractionPipeline> {
+        if (_pipelinePromise === null) {
+          const created = pipeline('feature-extraction', MODEL_ID);
+          _pipelinePromise = created;
+          created.catch(() => {
+            if (_pipelinePromise === created) {
+              _pipelinePromise = null;
+            }
+          });
+        }
+        return _pipelinePromise;
+      }
+      ```
+    recommended_action: none — closure verified
+
+  - id: F-arch-R7
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 190-196, 209-211, 293, 391, 471
+    plan_ref: F-M11 (PgvectorStore tracer → options-object BREAKING)
+    summary: |
+      F-M11 closed by commit 4b5b0e7. CHANGELOG line 11 carries the
+      `**BREAKING (theoretical) — PgvectorStore constructor 2nd arg
+      widened ...**` entry with migration note. Per Inquebrável Rule 6
+      (changelog discipline) the BREAKING prefix is present. Empirical
+      sweep evidence cited (zero positional-tracer callers in-tree).
+    evidence: |
+      ```md
+      CHANGELOG.md:11
+      - **BREAKING (theoretical) — PgvectorStore constructor 2nd arg
+        widened from positional `tracer?: Tracer` to options object
+        `{ embeddingDim?, tracer? }`** ... Migration for external
+        consumers: change `new PgvectorStore(pool, myTracer)` to
+        `new PgvectorStore(pool, { tracer: myTracer })`.
+      ```
+    recommended_action: none — closure verified
+
+  - id: F-arch-R8
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 190-196, 209-211, 391, 471
+    plan_ref: F-M15 (dim guard symmetry on write-path methods)
+    summary: |
+      F-M15 closed by commit 3c7ada0. New private helper
+      `assertEmbeddingDim` (lines 190-196) lifted from the search-only
+      guard. All four write-path methods now route through it: insert
+      (lines 209-211), update (line 391), insertDerivedMemory (line 471),
+      plus the unchanged search guard (line 293). Throws typed
+      `EmbeddingMismatch` (not bare `Error`) for symmetry with the
+      createLocalMemory boot probe.
+    evidence: |
+      ```ts
+      // src/local/pgvector-store.ts:190-196
+      private assertEmbeddingDim(vector: readonly number[], methodLabel: string): void {
+        if (vector.length !== this.embeddingDim) {
+          throw new EmbeddingMismatch(this.embeddingDim, vector.length, {
+            cause: new Error(`PgvectorStore.${methodLabel}`),
+          });
+        }
+      }
+      ```
+    recommended_action: none — closure verified; canonical DRY refactor
+      lifting the duplicated guard into a single private helper
+
+  # -----------------------------------------------------------------
+  # MINOR closures
+  # -----------------------------------------------------------------
+  - id: F-arch-R9
+    severity: INFO
+    file: src/embedders/local.ts
+    line: 86-100
+    plan_ref: F-Mi1 (LocalTransformerEmbedder constructor JSDoc)
+    summary: |
+      F-Mi1 closed by commit 544f88e. New JSDoc block at lines 86-100
+      explains intentional 0-arity constructor: model_id + dim are
+      module-level constants because swapping the model would require
+      coordinated schema + store changes (not legal here). Cites
+      Inquebrável Rule 11 (YAGNI).
+    evidence: |
+      ```ts
+      // src/embedders/local.ts:86-100
+      /**
+       * /review F-Mi1 — 0-arity constructor is intentional.
+       * ...
+       * Per Inquebrável Rule 11 (YAGNI): no parameter exposed for a
+       * knob that has no concrete consumer demand yet.
+       */
+      ```
+    recommended_action: none — closure verified
+
+  - id: F-arch-R10
+    severity: INFO
+    file: src/embedders/local.ts
+    line: 117-129
+    plan_ref: F-Mi2 (deep-readonly intent enforcement)
+    summary: |
+      F-Mi2 closed by commit 544f88e. embedBatch now uses
+      `Object.freeze(Array.from(...))` per inner row instead of a
+      TS-only cast. The deep-readonly intent of the DIP signature
+      `readonly (readonly number[])[]` is now enforced at runtime,
+      not just in the type system.
+    evidence: |
+      ```ts
+      // src/embedders/local.ts:121-128
+      const rows: readonly (readonly number[])[] = Array.from(
+        { length: texts.length },
+        (_, i): readonly number[] => {
+          const start = i * EMBEDDING_DIM;
+          const end = start + EMBEDDING_DIM;
+          return Object.freeze(Array.from(flat.slice(start, end)));
+        },
+      );
+      ```
+    recommended_action: none — closure verified
+
+  - id: F-arch-R11
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 106-130
+    plan_ref: F-Mi3 (resolveBackendMode export discipline)
+    summary: |
+      F-Mi3 closed by commit 544f88e — addressed via documentation.
+      The export is justified at lines 121-126 with the explicit "NOT
+      part of the demo's public API; consumers should call
+      `getMemory()` / `getSingleton()` instead" disclaimer. Original
+      finding was MINOR-cosmetic; this closure is proportionate.
+      Sibling helper `warnIfLocalOpenrouterMissingBaseUrl` does carry
+      `@internal` tag (line 144) — slight inconsistency but not
+      load-bearing for the contract.
+    evidence: |
+      ```ts
+      // examples/chat-with-memory/lib/memory.ts:121-126
+      /* /review F-Mi3 — module-boundary discipline: this helper is exported
+       * SOLELY so the env-var precedence ladder + EC-11 loud-fail can be
+       * tested without bootstrapping the full singleton ... It is
+       * NOT part of the demo's public API; consumers should call
+       * `getMemory()` / `getSingleton()` instead. */
+      ```
+    recommended_action: none — closure verified for the cosmetic original
+      severity. Optional polish: add `@internal` tag for symmetry with the
+      sibling `warnIfLocalOpenrouterMissingBaseUrl`.
+
+  - id: F-arch-R12
+    severity: INFO
+    file: src/core/errors.ts
+    line: 38-59
+    plan_ref: F-Mi4 (typed InvalidEmbeddingDim error class)
+    summary: |
+      F-Mi4 closed by commit 544f88e — new dedicated `InvalidEmbeddingDim`
+      class shipped in `src/core/errors.ts`. validateEmbeddingDim
+      (src/local/index.ts:703-714) now throws `InvalidEmbeddingDim`
+      instead of conflating with `InvalidScope`. Constructor takes
+      `received: unknown` (correct — operator's raw input may be any
+      JS value) + `maxDim: number`. Includes the literal value via
+      `String(received)` for operator diagnosability. ESM/CJS
+      `instanceof`-safe via `Object.setPrototypeOf` (EC-2 invariant
+      preserved). See F-arch-R13 for the residual export gap.
+    evidence: |
+      ```ts
+      // src/core/errors.ts:48-59
+      export class InvalidEmbeddingDim extends Error {
+        override readonly name = 'InvalidEmbeddingDim' as const;
+        constructor(received: unknown, maxDim: number, options?: ErrorOptions) {
+          super(
+            `embeddingDim must be a positive integer ≤ ${String(maxDim)}; got ${String(received)}`,
+            options,
+          );
+          Object.setPrototypeOf(this, InvalidEmbeddingDim.prototype);
+        }
+      }
+      ```
+    recommended_action: none — class itself correctly implemented; export
+      gap surfaced separately as F-arch-R13
+
+  # -----------------------------------------------------------------
+  # NEW defects introduced by the fix-up delta
+  # -----------------------------------------------------------------
+  - id: F-arch-R13
+    severity: MAJOR
+    file: src/core/index.ts
+    line: 60-69
+    plan_ref: F-Mi4 follow-up — NEW defect introduced by fix-up
+    summary: |
+      `InvalidEmbeddingDim` is added to `src/core/errors.ts` but is
+      NOT re-exported from the public barrel `src/core/index.ts:60-69`
+      (errors block). Consumers depending on `@usetheo/memory` cannot
+      `import { InvalidEmbeddingDim }` from the package root and
+      cannot `instanceof InvalidEmbeddingDim` against the public API.
+      The class is only accessible by reaching into the internal
+      `src/core/errors.js` path which is NOT in package.json#exports.
+      This is a PUBLIC API HYGIENE defect per architecture.md § 9:
+      "Adding a new public export requires updating: `src/index.ts`,
+      `package.json#exports`, the README's 'Planned API contract'
+      section, and a unit test that imports through the public path."
+      Internal tests at src/local/__tests__/factory.test.ts:15 import
+      from `../../core/errors.js` (relative path — bypasses the
+      barrel), so the gap was not caught by the existing test suite.
+    evidence: |
+      ```ts
+      // src/core/index.ts:60-69 — InvalidEmbeddingDim MISSING from the errors export block
+      // Domain errors (real classes — not types)
+      export {
+        BiTemporalNotSupportedLocally,
+        EmbeddingMismatch,
+        InvalidScope,
+        InvalidSkillError,
+        MemoryNotFound,
+        MissingScopeError,
+        ReflectionNotConfigured,
+      } from './errors.js';
+      ```
+      ```bash
+      # grep confirms: zero re-exports of InvalidEmbeddingDim outside core/errors.ts
+      $ grep -rn 'InvalidEmbeddingDim' src/index.ts src/core/index.ts
+      (no output)
+      ```
+    recommended_action: |
+      Add `InvalidEmbeddingDim` to the alphabetical export block at
+      src/core/index.ts:62-69. Optionally add a public-path round-trip
+      test at tests/integration/public-paths.test.ts asserting `import
+      { InvalidEmbeddingDim } from '@usetheo/memory'` resolves. One-line
+      change; closes the public-surface gap before merge.
+
+  - id: F-arch-R14
+    severity: MINOR
+    file: src/local/index.ts
+    line: 1038 (file total)
+    plan_ref: F-M14 (pre-existing budget breach acknowledged in plan v1.2)
+    summary: |
+      `src/local/index.ts` grew from 969 → 1038 lines (+69 over the
+      review delta — F-Mi8 extversion probe, F-M3 schema-drift
+      warning extension, F-M4 + F-M13 reorganization, F-C1 cascade
+      enumeration in JSDoc + runtime warn). Pre-existing budget breach
+      acknowledged in plan v1.2 (and original /review F-M14). Per the
+      acknowledged "opportunistic refactor in a separate cycle"
+      treatment, the file's accumulation is NOT a fix-up regression
+      — it is a documented carry. Closure: NOT a blocker; the
+      `applyDimChange` + `runMigrations` extraction proposal still
+      stands.
+    evidence: |
+      ```bash
+      $ wc -l src/local/index.ts
+      1038 src/local/index.ts
+      # Per architecture.md § Module hygiene: 500-line per-file budget.
+      ```
+    recommended_action: defer to a separate `/to-plan` cycle as
+      already declared in plan v1.2. Document this in PR description
+      as "F-M14 carried forward; +69 LoC delta is necessary cascade
+      honesty + F-Mi8 defensive probe + F-arch-R14 etc.".
+
+  - id: F-arch-R15
+    severity: INFO
+    file: src/local/index.ts
+    line: 882-894
+    plan_ref: F-Mi8 (defensive pgvector extversion probe)
+    summary: |
+      F-Mi8 closed via NEW defensive probe at lines 882-894 that
+      reads `extversion` from `pg_extension` and emits a console.warn
+      if it does NOT start with `0.5.`. Honors the empirically-corrected
+      atttypmod identity decoder assumption — a future pgvector release
+      that adopts a different encoding would surface a canary instead
+      of silently producing a wrong dim. Correctly warn-only (not
+      throw) to keep the demo bootable. No new defect.
+    evidence: |
+      ```ts
+      // src/local/index.ts:882-894
+      const ext = await pool.query<{ extversion: string | null }>(
+        `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
+      );
+      const installedVersion = ext.rows[0]?.extversion ?? null;
+      if (installedVersion !== null && !installedVersion.startsWith('0.5.')) {
+        console.warn(`[themory] runMigrations: pgvector extversion=${installedVersion} ...`);
+      }
+      ```
+    recommended_action: none — sound defensive code
+
+  - id: F-arch-R16
+    severity: INFO
+    file: src/local/index.ts
+    line: 948-949
+    plan_ref: F-Mi9 (CREATE INDEX quoted identifier hygiene)
+    summary: |
+      F-Mi9 closed by commit 544f88e. The CREATE INDEX lines now use
+      quoted identifiers (`"memories_embedding_hnsw_idx"`, `"memories"`,
+      `"embedding"`) matching the migration's quoted style at
+      `src/local/migrations/0000_crazy_mimic.sql:44,51`. Eliminates the
+      latent case-sensitivity drift risk.
+    evidence: |
+      ```ts
+      // src/local/index.ts:948-949
+      await client.query('CREATE INDEX "memories_embedding_hnsw_idx" ON "memories" USING hnsw ("embedding" vector_cosine_ops)');
+      await client.query('CREATE INDEX "entities_embedding_hnsw_idx" ON "entities" USING hnsw ("embedding" vector_cosine_ops)');
+      ```
+    recommended_action: none — closure verified
+
+  - id: F-arch-R17
+    severity: INFO
+    file: src/local/index.ts
+    line: 1000-1005
+    plan_ref: F-M13 (honest orphan-schema warning)
+    summary: |
+      F-M13 closed by commit f75e980 (per CHANGELOG narrative — the
+      actual warning string was already touched at this commit's batch).
+      The text now reads `"Likely 'drizzle-kit push' was used —
+      skipping migrate(); applying explicit dim change only when
+      options.embeddingDim is set."` — honest about the partial
+      execution path; no longer claims to skip runMigrations() wholesale.
+    evidence: |
+      ```ts
+      // src/local/index.ts:1000-1005
+      console.warn(
+        '[themory] schema present but `drizzle.__drizzle_migrations` journal missing. ' +
+          'Likely `drizzle-kit push` was used — skipping migrate(); ' +
+          'applying explicit dim change only when options.embeddingDim is set. ' +
+          'For production reproducibility, prefer `runMigrations()` on a fresh DB (F-T7.1-2).',
+      );
+      ```
+    recommended_action: none — closure verified
+
+  # -----------------------------------------------------------------
+  # Cross-cutting architectural quality sweep
+  # -----------------------------------------------------------------
+  - id: F-arch-R18
+    severity: INFO
+    file: src/embedders/local.ts, src/local/pgvector-store.ts, src/local/index.ts, src/core/errors.ts
+    line: n/a
+    plan_ref: cross-cutting hygiene
+    summary: |
+      Cross-cutting sweep against architecture.md § 6 (naming),
+      § 7 (module hygiene), § 3 (DIP):
+        - Files: all kebab-case ✓
+        - Classes: PascalCase (`LocalTransformerEmbedder`,
+          `PgvectorStore`, `InvalidEmbeddingDim`) ✓
+        - No `any` types introduced ✓
+        - No `console.log` (only the existing `console.error`/`warn`
+          callsites for structured operator output) ✓
+        - ES modules only ✓
+        - DIP boundary clean: `src/core/errors.ts` (consumer surface)
+          owns the new typed error; `src/local/index.ts` imports from
+          `../core/errors.js` — correct direction ✓
+        - DRY: assertEmbeddingDim helper lifted to private method
+          (single source of truth across insert/update/search/derived) ✓
+        - SOLID-SRP: validateEmbeddingDim + assertEmbeddingDim
+          encapsulate one concern each (config-shape vs runtime-vector
+          shape) — clean split per F-Mi4 closure
+    evidence: |
+      File sizes (src/embedders/local.ts=131; src/core/errors.ts=340;
+      pgvector-store.ts=686 — pre-existing budget breach,
+      acknowledged in plan v1.2 + carried; src/local/index.ts=1038
+      — same).
+    recommended_action: none — architectural quality of the fix-up
+      delta is sound
+
+# -----------------------------------------------------------------
+# Verdict line
+# -----------------------------------------------------------------
+verdict: |
+  Original findings touching architecture: closed.
+    - F-C1 (CRITICAL):        CLOSED — cascade enumeration in JSDoc + runtime warn + README + plan v1.2 + CHANGELOG (F-arch-R1)
+    - F-M2 (architecture):    CLOSED — plan v1.2 amendment narrative present (F-arch-R2); residual MINOR ADR-body marker tracked as F-arch-R3
+    - F-M3 (schema drift):    CLOSED via document-only mitigation (F-arch-R4)
+    - F-M4 (asymmetric guard): CLOSED — symmetric application at both call sites (F-arch-R5)
+    - F-M5 (rejected promise): CLOSED — race-safe singleton reset (F-arch-R6)
+    - F-M11 (BREAKING note):  CLOSED — CHANGELOG `**BREAKING (theoretical)**` prefix + migration note (F-arch-R7)
+    - F-M15 (dim-guard symmetry): CLOSED — assertEmbeddingDim DRY helper (F-arch-R8)
+    - F-Mi1 (constructor JSDoc): CLOSED (F-arch-R9)
+    - F-Mi2 (deep-readonly):  CLOSED — Object.freeze runtime enforcement (F-arch-R10)
+    - F-Mi3 (export discipline): CLOSED via documentation (F-arch-R11)
+    - F-Mi4 (InvalidEmbeddingDim class): CLOSED at the class level (F-arch-R12), BUT public-barrel export gap NEW DEFECT (F-arch-R13)
+    - F-Mi6 (typed EmbeddingMismatch on search): CLOSED — included in F-arch-R8 helper (F-arch-R8)
+    - F-Mi8 (extversion probe): CLOSED — defensive warn-only probe added (F-arch-R15)
+    - F-Mi9 (quoted CREATE INDEX): CLOSED (F-arch-R16)
+    - F-M13 (orphan-schema warning text): CLOSED (F-arch-R17)
+    - F-M14 (file size budget): CARRIED per plan v1.2 — +69 LoC fix-up delta is documented (F-arch-R14)
+
+  New defects introduced by the fix-up delta:
+    - F-arch-R13 (MAJOR): `InvalidEmbeddingDim` shipped at `src/core/errors.ts:48`
+      but NOT exported from the public barrel `src/core/index.ts:60-69`.
+      Public-API consumers cannot import the new error class. One-line
+      fix; closes the architecture.md § 9 "new public export"
+      contract before merge.
+    - F-arch-R3 (MINOR): plan ADR D3 BODY still literally reads `USING NULL`;
+      v1.2 amendment narrative lives in the version-header paragraph
+      only. Add a single inline pointer block under `### D3` heading.
+
+  Architectural quality of the fix-up commits OTHERWISE is sound:
+    - DRY helper extraction (assertEmbeddingDim) is a canonical SOLID-SRP win
+    - F-M5 rejected-promise singleton retry is race-safe per reference-equality check
+    - F-Mi8 extversion probe is correctly warn-only (defensive without poisoning the demo boot)
+    - SRP between validateEmbeddingDim (config-shape) and assertEmbeddingDim (runtime-vector-shape) is clean
+    - No new `any` types, no console.log, naming conventions honored.
+
+  Recommendation:
+    - Close F-arch-R13 (1-line export addition) BEFORE merge — public-API
+      contract gap is the only architecture-side blocker on this fix-up cycle.
+    - F-arch-R3 is MINOR; can ship with a follow-up doc commit.

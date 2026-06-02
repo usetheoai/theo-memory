@@ -1,0 +1,326 @@
+agent: review-adapters-openrouter-local-embedder-wiring
+review_target: 4b5b0e7^..HEAD (8 fix-up commits + pre-existing baseline) for plan adapters-openrouter-local-embedder
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+prior_review: .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md
+rerun_scope: |
+  Re-validate wiring triad on 7 symbols touched by the 8 fix-up commits closing the original
+  /review's F-wire-1 (rejected pipeline cache), F-wire-2 (DELETE never exercised), F-wire-3
+  (push-flow not RED-tested) — plus F-M4/F-M5/F-M6/F-M7/F-M8/F-M12/F-M15/F-Mi4/F-Mi6/F-Mi8/F-Mi9
+  surfaces that share the same wiring concern (caller + integration test + observable signal).
+
+triad_revalidation:
+  total_symbols_revalidated: 7
+  pillar_a_honest_pass: 7 / 7  # all symbols have a real production caller (not dead/no-op)
+  pillar_b_honest_pass: 7 / 7  # all symbols are exercised in an integration or unit test path
+  pillar_c_observed: 6 / 7     # cascade-enumeration log is emitted but not asserted (soft gap)
+
+per_symbol_audit:
+
+  - symbol: applyDimChange
+    file: src/local/index.ts:873-965
+    classification: private async helper (file-scope, NOT exported)
+    pillar_a_static_caller:
+      status: PASS
+      evidence: |
+        Two production callers in src/local/index.ts:
+          - line 1018 (push-flow branch / orphan-schema): `await applyDimChange(pool, options.embeddingDim)`
+          - line 1036 (journal-tracked branch): `await applyDimChange(pool, options.embeddingDim)`
+        Both are real awaited calls inside `runMigrations`, not dead branches. Both
+        guarded only by `options?.embeddingDim !== undefined` — the asymmetric
+        `MAX_EMBEDDING_DIM` short-circuit from the pre-fix baseline is gone (verified
+        via grep: no remaining `embeddingDim !== MAX_EMBEDDING_DIM` in src/local/index.ts).
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        Exercised transitively via runMigrations in tests/integration/migrations/dim-change.test.ts
+        across 8 test cases:
+          - backward compat (1536)
+          - parametric ALTER to 384
+          - EC-4 HNSW recreation
+          - idempotency (atttypmod no-op)
+          - no-op with explicit 1536
+          - EC-3 atomic rollback (F-M1 closure)
+          - destructive cascade (F-M6 closure — seeds memories + history +
+            consolidation_history; asserts DELETE + CASCADE + SET NULL fire)
+          - push-flow orphan-schema branch (F-M7 closure)
+    pillar_c_runtime_metric:
+      status: PARTIAL_PASS (soft gap)
+      evidence: |
+        applyDimChange emits 5 structured `console.error/warn` lines instrumented per
+        F-Mi8 (extversion canary), F-C1 (cascade enumeration), F-M3 (schema.ts drift
+        warning), and F-Mi9 (quoted DDL):
+          - line 888: `runMigrations: pgvector extversion=<v>` (canary)
+          - line 909: `runMigrations: embeddingDim=<N> matches existing schema; no-op.`
+          - line 916: `runMigrations: dim change <currentDim> → <targetDim> — DESTRUCTIVE
+                       cascade: DELETE FROM memories (FK→history.memory_id ON DELETE
+                       CASCADE wipes audit trail; consolidation_history.kept_memory_id
+                       ON DELETE SET NULL nullifies v0.7 distillation provenance;
+                       memories.superseded_by ON DELETE SET NULL breaks v0.6 supersession
+                       chains) + DELETE FROM entities + DROP/RECREATE HNSW indexes ...`
+          - line 952: `dim change complete; column types vector(<N>); HNSW indexes recreated.`
+          - line 958: `dim change rolled back; schema preserved at vector(<currentDim>)`
+        Observable in any integration run via Vitest stdout/stderr capture. NO test
+        asserts on the log string itself (no spyOn(console, 'error') against the
+        cascade enumeration). This is a SOFT GAP — the BEHAVIOR (cascade) IS verified
+        in F-M6 cascade test; the LOG TEXT is verified only by code review. Not blocking
+        merge per cycle-implement.md wiring triad — pillar (c) accepts any of metric
+        / log / observable, and the cascade behavior IS observed via DB rowcount
+        assertions in F-M6.
+
+  - symbol: runMigrations
+    file: src/local/index.ts:967-1038
+    classification: public exported function (re-exported via src/index.ts:14)
+    pillar_a_static_caller:
+      status: PASS
+      evidence: |
+        Production callers:
+          - examples/chat-with-memory/lib/memory.ts:197 — `await runMigrations(pgPool, { embeddingDim })`
+            (real call inside buildStore; reached from getSingleton → resolveAdapters → buildStore)
+          - src/agent-tools/cli.ts:41 — `await runMigrations(pool)` (real call)
+        The asymmetry-removal fix replaces the pre-baseline
+        `embeddingDim !== MAX_EMBEDDING_DIM` guards on BOTH code paths (push-flow + journal-tracked)
+        with the symmetric `options?.embeddingDim !== undefined` check. Both branches
+        invoke applyDimChange identically when the operator supplies a dim.
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        - tests/integration/migrations/dim-change.test.ts: 8 cases against live ankane/pgvector:v0.5.1
+        - tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts:103 (pre-existing usage)
+        - tests/integration/examples/chat-with-memory-local-openrouter.test.ts T4.1 live integration
+          (covers the demo path that calls runMigrations with embeddingDim: 384)
+    pillar_c_runtime_metric:
+      status: PASS
+      evidence: |
+        runMigrations emits:
+          - line 1000: `console.warn` ("schema present but ... journal missing — skipping migrate();
+            applying explicit dim change only ...") observable when push-flow state hit
+        Plus all applyDimChange logs (above) propagate from runMigrations callers.
+
+  - symbol: LocalTransformerEmbedder.getPipeline (lazy singleton reset)
+    file: src/embedders/local.ts:68-84
+    classification: file-scope helper (NOT exported), closure-captured by LocalTransformerEmbedder.embed/embedBatch
+    pillar_a_static_caller:
+      status: PASS
+      evidence: |
+        Two real callers inside same file:
+          - line 103 (LocalTransformerEmbedder.embed): `const pipe = await getPipeline()`
+          - line 112 (LocalTransformerEmbedder.embedBatch): `const pipe = await getPipeline()`
+        Both inside class methods that are reached from the production
+        examples/chat-with-memory/lib/memory.ts:298: `embedder: new LocalTransformerEmbedder()`.
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        - src/embedders/__tests__/local.test.ts:130-168 — explicit F-M5/EC-7 retry contract
+          test: mocks @xenova/transformers to reject on call #1 and succeed on call #2;
+          asserts (a) first embed rejects, (b) second embed resolves to 384-dim vector,
+          (c) callCount === 2 (proves the singleton was RESET after rejection).
+        - The catch handler at line 73-81 includes the lost-race guard (only nulls
+          `_pipelinePromise` if it still holds the rejected instance) — verified
+          structurally; not a separate test (acceptable: race-loss path is a defensive
+          no-op, not a behavior to assert).
+    pillar_c_runtime_metric:
+      status: PASS
+      evidence: |
+        The `callCount === 2` assertion in the F-M5 test IS the observable proof that
+        the singleton was nulled and re-instantiated (without the reset, the rejected
+        Promise would have been returned on call #2 with callCount stuck at 1).
+
+  - symbol: PgvectorStore.assertEmbeddingDim
+    file: src/local/pgvector-store.ts:190-196
+    classification: private method (helper)
+    pillar_a_static_caller:
+      status: PASS
+      evidence: |
+        Four production callers — full write/read-path coverage (F-M15 symmetric guard):
+          - line 210 (insert): `this.assertEmbeddingDim(vec, 'insert')` inside per-vector loop
+          - line 293 (search): `this.assertEmbeddingDim(query, 'search')`
+          - line 391 (update): `this.assertEmbeddingDim(vector, 'update')`
+          - line 471 (insertDerivedMemory): `this.assertEmbeddingDim(args.embedding, 'insertDerivedMemory')`
+        Each call is in the Act phase (not behind a flag, not dead). Methods are
+        reached from the SDK public API (Memory.remember/.recall/.forget paths).
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        - src/local/__tests__/pgvector-store.test.ts (modified by fix-ups) — asserts
+          EmbeddingMismatch raised at the boundary instead of bare pgvector cast errors.
+        - tests/integration/examples/chat-with-memory-local-openrouter.test.ts T4.1 —
+          successful INSERT/SELECT with 384-dim path proves the symmetric guard does
+          NOT regress the happy path. 5/5 live integration tests PASS per prior report.
+    pillar_c_runtime_metric:
+      status: PASS
+      evidence: |
+        Throws typed `EmbeddingMismatch` (cause carries method label) — observable
+        via `instanceof` at the SDK boundary. No console log; error propagation IS
+        the metric (matches the F-Mi6 symmetry with createLocalMemory boot-probe).
+
+  - symbol: InvalidEmbeddingDim
+    file: src/core/errors.ts:48-59
+    classification: public exported error class (re-exported via src/index.ts barrel chain)
+    pillar_a_static_caller:
+      status: PASS
+      evidence: |
+        Production caller in src/local/index.ts:712 inside validateEmbeddingDim:
+          `throw new InvalidEmbeddingDim(received, MAX_EMBEDDING_DIM);`
+        validateEmbeddingDim is called from createLocalMemory at line 741, which is
+        reached from the public factory exported via src/index.ts and re-exported
+        from the package root. Not a dead export.
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        src/local/__tests__/factory.test.ts has 5 dedicated InvalidEmbeddingDim cases
+        (NaN, 384.5, Infinity, 0, > MAX_EMBEDDING_DIM) — each calls createLocalMemory
+        with the bad value and asserts `.rejects.toThrow(InvalidEmbeddingDim)` plus
+        literal-value-in-message assertion. F-Mi4 contract honored.
+    pillar_c_runtime_metric:
+      status: PASS
+      evidence: |
+        Message includes the literal received value verbatim (`got ${String(received)}`)
+        — operator-diagnosable signal. The `instanceof InvalidEmbeddingDim` discriminator
+        replaces the pre-fix InvalidScope conflation (Scope errors vs dim-shape errors
+        are now distinct typed classes).
+
+  - symbol: warnIfLocalOpenrouterMissingBaseUrl
+    file: examples/chat-with-memory/lib/memory.ts:146-159
+    classification: exported helper (demo-only, not SDK public API per JSDoc @internal)
+    pillar_a_static_caller:
+      status: PASS
+      evidence: |
+        One production caller at examples/chat-with-memory/lib/memory.ts:296 inside
+        resolveAdapters('local-openrouter') case branch:
+          `warnIfLocalOpenrouterMissingBaseUrl();`
+        resolveAdapters is reached from getSingleton (line 310). getSingleton is
+        consumed by the Next.js API routes (chat/info/distill) — the warn path fires
+        once per cold demo boot when the operator sets THEOMEM_DEMO_BACKEND=local-openrouter.
+        Not a dead branch.
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        tests/unit/examples/chat-with-memory-memory.test.ts:135-168 (F-M12 EC-10
+        closure) — 3 dedicated cases:
+          (1) OPENAI_BASE_URL missing → warn called once with msg matching
+              /OPENAI_BASE_URL/ AND /local-openrouter/
+          (2) OPENAI_BASE_URL = '' → warn called once
+          (3) OPENAI_BASE_URL = 'https://openrouter.ai/api/v1' → warn NOT called
+        Each test snapshots and restores env (no cross-test leak). Spy is on
+        console.warn directly (mockImplementation no-op), so observability of the
+        log itself IS asserted in Act phase.
+    pillar_c_runtime_metric:
+      status: PASS
+      evidence: |
+        `console.warn` text starts with `[theomemory-demo] THEOMEM_DEMO_BACKEND=
+        local-openrouter is set but OPENAI_BASE_URL is missing.` — operator-visible
+        in dev-server stdout at cold boot. Asserted via spyOn in unit test (above).
+
+  - symbol: consolidation_history SELECT in T4.1 distill test
+    file: tests/integration/examples/chat-with-memory-local-openrouter.test.ts:171-176
+    classification: integration-test assertion (closes F-M8)
+    pillar_a_static_caller:
+      status: PASS (n/a — this is the TEST asserting on production behavior)
+      evidence: |
+        The SELECT itself is in the test file. The "caller" being verified IS the
+        production /api/memory/distill route → PgvectorStore.persistConsolidations
+        (src/local/pgvector-store.ts:589-617) which writes consolidation_history rows.
+        Production path: chat-with-memory POST /api/memory/distill → getConflictResolutionPolicy
+        → memory.reflect (or equivalent) → ConflictResolution INSERT consolidation_history.
+    pillar_b_integration_test:
+      status: PASS
+      evidence: |
+        The new SELECT closes F-M8: previous test stopped at HTTP 200 + invocationId
+        contract. Now asserts `COUNT(*) >= 1` from consolidation_history filtered by
+        policy_name='last-write-wins' AFTER the POST. Test seeds 2 contradictory
+        384-dim memories first (line 146-155) so the LWW policy has clusters to merge.
+        Plan T4.1 AC line 918 explicitly required this assertion.
+    pillar_c_runtime_metric:
+      status: PASS
+      evidence: |
+        The `audit.rows[0]?.c >= 1` assertion IS the runtime-metric proof — the
+        consolidation_history table row count is the observable metric. Without this
+        SELECT, a silent no-op policy regression (factory mis-wired) would pass.
+
+findings:
+  - id: F-rerun-wire-1
+    severity: INFO
+    file: src/local/index.ts:916
+    plan_ref: /review 2026-06-02 F-C1 + plan v1.2 ADR D3 amendment
+    summary: Cascade-enumeration log text is emitted but never asserted by an integration test
+    evidence: |
+      The applyDimChange console.error line at 916 enumerates the full FK cascade
+      (history ON DELETE CASCADE + consolidation_history ON DELETE SET NULL +
+      memories.superseded_by ON DELETE SET NULL). The BEHAVIOR is asserted via
+      the F-M6 destructive-cascade test (post-DELETE rowcounts on memories /
+      history / consolidation_history). The LOG TEXT itself is verified only by
+      manual code review — no spyOn(console, 'error') guards a future log-text
+      regression (e.g., someone trimming the cascade enumeration accidentally).
+    severity_rationale: |
+      INFO not MAJOR because cycle-implement.md wiring triad pillar (c) accepts ANY
+      observable signal, and the cascade behavior IS asserted via DB rowcounts in
+      F-M6 (which is the load-bearing user-facing contract). The log text is the
+      operator-diagnosability surface — losing it would degrade DX but not silently
+      break the cascade contract. Recommended as opportunistic cleanup in a future
+      cycle: add a single console.error spy assertion in F-M6 that the cascade log
+      lines include /DESTRUCTIVE cascade/ + /history/ + /consolidation_history/.
+    recommended_action: |
+      OPTIONAL — add console.error spy assertion in the F-M6 destructive-cascade
+      test (~5 lines) to lock the log-text contract. NOT blocking re-run verdict.
+
+  - id: F-rerun-wire-2
+    severity: INFO
+    file: src/embedders/local.ts:73-81
+    plan_ref: /review 2026-06-02 F-M5 + EC-7 absorption
+    summary: getPipeline rejected-promise lost-race guard has no dedicated test (defensive no-op)
+    evidence: |
+      The catch handler at lines 73-81 includes a "lost the race against another
+      caller" branch: only nulls `_pipelinePromise` if it still holds the THIS-call
+      rejected instance. This guard prevents nulling a successful Promise that a
+      concurrent caller stored after the rejection. The lost-race path is a
+      defensive no-op (the alternative is also safe — just a wasted reset) and is
+      JS-single-thread-protected: only one synchronous block runs at a time, so
+      the only path where `_pipelinePromise !== created` is when another caller's
+      retry already replaced the slot. Not a behavior worth asserting empirically.
+    severity_rationale: |
+      INFO not MAJOR — defensive code path with no observable difference between
+      both outcomes (early return vs reset both correct). Acceptable per testing.md
+      "don't test trivial wiring".
+
+honest_caveats: |
+  - I did NOT run `npm test` / `npm run typecheck` / `npm run lint` for this re-run
+    review — re-running gates is out of scope for the wiring re-review per the
+    cycle-review.md § Phase contracts (gates were re-validated at /implement-validate
+    earlier; the prior /review 2026-06-02 report already shows 662/664 PASS).
+  - I did NOT exercise the integration test suite against live pgvector. Verification
+    is via source-level reachability + assertion-shape inspection. The prior /review
+    confirmed the suite runs green; the fix-up commits only ADD tests (F-M1 rollback,
+    F-M6 cascade, F-M7 push-flow, F-M8 SELECT, F-M5 retry, EC-5 empty, EC-10 warn).
+    A regression in the green suite would be detected by /implement's validation
+    re-run before this PR is merged, not by the re-review.
+  - The "wiring-triad pillar (a/b/c)" counters above reflect the 7 symbols flagged
+    by the re-review brief. The broader plan touches more symbols (PgvectorStore,
+    BackendMode, resolveBackendMode, etc.) — those were audited in the original
+    /review wiring agent (`findings/wiring.yaml` count 7/7 / 6/7 / 1/1 in the
+    consolidated report) and are not re-assessed here per scope.
+
+re_review_verdict: |
+  RESOLVED — all three originally-flagged wiring findings are honestly closed:
+    F-wire-1 (rejected pipeline cache): RESOLVED via getPipeline reset + F-M5 retry test
+                                         (src/embedders/local.ts:73-81 + test at
+                                         src/embedders/__tests__/local.test.ts:130).
+    F-wire-2 (DELETE never exercised):   RESOLVED via F-M6 destructive-cascade test
+                                         (tests/integration/migrations/dim-change.test.ts:215).
+    F-wire-3 (push-flow not RED-tested): RESOLVED via F-M7 push-flow test
+                                         (tests/integration/migrations/dim-change.test.ts:290).
+  Two new INFO observations (F-rerun-wire-1 + F-rerun-wire-2) are non-blocking
+  follow-up opportunities, not gate failures. Re-review wiring verdict:
+  WIRING_READY_TO_MERGE.
+
+  Asymmetric guard (F-M4 absorbed): VERIFIED — both push-flow + journal-tracked
+  code paths now use the same `options?.embeddingDim !== undefined` guard
+  (src/local/index.ts:1017 + 1035), with the inner atttypmod probe in applyDimChange
+  acting as the single source of truth for no-op detection. The pre-fix asymmetric
+  `embeddingDim !== MAX_EMBEDDING_DIM` short-circuit is GONE (grep confirms zero
+  remaining references in code, only in comments documenting the fix).
+
+  Dead exports check: ZERO new dead exports. Every symbol added by fix-ups has at
+  least one production caller AND at least one test path. InvalidEmbeddingDim is
+  re-exported via the src/index.ts barrel chain (src/core/errors.ts → ...) and
+  consumed by validateEmbeddingDim. warnIfLocalOpenrouterMissingBaseUrl is
+  demo-only but explicitly @internal-marked AND exercised by unit tests.

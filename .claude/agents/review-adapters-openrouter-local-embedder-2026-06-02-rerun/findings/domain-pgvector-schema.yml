@@ -1,0 +1,179 @@
+agent: review-adapters-openrouter-local-embedder-domain-pgvector-schema
+review_target: 4b5b0e7^..HEAD for plan adapters-openrouter-local-embedder (rerun verifying fix-up cycle 4b5b0e7..544f88e — 8 commits closing /review F-dom-pgvector-1..7 + sibling F-C1/F-M1..M15/F-Mi1..Mi12)
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - "FK cascade enumeration accuracy (memories → history CASCADE; → consolidation_history.kept_memory_id SET NULL; → memories.superseded_by self-FK SET NULL)"
+  - "BEGIN/COMMIT/ROLLBACK atomicity composition with DELETE-before-ALTER sequence"
+  - "VIEW dependency injection as a mid-sequence ALTER failure mechanism (PG SQLSTATE 0A000)"
+  - "pgvector v0.5.x atttypmod identity-decoder canary via pg_extension extversion probe"
+  - "Drizzle schema.ts hardcoded vector(1536) drift constraint vs runtime parametric dim"
+  - "Quoted-identifier symmetry between runtime CREATE INDEX and migration's 0000 SQL"
+  - "Typed EmbeddingMismatch (vs bare Error) at write-path + search-path symmetry"
+
+verification_of_closed_findings:
+  - id: F-dom-pgvector-1
+    original_severity: CRITICAL (consolidated into F-C1)
+    status: CLOSED
+    evidence:
+      - "src/local/index.ts:868-871 JSDoc § DESTRUCTIVE — full cascade collateral disclosure enumerates all 3 arms (history CASCADE; consolidation_history.kept_memory_id SET NULL; memories.superseded_by SET NULL) with FK direction + source migration cited"
+      - "src/local/index.ts:917-921 runtime console.error message enumerates all 3 cascade arms verbatim before the destructive ALTER runs"
+      - "examples/chat-with-memory/README.md:118-160 § Destructive dim change caveat enumerates all 3 cascade arms with migration source path 0000_crazy_mimic.sql, presented as numbered list, FK semantics labeled, plus the operator-action paragraph at 157-160 widens the EC-B contract honestly"
+      - "Plan v1.2 amendment header (line 3) documents ADR D3 + EC-B amendment in prose, explicitly naming all 3 cascade arms with their FK kinds"
+      - "CHANGELOG.md (commit 4b5b0e7) bumped with cascade enumeration entry"
+    verdict: HONEST — all 4 documentation surfaces (JSDoc, console.error, README, plan, CHANGELOG) now align. No silent drift remains between what runs and what the operator sees.
+
+  - id: F-dom-pgvector-2
+    original_severity: MAJOR (consolidated into F-M1)
+    status: CLOSED
+    evidence:
+      - "tests/integration/migrations/dim-change.test.ts:178-210 — `EC-3 atomic rollback: mid-sequence failure preserves pre-change schema state` test added"
+      - "Mechanism: pre-creates a VIEW `v_embed_dep AS SELECT id, embedding FROM memories` BEFORE invoking runMigrations({embeddingDim:384}). PG raises SQLSTATE 0A000 `cannot alter type of a column used by a view or rule` when the wrapper reaches ALTER COLUMN TYPE"
+      - "Post-rollback assertions verify (a) getColumnDim still 1536 (b) memories_embedding_hnsw_idx still present (c) entities_embedding_hnsw_idx still present — all 3 DROP+DELETE+ALTER side effects are undone by the single-tx ROLLBACK"
+    mechanism_analysis: |
+      The VIEW injection is a SOUND mid-sequence failure mechanism:
+      - DROP INDEX IF EXISTS (× 2) — succeeds; index drop does not violate VIEW dependency
+      - DELETE FROM memories — succeeds; VIEW permits SELECT over empty table; PG does not flag DELETE as schema-altering
+      - DELETE FROM entities — succeeds; orthogonal table
+      - ALTER TABLE memories ALTER COLUMN embedding TYPE vector(384) — FAILS with SQLSTATE 0A000 because the VIEW references the embedding column
+      The composition is correct: failure happens INSIDE the BEGIN block, the catch arm calls ROLLBACK, and PG reverts both the DROP INDEXes and the DELETEs atomically. The test's post-assertions correctly verify schema preservation AND index preservation.
+    verdict: HONEST AND COMPLETE — the test exercises the genuine rollback path; F-M1 closed.
+
+  - id: F-dom-pgvector-3
+    original_severity: MAJOR (consolidated into F-M2)
+    status: CLOSED
+    evidence:
+      - ".claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md line 3 — Plan v1.2 (2026-06-02) header documents ADR D3 amendment in detail, explicitly naming both root causes: (a) PG error 23502 NOT NULL constraint conflict that empirically rejected USING NULL; (b) widened EC-B envelope for the cascade collateral"
+      - "Plan v1.2 also documents the related code corrections (F-M4 guard removal, F-M5 retry, F-M10 stale comment, F-M13 warning text, F-M15+Mi6 typed EmbeddingMismatch) for the cycle-implement audit trail"
+    verdict: PLAN-CODE ALIGNED — the amendment uses prose (not a separate v1.2 ADR section in the body), which is conventional for this cycle's plan style. ADR D3 amendment is durable.
+
+  - id: F-dom-pgvector-4
+    original_severity: MINOR (F-Mi5)
+    status: CLOSED
+    evidence:
+      - "src/local/index.ts:917-925 runtime console.error includes /review F-M3 drift warning: 'src/local/schema.ts still declares vector(1536) literally — DO NOT run drizzle-kit push against this DB while embeddingDim={N} is active'"
+      - "src/local/schema.ts:19-41 § F-M3 review finding — parametric-dim drift constraint (LOCKED, document-only mitigation) — block-level docblock explains the Drizzle pgTable build-time resolution constraint + the contract"
+      - "The orphan-schema branch in runMigrations:985-1022 now applies the dim change explicitly when embeddingDim is set (T4.1 push-flow fix); warning text updated to honest 'skipping migrate(); applying explicit dim change only' (closes F-M13)"
+    verdict: DOCUMENTED — the drift is a known build-pipeline limitation. Mitigation is document-only via 3 surfaces (schema.ts JSDoc + runtime console.error + README operator-action paragraph). The full fix is deferred to a follow-up /to-plan parametric-drizzle-schema cycle (acknowledged in plan v1.2 header).
+
+  - id: F-dom-pgvector-5
+    original_severity: MINOR (F-Mi6)
+    status: CLOSED
+    evidence:
+      - "src/local/pgvector-store.ts:179-196 — new `assertEmbeddingDim(vector, methodLabel)` helper throws typed `EmbeddingMismatch(this.embeddingDim, vector.length, {cause: new Error(`PgvectorStore.${methodLabel}`)})`"
+      - "search() at line 293 routes through assertEmbeddingDim with label 'search'"
+      - "insert() at line 210 loops over the batch and asserts each vector"
+      - "update() at line 391 asserts via the helper"
+      - "insertDerivedMemory() at line 471 asserts via the helper"
+      - "src/core/errors.ts EmbeddingMismatch constructor signature accepts ErrorOptions parameter and forwards to super() — supports the `cause` chain that pgvector-store.ts uses to embed the method label"
+    verdict: TYPED + SYMMETRIC — all write-path methods (insert, insertBatch via insert, update, insertDerivedMemory) AND search-path method use the same EmbeddingMismatch error class. F-M15 symmetry achieved AND F-Mi6 typing achieved by the same helper. Inquebrável Rule 8 (typed domain errors) honored.
+
+  - id: F-dom-pgvector-6
+    original_severity: MINOR (F-Mi7)
+    status: NOT CLOSED — REGRESSION RISK
+    severity_re_raised: MINOR
+    evidence:
+      - "Plan v1.2 § T0.3 § Files to edit (line 391) still lists `src/local/__tests__/migrations.test.ts (NEW or existing migrations test)` as a target — file does NOT exist on disk (verified: `ls src/local/__tests__/migrations/` shows only `0001-ordering.test.ts`)"
+      - "v1.2 header (line 3) enumerates which findings closed but does NOT mention F-Mi7"
+      - "git log --grep='F-Mi7' returns zero commits"
+      - "The actual test coverage of T0.3 lives at `tests/integration/migrations/dim-change.test.ts` (9 tests, all PASS)"
+    recommended_action: |
+      Either (a) update plan v1.2 § T0.3 Files to edit to point to `tests/integration/migrations/dim-change.test.ts` (the actual location, which DOES exist and is reachable via the vitest integration glob), OR (b) document explicitly in v1.2 header that F-Mi7 was deferred because the test coverage materialized at the integration tier instead of the contract tier (which makes sense given the test requires a live pgvector container).
+    impact_assessment: |
+      LOW operational impact (the tests exist, they pass, the test file referenced is just a stale plan-doc path). HIGH process-honesty impact per Inquebrável Rule 3 (the /review explicitly flagged this and the fix-up cycle skipped it). Next reviewer reading the plan would chase the wrong path.
+
+  - id: F-dom-pgvector-7
+    original_severity: MINOR (F-Mi8)
+    status: CLOSED
+    evidence:
+      - "src/local/index.ts:873-894 — defensive extversion probe added at top of applyDimChange"
+      - "Query: `SELECT extversion FROM pg_extension WHERE extname = 'vector'`"
+      - "Match check: `!installedVersion.startsWith('0.5.')` warns when version is NOT v0.5.x"
+      - "Warning is non-fatal (operator sees canary in logs but the destructive dim change still proceeds — choice acknowledged in the JSDoc at 880-881)"
+    regex_correctness_analysis: |
+      Verified `installedVersion.startsWith('0.5.')`:
+      - v0.5.1: chars[0..3] = '0.5.' → match → NO warning ✓ (correct: T0.3 verified atttypmod identity against this version)
+      - v0.5.2: chars[0..3] = '0.5.' → match → NO warning ✓ (correct: minor patch in 0.5.x family)
+      - v0.5.99: chars[0..3] = '0.5.' → match → NO warning ✓ (correct: same family)
+      - v0.6.0: chars[0..3] = '0.6.' → no match → WARNING ✓ (correct: major bump may change encoding)
+      - v0.50.0: chars[0..3] = '0.50' (4-char prefix) → no match against '0.5.' → WARNING ✓ (correct: 0.5 followed by `0` not `.` so prefix differs at index 3)
+      - null (extension not installed): `installedVersion !== null` short-circuits before startsWith call — no NPE risk
+      The 5-char prefix `0.5.` correctly delimits the family; the trailing dot is load-bearing for distinguishing 0.5.x from 0.50.x.
+    verdict: CORRECT — the canary covers the documented v0.5.x family and warns honestly on any drift outside it. Honors Inquebrável Rule 3.
+
+new_findings:
+  - id: F-dom-pgvector-rerun-1
+    severity: MINOR
+    file: tests/integration/migrations/dim-change.test.ts
+    line: 215-284
+    plan_ref: Plan v1.2 ADR D3 amendment + README § Destructive dim change caveat cascade arm 3
+    domain_anchor: "pgvector FK cascade enumeration honesty (F-C1 closure)"
+    summary: F-C1's destructive-cascade test seeds 2 of 3 FK cascade arms (history CASCADE + consolidation_history.kept_memory_id SET NULL) but does NOT exercise the 3rd arm — `memories.superseded_by` self-FK ON DELETE SET NULL — that the plan/README/JSDoc enumerate as part of the cascade.
+    evidence: |
+      grep -n 'superseded_by' tests/integration/migrations/dim-change.test.ts returns ZERO matches.
+      The destructive-cascade test seeds:
+        (a) memories row (cascade target)
+        (b) history row → memory_id FK ON DELETE CASCADE — asserted post-DELETE: count==0 ✓
+        (c) consolidation_history row → kept_memory_id FK ON DELETE SET NULL — asserted post-DELETE: row survives, kept_memory_id IS NULL ✓
+      Missing:
+        (d) second memory row with `superseded_by` pointing at (a) — would assert post-DELETE that the surviving (d)'s superseded_by IS NULL per the SET NULL cascade
+    recommended_action: |
+      Extend the F-M6 cascade test with a 2-memory seed pattern (insert memory A, then memory B WITH `superseded_by = A`). Post-DELETE assert that memory B's superseded_by IS NULL. This is a 5-line addition to the existing test; closes the 3rd cascade arm coverage gap.
+    impact_assessment: |
+      LOW — the FK behavior is a PG guarantee (not an SDK contract), so absence of a test does not mean the cascade is broken. But the F-C1 honesty-surface argument was that "code-review-only verification is insufficient because a regression that broke FK cascade behavior would ship silently". By that same argument, the 3rd arm carries the same gap.
+
+  - id: F-dom-pgvector-rerun-2
+    severity: MINOR
+    file: src/local/index.ts
+    line: 886
+    plan_ref: F-Mi8 / extversion canary
+    domain_anchor: "Future-proofing the atttypmod identity decoder against pgvector version drift"
+    summary: The extversion canary warns when `!installedVersion.startsWith('0.5.')`, but does NOT capture the symmetric case where atttypmod itself returns a value smaller than realistic dims (e.g., if pgvector changes to a packed encoding like `(N >> 2) - 1` for some range). The canary is version-based, not value-based.
+    evidence: |
+      The probe at lines 897-905 trusts atttypmod as the dim. If a future pgvector release stays at major 0.5.x but changes the atttypmod encoding (hypothetical but consistent with the documented risk), the version-startsWith canary would NOT fire, and the dim-change would silently apply against a wrong-decoded current dim.
+    recommended_action: |
+      Optional defensive add: after atttypmod probe, sanity-check that `currentDim > 0 && currentDim <= MAX_EMBEDDING_DIM`. If outside that envelope, emit a second WARN-level canary. This is belt-and-suspenders; the existing version canary already covers the documented risk. Defer if budget tight.
+    impact_assessment: |
+      VERY LOW — purely defensive against an unlikely future PG patch behavior. The version canary is sufficient for the documented (audit-trail) honesty contract. Acceptable to defer.
+
+  - id: F-dom-pgvector-rerun-3
+    severity: INFO
+    file: src/local/index.ts
+    line: 927-964
+    plan_ref: F-M1 / EC-3 atomic rollback
+    domain_anchor: "BEGIN/COMMIT/ROLLBACK composition with DELETE-before-ALTER"
+    summary: The applyDimChange wrapper composes the 5-statement sequence (DROP INDEX × 2 + DELETE × 2 + ALTER × 2 + CREATE INDEX × 2 = 8 statements) cleanly inside `client.query('BEGIN')` ... `client.query('COMMIT')` with a `client.query('ROLLBACK')` in the catch arm. Verified the dedicated `pool.connect()` client (vs `pool.query`) per the SEPA iter-3 pre-RED CRITICAL #1 invariant. No nested transaction risk; no client leak (finally `client.release()`). The composition is sound.
+    evidence: |
+      Line 927: `const client = await pool.connect();` — dedicated client per SEPA iter-3 pre-RED CRITICAL #1
+      Line 929: `await client.query('BEGIN');` — explicit transaction start
+      Lines 930-949: 8 sequential statements on the SAME client (no autocommit between)
+      Line 950: `await client.query('COMMIT');` — explicit COMMIT
+      Line 956: `await client.query('ROLLBACK');` — catch arm reverts atomically
+      Line 963: `client.release();` — always-runs finally clause prevents client leak
+      This pattern correctly avoids the Drizzle-tx-nesting + pool.query-autocommit footguns SEPA flagged in iter-3.
+    verdict: ATOMIC + CLEAN — composition is canonical pg-client BEGIN/COMMIT/ROLLBACK with proper resource cleanup.
+
+  - id: F-dom-pgvector-rerun-4
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 179-196
+    plan_ref: F-M15 + F-Mi6 / symmetric dim guards via typed EmbeddingMismatch
+    domain_anchor: "pgvector schema dim-guard symmetry across write + search boundaries"
+    summary: The `assertEmbeddingDim(vector, methodLabel)` helper centralizes the dim check used by search/insert/update/insertDerivedMemory. The methodLabel parameter threads through to `cause: new Error('PgvectorStore.{label}')` so operator diagnostics pinpoint which surface raised the error. This pattern resolves both F-M15 (write-path symmetry gap) AND F-Mi6 (bare Error vs typed EmbeddingMismatch) with ONE helper — clean DRY consolidation.
+    evidence: |
+      Lines 189-196: single helper, single throw site
+      Lines 210, 293, 391, 471: four call sites with labels 'insert', 'search', 'update', 'insertDerivedMemory'
+      Per architecture.md § 8 (Error handling), domain errors are typed classes from src/core/errors.ts — EmbeddingMismatch satisfies that contract; bare Error would not.
+    verdict: DRY + TYPED — clean consolidation of two findings with one helper. Honors Rule 8 (typed domain errors) + Rule 12 (DRY for shared logic).
+
+summary:
+  total_closed_findings_verified: 6 of 7 (F-dom-pgvector-1 through -5 + F-dom-pgvector-7 confirmed CLOSED; F-dom-pgvector-6 / F-Mi7 NOT closed — plan still has stale path)
+  new_findings_count: 4 (1 MINOR coverage gap on 3rd cascade arm; 1 MINOR optional defensive canary; 2 INFO confirming sound composition)
+  regression_risk: LOW — only the plan-doc path is stale; runtime is correct.
+  net_assessment: |
+    The fix-up cycle (8 commits 4b5b0e7..544f88e) substantially closes the pgvector-schema domain concerns from the original /review. Cascade enumeration is now honest across 5 surfaces (JSDoc, console.error, README, plan v1.2, CHANGELOG). EC-3 atomic rollback has a proper TDD-first regression test using the VIEW dependency injection mechanism — which IS the canonical PG path for triggering SQLSTATE 0A000 mid-sequence inside a transaction. Typed EmbeddingMismatch + symmetric write/search dim guards consolidated cleanly via a single helper. extversion canary regex correctly covers the v0.5.x family and warns on v0.6.0, v0.50.0, v1.x.
+
+    One residual issue: F-Mi7 (the plan still cites `src/local/__tests__/migrations.test.ts` which doesn't exist) was NOT addressed. Process-honesty (Inquebrável Rule 3) gap — low operational impact but should be cleaned up in a same-cycle plan-touch commit OR explicitly deferred in v1.2 header.
+
+    Secondary minor gap: the destructive-cascade test seeds only 2 of 3 enumerated FK arms (missing `memories.superseded_by` self-FK SET NULL coverage). Not blocking but the gap matches the same honesty argument that drove F-M6 in the first place.
+
+verdict: READY_TO_MERGE with 1 MINOR plan-doc cleanup (F-Mi7 / F-dom-pgvector-6 residual) + 1 MINOR optional test extension (F-dom-pgvector-rerun-1) recommended as same-day same-PR commits. Both are 1-line / 5-line touches; neither blocks the cycle.
