@@ -893,7 +893,10 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
       'DELETE FROM memories (FK→history.memory_id ON DELETE CASCADE wipes audit trail; ' +
       'consolidation_history.kept_memory_id ON DELETE SET NULL nullifies v0.7 distillation provenance; ' +
       'memories.superseded_by ON DELETE SET NULL breaks v0.6 supersession chains) + ' +
-      'DELETE FROM entities + DROP/RECREATE HNSW indexes (T0.3 / EC-3 + EC-4; plan v1.2 ADR D3; /review F-C1)',
+      'DELETE FROM entities + DROP/RECREATE HNSW indexes (T0.3 / EC-3 + EC-4; plan v1.2 ADR D3; /review F-C1). ' +
+      '/review F-M3: src/local/schema.ts still declares vector(1536) literally — ' +
+      `DO NOT run \`drizzle-kit push\` against this DB while embeddingDim=${String(targetDim)} ` +
+      'is active (push would silently revert the ALTER and drop all rows).',
   );
 
   const client = await pool.connect();
