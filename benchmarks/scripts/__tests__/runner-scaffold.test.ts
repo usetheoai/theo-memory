@@ -40,7 +40,7 @@ describe('_runner-scaffold — StubAnswerLlm', () => {
 });
 
 describe('_runner-scaffold — buildSmokeJudgePanel', () => {
-  it('returns a JudgePanel that resolves CORRECT for any input', async () => {
+  it('returns a JudgePanel that resolves CORRECT for any input (default)', async () => {
     const panel = buildSmokeJudgePanel();
     const verdict = await panel.judge({
       questionText: 'arbitrary',
@@ -48,6 +48,39 @@ describe('_runner-scaffold — buildSmokeJudgePanel', () => {
       generated: 'arbitrary',
     });
     expect(verdict.aggregateLabel).toBe('CORRECT');
+  });
+
+  // v0-8-fixes-cycle-1 T1.2 (closes F-tests-2 MAJOR): parameterizable
+  // stub responses so smoke runs can exercise BOTH CORRECT and WRONG
+  // paths. Previously the panel was hardcoded to CORRECT, masking any
+  // regression in the WRONG handling path.
+  it('returns WRONG when stubResponses is ["WRONG"] (T1.2 + F-tests-2)', async () => {
+    const panel = buildSmokeJudgePanel(['WRONG']);
+    const verdict = await panel.judge({
+      questionText: 'q?',
+      goldAnswer: 'a',
+      generated: 'b',
+    });
+    expect(verdict.aggregateLabel).toBe('WRONG');
+  });
+
+  // EC-6 cycling contract: when stubResponses.length < question count,
+  // responses cycle modulo length so smoke fixtures of arbitrary size
+  // remain deterministic. Test by invoking judge() 3 times against a
+  // panel built with ['CORRECT', 'WRONG'] — expected sequence
+  // [CORRECT, WRONG, CORRECT] (i % 2).
+  it('cycles responses modulo length when invoked more times than stubResponses (EC-6)', async () => {
+    const panel = buildSmokeJudgePanel(['CORRECT', 'WRONG']);
+    const verdicts: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const v = await panel.judge({
+        questionText: `q${String(i)}`,
+        goldAnswer: 'a',
+        generated: 'b',
+      });
+      verdicts.push(v.aggregateLabel ?? 'null');
+    }
+    expect(verdicts).toEqual(['CORRECT', 'WRONG', 'CORRECT']);
   });
 });
 

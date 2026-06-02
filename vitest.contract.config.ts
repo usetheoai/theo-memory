@@ -22,6 +22,9 @@ export default defineConfig({
       'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/__tests__/**/*.test.ts',
       'src/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
+      // v0-8-fixes-cycle-1 T1.3 + T1.2: benchmarks/scripts/__tests__/ at repo
+      // root — runner-scaffold tests + future downloader RED tests live here.
+      'benchmarks/scripts/__tests__/**/*.test.ts',
     ],
     passWithNoTests: true,
     typecheck: {
