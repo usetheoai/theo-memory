@@ -18,7 +18,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { mockEmbedding } from '../../../src/__tests__/_helpers/mock-embedding.js';
 import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
 import { createLocalMemory, PgvectorStore } from '../../../src/local/index.js';
-import { TheMemoryBenchmarkAdapter, type Tokenizer } from '../../../src/benchmarks/themory/adapter.js';
+import type { Tokenizer } from '../../../src/core/dip/tokenizer.js';
+import { TheMemoryBenchmarkAdapter } from '../../../src/benchmarks/themory/adapter.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 

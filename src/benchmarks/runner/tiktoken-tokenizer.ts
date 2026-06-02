@@ -15,7 +15,7 @@
 
 import { encoding_for_model, get_encoding, type Tiktoken } from '@dqbd/tiktoken';
 
-import type { Tokenizer } from '../themory/adapter.js';
+import type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 export class TiktokenTokenizer implements Tokenizer {
   private readonly enc: Tiktoken;

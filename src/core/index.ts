@@ -81,6 +81,9 @@ export type { Embedder } from './dip/embedder.js';
 
 export type { LLM } from './dip/llm.js';
 
+// 11th DIP (v0-8-fixes-cycle-1 T3.1 — F-arch-1 absorption)
+export type { Tokenizer } from './dip/tokenizer.js';
+
 export type {
   VectorStore,
   VectorStoreResult,

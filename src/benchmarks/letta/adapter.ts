@@ -17,7 +17,7 @@ import type {
   BenchmarkQuery,
   SearchResult,
 } from '../../core/dip/benchmark-adapter.js';
-import type { Tokenizer } from '../themory/adapter.js';
+import type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 export interface LettaVendorClient {
   add(agentId: string, text: string): Promise<void>;
