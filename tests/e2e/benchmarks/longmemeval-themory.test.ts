@@ -77,6 +77,25 @@ describe('LongMemEval × TheMemory — smoke (3 questions, no API keys)', () => 
       expect(typeof record.costUsd).toBe('number');
     }
   });
+
+  // v0-8-fixes-cycle-1 T1.2 (closes F-tests-2 MAJOR): smoke runs MUST
+  // exercise BOTH CORRECT and WRONG judge paths so a wiring regression
+  // that breaks the WRONG handler doesn't ship undetected. The default
+  // stubResponses in _runner-scaffold.runBenchmark is ['CORRECT', 'WRONG']
+  // which cycles modulo length across the 3 smoke-fixture queries,
+  // producing [CORRECT, WRONG, CORRECT]. The assertion below locks
+  // the contract: at least one WRONG judgement MUST appear.
+  it('smoke run exercises BOTH CORRECT and WRONG judge paths (T1.2 + F-tests-2)', async () => {
+    const resultsPath = join(tmpResultsDir, 'themory-wrong-path.json');
+    const report = await runLongMemEval({
+      fixturePath: SMOKE_FIXTURE,
+      resultsPath,
+      modelId: 'gpt-4o-mini',
+    });
+    const labels = report.perQuery.map((r) => r.judgeLabel);
+    expect(labels).toContain('WRONG');
+    expect(labels).toContain('CORRECT');
+  });
 });
 
 describe.skipIf(
