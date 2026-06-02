@@ -1,0 +1,276 @@
+agent: review-v0-7-distillation-pipeline-wiring
+review_target: bab7a02^..HEAD for plan v0-7-distillation-pipeline
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+generated_at: 2026-06-02
+
+triad_revalidation:
+  total_new_symbols: 11
+  pillar_a_honest_pass: 11 / 11
+  pillar_b_honest_pass: 10 / 11
+  pillar_c_observed: 0 / 5   # 5 symbols required runtime metric proof per plan; 0 actually observed in integration runs (counters fire only inside LJM unit-test spies)
+
+symbols_audited:
+  - symbol: ConflictResolutionPolicy
+    file: src/core/dip/conflict-resolution-policy.ts
+    pillar_a_caller: src/local/index.ts:382 (LocalScopedMemory.reflect destructures `options?.conflictResolution`) + examples/chat-with-memory/lib/memory.ts:43 (factory return type) + src/core/options.ts:84 (ReflectOptions.conflictResolution field)
+    pillar_b_test: tests/integration/distillation/reflect-with-policy.test.ts + tests/integration/distillation/reflect-empty-scope.test.ts + tests/integration/distillation/reflect-atomic-rollback.test.ts + tests/integration/distillation/the-goal-test.test.ts + tests/integration/distillation/the-goal-test-llm-measured.test.ts
+    pillar_c_metric: n/a (DIP — types only)
+    verdict: PASS
+  - symbol: NoopConflictPolicy
+    file: src/core/conflict-resolution/noop.ts
+    pillar_a_caller: examples/chat-with-memory/lib/memory.ts:494 (`getConflictResolutionPolicy('noop')` returns new instance) + src/core/index.ts:120 + src/local/index.ts:88 (re-export only)
+    pillar_b_test: src/core/conflict-resolution/__tests__/noop.test.ts (unit) + tests/integration/examples/chat-with-memory-policy-factory.test.ts:48 (factory routing) + tests/integration/examples/chat-with-memory-distillation.test.ts (HTTP path)
+    pillar_c_metric: n/a (policy abstains by design — no counter expected; plan never declared one)
+    verdict: PASS
+  - symbol: LastWriteWinsConflictPolicy
+    file: src/core/conflict-resolution/last-write-wins.ts
+    pillar_a_caller: examples/chat-with-memory/lib/memory.ts:496 + tests/integration/distillation/reflect-with-policy.test.ts:97 + tests/integration/distillation/reflect-atomic-rollback.test.ts:111 + tests/integration/distillation/the-goal-test.test.ts:159
+    pillar_b_test: src/core/conflict-resolution/__tests__/last-write-wins.test.ts (unit, 5 tests incl. EC-1 10-run stability) + reflect-with-policy + the-goal-test (integration)
+    pillar_c_metric: MISSING — plan T2.1 Acceptance line 379 ("OTel counters `distillation.consolidation.{kept,rejected,abstain}` emit non-zero on integration test") is NOT met for LWW policy paths. LWW does not emit ANY counter; src/local/index.ts:374-405 wiring does not increment counters either. THE GOAL TEST (T3.3) runs exclusively with LWW and emits ZERO `distillation.consolidation.*` metrics — see F-wire-1 below.
+    verdict: PASS_WITH_CAVEATS
+  - symbol: compareCandidatesDesc (LWW comparator helper)
+    file: src/core/conflict-resolution/last-write-wins.ts:35
+    pillar_a_caller: src/core/conflict-resolution/last-write-wins.ts:53 (used by `consolidate`)
+    pillar_b_test: src/core/conflict-resolution/__tests__/last-write-wins.test.ts (EC-1 10-run stability test exercises the comparator indirectly via `consolidate`)
+    pillar_c_metric: n/a (pure helper)
+    verdict: PASS (re-exported via root barrel src/core/index.ts:121 — soft caveat: zero direct external callers found; barrel re-export is forward-compat for downstream consumers, not currently necessary; minor)
+  - symbol: LlmJudgedMergeConflictPolicy
+    file: src/core/conflict-resolution/llm-judged-merge.ts
+    pillar_a_caller: examples/chat-with-memory/lib/memory.ts:502 (`getConflictResolutionPolicy('llm-judged-merge')` constructor) + tests/integration/distillation/reflect-empty-scope.test.ts:73 + tests/integration/distillation/the-goal-test-llm-measured.test.ts:153 (real LLM via OpenRouter)
+    pillar_b_test: src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts (7 unit tests — happy path, non_json, EC-2 hallucinated kept_id, EC-2 hallucinated rejected_id, EC-2 kept_id ∈ rejected_ids, EC-4 lazy meter spy, EC-6 21-cluster cap) + the-goal-test-llm-measured (real-LLM end-to-end) + reflect-empty-scope (gated path)
+    pillar_c_metric: PARTIAL — counters `distillation.consolidation.{kept,rejected,abstain,cluster_too_large}` ARE emitted from inside `consolidate()` (lines 98, 106, 109-110); EC-4 lazy resolution is unit-test-verified via `vi.spyOn(otel.metrics, 'getMeter')` (RED #6 in llm-judged-merge.test.ts:105-118). However NO INTEGRATION TEST asserts the counters fire end-to-end via a consumer-installed MeterProvider (plan T3.3 RED #3 / T2.1 RED #4 explicitly required this) — see F-wire-2.
+    verdict: PASS_WITH_CAVEATS
+  - symbol: parseConsolidationResponse (EC-2 semantic validator)
+    file: src/core/conflict-resolution/llm-judged-merge.ts:59
+    pillar_a_caller: src/core/conflict-resolution/llm-judged-merge.ts:104 (called by `LlmJudgedMergeConflictPolicy.consolidate`)
+    pillar_b_test: 3 EC-2 branches indirectly covered via llm-judged-merge.test.ts RED #3/#4/#5 — exercised via consolidate() with hallucinated/duplicate ids
+    pillar_c_metric: n/a
+    verdict: PASS (re-exported at src/core/index.ts:124; plan T1.3 explicitly mandated this be exported as a testable helper, ✓)
+  - symbol: __resetCounterCacheForTesting
+    file: src/core/conflict-resolution/llm-judged-merge.ts:48
+    pillar_a_caller: src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts (7 references — every RED test calls it to reset the lazy cache before exercising consolidate)
+    pillar_b_test: n/a (test-only utility — not a production symbol)
+    pillar_c_metric: n/a
+    verdict: PASS (test-only export, NOT re-exported from any barrel — matches v0.4b pg-evictor.ts:73 precedent; correctly scoped)
+  - symbol: CONFLICT_MERGE_PROMPT + generateConflictMergePrompt
+    file: src/core/conflict-resolution/prompts.ts
+    pillar_a_caller: src/core/conflict-resolution/llm-judged-merge.ts:27,101 (only call site)
+    pillar_b_test: src/core/conflict-resolution/__tests__/prompts.test.ts (3 unit tests — non-empty JSON schema mention, cluster-id round-trip, deterministic build)
+    pillar_c_metric: n/a (pure builder)
+    verdict: PASS (re-exported via src/core/index.ts:128-129; prompt is grep-able + auditable by consumers per plan T1.3 "consumers can grep CONFLICT_MERGE_PROMPT in source")
+  - symbol: "reflect({ conflictResolution }) wiring at src/local/index.ts (LocalScopedMemory.reflect lines 374-405)"
+    file: src/local/index.ts
+    pillar_a_caller: examples/chat-with-memory/app/api/memory/distill/route.ts:104 (HTTP route) + 5 integration test files invoke `memory.user(...).reflect({ conflictResolution })`
+    pillar_b_test: ALL 5 distillation integration tests (reflect-with-policy + reflect-empty-scope + reflect-atomic-rollback + the-goal-test + the-goal-test-llm-measured)
+    pillar_c_metric: MISSING — see F-wire-1. The `src/local/index.ts:382-405` block calls `policy.consolidate()` and `persistConsolidations()` but emits NO OTel counter. Plan T2.1 Acceptance Criteria line 379 explicitly required `distillation.consolidation.{kept,rejected,abstain}` to fire from this wiring layer regardless of policy choice; today only LJM emits counters from inside its own consolidate().
+    verdict: PASS_WITH_CAVEATS
+  - symbol: VectorStoreWithConsolidation (interface) + PgvectorStore.recallConsolidationCandidates + PgvectorStore.persistConsolidations
+    file: src/local/index.ts:237 (interface) + src/local/pgvector-store.ts:555,589
+    pillar_a_caller: src/local/index.ts:384-403 (LocalScopedMemory.reflect)
+    pillar_b_test: tests/integration/distillation/reflect-with-policy.test.ts (end-to-end happy path with persisted audit + soft-delete) + reflect-atomic-rollback (withTransaction ROLLBACK semantics) + the-goal-test (200-fixture stress)
+    pillar_c_metric: MISSING (same gap as the wiring layer — see F-wire-1)
+    verdict: PASS_WITH_CAVEATS
+  - symbol: consolidation_history table (migration 0007)
+    file: src/local/migrations/0007_distillation_columns.sql + meta/0007_snapshot.json
+    pillar_a_caller: src/local/pgvector-store.ts:603 (INSERT) + examples/chat-with-memory/app/api/memory/consolidation-history/route.ts:66,75 (SELECT)
+    pillar_b_test: tests/integration/distillation/reflect-with-policy.test.ts (rows assertion) + reflect-atomic-rollback (0-row post-rollback assertion) + forget-hard-survives-audit (EC-3 ON DELETE SET NULL — orphaned audit row preserved) + tests/integration/examples/chat-with-memory-distillation.test.ts (HTTP pagination + INNER JOIN exclusion)
+    pillar_c_metric: n/a (schema artifact)
+    verdict: PASS (FK + ON DELETE SET NULL semantics verified end-to-end against `ankane/pgvector:v0.5.1`; idempotent ALTER + indexes; meta/_journal.json updated correctly)
+  - symbol: POST /api/memory/distill (demo route)
+    file: examples/chat-with-memory/app/api/memory/distill/route.ts
+    pillar_a_caller: examples/chat-with-memory/components/memory-tabs/distillation-tab.tsx (UI fetch())
+    pillar_b_test: tests/integration/examples/chat-with-memory-distillation.test.ts (5 scenarios — invalid policy/empty userId/missing OPENAI_API_KEY/STUB_LLM error/happy path)
+    pillar_c_metric: n/a (HTTP route logs `[distill] start/end invocationId` to stdout; observable but no OTel counter; plan did not require one)
+    verdict: PASS
+  - symbol: GET /api/memory/consolidation-history (demo route)
+    file: examples/chat-with-memory/app/api/memory/consolidation-history/route.ts
+    pillar_a_caller: examples/chat-with-memory/components/memory-tabs/distillation-tab.tsx (audit-list fetch)
+    pillar_b_test: tests/integration/examples/chat-with-memory-distillation.test.ts (pagination + empty result 200 + EC-8 INNER JOIN exclusion)
+    pillar_c_metric: n/a
+    verdict: PASS (INNER JOIN intentional + documented per demo plan EC-8; orphan rows queryable via raw SQL per README)
+  - symbol: DistillationTab (UI)
+    file: examples/chat-with-memory/components/memory-tabs/distillation-tab.tsx
+    pillar_a_caller: examples/chat-with-memory/components/memory-sidebar.tsx:137 (rendered when `key==='distillation'`)
+    pillar_b_test: covered indirectly via HTTP integration tests + manual /test-chat-with-memory MCP probe (per demo plan T4.1)
+    pillar_c_metric: n/a (pure React)
+    verdict: PASS
+
+reachability_analysis:
+  entry_points_traced:
+    - examples/chat-with-memory/app/api/memory/distill/route.ts (POST) → getConflictResolutionPolicy → policy class → memory.user(...).reflect({ conflictResolution }) → LocalScopedMemory.reflect (src/local/index.ts:332) → policy.consolidate() → PgvectorStore.persistConsolidations → withTransaction → INSERT consolidation_history + UPDATE memories SET t_invalid
+    - examples/chat-with-memory/app/api/memory/consolidation-history/route.ts (GET) → pgPool.query → SELECT consolidation_history INNER JOIN memories
+    - tests/integration/distillation/the-goal-test.test.ts (vitest) → createLocalMemory → reflect({ conflictResolution: LWW }) → same path
+  orphan_modules: none — every new src/core/conflict-resolution/* module has at least one production OR test caller exercising the consolidate() entry point.
+
+dead_exports:
+  - export: src/core/conflict-resolution/last-write-wins.ts:35 `compareCandidatesDesc`
+    severity: MINOR
+    rationale: Re-exported via src/core/index.ts:121 with zero direct external callers (search across src/, tests/, examples/). Used INTERNALLY by LWW.consolidate at line 53. The barrel re-export is forward-compatible — consumers who want to compose a custom Policy that reuses the comparator semantics can grab it — but no current consumer does. Not a wiring failure; flag as MINOR cleanup-eligible OR keep as public API contract per ADR D2 transparency claim.
+  - export: src/core/conflict-resolution/llm-judged-merge.ts:75 `interface LlmJudgedMergeConflictPolicyOptions`
+    severity: NONE
+    rationale: Re-exported as type via src/core/index.ts:125. Used at examples/chat-with-memory/lib/memory.ts:502 (constructor call site infers but does not name the type) + unit tests instantiate via inline shape. Type is reachable from the public surface and load-bearing for the constructor — keeping it exported is correct DIP discipline.
+
+boundary_respect:
+  src/core/conflict_resolution_imports: type Scope (../scope.js), type LLM (../dip/llm.js), type Message (../dip/llm.js), @opentelemetry/api. ZERO imports from src/local/ or src/cloud/ — boundary respected.
+  src/local/index.ts_v0.7_additions: imports `NoopConflictPolicy`/`LastWriteWins`/`LlmJudgedMerge` from `../core/index.js` (correct direction); imports `ConflictResolutionResult` type only — atomic boundary clean.
+  examples/chat-with-memory imports: routes import from `@/lib/memory` which composes via `createLocalMemory({ vectorStore: new PgvectorStore(pool), ... })` — public-API path, no deep imports into src/.
+
+concurrent_safety:
+  persistConsolidations_uses_withTransaction: src/local/pgvector-store.ts:593-616 wraps `UPDATE memories SET t_invalid` + `INSERT consolidation_history` in a BEGIN/COMMIT block per ADR D6 + v0.4b T9.1 precedent. EC-8 (atomic-rollback test at tests/integration/distillation/reflect-atomic-rollback.test.ts) verifies a mid-batch throw rolls back BOTH operations against a real `ankane/pgvector:v0.5.1`. Verdict: SAFE.
+  recallConsolidationCandidates: read-only single SELECT — no race surface.
+  consolidation_phase_ordering: src/local/index.ts:374-405 runs consolidation BEFORE `executeReflection()` so the LLM-extraction failure path cannot mask the consolidation's own failure modes (intentional per inline comment + plan T2.1 deep-dependency-analysis). Per-request serialization; no cross-request shared mutable state.
+  __resetCounterCacheForTesting: clears module-scoped Map; tests that exercise this run serially in vitest's default isolation. No production concurrent-safety concern (function is test-only and never reached in production).
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 374-405
+    plan_ref: T2.1 Acceptance Criteria line 379 — "OTel counters `distillation.consolidation.{kept,rejected,abstain}` emit non-zero on integration test" + Global DoD line 548 — "OTel counters `distillation.consolidation.{kept,rejected,abstain}` observed non-zero in THE GOAL TEST run"
+    summary: |
+      Pillar (c) runtime-metric gap — wiring layer at src/local/index.ts:374-405
+      does NOT emit `distillation.consolidation.{kept,rejected,abstain}` counters.
+      Only LlmJudgedMergeConflictPolicy fires those counters from inside its own
+      consolidate() body (llm-judged-merge.ts:98-110). When THE GOAL TEST (T3.3)
+      runs with LastWriteWinsConflictPolicy (the canonical T3.3 configuration —
+      see the-goal-test.test.ts:52, 159), ZERO counters fire because LWW emits no
+      metrics and the wiring layer doesn't either.
+
+      The plan's Global DoD line 548 + Acceptance Criteria T2.1 line 379 BOTH
+      explicitly required the counters to be observable in THE GOAL TEST run.
+      Today THE GOAL TEST asserts precision/recall/accuracy via SELECT against
+      consolidation_history; it does NOT and cannot verify the metric pillar
+      because the wiring layer never emits them for LWW.
+    evidence: |
+      grep -n "distillation\." src/ → returns only matches inside
+      src/core/conflict-resolution/llm-judged-merge.ts lines 32-35 (string
+      constants) + 98, 106, 109, 110 (Counter.add calls). NO match in
+      src/local/index.ts or src/core/reflection/execute.ts.
+
+      tests/integration/distillation/the-goal-test.test.ts:139-159 wires
+      LastWriteWinsConflictPolicy. LWW.consolidate at last-write-wins.ts:46-66
+      contains zero `metrics.getMeter` / `Counter.add` calls.
+    recommended_action: |
+      Two acceptable closures (operator's choice):
+      (a) Add lazy counter resolution at src/local/index.ts:374-405 boundary so
+          EVERY policy invocation (Noop/LWW/LJM) emits the wiring-layer counter
+          with policy-name as a label/attribute. Pattern: mirror
+          src/local/eviction/pg-evictor.ts:56-75 lazy-init helper. Touch points:
+          ~10 LoC + 1 new integration test asserting counter fires under LWW.
+      (b) Accept honestly via SHIPPABLE_WITH_CAVEATS in the review report +
+          downgrade T2.1 Acceptance Criteria to "OTel counters fire when LJM
+          policy is used; LWW/Noop are pure-functional and emit no metrics".
+          Update plan v1.2 with the narrowed contract; add CHANGELOG entry.
+
+      Prefer (a) — it aligns with the existing Mem0-shape parity claim that
+      every consolidation event is observable, and it matches the v0.4b
+      precedent for eviction counters.
+  - id: F-wire-2
+    severity: MAJOR
+    file: tests/integration/distillation/the-goal-test.test.ts + tests/integration/distillation/reflect-with-policy.test.ts
+    line: n/a (test-suite-wide gap)
+    plan_ref: T2.1 RED #4 (line 371) + T3.3 RED #3 (line 477) — "consumer test installs a non-default `MeterProvider` BEFORE invoking `reflect()`; after consolidation, asserts the consumer's counters captured the increments (proves lazy resolution in execute.ts)" / "test-local `MeterProvider` test — verifies counters fire on the consumer-provided provider. FAILS if any counter is materialized at module-load."
+    summary: |
+      Pillar (c) integration-test gap — plan T2.1 RED #4 + T3.3 RED #3 BOTH
+      explicitly required a test where the consumer installs a non-default
+      MeterProvider via @opentelemetry/sdk-metrics and asserts the
+      `distillation.consolidation.*` counters fire on it from end-to-end
+      reflect() runs. No such integration test exists; only the LJM UNIT test
+      verifies lazy resolution via `vi.spyOn(otel.metrics, 'getMeter')` (RED #6
+      at llm-judged-merge.test.ts:105-118).
+
+      Consequence: the lazy-init pattern is unit-test-verified at the policy
+      boundary but NOT exercised in a real integration run with a
+      consumer-installed in-memory exporter. Plan T3.3 Acceptance Criteria
+      line 484 ("EC-4: test-local `MeterProvider` captures `distillation.*`
+      counter increments — lazy-init verified end-to-end") is not satisfied.
+    evidence: |
+      grep -rn "MeterProvider\|InMemoryMetric" tests/integration/ → ZERO matches.
+      tests/integration/distillation/the-goal-test.test.ts contains no
+      @opentelemetry/sdk-metrics import.
+    recommended_action: |
+      Add `tests/integration/distillation/reflect-with-policy-otel.test.ts`
+      that:
+        1. imports `MeterProvider`, `InMemoryMetricExporter` from
+           `@opentelemetry/sdk-metrics`.
+        2. calls `metrics.setGlobalMeterProvider(testProvider)` BEFORE creating
+           the policy instance.
+        3. seeds 2 cosine-similar contradictory memories.
+        4. invokes `memory.user(...).reflect({ conflictResolution: new LjmPolicy(...) })`.
+        5. flushes the metric reader via `await testProvider.forceFlush()`.
+        6. asserts counters `distillation.consolidation.kept` and
+           `distillation.consolidation.rejected` are present in the export
+           with sum > 0.
+
+      Add @opentelemetry/sdk-metrics as a devDependency if not already
+      present. Cost ~30 min implementation; closes the only remaining
+      observability gap before v1.0 benchmarks (Item 10).
+  - id: F-wire-3
+    severity: MINOR
+    file: src/local/index.ts
+    line: 375
+    plan_ref: code hygiene (no plan ref)
+    summary: |
+      Stale inline line-number reference. The comment at src/local/index.ts:375
+      says "EC-7 absorbed: empty scope already short-circuited at line 317"
+      but the actual short-circuit lives at line 355 (block at lines 355-366
+      handling `sourceMemories.length === 0`). Line 317 is part of the
+      catch-block tail of the `remember()` method. The reference appears to
+      drift from a pre-merge version.
+    evidence: |
+      Read src/local/index.ts:311-318 → tail of `remember()` catch block, no
+      short-circuit.
+      Read src/local/index.ts:355-366 → actual empty-source short-circuit.
+    recommended_action: |
+      Update the comment to reference line 355 (or remove the literal line
+      number entirely and write "earlier in this function body, lines 354-366").
+      Single-line edit; ship in next routine touch of the file.
+  - id: F-wire-4
+    severity: MINOR
+    file: src/local/schema.ts
+    line: n/a (absence)
+    plan_ref: architecture.md § 7 (Module hygiene — TypeScript strict mode + DRY)
+    summary: |
+      `consolidation_history` table is persisted + queried via raw SQL in
+      pgvector-store.ts:589-617 AND demo route consolidation-history/route.ts:62-79,
+      but it is NOT declared as a Drizzle `pgTable` in src/local/schema.ts.
+      Other tables (memories, history, entities) DO have Drizzle declarations.
+      Consequence: consumers who want to extend the demo's audit query with
+      `drizzle-orm`'s typed query builder cannot — they must drop to raw pg
+      pool. Minor DIP/DRY hygiene gap; the migration ships the source-of-truth
+      SQL so the gap is cosmetic, not functional.
+    evidence: |
+      grep -n "consolidation_history" src/local/schema.ts → 0 matches.
+      grep -n "memories\\.\\|history\\.\\|entities\\." src/local/schema.ts → 3 pgTable declarations present.
+    recommended_action: |
+      Add `consolidation_history` pgTable to src/local/schema.ts mirroring
+      the migration shape (jsonb columns + nullable uuid FK + timestamptz).
+      Surface to demo + future TheoCloud cloud runtime via the existing
+      `entities, history, memories` re-export at src/local/index.ts:83.
+      ~15 LoC; ship opportunistically in the next file touch per
+      audit-trail-rotation.md.
+
+verdict_summary: |
+  Wiring triad rigor — 11 / 11 symbols PASS pillar (a) static-caller depth
+  check (no orphans, no dead branches, no `if (false)` gaming). 10 / 11 PASS
+  pillar (b) integration-test depth check (only the OTel-MeterProvider
+  end-to-end scenario is missing per F-wire-2). 0 / 5 PASS pillar (c)
+  runtime-metric observation when the canonical T3.3 GOAL TEST policy (LWW)
+  is wired — F-wire-1 closes the gap if either (a) the wiring layer emits
+  policy-agnostic counters OR (b) the plan's acceptance criteria are
+  narrowed to LJM-only.
+
+  Reachability is clean — every new module is traceable from at least one
+  production entry point (HTTP route OR integration-test seed). No dead
+  exports beyond the MINOR `compareCandidatesDesc` re-export caveat.
+  Boundary respect is clean (zero core → local reverse imports).
+  Concurrent safety is enforced via `withTransaction` BEGIN/COMMIT with
+  end-to-end ROLLBACK proof at reflect-atomic-rollback.test.ts.
+
+  Overall wiring verdict: PASS_WITH_CAVEATS — 2 MAJOR (F-wire-1, F-wire-2)
+  + 2 MINOR (F-wire-3, F-wire-4). Neither MAJOR is a BLOCKER:
+  F-wire-1 is a honesty/observability gap that consumers can route around by
+  using LJM; F-wire-2 is an integration-test-thinness gap that the unit-test
+  spy partially covers. Both should land before v1.0 benchmarks (CLAUDE.md
+  Item 10) so the production-readiness claim is honest about observability
+  end-to-end.

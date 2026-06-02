@@ -1,0 +1,312 @@
+agent: review-v0-7-distillation-pipeline-domain-db-migrations
+review_target: bab7a02^..HEAD for plan v0-7-distillation-pipeline
+domain: db-migrations
+domain_specific_patterns_checked:
+  - Drizzle migration discipline (forward-only; journal sync; meta snapshot integrity)
+  - Idempotency pattern (CREATE TABLE IF NOT EXISTS + DO-block ALTER guarded by information_schema probe)
+  - FK declaration ordering (no embedded FK in CREATE TABLE — added via ALTER ADD CONSTRAINT)
+  - FK naming convention (Drizzle pattern {tableFrom}_{colFrom}_{tableTo}_{colTo}_fk)
+  - ON DELETE action consistency (SET NULL for audit-survival; CASCADE for per-memory artifacts)
+  - schema.ts ↔ migration SQL ↔ meta/snapshot.json declarative parity (drizzle-kit push integrity)
+  - Cross-migration interaction (0003 eviction, 0004 trigger, 0005-0006 indexes, 0002 superseded_by)
+  - Push-flow safety (drizzle-kit push must not produce destructive diff)
+  - Trigger-bearing migration discipline (apply-trigger-migrations.mjs scan)
+  - Journal _journal.json monotonicity + prevId chain integrity
+  - Repair script + rollback runbook completeness (v0.4b precedent)
+  - Cross-cycle interaction with adapters-or-local destructive dim-change cascade
+  - npm pack file inclusion (src/local/migrations/** glob)
+
+findings:
+  - id: F-dom-db-1
+    severity: CRITICAL
+    file: src/local/schema.ts
+    line: 224
+    plan_ref: T0.1 / ADR D3 — Migration `0007_distillation_columns.sql` adds `consolidation_history` table
+    domain_anchor: architecture.md § 10.2 (`drizzle-kit push` vs `runMigrations()` conflict) + drizzle.config.ts (`schema: './src/local/schema.ts'`)
+    summary: |
+      schema.ts does NOT declare a `pgTable('consolidation_history', ...)` export
+      while migration 0007_distillation_columns.sql + meta/0007_snapshot.json
+      DO add the table. drizzle-kit's `push` command uses schema.ts as the
+      schema source of truth and synchronizes the live DB to match it —
+      against a v0.7-migrated DB, `npm run db:push` would produce a destructive
+      DROP TABLE diff that wipes consolidation_history (and its audit rows
+      tied to GDPR-compliance EC-3).
+    evidence: |
+      File listing schema.ts exports (lines 68, 168, 193, 209):
+      ```
+      export const memories = pgTable('memories', ...)
+      export const reflectionCounters = pgTable('reflection_counters', ...)
+      export const entities = pgTable('entities', ...)
+      export const history = pgTable('history', ...)
+      ```
+      Notably ABSENT: `export const consolidationHistory = pgTable('consolidation_history', ...)`.
+
+      `drizzle.config.ts` confirms: `schema: './src/local/schema.ts'`.
+
+      Verified via grep — zero references to `consolidation_history` or
+      `consolidationHistory` in schema.ts.
+
+      Note: architecture.md § 10.2 already documents the push-flow vs migrate()
+      conflict; F-T7.1-2 mitigation skips migrate() when journal absent. But
+      neither mitigation prevents the DROP-on-push direction for a table
+      declared in migrations but absent from schema.ts.
+
+      The same gap exists for the v0.4a `reflection_counters` table in 0001
+      and the v0.6 supersession columns in 0002 — those ARE present in
+      schema.ts. The consolidation_history omission is asymmetric and
+      makes the demo's `db:push` dev workflow silently destructive after
+      every restart against the consolidation table.
+    recommended_action: |
+      Add `export const consolidationHistory = pgTable('consolidation_history', {...})`
+      to src/local/schema.ts declaring all 7 columns + the 2 indexes + the
+      FK with `onDelete: 'set null'`. The declaration should mirror the
+      snapshot exactly (NOT NULL nullability, JSONB defaults, btree DESC
+      on idx_consolidation_history_created via sql template).
+
+      Also: add an integration test asserting `drizzle-kit push --strict --dry-run`
+      produces zero schema diff against a freshly-migrated v0.7 DB —
+      precedent: tests/integration/config-parity.test.ts in testing.md.
+
+  - id: F-dom-db-2
+    severity: MAJOR
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 31-38
+    plan_ref: T0.1 / ADR D3 (FK declaration via ALTER ADD CONSTRAINT)
+    domain_anchor: prior FK naming convention across 0000-0006 + 0007 snapshot (`consolidation_history_kept_memory_id_memories_id_fk`)
+    summary: |
+      FK constraint name mismatch between migration SQL and Drizzle snapshot.
+      SQL creates `consolidation_history_kept_memory_id_fkey` (PostgreSQL-style
+      `_fkey` suffix), but the snapshot expects
+      `consolidation_history_kept_memory_id_memories_id_fk` (Drizzle convention
+      used by every other FK in this repo: `history_memory_id_memories_id_fk`,
+      `memories_superseded_by_memories_id_fk`).
+
+      Consequence: a future `drizzle-kit generate` against the live DB would
+      detect the divergence and emit a DROP/ADD pair to "fix" the name — and
+      because the SQL probes for the `_fkey` suffix to decide idempotency, a
+      re-run after rename would create a SECOND FK with the new name (leaving
+      both live; PG allows multiple FKs on the same column pair with different
+      names). The information_schema check in 0007 lines 31-32 would not see
+      the new `_memories_id_fk` name and would re-add the `_fkey` constraint.
+    evidence: |
+      Prior FK names (all `_<table>_<col>_fk`):
+      - 0000 line 42: `history_memory_id_memories_id_fk`
+      - 0002 line 6: `memories_superseded_by_memories_id_fk`
+
+      0007 SQL line 32 + 35: `consolidation_history_kept_memory_id_fkey` (PG default suffix)
+
+      0007 snapshot line 662: `consolidation_history_kept_memory_id_memories_id_fk` (Drizzle convention)
+
+      grep verified:
+      ```
+      $ grep -hE 'ADD CONSTRAINT' src/local/migrations/*.sql
+      "memories_kind_derived_from_check"
+      "history_memory_id_memories_id_fk"      ← Drizzle convention
+      "consolidation_history_kept_memory_id_fkey"   ← DIVERGES
+      "memories_superseded_by_memories_id_fk"   ← Drizzle convention
+      ```
+
+      The repair script at `scripts/db-repair-v0-7-partial-state.mjs:60`
+      ALSO probes the `_fkey` name, so a hypothetical
+      drizzle-kit-generated rename would render the repair-state check
+      incorrect (would report FK absent when it actually exists under
+      the Drizzle name).
+    recommended_action: |
+      Rename the FK constraint in the migration SQL + the information_schema
+      probe to `consolidation_history_kept_memory_id_memories_id_fk` to match
+      Drizzle's snapshot expectation + the convention used by every other FK
+      in the repo. Update `scripts/db-repair-v0-7-partial-state.mjs:60` to
+      probe the same name.
+
+      No risk of breaking already-applied migrations because the v0.7 cycle
+      has not shipped to consumers yet; the only live DB carrying this FK
+      is the dev one which can be re-migrated.
+
+  - id: F-dom-db-3
+    severity: MAJOR
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 34-37
+    plan_ref: T0.1 (FK declaration)
+    domain_anchor: 0000_crazy_mimic.sql line 42 (`ON UPDATE no action` explicit) + 0002 line 6 (`ON UPDATE no action` explicit) + 0007 snapshot `"onUpdate": "no action"`
+    summary: |
+      The 0007 SQL omits `ON UPDATE NO ACTION` while every other FK in this
+      repo declares it explicitly AND the 0007 snapshot expects it
+      (`"onUpdate": "no action"` at meta/0007_snapshot.json:672). Functionally
+      equivalent (PG defaults FK ON UPDATE to NO ACTION) but stylistically
+      diverges from in-repo precedent and creates snapshot/SQL drift that a
+      future `drizzle-kit generate` could "normalize" away with an unnecessary
+      ALTER.
+    evidence: |
+      0000 line 42: `ON DELETE cascade ON UPDATE no action`
+      0002 line 6:  `ON DELETE set null ON UPDATE no action`
+      0007 line 37: `ON DELETE SET NULL;`  ← missing `ON UPDATE no action`
+      0007 snapshot line 671-672:
+      ```
+      "onDelete": "set null",
+      "onUpdate": "no action"
+      ```
+    recommended_action: |
+      Append `ON UPDATE NO ACTION` to the ALTER ADD CONSTRAINT in the
+      migration SQL. Both for consistency with the snapshot's explicit
+      declaration AND with the in-repo convention.
+
+  - id: F-dom-db-4
+    severity: MINOR
+    file: package.json
+    line: scripts block
+    plan_ref: T0.1 (repair script registration precedent set by v0.4b)
+    domain_anchor: v0.4b `T11.1b` precedent (`db:repair-v0-4b-partial-state` registered as npm script)
+    summary: |
+      The v0.7 repair script `scripts/db-repair-v0-7-partial-state.mjs`
+      exists at the path the runbook expects, BUT it is NOT registered as
+      an npm script. The v0.4b precedent (`db:repair-v0-4b-partial-state`)
+      IS registered in package.json:
+      ```
+      "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs",
+      ```
+      Operators following ops muscle-memory (`npm run db:repair-...`) will
+      get "missing script" instead of an actionable invocation hint. The
+      runbook documents bare `node scripts/...` invocation which is
+      internally consistent, but the asymmetry with v0.4b is a regression.
+    evidence: |
+      $ grep "db:repair" package.json
+      "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs",
+
+      $ ls scripts/db-repair-v0-7-partial-state.mjs
+      scripts/db-repair-v0-7-partial-state.mjs   ← exists; not in package.json
+
+      runbook-v0-7-rollback.md line 102:
+      THEOMEM_PG_URI=... node scripts/db-repair-v0-7-partial-state.mjs   ← bare node
+    recommended_action: |
+      Add to `package.json#scripts`:
+      ```
+      "db:repair-v0-7-partial-state": "node scripts/db-repair-v0-7-partial-state.mjs",
+      ```
+
+  - id: F-dom-db-5
+    severity: INFO
+    file: docs/runbook-v0-7-rollback.md
+    line: 73-78
+    plan_ref: T0.1 (rollback runbook)
+    domain_anchor: meta/_journal.json (actual timestamp `1780341763029`)
+    summary: |
+      The runbook's journal-cleanup diff sample (lines 73-78) shows
+      `"when": 1748808000000` as the placeholder for the 0007 entry,
+      but the actual `_journal.json` entry has
+      `"when": 1780341763029`. The runbook diff line is `-` (operator
+      REMOVES the entry), so the literal numeric mismatch does not
+      cause a procedural defect — the operator's diff against their live
+      journal will use whatever number is actually there. But a copy-paste
+      operator might be confused trying to match the diff line exactly.
+    evidence: |
+      Actual journal entry for 0007:
+      ```
+      { "idx": 7, "version": "7", "when": 1780341763029, "tag": "0007_distillation_columns", "breakpoints": true }
+      ```
+      Runbook diff line (illustrative placeholder):
+      ```
+      "when": 1748808000000,
+      ```
+    recommended_action: |
+      Either update the runbook's diff sample to use `1780341763029` (matches
+      live journal) OR replace the numeric placeholder with `<your-actual-timestamp>`
+      to make the documentation-vs-code drift explicit. Optional fix; safe to
+      leave as-is for v0.7 release.
+
+  - id: F-dom-db-6
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 14-22
+    plan_ref: T0.1 / ADR D3 (idempotency pattern)
+    domain_anchor: architecture.md § 10.3 (trigger-bearing migrations) + apply-trigger-migrations.mjs regex `/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TRIGGER|FUNCTION)\b/i`
+    summary: |
+      Confirmation that 0007 has NO triggers or functions — push-flow is
+      safe at this layer. The `apply-trigger-migrations.mjs` scan would
+      NOT include 0007 (no CREATE TRIGGER / CREATE FUNCTION pattern).
+
+      Cross-migration safety also confirmed:
+      - No name collision with 0003-0006 eviction indexes
+      - No clobber of 0002 supersedidB FK (different table)
+      - Both 0002 (memories_superseded_by) and 0007 (consolidation_history)
+        consistently use ON DELETE SET NULL when referencing memories(id) — same
+        semantic intent (preserve audit trail past hard-delete)
+      - Journal _journal.json monotonic + prevId chain intact
+        (0007.prevId = a0af2165... = 0006.id ✓)
+      - 0007_snapshot.json includes all 5 tables (entities, history, memories,
+        reflection_counters, consolidation_history)
+      - Migration uses split-step CREATE TABLE + DO-block ALTER FK per
+        architecture.md § 10.2 push-flow notes (correct pattern — embedded
+        FK in CREATE TABLE IF NOT EXISTS would be silently dropped on re-run)
+    evidence: |
+      0007 SQL: zero CREATE TRIGGER / CREATE FUNCTION strings (grep confirms).
+      apply-trigger-migrations.mjs regex would not select it.
+      Push-flow safety for 0007 specifically: subject to F-dom-db-1 schema.ts gap.
+    recommended_action: |
+      None — this is positive confirmation. Documenting for the review record
+      that the FK declaration ordering and idempotency pattern in 0007 are
+      consistent with v0.4b T0.1 precedent for forward-only migrations.
+
+  - id: F-dom-db-7
+    severity: INFO
+    file: src/local/index.ts
+    line: 846-933
+    plan_ref: Cross-cycle interaction with adapters-or-local destructive dim-change cascade
+    domain_anchor: adapters-or-local plan v1.2 ADR D3 + /review F-C1 (cascade collateral disclosure)
+    summary: |
+      Verified that the adapters-or-local destructive dim-change cascade
+      (DELETE FROM memories triggering FK propagation) correctly accounts
+      for the 0007 consolidation_history FK behavior. The applyDimChange
+      console.error explicitly enumerates:
+      ```
+      consolidation_history.kept_memory_id ON DELETE SET NULL nullifies
+      v0.7 distillation provenance
+      ```
+      This matches what 0007's FK declares (ON DELETE SET NULL) — so the
+      cross-cycle disclosure is HONEST: audit rows survive the destructive
+      cascade with kept_memory_id nullified, NOT cascaded out.
+
+      Note: the demo `app/api/memory/consolidation-history` route uses
+      INNER JOIN on `kept_memory_id`, so post-cascade the UI would EXCLUDE
+      these nullified rows from operator view. The audit table still has
+      them (regulatory by design); UI visibility is filtered. Cross-validation
+      reviewer should confirm operator expectations match.
+    evidence: |
+      src/local/index.ts:930-933:
+      'DELETE FROM memories (FK→history.memory_id ON DELETE CASCADE wipes audit trail; '
+      'consolidation_history.kept_memory_id ON DELETE SET NULL nullifies v0.7 distillation provenance; '
+      ...
+
+      examples/chat-with-memory/app/api/memory/consolidation-history/route.ts:67:
+      INNER JOIN memories m ON ch.kept_memory_id = m.id
+    recommended_action: |
+      None — positive confirmation. Cross-cycle disclosure and FK declaration
+      are aligned.
+
+summary_counts:
+  CRITICAL: 1
+  MAJOR: 2
+  MINOR: 1
+  INFO: 3
+
+verdict_recommendation: NEEDS_FIXES
+verdict_rationale: |
+  F-dom-db-1 (schema.ts gap) is CRITICAL because consumers running
+  `npm run db:push` against a v0.7-migrated DB will silently lose the
+  consolidation_history table + all its audit rows (which carry GDPR-survival
+  regulatory data per EC-3). The fix is a small, mechanical addition to
+  schema.ts that mirrors the snapshot — no behavioral change.
+
+  F-dom-db-2 (FK naming convention) and F-dom-db-3 (missing ON UPDATE clause)
+  are MAJOR because they create drizzle-kit-generate drift surface — every
+  future migration cycle in this repo will detect the divergence and propose
+  cleanup ALTERs that complicate the journal.
+
+  F-dom-db-4 is a small ops UX miss (precedent regression).
+
+  F-dom-db-5 is purely cosmetic in the runbook docs.
+
+  F-dom-db-6 and F-dom-db-7 are POSITIVE confirmations that idempotency,
+  push-flow trigger discipline, cross-migration interaction, journal sync,
+  and cross-cycle dim-change cascade are all correctly handled. The migration
+  is structurally sound; the gaps are at the declarative-parity layer
+  (schema.ts) and the naming convention layer.

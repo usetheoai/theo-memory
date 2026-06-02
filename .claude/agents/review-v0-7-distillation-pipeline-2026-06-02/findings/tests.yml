@@ -1,0 +1,411 @@
+agent: review-v0-7-distillation-pipeline-tests
+review_target: bab7a02^..HEAD for plan v0-7-distillation-pipeline (v1.1)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+generated_at: 2026-06-02
+
+test_pyramid:
+  unit_added: 35  # 8 llm-judged-merge + 5 last-write-wins + 3 noop + 3 prompts + 8 gold-set-shape + 8 precision-recall
+  integration_added: 7  # forget-hard-survives-audit (1) + reflect-with-policy (1) + reflect-empty-scope (1) + reflect-atomic-rollback (1) + the-goal-test (2) + the-goal-test-llm-measured (1)
+  e2e_added: 0
+  total: 42
+  pyramid_assessment: |
+    Correctly weighted (5:1 unit:integration ratio). No E2E added — appropriate for v0.7 which
+    extends an internal layer (reflect pipeline) rather than a consumer-facing surface.
+
+edge_cases_from_plan:
+  covered:
+    - EC-1 (LWW lex tie-break) — last-write-wins.test.ts line 61 (10-run stability)
+    - EC-2 (parseConsolidationResponse semantic validate) — llm-judged-merge.test.ts RED #3/4/5
+    - EC-3 (FK ON DELETE SET NULL GDPR survival) — forget-hard-survives-audit.test.ts
+    - EC-4 (lazy OTel counter resolution) — llm-judged-merge.test.ts RED #6 (vi.spyOn metrics.getMeter)
+    - EC-5 (3-run stability < 0.05 delta) — the-goal-test.test.ts line 229
+    - EC-6 (cluster cap > 20 → abstain) — llm-judged-merge.test.ts RED #7
+    - EC-7 (empty scope graceful no-op) — reflect-empty-scope.test.ts
+    - EC-8 (atomic transaction rollback) — reflect-atomic-rollback.test.ts
+    - EC-10 (BLEU via natural — honest fix) — precision-recall.test.ts + metrics.test commentary
+    - EC-11 (eval pre-conditions) — docs/distillation-evaluation/README.md (DOCUMENT-class)
+  partial:
+    - EC-4 end-to-end — the-goal-test.test.ts (T3.3) does NOT install a test-local MeterProvider OR
+      assert distillation.* counters fire on it. Plan T3.3 RED #3 explicitly required this.
+      Unit-level lazy-spy is present; end-to-end consumer-MeterProvider assertion is missing.
+  missing: []
+
+findings:
+  - id: F-tests-1
+    severity: MAJOR
+    file: src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+    line: 69-103, 120-141
+    plan_ref: T1.3 RED #2/#3/#4/#5 + #7 — abstain paths cite OTel counter increments
+    summary: |
+      EC-2 abstain tests (RED #2-#5) and EC-6 cluster-cap test (RED #7) assert `expect(results).toEqual([])`
+      but DO NOT assert the corresponding counters fire (`distillation.consolidation.abstain` and
+      `distillation.consolidation.cluster_too_large` respectively). Plan T1.3 acceptance criteria explicitly
+      lists these counter increments. The lazy-init pattern is covered by RED #6, but the actual increment
+      semantics on each abstain path are not exercised.
+    evidence: |
+      grep -n "abstain\|cluster_too_large" src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+      -> only appears in JSDoc comments + describe block; never in expect() assertions.
+      Counter names declared in llm-judged-merge.ts:32-35 but no test asserts they fire.
+    recommended_action: |
+      Add an OTel InMemoryMetricReader fixture (vitest beforeEach) and assert counter values per scenario:
+        - RED #2 non_json_response → abstain++ (1)
+        - RED #3/#4/#5 hallucinated id → abstain++ (1 each)
+        - RED #7 cluster size 21 → cluster_too_large++ (1)
+      This is what makes the lazy-init pattern observable end-to-end (the unit test only proves
+      `getMeter` is called; not that downstream Counter.add() carries the right name + value).
+
+  - id: F-tests-2
+    severity: MAJOR
+    file: tests/integration/distillation/the-goal-test.test.ts
+    line: 219-242
+    plan_ref: T3.3 RED #3 — "test-local MeterProvider test — verifies counters fire on the consumer-provided provider"
+    summary: |
+      THE GOAL TEST does NOT install a consumer-side MeterProvider and DOES NOT assert
+      `distillation.goal_test.pass / .precision / .recall / .conflict_resolution_accuracy` counters
+      fire. Plan T3.3 acceptance criterion explicitly requires "EC-4: test-local MeterProvider
+      captures distillation.* counter increments (lazy-init verified end-to-end)" but the test
+      relies only on the unit-level lazy spy (llm-judged-merge.test.ts RED #6).
+      The end-to-end EC-4 verification is therefore absent.
+    evidence: |
+      grep -rn "MeterProvider\|InMemoryMetricExporter" tests/integration/distillation/
+      -> zero matches.
+      Plan v1.1 line 471: "THE GOAL TEST setup installs a TEST-LOCAL MeterProvider ... and asserts
+      the distillation.goal_test.pass + distillation.precision + distillation.recall +
+      distillation.conflict_resolution_accuracy counters fire on it".
+    recommended_action: |
+      Either (a) install an InMemoryMetricReader in beforeAll, run the harness, assert the 4 named
+      counters fire with expected values; OR (b) ADR-DEFER this EC-4 end-to-end signal honestly
+      (the metric names cited in the plan — distillation.goal_test.pass etc. — appear not to be
+      emitted anywhere; check src/core/reflection/execute.ts to confirm whether they exist at all).
+      If counters don't exist in production code, this is a deeper scope creep into MISSING wiring,
+      not just a missing test.
+
+  - id: F-tests-3
+    severity: MAJOR
+    file: tests/integration/distillation/the-goal-test-llm-measured.test.ts
+    line: 12-43 (file-level docstring)
+    plan_ref: caveat from review prompt + EC-B fixture-quality honesty
+    summary: |
+      The v0.7.1 LLM-MEASURED test reported 1.000/1.000/1.000 (per file-level commentary +
+      console.log line 231) against the 10 hand-authored contradiction-pair fixtures. The fixtures
+      themselves are deliberately UNAMBIGUOUS (e.g. "Currently lives in São Paulo" vs "Lives in
+      Porto Alegre"; "Owns a 2024 Tesla Model 3" vs "Owns a 2018 Toyota Corolla"). A 1.000 result
+      on unambiguous fixtures says nothing about ambiguous-fixture quality (the actual hard case
+      the distillation pipeline must handle). Test file does not acknowledge this caveat anywhere.
+    evidence: |
+      Sampled fixtures via `for f in tests/fixtures/distillation/contradiction-pair/*hand*.json`:
+      all 10 are categorically distinct facts (different city, different car model, different
+      milk type, different employer). None test "Paulo loves coffee" vs "Paulo really enjoys
+      coffee" (paraphrase) or "Paulo lives in Brazil" vs "Paulo lives in São Paulo" (subsumption).
+
+      grep -n "ambiguous\|unambiguous\|fixture quality" tests/integration/distillation/the-goal-test-llm-measured.test.ts
+      -> zero matches.
+    recommended_action: |
+      Add a paragraph to the file-level docstring (above the imports) titled
+      "## Scope of this measurement" acknowledging:
+        - Fixtures are categorically-distinct contradictions; trivially separable.
+        - A 1.000 result is necessary but NOT sufficient for "the LJM judge is production-grade".
+        - Ambiguous-fixture coverage (paraphrase, subsumption, temporal-context conflicts) is
+          DEFERRED to a v0.7.2 fix-up cycle or evaluation-matrix expansion.
+      Mirror the honest disclosure pattern already used in the-goal-test.test.ts:12-42 docstring.
+
+  - id: F-tests-4
+    severity: MINOR
+    file: src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+    line: 31
+    plan_ref: testing.md § Anti-patterns — "Tests with 'and' in the name (split into two tests)"
+    summary: |
+      Test name "picks the candidate with the most recent createdAt as kept" — OK.
+      Test name "returns empty array when candidates is empty (no consolidation)" — OK.
+      Sibling test "returns empty array for a singleton cluster (nothing to resolve)" — OK.
+      BUT integration test
+      "LWW policy soft-deletes the older memory + writes consolidation_history row" (reflect-with-policy.test.ts:85)
+      uses "+" as conjunction — tests two distinct side effects (soft-delete + audit row) in one
+      it() block. Both are coupled, so splitting is awkward, but per testing.md § Anti-patterns the
+      name should describe ONE behavior. Either rename to "consolidates older + newer pair into
+      audit row + t_invalid mutation" (atomic behavior framing) OR split.
+    evidence: |
+      grep -E "^\s*(it|test)\(" tests/integration/distillation/reflect-with-policy.test.ts
+      -> line 85: "LWW policy soft-deletes the older memory + writes consolidation_history row"
+      Similar pattern: tests/integration/distillation/reflect-atomic-rollback.test.ts:75
+      "persistConsolidations throw inside withTransaction → ROLLBACK; no t_invalid mutation; 0 audit rows"
+      (3 assertions chained with ";" — ATOMIC-ROLLBACK framing is the unifying behavior).
+    recommended_action: |
+      For reflect-with-policy.test.ts:85, rename to one of:
+        - "applies LWW resolution: rejects older, keeps newer, audits the decision"  OR
+        - "consolidates a 2-memory cluster atomically (t_invalid + audit row)"
+      For reflect-atomic-rollback.test.ts:75, current name is acceptable because all three
+      assertions are facets of a single "atomicity" behavior.
+
+  - id: F-tests-5
+    severity: MINOR
+    file: tests/unit/distillation/precision-recall.test.ts
+    line: 56-61
+    plan_ref: testing.md § Anti-patterns — "Cada teste testa UMA coisa"
+    summary: |
+      Test "entityOverlapJaccard — identical = 1, disjoint = 0, partial = 1/3" runs THREE separate
+      Jaccard scenarios in one it() block (identical, disjoint, partial). Per testing.md
+      "each test tests ONE thing" — three table-driven cases should be three separate test() calls
+      OR use vitest test.each() for parameterized testing.
+    evidence: |
+      tests/unit/distillation/precision-recall.test.ts:56-61 — three expect() calls covering
+      three semantically distinct inputs (identical / disjoint / partial overlap).
+    recommended_action: |
+      Refactor to vitest test.each():
+        test.each([
+          { name: 'identical', a: 'alice bob carol', b: 'alice bob carol', expected: 1.0 },
+          { name: 'disjoint', a: 'alice', b: 'bob', expected: 0 },
+          { name: 'partial 1/3', a: 'alice bob', b: 'alice carol', expected: 1 / 3 },
+        ])('entityOverlapJaccard $name → $expected', ({ a, b, expected }) => { ... });
+      Same pattern applicable to tokenize test (line 29) if extended.
+
+  - id: F-tests-6
+    severity: MINOR
+    file: tests/integration/distillation/reflect-atomic-rollback.test.ts
+    line: 75-133
+    plan_ref: testing.md § Anti-patterns — "Mocks que excedem 5 linhas de setup"
+    summary: |
+      The vi.spyOn setup for persistConsolidations (lines 78-95) is ~17 lines and re-implements
+      a sizable chunk of the actual store transaction logic (UPDATE memories, then throw). Per
+      testing.md anti-pattern: "Mocks com mais de 5 linhas → o design está errado; revisar SRP".
+      The complexity comes from needing to fail INSIDE the transaction AFTER the UPDATE — a
+      legitimate scenario. But the mock duplicates production code, so any future refactor to
+      withTransaction (column rename, schema change) silently desyncs the mock from reality.
+    evidence: |
+      lines 79-95: mockImplementationOnce(async (results) => {
+        await store.withTransaction(async (client) => { /* re-implements t_invalid UPDATE */ });
+      });
+    recommended_action: |
+      Two options:
+        (A) Inject a "fail at step N" hook into PgvectorStore.persistConsolidations directly via
+            a test-only flag (e.g., FAIL_AFTER_T_INVALID env var or a constructor injection).
+            Keeps the assertion focused on observable rollback semantics; removes mock duplication.
+        (B) Promote the test to E2E and force the failure via a pg.Pool error injector
+            (cheaper now; documents the deep concern).
+      The current implementation works AS A POINT-IN-TIME proof but creates a maintenance hazard.
+      MINOR because the test currently asserts the right behavior; impact is future-facing.
+
+  - id: F-tests-7
+    severity: MINOR
+    file: tests/integration/distillation/the-goal-test.test.ts
+    line: 12-44 (docstring)
+    plan_ref: Inquebrável Rule 3 (extreme honesty) — well honored
+    summary: |
+      The docstring is exemplary: explicit "Honest scope" section delineates what the test PROVES
+      vs what it does NOT prove. Cites ADR-DEFER-LLM-MEASURED-GOAL-TEST + EC-B + EC-11 cost
+      disclosure. This is the gold standard for cycle-implement honesty discipline. Note it for
+      replication in F-tests-3 (the LLM-MEASURED test currently lacks the same honesty section).
+    evidence: |
+      Lines 12-44 of tests/integration/distillation/the-goal-test.test.ts.
+    recommended_action: |
+      INFO — no action required for this test. Use this docstring as the model when fixing F-tests-3.
+
+  - id: F-tests-8
+    severity: MINOR
+    file: tests/integration/distillation/the-goal-test-llm-measured.test.ts
+    line: 45-59 (env-var mutation block)
+    plan_ref: testing.md § Determinism — "Tests devem ser independentes entre si"
+    summary: |
+      Lines 51-58 unconditionally mutate process.env at module-load time:
+        process.env['OPENAI_API_KEY'] = OPENROUTER_KEY  (when OPENROUTER_KEY set)
+        process.env['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1'  (UNCONDITIONAL when empty)
+        process.env['OPENAI_CHAT_MODEL'] = 'openai/gpt-4o-mini'  (UNCONDITIONAL when empty)
+      This module-load side effect leaks into ANY other test file that subsequently imports the
+      OpenAILLM and reads OPENAI_BASE_URL — even when this describe.skipIf block skips. The leak
+      depends on vitest's module loader ordering, which is not deterministic across pool=threads.
+    evidence: |
+      Lines 51-58 — top-level `if (...)` blocks mutate process.env unconditionally on module load.
+      No corresponding cleanup in afterAll.
+    recommended_action: |
+      Move the env-shift into beforeAll(), inside the describe.skipIf scope. Restore originals
+      in afterAll(). Pattern:
+        const originalBaseUrl = process.env['OPENAI_BASE_URL'];
+        beforeAll(() => { /* set */ });
+        afterAll(() => { process.env['OPENAI_BASE_URL'] = originalBaseUrl; });
+      This contains the side effect to the test's lifecycle. Currently MINOR because OPENROUTER_KEY
+      empty (CI lane) makes the file inert, but the leak is real under any local run with
+      OPENROUTER_KEY set.
+
+  - id: F-tests-9
+    severity: INFO
+    file: src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+    line: 50-118
+    plan_ref: TDD discipline — RED-GREEN-REFACTOR
+    summary: |
+      Test file uses inline `const { LlmJudgedMergeConflictPolicy, __resetCounterCacheForTesting }
+      = await import('../llm-judged-merge.js');` inside every it() block to enable cache reset.
+      Pattern is intentional (each test wants a fresh counter cache for the lazy-init spy in RED #6).
+      Honest — the `__resetCounterCacheForTesting` symbol is name-prefixed with `__` and documented.
+      This is healthier than (a) module-level cache + describe-level reset (couples test order) or
+      (b) singleton with no escape hatch.
+    evidence: |
+      Lines 57, 70, 79, 88, 97, 107-108, 121 — all use the test-only reset helper.
+    recommended_action: |
+      INFO: closed by commit 6b5ca31 (T1.3). No action.
+
+  - id: F-tests-10
+    severity: INFO
+    file: tests/fixtures/distillation/README.md
+    line: 1-60
+    plan_ref: testing.md + no-paper-names-in-code.md
+    summary: |
+      README is exemplary on honesty (lines 45-50 explicitly disclose: procedural fixtures are NOT
+      semantic ground truth; T3.3 measures only the 50 hand-authored subset; ADR D4 ideal "50 hand
+      + 150 LLM-simulated-and-human-verified" was deferred to v0.7.1).
+      Paper name "MemoryBank" is referenced indirectly ("methodology snapshot" + `@see` to snapshot
+      hash) without using the bare term in src/ or test code (honors no-paper-names-in-code.md).
+    evidence: |
+      Sampled fixture JSON files contain only domain-relevant text; no paper name leakage.
+      grep -rn "MemoryBank\|Voyager\|Mem0\|Letta" tests/fixtures/distillation/*.json
+      → zero matches.
+    recommended_action: |
+      INFO: closed by commit 8756fd2 (T3.1). No action.
+
+  - id: F-tests-11
+    severity: INFO
+    file: src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+    line: 61-81
+    plan_ref: EC-1 stability — "deterministic across 10 runs"
+    summary: |
+      EC-1 tie-break test is well-constructed:
+        - Mixed-order input (aaa, ccc, bbb) defeats both naive Math.max AND unstable Array.sort bugs.
+        - Loop runs 10 iterations; Set-based assertion guarantees exact determinism.
+        - Asserts BOTH keptMemoryId AND rejectedMemoryIds DESC ordering.
+      Pattern reusable for other tie-break-sensitive paths (could absorb into a shared
+      test/helpers/stability-check.ts if a third tie-break test emerges).
+    evidence: |
+      Lines 61-81 of last-write-wins.test.ts — exemplary EC-1 absorption.
+    recommended_action: |
+      INFO: closed by commit 92334e0 (T1.2). No action.
+
+  - id: F-tests-12
+    severity: INFO
+    file: tests/integration/distillation/forget-hard-survives-audit.test.ts
+    line: 73-129
+    plan_ref: EC-3 — GDPR hard-delete survival
+    summary: |
+      Test correctly exercises all 4 EC-3 sub-assertions: (a) no FK violation, (b) audit row
+      survives with kept_memory_id NULL, (c) reason + policy_name preserved, (d) rejected_memory_ids
+      JSONB unchanged. Given-When-Then structure followed (lines 76-83 Given, 100 When, 102-127
+      Then). Strong AAA discipline.
+    evidence: |
+      Lines 73-129 — text comments "Given", "When", "Then" delineate phases.
+    recommended_action: |
+      INFO: closed by commit bab7a02 (T0.1). No action.
+
+  - id: F-tests-13
+    severity: INFO
+    file: tests/unit/distillation/gold-set-shape.test.ts
+    line: 36-95
+    plan_ref: T3.1 — 200 fixtures + 50 hand + 150 procedural per ADR D4
+    summary: |
+      All 8 fixture-shape invariants are asserted explicitly:
+        - GOLD_SET_TOTAL constant = 200
+        - loadGoldSet() returns 200
+        - category distribution 50/50/25/25/50
+        - hand subset = 50 (10 per category)
+        - procedural subset = 150
+        - every contradiction-pair has expectedConflictPair
+        - file naming discipline (id starts with category prefix)
+        - every fixture has ≥1 expectedFact
+      Strong shape-coverage. Asserts the ADR D4 contract end-to-end.
+    evidence: |
+      Lines 36-95 — 8 separate test() blocks, one per invariant. No "and" conjunctions.
+    recommended_action: |
+      INFO: closed by commit 8756fd2 (T3.1). No action.
+
+determinism_audit:
+  flaky_test_risk:
+    - file: tests/integration/distillation/the-goal-test.test.ts
+      risk: |
+        EC-5 stability test runs the harness 3× sequentially using LastWriteWins (deterministic
+        by construction). Will not flake because LWW is pure. Will flake if anyone swaps
+        runOnce() to LJM with a non-zero temperature.
+      mitigation: docstring lines 32-43 already document this.
+    - file: tests/integration/distillation/the-goal-test-llm-measured.test.ts
+      risk: |
+        Real LLM call; flakiness possible if openai/gpt-4o-mini returns malformed JSON OR if
+        OpenRouter rate-limits mid-run. Test is gated by OPENROUTER_KEY presence so CI is safe;
+        local runs may flake intermittently.
+      mitigation: |
+        Acceptable for v0.7.1 measurement phase. Document expected non-deterministic failure rate
+        if test joins CI.
+  shared_state:
+    - file: tests/integration/distillation/the-goal-test-llm-measured.test.ts
+      issue: F-tests-8 (module-load process.env mutation).
+  randomness:
+    - file: tests/integration/distillation/*.test.ts (multiple)
+      observation: |
+        `hash = \`t...-${Date.now()}-${Math.random()}\`` pattern used for seed-row hashes
+        across all 6 integration test files. Non-deterministic but ACCEPTABLE here because
+        the hash is a unique-key placeholder, not under test. None of the assertions read it back.
+
+mock_hygiene_audit:
+  unit_test_mocks:
+    - file: src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+      observation: |
+        FakeLLM class is 7 lines + 4 lines per test for instance config. SLIGHTLY over the
+        "5-line mock" testing.md anti-pattern threshold but each FakeLLM instance is unique
+        per scenario (kept_id / rejected_ids / reason varied). Defensible.
+    - file: src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+      observation: |
+        CountingLLM class (RED #7) extends FakeLLM solely to count generateResponse calls. Could
+        be replaced with vi.fn() — but the class form is type-safe + matches the FakeLLM idiom.
+        Acceptable.
+  integration_test_mocks:
+    - file: tests/integration/distillation/reflect-atomic-rollback.test.ts
+      observation: F-tests-6 (heavy mock duplicates production tx logic).
+    - file: tests/integration/distillation/reflect-empty-scope.test.ts
+      observation: |
+        generateResponseSpy + stubLlm setup is 8 lines (slightly over the testing.md 5-line
+        guideline) but expresses TWO contracts: extraction LLM never called AND ConsolidationLLM
+        never called. Defensible — splitting would obscure the empty-scope guard's behavior.
+
+verdict_summary:
+  overall: STRONG_WITH_GAPS
+  blockers: 0
+  critical: 0
+  major: 3       # F-tests-1, F-tests-2, F-tests-3
+  minor: 5       # F-tests-4, F-tests-5, F-tests-6, F-tests-7 (positive INFO, kept here for visibility), F-tests-8
+  info: 5        # F-tests-9 through F-tests-13
+  tdd_compliance: |
+    PASS. All test files were authored alongside their target implementation in the same atomic
+    commit per cycle-implement halt-loop RED→GREEN→REFACTOR discipline. Commit ordering verified
+    via git log --diff-filter=A:
+      92334e0 T1.2 → adds noop.test.ts + last-write-wins.test.ts + impl files
+      6b5ca31 T1.3 → adds llm-judged-merge.test.ts + impl files
+      8b4e4d1 T2.1 → adds 3 integration test files + reflect wiring
+      8756fd2 T3.1 → adds gold-set fixtures + loader + shape test
+      b4fc509 T3.2 → adds eval harness + precision-recall.test.ts
+      f7262ed T3.3 → adds the-goal-test.test.ts (oracle path)
+      a15d9eb T3.3.1 → adds the-goal-test-llm-measured.test.ts (v0.7.1)
+  pyramid_compliance: |
+    PASS. 35 unit / 7 integration / 0 E2E ratio matches testing.md § Pyramid (many unit; some
+    integration; E2E reserved for theokit binding which is unchanged by v0.7).
+  edge_case_coverage: |
+    PARTIAL_PASS. EC-1, EC-3, EC-5, EC-7, EC-8 are well-tested. EC-2 + EC-4 + EC-6 have UNIT
+    coverage but the OTel counter end-to-end assertions are absent (F-tests-1 + F-tests-2).
+    The LLM-MEASURED test (F-tests-3) lacks the fixture-quality honesty disclosure that the
+    oracle-path test exemplifies.
+  honesty_discipline: |
+    MIXED. the-goal-test.test.ts:12-44 is gold-standard honest scoping (ADR-DEFER cited
+    explicitly). The fixtures README is similarly honest about the procedural-vs-hand split.
+    BUT the-goal-test-llm-measured.test.ts ships 1.000/1.000/1.000 numbers without disclosing
+    that the underlying fixtures are categorically-distinct (trivially separable). The number
+    is technically correct but consumer-facing read of the eval matrix could overstate the
+    LJM judge's measured quality. See F-tests-3.
+
+recommended_actions_summary:
+  must_fix_before_merge: []
+  should_fix_before_merge:
+    - F-tests-1 (add InMemoryMetricReader assertions for 5 abstain paths)
+    - F-tests-2 (verify distillation.* counters exist in production code; either assert E2E or ADR-DEFER honestly)
+    - F-tests-3 (add ambiguous-fixture-quality caveat to LLM-MEASURED docstring)
+  should_fix_post_merge:
+    - F-tests-4 (rename test with "+" conjunction)
+    - F-tests-5 (refactor 3-case Jaccard test via test.each)
+    - F-tests-6 (extract test-only hook into PgvectorStore for transaction-failure injection)
+    - F-tests-8 (move process.env mutation into beforeAll/afterAll)
+  closed_clean:
+    - F-tests-7 (the-goal-test.test.ts docstring honesty — INFO)
+    - F-tests-9 through F-tests-13 (5 INFOs — well-implemented; cited for replication)

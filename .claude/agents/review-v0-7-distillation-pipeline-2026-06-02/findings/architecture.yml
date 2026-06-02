@@ -1,0 +1,873 @@
+agent: architecture-v0-7-distillation-pipeline
+review_target: bab7a02^..HEAD for plan v0-7-distillation-pipeline
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+reviewer_note: |
+  Architecture review across 200+ files. Focus: ConflictResolutionPolicy 9th
+  DIP shape, 3 impls (Noop/LWW/LJM), reflect() wiring, migration 0007 SQL
+  hygiene, OTel lazy-init, demo separation, DIP boundary, naming. Read all
+  files cited in finding `evidence` blocks directly; no fabrication.
+
+  HIGH-LEVEL VERDICT: Architecture is largely sound and follows v0.4a/v0.6
+  precedents faithfully. The DIP itself is clean and minimal. However, three
+  areas surface real concerns:
+    (1) The new `consolidation_history` table is NOT declared as a Drizzle
+        pgTable in src/local/schema.ts — only the raw SQL migration + raw
+        SQL queries exist. This couples the architecture to direct SQL
+        forever and is a real divergence from the v0.6 / v0.4a pattern where
+        every table has both forms.
+    (2) `recallConsolidationCandidates` semantics + the lack of `kind`
+        discriminator filtering creates a real episodic↔semantic boundary
+        violation: previously-derived rows + skill rows can be pulled into
+        a consolidation cluster.
+    (3) Two of the production paths (src/local/index.ts at 1078 LoC,
+        pgvector-store.ts at 686 LoC) blow the 500 LoC module hygiene budget
+        substantially. Pre-existing inheritance from prior cycles but v0.7
+        added meaningfully.
+
+findings:
+
+  - id: F-arch-1
+    severity: MAJOR
+    file: src/local/schema.ts
+    line: 167
+    plan_ref: T0.1 ADR D3 (migration 0007 architecture)
+    summary: |
+      `consolidation_history` table missing from Drizzle pgTable schema —
+      exists only as raw SQL in migration 0007 + raw INSERT/SELECT queries
+      in pgvector-store.ts + raw SQL in the consolidation-history route.
+    evidence: |
+      `grep -n "consolidationHistory\|consolidation_history" src/local/schema.ts`
+      returns ZERO matches. Yet:
+        - src/local/migrations/0007_distillation_columns.sql:14 — `CREATE TABLE`
+        - src/local/pgvector-store.ts:603 — `INSERT INTO consolidation_history (...)`
+        - examples/chat-with-memory/app/api/memory/consolidation-history/route.ts:63 — `SELECT ch.id ... FROM consolidation_history ch`
+
+      Compare against every other v0.x table in the codebase: memories
+      (schema.ts:68), entities (schema.ts:193), history (schema.ts:209),
+      reflectionCounters (schema.ts:168). All declared in pgTable form.
+      `consolidation_history` breaks the convention.
+
+      Per architecture.md § 10.2, `drizzle-kit push` introspects the live DB
+      and synchronizes the schema based on schema.ts. The current state
+      means `drizzle-kit push` is now inherently lossy in the
+      pgvector-store direction — it will detect `consolidation_history` as
+      "extra" and could potentially drop it (depends on the drizzle-kit
+      version behavior). At minimum, the orphan-schema mitigation does NOT
+      cover this case.
+    recommended_action: |
+      Add `consolidationHistory` pgTable to src/local/schema.ts mirroring
+      0007_distillation_columns.sql exactly: uuid id, kept_memory_id uuid
+      with FK to memories.id `onDelete: 'set null'`, rejected_memory_ids
+      jsonb, reason text, policy_name text, original_episode_ids jsonb,
+      created_at timestamp. The migration SQL stays the source-of-truth
+      for prod (runMigrations path); the pgTable declaration protects
+      against drizzle-kit push drift. Add an INFO row in architecture.md
+      § 10.2 noting consolidation_history follows the standard pattern now.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 555
+    plan_ref: T2.1 EC-7 absorption (reflect() conflict-resolution phase)
+    summary: |
+      `recallConsolidationCandidates` does NOT filter by `kind` — pulls
+      previously-derived rows AND skill rows (kind='skill') into the
+      consolidation cluster. Breaks the episodic→semantic boundary the
+      pipeline is supposed to enforce.
+    evidence: |
+      pgvector-store.ts lines 555-577:
+        ```ts
+        const where: string[] = ['t_invalid IS NULL'];
+        // composes user_id / session_id / agent_id only
+        // — NO `kind` clause
+        ```
+
+      Consequence: after a `reflect({ conflictResolution })` run produces
+      a derived memory (kind='derived'), the NEXT reflect() call pulls
+      both raw episodes AND the prior derived row. LJM sees them as a
+      cluster of "facts about the same subject" and may pick a derived
+      memory as the keeper, soft-deleting the raw episodes. Per ADR D2
+      and the plan's "episodic→semantic distillation" framing, derived
+      rows should NEVER be candidates of a consolidation pass — they are
+      the OUTPUT, not the input.
+
+      Same risk for skill rows when the scope is `agent` with a repoId
+      reused as agentId per ADR-0010 (RepoScope maps to agent_id).
+    recommended_action: |
+      Add `AND kind = 'extracted'` (or equivalent default-discriminator
+      filter) to the WHERE clause in recallConsolidationCandidates. Update
+      the JSDoc to make the contract explicit: "only kind='extracted' rows
+      are candidates; derived + skill rows are excluded by construction".
+      Mirrors the existing list()-level filter convention via composeFilters
+      (line 107: `if (filters.kind !== undefined) parts.push(...)`).
+
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 1078
+    plan_ref: architecture.md § Module hygiene (default 500 LoC budget)
+    summary: |
+      `src/local/index.ts` ballooned to 1078 LoC — more than 2x the 500 LoC
+      module hygiene budget. v0.7 added the conflict-resolution wiring
+      (374-405) + applyDimChange (873-1005, from adapters-or-local) on
+      top of an already 600+ LoC file from v0.4b. Refactor budget overdue.
+    evidence: |
+      `wc -l src/local/index.ts` → 1078
+
+      File now hosts: createLocalMemory factory, LocalScopedMemory class
+      (5+ public methods + reflection+consolidation orchestration),
+      LocalMemory class, scope/filters helpers, runMigrations,
+      applyDimChange (~130 LoC of destructive-dim-change protocol),
+      validateEmbeddingDim, probeEmbedder, scopeToCounterTuple, two
+      duck-typed VectorStore extension interfaces.
+
+      Per architecture.md § 7 / global CLAUDE.md PARTE II § SRP: "Classes
+      'Manager' / 'Helper' / 'Utils' que viram lixeira" — this is the
+      Manager anti-pattern manifesting as a long file. The applyDimChange
+      orchestration deserves its own module; same for runMigrations.
+    recommended_action: |
+      Two-cut refactor (no urgency — schedule as v0.7.2 hygiene cycle):
+        1. Move applyDimChange + runMigrations to src/local/migrations.ts
+           (~150 LoC carved out).
+        2. Move LocalScopedMemory + LocalMemory classes into
+           src/local/local-memory.ts (~400 LoC carved out).
+      Leaves src/local/index.ts as the public barrel + factory only
+      (~200 LoC). Existing exports stay stable; no consumer impact.
+
+  - id: F-arch-4
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 686
+    plan_ref: architecture.md § Module hygiene
+    summary: |
+      `src/local/pgvector-store.ts` at 686 LoC — also exceeds 500 LoC budget.
+      v0.7 added recallConsolidationCandidates (555-577), persistConsolidations
+      (589-617), and withTransaction (620-633) — about +80 LoC. The file
+      has been growing across cycles without a split.
+    evidence: |
+      `wc -l src/local/pgvector-store.ts` → 686
+
+      Mixed responsibilities: VectorStore impl (init/insert/search/list/
+      keywordSearch/get/update/delete), v0.4a insertDerivedMemory, v0.6
+      skill delegation to PgvectorSkillStore (already split), v0.7
+      consolidation methods, withTransaction helper, reflection_counters
+      bumpReflectionCounter (635-685, v0.4a — should arguably be in
+      reflection-counter-store.ts).
+    recommended_action: |
+      Extract bumpReflectionCounter into PgvectorReflectionCounterStore
+      via composition (mirror PgvectorSkillStore pattern already used by
+      this file at line 158 / 540-546). Extract the new v0.7
+      consolidation methods into PgvectorConsolidationStore. The host
+      PgvectorStore stays the VectorStore DIP implementer + composition
+      root. No consumer impact (instance still exposes the methods via
+      delegation).
+
+  - id: F-arch-5
+    severity: MINOR
+    file: src/local/index.ts
+    line: 335
+    plan_ref: T2.1 reflect() options usage
+    summary: |
+      `void options;` at line 335 is now dead code — the parameter IS
+      used at line 382 (`const conflictPolicy = options?.conflictResolution`).
+      This was a v0.4a lint-suppression to silence "unused parameter"
+      that became obsolete the moment v0.7 wired conflictResolution.
+    evidence: |
+      ```ts
+      async reflect(options?: ReflectOptions): Promise<ReflectionResult> {
+        void options;  // ← line 335: legacy lint-suppression
+        // ...
+        const conflictPolicy = options?.conflictResolution;  // ← line 382
+      ```
+
+      `void options;` is a no-op runtime-side; it does NOT clear the
+      reference. So this is harmless, but it's a misleading code smell:
+      readers see `void options` and assume the parameter is intentionally
+      ignored.
+    recommended_action: |
+      Delete the `void options;` line. The next read of options at line
+      382 is enough to satisfy the no-unused-vars rule.
+
+  - id: F-arch-6
+    severity: MINOR
+    file: src/core/conflict-resolution/last-write-wins.ts
+    line: 55
+    plan_ref: T1.2 LWW comparator + EC-1 tie-break
+    summary: |
+      `if (keep === undefined) return [];` at line 55 is dead-but-defensive
+      branch — line 52 guards `candidates.length < 2` so the sorted array
+      has ≥ 2 elements, meaning destructuring `[keep, ...rejected]` always
+      produces a defined `keep`. Acceptable under
+      `noUncheckedIndexedAccess` TS strict mode but adds noise.
+    evidence: |
+      ```ts
+      if (candidates.length < 2) return [];
+      const sorted = [...candidates].sort(compareCandidatesDesc);
+      const [keep, ...rejected] = sorted;
+      if (keep === undefined) return [];  // ← unreachable under TS strict
+      ```
+    recommended_action: |
+      Keep the guard if `noUncheckedIndexedAccess` is enabled in
+      tsconfig.contract.json (it likely is per the rest of the codebase's
+      patterns). Add a one-line comment explaining "// TS strict guard;
+      unreachable at runtime per length check above" so the next reader
+      doesn't assume there's a real edge case lurking. No functional
+      change needed.
+
+  - id: F-arch-7
+    severity: MINOR
+    file: src/core/conflict-resolution/llm-judged-merge.ts
+    line: 64
+    plan_ref: T1.3 LJM parse + EC-2 semantic validation
+    summary: |
+      `(raw).error` at line 64 — missing type assertion to `Record<string,
+      unknown>`. The `in` check guards key presence but the cast to access
+      the value bypasses TS strict-mode checks. Minor TS hygiene.
+    evidence: |
+      ```ts
+      if ('error' in raw && (raw).error === 'non_json_response') return null;
+      ```
+
+      `(raw)` here is the same as just `raw` — the parens around an
+      already-narrowed unknown don't add a type. Either intentional
+      shorthand or accidental no-op. Compiles only because `raw` was
+      narrowed to `object` by line 63 + `in` makes `error` accessible.
+    recommended_action: |
+      Either `(raw as { error: unknown }).error` (explicit) OR keep as-is
+      but add type narrowing via interface. Cosmetic.
+
+  - id: F-arch-8
+    severity: MINOR
+    file: examples/chat-with-memory/app/api/memory/distill/route.ts
+    line: 59
+    plan_ref: T1.1 + EC-1 (stub-vs-LJM 422 mapping)
+    summary: |
+      Pre-flight `OPENAI_API_KEY` check at line 59 runs BEFORE
+      `getConflictResolutionPolicy` at line 79, but the env-shift inside
+      `getSingleton()` is what promotes `OPENROUTER_KEY` →
+      `OPENAI_API_KEY` for `local-openrouter` mode. In a cold-start
+      `local-openrouter` flow, this route would 422 even though the
+      singleton would have shifted the key.
+    evidence: |
+      route.ts:59 → checks `process.env.OPENAI_API_KEY` upfront.
+      route.ts:79 → calls `getConflictResolutionPolicy` which triggers
+        `getSingleton` which (lib/memory.ts:386) calls
+        `adaptOpenrouterEnvForDemo()` which promotes the OpenRouter key.
+
+      Practical mitigation: `/api/info` or `/api/chat` usually fires
+      first in the demo (boot warm-up), so the singleton has likely
+      already shifted the env. But the ordering is fragile — a fresh
+      Node process answering /api/memory/distill as the FIRST request
+      in local-openrouter mode returns 422 OPENAI_API_KEY_MISSING with
+      misleading text.
+    recommended_action: |
+      Await getSingleton() FIRST (cheap once warmed); then check
+      `(await getSingleton()).adapterSource === 'stub'` OR check the
+      effective env-var AFTER the shift. Drop the env-var-shape check
+      from the route — it's better handled by the factory itself
+      (StubLlmNotUsableForLjmError already maps to 422). The current
+      pre-flight check duplicates logic.
+
+  - id: F-arch-9
+    severity: MINOR
+    file: src/local/index.ts
+    line: 237
+    plan_ref: T2.1 VectorStoreWithConsolidation duck typing
+    summary: |
+      `VectorStoreWithConsolidation` declared inline at lines 237-244 with
+      both methods marked optional. The runtime guard at line 385-388
+      then checks `typeof ... !== 'function'`. This duck-typing follows
+      v0.4a `VectorStoreWithDerivedInsert` precedent and v0.6 skill-store
+      extension pattern; consistent with the documented decision in
+      `src/core/dip/vector-store.ts` lines 7-12 (skill semantics live on
+      concrete stores as duck-typed extensions). Architecturally
+      defensible (avoids leaking distillation concepts into the core
+      VectorStore DIP that external adapters Qdrant/Pinecone implement),
+      but worth flagging for symmetry with future adapters.
+    evidence: |
+      ```ts
+      interface VectorStoreWithConsolidation {
+        recallConsolidationCandidates?: (...) => Promise<...>;
+        persistConsolidations?: (...) => Promise<void>;
+      }
+      ```
+
+      vector-store.ts JSDoc explicitly says:
+        "skill semantics ... live on the concrete local stores as
+         duck-typed extensions"
+      The v0.7 conflict-resolution path inherits this pattern (consistent
+      with v0.4a + v0.6).
+    recommended_action: |
+      No code change. Add a JSDoc comment block at line 237 citing the
+      vector-store.ts § 7-12 precedent so future adapters (Qdrant,
+      cloud) understand WHY the methods live off the DIP. If a third
+      VectorStore impl appears that needs distillation, revisit whether
+      it should join the DIP proper.
+
+  - id: F-arch-10
+    severity: MINOR
+    file: src/local/index.ts
+    line: 82
+    plan_ref: T2.1 export hygiene
+    summary: |
+      Local barrel re-exports `NoopConflictPolicy`, `LastWriteWinsConflictPolicy`,
+      `LlmJudgedMergeConflictPolicy` from `../core/index.js`. The shape is
+      correct but introduces a circular-looking dependency aesthetic
+      (`src/local/index.ts` imports `from '../core/index.js'`, and core's
+      barrel exports many things local code already imports directly).
+    evidence: |
+      ```ts
+      // v0.7 T2.1 — re-export conflict-resolution policies for convenience
+      export {
+        NoopConflictPolicy,
+        LastWriteWinsConflictPolicy,
+        LlmJudgedMergeConflictPolicy,
+      } from '../core/index.js';
+      ```
+
+      core/index.ts itself does:
+        `export { NoopConflictPolicy } from './conflict-resolution/noop.js'`
+      so the chain is: local/index → core/index → core/conflict-resolution/*.
+      Not a true cycle, but two hops where one would do.
+    recommended_action: |
+      Either keep this as `from '../core/index.js'` (more stable as core's
+      shape changes) OR re-export directly `from '../core/conflict-resolution/...'`
+      to mirror the existing `import type` at line 32. Cosmetic; both work.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/core/dip/conflict-resolution-policy.ts
+    line: 1
+    plan_ref: T1.1 ADR D2 (9th DIP)
+    summary: |
+      DIP shape is clean and minimal. 2 entries (kind discriminator +
+      consolidate method) per ADR D2 method count. Pure types, zero
+      runtime impl, no imports from src/local/ or src/cloud/. ZERO
+      DIP boundary violations.
+    evidence: |
+      ```ts
+      import type { Scope } from '../scope.js';
+      // ... no other imports from non-core paths
+      ```
+
+      Verified via `grep -n "from '\.\.\/local\|from '\.\.\/cloud" src/core/conflict-resolution/* src/core/dip/conflict-resolution-policy.ts` → zero matches.
+
+      The LJM impl imports `metrics` from `@opentelemetry/api` (line 17) —
+      OTel API is the contract layer (not an SDK), so this is a clean
+      cross-cutting import; matches the v0.4b PgEvictor + v0.4a counter
+      precedent.
+    recommended_action: None. Pattern follows v0.4a/v0.4b/v0.6 precedent.
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/core/conflict-resolution/llm-judged-merge.ts
+    line: 38
+    plan_ref: T1.3 EC-4 OTel lazy-init
+    summary: |
+      OTel counter lazy-init follows the F-dom-6 / v0.4b T10.1 / EC-4
+      pattern cleanly. `lazyCounters` Map + getCounter helper +
+      `__resetCounterCacheForTesting` symmetric with the eviction's
+      pg-evictor.ts:56-75 precedent. Module-level Map is fine here
+      because the counters are global (one meter per OTel SDK) and the
+      reset helper provides test isolation.
+    evidence: |
+      ```ts
+      const lazyCounters = new Map<string, Counter>();
+      function getCounter(name: string): Counter {
+        const cached = lazyCounters.get(name);
+        if (cached !== undefined) return cached;
+        const counter = metrics.getMeter('@usetheo/memory').createCounter(name);
+        lazyCounters.set(name, counter);
+        return counter;
+      }
+      ```
+
+      Matches the documented v0.4b precedent at pg-evictor.ts:56-75
+      (header JSDoc line 14 explicitly cites it).
+    recommended_action: None.
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/core/conflict-resolution/llm-judged-merge.ts
+    line: 84
+    plan_ref: T1.3 LJM constructor — LLM via constructor injection
+    summary: |
+      `LlmJudgedMergeConflictPolicy` injects `LLM` via constructor
+      (`options.llm`) — NOT via per-call `ConsolidationContext`. This is
+      the right SOLID/DIP choice and matches v0.4a/v0.6 sibling DIPs.
+    evidence: |
+      Constructor at line 87: `this.#llm = options.llm;`
+      ConsolidationContext at conflict-resolution-policy.ts:39-42 has
+      only `scope` + `observationDate` — no LLM. The DIP JSDoc at line
+      14-16 documents the rationale: "sibling-DIP precedent".
+
+      Private fields (#llm + #clusterCap) honor encapsulation. Clean.
+    recommended_action: None. Canonical Strategy pattern.
+
+  - id: F-arch-14
+    severity: INFO
+    file: src/core/conflict-resolution/last-write-wins.ts
+    line: 35
+    plan_ref: T1.2 LWW comparator EC-1 tie-break
+    summary: |
+      `compareCandidatesDesc` exported separately from the class so tests
+      can assert the comparator independently. Composes total-order
+      (createdAt DESC primary, memoryId DESC tie-break) cleanly. EC-1
+      absorption is properly documented in the JSDoc + comparator name.
+    evidence: |
+      ```ts
+      export function compareCandidatesDesc(a, b): number {
+        const dt = b.createdAt.getTime() - a.createdAt.getTime();
+        return dt !== 0 ? dt : b.memoryId.localeCompare(a.memoryId);
+      }
+      ```
+
+      The header JSDoc lines 8-16 spell out the V8 TimSort + tied-timestamp
+      reasoning. Good documentation discipline.
+    recommended_action: None.
+
+  - id: F-arch-15
+    severity: INFO
+    file: src/core/conflict-resolution/noop.ts
+    line: 24
+    plan_ref: T1.2 NoopConflictPolicy (DEFAULT per ADR D2)
+    summary: |
+      `NoopConflictPolicy` is the canonical Null Object pattern. Returns
+      empty array for any input; preserves ADD-only invariant (ADR-0003).
+      Pure function — zero I/O, zero side effects, async only because
+      the interface is async.
+    evidence: |
+      ```ts
+      async consolidate(candidates, context): Promise<...> {
+        void candidates;
+        void context;
+        await Promise.resolve();
+        return [];
+      }
+      ```
+
+      `await Promise.resolve()` is the convention to keep the `async`
+      keyword honest under `@typescript-eslint/require-await`.
+    recommended_action: None.
+
+  - id: F-arch-16
+    severity: INFO
+    file: src/core/conflict-resolution/prompts.ts
+    line: 16
+    plan_ref: T1.3 prompts separation
+    summary: |
+      Prompts separated from policy class so reviewers + ops can
+      grep the exact LLM prompt + version-control independently of
+      impl logic. CONFLICT_MERGE_PROMPT marked `as const` — good
+      immutability discipline. generateConflictMergePrompt is a pure
+      function over candidates + context.
+    evidence: |
+      File-level JSDoc lines 1-12 documents the separation rationale.
+      The prompt itself is well-engineered: explicit JSON schema +
+      constraint enumeration + ADD-only safe-default fallback
+      ("if you cannot reach a confident decision, output kept_id=""").
+    recommended_action: None.
+
+  - id: F-arch-17
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 28
+    plan_ref: T0.1 ADR D3 idempotency
+    summary: |
+      Migration 0007 uses `CREATE TABLE IF NOT EXISTS` + DO-block-guarded
+      `ALTER TABLE ADD CONSTRAINT IF NOT EXISTS` for the FK. True
+      idempotency (per JSDoc line 24-27 — explains the split-step
+      pattern). FK declares `ON DELETE SET NULL` per EC-3 (GDPR
+      forget+hard survives the audit row). Indexes use `IF NOT EXISTS`.
+    evidence: |
+      Lines 14-22: CREATE TABLE IF NOT EXISTS, all columns nullable
+      where appropriate, jsonb defaults `'[]'::jsonb`.
+      Lines 28-39: DO-block probes `information_schema.referential_constraints`
+      to short-circuit the ALTER on re-run.
+      Lines 41-42: IF NOT EXISTS on both indexes.
+
+      SQL hygiene is solid. The DO-block pattern is unusual but
+      necessary for the IF NOT EXISTS + embedded FK semantics. JSDoc
+      explains it well.
+    recommended_action: None.
+
+  - id: F-arch-18
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 620
+    plan_ref: T2.1 EC-8 atomic persist
+    summary: |
+      `withTransaction` wraps `persistConsolidations` correctly: dedicated
+      `pool.connect()` client, BEGIN/COMMIT/ROLLBACK, client.release()
+      in finally. No nesting hazards. Cancellation/rollback semantics
+      match the JSDoc claim.
+    evidence: |
+      Lines 620-633:
+        ```ts
+        async withTransaction<T>(fn: (tx: PoolClient) => Promise<T>): Promise<T> {
+          const client = await this.pool.connect();
+          try {
+            await client.query('BEGIN');
+            const result = await fn(client);
+            await client.query('COMMIT');
+            return result;
+          } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+          } finally {
+            client.release();
+          }
+        }
+        ```
+
+      Canonical Node pg transaction pattern. Matches the v0.7 SDK
+      iter-3 SEPA pre-RED CRITICAL #1 (dedicated client, never reuse
+      pool.query). Honest.
+    recommended_action: None.
+
+  - id: F-arch-19
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 489
+    plan_ref: T0.1 demo factory + EC-1 stub guard
+    summary: |
+      `getConflictResolutionPolicy` factory is well-written: closes over
+      the singleton's LLM instance for `llm-judged-merge` (lazy — only
+      inside the matching switch case), exhaustive `never` guard for
+      unknown names (EC-3 defense-in-depth), structured
+      StubLlmNotUsableForLjmError for stub+LJM mismatch. SOLID.
+    evidence: |
+      Lines 489-509:
+        ```ts
+        export async function getConflictResolutionPolicy(
+          name: PolicyName,
+        ): Promise<ConflictResolutionPolicy> {
+          switch (name) {
+            case "noop": return new NoopConflictPolicy();
+            case "last-write-wins": return new LastWriteWinsConflictPolicy();
+            case "llm-judged-merge": {
+              const singleton = await getSingleton();
+              if (singleton.adapterSource === "stub") {
+                throw new StubLlmNotUsableForLjmError();
+              }
+              return new LlmJudgedMergeConflictPolicy({ llm: singleton.llm });
+            }
+            default: {
+              const exhaustive: never = name;
+              throw new Error(`Unknown policy name: ${String(exhaustive)}`);
+            }
+          }
+        }
+        ```
+
+      `singleton.adapterSource === "stub"` check uses the boot-time
+      field (NOT llm.constructor.name) — robust to minification, JSDoc
+      at line 480-481 explicitly documents this.
+    recommended_action: None.
+
+  - id: F-arch-20
+    severity: INFO
+    file: examples/chat-with-memory/components/memory-tabs/distillation-tab.tsx
+    line: 115
+    plan_ref: T2.1 EC-5 + EC-6 absorption
+    summary: |
+      DistillationTab handles EC-5 (AbortController in useEffect cleanup)
+      + EC-6 (`disabled={loading}` for double-click prevention) +
+      EC-1 (422 mapping with explicit guidance per error code). React
+      hooks discipline + Strict Mode safe.
+    evidence: |
+      Line 115-121:
+        ```tsx
+        useEffect(() => {
+          const controller = new AbortController();
+          void loadAudit(controller.signal);
+          return () => { controller.abort(); };
+        }, [loadAudit, reloadKey]);
+        ```
+
+      Line 102-108 handles aborted-fetch in catch silently:
+        ```ts
+        if (signal.aborted) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        throw err;
+        ```
+
+      Line 71-79 (formatErrorBanner) distinguishes
+      OPENAI_API_KEY_MISSING vs STUB_LLM_NOT_USABLE_FOR_LJM with
+      distinct operator-facing guidance.
+    recommended_action: None.
+
+  - id: F-arch-21
+    severity: INFO
+    file: examples/chat-with-memory/app/api/memory/consolidation-history/route.ts
+    line: 61
+    plan_ref: T1.2 EC-8 INNER JOIN orphan filter
+    summary: |
+      Audit endpoint uses INNER JOIN (line 67) so rows where
+      `kept_memory_id IS NULL` (post-GDPR forget+hard) are excluded
+      from the UI view, per EC-8. The route JSDoc says "operators can
+      query raw SQL for orphan audit rows" — honest decision. Pagination
+      clamp helper (line 29-32) is canonical.
+    evidence: |
+      ```ts
+      `SELECT ch.id, ch.kept_memory_id, m.text AS kept_memory_text, ...
+         FROM consolidation_history ch
+         INNER JOIN memories m ON ch.kept_memory_id = m.id
+        WHERE m.user_id = $1
+        ORDER BY ch.created_at DESC
+        LIMIT $2 OFFSET $3`
+      ```
+
+      INNER JOIN over `kept_memory_id = m.id` correctly drops orphan
+      audit rows (where kept_memory_id was nullified by ON DELETE SET
+      NULL). The route JSDoc surfaces this as a documented decision.
+    recommended_action: None. Possible follow-up: add a /api/memory/consolidation-history/orphans route for operator visibility into nullified audit rows.
+
+  - id: F-arch-22
+    severity: INFO
+    file: tests/integration/distillation/the-goal-test-llm-measured.test.ts
+    line: 85
+    plan_ref: v0.7.1 LLM-MEASURED follow-up (closes ADR-EC-B)
+    summary: |
+      LLM-MEASURED GOAL TEST design is architecturally sound: uses
+      `describe.skipIf` so CI/no-cost lanes skip cleanly when
+      `OPENROUTER_KEY` is missing; mirrors the demo env-shift in test
+      scope; separates the JUDGE LLM (real OpenAILLM) from the
+      EXTRACTION LLM (`emptyJsonExtractionLlm` stub — line 69-76) so
+      only ~10 LLM calls are billed per run; uses `describe.skipIf` +
+      `gate by OPENROUTER_(API_)KEY presence` honestly per the JSDoc
+      cost-disclosure.
+    evidence: |
+      Lines 67-76 — emptyJsonExtractionLlm:
+        ```ts
+        const emptyJsonExtractionLlm: LLM = {
+          async generateResponse(_messages) { return Promise.resolve([]); },
+          async generateChat(_messages) {
+            return Promise.resolve({ role: 'assistant', content: '[]' });
+          },
+        };
+        ```
+
+      The pattern correctly isolates the LJM quality signal from the
+      reflect() extraction step. Cost discipline + reproducibility honest.
+
+      CAVEAT acknowledged in the test header (lines 26-28): "10/10
+      hand-authored contradiction-pair fixtures — broader procedural
+      coverage was deferred". This is honest per Inquebrável Rule 3
+      (extreme honesty) — the test boundaries are clearly documented.
+    recommended_action: None for v0.7. Track as v0.7.1+ follow-up to extend coverage to the 150 procedural fixtures once a cost+quality trade-off is settled.
+
+  - id: F-arch-23
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 147
+    plan_ref: adapters-or-local T0.2 (constructor widening)
+    summary: |
+      Constructor widening to accept `{ embeddingDim?, tracer? }` while
+      keeping `new PgvectorStore(pool)` backward-compatible. Empirical
+      sweep confirmed zero callers used the positional tracer form
+      (JSDoc line 130-132). Clean OCP-compliant extension.
+    evidence: |
+      ```ts
+      constructor(
+        private readonly pool: Pool,
+        options?: { readonly embeddingDim?: number; readonly tracer?: Tracer },
+      ) {
+        this.embeddingDim = options?.embeddingDim ?? MAX_EMBEDDING_DIM;
+        if (options?.tracer !== undefined) {
+          this.tracer = options.tracer;
+        }
+        // ...
+      }
+      ```
+
+      Per architecture.md § 8 / global CLAUDE.md SOLID OCP: extension
+      via options widening preserves existing callers + adds the new
+      embeddingDim variation point.
+    recommended_action: None. Pattern reusable for future store options.
+
+  - id: F-arch-24
+    severity: INFO
+    file: docs/distillation-evaluation/metrics.ts
+    line: 7
+    plan_ref: T3.2 EC-10 honest correction
+    summary: |
+      EC-10 honest correction documented well: original plan claimed
+      `natural.BleuScore` (which doesn't exist in natural v8.1.0). The
+      inline BLEU-4 implementation using natural.NGrams + natural.WordTokenizer
+      preserves the "zero new deps" promise + adds the canonical BLEU
+      formula. This is the right honesty-discipline path per Rule 3.
+    evidence: |
+      JSDoc lines 7-19:
+        "Plan EC-10 absorption was fabricated. Honest fix: BLEU
+         implemented INLINE using `natural.NGrams` + `natural.WordTokenizer`
+         as primitives."
+
+      Implementation lines 36-64: sentence-level BLEU-4 with smoothing,
+      brevity penalty, well-defined edge cases (empty inputs → 0).
+      Pure function, deterministic, testable.
+    recommended_action: None. The honest correction sets a good
+      precedent for future plan-vs-reality reconciliations.
+
+  - id: F-arch-25
+    severity: INFO
+    file: examples/chat-with-memory/next.config.mjs
+    line: 16
+    plan_ref: T4.1 lapack webpack fallback
+    summary: |
+      `lapack: false` webpack fallback correctly avoids the optional
+      native FFI dep from natural's transitive sylvester dependency.
+      Comment explains why ("not needed for BLEU/NGrams paths").
+      Pragmatic and correctly scoped to webpack-only.
+    evidence: |
+      ```js
+      config.resolve.fallback = {
+        ...(config.resolve.fallback ?? {}),
+        lapack: false,
+      };
+      ```
+
+      Lines 16-19 JSDoc cites the BLEU/NGrams scope. No silent
+      swallowing — alternative is `null` (which Webpack treats as
+      "module not found OK"). Clean.
+    recommended_action: None.
+
+  - id: F-arch-26
+    severity: INFO
+    file: src/local/index.ts
+    line: 873
+    plan_ref: adapters-or-local T0.3 applyDimChange destructive cascade
+    summary: |
+      applyDimChange has thorough JSDoc covering the destructive cascade
+      (history wiped + consolidation_history nullified + supersession
+      broken). The console.error at lines 928-938 is fail-loud and cites
+      `F-M3` + `F-C1` so an operator running the dim-change path sees
+      the v0.7 consolidation_history nullification consequence inline.
+      Architecturally aligns the v0.7 distillation provenance loss
+      with the dim-change protocol's existing cascade docs.
+    evidence: |
+      Lines 928-938 console.error includes:
+        "consolidation_history.kept_memory_id ON DELETE SET NULL
+         nullifies v0.7 distillation provenance"
+
+      Cross-cycle integration is correct — v0.7 cascade impact surfaces
+      in the dim-change error message. Documented in JSDoc and at
+      runtime.
+    recommended_action: None.
+
+  - id: F-arch-27
+    severity: INFO
+    file: src/local/index.ts
+    line: 1078
+    plan_ref: console usage hygiene
+    summary: |
+      Six `console.error` / `console.warn` calls in applyDimChange +
+      runMigrations, all guarded by inline `// eslint-disable-next-line
+      no-console`. Per architecture.md § 7, "No console.log in production
+      code paths" — but operator-facing ops scripts (runMigrations) are
+      a documented exception via the eslint suppression.
+    evidence: |
+      `grep -c "// eslint-disable-next-line no-console" src/local/index.ts` → 6
+
+      All 6 are in admin/ops paths (applyDimChange + runMigrations) —
+      not in the request-time code paths. Cosmetic; matches the v0.4b
+      runMigrations precedent.
+    recommended_action: None. Future: extract a structured logger
+      interface (architecture.md § 7 mentions it as a contract) and
+      route the runMigrations operator-output through it. Out of scope
+      for v0.7.
+
+  - id: F-arch-28
+    severity: INFO
+    file: src/core/index.ts
+    line: 116
+    plan_ref: T1.1 + T1.2 + T1.3 public API surface
+    summary: |
+      src/core/index.ts barrel correctly re-exports the new types +
+      classes per architecture.md § 9 (Public API surface). Types and
+      values cleanly separated (type vs value export). Each new symbol
+      surfaces through one canonical path.
+    evidence: |
+      Lines 114-130:
+        - Types: ConflictResolutionPolicy, ConflictResolutionResult,
+          ConsolidationCandidate, ConsolidationContext (type-only export).
+        - Values: NoopConflictPolicy, LastWriteWinsConflictPolicy,
+          compareCandidatesDesc, LlmJudgedMergeConflictPolicy,
+          parseConsolidationResponse, LlmJudgedMergeConflictPolicyOptions,
+          CONFLICT_MERGE_PROMPT, generateConflictMergePrompt.
+      No leak of internal helpers (e.g., __resetCounterCacheForTesting
+      stays @internal at the file boundary).
+    recommended_action: None.
+
+  - id: F-arch-29
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 1
+    plan_ref: T0.1 + drizzle journal sync
+    summary: |
+      Drizzle journal correctly registers migration 0007 (entry at
+      _journal.json with idx=7). meta/0007_snapshot.json (693 LoC)
+      mirrors the SQL precisely. Standard Drizzle migration discipline
+      held — no journal-skew (F-arch-3 style v0.6 defect avoided).
+    evidence: |
+      `_journal.json` diff added 7 lines for the new entry.
+      `0007_snapshot.json` contains a consolidation_history entry
+      under `public.consolidation_history` (lines 577+).
+    recommended_action: None.
+
+  - id: F-arch-30
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 396
+    plan_ref: T0.1 globalThis singleton pattern
+    summary: |
+      `getSingleton()` uses the canonical Next.js dev-mode globalThis
+      module-state pattern. `_themory_demo_singleton` typed via
+      `declare global` lines 254-257. Lazy IIFE Promise idiom.
+      Backward-compatible (returns the same promise across module
+      instances during HMR).
+    evidence: |
+      ```ts
+      declare global {
+        var _themory_demo_singleton: Promise<MemorySingleton> | undefined;
+      }
+      // ...
+      export function getSingleton(): Promise<MemorySingleton> {
+        if (globalThis._themory_demo_singleton === undefined) {
+          globalThis._themory_demo_singleton = (async () => { ... })();
+        }
+        return globalThis._themory_demo_singleton;
+      }
+      ```
+
+      Standard Next.js 15 App Router pattern; matches the v0.6.1 demo
+      precedent (writeCounts at theomemory-plugin.ts:28-35).
+    recommended_action: None.
+
+summary:
+  total: 30
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 4
+    MINOR: 6
+    INFO: 20
+  hot_spots:
+    - src/local/index.ts (MAJOR module-budget bust + MINOR void-options dead code; INFO mostly)
+    - src/local/pgvector-store.ts (MAJOR module-budget + MAJOR kind-discriminator missing)
+    - src/local/schema.ts (MAJOR consolidation_history pgTable absent)
+    - examples/chat-with-memory/app/api/memory/distill/route.ts (MINOR pre-flight ordering)
+  no_blockers: |
+    Zero BLOCKER, zero CRITICAL. The 4 MAJOR findings are not merge-blockers
+    on their own (v0.7 ships an opt-in feature where Noop is the default),
+    but should be addressed in a follow-up v0.7.x hygiene cycle before
+    advancing to v0.8 (benchmarks) or v1.0 (production claim).
+  alignment_with_plan: |
+    All 11 EC absorptions (EC-1 through EC-11 + EC-A, EC-B, EC-D) verified
+    in the diff. ADRs D1-D5 + EC honesty correction (EC-10 BLEU inline)
+    honored. The LLM-MEASURED follow-up (commit a15d9eb) closes ADR-EC-B
+    cleanly with honest CAVEAT in test header.
+  honest_caveats_acknowledged:
+    - "v0.7.1 LLM-MEASURED covers 10/10 hand-authored contradiction-pair fixtures only; 150 procedural fixtures deferred. Honestly documented in test header lines 26-28."
+    - "INNER JOIN on consolidation-history route hides orphan audit rows (post-GDPR forget+hard); documented in route JSDoc, exposed for SQL operators."
+    - "ADR-DEFER-LLM-TEMP-SEED on LlmJudgedMergeConflictPolicy temperature/seed — accepted in constructor for forward compat but not forwarded today. Documented in llm-judged-merge.ts JSDoc."
