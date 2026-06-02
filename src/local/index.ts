@@ -874,8 +874,19 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     await client.query('BEGIN');
     await client.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
     await client.query('DROP INDEX IF EXISTS entities_embedding_hnsw_idx');
-    await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)}) USING NULL`);
-    await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)}) USING NULL`);
+    // T4.1 follow-up to T0.3: `ALTER COLUMN TYPE vector(N) USING NULL`
+    // collides with the existing `NOT NULL` constraint (PG error 23502:
+    // "column ... contains null values" because every row's existing
+    // embedding gets coerced to NULL during the ALTER and then violates
+    // the constraint). The destructive-dim-change contract documents
+    // that existing embedding data is lost on dim switch — DELETEing
+    // the rows first is the explicit form of that contract and avoids
+    // the constraint violation. DELETE preserves entity FK rows; the
+    // empty `embedding` columns are then ALTERable cleanly.
+    await client.query('DELETE FROM memories');
+    await client.query('DELETE FROM entities');
+    await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+    await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
     await client.query('CREATE INDEX memories_embedding_hnsw_idx ON memories USING hnsw (embedding vector_cosine_ops)');
     await client.query('CREATE INDEX entities_embedding_hnsw_idx ON entities USING hnsw (embedding vector_cosine_ops)');
     await client.query('COMMIT');
@@ -930,6 +941,15 @@ export async function runMigrations(
           'Likely `drizzle-kit push` was used — skipping runMigrations(). ' +
           'For production reproducibility, prefer `runMigrations()` on a fresh DB (F-T7.1-2).',
       );
+      // T4.1 follow-up to T0.3: dim change must STILL apply on push-flow DBs.
+      // SEPA pre-RED iter-3 M3 was wrong to say "place AFTER orphan-schema
+      // short-circuit" — surfaced empirically by T4.1 live integration test
+      // (the demo's existing dev DB was push-flow + dim change silently
+      // skipped). When the operator explicitly passes embeddingDim, intent
+      // is clear: apply the dim change regardless of journal state.
+      if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+        await applyDimChange(pool, options.embeddingDim);
+      }
       return;
     }
   }
@@ -941,13 +961,8 @@ export async function runMigrations(
   const db = drizzleNodePostgres(pool);
   await migrate(db, { migrationsFolder });
 
-  // T0.3: post-migration parametric dim change. Runs ONLY when:
-  //   - options.embeddingDim is explicitly set AND
-  //   - it differs from MAX_EMBEDDING_DIM (which is the default in the
-  //     Drizzle schema literal).
-  // SEPA pre-RED M3: placed AFTER migrate(db, ...) returns + AFTER the
-  // orphan-schema short-circuit above so push-flow DBs (where the user
-  // explicitly opted out) are not silently mutated.
+  // T0.3: post-migration parametric dim change for journal-tracked DBs.
+  // Idempotency short-circuit in applyDimChange covers re-runs.
   if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
     await applyDimChange(pool, options.embeddingDim);
   }
