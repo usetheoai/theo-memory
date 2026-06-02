@@ -20,6 +20,10 @@ interface Props {
 interface BackendInfo {
   backend: "pgvector" | "in-memory";
   reflectionThreshold: number;
+  /** adapters-or-local T2.2 — additive field; may be absent on older API responses. */
+  adapterSource?: "stub" | "openai" | "local-openrouter";
+  /** adapters-or-local T2.2 — additive field; may be absent on older API responses. */
+  embedderDim?: number;
 }
 
 const TABS: readonly { key: TabKey; label: string }[] = [
@@ -59,20 +63,31 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
         <Brain className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold">TheMemory</h2>
         {info !== null && (
-          <span
-            className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${
-              info.backend === "pgvector"
-                ? "bg-emerald-500/20 text-emerald-700"
-                : "bg-amber-500/20 text-amber-700"
-            }`}
-            title={
-              info.backend === "pgvector"
-                ? "Persisting to Postgres + pgvector"
-                : "In-memory only — restarts wipe state"
-            }
-          >
-            {info.backend}
-          </span>
+          <div className="ml-auto flex items-center gap-1">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                info.backend === "pgvector"
+                  ? "bg-emerald-500/20 text-emerald-700"
+                  : "bg-amber-500/20 text-amber-700"
+              }`}
+              title={
+                info.backend === "pgvector"
+                  ? "Persisting to Postgres + pgvector"
+                  : "In-memory only — restarts wipe state"
+              }
+            >
+              {info.backend}
+            </span>
+            {info.adapterSource !== undefined && (
+              <span
+                className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+                title={`Adapter: ${info.adapterSource}${info.embedderDim !== undefined ? ` (${String(info.embedderDim)}-dim embedder)` : ""}`}
+              >
+                {info.adapterSource}
+                {info.embedderDim !== undefined ? ` (${String(info.embedderDim)})` : ""}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
