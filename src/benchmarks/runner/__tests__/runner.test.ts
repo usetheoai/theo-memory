@@ -23,7 +23,7 @@ import type {
 } from '../../../core/dip/benchmark-adapter.js';
 import { LlmJudgePanel } from '../../llm-judge/judge-panel.js';
 import { CannedResponseLlm } from '../../llm-judge/__tests__/_test-llm.js';
-import type { Tokenizer } from '../../themory/adapter.js';
+import type { Tokenizer } from '../../../core/dip/tokenizer.js';
 import { BenchmarkRunner } from '../benchmark-runner.js';
 import { CostTracker } from '../cost-tracker.js';
 import { PricingTableMiss } from '../pricing-table-miss.js';

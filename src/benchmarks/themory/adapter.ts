@@ -30,11 +30,15 @@ import type {
   SearchResult,
 } from '../../core/dip/benchmark-adapter.js';
 import type { LLM } from '../../core/dip/llm.js';
+import type { Tokenizer } from '../../core/dip/tokenizer.js';
 import type { Memory } from '../../core/memory-store.js';
 
-export interface Tokenizer {
-  count(text: string): number;
-}
+// v0-8-fixes-cycle-1 T3.1 (Drift-T4.1-2): Tokenizer was inline here in
+// v0.8 source plan; promoted to src/core/dip/tokenizer.ts (11th DIP)
+// after the consumer count grew to 6 production + 5 test during T6.x
+// vendor adapter rollout. Re-export keeps backward compat for the
+// few existing callers that still import from this path.
+export type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 export interface TheMemoryBenchmarkAdapterConfig {
   readonly memory: Memory;

@@ -13,7 +13,16 @@ import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, expectTypeOf, test } from 'vitest';
+
+// v0-8-fixes-cycle-1 T3.1 + EC-3: Tokenizer must be reachable via the
+// public `@usetheo/memory/contract` subpath after the 11th DIP promotion.
+// `import type` resolution is typechecked at `npm run typecheck`; if the
+// re-export chain in src/core/index.ts breaks, this import errors.
+import type { Tokenizer as TokenizerFromContract } from '@usetheo/memory/contract';
+// EC-9: same Tokenizer must be reachable via the root `@usetheo/memory`
+// barrel (re-exported through src/index.ts -> src/core).
+import type { Tokenizer as TokenizerFromRoot } from '@usetheo/memory';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
 
@@ -157,5 +166,37 @@ describe('@usetheo/memory/embedders/local — subpath resolution (T1.2 + ADR D7)
     // and DeterministicStubEmbedder are also subpath-only.
     const mod = await import('@usetheo/memory');
     expect(Object.keys(mod)).not.toContain('LocalTransformerEmbedder');
+  });
+});
+
+describe('Tokenizer 11th DIP — public path resolution (v0-8-fixes-cycle-1 T3.1 + EC-3 + EC-9)', () => {
+  // EC-3 (MUST FIX): per architecture.md § 9, adding a public export requires
+  // a unit test importing through the public path. After T3.1 promotes
+  // Tokenizer from src/benchmarks/themory/adapter.ts to src/core/dip/tokenizer.ts,
+  // the interface becomes part of the public API surface via the existing
+  // re-export chain in src/core/index.ts -> src/index.ts (root barrel).
+  //
+  // Tokenizer is a TYPE-only export (interface), so its presence cannot be
+  // verified via runtime `Object.keys(mod)` — it erases at runtime. These
+  // tests rely on the typecheck step (`npm run typecheck`) to catch a
+  // regression where the re-export chain is broken. The assertions below
+  // are structural sanity (mod loads without throwing).
+
+  test('@usetheo/memory/contract loads without throwing (EC-3 — Tokenizer importable from contract subpath)', async () => {
+    const mod = await import('@usetheo/memory/contract');
+    expect(mod).toBeDefined();
+    // Type-only export verified at typecheck via the top-of-file import.
+    // Runtime sanity below confirms the type is structurally satisfiable.
+    const t: TokenizerFromContract = { count: (s: string) => s.length };
+    expectTypeOf(t.count).toEqualTypeOf<(text: string) => number>();
+    expect(t.count('hello')).toBe(5);
+  });
+
+  test('@usetheo/memory root barrel loads without throwing (EC-9 — Tokenizer importable from root path)', async () => {
+    const mod = await import('@usetheo/memory');
+    expect(mod).toBeDefined();
+    const t: TokenizerFromRoot = { count: (s: string) => s.length };
+    expectTypeOf(t.count).toEqualTypeOf<(text: string) => number>();
+    expect(t.count('world')).toBe(5);
   });
 });
