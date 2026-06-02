@@ -16,7 +16,8 @@ import pg from 'pg';
  *   - EC-4 HNSW recreation: both `memories_embedding_hnsw_idx` and
  *     `entities_embedding_hnsw_idx` exist post-ALTER with the new dim.
  *   - Idempotency: 2nd call with same dim short-circuits via atttypmod
- *     probe (atttypmod = N + 4 per pgvector's varlena header encoding).
+ *     probe. pgvector v0.5.1 stores `vector(N)` dimension in `atttypmod`
+ *     directly (NO +4 varlena offset — empirical, see `getColumnDim` below).
  *
  * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3
  * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-3 + EC-4
