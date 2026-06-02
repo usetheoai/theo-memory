@@ -56,12 +56,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // /review v0-7 F-Mi2: the OPENAI_API_KEY check MUST run AFTER getSingleton()
+  // because the singleton's env-shift (lib/memory.ts adaptOpenrouterEnvForDemo)
+  // promotes OPENROUTER_(API_)KEY → OPENAI_API_KEY in local-openrouter mode.
+  // Trigger singleton init NOW so the env-shift fires before we read the var.
+  await getMemory();
+
   if (body.policy === "llm-judged-merge" && (process.env.OPENAI_API_KEY ?? "") === "") {
     return NextResponse.json(
       {
         code: "OPENAI_API_KEY_MISSING",
         message:
-          "llm-judged-merge requires OPENAI_API_KEY. Set the env var or pick a different policy.",
+          "llm-judged-merge requires OPENAI_API_KEY (or OPENROUTER_(API_)KEY in local-openrouter mode). Set the env var or pick a different policy.",
       },
       { status: 422 },
     );

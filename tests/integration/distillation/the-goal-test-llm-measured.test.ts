@@ -20,6 +20,33 @@
  *
  *   precision ≥ 0.75 + recall ≥ 0.70 + conflict-resolution accuracy ≥ 0.80
  *
+ * ## /review v0-7-distillation-pipeline F-M5 honesty caveat (REQUIRED READING)
+ *
+ * The 10 hand-authored contradiction-pair fixtures are CATEGORICALLY DISTINCT
+ * (different city / different car model / different milk type / etc.). The
+ * LLM's job here is "pick the newer one" — an LLM that just picks the
+ * 2nd item in the list (no semantic understanding at all) would score
+ * 1.000/1.000/1.000 too. This test passing 1.000 PROVES:
+ *   - pipeline + persistence + audit round-trip works
+ *   - OpenRouter routing works
+ *   - JSON parsing of {kept_id, rejected_ids, reason} works
+ *   - kept_id ∈ clusterIds semantic validation (EC-2) is wired
+ *
+ * It does NOT prove:
+ *   - the LLM's judgment quality on AMBIGUOUS contradictions (e.g.,
+ *     "I love coffee" vs "I prefer tea today" — context-dependent)
+ *   - the LLM's discrimination on NEAR-DUPLICATES that aren't strict
+ *     contradictions (e.g., "I live in São Paulo" vs "I live near
+ *     São Paulo")
+ *   - quality on procedural-fixture cases (150 procedural fixtures
+ *     in tests/fixtures/distillation/ exist but are not measured here)
+ *
+ * A v0.7.2 follow-up would need to (a) author 50+ AMBIGUOUS contradiction
+ * fixtures with ground-truth judgments, (b) measure precision drop vs the
+ * unambiguous baseline. Likely outcome: precision falls to ~0.6-0.8 against
+ * gpt-4o-mini on ambiguous contradictions. That signal would inform whether
+ * to upgrade to gpt-4o on the consolidation hot path.
+ *
  * Numbers reported via console.log so the next maintainer can paste them
  * into `docs/distillation-evaluation.md` § v0.7.1 LLM-measured row.
  */
