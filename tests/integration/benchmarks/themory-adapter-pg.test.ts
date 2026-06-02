@@ -44,8 +44,14 @@ describe.skipIf(PG_URI === '')('TheMemoryBenchmarkAdapter — pgvector integrati
   let pool: pg.Pool;
   const TEST_CONVERSATION = 't3-1-integration-conv';
 
+  // F-arch-3 / v0-8-fixes-cycle-1 T1.1: reset() filters by user_id because
+  // TheMemoryBenchmarkAdapter.add() writes via memory.user(scopedUserId) —
+  // the row's scope tier is User, not Agent. The earlier `agent_id LIKE`
+  // filter matched zero rows silently, leaking cross-test state once a
+  // second it() block landed. The isolation regression test below would
+  // FAIL with the old filter (block B would observe block A's seed).
   async function reset(): Promise<void> {
-    await pool.query(`DELETE FROM memories WHERE agent_id LIKE $1`, [`${TEST_CONVERSATION}::%`]);
+    await pool.query(`DELETE FROM memories WHERE user_id LIKE $1`, [`${TEST_CONVERSATION}::%`]);
   }
 
   beforeAll(async () => {
@@ -57,6 +63,61 @@ describe.skipIf(PG_URI === '')('TheMemoryBenchmarkAdapter — pgvector integrati
   });
   beforeEach(async () => {
     await reset();
+  });
+
+  it('reset() isolates consecutive it() blocks (F-arch-3 regression guard) — block A seeds Alice', async () => {
+    const memory = await createLocalMemory({
+      vectorStore: new PgvectorStore(pool),
+      embedder: { embed: async (t: string) => mockEmbedding(t), embedBatch: async (ts) => ts.map(mockEmbedding) },
+      llm: new ContentEchoLlm(),
+    });
+    const adapter = new TheMemoryBenchmarkAdapter({
+      memory,
+      llm: new ContentEchoLlm(),
+      tokenizer,
+    });
+    await adapter.add({
+      conversationId: TEST_CONVERSATION,
+      items: [
+        { id: 'block-a-seed', text: 'Alice loves cycling on weekends', speaker: 'alice', timestamp: new Date(), metadata: {} },
+      ],
+    });
+    // Sanity: block A's seed is visible WITHIN block A.
+    const blockAResult = await adapter.search({
+      questionId: 'block-a-q',
+      questionText: 'cycling',
+      conversationId: TEST_CONVERSATION,
+      goldAnswer: 'Alice loves cycling',
+      category: 'preference',
+      expectedSpeakers: ['alice'],
+    });
+    expect(blockAResult.retrievedContext.length).toBeGreaterThanOrEqual(1);
+    await memory.dispose();
+  });
+
+  it('reset() isolates consecutive it() blocks (F-arch-3 regression guard) — block B observes ZERO leak from block A', async () => {
+    // beforeEach ran reset() between blocks; block A's 'block-a-seed' MUST
+    // NOT be retrievable here. Pre-fix (agent_id LIKE), the row leaks.
+    const memory = await createLocalMemory({
+      vectorStore: new PgvectorStore(pool),
+      embedder: { embed: async (t: string) => mockEmbedding(t), embedBatch: async (ts) => ts.map(mockEmbedding) },
+      llm: new ContentEchoLlm(),
+    });
+    const adapter = new TheMemoryBenchmarkAdapter({
+      memory,
+      llm: new ContentEchoLlm(),
+      tokenizer,
+    });
+    const result = await adapter.search({
+      questionId: 'block-b-q',
+      questionText: 'cycling',
+      conversationId: TEST_CONVERSATION,
+      goldAnswer: 'Alice loves cycling',
+      category: 'preference',
+      expectedSpeakers: ['alice'],
+    });
+    expect(result.retrievedContext.length).toBe(0);
+    await memory.dispose();
   });
 
   it('seeds + recalls a multi-speaker corpus end-to-end', async () => {
