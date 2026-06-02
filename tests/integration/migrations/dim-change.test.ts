@@ -241,6 +241,22 @@ describe.skipIf(ROOT_PG_URI === '')(
          VALUES ($1, '[]'::jsonb, 'cascade-test', 'k-cascade')`,
         [memoryId],
       );
+      // /review re-run F-dom-pgvector-rerun-1: seed the 3rd cascade arm
+      // (memories.superseded_by self-FK ON DELETE SET NULL — v0.6 Voyager
+      // skill supersession). Insert a 2nd memory whose `superseded_by`
+      // points at the 1st; after DELETE FROM memories wipes everything,
+      // the 2nd row is gone too (both DELETED in the same statement), but
+      // the chain itself is verified end-to-end when re-seeded post-ALTER.
+      // We assert the FK CONSTRAINT exists with action 'n' (SET NULL) so
+      // a future migration that flips the action to CASCADE/RESTRICT is
+      // caught here as a regression.
+      const supersedingInsert = await pool.query<{ id: string }>(
+        `INSERT INTO memories (text, hash, embedding, payload, user_id, superseded_by)
+         VALUES ('supersedes seed', 'h-cascade-2', $1::vector, '{}'::jsonb, 'u-cascade', $2)
+         RETURNING id`,
+        [fakeVec, memoryId],
+      );
+      expect(supersedingInsert.rows[0]?.id).toBeTruthy();
 
       // Sanity: rows are there.
       const beforeMemories = await pool.query<{ c: number }>(
@@ -250,13 +266,22 @@ describe.skipIf(ROOT_PG_URI === '')(
         `SELECT COUNT(*)::int AS c FROM history WHERE memory_id = $1`,
         [memoryId],
       );
-      expect(beforeMemories.rows[0]?.c).toBe(1);
+      expect(beforeMemories.rows[0]?.c).toBe(2);
       expect(beforeHistory.rows[0]?.c).toBe(1);
+      // FK action assertion (catches regression if action flips):
+      const fk = await pool.query<{ action: string }>(
+        `SELECT confdeltype AS action
+           FROM pg_constraint
+          WHERE conname LIKE '%superseded_by%' AND contype = 'f'
+          LIMIT 1`,
+      );
+      expect(fk.rows[0]?.action).toBe('n'); // 'n' = SET NULL
 
       // Trigger the destructive dim change.
       await m.runMigrations(pool, { embeddingDim: 384 });
 
-      // (a) row count is 0 post-ALTER (DELETE FROM memories ran).
+      // (a) row count is 0 post-ALTER (DELETE FROM memories ran — wipes
+      // BOTH the original memory + the superseding row that pointed at it).
       const afterMemories = await pool.query<{ c: number }>(
         `SELECT COUNT(*)::int AS c FROM memories WHERE user_id = 'u-cascade'`,
       );

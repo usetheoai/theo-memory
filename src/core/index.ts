@@ -61,6 +61,7 @@ export type {
 export {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
+  InvalidEmbeddingDim,
   InvalidScope,
   InvalidSkillError,
   MemoryNotFound,
