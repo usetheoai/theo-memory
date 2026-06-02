@@ -47,6 +47,7 @@ import type {
   Scope,
   VectorStore,
 } from "@usetheo/memory/contract";
+import { LocalTransformerEmbedder } from "@usetheo/memory/embedders/local";
 import { OpenAIEmbedder } from "@usetheo/memory/embedders/openai";
 import { DeterministicStubEmbedder } from "@usetheo/memory/embedders/stub";
 import { OpenAILLM } from "@usetheo/memory/llms/openai";
@@ -83,8 +84,62 @@ interface MemorySingleton {
   readonly eviction: EvictionState;
   /** v0.7 T0.1 (ADR D5): the LLM instance, surfaced so `getConflictResolutionPolicy('llm-judged-merge')` can close over it (lazy reuse — no second OpenAI client init per request). */
   readonly llm: LLM;
-  /** v0.7 T0.1 (EC-1): which adapter source resolved at boot. `'stub'` → `getConflictResolutionPolicy('llm-judged-merge')` throws `StubLlmNotUsableForLjmError` (would silently abstain otherwise; violates Rule 3 + ADR D3). */
-  readonly adapterSource: "stub" | "openai";
+  /**
+   * v0.7 T0.1 (EC-1) + adapters-or-local T2.1 (ADR D6):
+   * which adapter source resolved at boot. `'stub'` →
+   * `getConflictResolutionPolicy('llm-judged-merge')` throws
+   * `StubLlmNotUsableForLjmError` (would silently abstain otherwise; violates
+   * Rule 3 + ADR D3). `'local-openrouter'` passes the LJM guard intentionally
+   * because the LLM is `OpenAILLM` routed via `OPENAI_BASE_URL` env var to
+   * OpenRouter's chat-completion API (real LLM; JSON-judged-merge works).
+   */
+  readonly adapterSource: "stub" | "openai" | "local-openrouter";
+  /**
+   * adapters-or-local T2.1 (ADR D2 + ADR D6): embedding dim resolved at boot.
+   * Surfaced via `/api/info` so the operator UI can show which embedder
+   * dim the demo is running with (1536 for stub/openai, 384 for
+   * local-openrouter via Xenova/all-MiniLM-L6-v2).
+   */
+  readonly embedderDim: number;
+}
+
+/**
+ * adapters-or-local T2.1 (ADR D6 + EC-11): canonical demo backend mode
+ * selector. Reads `THEOMEM_DEMO_BACKEND` first (canonical signal); falls back
+ * to legacy `THEOMEM_USE_STUB_ADAPTERS=1` for backward compat (sunset
+ * 2026-09-01 per ADR D6).
+ *
+ * EC-11 absorption: unknown values (e.g., `local_openrouter` underscore
+ * typo, `LOCAL-OPENROUTER` uppercase, generic typos) throw an explicit
+ * Error at boot listing the 3 valid values + the offending value verbatim.
+ * Silent fall-through to default would mislead the operator into thinking
+ * their explicit selection took effect, violating Inquebrável Rule 3.
+ *
+ * Exported for unit-testing the precedence ladder in isolation
+ * (tests/unit/examples/chat-with-memory-memory.test.ts per EC-13).
+ *
+ * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T2.1 + ADR D6
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-11 + EC-13
+ */
+export type BackendMode = "stub" | "openai" | "local-openrouter";
+const VALID_BACKEND_MODES: readonly BackendMode[] = ["stub", "openai", "local-openrouter"];
+
+export function resolveBackendMode(): BackendMode {
+  const raw = process.env.THEOMEM_DEMO_BACKEND;
+  if (raw !== undefined && raw !== "") {
+    if (!(VALID_BACKEND_MODES as readonly string[]).includes(raw)) {
+      throw new Error(
+        `Invalid THEOMEM_DEMO_BACKEND='${raw}'; expected one of stub / openai / local-openrouter`,
+      );
+    }
+    return raw as BackendMode;
+  }
+  // Legacy compat: pre-T2.1 callers used THEOMEM_USE_STUB_ADAPTERS=1.
+  // Sunset 2026-09-01 per ADR D6.
+  if (process.env.THEOMEM_USE_STUB_ADAPTERS === "1") {
+    return "stub";
+  }
+  return "openai";
 }
 
 declare global {
@@ -92,7 +147,7 @@ declare global {
   var _themory_demo_singleton: Promise<MemorySingleton> | undefined;
 }
 
-async function buildStore(): Promise<{
+async function buildStore(embeddingDim: number): Promise<{
   vectorStore: VectorStore;
   backend: BackendKind;
   pgPool: pg.Pool | null;
@@ -100,13 +155,21 @@ async function buildStore(): Promise<{
   const pgUri = process.env.THEOMEM_PG_URI;
   if (typeof pgUri === "string" && pgUri.length > 0) {
     const pgPool = new pg.Pool({ connectionString: pgUri });
-    await runMigrations(pgPool);
+    // T2.1 + T0.3 wiring: when running in local-openrouter mode with
+    // embeddingDim=384, runMigrations triggers the atomic DROP+ALTER+RECREATE
+    // sequence so the pgvector schema matches the Xenova embedder dim.
+    // Backward-compat: omit options when dim=1536 (the default) so the
+    // ALTER sequence does NOT run for stub/openai callers.
+    await runMigrations(pgPool, { embeddingDim });
     return {
-      vectorStore: new PgvectorStore(pgPool),
+      vectorStore: new PgvectorStore(pgPool, { embeddingDim }),
       backend: "pgvector",
       pgPool,
     };
   }
+  // InMemoryVectorStore is dim-agnostic (uses array.length dynamically;
+  // verified empirically during T2.1 SEPA pre-RED). No dim parameter
+  // needed for the in-memory path.
   return {
     vectorStore: new InMemoryVectorStore(),
     backend: "in-memory",
@@ -162,24 +225,59 @@ function resolveEviction(backend: BackendKind): {
  *
  * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T3.1
  */
-function resolveAdapters(): { embedder: Embedder; llm: LLM; source: "stub" | "openai" } {
-  return process.env.THEOMEM_USE_STUB_ADAPTERS === "1"
-    ? { embedder: new DeterministicStubEmbedder(), llm: new DeterministicStubLLM(), source: "stub" }
-    : { embedder: new OpenAIEmbedder(), llm: new OpenAILLM(), source: "openai" };
+/**
+ * adapters-or-local T2.1 (ADR D6): 3-way adapter resolution based on
+ * `resolveBackendMode()`. `embedderDim` is the canonical dim for each mode
+ * (1536 for stub + openai matching MAX_EMBEDDING_DIM; 384 for
+ * local-openrouter matching the Xenova/all-MiniLM-L6-v2 default).
+ */
+function resolveAdapters(
+  mode: BackendMode,
+): { embedder: Embedder; llm: LLM; source: BackendMode; embedderDim: number } {
+  switch (mode) {
+    case "stub":
+      return {
+        embedder: new DeterministicStubEmbedder(),
+        llm: new DeterministicStubLLM(),
+        source: "stub",
+        embedderDim: 1536,
+      };
+    case "openai":
+      return {
+        embedder: new OpenAIEmbedder(),
+        llm: new OpenAILLM(),
+        source: "openai",
+        embedderDim: 1536,
+      };
+    case "local-openrouter":
+      // OpenAILLM SDK natively reads OPENAI_BASE_URL env var per ADR D5
+      // (verified at node_modules/openai/index.mjs:46). Operator sets
+      // OPENAI_BASE_URL=https://openrouter.ai/api/v1 in .env. No SDK code
+      // change required for LLM routing.
+      // Embedder runs locally via Xenova Wasm (no OpenAI account needed).
+      return {
+        embedder: new LocalTransformerEmbedder(),
+        llm: new OpenAILLM(),
+        source: "local-openrouter",
+        embedderDim: 384,
+      };
+  }
 }
 
 export function getSingleton(): Promise<MemorySingleton> {
   if (globalThis._themory_demo_singleton === undefined) {
     globalThis._themory_demo_singleton = (async () => {
-      const { embedder, llm, source: adapters } = resolveAdapters();
+      const mode = resolveBackendMode();
+      const { embedder, llm, source: adapters, embedderDim } = resolveAdapters(mode);
       const reflectionPolicy = new DemoManualReflectionPolicy();
-      const { vectorStore, backend, pgPool } = await buildStore();
+      const { vectorStore, backend, pgPool } = await buildStore(embedderDim);
       const { state: eviction, reason, config: evictionConfig } = resolveEviction(backend);
       const factoryConfig: LocalMemoryConfig = {
         embedder,
         llm,
         vectorStore,
         reflectionPolicy,
+        embeddingDim: embedderDim,
         ...(evictionConfig !== undefined ? { eviction: evictionConfig } : {}),
       };
       const memory = await createLocalMemory(factoryConfig);
@@ -189,9 +287,10 @@ export function getSingleton(): Promise<MemorySingleton> {
       /* eslint-disable no-console */
       console.log(`[theomemory-demo] backend=${backend}`);
       console.log(`[theomemory-demo] adapters=${adapters}`);
+      console.log(`[theomemory-demo] embedderDim=${String(embedderDim)}`);
       console.log(`[theomemory-demo] ${evictionLine}`);
       /* eslint-enable no-console */
-      return { memory, backend, pgPool, eviction, llm, adapterSource: adapters };
+      return { memory, backend, pgPool, eviction, llm, adapterSource: adapters, embedderDim };
     })();
   }
   return globalThis._themory_demo_singleton;
