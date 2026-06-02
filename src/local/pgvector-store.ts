@@ -11,6 +11,7 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
 import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import { EmbeddingMismatch } from '../core/errors.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
 
@@ -175,6 +176,25 @@ export class PgvectorStore implements VectorStore {
     await this.pool.query('SELECT 1');
   }
 
+  /**
+   * /review F-M15 + F-Mi6: shared dimension guard used by every method that
+   * accepts a vector parameter. Throws typed `EmbeddingMismatch` (not bare
+   * `Error`) so callers can `instanceof`-match and report consistently with
+   * the createLocalMemory boot-time probe.
+   *
+   * Public `search`, `insert`, `update`, `insertDerivedMemory` all assert via
+   * this helper; private `insertBatch` / `insertSingle` are reached only
+   * through `insert`, so the guard sits at the boundary that the VectorStore
+   * DIP exposes.
+   */
+  private assertEmbeddingDim(vector: readonly number[], methodLabel: string): void {
+    if (vector.length !== this.embeddingDim) {
+      throw new EmbeddingMismatch(this.embeddingDim, vector.length, {
+        cause: new Error(`PgvectorStore.${methodLabel}`),
+      });
+    }
+  }
+
   async insert(
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
@@ -182,6 +202,12 @@ export class PgvectorStore implements VectorStore {
   ): Promise<void> {
     if (vectors.length !== ids.length || vectors.length !== payloads.length) {
       throw new Error('insert: vectors, ids, and payloads must have equal length');
+    }
+    // /review F-M15: assert each vector matches the configured dim BEFORE
+    // pgvector raises an opaque cast error. Loop is O(N) on the input slice
+    // size, identical cost to the existing payload normalization just below.
+    for (const vec of vectors) {
+      this.assertEmbeddingDim(vec, 'insert');
     }
     try {
       await this.insertBatch(vectors, ids, payloads);
@@ -261,11 +287,10 @@ export class PgvectorStore implements VectorStore {
     // Reads from `this.embeddingDim` (default MAX_EMBEDDING_DIM) so a
     // parametrically-configured store reports the CONFIGURED dim — operator
     // can pinpoint misconfig vs misbehaving embedder per T0.2 § Deep Dives.
-    if (query.length !== this.embeddingDim) {
-      throw new Error(
-        `PgvectorStore.search: query vector dimension ${String(query.length)} does not match configured embeddingDim ${String(this.embeddingDim)}`,
-      );
-    }
+    // /review F-Mi6: throw typed `EmbeddingMismatch` instead of bare `Error`
+    // for symmetry with the createLocalMemory boot-time probe + the public
+    // taxonomy in `src/core/errors.ts`.
+    this.assertEmbeddingDim(query, 'search');
     const filter = composeFilters(filters, 2);
     // v0.4b T6.1 / D17: exclude soft-deleted rows (t_invalid IS NOT NULL)
     // from semantic recall. Audit query (raw SQL WHERE t_invalid IS NOT NULL)
@@ -360,6 +385,10 @@ export class PgvectorStore implements VectorStore {
   }
 
   async update(vectorId: string, vector: readonly number[], payload: Payload): Promise<void> {
+    // /review F-M15: dim guard symmetry — same EmbeddingMismatch path used
+    // by `search` + `insert` so update-path callers surface configuration
+    // errors at the SDK boundary, not as opaque pgvector cast errors.
+    this.assertEmbeddingDim(vector, 'update');
     const text = String(payload['text'] ?? '');
     const hash = String(payload['hash'] ?? vectorId);
     const userId = (payload['user_id'] as string | undefined) ?? null;
@@ -437,6 +466,9 @@ export class PgvectorStore implements VectorStore {
     derivedFrom: readonly string[];
     scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string> {
+    // /review F-M15: dim guard symmetry — derived-memory write path also
+    // routes through the same EmbeddingMismatch contract.
+    this.assertEmbeddingDim(args.embedding, 'insertDerivedMemory');
     const sql = `
       INSERT INTO memories (
         text, hash, embedding, payload,
