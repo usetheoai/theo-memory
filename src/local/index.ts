@@ -372,9 +372,10 @@ class LocalScopedMemory implements ScopedMemory {
 
     try {
       // v0.7 T2.1: pre-derivation conflict-resolution phase.
-      // EC-7 absorbed: empty scope already short-circuited at line 317;
-      // here we additionally guard on sourceMemories.length < 2 (nothing
-      // to consolidate with a singleton). EC-8 absorbed: persistConsolidations
+      // EC-7 absorbed: empty scope already short-circuited at line 354
+      // ("EC-5: empty-source short-circuit"); here we additionally guard on
+      // sourceMemories.length < 2 (nothing to consolidate with a singleton).
+      // EC-8 absorbed: persistConsolidations
       // wraps t_invalid UPDATE + insertConsolidationHistory INSERT in a
       // single withTransaction (rollback on any error). Runs BEFORE
       // executeReflection so LLM-extraction failure paths don't mask the
