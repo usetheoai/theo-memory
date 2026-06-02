@@ -78,6 +78,40 @@ export function createSystemPromptResolver(opts: {
   };
 }
 
+/**
+ * E2E gap fix — fallback when the @usetheo/sdk Agent run returns
+ * `status: "error"` (typically: missing/invalid `THEOKIT_API_KEY` —
+ * the demo accepts any random string so the constructor doesn't throw,
+ * but the real auth flow rejects when the run reaches TheoCloud).
+ *
+ * Builds the same `<memory-context>` system prompt that the agent's
+ * `systemPromptResolver` would have built, then calls OpenAILLM
+ * directly (which is already wired with the operator's OpenRouter key
+ * via the env-shift in `lib/memory.ts`). Returns the assistant reply
+ * as a single string — the chat route streams it as one `delta` event.
+ */
+export async function buildReplyWithMemoryContext(opts: {
+  userId: string;
+  sessionId: string;
+  message: string;
+}): Promise<string> {
+  const { userId, sessionId, message } = opts;
+  const { llm, memory } = await import("./memory").then(async (m) => ({
+    llm: (await m.getSingleton()).llm,
+    memory: await m.getMemory(),
+  }));
+  const [userFacts, sessionFacts] = await Promise.all([
+    memory.user(userId).recall(message, { topK: DEFAULT_RECALL_K }),
+    memory.session(sessionId).recall(message, { topK: DEFAULT_RECALL_K }),
+  ]);
+  const systemPrompt = `${BASE_SYSTEM_PROMPT}${formatMemoryContext(userFacts, sessionFacts)}`;
+  const response = await llm.generateChat([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: message },
+  ]);
+  return response.content;
+}
+
 export interface ReflectionEvent {
   readonly fired: boolean;
   readonly nextThreshold: number;
