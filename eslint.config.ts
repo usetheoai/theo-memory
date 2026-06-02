@@ -14,7 +14,10 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylistic,
   {
-    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/*.ts', 'src/__tests__/**/*.ts'],
+    // v0-8-fixes-cycle-1 T3.2 + EC-4: benchmarks/scripts/ at repo root
+    // (NOT under src/) — extracted runner scaffold + 3 CLI runners now
+    // gain lint enforcement (previously escaped via src/{...} pattern).
+    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/*.ts', 'src/__tests__/**/*.ts', 'benchmarks/scripts/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
@@ -55,6 +58,17 @@ export default tseslint.config(
       // subpath smoke tests) use `import * as barrel from "../index.js"`
       // intentionally to introspect the export surface.
       'import/no-namespace': 'off',
+    },
+  },
+  {
+    // v0-8-fixes-cycle-1 T3.2 + EC-4: CLI entry-points under
+    // benchmarks/scripts/ are exempt from no-console — architecture.md
+    // § 7 "No console.log in production code paths" applies to library
+    // code; CLI tools legitimately use console.log/error for user
+    // output. The 3 run-*.ts scripts are the canonical CLI surfaces.
+    files: ['benchmarks/scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
 );
