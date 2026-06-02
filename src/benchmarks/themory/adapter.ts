@@ -48,7 +48,7 @@ export interface TheMemoryBenchmarkAdapterConfig {
    * Model identifier surfaced through SearchResult.modelUsed so the
    * benchmark runner can compute cost per ADR D7. Drift-T5.1-1 absorption.
    *
-   * Defaults to 'gpt-4o-mini' when omitted (Mem0 evaluation default).
+   * Defaults to 'gpt-4o-mini' when omitted (common reference default for benchmark eval).
    */
   readonly modelId?: string;
 }

@@ -3,7 +3,7 @@
  * aggregates labels by majority vote, and computes inter-judge
  * agreement.
  *
- * Anti-Mem0 design (plan ADR D3):
+ * Calibrated-multi-judge design (plan ADR D3):
  * - Configurable model / prompt per judge
  * - All judges accessed via OpenAI-compatible APIs (NO @anthropic-ai/sdk)
  * - Raw judge responses persisted alongside binary labels (audit trail)
