@@ -29,6 +29,7 @@ import type { Pool } from 'pg';
 import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from '../../core/constants.js';
+import { EmbeddingMismatch } from '../../core/errors.js';
 import { PgvectorStore } from '../pgvector-store.js';
 
 function buildPool(): { pool: Pool; poolQuery: ReturnType<typeof vi.fn> } {
@@ -88,14 +89,16 @@ describe('PgvectorStore.search dimension guard — parametric (T0.2)', () => {
     expect(poolQuery).toHaveBeenCalledTimes(1);
   });
 
-  test('rejects a query vector NOT matching configured embeddingDim=384', async () => {
+  test('rejects a query vector NOT matching configured embeddingDim=384 with typed EmbeddingMismatch', async () => {
     const { pool, poolQuery } = buildPool();
     const store = new PgvectorStore(pool, { embeddingDim: 384 });
     // 1536-length query against a 384-configured store must reject
-    // BEFORE pool.query is called.
+    // BEFORE pool.query is called. /review F-Mi6: the error type is
+    // `EmbeddingMismatch` (not bare `Error`) for symmetry with the
+    // createLocalMemory boot-time probe and the public error taxonomy.
     await expect(
       store.search(dimVector(MAX_EMBEDDING_DIM), 5),
-    ).rejects.toThrow(/PgvectorStore\.search/);
+    ).rejects.toBeInstanceOf(EmbeddingMismatch);
     await expect(
       store.search(dimVector(MAX_EMBEDDING_DIM), 5),
     ).rejects.toThrow(/384/);
