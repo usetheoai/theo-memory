@@ -21,6 +21,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 
+import type { JudgeLabel } from '../../src/benchmarks/llm-judge/json-extractor.js';
 import { LlmJudgePanel } from '../../src/benchmarks/llm-judge/judge-panel.js';
 import {
   BenchmarkRunner,
@@ -57,19 +58,36 @@ export class StubAnswerLlm implements LLM {
 /**
  * Build a smoke-mode JudgePanel. For BENCH_RUN=full a real OpenAI /
  * OpenRouter LLM should be passed in; in smoke mode we use a
- * canned-response stub that always returns CORRECT.
+ * canned-response stub.
+ *
+ * v0-8-fixes-cycle-1 T1.2 (closes F-tests-2 MAJOR) + EC-6 (SHOULD TEST):
+ * `stubResponses` (optional, defaults to ['CORRECT']) parameterizes the
+ * judgement sequence so smoke fixtures can exercise BOTH CORRECT and
+ * WRONG paths. When the fixture has more queries than `stubResponses`
+ * elements, responses CYCLE MODULO LENGTH (deterministic; documented
+ * sequence so e2e tests can assert specific outputs at known indices).
+ *
+ * Caller passes e.g. ['CORRECT', 'WRONG']; for a 3-question smoke run
+ * the sequence is [CORRECT, WRONG, CORRECT] (i % 2).
  */
-export function buildSmokeJudgePanel(): LlmJudgePanel {
+export function buildSmokeJudgePanel(
+  stubResponses: readonly JudgeLabel[] = ['CORRECT'],
+): LlmJudgePanel {
+  let cursor = 0;
+  function nextLabelJson(): string {
+    const label = stubResponses[cursor % stubResponses.length] ?? 'CORRECT';
+    cursor += 1;
+    return `{"label":"${label}","reasoning":"smoke run"}`;
+  }
   return new LlmJudgePanel([
     {
       name: 'smoke-gpt-4o',
       llm: {
-        generateResponse: () =>
-          Promise.resolve({ text: '{"label":"CORRECT","reasoning":"smoke run"}' }),
+        generateResponse: () => Promise.resolve({ text: nextLabelJson() }),
         generateChat: () =>
           Promise.resolve({
             role: 'assistant' as const,
-            content: '{"label":"CORRECT","reasoning":"smoke run"}',
+            content: nextLabelJson(),
           }),
       },
     },
@@ -93,6 +111,12 @@ export interface RunBenchmarkScaffoldOpts {
   readonly queries: readonly BenchmarkQuery[];
   readonly resultsPath: string;
   readonly modelId?: string;
+  /**
+   * Smoke judge-panel canned responses. Defaults to ['CORRECT', 'WRONG']
+   * so e2e smoke tests exercise BOTH judgement paths (T1.2 + F-tests-2
+   * MAJOR fix). Pass ['CORRECT'] for all-CORRECT smoke runs.
+   */
+  readonly stubResponses?: readonly JudgeLabel[];
 }
 
 /**
@@ -116,7 +140,9 @@ export async function runBenchmark(opts: RunBenchmarkScaffoldOpts): Promise<RunR
     tokenizer,
     modelId,
   });
-  const judgePanel = buildSmokeJudgePanel();
+  // v0-8-fixes-cycle-1 T1.2: default smoke responses exercise BOTH paths
+  // so smoke e2e tests catch a regression that breaks WRONG handling.
+  const judgePanel = buildSmokeJudgePanel(opts.stubResponses ?? ['CORRECT', 'WRONG']);
   const costTracker = new CostTracker({ tokenizer });
 
   const runner = new BenchmarkRunner({
