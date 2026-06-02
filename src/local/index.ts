@@ -879,6 +879,12 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
   // mismatched ALTER. Probe the installed pgvector version and warn
   // (not throw — we keep moving so the demo still boots, but the
   // operator sees the canary so they know to re-verify).
+  //
+  // /review re-run F-dom-db-rerun-residual-M1: `startsWith('0.5.')` is
+  // intentional and exhaustive — the trailing dot in the prefix forbids
+  // a hypothetical pgvector `0.50.x` from matching (`'0.50.0'.startsWith('0.5.')`
+  // is FALSE because the 4th char `'0'` !== `'.'`). So the canary correctly
+  // fires on `0.5.x`-NOT-true versions including `0.50.x`, `0.6.x`, `1.x`.
   const ext = await pool.query<{ extversion: string | null }>(
     `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
   );
@@ -894,6 +900,13 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
   }
 
   // Probe current dim. atttypmod stores N directly for pgvector v0.5.1.
+  //
+  // /review re-run F-dom-db-rerun-residual-M2: probing ONLY memories.embedding
+  // is sufficient because both ALTERs run inside the same BEGIN/COMMIT
+  // transaction (see client.query('BEGIN') below). PG guarantees both
+  // ALTER COLUMN statements succeed-or-fail atomically — so memories.atttypmod
+  // is a faithful proxy for entities.atttypmod. The post-ALTER assertion below
+  // verifies both columns explicitly anyway, closing the residual.
   const probe = await pool.query<{ atttypmod: number }>(
     `SELECT a.atttypmod
        FROM pg_attribute a
@@ -947,6 +960,33 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     // case-sensitivity change does not cause a runtime/migration drift.
     await client.query('CREATE INDEX "memories_embedding_hnsw_idx" ON "memories" USING hnsw ("embedding" vector_cosine_ops)');
     await client.query('CREATE INDEX "entities_embedding_hnsw_idx" ON "entities" USING hnsw ("embedding" vector_cosine_ops)');
+
+    // /review re-run F-dom-pgvector-rerun-2: belt-and-suspenders value-based
+    // canary INSIDE the transaction (so an unexpected outcome rolls back
+    // cleanly rather than leaking a broken schema). Re-probes atttypmod
+    // for BOTH memories AND entities post-ALTER and asserts the actual
+    // dim matches targetDim. Protects against:
+    //  - hypothetical future pgvector release that changes atttypmod encoding
+    //    (F-Mi8 extversion canary warns; this assertion fail-closes)
+    //  - PG side-effects we did not anticipate (e.g., DEFAULT clause that
+    //    overrides the ALTER, trigger that rewrites the type)
+    //  - the entities ALTER silently no-op'ing while memories ALTER succeeds
+    const verify = await client.query<{ rel: string; dim: number }>(
+      `SELECT c.relname AS rel, a.atttypmod AS dim
+         FROM pg_attribute a
+         JOIN pg_class c ON c.oid = a.attrelid
+        WHERE c.relname IN ('memories', 'entities')
+          AND a.attname = 'embedding'
+          AND a.attisdropped = false
+        ORDER BY c.relname`,
+    );
+    for (const row of verify.rows) {
+      if (row.dim !== targetDim) {
+        throw new Error(
+          `[themory] dim-change post-ALTER canary FAILED: ${row.rel}.embedding atttypmod=${String(row.dim)} ≠ targetDim=${String(targetDim)}`,
+        );
+      }
+    }
     await client.query('COMMIT');
     // eslint-disable-next-line no-console
     console.error(
