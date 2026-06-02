@@ -70,3 +70,7 @@ htmlcov/
 # regenerable; not authoritative state).
 .claude/.compaction-snapshots/
 
+# v0.8 benchmark fixtures + results (downloaded at install time per ADR D4)
+benchmarks/data/
+benchmarks/results/
+
