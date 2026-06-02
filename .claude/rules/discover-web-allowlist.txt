@@ -53,3 +53,13 @@ blog.mem0.ai                     # added for v0-7-episodic-semantic-distillation
 www.letta.com                    # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Letta vendor blog (www subdomain of letta.com per allowlist subdomain rule); sleep-time agents narrative
 zep.ai                           # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Zep root domain; Graphiti temporal knowledge graph claims (competing approach to ours)
 cognee.ai                        # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Cognee root domain; ontology-grounded extraction claims (competing approach)
+
+# v0-8-benchmark-methodology additions (per discovery plan v1.1 ADR D3 — 2026-06-02):
+# Note: mem0.ai, letta.com, aclanthology.org already in allowlist from prior cycles — not re-added.
+
+huggingface.co                   # added for v0-8-benchmark-methodology Q3+Q6+Q7 at 2026-06-02 — HF dataset cards (LongMemEval, LoCoMo, DMR fixtures + license detection per EC-1 absorption)
+paperswithcode.com               # added for v0-8-benchmark-methodology Q6+Q7+Q8 at 2026-06-02 — benchmark leaderboards (LongMemEval/LoCoMo/DMR reproductions + Rule 9 candidate lib comparisons)
+www.getzep.com                   # added for v0-8-benchmark-methodology Q7 at 2026-06-02 — Zep historical blog domain (separate root from zep.ai per allowlist subdomain rule); benchmark claims published here
+docs.langchain.com               # added for v0-8-benchmark-methodology Q4+Q8 at 2026-06-02 — LangChain LangSmith Evaluations docs (Q8 Rule 9 candidate #2); subdomain of langchain.com per allowlist subdomain rule
+python.langchain.com             # added for v0-8-benchmark-methodology Q4+Q8 at 2026-06-02 — LangChain official Python docs (Q8 Rule 9 candidate methodology); subdomain of langchain.com per allowlist subdomain rule
+developer.nvidia.com             # added for v0-8-benchmark-methodology Q8 at 2026-06-02 — NVIDIA NeMo Eval / NeMo Guardrails docs (Q8 candidate #6 — investigated only if budget allows per EC-2 cap)
