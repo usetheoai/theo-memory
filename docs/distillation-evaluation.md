@@ -11,6 +11,23 @@ Measured against the 50 hand-authored gold-set fixtures (10 per category;
 | last-write-wins | 1.000 | 1.000 | 1.000 | 3 |
 | llm-judged-merge | 1.000 | 1.000 | 1.000 | 2 |
 
+## v0.7.1 LLM-MEASURED — closes ADR-EC-B
+
+Measured 2026-06-02 against `openai/gpt-4o-mini` via OpenRouter on the
+10 hand-authored `contradiction-pair` fixtures (the subset that exercises
+`LlmJudgedMergeConflictPolicy`'s judging surface end-to-end with a real
+LLM call). Reproduces via
+`tests/integration/distillation/the-goal-test-llm-measured.test.ts`
+(gated on `OPENROUTER_(API_)KEY` + `THEOMEM_PG_URI`).
+
+| Policy | Model | Precision | Recall | Conflict-Resolution Accuracy | Attempts | Runtime |
+|---|---|---|---|---|---|---|
+| llm-judged-merge | openai/gpt-4o-mini (OpenRouter) | **1.000** | **1.000** | **1.000** | 10/10 | ~21s |
+
+Acceptance thresholds (Item 9 + plan v1.1): p ≥ 0.75, r ≥ 0.70, acc ≥ 0.80.
+**ALL exceeded.** Cost: ~$0.01-0.05 (10 cheap-model LLM round-trips).
+Closes the LLM-MEASURED deferral that plan v1.1 ADR-EC-B authorized.
+
 ## Methodology
 
 Per `tests/fixtures/distillation/README.md`, only the 50 hand-authored
