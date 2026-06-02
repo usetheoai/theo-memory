@@ -21,6 +21,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
+  adaptOpenrouterEnvForDemo,
   resolveBackendMode,
   warnIfLocalOpenrouterMissingBaseUrl,
 } from '../../../examples/chat-with-memory/lib/memory.js';
@@ -29,6 +30,9 @@ const ENV_KEYS = [
   'THEOMEM_DEMO_BACKEND',
   'THEOMEM_USE_STUB_ADAPTERS',
   'OPENAI_BASE_URL',
+  'OPENAI_API_KEY',
+  'OPENROUTER_KEY',
+  'OPENROUTER_API_KEY',
 ] as const;
 
 function snapshotEnv(): Record<string, string | undefined> {
@@ -164,5 +168,69 @@ describe('warnIfLocalOpenrouterMissingBaseUrl (T2.1 / EC-10)', () => {
     process.env.OPENAI_BASE_URL = 'https://openrouter.ai/api/v1';
     warnIfLocalOpenrouterMissingBaseUrl();
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+// adaptOpenrouterEnvForDemo — promote OPENROUTER_KEY → OPENAI_API_KEY +
+// default OPENAI_BASE_URL when the operator stores their key under the
+// natural OpenRouter env var name.
+describe('adaptOpenrouterEnvForDemo (local-openrouter mode env-shift)', () => {
+  let envSnapshot: Record<string, string | undefined>;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    envSnapshot = snapshotEnv();
+    clearEnv();
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    restoreEnv(envSnapshot);
+    logSpy.mockRestore();
+  });
+
+  test('promotes OPENROUTER_KEY → OPENAI_API_KEY when OPENAI_API_KEY is missing', () => {
+    process.env.OPENROUTER_KEY = 'sk-or-v1-test-key';
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_API_KEY).toBe('sk-or-v1-test-key');
+  });
+
+  test('promotes OPENROUTER_API_KEY → OPENAI_API_KEY when OPENROUTER_KEY is missing', () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-v1-alt-name';
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_API_KEY).toBe('sk-or-v1-alt-name');
+  });
+
+  test('OVERWRITES an existing non-OpenRouter OPENAI_API_KEY when OPENROUTER_KEY is set (local-openrouter mode misroute-fix)', () => {
+    // E2E discovery 2026-06-02: user's .env had OPENAI_API_KEY=sk-svca-...
+    // (a real OpenAI service-account key) AND OPENROUTER_API_KEY=sk-or-v-...
+    // The local-openrouter mode SHOULD use the OpenRouter key against
+    // openrouter.ai — the OpenAI key would 401. So we override.
+    process.env.OPENAI_API_KEY = 'sk-svca-openai-service-account';
+    process.env.OPENROUTER_KEY = 'sk-or-v1-openrouter-target';
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_API_KEY).toBe('sk-or-v1-openrouter-target');
+  });
+
+  test('leaves OPENAI_API_KEY untouched when no OpenRouter key is set', () => {
+    process.env.OPENAI_API_KEY = 'sk-only-openai';
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_API_KEY).toBe('sk-only-openai');
+  });
+
+  test('idempotent when OPENAI_API_KEY already equals the OpenRouter key', () => {
+    process.env.OPENAI_API_KEY = 'sk-or-v1-already-the-or-key';
+    process.env.OPENROUTER_KEY = 'sk-or-v1-already-the-or-key';
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_API_KEY).toBe('sk-or-v1-already-the-or-key');
+  });
+
+  test('defaults OPENAI_BASE_URL to openrouter.ai when missing', () => {
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_BASE_URL).toBe('https://openrouter.ai/api/v1');
+  });
+
+  test('does NOT overwrite an existing OPENAI_BASE_URL', () => {
+    process.env.OPENAI_BASE_URL = 'https://custom.example.com/v1';
+    adaptOpenrouterEnvForDemo();
+    expect(process.env.OPENAI_BASE_URL).toBe('https://custom.example.com/v1');
   });
 });
