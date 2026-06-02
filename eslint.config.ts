@@ -42,7 +42,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/__tests__/**/*.test*.ts', 'src/__tests__/**/*.test*.ts'],
+    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/__tests__/**/*.ts', 'src/__tests__/**/*.test*.ts'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',
