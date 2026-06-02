@@ -143,6 +143,8 @@ if (isMain) {
     .then((report) => {
       console.log(`[run-dmr] aborted: ${String(report.aborted)}`);
       console.log(`[run-dmr] questionCount: ${String(report.aggregate.questionCount)}`);
+      // v0-8-fixes-cycle-1 T2.1 + ADR D7
+      process.exit(report.aborted ? 1 : 0);
     })
     .catch((err: unknown) => {
       console.error('[run-dmr] FATAL:', err);
