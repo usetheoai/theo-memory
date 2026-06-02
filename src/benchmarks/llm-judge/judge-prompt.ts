@@ -1,12 +1,12 @@
 /**
  * Judge prompt template + renderer.
  *
- * Anti-REDACTED instructional bias: REDACTED's `metrics/llm_judge.py:22-23`
- * tells the judge to "be generous" with grading. Plan v1.2 ADR D3
- * inverts that to "be calibrated" so partially-correct or evasive
- * answers are scored WRONG. The shift matters because over-lenient
- * judging inflates accuracy by 5-15pp in our empirical experience
- * (see blueprint Q2).
+ * Calibrated-judgement bias: instructs the judge to score partially-correct
+ * or evasive answers WRONG (vs the over-lenient "be generous" pattern
+ * common in upstream prior art). Plan v1.2 ADR D3 documents the choice;
+ * over-lenient judging inflates accuracy by 5-15pp in our empirical
+ * experience (see blueprint Q2 — methodology doc retains the upstream
+ * citation lineage in a knowledge-base context, not in src/ code).
  *
  * @see plan v1.2 § T1.2 + ADR D3
  */
