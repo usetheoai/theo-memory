@@ -67,6 +67,63 @@ and it transparently swaps to `PgvectorStore` + runs migrations on boot —
 the same contract, persisted state, cross-restart survival. The badge in
 the sidebar header shows which runtime is active.
 
+## Backend modes (adapter selection)
+
+The demo supports 3 adapter modes selected by `THEOMEM_DEMO_BACKEND`. The
+sidebar header shows the active mode next to the persistence badge.
+
+| Mode | Embedder | LLM | Network | Dim |
+|---|---|---|---|---|
+| `stub` | `DeterministicStubEmbedder` (hash-based) | `DeterministicStubLLM` (canned response) | none | 1536 |
+| `openai` (default) | `OpenAIEmbedder` (`text-embedding-3-small`) | `OpenAILLM` (`gpt-4o-mini`) | OpenAI API | 1536 |
+| `local-openrouter` | `LocalTransformerEmbedder` (Xenova MiniLM, local Wasm) | `OpenAILLM` routed via `OPENAI_BASE_URL` | OpenRouter for chat; LOCAL for embed | 384 |
+
+Selection precedence (per ADR D6):
+
+1. `THEOMEM_DEMO_BACKEND` — canonical signal (values: `stub`, `openai`, `local-openrouter`)
+2. Legacy `THEOMEM_USE_STUB_ADAPTERS=1` → `stub` (sunset 2026-09-01)
+3. Default → `openai`
+
+Unknown `THEOMEM_DEMO_BACKEND` values (e.g., underscore typo `local_openrouter`)
+throw an explicit error at boot listing the 3 valid values — silent fallthrough
+would mislead the operator about which mode actually loaded (per EC-11
+absorption of plan v1.1).
+
+### OpenRouter recipe — `local-openrouter` mode
+
+Use this mode when you have an OpenRouter key (`sk-or-v1-...`) but NO OpenAI
+key. Chat completions route through OpenRouter; embeddings run locally via
+Wasm (OpenRouter does not proxy `/v1/embeddings`).
+
+```bash
+# in .env.local (or .env):
+OPENAI_API_KEY=sk-or-v1-...your-openrouter-key
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+THEOMEM_DEMO_BACKEND=local-openrouter
+THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
+```
+
+The OpenAI Node SDK natively reads `OPENAI_BASE_URL` env var (verified at
+`node_modules/openai/index.mjs:46`) — no SDK code change required for
+OpenRouter chat routing.
+
+### First-use embedder cache (`local-openrouter` mode)
+
+The first `embed()` call downloads the Xenova/all-MiniLM-L6-v2 ONNX model
+(~22 MB) from `huggingface.co/Xenova/all-MiniLM-L6-v2` and caches it under
+`~/.cache/transformers-js/`. Requires internet at warmup; subsequent calls
+are offline. CI environments without internet must warm the cache OR accept
+the one-time network cost on first run.
+
+### Destructive dim change caveat
+
+If you previously ran with `THEOMEM_DEMO_BACKEND=openai` (1536-dim embeddings
+persisted in the `memories.embedding` column) and switch to `local-openrouter`
+(384-dim), the next demo boot will run `runMigrations(pool, { embeddingDim: 384 })`
+which DROPS all existing embedding data via `ALTER COLUMN TYPE vector(384) USING NULL`.
+The HNSW indexes are dropped + recreated inside the same transaction (per EC-3 + EC-4
+absorption of plan v1.1). Either start with a fresh DB or accept the truncation.
+
 ## Quick start
 
 Prerequisites: **Node ≥ 22.12** (SDK requirement). The repo uses nvm — run
@@ -97,7 +154,9 @@ npm run dev
 | `THEOMEM_REFLECTION_THRESHOLD` | `10` | Auto-fire `memory.reflect()` every N turns. Set `0` to disable |
 | `THEOMEM_PG_URI` | _(unset)_ | When set, swap `InMemoryVectorStore` → `PgvectorStore` + run migrations automatically |
 | `THEOMEM_EVICTION_DEMO` | _(unset)_ | When set to `1` AND `THEOMEM_PG_URI` is set, opt in to the v0.4b capacity-trigger eviction pipeline (`maxMemoriesPerScope: 10` — low cap chosen so a normal demo session triggers eviction). The `Eviction` tab surfaces live state. Strict equality with `1` (POSIX convention); other truthy values are ignored. |
-| `THEOMEM_USE_STUB_ADAPTERS` | _(unset)_ | When set to `1`, swap `OpenAIEmbedder` + `OpenAILLM` for `DeterministicStubEmbedder` + `DeterministicStubLLM` from `@usetheo/memory/embedders/stub` + `@usetheo/memory/llms/stub`. Useful when OpenAI quota is exhausted OR for offline/CI runs requiring 100% reproducible adapter behavior. Strict equality with `1`. Note: the demo singleton is read at first request — set the var before `npm run dev` (Next.js dev mode does not re-read env mid-session). |
+| `THEOMEM_USE_STUB_ADAPTERS` | _(unset)_ | _Legacy — superseded by `THEOMEM_DEMO_BACKEND=stub` (sunset 2026-09-01)._ When set to `1`, swap `OpenAIEmbedder` + `OpenAILLM` for `DeterministicStubEmbedder` + `DeterministicStubLLM` from `@usetheo/memory/embedders/stub` + `@usetheo/memory/llms/stub`. Useful when OpenAI quota is exhausted OR for offline/CI runs requiring 100% reproducible adapter behavior. Strict equality with `1`. Note: the demo singleton is read at first request — set the var before `npm run dev` (Next.js dev mode does not re-read env mid-session). |
+| `THEOMEM_DEMO_BACKEND` | _(unset → `openai`)_ | Canonical adapter selector. Values: `stub`, `openai`, `local-openrouter`. See **Backend modes** section above. Unknown values throw at boot. |
+| `OPENAI_BASE_URL` | _(unset → `https://api.openai.com/v1`)_ | Override OpenAI SDK base URL — set to `https://openrouter.ai/api/v1` for OpenRouter routing. Read natively by the OpenAI Node SDK. |
 
 ## Distillation tab — v0.7 ConflictResolutionPolicy demo
 
