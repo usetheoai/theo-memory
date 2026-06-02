@@ -164,7 +164,10 @@ export class BenchmarkRunner {
     let cost: number;
     let pricingTableMiss = false;
     try {
-      cost = this.config.costTracker.compute(searchResult.tokensUsed, adapter.name);
+      // Drift-T5.1-1: lookup by result.modelUsed (the actual LLM that
+      // synthesized the answer), NOT adapter.name. The latter silently
+      // fabricated $0 for TheMemory.
+      cost = this.config.costTracker.compute(searchResult.tokensUsed, searchResult.modelUsed);
     } catch (err) {
       if (err instanceof PricingTableMiss) {
         cost = Number.NaN;

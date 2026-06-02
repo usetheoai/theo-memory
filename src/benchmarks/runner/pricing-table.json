@@ -33,22 +33,6 @@
     "openai/gpt-4o": {
       "input_per_1k": 0.0025,
       "output_per_1k": 0.010
-    },
-    "themory": {
-      "input_per_1k": 0,
-      "output_per_1k": 0
-    },
-    "mem0": {
-      "input_per_1k": 0,
-      "output_per_1k": 0
-    },
-    "zep": {
-      "input_per_1k": 0,
-      "output_per_1k": 0
-    },
-    "letta": {
-      "input_per_1k": 0,
-      "output_per_1k": 0
     }
   }
 }

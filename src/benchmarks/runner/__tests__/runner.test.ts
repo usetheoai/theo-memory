@@ -43,7 +43,7 @@ const tokenizer: Tokenizer = {
   count: (s: string) => Math.ceil(s.length / 4),
 };
 
-function makeAdapter(name: string, latencyMs = 5): BenchmarkAdapter {
+function makeAdapter(name: string, modelUsed = 'gpt-4o-mini', latencyMs = 5): BenchmarkAdapter {
   return {
     name,
     async add(_corpus: BenchmarkCorpus): Promise<AddMetrics> {
@@ -55,6 +55,7 @@ function makeAdapter(name: string, latencyMs = 5): BenchmarkAdapter {
         retrievedContext: [],
         latencyMs,
         tokensUsed: { prompt: 100, completion: 50 },
+        modelUsed,
       });
     },
   };
@@ -274,7 +275,9 @@ describe('BenchmarkRunner', () => {
 
   it('catches PricingTableMiss and persists pricing_table_miss flag (EC-3)', async () => {
     const { tracer } = makeTracer();
-    const adapter = makeAdapter('mystery-adapter-not-in-pricing'); // not in pricing-table.json
+    // After Drift-T5.1-1: cost lookup uses result.modelUsed. We supply
+    // an unknown model so cost-tracker throws PricingTableMiss.
+    const adapter = makeAdapter('themory', 'unknown-mystery-model');
     const judgePanel = makeJudgePanelAlwaysCorrect();
     const costTracker = new CostTracker({ tokenizer });
     const resultsPath = join(TMP_DIR, 'pricing-miss-test.json');
