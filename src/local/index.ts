@@ -821,7 +821,84 @@ export { createLocalMemory as createMemory };
  *   - dev:  `npm run db:push` (introspection-based, runs CREATE EXTENSION first via npm script)
  *   - prod: `await runMigrations(pool)` at app boot, then `createMemory({...})`.
  */
-export async function runMigrations(pool: Pool): Promise<void> {
+/**
+ * adapters-openrouter-local-embedder T0.3: post-migration ALTER COLUMN sequence
+ * with EC-3 (atomic transaction) + EC-4 (HNSW DROP+RECREATE) absorption.
+ *
+ * pgvector REJECTS `ALTER COLUMN TYPE` against a column with any index, so
+ * both HNSW indexes (`memories_embedding_hnsw_idx` + `entities_embedding_hnsw_idx`
+ * at `src/local/migrations/0000_crazy_mimic.sql:44,51`) must be dropped before
+ * the ALTER and recreated after. The full DROP → ALTER → CREATE sequence runs
+ * inside a single BEGIN/COMMIT acquired from a dedicated `pool.connect()` client
+ * (SEPA iter-3 pre-RED CRITICAL #1: NEVER nest inside Drizzle's tx; NEVER reuse
+ * `pool.query` which autocommits per statement).
+ *
+ * Idempotency short-circuit: probe `pg_attribute.atttypmod` for memories.embedding;
+ * if it already matches the requested dim, skip the DROP+ALTER+RECREATE entirely.
+ * pgvector v0.5.1 stores `vector(N)` dimension in `atttypmod` directly (NO +4
+ * varlena offset — empirically verified against the ankane/pgvector:v0.5.1
+ * container in RED test phase; SEPA's training-data claim of `N + 4` was wrong
+ * for this version).
+ *
+ * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-3 + EC-4
+ * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 atomic tx + C2 atttypmod empirical correction)
+ */
+async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
+  // Probe current dim. atttypmod stores N directly for pgvector v0.5.1.
+  const probe = await pool.query<{ atttypmod: number }>(
+    `SELECT a.atttypmod
+       FROM pg_attribute a
+       JOIN pg_class c ON c.oid = a.attrelid
+      WHERE c.relname = 'memories'
+        AND a.attname = 'embedding'
+        AND a.attisdropped = false`,
+  );
+  const currentDim = probe.rows[0]?.atttypmod ?? -1;
+  if (currentDim === targetDim) {
+    // Idempotency: schema already at requested dim, skip DROP+ALTER+RECREATE.
+    // eslint-disable-next-line no-console
+    console.error(
+      `[themory] runMigrations: embeddingDim=${String(targetDim)} matches existing schema; no-op.`,
+    );
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.error(
+    `[themory] runMigrations: dim change ${String(currentDim)} → ${String(targetDim)} truncates existing embeddings + drops/recreates HNSW indexes (T0.3 / EC-3 + EC-4)`,
+  );
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
+    await client.query('DROP INDEX IF EXISTS entities_embedding_hnsw_idx');
+    await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)}) USING NULL`);
+    await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)}) USING NULL`);
+    await client.query('CREATE INDEX memories_embedding_hnsw_idx ON memories USING hnsw (embedding vector_cosine_ops)');
+    await client.query('CREATE INDEX entities_embedding_hnsw_idx ON entities USING hnsw (embedding vector_cosine_ops)');
+    await client.query('COMMIT');
+    // eslint-disable-next-line no-console
+    console.error(
+      `[themory] runMigrations: dim change complete; column types vector(${String(targetDim)}); HNSW indexes recreated.`,
+    );
+  } catch (err) {
+    await client.query('ROLLBACK');
+    // eslint-disable-next-line no-console
+    console.error(
+      `[themory] runMigrations: dim change rolled back; schema preserved at vector(${String(currentDim)})`,
+    );
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function runMigrations(
+  pool: Pool,
+  options?: { readonly embeddingDim?: number },
+): Promise<void> {
   // pgvector extension MUST exist before tables with vector columns can be created.
   // Idempotent; safe to re-run.
   await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
@@ -863,4 +940,15 @@ export async function runMigrations(pool: Pool): Promise<void> {
 
   const db = drizzleNodePostgres(pool);
   await migrate(db, { migrationsFolder });
+
+  // T0.3: post-migration parametric dim change. Runs ONLY when:
+  //   - options.embeddingDim is explicitly set AND
+  //   - it differs from MAX_EMBEDDING_DIM (which is the default in the
+  //     Drizzle schema literal).
+  // SEPA pre-RED M3: placed AFTER migrate(db, ...) returns + AFTER the
+  // orphan-schema short-circuit above so push-flow DBs (where the user
+  // explicitly opted out) are not silently mutated.
+  if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+    await applyDimChange(pool, options.embeddingDim);
+  }
 }
