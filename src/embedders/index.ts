@@ -17,3 +17,4 @@
  */
 export { DeterministicStubEmbedder } from './stub.js';
 export { OpenAIEmbedder } from './openai.js';
+export { LocalTransformerEmbedder } from './local.js';
