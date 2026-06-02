@@ -146,7 +146,11 @@ describe.skipIf(PG_URI === '')(
       await memory.dispose();
     });
 
-    it('derived rows (kind=derived) are NOT re-consolidated on subsequent reflect()', async () => {
+    it('derived rows (kind=derived) are NOT re-consolidated when reflect() runs over a cluster with extracted siblings', async () => {
+      // /review re-run F-tests-rerun-1 (test name) + F-tests-rerun-2 (void
+      // discards): renamed from "subsequent reflect()" since the body invokes
+      // reflect() ONCE; assertions added for both extracted seedlings instead
+      // of void-discarding them.
       // Given: a previously-consolidated derived row + 2 extracted facts
       const derivedId = await seedRow('Previously consolidated', 'derived', -10_000);
       const extractedOlderId = await seedRow('Older extracted', 'extracted', -5_000);
@@ -170,8 +174,17 @@ describe.skipIf(PG_URI === '')(
       );
       expect(derivedRows[0]?.t_invalid).toBeNull();
 
-      void extractedOlderId;
-      void extractedNewerId;
+      // And: the two extracted facts behaved per LWW (older rejected, newer kept).
+      const { rows: olderRows } = await pool.query<{ t_invalid: Date | null }>(
+        `SELECT t_invalid FROM memories WHERE id = $1`,
+        [extractedOlderId],
+      );
+      expect(olderRows[0]?.t_invalid).not.toBeNull();
+      const { rows: newerRows } = await pool.query<{ t_invalid: Date | null }>(
+        `SELECT t_invalid FROM memories WHERE id = $1`,
+        [extractedNewerId],
+      );
+      expect(newerRows[0]?.t_invalid).toBeNull();
 
       await memory.dispose();
     });
