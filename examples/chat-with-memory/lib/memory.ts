@@ -158,6 +158,79 @@ export function warnIfLocalOpenrouterMissingBaseUrl(): void {
   }
 }
 
+/**
+ * Demo env-shift for local-openrouter mode.
+ *
+ * The OpenAI Node SDK is hardcoded to read `OPENAI_API_KEY`. Operators using
+ * OpenRouter naturally store their key under `OPENROUTER_KEY` (or
+ * `OPENROUTER_API_KEY`) in `.env`. When mode is `local-openrouter` and
+ * `OPENAI_API_KEY` is missing but `OPENROUTER_KEY` / `OPENROUTER_API_KEY` is
+ * present, promote the OpenRouter var into `OPENAI_API_KEY` so the OpenAI
+ * SDK (running against `OPENAI_BASE_URL=https://openrouter.ai/api/v1`) picks
+ * it up. Demo-only; SDK contract is untouched.
+ *
+ * Also defaults `OPENAI_BASE_URL=https://openrouter.ai/api/v1` when the
+ * operator forgot to set it — this is the ONLY URL that makes sense for
+ * `local-openrouter` mode, and the missing-baseURL warn (above) still fires
+ * before the override so the operator sees the gap.
+ *
+ * @internal demo-only helper; not part of the SDK public API.
+ */
+export function adaptOpenrouterEnvForDemo(): void {
+  // In local-openrouter mode, the SDK's chat-completions call goes to
+  // `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. The key MUST be an
+  // OpenRouter key (`sk-or-...`) — an OpenAI key (`sk-...` or `sk-svca-...`)
+  // sent to that URL returns 401. So:
+  //   1. If OPENROUTER_KEY or OPENROUTER_API_KEY is set, OVERWRITE
+  //      OPENAI_API_KEY with the OpenRouter key (even if OPENAI_API_KEY
+  //      was already set — the existing value would 401 against OpenRouter).
+  //   2. If only OPENAI_API_KEY is set and it already starts with `sk-or-`,
+  //      it's an OpenRouter key stored under the OpenAI var name — leave alone.
+  //   3. Else (only an OpenAI key, no OpenRouter key): leave alone but the
+  //      EC-10 warn already fired explaining the misroute risk.
+  const openrouterKey =
+    (process.env.OPENROUTER_KEY ?? "") !== ""
+      ? process.env.OPENROUTER_KEY
+      : process.env.OPENROUTER_API_KEY;
+  if (openrouterKey !== undefined && openrouterKey !== "") {
+    const existing = process.env.OPENAI_API_KEY ?? "";
+    if (existing !== openrouterKey) {
+      process.env.OPENAI_API_KEY = openrouterKey;
+      // eslint-disable-next-line no-console
+      console.log(
+        "[theomemory-demo] local-openrouter mode: OPENAI_API_KEY override → " +
+          "OPENROUTER_(API_)KEY. The previous value (if any) would have 401'd " +
+          "against https://openrouter.ai/api/v1.",
+      );
+    }
+  }
+  if (
+    process.env.OPENAI_BASE_URL === undefined ||
+    process.env.OPENAI_BASE_URL === ""
+  ) {
+    process.env.OPENAI_BASE_URL = "https://openrouter.ai/api/v1";
+    // eslint-disable-next-line no-console
+    console.log(
+      "[theomemory-demo] OPENAI_BASE_URL defaulted to https://openrouter.ai/api/v1 " +
+        "for local-openrouter mode.",
+    );
+  }
+  // OpenRouter requires fully-qualified model ids (`openai/gpt-4o-mini` etc.);
+  // the SDK default `gpt-4o-mini` returns 404 against OpenRouter. Default to
+  // the most common cheap routable model; operator can override in .env.
+  if (
+    process.env.OPENAI_CHAT_MODEL === undefined ||
+    process.env.OPENAI_CHAT_MODEL === ""
+  ) {
+    process.env.OPENAI_CHAT_MODEL = "openai/gpt-4o-mini";
+    // eslint-disable-next-line no-console
+    console.log(
+      "[theomemory-demo] OPENAI_CHAT_MODEL defaulted to openai/gpt-4o-mini " +
+        "for local-openrouter mode (OpenRouter requires provider/model format).",
+    );
+  }
+}
+
 export function resolveBackendMode(): BackendMode {
   const raw = process.env.THEOMEM_DEMO_BACKEND;
   if (raw !== undefined && raw !== "") {
@@ -294,6 +367,11 @@ function resolveAdapters(
       // selected but OPENAI_BASE_URL is missing (silent misroute → 401
       // when the operator has an OpenRouter-only key).
       warnIfLocalOpenrouterMissingBaseUrl();
+      // Demo env-shift: promote OPENROUTER_KEY → OPENAI_API_KEY + default
+      // OPENAI_BASE_URL to the OpenRouter v1 URL so the OpenAI SDK works
+      // with the operator's natural .env shape. Runs AFTER the warn so the
+      // missing-baseURL signal is preserved.
+      adaptOpenrouterEnvForDemo();
       return {
         embedder: new LocalTransformerEmbedder(),
         llm: new OpenAILLM(),
