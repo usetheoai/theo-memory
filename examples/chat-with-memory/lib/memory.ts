@@ -118,6 +118,13 @@ interface MemorySingleton {
  * Exported for unit-testing the precedence ladder in isolation
  * (tests/unit/examples/chat-with-memory-memory.test.ts per EC-13).
  *
+ * /review F-Mi3 — module-boundary discipline: this helper is exported
+ * SOLELY so the env-var precedence ladder + EC-11 loud-fail can be
+ * tested without bootstrapping the full singleton (which would require
+ * starting a pgvector container + downloading the Xenova model). It is
+ * NOT part of the demo's public API; consumers should call
+ * `getMemory()` / `getSingleton()` instead.
+ *
  * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T2.1 + ADR D6
  * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-11 + EC-13
  */

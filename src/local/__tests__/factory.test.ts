@@ -10,7 +10,11 @@ import { describe, expect, test, vi } from 'vitest';
 import { MAX_EMBEDDING_DIM } from '../../core/constants.js';
 import type { Embedder } from '../../core/dip/embedder.js';
 import type { LLM } from '../../core/dip/llm.js';
-import { BiTemporalNotSupportedLocally, InvalidScope } from '../../core/errors.js';
+import {
+  BiTemporalNotSupportedLocally,
+  InvalidEmbeddingDim,
+  InvalidScope,
+} from '../../core/errors.js';
 import { InMemoryVectorStore } from '../in-memory-store.js';
 import { createLocalMemory } from '../index.js';
 
@@ -152,58 +156,62 @@ describe('createLocalMemory factory — parametric embeddingDim (T0.1 + EC-1 abs
     expect(memory).toBeDefined();
   });
 
-  test('EC-1: rejects embeddingDim=NaN with InvalidScope and literal value in message', async () => {
+  // /review F-Mi4: tests below assert `InvalidEmbeddingDim` (was previously
+  // `InvalidScope`; the plan deferred naming during /implement, and the
+  // consolidated /review caught the conflation of Scope errors with
+  // config-shape errors).
+  test('EC-1: rejects embeddingDim=NaN with InvalidEmbeddingDim with literal value in message', async () => {
     const config = {
       vectorStore: new InMemoryVectorStore(),
       embedder: makeEmbedder(384),
       llm: makeLlm(),
       embeddingDim: Number.NaN,
     };
-    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidEmbeddingDim);
     await expect(createLocalMemory(config)).rejects.toThrow(/NaN/);
   });
 
-  test('EC-1: rejects embeddingDim=384.5 (non-integer) with InvalidScope and literal value in message', async () => {
+  test('EC-1: rejects embeddingDim=384.5 (non-integer) with InvalidEmbeddingDim with literal value in message', async () => {
     const config = {
       vectorStore: new InMemoryVectorStore(),
       embedder: makeEmbedder(384),
       llm: makeLlm(),
       embeddingDim: 384.5,
     };
-    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidEmbeddingDim);
     await expect(createLocalMemory(config)).rejects.toThrow(/384\.5/);
   });
 
-  test('EC-1: rejects embeddingDim=Infinity with InvalidScope and literal value in message', async () => {
+  test('EC-1: rejects embeddingDim=Infinity with InvalidEmbeddingDim with literal value in message', async () => {
     const config = {
       vectorStore: new InMemoryVectorStore(),
       embedder: makeEmbedder(384),
       llm: makeLlm(),
       embeddingDim: Number.POSITIVE_INFINITY,
     };
-    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidEmbeddingDim);
     await expect(createLocalMemory(config)).rejects.toThrow(/Infinity/);
   });
 
-  test('rejects embeddingDim=0 with InvalidScope and literal value in message', async () => {
+  test('rejects embeddingDim=0 with InvalidEmbeddingDim with literal value in message', async () => {
     const config = {
       vectorStore: new InMemoryVectorStore(),
       embedder: makeEmbedder(384),
       llm: makeLlm(),
       embeddingDim: 0,
     };
-    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidEmbeddingDim);
     await expect(createLocalMemory(config)).rejects.toThrow(/0/);
   });
 
-  test('rejects embeddingDim > MAX_EMBEDDING_DIM with InvalidScope and literal value in message', async () => {
+  test('rejects embeddingDim > MAX_EMBEDDING_DIM with InvalidEmbeddingDim with literal value in message', async () => {
     const config = {
       vectorStore: new InMemoryVectorStore(),
       embedder: makeEmbedder(MAX_EMBEDDING_DIM + 512),
       llm: makeLlm(),
       embeddingDim: MAX_EMBEDDING_DIM + 512,
     };
-    await expect(createLocalMemory(config)).rejects.toThrow(InvalidScope);
+    await expect(createLocalMemory(config)).rejects.toThrow(InvalidEmbeddingDim);
     await expect(createLocalMemory(config)).rejects.toThrow(new RegExp(String(MAX_EMBEDDING_DIM + 512)));
   });
 

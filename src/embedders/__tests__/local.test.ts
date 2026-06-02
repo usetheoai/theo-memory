@@ -64,21 +64,36 @@ describe('LocalTransformerEmbedder — Embedder DIP contract (T1.1)', () => {
     expect(out).toEqual([]);
   });
 
-  test('embedBatch preserves input order and per-row dim is 384', async () => {
+  // /review F-Mi11 — split from a single "preserves input order AND per-row
+  // dim is 384" test (testing.md anti-pattern: "and" in test names).
+  test('embedBatch returns one vector per input in input order', async () => {
     const emb = new LocalTransformerEmbedder();
     const rows = await emb.embedBatch(['alpha', 'beta', 'gamma']);
     expect(rows).toHaveLength(3);
-    for (const row of rows) {
-      expect(row).toHaveLength(EXPECTED_DIM);
-      const norm = l2Norm(row);
-      expect(Math.abs(norm - 1.0)).toBeLessThan(L2_TOLERANCE);
-    }
-    // Order preserved + rows distinct (semantic discrimination per row).
     expect(rows[0]).not.toEqual(rows[1]);
     expect(rows[1]).not.toEqual(rows[2]);
   }, 90_000);
 
-  test('embed and embedBatch agree on identical input (batch path produces same output as singleton path)', async () => {
+  test('embedBatch per-row dim is 384', async () => {
+    const emb = new LocalTransformerEmbedder();
+    const rows = await emb.embedBatch(['alpha', 'beta', 'gamma']);
+    for (const row of rows) {
+      expect(row).toHaveLength(EXPECTED_DIM);
+    }
+  }, 90_000);
+
+  test('embedBatch rows are L2-normalized', async () => {
+    const emb = new LocalTransformerEmbedder();
+    const rows = await emb.embedBatch(['alpha', 'beta', 'gamma']);
+    for (const row of rows) {
+      const norm = l2Norm(row);
+      expect(Math.abs(norm - 1.0)).toBeLessThan(L2_TOLERANCE);
+    }
+  }, 90_000);
+
+  // /review F-Mi11 — renamed from "embed and embedBatch agree on identical
+  // input" (testing.md anti-pattern: "and" in test names).
+  test('batch-of-one matches singleton output for the same text', async () => {
     const emb = new LocalTransformerEmbedder();
     const single = await emb.embed('exact text');
     const [batched] = await emb.embedBatch(['exact text']);
