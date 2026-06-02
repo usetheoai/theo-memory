@@ -339,9 +339,46 @@ describe('BenchmarkRunner', () => {
     expect(sleepCalls).toBeGreaterThanOrEqual(1);
     // Q4 was never reached due to abort after retry on Q3
     expect(report.perQuery.length).toBeLessThan(4);
-    // exit code set to 1 for partial-result CI handling
-    expect(process.exitCode).toBe(1);
-    // Reset exitCode so it does not contaminate other test files
+  });
+
+  // v0-8-fixes-cycle-1 T2.1 (closes F-dom-obs-1 MAJOR per ADR D4 + D7):
+  // BenchmarkRunner.run() MUST NOT mutate process.exitCode. The aborted
+  // signal flows through RunReport.aborted only; CLI entry-points
+  // (benchmarks/scripts/run-*.ts) translate report.aborted to
+  // process.exit(...) in their top-level .then() callback. Library code
+  // that reaches into runtime-global state is the same architectural
+  // family as the iter-7 setGlobalTracerProvider regression.
+  it('does NOT mutate process.exitCode when run aborts (T2.1 + ADR D4)', async () => {
+    // Explicit baseline reset — earlier tests may have left exitCode dirty
+    // (especially the pre-T2.1 EC-2 abort test which used to mutate it).
     process.exitCode = 0;
+    const { tracer } = makeTracer();
+    const adapter = makeAdapter('themory');
+    const judgePanel = makeJudgePanelAlwaysNull();
+    const costTracker = new CostTracker({ tokenizer });
+    const resultsPath = join(TMP_DIR, 't2-1-no-exitcode-mutation.json');
+
+    const runner = new BenchmarkRunner({
+      adapter,
+      judgePanel,
+      costTracker,
+      tracer,
+      resultsPath,
+      retryPauseMs: 100,
+      sleep: () => Promise.resolve(),
+    });
+
+    const report = await runner.run(
+      { conversationId: 'c1', items: [] },
+      [
+        { questionId: 'q1', questionText: 'q1?', conversationId: 'c1', goldAnswer: 'x', category: 'misc' },
+        { questionId: 'q2', questionText: 'q2?', conversationId: 'c1', goldAnswer: 'x', category: 'misc' },
+        { questionId: 'q3', questionText: 'q3?', conversationId: 'c1', goldAnswer: 'x', category: 'misc' },
+      ],
+    );
+
+    expect(report.aborted).toBe(true);
+    // The library MUST signal abort via RunReport, not via global mutation.
+    expect(process.exitCode).toBe(0);
   });
 });
