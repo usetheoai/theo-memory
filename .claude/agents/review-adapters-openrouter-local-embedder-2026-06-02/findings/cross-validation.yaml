@@ -1,0 +1,549 @@
+agent: review-adapters-openrouter-local-embedder-cross-validation
+review_target: main..HEAD for plan adapters-openrouter-local-embedder
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+plan_version: "1.1"
+plan_verdict: SHIPPABLE_WITH_CAVEATS (83.6)
+implementation_contract: .claude/knowledge-base/implementations/adapters-openrouter-local-embedder-implementation.md
+progress_audit: .claude/knowledge-base/implementations/.progress-adapters-openrouter-local-embedder.json
+plan_tasks_summary:
+  total_tasks: 9
+  fully_implemented: 6
+  partial: 3
+  missing: 0
+  diverged: 1
+acceptance_criteria_summary:
+  total: 67
+  satisfied: 60
+  unverified: 4
+  false_claims: 0
+  divergences_acknowledged: 3
+adr_compliance:
+  total_adrs: 7
+  respected: 5
+  diverged_without_new_adr: 1
+  diverged_with_documented_rationale: 1
+plan_drift:
+  plan_edited_after_implement: false
+  plan_commit: b3d0968 (2026-06-01 20:25:48)
+  implementation_start_commit: e36faea (2026-06-01 20:42:42)
+  details: |
+    Plan v1.1 landed at commit b3d0968 (20:25:48). First implementation commit
+    e36faea (T0.1) landed at 20:42:42 — 17 minutes later. Plan file has ZERO
+    modifications since b3d0968. Plan is FROZEN ground truth for this review.
+commits_by_task:
+  T0.1: e36faea7a71de57d665088a9a09f948fe6a903b5
+  T0.2: 804f2faf5d173d7ce9207f024ad2f89f6bc644fb
+  T0.3: e68a38a9d81e6d16635ede1dbe9df851811e045d (+ f7f822e follow-up fix)
+  T1.1_pre: 6693ea4 (deps-audit allowlist recovery)
+  T1.1: c4887340ad86b50e45679ba99cc5880dd43502a4
+  T1.2: 8acdf8b82d214c93c95555da70ad285902c4606e
+  T2.1: c5425ec59c8255d2285ee2695f11002436caa699
+  T2.2: 94e43a5403879b2081d4182594e392f7f467496f
+  T3.1: 22314e84193bc85382c4d77fd792cd0091980a24
+  T4.1: f7f822ee4c396136035f4bc4068ef8410b5a0ced
+  audit_artifacts: ad1432f85ded2d45cb772c290865d6687d774a47
+findings:
+  - id: F-xval-1
+    severity: MAJOR
+    file: src/local/index.ts
+    plan_ref: |
+      Plan ADR D3 (T0.3) Decision text + § Deep Dives "HNSW index conflict (EC-4 absorption)"
+      explicitly specifies the SQL sequence:
+        ```
+        ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+        ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+        ```
+      Plan T0.3 Tasks #2 sub-step lists "the 2 `ALTER COLUMN TYPE ... USING NULL`".
+    summary: |
+      T4.1 follow-up fix at commit f7f822e replaced `ALTER COLUMN TYPE vector(N) USING NULL`
+      with sequential `DELETE FROM memories; DELETE FROM entities; ALTER COLUMN TYPE vector(N);`
+      because `USING NULL` collided with the existing `NOT NULL` constraint on
+      embedding columns (PG error 23502). This is an ADR D3 contract divergence
+      — the SQL used at runtime no longer matches the SQL specified in ADR D3.
+      The divergence is documented in the commit message but no new ADR was
+      authored. Per cycle-review.md Step F (Detect divergence from ADRs):
+      divergence from ADR requires its own ADR in the implementation OR a
+      plan revert.
+    evidence: |
+      src/local/index.ts:886-889 (current implementation):
+        await client.query('DELETE FROM memories');
+        await client.query('DELETE FROM entities');
+        await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+        await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+
+      Plan ADR D3 (.claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md:117-120):
+        ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+        ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+
+      Commit f7f822e log: "Replaced `ALTER ... USING NULL` with sequential
+      `DELETE FROM memories; DELETE FROM entities; ALTER COLUMN TYPE vector(N);`
+      inside the existing BEGIN/COMMIT atomic block."
+
+      The semantic equivalent (destructive data drop) is preserved — both
+      paths discard the existing embeddings — but the SQL contract surface
+      is different (`DELETE` triggers + cascade behavior MAY differ from
+      `USING NULL` + `NOT NULL` rejection, especially for FK rows pointing
+      to memories).
+    recommended_action: |
+      Either (a) author a new ADR (D3-amend) documenting the empirical
+      reality that `ALTER COLUMN TYPE vector(N) USING NULL` violates the
+      `NOT NULL` constraint on `memories.embedding` and `entities.embedding`,
+      justifying the DELETE+ALTER replacement; or (b) revert to the ADR D3
+      SQL by dropping the `NOT NULL` constraint at migration time then
+      restoring it; or (c) bump plan to v1.2 with the corrected ADR D3 SQL
+      text. Option (a) is cheapest and matches the "honest divergence" pattern.
+
+  - id: F-xval-2
+    severity: MAJOR
+    file: src/local/index.ts
+    plan_ref: |
+      Plan T0.1 Acceptance Criteria #8 + T0.2 Acceptance Criteria + T0.3
+      Acceptance Criteria + Global DoD: "File-size budget respected — every
+      changed file ≤ 500 LoC".
+    summary: |
+      `src/local/index.ts` is 969 lines (was 816 pre-T0.1 per commit e36faea
+      log). All three Phase 0 tasks (T0.1 + T0.2 + T0.3) edited this file
+      and added net code, pushing it from 816 → 969 (~+153 LoC added by this
+      cycle). The file already exceeded the 500-LoC budget pre-cycle but
+      Phase 0 increases the overshoot rather than holding it neutral.
+      Acceptance Criteria item "every changed file ≤ 500 LoC" is FALSE for
+      every Phase 0 commit.
+    evidence: |
+      $ wc -l src/local/index.ts → 969 lines
+
+      Commit e36faea log honestly acknowledges:
+        "Pre-existing AC breach surfaced honestly (SEPA pre-COMMIT MAJOR
+        M-T0.1-1): src/local/index.ts is 866 lines (was 816 pre-T0.1) —
+        exceeds the per-file 500-line budget declared in the plan's T0.1
+        Acceptance Criteria. The breach is pre-existing (introduced by
+        v0.4b T4.1 eviction wiring); T0.1's additions are minimally
+        proportional. Splitting deferred — out of scope for the
+        OpenRouter+LocalEmbedder cycle."
+
+      Plan v1.1 § Phase 0 deep file analysis acknowledges the file size
+      situation but the Acceptance Criteria explicitly require the budget.
+      The "minimally proportional" framing is honest but the criterion
+      is still unmet.
+
+      Also `src/local/pgvector-store.ts` is 654 lines (T0.2 added ~42 LoC).
+      Both files violate the 500-LoC budget.
+    recommended_action: |
+      Either (a) absorb this as a known pre-existing breach in the cycle-
+      review acceptance + open a follow-up cycle to split `src/local/index.ts`
+      (extract `applyDimChange` + `validateEmbeddingDim` + the eviction
+      wiring); or (b) amend plan v1.2 with an explicit "Accepted Risks"
+      entry documenting the budget breach so the Acceptance Criteria
+      reflects the empirical reality. Option (b) is cheaper and matches
+      the cycle's honest-divergence discipline.
+
+  - id: F-xval-3
+    severity: MAJOR
+    file: tests/integration/migrations/dim-change.test.ts
+    plan_ref: |
+      Plan T0.3 § TDD lists 9 RED tests including:
+        - test_runMigrations_atomic_rollback_on_mid_sequence_failure (EC-3)
+        - test_runMigrations_logs_warn_on_destructive_dim_change
+        - test_runMigrations_preserves_existing_signature_backward_compat
+        - test_runMigrations_short_circuit_logs_noop_when_atttypmod_matches
+      T0.3 Acceptance Criteria #5: "Mid-sequence failure (e.g., simulate
+      CREATE INDEX error) → ROLLBACK executed; schema preserved at vector(1536)
+      + both HNSW indexes intact (EC-3)".
+    summary: |
+      T0.3 integration test file `tests/integration/migrations/dim-change.test.ts`
+      ships 5 tests (backward-compat + parametric ALTER + HNSW recreation +
+      idempotency + no-op), but the plan T0.3 § TDD lists 9 RED tests. Four
+      plan-declared tests are MISSING:
+        1. atomic_rollback_on_mid_sequence_failure (EC-3 invariant; AC #5)
+        2. logs_warn_on_destructive_dim_change (stderr observability)
+        3. preserves_existing_signature_backward_compat (overlaps with #1
+           which IS present, so this is OK as DUP)
+        4. short_circuit_logs_noop_when_atttypmod_matches (observability of
+           the fast path)
+      The MOST CRITICAL missing test is #1 — the EC-3 atomic-rollback
+      invariant is the headline absorption of the v1.1 plan bump but is
+      NOT exercised by an empirical failure-injection test.
+    evidence: |
+      $ grep -c "    it(" tests/integration/migrations/dim-change.test.ts → 5
+
+      Commit e68a38a (T0.3) log honestly acknowledges:
+        "ACCEPTED GAP (documented honestly per Inquebrável Rule 3): the plan
+        T0.3 § TDD lists `test_runMigrations_atomic_rollback_on_mid_sequence_failure`.
+        NOT integration-tested in this commit because mid-sequence failure
+        injection requires intrusive monkey-patching of `client.query`. The
+        ROLLBACK path is structurally enforced via the try/catch/ROLLBACK/throw
+        pattern visible in `applyDimChange`."
+
+      Structural enforcement is visible at src/local/index.ts:897-905:
+        } catch (err) {
+          await client.query('ROLLBACK');
+          console.error(...rolled back...);
+          throw err;
+        } finally {
+          client.release();
+        }
+
+      Code review surfaces ROLLBACK structurally but does NOT prove it
+      fires on failure. T0.3 AC #5 explicitly requires runtime verification:
+      "Mid-sequence failure (e.g., simulate CREATE INDEX error) → ROLLBACK
+      executed". The structural enforcement is not equivalent to the AC.
+    recommended_action: |
+      Add a follow-up integration test using a "failpoint" pattern: spy on
+      `client.query` (via a wrapper Pool that conditionally throws on the
+      Nth statement) to inject a controlled failure inside the
+      DROP+ALTER+RECREATE sequence and assert (a) the throw bubbles, (b)
+      the column type post-failure is the pre-change dim, (c) both HNSW
+      indexes still exist on the pre-change dim. Estimated 60 LoC
+      additional. Alternative: accept the gap as documented per the v1.0
+      plan-confidence WITH_CAVEATS verdict and roll it into the next cycle's
+      EC checklist.
+
+  - id: F-xval-4
+    severity: MINOR
+    file: examples/chat-with-memory/.env.example
+    plan_ref: |
+      Plan T3.1 Files to edit lists:
+        examples/chat-with-memory/.env.example — add THEOMEM_DEMO_BACKEND +
+        OPENAI_BASE_URL placeholders (with comments)
+      Plan T3.1 Acceptance Criteria: "`.env.example` lists the 3 new env vars"
+    summary: |
+      `examples/chat-with-memory/.env.example` was NOT edited by any commit
+      in this cycle. Commit 22314e8 (T3.1) honestly acknowledges:
+        "`.env.example` UPDATE DEFERRED: the file is hook-protected (`.env*`
+        permission denial). Operator updates manually following the new
+        README guidance — copy-pasteable env snippets are present in the
+        `## Backend modes § OpenRouter recipe` section."
+      The plan T3.1 Acceptance Criteria item is FALSE; mitigation is via
+      README guidance instead. Operator must manually edit `.env.example`
+      from the README — a discoverability gap for fresh checkouts.
+    evidence: |
+      $ git log main..HEAD -- examples/chat-with-memory/.env.example
+      a56ff14 feat(examples): add chat-with-memory Next.js demo
+      (only the original demo-creation commit; no this-cycle commit)
+
+      The README sec `## Backend modes § OpenRouter recipe` does present
+      the env shape verbatim, so the operator CAN copy it manually. The
+      gap is in the `.env.example` discoverability, not in the
+      documentation existence.
+    recommended_action: |
+      Either (a) loosen the hook to permit `.env.example` writes (it is
+      not secret; it's a TEMPLATE for the real `.env.local`); or (b)
+      accept the divergence in this cycle and amend plan T3.1 § Files to
+      edit to remove `.env.example` from the list (mark `.env.example`
+      update as a permanent README-only follow-up); or (c) commit the
+      `.env.example` update manually via human override.
+
+  - id: F-xval-5
+    severity: MINOR
+    file: src/local/index.ts
+    plan_ref: |
+      Plan T0.2 § Files to edit #3: "src/local/index.ts — createLocalMemory
+      passes config.embeddingDim through to PgvectorStore constructor when
+      caller uses pgvector backend"
+    summary: |
+      Plan T0.2 declared `src/local/index.ts` as a file to edit so that
+      `createLocalMemory` would plumb `config.embeddingDim` to the
+      PgvectorStore constructor. The empirical reality (correctly surfaced
+      by the implementation at SEPA iter-2 pre-RED C1, documented in
+      commit 804f2fa) is that `createLocalMemory` NEVER constructs
+      PgvectorStore — it receives an already-constructed `config.vectorStore`
+      from the caller. The actual dim-plumbing happens at the demo level
+      in T2.1's `examples/chat-with-memory/lib/memory.ts buildStore` (line
+      165): `new PgvectorStore(pgPool, { embeddingDim })`. So plan T0.2
+      Files to edit #3 is WRONG, surfaced honestly, and the implementation
+      correctly skipped it. This is a plan defect, not an implementation
+      defect, but `cycle-review.md` Step B flags "File missing from diff:
+      MAJOR (declared but not edited; the task is partial OR the plan was
+      wrong)" — for transparency.
+    evidence: |
+      src/local/index.ts:735 createLocalMemory signature:
+        export async function createLocalMemory(config: LocalMemoryConfig)
+      The function never instantiates PgvectorStore; config.vectorStore is
+      ALREADY a VectorStore implementation. The dim is propagated via the
+      `effectiveDim` probe at line 738-739, not through any PgvectorStore
+      constructor call inside this function.
+
+      The actual PgvectorStore({embeddingDim}) construction happens at:
+        examples/chat-with-memory/lib/memory.ts:165
+          vectorStore: new PgvectorStore(pgPool, { embeddingDim }),
+      which is T2.1's commit c5425ec, not T0.2's commit 804f2fa.
+
+      Commit 804f2fa log honestly flags:
+        "Plan defect documented (C1 — see iteration-2-pre-red.md): plan T0.2
+        § Files to edit #3 lists `src/local/index.ts — createLocalMemory
+        plumbs config.embeddingDim to PgvectorStore constructor`. Empirical
+        reality: createLocalMemory NEVER constructs PgvectorStore — it
+        receives an already-constructed `config.vectorStore` from the caller.
+        The actual plumbing site (demo passing `{ embeddingDim: 384 }`)
+        lives at T2.1 consumer code. T0.2's scope is correctly REDUCED to
+        constructor + guard + NEW test file."
+    recommended_action: |
+      Amend plan v1.2 T0.2 § Files to edit to remove the third line
+      ("createLocalMemory plumbs config.embeddingDim to PgvectorStore
+      constructor") since this is empirically not the case. Add a new note
+      to T2.1 § Files to edit explicitly listing the
+      `examples/chat-with-memory/lib/memory.ts buildStore` site as the
+      actual dim-plumbing surface for the demo consumer. Net effect: no
+      change to which files were edited; just plan-accuracy correction.
+
+  - id: F-xval-6
+    severity: MINOR
+    file: src/embedders/index.ts
+    plan_ref: |
+      Plan ADR D7 § Alternatives considered (third bullet):
+        "REJECT — single barrel under `./embedders` that exports all 3 (stub,
+        openai, local) — works mechanically but loses the per-provider
+        isolation that lets bundlers tree-shake unused providers."
+      Plan T1.1 § Files to edit #3:
+        "src/embedders/index.ts — re-export LocalTransformerEmbedder (sibling
+        pattern to existing barrel)"
+    summary: |
+      Plan ADR D7 § Alternatives explicitly REJECTS a single barrel under
+      `./embedders` that exports all 3 adapters. But plan T1.1 § Files to
+      edit #3 explicitly mandates re-exporting `LocalTransformerEmbedder`
+      from `src/embedders/index.ts` (the SAME barrel that ADR D7
+      "rejects"). Implementation followed T1.1 (commit c488734 added the
+      re-export). This is an INTERNAL plan contradiction: ADR D7
+      "rejected" alternative is implemented as a mandatory step in T1.1.
+      The internal `./embedders` barrel was a pre-existing precedent from
+      Cycle 1 (commit e503aa8) + Cycle 2 (commit 9352d52), so the
+      "rejection" in ADR D7 was actually about NOT MAKING THE BARREL the
+      SOLE export path — the subpath `./embedders/local` was added
+      ALONGSIDE the barrel re-export. The implementation is consistent
+      with precedent, but the plan's framing is ambiguous.
+    evidence: |
+      package.json#exports has BOTH:
+        "./embedders": { "default": "./src/embedders/index.ts" }
+        "./embedders/local": { "default": "./src/embedders/local.ts" }
+
+      src/embedders/index.ts (post-T1.1):
+        export { DeterministicStubEmbedder } from './stub.js';
+        export { OpenAIEmbedder } from './openai.js';
+        export { LocalTransformerEmbedder } from './local.js';
+      All 3 are re-exported from the single barrel.
+
+      Plan T1.1 Tasks step 4: "Re-export from `src/embedders/index.ts`"
+      Plan ADR D7 § Alternatives (rejected): "single barrel under `./embedders`"
+
+      Resolution: the existing barrel was a Cycle 1/2 precedent; "single
+      barrel" in ADR D7 likely meant "single barrel as the SOLE export
+      path" (no per-provider subpath), and the implementation matches the
+      precedent by providing BOTH the barrel AND the per-provider subpath.
+      Plan framing could be tighter; implementation is consistent with
+      cycle precedents.
+    recommended_action: |
+      Plan v1.2 § ADR D7 § Alternatives third bullet should be reworded
+      from "single barrel under `./embedders`" to "single barrel as the
+      sole export path (no per-provider subpath)" — the existing barrel
+      precedent is preserved, and the subpath is additive. This is a
+      doc-clarity nit; implementation behavior is correct.
+
+  - id: F-xval-7
+    severity: INFO
+    file: src/local/index.ts
+    plan_ref: |
+      Plan T0.3 § Deep Dives "Logging: `console.error` (stderr) per
+      Inquebrável `log structured` convention — visible in dev server log
+      + CI output. Three log lines: (1) pre-transaction `[runMigrations]
+      WARN: dim change ${old} → ${new} truncates existing embeddings +
+      drops/recreates HNSW indexes`, (2) post-transaction `[runMigrations]
+      dim change complete: column types vector(${new}) + indexes recreated`,
+      (3) on rollback `[runMigrations] ERROR: dim change rolled back;
+      schema preserved at vector(${old})`. NO emojis (per CLAUDE.md)."
+    summary: |
+      The implementation uses prefix `[themory]` (commit e68a38a) instead
+      of the plan-declared `[runMigrations]` prefix in stderr log lines.
+      Both prefixes are valid choices; only the cosmetic naming differs.
+      Plan T0.3 § Deep Dives is descriptive guidance, not Acceptance
+      Criteria; no AC item references the literal prefix string. Logging
+      semantics (3 lines: pre-transaction WARN + post-transaction success
+      + on-rollback ERROR) are present.
+    evidence: |
+      src/local/index.ts:861, 868, 894, 900-902 use `[themory] runMigrations: ...`
+      Plan T0.3 § Deep Dives uses `[runMigrations] WARN: ...`
+      No AC item locks the prefix; this is purely cosmetic.
+    recommended_action: |
+      Prefer `[themory]` going forward (matches the existing convention
+      in src/local/index.ts:866-870 console.warn for orphan-schema warning
+      which already uses `[themory]`). Plan T0.3 § Deep Dives prose
+      should be aligned in v1.2.
+
+  - id: F-xval-8
+    severity: INFO
+    file: tests (overall test count delta)
+    plan_ref: |
+      Plan T1.1 § TDD lists 7 RED tests + EC-5 ("test_LocalTransformerEmbedder_probe_text_returns_correct_dim").
+      Plan T1.2 lists 2 RED tests.
+      Plan T2.1 lists 12 RED tests (8 precedence ladder + 4 EC-11 — but
+      counting the AC: 7 precedence + 5 EC-11 = 12).
+      Plan T2.2 lists 4 RED tests.
+      Plan T0.1 lists 9 RED tests.
+      Plan T0.2 lists 4 RED tests.
+      Plan T0.3 lists 9 RED tests (5 baseline + EC-3 + EC-4 + idempotency +
+      atttypmod-noop).
+      Plan T4.1 lists 4 RED tests.
+    summary: |
+      Test-count audit per task:
+        T0.1: plan 9 RED; impl 9 ✓ MATCH (factory.test.ts "parametric
+              embeddingDim" describe block)
+        T0.2: plan 4 RED; impl 9 (exceeds plan) ✓ STRONGER
+        T0.3: plan 9 RED; impl 5 (covered F-xval-3 above) ⚠ PARTIAL
+        T1.1: plan 7 RED; impl 7 ✓ MATCH
+        T1.2: plan 2 RED; impl 2 (added to public-paths.test.ts) ✓ MATCH
+        T2.1: plan 12 RED; impl 12 ✓ MATCH (7 precedence + 5 EC-11)
+        T2.2: plan 4 RED; impl 4 ✓ MATCH
+        T4.1: plan 4 RED; impl 5 ✓ STRONGER (added HNSW-exists test)
+      Net: 56 plan-declared tests vs 53 impl tests (T0.3 gap of 4 tests +
+      bonus tests at T0.2 and T4.1 — covered in F-xval-3).
+    evidence: |
+      $ grep -c "    test(\|    it(" each test file → counted above
+      F-xval-3 covers the T0.3 gap in detail.
+    recommended_action: |
+      Address via F-xval-3 recommended_action. T0.2 + T4.1 bonus tests
+      are a positive divergence and require no action.
+
+  - id: F-xval-9
+    severity: INFO
+    file: .claude/rules/deps-audit-allowlist.txt
+    plan_ref: |
+      Plan ADR D1 acknowledges Xenova as NEW optionalDependency with
+      Apache-2.0 license. Plan does NOT pre-emptively flag the protobufjs
+      CVE chain because the CVE was surfaced empirically at /implement
+      iter-4 (post-`npm install`).
+    summary: |
+      The implementation correctly halted at /implement iter-4 with
+      FAIL_INSECURE deps-audit verdict (1 CRITICAL + 4 HIGH on
+      protobufjs chain via @xenova/transformers transitive). Recovery was
+      user-approved allowlist at commit 6693ea4 with aggressive sunset
+      (CRITICAL 2026-07-01, HIGHs 2026-08-01). This follows
+      cycle-implement.md § Stop Condition #5 + § Step 4 (Resume after
+      recovered blocker) correctly. The progress.json `previous_halt`
+      record captures the halt + resolution audit trail. Plan-confidence
+      83.6 SHIPPABLE_WITH_CAVEATS verdict implicitly absorbs this caveat.
+    evidence: |
+      .claude/knowledge-base/implementations/.progress-adapters-openrouter-local-embedder.json:
+        "previous_halt": {
+          "iteration": 4,
+          "task_at_halt": "T1.1",
+          "reason": "deps-audit re-gate failed: 1 CRITICAL + 4 HIGH on
+                     protobufjs chain via @xenova/transformers transitive",
+          "resolved_date": "2026-06-01",
+          "resolution": "User-approved allowlist with aggressive sunset..."
+        }
+
+      .claude/rules/deps-audit-allowlist.txt has 8 active entries (5
+      protobufjs CVEs + 3 umbrella) with sunset 2026-07-01 / 2026-08-01.
+
+      The dogfood-golden-rule blocks any production-ready claim while
+      these entries are active, which is the structural lever forcing
+      remediation before v1.0.
+    recommended_action: |
+      No corrective action required. Track upstream Xenova v3 line as
+      the structural resolution path. Re-audit at sunset 2026-07-01.
+
+  - id: F-xval-10
+    severity: INFO
+    file: src/local/index.ts (orphan-schema branch)
+    plan_ref: |
+      Plan T0.3 § Deep Dives "Drizzle migration order: the helper runs
+      Drizzle `migrate()` FIRST (using its own internal transaction); the
+      DROP+ALTER+RECREATE transaction is SEPARATE and runs AFTER. The
+      Drizzle journal `drizzle.__drizzle_migrations` remains consistent
+      because the post-migration ALTER is invisible to Drizzle (no
+      migration file hash registered for it)."
+    summary: |
+      Plan T0.3 § Deep Dives is silent on the push-flow / orphan-schema
+      case. T4.1 follow-up fix at commit f7f822e wired `applyDimChange`
+      INTO the orphan-schema branch (push-flow DBs) so that consumer-explicit
+      `embeddingDim` IS applied even when Drizzle migrate is skipped. This
+      is the right semantic (the consumer set the option explicitly; intent
+      is clear) but adds a behavior path the plan did not anticipate. The
+      commit log honestly documents the SEPA pre-RED iter-3 M3 advice as
+      "over-cautious" and corrects it empirically.
+    evidence: |
+      src/local/index.ts:940-953 (orphan-schema branch):
+        if (memoriesExists) {
+          console.warn('schema present but `drizzle.__drizzle_migrations`
+                       journal missing...');
+          // T4.1 follow-up to T0.3: dim change must STILL apply on push-flow DBs.
+          if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+            await applyDimChange(pool, options.embeddingDim);
+          }
+          return;
+        }
+
+      Commit f7f822e log: "SEPA pre-RED iter-3 M3 said `place embeddingDim
+      ALTER block AFTER orphan-schema short-circuit so push-flow DBs are
+      not silently mutated`. Live test against the user's existing demo DB
+      (which was push-flow from earlier sessions) surfaced this as WRONG..."
+    recommended_action: |
+      Plan v1.2 T0.3 § Deep Dives should be extended with a fourth
+      sub-section documenting the orphan-schema + explicit-embeddingDim
+      branch interaction: "When `runMigrations(pool, { embeddingDim })` is
+      called against a push-flow DB (Drizzle journal missing), the
+      orphan-schema warning fires AND the parametric ALTER sequence still
+      runs against the existing schema. Operator intent (explicit
+      embeddingDim arg) overrides the journal-missing skip." This codifies
+      the empirical correction.
+
+  - id: F-xval-11
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    plan_ref: |
+      Plan T2.1 § Acceptance Criteria #8: "Pass: complexity, coverage,
+      lint, size (file budget: 280 → ~340 LoC after EC-11 validation block)"
+    summary: |
+      Demo `lib/memory.ts` is now 378 lines vs the plan's projected ~340
+      LoC after T2.1. This is ~11% over the projection. Still well under
+      the 500-LoC budget. No AC violation; merely a forecasting note.
+    evidence: |
+      $ wc -l examples/chat-with-memory/lib/memory.ts → 378
+      Plan T2.1 § Acceptance Criteria #8 estimated "~340 LoC after EC-11
+      validation block".
+    recommended_action: |
+      None — under the 500-LoC budget; estimate was conservative; cycle
+      complete.
+
+confidence_summary:
+  plan_vs_implementation_alignment: HIGH
+  honesty_discipline_observed: STRONG (4 documented divergences surfaced
+    inline in commit messages with rationale)
+  hard_blockers: 0
+  ready_to_merge: true
+  conditions_for_ready_to_merge: |
+    1. F-xval-1 (ADR D3 SQL divergence) requires either a v1.2 plan amend
+       OR an ADR D3-amend authored in this cycle's artifacts.
+    2. F-xval-2 (500-LoC budget breach) requires either a v1.2 plan
+       "Accepted Risks" entry OR a follow-up split cycle queued.
+    3. F-xval-3 (T0.3 missing rollback test) accepted as documented gap
+       in v1.0 plan-confidence WITH_CAVEATS verdict; recommend follow-up
+       test addition.
+    All other findings (4-11) are documentation / cosmetic and do not
+    block merge.
+
+audit_trail:
+  read_files:
+    - .claude/agents/review-adapters-openrouter-local-embedder-2026-06-02/cross-validation.md
+    - .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md (926 lines)
+    - .claude/knowledge-base/implementations/adapters-openrouter-local-embedder-implementation.md
+    - .claude/knowledge-base/implementations/.progress-adapters-openrouter-local-embedder.json
+    - src/local/index.ts (969 lines)
+    - src/local/pgvector-store.ts (verified lines 1-280)
+    - src/embedders/local.ts (92 lines)
+    - src/embedders/index.ts (21 lines)
+    - examples/chat-with-memory/lib/memory.ts (sections verified)
+    - examples/chat-with-memory/app/api/info/route.ts (33 lines)
+    - tests/integration/migrations/dim-change.test.ts (173 lines)
+    - tests/integration/examples/chat-with-memory-local-openrouter.test.ts (163 lines)
+    - tests/integration/public-paths.test.ts (162 lines)
+    - tests/unit/examples/chat-with-memory-memory.test.ts (125 lines)
+    - tests/unit/examples/chat-with-memory-info-route.test.ts (76 lines)
+    - src/local/__tests__/factory.test.ts (236 lines)
+    - src/local/__tests__/pgvector-store.test.ts (139 lines)
+    - src/embedders/__tests__/local.test.ts (87 lines)
+    - package.json (120 lines)
+    - .claude/rules/deps-audit-allowlist.txt (sections verified)
+  git_commands:
+    - git log main..HEAD --oneline
+    - git log main..HEAD --grep='adapters-or-local' --stat
+    - git log --pretty=format -- (plan file modification time check)
+    - git diff b3d0968^..HEAD --stat (cycle-scoped diff)

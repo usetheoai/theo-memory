@@ -1,0 +1,531 @@
+agent: review-adapters-openrouter-local-embedder-domain-pgvector-schema
+review_target: main..HEAD for plan adapters-openrouter-local-embedder
+domain: pgvector-schema
+plan_path: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+edge_cases_review: .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md
+commits_in_scope:
+  - b3d0968 chore(plan)(adapters-or-local): land cycle-plan chain artifacts
+  - e36faea feat(core)(adapters-or-local): parametric embeddingDim via LocalMemoryConfig (T0.1 / EC-1)
+  - 804f2fa feat(local)(adapters-or-local): PgvectorStore({ embeddingDim? }) constructor option (T0.2)
+  - e68a38a feat(local)(adapters-or-local): runMigrations parametric embeddingDim with atomic DROP+ALTER+RECREATE (T0.3 / EC-3 + EC-4)
+  - 6693ea4 chore(allowlist)(adapters-or-local): allowlist 8 protobufjs chain CVEs with aggressive sunset
+  - c488734 feat(embedders)(adapters-or-local): LocalTransformerEmbedder via @xenova/transformers ^2.17.0 (T1.1 / ADR D1)
+  - 8acdf8b feat(adapters-or-local): subpath export @usetheo/memory/embedders/local (T1.2 / ADR D7)
+  - c5425ec feat(examples)(adapters-or-local): local-openrouter backend (T2.1)
+  - 94e43a5 feat(examples)(adapters-or-local): /api/info exposes adapterSource + embedderDim (T2.2)
+  - 22314e8 docs(adapters-or-local): README backend modes + CHANGELOG entry (T3.1)
+  - f7f822e test(integration)(adapters-or-local): chat-with-memory local-openrouter HTTP surface (T4.1)
+  - ad1432f chore(audit)(adapters-or-local): land /implement cycle audit artifacts
+
+domain_specific_patterns_checked:
+  - pgvector HNSW index drop+recreate strategy required for ALTER COLUMN TYPE vector(N→M) (EC-4 absorption)
+  - Atomic transaction discipline (BEGIN/COMMIT/ROLLBACK) wrapping the full DROP+ALTER+RECREATE sequence (EC-3 absorption)
+  - pgvector v0.5.1 atttypmod encoding (N directly vs N+4 varlena header — empirical correction logged in SEPA iter-3)
+  - Embedding dim guard discipline at search boundary (this.embeddingDim vs MAX_EMBEDDING_DIM constant)
+  - Drizzle migration journal hash discipline (post-migration ALTER kept OUTSIDE the journal per plan ADR D3)
+  - Schema literal vector(1536) NOT NULL constraint interaction with ALTER COLUMN TYPE (T4.1 follow-up — empirical impl correction)
+  - Foreign-key cascade graph impact when DELETE FROM memories runs (history ON DELETE CASCADE; consolidation_history ON DELETE SET NULL; memories.superseded_by self-FK ON DELETE SET NULL)
+  - HNSW index recreation respecting vector_cosine_ops consistency post-ALTER
+  - Idempotency probe via pg_attribute.atttypmod for no-op short-circuit
+  - Schema drift detection (orphan-schema path / drizzle-kit push) interaction with parametric dim path
+
+findings:
+  - id: F-dom-pgvector-1
+    severity: CRITICAL
+    file: src/local/index.ts
+    line: 877-907
+    plan_ref: |
+      plan T0.3 § Tasks #2 + Deep Dive "ALTER COLUMN incompatibility" + ADR D3
+      "the helper logs `[runMigrations] WARN: dim change ${old} → ${new}
+       truncates existing embeddings + drops/recreates HNSW indexes`"
+    domain_anchor: |
+      architecture.md § 10 — Build pipeline known gaps (migration discipline).
+      CLAUDE.md § Inquebrável Rule 3 (Honestidade Extrema): destructive
+      side effects MUST be surfaced explicitly to the operator.
+    summary: |
+      `applyDimChange` runs `DELETE FROM memories; DELETE FROM entities;` as
+      part of the dim-change transaction (lines 886-887). The plan + ADR D3 +
+      CHANGELOG only document the loss of EMBEDDING data ("USING NULL clause
+      drops all existing data in those columns"). The actual implementation
+      destroys ENTIRE ROWS, which triggers:
+
+        (a) `history` table CASCADE delete via
+            `history_memory_id_memories_id_fk` (0000_crazy_mimic.sql:42,
+            `ON DELETE cascade`) — entire audit trail wiped silently.
+        (b) `consolidation_history` SET NULL on `kept_memory_id` via
+            `consolidation_history_kept_memory_id_fkey`
+            (0007_distillation_columns.sql, `ON DELETE SET NULL`) — every
+            v0.7 distillation audit row loses its provenance link.
+        (c) `memories.superseded_by` self-FK SET NULL
+            (0002_skill_columns.sql:6) — v0.6 Voyager skill supersession
+            chains broken.
+
+      Neither the warning log (line 868-870) nor the CHANGELOG entry mention
+      these cascading destructions. The operator sees "truncates existing
+      embeddings" and reasonably assumes the bi-temporal `t_invalid IS NOT
+      NULL` audit history survives — it does NOT. This is a silent-correctness
+      gap that violates Inquebrável Rule 3 and the v0.4b-fixes T7.1 soft-delete
+      contract (forget preserves rows; dim-change destroys them).
+    evidence: |
+      src/local/index.ts:886-887
+        await client.query('DELETE FROM memories');
+        await client.query('DELETE FROM entities');
+
+      Cascade graph (verified via grep across migrations):
+        - 0000_crazy_mimic.sql:42  — history.memory_id → memories.id ON DELETE cascade
+        - 0002_skill_columns.sql:6 — memories.superseded_by → memories.id ON DELETE set null
+        - 0007_distillation_columns.sql:36 — consolidation_history.kept_memory_id → memories.id ON DELETE set null
+
+      Warning log only says (src/local/index.ts:868-870):
+        `[themory] runMigrations: dim change ${currentDim} → ${targetDim}
+         truncates existing embeddings + drops/recreates HNSW indexes`
+
+      ADR D3 (plan §118-122):
+        "ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+         ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+         ... The `USING NULL` clause drops all existing data in those columns
+         (pgvector does not support data-preserving dim change)."
+
+      CHANGELOG (line 9): same framing — "truncates existing embeddings".
+
+    recommended_action: |
+      Option A (preferred, smallest change): extend the warning log + JSDoc on
+      `applyDimChange` + CHANGELOG entry to honestly state the cascade
+      consequences. E.g.:
+        `[themory] runMigrations: dim change ${old} → ${new} DELETEs all
+         memories + entities rows. CASCADE side effects: history rows for
+         deleted memories are removed; consolidation_history.kept_memory_id +
+         memories.superseded_by NULLed. To preserve audit trail before
+         re-embedding, dump tables first.`
+
+      Option B (heavier, future cycle): add a `preserveAuditTrail?: boolean`
+      flag that disables the DELETE path and instead uses
+      `ALTER COLUMN ... DROP NOT NULL` + `ALTER COLUMN TYPE vector(N)` (which
+      will set every embedding to NULL but preserve row identity + audit trail
+      + supersession chains). Then optionally re-add NOT NULL once data is
+      re-embedded out-of-band.
+
+      Option C (deferred): document loudly + ADD a CHANGELOG `**BREAKING**`
+      marker so consumers running the dim-change path know to dump
+      `history` + `consolidation_history` before invoking.
+
+  - id: F-dom-pgvector-2
+    severity: MAJOR
+    file: tests/integration/migrations/dim-change.test.ts
+    line: 1-173
+    plan_ref: |
+      plan T0.3 § TDD lines 431-444:
+        `RED:  test_runMigrations_atomic_rollback_on_mid_sequence_failure() —
+                EC-3: simulated ALTER failure leaves schema at original
+                1536-dim + indexes intact`
+      plan T0.3 § Acceptance Criteria line 451:
+        "Mid-sequence failure (e.g., simulate CREATE INDEX error) → `ROLLBACK`
+         executed; schema preserved at vector(1536) + both HNSW indexes intact
+         (EC-3)"
+    domain_anchor: |
+      EC-3 absorption (edge-cases review §EC-3): the entire 6-statement
+      sequence runs inside a single BEGIN/COMMIT; on any failure, ROLLBACK
+      preserves the pre-ALTER schema atomically. Without an integration test
+      that empirically forces the rollback path against real pgvector, the
+      atomic guarantee remains a code-comment promise, not a verified
+      invariant.
+    summary: |
+      The plan declared a dedicated RED test for EC-3 atomic rollback semantics
+      and locked it in the Acceptance Criteria. The integration test file
+      `tests/integration/migrations/dim-change.test.ts` SHIPPED WITH 5 tests
+      (backward-compat, parametric ALTER, HNSW recreation, idempotency,
+      explicit 1536 no-op) but NONE simulate a mid-sequence failure to verify
+      ROLLBACK actually restores the pre-state. The plan's most load-bearing
+      pgvector-schema invariant — "atomic transaction on a destructive
+      multi-statement DDL sequence" — is unverified.
+
+      Without the test, future regressions in `applyDimChange` could:
+        - swap ROLLBACK for individual statement cleanup (silent half-state)
+        - introduce a non-transactional autocommit path (e.g., reuse pool.query
+          instead of client.query — explicit SEPA-iter-3 CRITICAL #1 risk)
+        - lose the `client.release()` on error path (connection leak)
+
+      A failing CREATE INDEX (e.g., simulate via pre-existing index name
+      collision) is the minimal reproduction. The architecture reviewer
+      already noted the contradictory atttypmod docstring comments in this
+      file (F-arch-? if present); this finding is complementary.
+
+    evidence: |
+      tests/integration/migrations/dim-change.test.ts lines 58-172 contain
+      ONLY 5 `it()` blocks:
+        Line 83:  'backward compat: runMigrations(pool) without options ...'
+        Line 97:  'parametric: runMigrations(pool, { embeddingDim: 384 }) ...'
+        Line 109: 'EC-4: runMigrations parametric recreates HNSW indexes ...'
+        Line 125: 'idempotent: 2nd call with same dim short-circuits ...'
+        Line 151: 'no-op: runMigrations(pool, { embeddingDim: 1536 }) ...'
+
+      Mention in docstring (line 14-15):
+        " *   - EC-3 atomic: simulated failure inside the sequence triggers
+          *     ROLLBACK; schema preserved at pre-change state."
+      But no corresponding `it()` block implements this assertion.
+
+      Compare against plan-required RED tests at plan §431-444:
+        - test_runMigrations_atomic_rollback_on_mid_sequence_failure — MISSING
+        - test_runMigrations_logs_warn_on_destructive_dim_change — MISSING
+        - test_runMigrations_short_circuit_logs_noop_when_atttypmod_matches — MISSING (the no-op test exists but does NOT assert the log line)
+
+      Acceptance Criteria line 451 (Mid-sequence failure rollback): NOT
+      DEMONSTRATED.
+
+    recommended_action: |
+      Add an integration test that:
+        1. Calls `runMigrations(pool)` to bring DB to vector(1536) + both HNSW
+           indexes.
+        2. Pre-creates an index name that would collide with the recreation
+           step (e.g., `CREATE INDEX memories_embedding_hnsw_idx ON memories
+           ...` AFTER the DROP — or use a SQL-level trigger that fails on
+           ALTER).
+        3. Invokes `runMigrations(pool, { embeddingDim: 384 })` and `expect`s
+           it to reject.
+        4. Asserts post-state: `getColumnDim('memories') === 1536`,
+           `getColumnDim('entities') === 1536`, both
+           `*_embedding_hnsw_idx` exist.
+
+      Alternative minimal approach: monkey-patch `pool.connect()` to return a
+      client whose `query` method throws on a specific statement (e.g., the
+      second ALTER). Verify ROLLBACK was called via spy on `client.query`.
+
+      Also add the 2 missing log-assertion tests (`vi.spyOn(console, 'error')`)
+      to verify the warning string + idempotency-noop log are emitted —
+      otherwise the operator-diagnosability promise is unverified.
+
+  - id: F-dom-pgvector-3
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 882-889
+    plan_ref: |
+      plan T0.3 ADR D3 (line 117-119, plan version 1.1):
+        "ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+         ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;"
+    domain_anchor: |
+      architecture.md § 10.2 (drizzle-kit push vs runMigrations conflict
+      management): production deployments are expected to follow the plan-
+      locked ALTER strategy. When code diverges from the plan, the plan MUST
+      be amended (or an ADR amendment shipped in the same PR) so the
+      knowledge-base reflects ground truth.
+    summary: |
+      The shipped `applyDimChange` does NOT match the plan-locked SQL recipe.
+      Plan ADR D3 (and Deep Dive at plan §400) specifies:
+
+          ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+
+      The implementation instead:
+
+          DELETE FROM memories;
+          DELETE FROM entities;
+          ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim});  -- no USING clause
+          ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim});
+
+      The inline comment at lines 877-885 honestly explains WHY (the
+      `vector(1536) NOT NULL` constraint at migration 0000:11,30 would block
+      `USING NULL` with PG error 23502). This is correct engineering — but the
+      plan ADR + CHANGELOG were NEVER amended to reflect the empirical
+      correction.
+
+      Per `cycle-plan.md` § Hard gates and the v0-4a T0.1 retrospective lesson
+      (v1.5 fix #3 in `.claude/rules/cycle-implement.md`): when impl reality
+      contradicts the plan, the plan MUST be revised. Today the plan remains
+      v1.1 with the wrong SQL recipe. Future cycles consulting this plan as
+      reference will think the `USING NULL` approach works.
+
+    evidence: |
+      Plan v1.1 (file frozen at b3d0968) §117-119:
+        ```sql
+        ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+        ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+        ```
+
+      Plan v1.1 §400-401 (Deep Dive):
+        "ALTER COLUMN incompatibility: pgvector `vector(N) → vector(M)` with
+         N ≠ M does NOT preserve data even with `USING expression`. The
+         `USING NULL` clause is the safest explicit data-drop. This is the
+         ONLY way to change pgvector column dim short of `DROP COLUMN` +
+         `ADD COLUMN`."
+
+      Shipped impl (src/local/index.ts:886-889):
+        await client.query('DELETE FROM memories');
+        await client.query('DELETE FROM entities');
+        await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+        await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+
+      Schema at 0000_crazy_mimic.sql:11,30:
+        "embedding" vector(1536) NOT NULL,
+
+      The architecture reviewer also flagged this (their F-arch-2 / similar)
+      from the architectural-divergence angle; this finding is the
+      pgvector-domain-specific framing: the NOT NULL constraint + the
+      data-preservation semantics of `ALTER COLUMN ... USING expression` are
+      both pgvector + Postgres specifics the plan author missed.
+
+    recommended_action: |
+      Two complementary actions:
+
+      1. **Patch the plan in a follow-up commit** with a `Version 1.2` bump:
+         Replace ADR D3's `USING NULL` recipe with the actual `DELETE +
+         ALTER` recipe; add a sentence: "Empirically verified during T4.1
+         that `ALTER COLUMN ... USING NULL` collides with the existing
+         `NOT NULL` constraint (PG 23502)." Cite SEPA iter-? log if any.
+
+      2. **Add a plan-correction note to CHANGELOG** under Unreleased ›
+         Fixed, e.g. "applyDimChange: corrected to DELETE-then-ALTER; plan
+         ADR D3 patched to match (empirical PG 23502 finding)."
+
+      3. **Decide on a `DROP NOT NULL` alternative** for an audit-preserving
+         variant (see F-dom-pgvector-1 Option B). This may be future cycle
+         scope; document it as a planned alternative in the patched ADR.
+
+  - id: F-dom-pgvector-4
+    severity: MINOR
+    file: src/local/index.ts
+    line: 941-952
+    plan_ref: |
+      plan T0.3 § Deep Dives "Drizzle migration order" §415:
+        "the helper runs Drizzle `migrate()` FIRST (using its own internal
+         transaction); the DROP+ALTER+RECREATE transaction is SEPARATE and
+         runs AFTER. The Drizzle journal `drizzle.__drizzle_migrations`
+         remains consistent because the post-migration ALTER is invisible to
+         Drizzle (no migration file hash registered for it)."
+    domain_anchor: |
+      architecture.md § 10.2 (drizzle-kit push vs runMigrations conflict) —
+      the orphan-schema short-circuit path was shipped 2026-05-25 to handle
+      the push-flow gracefully. Parametric dim must layer onto that path
+      correctly.
+    summary: |
+      The orphan-schema short-circuit branch (lines 935-954) now also applies
+      the dim change when `embeddingDim` is set (lines 950-952), per the T4.1
+      follow-up comment at lines 944-949. This is correct intent — but it
+      introduces a subtle deployment hazard.
+
+      Orphan-schema deployments are dev-only by design (see architecture.md
+      § 10.2). They typically host iteration data that operators may not
+      expect to lose. The dim-change path now runs on push-flow DBs with
+      ZERO interaction with the Drizzle journal, meaning subsequent
+      `drizzle-kit push` re-introspections will see the new vector(384)
+      schema and may try to "correct" it back to vector(1536) (Drizzle
+      schema files are still vector(1536)). This race between operator
+      tooling and the runtime ALTER is undocumented.
+
+      The plan's Deep Dive §415 only covers the journal-tracked path; the
+      orphan-schema interaction with parametric dim is not addressed.
+    evidence: |
+      src/local/index.ts:935-954:
+        if (memoriesExists) {
+          console.warn('[themory] schema present but `drizzle.__drizzle_migrations` ...');
+          // T4.1 follow-up to T0.3: dim change must STILL apply on push-flow DBs.
+          if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+            await applyDimChange(pool, options.embeddingDim);
+          }
+          return;
+        }
+
+      No corresponding warning text alerts the operator that subsequent
+      `drizzle-kit push` runs will see vector(384) vs schema's vector(1536)
+      and potentially try to drift the column back.
+
+      Schema source of truth (`src/local/schema.ts` — not in this diff but
+      load-bearing for the contradiction): declares vector(1536).
+    recommended_action: |
+      Extend the orphan-schema warning log to also note the dim-change
+      hazard, e.g.:
+        `[themory] schema present but journal missing — drizzle-kit push
+         path. Dim change to vector(${dim}) applied; subsequent
+         drizzle-kit push will see drift against schema.ts (vector(1536))
+         and may try to revert. For local-openrouter mode, pin
+         drizzle-kit push usage AND embeddingDim consistently.`
+
+      OR (sturdier): refuse to apply dim change on orphan-schema path and
+      surface a clear "use runMigrations on a fresh DB instead" message.
+      Avoid silent dim drift between schema.ts and the live column type.
+
+  - id: F-dom-pgvector-5
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 264-268
+    plan_ref: |
+      plan T0.2 § Deep Dives "Search guard rewrite" §345:
+        `if (query.length !== this.embeddingDim) throw new EmbeddingMismatch(...)`
+    domain_anchor: |
+      architecture.md § 8 (Error handling — typed domain errors) +
+      src/core/errors.ts (EmbeddingMismatch class).
+    summary: |
+      The search dimension guard at `pgvector-store.ts:264-268` throws a
+      bare `new Error(...)` instead of the dedicated `EmbeddingMismatch`
+      class from `src/core/errors.ts`. The plan T0.2 Deep Dive §345
+      specifically calls out `EmbeddingMismatch` as the error type.
+
+      Bare `Error` makes downstream catch-by-type discipline impossible
+      and breaks the architecture.md § 8 typed-domain-errors rule.
+
+      Note: createLocalMemory's probe uses `EmbeddingMismatch` correctly
+      (src/local/index.ts:683); only the PgvectorStore.search guard uses
+      bare Error. The asymmetry is itself a footgun for callers
+      `instanceof`-checking either path.
+    evidence: |
+      src/local/pgvector-store.ts:264-268:
+        if (query.length !== this.embeddingDim) {
+          throw new Error(
+            `PgvectorStore.search: query vector dimension ${String(query.length)} does not match configured embeddingDim ${String(this.embeddingDim)}`,
+          );
+        }
+
+      Plan §345 (T0.2 Deep Dives):
+        "Search guard rewrite: `if (query.length !== this.embeddingDim) throw new EmbeddingMismatch(...)`"
+
+      Existing precedent (correct): src/local/index.ts:683
+        throw new EmbeddingMismatch(expectedDim, vector.length);
+
+    recommended_action: |
+      Replace bare `Error` with `EmbeddingMismatch(this.embeddingDim,
+      query.length)` to match the plan and align with the createLocalMemory
+      probe path. The error class already exists at
+      `src/core/errors.ts`; import + use. Update tests at
+      `src/local/__tests__/pgvector-store.test.ts` to assert
+      `instanceof EmbeddingMismatch` rather than just regex on message.
+
+  - id: F-dom-pgvector-6
+    severity: MINOR
+    file: src/local/index.ts
+    line: 829-907
+    plan_ref: |
+      plan §225 ## Dependency Graph + T0.3 § Files to edit §389
+      (`src/local/__tests__/migrations.test.ts (NEW or existing migrations
+       test)`)
+    domain_anchor: |
+      testing.md § Pyramid (unit tests fast + isolated; integration tests
+      cover real boundary).
+    summary: |
+      The `applyDimChange` helper is private to `src/local/index.ts` and
+      has NO unit tests against a stubbed Pool. The only coverage is the
+      integration test (`tests/integration/migrations/dim-change.test.ts`)
+      which requires `THEOMEM_PG_URI`. In CI without Postgres, the helper
+      is effectively untested (`describe.skipIf(ROOT_PG_URI === '')`
+      silently skips the whole file).
+
+      Plan T0.3 § Files to edit explicitly listed
+      `src/local/__tests__/migrations.test.ts` as a NEW unit test target.
+      That file does not exist on the branch — the unit-shape coverage gap
+      makes the contract suite weaker on parametric dim than the
+      `PgvectorStore` constructor (which DOES have a stubbed-pool unit
+      test at `src/local/__tests__/pgvector-store.test.ts`).
+    evidence: |
+      find src/local/__tests__/migrations*.test.ts → no file found
+      find tests/integration/migrations/dim-change.test.ts → exists, but
+      skipped without PG_URI (line 58-60).
+
+      Plan T0.3 (line 389):
+        ```
+        src/local/__tests__/migrations.test.ts (NEW or existing migrations
+        test) — RED test: runMigrations(pool, { embeddingDim: 384 })
+        succeeds + column type is vector(384)
+        ```
+
+      Compare T0.2 sibling that DID land a stubbed-pool unit test:
+      src/local/__tests__/pgvector-store.test.ts — buildPool() helper.
+    recommended_action: |
+      Add `src/local/__tests__/migrations.test.ts` with stubbed-pool unit
+      tests that:
+        - assert `pool.query('CREATE EXTENSION IF NOT EXISTS vector')` was
+          called
+        - assert `applyDimChange` short-circuits when atttypmod matches
+          (probe returns 384, target is 384)
+        - assert the warning log line is emitted via `vi.spyOn(console, 'error')`
+        - assert `pool.connect()` → `client.query('BEGIN')` → `'ROLLBACK'`
+          on a forced statement failure
+      These complement the integration tests and let CI without Postgres
+      catch regressions in the helper's logic.
+
+  - id: F-dom-pgvector-7
+    severity: MINOR
+    file: src/local/index.ts
+    line: 849-856
+    plan_ref: |
+      plan T0.3 § Deep Dives "Idempotency" §413:
+        "if the column is ALREADY `vector(${dim})`, the helper short-circuits
+         — checks current `atttypmod` via `pg_attribute` BEFORE the ALTER
+         sequence."
+    domain_anchor: |
+      pgvector-specific: pg_attribute.atttypmod for the `vector(N)` type
+      stores the dim directly in v0.5.1 (empirically verified, per the
+      iteration-3 retrospective). Future pgvector versions MAY change the
+      encoding (e.g., introduce a +VARHDRSZ offset like other varlena
+      types). The probe MUST be version-defensive.
+    summary: |
+      The `atttypmod` probe assumes "currentDim = atttypmod" verbatim
+      (line 857). This is correct for pgvector v0.5.1 but assumes the
+      encoding will remain stable. If a future pgvector release ships
+      a different `typmodin` function (e.g., to support per-dim metadata
+      like `vector(N, normalized=true)`), `atttypmod` could become an
+      encoded value rather than the raw N — the short-circuit would
+      silently misbehave (e.g., always think dim is wrong, re-running
+      DROP+ALTER+RECREATE on every call).
+
+      No version assertion exists in `runMigrations` / `applyDimChange`.
+      The codebase already pins `ankane/pgvector:v0.5.1` in tests, but
+      production consumers may run different versions.
+    evidence: |
+      src/local/index.ts:849-857:
+        const probe = await pool.query<{ atttypmod: number }>(
+          `SELECT a.atttypmod
+             FROM pg_attribute a ...`,
+        );
+        const currentDim = probe.rows[0]?.atttypmod ?? -1;
+
+      JSDoc at line 838-841:
+        "pgvector v0.5.1 stores `vector(N)` dimension in `atttypmod`
+         directly (NO +4 varlena offset — empirically verified against the
+         ankane/pgvector:v0.5.1 container in RED test phase ..."
+
+      No pgvector version probe / no fallback for encoding change.
+    recommended_action: |
+      Add a one-time defensive probe at the top of `applyDimChange` that
+      queries pgvector's installed version (e.g.,
+      `SELECT extversion FROM pg_extension WHERE extname = 'vector'`) and
+      logs it. Optionally, gate the atttypmod-equals-N assumption on
+      version `0.5.x` and fall back to a `format_type()`-based probe
+      (`SELECT format_type(atttypid, atttypmod)` which returns the
+      literal `vector(N)` and can be parsed) for unknown versions. This
+      makes the short-circuit forward-compatible.
+
+      Lower-touch alternative: add a single integration test against the
+      pgvector version currently in CI that asserts the actual encoded
+      atttypmod value matches expectations. Will catch any encoding shift
+      when CI bumps the pgvector tag.
+
+verdict_summary: |
+  The pgvector-schema implementation for adapters-openrouter-local-embedder
+  honored both critical EC absorptions (EC-3 atomic transaction + EC-4 HNSW
+  drop-recreate). The HNSW recreate-with-cosine-ops sequence is correctly
+  ordered inside the BEGIN/COMMIT. atttypmod idempotency probe works against
+  pgvector v0.5.1 empirically.
+
+  However, three significant gaps remain:
+
+  1. **F-dom-pgvector-1 (CRITICAL)** — undocumented cascade destruction of
+     history + consolidation_history + supersession chains when the
+     destructive dim change runs. The CHANGELOG + warning log understate
+     the blast radius.
+
+  2. **F-dom-pgvector-2 (MAJOR)** — the plan-locked atomic-rollback RED test
+     (test_runMigrations_atomic_rollback_on_mid_sequence_failure) DID NOT
+     ship. The most load-bearing pgvector-schema invariant (atomic on
+     destructive DDL) is unverified empirically.
+
+  3. **F-dom-pgvector-3 (MAJOR)** — the impl correctly diverged from plan
+     ADR D3 (USING NULL → DELETE-then-ALTER, because of vector NOT NULL
+     constraint), but the plan + CHANGELOG were never patched to record
+     this empirical correction. Future cycles consulting the plan as
+     reference will inherit the wrong recipe.
+
+  Plus 4 MINOR findings (orphan-schema dim drift warning, bare Error vs
+  EmbeddingMismatch class, missing unit-shape test for applyDimChange,
+  pgvector version defensiveness on atttypmod).
+
+  Recommendation: block merge on F-dom-pgvector-1 (operator-honesty gap)
+  AND F-dom-pgvector-2 (missing test for plan-locked atomicity invariant).
+  F-dom-pgvector-3 can be absorbed in a same-PR plan patch + CHANGELOG
+  fixup entry. MINOR findings can be follow-up.

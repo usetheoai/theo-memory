@@ -1,0 +1,402 @@
+agent: review-adapters-openrouter-local-embedder-tests
+review_target: main..HEAD for plan adapters-openrouter-local-embedder
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+date: 2026-06-02
+
+scope_note: |
+  Only plan-specific tests evaluated. The feature branch diff against main
+  contains many test files from other in-flight cycles (v0.4b forgetting,
+  v0.7 distillation, voyager skills, etc.) — those are outside the scope of
+  the adapters-openrouter-local-embedder plan and are not included in the
+  counts or findings below. Plan-specific test surface was identified by
+  cross-referencing `git log --follow` against the 9 plan commits matching
+  `T0.1`/`T0.2`/`T0.3`/`T1.1`/`T1.2`/`T2.1`/`T2.2`/`T3.1`/`T4.1` markers.
+
+plan_specific_test_files:
+  - src/embedders/__tests__/local.test.ts                              # T1.1 (NEW)
+  - src/local/__tests__/factory.test.ts                                # T0.1 (extended)
+  - src/local/__tests__/pgvector-store.test.ts                         # T0.2 (NEW)
+  - tests/integration/migrations/dim-change.test.ts                    # T0.3 (NEW)
+  - tests/integration/public-paths.test.ts                             # T1.2 (extended)
+  - tests/unit/examples/chat-with-memory-memory.test.ts                # T2.1 (NEW)
+  - tests/unit/examples/chat-with-memory-info-route.test.ts            # T2.2 (NEW)
+  - tests/integration/examples/chat-with-memory-local-openrouter.test.ts  # T4.1 (NEW)
+
+test_pyramid:
+  unit_added: 52     # 7 (T1.1) + 19 (T0.1 incl. new EC-1 block) + 9 (T0.2) + 13 (T2.1) + 4 (T2.2)
+  integration_added: 12   # 5 (T0.3) + 2 (T1.2) + 5 (T4.1)
+  e2e_added: 0
+  total: 64
+  shape_assessment: |
+    Healthy pyramid for this cycle's scope. Heavy unit base (52),
+    moderate integration (12), zero e2e — appropriate because the cycle
+    does NOT change the TheoKit binding (e2e surface). All pgvector-touching
+    code paths land an integration test against real ankane/pgvector:v0.5.1
+    per testing.md § Pyramid. NO inverted pyramid.
+
+tdd_compliance:
+  per_commit_observation: |
+    Every plan task commit (T0.1 e36faea, T0.2 804f2fa, T0.3 e68a38a,
+    T1.1 c488734, T2.1 c5425ec, T2.2 94e43a5, T4.1 f7f822e) bundles
+    test file + implementation in a single atomic commit. This matches
+    the cycle-implement.md halt-loop discipline (RED → GREEN → REFACTOR
+    → COMMIT per iteration, one commit per task). The RED-first ordering
+    within the iteration is corroborated by the SEPA pre-RED iteration logs
+    at .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-{N}-pre-red.md
+    (7 such logs exist, one per iteration where SEPA brief preceded test
+    authoring).
+  verdict: COMPLIANT — atomic commits are the canonical cycle-implement contract; the per-iteration SEPA log proves test-before-impl ordering.
+
+edge_cases_from_plan_audit:
+  total_edge_cases: 23   # per Coverage Matrix
+  covered_in_tests: 17
+  partially_covered: 3
+  missing: 3
+  details:
+    fully_covered:
+      - EC-1 (NaN/float/Infinity dim — factory.test.ts § EC-1 block, 3 explicit tests)
+      - EC-4 (HNSW recreation post-ALTER — dim-change.test.ts line 109)
+      - EC-11 (unknown THEOMEM_DEMO_BACKEND value loud-fail — chat-with-memory-memory.test.ts § EC-11, 4 tests)
+      - EC-13 (test path reachable via vitest contract include — proven by file location at tests/unit/examples/)
+      - "gap #1 (chat 429 → LocalTransformerEmbedder ships)"
+      - "gap #3 (schema vector(1536) → parametric dim-change)"
+      - "gap #4 (SDK probe → embeddingDim factory test)"
+      - "gap #5 (PgvectorStore guard parametric)"
+      - "gap #8 (subpath export embedders/local — public-paths test added)"
+      - "gap #14 (backward compat — all 'defaults to MAX' tests in factory + pgvector-store + dim-change)"
+      - "gap #15 (EmbeddingMismatch error UX — factory.test.ts line 222)"
+      - "gap #18 (/api/info shape — chat-with-memory-info-route.test.ts)"
+    partially_covered:
+      - id: EC-3
+        description: Atomic ROLLBACK on mid-sequence failure in runMigrations({ embeddingDim })
+        evidence: |
+          dim-change.test.ts header (lines 14-15) explicitly mentions EC-3
+          atomic rollback as in-scope, but no test case for the failure
+          path exists. The plan T0.3 TDD section (line 438) explicitly
+          enumerated `test_runMigrations_atomic_rollback_on_mid_sequence_failure()`
+          — that test is MISSING. EC-3 is therefore only partially covered:
+          the happy path proves the transaction wraps the sequence
+          (vector(384) + indexes both present), but the failure-induced
+          ROLLBACK preserving vector(1536) + indexes is unverified.
+      - id: T4.1 plan TDD #3
+        description: test_api_chat_seeds_memory_with_384_dim_embedding
+        evidence: |
+          T4.1 (line 871) plan enumerated this test. The shipped test
+          (chat-with-memory-local-openrouter.test.ts line 97) asserts the
+          memories.embedding column TYPE is vector(384) via atttypmod,
+          which is a structural proxy. It does NOT exercise POST /api/chat
+          end-to-end to actually INSERT a memory with a 384-dim embedding.
+          Schema check is necessary but not sufficient.
+      - id: T4.1 plan TDD #4
+        description: test_api_memory_distill_with_last_write_wins_creates_consolidation_history_row
+        evidence: |
+          The shipped test (line 122) asserts res.status === 200 and that
+          invocationId is a string. It does NOT verify that a
+          `consolidation_history` row was actually created with
+          policy_name='last-write-wins' — the plan acceptance criterion
+          (line 918) explicitly requires this row creation check. Without
+          a SELECT against consolidation_history, the test merely proves
+          the HTTP handler ran without throwing.
+    missing:
+      - id: EC-5
+        description: Empty string input to LocalTransformerEmbedder.embed('')
+        plan_ref: edge-cases-2026-06-01.md § SHOULD TEST EC-5
+        evidence: |
+          grep "embed\\(''\\)" or "empty string" in src/embedders/__tests__/local.test.ts → 0 matches.
+          Plan SHOULD TEST checkpoint: assert canonical Xenova behavior on
+          empty input (NOT NaN-poison vector). Without this test, the
+          embedder's behavior for the empty-text path is undocumented.
+      - id: EC-7
+        description: Warmup network failure surfaces clean error (huggingface CDN blocked)
+        plan_ref: edge-cases-2026-06-01.md § SHOULD TEST EC-7
+        evidence: |
+          grep "huggingface\|network.*error\|fetch.*mock" in src/embedders/__tests__/local.test.ts → 0 matches.
+          Plan SHOULD TEST checkpoint: mock fetch returning 503 from
+          huggingface.co/*, assert embed() rejects with a clear error
+          message. Without this test, a CI run without internet on a
+          cold cache will surface a 30-min timeout instead of a fast
+          loud failure.
+      - id: EC-10
+        description: local-openrouter mode without OPENAI_BASE_URL → console.warn
+        plan_ref: edge-cases-2026-06-01.md § SHOULD TEST EC-10
+        evidence: |
+          grep "OPENAI_BASE_URL\|warn" in tests/unit/examples/chat-with-memory-memory.test.ts → 0 substantive matches (only doc references).
+          Plan SHOULD TEST checkpoint: setting THEOMEM_DEMO_BACKEND=local-openrouter
+          without OPENAI_BASE_URL must emit console.warn warning that chat
+          will route to api.openai.com. Without this test, the silent-misroute
+          regression (Mem0-class pitfall per the edge-case author) is unprotected.
+
+mock_fixture_hygiene:
+  status: GOOD
+  observations:
+    - factory.test.ts uses vi.fn() for Embedder + LLM DIP stubs at module top (lines 19-27). Precise — only the DIP boundaries are mocked, not transitive collaborators. Matches testing.md § Mocks-in-excess anti-pattern guard.
+    - pgvector-store.test.ts uses a vi.fn() pool that throws on call (lines 35-40); guard rejections surface before pool.query is reached. Test asserts both the throw AND `expect(poolQuery).not.toHaveBeenCalled()` — strong assertion that the guard fires BEFORE the SQL boundary.
+    - dim-change.test.ts uses a `beforeEach` that DROP DATABASE + CREATE DATABASE (lines 70-75) per test, ensuring DB state isolation. Matches testing.md § Integration "reset DB state between tests" rule.
+    - chat-with-memory-memory.test.ts uses snapshotEnv/restoreEnv around process.env mutation (lines 27-40); clean teardown.
+    - chat-with-memory-info-route.test.ts deletes globalThis singleton key between tests (line 29 + 38); singleton-state isolation.
+  no_random_data_observed: true
+  no_time_dependence_observed: true   # integration test uses Date.now() for ts ordering, which is fine for ordering assertions (no clock-based flake)
+
+skipped_or_only_tests:
+  status: NONE_LEAKED
+  observations:
+    - "describe.skipIf in dim-change.test.ts:58 and chat-with-memory-local-openrouter.test.ts:61 are CONDITIONAL on env reachability — canonical Vitest pattern documented in testing.md § Pyramid Integration row. NOT a permanent skip; runs in CI when THEOMEM_PG_URI is set and dev server is up."
+    - "No it.only / test.only / xit / xtest / .skip leaks detected via grep -E pattern across all 8 plan-specific test files."
+
+test_runtime_sanity:
+  per_test_timeouts:
+    - file: src/embedders/__tests__/local.test.ts
+      tests_with_60s_or_more: 5
+      tests_with_90s: 1   # embedBatch order-preservation
+      justification_acceptable: |
+        First-run Xenova model download (~22 MB from huggingface CDN) is
+        the legitimate cost; subsequent runs read from cache (~10s warm).
+        Per testing.md cycle-implement soft warning, runtimes > 30s are
+        WARN-level, not BLOCKER. The 90s budget on embedBatch (3 inputs)
+        is defensive; documented in test header (lines 7-12).
+    - file: tests/integration/migrations/dim-change.test.ts
+      tests_with_60s_or_more: 1   # beforeAll DB setup
+      observation: |
+        Per-test runtime depends on DROP/CREATE DATABASE + Drizzle
+        migrate() + atomic DROP+ALTER+RECREATE pipeline. Likely 5-10s
+        per test against a warm container. Within tolerance.
+  flaky_signal: |
+    No flaky-test history available (cycle is fresh). Tests use deterministic
+    seeds (constant vectors, env-var snapshot/restore, DROP DATABASE reset)
+    so flake risk is structurally low.
+
+test_name_quality:
+  format_compliance: |
+    All test names describe BEHAVIOR (not method name). Examples:
+    - "EC-1: rejects embeddingDim=NaN with InvalidScope and literal value in message"
+    - "POST /api/memory/distill policy=last-write-wins returns 200 in local-openrouter mode"
+    - "memories.embedding column is vector(384) — proves T0.3 parametric runMigrations applied at demo boot"
+    Format matches testing.md § BDD Given-When-Then (descriptive) standard.
+  and_in_test_names:
+    - file: src/embedders/__tests__/local.test.ts
+      line: 67
+      name: "embedBatch preserves input order and per-row dim is 384"
+      severity: MINOR
+      note: "Two distinct assertions (order + dim) under one test. Per testing.md § Anti-patterns, candidates for split."
+    - file: src/embedders/__tests__/local.test.ts
+      line: 81
+      name: "embed and embedBatch agree on identical input (batch path produces same output as singleton path)"
+      severity: MINOR
+      note: "Two methods convergence — defensible as a single 'agreement' behavior, but the test name 'and' triggers the antipattern guard."
+    - file: tests/unit/examples/chat-with-memory-info-route.test.ts
+      line: 50
+      name: "returns adapterSource=\"stub\" + embedderDim=1536 with legacy THEOMEM_USE_STUB_ADAPTERS=1"
+      severity: INFO
+      note: "Two field assertions under one test; describes one route response shape — acceptable cohesion."
+    - file: src/local/__tests__/factory.test.ts
+      pattern: "rejects embeddingDim=X with InvalidScope and literal value in message"
+      occurrences: 5
+      severity: INFO
+      note: "'And' references the error CONTENT (class + message); single behavior of rejection. Acceptable per BDD convention (Given-When-Then with two Then assertions)."
+
+aaa_format_compliance:
+  status: COMPLIANT
+  observations:
+    - "All plan-specific tests follow AAA (Arrange-Act-Assert) implicitly: env setup / config build → operation invocation → assertion. Most tests are < 15 lines and clear."
+    - "chat-with-memory-local-openrouter.test.ts § distill test (lines 122-161) is the most complex; 30 lines with seeding (Arrange), HTTP POST (Act), status + invocationId assert (Assert). Borderline but readable."
+
+findings:
+  - id: F-tests-1
+    severity: MAJOR
+    file: tests/integration/migrations/dim-change.test.ts
+    line: 58-172
+    plan_ref: "Plan § T0.3 TDD section line 438 — test_runMigrations_atomic_rollback_on_mid_sequence_failure() + edge-cases EC-3"
+    summary: EC-3 atomic ROLLBACK on mid-sequence failure is unverified
+    evidence: |
+      Plan T0.3 explicitly enumerates `test_runMigrations_atomic_rollback_on_mid_sequence_failure() — EC-3: simulated ALTER failure leaves schema at original 1536-dim + indexes intact` as a RED test (line 438). The shipped dim-change.test.ts header (lines 14-15) declares EC-3 in-scope but contains NO test case for the failure path:
+      grep -nE "rollback|simulated.*failure|inject.*failure" tests/integration/migrations/dim-change.test.ts → only 2 matches, both in the docstring.
+      The 5 shipped tests (lines 83, 97, 109, 125, 151) all exercise happy paths.
+      Failure-induced ROLLBACK preserving the pre-change schema is the EC-3 absorption checkpoint; its missing test is the riskiest gap because mid-sequence failure (e.g., HNSW CREATE INDEX OOM, statement_timeout mid-ALTER) is the entire reason the BEGIN/COMMIT wrapper exists.
+    recommended_action: |
+      Add a test that injects failure mid-sequence via either:
+      (a) A short PG `statement_timeout` set on the connection that fires
+          during the second `ALTER COLUMN TYPE` call, OR
+      (b) A monkeypatched pool.connect() returning a client whose query()
+          throws synthetically on the 4th statement.
+      Assertions: pre-call atttypmod(memories) === 1536 + pre-call
+      indexExists(memories_embedding_hnsw_idx) === true; post-call (after
+      caught exception) atttypmod(memories) === 1536 + indexExists === true
+      → schema preserved.
+
+  - id: F-tests-2
+    severity: MAJOR
+    file: tests/integration/examples/chat-with-memory-local-openrouter.test.ts
+    line: 122-161
+    plan_ref: "Plan § T4.1 Acceptance Criteria line 918 + plan TDD #4 line 873"
+    summary: T4.1 distill test does NOT verify consolidation_history row creation
+    evidence: |
+      Plan T4.1 Acceptance Criteria line 918 mandates "/api/memory/distill policy=`last-write-wins` creates a `consolidation_history` row with policy_name='last-write-wins'". The shipped test (lines 122-161) sends the POST and asserts:
+      - line 158: expect(res.status).toBe(200)
+      - line 160: expect(typeof json.invocationId).toBe('string')
+      It does NOT issue a SELECT against `consolidation_history` to prove a row landed. The integration test could pass even if the distill endpoint returned 200 + an invocationId WITHOUT persisting any row (regression scenario: handler short-circuits after invocationId allocation).
+    recommended_action: |
+      After the POST succeeds, add:
+      const row = await pool.query<{ policy_name: string }>(
+        `SELECT policy_name FROM consolidation_history WHERE invocation_id = $1`,
+        [json.invocationId],
+      );
+      expect(row.rows[0]?.policy_name).toBe('last-write-wins');
+
+  - id: F-tests-3
+    severity: MAJOR
+    file: tests/integration/examples/chat-with-memory-local-openrouter.test.ts
+    line: 97-110
+    plan_ref: "Plan § T4.1 TDD list line 872 — test_api_chat_seeds_memory_with_384_dim_embedding"
+    summary: T4.1 plan listed a /api/chat seeding test; shipped test asserts only schema atttypmod
+    evidence: |
+      Plan T4.1 TDD section line 872 enumerates `test_api_chat_seeds_memory_with_384_dim_embedding` as a RED test. The shipped test "memories.embedding column is vector(384)" (line 97) asserts the schema TYPE via atttypmod, which is a structural proxy: it proves the migration ran, not that POST /api/chat actually inserts a 384-dim row through the full request pipeline.
+      The full end-to-end signal (chat completion → LLM extraction → embed → INSERT) is unverified by HTTP-level test.
+    recommended_action: |
+      Add a test that POSTs to /api/chat with a small prompt, then SELECTs:
+      const r = await pool.query<{ vector_dims: number }>(
+        `SELECT vector_dims(embedding) AS vector_dims FROM memories WHERE user_id = $1 LIMIT 1`,
+        [TEST_USER],
+      );
+      expect(r.rows[0]?.vector_dims).toBe(384);
+      Note: this requires OPENAI_API_KEY (OpenRouter key) at test time; gate
+      with a 2nd reachability probe (chat-completion enabled) per EC-12.
+
+  - id: F-tests-4
+    severity: MAJOR
+    file: src/embedders/__tests__/local.test.ts
+    line: N/A (missing)
+    plan_ref: "edge-cases-2026-06-01.md § SHOULD TEST EC-5 (empty string)"
+    summary: EC-5 empty-string embed behavior is unverified
+    evidence: |
+      Plan edge-case review marked EC-5 as SHOULD TEST (line 74): assert canonical behavior of `LocalTransformerEmbedder.embed('')` — either zero vector OR throw — but NOT a NaN-poison vector that silently propagates.
+      grep "empty\|''" src/embedders/__tests__/local.test.ts → 1 match (embedBatch([]) — different concern).
+      Without this test, a regression where Xenova returns a vector containing NaN/Infinity for empty input would persist invalid embeddings into pgvector (silent corruption of recall).
+    recommended_action: |
+      Add: test('embed("") behavior is well-defined (no NaN-poison)', async () => {
+        const emb = new LocalTransformerEmbedder();
+        try {
+          const v = await emb.embed('');
+          // If returned, the vector must be finite (no NaN/Infinity).
+          for (const x of v) expect(Number.isFinite(x)).toBe(true);
+        } catch (e) {
+          // Acceptable: clear error message instead of NaN poison.
+          expect(e).toBeInstanceOf(Error);
+        }
+      });
+
+  - id: F-tests-5
+    severity: MAJOR
+    file: src/embedders/__tests__/local.test.ts
+    line: N/A (missing)
+    plan_ref: "edge-cases-2026-06-01.md § SHOULD TEST EC-7 (warmup network failure)"
+    summary: EC-7 warmup network failure surfaces clean error — untested
+    evidence: |
+      Plan edge-case review marked EC-7 as SHOULD TEST (line 79): mock fetch returning 503 from huggingface.co/*, assert embed() rejects with a clear Error containing "huggingface" in the message. Without this test, a CI run on a fresh cache without internet will timeout (~30 minutes) instead of failing loudly within seconds.
+      grep "huggingface\|fetch.*mock\|503" src/embedders/__tests__/local.test.ts → 0 matches.
+    recommended_action: |
+      Add a test using vi.spyOn(globalThis, 'fetch') that returns Response with status 503 for any URL matching /huggingface\.co/. Assert: await embed('test') rejects, error.message matches /huggingface/i.
+      Note: this depends on Xenova's transport using fetch (it does in v2.17.x).
+
+  - id: F-tests-6
+    severity: MAJOR
+    file: tests/unit/examples/chat-with-memory-memory.test.ts
+    line: N/A (missing)
+    plan_ref: "edge-cases-2026-06-01.md § SHOULD TEST EC-10 (OPENAI_BASE_URL unset warn)"
+    summary: EC-10 OPENAI_BASE_URL-unset console.warn in local-openrouter mode — untested
+    evidence: |
+      Plan edge-case review marked EC-10 as SHOULD TEST (line 84): setting THEOMEM_DEMO_BACKEND=local-openrouter without OPENAI_BASE_URL must emit console.warn warning that chat will route to api.openai.com. Without this test, the silent-misroute regression (user expects OpenRouter, gets OpenAI) is unprotected.
+      grep "OPENAI_BASE_URL\|console.warn" tests/unit/examples/chat-with-memory-memory.test.ts → 0 substantive matches.
+    recommended_action: |
+      Add a test that sets THEOMEM_DEMO_BACKEND=local-openrouter, deletes OPENAI_BASE_URL, vi.spyOn(console, 'warn'), invokes the singleton builder, and asserts the warn mock was called with a string containing /OPENAI_BASE_URL not set/.
+
+  - id: F-tests-7
+    severity: MINOR
+    file: src/embedders/__tests__/local.test.ts
+    line: 67
+    plan_ref: "testing.md § Anti-patterns: 'Tests with and in the name'"
+    summary: Test name "embedBatch preserves input order and per-row dim is 384" combines two distinct assertions
+    evidence: |
+      Line 67: test('embedBatch preserves input order and per-row dim is 384', ...) asserts (a) row count, (b) per-row dim, (c) L2 norm per row, (d) order preserved (via .not.toEqual checks). Four behaviors under one test name.
+    recommended_action: |
+      Split into:
+      - test('embedBatch returns one vector per input in input order') — order assertion only.
+      - test('embedBatch per-row dim is 384') — dim assertion only.
+      - test('embedBatch rows are L2-normalized') — norm assertion (moot if first single-embed test already proves this; could drop).
+
+  - id: F-tests-8
+    severity: MINOR
+    file: src/embedders/__tests__/local.test.ts
+    line: 81
+    plan_ref: "testing.md § Anti-patterns: 'Tests with and in the name'"
+    summary: Test name "embed and embedBatch agree on identical input" combines two paths under one assertion
+    evidence: |
+      Line 81: test('embed and embedBatch agree on identical input (batch path produces same output as singleton path)', ...) — defensible as a single convergence behavior, but the "and" trigger is honest.
+    recommended_action: |
+      Rename to test('batch-of-one matches singleton output for the same text') OR keep — this is a borderline case. Lower priority than F-tests-7.
+
+  - id: F-tests-9
+    severity: MINOR
+    file: tests/integration/examples/chat-with-memory-local-openrouter.test.ts
+    line: 64
+    plan_ref: "testing.md § Determinism + cycle-implement soft warn"
+    summary: Test-data scope is `TEST_USER` constant string — not unique per run
+    evidence: |
+      Line 65: const TEST_USER = 't4-1-local-openrouter-user'; beforeEach (line 75-82) deletes memories WHERE user_id = TEST_USER but does NOT delete consolidation_history rows tied to that user — only by policy_name. If two parallel test runs hit the same DB (unlikely but possible in shared dev env), the distill test could see cross-run consolidation_history rows.
+    recommended_action: |
+      Either:
+      (a) Use a per-suite UUID — const TEST_USER = `t4-1-${crypto.randomUUID()}` — to guarantee isolation.
+      (b) Document in test header that DB state isolation is per-suite-not-per-run (acceptable given the rest of the suite assumes single-runner dev env).
+
+  - id: F-tests-10
+    severity: INFO
+    file: tests/integration/examples/chat-with-memory-local-openrouter.test.ts
+    line: 59
+    plan_ref: "testing.md § Determinism"
+    summary: Top-level `await isReachable(DEV_SERVER)` runs at module load
+    evidence: |
+      Line 59: const reachable = await isReachable(DEV_SERVER); — top-level await in a test file. Works in Vitest's ESM context but means the reachability probe runs at file-load time, not at suite startup. Side effect is small (1.5s timeout) but worth flagging: if Vitest's worker pool loads the test file but the dev server hasn't booted yet, the suite skips for the rest of the worker's lifetime even after the server comes up.
+    recommended_action: |
+      For higher robustness, move the probe into a beforeAll (inside the describe.skipIf) OR document the load-time semantic. Not blocking — existing pattern (per the EC-2 reference to v0.7) already uses this shape.
+
+  - id: F-tests-11
+    severity: INFO
+    file: src/embedders/__tests__/local.test.ts
+    line: 38, 45, 52, 59, 79, 86
+    plan_ref: "testing.md § Pyramid (Unit < 50ms each)"
+    summary: Unit-pyramid tests for LocalTransformerEmbedder exceed the 50ms-per-test guideline
+    evidence: |
+      testing.md § Pyramid line 7 states "Unit ... < 50 ms each". The Xenova-based tests require model load (~10s warm, ~22s cold) so individual test cost is 60-90s. They sit in `src/embedders/__tests__/` which is included by vitest.contract.config.ts — i.e., treated as UNIT tests by the test runner.
+      This is technically a layer-classification gap: the tests are unit by location but integration by cost.
+    recommended_action: |
+      Move src/embedders/__tests__/local.test.ts to tests/integration/embedders/local.test.ts (mirror the migration pattern). Update vitest.contract.config.ts include if needed. This keeps the unit test surface fast (no model-load overhead in `npm test`) while preserving the test coverage in `npm run test:integration`.
+      Alternative: accept the cost and document in test header that the LocalTransformerEmbedder unit tests are "expensive unit" (model-bound).
+
+honest_caveats:
+  - "TDD ordering within each atomic commit was inferred from SEPA pre-RED iteration logs, not from git history alone. The cycle-implement.md halt-loop discipline + the existence of 7 pre-RED logs at .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-{1..7}-pre-red.md is the evidence basis. If the user demands stricter test-before-commit ordering, they would need to read SEPA logs to verify — git log alone shows test + impl in same commit."
+  - "F-tests-1 (EC-3 rollback) and F-tests-2 (consolidation_history row check) are the highest-risk gaps because they are explicit plan acceptance criteria (line 451 + line 918) and absorbed edge cases. F-tests-3 (chat-seed test) is plan-listed but the schema atttypmod check is a reasonable proxy in practice."
+  - "F-tests-4/5/6 (EC-5/EC-7/EC-10) are SHOULD TEST checkpoints, not MUST FIX. Per edge-cases-2026-06-01.md § Resumo line 120, SHOULD TEST entries do not block plan acceptance but their absence is acknowledged risk."
+
+summary:
+  blocker_count: 0
+  critical_count: 0
+  major_count: 6
+  minor_count: 3
+  info_count: 2
+  total: 11
+  verdict: NEEDS_FIXES
+  rationale: |
+    No BLOCKER findings — there are no skipped tests, no .only leaks, no
+    broken-TDD evidence, no flaky-test signal. The pyramid is healthy and
+    mocks/fixtures are clean.
+    However, 6 MAJOR findings cluster around two patterns:
+    (1) Acceptance criteria from the plan are not fully verified by the
+        shipped tests — EC-3 rollback (F-tests-1) and consolidation_history
+        row creation (F-tests-2) are explicit DoD items left as proxies or
+        unchecked.
+    (2) SHOULD TEST edge cases enumerated in the v1.1 absorption review
+        (EC-5/EC-7/EC-10) were never absorbed into tests despite being
+        called out by name in the plan template's TDD lists.
+    Recommendation: address F-tests-1, F-tests-2, F-tests-3 before merge
+    (these touch plan acceptance criteria). F-tests-4/5/6 (SHOULD TEST gaps)
+    are merge-acceptable as documented caveats provided the cycle-implement
+    closer logs them in the plan-followups doc with sunset dates.
