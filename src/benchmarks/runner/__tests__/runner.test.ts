@@ -225,6 +225,60 @@ describe('BenchmarkRunner', () => {
     expect(spans.length).toBeGreaterThanOrEqual(3); // 1 add + 2 search
     expect(spans.some((s) => s.name === 'benchmark.add')).toBe(true);
     expect(spans.some((s) => s.name === 'benchmark.search')).toBe(true);
+
+    // v0-8-fixes-cycle-1 T2.2 + ADR D5: per-question search spans MUST carry
+    // latencyMs + modelUsed as attributes so downstream consumers
+    // (Grafana, Honeycomb, etc.) can reconstruct the same P95 from spans.
+    const searchSpans = spans.filter((s) => s.name === 'benchmark.search');
+    expect(searchSpans.length).toBeGreaterThanOrEqual(2);
+    for (const sp of searchSpans) {
+      expect(typeof sp.attributes['benchmark.latency_ms']).toBe('number');
+      expect(typeof sp.attributes['benchmark.model_used']).toBe('string');
+    }
+  });
+
+  // v0-8-fixes-cycle-1 T2.2 + EC-8: OTel spec rejects setAttribute(undefined).
+  // The runner MUST coalesce undefined SearchResult fields to deterministic
+  // sentinels (0 for latencyMs, 'unknown' for modelUsed) before setting span
+  // attributes. Today no adapter returns undefined, but the typed contract
+  // permits it; this test locks the defensive guard.
+  it('coalesces undefined SearchResult fields to span-attribute sentinels (EC-8)', async () => {
+    const { tracer, exporter } = makeTracer();
+    const adapter = makeAdapter('themory');
+    // Force the adapter's search() to return a SearchResult with undefined
+    // latencyMs + modelUsed (simulating an adapter that doesn't track them).
+    // Cast through unknown to bypass the typed contract (latencyMs +
+    // modelUsed are non-optional on SearchResult). The runtime path
+    // we exercise IS the EC-8 defensive guard.
+    const undefinedFieldsSearch = (q: { questionText: string }): Promise<unknown> =>
+      Promise.resolve({
+        answer: `echo: ${q.questionText}`,
+        retrievedContext: [],
+        latencyMs: undefined,
+        tokensUsed: { prompt: 1, completion: 1 },
+        modelUsed: undefined,
+      });
+    (adapter as unknown as { search: typeof undefinedFieldsSearch }).search =
+      undefinedFieldsSearch;
+    const judgePanel = makeJudgePanelAlwaysCorrect();
+    const costTracker = new CostTracker({ tokenizer });
+    const resultsPath = join(TMP_DIR, 't2-2-ec8-coalesce.json');
+    const runner = new BenchmarkRunner({
+      adapter,
+      judgePanel,
+      costTracker,
+      tracer,
+      resultsPath,
+    });
+    await runner.run(
+      { conversationId: 'c1', items: [] },
+      [{ questionId: 'q1', questionText: 'q?', conversationId: 'c1', goldAnswer: 'a', category: 'misc' }],
+    );
+    const searchSpans = exporter.getFinishedSpans().filter((s) => s.name === 'benchmark.search');
+    expect(searchSpans).toHaveLength(1);
+    // Sentinels: 0 for latencyMs, 'unknown' for modelUsed
+    expect(searchSpans[0]?.attributes['benchmark.latency_ms']).toBe(0);
+    expect(searchSpans[0]?.attributes['benchmark.model_used']).toBe('unknown');
   });
 
   it('persists results incrementally per question (EC-9)', async () => {
