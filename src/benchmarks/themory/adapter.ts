@@ -40,6 +40,13 @@ export interface TheMemoryBenchmarkAdapterConfig {
   readonly memory: Memory;
   readonly llm: LLM;
   readonly tokenizer: Tokenizer;
+  /**
+   * Model identifier surfaced through SearchResult.modelUsed so the
+   * benchmark runner can compute cost per ADR D7. Drift-T5.1-1 absorption.
+   *
+   * Defaults to 'gpt-4o-mini' when omitted (REDACTED evaluation default).
+   */
+  readonly modelId?: string;
 }
 
 type PrimitiveMetadataValue = string | number | boolean | null;
@@ -62,16 +69,20 @@ const ANSWER_SYSTEM_PROMPT = 'Answer based on the retrieved context.';
 const TOP_K = 30;
 const DEFAULT_SPEAKERS: readonly string[] = ['unknown'];
 
+const DEFAULT_MODEL_ID = 'gpt-4o-mini';
+
 export class TheMemoryBenchmarkAdapter implements BenchmarkAdapter {
   readonly name = 'themory';
   private readonly memory: Memory;
   private readonly llm: LLM;
   private readonly tokenizer: Tokenizer;
+  private readonly modelId: string;
 
   constructor(config: TheMemoryBenchmarkAdapterConfig) {
     this.memory = config.memory;
     this.llm = config.llm;
     this.tokenizer = config.tokenizer;
+    this.modelId = config.modelId ?? DEFAULT_MODEL_ID;
   }
 
   private scopedUserId(conversationId: string, speaker?: string): string {
@@ -124,6 +135,7 @@ export class TheMemoryBenchmarkAdapter implements BenchmarkAdapter {
         prompt: this.tokenizer.count(promptUser) + this.tokenizer.count(ANSWER_SYSTEM_PROMPT),
         completion: this.tokenizer.count(response.content),
       },
+      modelUsed: this.modelId,
     };
   }
 }

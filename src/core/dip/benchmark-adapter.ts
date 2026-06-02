@@ -103,6 +103,18 @@ export interface SearchResult {
     readonly prompt: number;
     readonly completion: number;
   };
+  /**
+   * The model identifier used to synthesize the answer (e.g. 'gpt-4o-mini',
+   * 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet'). The benchmark runner
+   * looks this up in pricing-table.json for cost computation per ADR D7.
+   *
+   * Required field (Drift-T5.1-1 absorption): reporting cost via
+   * adapter.name silently fabricated $0 for TheMemory while vendors got
+   * accurate cost — EC-3 anti-silent-$0 invariant violated. The model
+   * identity is the load-bearing dimension for cost; vendor identity is
+   * not.
+   */
+  readonly modelUsed: string;
 }
 
 /**
