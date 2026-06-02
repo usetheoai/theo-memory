@@ -828,20 +828,43 @@ export { createLocalMemory as createMemory };
  * pgvector REJECTS `ALTER COLUMN TYPE` against a column with any index, so
  * both HNSW indexes (`memories_embedding_hnsw_idx` + `entities_embedding_hnsw_idx`
  * at `src/local/migrations/0000_crazy_mimic.sql:44,51`) must be dropped before
- * the ALTER and recreated after. The full DROP → ALTER → CREATE sequence runs
- * inside a single BEGIN/COMMIT acquired from a dedicated `pool.connect()` client
- * (SEPA iter-3 pre-RED CRITICAL #1: NEVER nest inside Drizzle's tx; NEVER reuse
- * `pool.query` which autocommits per statement).
+ * the ALTER and recreated after. The full DROP → DELETE → ALTER → CREATE
+ * sequence runs inside a single BEGIN/COMMIT acquired from a dedicated
+ * `pool.connect()` client (SEPA iter-3 pre-RED CRITICAL #1: NEVER nest inside
+ * Drizzle's tx; NEVER reuse `pool.query` which autocommits per statement).
+ *
+ * **DESTRUCTIVE — full cascade collateral disclosure** (plan v1.2 ADR D3 + EC-B
+ * amendment, /review F-C1):
+ *
+ *   The `DELETE FROM memories; DELETE FROM entities;` statements trigger the
+ *   following FK cascades from `0000_crazy_mimic.sql` + later migrations:
+ *
+ *   1. `history.memory_id ON DELETE CASCADE` → entire history audit trail wiped.
+ *   2. `consolidation_history.kept_memory_id ON DELETE SET NULL` → v0.7
+ *      distillation provenance pointers nullified (audit rows survive but
+ *      lose the FK back to the kept memory).
+ *   3. `memories.superseded_by` self-FK ON DELETE SET NULL → v0.6 REDACTED
+ *      skill supersession chains broken.
+ *
+ *   The original plan v1.0 ADR D3 specified `ALTER ... USING NULL` (only the
+ *   embedding column data lost). That recipe was empirically rejected by the
+ *   existing `vector(1536) NOT NULL` constraint (PG error 23502: "column ...
+ *   contains null values" because USING NULL coerces every row's embedding
+ *   to NULL then the NOT NULL check fires). The DELETE-before-ALTER pattern
+ *   is the explicit form of the destructive-dim-change contract and avoids
+ *   the constraint violation, but it widens the data-loss envelope. README
+ *   "Destructive dim change caveat" enumerates the full cascade graph.
  *
  * Idempotency short-circuit: probe `pg_attribute.atttypmod` for memories.embedding;
- * if it already matches the requested dim, skip the DROP+ALTER+RECREATE entirely.
+ * if it already matches the requested dim, skip the entire sequence.
  * pgvector v0.5.1 stores `vector(N)` dimension in `atttypmod` directly (NO +4
  * varlena offset — empirically verified against the ankane/pgvector:v0.5.1
  * container in RED test phase; SEPA's training-data claim of `N + 4` was wrong
  * for this version).
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3
+ * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3 + v1.2 ADR D3 amendment
  * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-3 + EC-4
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-C1
  * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 atomic tx + C2 atttypmod empirical correction)
  */
 async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
@@ -866,7 +889,11 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.error(
-    `[themory] runMigrations: dim change ${String(currentDim)} → ${String(targetDim)} truncates existing embeddings + drops/recreates HNSW indexes (T0.3 / EC-3 + EC-4)`,
+    `[themory] runMigrations: dim change ${String(currentDim)} → ${String(targetDim)} — DESTRUCTIVE cascade: ` +
+      'DELETE FROM memories (FK→history.memory_id ON DELETE CASCADE wipes audit trail; ' +
+      'consolidation_history.kept_memory_id ON DELETE SET NULL nullifies v0.7 distillation provenance; ' +
+      'memories.superseded_by ON DELETE SET NULL breaks v0.6 supersession chains) + ' +
+      'DELETE FROM entities + DROP/RECREATE HNSW indexes (T0.3 / EC-3 + EC-4; plan v1.2 ADR D3; /review F-C1)',
   );
 
   const client = await pool.connect();
@@ -935,10 +962,14 @@ export async function runMigrations(
     if (memoriesExists) {
       // Schema present but not journal-tracked → push-flow was used. Skip migrate()
       // gracefully; this is a deployment-config smell, not a runtime error.
+      // /review F-M13: warning text must honestly state that we still apply the
+      // explicit dim change when caller passed options.embeddingDim — only the
+      // migrate() call is skipped, not the entire runMigrations() invocation.
       // eslint-disable-next-line no-console
       console.warn(
         '[themory] schema present but `drizzle.__drizzle_migrations` journal missing. ' +
-          'Likely `drizzle-kit push` was used — skipping runMigrations(). ' +
+          'Likely `drizzle-kit push` was used — skipping migrate(); ' +
+          'applying explicit dim change only when options.embeddingDim is set. ' +
           'For production reproducibility, prefer `runMigrations()` on a fresh DB (F-T7.1-2).',
       );
       // T4.1 follow-up to T0.3: dim change must STILL apply on push-flow DBs.
