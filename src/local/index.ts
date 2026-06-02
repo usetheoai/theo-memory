@@ -36,6 +36,7 @@ import type { VectorStore } from '../core/dip/vector-store.js';
 import {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
+  InvalidEmbeddingDim,
   InvalidScope,
   MemoryNotFound,
   ReflectionNotConfigured,
@@ -704,9 +705,11 @@ function validateEmbeddingDim(received: number | undefined): number {
     return MAX_EMBEDDING_DIM;
   }
   if (!Number.isInteger(received) || received <= 0 || received > MAX_EMBEDDING_DIM) {
-    throw new InvalidScope(
-      `embeddingDim must be a positive integer ≤ ${String(MAX_EMBEDDING_DIM)}; got ${String(received)}`,
-    );
+    // /review F-Mi4: typed `InvalidEmbeddingDim` (not generic `InvalidScope`).
+    // The plan deferred the naming choice during /implement; the consolidated
+    // /review caught the conflation between Scope-level errors and dim
+    // config-shape errors and recommended a dedicated error class.
+    throw new InvalidEmbeddingDim(received, MAX_EMBEDDING_DIM);
   }
   return received;
 }
@@ -868,6 +871,28 @@ export { createLocalMemory as createMemory };
  * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 atomic tx + C2 atttypmod empirical correction)
  */
 async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
+  // /review F-Mi8 — defensive extversion probe. The identity decoder
+  // (atttypmod stores N directly) was verified empirically against
+  // pgvector v0.5.1. If a future pgvector release changes the encoding
+  // (e.g., adopts the +4 varlena header SEPA originally claimed), the
+  // identity decoder would silently produce a wrong dim → silently
+  // mismatched ALTER. Probe the installed pgvector version and warn
+  // (not throw — we keep moving so the demo still boots, but the
+  // operator sees the canary so they know to re-verify).
+  const ext = await pool.query<{ extversion: string | null }>(
+    `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
+  );
+  const installedVersion = ext.rows[0]?.extversion ?? null;
+  if (installedVersion !== null && !installedVersion.startsWith('0.5.')) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[themory] runMigrations: pgvector extversion=${installedVersion} ` +
+        '(adapters-openrouter-local-embedder T0.3 verified the atttypmod identity ' +
+        'decoder against v0.5.x). If a future release changes the encoding, ' +
+        're-verify dim-change idempotency.',
+    );
+  }
+
   // Probe current dim. atttypmod stores N directly for pgvector v0.5.1.
   const probe = await pool.query<{ atttypmod: number }>(
     `SELECT a.atttypmod
@@ -915,10 +940,13 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     // empty `embedding` columns are then ALTERable cleanly.
     await client.query('DELETE FROM memories');
     await client.query('DELETE FROM entities');
-    await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
-    await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
-    await client.query('CREATE INDEX memories_embedding_hnsw_idx ON memories USING hnsw (embedding vector_cosine_ops)');
-    await client.query('CREATE INDEX entities_embedding_hnsw_idx ON entities USING hnsw (embedding vector_cosine_ops)');
+    await client.query(`ALTER TABLE "memories" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
+    await client.query(`ALTER TABLE "entities" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
+    // /review F-Mi9: match the migration's quoted-identifier style at
+    // src/local/migrations/0000_crazy_mimic.sql:44,51 so a future PG
+    // case-sensitivity change does not cause a runtime/migration drift.
+    await client.query('CREATE INDEX "memories_embedding_hnsw_idx" ON "memories" USING hnsw ("embedding" vector_cosine_ops)');
+    await client.query('CREATE INDEX "entities_embedding_hnsw_idx" ON "entities" USING hnsw ("embedding" vector_cosine_ops)');
     await client.query('COMMIT');
     // eslint-disable-next-line no-console
     console.error(

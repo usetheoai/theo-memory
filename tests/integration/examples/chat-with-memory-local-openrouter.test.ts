@@ -34,6 +34,8 @@
  * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T4.1 + Final Phase
  * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-2
  */
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -62,7 +64,9 @@ describe.skipIf(!reachable || PG_URI === '')(
   'T4.1: chat-with-memory local-openrouter HTTP surface (Goal metric)',
   () => {
     let pool: pg.Pool;
-    const TEST_USER = 't4-1-local-openrouter-user';
+    // /review F-Mi12: per-suite UUID so parallel runs against a shared dev
+    // DB don't see each other's seeded memories or consolidation_history rows.
+    const TEST_USER = `t4-1-${randomUUID()}`;
 
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: PG_URI });
