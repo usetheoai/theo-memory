@@ -170,5 +170,144 @@ describe.skipIf(ROOT_PG_URI === '')(
 
       await pool.end();
     });
+
+    // /review F-M1 — EC-3 atomic rollback regression test (4 reviewers flagged
+    // this gap). The BEGIN/COMMIT/ROLLBACK wrapper in applyDimChange exists
+    // for atomicity; without a test that injects a mid-sequence failure, the
+    // entire EC-3 contract is verified only by code review.
+    it('EC-3 atomic rollback: mid-sequence failure preserves pre-change schema state', async () => {
+      const pool = new pg.Pool({ connectionString: testUri });
+      const m = await import('../../../src/local/index.js');
+      try {
+        // Bring DB to vector(1536) baseline first.
+        await m.runMigrations(pool);
+        expect(await getColumnDim(pool, 'memories')).toBe(1536);
+
+        // Inject a mid-sequence failure by pre-creating a VIEW that
+        // depends on `memories.embedding`. PostgreSQL blocks
+        // ALTER COLUMN TYPE on a column used by a view (error:
+        // "cannot alter type of a column used by a view or rule"),
+        // so the ALTER fails inside BEGIN/COMMIT → the wrapper
+        // ROLLBACKs and re-throws, preserving the pre-change schema.
+        await pool.query(
+          'CREATE VIEW v_embed_dep AS SELECT id, embedding FROM memories',
+        );
+
+        await expect(
+          m.runMigrations(pool, { embeddingDim: 384 }),
+        ).rejects.toThrow();
+
+        // Post-rollback assertions: dim still 1536, primary HNSW indexes
+        // still present (they were dropped inside the same BEGIN that
+        // rolled back, so DROP is undone).
+        expect(await getColumnDim(pool, 'memories')).toBe(1536);
+        expect(await indexExists(pool, 'memories_embedding_hnsw_idx')).toBe(true);
+        expect(await indexExists(pool, 'entities_embedding_hnsw_idx')).toBe(true);
+      } finally {
+        // Always end the pool so the next test's beforeEach can DROP DATABASE.
+        await pool.end();
+      }
+    });
+
+    // /review F-M6 — destructive DELETE cascade verification. Previous tests
+    // all ran against fresh DBs (no rows to DELETE); a regression that broke
+    // FK cascade behavior would have shipped silently.
+    it('destructive cascade: seeded rows wiped + FK cascades fire as documented (F-C1)', async () => {
+      const pool = new pg.Pool({ connectionString: testUri });
+      const m = await import('../../../src/local/index.js');
+      try {
+      await m.runMigrations(pool);
+
+      // Seed: insert ONE memory + ONE history row + ONE consolidation_history
+      // row pointing at it. Each table touches a distinct FK arm of the cascade.
+      const seedDim = 1536;
+      const fakeVec = `[${Array.from({ length: seedDim }, () => '0').join(',')}]`;
+      const inserted = await pool.query<{ id: string }>(
+        `INSERT INTO memories (text, hash, embedding, payload, user_id)
+         VALUES ('seed', 'h-cascade-1', $1::vector, '{}'::jsonb, 'u-cascade')
+         RETURNING id`,
+        [fakeVec],
+      );
+      const memoryId = inserted.rows[0]?.id;
+      expect(memoryId).toBeTruthy();
+      await pool.query(
+        `INSERT INTO history (memory_id, event, prev_text, new_text)
+         VALUES ($1, 'add', NULL, 'seed')`,
+        [memoryId],
+      );
+      await pool.query(
+        `INSERT INTO consolidation_history
+           (kept_memory_id, rejected_memory_ids, reason, policy_name)
+         VALUES ($1, '[]'::jsonb, 'cascade-test', 'k-cascade')`,
+        [memoryId],
+      );
+
+      // Sanity: rows are there.
+      const beforeMemories = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM memories WHERE user_id = 'u-cascade'`,
+      );
+      const beforeHistory = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM history WHERE memory_id = $1`,
+        [memoryId],
+      );
+      expect(beforeMemories.rows[0]?.c).toBe(1);
+      expect(beforeHistory.rows[0]?.c).toBe(1);
+
+      // Trigger the destructive dim change.
+      await m.runMigrations(pool, { embeddingDim: 384 });
+
+      // (a) row count is 0 post-ALTER (DELETE FROM memories ran).
+      const afterMemories = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM memories WHERE user_id = 'u-cascade'`,
+      );
+      expect(afterMemories.rows[0]?.c).toBe(0);
+
+      // (b) history table empty per ON DELETE CASCADE.
+      const afterHistory = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM history WHERE memory_id = $1`,
+        [memoryId],
+      );
+      expect(afterHistory.rows[0]?.c).toBe(0);
+
+      // (c) consolidation_history.kept_memory_id NULLed per ON DELETE SET NULL.
+      // The audit row itself survives (different cascade arm).
+      const afterConsolidation = await pool.query<{ c: number; kept: string | null }>(
+        `SELECT COUNT(*)::int AS c, MAX(kept_memory_id::text) AS kept
+           FROM consolidation_history
+          WHERE policy_name = 'k-cascade'`,
+      );
+      expect(afterConsolidation.rows[0]?.c).toBe(1);
+      expect(afterConsolidation.rows[0]?.kept).toBeNull();
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // /review F-M7 — push-flow dim-change RED test. The T4.1 hotfix that
+    // applies dim change on push-flow DBs (no drizzle journal but schema
+    // present) was discovered empirically; this is the TDD-first regression
+    // gate (Inquebrável Rule 5).
+    it('push-flow: orphan-schema branch still applies parametric dim change', async () => {
+      const pool = new pg.Pool({ connectionString: testUri });
+      const m = await import('../../../src/local/index.js');
+      try {
+        // Simulate the push-flow footgun: schema present but journal missing.
+        // Bootstrap a real schema first (runMigrations writes the journal),
+        // then DROP the journal table to mimic `drizzle-kit push` state.
+        await m.runMigrations(pool);
+        await pool.query('DROP TABLE IF EXISTS drizzle.__drizzle_migrations CASCADE');
+        await pool.query('DROP SCHEMA IF EXISTS drizzle CASCADE');
+        expect(await getColumnDim(pool, 'memories')).toBe(1536);
+
+        // Re-invoke with the parametric embeddingDim. The orphan-schema branch
+        // MUST apply the dim change instead of silently skipping.
+        await m.runMigrations(pool, { embeddingDim: 384 });
+
+        expect(await getColumnDim(pool, 'memories')).toBe(384);
+        expect(await getColumnDim(pool, 'entities')).toBe(384);
+      } finally {
+        await pool.end();
+      }
+    });
   },
 );

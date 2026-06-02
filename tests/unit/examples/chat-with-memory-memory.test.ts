@@ -18,11 +18,18 @@
  * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T2.1 + ADR D6
  * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-11 + EC-13
  */
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { resolveBackendMode } from '../../../examples/chat-with-memory/lib/memory.js';
+import {
+  resolveBackendMode,
+  warnIfLocalOpenrouterMissingBaseUrl,
+} from '../../../examples/chat-with-memory/lib/memory.js';
 
-const ENV_KEYS = ['THEOMEM_DEMO_BACKEND', 'THEOMEM_USE_STUB_ADAPTERS'] as const;
+const ENV_KEYS = [
+  'THEOMEM_DEMO_BACKEND',
+  'THEOMEM_USE_STUB_ADAPTERS',
+  'OPENAI_BASE_URL',
+] as const;
 
 function snapshotEnv(): Record<string, string | undefined> {
   const snap: Record<string, string | undefined> = {};
@@ -121,5 +128,41 @@ describe('resolveBackendMode — EC-11 unknown-value loud-fail (T2.1 / EC-11)', 
   test('empty string THEOMEM_DEMO_BACKEND="" is treated as unset (defaults to openai)', () => {
     process.env.THEOMEM_DEMO_BACKEND = '';
     expect(resolveBackendMode()).toBe('openai');
+  });
+});
+
+// /review F-M12 EC-10 — local-openrouter mode without OPENAI_BASE_URL warn
+describe('warnIfLocalOpenrouterMissingBaseUrl (T2.1 / EC-10)', () => {
+  let envSnapshot: Record<string, string | undefined>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    envSnapshot = snapshotEnv();
+    clearEnv();
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    restoreEnv(envSnapshot);
+    warnSpy.mockRestore();
+  });
+
+  test('warns when OPENAI_BASE_URL is missing (would silently route to OpenAI default URL)', () => {
+    delete process.env.OPENAI_BASE_URL;
+    warnIfLocalOpenrouterMissingBaseUrl();
+    expect(warnSpy).toHaveBeenCalledOnce();
+    const msg = String(warnSpy.mock.calls[0]?.[0] ?? '');
+    expect(msg).toMatch(/OPENAI_BASE_URL/);
+    expect(msg).toMatch(/local-openrouter/);
+  });
+
+  test('warns when OPENAI_BASE_URL is empty string', () => {
+    process.env.OPENAI_BASE_URL = '';
+    warnIfLocalOpenrouterMissingBaseUrl();
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  test('silent when OPENAI_BASE_URL is set to an OpenRouter URL', () => {
+    process.env.OPENAI_BASE_URL = 'https://openrouter.ai/api/v1';
+    warnIfLocalOpenrouterMissingBaseUrl();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
