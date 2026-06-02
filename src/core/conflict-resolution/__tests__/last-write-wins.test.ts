@@ -58,6 +58,69 @@ describe('LastWriteWinsConflictPolicy (T1.2 / ADR D2 / EC-1)', () => {
     expect(results).toEqual([]);
   });
 
+  // /review v0-7 F-C1 mass-tombstone guard
+  test('F-C1 — default maxRejectionRatio=0.95: cluster of 20 consolidates (ratio 0.95)', async () => {
+    const policy = new LastWriteWinsConflictPolicy();
+    const base = new Date('2026-06-01T10:00:00Z').getTime();
+    const fixture: ConsolidationCandidate[] = Array.from({ length: 20 }, (_, i) => ({
+      memoryId: `mem-${String(i).padStart(2, '0')}`,
+      text: `text ${String(i)}`,
+      createdAt: new Date(base + i * 1000),
+    }));
+    const results = await policy.consolidate(fixture, ctx);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.rejectedMemoryIds).toHaveLength(19);
+  });
+
+  test('F-C1 — default maxRejectionRatio=0.95: cluster of 21 ABSTAINS (ratio ~0.952 > 0.95)', async () => {
+    const policy = new LastWriteWinsConflictPolicy();
+    const base = new Date('2026-06-01T10:00:00Z').getTime();
+    const fixture: ConsolidationCandidate[] = Array.from({ length: 21 }, (_, i) => ({
+      memoryId: `mem-${String(i).padStart(2, '0')}`,
+      text: `text ${String(i)}`,
+      createdAt: new Date(base + i * 1000),
+    }));
+    const results = await policy.consolidate(fixture, ctx);
+    expect(results).toEqual([]);
+  });
+
+  test('F-C1 — maxRejectionRatio=1.0 opt-out: cluster of 50 still consolidates', async () => {
+    const policy = new LastWriteWinsConflictPolicy({ maxRejectionRatio: 1.0 });
+    const base = new Date('2026-06-01T10:00:00Z').getTime();
+    const fixture: ConsolidationCandidate[] = Array.from({ length: 50 }, (_, i) => ({
+      memoryId: `mem-${String(i).padStart(2, '0')}`,
+      text: `text ${String(i)}`,
+      createdAt: new Date(base + i * 1000),
+    }));
+    const results = await policy.consolidate(fixture, ctx);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.rejectedMemoryIds).toHaveLength(49);
+  });
+
+  test('F-C1 — maxRejectionRatio=0 means never reject anything (effectively Noop)', async () => {
+    const policy = new LastWriteWinsConflictPolicy({ maxRejectionRatio: 0 });
+    const fixture: ConsolidationCandidate[] = [
+      { memoryId: 'mem-a', text: 'older', createdAt: new Date('2026-06-01T10:00:00Z') },
+      { memoryId: 'mem-b', text: 'newer', createdAt: new Date('2026-06-01T11:00:00Z') },
+    ];
+    const results = await policy.consolidate(fixture, ctx);
+    expect(results).toEqual([]);
+  });
+
+  test('F-C1 — out-of-range maxRejectionRatio is clamped to [0, 1]', async () => {
+    const tooHigh = new LastWriteWinsConflictPolicy({ maxRejectionRatio: 2.5 });
+    const tooLow = new LastWriteWinsConflictPolicy({ maxRejectionRatio: -0.5 });
+    const fixture: ConsolidationCandidate[] = Array.from({ length: 50 }, (_, i) => ({
+      memoryId: `mem-${String(i).padStart(2, '0')}`,
+      text: `text ${String(i)}`,
+      createdAt: new Date(2026, 5, 1, 10, 0, 0, i),
+    }));
+    const tooHighResults = await tooHigh.consolidate(fixture, ctx);
+    expect(tooHighResults).toHaveLength(1);
+    const tooLowResults = await tooLow.consolidate(fixture, ctx);
+    expect(tooLowResults).toEqual([]);
+  });
+
   test('EC-1 — tie-break by memoryId lex DESC when createdAt equal (deterministic across 10 runs)', async () => {
     const policy = new LastWriteWinsConflictPolicy();
     const sharedTimestamp = new Date('2026-06-01T12:00:00Z');
