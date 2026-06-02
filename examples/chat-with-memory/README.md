@@ -115,14 +115,49 @@ The first `embed()` call downloads the Xenova/all-MiniLM-L6-v2 ONNX model
 are offline. CI environments without internet must warm the cache OR accept
 the one-time network cost on first run.
 
-### Destructive dim change caveat
+### Destructive dim change caveat (UPDATED — plan v1.2 ADR D3 + EC-B amendment)
 
-If you previously ran with `THEOMEM_DEMO_BACKEND=openai` (1536-dim embeddings
-persisted in the `memories.embedding` column) and switch to `local-openrouter`
-(384-dim), the next demo boot will run `runMigrations(pool, { embeddingDim: 384 })`
-which DROPS all existing embedding data via `ALTER COLUMN TYPE vector(384) USING NULL`.
-The HNSW indexes are dropped + recreated inside the same transaction (per EC-3 + EC-4
-absorption of plan v1.1). Either start with a fresh DB or accept the truncation.
+If you previously ran with `THEOMEM_DEMO_BACKEND=openai` (1536-dim
+embeddings persisted) and switch to `local-openrouter` (384-dim), the
+next demo boot calls `runMigrations(pool, { embeddingDim: 384 })`
+which executes a destructive sequence inside a single atomic
+transaction (`BEGIN/COMMIT/ROLLBACK`):
+
+```sql
+DROP INDEX IF EXISTS memories_embedding_hnsw_idx;
+DROP INDEX IF EXISTS entities_embedding_hnsw_idx;
+DELETE FROM memories;     -- + cascade collateral, see below
+DELETE FROM entities;     -- + cascade collateral, see below
+ALTER TABLE memories ALTER COLUMN embedding TYPE vector(384);
+ALTER TABLE entities ALTER COLUMN embedding TYPE vector(384);
+CREATE INDEX memories_embedding_hnsw_idx ON memories USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX entities_embedding_hnsw_idx ON entities USING hnsw (embedding vector_cosine_ops);
+```
+
+**Cascade collateral (full data-loss envelope):**
+
+The `DELETE FROM memories` triggers the following FK cascades from
+`src/local/migrations/0000_crazy_mimic.sql`:
+
+1. **`history` table** — `ON DELETE CASCADE` — the **entire history
+   audit trail is wiped**. Provenance for every past memory mutation
+   is gone.
+2. **`consolidation_history.kept_memory_id`** — `ON DELETE SET NULL` —
+   v0.7 distillation provenance pointers nullified; consolidation
+   audit rows survive but lose the FK back to the (now-deleted)
+   `kept_memory`.
+3. **`memories.superseded_by`** self-FK — `ON DELETE SET NULL` —
+   v0.6 REDACTED skill supersession chains broken; supersession
+   pointers nullified.
+
+The pgvector ALTER recipe locked in plan v1.0/v1.1 ADR D3 (`USING NULL`)
+was empirically rejected by the live `NOT NULL` constraint on the
+embedding column; plan v1.2 amendment documents the substitution.
+
+**Operator action required before flipping modes:** either start with
+a fresh DB (drop schema + recreate) or accept the entire `memories`
++ `entities` + `history` table wipe + the two SET NULL effects on
+`consolidation_history` + `superseded_by`.
 
 ## Quick start
 
