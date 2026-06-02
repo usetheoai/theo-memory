@@ -83,6 +83,21 @@ function getPipeline(): Promise<FeatureExtractionPipeline> {
   return _pipelinePromise;
 }
 
+/**
+ * /review F-Mi1 — 0-arity constructor is intentional.
+ *
+ * The model id (`Xenova/all-MiniLM-L6-v2`) and dim (384) are fixed at the
+ * module-level constants `MODEL_ID` + `EMBEDDING_DIM`. Exposing them as
+ * constructor parameters would imply that any feature-extraction model is
+ * interchangeable here — that is NOT true: the demo's parametric
+ * `runMigrations({ embeddingDim: 384 })` and `PgvectorStore({ embeddingDim:
+ * 384 })` are already wired against the 384-dim shape. Swapping the model
+ * would require coordinated schema + store changes that belong in a follow-up
+ * cycle, not in this constructor.
+ *
+ * Per Inquebrável Rule 11 (YAGNI): no parameter exposed for a knob that has
+ * no concrete consumer demand yet.
+ */
 export class LocalTransformerEmbedder implements Embedder {
   async embed(text: string): Promise<readonly number[]> {
     const pipe = await getPipeline();
@@ -100,12 +115,17 @@ export class LocalTransformerEmbedder implements Embedder {
     // batch_size * EMBEDDING_DIM and .dims: [batch_size, EMBEDDING_DIM].
     // Slice per row to preserve input order (DIP contract).
     const flat = output.data as Float32Array;
-    const rows: number[][] = [];
-    for (let i = 0; i < texts.length; i += 1) {
-      const start = i * EMBEDDING_DIM;
-      const end = start + EMBEDDING_DIM;
-      rows.push(Array.from(flat.slice(start, end)));
-    }
+    // /review F-Mi2: each inner array is frozen so the deep-readonly intent
+    // of the DIP signature `readonly (readonly number[])[]` is enforced at
+    // runtime (not just a TypeScript-only cast).
+    const rows: readonly (readonly number[])[] = Array.from(
+      { length: texts.length },
+      (_, i): readonly number[] => {
+        const start = i * EMBEDDING_DIM;
+        const end = start + EMBEDDING_DIM;
+        return Object.freeze(Array.from(flat.slice(start, end)));
+      },
+    );
     return rows;
   }
 }
