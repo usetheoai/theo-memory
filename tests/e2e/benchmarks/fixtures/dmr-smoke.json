@@ -1,0 +1,25 @@
+[
+  {
+    "conversation_id": "dmr-smoke-001",
+    "sessions": [
+      [
+        {"role": "user", "content": "Planning a backpacking trip to Patagonia in March for three weeks."},
+        {"role": "assistant", "content": "Sounds amazing! What treks are you considering?"},
+        {"role": "user", "content": "The W trek in Torres del Paine for sure."}
+      ]
+    ],
+    "question": "Where is the user planning to backpack?",
+    "answer": "Patagonia (Torres del Paine, W trek)"
+  },
+  {
+    "conversation_id": "dmr-smoke-002",
+    "sessions": [
+      [
+        {"role": "user", "content": "I just adopted a 4-year-old border collie named Mango."},
+        {"role": "assistant", "content": "Congratulations! Border collies are wonderful."}
+      ]
+    ],
+    "question": "What is the name of the user's dog?",
+    "answer": "Mango"
+  }
+]
