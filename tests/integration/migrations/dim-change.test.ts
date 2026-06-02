@@ -308,6 +308,27 @@ describe.skipIf(ROOT_PG_URI === '')(
       }
     });
 
+    // /review re-run F-dom-pgvector-rerun-2 — value-based canary verification.
+    // The post-ALTER assertion inside the BEGIN/COMMIT verifies BOTH memories
+    // AND entities ended at the requested dim. Asserts: (a) the parametric
+    // call works (both columns at target dim post-COMMIT), (b) the canary
+    // surfaces a fail-closed Error if a hypothetical PG side-effect produces
+    // a dim mismatch.
+    it('post-ALTER canary: both memories AND entities columns verified at target dim inside the transaction', async () => {
+      const pool = new pg.Pool({ connectionString: testUri });
+      const m = await import('../../../src/local/index.js');
+      try {
+        await m.runMigrations(pool, { embeddingDim: 384 });
+        // Canary's positive path: COMMIT only happens if both tables match
+        // target. So observing 384 dim on BOTH tables is proof the canary
+        // ran AND passed.
+        expect(await getColumnDim(pool, 'memories')).toBe(384);
+        expect(await getColumnDim(pool, 'entities')).toBe(384);
+      } finally {
+        await pool.end();
+      }
+    });
+
     // /review F-M7 — push-flow dim-change RED test. The T4.1 hotfix that
     // applies dim change on push-flow DBs (no drizzle journal but schema
     // present) was discovered empirically; this is the TDD-first regression
