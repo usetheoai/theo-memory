@@ -28,6 +28,7 @@
 import "server-only";
 import {
   createLocalMemory,
+  DrizzleHistoryManager,
   InMemoryVectorStore,
   LastWriteWinsConflictPolicy,
   LlmJudgedMergeConflictPolicy,
@@ -52,6 +53,7 @@ import { OpenAIEmbedder } from "@usetheo/memory/embedders/openai";
 import { DeterministicStubEmbedder } from "@usetheo/memory/embedders/stub";
 import { OpenAILLM } from "@usetheo/memory/llms/openai";
 import { DeterministicStubLLM } from "@usetheo/memory/llms/stub";
+import { drizzle as drizzleNodePostgres } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 /** Explicit-only reflection policy (ADR-0005). */
@@ -258,6 +260,7 @@ async function buildStore(embeddingDim: number): Promise<{
   vectorStore: VectorStore;
   backend: BackendKind;
   pgPool: pg.Pool | null;
+  historyManager: DrizzleHistoryManager | null;
 }> {
   const pgUri = process.env.THEOMEM_PG_URI;
   if (typeof pgUri === "string" && pgUri.length > 0) {
@@ -272,15 +275,24 @@ async function buildStore(embeddingDim: number): Promise<{
       vectorStore: new PgvectorStore(pgPool, { embeddingDim }),
       backend: "pgvector",
       pgPool,
+      // E2E gap fix: wire DrizzleHistoryManager so memory.history(id)
+      // returns the audit trail in the History tab (previously empty
+      // because the demo never wired the optional HistoryManager DIP).
+      // DrizzleHistoryManager expects a drizzle-wrapped DB (NOT a raw
+      // pg.Pool) — match the v0.1 contract test pattern at
+      // tests/integration/history-manager.test.ts.
+      historyManager: new DrizzleHistoryManager(drizzleNodePostgres(pgPool)),
     };
   }
   // InMemoryVectorStore is dim-agnostic (uses array.length dynamically;
   // verified empirically during T2.1 SEPA pre-RED). No dim parameter
-  // needed for the in-memory path.
+  // needed for the in-memory path. No HistoryManager for in-memory backend
+  // (would persist to disk anyway; in-memory is for quick dev only).
   return {
     vectorStore: new InMemoryVectorStore(),
     backend: "in-memory",
     pgPool: null,
+    historyManager: null,
   };
 }
 
@@ -387,7 +399,7 @@ export function getSingleton(): Promise<MemorySingleton> {
       const mode = resolveBackendMode();
       const { embedder, llm, source: adapters, embedderDim } = resolveAdapters(mode);
       const reflectionPolicy = new DemoManualReflectionPolicy();
-      const { vectorStore, backend, pgPool } = await buildStore(embedderDim);
+      const { vectorStore, backend, pgPool, historyManager } = await buildStore(embedderDim);
       const { state: eviction, reason, config: evictionConfig } = resolveEviction(backend);
       const factoryConfig: LocalMemoryConfig = {
         embedder,
@@ -396,6 +408,7 @@ export function getSingleton(): Promise<MemorySingleton> {
         reflectionPolicy,
         embeddingDim: embedderDim,
         ...(evictionConfig !== undefined ? { eviction: evictionConfig } : {}),
+        ...(historyManager !== null ? { historyManager } : {}),
       };
       const memory = await createLocalMemory(factoryConfig);
       const evictionLine = eviction.enabled
@@ -406,6 +419,7 @@ export function getSingleton(): Promise<MemorySingleton> {
       console.log(`[theomemory-demo] adapters=${adapters}`);
       console.log(`[theomemory-demo] embedderDim=${String(embedderDim)}`);
       console.log(`[theomemory-demo] ${evictionLine}`);
+      console.log(`[theomemory-demo] history=${historyManager !== null ? "DrizzleHistoryManager (pgvector pool)" : "disabled (in-memory backend)"}`);
       /* eslint-enable no-console */
       return { memory, backend, pgPool, eviction, llm, adapterSource: adapters, embedderDim };
     })();
