@@ -168,6 +168,9 @@ if (isMain) {
     .then((report) => {
       console.log(`[run-longmemeval] aborted: ${String(report.aborted)}`);
       console.log(`[run-longmemeval] questionCount: ${String(report.aggregate.questionCount)}`);
+      // v0-8-fixes-cycle-1 T2.1 + ADR D7: CLI translates report.aborted to
+      // process.exit() — library does NOT mutate global state.
+      process.exit(report.aborted ? 1 : 0);
     })
     .catch((err: unknown) => {
       console.error('[run-longmemeval] FATAL:', err);

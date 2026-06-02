@@ -11,9 +11,12 @@
  * null aggregate-labels from the judge panel; on 3 in a row, it pauses
  * 60 seconds then retries the FAILING query once. If the retry also
  * returns null, the run aborts: partial results (Q0..Q_failing_index)
- * stay persisted and `process.exitCode = 1` is set. The runner does NOT
- * throw on abort — the caller (T5.1 script) reads exit code + partial
- * file.
+ * stay persisted and `RunReport.aborted = true` with `abortReason` set.
+ * Per v0-8-fixes-cycle-1 T2.1 + ADR D4, the runner does NOT mutate
+ * `process.exitCode` — CLI entry-points in `benchmarks/scripts/run-*.ts`
+ * translate `report.aborted` to `process.exit()` in their `.then()`
+ * callback (per ADR D7). The runner does NOT throw on abort — the
+ * caller reads the report + partial file.
  *
  * EC-3 absorbed (PricingTableMiss): cost-tracker throws when adapter
  * model is absent from pricing-table.json; runner catches and persists
@@ -117,7 +120,10 @@ export class BenchmarkRunner {
           if (retryRecord.judgeLabel === null) {
             aborted = true;
             abortReason = `all-judges-fail policy: ${String(consecutiveNullCount)} consecutive nulls + retry also null at Q${query.questionId}`;
-            process.exitCode = 1;
+            // v0-8-fixes-cycle-1 T2.1 + ADR D4: library does NOT mutate
+            // process.exitCode. The aborted signal flows through RunReport;
+            // CLI entry-points in benchmarks/scripts/run-*.ts translate
+            // report.aborted to process.exit() in their .then() callback.
             break;
           }
           // retry succeeded — replace the last record with the retry outcome
