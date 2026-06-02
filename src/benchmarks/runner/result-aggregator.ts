@@ -2,25 +2,30 @@
  * Result aggregator for v0.8 benchmark runner.
  *
  * Reads per-question records and emits the run-level summary fields:
- * BLEU-mean / F1-mean / judge-accuracy / P95-latency-ms / total-cost-usd
- * per ADR D9 (default scorecard).
+ * F1-mean / judge-accuracy / P95-latency-ms / total-cost-usd per the
+ * v0.8 published matrix sub-metrics. BLEU is DEFERRED via Drift-T1.1-1
+ * (ADR D1 of v0-8-fixes-cycle-1) — natural@8.x removed BLEU; F1 +
+ * Exact Match cover the lexical metric niche; LLM-judge covers semantic.
  *
  * NaN-skipping discipline (EC-3): cost values flagged as
  * `pricing_table_miss` carry NaN; aggregator skips NaN entries when
  * computing means. If ALL records are NaN, `total_cost_usd` is reported
  * as null (matrix renderer surfaces as "cost N/A").
  *
- * P95 latency is computed from OTel span durations (D8 — spans + aggregator,
- * not OTel histogram metric).
+ * P95 latency is computed from per-query `latencyMs` reported by the
+ * adapter via `SearchResult.latencyMs` (ADR D5 of v0-8-fixes-cycle-1).
+ * Per-question OTel spans ALSO carry `latencyMs` + `modelUsed` as
+ * attributes so downstream consumers (Grafana, Honeycomb, etc.) can
+ * reconstruct the same P95 from spans if they prefer.
  *
- * @see plan v1.2 § T4.1 + ADRs D7 + D8 + D9 + EC-3
+ * @see plan v0-8-fixes-cycle-1 § T0.1 (BLEU deferral) + § T2.2 (P95 honesty + span attrs)
  */
 
 import type { JudgeLabel } from '../llm-judge/judge-panel.js';
 
 export interface PerQueryRecord {
   readonly questionId: string;
-  readonly bleu: number;
+  // Drift-T1.1-1: bleu field removed (natural@8.x dropped BLEU; see metrics/bleu.ts).
   readonly f1: number;
   readonly judgeLabel: JudgeLabel | null;
   readonly latencyMs: number;
@@ -29,7 +34,7 @@ export interface PerQueryRecord {
 }
 
 export interface RunAggregate {
-  readonly bleuMean: number;
+  // Drift-T1.1-1: bleuMean field removed.
   readonly f1Mean: number;
   readonly judgeAccuracy: number;
   readonly p95LatencyMs: number;
@@ -52,7 +57,7 @@ function percentile(sorted: readonly number[], p: number): number {
 }
 
 export function aggregate(records: readonly PerQueryRecord[]): RunAggregate {
-  const bleuMean = mean(records.map((r) => r.bleu));
+  // Drift-T1.1-1: BLEU mean removed.
   const f1Mean = mean(records.map((r) => r.f1));
   const judgeNullCount = records.filter((r) => r.judgeLabel === null).length;
   const validJudge = records.filter((r) => r.judgeLabel !== null);
@@ -65,7 +70,6 @@ export function aggregate(records: readonly PerQueryRecord[]): RunAggregate {
   const perSessionCostUsd =
     validCosts.length === 0 ? null : (totalCostUsd ?? 0) / validCosts.length;
   return {
-    bleuMean,
     f1Mean,
     judgeAccuracy,
     p95LatencyMs,

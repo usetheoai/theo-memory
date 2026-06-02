@@ -42,7 +42,7 @@ import type {
   BenchmarkQuery,
 } from '../../core/dip/benchmark-adapter.js';
 import type { LlmJudgePanel } from '../llm-judge/judge-panel.js';
-import { calculateBleuScore } from '../metrics/bleu.js';
+// Drift-T1.1-1: BLEU import removed — natural@8.x dropped BLEU; F1 + judge cover the metric niche.
 import { calculateF1Score } from '../metrics/f1.js';
 
 import type { CostTracker } from './cost-tracker.js';
@@ -158,7 +158,7 @@ export class BenchmarkRunner {
       generated: searchResult.answer,
     });
 
-    const bleu = calculateBleuScore(searchResult.answer, query.goldAnswer);
+    // Drift-T1.1-1: BLEU computation removed; F1 + judge remain.
     const f1 = calculateF1Score(searchResult.answer, query.goldAnswer);
 
     let cost: number;
@@ -179,7 +179,7 @@ export class BenchmarkRunner {
 
     return {
       questionId: query.questionId,
-      bleu,
+      // Drift-T1.1-1: bleu field removed from PerQueryRecord.
       f1,
       judgeLabel: panelResult.aggregateLabel,
       latencyMs: searchResult.latencyMs,

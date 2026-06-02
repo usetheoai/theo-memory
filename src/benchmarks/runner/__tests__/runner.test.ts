@@ -109,11 +109,10 @@ describe('CostTracker', () => {
 });
 
 describe('ResultAggregator', () => {
-  it('computes BLEU + F1 means + judge accuracy + P95 latency + total cost', () => {
+  it('computes F1 mean + judge accuracy + P95 latency + total cost (Drift-T1.1-1: no BLEU)', () => {
     const records: PerQueryRecord[] = [
       {
         questionId: 'q1',
-        bleu: 0.5,
         f1: 0.6,
         judgeLabel: 'CORRECT',
         latencyMs: 100,
@@ -122,7 +121,6 @@ describe('ResultAggregator', () => {
       },
       {
         questionId: 'q2',
-        bleu: 0.7,
         f1: 0.8,
         judgeLabel: 'CORRECT',
         latencyMs: 200,
@@ -131,7 +129,6 @@ describe('ResultAggregator', () => {
       },
       {
         questionId: 'q3',
-        bleu: 0.3,
         f1: 0.4,
         judgeLabel: 'WRONG',
         latencyMs: 1000,
@@ -140,7 +137,6 @@ describe('ResultAggregator', () => {
       },
     ];
     const agg = aggregate(records);
-    expect(agg.bleuMean).toBeCloseTo(0.5);
     expect(agg.f1Mean).toBeCloseTo(0.6);
     expect(agg.judgeAccuracy).toBeCloseTo(2 / 3);
     expect(agg.p95LatencyMs).toBe(1000);
@@ -152,7 +148,6 @@ describe('ResultAggregator', () => {
     const records: PerQueryRecord[] = [
       {
         questionId: 'q1',
-        bleu: 0,
         f1: 0,
         judgeLabel: 'CORRECT',
         latencyMs: 100,
@@ -169,7 +164,6 @@ describe('ResultAggregator', () => {
     const records: PerQueryRecord[] = [
       {
         questionId: 'q1',
-        bleu: 0,
         f1: 0,
         judgeLabel: null,
         latencyMs: 10,
@@ -178,7 +172,6 @@ describe('ResultAggregator', () => {
       },
       {
         questionId: 'q2',
-        bleu: 0,
         f1: 0,
         judgeLabel: 'CORRECT',
         latencyMs: 10,
