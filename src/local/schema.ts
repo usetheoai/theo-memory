@@ -16,6 +16,30 @@
  *  - payload: jsonb storing Record<string, string | number | boolean | null>
  *  - text_lemmatized: jsonb storing string[] (pre-computed BM25 tokens, blueprint Recommendation 3)
  *
+ * **F-M3 review finding — parametric-dim drift constraint (LOCKED, document-only mitigation):**
+ *
+ *   When `runMigrations(pool, { embeddingDim: N })` is called with N != 1536,
+ *   the live DB ends up with `vector(N)` columns, but this schema.ts file
+ *   still declares `vector(1536)` literally (Drizzle's `pgTable` cannot
+ *   read `MAX_EMBEDDING_DIM` from runtime constants — the parameter is
+ *   resolved at build time when drizzle-kit generates migrations).
+ *
+ *   Consequence: **NEVER run `drizzle-kit push` against a database whose
+ *   live embedding dim diverges from this file.** drizzle-kit introspects
+ *   the live DB and computes a destructive ALTER back to 1536, silently
+ *   reverting the parametric change (and dropping all 384-dim rows in the
+ *   process). The orphan-schema mitigation in architecture.md § 10.2 does
+ *   NOT cover this case — it only short-circuits when the journal is
+ *   missing, not when columns disagree.
+ *
+ *   The contract: production deploys go through `runMigrations()` on a
+ *   fresh DB (which honors `embeddingDim` symmetrically). Dev/CI envs
+ *   that use `db:push` MUST stay at 1536. The applyDimChange console.error
+ *   in src/local/index.ts surfaces this constraint at runtime when the
+ *   operator triggers the parametric path.
+ *
+ *   See: .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-M3 + F-Mi5
+ *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1 + ADR D1.7
  * @see .claude/knowledge-base/references/letta/letta/orm/passage.py:1-105
  */
