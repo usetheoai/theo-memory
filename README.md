@@ -201,6 +201,8 @@ THEOMEM_PG_URI=postgres://... \
 
 ## Status — v0.6 (skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
 
+> **v0.8 — Independent benchmark reproduction (Roadmap Item 10) — published 2026-06-02.** Smoke validation across LongMemEval / LoCoMo / DMR for TheMemory; vendor adapter cells (REDACTED/REDACTED/REDACTED) shipping `VendorClient` DIP only with real SDK wiring deferred per Drift-T6.x-1. Matrix at [`docs/benchmarks/v0.8.md`](docs/benchmarks/v0.8.md), methodology at [`docs/benchmarks/v0.8-methodology.md`](docs/benchmarks/v0.8-methodology.md), reproducibility runbook at [`docs/benchmarks/v0.8-reproducibility.md`](docs/benchmarks/v0.8-reproducibility.md). **`/dogfood` gate remains EVIDENCE_INSUFFICIENT — v0.8 does NOT unblock v1.0 production-ready claims.**
+>
 > `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23; v0.2 PR-A (TheoKit binding) shipped via PR #11 on 2026-05-23; v0.3 (MCP agent tools) shipped via PRs #17+#18 on 2026-05-25; v0.4a (reflection pipeline) shipped on `develop` 2026-05-23 (`494bceb`); v0.6 ( skill library) shipped on `feat/v0-6-skill-library` on 2026-05-30 — closed with the v0.6.1 fixes cycle (14 commits, b6aead6 `/review READY_TO_MERGE`) + `chat-with-memory-e2e-fixes` demo cycle (4 commits, 9e09bb9 `/test-chat-with-memory READY 30/30`). **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
 >
 > What works today (v0.1 → v0.6 against `ankane/pgvector:v0.5.1`):
