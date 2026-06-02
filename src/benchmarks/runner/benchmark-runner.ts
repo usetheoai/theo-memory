@@ -156,6 +156,13 @@ export class BenchmarkRunner {
       this.config.tracer,
       { adapter: adapter.name, method: 'search', questionId: query.questionId },
       () => adapter.search(query),
+      // v0-8-fixes-cycle-1 T2.2 + ADR D5 + EC-8: surface latencyMs +
+      // modelUsed as span attributes; coalesce undefined to sentinels
+      // (OTel spec rejects undefined attribute values).
+      (result) => ({
+        'benchmark.latency_ms': result.latencyMs ?? 0,
+        'benchmark.model_used': result.modelUsed ?? 'unknown',
+      }),
     );
 
     const panelResult = await this.config.judgePanel.judge({
