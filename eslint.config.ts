@@ -17,7 +17,7 @@ export default tseslint.config(
     // v0-8-fixes-cycle-1 T3.2 + EC-4: benchmarks/scripts/ at repo root
     // (NOT under src/) — extracted runner scaffold + 3 CLI runners now
     // gain lint enforcement (previously escaped via src/{...} pattern).
-    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/*.ts', 'src/__tests__/**/*.ts', 'benchmarks/scripts/**/*.ts'],
+    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/*.ts', 'src/__tests__/**/*.ts', 'benchmarks/scripts/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
