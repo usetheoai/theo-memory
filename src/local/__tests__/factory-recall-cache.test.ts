@@ -179,4 +179,98 @@ describe('T2.2 — write-trigger cache invalidation hooks', () => {
     const memory = await createLocalMemory(baseConfig(cache));
     await expect(memory.user('alice').remember('I like dark mode')).resolves.toBeDefined();
   });
+
+  /**
+   * fixes-cycle-1 T2.1 / F-merge-5 absorption.
+   *
+   * Plan T2.2-RED-1 asserts the invalidateScope CALL but NOT the AWAIT ORDER.
+   * A fire-and-forget regression (dropping `await` in
+   * `LocalScopedMemory.remember()` post-success block) would still PASS the
+   * existing T2.2-RED-1 because the call IS issued (just not awaited).
+   *
+   * This test defends against that regression by gating invalidateScope on a
+   * deferred Promise that resolves on the NEXT MICROTASK (EC-3 absorption:
+   * NEVER use setTimeout — vitest fake timers freeze setTimeout callbacks,
+   * causing the deferred Promise to never resolve → remember() hangs the
+   * 5s vitest test-timeout per run).
+   *
+   * If the implementation drops the `await`, remember() resolves BEFORE
+   * the deferred completes → the post-remember inspection observes the
+   * call NOT-YET-completed → assertion fails.
+   */
+  test('fixes-cycle-1 T2.1 — remember() AWAITS invalidateScope before returning (EC-11 sequential-await ORDER)', async () => {
+    vi.useRealTimers(); // EC-3 defense-in-depth — sibling suites may use fake timers
+    const cache = makeFakeCache();
+    let invalidateCompleted = false;
+    let rememberCompleted = false;
+    // Gating Promise: the test resolves this when it wants invalidateScope to complete.
+    // Captures the resolver via a "ready" Promise so the test can know exactly when
+    // invalidateScope was called by the pipeline — without that, calling release()
+    // BEFORE the pipeline reached invalidateScope would no-op the gate.
+    let releaseInvalidate: (() => void) | undefined;
+    const invalidateInvoked = new Promise<void>((readyResolve) => {
+      cache.invalidateScope = vi.fn(
+        () =>
+          new Promise<number>((resolve) => {
+            releaseInvalidate = () => {
+              invalidateCompleted = true;
+              resolve(0);
+            };
+            readyResolve();
+          }),
+      );
+    });
+
+    const memory = await createLocalMemory(baseConfig(cache));
+    const rememberPromise = memory.user('alice').remember('I like dark mode').then(() => {
+      rememberCompleted = true;
+    });
+
+    // Wait until the pipeline has reached invalidateScope (Promise resolves once the
+    // FakeCache.invalidateScope is invoked). Now releaseInvalidate is set.
+    await invalidateInvoked;
+    // remember() must NOT have completed yet — the invalidateScope Promise is gated.
+    // If the implementation drops await on invalidateScope, rememberCompleted would
+    // ALREADY be true here (fire-and-forget regression detection).
+    expect(rememberCompleted).toBe(false);
+    expect(invalidateCompleted).toBe(false);
+
+    // Release the gate — remember() must now complete on its next microtask.
+    if (releaseInvalidate === undefined) throw new Error('releaseInvalidate not captured');
+    releaseInvalidate();
+    await rememberPromise;
+    expect(invalidateCompleted).toBe(true);
+    expect(rememberCompleted).toBe(true);
+    // (cache.invalidateCalls is NOT populated here because we replaced
+    // invalidateScope with a gated Promise — the existing T2.2-RED-1 test
+    // covers the CALL assertion; this test covers the AWAIT ORDER.)
+    expect(cache.invalidateScope).toHaveBeenCalledWith({ kind: 'user', userId: 'alice' });
+  });
+
+  /**
+   * fixes-cycle-1 T2.1 EC-6 sibling — remember() awaits invalidateScope EVEN when
+   * the cache backend throws. Verifies the loud-but-degrade policy is intact
+   * under the EC-11 sequential-await regime: failure is caught + logged,
+   * remember() still returns successfully (NOT poisoned), AND the await
+   * discipline is preserved (the throw cannot escape the catch silently).
+   */
+  test('fixes-cycle-1 T2.1 EC-6 — remember() awaits invalidateScope even when it rejects', async () => {
+    vi.useRealTimers();
+    const cache = makeFakeCache();
+    cache.invalidateScope = vi.fn(async () => {
+      throw new Error('cache backend down');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const memory = await createLocalMemory(baseConfig(cache));
+      // Existing T2.2-RED-5 contract: remember() resolves despite the throw.
+      await expect(memory.user('alice').remember('I like dark mode')).resolves.toBeDefined();
+      // Loud-but-degrade: console.error was invoked with the captured backend-down throw.
+      expect(errorSpy).toHaveBeenCalled();
+      const errorArgs = errorSpy.mock.calls.flat();
+      expect(errorArgs.some((a) => String(a).includes('cache backend down') || (a instanceof Error && a.message.includes('cache backend down')))).toBe(true);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });
