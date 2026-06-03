@@ -1275,6 +1275,13 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     await client.query('BEGIN');
     await client.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
     await client.query('DROP INDEX IF EXISTS entities_embedding_hnsw_idx');
+    // semantic-recall-cache-v1-5 T5.1 — cascade dim change to recall_cache so
+    // an embedder swap that flows via runMigrations({ embeddingDim }) keeps
+    // the cache table aligned with the embedder. EC-2 mismatch detection
+    // (probeCacheTableDim) is the LOAD-bearing guard for the orthogonal case
+    // (table dim ≠ embedder dim WITHOUT runMigrations). The cache table is
+    // optional — `IF EXISTS` guards rule out failure on pre-v1.5 databases.
+    await client.query('DROP INDEX IF EXISTS recall_cache_scope_hnsw_idx');
     // T4.1 follow-up to T0.3: `ALTER COLUMN TYPE vector(N) USING NULL`
     // collides with the existing `NOT NULL` constraint (PG error 23502:
     // "column ... contains null values" because every row's existing
@@ -1286,13 +1293,34 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     // empty `embedding` columns are then ALTERable cleanly.
     await client.query('DELETE FROM memories');
     await client.query('DELETE FROM entities');
+    // Cache rows are stale once the embedder dim shifts (cosine across
+    // dimensions has no meaning). Safe to DELETE — cache is read-side
+    // memoization, not authoritative state.
+    await client.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'public' AND table_name = 'recall_cache') THEN
+        DELETE FROM recall_cache;
+      END IF;
+    END $$`);
     await client.query(`ALTER TABLE "memories" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
     await client.query(`ALTER TABLE "entities" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
+    await client.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'public' AND table_name = 'recall_cache') THEN
+        EXECUTE 'ALTER TABLE "recall_cache" ALTER COLUMN "query_embedding" TYPE vector(${String(targetDim)})';
+      END IF;
+    END $$`);
     // /review F-Mi9: match the migration's quoted-identifier style at
     // src/local/migrations/0000_crazy_mimic.sql:44,51 so a future PG
     // case-sensitivity change does not cause a runtime/migration drift.
     await client.query('CREATE INDEX "memories_embedding_hnsw_idx" ON "memories" USING hnsw ("embedding" vector_cosine_ops)');
     await client.query('CREATE INDEX "entities_embedding_hnsw_idx" ON "entities" USING hnsw ("embedding" vector_cosine_ops)');
+    await client.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'public' AND table_name = 'recall_cache') THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS "recall_cache_scope_hnsw_idx" ON "recall_cache" USING hnsw ("query_embedding" vector_cosine_ops)';
+      END IF;
+    END $$`);
 
     // /review re-run F-dom-pgvector-rerun-2: belt-and-suspenders value-based
     // canary INSIDE the transaction (so an unexpected outcome rolls back
