@@ -29,9 +29,47 @@ import { connectStreamableHttp } from './transports/streamable-http.js';
 /** Shutdown timeout (ms) — caps how long we wait for server.stop() before force-exit. */
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
-export async function runMcpServer(_argv: readonly string[] = process.argv.slice(2)): Promise<void> {
-  void _argv;
+/**
+ * T2.2 option bag — CLI flags (passed by commander's `.command('mcp')`
+ * action callback) override the legacy THEOMEM_MCP_* env vars. Precedence
+ * resolved ONCE inside runMcpServer per SEPA iter 10 MAJOR Q2: CLI > env >
+ * default. We do NOT mutate process.env here (preserves test isolation +
+ * keeps env-var semantics fail-closed). EC-30 (Windows-specific stdio
+ * stream caveats) documented as out-of-P0-scope.
+ */
+export interface RunMcpServerOptions {
+  readonly transport?: 'stdio' | 'streamable-http';
+  readonly port?: number;
+  readonly host?: string;
+}
 
+function resolveTransport(opt?: RunMcpServerOptions['transport']): 'stdio' | 'streamable-http' {
+  if (opt !== undefined) return opt;
+  const envValue = process.env['THEOMEM_MCP_TRANSPORT'];
+  if (envValue === 'streamable-http' || envValue === 'stdio') return envValue;
+  return 'stdio';
+}
+
+function resolvePort(opt?: number): number {
+  if (opt !== undefined) {
+    if (!Number.isInteger(opt) || opt <= 0 || opt > 65_535) {
+      throw new Error(`Invalid port: ${String(opt)} (must be an integer in 1..65535).`);
+    }
+    return opt;
+  }
+  const envRaw = process.env['THEOMEM_MCP_HTTP_PORT'];
+  const envPort = envRaw === undefined ? 8080 : Number.parseInt(envRaw, 10);
+  if (!Number.isInteger(envPort) || envPort <= 0 || envPort > 65_535) {
+    throw new Error(`Invalid port from THEOMEM_MCP_HTTP_PORT: ${String(envRaw)} (must be an integer in 1..65535).`);
+  }
+  return envPort;
+}
+
+function resolveHost(opt?: string): string {
+  return opt ?? process.env['THEOMEM_MCP_HTTP_HOST'] ?? '127.0.0.1';
+}
+
+export async function runMcpServer(options?: RunMcpServerOptions): Promise<void> {
   const pgUri = process.env['THEOMEM_PG_URI'];
   if (pgUri === undefined || pgUri.length === 0) {
     process.stderr.write(
@@ -40,6 +78,12 @@ export async function runMcpServer(_argv: readonly string[] = process.argv.slice
     process.exit(2);
     return; // unreachable but satisfies typecheck
   }
+
+  const transport = resolveTransport(options?.transport);
+  // Validate port eagerly so an invalid CLI flag fails BEFORE we touch pg —
+  // avoids leaking a connection pool when the operator typo'd the port.
+  const port = transport === 'streamable-http' ? resolvePort(options?.port) : 0;
+  const host = transport === 'streamable-http' ? resolveHost(options?.host) : '';
 
   const pool = new Pool({ connectionString: pgUri });
   await runMigrations(pool);
@@ -72,10 +116,7 @@ export async function runMcpServer(_argv: readonly string[] = process.argv.slice
   process.on('SIGTERM', shutdownHandler);
   process.on('SIGINT', shutdownHandler);
 
-  const transport = process.env['THEOMEM_MCP_TRANSPORT'] ?? 'stdio';
   if (transport === 'streamable-http') {
-    const port = Number.parseInt(process.env['THEOMEM_MCP_HTTP_PORT'] ?? '8080', 10);
-    const host = process.env['THEOMEM_MCP_HTTP_HOST'] ?? '127.0.0.1';
     await connectStreamableHttp(server, { port, host });
   } else {
     await connectStdio(server);
