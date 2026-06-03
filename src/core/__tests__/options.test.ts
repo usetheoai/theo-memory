@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, expectTypeOf, test } from 'vitest';
 
-import type { RememberOptions } from '../options.js';
+import type { RecallOptions, RememberOptions } from '../options.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OPTIONS_TS = resolve(HERE, '..', 'options.ts');
@@ -56,9 +56,7 @@ describe('EC-2 absorbed — RememberOptions.attributedTo widening (v1.1 T1.1)', 
 
 describe('T2.2 — RecallOptions.attributedTo filter widening (v1.1)', () => {
   test('RecallOptions.attributedTo is an optional string (recall filter per ADR D2 + T2.2)', () => {
-    expectTypeOf<import('../options.js').RecallOptions>().toHaveProperty('attributedTo');
-    expectTypeOf<import('../options.js').RecallOptions['attributedTo']>().toEqualTypeOf<
-      string | undefined
-    >();
+    expectTypeOf<RecallOptions>().toHaveProperty('attributedTo');
+    expectTypeOf<RecallOptions['attributedTo']>().toEqualTypeOf<string | undefined>();
   });
 });

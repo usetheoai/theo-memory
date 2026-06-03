@@ -35,14 +35,14 @@ import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-p
 import type { Embedder } from '../core/dip/embedder.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
+// BiTemporalNotSupportedLocally NOT imported here per ADR-0011 — local runtime
+// no longer throws it. The class stays exported via src/core/errors.ts →
+// src/core/index.ts (public API) so consumers retain the ability to catch it
+// for forward-compat with cloud runtime.
 import {
-  BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
   InvalidEmbeddingDim,
   InvalidScope,
-  // BiTemporalNotSupportedLocally import retained for backward compat re-export
-  // through src/core/errors.ts (consumers may still catch it for forward-compat
-  // with cloud runtime). Local runtime no longer throws it per ADR-0011.
   MemoryNotFound,
   ReflectionNotConfigured,
 } from '../core/errors.js';
