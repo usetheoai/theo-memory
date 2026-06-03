@@ -107,3 +107,71 @@ describe('T1.7 — subpath isolation + pack manifest', () => {
     });
   });
 });
+
+/**
+ * semantic-recall-cache-v1-5 T4.1 — `@usetheo/memory/cache-pg` subpath isolation.
+ * Mirrors EC-26 / EC-52 contract: the DEFAULT barrel does NOT pull
+ * `src/local/recall-cache/pgvector-recall-cache-store.ts` transitively, AND
+ * `npm pack --dry-run` ships the cache module so the published subpath
+ * resolves end-to-end.
+ *
+ * EXPECTED LEAK: the default barrel CAN reach
+ * `src/core/dip/recall-cache-store.ts` (DIP types are part of the public
+ * contract barrel) — that file lives in `src/core/`, not `src/local/`,
+ * and contains zero runtime impl. The negative assertion targets the
+ * Postgres-backed IMPL only.
+ */
+describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
+  test('default @usetheo/memory barrel does NOT reach src/local/recall-cache/pgvector-recall-cache-store.ts', () => {
+    const entry = resolve(REPO_ROOT, 'src/index.ts');
+    const reachable = walkImports(entry);
+    const implLeaks = Array.from(reachable).filter((p) =>
+      p.endsWith('src/local/recall-cache/pgvector-recall-cache-store.ts'),
+    );
+    expect(implLeaks).toEqual([]);
+  });
+
+  test('cache-pg subpath barrel re-exports PgvectorRecallCacheStore (smoke import)', async () => {
+    const mod = await import('../../src/local/recall-cache/index.js');
+    expect(typeof mod.PgvectorRecallCacheStore).toBe('function');
+    expect(typeof mod.getRecallCacheHitCounter).toBe('function');
+    expect(typeof mod.getRecallCacheHitDurationHistogram).toBe('function');
+    expect(typeof mod.getRecallCacheMissDurationHistogram).toBe('function');
+    expect(typeof mod.validateRecallCacheStoreConfig).toBe('function');
+    expect(mod.DEFAULT_THRESHOLD).toBe(0.8);
+  });
+
+  describe('npm pack manifest ships src/local/recall-cache/**', () => {
+    let packedFiles: readonly string[] = [];
+
+    beforeAll(() => {
+      const output = execSync('npm pack --dry-run --json', {
+        cwd: REPO_ROOT,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      interface PackEntry { files?: readonly { path: string }[] }
+      const parsed = JSON.parse(output) as readonly PackEntry[];
+      packedFiles = (parsed[0]?.files ?? []).map((f) => f.path);
+    }, 30_000);
+
+    test('pack contains src/local/recall-cache/index.ts', () => {
+      expect(packedFiles).toContain('src/local/recall-cache/index.ts');
+    });
+
+    test('pack contains src/local/recall-cache/pgvector-recall-cache-store.ts', () => {
+      expect(packedFiles).toContain('src/local/recall-cache/pgvector-recall-cache-store.ts');
+    });
+
+    test('pack contains src/local/recall-cache/recall-cache-metrics.ts', () => {
+      expect(packedFiles).toContain('src/local/recall-cache/recall-cache-metrics.ts');
+    });
+
+    test('pack EXCLUDES src/local/recall-cache/__tests__/**', () => {
+      const testFiles = packedFiles.filter(
+        (p) => p.startsWith('src/local/recall-cache/__tests__/'),
+      );
+      expect(testFiles).toEqual([]);
+    });
+  });
+});

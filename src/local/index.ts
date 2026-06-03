@@ -85,9 +85,13 @@ import {
 } from './eviction/index.js';
 import type { LocalEvictionConfig } from './eviction/index.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
-import { PgvectorRecallCacheStore } from './recall-cache/pgvector-recall-cache-store.js';
 import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
+// NOTE: `./recall-cache/*` is intentionally DYNAMIC-imported inside
+// `resolveRecallCacheStore` so the v1.5 cache impl does NOT enter the default
+// `@usetheo/memory` bundle's static-import graph (T4.1 bundle isolation per
+// blueprint Rec #3 + EC-26 precedent). Consumers who opt in via
+// `recallCache: { ... }` pay the lazy load cost at factory time only.
 
 export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
@@ -341,6 +345,38 @@ function resolveCacheTtl(
   return defaults[scope.kind];
 }
 
+/**
+ * semantic-recall-cache-v1-5 T2.3 — constructor.name based stub-embedder
+ * detection (avoids `instanceof` coupling to the concrete stub classes — the
+ * test stub classes also need to be detected). Names recognized:
+ *   - `StubEmbedder` (src/local/stubs.ts — legacy zero-vector stub)
+ *   - `DeterministicStubEmbedder` (src/embedders/stub.ts — deterministic
+ *     non-semantic vector stub used by run-server.ts default path)
+ */
+function isStubEmbedder(embedder: Embedder): boolean {
+  const name = embedder.constructor.name;
+  return name === 'StubEmbedder' || name === 'DeterministicStubEmbedder';
+}
+
+const STUB_EMBEDDER_CACHE_WARNING_PREFIX = 'themory cache:';
+
+/**
+ * semantic-recall-cache-v1-5 T2.3 — emit the 3-line stderr warning the cycle-1
+ * T2.2 pattern locked: line 1 names the detected class; line 2 surfaces the
+ * behavior delta (semantic vs coincidental hits); line 3 points to wiring docs.
+ */
+function emitStubEmbedderCacheWarning(detectedClassName: string): void {
+  process.stderr.write(
+    `${STUB_EMBEDDER_CACHE_WARNING_PREFIX} WARNING — Cache enabled with stub embedder (${detectedClassName}).\n`,
+  );
+  process.stderr.write(
+    `${STUB_EMBEDDER_CACHE_WARNING_PREFIX} Cache hits will be COINCIDENTAL (deterministic but non-semantic vectors), NOT semantic.\n`,
+  );
+  process.stderr.write(
+    `${STUB_EMBEDDER_CACHE_WARNING_PREFIX} For production semantic caching, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n`,
+  );
+}
+
 async function probeCacheTableDim(pool: Pool): Promise<number | null> {
   const { rows } = await pool.query<{ atttypmod: number }>(
     `SELECT a.atttypmod
@@ -399,7 +435,13 @@ async function resolveRecallCacheStore(
         `run runMigrations(pool, { embeddingDim: ${embedderDim} }) OR DELETE FROM recall_cache before retrying`,
     );
   }
-  return new PgvectorRecallCacheStore(pool, optIn);
+  // Dynamic import — keeps the cache impl OUT of the default barrel's static
+  // import graph (T4.1 bundle isolation). The runtime cost (one `await import()`)
+  // is paid only when the consumer opts in via `recallCache: { ... }`.
+  const { PgvectorRecallCacheStore } = await import('./recall-cache/pgvector-recall-cache-store.js');
+  return new PgvectorRecallCacheStore(pool, optIn, {
+    embedderKind: config.embedder.constructor.name,
+  });
 }
 
 interface VectorStoreWithDerivedInsert {
@@ -548,6 +590,12 @@ class LocalScopedMemory implements ScopedMemory {
     if (cached !== undefined) {
       return [...cached.results];
     }
+    // T3.1 — wall-clock latency for the MISS path (cache.get returned undefined →
+    // full 9-step retrieval + cache populate). Counter is not bumped on miss;
+    // hit-rate is `count(hit_counter) / (count(hit_counter) + count(miss_histo))`.
+    // Dynamic import keeps the metrics module OUT of the default barrel's
+    // static graph (T4.1 bundle isolation) — paid only on cache-wired paths.
+    const missStart = performance.now();
     const results = await runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
@@ -555,6 +603,11 @@ class LocalScopedMemory implements ScopedMemory {
     }, options);
     const ttlSeconds = resolveCacheTtl(this.scope, this.config.recallCache);
     await cache.set(queryEmbedding, this.scope, results, ttlSeconds);
+    const { getRecallCacheMissDurationHistogram } = await import('./recall-cache/recall-cache-metrics.js');
+    getRecallCacheMissDurationHistogram().record(performance.now() - missStart, {
+      scope_tier: this.scope.kind,
+      embedder_kind: this.config.embedder.constructor.name,
+    });
     return results;
   }
 
@@ -1010,6 +1063,17 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   // paths get the cache (the two features are orthogonal — eviction touches
   // memories; cache touches recall_cache).
   const recallCacheStore = await resolveRecallCacheStore(config, effectiveDim);
+
+  // semantic-recall-cache-v1-5 T2.3 / F-rev-9 absorption (cycle-1 T2.2 precedent
+  // at src/agent-tools/run-server.ts:110-118): when cache is enabled AND the
+  // embedder is a stub (StubEmbedder / DeterministicStubEmbedder), warn the
+  // consumer LOUDLY at startup. Stub vectors are deterministic but NOT
+  // semantic — cache hits will be COINCIDENTAL (exact-text round-trips) rather
+  // than the near-duplicate semantic matching the cache is designed for.
+  // Inquebrável Rule 3 (honesty) at the consumer-facing boundary.
+  if (recallCacheStore !== undefined && isStubEmbedder(config.embedder)) {
+    emitStubEmbedderCacheWarning(config.embedder.constructor.name);
+  }
 
   if (config.eviction === undefined) {
     const memory = new LocalMemory(config, config.reflectionPolicy, recallCacheStore);
