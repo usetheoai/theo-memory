@@ -118,6 +118,154 @@ describe('PgvectorStore.search dimension guard — parametric (T0.2)', () => {
   });
 });
 
+describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () => {
+  test('INSERT SQL includes attributed_to column in the column list', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const vector: readonly number[] = [0.1, 0.2, 0.3];
+    const payload = {
+      text: 'Paulo prefers tea',
+      hash: 'h-paulo-tea',
+      user_id: 'alice',
+      attributed_to: 'paulo',
+    };
+
+    await store.insert([vector], ['id-1'], [payload]);
+
+    expect(captured.length).toBeGreaterThan(0);
+    const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
+    expect(insertCall).toBeDefined();
+    expect(insertCall!.sql).toMatch(/attributed_to/);
+    // attributed_to value MUST appear in the params (hoisted from payload).
+    expect(insertCall!.params).toContain('paulo');
+  });
+
+  test('INSERT supports infer:false path — payload.attributed_to from RememberOptions (EC-2)', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    // Verbatim-path callers route options.attributedTo into payload at the
+    // pipeline boundary; pgvector-store hoists payload['attributed_to'] to the
+    // column regardless of the path that set it.
+    const verbatimPayload = {
+      text: 'verbatim fact text',
+      hash: 'h-verbatim',
+      user_id: 'alice',
+      attributed_to: 'alice', // routed from RememberOptions.attributedTo
+    };
+
+    await store.insert([[0.1, 0.2, 0.3]], ['id-verbatim'], [verbatimPayload]);
+
+    const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
+    expect(insertCall).toBeDefined();
+    expect(insertCall!.params).toContain('alice');
+  });
+
+  test('INSERT writes NULL when payload omits attributed_to (backward compat)', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const payload = {
+      text: 'no attribution recorded',
+      hash: 'h-no-attr',
+      user_id: 'alice',
+      // no attributed_to key
+    };
+
+    await store.insert([[0.1, 0.2, 0.3]], ['id-no-attr'], [payload]);
+
+    const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
+    expect(insertCall).toBeDefined();
+    // NULL should be in the params at the attributed_to slot.
+    expect(insertCall!.params).toContain(null);
+  });
+});
+
+describe('PgvectorStore.search — attributed_to SELECT projection (v1.1 T2.1)', () => {
+  test('SELECT SQL includes attributed_to column', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string) => {
+      captured.push({ sql, params: [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    await store.search([0.1, 0.2, 0.3], 5);
+
+    const selectCall = captured.find((c) => c.sql.includes('SELECT'));
+    expect(selectCall).toBeDefined();
+    expect(selectCall!.sql).toMatch(/attributed_to/);
+  });
+
+  test('rowToResult: attributed_to from row maps into VectorStoreResult.payload', async () => {
+    const poolQuery = vi.fn().mockImplementation(() => ({
+      rows: [
+        {
+          id: 'id-1',
+          text: 'Paulo prefers tea',
+          hash: 'h-paulo-tea',
+          payload: {},
+          user_id: 'alice',
+          session_id: null,
+          agent_id: null,
+          attributed_to: 'paulo',
+          distance: 0.2,
+        },
+      ],
+    }));
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const results = await store.search([0.1, 0.2, 0.3], 5);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]!.payload['attributed_to']).toBe('paulo');
+  });
+
+  test('rowToResult: NULL attributed_to is NOT projected into payload', async () => {
+    const poolQuery = vi.fn().mockImplementation(() => ({
+      rows: [
+        {
+          id: 'id-1',
+          text: 'no attribution',
+          hash: 'h-no-attr',
+          payload: {},
+          user_id: 'alice',
+          session_id: null,
+          agent_id: null,
+          attributed_to: null,
+          distance: 0.2,
+        },
+      ],
+    }));
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const results = await store.search([0.1, 0.2, 0.3], 5);
+
+    expect(results).toHaveLength(1);
+    // attributed_to should NOT be in payload when NULL (backward compat — pre-v1.1 rows).
+    expect(results[0]!.payload['attributed_to']).toBeUndefined();
+  });
+});
+
 describe('PgvectorStore constructor — tracer still works via options-object (T0.2 / SEPA iter 2 M2)', () => {
   test('accepts new PgvectorStore(pool, { tracer }) — tracer moved into options object', () => {
     const { pool } = buildPool();

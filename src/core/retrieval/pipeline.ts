@@ -161,16 +161,25 @@ export async function runRetrievalPipeline(
 
   emitEvent(tracer, 'extraction_completed', { results: top.length });
 
-  return top.map((row) => ({
-    id: row.id,
-    text: String(row.payload['text'] ?? ''),
-    hash: String(row.payload['hash'] ?? row.id),
-    scope,
-    createdAt: now,
-    updatedAt: now,
-    metadata: { ...row.payload },
-    tValid: now,
-    tInvalid: null,
-    score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,
-  }));
+  return top.map((row) => {
+    // v1.1 T2.1: surface attributed_to from the row payload (rowToResult in
+    // pgvector-store projects the column into payload[attributed_to] when
+    // non-null). String coercion + undefined-when-absent preserves the
+    // DTO's optional contract.
+    const attributedToRaw = row.payload['attributed_to'];
+    const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+    return {
+      id: row.id,
+      text: String(row.payload['text'] ?? ''),
+      hash: String(row.payload['hash'] ?? row.id),
+      scope,
+      createdAt: now,
+      updatedAt: now,
+      metadata: { ...row.payload },
+      tValid: now,
+      tInvalid: null,
+      ...(attributedTo !== undefined ? { attributedTo } : {}),
+      score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,
+    };
+  });
 }
