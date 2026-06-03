@@ -1,0 +1,22 @@
+# Trivy CVE allowlist for @usetheo/memory standalone image.
+#
+# Format (mirror of .claude/rules/deps-audit-allowlist.txt):
+#   CVE-ID|REASON|SUNSET-DATE
+#
+# Sunset discipline per .claude/rules/deps-audit-golden-rule.md:
+#   - CRITICAL CVEs: sunset ≤ 30 days
+#   - HIGH CVEs:     sunset ≤ 60 days
+#   - MEDIUM CVEs:   sunset ≤ 90 days
+#
+# Lines beginning with `#` are comments (Trivy treats them as ignored).
+# Each non-comment line must be a bare CVE ID (the pipe-delimited fields
+# above are stripped before Trivy reads the file — see scripts hook in
+# the docker-publish workflow if/when the allowlist needs entries).
+#
+# At v0.1.0-alpha this file is intentionally EMPTY — no production CVE
+# has been allowlisted yet. New entries require a sunset date written
+# next to the CVE ID on the SAME line via a `# sunset: YYYY-MM-DD` trailing
+# comment for human review.
+#
+# @see Plan theo-memory-standalone-p0 § T3.3 + EC-43
+# @see .claude/rules/deps-audit-golden-rule.md § Severity rubric
