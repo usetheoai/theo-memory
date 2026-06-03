@@ -1,0 +1,194 @@
+agent: review-semantic-recall-cache-v1-5-domain-db-migrations
+review_target: develop / 6 commits since main (4332382, 1b275c3, d1664ec, 8e3f815, b0778db, 05a0321) for plan semantic-recall-cache-v1-5 v1.1
+domain: db-migrations
+domain_specific_patterns_checked:
+  - Idempotency via CREATE TABLE/INDEX IF NOT EXISTS (architecture.md § 10.2 orphan-schema mitigation)
+  - Drizzle journal append-only discipline (idx monotonic; no mutation of prior entries)
+  - Drizzle snapshot generation matches SQL (column types, indexes, partial-where, no FK)
+  - Parametric embedding dim (vector(N) substitution path + applyDimChange cascade)
+  - postbuild:copy-migrations chain (src/local/migrations/** → dist/local/migrations/**)
+  - Schema↔SQL parity sentinel (information_schema column types + atttypmod probe)
+  - FK-absence rationale documented (cache rows independent of memories per blueprint § 3)
+  - HNSW partial index + B-tree perf indexes per blueprint § 3 + ADR D7
+  - architecture.md § 10.3 trigger-bearing migration helper (N/A — 0010 has no triggers; verified)
+  - no-paper-names-in-code.md compliance (SQL comments cite plan/blueprint/DIP paths, not Mem0/Letta/embedchain)
+  - Inquebrável Rule 6 (CHANGELOG per commit; T0.2 entry verified at CHANGELOG.md:21)
+
+summary_pass:
+  - Migration SQL (`src/local/migrations/0010_recall_cache.sql`) is ANSI-clean, idempotent (`CREATE TABLE/INDEX IF NOT EXISTS`), and has zero paper-name violations. Comments cite plan T0.2 + blueprint § 3 + DIP path + ADR D7 + EC-15 + EC-2 + Inquebrável Rule 11 — fully traceable per no-paper-names-in-code.md § How to apply rule 2.
+  - FK-absence rationale is documented inline (lines 6-8) — "Independent table — does NOT FK back to memories; write-triggered `invalidateScope()` is the correctness gate" — matches blueprint § 3 design.
+  - `_journal.json` entry at idx=10 with tag `0010_recall_cache` is APPEND-ONLY; previous 10 entries (0000-0009) preserved byte-identical. `version: "7"` + `breakpoints: true` + `when: 1780518916892` follow the exact shape of 0001-0009 entries.
+  - `0010_snapshot.json` is structurally consistent with the SQL — `recall_cache` table at line 618 has all 8 columns matching SQL types (`serial`/`text`/`vector(1536)`/`jsonb`/`integer`/`timestamp with time zone`/`real`); 3 indexes match (HNSW with `vector_cosine_ops` opclass; B-tree on scope_key; partial B-tree on expires_at with correct `where` clause); `foreignKeys: {}` matches no-FK SQL.
+  - `src/local/schema.ts:295-319` `recallCache` Drizzle declaration mirrors the SQL byte-for-byte at the type level: `serial('id').primaryKey()` ↔ `serial PRIMARY KEY NOT NULL`; `text('scope_key').notNull()` ↔ `text NOT NULL`; `vector('query_embedding', { dimensions: MAX_EMBEDDING_DIM }).notNull()` ↔ `vector(1536) NOT NULL`; etc. Partial index `where(sql\`\${table.expiresAt} IS NOT NULL\`)` ↔ SQL `WHERE "recall_cache"."expires_at" IS NOT NULL`.
+  - Integration test `tests/integration/cache/migration-0010.test.ts` covers all 4 plan TDD ACs (T0.2-RED-1..4) — idempotent re-run via `count(*) FROM drizzle.__drizzle_migrations` invariant; HNSW + 2 B-tree indexes asserted via `pg_indexes` + regex; column-types parity via `information_schema.columns`; **atttypmod=1536 probe explicitly verifies the embedding dim sentinel** (the v1.1 T0.1 precedent that closed the F-dom-dbmig-1 class of bug). This is exactly the right test depth for the load-bearing risk.
+  - `postbuild:copy-migrations` script at `package.json:78` does `cpSync('src/local/migrations', 'dist/local/migrations', { recursive: true })` — `0010_recall_cache.sql` ships transitively. `package.json#files` includes the coarser `src/local/migrations/**` glob, verified by `tests/integration/publish-readiness.test.ts:46`.
+  - `applyDimChange()` cascade (T5.1) at `src/local/index.ts:1278-1323` correctly extends the dim-change atomic transaction to keep `recall_cache.query_embedding` aligned: DROP INDEX → DELETE rows → ALTER COLUMN TYPE → CREATE INDEX, all inside the SAME `BEGIN/COMMIT` envelope used for `memories` + `entities`. The 3 `recall_cache` ALTER paths are gated by `DO $$ IF EXISTS (information_schema.tables WHERE table_name='recall_cache') THEN ... END $$` blocks so a pre-v1.5 DB (no cache table) does NOT trip the cascade. DELETE-before-ALTER ordering is the right call (NOT NULL constraint + USING NULL would collide otherwise per the T0.3 precedent comment).
+  - DELETE-cache-rows-on-dim-change is the correct semantic — comments at lines 1296-1298 honestly state "Cache rows are stale once the embedder dim shifts (cosine across dimensions has no meaning). Safe to DELETE — cache is read-side memoization, not authoritative state." This is consistent with `recallCache` being a read-side memoization layer, not authoritative state — matches the blueprint § 3 "independent table" design.
+  - architecture.md § 10.2 orphan-schema collision mitigation honored: `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` pattern is the v1.1 EC-6 precedent (closed F-dom-dbmig-1 generation of bug). `drizzle-kit push` against a DB that already ran `runMigrations()` for 0010 is a no-op.
+  - architecture.md § 10.3 (CREATE TRIGGER/FUNCTION side-channel) is NOT applicable — 0010 contains zero triggers/functions; `scripts/apply-trigger-migrations.mjs` regex `\b(?:TRIGGER|FUNCTION)\b` finds zero matches in this file.
+  - Inquebrável Rule 6 honored — CHANGELOG.md:21 documents T0.2 with full prose covering table shape, indexes, EC-15 absorption, idempotency rationale, parity sentinel test count, schema declaration, journal generation, and Phase progression.
+  - Zero paper-name violations in any v1.5 artifact (`src/local/migrations/0010_recall_cache.sql`, `src/local/schema.ts:274-319` cache subsection, `src/local/recall-cache/*.ts`). The 2 hits in `schema.ts` for `letta` and `Mem0` are pre-existing v1.1 + v1.4 references, NOT introduced by this cycle.
+
+findings:
+  - id: F-dom-dbmig-1
+    severity: MINOR
+    file: src/local/migrations/0010_recall_cache.sql
+    line: 10-12, 38
+    plan_ref: plan v1.1 § T0.2 Deep Dives migration SQL block (lines 373-376 of plan) + ADR D7 v1.1 amendment + EC-15
+    domain_anchor: architecture.md § 10 (build pipeline + schema parity) + no-paper-names-in-code.md § How to apply (rules 1+3 — describe SHAPE, not inspiration)
+    summary: |
+      HNSW index comment (lines 10-12) claims "HNSW parameters `m=16, ef_construction=64` are pgvector v0.5.1 defaults",
+      but the actual CREATE INDEX statement at line 38 omits the `WITH (m = ..., ef_construction = ...)` clause entirely.
+      The plan v1.1 § T0.2 Deep Dives SQL block at lines 373-376 explicitly includes the `WITH (m = 16, ef_construction = 64)` clause.
+      The implementation chose to rely on pgvector v0.5.1's documented defaults (which ARE m=16, ef_construction=64 — factually correct), so the runtime index shape is IDENTICAL.
+      However: (a) deviation from plan template is not documented inline as "deferred to pgvector defaults"; (b) the `0010_snapshot.json` line 689 `"with": {}` reflects this — drizzle-kit generated the snapshot from the schema.ts declaration which also omits the params at line 311 (`index('recall_cache_scope_hnsw_idx').using('hnsw', table.queryEmbedding.op('vector_cosine_ops'))` has no `.with({...})`).
+      (c) the migration SQL test at `migration-0010.test.ts:96-98` only asserts `/hnsw/` + `/vector_cosine_ops/` regex — does NOT lock the m/ef_construction values. So a future pgvector release that changes defaults would silently shift index quality without any test signal.
+      Inquebrável Rule 3 (extreme honesty): the comment should either (a) match the SQL ("HNSW uses pgvector v0.5.1 defaults; m=16, ef_construction=64 at the version we ship against; tuning deferred per ADR D7 v1.1") or (b) the SQL should match the comment (add `WITH (m = 16, ef_construction = 64)` to lock the parameters explicitly).
+    evidence: |
+      Migration SQL line 38:
+        CREATE INDEX IF NOT EXISTS "recall_cache_scope_hnsw_idx" ON "recall_cache" USING hnsw ("query_embedding" vector_cosine_ops);--> statement-breakpoint
+
+      Migration SQL lines 10-12 (comment):
+        -- HNSW parameters `m=16, ef_construction=64` are pgvector v0.5.1 defaults
+        -- (EC-15 DOCUMENT absorption / ADR D7 v1.1 amendment) — tuning DEFERRED to
+        -- v1.5.x dogfood-evidence-driven adjustment per Inquebrável Rule 11 (YAGNI).
+
+      Plan v1.1 § T0.2 Deep Dives lines 373-376 (the contract the migration was supposed to implement):
+        CREATE INDEX IF NOT EXISTS recall_cache_scope_hnsw_idx ON recall_cache
+          USING hnsw (query_embedding vector_cosine_ops)
+          WITH (m = 16, ef_construction = 64);
+
+      Snapshot 0010_snapshot.json line 689 confirms the omission:
+        "method": "hnsw",
+        "with": {}
+    recommended_action: |
+      Pick ONE of the two paths (project-owner preference):
+      Path A — make SQL match plan literally + lock against future pgvector default drift:
+        Add `WITH (m = 16, ef_construction = 64)` to the CREATE INDEX in 0010_recall_cache.sql + add `.with({ m: 16, ef_construction: 64 })` to the schema.ts declaration + regenerate 0010_snapshot.json + tighten migration-0010.test.ts to assert m=16 + ef_construction=64 in pg_indexes.indexdef.
+      Path B — make comment match SQL (honest "defaults" framing):
+        Rewrite the comment to "Index uses pgvector v0.5.1 documented defaults (m=16, ef_construction=64 today); we DO NOT lock the parameters in SQL — future pgvector releases that change defaults will surface via the integration test if we tighten it. ADR D7 v1.1 records the deferral."
+      Then surface either choice in a follow-up CHANGELOG entry citing F-dom-dbmig-1.
+
+  - id: F-dom-dbmig-2
+    severity: MINOR
+    file: src/local/index.ts
+    line: 1335-1350
+    plan_ref: plan v1.1 § T5.1 applyDimChange cascade extension
+    domain_anchor: architecture.md § 8 (fail-fast at boundaries) + Inquebrável Rule 3 (extreme honesty)
+    summary: |
+      `applyDimChange()` post-ALTER canary at lines 1335-1350 verifies `c.relname IN ('memories', 'entities')` but does NOT include `'recall_cache'` in the canary set, even though `recall_cache.query_embedding` is ALTERed inside the same BEGIN/COMMIT transaction (lines 1307-1312).
+      The omission is defensible — PG guarantees both ALTERs succeed-or-fail atomically inside the same tx, so memories.atttypmod is a faithful proxy. However, the canary's own JSDoc at lines 1334 explicitly cites "the entities ALTER silently no-op'ing while memories ALTER succeeds" as a documented protected case. That documented protection does NOT extend to the `recall_cache.query_embedding` ALTER — which is wrapped in a `DO $$ IF EXISTS ... END $$` block that COULD silently no-op if the IF-EXISTS probe returns false for a transient PG catalog visibility reason inside the tx.
+      Low actual risk (the recall_cache existence check reads from the same in-tx catalog state where the table was visible at the start of the BEGIN), but the canary's coverage doesn't match the cascade's scope.
+    evidence: |
+      Canary query at lines 1336-1342:
+        const verify = await client.query<{ rel: string; dim: number }>(
+          `SELECT c.relname AS rel, a.atttypmod AS dim
+             FROM pg_attribute a
+             JOIN pg_class c ON c.oid = a.attrelid
+            WHERE c.relname IN ('memories', 'entities')           // <-- missing 'recall_cache'
+              AND a.attname = 'embedding'                         // <-- recall_cache column is 'query_embedding'
+              AND a.attisdropped = false
+            ORDER BY c.relname`,
+        );
+
+      ALTERed table at lines 1307-1312 (inside same BEGIN/COMMIT):
+        EXECUTE 'ALTER TABLE "recall_cache" ALTER COLUMN "query_embedding" TYPE vector(${String(targetDim)})';
+    recommended_action: |
+      Extend the canary query to UNION ALL the recall_cache.query_embedding probe (gated by IF EXISTS to handle pre-v1.5 DBs):
+        SELECT c.relname AS rel, a.atttypmod AS dim
+          FROM pg_attribute a
+          JOIN pg_class c ON c.oid = a.attrelid
+         WHERE (c.relname IN ('memories', 'entities') AND a.attname = 'embedding')
+            OR (c.relname = 'recall_cache' AND a.attname = 'query_embedding'
+                AND EXISTS (SELECT 1 FROM information_schema.tables
+                            WHERE table_schema = 'public' AND table_name = 'recall_cache'))
+           AND a.attisdropped = false
+         ORDER BY c.relname
+      Per-row assertion already handles the multi-rel case (line 1344-1350).
+      Defer if the project-owner reads the residual risk as acceptable (PG tx atomicity is strong); document the decision in a follow-up ADR D7 amendment.
+
+  - id: F-dom-dbmig-3
+    severity: MINOR
+    file: src/local/index.ts
+    line: 1284
+    plan_ref: plan v1.1 § T5.1 cascade extension (IF EXISTS guards)
+    domain_anchor: architecture.md § 7 (module hygiene — symmetric I/O patterns) + KISS
+    summary: |
+      The 3 recall_cache ALTER paths at lines 1299-1304 (DELETE), 1307-1312 (ALTER COLUMN), and 1318-1323 (CREATE INDEX) are wrapped in `DO $$ IF EXISTS (information_schema.tables WHERE ...) THEN ... END $$` blocks.
+      But the `DROP INDEX IF EXISTS recall_cache_scope_hnsw_idx` at line 1284 is NOT wrapped in the same guard — it executes UNCONDITIONALLY.
+      Functionally safe: `DROP INDEX IF EXISTS` is itself idempotent and tolerates a missing index regardless of whether the parent table exists (PG resolves the index name in pg_class; missing index → no-op).
+      However, asymmetric guarding makes the 4-step recall_cache cascade harder to read — the reader has to know PG's semantics to verify "DROP INDEX IF EXISTS without table-IF-EXISTS guard is safe" but "DELETE FROM table without table-IF-EXISTS guard is NOT safe".
+      Low priority — pure code hygiene; no runtime defect.
+    evidence: |
+      Line 1284 (UNCONDITIONAL):
+        await client.query('DROP INDEX IF EXISTS recall_cache_scope_hnsw_idx');
+
+      Lines 1299-1304 (DO $$ IF EXISTS guarded):
+        await client.query(`DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.tables
+                     WHERE table_schema = 'public' AND table_name = 'recall_cache') THEN
+            DELETE FROM recall_cache;
+          END IF;
+        END $$`);
+    recommended_action: |
+      Either: (a) wrap the DROP INDEX in the same DO $$ block for symmetry, OR (b) add a one-line comment at line 1283 noting "DROP INDEX IF EXISTS is itself safe regardless of parent-table existence; the DO $$ guards on lines 1299/1307/1318 are required because DELETE/ALTER are NOT safe against missing tables".
+
+  - id: F-dom-dbmig-4
+    severity: MINOR
+    file: tests/integration/cache/migration-0010.test.ts
+    line: 96-105
+    plan_ref: plan v1.1 § T0.2 TDD T0.2-RED-3 + EC-15 absorption
+    domain_anchor: testing.md (assert actual behavior with explicit values)
+    summary: |
+      The HNSW index assertion at lines 96-98 uses regex `/hnsw/` + `/vector_cosine_ops/` — verifies the index TYPE and opclass, but does NOT lock the `m` / `ef_construction` parameter values.
+      This pairs with F-dom-dbmig-1: even if a future pgvector release changes the m/ef_construction defaults from (16, 64) to e.g. (32, 128), the migration-0010.test.ts T0.2-RED-3 would still PASS — and the v1.5.0 hit-rate target (≥ 0.50) was empirically calibrated against the m=16/ef_construction=64 index shape. Silent regression possible.
+    evidence: |
+      Lines 96-98:
+        expect(byName.has('recall_cache_scope_hnsw_idx')).toBe(true);
+        expect(byName.get('recall_cache_scope_hnsw_idx')).toMatch(/hnsw/);
+        expect(byName.get('recall_cache_scope_hnsw_idx')).toMatch(/vector_cosine_ops/);
+    recommended_action: |
+      If F-dom-dbmig-1 Path A is chosen (add WITH clause to SQL), then also tighten this test to:
+        expect(byName.get('recall_cache_scope_hnsw_idx')).toMatch(/m\s*=\s*'?16'?/);
+        expect(byName.get('recall_cache_scope_hnsw_idx')).toMatch(/ef_construction\s*=\s*'?64'?/);
+      (pg_indexes.indexdef formats WITH params as `WITH (m='16', ef_construction='64')` — the regex tolerates quoting variants.)
+      If F-dom-dbmig-1 Path B is chosen (keep relying on defaults), then add a comment to the test acknowledging the silent-regression risk and citing ADR D7 v1.1 as the deferred-tuning anchor.
+
+  - id: F-dom-dbmig-5
+    severity: MINOR
+    file: .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md
+    line: agent brief description re EC-52
+    plan_ref: plan v1.1 § T0.2 Acceptance Criteria — "Pass: postbuild — dist/local/migrations/0010_recall_cache.sql exists per architecture.md § 10.1"
+    domain_anchor: Inquebrável Rule 3 (extreme honesty) + the agent brief states "verified by EC-52 in tests/integration/subpath-isolation.test.ts"
+    summary: |
+      The review agent brief asserts: "postbuild:copy-migrations chain: dist/local/migrations/0010_recall_cache.sql ships in npm-pack (verified by EC-52 in tests/integration/subpath-isolation.test.ts)".
+      Reality: subpath-isolation.test.ts at lines 144-176 asserts that `npm pack --dry-run` SHIPS `src/local/recall-cache/index.ts` + `pgvector-recall-cache-store.ts` + `recall-cache-metrics.ts` — those are the v1.5 CACHE TS modules, NOT the 0010 SQL migration. The brief overstates EC-52's scope.
+      The 0010 SQL migration DOES ship — via `package.json#files` declaring the coarser `src/local/migrations/**` glob, verified at a generic level by `tests/integration/publish-readiness.test.ts:46` (`expect(files).toContain('src/local/migrations/**')`). So the artifact IS in the published bundle, just not via the EC-52-specific test the brief claims.
+      No correctness defect; pure traceability accuracy concern. Future reviewers reading the brief and tracing "EC-52 covers 0010 ships" will not find the assertion they expect.
+    evidence: |
+      tests/integration/subpath-isolation.test.ts lines 158-175 (the EC-52 block):
+        test('pack contains src/local/recall-cache/index.ts', ...)
+        test('pack contains src/local/recall-cache/pgvector-recall-cache-store.ts', ...)
+        test('pack contains src/local/recall-cache/recall-cache-metrics.ts', ...)
+        test('pack EXCLUDES src/local/recall-cache/__tests__/**', ...)
+
+      tests/integration/publish-readiness.test.ts:46 (the actual coarse 0010 coverage):
+        expect(files).toContain('src/local/migrations/**');
+    recommended_action: |
+      Either: (a) extend the EC-52 block in subpath-isolation.test.ts to add an explicit `test('pack contains src/local/migrations/0010_recall_cache.sql', ...)` so the brief's claim becomes literal; OR (b) update the brief / plan AC bullet to cite `publish-readiness.test.ts` as the actual gate, not EC-52. Option (a) is the smaller diff and makes the published-artifact contract more explicit.
+
+quality_pass_summary:
+  shape_concerns: 5 MINOR findings — F-dom-dbmig-1 (HNSW WITH params plan/SQL drift), F-dom-dbmig-2 (post-ALTER canary doesn't cover recall_cache), F-dom-dbmig-3 (asymmetric IF EXISTS guards), F-dom-dbmig-4 (test doesn't lock HNSW m/ef_construction), F-dom-dbmig-5 (agent brief overstates EC-52 scope).
+  blocker: false
+  critical: false
+  major: false
+  load_bearing_invariants_holding:
+    - Idempotent migration (CREATE TABLE/INDEX IF NOT EXISTS) — verified empirically in T0.2-RED-2.
+    - Journal append-only — idx=10 monotonic; prior 10 entries unchanged.
+    - Schema↔SQL parity — verified by atttypmod=1536 probe in T0.2-RED-4.
+    - No FK back to memories — matches blueprint § 3 design + comment lines 6-8.
+    - applyDimChange atomic cascade — recall_cache participates in BEGIN/COMMIT with memories+entities; IF EXISTS guards handle pre-v1.5 DBs.
+    - postbuild ship — package.json files glob covers src/local/migrations/**.
+    - Inquebrável Rule 6 — CHANGELOG.md:21 documents T0.2 with full prose.
+    - no-paper-names-in-code.md compliance — zero violations in v1.5 db-migration surfaces (recall-cache code, migration SQL, schema cache subsection).
+  verdict: READY_TO_MERGE — all 5 findings are MINOR shape/hygiene issues; none are runtime-defect blockers. The core migration + schema + cascade + tests are SHIPPABLE as-is. Recommend addressing F-dom-dbmig-1 (HNSW WITH clause drift) in a follow-up commit since it is the most user-visible — but it is NOT a merge-blocker.

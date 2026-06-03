@@ -1,0 +1,275 @@
+agent: review-semantic-recall-cache-v1-5-wiring
+review_target: main..HEAD for plan semantic-recall-cache-v1-5
+plan: .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md
+commits_in_scope:
+  - 4332382 feat(core): T0.1 — declare 13th DIP RecallCacheStore + InvalidCacheConfig
+  - 1b275c3 feat(local): T0.2 — migration 0010 recall_cache + recallCache schema declaration
+  - d1664ec feat(local): T1.1+T1.2 — PgvectorRecallCacheStore + LRU eviction (SERIALIZABLE tx)
+  - 8e3f815 feat(local): T2.1+T2.2 — recallCache factory wiring + write-trigger invalidation
+  - b0778db feat(local): T2.3+T3.1+T4.1 — stub warning + OTel metrics + cache-pg subpath
+  - 05a0321 feat(cache): T5.1+T5.2 — THE GOAL TEST hit rate 6/10 = 0.60 + docs
+
+triad_revalidation:
+  total_new_public_exports: 16
+  by_symbol:
+    # === src/core/dip/recall-cache-store.ts (DIP types) ===
+    RecallCacheStore:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/index.ts:170 (LocalMemoryConfig.recallCache option type)
+        - src/local/index.ts:336 (resolveCacheTtl parameter type)
+        - src/local/index.ts:407 (resolveRecallCacheStore return type)
+        - src/local/index.ts:494 (LocalScopedMemory.recallCacheStore field type)
+        - src/local/index.ts:809 (LocalMemory.recallCacheStore field type)
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:48 (PgvectorRecallCacheStore implements)
+      pillar_b_integration_test: PASS via tests/integration/cache/factory-wiring.test.ts (T2.1+T2.2 hit/miss/invalidation against real pg)
+      pillar_c_metric: n/a (interface type — no runtime instrument)
+      honest_assessment: HONEST PASS — used as type contract at 6 distinct sites; integration test exercises the contract methods end-to-end.
+    RecallCacheStoreConfig:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/index.ts:170 (LocalMemoryConfig.recallCache option type)
+        - src/local/index.ts:336 (resolveCacheTtl parameter type)
+        - src/local/index.ts:408 (resolveRecallCacheStore config parameter)
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:49+129 (PgvectorRecallCacheStore constructor)
+        - src/core/dip/recall-cache-store.ts:188 (validateRecallCacheStoreConfig parameter)
+      pillar_b_integration_test: PASS via tests/integration/cache/factory-wiring.test.ts:69-105 (POJO config path drives real factory)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — config shape used at the public option site + validator + store constructor; threshold/maxSize/ttl all exercised by unit + integration tests.
+    ScopeTierTtlConfig:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/core/dip/recall-cache-store.ts:92 (RecallCacheStoreConfig.ttlSecondsByScopeTier field)
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:50+109+123 (constructor type + ScopeTierKey alias)
+      pillar_b_integration_test: PASS via tests/integration/cache/semantic-recall-cache.test.ts:139 (`ttlSecondsByScopeTier: { user: 1, agent: 1, session: 1, repo: 1 }` exercises the 4-tier shape)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — 4-tier (incl. repo per ADR-0010 / EC-3) used at runtime in TTL-expiry regression smoke.
+    CachedResult:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/core/dip/recall-cache-store.ts:113 (RecallCacheStore.get return type)
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:47+144 (concrete impl return)
+        - src/local/__tests__/factory-recall-cache.test.ts:16+43+108 (FakeCache uses the shape; seed CachedResult drives RED-4 hit path)
+      pillar_b_integration_test: PASS via tests/integration/cache/cache-hit-miss.test.ts:88-99 (asserts hit returns `{results, cachedAt, similarity}` shape against real pgvector cosine)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — shape exercised at both the get() boundary and a HIT assertion.
+    validateRecallCacheStoreConfig:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/index.ts:417 (resolveRecallCacheStore: validates POJO BEFORE any DB call)
+        - src/local/recall-cache/index.ts:38 (re-export through cache-pg subpath barrel)
+      pillar_b_integration_test: PASS via tests/integration/cache/factory-wiring.test.ts:143-152 (T2.1-RED-2/5 threshold=1.5 throws InvalidCacheConfig)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — fail-fast validator wired AT the factory entry; integration covers happy-path POJO + invalid-threshold rejection + non-Pg-store rejection.
+    DEFAULT_THRESHOLD:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:132 (fallback when config.threshold absent)
+      pillar_b_integration_test: PASS via tests/integration/subpath-isolation.test.ts:141 (asserts mod.DEFAULT_THRESHOLD === 0.8 through the subpath barrel)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS.
+    DEFAULT_TTL_SECONDS_BY_SCOPE_TIER:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:133 (fallback when config.ttlSecondsByScopeTier absent)
+      pillar_b_integration_test: PASS via src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts:244 (`DEFAULT_TTL_SECONDS_BY_SCOPE_TIER.repo === 3600` covers the 4-tier shape including ADR-0010 repo tier)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — value-frozen object reaches the live default code path in T1.1 RED-2.
+    DEFAULT_MAX_SIZE_PER_SCOPE:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:134 (fallback when config.maxSizePerScope absent)
+      pillar_b_integration_test: PASS via tests/integration/cache/lru-eviction.test.ts (uses overridden maxSizePerScope=5 to keep test fast; unit assertion `DEFAULT_MAX_SIZE_PER_SCOPE === 1000` at pgvector-recall-cache-store.test.ts:243)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS.
+    InvalidCacheConfig:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/core/dip/recall-cache-store.ts:191/194/199/209 (4 throw sites inside validator)
+        - src/local/index.ts:419+433 (factory: non-PgvectorStore + dim-mismatch throw sites)
+      pillar_b_integration_test: PASS via tests/integration/cache/factory-wiring.test.ts:154-170 (T2.1-RED-6 mismatch dim throws; T2.1-RED-2/5 invalid-threshold throws)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — typed error fires at FOUR distinct fail-fast boundaries.
+
+    # === src/local/recall-cache/pgvector-recall-cache-store.ts ===
+    PgvectorRecallCacheStore:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/index.ts:441-444 (dynamic-import + new instance inside resolveRecallCacheStore — EC-26 bundle isolation)
+        - src/local/recall-cache/index.ts:18 (cache-pg subpath barrel export)
+      pillar_b_integration_test: PASS via tests/integration/cache/cache-hit-miss.test.ts (T1.1 RED-1..10 against real pgvector) + tests/integration/cache/lru-eviction.test.ts (T1.2 RED-1..4) + tests/integration/cache/factory-wiring.test.ts (end-to-end through createLocalMemory)
+      pillar_c_metric: PASS — observed live in tests/integration/cache/otel-metrics-observed.test.ts:122-146 (`theo.memory.recall_cache.hit` Counter + `hit.duration_ms` Histogram fire on HIT)
+      honest_assessment: HONEST PASS — dynamic-import call site is functionally necessary (gated behind resolveRecallCacheStore opt-in); no static graph leak verified by tests/integration/subpath-isolation.test.ts:125-132.
+    PgvectorRecallCacheStoreOptions:
+      pillar_a_static_caller: PASS_WITH_CAVEAT
+      pillar_a_callers:
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:130 (constructor third parameter — used to carry embedderKind)
+        - src/local/recall-cache/index.ts:19 (re-export through subpath barrel)
+      pillar_b_integration_test: INDIRECT — value-shape exercised via src/local/index.ts:442-444 (factory passes `{ embedderKind: config.embedder.constructor.name }`); the resulting label appears in tests/integration/cache/otel-metrics-observed.test.ts:141 (`attributes['embedder_kind']` is defined)
+      pillar_c_metric: n/a
+      honest_assessment: HONEST PASS — used at the only construction site; passing through to OTel attributes is verified.
+
+    # === src/local/recall-cache/recall-cache-metrics.ts (OTel instruments) ===
+    getRecallCacheHitCounter:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:163 (HIT path counter.add(1, attrs))
+        - src/local/recall-cache/index.ts:22 (cache-pg subpath re-export for dashboards/consumers)
+      pillar_b_integration_test: PASS via tests/integration/cache/otel-metrics-observed.test.ts:137-141 (asserts Counter.add fires with `scope_tier='user'` + `embedder_kind` attributes)
+      pillar_c_metric: PASS — recorded in capturing MeterProvider as `theo.memory.recall_cache.hit` value=1 with attrs
+      honest_assessment: HONEST PASS.
+    getRecallCacheHitDurationHistogram:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/recall-cache/pgvector-recall-cache-store.ts:164 (HIT path histogram.record(elapsed))
+        - src/local/recall-cache/index.ts:23 (cache-pg subpath re-export)
+      pillar_b_integration_test: PASS via tests/integration/cache/otel-metrics-observed.test.ts:143-145 (HIT path histogram observed)
+      pillar_c_metric: PASS — recorded with elapsed wall-clock ms
+      honest_assessment: HONEST PASS.
+    getRecallCacheMissDurationHistogram:
+      pillar_a_static_caller: PASS
+      pillar_a_callers:
+        - src/local/index.ts:606-610 (dynamic-import + record at MISS wrap site inside LocalScopedMemory.recall, EC-26 bundle isolation)
+        - src/local/recall-cache/index.ts:24 (cache-pg subpath re-export)
+      pillar_b_integration_test: PASS via tests/integration/cache/otel-metrics-observed.test.ts:158-164 (MISS path histogram fires + Counter does NOT)
+      pillar_c_metric: PASS — recorded with elapsed wall-clock ms; counter NOT incremented on MISS (hit-rate = count(hits) / (count(hits) + count(miss-histo-emissions)))
+      honest_assessment: HONEST PASS — dynamic import respects bundle-isolation invariant.
+
+  pillar_a_honest_pass: 16 / 16
+  pillar_b_honest_pass: 16 / 16
+  pillar_c_observed: 3 / 3 (all three instruments observed in T3.1 + T5.1)
+
+reachability_analysis:
+  entry_points_traced:
+    - createMemory / createLocalMemory (src/local/index.ts:1054 — public factory)
+    - Memory.user/session/agent (src/local/index.ts:812-846 — scope sub-objects)
+    - ScopedMemory.recall (src/local/index.ts:560-612 — cache get/set wrap)
+    - ScopedMemory.remember (src/local/index.ts:497-558 — invalidateScope hook)
+    - ScopedMemory.reflect (src/local/index.ts:614-779 — invalidateScope hook at line 761-768)
+    - LocalMemory.forget (src/local/index.ts:882-930 — invalidateScope hook with deriveScopeFromPayload)
+    - runMigrations applyDimChange cascade (src/local/index.ts:1278+1302+1310+1320 — recall_cache DROP INDEX + DELETE + ALTER + RECREATE INDEX inside BEGIN/COMMIT)
+  reachable: all 16 new public exports
+  unreachable: none
+  dead_export_candidates: none
+
+integration_test_coverage:
+  cache_factory_path: PASS via tests/integration/cache/factory-wiring.test.ts (T2.1+T2.2 end-to-end)
+  cache_dip_path: PASS via tests/integration/cache/cache-hit-miss.test.ts (T1.1 RED-1..10 covering MISS/HIT/threshold/TTL/invalidate/clearExpired/zero-norm)
+  lru_eviction_path: PASS via tests/integration/cache/lru-eviction.test.ts (T1.2 RED-1..4 covering cap behavior, scope isolation, EC-7 concurrent SERIALIZABLE)
+  migration_path: PASS via tests/integration/cache/migration-0010.test.ts (T0.2 RED-1..4 idempotency + indexes + schema-parity sentinel)
+  otel_observability: PASS via tests/integration/cache/otel-metrics-observed.test.ts (T3.1 RED-2..4 all 3 instruments + label shape)
+  subpath_isolation: PASS via tests/integration/subpath-isolation.test.ts (T4.1 verifies default barrel does NOT reach pgvector-recall-cache-store.ts + smoke-imports cache-pg barrel + npm pack manifest)
+  goal_test: PASS via tests/integration/cache/semantic-recall-cache.test.ts (T5.1 hit rate 6/10 = 0.60 against real LocalTransformerEmbedder + ankane/pgvector:v0.5.1)
+  remember_side_invalidation: PASS via tests/integration/cache/factory-wiring.test.ts:107-134 (T2.2 Item 19 AC#3) + semantic-recall-cache.test.ts:110-131 (regression smoke)
+  forget_side_invalidation: GAP — see F-wire-1
+  reflect_side_invalidation: GAP — see F-wire-2
+  applyDimChange_cache_cascade: INDIRECT_ONLY — see F-wire-3
+
+boundary_respect_dip:
+  src_core_imports_check: PASS — src/core/dip/recall-cache-store.ts imports only from ../errors.js, ../memory-item.js, ../scope.js (all within src/core/)
+  src_local_recall_cache_imports_check: PASS — only ../../core/* + intra-folder ./* + pg + @opentelemetry/api
+  cross_runtime_isolation: PASS — no src/cloud/, src/theokit/, or src/agent-tools/ references from recall-cache files
+
+concurrent_safety:
+  set_path: PASS — withSerializableTransactionAndRetry wraps COUNT + DELETE + INSERT in BEGIN ISOLATION LEVEL SERIALIZABLE; retries once on 40001; verified by tests/integration/cache/lru-eviction.test.ts:117-135 (T1.2-RED-4 Promise.all of 3 concurrent set()s on a full scope lands at exact cap)
+  invalidateScope_path: PASS — single-statement DELETE; atomic by definition
+  get_path: PASS — single-statement SELECT; idempotent and side-effect-free per docstring "PURE READ"
+  clearExpired_path: PASS — single-statement DELETE
+  applyDimChange_cache_cascade: PASS — DROP INDEX + DELETE + ALTER + CREATE INDEX wrapped in the existing BEGIN/COMMIT block at src/local/index.ts:1275-1351; rollback path at 1356-1364 preserves schema atomically
+
+dead_export_audit:
+  audited: 16 new public exports + Drizzle `recallCache` table object
+  dead: none
+  notes:
+    - The `recallCache` Drizzle table export (src/local/schema.ts:295) is NOT statically imported by name anywhere in src/, BUT it IS reached transitively by tests/integration/schema-snapshot-parity.test.ts:56 via `Object.keys(schema)` enumeration (F-C3 sentinel) — alive for the parity contract.
+    - The `cache-pg` subpath barrel (src/local/recall-cache/index.ts) is exercised by the smoke import at tests/integration/subpath-isolation.test.ts:135-142 and registered at package.json#exports."./cache-pg" — alive for the consumer-facing escape hatch even though no first-party caller (src/) uses the subpath path yet. This is the intended v1.5.0 shape (factory POJO path is the primary surface).
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    pillar: b
+    file: src/local/index.ts
+    line: 882-930
+    plan_ref: T2.2 / Item 19 AC#3 / EC-10 — LocalMemory.forget() write-trigger invalidation hook
+    summary: forget()-side cache invalidation hook is wired but lacks end-to-end integration coverage against real pgvector
+    evidence: |
+      LocalMemory.forget() at src/local/index.ts:922-929 calls `this.recallCacheStore.invalidateScope(scopeFromMemory)` post-delete, with deriveScopeFromPayload(existing.payload) feeding the scope.
+      Unit coverage exists in src/local/__tests__/factory-recall-cache.test.ts:166-181 via the FakeCache double — but the path only verifies the call shape, NOT that:
+        (a) deriveScopeFromPayload correctly extracts a tier from a REAL persisted memory row (the FakeCache test uses InMemoryVectorStore which never persists payloads through the same pipeline as PgvectorStore);
+        (b) the scope-key derivation matches what PgvectorRecallCacheStore expects after a real remember → forget round-trip;
+        (c) targeted invalidation actually removes the right rows from real recall_cache (vs the remember-side which IS covered by T2.2 integration test).
+      The plan's Acceptance Criteria for T2.2 list "remember/forget/reflect hooks invalidate" — but the integration suite at tests/integration/cache/* only covers remember-side (factory-wiring.test.ts:107-134). No tests/integration/cache/forget-invalidation.test.ts exists.
+      Risk: an EC-10 regression (e.g., deriveScopeFromPayload returns undefined for a payload shape we did not anticipate) would silently leave stale cache rows after forget(), violating Item 19 AC#3 in production while unit tests stay green.
+    recommended_action: Add an integration test at tests/integration/cache/forget-invalidation.test.ts that exercises (1) remember → recall (populate cache) → forget(memoryId) → recall (must MISS / fresh data); (2) verify the recall_cache row for the scope is gone via raw `SELECT count(*) FROM recall_cache WHERE scope_key = ...`. Mirror the T2.2 factory-wiring pattern.
+  - id: F-wire-2
+    severity: MAJOR
+    pillar: b
+    file: src/local/index.ts
+    line: 756-768
+    plan_ref: T2.2 / EC-6 — LocalScopedMemory.reflect() write-trigger invalidation hook (post-persisted derived memories)
+    summary: reflect()-side cache invalidation hook is wired but has ZERO test coverage — neither unit nor integration
+    evidence: |
+      LocalScopedMemory.reflect() at src/local/index.ts:761-768 calls `this.recallCacheStore.invalidateScope(this.scope)` when `persisted.length > 0`. The hook is gated by `persisted.length > 0` to avoid wasted DELETE calls when reflection yielded zero derived rows.
+      Grep across the repo confirms ZERO tests exercise this path:
+        $ grep -rn "reflect.*invalidateScope" tests/ src/local/__tests__/factory-recall-cache.test.ts → 0 matches
+      Unit test factory-recall-cache.test.ts at T2.2 covers ONLY the remember-side hook (line 167-181) — there is no T2.2-RED-2-reflect, no T2.2-RED-3-forget. The integration suite at tests/integration/cache/* contains no reflect-cache test.
+      Risk: a regression in reflect() that drops the cache-invalidation hook (e.g., refactor that moves the hook out of the try-block, OR that changes the `persisted.length > 0` gate) would not be caught. Reflect() produces semantically NEW memories that should invalidate the cached recall result for that scope (EC-6 absorption); silent staleness here would surface only as a hard-to-diagnose recall-quality regression.
+    recommended_action: Add (1) a unit test in src/local/__tests__/factory-recall-cache.test.ts under "T2.2 — write-trigger cache invalidation hooks" that uses FakeCache + a stub reflection policy that returns ≥1 derived memory, asserts FakeCache.invalidateCalls includes the scope; (2) an integration test exercising `memory.user('alice').recall(...)` → populate → `memory.user('alice').reflect()` → assert `SELECT count(*) FROM recall_cache WHERE scope_key='user:alice' = 0`.
+  - id: F-wire-3
+    severity: MINOR
+    pillar: b
+    file: src/local/index.ts
+    line: 1278-1322
+    plan_ref: T5.1 — applyDimChange cascade to recall_cache (DROP INDEX + DELETE + ALTER + RECREATE INDEX inside BEGIN/COMMIT)
+    summary: applyDimChange cache cascade is exercised only INDIRECTLY by T5.1 GOAL TEST; tests/integration/migrations/dim-change.test.ts does not specifically assert the recall_cache cascade
+    evidence: |
+      The dim-change cascade for recall_cache was extended in src/local/index.ts at lines 1278 (DROP INDEX), 1299-1304 (DELETE FROM with IF EXISTS guard), 1307-1312 (ALTER COLUMN TYPE with IF EXISTS guard), 1318-1323 (CREATE INDEX with IF EXISTS guard), inside the existing BEGIN/COMMIT block (lines 1275/1351).
+      Coverage today:
+        - tests/integration/migrations/dim-change.test.ts (10 test cases) has ZERO grep hits for "recall_cache" — only memories + entities are verified at post-ALTER canary;
+        - tests/integration/cache/semantic-recall-cache.test.ts:90 calls `runMigrations(pool, { embeddingDim: 384 })` AS A PRECONDITION for the goal test, meaning the cascade IS executed at integration time and must succeed for T5.1 to pass — but the test does not specifically assert that recall_cache.query_embedding atttypmod === 384 post-migration, nor does it assert the IF EXISTS guards behave correctly on a pre-v1.5 DB (table missing) vs a post-v1.5 DB (table present).
+      Risk: a future edit to applyDimChange that breaks the recall_cache cascade (e.g., omits the IF EXISTS guard so pre-v1.5 DBs fail) would surface as a T5.1 test failure (good) BUT NOT as a focused dim-change.test.ts failure. The test failure would point to "T5.1 timed out / first recall failed" rather than "ALTER recall_cache failed", making root cause less obvious.
+    recommended_action: Add 2 test cases to tests/integration/migrations/dim-change.test.ts: (1) `recall_cache cascade: post-ALTER atttypmod of query_embedding === targetDim`; (2) `recall_cache cascade idempotent on pre-v1.5 DB (table absent): IF EXISTS guard skips DELETE/ALTER without raising`. Both should sit alongside the existing `post-ALTER canary: both memories AND entities columns verified at target dim inside the transaction` case (line 317).
+  - id: F-wire-4
+    severity: MINOR
+    pillar: a
+    file: src/local/recall-cache/index.ts
+    line: 17-39
+    plan_ref: T4.1 — `@usetheo/memory/cache-pg` subpath barrel (consumer-facing escape hatch)
+    summary: cache-pg subpath barrel exports surface PgvectorRecallCacheStoreOptions + 3 metric resolvers BUT no first-party src/ caller imports through the subpath; consumer-facing utility unverified end-to-end
+    evidence: |
+      The subpath @usetheo/memory/cache-pg is registered at package.json#exports."./cache-pg" → ./src/local/recall-cache/index.ts. Verified.
+      The barrel re-exports: PgvectorRecallCacheStore (used internally via dynamic import only), 3 metric resolvers (used internally via direct import + dynamic import), 4 DIP types (mirrored from @usetheo/memory/contract), and 4 defaults+validator.
+      `grep -rn "from '@usetheo/memory/cache-pg'" src/ tests/ examples/` returns ZERO matches today.
+      `tests/integration/subpath-isolation.test.ts:134-142` does smoke-import `../../src/local/recall-cache/index.js` (the relative path, NOT the subpath) and asserts the 5 known symbols + DEFAULT_THRESHOLD === 0.8 — this validates that the BARREL FILE is loadable, but does NOT validate that the subpath RESOLVES from a consumer's package.json perspective (a published-package smoke).
+      This is consistent with the cycle's positioning (consumers building custom wiring would use the subpath; v1.5.0 ships the primary surface as the factory POJO path). The risk is low — but a future package.json#exports tweak that breaks the subpath path resolution would not be caught.
+    recommended_action: Add a tiny test at tests/integration/publish-readiness.test.ts (or sibling) that, on a `npm pack --dry-run`, asserts the cache-pg subpath entry resolves to src/local/recall-cache/index.ts and that the entry resolves through Node's package exports algorithm. This is a one-liner via require.resolve in a CJS sandbox OR a Node loader smoke. Optional — accept as deferred if v1.5.x ships a real consumer of the subpath that would smoke-test the resolution path organically.
+  - id: F-wire-5
+    severity: MINOR
+    pillar: b
+    file: src/local/index.ts
+    line: 311-326
+    plan_ref: T2.2 / EC-10 — deriveScopeFromPayload helper for forget()-side targeted invalidation
+    summary: deriveScopeFromPayload returns undefined for the "no recognizable tier" case, but no test exercises this fallback path
+    evidence: |
+      deriveScopeFromPayload at src/local/index.ts:311-326 returns undefined when payload lacks user_id / session_id / agent_id. The caller at line 922 then short-circuits the invalidateScope call (`scopeFromMemory !== undefined` gate) — cache continues serving stale results bounded by TTL.
+      grep across tests confirms ZERO tests exercise (a) deriveScopeFromPayload directly, or (b) the forget-path branch where scopeFromMemory === undefined.
+      Risk: malformed or pre-v0.1 payloads silently bypass invalidation. The docstring at line 308-310 says "When the row is too old or malformed to carry a recognizable tier, return `undefined` so the caller can no-op" — but if the regex/field names ever drift (e.g., scope persisted under "user-id" instead of "user_id"), every modern row would silently fall through to the undefined branch and the cache would never be invalidated on forget.
+    recommended_action: Add unit test cases (no DB needed): (a) `deriveScopeFromPayload({ user_id: 'alice' })` → `{ kind: 'user', userId: 'alice' }`; (b) `deriveScopeFromPayload({ session_id: 's1', user_id: 'alice' })` → `{ kind: 'session', sessionId: 's1' }` (specificity ordering); (c) `deriveScopeFromPayload({})` → undefined; (d) `deriveScopeFromPayload({ user_id: '' })` → undefined (empty string guard). The helper is currently un-exported — also consider exporting it from src/local/index.ts OR moving it to a sibling file so the test can import it without touching the public surface.
+
+summary:
+  total_findings: 5
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 2
+    MINOR: 3
+    INFO: 0
+  pillars_summary:
+    pillar_a_static_caller: 16/16 honest PASS — every new public export has a functionally necessary caller (no no-op gaming, no dead branches). The two dynamic-import sites (pgvector-recall-cache-store via resolveRecallCacheStore + recall-cache-metrics via miss-path wrap) are gated by the recallCache opt-in config — verified necessary for EC-26 bundle isolation per blueprint Rec #3.
+    pillar_b_integration_test: 13/16 fully covered; 2 MAJOR gaps (F-wire-1 forget-side, F-wire-2 reflect-side) where the hook is wired but uncovered end-to-end against real pg; 1 MINOR gap (F-wire-3) where the applyDimChange cache cascade is exercised only indirectly via T5.1 preconditions.
+    pillar_c_runtime_metric: 3/3 instruments observed live — `theo.memory.recall_cache.hit` Counter (T3.1 + T5.1), `theo.memory.recall_cache.hit.duration_ms` Histogram (T3.1), `theo.memory.recall_cache.miss.duration_ms` Histogram (T3.1 + T5.1). Capturing MeterProvider verifies emissions with the correct (scope_tier, embedder_kind) label shape.
+  integration_with_existing_flows: PASS — recall-cache participates cleanly in the recall-wrap path (LocalScopedMemory.recall), the post-remember hook, the post-forget hook, the post-reflect hook, AND the applyDimChange cascade. No orphan modules. No reachability gaps.
+  bundle_isolation_invariant: PASS — verified at tests/integration/subpath-isolation.test.ts:125-132 that src/index.ts → walk → does NOT reach src/local/recall-cache/pgvector-recall-cache-store.ts. The two dynamic-import sites in src/local/index.ts are the only reachability paths; both are gated by the recallCache opt-in config.
+  boundary_dip: PASS — src/core/dip/recall-cache-store.ts has zero cross-tier imports; src/local/recall-cache/* only depends on ../../core/* + intra-folder + pg + @opentelemetry/api.
+  concurrent_safety: PASS — SERIALIZABLE+retry in set() empirically verified by T1.2 RED-4 (Promise.all of 3 concurrent set()s on full scope lands exactly at cap, no over-delete, no over-insert).
+  verdict: READY_TO_MERGE_WITH_CAVEATS — the wiring triad is honest and deep across all three pillars; 2 MAJOR + 3 MINOR are test-coverage gaps for hook paths that ARE wired correctly in source but rely on unit-double coverage rather than integration depth. None of the gaps block merge; all should be absorbed in a follow-up cycle before v1.5.x dogfood evidence is collected (per CLAUDE.md project-level auditability principle).

@@ -1,0 +1,425 @@
+agent: review-semantic-recall-cache-v1-5-domain-pgvector-schema
+review_target: main..HEAD for plan semantic-recall-cache-v1-5
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - migration_0010_idempotency_create_if_not_exists
+  - three_index_layout_hnsw_btree_partial_btree
+  - hnsw_parameters_m_16_ef_construction_64
+  - cosine_similarity_sql_formula_1_minus_distance
+  - order_by_distance_ascending
+  - pg_nan_semantics_for_float_comparison_ec8
+  - pgvector_atttypmod_dim_encoding_identity_v0_5_1
+  - parametric_dim_cascade_in_apply_dim_change
+  - alter_column_with_not_null_constraint_via_delete_first
+  - serializable_transaction_with_40001_retry_for_lru
+  - schema_ts_to_migration_sql_parity_sentinel
+  - drizzle_journal_idx_10_entry_shape
+  - recall_cache_no_fk_to_memories_write_triggered_invalidation
+  - hit_count_column_lifecycle
+  - unique_constraint_absence_on_scope_key_query_embedding
+
+findings:
+  - id: F-dom-pgvector-1
+    severity: MAJOR
+    file: src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: 63-76
+    plan_ref: EC-8 absorption (T1.1 zero-norm-embedding NaN cosine handling)
+    domain_anchor: PostgreSQL float docs § 8.1.4 ("NaN is treated as equal to itself and greater than all non-NaN values") + the file-level JSDoc at lines 22-27 of the same file
+    summary: |
+      Internal contradiction between the SQL constant docstring (lines 65-68 / 70-76 GET_SQL block)
+      and the file-level JSDoc (lines 22-27). Lines 65-68 still carry the PRE-absorption claim
+      that "(1 - NaN) >= 0.8 evaluates false, so zero-norm rows are excluded naturally without
+      an explicit guard." This contradicts the file-level JSDoc + the in-`get()` `isZeroNorm()`
+      guard which EXPLICITLY corrected the claim to "PG NaN > all values per PG docs § 8.1.4 —
+      SQL `>=` filter does NOT exclude NaN rows; it INCLUDES them; application-level guard required."
+      Same is true for the docstring fragment "Cosine similarity = `1 - (a <=> b)` ... NaN filtering
+      (EC-8): ... zero-norm rows are excluded naturally without an explicit guard" — directly false
+      per the corrected understanding. A future reader removing the `isZeroNorm()` short-circuit
+      "because the SQL already filters NaN" would silently reintroduce the EC-8 cache-poisoning bug.
+    evidence: |
+      File lines 22-27 (file-level JSDoc — CORRECT):
+        > "PostgreSQL float comparisons treat NaN as greater-than all non-NaN values
+        > (per `numeric.h` + docs § 8.1.4) — so the SQL filter `(1 - distance) >= threshold`
+        > does NOT exclude NaN rows; it INCLUDES them. The plan's original claim
+        > (mirror IEEE 754 short-circuit) was wrong for PG."
+      File lines 65-68 (SQL constant comment — STALE / WRONG):
+        > "NaN filtering (EC-8): when query_embedding has zero norm, distance is NaN
+        > and `(1 - NaN) >= 0.8` evaluates false, so zero-norm rows are excluded
+        > naturally without an explicit guard."
+      And the EC-8 absorption text in plan v1.1 line 515 + edge-cases report line 111
+      both also carry the SAME pre-absorption (wrong-for-PG) claim. The plan-side text is
+      load-bearing for the test name `T1.1-RED-9 (EC-8)` whose assertion (`get` returns
+      undefined for zero-norm) is correct for the wrong reason in the plan but correct for
+      the right reason in the code.
+    recommended_action: |
+      (a) Update lines 65-68 of pgvector-recall-cache-store.ts to match the file-level
+          JSDoc — explicitly state that PG NaN >= 0.8 evaluates TRUE (NOT FALSE), and that
+          the SQL filter does NOT defend against zero-norm input; the application-level
+          `isZeroNorm()` short-circuit at `get()` entry IS the defense.
+      (b) Add an inline comment at the GET_SQL declaration referencing the
+          `isZeroNorm()` guard at line 148-150 as the load-bearing barrier so future
+          maintainers do not delete it.
+      (c) Open a non-blocking follow-up to amend EC-8 description in
+          .claude/knowledge-base/reviews/semantic-recall-cache-v1-5-edge-cases-2026-06-03.md
+          (line 111) and plan v1.1 line 515 so the absorption text matches reality.
+          (READ-ONLY file is the active code; plan/edge-case archived but the
+          contradiction surface area is mostly archival.)
+
+  - id: F-dom-pgvector-2
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 1335-1350
+    plan_ref: T5.1 cascade extension — recall_cache.query_embedding dim swap inside same BEGIN/COMMIT
+    domain_anchor: applyDimChange post-ALTER value-based canary discipline (introduced by /review re-run F-dom-pgvector-rerun-2 for v1.4 adapters-openrouter-local-embedder cycle)
+    summary: |
+      The post-ALTER value-based canary asserts `atttypmod = targetDim` for `memories` and
+      `entities`, but NOT for `recall_cache.query_embedding`. T5.1's cascade extension adds
+      the `recall_cache` ALTER inside the same BEGIN/COMMIT, yet the canary `WHERE c.relname
+      IN ('memories', 'entities')` excludes the third table. If a future PG side-effect, the
+      `DO $$ ... END $$` block's `EXISTS` short-circuit silently no-op-ing, or a pgvector
+      release with different ALTER semantics caused the recall_cache ALTER to silently fail
+      while memories+entities succeed, the COMMIT would land — leaving recall_cache stuck at
+      the OLD dim. The next `set()` call from the embedder (new dim) into recall_cache (old
+      dim) would FAIL at the INSERT (vector dim mismatch), poisoning the cache write path
+      until the operator runs `DELETE FROM recall_cache + drizzle-kit push` manually. The
+      F-dom-pgvector-rerun-2 rationale (lines 1325-1334) EXPLICITLY listed "entities ALTER
+      silently no-op'ing while memories ALTER succeeds" as a defended scenario; the same
+      reasoning applies to recall_cache.
+    evidence: |
+      Lines 1335-1343 of src/local/index.ts:
+        ```sql
+        SELECT c.relname AS rel, a.atttypmod AS dim
+          FROM pg_attribute a
+          JOIN pg_class c ON c.oid = a.attrelid
+         WHERE c.relname IN ('memories', 'entities')   -- recall_cache MISSING
+           AND a.attname = 'embedding'                   -- query_embedding MISSING
+           AND a.attisdropped = false
+         ORDER BY c.relname
+        ```
+      Lines 1307-1312 of the SAME function DO include a conditional ALTER on
+      recall_cache.query_embedding inside the BEGIN/COMMIT. The asymmetry between the
+      conditional ALTER (guarded by EXISTS) and the unconditional 2-table canary means
+      one of the two ALTERs being a no-op would go undetected.
+    recommended_action: |
+      Extend the canary to also probe recall_cache.query_embedding atttypmod when the
+      recall_cache table is present in the database. Either:
+      (1) Run a SECOND probe inside a conditional `IF EXISTS (...recall_cache...)` block
+          before the COMMIT, asserting dim == targetDim;
+      (2) OR extend the existing UNION query to include
+          `OR (c.relname = 'recall_cache' AND a.attname = 'query_embedding')`, then
+          conditionally validate that row only when present.
+      Option (1) is more conservative and aligns with the IF EXISTS guards already used
+      at lines 1307 / 1318. Acceptance test: pre-v1.5 DB (no recall_cache) → canary
+      passes with only 2 rows; v1.5 DB (with recall_cache) → canary passes with 3 rows.
+
+  - id: F-dom-pgvector-3
+    severity: MINOR
+    file: src/local/migrations/0010_recall_cache.sql
+    line: 6, 38 + src/local/schema.ts:308-311
+    plan_ref: Migration SQL comments + schema.ts schema annotation
+    domain_anchor: Postgres index terminology (a PARTIAL index has a WHERE predicate filtering rows; a regular HNSW index without WHERE indexes ALL rows)
+    summary: |
+      Comments label the HNSW index `recall_cache_scope_hnsw_idx` as a "partial index" but
+      the actual SQL declares NO `WHERE` predicate on this index — it indexes ALL rows of
+      `query_embedding`. Only the B-tree on `expires_at` is genuinely partial (`WHERE
+      expires_at IS NOT NULL`). The misnaming risks a future maintainer adding a `WHERE`
+      predicate "to make the comment true" (e.g., `WHERE expires_at IS NULL OR expires_at >
+      NOW()`) — which would invalidate the index for the rest of the query patterns
+      (invalidateScope, clearExpired). Equally, the name `recall_cache_scope_hnsw_idx`
+      suggests it's a scope-keyed index, but the indexed column is `query_embedding` (not
+      `scope_key`). Scope filtering happens via the SEPARATE B-tree index.
+    evidence: |
+      Migration line 6: "HNSW partial index on `query_embedding` (vector_cosine_ops)"
+      Schema.ts line 308: "HNSW partial index per blueprint § 3"
+      Actual SQL line 38: `CREATE INDEX ... USING hnsw ("query_embedding" vector_cosine_ops);`
+      — NO `WHERE` predicate.
+      Index name `recall_cache_scope_hnsw_idx` contains "scope" but indexes query_embedding.
+    recommended_action: |
+      (a) Drop the "partial" qualifier from both migration line 6 and schema.ts line 308 —
+          this is a REGULAR HNSW index, not partial. (Confirm: do we actually WANT it
+          partial? Skipping expired rows would let the HNSW skip dead vectors. If yes,
+          add `WHERE expires_at IS NULL OR expires_at > NOW()` to the index — but be aware
+          that pgvector HNSW does NOT support partial indexes via WHERE on pgvector v0.5.x,
+          per pgvector docs.)
+      (b) Consider renaming the index to `recall_cache_query_embedding_hnsw_idx` for clarity
+          — but this is COSMETIC and incurs a migration delta, so weigh against the cost.
+          Acceptable to leave the misleading name with a one-line comment if the migration
+          would otherwise touch user-deployed schemas.
+
+  - id: F-dom-pgvector-4
+    severity: MINOR
+    file: src/local/migrations/0010_recall_cache.sql + src/local/schema.ts
+    line: 38 (migration) / 311 (schema)
+    plan_ref: ADR D7 v1.1 amendment + EC-15 absorption — HNSW m=16, ef_construction=64 conservative defaults
+    domain_anchor: pgvector index parameter discipline — explicit > implicit per Inquebrável Rule 5 (Nomenclatura) "Better a long, clear name than a short, problematic one"
+    summary: |
+      The HNSW parameters `m=16, ef_construction=64` are CLAIMED in comments at both the
+      migration SQL (line 10) and schema.ts (line 309) — but NOT actually set in the
+      `CREATE INDEX` statement. They are implicit defaults of pgvector v0.5.1. If a future
+      pgvector release changes its defaults (e.g., pgvector 0.6.x increases `m` to 32), the
+      comments would silently lie and the actual index would diverge from the documented
+      contract. The /review F-Mi8 pattern (defensive extversion canary in applyDimChange)
+      already acknowledges that pgvector internals are version-sensitive — the same prudence
+      applies to declared index parameters.
+    evidence: |
+      Migration line 38:
+        `CREATE INDEX IF NOT EXISTS "recall_cache_scope_hnsw_idx" ON "recall_cache" USING hnsw ("query_embedding" vector_cosine_ops);`
+      — no `WITH (m = 16, ef_construction = 64)` clause.
+      Migration lines 10-12 documentation:
+        "HNSW parameters `m=16, ef_construction=64` are pgvector v0.5.1 defaults (EC-15
+         DOCUMENT absorption / ADR D7 v1.1 amendment) — tuning DEFERRED to
+         v1.5.x dogfood-evidence-driven adjustment per Inquebrável Rule 11 (YAGNI)."
+      applyDimChange line 1316-1317 (recreates index inside transaction with the SAME
+      implicit defaults — but if pgvector defaults change, the original migration and the
+      ALTER cascade would BOTH silently change with it).
+    recommended_action: |
+      Make the parameters explicit in BOTH the migration and the schema.ts index() call:
+        Migration:
+          CREATE INDEX IF NOT EXISTS "recall_cache_scope_hnsw_idx"
+            ON "recall_cache"
+            USING hnsw ("query_embedding" vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
+        applyDimChange line 1321:
+          EXECUTE 'CREATE INDEX IF NOT EXISTS "recall_cache_scope_hnsw_idx"
+                   ON "recall_cache" USING hnsw ("query_embedding" vector_cosine_ops)
+                   WITH (m = 16, ef_construction = 64)';
+      This pins the contract regardless of pgvector default drift. Acceptance test: extend
+      migration-0010.test.ts T0.2-RED-3 to assert `pg_index.indrelid + pg_class.reloptions`
+      reflect `m=16, ef_construction=64`. (pgvector exposes index options via
+      `pg_indexes.indexdef` text or `pg_class.reloptions` array.)
+
+  - id: F-dom-pgvector-5
+    severity: MINOR
+    file: src/local/migrations/0010_recall_cache.sql + src/local/schema.ts + src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: 32 / 302 / 79-92 (no INSERT to or SELECT from hit_count anywhere)
+    plan_ref: T0.2 column declaration `hit_count` integer DEFAULT 0 NOT NULL
+    domain_anchor: Inquebrável Rule 11 (YAGNI) — column declared but never written or read; code-quality dead-column
+    summary: |
+      Column `hit_count` is declared in BOTH the migration SQL (line 32) and schema.ts
+      (line 302) but NEVER incremented OR read anywhere in the codebase. The OTel
+      `theo.memory.recall_cache.hit` counter is the actual hit metric. `hit_count` appears
+      to be dead schema. Either (a) future work plans to use it (e.g., LFU upgrade from
+      current FIFO) — in which case a code comment + ADR row should pin the intent, OR (b)
+      it's vestigial from a draft version and should be dropped before v1.5 ships to avoid
+      maintenance debt. Currently silent dead column violates Rule 11 (YAGNI) at the
+      schema layer.
+    evidence: |
+      grep -rn "hit_count\|hitCount" src/ — column appears in schema.ts:302, migration
+      0010 line 32, and 0010_snapshot.json. NO INSERT, UPDATE, or SELECT touches this column.
+      The eviction strategy at DELETE_OLDEST_SQL (line 86-92 of pgvector-recall-cache-store)
+      orders by `created_at ASC` (FIFO), NOT by hit_count (LFU).
+      No test asserts a value for hit_count beyond the migration parity sentinel's
+      "integer NOT NULL DEFAULT 0" check.
+    recommended_action: |
+      Pick one:
+      (a) If intentional for v1.5.x LFU upgrade: add a one-line comment at the schema
+          declaration + an ADR row documenting "reserved for v1.5.x LFU eviction strategy;
+          UPDATE on get() hit is the v1.5.1 follow-up." This converts dead-column into
+          documented-future-use which is OK.
+      (b) If vestigial: drop the column from BOTH the migration SQL and schema.ts in this
+          same cycle. Since v1.5 hasn't shipped yet (this IS the implement cycle), there
+          is no migration debt — the column can vanish cleanly. /code-quality would also
+          flag this if D1 vulture-equivalent ran against TypeScript schema annotations.
+
+  - id: F-dom-pgvector-6
+    severity: MINOR
+    file: src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: 79-92, 172-197
+    plan_ref: T1.2 LRU eviction via SERIALIZABLE transaction
+    domain_anchor: LRU = Least Recently Used (eviction by last-USED timestamp); FIFO = First In First Out (eviction by INSERT timestamp). Industry standard caching terminology.
+    summary: |
+      The eviction strategy is misnamed in plan + comments. `DELETE_OLDEST_SQL` (line 86-92)
+      orders by `created_at ASC LIMIT 1` — this is **FIFO**, NOT LRU. True LRU requires a
+      `last_accessed_at` column updated on every cache hit, OR an LFU-style hit_count
+      tracking. The current impl never updates `created_at` after INSERT, so "least
+      recently USED" rows (those frequently hit but inserted long ago) are evicted ahead of
+      "recently inserted but never hit" rows. Plan, blueprint, comments, and test names all
+      use "LRU" but the discipline is FIFO. This is a TERMINOLOGY defect that risks future
+      "LRU optimization" PRs that misunderstand the current state. Acceptable as a v1.5.0
+      simplification (FIFO is cheaper and well-defined) but should be called out honestly.
+    evidence: |
+      Eviction SQL at pgvector-recall-cache-store.ts:86-92:
+        DELETE FROM recall_cache
+         WHERE id = (
+           SELECT id FROM recall_cache
+            WHERE scope_key = $1
+            ORDER BY created_at ASC      <-- ORDER BY INSERT TIME, not access time
+            LIMIT 1
+         )
+      `created_at` is set at INSERT (NOW() default) and never updated.
+      `get()` does NOT bump `created_at` or `hit_count`.
+      Plan v1.1 line 623 test name: "T1.2-RED-4 (EC-7) — 2 concurrent set() calls
+        (Promise.all) on full scope: exactly 1 row deleted" — eviction strategy not
+        examined.
+      JSDoc lines 6-9 of pgvector-recall-cache-store.ts:
+        "set ... capacity-bounded LRU eviction inside SERIALIZABLE tx (T1.2 / EC-7)"
+        — claims LRU; the impl is FIFO.
+    recommended_action: |
+      Pick one:
+      (a) Rename in code + plan + comments: change "LRU" → "FIFO" (or
+          "oldest-first" / "insertion-order eviction") throughout. JSDoc lines 6-9,
+          serializable-tx.ts header comment, plan T1.2 acceptance criteria, and the
+          `DELETE_OLDEST_SQL` constant name remain accurate either way (it IS
+          deleting the oldest by insertion); just the meta-name should align.
+          This is cosmetic but honest.
+      (b) If true LRU is the intended semantic (v1.5.1 may upgrade), add a
+          v1.5.x roadmap row + ADR documenting "v1.5.0 ships FIFO as a simplification;
+          v1.5.1 considers `last_accessed_at` column for true LRU if dogfood evidence
+          shows benefit." This honors Inquebrável Rule 3 (extreme honesty about what
+          v1.5.0 actually ships).
+      THE GOAL TEST hit rate of 0.60 was measured against the current FIFO impl
+      against 10 hand-authored pairs — switching to true LRU would not necessarily
+      improve THAT number but would change production workload behavior. Decision:
+      defer to project owner.
+
+  - id: F-dom-pgvector-7
+    severity: MINOR
+    file: src/local/recall-cache/pgvector-recall-cache-store.ts + src/local/migrations/0010_recall_cache.sql
+    line: 78-80 (INSERT_SQL) + 27-36 (table declaration)
+    plan_ref: Blueprint D4 cache key composition `(scope_key, query_embedding)`
+    domain_anchor: Postgres unique-constraint discipline — composite cache key uniqueness should be expressible at the DB layer per architecture.md "Defensive at boundaries"
+    summary: |
+      The cache key is documented as `(scope_key, query_embedding)` per blueprint D4
+      (cited at migration line 5-6 and schema.ts:288), but the table has NO unique
+      constraint on this pair. INSERT_SQL is plain `INSERT INTO recall_cache (...)`
+      without `ON CONFLICT (scope_key, query_embedding) DO UPDATE SET ...`. Two
+      concurrent `set()` calls with identical scope + identical query_embedding will
+      land TWO duplicate rows (the SERIALIZABLE retry only defends against the LRU
+      count read-then-evict race, not against the duplicate INSERT case). Concrete
+      scenario: a stub embedder + same query text → identical embedding → 2 `set()`
+      calls in a row (e.g., retry layer) → 2 duplicate rows in the same scope. Cache
+      `get()` then has 2 rows with cosine distance 0 → PG picks ARBITRARY one for
+      `LIMIT 1`. Not a correctness bug (both rows have same data, same threshold), but
+      it bloats per-scope row count toward `maxSizePerScope` triggering premature
+      eviction of OTHER rows. Worst case: a scope with `maxSizePerScope = 10` cached
+      gets reduced to 5 unique queries because of duplicates.
+    evidence: |
+      Migration 0010 lines 27-36: no UNIQUE constraint on (scope_key, query_embedding).
+      Schema.ts:296-318: no `unique()` annotation on the index() declarations.
+      INSERT_SQL at pgvector-recall-cache-store.ts:79-80:
+        `INSERT INTO recall_cache (scope_key, query_embedding, result_set, expires_at, threshold_used)
+         VALUES ($1, $2::vector, $3, NOW() + ($4 || ' seconds')::INTERVAL, $5)`
+        — no `ON CONFLICT` clause.
+      Capacity check at line 184-188 does NOT examine whether a duplicate row exists
+      — it just counts rows in scope and possibly evicts the OLDEST.
+    recommended_action: |
+      Pick one:
+      (a) Add a UNIQUE constraint on `(scope_key, query_embedding)` at the table level
+          (Note: pgvector + UNIQUE on a high-dim vector column has constant-time
+          comparison cost for exact equality, which IS the semantic — two embeddings
+          must match byte-for-byte to collide). Then INSERT_SQL becomes:
+            `INSERT ... ON CONFLICT (scope_key, query_embedding) DO UPDATE SET
+                 created_at = NOW(), result_set = EXCLUDED.result_set,
+                 expires_at = EXCLUDED.expires_at, threshold_used = EXCLUDED.threshold_used`
+          This converts a duplicate INSERT into a refresh, naturally extending TTL +
+          updating result_set if it changed.
+      (b) Document the duplicate-row tolerance as intentional + acceptable for
+          v1.5.0 (e.g., "stub-embedder workloads may bloat per-scope row count by
+          duplicate INSERTs; production embedders never produce byte-identical
+          embeddings for non-identical queries so the duplicate path is bounded by
+          retry-counter ≤ 1") + add a SHOULD TEST follow-up to surface the bloat in
+          dogfood telemetry.
+      Option (a) is the cleaner DB discipline + matches the documented cache-key
+      semantic. Option (b) is YAGNI-aligned IF the embedder retry path is verifiably
+      idempotent — which it is in the SERIALIZABLE wrapper but NOT in the upstream
+      consumer's retry layer.
+
+  - id: F-dom-pgvector-8
+    severity: MINOR
+    file: src/local/__tests__/
+    line: N/A (missing test)
+    plan_ref: T0.1 / T0.2 — schema declaration test parity
+    domain_anchor: Existing test discipline pattern (schema-v0-4a.test.ts, schema-v0-4b.test.ts, schema-v0-6.test.ts)
+    summary: |
+      No dedicated `schema-v1-5.test.ts` unit test for the `recallCache` table
+      declaration. Prior schema-deltas (v0.4a reflection columns, v0.4b eviction
+      columns, v0.6 skill columns) each ship a corresponding `schema-v0-*.test.ts`
+      asserting the Drizzle pgTable shape at unit-test-time (column names, types,
+      nullability, indexes). v1.5 adds an entire NEW table, but only the integration
+      test (`migration-0010.test.ts`) covers schema parity. Integration test requires
+      a real PG container; unit-test parity catches drift FASTER + cheaper. The
+      precedent is established. Closing the gap is mechanical.
+    evidence: |
+      ls src/local/__tests__/schema*.test.ts shows:
+        schema.test.ts schema-v0-4a.test.ts schema-v0-4b.test.ts schema-v0-6.test.ts
+      No schema-v1-1.test.ts (v1.1 multi-peer + bi-temporal) and no schema-v1-5.test.ts.
+      Both v1.1 and v1.5 ship table-or-column deltas; the test discipline lapsed.
+      migration-0010.test.ts covers the integration angle but not the unit-test angle.
+    recommended_action: |
+      Add `src/local/__tests__/schema-v1-5.test.ts` asserting:
+      (a) `recallCache` table is exported from schema.ts
+      (b) Column names, types, nullability match plan T0.1 + T0.2 declarations
+      (c) Three indexes are declared (HNSW + scope_key B-tree + expires_at partial B-tree)
+      (d) Partial-index predicate on `expires_at` matches `expires_at IS NOT NULL`
+      Mirror the test shape used in schema-v0-4b.test.ts for the eviction columns.
+      Cheap to write; catches drift at npm test runtime without PG container.
+      (Optional: also retrofit schema-v1-1.test.ts to cover the attributed_to column
+      gap, but that is OUT OF SCOPE for this cycle and should be a separate finding
+      flagged by the architecture reviewer or a follow-up.)
+
+  - id: F-dom-pgvector-9
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 76-82
+    plan_ref: Drizzle migration journal idx=10 entry shape
+    domain_anchor: Drizzle migration journal contract — strictly monotonic idx, deterministic tag matching filename
+    summary: |
+      Journal entry for idx=10 is shape-correct: version="7", when=1780518916892
+      (valid Unix ms timestamp 2026-06-03), tag="0010_recall_cache" (matches filename),
+      breakpoints=true (matches the `--> statement-breakpoint` marker convention used
+      in the SQL). No issues. Recording as INFO to document that this passes review.
+    evidence: |
+      _journal.json idx=10:
+        { "idx": 10, "version": "7", "when": 1780518916892,
+          "tag": "0010_recall_cache", "breakpoints": true }
+      Filename matches: src/local/migrations/0010_recall_cache.sql
+      Tag matches filename basename. Idx monotonic vs idx=9 (0009_v1_1_index_parity).
+    recommended_action: None — no defect.
+
+  - id: F-dom-pgvector-10
+    severity: INFO
+    file: src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: 70-76
+    plan_ref: Cosine similarity SQL discipline
+    domain_anchor: pgvector cosine distance operator semantics — `<=>` returns 1 - cosine_similarity in [0, 2]; lower distance = closer match
+    summary: |
+      The cosine similarity SQL formula `1 - (query_embedding <=> $2::vector)` is
+      CORRECT per pgvector docs. `<=>` is cosine distance ∈ [0, 2]; `1 - distance`
+      gives cosine similarity ∈ [-1, 1] (in practice [0, 1] for normalized vectors).
+      `ORDER BY query_embedding <=> $2::vector ASC` orders ascending by distance,
+      so the closest (highest similarity) row wins LIMIT 1. The combined
+      `WHERE (1 - (...)) >= $3` + `ORDER BY ... ASC` discipline is canonical for
+      pgvector cosine-similarity-with-threshold lookups. Recording as INFO to
+      pin the validation that this is correct.
+    evidence: |
+      pgvector docs https://github.com/pgvector/pgvector#querying:
+        "<=>  cosine distance"
+        "Get the nearest neighbors to a vector: SELECT * FROM items ORDER BY embedding <=> '[3,1,2]' LIMIT 5;"
+      L2-normalized vectors (LocalTransformerEmbedder normalizes; OpenAI returns
+      already-normalized) yield cosine distance ∈ [0, 2], similarity ∈ [-1, 1].
+      Threshold default 0.8 corresponds to "highly similar" (cos ≥ 0.8 → distance ≤ 0.2).
+    recommended_action: None — formula and ordering are canonical.
+
+  - id: F-dom-pgvector-11
+    severity: INFO
+    file: src/local/recall-cache/serializable-tx.ts
+    line: 30-54
+    plan_ref: EC-7 absorption (SERIALIZABLE tx + 1-retry-on-40001 for LRU race)
+    domain_anchor: PostgreSQL SERIALIZABLE isolation contract — sqlstate 40001 (serialization_failure) raised on read-write dependency cycle detection; retry SHOULD work because the second attempt sees the committed first-tx state
+    summary: |
+      The SERIALIZABLE wrapper + single retry on `40001` is the canonical PG pattern
+      for LRU race defense (per PG docs § 13.2.3). The reasoning in the JSDoc
+      (lines 14-23) is accurate: under SERIALIZABLE the first concurrent tx commits,
+      the second sees the now-committed COUNT and either evicts correctly or stays
+      below max; the retry has bounded probability of re-failing on the same window.
+      Rollback discipline (line 42 `.catch(() => undefined)`) suppresses double-rollback
+      errors that follow a partial transaction state — also canonical. The
+      "unreachable" throw at line 53 is defensive belt-and-suspenders, fine.
+      Recording as INFO to pin the validation.
+    evidence: |
+      PG docs § 13.2.3: "Applications using this level must be prepared to retry
+      transactions due to serialization failures."
+      The wrapper retries exactly ONCE per EC-7 absorption rationale (bounded
+      writer count per scope; second retry would hit the same window with same
+      probability; failure mode = cache MISS = benign degraded path).
+    recommended_action: None — discipline is correct.
