@@ -153,7 +153,7 @@ describe.skipIf(PG_URI === '')(
     });
 
     describe('Scenario 2 — Bi-temporal asOf lift (ADR-0011 + T3.1 + EC-3 + EC-11)', () => {
-      test('Forgotten memory recoverable by historical asOf, excluded by post-forget asOf (REDACTED null-safe predicate)', async () => {
+      test('Forgotten memory recoverable by historical asOf, excluded by post-forget asOf (null-safe temporal predicate)', async () => {
         const items = await memory
           .user(ALICE)
           .remember('Lavender tea ships from Yamashiro', { infer: false });
