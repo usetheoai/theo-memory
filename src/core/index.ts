@@ -114,6 +114,21 @@ export type {
 } from './dip/eviction-policy.js';
 export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
 
+// v1.5 RecallCacheStore DIP (13th interface) — plan semantic-recall-cache-v1-5 T0.1 / ADR D1
+export type {
+  RecallCacheStore,
+  RecallCacheStoreConfig,
+  ScopeTierTtlConfig,
+  CachedResult,
+} from './dip/recall-cache-store.js';
+export {
+  validateRecallCacheStoreConfig,
+  DEFAULT_THRESHOLD,
+  DEFAULT_TTL_SECONDS_BY_SCOPE_TIER,
+  DEFAULT_MAX_SIZE_PER_SCOPE,
+} from './dip/recall-cache-store.js';
+export { InvalidCacheConfig } from './errors.js';
+
 export type {
   ConflictResolutionPolicy,
   ConflictResolutionResult,
