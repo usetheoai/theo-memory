@@ -7,8 +7,9 @@ import { SessionTab } from "./memory-tabs/session-tab";
 import { SkillsTab } from "./memory-tabs/skills-tab";
 import { HistoryTab } from "./memory-tabs/history-tab";
 import { EvictionTab } from "./memory-tabs/eviction-tab";
+import { DistillationTab } from "./memory-tabs/distillation-tab";
 
-type TabKey = "user" | "session" | "skills" | "history" | "eviction";
+type TabKey = "user" | "session" | "skills" | "history" | "eviction" | "distillation";
 
 interface Props {
   userId: string;
@@ -19,6 +20,10 @@ interface Props {
 interface BackendInfo {
   backend: "pgvector" | "in-memory";
   reflectionThreshold: number;
+  /** adapters-or-local T2.2 — additive field; may be absent on older API responses. */
+  adapterSource?: "stub" | "openai" | "local-openrouter";
+  /** adapters-or-local T2.2 — additive field; may be absent on older API responses. */
+  embedderDim?: number;
 }
 
 const TABS: readonly { key: TabKey; label: string }[] = [
@@ -27,6 +32,7 @@ const TABS: readonly { key: TabKey; label: string }[] = [
   { key: "skills", label: "Skills" },
   { key: "history", label: "History" },
   { key: "eviction", label: "Eviction" },
+  { key: "distillation", label: "Distillation" },
 ];
 
 export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
@@ -57,20 +63,31 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
         <Brain className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold">TheMemory</h2>
         {info !== null && (
-          <span
-            className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${
-              info.backend === "pgvector"
-                ? "bg-emerald-500/20 text-emerald-700"
-                : "bg-amber-500/20 text-amber-700"
-            }`}
-            title={
-              info.backend === "pgvector"
-                ? "Persisting to Postgres + pgvector"
-                : "In-memory only — restarts wipe state"
-            }
-          >
-            {info.backend}
-          </span>
+          <div className="ml-auto flex items-center gap-1">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                info.backend === "pgvector"
+                  ? "bg-emerald-500/20 text-emerald-700"
+                  : "bg-amber-500/20 text-amber-700"
+              }`}
+              title={
+                info.backend === "pgvector"
+                  ? "Persisting to Postgres + pgvector"
+                  : "In-memory only — restarts wipe state"
+              }
+            >
+              {info.backend}
+            </span>
+            {info.adapterSource !== undefined && (
+              <span
+                className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+                title={`Adapter: ${info.adapterSource}${info.embedderDim !== undefined ? ` (${String(info.embedderDim)}-dim embedder)` : ""}`}
+              >
+                {info.adapterSource}
+                {info.embedderDim !== undefined ? ` (${String(info.embedderDim)})` : ""}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -115,6 +132,9 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
         )}
         {active === "eviction" && (
           <EvictionTab userId={userId} reloadKey={reloadKey} />
+        )}
+        {active === "distillation" && (
+          <DistillationTab userId={userId} reloadKey={reloadKey} />
         )}
       </div>
     </aside>

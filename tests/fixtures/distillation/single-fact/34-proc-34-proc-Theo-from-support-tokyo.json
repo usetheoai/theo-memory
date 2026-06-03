@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-34-proc-Theo-from-support-tokyo",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Tokyo deployment, Theo from support rotates weekly — through the on-call schedule.",
+  "expectedFacts": [
+    {
+      "text": "Theo from support rotates weekly (Tokyo deployment)"
+    }
+  ]
+}

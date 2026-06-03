@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-05-hand-hobby",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "Picked up bouldering recently — going to the gym 2 or 3 times a week.",
+  "expectedFacts": [
+    { "text": "Boulders 2-3 times a week at the climbing gym", "attributedTo": "user" }
+  ]
+}

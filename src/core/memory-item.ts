@@ -39,6 +39,22 @@ export interface MemoryItem {
   readonly tInvalid: Date | null;
 
   /**
+   * v1.1 T1.1: multi-peer attribution. The perspective owner of this fact —
+   * typically a peer ID (user id, agent id, or `'system'` for self-statements).
+   * N-valent semantic: any string is accepted; not restricted to a bivalent
+   * `"user"`/`"assistant"` vocabulary. Populated by LLM extraction
+   * (`extracted[i].attributed_to`) OR by verbatim callers passing
+   * `RememberOptions.attributedTo` (EC-2 absorbed via ADR D2).
+   *
+   * Pre-v1.1 rows have NULL permanently because the pre-v1.1 pipeline discarded
+   * the LLM-extracted value at payload composition (EC-1 honest no-backfill
+   * documented in CHANGELOG migration notes).
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2
+   */
+  readonly attributedTo?: string;
+
+  /**
    * v0.4a: LLM-judged importance ∈ [0, 1] cached at write per ADR D8.
    * Optional + nullable on the type to preserve backward compatibility with
    * pre-v0.4a callers; v0.4a writes populate it, v0.4b TriadicScoringPolicy

@@ -1,0 +1,11 @@
+{
+  "id": "simulated-dialog-01-hand-onboarding-dialog",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "AGENT: Welcome! What should I call you?\nUSER: I'm Sam. I work as a product designer.\nAGENT: Nice to meet you, Sam. Anything specific I should remember about your work?\nUSER: I focus on B2B SaaS dashboards mostly.",
+  "expectedFacts": [
+    { "text": "Name is Sam", "attributedTo": "user" },
+    { "text": "Works as a product designer", "attributedTo": "user" },
+    { "text": "Focuses on B2B SaaS dashboards", "attributedTo": "user" }
+  ]
+}

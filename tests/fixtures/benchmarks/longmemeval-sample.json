@@ -1,0 +1,36 @@
+[
+  {
+    "question_id": "lme-001",
+    "question": "What is the user's favorite drink?",
+    "answer": "coffee",
+    "category": "preference",
+    "haystack_sessions": [
+      [
+        {"role": "user", "content": "I love coffee in the morning.", "timestamp": "2026-01-15T08:00:00Z"},
+        {"role": "assistant", "content": "Noted — coffee is your morning go-to."}
+      ]
+    ]
+  },
+  {
+    "question_id": "lme-002",
+    "question": "How many siblings does the user have?",
+    "answer": 3,
+    "category": "fact",
+    "haystack_sessions": [
+      [
+        {"role": "user", "content": "I have 3 siblings: Alice, Bob, and Carol.", "timestamp": "2026-02-10T14:30:00Z"}
+      ]
+    ]
+  },
+  {
+    "question_id": "lme-003",
+    "question": "Where did the user travel last summer?",
+    "answer": {"text": "Lisbon, Portugal"},
+    "category": "travel",
+    "haystack_sessions": [
+      [
+        {"role": "user", "content": "Just got back from Lisbon — beautiful trip!", "timestamp": "2025-08-22T10:00:00Z"}
+      ]
+    ]
+  }
+]

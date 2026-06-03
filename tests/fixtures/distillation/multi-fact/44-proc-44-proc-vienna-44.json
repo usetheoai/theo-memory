@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-44-proc-vienna-44",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Vienna region: Olivia from finance reviews every Friday; Olivia from finance reviews every Friday (the quarterly burn rate); Theo from support rotates weekly.",
+  "expectedFacts": [
+    {
+      "text": "Olivia from finance reviews every Friday"
+    },
+    {
+      "text": "Olivia from finance reviews every Friday — the quarterly burn rate"
+    },
+    {
+      "text": "Theo from support rotates weekly"
+    }
+  ]
+}

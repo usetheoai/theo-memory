@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-02-hand-job-title",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "Started a new role at Stripe last week — Senior Engineering Manager on the Treasury team.",
+  "expectedFacts": [
+    { "text": "Works at Stripe as Senior Engineering Manager on Treasury team", "attributedTo": "user" }
+  ]
+}

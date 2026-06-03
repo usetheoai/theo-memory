@@ -1,0 +1,12 @@
+{
+  "id": "entity-overlap-03-hand-cofounder",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "My cofounder Aditi Sharma and I started the company in 2019. She handles ops; I handle engineering. We met at IIT Bombay.",
+  "expectedFacts": [
+    { "text": "Aditi Sharma is the user's cofounder", "attributedTo": "user" },
+    { "text": "Company was started in 2019", "attributedTo": "user" },
+    { "text": "Aditi Sharma handles operations; user handles engineering", "attributedTo": "user" },
+    { "text": "Aditi Sharma and user met at IIT Bombay", "attributedTo": "user" }
+  ]
+}

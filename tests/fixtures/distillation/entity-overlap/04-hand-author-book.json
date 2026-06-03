@@ -1,0 +1,10 @@
+{
+  "id": "entity-overlap-04-hand-author-book",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Reading Designing Data-Intensive Applications by Martin Kleppmann. He also has a great talk at HYTRADBOI 2022 worth watching.",
+  "expectedFacts": [
+    { "text": "Reading Designing Data-Intensive Applications by Martin Kleppmann", "attributedTo": "user" },
+    { "text": "Martin Kleppmann gave a talk at HYTRADBOI 2022", "attributedTo": "user" }
+  ]
+}

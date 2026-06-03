@@ -1,0 +1,11 @@
+{
+  "id": "simulated-dialog-04-hand-debugging-session",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: My Postgres queries are getting slow on the orders table.\nAGENT: How big is the table?\nUSER: 50 million rows. We have an index on customer_id but not on created_at.\nAGENT: Composite index might help. Do you query both columns together?\nUSER: Yes, always with date range filters.",
+  "expectedFacts": [
+    { "text": "Orders Postgres table has 50 million rows", "attributedTo": "user" },
+    { "text": "Existing index on orders.customer_id but not on created_at", "attributedTo": "user" },
+    { "text": "Queries filter on both customer_id and date range simultaneously", "attributedTo": "user" }
+  ]
+}

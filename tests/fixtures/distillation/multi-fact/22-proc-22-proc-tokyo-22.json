@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-22-proc-tokyo-22",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Tokyo region: the staging cluster auto-scales overnight; Theo from support rotates weekly (through the on-call schedule); Theo from support rotates weekly.",
+  "expectedFacts": [
+    {
+      "text": "the staging cluster auto-scales overnight"
+    },
+    {
+      "text": "Theo from support rotates weekly — through the on-call schedule"
+    },
+    {
+      "text": "Theo from support rotates weekly"
+    }
+  ]
+}

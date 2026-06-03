@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-45-proc-the-build-pipeline-helsinki",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Helsinki deployment, the build pipeline runs on every PR — across 8 parallel runners.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR (Helsinki deployment)"
+    }
+  ]
+}

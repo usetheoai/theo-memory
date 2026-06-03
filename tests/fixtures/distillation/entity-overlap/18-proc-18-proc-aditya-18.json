@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-18-proc-aditya-18",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Aditya mentors juniors — also a deep expert in developer ergonomics.",
+  "expectedFacts": [
+    {
+      "text": "Aditya mentors juniors"
+    },
+    {
+      "text": "Aditya is a deep expert in developer ergonomics"
+    }
+  ]
+}

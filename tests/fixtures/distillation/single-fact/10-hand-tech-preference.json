@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-10-hand-tech-preference",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "Strong preference for TypeScript over JavaScript — wouldn't start a new Node project without strict mode.",
+  "expectedFacts": [
+    { "text": "Prefers TypeScript with strict mode for new Node projects", "attributedTo": "user" }
+  ]
+}

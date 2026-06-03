@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-29-proc-vienna-29",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Vienna region: project Halcyon launches in Q4; the postgres replica lags during peak (by 200 to 400 milliseconds); the API gateway rate-limits per IP.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4"
+    },
+    {
+      "text": "the postgres replica lags during peak — by 200 to 400 milliseconds"
+    },
+    {
+      "text": "the API gateway rate-limits per IP"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "entity-overlap-10-hand-podcast-recommendation",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Loving the Acquired podcast lately — Ben Gilbert and David Rosenthal cover company histories really deeply. Listened to their TSMC episode twice.",
+  "expectedFacts": [
+    { "text": "Enjoys the Acquired podcast", "attributedTo": "user" },
+    { "text": "Acquired podcast is hosted by Ben Gilbert and David Rosenthal", "attributedTo": "user" },
+    { "text": "Listened to the Acquired TSMC episode twice", "attributedTo": "user" }
+  ]
+}

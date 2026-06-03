@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-47-proc-the-build-pipeline-lagos",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Lagos deployment, the build pipeline runs on every PR — across 8 parallel runners.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR (Lagos deployment)"
+    }
+  ]
+}

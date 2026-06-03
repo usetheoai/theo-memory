@@ -1,0 +1,11 @@
+{
+  "id": "simulated-dialog-03-hand-travel-planning",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: I'm planning a trip to Iceland in October.\nAGENT: Northern lights season! How long are you going?\nUSER: 10 days, with my partner Lucas. We're renting a 4x4 to drive the Ring Road.",
+  "expectedFacts": [
+    { "text": "Planning Iceland trip in October for 10 days", "attributedTo": "user" },
+    { "text": "Partner's name is Lucas", "attributedTo": "user" },
+    { "text": "Renting a 4x4 to drive the Ring Road", "attributedTo": "user" }
+  ]
+}

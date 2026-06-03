@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-43-proc-rio-43",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Rio region: the staging cluster auto-scales overnight; Yuki from research publishes monthly (the model evaluation report); the staging cluster auto-scales overnight.",
+  "expectedFacts": [
+    {
+      "text": "the staging cluster auto-scales overnight"
+    },
+    {
+      "text": "Yuki from research publishes monthly — the model evaluation report"
+    },
+    {
+      "text": "the staging cluster auto-scales overnight"
+    }
+  ]
+}

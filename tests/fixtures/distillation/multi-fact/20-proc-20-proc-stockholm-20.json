@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-20-proc-stockholm-20",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Stockholm region: the analytics dashboard refreshes every 15 minutes; Theo from support rotates weekly (through the on-call schedule); the staging cluster auto-scales overnight.",
+  "expectedFacts": [
+    {
+      "text": "the analytics dashboard refreshes every 15 minutes"
+    },
+    {
+      "text": "Theo from support rotates weekly — through the on-call schedule"
+    },
+    {
+      "text": "the staging cluster auto-scales overnight"
+    }
+  ]
+}
