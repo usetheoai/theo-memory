@@ -13,7 +13,19 @@ import type { Context } from 'hono';
 
 const DB_PROBE_TIMEOUT_MS = 2_000;
 
-export function healthHandler(c: Context): Response {
+export function healthHandler(
+  c: Context,
+  readinessProbe?: () => boolean,
+): Response {
+  // EC-33 absorption (T2.3): when the composition root injects a readiness
+  // probe (typically: "Memory factory finished warming"), return 503 while
+  // the probe returns false. Avoids "container says healthy but Memory not
+  // ready" race during cold-start before `themory server` is wired in K8s
+  // with a readinessProbe pointing here. When no probe injected (legacy
+  // composition roots without warm-up async), fall through to 200.
+  if (readinessProbe !== undefined && !readinessProbe()) {
+    return c.json({ status: 'unavailable', reason: 'warming_up' }, 503);
+  }
   return c.json({ status: 'ok' }, 200);
 }
 
