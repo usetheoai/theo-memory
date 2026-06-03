@@ -1,5 +1,7 @@
 # Plan: TheMemory Standalone P0 — REST API + Docker stack + CLI consolidado
 
+> **Version 1.3** (2026-06-03) — Absorbs SEPA pre-iteration-0 initial brief (3 MAJOR findings flagged before ralph-loop kickoff per user decision via AskUserQuestion). **T0.1 expanded** to patch `tsconfig.contract.json` + `vitest.contract.config.ts` includes for `src/server/**` UPFRONT (NOT defer to T1.1/T1.7) — prevents silent-skip on tests + typecheck during T1.1-T1.6 (6 tasks would otherwise be "dark"). **T1.5 expanded** to declare `tests/integration/rest-api.test.ts` as NEW Files-to-edit (pillar (c) OTel span count observability requires the integration test file explicitly). Plan structurally unchanged; absorption is mechanical (3 file-path additions). Halt-loop arranque mais limpo: estimated ~3 fewer iterations to GREEN on T1.1.
+>
 > **Version 1.2** (2026-06-03) — Absorbs `/deps-audit` report (verdict PASS_WITH_CAVEATS; 4× `plan_dep_major_outdated_unpinned` soft caps). **User decision via AskUserQuestion: Path B (ADR deferral)**. Adds NEW ADR D14 documenting pin-rationale + sunset for 4 MAJOR-outdated NEW deps (`@hono/node-server ^1.13.0`, `@hono/zod-openapi ^0.18.0`, `commander ^12.1.0`, `@apidevtools/swagger-parser ^10.1.1`) — mirror of zod ^3.25.0 ADR D7 idiom from v1-1-multi-peer plan v1.2. With ADR D14 in place, the 4 soft caps STOP FIRING (they fire only on UNPINNED outdated deps). Pre-existing manifest CVE state (9 CRITICAL + 3 HIGH protobufjs chain via @xenova/transformers) is NOT introduced by this plan — surfaced honestly per Rule 3, deferred to `/loop 7d /deps-audit` periodic housekeeping (NOT a blocker for this plan).
 >
 > **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan` report (49 edge cases: 12 must-fix + 25 test-recommended + 12 document). **EC-47 BLOCKER resolved via Opção A** (user AskUserQuestion 2026-06-03): docker-entrypoint.sh REMOVED; migrate-on-startup logic moved INTO `themory server` subcommand binary; ENTRYPOINT becomes direct Node invocation (`["node", "/app/dist/agent-tools/cli.js", "server"]`). 12 MUST FIX absorbed via ADR amendments D3 + D6 + D8 + 2 new ADRs (D12 single-scope-tier semantic + D13 direct-Node-binary entrypoint) and task additions. 25 SHOULD TEST absorbed inline in TDD blocks. 12 DOCUMENT absorbed as ADR Consequences + Acceptance Criteria notes. Coverage Matrix expands from 36 to 85 rows.
@@ -347,6 +349,8 @@ package.json — add 6 deps (Rule 9 evaluated per § Dependencies)
 src/core/dip/auth-verifier.ts (NEW) — declare AuthVerifier interface
 src/core/dip/__tests__/auth-verifier.test-d.ts (NEW) — type tests
 src/core/index.ts — re-export AuthVerifier interface
+vitest.contract.config.ts — add `src/server/**/__tests__/**/*.test.ts` to include (SEPA pre-loop absorption v1.3 — prevents silent-skip during T1.1-T1.6)
+tsconfig.contract.json — add `src/server/**/*.ts` to include (SEPA pre-loop absorption v1.3 — prevents typecheck dark-spots during T1.1-T1.6)
 ```
 
 #### Tasks
@@ -354,6 +358,8 @@ src/core/index.ts — re-export AuthVerifier interface
 2. Add `strip-ansi ^7.1.0`, `@apidevtools/swagger-parser ^10.1.1` to `devDependencies`.
 3. Run `npm install`; lock versions.
 4. Run `/deps-audit theo-memory-standalone-p0` to validate zero new CRITICAL/HIGH CVE.
+4a. **(SEPA pre-loop absorption v1.3)** Patch `vitest.contract.config.ts` include array to add `'src/server/**/__tests__/**/*.test.ts'` alongside existing `'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/__tests__/**/*.test.ts'`. Prevents T1.1-T1.6 tests from silent-skipping under `passWithNoTests: true`.
+4b. **(SEPA pre-loop absorption v1.3)** Patch `tsconfig.contract.json` include array to add `"src/server/**/*.ts"` alongside existing server-sibling entries. Prevents `npm run typecheck` from dark-spotting server files during T1.1-T1.6.
 5. Create `src/core/dip/auth-verifier.ts` with single-method interface.
 6. Create type test `src/core/dip/__tests__/auth-verifier.test-d.ts`.
 7. Re-export from `src/core/index.ts`.
@@ -580,6 +586,7 @@ Wrap each handler in an OTel span. **Absorb 2 ECs**: EC-21 production TracerProv
 ```
 src/server/observability/otel-middleware.ts (NEW)
 src/server/__tests__/otel.test.ts (NEW)
+tests/integration/rest-api.test.ts (NEW) — pillar (c) observability locus (SEPA pre-loop absorption v1.3); single runtime-metric integration test for the entire plan; asserts OTel span count > 0 against in-memory exporter
 ```
 
 #### Deep Dives
