@@ -152,3 +152,52 @@ describe('AdditiveExtractionSchema (Zod)', () => {
     expect(() => AdditiveExtractionSchema.parse({ memory: [{ id: '0' }] })).toThrow();
   });
 });
+
+describe('T1.2 — N-valent attributed_to vocabulary (v1.1 + blueprint Q5 R1)', () => {
+  test('prompt does NOT advise the bivalent enum "user|system|agent"', () => {
+    const { prompt } = generateAdditiveExtractionPrompt(
+      [],
+      [{ role: 'user', content: 'I like coffee' }],
+    );
+    // Pre-v1.1 prompt contained the literal enum-like string `"user|system|agent"`
+    // which advised the LLM to constrain attributed_to to those 3 values.
+    // T1.2 relaxes this to N-valent (arbitrary peer IDs per blueprint Q5).
+    expect(prompt).not.toMatch(/"user\|system\|agent"/);
+  });
+
+  test('prompt advises N-valent attributed_to (peer ID / arbitrary string)', () => {
+    const { prompt } = generateAdditiveExtractionPrompt(
+      [],
+      [{ role: 'user', content: 'I like coffee' }],
+    );
+    // The relaxed prompt MUST surface the N-valent intent so the LLM emits
+    // arbitrary peer IDs ("alice", "bob", "system", "agent-3"), not just
+    // the bivalent Mem0 vocabulary.
+    expect(prompt).toMatch(/attributed_to/);
+    expect(prompt).toMatch(/<peer-id>|peer id|arbitrary/i);
+  });
+
+  test('Zod schema accepts arbitrary attributed_to string like "alice" (EC-8 stability)', () => {
+    // EC-8: Zod schema unchanged at v1.1 (already z.string().optional() pre-v1.1).
+    // Stub LLM fixtures + manually-crafted N-valent fixtures continue to round-trip.
+    const parsedAlice = AdditiveExtractionSchema.parse({
+      memory: [{ id: '0', text: 'Alice prefers tea', attributed_to: 'alice' }],
+    });
+    expect(parsedAlice.memory[0]?.attributed_to).toBe('alice');
+
+    const parsedAgent = AdditiveExtractionSchema.parse({
+      memory: [{ id: '0', text: 'Agent-3 logged in', attributed_to: 'agent-3' }],
+    });
+    expect(parsedAgent.memory[0]?.attributed_to).toBe('agent-3');
+  });
+
+  test('Existing user/system/agent fixtures continue to round-trip (regression guard)', () => {
+    // BIVALENT remains a subset of N-VALENT; pre-v1.1 callers keep working.
+    for (const value of ['user', 'system', 'agent']) {
+      const parsed = AdditiveExtractionSchema.parse({
+        memory: [{ id: '0', text: 'fact', attributed_to: value }],
+      });
+      expect(parsed.memory[0]?.attributed_to).toBe(value);
+    }
+  });
+});
