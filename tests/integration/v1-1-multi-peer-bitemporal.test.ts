@@ -59,6 +59,15 @@ describe.skipIf(PG_URI === '')(
       pool = new pg.Pool({ connectionString: PG_URI });
       await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
       await runMigrations(pool);
+      // Defensive self-sufficiency: orphan-schema DBs (drizzle-kit push flow)
+      // skip migrate() per architecture.md § 10.2. Apply v1.1 migration 0008
+      // inline if the column is missing — idempotent via IF NOT EXISTS.
+      await pool.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS attributed_to text`);
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_memories_user_attributed_to
+           ON memories (user_id, attributed_to)
+           WHERE attributed_to IS NOT NULL`,
+      );
       const vectorStore = new PgvectorStore(pool);
       await vectorStore.initialize();
       memory = await createLocalMemory({
