@@ -29,6 +29,8 @@ interface MemoriesRow extends QueryResultRow {
   readonly user_id: string | null;
   readonly session_id: string | null;
   readonly agent_id: string | null;
+  /** v1.1 T2.1: first-class promoted column for multi-peer attribution (NULL on pre-v1.1 rows). */
+  readonly attributed_to?: string | null;
   readonly kind?: string | null;
   readonly code?: string | null;
   readonly description?: string | null;
@@ -53,6 +55,11 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   }
   if (row.agent_id !== null) {
     payload['agent_id'] = row.agent_id;
+  }
+  // v1.1 T2.1 — project attributed_to column into payload when non-null. NULL rows
+  // (pre-v1.1) leave the key absent, surfacing as `undefined` on the consumer DTO.
+  if (row.attributed_to !== undefined && row.attributed_to !== null) {
+    payload['attributed_to'] = row.attributed_to;
   }
   // v0.6 — project skill columns into payload when present (kind/code/description/code_language)
   // + provenance + supersession. Mirrors how user_id/session_id/agent_id are projected above.
@@ -250,19 +257,35 @@ export class PgvectorStore implements VectorStore {
       const userId = (payload['user_id'] as string | undefined) ?? null;
       const sessionId = (payload['session_id'] as string | undefined) ?? null;
       const agentId = (payload['agent_id'] as string | undefined) ?? null;
+      // v1.1 T2.1: hoist attributed_to from payload to column. EC-2: this single
+      // hoist serves BOTH the LLM-extraction path (pipeline writes
+      // extracted[i].attributed_to into payload) AND the verbatim infer:false
+      // path (pipeline writes options.attributedTo into payload).
+      const attributedTo = (payload['attributed_to'] as string | undefined) ?? null;
       const cleanedPayload: Payload = { ...payload };
       delete cleanedPayload['text'];
       delete cleanedPayload['hash'];
       delete cleanedPayload['user_id'];
       delete cleanedPayload['session_id'];
       delete cleanedPayload['agent_id'];
+      delete cleanedPayload['attributed_to'];
       values.push(
-        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++})`,
+        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++})`,
       );
-      params.push(id, text, hash, vectorLiteral(vec), JSON.stringify(cleanedPayload), userId, sessionId, agentId);
+      params.push(
+        id,
+        text,
+        hash,
+        vectorLiteral(vec),
+        JSON.stringify(cleanedPayload),
+        userId,
+        sessionId,
+        agentId,
+        attributedTo,
+      );
     }
     const sql = `
-      INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id)
+      INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to)
       VALUES ${values.join(', ')}
       ON CONFLICT (hash) DO NOTHING
     `;
@@ -296,7 +319,7 @@ export class PgvectorStore implements VectorStore {
     // from semantic recall. Audit query (raw SQL WHERE t_invalid IS NOT NULL)
     // still returns them per ADR-0006 bi-temporal contract.
     const sql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id,
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
              kind, code, description, code_language, derived_from, superseded_by,
              embedding <=> $1::vector AS distance
       FROM memories
@@ -358,7 +381,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, 2);
     // v0.4b T6.1 / D17: exclude soft-deleted rows from keyword recall.
     const sql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id,
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
              kind, code, description, code_language, derived_from, superseded_by,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
@@ -373,7 +396,7 @@ export class PgvectorStore implements VectorStore {
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
-      `SELECT id, text, hash, payload, user_id, session_id, agent_id,
+      `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
               kind, code, description, code_language, derived_from, superseded_by
          FROM memories WHERE id = $1`,
       [vectorId],
@@ -394,12 +417,15 @@ export class PgvectorStore implements VectorStore {
     const userId = (payload['user_id'] as string | undefined) ?? null;
     const sessionId = (payload['session_id'] as string | undefined) ?? null;
     const agentId = (payload['agent_id'] as string | undefined) ?? null;
+    // v1.1 T2.1: update-path mirrors insert-path hoist so re-upserts preserve attribution.
+    const attributedTo = (payload['attributed_to'] as string | undefined) ?? null;
     const cleanedPayload: Payload = { ...payload };
     delete cleanedPayload['text'];
     delete cleanedPayload['hash'];
     delete cleanedPayload['user_id'];
     delete cleanedPayload['session_id'];
     delete cleanedPayload['agent_id'];
+    delete cleanedPayload['attributed_to'];
     await this.pool.query(
       `UPDATE memories
          SET embedding = $2::vector,
@@ -409,9 +435,20 @@ export class PgvectorStore implements VectorStore {
              user_id = $6,
              session_id = $7,
              agent_id = $8,
+             attributed_to = $9,
              updated_at = NOW()
        WHERE id = $1`,
-      [vectorId, vectorLiteral(vector), text, hash, JSON.stringify(cleanedPayload), userId, sessionId, agentId],
+      [
+        vectorId,
+        vectorLiteral(vector),
+        text,
+        hash,
+        JSON.stringify(cleanedPayload),
+        userId,
+        sessionId,
+        agentId,
+        attributedTo,
+      ],
     );
   }
 
@@ -433,7 +470,7 @@ export class PgvectorStore implements VectorStore {
     const total = countResult.rows[0]?.total ?? 0;
 
     const pageSql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id,
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
              kind, code, description, code_language, derived_from, superseded_by
       FROM memories
       WHERE 1=1${filter.sql}
