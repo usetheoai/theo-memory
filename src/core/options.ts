@@ -18,6 +18,20 @@ export interface RememberOptions {
    * @see ADR-0001 — `infer: false` escape hatch.
    */
   readonly infer?: boolean;
+
+  /**
+   * v1.1 T1.1 (EC-2 absorbed): multi-peer attribution for verbatim-path callers.
+   * The perspective owner of the fact — typically a peer ID (user id, agent id,
+   * or `'system'` for self-statements). N-valent semantic per blueprint Q5
+   * (any string accepted). Hoisted to the `attributed_to` column at persist
+   * time. Read by T2.1 when `infer: false`; the LLM-extracted
+   * `extracted[i].attributed_to` wins when `infer: true` (the default).
+   *
+   * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § ADR D2
+   */
+  readonly attributedTo?: string;
 }
 
 export interface RecallOptions {
