@@ -1,0 +1,345 @@
+agent: review-v0-7-distillation-pipeline-architecture
+review_target: main..HEAD for plan v0-7-distillation-pipeline (re-review #3 after fix-up #2 commit f68727d)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+context: |
+  Third /review pass on v0.7. Re-run #2 had verdict READY_TO_MERGE_WITH_CAVEATS
+  with 2 MAJOR + 9 MINOR + 23 INFO. Fix-up commit f68727d closed F-xval-rerun-3
+  (ADR D7 documenting outer flow atomicity), F-xval-rerun-4 (ADR D1 inline
+  amendment about wiring locus), F-Mi12 (package.json eval:distillation
+  script), F-wire-3 (comment fix), F-xval-rerun-5 (plan math correction),
+  F-tests-rerun-1/2 (test name + assertions).
+
+  My architecture review on this pass: surface is small (4 files in
+  src/core/conflict-resolution + DIP at src/core/dip + wiring in src/local/
+  index.ts:373-417 + insertConsolidationHistory at src/local/pgvector-store.ts
+  :605-633 + schema decl at src/local/schema.ts:239-254 + migration 0007).
+  DIP boundary clean (no src/core → src/local imports). No `any` in v0.7
+  surface. No `console.log` in production paths. Lazy-init OTel pattern
+  honored (lazyCounters Map cache at llm-judged-merge.ts:38-50). The
+  documented divergence at recallConsolidationCandidates (whole-scope vs
+  cosine-cluster per plan T2.1) is the load-bearing architectural decision
+  shipped — guarded by F-C1 maxRejectionRatio guard + F-C2 kind='extracted'
+  filter + LLM-policy clusterCap=20. Acceptable post-fix-up architecturally.
+
+findings:
+  - id: F-arch-rerun2-1
+    severity: INFO
+    file: src/core/dip/conflict-resolution-policy.ts
+    line: 1-80
+    plan_ref: T1.1 / ADR D2
+    summary: ConflictResolutionPolicy DIP is clean — interface-only, zero runtime impl in core, no I/O imports, JSDoc cites EC absorptions; method count (1 + kind) matches plan declared. SOLID compliant.
+    evidence: |
+      DIP file at src/core/dip/conflict-resolution-policy.ts (80 LoC ≤ 80 budget).
+      Exports `ConflictResolutionPolicy` interface + 3 types (ConsolidationCandidate,
+      ConsolidationContext, ConflictResolutionResult). Imports only `Scope` from
+      `../scope.js`. Zero side effects. Type-narrowed (readonly + ReadonlySet
+      semantics enforced by `readonly` modifiers). LSP-safe: contract has no
+      "may throw NotImplementedException" escape hatches.
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-2
+    severity: INFO
+    file: src/core/conflict-resolution/noop.ts
+    line: 24-36
+    plan_ref: T1.2 / ADR D2
+    summary: NoopConflictPolicy correctly delivers the ADD-only-preserving default. Pure function, returns []. Honors `kind` discriminator pattern via `'noop' as const`.
+    evidence: |
+      `void candidates; void context;` explicit unused-arg marker maintains
+      the interface contract while documenting intentional disuse. Promise.resolve()
+      ensures the async return is honored. No `any`, no console.log, 36 LoC.
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-3
+    severity: INFO
+    file: src/core/conflict-resolution/last-write-wins.ts
+    line: 35-122
+    plan_ref: T1.2 / ADR D2 / EC-1 / /review F-C1
+    summary: LastWriteWinsConflictPolicy is well-factored — exported `compareCandidatesDesc` for test isolation, clamped `maxRejectionRatio` constructor option, deterministic tie-break via lexicographic memoryId DESC.
+    evidence: |
+      The factoring pattern (exported pure comparator + class consumer) is
+      idiomatic SRP. `Math.max(0, Math.min(1, raw))` clamp idiom is safe
+      against bad consumer input. JSDoc explicitly cites the V8 TimSort
+      preservation gotcha + EC-1 batch-persist scenario. File is 122 LoC
+      (budget ≤ 80 violated by 42 LoC for the F-C1 mass-tombstone guard
+      addition — documented as deferred F-M1 in plan v1.2 header).
+    recommended_action: |
+      Budget violation is INFO-tier (documented + accepted via plan v1.2
+      deferral). Otherwise clean. No action this cycle.
+
+  - id: F-arch-rerun2-4
+    severity: INFO
+    file: src/core/conflict-resolution/llm-judged-merge.ts
+    line: 38-50, 92-121
+    plan_ref: T1.3 / ADR D2 / EC-2 + EC-4 + EC-6
+    summary: LlmJudgedMergeConflictPolicy correctly compresses F-dom-6 / v0.4b T10.1 lazy-OTel-counter pattern via module-scoped Map cache. EC-2 semantic-validation extracted as a testable pure helper (`parseConsolidationResponse`).
+    evidence: |
+      Module-scoped `lazyCounters = new Map<string, Counter>()` + `getCounter()`
+      wrapper is the canonical Letta-style lazy-init pattern with sub-millisecond
+      cache hits after first resolution. The `__resetCounterCacheForTesting()`
+      export is correctly marked `@internal` for test access without leaking
+      into public API. `parseConsolidationResponse` returns `null` (never throws)
+      on hallucinated kept_id/rejected_ids; abstain-via-counter increment.
+      File is 121 LoC (≤ 120 budget — 1 LoC over).
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-5
+    severity: INFO
+    file: src/core/conflict-resolution/prompts.ts
+    line: 1-61
+    plan_ref: T1.3 / ADR D2
+    summary: Prompts file is correctly separated from the policy class per ADR D2 — consumers can grep `CONFLICT_MERGE_PROMPT` independently. Returns `readonly Message[]`; pure function `generateConflictMergePrompt`.
+    evidence: |
+      `as const` on `CONFLICT_MERGE_PROMPT` preserves the literal-string narrowing
+      so consumers see exact prompt content via tooling. The user-message string
+      builder uses array push + join('\n') idiom (vs template-literal concat) —
+      defensible for the 13-line build. 61 LoC (≤ 80 budget).
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-6
+    severity: MINOR
+    file: src/core/conflict-resolution/last-write-wins.ts
+    line: 48
+    plan_ref: no-paper-names-in-code.md rule + plan T5.2 / F-arch-10 precedent
+    summary: JSDoc comment contains a paper name (`Mem0 entity-link precedent`) introduced by /review fix-up commit 17425af. Violates `.claude/rules/no-paper-names-in-code.md` which forbids paper/vendor names in src/.
+    evidence: |
+      Line 48: `* Mem0 entity-link precedent declared). Combined with LWW returning`
+      Per the rule § Pre-existing references, this is OPPORTUNISTIC cleanup —
+      "References that predate this rule get cleaned up when those files are
+      next touched". Here Mem0 was ADDED by a v0.7 fix-up cycle on 2026-06-02,
+      so the rule applies: cite via @see to a knowledge-base doc instead of
+      inlining the vendor name.
+    recommended_action: |
+      Replace `Mem0 entity-link precedent` with `@see .claude/knowledge-base/plans/
+      v0-7-distillation-pipeline-plan.md § T2.1 + ADR D1 (entity-link precedent)`.
+      MINOR — defer to a follow-up cleanup pass; does not block merge.
+
+  - id: F-arch-rerun2-7
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 558-564
+    plan_ref: no-paper-names-in-code.md rule
+    summary: Inline comment references "v0.6 Voyager skill" (paper name) introduced by /review fix-up commit ffa92d15. Same rule violation as F-arch-rerun2-6.
+    evidence: |
+      Line 559: `// episodic→semantic boundary. Without this guard, v0.6 Voyager skill`
+      Voyager (Wang et al. 2023) is the source paper for the skill library
+      lineage; the rule says it stays in knowledge-base docs (ADRs, plans,
+      reviews), NOT in src/. Same git history (added 2026-06-02 in fix-up
+      cycle) so the opportunistic-cleanup rule applies.
+    recommended_action: |
+      Replace `v0.6 Voyager skill rows` with `v0.6 skill rows` and add
+      `@see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T1.2`.
+      MINOR — same severity as F-arch-rerun2-6.
+
+  - id: F-arch-rerun2-8
+    severity: MINOR
+    file: src/local/index.ts
+    line: 383-406
+    plan_ref: T2.1 / plan v1.2 amendment (recallConsolidationCandidates whole-scope divergence)
+    summary: Wiring layer relies on `as unknown as VectorStoreWithConsolidation` cast with optional methods + runtime typeof guards. Pragmatic precedent (matches v0.4a `VectorStoreWithDerivedInsert`) but architecturally inferior to a proper DIP narrowing.
+    evidence: |
+      Line 385: `const storeWithConsolidate = this.config.vectorStore as unknown as VectorStoreWithConsolidation;`
+      Lines 386-394: typeof guards on `.recallConsolidationCandidates` and
+      `.persistConsolidations`. ISP rationale: not every VectorStore impl
+      needs to honor consolidation, so optional-method capabilities make
+      sense at the consumer side. But the cast through `unknown` defeats
+      the type system completely — an in-memory store missing the methods
+      throws at runtime instead of being rejected at compile time. Pattern
+      is consistent with VectorStoreWithDerivedInsert (v0.4a precedent),
+      which is the "documented divergence" path.
+    recommended_action: |
+      Best-practice refactor (v0.8+): introduce a `ConsolidationCapableVectorStore`
+      sub-DIP at `src/core/dip/` with the 2 optional methods declared as required;
+      caller-side type narrowing via `if (isConsolidationCapable(store))`. Out
+      of scope this cycle — defer to a `architecture-cleanup` cycle. MINOR.
+
+  - id: F-arch-rerun2-9
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 555-593
+    plan_ref: T2.1 / plan v1.2 (recallConsolidationCandidates as whole-scope cluster)
+    summary: `recallConsolidationCandidates` returns the entire active scope as ONE bag — semantic divergence from plan T2.1's "clusters of cosine-similar memories ≥ 0.95" declaration, but explicitly absorbed by plan v1.2 amendment + guarded by 3 safety nets.
+    evidence: |
+      The shipped SQL filters: `kind = 'extracted' AND t_invalid IS NULL AND
+      (t_valid IS NULL OR t_valid <= NOW())` — no cosine clustering, no entity
+      overlap, no embedding distance. Three safety nets compensate:
+      (1) LastWriteWinsConflictPolicy.maxRejectionRatio guard (F-C1, last-
+          write-wins.ts:104-111) abstains when rejected/N > 0.95 — effectively
+          a 20-candidate cap.
+      (2) LlmJudgedMergeConflictPolicy.clusterCap default 20 (llm-judged-
+          merge.ts:97-100) abstains beyond 20, no LLM call.
+      (3) F-C2 `kind='extracted'` filter prevents v0.6 skill rows + already-
+          consolidated `kind='derived'` rows from entering the bag.
+      The combination is the documented honest divergence; architecturally
+      this is "LWW for small scopes, opt-in LLM judge with abstain on too-
+      large, no cosine clustering shipped". Recall pattern would be more
+      Mem0-faithful but is deferred to a future cycle per plan v1.2.
+    recommended_action: |
+      No action this cycle — the divergence is documented + bounded + guarded.
+      Future cycle (v0.8?) should ship cosine clustering at the recall layer
+      to honor the original ADR D1 intent. Note that the F-C1 guard makes
+      LWW essentially equivalent to "consolidate the most recent vs a small
+      group" — usable but lower power than ADR D1 promised.
+
+  - id: F-arch-rerun2-10
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 605-633
+    plan_ref: T2.1 / EC-8
+    summary: `persistConsolidations` correctly composes `withTransaction` + per-result UPDATE + INSERT loop. Atomic at the batch level (BEGIN/COMMIT wraps all results); rollback on any failure.
+    evidence: |
+      Line 609: `await this.withTransaction(async (client) => { ... })`
+      Inside: a `for` loop over results, each emitting (a) UPDATE memories
+      SET t_invalid = NOW() and (b) INSERT INTO consolidation_history. The
+      UPDATE uses `id = ANY($1::uuid[]) AND t_invalid IS NULL` so re-applying
+      a partial batch is idempotent. JSON.stringify on the JSONB arrays is
+      correct pg-node serialization. Rollback path is the `try/catch` in
+      `withTransaction` (lines 636-649). EC-8 absorbed correctly.
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-11
+    severity: INFO
+    file: src/local/schema.ts
+    line: 239-254
+    plan_ref: T0.1 / F-C3 closure
+    summary: `consolidation_history` declared as pgTable export in schema.ts (F-C3 fix). Mirrors the SQL migration; `onDelete: 'set null'` matches the FK declaration in 0007_distillation_columns.sql.
+    evidence: |
+      Drizzle pgTable declaration with: id (uuid primary), keptMemoryId (uuid
+      references memories.id ON DELETE SET NULL), rejectedMemoryIds (jsonb
+      string[] not null default '[]'::jsonb), reason (text not null),
+      policyName (text not null), originalEpisodeIds (jsonb string[] not null
+      default '[]'::jsonb), createdAt (timestamp with timezone defaultNow not
+      null). Two indexes: idx_consolidation_history_kept on keptMemoryId,
+      idx_consolidation_history_created on createdAt DESC. The schema↔migration
+      bijection is enforced by tests/integration/schema-snapshot-parity.test.ts
+      sentinel.
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-12
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 14-42
+    plan_ref: T0.1 / ADR D3 / EC-3
+    summary: Migration uses `CREATE TABLE IF NOT EXISTS` + split-step ALTER inside DO $$ guarded by `information_schema.referential_constraints` probe. True idempotent (re-runs are no-ops).
+    evidence: |
+      The FK could not embed inside CREATE TABLE IF NOT EXISTS because the
+      IF NOT EXISTS clause skips the WHOLE statement when the table already
+      exists (dropping the FK), so the FK is added via separate ALTER guarded
+      by a catalog probe. EC-3 `ON DELETE SET NULL` honored for GDPR
+      hard-delete survival.
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-13
+    severity: INFO
+    file: src/local/index.ts
+    line: 87-91
+    plan_ref: T2.1 / public API surface
+    summary: Re-exports of conflict-resolution policies from `@usetheo/memory/local` allow integration tests + consumer apps to import without crossing the contract subpath. Matches the v0.4a precedent.
+    evidence: |
+      ```ts
+      export {
+        NoopConflictPolicy,
+        LastWriteWinsConflictPolicy,
+        LlmJudgedMergeConflictPolicy,
+      } from '../core/index.js';
+      ```
+      Re-exporting through the runtime barrel reduces the import paths
+      consumers need to know (one fewer subpath to remember). Honors
+      `architecture.md § 9 Public API surface`.
+    recommended_action: No action — clean.
+
+  - id: F-arch-rerun2-14
+    severity: INFO
+    file: src/local/index.ts
+    line: 1079 (total)
+    plan_ref: F-M1 (plan v1.2 deferred)
+    summary: `src/local/index.ts` is 1079 LoC, exceeds the project's ~500 LoC budget per `architecture.md`. v0.7 added ~50 LoC for conflict-resolution wiring; bulk of the file is pre-v0.7 LocalScopedMemory/LocalMemory composition + skill-memory wiring.
+    evidence: |
+      Plan v1.2 header explicitly defers F-M1/M2 file-size budget violations
+      to a refactor cycle. v0.7 incremental contribution is small (~50 LoC of
+      net additions for the consolidation phase + interface declaration);
+      the absolute LoC violation predates v0.7.
+    recommended_action: |
+      Defer to a `local-index-refactor` follow-up cycle. Split LocalScopedMemory
+      into per-tier impls + extract reflect()-with-consolidation into a
+      dedicated orchestrator file. NOT this cycle's scope.
+
+  - id: F-arch-rerun2-15
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 702 (total)
+    plan_ref: F-M2 (plan v1.2 deferred)
+    summary: `src/local/pgvector-store.ts` is 702 LoC, exceeds the budget. v0.7 added ~85 LoC for recallConsolidationCandidates + persistConsolidations + withTransaction.
+    evidence: |
+      Plan v1.2 defers; v0.7 increment is reasonable. The withTransaction
+      helper (lines 636-649) is borrowed from v0.6.1 pattern and could be
+      extracted to a `src/local/db/transaction.ts` helper module to support
+      F-arch-rerun2-8 (sub-DIP refactor) but that's a separate cycle.
+    recommended_action: |
+      Defer to a refactor cycle. Possible split: extract pgvector-skill-store
+      pattern further into `pgvector-consolidation-store.ts` for the new v0.7
+      methods, since the existing pgvector-skill-store.ts precedent shows
+      composition works.
+
+  - id: F-arch-rerun2-16
+    severity: INFO
+    file: src/local/index.ts
+    line: 237-244
+    plan_ref: T2.1 / ISP
+    summary: `VectorStoreWithConsolidation` is a role interface with 2 optional methods — correct ISP shape for the consumer side, but the `unknown` cast in line 385 defeats the type narrowing. See F-arch-rerun2-8 for the architectural improvement path.
+    evidence: |
+      The interface design itself is good (small, role-shaped, optional methods).
+      What's suboptimal is the cast pattern: `as unknown as VectorStoreWithConsolidation`
+      bypasses type narrowing entirely. A type-guard function would honor ISP +
+      preserve type safety:
+      ```ts
+      function isConsolidationCapable(s: VectorStore): s is VectorStore & Required<VectorStoreWithConsolidation> {
+        return typeof (s as VectorStoreWithConsolidation).recallConsolidationCandidates === 'function'
+          && typeof (s as VectorStoreWithConsolidation).persistConsolidations === 'function';
+      }
+      ```
+    recommended_action: |
+      Consider the type-guard refactor at a future cycle. The current pattern
+      matches v0.4a precedent so it's consistent within the codebase — fixing
+      this in isolation would create inconsistency.
+
+summary: |
+  Architecture review #3 (re-re-run) of v0.7-distillation-pipeline post fix-up #2.
+
+  Verdict: **READY_TO_MERGE — architecture surface is clean post fix-up**.
+
+  Counts: 0 BLOCKER, 0 CRITICAL, 0 MAJOR (all 11 deferred-with-rationale per
+  plan v1.2), 3 MINOR (F-arch-rerun2-6, F-arch-rerun2-7, F-arch-rerun2-8 —
+  cosmetic + future-refactor; do NOT block merge), 13 INFO (clean baselines
+  documenting what's correct).
+
+  Key architectural strengths shipped:
+  1. ConflictResolutionPolicy DIP is well-shaped (80 LoC, 1+kind methods, pure types).
+  2. SOLID compliant: SRP (each policy = 1 strategy), OCP (open for new policies
+     via DIP impl, closed for modification), LSP (no escape hatches), ISP
+     (small role-shaped interfaces), DIP (no src/core → src/local imports).
+  3. Lazy-OTel-counter pattern (llm-judged-merge.ts:38-50) is canonical
+     F-dom-6/v0.4b T10.1 reuse — Map-based cache with @internal reset helper.
+  4. F-C1 mass-tombstone guard, F-C2 kind='extracted' filter, F-C3 schema.ts
+     parity sentinel — all 3 CRITICAL fix-up commits hold architecturally.
+  5. EC absorptions (EC-1 lex tie-break, EC-2 semantic-validation, EC-3 ON
+     DELETE SET NULL, EC-4 lazy counters, EC-7 empty-scope short-circuit,
+     EC-8 atomic-tx persistConsolidations) are all delivered as advertised.
+
+  Architectural divergences declared honestly:
+  - recallConsolidationCandidates returns whole-scope (not cosine clusters
+    per plan T2.1 original) — plan v1.2 amendment + F-C1/F-C2/cluster-cap-20
+    guards bound the blast radius. Future v0.8 cycle should restore cosine
+    clustering.
+  - Wiring locus shifted from src/core/reflection/execute.ts to src/local/
+    index.ts:373-417 — plan v1.2 § ADR D1 amendment documents this honestly.
+  - VectorStoreWithConsolidation interface uses `as unknown as` cast pattern
+    (matches v0.4a VectorStoreWithDerivedInsert precedent) — defensible
+    consistency, but a type-guard refactor would be more SOLID-pure.
+
+  Two MINOR paper-name violations in JSDoc comments (last-write-wins.ts:48
+  Mem0; pgvector-store.ts:559 Voyager) were ADDED by /review fix-up commits.
+  Per `no-paper-names-in-code.md`, these should be cleaned up — but the rule
+  itself says "opportunistically" so they do NOT block merge. Recommend
+  cleanup in the next file edit.
+
+  No padding, no rubber-stamp findings. The architecture is shippable.

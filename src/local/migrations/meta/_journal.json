@@ -50,6 +50,27 @@
       "when": 1780243549731,
       "tag": "0006_drop_dead_index_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780341763029,
+      "tag": "0007_distillation_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780445431070,
+      "tag": "0008_attributed_to",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780466527854,
+      "tag": "0009_v1_1_index_parity",
+      "breakpoints": true
     }
   ]
 }

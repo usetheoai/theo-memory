@@ -57,7 +57,27 @@ function client(): OpenAI {
   return _openai;
 }
 
-const CHAT_MODEL = 'gpt-4o-mini';
+const DEFAULT_CHAT_MODEL = 'gpt-4o-mini';
+
+/**
+ * E2E follow-up (2026-06-02): the demo's `local-openrouter` mode routes via
+ * `OPENAI_BASE_URL=https://openrouter.ai/api/v1` per ADR D5, but OpenRouter
+ * requires fully-qualified model identifiers (e.g., `openai/gpt-4o-mini`,
+ * `anthropic/claude-3-5-sonnet`) — the bare `gpt-4o-mini` returns 404.
+ *
+ * Resolve model at CALL TIME (not module-load) so the demo can set
+ * `OPENAI_CHAT_MODEL=openai/gpt-4o-mini` after `new OpenAILLM()` is
+ * already on the heap. Falls back to the locked default per ADR D3
+ * when the env var is unset (no behavior change for plain OpenAI mode).
+ *
+ * Addresses SDK @todo at line 37 (constructor-param model override remains
+ * deferred to Cycle 2.X; this env-var path is the bridge).
+ */
+/** @internal exported for unit-test access only; not part of the public DIP. */
+export function resolveChatModel(): string {
+  const fromEnv = process.env['OPENAI_CHAT_MODEL'];
+  return fromEnv !== undefined && fromEnv !== '' ? fromEnv : DEFAULT_CHAT_MODEL;
+}
 
 function toOpenAIMessages(
   messages: readonly Message[],
@@ -76,7 +96,7 @@ export class OpenAILLM implements LLM {
   ): Promise<unknown> {
     void _tools;
     const resp = await client().chat.completions.create({
-      model: CHAT_MODEL,
+      model: resolveChatModel(),
       messages: toOpenAIMessages(messages),
       response_format:
         responseFormat?.type === 'json'
@@ -96,7 +116,7 @@ export class OpenAILLM implements LLM {
 
   async generateChat(messages: readonly Message[]): Promise<LLMResponse> {
     const resp = await client().chat.completions.create({
-      model: CHAT_MODEL,
+      model: resolveChatModel(),
       messages: toOpenAIMessages(messages),
     });
     return {

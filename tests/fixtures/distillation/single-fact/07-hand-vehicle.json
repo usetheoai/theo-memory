@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-07-hand-vehicle",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "Bought a used 2018 Toyota Corolla last month — perfect commuter for now.",
+  "expectedFacts": [
+    { "text": "Owns a 2018 Toyota Corolla", "attributedTo": "user" }
+  ]
+}

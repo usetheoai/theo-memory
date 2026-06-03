@@ -61,6 +61,7 @@ export type {
 export {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
+  InvalidEmbeddingDim,
   InvalidScope,
   InvalidSkillError,
   MemoryNotFound,
@@ -79,6 +80,9 @@ export type {
 export type { Embedder } from './dip/embedder.js';
 
 export type { LLM } from './dip/llm.js';
+
+// 11th DIP (v0-8-fixes-cycle-1 T3.1 — F-arch-1 absorption)
+export type { Tokenizer } from './dip/tokenizer.js';
 
 export type {
   VectorStore,
@@ -109,6 +113,34 @@ export type {
   ScoreContext,
 } from './dip/eviction-policy.js';
 export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
+
+export type {
+  ConflictResolutionPolicy,
+  ConflictResolutionResult,
+  ConsolidationCandidate,
+  ConsolidationContext,
+} from './dip/conflict-resolution-policy.js';
+export { NoopConflictPolicy } from './conflict-resolution/noop.js';
+export { LastWriteWinsConflictPolicy, compareCandidatesDesc } from './conflict-resolution/last-write-wins.js';
+export {
+  LlmJudgedMergeConflictPolicy,
+  parseConsolidationResponse,
+  type LlmJudgedMergeConflictPolicyOptions,
+} from './conflict-resolution/llm-judged-merge.js';
+export {
+  CONFLICT_MERGE_PROMPT,
+  generateConflictMergePrompt,
+} from './conflict-resolution/prompts.js';
+
+// v0.8 BenchmarkAdapter DIP (10th interface) — plan T0.1 / ADRs D1, D5, D6
+export type {
+  AddMetrics,
+  BenchmarkAdapter,
+  BenchmarkCorpus,
+  BenchmarkCorpusItem,
+  BenchmarkQuery,
+  SearchResult,
+} from './dip/benchmark-adapter.js';
 
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';

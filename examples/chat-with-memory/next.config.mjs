@@ -13,6 +13,14 @@ const nextConfig = {
       ...(config.resolve.extensionAlias ?? {}),
       ".js": [".ts", ".tsx", ".js"],
     };
+    // `natural` (used by docs/distillation-evaluation/metrics.ts) pulls in
+    // `sylvester` which optionally imports `lapack` (native FFI). The lapack
+    // binding is not needed for our BLEU/NGrams paths; mark as fallback so
+    // Webpack treats it as `module not found OK`.
+    config.resolve.fallback = {
+      ...(config.resolve.fallback ?? {}),
+      lapack: false,
+    };
     return config;
   },
 };

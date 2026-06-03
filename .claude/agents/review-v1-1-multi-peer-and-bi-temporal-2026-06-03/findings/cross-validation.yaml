@@ -1,0 +1,146 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-cross-validation
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal v1.2
+plan: .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md
+plan_version_at_review: v1.2 (2026-06-02)
+
+commits_in_scope:
+  - sha: 2e4da30
+    subject: chore(plans) cycle-plan chain artifacts for v1.1 multi-peer + bi-temporal
+    role: plan + ADR + audit + edge-case + deps-audit + confidence + snapshots
+  - sha: ee6056d
+    subject: docs(adr) T0.1 — ADR-0011 supplementary lifts ADR-0006 runtime-clause + EC-4 stale-refs audit
+    role: T0.1 (STRATEGIC REVIEW gate)
+  - sha: ef4a434
+    subject: feat(memory) T1.1 — attributed_to first-class promoted column + RememberOptions.attributedTo widening
+    role: T1.1 (schema + DTO + RememberOptions widening; EC-1 / EC-2 / EC-6 absorbed)
+  - sha: 7f4eb05
+    subject: feat(memory) T1.2 — relax LLM extraction prompt to N-valent attributed_to vocabulary
+    role: T1.2 (prompt relax; ADR D5; EC-8 absorbed)
+  - sha: 24d4f05
+    subject: feat(memory) T2.1 — pgvector-store attributed_to hoist + projection + pipeline wiring (EC-2 + EC-10 + EC-1 closed)
+    role: T2.1 (write/read hoist + pipeline; EC-1/EC-2/EC-10)
+  - sha: 73cd889
+    subject: feat(memory) T2.2 — RecallOptions.attributedTo filter + WHERE clause (EC-5 + EC-7 absorbed)
+    role: T2.2 (filter widening + WHERE; EC-5/EC-7)
+  - sha: 8876fb3
+    subject: feat(memory) T3.1 + T3.2 — lift BiTemporalNotSupportedLocally + asOf SQL composition (ADR-0011, EC-3, EC-4, EC-9)
+    role: T3.1 + T3.2 (throw lift + asOf SQL + factory.test rewrite; EC-3/EC-4/EC-9/EC-11)
+  - sha: 42e2ace
+    subject: feat(memory) T4.1 — v1.1 THE GOAL TEST 7/7 PASS + CHANGELOG
+    role: T4.1 (E2E goal test + CHANGELOG)
+  - sha: 373e540
+    subject: chore(v1.1) final-phase lint cleanup
+    role: Final Phase (lint cleanup; 2 file touches)
+  - sha: 3669cb7
+    subject: chore(v1.1) T4.1 goal-test resilience — defensive ADD COLUMN IF NOT EXISTS in beforeAll
+    role: T4.1 follow-up (orphan-schema resilience in goal test beforeAll)
+
+plan_tasks_summary:
+  total_tasks: 9   # T0.1, T1.1, T1.2, T2.1, T2.2, T3.1, T3.2, T4.1, Final Phase
+  fully_implemented: 8
+  partial: 1       # T3.1 — EC-9 acceptance criterion met at SQL layer ONLY; public API skill.recall() lacks asOf, integration test absent
+  missing: 0
+  diverged_with_adr: 3   # 0008 hand-authored replacement, T1.1 absorbed RememberOptions widening, integration uses ConstantEmbedder
+  diverged_without_adr: 1  # EC-9 skill+asOf integration test silently dropped
+
+acceptance_criteria_summary:
+  total: 64   # rough count across the 8 tasks + final phase
+  satisfied: 62
+  unverified: 1   # EC-9 skill-rows-asOf integration RED test never written; SQL-uniform claim verified but acceptance bar was integration coverage
+  false_claims: 1   # T3.1 step 10 marked done in commit; integration test absent
+
+adr_compliance:
+  total_adrs: 7   # D1 + D2 + D3 + D4 + D5 + D6 + D7 (ADR D7 added in v1.2)
+  respected: 7
+  diverged_without_new_adr: 0
+  notes: |
+    ADR D2 (promoted column + verbatim-path EC-2) — schema migration 0008 + Drizzle column + DTO + RememberOptions field all present; INSERT/SELECT hoist verified in src/local/pgvector-store.ts (column list widened) + src/core/extraction/pipeline.ts runInferFalsePath/runInferTruePath both route to payload['attributed_to'].
+    ADR D3 (ADR-0011 supplementary) — ADR-0011 file exists; ADR-0006 carries the supersession header; CLAUDE.md Roadmap row 7 narrowed.
+    ADR D4 (simple asOf, NOT Graphiti DNF) — only optional Date param widened; no DateFilter / DNF type introduced.
+    ADR D5 (TRINARY → N-VALENT) — src/core/extraction/prompt.ts:39 relaxed; zod parser unchanged; tests in src/core/__tests__/extraction-prompt.test.ts assert arbitrary-string acceptance + BIVALENT regression guard.
+    ADR D7 (zod ^3.25.0 pin) — package.json shows zod ^3.25.0; no migration to 4.x performed.
+    ADR D8 method-count cap (cross-ref in D4) — zero new methods on MemoryStore; only optional param widenings. Verified.
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    `.claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md` has ONE commit (2e4da30 at 2026-06-02 21:02:09 -0300). Implementation commits (ee6056d at 21:05:48 onward) all post-date the plan creation. Plan is frozen since /implement start.
+
+coverage_matrix_audit:
+  total_gaps: 36
+  covered_by_implementation: 35
+  partial_or_open: 1
+  notes: |
+    Gap 29 (EC-9 SHOULD TEST: skill rows + asOf filter interaction) — plan declares "T3.1 TDD" as the resolution: "WHERE clause applied to skill query path; integration test asserts skill rows honor temporal predicate". SQL-layer uniformity verified (composeTemporalWhere lives at PgvectorStore.search and the skill recall path flows through it via src/local/scoped-skill-memory.ts:129 runRetrievalPipeline → vectorStore.search). BUT the public API surface SkillRecallOptions (src/core/skill.ts:102) DOES NOT include `asOf`, and src/local/scoped-skill-memory.ts:124-128 constructs Filters without an asOf field — so a caller invoking memory.skills(repoId).recall(query, {asOf}) is type-rejected. The integration RED test required by plan T3.1 Tasks step 10 ("Write RED integration test: skill row recall with asOf honors bi-temporal predicate") and plan T3.1 TDD line "test('integration: skill row recall with asOf honors bi-temporal predicate', ...) — EC-9" was NEVER WRITTEN. Goal test (tests/integration/v1-1-multi-peer-bitemporal.test.ts) exercises user-scope asOf only; no skill scope. Other tests directory grep for "skill.*asOf" returns zero hits.
+    All other 35 gaps verified covered.
+
+documented_divergences_acknowledged_as_honest:
+  - id: divergence-1-honest
+    summary: 0008_cuddly_lester.sql drizzle-autogen replaced by hand-authored 0008_attributed_to.sql
+    plan_ref: T1.1 § Tasks step 1-2
+    why_honest: Auto-generated migration included unrelated consolidation_history index/default drift unrelated to v1.1 scope. Hand-authored file scoped to ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS (EC-6 idempotency). Commit message explicitly surfaces YAGNI deferral of the unrelated drift.
+    verdict: ACCEPTED
+  - id: divergence-2-honest
+    summary: T1.1 absorbed RememberOptions.attributedTo widening that v1.0 originally placed at T2.1
+    plan_ref: ADR D2 v1.1 absorption + T1.1 § Files to edit + § Tasks step 5
+    why_honest: Plan v1.1+ explicitly moves the field into T1.1 with EC-2 absorption; ADR D2 documents the rationale. T1.1 commit ef4a434 declares the field; T2.1 commit 24d4f05 wires the pipeline branch that consumes it. No silent move.
+    verdict: ACCEPTED
+  - id: divergence-3-honest
+    summary: T3.1 stale-refs grep left 4 intentional hits
+    plan_ref: T3.1 AC EC-4 + reviews/v1-1-stale-refs-2026-06-02.md
+    why_honest: 3 hits in agent-tools transport JSDoc are legitimate v0.5+ cloud-tier scope; 1 hit is the test name describing the lift. Documented in the stale-refs audit categories C/D as benign false positives.
+    verdict: ACCEPTED
+  - id: divergence-4-honest
+    summary: T4.1 integration test uses ConstantEmbedder (not stub)
+    plan_ref: T4.1 § Files to edit
+    why_honest: Test header comment explains rationale — DeterministicStubEmbedder produces semi-random vectors yielding cosine-orthogonal pairs (~score 0), making semantic threshold filter unstable for goal-metric guarantee. ConstantEmbedder ensures all rows pass threshold so the SQL contract under test (column hoist, WHERE filter, temporal predicate, scope isolation) is exercised cleanly. Semantic plumbing already covered by 670+ contract tests.
+    verdict: ACCEPTED
+  - id: divergence-5-honest
+    summary: /implement driven via raw ralph-loop; implement-validate report generated retro-fit at /review Step 1
+    plan_ref: Global DoD + spawn-note user decision Gate 3
+    why_honest: Acknowledged in the spawn prompt as user decision. Final-phase commit 373e540 confirms `npm test`/typecheck/lint/goal-test all green; the report file exists at reviews/v1-1-multi-peer-and-bi-temporal-implement-validate-2026-06-03.md.
+    verdict: ACCEPTED
+  - id: divergence-6-honest
+    summary: T4.1 follow-up commit 3669cb7 adds defensive ADD COLUMN IF NOT EXISTS in goal test beforeAll
+    plan_ref: T4.1 not explicit; documented in 3669cb7 commit message
+    why_honest: Cycle-implement.md v1.5 honest-disclosure discipline. Goal test is canonically resilient to orphan-schema state (architecture.md § 10.2); defensive measure handles other-test reset of the live dev DB. Commit message explicitly flags scope-creep avoidance (does NOT inline-apply v0.4b/v0.6 columns).
+    verdict: ACCEPTED (small post-goal-pass hardening; not divergence from plan AC)
+
+findings:
+  - id: F-xval-1
+    severity: MAJOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts (missing scenario) + src/core/skill.ts:102 (missing field) + src/local/scoped-skill-memory.ts:124-128 (no asOf wiring)
+    plan_ref: |
+      T3.1 § Tasks step 10 — "EC-9: Write RED integration test: skill row recall with `asOf` honors bi-temporal predicate."
+      T3.1 § TDD — "RED: test('integration: skill row recall with asOf honors bi-temporal predicate', ...) — EC-9"
+      T3.1 § Acceptance Criteria — "EC-9: Skill rows honor `asOf` filter at the WHERE-clause level."
+      Coverage Matrix gap 29 (EC-9 SHOULD TEST)
+    summary: |
+      EC-9 (skill rows + asOf interaction) claimed covered via "uniform composeTemporalWhere", but the public surface for memory.skills(repoId).recall(...) has NO asOf parameter, and the integration RED test required by T3.1 Tasks step 10 / T3.1 TDD line / T3.1 AC was never written. SQL composer is uniform — confirmed: src/local/pgvector-store.ts composeTemporalWhere fires when filters.asOf is set on either search path — but src/core/skill.ts:102 SkillRecallOptions only declares topK/threshold/includeSuperseded, and src/local/scoped-skill-memory.ts:124-128 builds Filters without an asOf field, so the public path memory.skills(repoId).recall(q, {asOf}) is type-rejected. No code anywhere in tests/ or src/__tests__/ matches "skill.*asOf" or "asOf.*skill".
+    evidence: |
+      - src/core/skill.ts:102-114 — SkillRecallOptions interface body
+      - src/local/scoped-skill-memory.ts:122-128 — Filters constructed inline without asOf widening (compared to src/local/index.ts:170-187 applySkillFilters which DOES widen for the user/session/agent recall path)
+      - tests/integration/v1-1-multi-peer-bitemporal.test.ts — 4 scenarios, all use memory.user(ALICE).recall(); no skill scope
+      - grep -rn "skill.*asOf\|asOf.*skill" tests/ src/ → zero matches
+      - T3.1 commit 8876fb3 message asserts "EC-9 absorbed via the uniform SQL composer" — true at SQL layer; false at API + test-coverage layer
+    recommended_action: |
+      Option A (preferred): Widen SkillRecallOptions to include asOf?: Date AND mirror asOf into the Filters object at src/local/scoped-skill-memory.ts:124-128 AND add the missing integration RED test exercising memory.skills(repoId).recall('q', { asOf }).
+      Option B (honest narrowing): Re-author Coverage Matrix gap 29 + ADR D4 amendment to mark EC-9 as "deferred to v1.2 — skill recall API surface narrows to non-temporal queries by design"; remove the T3.1 AC claim that EC-9 is satisfied; add CHANGELOG note documenting the deferral.
+      The current state — claim met without coverage — falsifies the T3.1 commit and the Global DoD § Plan-specific criterion 4 ("All 5 SHOULD TEST items shipped as RED tests in their owning tasks (EC-6/EC-7/EC-8/EC-9/EC-10)").
+  - id: F-xval-2
+    severity: MINOR
+    file: src/local/pgvector-store.ts:684 + src/core/memory-item.ts:5 + src/core/memory-store.ts:18 + src/core/options.ts:5,50,63,107 + src/core/conflict-resolution/last-write-wins.ts:5 + src/core/dip/conflict-resolution-policy.ts:48
+    plan_ref: T3.1 § Acceptance Criteria — "EC-4: Stale-references audit cleared — grep `BiTemporalNotSupportedLocally\|ADR-0006\|v0.5+` shows zero non-deliberate hits in src/ tests/ examples/ docs/."
+    summary: |
+      Post-T3.1 grep for `BiTemporalNotSupportedLocally\|ADR-0006\|until v0.5\|bi-temporal asOf surface v0.5` in src/ + tests/ + examples/ surfaces 19 hits. Roughly half are intentional/benign (the deprecated class still exported, ADR-0006's schema clause REINFORCED by ADR-0011, agent-tools v0.5 transport scope unrelated), but several JSDoc lines still say "until v0.5" or otherwise advertise the pre-ADR-0011 surface — notably src/core/memory-item.ts:5 ("bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5") and src/core/options.ts:5 ("runtime divergence per local v0.1"). T3.1 commit message acknowledges 4 remaining "Category C/D" hits in agent-tools + test name; the real count is higher (19) and includes documentation drift in core/ files that consumers see in TypeScript hover/IDE.
+    evidence: |
+      grep -rn "BiTemporalNotSupportedLocally\|ADR-0006\|until v0.5\|bi-temporal asOf surface v0.5" src/ tests/ examples/ → 19 hits (excluding node_modules + __tests__)
+    recommended_action: |
+      Update the JSDoc lines in src/core/memory-item.ts, src/core/options.ts:5+50+63+107, src/core/memory-store.ts:18, src/core/conflict-resolution/last-write-wins.ts:5, src/core/dip/conflict-resolution-policy.ts:48 to cite ADR-0011 alongside ADR-0006 (ADR-0006 schema clause STILL applies; ADR-0011 runtime clause now applies). Re-run the grep + record the audit in the stale-refs report v2. This is opportunistic cleanup; no test changes needed.
+
+verdict_summary: |
+  CROSS-VALIDATION VERDICT: NEEDS_FIXES_BEFORE_MERGE (1 MAJOR + 1 MINOR).
+  The 8 numbered tasks (T0.1 → T4.1) plus Final Phase are implemented and commit-attributable; 6 of the 7 honest divergences flagged in the spawn note check out clean against the plan v1.2 contract.
+  The single MAJOR is a contract-vs-implementation divergence at T3.1 EC-9: the plan AC and TDD line required an integration RED test for skill rows + asOf, which is absent; the public API surface for memory.skills(repoId).recall does not accept asOf, so even at the SDK level the EC-9 acceptance is unmet. The T3.1 commit message's "uniform SQL composer" claim is true at the pgvector-store layer but false at the API + test-coverage layer.
+  The MINOR is opportunistic stale-refs JSDoc drift that the T3.1 audit under-counted (19 hits vs ~4 declared remaining).
+  Recommendation: close F-xval-1 via Option A (widen SkillRecallOptions + add the integration RED test) OR Option B (honest deferral with CHANGELOG + Coverage Matrix amendment). F-xval-2 can be absorbed in the same fix-up commit.

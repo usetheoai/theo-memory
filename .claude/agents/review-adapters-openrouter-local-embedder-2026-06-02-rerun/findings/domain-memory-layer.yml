@@ -1,0 +1,316 @@
+agent: review-adapters-openrouter-local-embedder-domain-memory-layer
+review_target: 4b5b0e7^..HEAD for plan adapters-openrouter-local-embedder (re-run; commits d474a1a → 544f88e fix-up batch)
+domain: memory-layer
+domain_specific_patterns_checked:
+  - typed-domain-error-taxonomy (src/core/errors.ts — F-Mi4 InvalidEmbeddingDim split)
+  - PgvectorStore-write-path-symmetry (insert / insertBatch via insert / update / insertDerivedMemory dim guards — F-M15)
+  - dim-change-runMigrations-symmetry (orphan-schema branch + journal-tracked branch — F-M4)
+  - LocalTransformerEmbedder-lazy-singleton-rejection-reset (F-M5)
+  - LocalTransformerEmbedder-deep-readonly-batch-output (Object.freeze enforcement — F-Mi2)
+  - LocalTransformerEmbedder-zero-arity-constructor-rationale (F-Mi1 JSDoc)
+  - SDK-error-taxonomy-test-migration (factory.test.ts InvalidScope → InvalidEmbeddingDim)
+  - ADR-D3-plan-amendment (DELETE+ALTER replaces USING NULL — F-dom-3 / F-M2)
+verdict: APPROVE_WITH_INFO
+summary: |
+  All 5 F-dom-* findings from the 2026-06-02 first-pass /review are closed
+  honestly. F-Mi4 (the new InvalidEmbeddingDim taxonomy split) is well-shaped
+  and the migrated factory.test.ts assertions still match the (improved) diag
+  message. F-M5 (rejected-promise reset) is implemented with a correct
+  identity-check guard against the concurrent-overwrite race. F-Mi2
+  (Object.freeze on each inner array of embedBatch output) enforces the
+  deep-readonly DIP intent at runtime in addition to the TS type. F-M15
+  symmetric PgvectorStore dim guards are wired at every public mutation
+  entry point. F-dom-4 (F-Mi10 embedders barrel re-export) remains
+  unchanged — confirmed reaffirmed pre-existing, deliberately scoped out
+  (see /review report § F-Mi10 — symmetric with OpenAIEmbedder precedent).
+  ADR D3 amendment (F-M2) lands in plan v1.2 header verbatim. NO new
+  regressions surfaced. 28/28 contract tests on factory.test.ts +
+  pgvector-store.test.ts PASS; full typecheck clean.
+
+findings:
+  - id: F-dom-rerun-1
+    severity: INFO
+    file: src/local/index.ts
+    lines: "985-1022, 1035-1037"
+    closes: F-dom-1 (F-M4 — asymmetric backward-compat guard)
+    plan_ref: plan v1.2 header amendment (F-M4 closure)
+    domain_anchor: architecture.md § 10.2 (drizzle-kit push vs runMigrations conflict)
+    summary: |
+      F-M4 closed correctly. Both `runMigrations` paths now invoke
+      `applyDimChange(pool, options.embeddingDim)` whenever the caller
+      supplies an explicit `embeddingDim`, with NO MAX_EMBEDDING_DIM
+      short-circuit. The inner `atttypmod` probe in `applyDimChange`
+      (lines 905-913) handles idempotency cleanly — the 384→1536 revert
+      path (operator switches local-openrouter → openai) now works.
+    evidence: |
+      Orphan-schema branch (line 1017): `if (options?.embeddingDim !== undefined) { await applyDimChange(...) }`
+      Journal-tracked branch (line 1035): same idiom.
+      Verified by direct read; no asymmetric guard remains.
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-2
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    lines: "190-196 (assertEmbeddingDim helper); 209-211 (insert), 293 (search), 391 (update), 471 (insertDerivedMemory)"
+    closes: F-dom-2 (F-M15 — asymmetric write-path dim guards)
+    plan_ref: plan v1.2 header (F-M15 + F-Mi6 closure)
+    domain_anchor: architecture.md § 8 (typed domain errors at boundaries — EmbeddingMismatch)
+    summary: |
+      F-M15 closed via a shared `assertEmbeddingDim(vector, methodLabel)`
+      helper that throws typed `EmbeddingMismatch(expectedDim, actualDim,
+      { cause: new Error('PgvectorStore.${methodLabel}') })`. Helper is
+      invoked at every public write/search boundary:
+        - `insert` (line 209) loops `for (const vec of vectors)` before
+          delegating to `insertBatch` — so the batch and per-row fallback
+          paths are both guarded by the SAME loop at the public entry.
+        - `search` (line 293), `update` (line 391), `insertDerivedMemory`
+          (line 471) each call the helper at the top of the method body.
+      Private `insertBatch` + `insertSingle` are reachable ONLY via public
+      `insert`, so guarding once at the entry is correct (not dead-code).
+      The `methodLabel` rides in `EmbeddingMismatch.cause` for diagnosability.
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-3
+    severity: INFO
+    file: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+    lines: "3 (v1.2 header amendment block)"
+    closes: F-dom-3 (F-M2 — plan ADR D3 stale on USING NULL vs shipped DELETE FROM)
+    plan_ref: plan v1.2 header
+    domain_anchor: cycle-implement.md anti-pattern #3 (NEVER edit plan during implement-execute — halt + loop back)
+    summary: |
+      F-M2 closed by bumping the plan to v1.2 with an explicit "ADR D3
+      AMENDMENT (closes F-C1 + F-M2)" paragraph in the header. The
+      amendment names the empirical pgvector NOT NULL constraint collision
+      (PG error 23502) as the rationale for switching from `ALTER COLUMN
+      TYPE vector(N) USING NULL` to `DELETE FROM memories; DELETE FROM
+      entities; ALTER COLUMN TYPE vector(N);` inside the same BEGIN/COMMIT.
+      The EC-B cascade collateral disclosure was also widened in the same
+      amendment block (history audit trail, consolidation_history.kept_memory_id,
+      memories.superseded_by chains). The original ADR D3 body at line 115
+      retains the historical `USING NULL` recipe (correctly — it documents
+      the original decision that the amendment then supersedes). Honest
+      version-control of architectural intent.
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-4
+    severity: INFO
+    file: src/embedders/index.ts
+    lines: "all (3-line barrel)"
+    closes: F-dom-4 (F-Mi10 — barrel re-exports defeat ADR D7 subpath-only intent)
+    plan_ref: ADR D7 (subpath-only embedder exports — Cycle 2 precedent for OpenAIEmbedder + this cycle for LocalTransformerEmbedder)
+    domain_anchor: architecture.md § 9 (Public API surface — subpath exports)
+    summary: |
+      F-Mi10 deliberately scoped out per the original /review report
+      (`reviews/adapters-openrouter-local-embedder-review-2026-06-02.md`
+      line 162: "pre-existing for OpenAI; reaffirmed"). The barrel still
+      re-exports `DeterministicStubEmbedder`, `OpenAIEmbedder`, and
+      `LocalTransformerEmbedder`. The proper fix (delete this file OR
+      gate re-exports behind a build-time flag) would BREAK every
+      in-tree consumer of `import { ... } from '@usetheo/memory/embedders'`
+      simultaneously and belongs to a sibling Cycle (not this fix-up).
+      Confirming as REAFFIRMED, NOT CLOSED — honest scope-out.
+    verdict_for_finding: SCOPED_OUT_AS_DOCUMENTED
+
+  - id: F-dom-rerun-5
+    severity: INFO
+    file: src/embedders/local.ts
+    lines: "68-84 (getPipeline) + 60-67 (JSDoc claim corrected)"
+    closes: F-dom-5 (F-M5 — _pipelinePromise permanently caches rejection)
+    plan_ref: plan v1.2 header (F-M5 closure)
+    domain_anchor: architecture.md § 8 (Retry only for transient errors)
+    summary: |
+      F-M5 closed with a correctly-shaped reset. `getPipeline` captures
+      the created Promise in a local `created` binding, assigns
+      `_pipelinePromise = created` synchronously, then schedules a
+      `.catch(() => { if (_pipelinePromise === created) _pipelinePromise = null; })`
+      microtask. The identity check correctly handles the concurrent-
+      overwrite case: if a later attempt has already swapped
+      `_pipelinePromise` to a fresh (succeeding) Promise, the catch on
+      the original rejected instance is a NO-OP (the slot already holds
+      the new winner). The JSDoc above the singleton also corrects the
+      original misleading reference to "OpenAI precedent" — it now
+      explains that OpenAIEmbedder is sync (constructor cannot reject)
+      and is qualitatively different.
+
+      JS single-thread invariant analysis: microtask ordering guarantees
+      that any caller observing the rejected `_pipelinePromise` between
+      its rejection and the catch handler running will await it, see
+      the rejection, and bail. The NEXT caller after the catch runs will
+      see `_pipelinePromise === null` and retry. There is no window where
+      a second caller can start a fresh attempt WHILE the catch is still
+      pending (no thread/preemption in V8 main-thread). The identity
+      check covers the edge case where Caller A's rejection lands AFTER
+      Caller A's own continuation has explicitly assigned a new Promise
+      to the slot (unusual but possible if A handles the rejection by
+      re-invoking getPipeline before the catch fires — which itself is
+      a no-op because B's invocation would have seen `_pipelinePromise`
+      already non-null at the time it ran).
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-6
+    severity: INFO
+    file: src/core/errors.ts
+    lines: "48-59 (InvalidEmbeddingDim class)"
+    new_finding: true
+    plan_ref: plan v1.2 header (F-Mi4 closure — error taxonomy split)
+    domain_anchor: architecture.md § 8 (Domain errors are typed classes — exported from src/core/errors.ts)
+    summary: |
+      F-Mi4 closure shape is correct. New `InvalidEmbeddingDim` class:
+        - `extends Error` ✓
+        - `override readonly name = 'InvalidEmbeddingDim' as const` ✓
+          (matches the rest of the taxonomy — single literal type lets
+          consumers narrow via `e.name === 'InvalidEmbeddingDim'` in
+          addition to `instanceof`)
+        - Constructor accepts `(received: unknown, maxDim: number,
+          options?: ErrorOptions)` — `received: unknown` is the correct
+          ergonomic since the boundary check is the place where the
+          caller's unverified input lands; forcing them to `as number`
+          first would defeat the diag pipeline.
+        - Calls `super(...)` with full diagnostic message including
+          BOTH the verbatim received value (via `String(received)`)
+          AND the locked upper cap. This matches the operator-
+          diagnosability rule absorbed at EC-1.
+        - Calls `Object.setPrototypeOf(this, InvalidEmbeddingDim.prototype)`
+          per the pattern locked at the top of `errors.ts` (EC-2
+          ESM/CJS/dynamic-import/worker_threads compatibility).
+        - Receives `options` and propagates to `super(..., options)` —
+          chains cause cleanly.
+      The class is wired via `validateEmbeddingDim` (src/local/index.ts
+      line 712) which now throws `new InvalidEmbeddingDim(received,
+      MAX_EMBEDDING_DIM)`. The error class is re-exported via the
+      `src/local/index.ts` import line 39 (alongside other taxonomy
+      classes) so consumers `import { InvalidEmbeddingDim } from '@usetheo/memory'`
+      directly.
+    evidence: |
+      src/core/errors.ts:48-59 class definition matches the pattern at
+      lines 19-26 (InvalidScope) and 28-36 (EmbeddingMismatch).
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-7
+    severity: INFO
+    file: src/local/__tests__/factory.test.ts
+    lines: "159-228 (5 InvalidEmbeddingDim assertions); 163-216 (literal-value regex matches)"
+    new_finding: true
+    plan_ref: plan v1.2 header (F-Mi4 closure — test migration)
+    domain_anchor: testing.md § What to test (typed errors at boundaries)
+    summary: |
+      Tests migrated from InvalidScope to InvalidEmbeddingDim correctly.
+      All 5 EC-1 guard variants (NaN, 384.5, Infinity, 0, >MAX) now
+      assert `rejects.toThrow(InvalidEmbeddingDim)` + a literal-value
+      regex. Verified that the new error message
+      `embeddingDim must be a positive integer ≤ 1536; got ${String(received)}`
+      still satisfies every literal-value regex in the test:
+        - `/NaN/`        → matches "got NaN" ✓
+        - `/384\.5/`     → matches "got 384.5" ✓
+        - `/Infinity/`   → matches "got Infinity" ✓
+        - `/0/`          → matches "got 0" ✓
+        - `/MAX_EMBEDDING_DIM+512/` → matches the literal received ✓
+        - `/MAX_EMBEDDING_DIM/`     → matches "≤ 1536" ✓
+      Also the probe-result mismatch test at line 230 still asserts
+      `/expected 384/` + `/got 768/` (which targets EmbeddingMismatch's
+      DIFFERENT message — taxonomy split is honored end-to-end:
+      InvalidEmbeddingDim for config-shape errors, EmbeddingMismatch
+      for probe-result mismatches).
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-8
+    severity: INFO
+    file: src/embedders/local.ts
+    lines: "117-128 (embedBatch rows constructor + Object.freeze per row)"
+    new_finding: true
+    plan_ref: plan v1.2 header (F-Mi2 closure — deep-readonly enforcement)
+    domain_anchor: architecture.md § 7 (TypeScript strict mode; no `any`)
+    summary: |
+      F-Mi2 deep-readonly enforcement verified correct at both type AND
+      runtime layers.
+        - Type layer: return-type annotated `readonly (readonly number[])[]`
+          on the inner-arrow signature `(_, i): readonly number[]`.
+        - Runtime layer: each inner array is constructed via
+          `Object.freeze(Array.from(flat.slice(start, end)))` — the
+          `Array.from` materializes the typed-array slice into a
+          regular mutable `number[]`, then `Object.freeze` prevents
+          mutation of indexed slots, length, and proto.
+        - Outer array is a readonly array of frozen inner arrays. ES2015+
+          modules run in strict mode by default, so mutation attempts
+          throw `TypeError` at runtime — not silently dropped.
+      The freeze is shallow (does not recursively freeze the numbers,
+      which is fine — primitives are immutable). The performance cost
+      is O(N_inner) per row's Object.freeze internal flag set — trivial.
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-9
+    severity: INFO
+    file: src/embedders/local.ts
+    lines: "86-100 (F-Mi1 0-arity constructor JSDoc rationale)"
+    new_finding: true
+    plan_ref: plan v1.2 header (F-Mi1 closure)
+    domain_anchor: KISS / YAGNI (Inquebrável Rule 10 + 11)
+    summary: |
+      F-Mi1 JSDoc rationale block added. The rationale is correctly
+      shaped — explains that the model id + dim are fixed at
+      module-level constants, that exposing them via constructor would
+      imply interchangeability (NOT true given the schema/runMigrations
+      coupling), and cites Inquebrável Rule 11 (YAGNI) as the discipline.
+      Good operator-facing prose; future contributor reading this will
+      not silently add a constructor parameter.
+    verdict_for_finding: CLOSED
+
+  - id: F-dom-rerun-10
+    severity: INFO
+    file: src/embedders/__tests__/local.test.ts
+    lines: "129-169 (F-M5 retry test); 108-116 (EC-5 empty-string test)"
+    new_finding: true
+    plan_ref: plan v1.2 header (F-M12 EC-5 + EC-7 closure)
+    domain_anchor: testing.md § Determinism (LLM stubs in unit tests)
+    summary: |
+      F-M5 retry test exercises the rejection-reset contract end-to-end
+      using `vi.doMock('@xenova/transformers', ...)` to simulate a
+      transient HF CDN failure on the first call and a successful
+      pipeline on the second. The test asserts that:
+        (a) first `embed('first')` rejects with the simulated error ✓
+        (b) second `embed('second')` returns a 384-dim vector ✓
+        (c) `pipeline()` was called TWICE — proving the singleton reset
+            cleared the rejected cache instead of returning it forever ✓
+      Test uses `vi.resetModules()` to isolate from the previous
+      describe block's real-module state, then dynamically imports
+      LocalTransformerEmbedder so the module-level `_pipelinePromise`
+      starts fresh at null. EC-5 (empty-string embed) is also covered
+      with a 384-dim length assertion + finite-number assertion (no
+      NaN/Inf from a divide-by-zero in mean-pooling).
+    verdict_for_finding: CLOSED
+
+regressions_introduced:
+  - none
+
+memory_layer_anchors_preserved:
+  - three_tier_scope_user_session_agent: preserved (no scope-tier changes)
+  - add_only_invariant: preserved (no public update() introduced)
+  - additive_scoring_formula: preserved (no scoring change)
+  - eight_phase_write_pipeline_six_phase_adr_narration: preserved (extraction/persist boundaries unchanged)
+  - nine_step_search_pipeline: preserved (retrieval pipeline unchanged)
+  - dip_boundary_core_vs_local: preserved (taxonomy split lives in src/core/errors.ts; local imports it — correct direction)
+  - typed_domain_errors_at_boundaries: STRENGTHENED (InvalidEmbeddingDim split from InvalidScope honors architecture.md § 8)
+
+test_quality_observations:
+  - factory_test_migration_clean: yes — 5 EC-1 guard variants use both class-instance assertion + literal-value regex
+  - red_phase_discipline_for_f_m5: yes — F-M5 retry test mocks @xenova/transformers via vi.doMock; uses dynamic re-import for isolation
+  - testing_md_anti_pattern_and_in_test_names_remediated: yes — F-Mi11 split "and" test names into single-behavior tests
+  - test_runtime_budget_documented: yes — 60_000ms / 90_000ms timeouts per test reflect the 22 MB model warmup cost
+
+quality_gates_observed:
+  - factory_test_ts: 28/28 PASS (902ms)
+  - pgvector_store_test_ts: included in same run
+  - npm_run_typecheck: PASS (0 errors)
+
+confidence: HIGH
+confidence_rationale: |
+  Every F-dom-* finding from the first-pass /review has direct, verifiable
+  evidence in the diff. The F-Mi4 InvalidEmbeddingDim taxonomy split is
+  shape-correct (matches the locked errors.ts pattern), runtime-correct
+  (Object.setPrototypeOf wired), and test-migrated cleanly. The F-M5
+  identity-check guard analysis is grounded in JS single-thread invariants
+  + microtask ordering — no hidden race surfaced. F-M15 PgvectorStore
+  symmetric guards are wired at every public write entry; the shared
+  helper makes future write paths (e.g., insertSkill via PgvectorSkillStore)
+  inherit the contract for free if they choose to use it. F-dom-4 scope-out
+  is honest and aligned with the original /review's deliberate framing.

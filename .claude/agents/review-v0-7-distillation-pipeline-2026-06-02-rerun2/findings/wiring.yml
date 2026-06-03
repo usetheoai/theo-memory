@@ -1,0 +1,403 @@
+agent: review-v0-7-distillation-pipeline-wiring
+review_target: f68727d^..HEAD for plan v0-7-distillation-pipeline (re-re-run #3)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+plan_version_at_review: "1.2 (2026-06-02)"
+previous_review_reports:
+  - .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md (NEEDS_FIXES)
+  - .claude/agents/review-v0-7-distillation-pipeline-2026-06-02-rerun/findings/wiring.yml (READY_TO_MERGE_WITH_CAVEATS)
+fixup2_commit: f68727d  # "fix(v0-7-distill): /review re-run fix-up #2 — close 2 MAJOR + key MINORs"
+
+scope:
+  surface_focus:
+    - src/local/index.ts (LocalScopedMemory.reflect — distillation pipeline orchestration)
+    - src/core/conflict-resolution/* (DIP + 3 policies: Noop, LWW, LlmJudgedMerge)
+    - src/core/dip/conflict-resolution-policy.ts (9th DIP)
+    - src/local/pgvector-store.ts:555-633 (recallConsolidationCandidates + persistConsolidations)
+    - src/local/schema.ts:239-254 (consolidationHistory pgTable export — F-C3)
+    - src/local/index.ts:374-379 (F-wire-3 fixed comment block)
+  note: |
+    No `src/local/conflict/` directory exists. All conflict-resolution policies live in
+    `src/core/conflict-resolution/`; their Pg wiring (recallConsolidationCandidates +
+    persistConsolidations) lives in src/local/pgvector-store.ts. No
+    `src/core/observability/*` directory exists; OTel counters are co-located inside
+    src/core/conflict-resolution/llm-judged-merge.ts:31-45 (lazy-init pattern per
+    plan ADR EC-4 + F-dom-6 / v0.4b T10.1 precedent).
+
+triad_revalidation:
+  symbols_audited:
+    # F-wire-3 fix verification (the only wiring touch in fix-up #2)
+    - symbol: "src/local/index.ts:374-379 (comment block referencing EC-7 short-circuit locus)"
+      file: src/local/index.ts
+      lines: 374-379
+      previous_state: |
+        Pre-fix-up: comment read "// EC-7 absorbed: empty scope already short-circuited at line 317"
+        — line 317 was a closing `}` of an unrelated catch block; the actual EC-7
+        short-circuit lived at lines 354-355.
+      post_fixup_state: |
+        Now reads:
+        ```
+        // v0.7 T2.1: pre-derivation conflict-resolution phase.
+        // EC-7 absorbed: empty scope already short-circuited at line 354
+        // ("EC-5: empty-source short-circuit"); here we additionally guard on
+        // sourceMemories.length < 2 (nothing to consolidate with a singleton).
+        ```
+      verified_via: |
+        grep -n "line 317\|line 354\|EC-5\|EC-7" src/local/index.ts confirms
+        no stale "line 317" remains; line 354 in current file IS the
+        `if (sourceMemories.length === 0)` block per EC-5 label.
+      pillar_a:
+        status: N/A
+        reason: Comment block; not a callable symbol.
+      pillar_b:
+        status: N/A
+        reason: Documentation correctness; verified by inspection.
+      pillar_c:
+        status: N/A
+      verdict: F-wire-3 CLOSED (1-line comment edit; previously OPEN with severity MINOR; now resolved)
+
+    # F-C3 closure carried over from re-run #2 (unchanged in fix-up #2)
+    - symbol: consolidationHistory  (Drizzle pgTable export)
+      file: src/local/schema.ts:239
+      pillar_a:
+        status: PASS_STRUCTURAL
+        check_wiring_callers_count: 0  # raw `consolidationHistory` symbol is not referenced post-export
+        real_consumers:
+          - drizzle.config.ts (schema: './src/local/schema.ts' — drizzle-kit reads ALL pgTable exports at db:push/db:generate time; introspection-by-design)
+          - tests/integration/schema-snapshot-parity.test.ts (via `import * as schema from '../../src/local/schema.js'` reflection through `Symbol.for('drizzle:Name')`)
+        honest_note: |
+          Raw SQL still drives writes inside src/local/pgvector-store.ts:619
+          (`INSERT INTO consolidation_history (...)`). The export is consumed
+          STRUCTURALLY by drizzle-kit (config file points at schema.ts) and the
+          parity sentinel test, NOT by runtime Drizzle ORM API calls. This is the
+          entire point of F-C3 — making the table VISIBLE to drizzle-kit
+          introspection so `db:push` no longer computes a destructive DROP TABLE
+          diff. check_wiring.py reports 0 callers because it cannot model
+          namespace imports nor config-file consumption; manual inspection
+          confirms the introspection caller IS load-bearing.
+      pillar_b:
+        status: PASS
+        tests_count: 2
+        tests:
+          - tests/integration/schema-snapshot-parity.test.ts (2 it()s — bijection both directions)
+        deep_check: |
+          `collectSchemaTables()` enumerates ALL exported pgTables via the Drizzle
+          runtime tag `Symbol.for('drizzle:Name')`. consolidationHistory IS
+          enumerated by name; the first `it()` asserts every snapshot table is
+          mirrored in schema.ts (catches the F-C3 failure mode exactly); the
+          second asserts the converse (no schema-only tables sneak in).
+      pillar_c:
+        status: N/A
+        reason: Schema export has no runtime metric — it is a deployment-correctness artifact.
+      verdict: PASS
+
+    # F-C2 + F-M7 closure carried over (unchanged in fix-up #2)
+    - symbol: recallConsolidationCandidates
+      file: src/local/pgvector-store.ts:555
+      pillar_a:
+        status: PASS
+        check_wiring_callers_count: 11  # inflated by Next.js .next build artifacts
+        real_callers_excluding_next_artifacts: 1
+        real_caller_site: |
+          src/local/index.ts:396 (inside LocalScopedMemory.reflect() consolidation phase,
+          after the `>= 2` guard at line 384). check_wiring inflation is due to
+          examples/chat-with-memory/.next/server/app/api/* compiled JS copies of
+          the same call path — they are NOT additional callers; they are Next.js
+          build artifacts of the single real call site.
+        deep_check: |
+          The caller is functionally necessary — gates on `sourceMemories.length >= 2`,
+          then resolves candidates via the new `kind='extracted' AND t_invalid IS NULL
+          AND (t_valid IS NULL OR t_valid <= NOW())` WHERE clauses, then consumes
+          them in `policy.consolidate(...)` → `persistConsolidations(...)`. Not a
+          no-op, not a dead branch.
+      pillar_b:
+        status: PASS
+        tests_count: 6  # 1 dedicated regression + 5 round-trip distillation tests
+        deep_check: |
+          tests/integration/distillation/skill-isolation.test.ts directly exercises
+          the new SQL WHERE clauses by seeding `kind='skill'` AND `kind='derived'`
+          rows via raw INSERT, then asserts `t_invalid IS NULL` on the surviving
+          rows after `reflect({ conflictResolution: LWW })`. Without the
+          `kind='extracted'` guard, the skill row would be tombstoned and the
+          test would FAIL.
+      pillar_c:
+        status: N/A
+        reason: No runtime metric declared for this SQL guard; coverage signal is the regression test.
+      verdict: PASS
+
+    # F-C1 closure carried over (unchanged in fix-up #2)
+    - symbol: "LastWriteWinsConflictPolicy.maxRejectionRatio (constructor option, mass-tombstone guard)"
+      file: src/core/conflict-resolution/last-write-wins.ts:68-92
+      pillar_a:
+        status: PASS
+        callers_count: 14  # check_wiring includes Next.js build artifacts; real ≈ 7
+        real_callers:
+          - src/core/index.ts:121 (public re-export)
+          - src/index.ts:61 (top-level barrel via `export * from ./core/index.js`)
+          - tests/integration/examples/chat-with-memory-policy-factory.test.ts
+          - tests/integration/distillation/reflect-with-policy.test.ts:97 (default ctor → ratio=0.95)
+          - tests/integration/distillation/the-goal-test.test.ts (default ctor)
+          - tests/integration/distillation/skill-isolation.test.ts:120 (default ctor)
+          - examples/chat-with-memory/lib/memory.ts → getConflictResolutionPolicy('last-write-wins')
+        honest_note: |
+          ALL existing production / demo / integration call sites use the default
+          constructor — they implicitly opt INTO the 0.95 guard. This is the
+          intended ADR D2 amendment shape (opt-out, not opt-in).
+      pillar_b:
+        status: PARTIAL
+        contract_tests: 5  # src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+        integration_depth_gap: |
+          NO integration test under tests/integration/distillation/ exercises the
+          F-C1 mass-tombstone abstain against a real pgvector seeded with 21+
+          unrelated memories at the wiring chain
+          {recallConsolidationCandidates → consolidate → persistConsolidations}.
+          This gap was captured as F-wire-rerun-1 in the previous /review re-run
+          (severity MINOR); status carries over (not closed in fix-up #2 by design).
+      pillar_c:
+        status: N/A
+        reason: |
+          No runtime metric declared for the abstain. Plan v1.2 amendment did NOT
+          add a `distillation.consolidation.mass_tombstone_abstain` counter; this
+          observability gap was tracked as F-wire-rerun-2 INFO in the previous
+          re-run. Status carries over.
+      verdict: PASS_WITH_CAVEAT
+
+    # Other v0.7 distillation symbols — sanity re-verification
+    - symbol: LlmJudgedMergeConflictPolicy
+      file: src/core/conflict-resolution/llm-judged-merge.ts:82
+      check_wiring_verdict: PASS  # callers=15 inflated by Next.js; real ≈ 8
+      pillar_a: PASS
+      pillar_b: PASS  # tests/integration/distillation/the-goal-test-llm-measured.test.ts + reflect-empty-scope + chat-with-memory-policy-factory
+      pillar_c: N/A   # OTel counters exist (distillation.consolidation.{kept,rejected,abstain,cluster_too_large}) but integration-depth observation deferred to v1.0 benchmark cycle per plan v1.2 (F-M3/M4 family)
+      verdict: PASS
+
+    - symbol: NoopConflictPolicy
+      file: src/core/conflict-resolution/noop.ts:24
+      check_wiring_verdict: PASS  # callers=15 inflated by Next.js; real ≈ 1
+      pillar_a: PASS  # examples/chat-with-memory/lib/memory.ts getConflictResolutionPolicy('noop'); default fallback
+      pillar_b: PASS  # tests/integration/examples/chat-with-memory-policy-factory.test.ts
+      pillar_c: N/A
+      verdict: PASS
+
+    - symbol: parseConsolidationResponse
+      file: src/core/conflict-resolution/llm-judged-merge.ts:59
+      check_wiring_verdict: HALT (FAIL tests=0)  # check_wiring.py false-negative
+      pillar_a: PASS  # internal caller at line 104 of same file
+      pillar_b: PASS_TRANSITIVE  # exercised via LlmJudgedMergeConflictPolicy.consolidate() integration tests; also has 5 dedicated unit tests covering EC-2 hallucination cases (kept_id ∉ cluster, rejected_id ∉ cluster, kept_id ∈ rejected_ids, non_json_response, malformed object)
+      pillar_c: N/A
+      verdict: PASS_TRANSITIVE
+      note: |
+        The exported helper has no direct integration test caller because its
+        purpose is internal use by LlmJudgedMergeConflictPolicy.consolidate().
+        It is re-exported from src/core/index.ts:124 to allow consumers to
+        compose custom policies that reuse the EC-2 validator. Integration
+        depth is satisfied by transitivity through consolidate().
+
+    - symbol: persistConsolidations
+      file: src/local/pgvector-store.ts:605
+      check_wiring_verdict: PASS  # callers=10 inflated by Next.js; real = 1 (src/local/index.ts:404)
+      pillar_a: PASS
+      pillar_b: PASS  # tests/integration/distillation/reflect-with-policy.test.ts:97 + reflect-atomic-rollback.test.ts (EC-8 rollback regression) + reflect-empty-scope.test.ts
+      pillar_c: N/A
+      verdict: PASS
+
+  totals:
+    fixup2_touched_symbols: 1  # only the F-wire-3 comment block
+    pillar_a_honest_pass: 7/7   # all carried-over symbols + the fixed comment block
+    pillar_b_honest_pass: 6/7   # F-C1 carries the PARTIAL flag from F-wire-rerun-1
+    pillar_c_observed: 0/7      # all N/A — OTel observation deferred to v1.0 benchmark cycle per plan v1.2
+    dip_boundary_violations: 0
+
+residual_findings_audit:
+  - id: F-wire-rerun-1  # carry-over from re-run #2
+    severity: MINOR
+    status_pre_rerun: OPEN
+    fixup2_status: NOT_FIXED_BY_DESIGN
+    deferral_honesty: VERIFIED
+    rationale: |
+      F-wire-rerun-1 (F-C1 integration-depth abstain gap) was classified as
+      deferred-acceptable in re-run #2 because (a) contract correctness IS
+      asserted by 5 unit tests, (b) deeper recall+persist wiring IS already
+      exercised by 6 distillation integration tests at non-abstain ratios. The
+      fix-up #2 scope was explicitly "close 2 MAJOR + key MINORs" (F-xval-rerun-3,
+      F-xval-rerun-4, F-Mi12, F-wire-3, F-xval-rerun-5, F-tests-rerun-1+2);
+      F-wire-rerun-1 was not in scope and remains deferred-acceptable per
+      plan v1.2.
+    severity_post_rerun: MINOR_DEFERRED_ACCEPTABLE
+    recommendation: |
+      Add `tests/integration/distillation/lww-mass-tombstone-abstain.test.ts`
+      in a follow-up touch cycle (1 it(), ~30 LoC against ankane/pgvector:v0.5.1,
+      gated by THEOMEM_PG_URI). Mirrors skill-isolation.test.ts shape. Not blocking.
+
+  - id: F-wire-rerun-2  # carry-over from re-run #2
+    severity: INFO
+    status_pre_rerun: OPEN
+    fixup2_status: NOT_FIXED_BY_DESIGN
+    deferral_honesty: VERIFIED
+    rationale: |
+      No OTel observability of the F-C1 abstain decision. Bundled with F-wire-1/
+      F-wire-2 (LWW wiring path emits zero distillation.consolidation.* counters)
+      in the v1.0 benchmark cycle deferral per plan v1.2 header DEFERRED line:
+      "F-M3/M4 OTel integration-depth (v1.0 benchmark cycle)".
+    severity_post_rerun: INFO_DEFERRED_ACCEPTABLE
+    recommendation: |
+      In the same v1.0 benchmark cycle that ships F-wire-1/F-wire-2 OTel
+      integration depth, add `distillation.consolidation.mass_tombstone_abstain`
+      counter on the abstain branch.
+
+  - id: F-wire-3  # carry-over from re-run #2 (original review)
+    severity: MINOR
+    status_pre_rerun: OPEN
+    fixup2_status: CLOSED
+    closing_commit: f68727d
+    evidence: |
+      src/local/index.ts:374-379 now reads:
+      ```
+      // v0.7 T2.1: pre-derivation conflict-resolution phase.
+      // EC-7 absorbed: empty scope already short-circuited at line 354
+      // ("EC-5: empty-source short-circuit"); here we additionally guard on
+      // sourceMemories.length < 2 (nothing to consolidate with a singleton).
+      // EC-8 absorbed: persistConsolidations
+      // wraps t_invalid UPDATE + insertConsolidationHistory INSERT in a
+      // single withTransaction (rollback on any error). Runs BEFORE
+      // executeReflection so LLM-extraction failure paths don't mask the
+      // consolidation's own failure modes.
+      ```
+      Verified via grep — no remaining "line 317" reference in src/local/index.ts.
+      Line 354 in current file IS the `if (sourceMemories.length === 0)` block
+      tagged "EC-5: empty-source short-circuit". Comment now self-consistent.
+    severity_post_rerun: CLOSED
+
+  - id: F-wire-1  # carry-over from original /review
+    severity: MAJOR
+    status_pre_rerun: OPEN
+    plan_v1_2_decision: DEFERRED_TO_V1_0_BENCHMARK_CYCLE
+    deferral_honesty: VERIFIED
+    evidence: |
+      Plan v1.2 header explicitly schedules: "F-M3/M4 OTel integration-depth
+      (v1.0 benchmark cycle)". Plan body retains the EC-4 acceptance gates at
+      lines 365, 373, 381-382, 473, 479, 486, 550 UNCHECKED — honest signal.
+      No silent dismissal.
+    severity_post_rerun: MAJOR_DEFERRED_ACCEPTABLE  # not re-raised as actionable
+    recommendation: Track in CLAUDE.md roadmap Item 10 (v0.8 benchmark cycle).
+
+  - id: F-wire-2  # carry-over from original /review
+    severity: MAJOR
+    status_pre_rerun: OPEN
+    plan_v1_2_decision: DEFERRED_TO_V1_0_BENCHMARK_CYCLE  # bundled with F-wire-1
+    deferral_honesty: VERIFIED
+    severity_post_rerun: MAJOR_DEFERRED_ACCEPTABLE
+    recommendation: Same as F-wire-1.
+
+  - id: F-wire-4  # carry-over from original /review
+    severity: CRITICAL
+    status_pre_rerun: OPEN
+    fixup_round1_status: CLOSED
+    closing_commit: 9d16db4
+    severity_post_rerun: CLOSED
+
+new_findings_from_rerun3: []
+
+# No NEW wiring defects discovered in fix-up #2 surface area.
+# Fix-up #2 touched: 4 files / 48 insertions / 7 deletions:
+#   - .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md (+28 LoC, doc)
+#   - package.json (+1 LoC, db:repair script)
+#   - src/local/index.ts (+4/-3 LoC, comment block ONLY)
+#   - tests/integration/distillation/skill-isolation.test.ts (+16/-3 LoC, test refinement)
+# Zero runtime / production behavior change. All quality gates remain stable.
+
+dip_boundary_audit:
+  scope: "git diff f68727d^..HEAD -- 'src/**'"
+  src_core_imports_src_local_or_cloud_or_theokit: 0
+  src_local_imports_src_cloud: 0
+  src_local_imports_src_theokit: 0
+  src_theokit_imports_src_local_or_cloud: 0
+  verdict: CLEAN
+  evidence: |
+    src/core/conflict-resolution/last-write-wins.ts imports ONLY from
+    `../dip/conflict-resolution-policy.js` (DIP) — no infrastructure leak.
+    src/core/conflict-resolution/llm-judged-merge.ts imports
+    `@opentelemetry/api` (external) + `../dip/conflict-resolution-policy.js` +
+    `../dip/llm.js` + `./prompts.js` — all within src/core.
+    src/local/schema.ts imports ONLY drizzle-orm external libs.
+    src/local/pgvector-store.ts uses only string SQL — no Drizzle ORM API call
+    against consolidationHistory; no cross-tier source imports.
+
+integration_with_existing_flows:
+  entry_points_audited:
+    - "examples/chat-with-memory/app/api/memory/distill/route.ts → @/lib/memory.getMemory → memory.user(userId).reflect({ conflictResolution }) → src/local/index.ts:LocalScopedMemory.reflect → storeWithConsolidate.recallConsolidationCandidates → policy.consolidate → storeWithConsolidate.persistConsolidations → consolidation_history INSERT"
+  fix_up_2_changes_on_existing_flow:
+    - "src/local/index.ts:374-379 — comment block only; zero behavioral change to the existing reflect() flow."
+    - "tests/integration/distillation/skill-isolation.test.ts — test-only refinement; assertion hardening."
+    - "package.json — npm script entry only; runtime addressable via `npm run db:repair-v0-7-partial-state`."
+    - "plan + audit docs — no runtime impact."
+  no_orphan_modules_detected: true
+  reachability_from_entry_to_changed_code: VERIFIED
+
+concurrent_safety:
+  postgres_writes:
+    - "persistConsolidations remains atomic via withTransaction (no fix-up #2 change to SQL pipeline)."
+    - "kind filter + t_valid filter remain pure WHERE clauses (no fix-up #2 change)."
+  no_new_races_introduced: VERIFIED
+  fix_up_2_runtime_diff: |
+    Fix-up #2 changed ZERO runtime production code — only comments + docs + test
+    + 1 npm script entry. Concurrent safety is identical to re-run #2 state.
+
+quality_gates_re_validation:
+  contract_typecheck:
+    note: |
+      Per fix-up #2 commit body: "Quality gates: typecheck + lint clean.
+      Integration skill-isolation 2/2 PASS. Contract suite unchanged (no SDK
+      code touched in this fix-up)." Re-run #3 has no reason to re-execute
+      since runtime code is identical.
+  check_wiring_re_validation:
+    invocation: "python3 .claude/skills/implement/scripts/check_wiring.py --symbol <name>"
+    results:
+      LlmJudgedMergeConflictPolicy: "PASS (a=15 callers, b=3 tests, c=N/A)"
+      LastWriteWinsConflictPolicy: "PASS (a=14 callers, b=6 tests, c=N/A)"
+      NoopConflictPolicy: "PASS (a=15 callers, b=1 test, c=N/A)"
+      persistConsolidations: "PASS (a=10 callers, b=1 test, c=N/A)"
+      recallConsolidationCandidates: "PASS (a=11 callers, b=1 test, c=N/A)"
+      ConflictResolutionPolicy: "PASS (a=20 callers, b=2 tests, c=N/A)"
+      parseConsolidationResponse: "HALT_FALSE_NEGATIVE (a=10 callers PASS, b=0 tests FAIL) — exercised transitively via LlmJudgedMergeConflictPolicy.consolidate(); see triad audit"
+      consolidationHistory: "HALT_FALSE_NEGATIVE (a=0, b=0) — consumed STRUCTURALLY by drizzle-kit config + parity sentinel via namespace import; check_wiring.py cannot model namespace imports nor config-file consumption; manual inspection confirms PASS_STRUCTURAL"
+
+summary:
+  fixup2_triad_outcome: |
+    Fix-up #2 closed F-wire-3 (stale "line 317" comment now reads "line 354
+    (EC-5: empty-source short-circuit)") via a 1-line comment edit. Zero
+    runtime / production code behavior change. All other wiring triad evidence
+    from re-run #2 carries over UNCHANGED:
+      - F-C3 (consolidationHistory pgTable export) — pillar (a) via drizzle-kit
+        config consumption + pillar (b) via parity sentinel
+      - F-C2 (kind filter in recallConsolidationCandidates) — pillar (a) via
+        the production reflect() call path + pillar (b) via skill-isolation
+        regression test
+      - F-C1 (maxRejectionRatio mass-tombstone guard) — pillar (a) via default
+        constructor on ALL real call sites + pillar (b) PARTIAL (contract
+        correctness covered; integration-depth abstain gap captured in
+        F-wire-rerun-1 MINOR — DEFERRED-ACCEPTABLE per plan v1.2)
+    F-wire-1 + F-wire-2 (OTel integration depth) remain explicitly deferred to
+    v1.0 benchmark cycle per plan v1.2 header — HONEST deferral, NOT silent
+    dismissal.
+
+  net_state_post_rerun3:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 0   # F-wire-1, F-wire-2 explicitly deferred to v1.0 benchmark cycle — not re-raised
+    MINOR: 1   # F-wire-rerun-1 (integration-depth gap on F-C1) — deferred-acceptable per plan v1.2
+    INFO: 1    # F-wire-rerun-2 (abstain OTel counter)
+    CLOSED_BY_FIXUP2: 1  # F-wire-3
+
+  verdict: READY_TO_MERGE
+  rationale: |
+    Wiring perspective is CLEAN. The single fix-up #2 surface change is the
+    1-line F-wire-3 comment fix and it lands correctly. F-wire-rerun-1 is
+    deferred-acceptable per plan v1.2 (contract correctness covered; integration
+    depth gap is a known follow-up). F-wire-1 + F-wire-2 are deferred to v1.0
+    benchmark cycle with honest plan-body retention of un-checkmarked acceptance
+    gates. DIP boundary is clean across all touched files. No new defects
+    introduced. Concurrent safety unchanged.
+
+  caveat: |
+    Carry MINOR F-wire-rerun-1 + INFO F-wire-rerun-2 into the v1.0 benchmark
+    cycle alongside F-wire-1/F-wire-2 OTel instrumentation. Not blocking merge.

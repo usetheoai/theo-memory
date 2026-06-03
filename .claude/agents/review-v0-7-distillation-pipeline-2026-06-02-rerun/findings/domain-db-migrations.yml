@@ -1,0 +1,406 @@
+agent: review-v0-7-distillation-pipeline-domain-db-migrations
+review_target: 9d16db4^..HEAD for plan v0-7-distillation-pipeline (re-run after fix-up cycle)
+domain: db-migrations
+domain_specific_patterns_checked:
+  - drizzle-kit push vs runMigrations conflict (architecture.md § 10.2)
+  - schema.ts ↔ migrations/meta snapshot bijection (F-C3 sentinel)
+  - Drizzle FK constraint naming convention (`_<table>_<col>_fk`) consistency across migrations 0000-0007
+  - Explicit `ON UPDATE NO ACTION` declaration (per-migration convention, snapshot expectation)
+  - PG advisory `_fkey` vs Drizzle `_<table>_<col>_fk` constraint-name conventions
+  - GDPR survival via `ON DELETE SET NULL` (EC-3 absorbed)
+  - npm script registration for v0-N partial-state repair tools (v0.4b precedent)
+
+# ============================================================================
+# CLOSURE VERIFICATIONS — previously-flagged findings
+# ============================================================================
+
+findings:
+  # ---------------------------------------------------------------------------
+  # F-dom-db-1 / F-C3 — PREVIOUSLY CRITICAL — VERIFIED CLOSED
+  # ---------------------------------------------------------------------------
+  - id: F-dom-db-1-rerun
+    severity: INFO
+    status: VERIFIED_CLOSED
+    closes: F-C3 (previously CRITICAL across 4 reviewers — db-migrations, pgvector-schema, architecture, wiring)
+    closing_commit: 9d16db4
+    file: src/local/schema.ts:226-254
+    plan_ref: v1.2 § Version note (a) + T0.1 + ADR D3
+    domain_anchor: architecture.md § 10.2 (drizzle-kit push vs runMigrations conflict)
+    summary: |
+      `consolidationHistory` pgTable export was added to `src/local/schema.ts`
+      mirroring the migration + snapshot shape. Column-by-column verification:
+
+      - id           : uuid('id').primaryKey().defaultRandom()
+        SQL          : "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL
+        Snapshot     : uuid, primaryKey, default gen_random_uuid()
+        → MATCH
+
+      - keptMemoryId : uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' })
+        SQL          : "kept_memory_id" uuid + ALTER ADD CONSTRAINT ... ON DELETE SET NULL
+        Snapshot     : uuid, nullable, FK → memories.id, onDelete: "set null"
+        → MATCH (nullability + onDelete preserved)
+
+      - rejectedMemoryIds   : jsonb('rejected_memory_ids').notNull().default(sql`'[]'::jsonb`)
+      - originalEpisodeIds  : jsonb('original_episode_ids').notNull().default(sql`'[]'::jsonb`)
+        SQL          : jsonb DEFAULT '[]'::jsonb NOT NULL
+        Snapshot     : jsonb, notNull, default '[]'::jsonb
+        → MATCH
+
+      - reason       : text('reason').notNull()
+      - policyName   : text('policy_name').notNull()
+        SQL          : text NOT NULL
+        Snapshot     : text, notNull
+        → MATCH
+
+      - createdAt    : timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+        SQL          : timestamp with time zone DEFAULT NOW() NOT NULL
+        Snapshot     : "timestamp with time zone", notNull, default now()
+        → MATCH
+
+      - indexes      : idx_consolidation_history_kept (kept_memory_id),
+                       idx_consolidation_history_created (created_at DESC)
+        → MATCH (both names + columns preserved)
+
+      `drizzle-kit push` against a v0.7-migrated DB no longer computes a
+      destructive `DROP TABLE consolidation_history` diff. The column shape,
+      FK targets, JSONB defaults, indexes, and ON DELETE SET NULL semantics
+      are all preserved.
+
+      The sentinel `tests/integration/schema-snapshot-parity.test.ts` (81 LoC,
+      pure file-inspection, no pgvector container needed) enumerates every
+      table named in any `meta/*_snapshot.json` via JSON parsing AND every
+      pgTable export in `src/local/schema.ts` via Drizzle's runtime tag
+      `Symbol.for('drizzle:Name')`, then asserts **bijection both directions**.
+      Re-ran locally via `npm run test:integration -- tests/integration/schema-snapshot-parity.test.ts`:
+      → 2/2 PASS in 245ms. The sentinel will catch this exact class of drift
+      for any future migration (CRITICAL preventative value).
+    evidence: |
+      ```ts
+      // src/local/schema.ts:239-254
+      export const consolidationHistory = pgTable(
+        'consolidation_history',
+        {
+          id: uuid('id').primaryKey().defaultRandom(),
+          keptMemoryId: uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' }),
+          rejectedMemoryIds: jsonb('rejected_memory_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+          reason: text('reason').notNull(),
+          policyName: text('policy_name').notNull(),
+          originalEpisodeIds: jsonb('original_episode_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+          createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+        },
+        (table) => [
+          index('idx_consolidation_history_kept').on(table.keptMemoryId),
+          index('idx_consolidation_history_created').on(sql`${table.createdAt} DESC`),
+        ],
+      );
+      ```
+
+      ```text
+      $ npm run test:integration -- tests/integration/schema-snapshot-parity.test.ts
+       Test Files  1 passed (1)
+            Tests  2 passed (2)
+         Duration  245ms
+      ```
+    recommended_action: NONE — closed. Sentinel is high-value preventative for future migrations.
+
+  # ---------------------------------------------------------------------------
+  # F-dom-db-2 / F-M10 — DEFERRAL HONESTY AUDIT — MAJOR (deferral rationale needs strengthening)
+  # ---------------------------------------------------------------------------
+  - id: F-dom-db-2-rerun
+    severity: MAJOR
+    status: DEFERRAL_PARTIALLY_SOUND
+    defers: F-M10 (FK constraint naming drift)
+    file: src/local/migrations/0007_distillation_columns.sql:34-37
+    cross_file_evidence:
+      - src/local/migrations/0000_crazy_mimic.sql:42 → `history_memory_id_memories_id_fk` (Drizzle convention)
+      - src/local/migrations/0002_skill_columns.sql:5-6 → `memories_superseded_by_memories_id_fk` (Drizzle convention)
+      - src/local/migrations/meta/0007_snapshot.json:661-672 → expects `consolidation_history_kept_memory_id_memories_id_fk`
+    plan_ref: v1.2 § Version note — "F-M10/M11 FK naming + ON UPDATE NO ACTION (cosmetic; renaming requires new migration for deployed DBs)"
+    domain_anchor: architecture.md § 10.2 + Drizzle ORM convention (FK constraint name = `<from-table>_<from-col>_<to-table>_<to-col>_fk`)
+    summary: |
+      0007 SQL ships PG-default `_fkey` suffix:
+
+          ADD CONSTRAINT "consolidation_history_kept_memory_id_fkey"
+
+      while ALL prior migrations (0000-0002) use the Drizzle convention
+      `_<to-table>_<to-col>_fk`:
+
+          ADD CONSTRAINT "history_memory_id_memories_id_fk"          (0000:42)
+          ADD CONSTRAINT "memories_superseded_by_memories_id_fk"     (0002:6)
+
+      AND the corresponding snapshot at 0007_snapshot.json:661 expects:
+
+          "consolidation_history_kept_memory_id_memories_id_fk"
+
+      So `drizzle-kit generate` from the (now-correct) schema.ts would emit a
+      cleanup ALTER on any DB that ran the original 0007 SQL.
+
+      DEFERRAL ASSESSMENT:
+
+      The deferral DECISION is sound (cosmetic; FK behavior is identical at
+      the catalog level — naming difference does not affect ON DELETE / FK
+      semantics). The RATIONALE wording is partially sound but understates
+      the engineering picture:
+
+      (a) "cosmetic" — correct in terms of runtime behavior. ✓
+      (b) "renaming requires new migration for deployed DBs" — TECHNICALLY
+          CORRECT but understates the trivial fix path. Postgres natively
+          supports `ALTER TABLE consolidation_history RENAME CONSTRAINT
+          consolidation_history_kept_memory_id_fkey TO
+          consolidation_history_kept_memory_id_memories_id_fk;` since 9.2.
+          Cost: 1 new migration file (~10 SQL lines) + 1 line in package.json.
+          NOT prohibitive — it's "one migration's worth of churn", which is
+          the same cost as any other minor schema correction.
+
+      The architecturally sound deferral rationale (per the brief) is:
+      "Minimize migration churn until v0.8 benchmark cycle (Roadmap Item 10)
+      bundles all schema corrections in a single cleanup migration alongside
+      the benchmark-driven schema changes." This is honest because:
+        - v0.8 is the next major cycle that will touch migrations anyway
+          (benchmark CI introduces new fixtures + potentially new index types).
+        - Coalescing all 4 deferred MAJOR items (F-M1, F-M2, F-M3/M4, F-M10/M11)
+          into a single v0.8-prep cycle avoids 4 separate migration churns.
+        - The Drizzle convention IS the future canonical form (snapshot proves
+          it); a single rename in v0.8 brings the codebase back to bijection
+          between schema.ts → SQL → snapshot.
+
+      The "cosmetic; renaming requires new migration for deployed DBs" wording
+      in plan v1.2 acknowledges (a) but elides (b)'s timeline justification.
+
+      CONFIRMATION FROM PRIOR PRECEDENT: no `ALTER ... RENAME CONSTRAINT`
+      statement exists anywhere in the migrations history (`grep -rn`
+      returned zero hits), so the team has not yet established a pattern
+      for this kind of fix. v0.8 is the natural place to introduce it.
+
+      ARCHITECTURAL RISK OF KEEPING THE DRIFT:
+        - LOW for runtime correctness (constraints behave identically).
+        - LOW for the `drizzle-kit push` workflow (the constraint name is
+          INTERNAL — neither user nor app code references it by name).
+        - MEDIUM for ops audit clarity (a future operator running
+          `pg_dump` or `\d+ consolidation_history` will see two different
+          naming conventions in a single schema, raising questions).
+        - MEDIUM for `drizzle-kit generate` emitting a cleanup ALTER on
+          the FIRST regen post-fix — a future contributor may be confused
+          by the "phantom" diff against a deployed DB.
+    evidence: |
+      ```sql
+      -- 0007_distillation_columns.sql:34-37
+      ALTER TABLE "consolidation_history"
+        ADD CONSTRAINT "consolidation_history_kept_memory_id_fkey"
+        FOREIGN KEY ("kept_memory_id") REFERENCES "memories"("id")
+        ON DELETE SET NULL;
+
+      -- vs. 0000_crazy_mimic.sql:42 (Drizzle convention)
+      ALTER TABLE "history" ADD CONSTRAINT "history_memory_id_memories_id_fk"
+        FOREIGN KEY ("memory_id") REFERENCES "public"."memories"("id")
+        ON DELETE cascade ON UPDATE no action;
+      ```
+
+      ```json
+      // meta/0007_snapshot.json:661-672 (the canonical expectation)
+      "foreignKeys": {
+        "consolidation_history_kept_memory_id_memories_id_fk": {
+          "name": "consolidation_history_kept_memory_id_memories_id_fk",
+          "tableFrom": "consolidation_history",
+          "tableTo": "memories",
+          "columnsFrom": ["kept_memory_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      }
+      ```
+    recommended_action: |
+      ACCEPT THE DEFERRAL with rationale strengthening: amend plan v1.2 § Version note
+      to explicitly tie the deferral to v0.8 benchmark cycle (Roadmap Item 10),
+      e.g.:
+
+          "F-M10/M11 FK naming + ON UPDATE NO ACTION — runtime-cosmetic
+          (constraints behave identically); coalesced with F-M1/M2/M3/M4
+          into a single v0.8 prep migration to avoid 4 separate migration
+          churns ahead of benchmark fixture introduction."
+
+      The rename itself is mechanical (~10 SQL lines via `ALTER TABLE ...
+      RENAME CONSTRAINT`). The deferral DECISION is sound; the WORDING
+      understates the cost and elides the timing rationale.
+
+      OPTIONAL hardening: add a sentinel test similar to schema-snapshot-parity
+      that asserts every FK in any `*_snapshot.json` has a matching constraint
+      name in its source migration SQL. This would prevent the same drift
+      class in any future migration (sibling to the F-C3 sentinel).
+
+  # ---------------------------------------------------------------------------
+  # F-dom-db-3 / F-M11 — DEFERRAL HONESTY AUDIT — MAJOR (same shape as F-M10)
+  # ---------------------------------------------------------------------------
+  - id: F-dom-db-3-rerun
+    severity: MAJOR
+    status: DEFERRAL_PARTIALLY_SOUND
+    defers: F-M11 (ON UPDATE NO ACTION omitted from 0007 SQL)
+    file: src/local/migrations/0007_distillation_columns.sql:34-37
+    cross_file_evidence:
+      - src/local/migrations/0000_crazy_mimic.sql:42 → "ON DELETE cascade ON UPDATE no action" (explicit)
+      - src/local/migrations/0002_skill_columns.sql:6 → "ON DELETE set null ON UPDATE no action" (explicit)
+      - src/local/migrations/meta/0007_snapshot.json:672 → "onUpdate": "no action"
+    plan_ref: v1.2 § Version note — same line as F-M10
+    domain_anchor: PG referential integrity defaults (PG defaults to NO ACTION when ON UPDATE not specified; the cost of omission is the runtime IS correct but the SQL surface no longer self-documents the policy)
+    summary: |
+      0007 SQL declares only `ON DELETE SET NULL` and OMITS `ON UPDATE NO ACTION`:
+
+          ADD CONSTRAINT "..._fkey" FOREIGN KEY (...) REFERENCES ...
+          ON DELETE SET NULL;
+
+      while ALL prior migrations declare both explicitly:
+
+          0000:42 → ON DELETE cascade ON UPDATE no action
+          0002:6  → ON DELETE set null ON UPDATE no action
+
+      AND the snapshot at 0007_snapshot.json:672 declares:
+
+          "onUpdate": "no action"
+
+      DEFERRAL ASSESSMENT:
+
+      Runtime semantically: ZERO drift. PG treats unspecified `ON UPDATE`
+      as `NO ACTION` by default (per PG docs § REFERENCES). The deployed
+      DB and the snapshot expectation agree at the runtime catalog level
+      (`pg_constraint.confupdtype = 'a'` in both cases — 'a' = NO ACTION).
+
+      SQL-surface convention: drift. The migration no longer self-documents
+      its policy, and is INCONSISTENT with the project's per-migration
+      convention of always declaring both.
+
+      Same deferral rationale as F-M10 applies. The wording
+      "cosmetic; renaming requires new migration" understates that:
+        (a) F-M11 does NOT need a "rename" — it needs only an additive
+            convention-restore (the constraint already has the implicit
+            policy; making it explicit is a cosmetic ALTER, NOT a
+            rebuild). Cost: same `ALTER TABLE ... DROP CONSTRAINT +
+            ADD CONSTRAINT` cycle as F-M10, OR just consistent SQL in
+            the v0.8 prep migration alongside F-M10.
+        (b) The "deployed DBs" concern is also weaker for F-M11 since the
+            runtime behavior IS what the snapshot expects — the deployed
+            DBs are NOT drifted at the catalog level, only the source
+            SQL file is non-self-documenting.
+
+      The deferral DECISION is sound. The WORDING is acceptable but does
+      not distinguish F-M11 from F-M10 cleanly — they have different
+      runtime impacts (F-M10 = name-only drift; F-M11 = source-SQL
+      documentation drift but catalog-equivalent).
+    evidence: |
+      ```sql
+      -- 0007:34-37 — ON UPDATE clause MISSING
+      ALTER TABLE "consolidation_history"
+        ADD CONSTRAINT "..._fkey" FOREIGN KEY ("kept_memory_id")
+        REFERENCES "memories"("id") ON DELETE SET NULL;
+      --                          NOTE: no "ON UPDATE NO ACTION" trailer
+
+      -- 0000:42 — explicit convention
+      ALTER TABLE "history" ADD CONSTRAINT "history_memory_id_memories_id_fk"
+        FOREIGN KEY ("memory_id") REFERENCES "public"."memories"("id")
+        ON DELETE cascade ON UPDATE no action;
+
+      -- 0002:6 — explicit convention
+      ALTER TABLE "memories" ADD CONSTRAINT "memories_superseded_by_memories_id_fk"
+        FOREIGN KEY ("superseded_by") REFERENCES "public"."memories"("id")
+        ON DELETE set null ON UPDATE no action;
+      ```
+    recommended_action: |
+      ACCEPT THE DEFERRAL with the same rationale strengthening as F-M10
+      (coalesce into v0.8 prep migration). Additionally, the plan v1.2
+      wording should distinguish F-M11 from F-M10:
+
+          "F-M10 FK name drift (`_fkey` vs `_..._fk`) — pure naming;
+          F-M11 omitted explicit `ON UPDATE NO ACTION` — runtime IS
+          NO ACTION (PG default) but source SQL no longer self-documents.
+          Both coalesced into v0.8 prep migration."
+
+      The omitted ON UPDATE clause is a smaller honesty risk than F-M10
+      because the runtime catalog IS correct; only the SQL file's
+      self-documentation is incomplete.
+
+  # ---------------------------------------------------------------------------
+  # F-dom-db-4 / F-Mi12 — VERIFIED NOT CLOSED
+  # ---------------------------------------------------------------------------
+  - id: F-dom-db-4-rerun
+    severity: MINOR
+    status: VERIFIED_NOT_CLOSED
+    file: package.json:74-79 (scripts section)
+    cross_file_evidence:
+      - scripts/db-repair-v0-7-partial-state.mjs exists (verified via `ls scripts/`)
+      - package.json:78 → "db:repair-v0-4b-partial-state" IS registered (v0.4b precedent)
+      - package.json (search for "v0-7" or "v0.7") → no v0-7 repair script registered
+    plan_ref: v1.2 § Version note (no explicit mention; absorbed implicitly under "DEFERRED with rationale" but NOT in the closures list either)
+    domain_anchor: v0.4b precedent at package.json:78 ("db:repair-v0-4b-partial-state" registered as npm script for ops UX)
+    summary: |
+      The repair script `scripts/db-repair-v0-7-partial-state.mjs` IS present
+      on disk (mirrors the v0.4b T11.1b pattern). However, it is NOT registered
+      as an npm script — the only v0-N repair script registered is the
+      v0.4b precedent at `package.json:78`:
+
+          "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs"
+
+      Ops UX regression: an operator following the v0.4b precedent would expect
+      `npm run db:repair-v0-7-partial-state` to work. Today they would have to
+      discover the script via `ls scripts/`.
+
+      The fix-up cycle DID NOT close this MINOR. The v1.2 plan note lists
+      F-Mi2 + F-M5 as the only MINOR closures; F-Mi12 is silent (not in
+      "DEFERRED with rationale" list either, which makes the omission less
+      honest than the F-M10/M11 deferrals).
+    evidence: |
+      ```text
+      $ ls scripts/ | grep db-repair
+      db-repair-v0-4b-partial-state.mjs
+      db-repair-v0-7-partial-state.mjs
+
+      $ grep "db-repair\|db:repair" package.json
+      78:    "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs",
+      ```
+
+      No `db:repair-v0-7-partial-state` entry exists.
+    recommended_action: |
+      ONE-LINE FIX. Add to package.json:79 (right after the v0.4b precedent):
+
+          "db:repair-v0-7-partial-state": "node scripts/db-repair-v0-7-partial-state.mjs",
+
+      This is a single mechanical commit, no migration churn, no behavioral
+      change. Closes F-Mi12 cleanly. Alternative: explicitly mention F-Mi12
+      in plan v1.2 § DEFERRED with rationale (currently silent — opacity).
+
+# ============================================================================
+# NEW DOMAIN FINDINGS (none) — all previous DB-migrations findings either
+# closed (F-dom-db-1) or correctly deferred with sound (if understated)
+# rationale (F-dom-db-2 + F-dom-db-3). F-dom-db-4 (F-Mi12) remains open.
+# ============================================================================
+
+verdict_summary:
+  closed: [F-dom-db-1]
+  honestly_deferred:
+    - id: F-dom-db-2
+      caveat: deferral rationale understates v0.8 coalescing motive; "cosmetic" is correct but PG-rename cost is overstated
+    - id: F-dom-db-3
+      caveat: should be distinguished from F-M10 (F-M11 is documentation drift, not catalog drift)
+  open:
+    - id: F-dom-db-4
+      severity: MINOR
+      action: one-line package.json addition
+  net_state_for_db_migrations_domain: 0 CRITICAL / 2 MAJOR (both deferred with sound-but-understated rationale) / 1 MINOR open
+
+domain_confidence: HIGH
+recommendation: |
+  Verdict for db-migrations domain: READY_TO_MERGE_WITH_CAVEATS.
+
+  F-C3 closure is exemplary: schema/SQL/snapshot bijection restored,
+  sentinel test prevents regression class for ANY future migration.
+
+  F-M10/M11 deferrals are architecturally sound (runtime semantics preserved;
+  catalog-level effects identical or equivalent to defaults). Rationale
+  wording should be strengthened in plan v1.2 to tie deferral to v0.8
+  benchmark cycle explicitly. The current "cosmetic; renaming requires new
+  migration for deployed DBs" is HONEST but UNDERSTATES the timing reason
+  (which is the real justification — coalescing 4 deferred MAJORs into one
+  v0.8 prep migration).
+
+  F-Mi12 should be closed in the same cycle as the plan-wording
+  amendment (one-line package.json change). It is the only open MINOR that
+  has zero cost and zero risk to close — leaving it open is opacity.

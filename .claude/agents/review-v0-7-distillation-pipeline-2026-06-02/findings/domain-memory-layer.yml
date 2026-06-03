@@ -1,0 +1,432 @@
+agent: review-v0-7-distillation-pipeline-domain-memory-layer
+review_target: bab7a02^..HEAD for plan v0-7-distillation-pipeline
+domain: memory-layer
+domain_specific_patterns_checked:
+  - ADD-only invariant (ADR-0003)
+  - derived_from non-empty provenance
+  - scope isolation (user/session/agent/repo)
+  - reflect() ADR D2 wiring per plan T2.1
+  - Mem0 8-phase pipeline preservation
+  - Letta sleeptime rejection per ADR D1
+  - Voyager v0.6 supersession coexistence
+  - v0.7.1 LLM-MEASURED test methodology
+  - bi-temporal soft-delete via t_invalid (ADR-0006)
+  - 9th DIP shape vs sibling DIPs
+findings:
+  - id: F-dom-mem-1
+    severity: CRITICAL
+    file: src/local/pgvector-store.ts
+    line: 555-577
+    plan_ref: T2.1 deep-file-dependency-analysis — "Clustering pre-existing pgvector cosine search at threshold ≥ 0.95 (per Mem0 entity-link precedent at mem0/mem0/memory/main.py:918) groups cosine-similar memories sharing entity overlap"
+    domain_anchor: |
+      Mem0-shape architecture (architecture.md § 4) — Mem0's V3 entity-link step
+      operates on COSINE-SIMILAR clusters (threshold 0.95), NOT on the entire
+      active scope as a single bag.
+    summary: |
+      `recallConsolidationCandidates` pulls the ENTIRE active scope as ONE
+      undifferentiated cluster — there is NO cosine clustering at threshold
+      0.95 as the plan T2.1 explicitly specifies. Combined with
+      `LastWriteWinsConflictPolicy.consolidate` returning `{ keptMemoryId,
+      rejectedMemoryIds: ALL_OTHERS }`, calling
+      `memory.user('alice').reflect({ conflictResolution: LWW })` against a
+      scope holding 50 unrelated memories will soft-delete 49 of them in a
+      SINGLE call. The integration test at
+      tests/integration/distillation/reflect-with-policy.test.ts only seeds 2
+      memories and so trivially passes without exercising the failure mode.
+      The LLM-judged-merge prompt (prompts.ts:16-33) doubles down on the
+      assumption ("You receive a cluster of facts about the same subject")
+      while the wiring sends arbitrarily-unrelated memories.
+    evidence: |
+      src/local/pgvector-store.ts:558-577:
+        const where: string[] = ['t_invalid IS NULL'];
+        // ...user/session/agent filter...
+        SELECT id, text, created_at FROM memories WHERE ${where.join(' AND ')}
+        // no cosine clustering, no kind filter, no superseded_by filter
+      src/core/conflict-resolution/last-write-wins.ts:52-64:
+        if (candidates.length < 2) return [];
+        const sorted = [...candidates].sort(compareCandidatesDesc);
+        const [keep, ...rejected] = sorted;
+        return [{ keptMemoryId: keep.memoryId,
+                  rejectedMemoryIds: rejected.map((r) => r.memoryId), // ALL OTHERS
+                  ... }];
+      tests/integration/distillation/reflect-with-policy.test.ts:92-93 only
+      seeds 2 memories; no regression test guards against N-memory
+      mass-tombstoning.
+    recommended_action: |
+      Either (a) implement the cosine-similarity clustering at threshold ≥
+      0.95 declared in the plan (use the existing pgvector `embedding` column
+      + an O(N^2) self-join OR a representative-anchor sweep), OR (b) amend
+      the plan + ADR D1/D2 to declare that v0.7 ships WITHOUT clustering and
+      require the consumer to compute clusters externally before invoking
+      reflect(). Either path requires a new RED integration test
+      (`reflect-non-contradictory-memories-preserved.test.ts`) asserting that
+      `reflect({ conflictResolution: LWW })` over 5 SEMANTICALLY UNRELATED
+      memories does NOT soft-delete 4 of them.
+
+  - id: F-dom-mem-2
+    severity: CRITICAL
+    file: src/local/pgvector-store.ts
+    line: 555-577
+    plan_ref: D1 (Mem0-parity) + D2 (Noop default = ADD-only safe)
+    domain_anchor: |
+      CLAUDE.md § Locked names — `Repo` for skills only, v0.6, ADR-0010.
+      v0.6 voyager-skill-library ships `kind='skill'` rows + `superseded_by`
+      chains. These are NOT episodic memories and MUST NOT enter the v0.7
+      consolidation candidate set.
+    summary: |
+      `recallConsolidationCandidates` does NOT filter `kind != 'skill'` and
+      does NOT filter `superseded_by IS NULL`. As a result:
+      (1) v0.6 Voyager skill rows enter the consolidation cluster — when a
+      consumer running `memory.skills(repoId)` (RepoScope per ADR-0010,
+      mapped onto agent_id) later runs `reflect({ conflictResolution })` on
+      that same agent_id scope, EVERY skill row becomes a consolidation
+      candidate; LWW will mass-tombstone the skill library. Voyager
+      supersession + v0.7 consolidation both write to `t_invalid` (skills
+      via `superseded_by` + separately at v0.4b via `t_invalid`), so the
+      collision is silent.
+      (2) Already-superseded skills (`superseded_by IS NOT NULL`) re-enter
+      the candidate set and double-tombstone, polluting
+      `consolidation_history` with provenance pointing to rows that were
+      already retired.
+    evidence: |
+      src/local/pgvector-store.ts:558 — `const where: string[] = ['t_invalid IS NULL'];`
+      No `kind` clause, no `superseded_by IS NULL` clause.
+      Compare with the canonical filter in composeFilters at
+      src/local/pgvector-store.ts:107-115 — recall path correctly handles
+      both kind + excludeSuperseded; consolidation path bypasses it.
+      Plan does NOT declare which kinds participate in distillation; per
+      ADR D1's Mem0-parity claim, only EPISODIC memories should — `kind
+      IN ('episode')` OR `kind != 'skill'` is the safe default.
+    recommended_action: |
+      Add `kind != 'skill'` AND `superseded_by IS NULL` clauses to the
+      `recallConsolidationCandidates` WHERE list. Add a v0.7 regression test
+      `tests/integration/distillation/skill-rows-excluded-from-consolidation.test.ts`
+      that seeds 1 skill row + 1 episodic memory in the same agent_id
+      scope; calls `reflect({ conflictResolution: LWW })`; asserts the
+      skill row's `t_invalid IS NULL` post-reflect AND no
+      `consolidation_history` row touches the skill memoryId. Surface the
+      decision in ADR D2 + ADR-0010 cross-reference.
+
+  - id: F-dom-mem-3
+    severity: MAJOR
+    file: src/core/reflection/execute.ts
+    line: 79-95
+    plan_ref: T2.1 Files-to-edit — `src/core/reflection/execute.ts (UPDATE — accept conflictResolution?: ConflictResolutionPolicy option; after derivation step, cluster candidates + invoke policy + persist results)`
+    domain_anchor: |
+      Plan ADR D1 wiring locus + plan T2.1 file list. Plan explicitly says
+      execute.ts must be UPDATED. SEPA expected behavior + cross-reference
+      anchor.
+    summary: |
+      Plan T2.1 declares the wiring should live in
+      `src/core/reflection/execute.ts` (UPDATE) — but the implementation
+      shipped the wiring in `src/local/index.ts` (lines 374-405) instead.
+      `src/core/reflection/execute.ts` was NOT touched by v0.7 (no
+      conflictResolution param; no consolidation phase). The actual locus
+      shipped is a runtime-adapter-level wire, not a core-layer wire.
+      Functionally the divergence is acceptable (the wiring uses
+      VectorStore extension methods, which is fine for the local runtime),
+      but the plan/code mismatch is a load-bearing divergence the cross-
+      validation reviewer + future maintainers will trip on. ADR D1
+      consequences also claim "logic-layer extension on top of v0.4a
+      reflect()" — the shipped wire is runtime-layer, not logic-layer.
+    evidence: |
+      grep -rn "ConflictResolutionPolicy\|conflictResolution" src/core/
+      returns ZERO hits in src/core/reflection/execute.ts;
+      ALL wiring lives at src/local/index.ts:374-405.
+      Plan T2.1 § Files to edit: "- src/core/reflection/execute.ts
+      (UPDATE — accept conflictResolution?: ConflictResolutionPolicy
+      option; after derivation step...)" — not honored.
+    recommended_action: |
+      Either (a) move the wiring to `src/core/reflection/execute.ts` by
+      extending `ReflectionExecuteContext` to carry the policy + adding the
+      candidates fetch via a new DIP method on `VectorStore`, OR (b) amend
+      the plan + ADR D1 in a v1.2 absorption to declare the locus is
+      `src/local/index.ts` with a documented rationale (the
+      consolidation phase needs raw SQL not modelable in pure core/). Plan-
+      vs-code drift is the load-bearing artifact here.
+
+  - id: F-dom-mem-4
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 572-573
+    plan_ref: T2.1 Deep dependency analysis — "Soft-delete via t_invalid = NOW() per ADR-0006"
+    domain_anchor: |
+      Bi-temporal contract (ADR-0006). `t_valid IS NOT NULL AND t_invalid
+      IS NULL` defines the "active" set. v0.4b shipped `t_valid` /
+      `t_invalid` semantics + `forget({hard})` opt-in.
+    summary: |
+      `recallConsolidationCandidates` filters by `t_invalid IS NULL` but
+      does NOT filter by `t_valid IS NOT NULL` or `t_valid <= NOW()`. If a
+      future feature (bi-temporal "valid from a future date" — already in
+      the v0.5 cloud plan per ADR-0006) writes rows with `t_valid > NOW()`,
+      those rows will enter the consolidation cluster prematurely.
+      Symmetrically, the "tombstoned-but-historically-recallable" set
+      (`t_invalid IS NOT NULL`) is correctly excluded.
+    evidence: |
+      src/local/pgvector-store.ts:558: `const where: string[] = ['t_invalid IS NULL'];`
+      compare with src/local/eviction/pg-evictor.ts which respects the
+      full bi-temporal contract.
+    recommended_action: |
+      Add `AND t_valid <= NOW()` to the active-set predicate in
+      `recallConsolidationCandidates` for forward-compatibility with v0.5
+      cloud's `asOf` semantics. Add a unit test that seeds a row with
+      `t_valid = NOW() + 1d` and confirms it's NOT included.
+
+  - id: F-dom-mem-5
+    severity: MAJOR
+    file: tests/integration/distillation/the-goal-test.test.ts
+    line: 70-79
+    plan_ref: |
+      T3.3 Acceptance — "All 4 thresholds met against gold set on at least
+      1 run" + Goal section: "THE GOAL TEST counter (distillation.goal_test
+      .pass === 1 AND distillation.precision >= 0.75 AND distillation.recall
+      >= 0.70 AND distillation.conflict_resolution_accuracy >= 0.80)"
+    domain_anchor: |
+      Mem0 Open Problem #3 acceptance per CLAUDE.md Item 9: "Conflict-
+      resolution test: two contradictory facts → pipeline resolves to one
+      + history records rejected alternative with reason."
+    summary: |
+      The shipped T3.3 GOAL TEST exercises only the harness wiring with
+      `LastWriteWinsConflictPolicy` (deterministic, no LLM call). The test
+      file's docstring (lines 14-30) ACKNOWLEDGES this with explicit
+      honesty under ADR-DEFER-LLM-MEASURED-GOAL-TEST: precision/recall
+      numbers are 1.000 because LWW + a deterministic seed = trivial pass.
+      The v0.7.1 LLM-MEASURED follow-up
+      (the-goal-test-llm-measured.test.ts) closes the gap when
+      OPENROUTER_API_KEY is present, but it runs `describe.skipIf(... ||
+      OPENROUTER_KEY === '')` so a CI / no-cost run silently skips.
+      Net result: the only LLM-quality signal at v0.7 baseline is opt-in
+      and not enforced; the goal-test PASS in non-OpenRouter environments
+      proves only the WIRING is correct, not that the JUDGE quality meets
+      the 0.75/0.70/0.80 thresholds.
+    evidence: |
+      tests/integration/distillation/the-goal-test.test.ts:70-79 — uses
+      `emptyJsonLlm` for extraction + `LastWriteWinsConflictPolicy` (no
+      LLM judge). Self-documented as "trivially pass".
+      tests/integration/distillation/the-goal-test-llm-measured.test.ts:85
+      `describe.skipIf(PG_URI === '' || OPENROUTER_KEY === '')` — opt-in
+      only, no in-CI enforcement.
+      CLAUDE.md Item 9 row currently reads "Shipped 2026-05-31 ... THE
+      GOAL TEST `recall@10 = 1.000`" — but the LLM-judged signal is
+      ABSENT from the shipped baseline.
+    recommended_action: |
+      Document the honesty caveat in `docs/distillation-evaluation.md` (if
+      not already present): the baseline matrix uses LWW; LLM-judged
+      numbers are populated by v0.7.1 LLM-MEASURED when run. Consider
+      mandating the LLM-MEASURED test in the v1.0 gate per CLAUDE.md Item
+      11 (currently `/dogfood` EVIDENCE_INSUFFICIENT). Either (a) wire a
+      free-tier-model in CI so the LLM-measured signal runs by default, or
+      (b) explicitly DEFER the LLM-quality acceptance to the v1.0 release
+      gate via a new ADR.
+
+  - id: F-dom-mem-6
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 589-617
+    plan_ref: |
+      T2.1 EC-8 — "the withTransactionFn wrapping t_invalid updates +
+      insertConsolidationHistory MUST roll back ATOMICALLY if
+      insertConsolidationHistory throws mid-transaction"
+    domain_anchor: |
+      ADD-only invariant (ADR-0003) means audit trail integrity is THE
+      moat per blueprint R8. A half-applied state corrupts the trail.
+    summary: |
+      `persistConsolidations` correctly wraps the soft-delete UPDATE + the
+      audit INSERT in `withTransaction`. However, the wiring at
+      `src/local/index.ts:402-404` invokes `persistConsolidations` AFTER
+      `executeReflection` — line 408 calls `executeReflection` which can
+      throw `ReflectionLLMResponseError` on malformed LLM output (per
+      execute.ts:35-40). If the consolidation phase has ALREADY persisted
+      (rows soft-deleted + audit written) and THEN the executeReflection
+      LLM call throws, the consolidation IS committed but no derived
+      memory is written — net: rejected memories soft-deleted, no kept
+      memory promoted, no derived memory added. Reads as the right
+      outcome ONLY if the policy already promoted the kept candidate as
+      the new "kept" row. The plan's intent at T2.1 is "consolidation
+      runs BEFORE executeReflection so LLM-extraction failure paths don't
+      mask the consolidation's own failure modes" — but it does not
+      consider the REVERSE: extraction failure AFTER consolidation
+      commits leaves consolidation intact + extraction missing, with no
+      compensating action. EC-8 covers WITHIN-persistConsolidations
+      rollback but NOT the wider reflect() transaction.
+    evidence: |
+      src/local/index.ts:374-412 wiring order:
+        1. consolidate() → results
+        2. persistConsolidations(results) — COMMITS soft-deletes + audit
+        3. executeReflection() — can throw
+        4. validateProvenance() — can throw
+        5. insertDerivedMemory() — can throw mid-batch
+      Steps 2 commits independently; steps 3-5 are unguarded by an outer
+      transaction.
+    recommended_action: |
+      Option A (preferred): wrap the ENTIRE reflect() phase (consolidation
+      + derivation + provenance + persist) in a single outer transaction.
+      Option B: declare in ADR D2 + plan T2.1 that "consolidation is
+      eventually-consistent with derivation; partial reflect() failures
+      do NOT roll back the consolidation phase". Either way, the
+      decision MUST be explicit + tested via a regression test
+      `reflect-extraction-failure-rolls-back-consolidation.test.ts`.
+
+  - id: F-dom-mem-7
+    severity: MINOR
+    file: src/core/conflict-resolution/llm-judged-merge.ts
+    line: 74-89
+    plan_ref: |
+      T3.3 EC-5 — "THE GOAL TEST configuration MUST pin
+      LlmJudgedMergeConflictPolicy to { temperature: 0, seed: 42 } (when
+      supported by the LLM impl) to defeat sampling non-determinism."
+    domain_anchor: |
+      Mem0-shape determinism in distillation — non-determinism in LJM
+      breaks the v0.7.1 LLM-MEASURED claim about reproducibility.
+    summary: |
+      `LlmJudgedMergeConflictPolicyOptions` accepts `temperature` + `seed`
+      (lines 75-80) but the constructor at lines 87-90 does NOT store
+      them as fields, and `consolidate` at lines 92-120 does NOT forward
+      them to `this.#llm.generateResponse(messages, { type: 'json' })`. The
+      header docstring openly states "NOT forwarded today — see ADR-DEFER-
+      LLM-TEMP-SEED" but no such ADR exists in the plan; the v0.7.1 LLM-
+      MEASURED test cannot pin temperature=0 as EC-5 explicitly requires.
+      The signature is a no-op that misleads consumers expecting EC-5
+      behavior.
+    evidence: |
+      src/core/conflict-resolution/llm-judged-merge.ts:9-10 header:
+        "Constructor `{ temperature, seed }` accepted for EC-5 forward
+        compat (T3.3); NOT forwarded today — see ADR-DEFER-LLM-TEMP-SEED."
+      No ADR-DEFER-LLM-TEMP-SEED exists in the plan or the ADR table.
+      The v0.7.1 LLM-MEASURED test passes the policy without forwarding
+      temperature or seed: line 153 `new LlmJudgedMergeConflictPolicy({
+      llm: judgeLlm })` — EC-5 stability cannot be claimed.
+    recommended_action: |
+      Either (a) implement the forwarding (extend `LLM.generateResponse`
+      params to accept temperature + seed; OpenAILLM already supports it
+      per OpenAI SDK), OR (b) remove the misleading options from the type
+      signature + delete the EC-5 stability claim from the v0.7.1
+      LLM-MEASURED test docstring, OR (c) author the missing ADR-DEFER-
+      LLM-TEMP-SEED with explicit deferral date + tracking issue.
+
+  - id: F-dom-mem-8
+    severity: MINOR
+    file: src/local/index.ts
+    line: 386-394
+    plan_ref: |
+      T2.1 — "Public Memory surface gains Memory.reflect({
+      conflictResolution }) option"; "default `NoopConflictPolicy`
+      preserves v0.4a behavior byte-identical"
+    domain_anchor: |
+      Architecture rule 3 (DIP boundary): src/core/ should not couple to
+      adapter-specific extensions.
+    summary: |
+      The wiring tests for `recallConsolidationCandidates` +
+      `persistConsolidations` via `as unknown as
+      VectorStoreWithConsolidation` runtime check + throws
+      `'reflect: conflictResolution requires a vector store with ...'`.
+      This is a runtime-type-narrowing leak: the `VectorStore` DIP
+      (src/core/dip/vector-store.ts) does NOT declare these methods, so
+      `InMemoryVectorStore` consumers see a runtime error rather than a
+      compile-time error. Plan T2.1 anticipates this but doesn't
+      formalize: the DIP should either (a) declare these as optional
+      methods, or (b) declare a new sibling DIP `ConsolidationStore`
+      that PgvectorStore implements. As shipped, the error message is
+      good ("use PgvectorStore from @usetheo/memory/local") but the type
+      narrowing is invisible to TypeScript.
+    evidence: |
+      src/local/index.ts:384 `this.config.vectorStore as unknown as
+      VectorStoreWithConsolidation` — cast suppresses type system.
+      VectorStore DIP at src/core/dip/vector-store.ts has no
+      recallConsolidationCandidates entry.
+    recommended_action: |
+      Promote `VectorStoreWithConsolidation` to a sibling DIP at
+      `src/core/dip/consolidation-store.ts` (the 10th DIP). Have
+      PgvectorStore implement BOTH; type narrow via `if (store instanceof
+      ConsolidationStore)` or a discriminator. Aligns with the same
+      pattern v0.6 used for `SkillStore` vs `VectorStore` split.
+
+  - id: F-dom-mem-9
+    severity: INFO
+    file: tests/integration/distillation/reflect-with-policy.test.ts
+    line: 92-93
+    plan_ref: |
+      T2.1 RED — "given 2 contradictory memories in the same scope and a
+      LastWriteWinsConflictPolicy ... (a) 1 memory has t_invalid IS NOT
+      NULL post-reflect"
+    domain_anchor: |
+      Test coverage discipline (testing.md § Pyramid Integration tier).
+    summary: |
+      The wiring test only seeds 2 memories; the multi-memory case (N=5+
+      unrelated memories) is NOT exercised. Combined with F-dom-mem-1
+      (no clustering at 0.95 threshold), this gap means the
+      mass-tombstoning failure mode is uncaught by the test suite.
+    evidence: |
+      tests/integration/distillation/reflect-with-policy.test.ts:92-93:
+        const idOlder = await seed('older fact', -5_000);
+        const idNewer = await seed('newer fact', +5_000);
+      No 3rd seed; no semantic-distance verification.
+    recommended_action: |
+      Add a regression test seeding 5 SEMANTICALLY UNRELATED memories
+      (different topics, different entity tokens) + asserting LWW does
+      NOT mass-tombstone them. The test will FAIL today (per F-dom-mem-1)
+      — confirming the clustering gap.
+
+  - id: F-dom-mem-10
+    severity: INFO
+    file: src/core/conflict-resolution/prompts.ts
+    line: 18-19
+    plan_ref: |
+      ADR D1 + B-D1 — Mem0-parity entity-link assumption: clusters are
+      cosine-similar memories sharing entity overlap.
+    domain_anchor: |
+      Voyager / no-paper-names-in-code rule + cluster-semantics honesty.
+    summary: |
+      The LJM system prompt says "You receive a cluster of facts about
+      the same subject" — but the v0.7 wiring sends WHATEVER is in
+      scope as the cluster. The prompt assumption is correct IF
+      clustering were implemented; today it is a load-bearing FALSEHOOD
+      to the LLM. Consequence: the LJM judge is being asked to pick
+      "one fact about the same subject" from a bag of unrelated facts.
+      Best-case: the judge abstains (returns kept_id=""); worst-case:
+      the judge invents a "subject" + picks arbitrarily.
+    evidence: |
+      src/core/conflict-resolution/prompts.ts:18-19:
+        "You receive a cluster of facts about the same subject that may
+         overlap, contradict, or restate each other."
+      Counter-evidence: src/local/pgvector-store.ts:572-575 sends ALL
+      active memories in scope (no cosine filter) into the cluster.
+    recommended_action: |
+      Tied to F-dom-mem-1: once clustering is wired, the prompt is
+      truthful. Until then, soften the prompt or surface the truth: "You
+      receive a set of memories in scope; many may be unrelated. If
+      they ARE unrelated, output kept_id='' to abstain." The v0.7
+      LLM-MEASURED test's poor precision/recall (if any) will trace
+      back to this dishonesty.
+
+summary:
+  total: 10
+  critical: 2
+  major: 4
+  minor: 2
+  info: 2
+  notes: |
+    Three load-bearing memory-layer concerns dominate the v0.7 review:
+    (1) Cosine clustering at threshold 0.95 declared by plan T2.1 is
+    UNIMPLEMENTED — `recallConsolidationCandidates` pulls the entire
+    active scope as a single bag. Combined with LWW's
+    `kept + rejected: ALL_OTHERS` shape, this is a mass-tombstoning
+    failure mode in production-shape usage (50+ memories in scope =
+    49 soft-deleted on one reflect call). Tests with 2 memories do not
+    catch the regression.
+    (2) Voyager v0.6 supersession + v0.7 consolidation coexistence is
+    NOT guarded — `recallConsolidationCandidates` does not filter
+    `kind='skill'` nor `superseded_by IS NOT NULL`. A consumer that
+    runs reflect() on an agent_id scope that ALSO holds a skill library
+    (RepoScope per ADR-0010) risks the skill library being mass-
+    tombstoned by an LWW policy.
+    (3) Plan-vs-code drift: T2.1 declared the wiring lives in
+    src/core/reflection/execute.ts; the actual wiring lives in
+    src/local/index.ts. Functionally OK but plan + ADR D1 read as
+    incorrect.
+    The v0.7.1 LLM-MEASURED test methodology is honest (acknowledges
+    the LWW oracle limitation) but its skipIf gate means CI/no-cost
+    lanes ship without ANY LLM-quality signal.
+    ADD-only invariant (ADR-0003), derived_from non-empty (T3.3
+    acceptance #4), and the Letta sleeptime rejection (ADR D1) are all
+    correctly honored.

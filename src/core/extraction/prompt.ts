@@ -35,8 +35,13 @@ const SYSTEM_PROMPT = [
   'output JSON with new facts to persist. Use the integer ids in `linked_memory_ids`',
   'when a new fact references or relates to an existing memory.',
   '',
+  '`attributed_to` is the perspective owner of the fact — the peer ID it belongs to.',
+  'Accept ARBITRARY string values: a user id, agent id, "system" for self-statements,',
+  'or any peer identifier supplied in conversation context. NOT restricted to a fixed',
+  'vocabulary.',
+  '',
   'Output format (strict JSON, no prose):',
-  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "user|system|agent", "linked_memory_ids"?: ["<int-id>"] }] }',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["<int-id>"] }] }',
 ].join('\n');
 
 function renderExistingMemories(existing: readonly MemoryItem[]): string {

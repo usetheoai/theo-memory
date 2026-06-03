@@ -14,6 +14,8 @@ test('MemoryItem has the locked field shape', () => {
     readonly metadata: Readonly<Record<string, string | number | boolean | null>>;
     readonly tValid: Date | null;
     readonly tInvalid: Date | null;
+    // v1.1 multi-peer attribution; optional for backward compat — pre-v1.1 rows carry undefined.
+    readonly attributedTo?: string;
     // v0.4a/v0.4b eviction-related extensions; optional+nullable for backward compat.
     readonly llmImportanceScore?: number | null;
     readonly lastAccessedAt?: Date | null;

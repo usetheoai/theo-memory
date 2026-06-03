@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-22-proc-marcus-22",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Marcus speaks at conferences — also a deep expert in developer ergonomics.",
+  "expectedFacts": [
+    {
+      "text": "Marcus speaks at conferences"
+    },
+    {
+      "text": "Marcus is a deep expert in developer ergonomics"
+    }
+  ]
+}

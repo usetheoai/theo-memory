@@ -1,0 +1,325 @@
+agent: review-v0-7-distillation-pipeline-tests
+review_target: main..HEAD for plan v0-7-distillation-pipeline (re-run #3 post fix-up #2 commit f68727d)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+plan_version: v1.2
+run_number: 3
+previous_run_verdict: READY_TO_MERGE_WITH_CAVEATS (2 MAJOR + 9 MINOR + 23 INFO)
+fix_up_under_review: f68727d "fix(v0-7-distill): /review re-run fix-up #2 — close 2 MAJOR + key MINORs"
+
+test_pyramid:
+  unit_added: 2
+  integration_added: 7
+  e2e_added: 0
+  total: 9
+  unit_files:
+    - tests/unit/distillation/gold-set-shape.test.ts
+    - tests/unit/distillation/precision-recall.test.ts
+  integration_files:
+    - tests/integration/distillation/forget-hard-survives-audit.test.ts
+    - tests/integration/distillation/reflect-atomic-rollback.test.ts
+    - tests/integration/distillation/reflect-empty-scope.test.ts
+    - tests/integration/distillation/reflect-with-policy.test.ts
+    - tests/integration/distillation/skill-isolation.test.ts
+    - tests/integration/distillation/the-goal-test-llm-measured.test.ts
+    - tests/integration/distillation/the-goal-test.test.ts
+  src_unit_added_under_src:
+    - src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+    - src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+    - src/core/conflict-resolution/__tests__/noop.test.ts
+    - src/core/conflict-resolution/__tests__/prompts.test.ts
+    - src/core/__tests__/dip-conflict-resolution-policy.test.ts
+  pyramid_assessment: |
+    Healthy pyramid for a domain-logic + persistence cycle: 5+ unit files at src/core/
+    (deterministic, mock-LLM), 7 integration files at tests/integration/distillation/
+    (real pgvector via THEOMEM_PG_URI gated by describe.skipIf), 0 E2E (matches plan
+    scope — distillation is a domain primitive, not a TheoKit-binding feature).
+
+edge_cases_from_plan:
+  total_declared: 11
+  covered: 11
+  missing: []
+  coverage_detail:
+    EC-1: |
+      LWW tie-break by memoryId DESC when createdAt equal — COVERED by
+      src/core/conflict-resolution/__tests__/last-write-wins.test.ts:124
+      ("EC-1 — tie-break by memoryId lex DESC when createdAt equal
+      (deterministic across 10 runs)"). 10 consecutive runs asserted
+      deterministic; winners Set size == 1.
+    EC-2: |
+      LJM parseConsolidationResponse semantic-validates kept_id ∈ clusterIds —
+      COVERED by src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts
+      lines 78, 87, 96 (RED #3, #4, #5: hallucinated kept_id, hallucinated
+      rejected_id, kept_id ∈ rejected_ids → abstain).
+    EC-3: |
+      FK consolidation_history.kept_memory_id ON DELETE SET NULL for GDPR
+      forget({hard:true}) — COVERED by
+      tests/integration/distillation/forget-hard-survives-audit.test.ts with
+      4 explicit assertions (no FK violation, audit row survives, reason
+      preserved, rejected_memory_ids JSONB unchanged).
+    EC-4: |
+      OTel counters lazy-init per F-dom-6 / v0.4b T10.1 precedent — COVERED
+      by src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts:105
+      ("RED #6 — EC-4: counter is lazily resolved (metrics.getMeter NOT
+      called at module load OR at policy construction)").
+    EC-5: |
+      THE GOAL TEST stability across 3 runs — COVERED by
+      tests/integration/distillation/the-goal-test.test.ts:229 ("EC-5: 3
+      consecutive runs return pairwise deltas < 0.05 on each metric
+      (stability)"). Trivially stable on deterministic LWW oracle, designed
+      to surface drift if real LLM swapped in.
+    EC-6: |
+      Cluster size cap ≤ 20 — COVERED by
+      src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts:120
+      ("RED #7 — EC-6: cluster size > clusterCap (default 20) → abstain
+      returns empty array").
+    EC-7: |
+      Empty scope graceful no-op — COVERED by
+      tests/integration/distillation/reflect-empty-scope.test.ts (0 LLM
+      calls on generateResponseSpy, 0 audit rows, no exceptions).
+    EC-8: |
+      Atomic transaction rollback on insert failure — COVERED by
+      tests/integration/distillation/reflect-atomic-rollback.test.ts (3
+      explicit assertions: rejects with simulated error, no t_invalid
+      mutation, 0 audit rows).
+    EC-9: |
+      derived_from already JSONB shipped v0.4a — DOCUMENT-only (no test
+      required per plan absorption note). Verified via inline comment in
+      the-goal-test.test.ts header about derived_from non-empty assertion.
+    EC-10: |
+      BLEU via natural.BleuScore — COVERED with HONESTY-CORRECTION by
+      tests/unit/distillation/precision-recall.test.ts:41-50 (canonical
+      BLEU-4 sentence-level scoring documented; plan EC-10 fabrication
+      corrected in metrics.ts header — natural lib does NOT export
+      BleuScore, BLEU implemented manually via natural.NGrams).
+    EC-11: |
+      npm run eval:distillation pre-conditions documented — DOCUMENT-only
+      (no test required; covered by docs/distillation-evaluation/README.md
+      per plan T3.2 GREEN-step verification).
+
+fix_up_2_verification:
+  F-tests-rerun-1:
+    finding: |
+      Previous test name "subsequent reflect()" was misleading — body
+      invokes reflect() ONCE, not twice. Rename required.
+    status: CLOSED
+    file: tests/integration/distillation/skill-isolation.test.ts:149
+    new_name: |
+      "derived rows (kind=derived) are NOT re-consolidated when reflect()
+      runs over a cluster with extracted siblings"
+    verification: |
+      Test name now accurately describes the body's single reflect()
+      invocation (line 167-168). Test name matches the test scenario
+      (cluster with extracted siblings + derived row).
+    diff_inspected: f68727d~1..f68727d -- tests/integration/distillation/skill-isolation.test.ts
+  F-tests-rerun-2:
+    finding: |
+      Previous test discarded extractedOlderId/extractedNewerId via `void`
+      without asserting their behavior under LWW. Replace with actual
+      t_invalid assertions.
+    status: CLOSED
+    file: tests/integration/distillation/skill-isolation.test.ts:177-187
+    assertions_added:
+      - "expect(olderRows[0]?.t_invalid).not.toBeNull(); — older rejected per LWW"
+      - "expect(newerRows[0]?.t_invalid).toBeNull(); — newer kept per LWW"
+    verification: |
+      Two new pool.query lookups + 2 new expect() calls replace the previous
+      `void extractedOlderId; void extractedNewerId;` discards. Now the
+      test exercises 4 assertions (derived survives + older rejected +
+      newer kept + scope isolation) instead of 1 (derived survives only).
+      Both expected outcomes per LWW semantics (older = first seed at
+      -5_000ms, newer = second seed at +5_000ms).
+
+aaa_compliance:
+  format: Given-When-Then comments present in all integration test files
+  examples:
+    - tests/integration/distillation/skill-isolation.test.ts: "// Given:", "// When:", "// Then:", "// And:" markers
+    - tests/integration/distillation/reflect-with-policy.test.ts: uses (a)/(b) numbered Then assertions
+    - tests/integration/distillation/the-goal-test.test.ts: Arrange (seedPair), Act (reflect), Assert (precision/recall/accuracy)
+  violations: []
+
+test_naming:
+  describes_behavior_not_method: true
+  no_conjunctions_in_names: |
+    Reviewed all test names. Found 1 BORDERLINE case worth flagging as INFO:
+      - skill-isolation.test.ts:101: "skill rows (kind=skill) survive reflect({ conflictResolution: LWW }) on the same scope"
+      Reads cleanly — "survive reflect on the same scope" is ONE behavior
+      (scope isolation under reflect). Not split-worthy.
+      - reflect-atomic-rollback.test.ts:75: "persistConsolidations throw inside withTransaction → ROLLBACK; no t_invalid mutation; 0 audit rows"
+      Semicolons + 3 clauses. Technically describes ONE rollback behavior
+      (3 observable consequences of the same atomic transaction). MINOR
+      style nit — not split-worthy because the 3 clauses are co-required
+      properties of atomicity, not separate behaviors.
+
+skipped_or_only:
+  found: 0
+  scan_command: |
+    grep -rn "\.skip\|\.only\|xit\|xtest\|@skip" tests/integration/distillation/
+    tests/unit/distillation/ src/core/conflict-resolution/__tests__/
+    | grep -v "skipIf"
+  result: zero matches — only describe.skipIf(PG_URI === '') gates (correct env-var gating, NOT skipped tests)
+
+determinism:
+  random_data_in_assertions: |
+    seedRow + seedPair + seed functions use `Math.random()` for hash uniqueness
+    (collision avoidance). The random suffix is NEVER asserted against — it
+    only enters the hash column to avoid PK collisions across seeded rows.
+    Acceptable per testing.md (random IDs OK if not asserted).
+  time_dependent_assertions: |
+    relative-offset seeding (NOW() + ($offset || ' milliseconds')::interval)
+    is deterministic per insert order. No vi.useFakeTimers() needed
+    because comparisons are relative (older < newer), not absolute.
+  db_state_reset_between_tests: |
+    Every integration test has beforeEach(async () => { await reset(); })
+    that DELETEs both consolidation_history rows for the policy + memories
+    rows for the test user. Reset is scoped to the test's user_id / agent_id
+    — does NOT touch other test data. Correct isolation pattern.
+
+tdd_compliance:
+  red_before_green: |
+    Plan v1.2 declared RED tests per task; reading the file headers (e.g.,
+    forget-hard-survives-audit.test.ts:13 "RED: pre-migration the
+    consolidation_history table does not exist; the test FAILS at the
+    seed-audit-row INSERT" / "GREEN: migration 0007 applied") confirms
+    RED documented + matches the migration ordering. git log --follow
+    not sampled per agent role efficiency mandate; samples show TDD
+    discipline documented in test file headers.
+  bug_fix_regression_tests: |
+    F-C1 (LWW mass-tombstone guard) shipped with 2 regression tests at
+    src/core/conflict-resolution/__tests__/last-write-wins.test.ts:100,
+    110 ("F-C1 — maxRejectionRatio=0 means never reject anything" + "F-C1
+    — out-of-range maxRejectionRatio is clamped to [0, 1]"). Per
+    Inquebrável Rule 5 bug-fix-with-regression-test discipline.
+    F-C2 (episodic↔semantic boundary) shipped with full integration test
+    file skill-isolation.test.ts — the entire file IS the regression test.
+    F-C3 (consolidation_history declared in schema.ts) — schema-parity
+    sentinel test (not in distillation/ dir; out of focus surface for this
+    review per role instructions).
+
+mock_hygiene:
+  emptyJsonLlm_pattern: |
+    Reused across 4 integration test files (skill-isolation, reflect-with-policy,
+    reflect-empty-scope partially, the-goal-test, the-goal-test-llm-measured)
+    as a shared LLM stub returning [] from generateResponse + '[]' from
+    generateChat. This is intentional — the tests focus on policy/persistence
+    behavior, not LLM extraction quality. Acceptable per testing.md
+    ("Mock the dependency, not the world").
+    INFO observation (not a finding): the stub is COPY-PASTED across 4 files
+    rather than extracted to tests/fixtures/distillation/empty-json-llm.ts.
+    This is a deferred DRY observation — not a defect because each file's
+    body intentionally re-declares the stub for self-containment + the test
+    has been documented as such by the previous /review run (likely covered
+    by F-arch-rr-NEW-2 DRY observation noted in fix-up #2 commit message
+    as "deferred-acceptable").
+  pgvector_real_db: |
+    All integration tests use REAL pgvector via process.env.THEOMEM_PG_URI
+    (gated by describe.skipIf when absent). Correct integration test
+    discipline per pyramid (mock LLMs at unit, real Postgres at integration).
+
+skill_isolation_test_quality:
+  total_tests: 2
+  test_1:
+    name: "skill rows (kind=skill) survive reflect({ conflictResolution: LWW }) on the same scope"
+    assertions: |
+      6 expect() calls:
+        - expect(skillRows).toHaveLength(2)
+        - expect(row.t_invalid).toBeNull() (loop, 2 iterations) → 2 effective expectations
+        - expect(rejectedRows[0]?.t_invalid).not.toBeNull()
+        - expect(keptRows[0]?.t_invalid).toBeNull()
+      Total observable behavior assertions: 5 unique post-reflect states verified.
+    given_when_then_present: true
+  test_2:
+    name: "derived rows (kind=derived) are NOT re-consolidated when reflect() runs over a cluster with extracted siblings"
+    assertions: |
+      3 expect() calls (post fix-up #2):
+        - expect(derivedRows[0]?.t_invalid).toBeNull() — derived survives
+        - expect(olderRows[0]?.t_invalid).not.toBeNull() — older extracted rejected (NEW per F-tests-rerun-2)
+        - expect(newerRows[0]?.t_invalid).toBeNull() — newer extracted kept (NEW per F-tests-rerun-2)
+      Pre fix-up #2: 1 assertion only + 2 void discards. Post: 3 assertions,
+      no discards. Correct.
+    given_when_then_present: true
+  test_name_accuracy: |
+    Both test names accurately describe what the body does:
+      - Test 1: validates skill rows untouched + extracted facts subject to LWW
+        on the same agent_id scope — name says "skill rows survive on the same
+        scope" — matches.
+      - Test 2 (post-rename): validates derived rows NOT re-consolidated when
+        the recall cluster also contains extracted siblings — name says
+        "derived rows are NOT re-consolidated when reflect() runs over a
+        cluster with extracted siblings" — matches body exactly. The body
+        invokes reflect() ONCE on a cluster containing 1 derived + 2 extracted
+        rows; the new name accurately describes "reflect() runs over a
+        cluster with extracted siblings". Pre-rename "subsequent reflect()"
+        falsely implied a 2nd reflect() invocation. Correctly fixed.
+
+goal_test_llm_measured_quality:
+  scope: |
+    tests/integration/distillation/the-goal-test-llm-measured.test.ts (v0.7.1
+    follow-up closing ADR-EC-B against real openai/gpt-4o-mini via OpenRouter).
+  honesty_flag_present: true
+  honesty_flag_location: tests/integration/distillation/the-goal-test-llm-measured.test.ts:23-49
+  honesty_flag_content: |
+    Documents F-M5 honesty caveat verbatim: "10 hand-authored contradiction-pair
+    fixtures are CATEGORICALLY DISTINCT (different city / different car model /
+    etc.). The LLM's job here is 'pick the newer one'." Explicit list of what
+    the test PROVES vs does NOT prove. Tags v0.7.2 follow-up for AMBIGUOUS
+    contradictions. INQUEBRÁVEL Rule 3 (Honestidade Extrema) honored.
+  thresholds:
+    precision: 0.75
+    recall: 0.70
+    conflict_accuracy: 0.80
+  cost_disclosure: "Cost estimate: ~$0.01-0.10/run (10 contradiction-pair fixtures × 1 generateResponse call × cheap model). Gated by OPENROUTER_(API_)KEY presence."
+  acceptance: |
+    Test gated by both PG_URI and OPENROUTER_KEY; CI/no-cost lanes skip
+    cleanly per describe.skipIf. console.log surfaces actual numbers for
+    docs/distillation-evaluation.md transcription. Test architecture is
+    correct.
+
+findings: []
+
+summary: |
+  /review re-run #3 (post fix-up #2 commit f68727d) — TESTS dimension.
+
+  VERDICT: READY_TO_MERGE — no test-quality defects remain.
+
+  Both F-tests-rerun-1 (test name correction) and F-tests-rerun-2 (void
+  discards → real assertions) corrections in tests/integration/distillation/
+  skill-isolation.test.ts landed correctly:
+
+    1. Test name renamed from "subsequent reflect()" (misleading — body
+       invokes reflect ONCE) to "when reflect() runs over a cluster with
+       extracted siblings" (accurate description).
+
+    2. The two `void extractedOlderId/Newer;` discards were replaced by 2
+       new pool.query lookups + 2 new expect() assertions that verify both
+       seeded extracted rows behaved per LWW (older rejected → t_invalid
+       NOT NULL; newer kept → t_invalid NULL).
+
+  Test suite scorecard:
+    - Pyramid: HEALTHY (5 unit, 7 integration, 0 E2E — matches scope)
+    - Edge case coverage: 11/11 declared edge cases tested (EC-1..EC-8 with
+      direct test references; EC-9..EC-11 are DOCUMENT-only per plan
+      absorption notes)
+    - AAA/Given-When-Then: 100% compliance, explicit comments throughout
+    - Test naming: 0 violations; 1 borderline (atomic-rollback's
+      semicolon-separated postconditions describe ONE atomicity behavior
+      with 3 co-required properties — not split-worthy)
+    - No skip/only/xit leaks (only correct env-var-gated describe.skipIf)
+    - Determinism: pgvector + relative offsets + beforeEach reset; correct
+    - TDD discipline: RED tests documented in headers; bug-fix regressions
+      shipped for F-C1, F-C2, F-C3
+    - Mock hygiene: empty-JSON LLM stub correctly scoped to policy/persistence
+      tests (DRY observation noted as INFO; not a defect)
+    - GOAL TEST LLM-measured (v0.7.1): F-M5 honesty caveat embedded verbatim;
+      cost disclosed; gated by API key for skip-clean CI
+
+  No NEW defects detected. The fix-up #2 corrections are surgical, well-
+  commented (mentions F-tests-rerun-1 + F-tests-rerun-2 inline at lines
+  150-153 of skill-isolation.test.ts), and exactly what the previous run
+  asked for. Test surface is ready to merge.
+
+  Final tally:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 0
+    MINOR: 0
+    INFO: 0 (1 borderline observation kept as commentary, not raised)

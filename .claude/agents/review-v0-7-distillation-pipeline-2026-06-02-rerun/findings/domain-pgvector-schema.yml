@@ -1,0 +1,262 @@
+agent: review-v0-7-distillation-pipeline-domain-pgvector-schema
+review_target: 9d16db4^..HEAD for plan v0-7-distillation-pipeline (rerun)
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - drizzle-pgTable-shape-mirrors-snapshot-bijection
+  - pgvector-bitemporal-tValid-tInvalid-semantics (ADR-0006)
+  - drizzle-foreign-key-onDelete-onUpdate-naming-convention
+  - drizzle-symbol-runtime-name-tag-introspection
+  - btree-index-ordering-asc-vs-desc-NULLS-LAST
+  - GDPR-survival-onDelete-set-null (v0.7 plan EC-3)
+  - drizzle-kit-push-vs-runMigrations-divergence-guard (architecture.md § 10.2)
+  - v0.4b-eviction-tInvalid-compatibility
+
+# ============================================================================
+# CLOSURE VERIFICATION — F-dom-pgvector-1 / F-C3 (schema.ts drift)
+# ============================================================================
+
+closure_verification:
+  finding_id: F-C3 (originally F-dom-pgvector-1 + F-arch-1 + F-wire-4 + F-dom-db-1)
+  finding_title: consolidation_history table NOT declared in src/local/schema.ts
+  status: CLOSED
+  fix_commit: 9d16db4
+  fix_commit_title: "fix(v0-7-distill): F-C3 — declare consolidation_history in schema.ts + parity sentinel"
+  files_modified:
+    - src/local/schema.ts (+30 lines)
+    - tests/integration/schema-snapshot-parity.test.ts (+81 lines, NEW)
+
+  shape_parity_audit:
+    audit_source_a: meta/0007_snapshot.json:577-680 (Drizzle journal canonical)
+    audit_source_b: src/local/schema.ts:239-254 (post-9d16db4)
+    audit_method: column-by-column verification of name + type + null + default + FK + indexes
+
+    columns:
+      id:
+        snapshot: { type: uuid, primaryKey: true, notNull: true, default: gen_random_uuid() }
+        schema_ts: "uuid('id').primaryKey().defaultRandom()"
+        verdict: MATCH
+        note: defaultRandom() resolves to gen_random_uuid() in pg-core; canonical Drizzle idiom.
+
+      kept_memory_id:
+        snapshot: { type: uuid, primaryKey: false, notNull: false, FK_onDelete: "set null", FK_onUpdate: "no action" }
+        schema_ts: "uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' })"
+        verdict: MATCH
+        ec_3_gdpr_survival: VERIFIED — nullable + ON DELETE SET NULL preserves audit row when memories.id hard-deleted via Memory.forget(id, { hard: true })
+        onUpdate_note: Drizzle's `references()` defaults `onUpdate` to 'no action' implicitly when omitted; matches snapshot. F-M11 from initial /review (re ON UPDATE NO ACTION in 0007 SQL) is a SQL migration concern, not a schema.ts concern.
+
+      rejected_memory_ids:
+        snapshot: { type: jsonb, notNull: true, default: "'[]'::jsonb" }
+        schema_ts: "jsonb('rejected_memory_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`)"
+        verdict: MATCH
+        type_safety_note: $type<string[]>() narrows the TS surface; runtime cast via JSONB.
+
+      reason:
+        snapshot: { type: text, notNull: true }
+        schema_ts: "text('reason').notNull()"
+        verdict: MATCH
+
+      policy_name:
+        snapshot: { type: text, notNull: true }
+        schema_ts: "text('policy_name').notNull()"
+        verdict: MATCH
+
+      original_episode_ids:
+        snapshot: { type: jsonb, notNull: true, default: "'[]'::jsonb" }
+        schema_ts: "jsonb('original_episode_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`)"
+        verdict: MATCH
+
+      created_at:
+        snapshot: { type: "timestamp with time zone", notNull: true, default: "NOW()" }
+        schema_ts: "timestamp('created_at', { withTimezone: true }).defaultNow().notNull()"
+        verdict: MATCH
+
+    indexes:
+      idx_consolidation_history_kept:
+        snapshot: { method: btree, columns: [kept_memory_id], asc: true, NULLS: last }
+        schema_ts: "index('idx_consolidation_history_kept').on(table.keptMemoryId)"
+        verdict: MATCH
+        note: Drizzle default ordering is asc + NULLS LAST; no explicit declaration needed in schema.ts.
+
+      idx_consolidation_history_created:
+        snapshot: { method: btree, columns: [created_at], asc: false, NULLS: last }
+        schema_ts: "index('idx_consolidation_history_created').on(sql`${table.createdAt} DESC`)"
+        verdict: MATCH
+        desc_note: SQL template required for DESC because Drizzle's `.on(table.col)` API defaults to asc. Pattern is consistent with the history table's `history_timestamp_idx` at schema.ts:222.
+
+    bijection_test_audit:
+      test_file: tests/integration/schema-snapshot-parity.test.ts
+      test_method: Introspects via Drizzle's runtime tag Symbol.for('drizzle:Name')
+      coverage:
+        forward: snapshot ⊆ schema (every table in meta/*_snapshot.json is declared in schema.ts)
+        reverse: schema ⊆ snapshot (every pgTable export appears in at least one snapshot)
+      verdict: COMPREHENSIVE
+      reasoning: |
+        Both directions asserted. The Symbol.for('drizzle:Name') runtime tag is
+        the canonical introspection mechanism used by drizzle-kit itself for
+        diff computation. Reading every *_snapshot.json file iteratively (not
+        just 0007) catches future drift across all historical migrations.
+        The test runs WITHOUT a pgvector container — pure file inspection —
+        so it executes in CI even when THEOMEM_PG_URI is absent.
+      strength_signals:
+        - Glob pattern endsWith('_snapshot.json') excludes _journal.json and any meta artifacts
+        - Strip "public." prefix from snapshot keys correctly maps schema-qualified to bare table name
+        - Test names are BDD-shaped ("every table in any *_snapshot.json is declared...")
+        - Failure messages name the offending tables AND explain the failure mode (DROP TABLE diff)
+      gap_observations:
+        - Test asserts table-level parity ONLY, not column-level. A future drift where a column is renamed in the snapshot but not in schema.ts (or vice versa) would slip past this sentinel. Note: this is a soft observation — column-level bijection would require Drizzle's `getTableConfig()` introspection AND parsing the snapshot's columns map. The trade-off is acceptable for v0.7 because (a) the failure mode in F-C3 was table-MISSING, not column-renamed; (b) drizzle-kit generate would catch column-rename drift on the next migration generation.
+
+# ============================================================================
+# CLOSURE VERIFICATION — F-C2 + F-M7 SQL guard pgvector-correctness audit
+# ============================================================================
+
+sql_guard_audit:
+  finding_id: F-C2 (kind filter) + F-M7 (t_valid forward-compat)
+  fix_commit: ffa92d1
+  file: src/local/pgvector-store.ts:555-577
+
+  guard_text: |
+    where = [
+      "kind = 'extracted'",
+      "t_invalid IS NULL",
+      "(t_valid IS NULL OR t_valid <= NOW())"
+    ]
+
+  bi_temporal_safety_per_adr_0006:
+    verdict: SOUND
+    reasoning: |
+      ADR-0006 mandates local memory writes always set tValid = now() (defaultNow() in schema.ts:79).
+      Thus, for any committed row on local: tValid IS NOT NULL AND tValid <= NOW() trivially holds.
+      The OR-branch `t_valid IS NULL` is defensive for rows where the default somehow doesn't fire
+      (raw SQL insert in tests, future migration path). The `t_valid <= NOW()` half is the actual
+      forward-compat hook: when v0.5 cloud lights up asOf-style insertion of future-valid rows
+      (per ADR-0006 § Decision), those rows MUST stay out of consolidation until tValid arrives.
+      This guard documents that contract today, at zero cost on local v0.1 (no future-valid rows exist).
+
+  v0_4b_eviction_compatibility:
+    verdict: COMPATIBLE
+    reasoning: |
+      v0.4b eviction (pg-evictor.ts, capacity-based-trigger.ts, time-based-trigger.ts,
+      pg-nearest-neighbor-provider.ts, scope-candidate.ts) uniformly uses `t_invalid IS NULL`
+      to filter active rows. F-C2's guard adopts the same convention — both consolidation and
+      eviction agree on "active means not-yet-soft-deleted". A row consolidated via
+      reflect({ conflictResolution }) AND then targeted by eviction's capacity trigger gets
+      `t_invalid = NOW()` set EXACTLY ONCE (the `RETURNING id` in pg-evictor's UPDATE filters
+      out already-invalidated rows). No double-count regression.
+    cross_check_paths:
+      - src/local/eviction/pg-evictor.ts:40-42 — UPDATE memories SET t_invalid=NOW() WHERE id=ANY($1) AND t_invalid IS NULL
+      - src/local/eviction/capacity-based-trigger.ts:104 — load WHERE t_invalid IS NULL
+      - src/local/pgvector-store.ts:571 (post-fix) — recallConsolidationCandidates WHERE t_invalid IS NULL
+    eviction_then_reflect_ordering:
+      scenario: row X gets evicted (t_invalid=NOW()), then operator calls reflect()
+      outcome: X is excluded from recallConsolidationCandidates (t_invalid IS NOT NULL); consolidation runs only over active rows. CORRECT.
+    reflect_then_eviction_ordering:
+      scenario: row X gets consolidated (t_invalid=NOW() via persistConsolidations), then capacity trigger fires
+      outcome: X is excluded from capacity-based-trigger.ts:104 load (t_invalid IS NOT NULL); eviction targets only active rows. CORRECT.
+
+  kind_filter_audit:
+    verdict: SOUND
+    reasoning: |
+      The schema.ts:84 column declares kind as varchar(20) NOT NULL default 'extracted', with values
+      'extracted' | 'derived' | 'skill' per migration 0002+ chain. The F-C2 fix's `kind = 'extracted'`
+      string equality matches Postgres ANSI semantics (case-sensitive). No collation gotcha.
+      The CHECK constraint at schema.ts:144 ('memories_kind_derived_from_check') enforces that
+      'extracted' rows have derivedFrom IS NULL — so the filter strictly carves out the v0.1 raw
+      episode space, leaving derived semantic facts (v0.4a output) AND v0.6 skills isolated.
+      The episodic→semantic boundary is preserved as plan T2.1 intent declared.
+
+# ============================================================================
+# Findings (new, post-rerun delta)
+# ============================================================================
+
+findings: []
+
+# ============================================================================
+# Positive Confirmations (INFO — high-trust signals)
+# ============================================================================
+
+positive_confirmations:
+  - id: F-pos-1
+    severity: INFO
+    file: src/local/schema.ts:239-254
+    summary: consolidationHistory pgTable export bijection-verified vs meta/0007_snapshot.json shape
+    evidence: |
+      All 7 columns match snapshot at name + type + null + default level (audit table above).
+      FK reference + onDelete: 'set null' = EC-3 GDPR survival semantics CORRECT.
+      Both btree indexes match snapshot at column + direction (idx_consolidation_history_created
+      uses `sql\`${createdAt} DESC\`` per Drizzle's required DESC idiom).
+
+  - id: F-pos-2
+    severity: INFO
+    file: tests/integration/schema-snapshot-parity.test.ts:1-81
+    summary: F-C3 sentinel test asserts bijection both directions across ALL historical snapshots
+    evidence: |
+      Test reads every meta/*_snapshot.json (not just 0007); enumerates schema.ts exports via
+      Symbol.for('drizzle:Name') canonical Drizzle introspection idiom. Forward direction
+      (snapshot ⊆ schema) catches "table added to migration but not schema.ts" (F-C3 root cause).
+      Reverse direction (schema ⊆ snapshot) catches "table added to schema.ts without migration"
+      (the inverse failure mode where db:push would compute CREATE TABLE diff while runMigrations
+      would never apply it). 2/2 PASS post-fix. Pattern is the canonical guard for the
+      architecture.md § 10.2 db:push-vs-runMigrations divergence trap.
+
+  - id: F-pos-3
+    severity: INFO
+    file: src/local/pgvector-store.ts:555-590
+    summary: F-C2 + F-M7 SQL guard is bi-temporal-correct and v0.4b-eviction-compatible
+    evidence: |
+      kind = 'extracted' filter aligns with schema.ts:84 default + memories_kind_derived_from_check
+      constraint at line 144 — preserves episodic→semantic boundary as plan T2.1 declared.
+      The (t_valid IS NULL OR t_valid <= NOW()) guard is no-op on v0.1 local (writes always set
+      tValid=now()) but documents forward-compat with ADR-0006 § Decision for v0.5 cloud asOf
+      queries. t_invalid IS NULL matches the convention used uniformly across v0.4b eviction
+      (pg-evictor, capacity-based-trigger, time-based-trigger, pg-nearest-neighbor-provider).
+      No ordering-sensitive race in eviction-then-reflect or reflect-then-eviction sequences.
+
+  - id: F-pos-4
+    severity: INFO
+    file: src/local/schema.ts:226-238
+    summary: JSDoc block above consolidationHistory cites plan + ADR + migration + review report
+    evidence: |
+      @see chain references plan T0.1 + ADR D3, migration 0007_distillation_columns.sql, and the
+      review report § F-C3. GDPR-survival rationale is documented in plain prose. Style is
+      consistent with other v0.4a+v0.4b+v0.6 columns in the same file.
+
+  - id: F-pos-5
+    severity: INFO
+    file: tests/integration/distillation/skill-isolation.test.ts
+    summary: F-C2 regression test seeds skills + extracted facts in same scope, asserts skill survives
+    evidence: |
+      Per commit ffa92d1 message: Test 1 seeds 2 skill rows + 2 extracted facts in same agent_id
+      scope, runs reflect({ LWW }), asserts both skill rows have t_invalid IS NULL (untouched).
+      Test 2 seeds 1 derived row + 2 extracted, asserts derived survives. 2/2 PASS against
+      ankane/pgvector:v0.5.1. This regression test prevents future re-introduction of the
+      episodic→semantic boundary violation.
+
+# ============================================================================
+# Cross-validation summary
+# ============================================================================
+
+cross_validation:
+  closure_complete:
+    - F-dom-pgvector-1 (F-C3): CLOSED via 9d16db4 — schema.ts addition shape-verified vs meta/0007_snapshot.json
+    - F-M7 (t_valid forward-compat): CLOSED via ffa92d1 — guard documents ADR-0006 cloud backport contract
+
+  not_in_scope_for_this_re_review:
+    - F-C1 (mass-tombstone guard via maxRejectionRatio): closed in 17425af; outside pgvector-schema domain (lives in src/core/conflict-resolution/)
+    - F-C2 kind filter: bi-temporal correctness audited above as part of F-M7 guard; the conflict-resolution semantics are domain-memory-layer concern
+
+  rerun_signal:
+    sentinel_test_quality: HIGH — both bijection directions asserted, file-only (no DB container needed), failure messages name the offending tables and surface mode
+    schema_drift_risk_post_fix: NEGLIGIBLE — the parity sentinel will fire on ANY future table introduction that bypasses schema.ts. The architecture.md § 10.2 trap is now actively guarded at integration-test time.
+    bi_temporal_contract_alignment: SOUND — guard matches ADR-0006 § Decision and is compatible with v0.4b eviction's t_invalid convention.
+
+confidence:
+  level: HIGH
+  reasoning: |
+    Per Inquebrável Rule 1 (95% confidence gate). Evidence is concrete and verifiable:
+    (a) column-by-column bijection between snapshot + schema.ts; (b) bi-temporal guard
+    cross-referenced against ADR-0006 + v0.4b eviction call sites; (c) sentinel test
+    asserts both directions via canonical Drizzle Symbol.for('drizzle:Name') idiom.
+    No residual MAJOR or CRITICAL pgvector-schema findings. The F-C3 closure is complete
+    and the F-C2/F-M7 SQL guard is pgvector-correct.
+
+verdict: READY_TO_MERGE_FROM_PGVECTOR_SCHEMA_DOMAIN_PERSPECTIVE

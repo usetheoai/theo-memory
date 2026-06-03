@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-35-proc-helsinki-35",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Helsinki region: the API gateway rate-limits per IP; the API gateway rate-limits per IP (at 1000 requests per minute); the build pipeline runs on every PR.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP"
+    },
+    {
+      "text": "the API gateway rate-limits per IP — at 1000 requests per minute"
+    },
+    {
+      "text": "the build pipeline runs on every PR"
+    }
+  ]
+}

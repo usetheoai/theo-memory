@@ -1,0 +1,11 @@
+{
+  "id": "entity-overlap-02-hand-conference-talk",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Met Carolina Reyes at QCon — she gave a brilliant talk on event-driven architectures at Stripe. We exchanged contacts.",
+  "expectedFacts": [
+    { "text": "Met Carolina Reyes at QCon London", "attributedTo": "user" },
+    { "text": "Carolina Reyes works at Stripe", "attributedTo": "user" },
+    { "text": "Carolina Reyes spoke on event-driven architectures at QCon", "attributedTo": "user" }
+  ]
+}

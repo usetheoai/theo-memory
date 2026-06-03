@@ -1,0 +1,605 @@
+agent: review-adapters-openrouter-local-embedder-cross-validation
+review_target: 4b5b0e7^..HEAD (8 fix-up commits) for plan adapters-openrouter-local-embedder
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+plan_version: v1.2 (with ADR D3 + EC-B amendments)
+fix_up_commits_reviewed:
+  - 4b5b0e7  # docs: plan v1.2 + README cascade + CHANGELOG BREAKING (F-C1, F-M2, F-M11)
+  - d474a1a  # fix: runtime cascade enumeration in dim change (F-C1, F-M10, F-M13)
+  - de079ef  # fix: F-M4 dim-guard symmetry + F-M5 retry rejected pipeline
+  - 3c7ada0  # fix: F-M15 symmetric dim guards + F-Mi6 typed EmbeddingMismatch
+  - 5089a9a  # docs: F-M3 + F-Mi5 parametric-dim drift constraint (DOC-ONLY)
+  - f75e980  # test: F-M1+M6+M7+M8+M9+M12 missing-coverage batch
+  - 544f88e  # fix: F-Mi1..F-Mi4 + F-Mi8 + F-Mi9 + F-Mi11 + F-Mi12 MINOR batch
+  - 601650f  # chore(audit): persist original /review run (no code change)
+
+closure_summary:
+  total_findings_in_original_review: 28
+  declared_scope_out: 3  # F-M14, F-Mi7, F-Mi10
+  expected_to_close: 25
+  verified_closed: 24
+  closed_with_divergence_from_recommendation: 1  # F-M3
+  closed_superficially_or_not_actually_closed: 0
+  remaining_open_blocking_merge: 0
+
+# Findings ordered by original /review severity then ID
+
+findings:
+  # ---- CRITICAL (1) ----
+  - id: F-C1-verify
+    severity: INFO
+    summary: F-C1 (DELETE cascade collateral) closed by 4b5b0e7 + d474a1a — all 4 surfaces aligned
+    plan_ref: ADR D3 + EC-B amendments (plan v1.2)
+    evidence: |
+      4b5b0e7 README cascade enumeration (examples/chat-with-memory/README.md:115-167):
+        - Explicit SQL sequence shown (DROP INDEX → DELETE → ALTER → CREATE INDEX)
+        - 3 FK cascades enumerated with table names + ON DELETE clauses + downstream consequences
+        - Plan v1.0/v1.1 USING NULL recipe substitution explained
+        - Operator action required: fresh DB or accept full envelope
+      4b5b0e7 plan v1.2 amendment (line 3): ADR D3 + EC-B amendments documenting both
+        substitution and cascade collateral
+      4b5b0e7 CHANGELOG (line 9): F-C1 + F-M2 honesty alignment paragraph
+      d474a1a SDK runtime console.error (src/local/index.ts:889-897): enumerates all 3
+        FK cascades inline with exact table.column ON DELETE keywords
+      d474a1a JSDoc on applyDimChange (src/local/index.ts:832-855): full DESTRUCTIVE
+        section enumerating cascade + explanation of why USING NULL was substituted
+
+  # ---- MAJOR (15) ----
+  - id: F-M1-verify
+    severity: INFO
+    summary: F-M1 (EC-3 atomic rollback test) closed by f75e980
+    plan_ref: T0.3 § TDD line 440 — test_runMigrations_atomic_rollback_on_mid_sequence_failure
+    evidence: |
+      f75e980 added test at tests/integration/migrations/dim-change.test.ts:173-209:
+        "EC-3 atomic rollback: mid-sequence failure preserves pre-change schema state"
+      Injects mid-sequence failure via VIEW dependency on memories.embedding
+      → ALTER COLUMN TYPE blocked by PG → runMigrations rejects
+      → asserts post-rollback: dim still 1536, both HNSW indexes intact
+      Recommended_action satisfied: simulated mid-sequence SQL failure + asserts
+      schema preserved at pre-change state + HNSW indexes intact
+
+  - id: F-M2-verify
+    severity: INFO
+    summary: F-M2 (Plan ADR D3 stale on USING NULL vs DELETE FROM) closed by 4b5b0e7
+    plan_ref: Plan v1.2 ADR D3 + EC-B amendments at lines 3
+    evidence: |
+      4b5b0e7 prepended Version 1.2 header (plan line 3) with explicit:
+        "ADR D3 AMENDMENT (closes F-C1 + F-M2): the destructive ALTER COLUMN TYPE
+         vector(N) USING NULL recipe locked in v1.0/v1.1 collides empirically with
+         the existing vector(1536) NOT NULL constraint... The shipped impl substitutes
+         DELETE FROM memories; DELETE FROM entities; ALTER COLUMN TYPE vector(N);"
+      CHANGELOG line 9 references the substitution
+      Recommended_action (b) bumped plan to v1.2 with ADR D3 amendment — satisfied.
+
+  - id: F-M3-divergence
+    severity: MINOR
+    file: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+    plan_ref: Plan v1.2 amendment line 3 "F-M3 ... mitigated via runtime guard test that fails-loud on drift"
+    summary: F-M3 claimed closure ("runtime guard test that fails-loud on drift") DIVERGES from actual closure (doc-only)
+    evidence: |
+      Plan v1.2 header line 3 (last sentence) states:
+        "F-M3 (Drizzle schema.ts hardcoded 1536) mitigated via runtime guard test
+         that fails-loud on drift; full fix deferred to a follow-up..."
+      CHANGELOG entry repeats: "F-M3 ... partially mitigated via runtime drift-detection test"
+      Reality (5089a9a):
+        - src/local/schema.ts: 24 lines of JSDoc added explaining the constraint
+        - src/local/index.ts: 3 lines appended to applyDimChange console.error
+          re-stating the "DO NOT run drizzle-kit push" warning
+      NO drift-detection test was added. `grep -rn "drift" src/local/__tests__/
+      tests/integration/migrations/ tests/unit/` returns ZERO matches in the
+      relevant fix-up surface.
+      The closure is doc-only — operator-facing warnings in JSDoc + runtime log
+      (defense-in-depth) but no automated assertion that fails-loud when schema.ts
+      vector(N) diverges from live atttypmod.
+    recommended_action: |
+      Either (a) add the runtime drift-detection test the plan/CHANGELOG claim
+      (e.g., on createLocalMemory boot when embeddingDim != MAX_EMBEDDING_DIM,
+      probe live atttypmod and compare against schema.ts literal, throw if
+      mismatch); OR (b) amend plan v1.2 + CHANGELOG to honestly state "F-M3
+      mitigated doc-only via JSDoc + runtime console.warn; runtime drift test
+      deferred to follow-up". Option (b) is the cheapest honest path.
+
+  - id: F-M4-verify
+    severity: INFO
+    summary: F-M4 (asymmetric backward-compat guard) closed by de079ef
+    plan_ref: T0.3 + recommended_action "remove the guard"
+    evidence: |
+      de079ef src/local/index.ts: removed `&& options.embeddingDim !== MAX_EMBEDDING_DIM`
+      from BOTH guard sites (push-flow branch line 981; journal-tracked branch line 1002)
+      Comment cites /review F-M4 on each site.
+      The inner atttypmod probe in applyDimChange now handles idempotency cleanly.
+      Recommended_action satisfied: guard removed; inner probe is single source of truth.
+
+  - id: F-M5-verify
+    severity: INFO
+    summary: F-M5 (rejected pipeline cache) closed by de079ef
+    plan_ref: src/embedders/local.ts lazy singleton retry semantics
+    evidence: |
+      de079ef src/embedders/local.ts:70-83: getPipeline() now attaches .catch() to
+      the freshly-created pipeline Promise; on rejection, identity-guarded reset
+      `if (_pipelinePromise === created) { _pipelinePromise = null }` so next
+      call retries from scratch instead of returning cached rejection forever.
+      JSDoc updated to clarify divergence from OpenAIEmbedder sync constructor
+      precedent.
+      f75e980 added direct test (src/embedders/__tests__/local.test.ts EC-7) using
+      vi.doMock to inject first-call rejection then assert second call succeeds.
+      Recommended_action satisfied + regression test added.
+
+  - id: F-M6-verify
+    severity: INFO
+    summary: F-M6 (DELETE path never exercised) closed by f75e980
+    plan_ref: T0.3 § Acceptance — F-C1 verification gap
+    evidence: |
+      f75e980 added test at tests/integration/migrations/dim-change.test.ts:215-272:
+        "destructive cascade: seeded rows wiped + FK cascades fire as documented (F-C1)"
+      Seeds 1 memory + 1 history row (FK→memory_id) + 1 consolidation_history row
+      (FK→kept_memory_id), runs runMigrations({ embeddingDim: 384 }), asserts:
+        (a) memories rows = 0
+        (b) history rows = 0 (ON DELETE CASCADE fires)
+        (c) consolidation_history row survives + kept_memory_id is NULL (SET NULL fires)
+      Recommended_action satisfied exactly per /review report wording.
+
+  - id: F-M7-verify
+    severity: INFO
+    summary: F-M7 (push-flow hotfix empirically discovered, not RED-tested) closed by f75e980
+    plan_ref: Inquebrável Rule 5 TDD-first
+    evidence: |
+      f75e980 added test at tests/integration/migrations/dim-change.test.ts:278-294:
+        "push-flow: orphan-schema branch still applies parametric dim change"
+      Simulates push-flow state by bootstrapping schema then DROPping drizzle journal,
+      re-invokes runMigrations({ embeddingDim: 384 }) → asserts dim 1536→384 on
+      both memories AND entities.
+      Recommended_action satisfied: simulated push-flow state + asserts dim change
+      DID apply.
+
+  - id: F-M8-verify
+    severity: INFO
+    summary: F-M8 (distill test asserts only 200+invocationId, no consolidation_history SELECT) closed by f75e980
+    plan_ref: T4.1 § AC line 918
+    evidence: |
+      f75e980 tests/integration/examples/chat-with-memory-local-openrouter.test.ts:161-172:
+      after the existing POST assertions, added SELECT COUNT(*) from
+      consolidation_history WHERE policy_name = 'last-write-wins' →
+      expect(audit.rows[0]?.c).toBeGreaterThanOrEqual(1)
+      Recommended_action satisfied exactly.
+
+  - id: F-M9-verify
+    severity: INFO
+    summary: F-M9 (no /api/chat end-to-end test) closed by f75e980
+    plan_ref: T4.1 TDD #3 test_api_chat_seeds_memory_with_384_dim_embedding
+    evidence: |
+      f75e980 tests/integration/examples/chat-with-memory-local-openrouter.test.ts:185+:
+        "POST /api/chat seeds a memory row with embedding length 384 + scope user_id matching"
+      Posts to /api/chat, then SELECTs from memories asserting embedding text-cast
+      has 384-1 = 383 commas (384 dims) and user_id matches.
+      Exercises the chat → embed → INSERT path end-to-end as the recommended_action
+      required.
+
+  - id: F-M10-verify
+    severity: INFO
+    summary: F-M10 (stale N+4 block comment) closed by d474a1a
+    plan_ref: tests/integration/migrations/dim-change.test.ts:18-19
+    evidence: |
+      d474a1a tests/integration/migrations/dim-change.test.ts:19-20: block comment
+      replaced — was "atttypmod = N + 4 per pgvector's varlena header encoding";
+      now "pgvector v0.5.1 stores vector(N) dimension in atttypmod directly
+      (NO +4 varlena offset — empirical, see getColumnDim below)".
+      Recommended_action satisfied: stale comment updated to match empirical reality.
+
+  - id: F-M11-verify
+    severity: INFO
+    summary: F-M11 (PgvectorStore constructor 2nd arg BREAKING, missing CHANGELOG prefix) closed by 4b5b0e7
+    plan_ref: Inquebrável Rule 6 — BREAKING prefix
+    evidence: |
+      4b5b0e7 CHANGELOG line 11 added a separate top-level entry:
+        "**BREAKING (theoretical) — PgvectorStore constructor 2nd arg widened from
+        positional `tracer?: Tracer` to options object `{ embeddingDim?, tracer? }`**"
+      Includes migration recipe: "Migration for external consumers: change
+      `new PgvectorStore(pool, myTracer)` to `new PgvectorStore(pool, { tracer: myTracer })`"
+      Notes sweep zero in-tree callers + backward-compat for the dominant
+      `new PgvectorStore(pool)` form.
+      Recommended_action satisfied verbatim per /review wording.
+
+  - id: F-M12-verify
+    severity: INFO
+    summary: F-M12 (3 SHOULD TEST EC items unverified) closed by f75e980 (all 3 EC items)
+    plan_ref: edge-case review SHOULD TEST: EC-5 / EC-7 / EC-10
+    evidence: |
+      EC-5: f75e980 src/embedders/__tests__/local.test.ts:89-99 —
+        "EC-5: embed('') returns a 384-dim vector (no crash on empty input)"
+        Asserts 384-length output + Number.isFinite for every component.
+      EC-7: f75e980 src/embedders/__tests__/local.test.ts (after EC-5 block) —
+        vi.doMock @xenova/transformers to reject first call, succeed second;
+        embedder retries via the F-M5 reset path.
+      EC-10: f75e980 examples/chat-with-memory/lib/memory.ts: extracted
+        warnIfLocalOpenrouterMissingBaseUrl() helper; tests/unit/examples/
+        chat-with-memory-memory.test.ts added 2 tests (warn fires when unset/empty;
+        silent when set to non-empty URL).
+      All 3 SHOULD TEST gaps addressed — exceeds the /review note "acceptable WITH_CAVEATS,
+      can defer to follow-up". Closed in-cycle, not deferred.
+
+  - id: F-M13-verify
+    severity: INFO
+    summary: F-M13 (misleading orphan-schema warning text) closed by d474a1a
+    plan_ref: src/local/index.ts:939-942 warning text
+    evidence: |
+      d474a1a src/local/index.ts:967-972: warning text updated from
+        "skipping runMigrations()"
+      to
+        "skipping migrate(); applying explicit dim change only when
+         options.embeddingDim is set"
+      Inline comment cites /review F-M13.
+      Recommended_action satisfied verbatim per /review report.
+
+  - id: F-M14-scope-out-acknowledged
+    severity: INFO
+    summary: F-M14 (src/local/index.ts file size budget) explicitly scope-out per user directive
+    plan_ref: architecture.md § Module hygiene
+    evidence: |
+      /review report itself marked F-M14 "pre-existing acknowledged; opportunistic
+      refactor in separate cycle; not blocking this cycle's merge".
+      User directive in agent prompt declared F-M14 scope-out for this rerun.
+      No closure attempt; honest deferral preserved.
+
+  - id: F-M15-verify
+    severity: INFO
+    summary: F-M15 (insert/update dim guard symmetry) closed by 3c7ada0
+    plan_ref: src/local/pgvector-store.ts write-path symmetry
+    evidence: |
+      3c7ada0 src/local/pgvector-store.ts:181-194: introduced private
+      assertEmbeddingDim() helper throwing typed EmbeddingMismatch.
+      Applied to: insert (line 210 in loop over vectors), search (replacing prior
+      bare Error at line 293), update (line 391), insertDerivedMemory (line 471).
+      Comment cites /review F-M15 at each site.
+      Recommended_action satisfied: same dim guard applied to write-path methods.
+
+  # ---- MINOR (12) ----
+  - id: F-Mi1-verify
+    severity: INFO
+    summary: F-Mi1 (0-arity constructor missing JSDoc) closed by 544f88e
+    evidence: |
+      544f88e src/embedders/local.ts:86-100: 15-line class-level JSDoc block
+      explaining intentional 0-arity (model id + dim hardcoded; alternatives
+      would require coordinated schema+store changes; YAGNI per Inquebrável Rule 11).
+
+  - id: F-Mi2-verify
+    severity: INFO
+    summary: F-Mi2 (deep-readonly embedBatch) closed by 544f88e
+    evidence: |
+      544f88e src/embedders/local.ts:115-127: each inner array now constructed
+      via Object.freeze(Array.from(...)) so DIP signature
+      `readonly (readonly number[])[]` is enforced at runtime, not TS-only.
+
+  - id: F-Mi3-verify
+    severity: INFO
+    summary: F-Mi3 (resolveBackendMode test-only export) closed by 544f88e
+    evidence: |
+      544f88e examples/chat-with-memory/lib/memory.ts:118-128: JSDoc now states
+      explicitly "exported SOLELY so the env-var precedence ladder + EC-11
+      loud-fail can be tested without bootstrapping the full singleton; NOT part
+      of the demo's public API; consumers should call getMemory() / getSingleton()".
+
+  - id: F-Mi4-verify
+    severity: INFO
+    summary: F-Mi4 (InvalidScope conflation with dim errors) closed by 544f88e
+    evidence: |
+      544f88e src/core/errors.ts:38-58: new `InvalidEmbeddingDim` error class with
+      `(received, maxDim, options)` ctor; setPrototypeOf for instanceof safety.
+      544f88e src/local/index.ts:708-712: validateEmbeddingDim now throws
+      `InvalidEmbeddingDim` instead of `InvalidScope`. Inline comment cites F-Mi4.
+      5 boot-time validation tests updated in src/local/__tests__/factory.test.ts
+      to assert InvalidEmbeddingDim (NaN/float/Infinity/0/>MAX).
+      Note (minor): InvalidEmbeddingDim is not re-exported from src/index.ts
+      barrel, but neither is InvalidScope — pre-existing pattern, acceptable.
+
+  - id: F-Mi5-verify
+    severity: INFO
+    summary: F-Mi5 (orphan-schema silent dim change) closed by 5089a9a
+    evidence: |
+      5089a9a src/local/index.ts:896-902: console.error in applyDimChange extended
+      with explicit "/review F-M3: DO NOT run drizzle-kit push against this DB
+      while embeddingDim={N} is active" warning. Defense-in-depth with the JSDoc.
+
+  - id: F-Mi6-verify
+    severity: INFO
+    summary: F-Mi6 (search guard threw bare Error) closed by 3c7ada0
+    evidence: |
+      3c7ada0 src/local/pgvector-store.ts:290-293: search guard replaced with
+      this.assertEmbeddingDim(query, 'search') which throws typed
+      EmbeddingMismatch (with `cause: new Error("PgvectorStore.search")` for label).
+      Symmetric with createLocalMemory boot-time probe + write-path guards.
+      Contract test updated to assert toBeInstanceOf(EmbeddingMismatch).
+
+  - id: F-Mi7-scope-out-acknowledged
+    severity: INFO
+    summary: F-Mi7 (plan T0.3 listed non-existent migrations.test.ts) corrected via plan v1.2 doc
+    evidence: |
+      /review report marked this as plan documentation defect; user directive
+      declared scope-out for this rerun. Plan v1.2 amendment did not edit the
+      stale "Files to edit" section of T0.3 (line 391) but the migrations
+      coverage is honestly satisfied by tests/integration/migrations/dim-change.test.ts.
+      Acceptable per user directive.
+
+  - id: F-Mi8-verify
+    severity: INFO
+    summary: F-Mi8 (atttypmod probe assumes pgvector v0.5.1, no defensive extversion check) closed by 544f88e
+    evidence: |
+      544f88e src/local/index.ts:874-893: applyDimChange now SELECTs
+      pg_extension.extversion at start; if installedVersion !== null AND does
+      not start with '0.5.', emits console.warn telling operator to re-verify
+      dim-change idempotency. Warn-not-throw keeps demo booting (canary, not gate).
+      Recommended_action satisfied verbatim.
+
+  - id: F-Mi9-verify
+    severity: INFO
+    summary: F-Mi9 (CREATE INDEX uses unquoted identifiers) closed by 544f88e
+    evidence: |
+      544f88e src/local/index.ts:940-948: ALTER TABLE + CREATE INDEX statements
+      now use quoted identifiers matching the migration file at
+      0000_crazy_mimic.sql:44,51 (e.g., CREATE INDEX "memories_embedding_hnsw_idx"
+      ON "memories" USING hnsw ("embedding" vector_cosine_ops)).
+      Comment cites /review F-Mi9.
+
+  - id: F-Mi10-scope-out-acknowledged
+    severity: INFO
+    summary: F-Mi10 (src/embedders/index.ts barrel re-exports defeat subpath-only intent) scope-out
+    evidence: |
+      User directive declared scope-out for this rerun (pre-existing pattern
+      reaffirmed for OpenAI; not introduced by this cycle).
+
+  - id: F-Mi11-verify
+    severity: INFO
+    summary: F-Mi11 ("and" in test names) closed by 544f88e
+    evidence: |
+      544f88e src/embedders/__tests__/local.test.ts:67-99: split the single
+      "embedBatch preserves input order AND per-row dim is 384" test into 3:
+        - "embedBatch returns one vector per input in input order"
+        - "embedBatch per-row dim is 384"
+        - "embedBatch rows are L2-normalized"
+      Also renamed "embed and embedBatch agree on identical input" →
+      "batch-of-one matches singleton output for the same text".
+      testing.md anti-pattern eliminated at both flagged sites.
+
+  - id: F-Mi12-verify
+    severity: INFO
+    summary: F-Mi12 (non-unique TEST_USER string in integration test) closed by 544f88e
+    evidence: |
+      544f88e tests/integration/examples/chat-with-memory-local-openrouter.test.ts:67-69:
+      `TEST_USER = 't4-1-local-openrouter-user'` (compile-time literal) replaced
+      with `TEST_USER = `t4-1-${randomUUID()}`` (per-suite UUID); randomUUID
+      imported from node:crypto. Parallel runs against shared DB now isolated.
+
+  # ---- Plan-vs-code drift verification ----
+  - id: F-xval-rerun-1
+    severity: MINOR
+    file: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+    plan_ref: Plan v1.2 amendment line 3 — "Test gaps closed in v1.2" + "Code corrections in v1.2"
+    summary: Plan v1.2 closure list audit — 6 test gaps + 11 code corrections all verified except F-M3
+    evidence: |
+      Plan v1.2 declares the following test gaps closed; verified line-by-line:
+        F-M1 EC-3 atomic rollback test added — VERIFIED (dim-change.test.ts:173-209)
+        F-M6 DELETE-cascade-behavior test added — VERIFIED (dim-change.test.ts:215-272)
+        F-M7 push-flow path TDD-test added — VERIFIED (dim-change.test.ts:278-294)
+        F-M8 distill consolidation_history SELECT assertion added — VERIFIED (chat-with-memory-local-openrouter.test.ts:161-172)
+        F-M9 /api/chat 384-dim memory insert test added — VERIFIED (chat-with-memory-local-openrouter.test.ts:185+)
+        F-M12 EC-5 + EC-7 + EC-10 tests added — VERIFIED (local.test.ts + chat-with-memory-memory.test.ts)
+
+      Plan v1.2 declares the following code corrections; verified line-by-line:
+        F-M4 asymmetric backward-compat guard removed — VERIFIED (index.ts:1012-1018, 1033-1036)
+        F-M5 rejected-promise singleton reset — VERIFIED (local.ts:70-83)
+        F-M10 stale N+4 comment removed — VERIFIED (dim-change.test.ts:19-20)
+        F-M11 BREAKING (theoretical) marked in CHANGELOG — VERIFIED (CHANGELOG.md:11)
+        F-M13 orphan-schema warning text updated — VERIFIED (index.ts:967-972)
+        F-M15 + F-Mi6 PgvectorStore dim guard symmetry — VERIFIED (pgvector-store.ts:181-194 + 4 call sites)
+        F-Mi4 InvalidEmbeddingDim dedicated error — VERIFIED (errors.ts:48-58 + index.ts:708-712)
+        F-Mi9 CREATE INDEX quoted identifiers — VERIFIED (index.ts:940-948)
+        F-Mi11 + F-Mi12 test naming hygiene fixes — VERIFIED (local.test.ts + chat-with-memory-local-openrouter.test.ts)
+
+      Discrepancy on F-M3:
+        Plan v1.2 line 3 (last sentence) states F-M3 was "mitigated via runtime
+        guard test that fails-loud on drift; full fix deferred to a follow-up".
+        CHANGELOG line 9 repeats: "partially mitigated via runtime drift-detection test".
+        ACTUAL closure (5089a9a): doc-only — 24 lines of JSDoc in src/local/schema.ts
+        + 3 lines appended to the applyDimChange console.error. NO drift-detection
+        test was added. `grep -rn drift src/local/__tests__/ tests/integration/`
+        returns ZERO matches.
+        Commit body of 5089a9a accurately states "No code-behavior change (this is
+        documentation + runtime log honesty)" — the divergence is between the
+        plan/CHANGELOG narrative and the actual commit content.
+    recommended_action: |
+      Cheapest honest fix: amend plan v1.2 + CHANGELOG line 9 to replace
+      "runtime drift-detection test" / "runtime guard test that fails-loud on
+      drift" with "JSDoc + runtime console.warn defense-in-depth mitigation".
+      Alternative: add the actual runtime drift-detection test the plan claims
+      (e.g., probe live atttypmod at createLocalMemory boot when embeddingDim !=
+      MAX_EMBEDDING_DIM, compare against schema.ts literal, fail-loud on mismatch).
+
+  - id: F-xval-rerun-2
+    severity: INFO
+    summary: Plan was edited AFTER /implement start — but only via /review fix-up flow (permitted)
+    plan_ref: cycle-implement.md anti-pattern #3 + cycle-review.md fix-up flow
+    evidence: |
+      git log .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+      shows the only post-/implement edits are by commit 4b5b0e7 (plan v1.2
+      amendment) which is part of the /review fix-up cycle and explicitly
+      authorized by the /review verdict NEEDS_FIXES per cycle-review.md.
+      This is NOT a contract violation — the v1.2 amendments document
+      retroactively the divergences /review surfaced, exactly as F-M2's
+      recommended_action specified ("bump plan to v1.2 with explicit ADR D3
+      amendment").
+
+  - id: F-xval-rerun-3
+    severity: INFO
+    summary: All 7 fix-up commits cite finding IDs in commit subject AND body
+    plan_ref: cycle-implement.md TDD discipline + audit trail
+    evidence: |
+      Commit subjects all reference /review finding IDs explicitly:
+        4b5b0e7 (closes F-C1 + F-M2 + F-M11)
+        d474a1a (runtime-honest cascade enumeration — body cites F-C1/F-M10/F-M13)
+        de079ef (F-M4 dim-guard symmetry + F-M5 retry rejected pipeline)
+        3c7ada0 (F-M15 symmetric dim guards + F-Mi6 typed EmbeddingMismatch)
+        5089a9a (F-M3 + F-Mi5 parametric-dim drift constraint)
+        f75e980 (F-M1+M6+M7+M8+M9+M12 missing-coverage batch)
+        544f88e (MINOR batch — F-Mi1..F-Mi4 + F-Mi8 + F-Mi9 + F-Mi11 + F-Mi12)
+      Each commit body explains scope + recommended_action mapping with exact
+      file paths + line numbers. Audit trail discipline is exemplary.
+
+  - id: F-xval-rerun-4
+    severity: INFO
+    summary: Inline /review citations in source code provide forward traceability
+    plan_ref: code <-> review traceability discipline
+    evidence: |
+      grep -rn "/review F-" src/ examples/ tests/ shows /review finding IDs
+      cited inline at every fix site as comments. Examples:
+        src/local/index.ts:1012 — "// /review F-M4: do NOT short-circuit on..."
+        src/embedders/local.ts:66 — "// /review F-M5: on rejection, reset..."
+        src/local/pgvector-store.ts:178 — "/review F-M15 + F-Mi6: shared dim guard..."
+      Forward traceability from code to finding ID is consistently maintained,
+      mirroring the v0.6.1 voyager-skill-library-fixes cycle precedent.
+
+# ---- Verdict summary ----
+
+plan_drift:
+  plan_edited_after_implement: true
+  details: |
+    Plan edited by commit 4b5b0e7 (v1.0/v1.1 → v1.2) as part of the /review
+    fix-up cycle, NOT mid-/implement-execute. cycle-review.md explicitly
+    authorizes plan amendments to document divergences surfaced by /review
+    findings (F-M2 recommended_action: "bump plan to v1.2 with explicit ADR D3
+    amendment"). Per cycle-implement.md anti-pattern #3, the original divergence
+    (USING NULL → DELETE FROM during T0.3 /implement) SHOULD have halted and
+    looped back; instead it shipped silently. The v1.2 amendment is the
+    cycle-review.md retroactive closure path. Not a contract violation NOW,
+    but a noted lesson for future /implement halt-loop discipline.
+
+closure_table:
+  - finding: F-C1
+    severity: CRITICAL
+    commits: [4b5b0e7, d474a1a]
+    status: CLOSED
+  - finding: F-M1
+    severity: MAJOR
+    commits: [f75e980]
+    status: CLOSED
+  - finding: F-M2
+    severity: MAJOR
+    commits: [4b5b0e7]
+    status: CLOSED
+  - finding: F-M3
+    severity: MAJOR
+    commits: [5089a9a]
+    status: CLOSED_WITH_DIVERGENCE
+    note: plan/CHANGELOG claim "runtime drift-detection test" but only JSDoc + log added
+  - finding: F-M4
+    severity: MAJOR
+    commits: [de079ef]
+    status: CLOSED
+  - finding: F-M5
+    severity: MAJOR
+    commits: [de079ef, f75e980]
+    status: CLOSED
+  - finding: F-M6
+    severity: MAJOR
+    commits: [f75e980]
+    status: CLOSED
+  - finding: F-M7
+    severity: MAJOR
+    commits: [f75e980]
+    status: CLOSED
+  - finding: F-M8
+    severity: MAJOR
+    commits: [f75e980]
+    status: CLOSED
+  - finding: F-M9
+    severity: MAJOR
+    commits: [f75e980]
+    status: CLOSED
+  - finding: F-M10
+    severity: MAJOR
+    commits: [d474a1a]
+    status: CLOSED
+  - finding: F-M11
+    severity: MAJOR
+    commits: [4b5b0e7]
+    status: CLOSED
+  - finding: F-M12
+    severity: MAJOR
+    commits: [f75e980]
+    status: CLOSED
+  - finding: F-M13
+    severity: MAJOR
+    commits: [d474a1a]
+    status: CLOSED
+  - finding: F-M14
+    severity: MAJOR
+    commits: []
+    status: SCOPE_OUT_ACKNOWLEDGED
+  - finding: F-M15
+    severity: MAJOR
+    commits: [3c7ada0]
+    status: CLOSED
+  - finding: F-Mi1
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi2
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi3
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi4
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi5
+    severity: MINOR
+    commits: [5089a9a]
+    status: CLOSED
+  - finding: F-Mi6
+    severity: MINOR
+    commits: [3c7ada0]
+    status: CLOSED
+  - finding: F-Mi7
+    severity: MINOR
+    commits: []
+    status: SCOPE_OUT_ACKNOWLEDGED
+  - finding: F-Mi8
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi9
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi10
+    severity: MINOR
+    commits: []
+    status: SCOPE_OUT_ACKNOWLEDGED
+  - finding: F-Mi11
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+  - finding: F-Mi12
+    severity: MINOR
+    commits: [544f88e]
+    status: CLOSED
+
+cross_validation_verdict: |
+  24/25 expected-to-close findings VERIFIED CLOSED with recommended_action
+  satisfied as written. 1 finding (F-M3) CLOSED_WITH_DIVERGENCE — actual
+  closure is doc-only (JSDoc + console.warn), but plan v1.2 + CHANGELOG
+  narrative claims "runtime drift-detection test". Divergence is honesty
+  surface, not blocking merge — the underlying mitigation (defense-in-depth
+  warnings) is valid. Recommended action: amend plan/CHANGELOG to match
+  actual closure shape. 3 findings (F-M14, F-Mi7, F-Mi10) explicitly
+  scope-out per user directive (acknowledged in /review report itself).
+  Plan v1.2 was edited AFTER /implement completion but only via the
+  cycle-review.md-authorized fix-up flow (NOT mid-/implement), so no
+  contract violation. Audit trail discipline (commit messages + inline
+  /review finding citations) is exemplary and mirrors the v0.6.1 cycle
+  precedent.
+
+  Verdict on this re-run dimension: READY_TO_MERGE with one honesty
+  amendment recommendation (F-M3 plan/CHANGELOG wording correction).

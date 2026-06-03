@@ -1,0 +1,11 @@
+{
+  "id": "entity-overlap-05-hand-doctor-prescription",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Dr. Pereira at Hospital São Lucas prescribed the vitamin D supplements. She also recommended I get the bloodwork redone in 3 months.",
+  "expectedFacts": [
+    { "text": "Dr. Pereira is at Hospital São Lucas", "attributedTo": "user" },
+    { "text": "Dr. Pereira prescribed vitamin D supplements", "attributedTo": "user" },
+    { "text": "Dr. Pereira recommended bloodwork redone in 3 months", "attributedTo": "user" }
+  ]
+}

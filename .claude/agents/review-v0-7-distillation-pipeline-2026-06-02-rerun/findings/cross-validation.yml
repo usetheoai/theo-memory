@@ -1,0 +1,438 @@
+agent: review-v0-7-distillation-pipeline-cross-validation
+review_target: 9d16db4^..HEAD (rerun delta — fix-up cycle for v0-7-distillation-pipeline)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md (v1.2 amendment 2026-06-02)
+previous_review: .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md
+rerun_summary:
+  scope: |
+    Re-validate the 4 fix-up commits (9d16db4..18e970f) against the 3 CRITICAL + 11 MAJOR + 12 MINOR
+    findings of the previous /review. Verify each is honestly closed OR honestly deferred with specific rationale.
+    Verify plan v1.2 amendment is consistent with shipped code, CHANGELOG, and CLAUDE.md.
+  fix_up_commits:
+    - sha: 9d16db4
+      summary: F-C3 schema.ts drift + bijection sentinel
+      files_changed: 2 (+111/-0)
+    - sha: ffa92d1
+      summary: F-C2 (kind filter) + F-M7 (t_valid guard)
+      files_changed: 2 (+196/-1)
+    - sha: 17425af
+      summary: F-C1 (mass-tombstone guard maxRejectionRatio)
+      files_changed: 2 (+119/-0)
+    - sha: 18e970f
+      summary: F-M5 + F-Mi2 + plan v1.2 + CHANGELOG + CLAUDE.md roadmap row
+      files_changed: 5 (+38/-2)
+plan_drift:
+  plan_edited_after_review: true
+  edit_direction: amendment (not retroactive contract change)
+  rationale: |
+    Plan v1.2 amendment was a LEGITIMATE post-/review absorption per cycle-review.md
+    rollback procedure — the plan amendment is documented as the explicit dismissal mechanism
+    for F-C1 (cosine-clustering precedent → per-policy guard). NOT a contract violation
+    (the original /implement cycle already completed at v1.1; v1.2 amends post-review,
+    which is the recognized fix-up pattern e.g. v0.6.1 + v0.4b-fixes precedents).
+quality_gates:
+  contract_tests: "685 passed | 2 skipped (87 files PASS, 1 skipped) — matches plan v1.2 claim"
+  typecheck: PASS (0 errors)
+  lint: not_re_run (commits document clean)
+  integration_distillation: "pre-existing pass at 7/7 (gated on THEOMEM_PG_URI) + new 2 PASS (skill-isolation) + 2 PASS (schema-snapshot-parity)"
+critical_closures:
+  - id: F-C1
+    severity: CRITICAL
+    closing_commit: 17425af
+    closure_type: CODE_FIX + ADR_AMENDMENT
+    plan_rationale: |
+      ADR D2 amendment in plan v1.2 explicitly DISMISSES T2.1 cosine-clustering precedent in favor
+      of per-policy guard at decision layer. Rationale specific: "backporting cosine clustering would
+      rewrite the entire v0.7 wiring contract". Default opt-in (maxRejectionRatio=0.95) blocks
+      egregious 50-row → 49-deleted mass-tombstone while preserving normal 2-20 consolidation.
+      Opt-out via {maxRejectionRatio: 1.0} for callers who scope-isolate explicitly.
+    code_verification: |
+      src/core/conflict-resolution/last-write-wins.ts:43-75 — LastWriteWinsConflictPolicyOptions
+      interface declared with maxRejectionRatio? (default 0.95, clamped to [0, 1]).
+      Lines 99-107: rejectionRatio = rejected.length / candidates.length; ABSTAIN if > maxRejectionRatio.
+      Math: 20 candidates → ratio 0.95 (consolidate), 21 candidates → ratio ~0.952 (abstain), 50 candidates
+      with default → 0.98 abstain. Empirical line behaves as documented.
+      Tests verified: __tests__/last-write-wins.test.ts adds 5 new tests at lines 61-117 (count 5 confirmed).
+    finding: INFO — F-C1 closed by 17425af with specific ADR rationale.
+    severity_after: closed
+
+  - id: F-C2
+    severity: CRITICAL
+    closing_commit: ffa92d1
+    closure_type: CODE_FIX
+    plan_rationale: |
+      Plan v1.2 confirms recommended_action: "add `AND kind = 'extracted'` filter to recallConsolidationCandidates +
+      regression test seeding skill library". Both shipped exactly as recommended.
+    code_verification: |
+      src/local/pgvector-store.ts:558-573 — three WHERE clauses now present:
+      "kind = 'extracted'" + 't_invalid IS NULL' + '(t_valid IS NULL OR t_valid <= NOW())'.
+      tests/integration/distillation/skill-isolation.test.ts shipped with 2 tests:
+      (a) seeds 2 skill + 2 extracted rows; asserts skills survive LWW reflect, older extracted soft-deleted.
+      (b) seeds 1 derived + 2 extracted; asserts derived survives consolidation (kind='derived' filtered out).
+      grep -c "^    it(" returns 2 — matches commit message claim.
+    finding: INFO — F-C2 closed by ffa92d1 with regression test matching the failure mode.
+    severity_after: closed
+
+  - id: F-C3
+    severity: CRITICAL
+    closing_commit: 9d16db4
+    closure_type: CODE_FIX + SENTINEL_TEST
+    plan_rationale: |
+      Plan v1.2 confirms recommended_action: "add consolidationHistory pgTable export to src/local/schema.ts
+      mirroring snapshot column shape + extend config-parity.test.ts to assert snapshot-vs-schema alignment".
+      Shipped: (a) consolidationHistory pgTable export in schema.ts (NEW test file
+      tests/integration/schema-snapshot-parity.test.ts, NOT extending config-parity.test.ts —
+      minor wording divergence vs review recommendation but stronger sentinel).
+    code_verification: |
+      src/local/schema.ts:226-252 — consolidationHistory pgTable declared.
+      Shape matches snapshot meta/0007_snapshot.json (uuid PK + keptMemoryId FK onDelete:'set null' +
+      jsonb rejectedMemoryIds default '[]'::jsonb + jsonb originalEpisodeIds + text reason/policyName +
+      timestampz createdAt + two indexes idx_consolidation_history_kept + idx_consolidation_history_created).
+      tests/integration/schema-snapshot-parity.test.ts:65-83 — bijection asserted both directions
+      (snapshot ⊆ schema AND schema ⊆ snapshot). Tests pass without pgvector container (pure file inspection).
+    finding: INFO — F-C3 closed by 9d16db4. Sentinel is STRONGER than original review recommendation
+      (bijection vs unilateral check); will prevent the entire class of drift, not just consolidationHistory.
+    severity_after: closed
+
+major_closures_in_fixup:
+  - id: F-M5
+    severity: MAJOR
+    closing_commit: 18e970f
+    closure_type: DOC_AMENDMENT
+    code_verification: |
+      tests/integration/distillation/the-goal-test-llm-measured.test.ts:23-49 — caveat added explicitly stating
+      "what this proves" (pipeline + persistence + OpenRouter routing + JSON parsing + EC-2 semantic validation)
+      vs "what it does NOT prove" (LLM judgment on ambiguous contradictions; near-duplicate discrimination;
+      procedural-fixture quality). v0.7.2 follow-up explicitly named.
+    finding: INFO — F-M5 closed by 18e970f. Caveat is specific, names v0.7.2 follow-up.
+    severity_after: closed
+
+  - id: F-M7
+    severity: MAJOR
+    closing_commit: ffa92d1
+    closure_type: CODE_FIX (bundled with F-C2 same commit)
+    code_verification: |
+      src/local/pgvector-store.ts:572 — '(t_valid IS NULL OR t_valid <= NOW())' guard now in WHERE clause.
+      No-op on local today (always t_valid=NOW()) but documents intent for ADR-0006 forward-compat to v0.5 cloud.
+    finding: INFO — F-M7 closed by ffa92d1 (same commit as F-C2). Intent documented.
+    severity_after: closed
+
+major_deferrals_with_rationale:
+  - id: F-M1
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M1/M2 file-size budget (1078/686 LoC > 500 — refactor cycle)"
+    rationale_quality: SPECIFIC (deferred to "refactor cycle" — names target; cited line counts)
+    finding: INFO — F-M1 deferred-with-rationale (specific deferral target named).
+    severity_after: deferred
+
+  - id: F-M2
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M1/M2 file-size budget (1078/686 LoC > 500 — refactor cycle)"
+    rationale_quality: SPECIFIC (paired with F-M1; same target cycle)
+    finding: INFO — F-M2 deferred-with-rationale (specific deferral target named).
+    severity_after: deferred
+
+  - id: F-M3
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M3/M4 OTel integration-depth (v1.0 benchmark cycle)"
+    rationale_quality: SPECIFIC (target cycle = v1.0 benchmark; rationale: integration depth ties to benchmark cycle)
+    finding: INFO — F-M3 deferred-with-rationale (specific deferral target named).
+    severity_after: deferred
+
+  - id: F-M4
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M3/M4 OTel integration-depth (v1.0 benchmark cycle)"
+    rationale_quality: SPECIFIC (paired with F-M3; same target cycle)
+    finding: INFO — F-M4 deferred-with-rationale (specific deferral target named).
+    severity_after: deferred
+
+  - id: F-M6
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M6 wiring locus drift (accepted as documented divergence)"
+    rationale_quality: ACCEPTED_AS_DIVERGENCE (specific — names the trade-off: documented divergence over refactor)
+    caveat: |
+      Acceptance of divergence is explicit per cycle-review.md § Anti-patterns ("NEVER mark a finding as
+      `dismissed` without an ADR-style justification" — here the justification is "ADR D1 wiring-locus
+      claim is technically incorrect; accepted as documented divergence"). Borderline: plan v1.2 does NOT
+      add a NEW ADR (e.g., ADR D7) to formalize the divergence, only references it inline.
+      A future maintainer reading ADR D1 alone will still see incorrect "logic-layer extension" claim.
+    finding: MINOR — F-M6 deferral rationale is specific but ADR D1 itself remains technically incorrect.
+      Recommended: amend ADR D1 in plan v1.3 OR add ADR D7 documenting wiring-layer locus.
+    severity_after: deferred
+
+  - id: F-M8
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M8 baseline T3.3 LLM-quality signal absence in non-OpenRouter env (CI-deterministic-only accepted)"
+    rationale_quality: SPECIFIC (names the trade-off: CI determinism over LLM signal in non-OpenRouter env)
+    finding: INFO — F-M8 deferred-with-rationale. v0.7.1 LLM-MEASURED test provides LLM-quality signal IF OpenRouter env present.
+    severity_after: deferred
+
+  - id: F-M9
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M9 outer reflect() flow atomicity (acknowledged)"
+    rationale_quality: VAGUE — "acknowledged" without follow-up plan, target cycle, or impact assessment
+    impact: |
+      F-M9 was: "persistConsolidations is atomic INTERNALLY but the outer reflect() flow is NOT —
+      if executeReflection LLM call throws AFTER persistConsolidations commits, the consolidation is
+      irreversible while the derivation never happens." This is a SEMANTIC dual-write bug, not cosmetic.
+      "Acknowledged" alone is the weakest possible deferral; no follow-up cycle named, no compensating
+      control documented (e.g., a saga / outbox / explicit rollback step).
+    finding: MAJOR — F-M9 deferral is too vague to satisfy cycle-review.md § Anti-patterns
+      ("NEVER mark a finding as `dismissed` without an ADR-style justification"). Recommended:
+      either (a) add ADR D7 explaining the atomicity boundary + naming the compensating control,
+      (b) name the v0.7.x follow-up cycle that will fix it, or (c) acknowledge the bug class
+      (dual-write race) and document recovery procedure for operators.
+    severity_after: deferred_with_weak_rationale
+
+  - id: F-M10
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M10/M11 FK naming + ON UPDATE NO ACTION (cosmetic; renaming requires new migration for deployed DBs)"
+    rationale_quality: SPECIFIC (names operational constraint — renaming requires new migration for deployed DBs;
+      classifies as cosmetic which is consistent with previous review's MAJOR severity)
+    finding: INFO — F-M10 deferred-with-rationale (operational constraint cited).
+    severity_after: deferred
+
+  - id: F-M11
+    severity: MAJOR
+    deferred: true
+    plan_v1_2_rationale: "F-M10/M11 FK naming + ON UPDATE NO ACTION (cosmetic; renaming requires new migration for deployed DBs)"
+    rationale_quality: SPECIFIC (paired with F-M10; same operational constraint)
+    finding: INFO — F-M11 deferred-with-rationale (operational constraint cited).
+    severity_after: deferred
+
+minor_closures_in_fixup:
+  - id: F-Mi2
+    severity: MINOR
+    closing_commit: 18e970f
+    closure_type: CODE_FIX
+    code_verification: |
+      examples/chat-with-memory/app/api/memory/distill/route.ts:59-71 — getMemory() now called
+      BEFORE the OPENAI_API_KEY check (line 65 await getMemory()); the env-shift fires correctly
+      in local-openrouter mode. Error message updated to mention OPENROUTER_(API_)KEY as acceptable.
+    finding: INFO — F-Mi2 closed by 18e970f. Fix matches review recommendation.
+    severity_after: closed
+
+minor_findings_implicit_deferral:
+  description: |
+    11 MINOR findings remain after F-Mi2 closure: F-Mi1, F-Mi3, F-Mi4, F-Mi5, F-Mi6, F-Mi7, F-Mi8,
+    F-Mi9, F-Mi10, F-Mi11, F-Mi12. Plan v1.2 does NOT enumerate them individually — implicit deferral.
+    Acceptable for MINOR severity but worth noting that:
+    - F-Mi4 references a non-existent ADR-DEFER-LLM-TEMP-SEED in JSDoc (legit honest fix gap)
+    - F-Mi9 process.env mutation at module-load (test reliability concern)
+    - F-Mi12 db-repair script not registered as npm script (ops UX regression vs v0.4b precedent)
+  finding: MINOR — implicit deferral of 11 MINOR findings without per-finding rationale.
+    Recommended: add a single line to plan v1.2 noting "11 MINOR findings remain — addressed
+    opportunistically when surrounding code is next edited" per audit-trail-rotation policy.
+
+accounting_discrepancies:
+  - id: accounting_1
+    severity: MINOR
+    description: |
+      Plan v1.2 summary claims "9 MAJOR (6 deferred-with-rationale + 3 closed)" but actual count is:
+      - 11 MAJOR originally
+      - 2 closed: F-M5 (LLM caveat) + F-M7 (t_valid guard bundled with F-C2)
+      - 9 deferred: F-M1, F-M2, F-M3, F-M4, F-M6, F-M8, F-M9, F-M10, F-M11
+      - Total: 11 MAJOR (9 deferred + 2 closed)
+      The "6 deferred + 3 closed" phrasing conflates the GROUPED references (M1/M2, M3/M4, M10/M11 = 3 pairs +
+      M6 + M8 + M9 = 6 groups) with absolute counts. Plan should say "11 MAJOR (9 deferred + 2 closed) grouped
+      as 6 deferral-groups + 2 closures" OR fix the count.
+    finding: MINOR — accounting discrepancy in plan v1.2 net-state summary. Cosmetic but should be corrected
+      in plan v1.3 for honesty per Inquebrável Rule 3.
+    recommended_action: amend plan v1.2 summary or note in plan v1.3
+
+  - id: accounting_2
+    severity: MINOR
+    description: |
+      Plan v1.2 net-state summary claims "11 MINOR" remain, but F-Mi2 closure should bring count to 11
+      (one of 12 closed). Plan says "11 MINOR" which is correct IF we count post-F-Mi2 closure, but the
+      summary is unclear whether it counts the original 12 or post-closure 11.
+    finding: INFO — F-Mi2 was originally the 12th MINOR finding; remaining count of 11 is internally consistent
+      if the summary refers to post-closure state. Wording ambiguity only.
+    recommended_action: clarify wording in plan v1.3 (e.g., "11 MINOR remaining (F-Mi2 closed)").
+
+consistency_checks:
+  changelog_vs_plan: |
+    CHANGELOG.md Unreleased § Added v0.7 fix-up entry lists same 3 CRITICAL closures (F-C1, F-C2+F-M7, F-C3)
+    AND same MAJOR/MINOR closures (F-M5, F-Mi2) AND same deferrals (F-M1/M2, F-M3/M4, F-M6, F-M8, F-M9,
+    F-M10/M11). CONSISTENT with plan v1.2 amendment.
+  claude_md_vs_plan: |
+    CLAUDE.md § Phase III Item 9 status row amended from "Shipped 2026-06-02" to
+    "Shipped 2026-06-02 + fix-up cycle plan v1.2 closing 3 CRITICAL findings from `/review`".
+    CONSISTENT with plan v1.2 + CHANGELOG. The amendment correctly notes the prematurely-flipped
+    status (commit f1b4867 ran BEFORE /review) is now properly reconciled.
+  schema_vs_migration_vs_snapshot: |
+    Verified bijection per the new sentinel: consolidationHistory now declared in all THREE places
+    (src/local/schema.ts:226-252 + meta/0007_snapshot.json:577-680 + 0007_distillation_columns.sql).
+    CONSISTENT.
+
+findings:
+  - id: F-xval-rerun-1
+    severity: INFO
+    summary: All 3 CRITICAL findings honestly closed
+    evidence: |
+      F-C1 closed 17425af (maxRejectionRatio guard + 5 contract tests + ADR D2 amendment).
+      F-C2 closed ffa92d1 (kind='extracted' filter + 2 integration tests).
+      F-C3 closed 9d16db4 (consolidationHistory pgTable + bijection sentinel — STRONGER than recommended).
+      No CRITICAL silently dismissed. Plan v1.2 amendment documents F-C1 dismissal with specific rationale.
+
+  - id: F-xval-rerun-2
+    severity: INFO
+    summary: 2 MAJOR (F-M5, F-M7) and 1 MINOR (F-Mi2) closed in fix-up cycle
+    evidence: |
+      F-M5 caveat shipped in 18e970f (test header amended with specific "what this proves vs does NOT").
+      F-M7 t_valid guard shipped in ffa92d1 (bundled with F-C2; forward-compat with ADR-0006 cloud).
+      F-Mi2 getMemory() pre-check shipped in 18e970f.
+
+  - id: F-xval-rerun-3
+    severity: MAJOR
+    summary: F-M9 outer reflect() flow atomicity dismissal is too vague
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: v1.2 amendment line 3, "DEFERRED with rationale" list, F-M9
+    evidence: |
+      Plan v1.2: "F-M9 outer reflect() flow atomicity (acknowledged)".
+      Single word "acknowledged" does not satisfy cycle-review.md § Anti-patterns:
+      "NEVER mark a finding as `dismissed` without an ADR-style justification".
+      F-M9 is a SEMANTIC dual-write bug class — if executeReflection LLM call throws after
+      persistConsolidations commits, the consolidation is irreversible while the derivation never happens.
+      This is not cosmetic — it produces inconsistent state under realistic LLM-API-failure conditions.
+    recommended_action: |
+      Plan v1.3 (next fix-up): either (a) add ADR D7 explaining the atomicity boundary + naming
+      the compensating control (saga / outbox / explicit rollback), (b) name the v0.7.x follow-up
+      cycle that fixes it, or (c) document the operational recovery procedure (manual reflect retry +
+      audit-row reconciliation script) so operators can recover from the race when it fires in production.
+
+  - id: F-xval-rerun-4
+    severity: MAJOR
+    summary: F-M6 wiring-locus deferral leaves ADR D1 technically incorrect without a new ADR
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: v1.2 amendment line 3, "DEFERRED with rationale" list, F-M6
+    evidence: |
+      Plan v1.2: "F-M6 wiring locus drift (accepted as documented divergence)".
+      F-M6 was: plan T2.1 declared wiring locus = src/core/reflection/execute.ts; shipped locus = src/local/index.ts.
+      ADR D1's "logic-layer extension" claim is technically incorrect (it is runtime-layer).
+      Plan v1.2 does NOT amend ADR D1 nor add ADR D7 to formalize the divergence — it inlines the
+      acceptance in the version-1.2 prose. A future maintainer reading ADR D1 in isolation will see
+      incorrect "logic-layer extension" claim.
+    recommended_action: |
+      Plan v1.3 (next fix-up): amend ADR D1 in-place with an "F-M6 absorption" note
+      OR add a new ADR D7 documenting that the wiring locus shipped at runtime-layer (src/local/) for
+      operational pragmatism (composition with PgvectorStore.recallConsolidationCandidates).
+      Either is fine; the current inline-in-prose dismissal violates ADR readability.
+
+  - id: F-xval-rerun-5
+    severity: MINOR
+    summary: Plan v1.2 net-state count "9 MAJOR (6 deferred + 3 closed)" is mathematically incorrect
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: v1.2 amendment final sentence "0 BLOCKER / 0 CRITICAL / 9 MAJOR (6 deferred-with-rationale + 3 closed)"
+    evidence: |
+      Actual MAJOR accounting:
+      - 11 MAJOR originally identified in /review report 2026-06-02
+      - 2 closed in fix-up: F-M5 (18e970f doc) + F-M7 (ffa92d1 bundled with F-C2)
+      - 9 deferred: F-M1, F-M2, F-M3, F-M4, F-M6, F-M8, F-M9, F-M10, F-M11
+      - Net total: 11 = 9 deferred + 2 closed (NOT "9 = 6 deferred + 3 closed")
+      The "6 deferred-groups + 3 closures" phrasing confuses pair-grouping (M1/M2, M3/M4, M10/M11
+      and singletons M6, M8, M9 = 6 deferral-groups for prose compactness) with the BLOCKER/CRITICAL/MAJOR
+      classification math. CHANGELOG entry does NOT propagate this error (avoids the summary line).
+    recommended_action: |
+      Amend plan v1.2 summary to read "0 BLOCKER / 0 CRITICAL / 11 MAJOR (9 deferred-with-rationale +
+      2 closed) / 11 MINOR (1 closed F-Mi2) / clean INFO baseline" OR migrate to plan v1.3 with corrected
+      count. Cosmetic but matters for Inquebrável Rule 3 honesty.
+
+  - id: F-xval-rerun-6
+    severity: MINOR
+    summary: 11 MINOR findings deferred without per-finding rationale
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: v1.2 amendment
+    evidence: |
+      F-Mi1, F-Mi3, F-Mi4, F-Mi5, F-Mi6, F-Mi7, F-Mi8, F-Mi9, F-Mi10, F-Mi11, F-Mi12 are not addressed
+      individually in plan v1.2. Implicit deferral (only F-Mi2 closed). MINOR findings ARE worth opportunistic
+      fixing per audit-trail-rotation.md (clean up when surrounding code next edited).
+      Of particular note: F-Mi4 references a non-existent ADR-DEFER-LLM-TEMP-SEED in JSDoc (audit-trail
+      honesty gap); F-Mi9 process.env mutation at module-load can leak under thread-pool nondeterminism
+      (test reliability); F-Mi12 db-repair script not registered as npm script (ops UX regression vs v0.4b
+      precedent).
+    recommended_action: |
+      Add a single line to plan v1.2 OR plan v1.3: "11 MINOR findings remain (F-Mi1, F-Mi3..F-Mi12 sans F-Mi2)
+      — addressed opportunistically when surrounding code is next edited per audit-trail-rotation.md."
+
+  - id: F-xval-rerun-7
+    severity: INFO
+    summary: Plan v1.2 amendment is consistent across plan + CHANGELOG + CLAUDE.md
+    evidence: |
+      Cross-reference verified:
+      - Plan v1.2 (line 3) lists 3 CRITICAL closures + 2 MAJOR closures + 1 MINOR closure + 9 deferrals.
+      - CHANGELOG.md Unreleased § Added v0.7 fix-up entry mirrors exactly.
+      - CLAUDE.md § Phase III Item 9 status row updated to reflect fix-up cycle.
+      - Schema-vs-snapshot bijection verified by new sentinel test (tests/integration/schema-snapshot-parity.test.ts).
+      - Contract suite 685/685 PASS matches plan v1.2 claim.
+      - typecheck PASS.
+      No plan drift (plan v1.2 amendment is POST-/review absorption, NOT mid-implement contract change;
+      consistent with v0.6.1, v0.4b-fixes precedents per cycle-review.md rollback procedure).
+
+  - id: F-xval-rerun-8
+    severity: INFO
+    summary: F-C3 sentinel is stronger than the original review recommended_action
+    file: tests/integration/schema-snapshot-parity.test.ts
+    evidence: |
+      Original review recommended: "extend tests/integration/config-parity.test.ts to assert every table
+      in meta/*_snapshot.json is declared in schema.ts".
+      Shipped: NEW test file tests/integration/schema-snapshot-parity.test.ts asserting BIJECTION both
+      directions (snapshot ⊆ schema AND schema ⊆ snapshot). This is strictly STRONGER than the
+      unidirectional check — also catches the reverse drift class (schema.ts has a pgTable but no
+      migration ever generated for it).
+    recommended_action: none — exceeds the original ask, honest improvement.
+
+  - id: F-xval-rerun-9
+    severity: INFO
+    summary: 685 contract tests PASS confirms F-C1 added exactly 5 new tests
+    evidence: |
+      Pre-F-C1 commit count: 680 tests (per /review report 2026-06-02).
+      Post-F-C1 commit count: 685 tests (verified via npm test).
+      Delta: 5 tests = matches commit 17425af's claim of 5 new contract tests.
+      F-C2 added 2 integration tests (not counted in contract suite — gated on PG_URI).
+      F-C3 added 2 integration tests (not counted in contract suite — pure file inspection but
+      lives at tests/integration/).
+      No regression in pre-existing test count.
+
+  - id: F-xval-rerun-10
+    severity: INFO
+    summary: Plan v1.2 contract-amendment process honored Inquebrável Rule 3 + cycle-review.md
+    evidence: |
+      Cycle-review.md hard gate: "CRITICAL findings require HALT before merge unless explicitly dismissed
+      with ADR-style rationale." Plan v1.2 explicitly dismisses F-C1 with ADR D2 amendment ("T2.1 plan's
+      Mem0 cosine-clustering precedent at recall layer is DISMISSED in favor of per-policy guard at
+      decision layer"). Rationale specific: backport would rewrite v0.7 wiring contract; per-policy guard
+      preserves 9/9 task delivery.
+      F-C2 and F-C3 fixed in code (no dismissal needed).
+      Anti-pattern check (cycle-review.md): "NEVER approve a PR with unresolved BLOCKER findings" —
+      no BLOCKER unresolved; only the 2 deferral-rationale-quality MAJORs flagged above (F-M6, F-M9).
+
+summary:
+  total_findings: 10
+  blocker: 0
+  critical: 0
+  major: 2 (F-xval-rerun-3 F-M9 deferral too vague; F-xval-rerun-4 F-M6 ADR D1 left technically incorrect)
+  minor: 2 (F-xval-rerun-5 accounting math; F-xval-rerun-6 implicit MINOR deferrals)
+  info: 6 (closure confirmations + sentinel-strength + consistency)
+verdict: |
+  RERUN_READY_TO_MERGE — the 3 CRITICAL closures are honest and verifiable in code.
+  The 2 MAJOR re-findings (F-M6 ADR completeness + F-M9 atomicity dismissal) are recommendations
+  for plan v1.3 / next fix-up cycle; they do NOT block merge because:
+  (a) F-M6 is an ADR-readability cosmetic concern that does not affect the shipped code,
+  (b) F-M9 is a known semantic risk acknowledged by the team — the deferral itself is the issue
+      (insufficient ADR-style justification per cycle-review.md), not undisclosed.
+  The 2 MINOR re-findings (accounting math + implicit MINOR deferrals) are cosmetic.
+  Plan v1.2 amendment is consistent with shipped code, CHANGELOG, and CLAUDE.md.
+recommended_action_for_team:
+  - Address F-M9 dismissal rationale in plan v1.3 (or as separate ADR D7) — current "acknowledged" is too vague.
+  - Address F-M6 by amending ADR D1 in-place OR adding ADR D7 formalizing the runtime-layer locus divergence.
+  - Correct plan v1.2 net-state math ("11 MAJOR" not "9 MAJOR") in plan v1.3 (cosmetic but honest).
+  - Add a single line summarizing the 11 implicit MINOR deferrals (cosmetic but honest).
+  - None of the above block re-running /review with verdict READY_TO_MERGE for the fix-up cycle proper.

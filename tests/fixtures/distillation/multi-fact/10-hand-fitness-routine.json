@@ -1,0 +1,11 @@
+{
+  "id": "multi-fact-10-hand-fitness-routine",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "New fitness routine: 3 days a week strength training (squat, deadlift, bench), 2 days zone 2 cardio for 45 minutes. Rest on Sundays.",
+  "expectedFacts": [
+    { "text": "Strength training 3 days a week (squat, deadlift, bench)", "attributedTo": "user" },
+    { "text": "Zone 2 cardio 2 days a week for 45 minutes", "attributedTo": "user" },
+    { "text": "Rests on Sundays", "attributedTo": "user" }
+  ]
+}

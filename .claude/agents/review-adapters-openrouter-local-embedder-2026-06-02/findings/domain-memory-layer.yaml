@@ -1,0 +1,295 @@
+agent: review-adapters-openrouter-local-embedder-domain-memory-layer
+review_target: main..HEAD for plan adapters-openrouter-local-embedder
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Mem0-shape 8-phase write pipeline preserved (Phase 0..8 of runExtractionPipeline)"
+  - "9-step search pipeline preserved (runRetrievalPipeline + additive scoring)"
+  - "Three-tier scope model (User / Session / Agent + v0.6 RepoScope) preserved on LocalMemory and LocalScopedMemory"
+  - "ADD-only public API invariant (no update() on Memory or ScopedMemory) preserved"
+  - "Additive Mem0-style scoring used (combineScores stays additive; multiplicative Generative Agents NOT introduced)"
+  - "Embedder DIP contract honored by LocalTransformerEmbedder (embed + embedBatch returning readonly number[] in input order; L2-normalized)"
+  - "Probe-text invariant (EC-5) — probeEmbedder fires before vectorStore.initialize() with effectiveDim instead of hard-coded MAX_EMBEDDING_DIM"
+  - "MAX_EMBEDDING_DIM 1536 cap preserved as upper bound, not target (ADR D2 narrowing)"
+  - "Soft-delete via t_invalid path for default Memory.forget() preserved (v0.4b T7.1 contract not regressed)"
+  - "Lazy-singleton adapter pattern (mirrors OpenAIEmbedder + LLM precedent) for first-call model warmup"
+
+findings:
+  - id: F-dom-1
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 966
+    plan_ref: "ADR D3 + Coverage gap 14 — Backward compat for existing 1536-dim callers (T0.3)"
+    domain_anchor: "CLAUDE.md § Architectural Decisions Locked — backward compatibility + ADD-only contract; Inquebrável Rule 3 (extreme honesty / fail-loud on misconfig)"
+    summary: |
+      Asymmetric dim-change gate in runMigrations skips applyDimChange when
+      embeddingDim === MAX_EMBEDDING_DIM, leaving the schema silently
+      mismatched on the openai → local-openrouter → openai round-trip. The
+      operator's next demo boot in `openai` mode INSERTs 1536-dim vectors
+      against a `vector(384)` column and pgvector errors at the SQL boundary
+      with a non-diagnostic message (the dedicated search-guard error
+      message defined in T0.2 only covers the search path, NOT inserts).
+    evidence: |
+      ```ts
+      // src/local/index.ts:966 (and the mirror at line 950 in the orphan-schema branch)
+      if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+        await applyDimChange(pool, options.embeddingDim);
+      }
+      ```
+      Scenario walk-through:
+      1. Operator runs `THEOMEM_DEMO_BACKEND=local-openrouter` → `buildStore(384)` →
+         `runMigrations(pool, { embeddingDim: 384 })` → applyDimChange flips schema to vector(384).
+      2. Operator switches back to `THEOMEM_DEMO_BACKEND=openai` → `buildStore(1536)` →
+         `runMigrations(pool, { embeddingDim: 1536 })`. Gate at line 966 evaluates
+         `1536 !== 1536 → false`. applyDimChange is NOT invoked. Schema stays at vector(384).
+      3. First chat message → OpenAIEmbedder.embed() returns 1536-dim → PgvectorStore.insertBatch()
+         binds `vectorLiteral(vec)` against `embedding vector(384)` → pgvector throws
+         `expected 384 dimensions, not 1536` at INSERT, NOT the SDK's diagnostic guard.
+      The applyDimChange function itself already does the right thing once invoked
+      (atttypmod probe at line 856-865 short-circuits when current matches target),
+      so the gate is the only barrier. The asymmetry violates the "backward compat
+      preserved" claim in plan Coverage Matrix #14 because the round-trip is not
+      symmetric: 1536→384 works, 384→1536 silently no-ops.
+    recommended_action: |
+      Remove the `!== MAX_EMBEDDING_DIM` short-circuit and gate solely on
+      `options?.embeddingDim !== undefined`. applyDimChange's atttypmod
+      idempotency probe already covers the no-op case correctly when current
+      schema dim matches the target (regardless of whether the target is
+      1536 or 384). The current gate optimizes the wrong axis (the
+      MAX_EMBEDDING_DIM constant, not the actual schema state).
+
+  - id: F-dom-2
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 178
+    plan_ref: "T0.2 § Deep Dives — Search guard rewrite; F-dom-4 invariant"
+    domain_anchor: "architecture.md § 8 — Validate at boundaries; fail-fast on dim mismatch"
+    summary: |
+      PgvectorStore.search() enforces the configured embeddingDim invariant
+      (T0.2 / F-dom-4) but the same store's insert(), insertBatch(),
+      insertSingle(), insertDerivedMemory(), and update() paths do NOT guard
+      vector dimension before the SQL boundary. A misconfigured caller (e.g.,
+      wrong-dim embedder) sees a generic pgvector cast error from the
+      `$N::vector` literal rather than the F-dom-4 diagnostic message.
+    evidence: |
+      ```ts
+      // src/local/pgvector-store.ts:254-268 — search() guards dim
+      if (query.length !== this.embeddingDim) {
+        throw new Error(
+          `PgvectorStore.search: query vector dimension ${...} does not match configured embeddingDim ${...}`,
+        );
+      }
+      ```
+      vs. insertBatch() at line 210 and insertDerivedMemory() at line 433
+      which never check `vec.length === this.embeddingDim`. The Phase 3 of
+      the Mem0-shape write pipeline (batch embed) directly feeds this
+      INSERT path, so a dim-mismatched embedder silently fails the insert
+      with a pg error message that does NOT name `embeddingDim` — operator
+      cannot pinpoint whether the embedder or the store is wrong (which is
+      exactly the diagnosability the T0.2 / Deep Dives section
+      claims to provide).
+    recommended_action: |
+      Add a small private `assertVectorDim(vec)` helper called once per
+      INSERT path (insertBatch + insertDerivedMemory + update). Mirror the
+      search guard's error shape so the diagnostic message is uniform
+      across the store's surface.
+
+  - id: F-dom-3
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 886
+    plan_ref: "ADR D3 + EC-3 + EC-4 absorption + plan Acceptance Criteria 'destructive truncation logged'"
+    domain_anchor: "Inquebrável Rule 3 (extreme honesty); CLAUDE.md § Architectural Decisions Locked (audit + history preservation in v0.4b ForgetOptions discipline)"
+    summary: |
+      The applyDimChange helper does `DELETE FROM memories` + `DELETE FROM
+      entities` inside the dim-change transaction — but plan ADR D3 + README
+      § "Destructive dim change caveat" + CHANGELOG all describe the
+      destructive effect as "ALTER COLUMN TYPE vector(N) USING NULL"
+      (dropping only the embedding column data). The actual implementation
+      wipes ENTIRE rows including text, hash, payload, scope columns AND
+      cascades to `history` (FK ON DELETE CASCADE per
+      `0000_crazy_mimic.sql:42`). consolidation_history rows survive via
+      ON DELETE SET NULL but lose their `kept_memory_id` link. This is a
+      stronger destructive contract than documented; the operator believes
+      they will lose embeddings but retain the row metadata + history audit
+      trail, when in reality the entire row + history trail vanish.
+    evidence: |
+      ```ts
+      // src/local/index.ts:886-887 — actual implementation
+      await client.query('DELETE FROM memories');
+      await client.query('DELETE FROM entities');
+      await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${...})`);
+      ```
+      vs. CHANGELOG [Unreleased]:
+      "When dim differs from 1536, runs atomic DROP+ALTER+RECREATE sequence
+       (`DROP INDEX entities_embedding_hnsw_idx + memories_embedding_hnsw_idx` →
+       2 `ALTER COLUMN TYPE vector(N) USING NULL` → 2 `CREATE INDEX...`)"
+      and README:
+      "DROPS all existing embedding data via `ALTER COLUMN TYPE vector(384) USING NULL`."
+      The inline JSDoc at index.ts:877-885 acknowledges the discrepancy ("T4.1
+      follow-up to T0.3: `ALTER COLUMN TYPE vector(N) USING NULL` collides
+      with the existing `NOT NULL` constraint...") but the user-facing copy
+      was not updated to reflect the actual semantics. Violates Inquebrável
+      Rule 3 — public claims must match runtime behavior.
+    recommended_action: |
+      Either (a) update README + CHANGELOG to say "drops all rows in memories
+      + entities tables AND cascades to history" so the operator understands
+      the full blast radius, OR (b) restore the original `USING NULL`
+      semantics by first dropping the NOT NULL constraint on the embedding
+      column, ALTER COLUMN TYPE, and re-adding the NOT NULL with a USING-clause
+      DELETE — preserving row metadata + history audit. Option (a) is the
+      cheapest honest fix; option (b) preserves more value but adds two
+      DDL statements. Either way, the user-facing claim must match.
+
+  - id: F-dom-4
+    severity: MINOR
+    file: src/embedders/local.ts
+    line: 67
+    plan_ref: "T1.1 § Acceptance Criteria — '@xenova/transformers is in optionalDependencies (NOT dependencies)' + EC-6 consumer guidance"
+    domain_anchor: "architecture.md § 9 — Public API surface; ADR D7 + Cycle 2 EC-6 precedent for subpath-only optional providers"
+    summary: |
+      `src/embedders/index.ts` (the `@usetheo/memory/embedders` barrel subpath)
+      re-exports `LocalTransformerEmbedder` alongside Stub + OpenAI. A
+      consumer importing from `@usetheo/memory/embedders` (barrel) — a path
+      explicitly registered in `package.json#exports` — transitively pulls
+      `@xenova/transformers` even when the consumer only wanted the stub.
+      This defeats the spirit of ADR D7's "subpath-only optional provider"
+      isolation. The same pattern was caught + corrected in adapters Cycle 2
+      EC-3 (root-no-reexport guard) but only for the root `src/index.ts`
+      barrel — the `embedders/index.ts` barrel still acts as a single
+      catch-all that defeats the per-provider isolation.
+    evidence: |
+      ```ts
+      // src/embedders/index.ts:18-20
+      export { DeterministicStubEmbedder } from './stub.js';
+      export { OpenAIEmbedder } from './openai.js';
+      export { LocalTransformerEmbedder } from './local.js';
+      ```
+      ```json
+      // package.json#exports (subpath `./embedders` exists)
+      "./embedders": {
+        "types": "./src/embedders/index.ts",
+        "default": "./src/embedders/index.ts"
+      }
+      ```
+      A `--no-optional` consumer who only imports
+      `@usetheo/memory/embedders` to get the stub will hit a TS compile
+      error from the `local.ts` re-export's transitive `@xenova/transformers`
+      type import. The OpenAI re-export has the same flaw and predates
+      this cycle, so this is a partial-regression rather than a new
+      one — but T1.2's ADR D7 ("subpath-only mirroring openai") implicitly
+      affirms the existing pattern without flagging that the barrel
+      already breaks it for openai. Either the barrel must drop these
+      optional re-exports (forcing consumers through the per-provider
+      subpaths) OR ADR D7's rationale needs an explicit note that the
+      barrel is an acknowledged escape hatch for consumers who DO want
+      all-providers and accept the optionalDep blast radius.
+    recommended_action: |
+      Either remove the optional-provider re-exports from
+      `src/embedders/index.ts` (forcing every consumer to use the explicit
+      `@usetheo/memory/embedders/{stub,openai,local}` subpath, which
+      matches the ADR D7 isolation intent), OR document the barrel as
+      "convenience surface that requires all optionalDependencies be
+      installed" in the barrel's JSDoc + ADR D7 rationale. Surface to
+      F-arch-1 in the architecture finding set if cross-validation
+      reviewer hasn't already flagged this.
+
+  - id: F-dom-5
+    severity: MINOR
+    file: src/embedders/local.ts
+    line: 59
+    plan_ref: "T1.1 § Deep Dives — lazy singleton pipeline (mirror OpenAIEmbedder pattern)"
+    domain_anchor: "Mem0-shape architecture — robust I/O fallbacks at every boundary; testing.md § Determinism — no flaky tests"
+    summary: |
+      The module-level `_pipelinePromise` lazy singleton holds a rejected
+      Promise on first-call failure. Subsequent callers will see the SAME
+      rejected promise indefinitely — there is no reset path. If the first
+      embed() call fails (e.g., transient network blip during the Xenova
+      model download from huggingface.co), every subsequent call within
+      the process produces the SAME rejection. This violates the Mem0-shape
+      "robust I/O fallback" architecture decision (architecture.md § 4)
+      where every boundary has a recovery path.
+    evidence: |
+      ```ts
+      // src/embedders/local.ts:59-65
+      let _pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
+      function getPipeline(): Promise<FeatureExtractionPipeline> {
+        if (_pipelinePromise === null) {
+          _pipelinePromise = pipeline('feature-extraction', MODEL_ID);
+        }
+        return _pipelinePromise;
+      }
+      ```
+      The `_pipelinePromise === null` check is true only on the FIRST call.
+      If `pipeline(...)` rejects (HF CDN 503, network reset mid-download,
+      corrupted local cache, etc.), `_pipelinePromise` is now a settled
+      rejected Promise. The next call still returns it (null check fails)
+      and propagates the same rejection. No retry path; process must be
+      restarted. The OpenAIEmbedder precedent at openai.ts:42-47 has the
+      same shape but Failure mode is fundamentally different — OpenAI's
+      lazy singleton holds a CLIENT instance (sync construction always
+      succeeds), and the embedding call itself is per-request with native
+      retries. Xenova's singleton holds an ASYNC artifact whose rejection
+      poisons the entire process lifetime.
+    recommended_action: |
+      On rejection, reset `_pipelinePromise = null` so the next caller can
+      retry. Pattern: `_pipelinePromise = pipeline(...).catch((err) => {
+      _pipelinePromise = null; throw err; });`. This matches the canonical
+      "reset on failure" idiom for module-level cached promises and is
+      consistent with the F-arch-3 per-row fallback pattern already used
+      in PgvectorStore.insert(). Add a 1-test RED case (mock pipeline()
+      to throw on first call, assert second call retries).
+
+  - id: F-dom-6
+    severity: INFO
+    file: src/local/index.ts
+    line: 666
+    plan_ref: "T1.1 — LocalTransformerEmbedder (no scope-tier scope changes)"
+    domain_anchor: "CLAUDE.md § Architectural Decisions Locked — Three tiers User/Session/Agent + RepoScope (ADR-0010); architecture.md § 1"
+    summary: |
+      Honest spot-check that no part of the cycle's diff touches the three-tier
+      scope model. LocalMemory.user/session/agent/skills return scoped facades
+      unchanged. `filtersFromScope` and `scopeToCounterTuple` are unchanged.
+      RepoScope passthrough at line 660-677 untouched. ADD-only invariant
+      preserved (no new `update()` method appears on Memory or ScopedMemory).
+      The cycle is correctly scoped to the embedder + storage-dim contract
+      and stays out of the scope / verb surfaces.
+    evidence: |
+      `git diff main..HEAD -- src/core/memory-store.ts src/core/scope.ts`
+      returns no changes. LocalMemory class shape unchanged at
+      src/local/index.ts:506-678 except for the JSDoc additions on the
+      eviction + adapters-or-local fields. Public verbs
+      remember/recall/forget/reflect unchanged. No new public method on
+      either Memory or ScopedMemory interfaces — confirms ADD-only contract.
+    recommended_action: |
+      No action required. Captured as INFO so the cross-validation reviewer
+      and the architecture reviewer can audit the boundary cleanly. Domain
+      contract is honored.
+
+  - id: F-dom-7
+    severity: INFO
+    file: src/core/retrieval/pipeline.ts
+    line: 142
+    plan_ref: "ADR D1 — LocalTransformerEmbedder dim is 384; recall pipeline must accept any dim"
+    domain_anchor: "CLAUDE.md § Mem0-shape architecture — additive scoring (NOT multiplicative Generative Agents at v0.4)"
+    summary: |
+      Verified that the 9-step retrieval pipeline + additive scoring formula
+      (`combined = (semantic + bm25 + entity_boost) / max_possible`) is
+      dim-agnostic — the retrieval pipeline computes cosine distance via
+      pgvector regardless of vector length, so 384-dim embeddings work
+      identically to 1536-dim once the schema is correctly migrated. No
+      multiplicative scoring (Generative Agents `recency × importance ×
+      relevance`) was introduced in this cycle. v0.4b TriadicScoringPolicy
+      (eviction) uses additive composition with a long-tail multiplier
+      guardrail, distinct from retrieval. The cycle does NOT cross-couple
+      the eviction multiplier into the retrieval additive formula.
+    evidence: |
+      `combineScores` at src/core/retrieval/pipeline.ts:142 unchanged in
+      this diff. Threshold gate at line 146 unchanged. The eviction
+      pipeline (`PgEvictor` + `TriadicScoringPolicy`) is wired separately
+      via `createLocalMemory({ eviction })` and its computation does NOT
+      enter the retrieval scorer.
+    recommended_action: |
+      No action required. Captured as INFO for the architecture
+      reviewer's cross-cycle integrity audit (v0.4b eviction + v0.7
+      distillation + adapters-or-local should compose without contract
+      drift on scoring shape).

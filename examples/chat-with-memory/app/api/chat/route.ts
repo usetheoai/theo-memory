@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAgent } from "@/lib/agent";
-import { rememberTurn } from "@/lib/theomemory-plugin";
+import { buildReplyWithMemoryContext, rememberTurn } from "@/lib/theomemory-plugin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,7 +63,30 @@ export async function POST(req: NextRequest) {
           }
         }
         const finalResult = await run.wait();
-        const reply = finalResult.result ?? assistantText;
+        let reply = finalResult.result ?? assistantText;
+        let usedFallback = false;
+
+        // E2E gap fix: when the TheoKit Agent run reports `status: "error"`
+        // (typical with a missing/invalid THEOKIT_API_KEY) AND no
+        // assistant text streamed, fall back to OpenAILLM. The fallback
+        // recalls user + session memories itself and asks the LLM
+        // directly — keeps the demo usable without a real TheoKit auth.
+        if (finalResult.status === "error" && reply === "") {
+          try {
+            reply = await buildReplyWithMemoryContext({ userId, sessionId, message });
+            usedFallback = true;
+            controller.enqueue(sseFrame("delta", { text: reply }));
+          } catch (fallbackErr) {
+            controller.enqueue(
+              sseFrame("error", {
+                message:
+                  fallbackErr instanceof Error
+                    ? `Fallback LLM call failed: ${fallbackErr.message}`
+                    : String(fallbackErr),
+              }),
+            );
+          }
+        }
 
         // Persist into BOTH User + Session scopes. Background reflect is
         // handled inside rememberTurn() when threshold crossed.
@@ -77,7 +100,7 @@ export async function POST(req: NextRequest) {
         controller.enqueue(
           sseFrame("done", {
             runId: finalResult.id,
-            status: finalResult.status,
+            status: usedFallback ? "ok-fallback" : finalResult.status,
             tokens: finalResult.durationMs,
             reflection: reflectionEvent,
           }),

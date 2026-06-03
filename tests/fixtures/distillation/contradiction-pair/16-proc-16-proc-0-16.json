@@ -1,0 +1,15 @@
+{
+  "id": "contradiction-pair-16-proc-0-16",
+  "category": "contradiction-pair",
+  "source": "procedural-seed",
+  "episodeText": "Update: project Halcyon launch postponed to Q1 of next year. (Previously: project Halcyon launches in Q4 — 500 enterprise pilots.)",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launch postponed to Q1 of next year"
+    }
+  ],
+  "expectedConflictPair": {
+    "kept": "project Halcyon launch postponed to Q1 of next year",
+    "rejected": "project Halcyon launches in Q4 — 500 enterprise pilots"
+  }
+}

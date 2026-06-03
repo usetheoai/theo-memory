@@ -44,3 +44,26 @@ modelcontextprotocol.io         # added for v0-3-agent-tools-mcp Q7 at 2026-05-2
 raw.githubusercontent.com       # added for voyager-skill-library Q2+Q3 at 2026-05-29 — raw file content (requirements.txt, package.json, source files) from public GitHub repos; subdomain of github.com but separate per allowlist subdomain rule
 api.github.com                   # added for voyager-skill-library Q3+Q6 at 2026-05-29 — structured repo listings via GitHub API; HTML tree pages do not WebFetch cleanly (per plan v1.1 EC-6 checkpoint)
 ar5iv.labs.arxiv.org             # added for voyager-skill-library Q4 at 2026-05-29 — arXiv HTML rendering fallback when PDF chunking misses algorithmic content (per plan v1.1 EC-5 checkpoint)
+
+# v0-7-episodic-semantic-distillation additions (per discovery plan v1.1 EC-2 absorption — 2026-06-01):
+
+aclanthology.org                 # added for v0-7-episodic-semantic-distillation Q7 at 2026-06-01 — ACL/NeurIPS/EMNLP proceedings (CoALA, MemoryBank academic anchors); canonical alternative to arxiv for venue-published papers
+martinfowler.com                 # added for v0-7-episodic-semantic-distillation Q7 at 2026-06-01 — Pipeline pattern canonical source + enterprise patterns reference cited in plan ADR D5 prior_art mandate
+blog.mem0.ai                     # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Mem0 vendor blog (subdomain of mem0.ai per allowlist subdomain rule); claims about episodic→semantic extraction
+www.letta.com                    # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Letta vendor blog (www subdomain of letta.com per allowlist subdomain rule); sleep-time agents narrative
+zep.ai                           # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Zep root domain; Graphiti temporal knowledge graph claims (competing approach to ours)
+cognee.ai                        # added for v0-7-episodic-semantic-distillation Q8 at 2026-06-01 — Cognee root domain; ontology-grounded extraction claims (competing approach)
+
+# v0-8-benchmark-methodology additions (per discovery plan v1.1 ADR D3 — 2026-06-02):
+# Note: mem0.ai, letta.com, aclanthology.org already in allowlist from prior cycles — not re-added.
+
+huggingface.co                   # added for v0-8-benchmark-methodology Q3+Q6+Q7 at 2026-06-02 — HF dataset cards (LongMemEval, LoCoMo, DMR fixtures + license detection per EC-1 absorption)
+paperswithcode.com               # added for v0-8-benchmark-methodology Q6+Q7+Q8 at 2026-06-02 — benchmark leaderboards (LongMemEval/LoCoMo/DMR reproductions + Rule 9 candidate lib comparisons)
+www.getzep.com                   # added for v0-8-benchmark-methodology Q7 at 2026-06-02 — Zep historical blog domain (separate root from zep.ai per allowlist subdomain rule); benchmark claims published here
+docs.langchain.com               # added for v0-8-benchmark-methodology Q4+Q8 at 2026-06-02 — LangChain LangSmith Evaluations docs (Q8 Rule 9 candidate #2); subdomain of langchain.com per allowlist subdomain rule
+python.langchain.com             # added for v0-8-benchmark-methodology Q4+Q8 at 2026-06-02 — LangChain official Python docs (Q8 Rule 9 candidate methodology); subdomain of langchain.com per allowlist subdomain rule
+developer.nvidia.com             # added for v0-8-benchmark-methodology Q8 at 2026-06-02 — NVIDIA NeMo Eval / NeMo Guardrails docs (Q8 candidate #6 — investigated only if budget allows per EC-2 cap)
+
+honcho.dev                       # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho root domain (theory-of-mind peer perspective claims, marketing); needed for Q5 prior_art on multi-peer attribution
+docs.honcho.dev                  # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho technical documentation subdomain (most likely location of the data-model spec); subdomain of honcho.dev per allowlist subdomain rule
+app.honcho.dev                   # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho application subdomain (may host live API docs / playground); subdomain of honcho.dev per allowlist subdomain rule

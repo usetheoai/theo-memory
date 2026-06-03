@@ -1,0 +1,461 @@
+agent: review-v0-8-independent-benchmark-reproduction-architecture
+review_target: 8784052..HEAD (b67035f) for plan v0-8-independent-benchmark-reproduction
+plan: .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md
+rules_consulted:
+  - .claude/rules/architecture.md (DIP boundaries, naming, module hygiene, public API surface)
+  - .claude/rules/no-paper-names-in-code.md (paper-name ban in src/ + tests; vendor names OK in adapter file/class names)
+  - .claude/rules/testing.md (pyramid, deterministic, AAA)
+summary:
+  files_in_scope: 99
+  files_reviewed_in_src: 23 (production .ts only, excluding __tests__)
+  blocker: 0
+  critical: 0
+  major: 3
+  minor: 5
+  info: 4
+  overall_verdict: NEEDS_FIXES_MAJOR
+
+findings:
+  - id: F-arch-1
+    severity: MAJOR
+    file: src/benchmarks/themory/adapter.ts
+    line: 35-37
+    plan_ref: Drift-T3.1-3 (deferred) + Drift-T4.1-1 (deferred)
+    summary: |
+      Tokenizer interface OWNED by the TheMemory vendor adapter file,
+      yet consumed by 5 unrelated modules — rule-of-three threshold
+      not just crossed but exceeded by 2x. Architectural coupling smell:
+      sibling vendor adapters (mem0/, zep/, letta/) and the runner subdir
+      (cost-tracker, tiktoken-tokenizer) all reach into src/benchmarks/themory/
+      to import a contract that has nothing to do with TheMemory.
+    evidence: |
+      grep -rn "from '../themory/adapter" src/benchmarks/ produces 5 hits:
+        src/benchmarks/mem0/adapter.ts:24
+        src/benchmarks/letta/adapter.ts:20
+        src/benchmarks/zep/adapter.ts:20
+        src/benchmarks/runner/cost-tracker.ts:33
+        src/benchmarks/runner/tiktoken-tokenizer.ts:18
+
+      ```ts
+      // src/benchmarks/themory/adapter.ts:35
+      export interface Tokenizer {
+        count(text: string): number;
+      }
+      ```
+
+      Plan Drift-T4.1-1 wrote "Cost-tracker is the 2nd consumer; promotion
+      to src/core/dip/ waits for a 3rd consumer (rule-of-three)." We are
+      now at 5 consumers and the contract still ships from the TheMemory
+      adapter's source file. mem0/zep/letta importing Tokenizer FROM the
+      direct competitor's adapter file is structurally absurd and would
+      surface as a vendor-isolation defect the moment one adapter's
+      dependencies (e.g., TheMemory's Memory import) needs to evolve.
+    recommended_action: |
+      Promote Tokenizer to src/core/dip/tokenizer.ts (11th DIP).
+      Move the interface declaration unchanged; update the 5 import sites
+      to point at the new location. This is a single-commit MOVE-only
+      refactor (no behavior change). Surface the promotion in
+      src/core/index.ts barrel. tests/__tests__/no-tokenizer-cross-vendor.test.ts
+      could regression-guard the future locus.
+    accept_with_caveat_ok: false
+    reason_for_severity: |
+      This is a real ISP violation that surfaces today: mem0/letta/zep adapters
+      structurally depend on themory/. The "rule-of-three" excuse in the
+      plan's Drift-T4.1-1 is no longer accurate (5 ≠ 3). Not BLOCKER because
+      the type works at compile time and there is no runtime defect; but it
+      is a MAJOR architectural debt that should be closed before the next
+      cycle widens consumers.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: benchmarks/scripts/run-longmemeval.ts, benchmarks/scripts/run-locomo.ts, benchmarks/scripts/run-dmr.ts
+    line: throughout (all 3 files)
+    plan_ref: T5.1 + T7.1 + T7.2 + Inquebrável Rule 12 (DRY rule-of-three)
+    summary: |
+      3 nearly-identical runner scripts duplicate OTel setup, StubAnswerLlm
+      class definition, buildSmokeJudgePanel(), main() scaffolding, and CLI
+      entry-point pattern. The trio (LongMemEval / LoCoMo / DMR) is the
+      canonical rule-of-three threshold; the third copy SHOULD have
+      triggered extraction.
+    evidence: |
+      wc -l on the three scripts: 176 + 163 + 151 = 490 LoC; 9 identical
+      import or symbol references per file (BasicTracerProvider,
+      InMemorySpanExporter, StubAnswerLlm, buildSmokeJudgePanel, etc).
+
+      Examples of structural duplication:
+      - All three define their own private `StubAnswerLlm implements LLM`
+        with identical generateResponse + generateChat semantics.
+      - All three define their own `buildSmokeJudgePanel()` returning a
+        canned "CORRECT" verdict.
+      - All three set up BasicTracerProvider + InMemorySpanExporter +
+        SimpleSpanProcessor identically.
+      - All three follow the same `main() + isMain` CLI scaffold.
+      - Cost-tracker, TiktokenTokenizer, BenchmarkRunner instantiation
+        is byte-identical except for the fixture loader call.
+
+      This violates Inquebrável Rule 12 (DRY rule-of-three) — three
+      instances of the same knowledge means time to extract.
+    recommended_action: |
+      Extract a `benchmarks/scripts/_runner-scaffold.ts` helper that
+      exposes `buildSmokeJudgePanel()`, `buildStubAnswerLlm()`, and
+      `buildRunner({fixturePath, resultsPath, modelId, corpusBuilder,
+      benchmarkName})`. Each per-benchmark script becomes 30-40 LoC of
+      benchmark-specific corpus-building + a single helper call. Saves
+      ~250 LoC of duplication and reduces the surface for the
+      "add a 4th benchmark" story to a single function call.
+    accept_with_caveat_ok: true
+    accept_with_caveat_reason: |
+      The duplication is contained inside benchmarks/scripts/ (not src/),
+      and the smoke runner story is shipping. Reasonable to absorb in a
+      follow-up DRY cycle. But should NOT ship more benchmarks (a 4th
+      runner) without first extracting.
+
+  - id: F-arch-3
+    severity: MAJOR
+    file: tests/integration/benchmarks/themory-adapter-pg.test.ts
+    line: 48
+    plan_ref: T3.1 integration coverage
+    summary: |
+      Integration test's reset() function uses `WHERE agent_id LIKE $1`
+      to clean state, but the adapter writes to `user_id` (the adapter
+      uses memory.user(scopedUserId).remember(), which maps to user_id
+      per architecture.md § 1 Three-tier scope). The DELETE matches
+      zero rows. Silent failure — the reset does nothing but the test
+      passes because only one `it()` block exists.
+    evidence: |
+      ```ts
+      // tests/integration/benchmarks/themory-adapter-pg.test.ts:48
+      async function reset(): Promise<void> {
+        await pool.query(`DELETE FROM memories WHERE agent_id LIKE $1`,
+                         [`${TEST_CONVERSATION}::%`]);
+      }
+      ```
+
+      Yet src/benchmarks/themory/adapter.ts:96:
+      ```ts
+      await this.memory.user(userId).remember(item.text, {...});
+      ```
+      `memory.user(userId)` maps to filters.user_id (architecture.md § 1
+      table; src/local/pgvector-store.ts:265 INSERT statement).
+
+      Run grep confirms:
+      grep "agent_id\|user_id" src/local/pgvector-store.ts:265
+        INSERT INTO memories (..., user_id, session_id, agent_id)
+    recommended_action: |
+      Change line 48 to `WHERE user_id LIKE $1`. Add a second `it()` block
+      (e.g., "isolates state across consecutive runs") that would actually
+      fail if reset() were a no-op. This is the kind of silent test-hygiene
+      defect the testing.md rule warns about ("Tests must be independent
+      between tests; reset between tests is mandatory").
+    accept_with_caveat_ok: false
+    reason_for_severity: |
+      Real test-isolation defect. Not BLOCKER because there is only one
+      it() today, but the moment a second test lands the state leaks
+      become a real flake.
+
+  - id: F-arch-4
+    severity: MINOR
+    file: src/benchmarks/fixtures/dmr-loader.ts
+    line: 2
+    plan_ref: no-paper-names-in-code.md rule, Drift-T7.2-1
+    summary: |
+      JSDoc prose in production-code file mentions "MemGPT-derived MSC
+      subset". MemGPT is on the banned paper-name list per
+      no-paper-names-in-code.md § The rule. (`@see` link to the snapshot
+      file is OK — filesystem coordinates are allowed.)
+    evidence: |
+      ```ts
+      // src/benchmarks/fixtures/dmr-loader.ts:2
+      /**
+       * DMR fixture loader (Deep Memory Retrieval, MemGPT-derived MSC subset).
+       *
+       ```
+
+      Per no-paper-names-in-code.md § The rule:
+        "Research-paper and marketing names — Voyager, Mem0, Letta, LangMem,
+         MemGPT, Generative Agents, CoALA, ProcMEM ... SHALL NOT appear in
+         src/** production code: JSDoc, inline comments..."
+
+      Cross-check: this is a NEW addition in v0.8 (verified via
+      git diff 8784052..HEAD; only v0.8 introduction matching MemGPT).
+    recommended_action: |
+      Rewrite to neutral: `DMR fixture loader (Deep Memory Retrieval —
+      QA pairs derived from a multi-session conversation corpus)`. Keep
+      the `@see` snapshot reference (filesystem coordinate is OK). The
+      paper origin lives in the snapshot and the plan/ADRs.
+    accept_with_caveat_ok: true
+    accept_with_caveat_reason: |
+      MINOR per no-paper-names-in-code.md § How to apply rule 1 — describe
+      behavior, not inspiration. Single line fix; would also fix the
+      "Zep" reference on the same line of the snapshot path but `@see`
+      filesystem coords are exempt by the rule.
+
+  - id: F-arch-5
+    severity: MINOR
+    file: src/benchmarks/runner/benchmark-runner.ts
+    line: 120
+    plan_ref: T4.1 + EC-2 (all-judges-fail policy)
+    summary: |
+      Domain class mutates the global `process.exitCode` from inside the
+      orchestration loop. This couples the benchmark runner to the Node
+      process host: any non-CLI consumer (test, library mode, future
+      hosted runner) inherits an exit-code side effect from a domain
+      method.
+    evidence: |
+      ```ts
+      // src/benchmarks/runner/benchmark-runner.ts:118-121
+      aborted = true;
+      abortReason = `all-judges-fail policy: ...`;
+      process.exitCode = 1;
+      break;
+      ```
+
+      The runner already returns the `RunReport` with `aborted: true`
+      + `abortReason` set. Callers can derive exit code from that. The
+      runner does not need to know it is running inside a CLI host.
+    recommended_action: |
+      Remove `process.exitCode = 1` from line 120. Move the exit-code
+      decision into the CLI entry-points (the `isMain` blocks at the
+      bottom of run-longmemeval.ts / run-locomo.ts / run-dmr.ts) which
+      can inspect `report.aborted` and call `process.exit(1)` themselves.
+      Honors SRP: the runner orchestrates; the script wrapper translates
+      the result into a host signal.
+    accept_with_caveat_ok: true
+
+  - id: F-arch-6
+    severity: MINOR
+    file: src/benchmarks/runner/benchmark-runner.ts
+    line: 35, 191-219
+    plan_ref: T4.1 + EC-9 (incremental persistence)
+    summary: |
+      The runner imports `writeFileSync` from 'node:fs' directly and
+      hardcodes JSON-file persistence. EC-9 absorption describes the
+      incremental-write contract, but the persistence sink is not
+      abstracted, so any future "stream results to a remote endpoint",
+      "tee to multiple destinations", or "test persistence inline" use
+      case has to mock `node:fs`.
+    evidence: |
+      ```ts
+      // src/benchmarks/runner/benchmark-runner.ts:35
+      import { writeFileSync } from 'node:fs';
+      // ...
+      // line 198
+      writeFileSync(this.config.resultsPath, JSON.stringify(payload, null, 2), 'utf8');
+      ```
+
+      No `ResultsSink` / `PersistencePort` injection point; the runner
+      knows about filesystem layout.
+    recommended_action: |
+      Optional refactor: introduce a `ResultsSink` interface with one
+      method `persist(payload: unknown, final: boolean): void`. Default
+      implementation writes JSON to the configured path; tests can inject
+      an in-memory sink. Not urgent (single consumer today, real-tree
+      writeFileSync is correct for v0.8 scope), but worth flagging as a
+      seam for future evolution.
+    accept_with_caveat_ok: true
+
+  - id: F-arch-7
+    severity: MINOR
+    file: src/benchmarks/runner/benchmark-runner.ts
+    line: 222-226
+    plan_ref: architecture.md § 9 Public API surface
+    summary: |
+      The runner module re-exports CostTracker, PricingTableMiss,
+      aggregate, PerQueryRecord, RunAggregate as a "caller convenience".
+      Architecture.md § 6 says "Module barrels: index.ts only when
+      there's a public surface to expose; avoid deep re-export chains."
+      benchmark-runner.ts is a class file, not a barrel, but it acts
+      as one — and these symbols are already importable directly from
+      their canonical source (cost-tracker.ts, result-aggregator.ts).
+    evidence: |
+      ```ts
+      // src/benchmarks/runner/benchmark-runner.ts:222-226
+      // Re-export for caller convenience
+      export { CostTracker } from './cost-tracker.js';
+      export { PricingTableMiss } from './pricing-table-miss.js';
+      export { aggregate } from './result-aggregator.js';
+      export type { PerQueryRecord, RunAggregate } from './result-aggregator.js';
+      ```
+    recommended_action: |
+      Either remove the re-exports (callers import from canonical
+      modules), OR create an explicit `src/benchmarks/runner/index.ts`
+      barrel and move the re-exports there. The current pattern blurs
+      the class-file/barrel distinction.
+    accept_with_caveat_ok: true
+
+  - id: F-arch-8
+    severity: MINOR
+    file: src/benchmarks/llm-judge/single-judge.ts
+    line: 36-51
+    plan_ref: T1.2 SingleJudge shape
+    summary: |
+      `extractRawString` opaquely probes the LLM result for `text`,
+      `content`, `raw` shapes, falling back to JSON.stringify. The
+      LLM DIP signature `generateResponse(...): Promise<unknown>` is
+      sufficiently open that this is unavoidable, but the helper grows
+      whenever a new LLM provider emerges with a different shape. It
+      would be cleaner if the LLM DIP returned a discriminated union
+      or a canonical envelope so single-judge does not have to guess.
+    evidence: |
+      ```ts
+      // src/benchmarks/llm-judge/single-judge.ts:36-51
+      function extractRawString(result: unknown): string {
+        if (typeof result === 'string') return result;
+        if (result !== null && typeof result === 'object') {
+          const obj = result as Record<string, unknown>;
+          if (typeof obj['text'] === 'string') return obj['text'];
+          if (typeof obj['content'] === 'string') return obj['content'];
+          if (typeof obj['raw'] === 'string') return obj['raw'];
+          ...
+        }
+      }
+      ```
+    recommended_action: |
+      Not urgent; the LLM DIP's `generateResponse(...): Promise<unknown>`
+      is intentionally open per existing precedent. Consider a follow-up
+      to canonicalize the JSON-mode response shape in the LLM DIP, then
+      simplify this helper. Document as a known seam in the JSDoc.
+    accept_with_caveat_ok: true
+
+  - id: F-arch-INFO-1
+    severity: INFO
+    file: src/core/dip/benchmark-adapter.ts
+    line: 1-133
+    plan_ref: T0.1 + ADR D5 + ADR D6 + ADR D1
+    summary: |
+      BenchmarkAdapter DIP is well-shaped. Honors ISP+SRP per ADR D6
+      (does NOT extend MemoryStore — benchmark concerns are not three-tier
+      remember/recall concerns). Honors DIP per ADR D5 (Protocol declared
+      in src/core/dip/; implementations live under src/benchmarks/{adapter}/;
+      no inverted import). `name` field readonly string per OCP — new
+      adapters extend the family without widening any union type.
+    evidence: |
+      grep -rn "from '../local\|from '../cloud" src/core/ produces 0 hits.
+      grep "from '../../benchmarks" src/core/ produces 0 hits.
+      DIP direction clean; no boundary-check violations.
+    recommended_action: None — clean.
+
+  - id: F-arch-INFO-2
+    severity: INFO
+    file: src/benchmarks/zep/adapter.ts, src/benchmarks/letta/adapter.ts, src/benchmarks/mem0/adapter.ts
+    line: throughout
+    plan_ref: T6.1 + T6.2 + T6.3 + Drift-T6.x-1
+    summary: |
+      The three vendor adapters apply VendorClient DIP pattern uniformly:
+      each declares a `{Vendor}VendorClient` interface that the adapter
+      consumes via constructor DI, deferring real SDK wiring to a
+      follow-up cycle. This honors OCP (new vendors land via new files,
+      not new switch/case branches) and isolates SDK CVE surface per
+      Drift-T6.x-1 plan rationale.
+
+      The three adapter implementations are themselves nearly identical
+      in shape (DRY rule-of-three border — see F-arch-2 trio of runner
+      scripts for analogous concern), but the duck-typed VendorClient
+      shape diverges intentionally (sessionId vs agentId vs userId
+      conventions per vendor), so a shared base class would be a
+      premature abstraction. Composition via interface is correct.
+    evidence: |
+      Compare src/benchmarks/{mem0,zep,letta}/adapter.ts — each class
+      ~85 LoC, structurally homologous but with `client.add(sessionId|
+      agentId|userId, text)` differing per vendor.
+    recommended_action: None — clean. The Drift-T6.x-1 deferral is
+      honest (documented in v0.8.md publication matrix).
+
+  - id: F-arch-INFO-3
+    severity: INFO
+    file: src/benchmarks/metrics/bleu.ts, src/benchmarks/metrics/f1.ts, src/benchmarks/metrics/exact-match.ts
+    line: throughout
+    plan_ref: T1.1 metric primitives + ADR D1 (own runner, ADOPT metric libs)
+    summary: |
+      Metric primitives use the "Não Reinvente a Roda" pattern correctly:
+      BLEU wraps `natural` (declared in optionalDependencies, lazy-loaded
+      via createRequire), F1 is a thin SQuAD-style token-set computation,
+      exactMatch is NFC-normalized. EC-7 boundary guard (empty-input → 0)
+      is at the wrapper exit, not inside the library — clean separation.
+    evidence: |
+      grep "optionalDependencies" package.json: `natural` listed.
+      bleu.ts:62-65: empty/whitespace boundary guard.
+      bleu.ts:33-51: lazy load via createRequire + cached probedAvailability.
+    recommended_action: None — clean.
+
+  - id: F-arch-INFO-4
+    severity: INFO
+    file: src/benchmarks/llm-judge/*.ts
+    line: throughout
+    plan_ref: T1.2 + ADR D3 v1.2 (NO @anthropic-ai/sdk)
+    summary: |
+      LLM-judge ensemble correctly routes everything through the LLM DIP
+      (src/core/dip/llm.ts) with OpenRouter as the multi-provider gateway
+      — no @anthropic-ai/sdk import anywhere in the diff. The regression
+      guard test (no-anthropic-sdk.test.ts) protects the invariant against
+      future regressions. Anti-Mem0 "be calibrated" prompt design (ADR D3)
+      is correctly applied.
+    evidence: |
+      grep "@anthropic-ai/sdk" src/ produces only the regression-guard
+      test (src/benchmarks/llm-judge/__tests__/no-anthropic-sdk.test.ts)
+      and JSDoc mentions of the policy in judge-panel.ts.
+      package.json dependencies: no @anthropic-ai/sdk entry.
+    recommended_action: None — ADR D3 v1.2 contract honored.
+
+notes:
+  drift_acceptability:
+    - Drift-T6.x-1 (vendor SDK wiring deferred to follow-up cycle):
+      DOCUMENTED in plan v1.2 + v0.8.md publication matrix +
+      JSDoc of each vendor adapter. Honest residual scope — NOT a
+      BLOCKER. The 4-adapter DIP shape is locked; SDK wiring becomes
+      a follow-up cycle that will add `Mem0OfficialClient`,
+      `ZepCloudClient`, `LettaRestClient` impls without altering the
+      `BenchmarkAdapter` Protocol or the `{Vendor}VendorClient`
+      interfaces.
+
+    - Drift-T4.1-1 (Tokenizer DIP stays inline): this is the basis for
+      F-arch-1 above. Plan rationale was "rule-of-three not reached";
+      that rationale is now stale at 5 consumers. Honest absorption
+      now would be: promote to src/core/dip/tokenizer.ts in the same
+      follow-up cycle as the vendor SDK wiring. Both touch
+      src/benchmarks/{mem0,zep,letta}/adapter.ts.
+
+    - Drift-T3.1-2 (metadata coerced at DIP exit via JSON.stringify
+      fallback for nested values): HONEST — the JSDoc explicitly
+      flags it as "honest, not silent drop". Acceptable per
+      Inquebrável Rule 3.
+
+  dip_boundary_check: PASS
+    - grep -rn "from '../local\|from '../cloud" src/core/ → 0 hits.
+    - grep -rn "from '../local\|from '../cloud" src/benchmarks/ → 0 hits
+      (production code; tests/integration/ correctly imports from
+      src/local for real-tree verification).
+    - src/agent-tools/ + src/theokit/ unaffected by v0.8 diff.
+
+  naming_hygiene: PASS
+    - All files kebab-case (`_string-coerce.ts` leading underscore
+      flags an internal helper — acceptable convention).
+    - All classes PascalCase (BenchmarkRunner, TheMemoryBenchmarkAdapter,
+      LlmJudgePanel, SingleJudge, etc.).
+    - All consts UPPER_SNAKE_CASE (DEFAULT_MODEL_ID, TOP_K, etc.).
+    - All functions camelCase (calculateBleuScore, extractJudgeJson, etc.).
+    - No `any` in production code (grep confirmed).
+    - No `console.log` in production paths (grep confirmed).
+    - ES modules throughout (`.js` extension on local imports per NodeNext).
+
+  test_pyramid: PASS
+    - Unit (many): src/benchmarks/**/__tests__/*.test.ts — fast contract tests.
+    - Integration (some): tests/integration/benchmarks/themory-adapter-pg.test.ts
+      — gated on THEOMEM_PG_URI per describe.skipIf precedent.
+    - E2E (few): tests/e2e/benchmarks/*.test.ts — smoke fixtures for
+      LongMemEval / LoCoMo / DMR + matrix-publication final goal test.
+    Test config: vitest.benchmark.config.ts narrows include glob + bumps
+    timeout to 60 min for full-run cells per EC-4.
+
+  consolidated_severity_distribution:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 3 (F-arch-1 Tokenizer DIP promotion; F-arch-2 runner script DRY;
+              F-arch-3 integration test reset WHERE clause column-name defect)
+    MINOR: 5 (F-arch-4 MemGPT paper-name in JSDoc;
+              F-arch-5 process.exitCode in domain class;
+              F-arch-6 unabstracted persistence sink;
+              F-arch-7 class-file re-exports;
+              F-arch-8 LLM unknown-shape extractRawString helper)
+    INFO: 4 (BenchmarkAdapter DIP shape;
+             VendorClient pattern; metric primitives; LLM-judge ADR D3 invariant)

@@ -35,6 +35,29 @@ export class EmbeddingMismatch extends Error {
   }
 }
 
+/**
+ * /review F-Mi4 — typed config-validation error for `embeddingDim`.
+ *
+ * Previously `validateEmbeddingDim` (src/local/index.ts) threw `InvalidScope`
+ * for dim errors at boot; this conflated Scope-level violations (empty
+ * scope key, wrong tier, EC-13 reset guard) with config-shape problems
+ * (NaN / float / negative / > MAX). The plan deferred naming; this class
+ * closes that deferral so callers can `instanceof InvalidEmbeddingDim`
+ * to distinguish boot-time config defects from runtime scope misuse.
+ */
+export class InvalidEmbeddingDim extends Error {
+  override readonly name = 'InvalidEmbeddingDim' as const;
+
+  /** @param received — the literal value passed in, included in the message verbatim for operator diagnosability. */
+  constructor(received: unknown, maxDim: number, options?: ErrorOptions) {
+    super(
+      `embeddingDim must be a positive integer ≤ ${String(maxDim)}; got ${String(received)}`,
+      options,
+    );
+    Object.setPrototypeOf(this, InvalidEmbeddingDim.prototype);
+  }
+}
+
 export class BiTemporalNotSupportedLocally extends Error {
   override readonly name = 'BiTemporalNotSupportedLocally' as const;
 

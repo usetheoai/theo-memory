@@ -1,0 +1,244 @@
+agent: review-v0-8-independent-benchmark-reproduction-domain-observability
+review_target: 8784052..HEAD (b67035f) for plan v0-8-independent-benchmark-reproduction
+domain: observability
+domain_specific_patterns_checked:
+  - "OTel tracer injection via DI (no setGlobalTracerProvider regression)"
+  - "Local BatchSpanProcessor/SimpleSpanProcessor + InMemorySpanExporter in tests"
+  - "Spans per question (add + search) with attributes"
+  - "Cost-tracker pricing-table.json + PricingTableMiss typed error (EC-3)"
+  - "SearchResult.modelUsed REQUIRED field (Drift-T5.1-1 anti-silent-$0)"
+  - "EC-11 zero-token handling (cost = 0)"
+  - "EC-13 stale pricing 30-day warning"
+  - "All-judges-fail policy (EC-2): 3-null → 60s pause → 1 retry → abort + exit code 1"
+  - "Partial results persisted incrementally (EC-9)"
+  - "TiktokenTokenizer wraps @dqbd/tiktoken cl100k_base, fallback path, free() lifecycle"
+  - "P95 latency tracking + correct algorithm"
+  - "No console.log in production paths (architecture.md § 7)"
+
+findings:
+  - id: F-dom-obs-1
+    severity: MAJOR
+    file: src/benchmarks/runner/benchmark-runner.ts
+    line: 120
+    plan_ref: ADR D1 + ADR D8 + plan v1.2 § T4.1 (orchestrator owns observability)
+    domain_anchor: architecture.md § 3 (DIP strict — library code never depends on global state); precedent of iter-7 setGlobalTracerProvider regression flagged in domain-observability.md pre-read
+    summary: |
+      Library code under src/benchmarks/runner/benchmark-runner.ts mutates the
+      Node.js global `process.exitCode = 1` inline (line 120). This is the same
+      family of defect as the iter-7 setGlobalTracerProvider regression the
+      domain-observability brief explicitly flagged: library code reaching into
+      runtime-global state instead of returning the signal through a typed
+      result. The smell is auditable in tests too — runner.test.ts:352 must
+      manually reset `process.exitCode = 0` to prevent cross-test contamination
+      ("Reset exitCode so it does not contaminate other test files"). When the
+      library leaks global state and the test suite acknowledges the leak by
+      cleaning up after it, the contract has drifted from "DI-clean observable
+      runner" to "DI-clean for OTel, global-mutation for exit code". The
+      RunReport already carries `aborted: boolean` + `abortReason?: string` —
+      the CLI caller (run-longmemeval.ts / run-locomo.ts / run-dmr.ts) is the
+      correct locus to translate report.aborted into process.exit. Today the
+      CLI .then() callback ignores report.aborted entirely (run-longmemeval.ts:168-171
+      only logs "aborted: <bool>", never exits non-zero), so the global mutation
+      in library code is the ONLY signal reaching CI — meaning the architectural
+      leak is also the only thing keeping CI honest. Fix: move exitCode mutation
+      to each CLI script's .then() block, conditioned on report.aborted.
+    evidence: |
+      ```ts
+      // src/benchmarks/runner/benchmark-runner.ts:117-122
+      if (retryRecord.judgeLabel === null) {
+        aborted = true;
+        abortReason = `all-judges-fail policy: ${String(consecutiveNullCount)} consecutive nulls + retry also null at Q${query.questionId}`;
+        process.exitCode = 1;  // <-- library mutates Node global
+        break;
+      }
+      ```
+      ```ts
+      // src/benchmarks/runner/__tests__/runner.test.ts:349-352
+      // exit code set to 1 for partial-result CI handling
+      expect(process.exitCode).toBe(1);
+      // Reset exitCode so it does not contaminate other test files
+      process.exitCode = 0;  // <-- test acknowledges the leak
+      ```
+      ```ts
+      // benchmarks/scripts/run-longmemeval.ts:167-175
+      main({ fixturePath, resultsPath })
+        .then((report) => {
+          console.log(`[run-longmemeval] aborted: ${String(report.aborted)}`);  // <-- never exits non-zero
+          console.log(`[run-longmemeval] questionCount: ${String(report.aggregate.questionCount)}`);
+        })
+        .catch((err: unknown) => { ... process.exit(1); });
+      ```
+    recommended_action: |
+      1. Remove `process.exitCode = 1` from src/benchmarks/runner/benchmark-runner.ts:120.
+      2. In each CLI script (benchmarks/scripts/run-{longmemeval,locomo,dmr}.ts),
+         after `.then((report) => {...})`, add:
+         ```ts
+         if (report.aborted) process.exit(1);
+         ```
+      3. Update the EC-2 abort test to assert `report.aborted === true` and
+         `report.abortReason` is non-empty WITHOUT touching `process.exitCode`
+         in the library-level test.
+      4. Optional: add a CLI-script-level test (under tests/integration/benchmarks/)
+         that asserts the run-longmemeval main script exits non-zero on
+         aborted runs.
+
+  - id: F-dom-obs-2
+    severity: MAJOR
+    file: src/benchmarks/runner/result-aggregator.ts
+    line: 13
+    plan_ref: ADR D8 (OTel spans owned by runner, P95 computed at aggregator)
+    domain_anchor: architecture.md § 8 (Error handling — surface honest signals); inquebrável Rule 3 (extreme honesty)
+    summary: |
+      JSDoc honesty drift between span instrumentation and P95 computation.
+      Two source files claim P95 latency comes from OTel span durations:
+        - result-aggregator.ts:13: "P95 latency is computed from OTel span
+          durations (D8 — spans + aggregator, not OTel histogram metric)"
+        - otel-instrumented.ts:6-7: "P95 latency is computed from span
+          end-start by the aggregator (NOT from an OTel histogram metric)"
+      But in actual code, the aggregator reads `records.map((r) => r.latencyMs)`
+      — `record.latencyMs` is sourced from `searchResult.latencyMs`, which is
+      adapter-self-reported wall-clock (themory/adapter.ts:133 captures
+      `performance.now() - start` BEFORE the runner's withSpan callback ends).
+      The OTel spans are emitted, the InMemorySpanExporter receives them in
+      tests — but their durations are never read for P95. Span end-start and
+      adapter-self-reported latency are NOT equivalent: the span wraps the
+      adapter call but it ALSO includes the runner's withSpan setup/teardown,
+      whereas the adapter measures only the inner work. The two diverge by
+      a small but observable margin. This is a methodological documentation
+      defect — readers building on top of the plan's matrix expect "P95 from
+      spans" and will write tests that assume span duration. The honest
+      statement is "P95 latency is computed from adapter-self-reported
+      latencyMs; spans are emitted for tracing/external collector consumption
+      but not aggregated".
+      Secondary observation: the span attribute set is missing two attributes
+      the agent brief listed as expected (latencyMs and modelUsed). Adding
+      them would let external OTel collectors (e.g., production telemetry
+      pipelines) build their own P95 from span durations without touching
+      the runner. This is OPTIONAL per ADR D8 but the JSDoc drift is the
+      load-bearing concern.
+    evidence: |
+      ```ts
+      // src/benchmarks/runner/result-aggregator.ts:11-14 (JSDoc)
+       * P95 latency is computed from OTel span durations (D8 — spans + aggregator,
+       * not OTel histogram metric).
+      ```
+      ```ts
+      // src/benchmarks/runner/result-aggregator.ts:61-62 (actual code)
+      const sortedLatency = [...records.map((r) => r.latencyMs)].sort((a, b) => a - b);
+      const p95LatencyMs = percentile(sortedLatency, 95);
+      ```
+      ```ts
+      // src/benchmarks/themory/adapter.ts:133 (where latencyMs originates)
+      latencyMs: performance.now() - start,
+      ```
+      ```ts
+      // src/benchmarks/runner/otel-instrumented.ts:30-33 (span attributes — note: NO latencyMs, NO modelUsed)
+      span.setAttribute('benchmark.adapter', attrs.adapter);
+      span.setAttribute('benchmark.method', attrs.method);
+      if (attrs.questionId !== undefined) {
+        span.setAttribute('benchmark.question_id', attrs.questionId);
+      }
+      ```
+    recommended_action: |
+      Pick ONE of:
+      (a) Update both JSDocs to reflect reality:
+          "P95 latency is computed from adapter-self-reported latencyMs.
+           OTel spans are emitted per add()/search() for external collector
+           consumption but their durations are not read by the aggregator."
+      (b) Switch the aggregator to read span durations (would require
+          capturing span end-start in withSpan and threading it through
+          to the PerQueryRecord — bigger refactor; only do this if the
+          plan ADR D8 truly intended span-derived P95).
+      Likely (a) is correct given current shipped behavior; this is a
+      docstring-only fix. Also strongly recommended: enrich the span
+      attribute set with `benchmark.latency_ms` (from withSpan timing) and
+      `benchmark.model_used` (passed through attrs) — these surface in
+      OTel exporters and close the methodological gap for downstream
+      consumers without changing the aggregator contract.
+
+  - id: F-dom-obs-3
+    severity: MINOR
+    file: src/benchmarks/runner/tiktoken-tokenizer.ts
+    line: 1
+    plan_ref: plan v1.2 § T5.1 + ADR D7 + Drift-T5.1-3
+    domain_anchor: testing.md § Pyramid (Unit — pure functions, deterministic, < 50ms); testing.md "What to test — by area"
+    summary: |
+      TiktokenTokenizer has zero direct unit tests. The class has three
+      paths worth exercising:
+        - constructor with valid modelName → encoding_for_model success
+        - constructor with unknown modelName → fallback to get_encoding('cl100k_base')
+        - constructor with undefined → default to cl100k_base
+        - count('') → returns 0 (early-return optimization)
+        - count('non-empty') → delegates to enc.encode
+        - free() → calls enc.free() (memory-leak prevention per testing pyramid hygiene)
+      The class is used as a singleton in 3 CLI scripts and as DI input to
+      the TheMemory adapter, but only exercised transitively. A regression
+      in the fallback path (e.g., a model name that throws a different
+      Error class than expected, or @dqbd/tiktoken changing its signature)
+      would surface as an obscure crash in a CLI script rather than a
+      named test failure. Domain hygiene says: the only file in src/
+      without a sibling test is a smell.
+    evidence: |
+      No file matches src/**/tiktoken*test*.ts or tests/**/tiktoken*test*.ts:
+      ```bash
+      $ find . -path "*__tests__*tiktoken*" -o -name "tiktoken*test*"
+      (empty)
+      ```
+      Consumers:
+      - benchmarks/scripts/run-longmemeval.ts:126: `new TiktokenTokenizer()`
+      - benchmarks/scripts/run-locomo.ts:116: `new TiktokenTokenizer()`
+      - benchmarks/scripts/run-dmr.ts:105: `new TiktokenTokenizer()`
+    recommended_action: |
+      Add src/benchmarks/runner/__tests__/tiktoken-tokenizer.test.ts with
+      4 BDD tests:
+      1. "counts zero for empty string without invoking encoder"
+      2. "delegates to cl100k_base when no model name provided"
+      3. "delegates to encoding_for_model when known model provided"
+      4. "falls back to cl100k_base when encoding_for_model throws"
+      5. "releases encoder on free() (idempotent)"
+      Cost: ~30 lines test. Catches regressions in the silent fallback path.
+
+  - id: F-dom-obs-4
+    severity: MINOR
+    file: benchmarks/scripts/run-longmemeval.ts
+    line: 152
+    plan_ref: plan v1.2 § T5.1 — TiktokenTokenizer.free() memory leak prevention
+    domain_anchor: architecture.md § 8 (Error handling — exceptions never silently swallowed; resources released on failure path)
+    summary: |
+      TiktokenTokenizer.free() is invoked in all 3 CLI scripts (run-longmemeval.ts:153,
+      run-locomo.ts:143, run-dmr.ts:132) AFTER `await runner.run(corpus, queries)`
+      with no try/finally guard. If runner.run() throws (e.g., adapter throws,
+      judge panel throws an unexpected non-PricingTableMiss error, or the
+      EC-9 fs.writeFileSync fails on a permission-denied path), the WASM
+      encoder allocated by @dqbd/tiktoken is never freed. Per the
+      tiktoken-tokenizer.ts JSDoc that explicitly mentions "memory leak
+      prevention", releasing the encoder via .free() IS the contract — but
+      the contract is unguarded against the happy path.
+      Note: process exit will reclaim the WASM allocation eventually, so
+      this is not a production-blocking leak — but for long-running CI
+      benchmark suites that may invoke multiple runners in sequence (or
+      under integration tests that import main() and don't terminate the
+      process between runs), the accumulation is real.
+    evidence: |
+      ```ts
+      // benchmarks/scripts/run-longmemeval.ts:144-154 (no try/finally)
+      const runner = new BenchmarkRunner({...});
+      const report = await runner.run(corpus, queries);  // <-- may throw
+      tokenizer.free();                                  // <-- skipped on throw
+      return report;
+      ```
+      Same shape in run-locomo.ts:134-145 and run-dmr.ts.
+    recommended_action: |
+      Wrap the runner.run() call in try/finally in each of the 3 CLI scripts:
+      ```ts
+      const tokenizer = new TiktokenTokenizer();
+      try {
+        // ... build adapter, judgePanel, costTracker, runner
+        const report = await runner.run(corpus, queries);
+        return report;
+      } finally {
+        tokenizer.free();
+      }
+      ```
+      Cost: 3 small refactors. Closes the lifecycle contract honored only
+      on happy path today.

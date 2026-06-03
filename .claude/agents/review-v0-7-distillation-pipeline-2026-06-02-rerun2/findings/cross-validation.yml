@@ -1,0 +1,316 @@
+agent: review-v0-7-distillation-pipeline-cross-validation
+review_target: main..HEAD for plan v0-7-distillation-pipeline (re-run #3 after fix-up #2 commit f68727d)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+plan_version_at_review: v1.2 (2026-06-02)
+review_run: 3 of 3 (post fix-up cycle #2)
+prior_run_verdict: READY_TO_MERGE_WITH_CAVEATS (re-run #2, 2 MAJOR honesty gaps surfaced)
+expected_verdict: READY_TO_MERGE (clean)
+
+plan_tasks_summary:
+  total_tasks: 9
+  task_ids:
+    - T0.1 — Migration 0007_distillation_columns.sql (commit bab7a02)
+    - T1.1 — ConflictResolutionPolicy DIP (commit 77f3be4)
+    - T1.2 — Noop + LastWriteWins policies (commit 92334e0)
+    - T1.3 — LlmJudgedMergeConflictPolicy (commit 6b5ca31)
+    - T2.1 — Wire into reflect() (commit 8b4e4d1; locus shifted to src/local/index.ts per ADR D1 v1.2 amendment)
+    - T3.1 — Gold-set 200 fixtures (commit 8756fd2)
+    - T3.2 — Eval script + matrix (commit b4fc509)
+    - T3.3 — THE GOAL TEST harness (commit f7262ed; LLM-measured follow-up a15d9eb closes ADR-EC-B)
+    - T4.1 — Validation gate + CHANGELOG + push (commit 7dc06f9)
+  fully_implemented: 9
+  partial: 0
+  missing: 0
+  diverged: 1   # T2.1 wiring locus (src/local/index.ts:373-417 instead of src/core/reflection/execute.ts) — DOCUMENTED divergence in ADR D1 v1.2 amendment block (no longer silent)
+
+acceptance_criteria_summary:
+  total: 9   # one per plan task
+  satisfied: 9
+  unverified: 0
+  false_claims: 0
+  note: |
+    Re-run #2 surfaced 2 MAJOR honesty gaps:
+      - F-xval-rerun-3: F-M9 outer reflect() atomicity dismissed too vaguely
+        ("acknowledged" — no rationale, no recovery procedure)
+      - F-xval-rerun-4: ADR D1 left body technically inaccurate after T2.1 wiring
+        locus shift to src/local/index.ts:373-417
+    Fix-up #2 (commit f68727d) closes BOTH:
+      - ADR D7 added (lines 191-213) with 4-step SQL recovery procedure + 3 rejected
+        alternatives (XA, two-phase commit, compensating undo) + v0.7.2 OTel
+        counter follow-up tag
+      - ADR D1 v1.2 amendment block added (line 84) explaining the
+        runtime-layer-vs-logic-layer locus shift + tags deferred refactor (v0.7.2 / v0.8)
+
+adr_compliance:
+  total_adrs: 7   # D1-D6 + new D7 added by fix-up #2
+  respected: 7
+  diverged_without_new_adr: 0
+  note: |
+    All 7 ADRs respected by implementation. ADR D7 added in v1.2 to explicitly
+    document the partial-commit window between persistConsolidations() COMMIT and
+    executeReflection() LLM call. The implementation matches the ADR exactly:
+    persistConsolidations() is internally atomic via withTransaction (EC-8
+    absorbed at src/local/index.ts), outer flow at lines 384-413 of
+    src/local/index.ts is NOT wrapped in a single transaction (LLM call at line
+    409 may take 5-30s — would starve connection pool).
+
+plan_drift:
+  plan_edited_after_implement: true
+  details: |
+    Plan v1.2 was deliberately edited POST-implement to absorb /review findings
+    (consistent with the project's documented v1.0 → v1.1 → v1.2 amendment
+    cadence). Fix-up #2 commit f68727d adds 28 lines to the plan file (ADR D7 +
+    ADR D1 amendment block + math correction).
+
+    Plan-drift is NOT a contract violation here because:
+    (a) Each amendment is explicitly labeled "v1.X amendment (closes /review
+        re-run F-xval-rerun-N)" with traceable provenance.
+    (b) The Inquebrável "plan must be frozen since /implement start" rule is
+        about silent edits during /implement halt-loop. /review fix-up cycles
+        amending the plan to ABSORB review findings is the documented pattern
+        (precedent: v0.4b-fixes-cycle, adapters-or-local cycle).
+    (c) The plan diff in fix-up #2 is doc-only (ADRs + header). No task or
+        Acceptance Criteria was retroactively weakened.
+
+# Re-run #3 verification of the 3 fix-up #2 amendments
+fixup_2_verification:
+  - id: V-1
+    target: F-xval-rerun-3 (MAJOR — outer reflect() atomicity)
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    line: 191-213
+    expected: ADR D7 added with explicit rationale + SQL recovery procedure + 3 rejected alternatives + v0.7.2 follow-up tag
+    actual: |
+      ADR D7 found at line 191 "D7 — Outer reflect() flow atomicity is
+      INTENTIONALLY narrower than persistConsolidations atomicity".
+      Contains:
+        - Explicit Decision section (line 193): why NOT atomic
+        - "Why NOT atomic" bullets (a)/(b)/(c) — connection-pool starvation,
+          decision-audit semantics, Mem0 V3 precedent at mem0/memory/main.py:842-880
+        - "Recovery procedure" 4-step operator runbook (line 200-206) including
+          the orphan-detection SQL query
+        - "Alternatives rejected" — (A) full XA, (B) two-phase commit, (C)
+          compensating undo, each with rationale
+        - "Consequences" — v0.7.2 OTel counter
+          distillation.consolidation.orphaned_after_llm_failure follow-up tagged
+      Implementation at src/local/index.ts:384-413 matches: persistConsolidations
+      at line 404 commits BEFORE executeReflection at line 409; no outer
+      withTransaction wrapper. F-C1 maxRejectionRatio=0.95 guard bounds the
+      blast radius (per ADR D7 line 206).
+    status: CLOSED
+
+  - id: V-2
+    target: F-xval-rerun-4 (MAJOR — ADR D1 body technically incorrect)
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    line: 84
+    expected: v1.2 amendment block under ### D1 heading explaining wiring locus shift to src/local/index.ts:373-417
+    actual: |
+      Amendment block found at line 84 (immediately under "### D1 — Adopt Mem0's
+      8-phase pipeline SHAPE; reject Letta's sleeptime tool-call agent" heading).
+      Block content:
+        "v1.2 amendment (closes /review re-run F-xval-rerun-4): the
+        'logic-layer extension' wording in § Consequences below is **technically
+        inaccurate** for the shipped code. Plan T2.1 originally declared the
+        wiring locus at `src/core/reflection/execute.ts` (logic layer per
+        `architecture.md § 3` DIP — `src/core/` is contract + pure logic, no
+        I/O). The shipped wiring lives at `src/local/index.ts:373-417`
+        (runtime layer per the same § 3 — `src/local/` is the Postgres+pgvector
+        adapter that implements core contracts). The decision to wire at the
+        runtime layer is honest divergence, accepted per the v1.2 header
+        amendment + /review F-M6. The Mem0-shape decision itself is preserved;
+        the LOCUS shifted. A future 'wiring locus migration' refactor cycle
+        could pull the conflict-resolution wiring back into
+        `src/core/reflection/execute.ts` to honor the original ADR D1 intent —
+        deferred to v0.7.2 or v0.8."
+      I verified the implementation: src/local/index.ts line 373 starts the
+      try block holding T2.1 conflict-resolution code; line 384 enters the
+      conflictPolicy guard; line 404 calls persistConsolidations; line 413
+      closes the reflect call. Mirrors F-arch-R3 fix from adapters-or-local
+      cycle precedent.
+    status: CLOSED
+
+  - id: V-3
+    target: F-xval-rerun-5 (MINOR — plan v1.2 header math)
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    line: 3
+    expected: |
+      Header math reads "11 MAJOR (9 deferred-with-rationale: F-M1/M2/M3/M4/M6/
+      M8/M9/M10/M11 + 2 closed: F-M5 + F-M7) / 12 MINOR (1 closed: F-Mi2)"
+    actual: |
+      Header at line 3 contains the EXACT corrected math string:
+        "11 MAJOR (9 deferred-with-rationale: F-M1/M2/M3/M4/M6/M8/M9/M10/M11 +
+        2 closed: F-M5 + F-M7) / 12 MINOR (1 closed: F-Mi2) / clean INFO
+        baseline"
+      Plus the parenthetical:
+        "(Math correction post /review re-run F-xval-rerun-5: counts each
+        finding individually, not as grouped pairs. F-M9 now upgraded with ADR
+        D7 recovery procedure per re-run F-xval-rerun-3.)"
+    status: CLOSED
+
+# Additional fix-up #2 collateral closures (already noted in prior re-run, sanity-checked)
+fixup_2_collateral_verification:
+  - id: V-4
+    target: F-Mi12 (MINOR — db-repair-v0-7 script not in npm scripts)
+    file: package.json
+    line: 79
+    actual: |
+      Line 79 contains:
+        "db:repair-v0-7-partial-state": "node scripts/db-repair-v0-7-partial-state.mjs"
+      Mirrors the v0.4b precedent at line 78
+        ("db:repair-v0-4b-partial-state").
+    status: CLOSED
+
+  - id: V-5
+    target: F-wire-3 (MINOR — stale "// line 317" comment in src/local/index.ts)
+    file: src/local/index.ts
+    line: 375
+    actual: |
+      Line 375 reads:
+        "// EC-7 absorbed: empty scope already short-circuited at line 354
+         ('EC-5: empty-source short-circuit'); here we additionally guard on
+         sourceMemories.length < 2 (nothing to consolidate with a singleton)."
+      I verified the cross-reference: line 354 of src/local/index.ts contains
+        "// EC-5: empty-source short-circuit"
+      Reference is now ACCURATE (was previously stale "line 317" pointing at
+      out-of-date code position).
+    status: CLOSED
+
+  - id: V-6
+    target: F-tests-rerun-1 + F-tests-rerun-2 (MINOR — skill-isolation test refinements)
+    file: tests/integration/distillation/skill-isolation.test.ts
+    line: 149-190
+    actual: |
+      F-tests-rerun-1: Test at line 149 renamed from "subsequent reflect()" to
+        "derived rows (kind=derived) are NOT re-consolidated when reflect() runs
+        over a cluster with extracted siblings". Body invokes reflect() ONCE
+        (line 166-168) consistent with new name.
+      F-tests-rerun-2: `void extractedOlderId/Newer;` discards REPLACED with
+        actual t_invalid assertions:
+          - line 178-182: assert olderRows[0]?.t_invalid is NOT null (rejected)
+          - line 183-187: assert newerRows[0]?.t_invalid is null (kept)
+      Test now exercises 4 assertions (derived survives + older rejected + newer
+      kept + 2 implicit via .rows.length).
+    status: CLOSED
+
+findings:
+  # No NEW findings. All previously-flagged MAJOR honesty gaps are CLOSED
+  # by fix-up #2. The 5 deferred-acceptable MINOR findings (F-wire-rerun-1,
+  # F-arch-rr-NEW-1, F-arch-rr-NEW-2, F-dom-mem-rerun-4, F-dom-mem-rerun-5)
+  # remain per plan v1.2's documented deferral rationale family.
+  #
+  # Per the override instructions, I do NOT re-raise:
+  #   - F-xval-rerun-1 (line numbers off-by-1; line-number-only deferred-acceptable)
+  #   - F-xval-rerun-2 (audit trail rotation of older artifacts; out of v0.7 scope)
+  - id: F-xval-rerun-3
+    severity: INFO
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: ADR D7 (lines 191-213) — new in fix-up #2 (commit f68727d)
+    summary: CLOSED — F-M9 dismissal upgraded from "acknowledged" to explicit ADR with rationale, SQL recovery procedure, 3 rejected alternatives, and v0.7.2 follow-up tag
+    evidence: |
+      Plan v1.2 now contains ADR D7 (28 lines) covering:
+        - WHY outer reflect() atomicity is intentionally narrower than
+          persistConsolidations atomicity (connection-pool starvation + Mem0 V3
+          precedent + consolidation_history audit-semantic independence)
+        - 4-step SQL operator runbook for orphan consolidation_history rows
+          including the orphan-detection SQL query and 2 recovery paths (re-invoke
+          reflect() OR manual UPDATE memories SET t_invalid = NULL)
+        - 3 rejected alternatives (full-XA, two-phase commit, compensating undo)
+          each with specific rationale
+        - v0.7.2 follow-up tagged for auto-detection OTel counter
+          distillation.consolidation.orphaned_after_llm_failure
+      F-C1 maxRejectionRatio=0.95 guard (already shipped commit 17425af) bounds
+      the blast radius, also referenced in ADR D7 line 206.
+    recommended_action: None — fix-up #2 closed this finding correctly.
+
+  - id: F-xval-rerun-4
+    severity: INFO
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: ADR D1 v1.2 amendment block (line 84) — new in fix-up #2 (commit f68727d)
+    summary: CLOSED — ADR D1 body technically inaccurate wording now flagged with explicit amendment block + locus correction + deferred-refactor tag
+    evidence: |
+      ADR D1 v1.2 amendment block at line 84 documents the wiring locus shift
+      from the originally-declared `src/core/reflection/execute.ts` (logic layer)
+      to the actually-shipped `src/local/index.ts:373-417` (runtime layer).
+
+      I verified the actual code locus by reading src/local/index.ts lines
+      340-430. The T2.1 wiring lives at:
+        - line 373: try block opens
+        - line 374-382: comment block referencing T2.1 + EC-7 + EC-8 absorptions
+        - line 384: `if (conflictPolicy !== undefined && sourceMemories.length >= 2)`
+        - line 396: `recallConsolidationCandidates(this.filters)` (F-C2 kind filter applied)
+        - line 399: `conflictPolicy.consolidate(candidates, ctx)` (DIP call)
+        - line 404: `persistConsolidations(consolidationResults)` (atomic per EC-8)
+        - line 409: `executeReflection(...)` (LLM call — the partial-commit point per ADR D7)
+        - line 413: close of try block
+
+      Future maintainer reading ADR D1 in isolation will now see the explicit
+      "technically inaccurate" flag pointing to the v1.2 amendment header and
+      F-M6 deferral rationale.
+    recommended_action: None — fix-up #2 closed this finding correctly. Defer
+      "wiring locus migration" refactor to v0.7.2 or v0.8 per ADR D1 amendment
+      tag (already declared).
+
+  - id: F-xval-rerun-5
+    severity: INFO
+    file: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md
+    plan_ref: header line 3 — math correction shipped in fix-up #2 (commit f68727d)
+    summary: CLOSED — header math now correctly counts findings individually (not as grouped pairs)
+    evidence: |
+      Header line 3 ends with:
+        "0 BLOCKER / 0 CRITICAL / 11 MAJOR (9 deferred-with-rationale:
+        F-M1/M2/M3/M4/M6/M8/M9/M10/M11 + 2 closed: F-M5 + F-M7) / 12 MINOR
+        (1 closed: F-Mi2) / clean INFO baseline"
+
+      Inventory cross-check:
+        9 deferred MAJOR: F-M1, F-M2, F-M3, F-M4, F-M6, F-M8, F-M9, F-M10, F-M11
+          = 9 ✓
+        2 closed MAJOR: F-M5, F-M7 = 2 ✓
+        Total MAJOR: 9 + 2 = 11 ✓
+        12 MINOR / 1 closed (F-Mi2) ✓
+      Math is now correct.
+    recommended_action: None — fix-up #2 closed this finding correctly.
+
+# Cross-validation discipline notes for this re-run
+verification_methodology:
+  - Read entire plan v1.2 (586 lines) — ADRs D1-D7, Coverage Matrix, all 9 tasks
+  - Read fix-up #2 commit f68727d in full (28 line plan diff + 7 lines src/local/index.ts + 1 line package.json + 19 lines skill-isolation test)
+  - Cross-referenced ADR D7 SQL recovery procedure against src/local/index.ts:340-430 (outer flow at lines 384-413; LLM call at 409 confirms partial-commit point)
+  - Cross-referenced ADR D1 amendment statement against src/local/index.ts:373-417 (wiring locus exactly as documented)
+  - Verified math header (line 3) finding inventory matches the 11 MAJOR / 12 MINOR claim
+  - Verified package.json line 79 has db:repair-v0-7-partial-state script
+  - Verified src/local/index.ts line 375 references "EC-5: empty-source short-circuit at line 354" (which exists at line 354 verbatim)
+  - Verified skill-isolation.test.ts:149 test name renamed correctly and lines 178-187 contain actual t_invalid assertions (not void discards)
+  - Confirmed all 9 plan tasks (T0.1-T4.1) have explicit task ID in commit message and the commits land on the branch
+
+# Final cross-validation verdict
+cross_validation_verdict:
+  status: PASS_CLEAN
+  blocker_count: 0
+  critical_count: 0
+  major_count: 0
+  minor_count: 0   # 5 deferred-acceptable MINORs per plan v1.2 deferral rationale remain noted but NOT re-flagged
+  info_count: 3    # 3 prior-run findings now CLOSED (logged as INFO for audit trail)
+  recommendation: READY_TO_MERGE
+  rationale: |
+    Re-run #3 confirms fix-up #2 (commit f68727d) closes BOTH MAJOR honesty
+    gaps surfaced in re-run #2:
+      - F-xval-rerun-3 (F-M9 outer atomicity): ADR D7 added with full rationale +
+        SQL runbook + rejected alternatives + v0.7.2 follow-up tag. Now meets
+        the project's documented-divergence-with-recovery bar (precedent:
+        adapters-or-local F-arch-R13 closure pattern).
+      - F-xval-rerun-4 (ADR D1 wording): v1.2 amendment block added at line 84
+        with explicit "technically inaccurate" flag + locus correction +
+        deferred-refactor tag. Future maintainer reading ADR D1 in isolation
+        sees the divergence immediately.
+      - F-xval-rerun-5 (math): corrected to count findings individually (11
+        MAJOR / 12 MINOR, with explicit closure breakdown).
+    Collateral fix-up #2 closures verified: F-Mi12 (package.json line 79),
+    F-wire-3 (src/local/index.ts:375 cross-ref), F-tests-rerun-1/2
+    (skill-isolation.test.ts:149/178-187).
+    No NEW cross-validation divergences introduced by fix-up #2. The 5
+    deferred-acceptable MINOR findings (F-wire-rerun-1, F-arch-rr-NEW-1,
+    F-arch-rr-NEW-2, F-dom-mem-rerun-4, F-dom-mem-rerun-5) remain per plan
+    v1.2's documented deferral rationale family — none are
+    cross-validation-actionable.
+    Plan v1.2 is internally consistent: ADR D7 ↔ implementation src/local/
+    index.ts:373-417 ↔ math header line 3 ↔ ADR D1 amendment block ↔ F-C1
+    maxRejectionRatio guard ↔ persistConsolidations atomic-tx (EC-8).

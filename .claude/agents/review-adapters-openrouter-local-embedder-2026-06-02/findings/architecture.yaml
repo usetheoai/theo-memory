@@ -1,0 +1,329 @@
+agent: review-adapters-openrouter-local-embedder-architecture
+review_target: main..HEAD for plan adapters-openrouter-local-embedder
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+scope:
+  cycle_commits:
+    - b3d0968 chore(plan): land cycle-plan chain artifacts
+    - e36faea feat(core): parametric embeddingDim via LocalMemoryConfig (T0.1)
+    - 804f2fa feat(local): PgvectorStore({ embeddingDim? }) constructor option (T0.2)
+    - e68a38a feat(local): runMigrations parametric embeddingDim (T0.3)
+    - 6693ea4 chore(allowlist): allowlist 8 protobufjs CVEs (T1.1 deps-audit recovery)
+    - c488734 feat(embedders): LocalTransformerEmbedder via @xenova/transformers (T1.1)
+    - 8acdf8b feat: subpath export @usetheo/memory/embedders/local (T1.2)
+    - c5425ec feat(examples): local-openrouter backend + THEOMEM_DEMO_BACKEND (T2.1)
+    - 94e43a5 feat(examples): /api/info exposes adapterSource + embedderDim (T2.2)
+    - 22314e8 docs: README backend modes + CHANGELOG (T3.1)
+    - f7f822e test(integration): chat-with-memory local-openrouter HTTP surface (T4.1)
+    - ad1432f chore(audit): land /implement cycle audit artifacts
+  changed_production_files:
+    - src/embedders/local.ts (NEW, ~93 LoC)
+    - src/embedders/index.ts (re-export added)
+    - src/local/index.ts (LocalMemoryConfig.embeddingDim + probeEmbedder + validateEmbeddingDim + applyDimChange + runMigrations options)
+    - src/local/pgvector-store.ts (constructor 2nd arg widened to options object; search guard reads this.embeddingDim)
+    - examples/chat-with-memory/lib/memory.ts (resolveBackendMode + 3-way resolveAdapters + embedderDim singleton field + dim propagation)
+    - examples/chat-with-memory/app/api/info/route.ts (response shape extended)
+    - examples/chat-with-memory/components/memory-sidebar.tsx (renders new fields)
+    - package.json (NEW optionalDependency @xenova/transformers + subpath ./embedders/local)
+findings:
+  - id: F-arch-1
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 146-149
+    plan_ref: T0.2 (ADR D2 / Sub-goal 2) + plan §178 "REJECT changing MAX_EMBEDDING_DIM"
+    summary: PgvectorStore constructor signature changed in a SOURCE-BREAKING way (positional `tracer?: Tracer` 2nd arg → options object `{ embeddingDim?, tracer? }`); JSDoc claims "backward-compat preserved" but compat applies only to consumers using `new PgvectorStore(pool)` with NO 2nd arg.
+    evidence: |
+      Before:
+        constructor(private readonly pool: Pool, private readonly tracer?: Tracer)
+      After (b3d0968..ad1432f / iter-2):
+        constructor(
+          private readonly pool: Pool,
+          options?: { readonly embeddingDim?: number; readonly tracer?: Tracer },
+        )
+      Any external consumer (post-1.0 release this lib is positioned to ship)
+      passing the tracer positionally — `new PgvectorStore(pool, tracerInstance)` —
+      breaks silently at runtime: `tracerInstance` is now interpreted as an
+      options object, `options?.embeddingDim` is undefined (OK), but
+      `options?.tracer` is also undefined (the WHOLE tracer becomes invisible).
+      The internal sweep ("ZERO callers use the positional-tracer form anywhere
+      in the SDK + tests + examples") only covers the in-tree audit; this is a
+      PUBLIC API surface (`PgvectorStore` is re-exported via `src/local/index.ts`
+      barrel at line 80). At minimum the plan should have flagged this as a
+      `BREAKING` CHANGELOG entry (it does not — only the `forget()` BREAKING
+      from v0.4b-fixes is mentioned). The Inquebrável Rule 6 changelog discipline
+      requires this be surfaced under `Changed/BREAKING`.
+    recommended_action: |
+      Either (a) add a `BREAKING` entry under CHANGELOG `[Unreleased]` §
+      Changed naming the signature change AND document the migration recipe
+      (`new PgvectorStore(pool, tracer)` → `new PgvectorStore(pool, { tracer })`);
+      OR (b) accept BOTH shapes via runtime discrimination
+      (`if (options is Tracer-like) → treat as tracer; else → options object`).
+      Option (a) is honest given pre-release status (CLAUDE.md § "Pre-release is
+      honest"); option (b) is non-Inquebrável (silent magic) but preserves source-
+      level compat. Pick (a).
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 886-887
+    plan_ref: T0.3 Deep Dive "ALTER COLUMN incompatibility" §400 + plan §117-119 (ALTER ... USING NULL)
+    summary: Implementation silently diverged from the plan-locked ALTER strategy. Plan ADR D3 specifies `ALTER COLUMN ... TYPE vector(N) USING NULL` (line 117-122 of plan); the shipped code at `applyDimChange` instead runs `DELETE FROM memories; DELETE FROM entities;` BEFORE the ALTER (without `USING NULL`). This is a plan-vs-impl divergence that was NOT reflected back into the plan ADR.
+    evidence: |
+      Plan ADR D3 lines 117-122:
+        ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+        ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${dim}) USING NULL;
+      Plan deep-dive line 400:
+        "the `USING NULL` clause drops all existing data in those columns
+         (pgvector does not support data-preserving dim change). This is the
+         ONLY way to change pgvector column dim short of `DROP COLUMN` + `ADD COLUMN`."
+      Shipped impl src/local/index.ts:886-889:
+        await client.query('DELETE FROM memories');
+        await client.query('DELETE FROM entities');
+        await client.query(`ALTER TABLE memories ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+        await client.query(`ALTER TABLE entities ALTER COLUMN embedding TYPE vector(${String(targetDim)})`);
+      Inline JSDoc lines 877-885 explain the divergence (NOT NULL constraint
+      collision when USING NULL coerces existing rows) — but the PLAN was
+      never updated. Stop Condition #4 of cycle-implement.md says "Plan task
+      assumes behavior contradicted by reality → halt; loop back to cycle-plan."
+      Instead the implementation silently substituted the recipe and the
+      plan ADR is now stale.
+    recommended_action: |
+      Update plan ADR D3 in the same PR that closes this finding: replace the
+      `USING NULL` recipe with the `DELETE; ALTER` recipe + reference the
+      empirically-discovered NOT NULL constraint collision (the JSDoc text
+      at src/local/index.ts:877-885 is the substitute rationale and should
+      be lifted into the plan). Plan-vs-impl drift is a documented anti-pattern
+      from `/implement` Anti-pattern #3 ("NEVER edit the implementation plan
+      during /implement-execute — if the plan is wrong, halt and loop back").
+  - id: F-arch-3
+    severity: MAJOR
+    file: tests/integration/migrations/dim-change.test.ts
+    line: 18-19, 30-34
+    plan_ref: T0.3 SEPA iter-3 pre-RED C2 ("atttypmod empirical correction") + plan T0.3 §413
+    summary: Test docstring contains contradictory statements about atttypmod encoding. The block comment at line 18-19 says `atttypmod = N + 4` (the "varlena header encoding") while the helper docstring at 30-34 says `atttypmod` stores `N` directly (no +4 offset). Both claims appear in the same file with no resolution; one must be wrong.
+    evidence: |
+      tests/integration/migrations/dim-change.test.ts:18-19:
+        *   - Idempotency: 2nd call with same dim short-circuits via atttypmod
+        *     probe (atttypmod = N + 4 per pgvector's varlena header encoding).
+      Same file lines 30-34:
+        // pgvector v0.5.1 stores `vector(N)` dimension in pg_attribute.atttypmod
+        // directly (NO +4 varlena offset — empirically verified against the
+        // running ankane/pgvector:v0.5.1 container: vector(1536) → atttypmod=1536).
+        // The SEPA pre-RED CRITICAL #2 claim of `N + 4` encoding was wrong for
+        // this version; the actual decoder is the identity function.
+      The shipped src/local/index.ts applyDimChange uses the identity decoding
+      (line 857: `const currentDim = probe.rows[0]?.atttypmod ?? -1;` — direct
+      comparison with `targetDim` without -4 adjustment). So lines 30-34 are
+      correct AND lines 18-19 are stale (left over from the SEPA pre-RED
+      hypothesis that was empirically refuted in the same iteration). This
+      is the kind of contradiction-in-the-same-file defect that produces
+      future bugs when someone refactors based on the stale claim.
+    recommended_action: |
+      Delete lines 18-19 from the top-of-file block comment; the helper
+      docstring at 30-34 is the source of truth. Single edit.
+  - id: F-arch-4
+    severity: MINOR
+    file: src/embedders/local.ts
+    line: 53
+    plan_ref: T1.1 Deep Dive "Model parameter (deferred to default)" §490
+    summary: Model identifier hard-coded as a module-level constant; future cycles cannot supply alternative models without modifying this source file. The plan ADR D1 declares the `Xenova/all-MiniLM-L6-v2` choice as v1.0 default with "future cycle can add `new LocalTransformerEmbedder({ model: '...' })`" — but the current implementation has zero extension surface for that future cycle. OCP nuance: not a present violation because YAGNI applies (no consumer asked for a 2nd model), but the constructor signature is empty (`new LocalTransformerEmbedder()`) so adding the option later requires a SOURCE-BREAKING signature change unless an options object is introduced.
+    evidence: |
+      src/embedders/local.ts:53:
+        const MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
+      src/embedders/local.ts:67:
+        export class LocalTransformerEmbedder implements Embedder {
+          async embed(text: string): Promise<readonly number[]> { ... }
+          async embedBatch(...): Promise<readonly (readonly number[])[]> { ... }
+        }
+      No constructor declared → effectively `constructor()` with empty
+      signature. Adding `constructor({ model?: string } = {})` later is
+      additive at the call-site BUT changes the OUTPUT dim (different models
+      have different dims — MiniLM is 384, mpnet is 768). The probe in
+      src/local/index.ts already accommodates this via `embeddingDim` config,
+      but ergonomically the consumer would have to set both the embedder
+      model AND the LocalMemoryConfig.embeddingDim in sync — easy to misalign.
+    recommended_action: |
+      Either accept the current shape (YAGNI; document the deferral in
+      JSDoc — currently lines 48-66 don't mention "constructor is intentionally
+      0-arity for v1.0") OR add `constructor(options?: { model?: string; dim?: number } = {})`
+      now with model defaulting to MODEL_ID. The first is more INQUEBRÁVEL
+      (YAGNI > speculative API surface); just clarify it in JSDoc so the
+      next maintainer doesn't think it was an oversight.
+  - id: F-arch-5
+    severity: MINOR
+    file: src/embedders/local.ts
+    line: 80-89
+    plan_ref: T1.1 Deep Dive "Batch" §493 + Embedder DIP shape
+    summary: The batch implementation builds `rows` as `number[][]` then returns it as `readonly (readonly number[])[]`. The cast is implicit at return; the inner rows are NOT readonly at constructor time. This is a Clean Code nit, not a defect, but the DIP signature MUTABLE-arrays-cast-to-readonly-on-return pattern is used inconsistently across the SDK (some implementations use `Object.freeze`, others use this implicit cast).
+    evidence: |
+      src/embedders/local.ts:84-90:
+        const flat = output.data as Float32Array;
+        const rows: number[][] = [];
+        for (let i = 0; i < texts.length; i += 1) {
+          const start = i * EMBEDDING_DIM;
+          const end = start + EMBEDDING_DIM;
+          rows.push(Array.from(flat.slice(start, end)));
+        }
+        return rows;
+      The returned type at the function signature is
+      `Promise<readonly (readonly number[])[]>` but a consumer who narrowed via
+      `as number[][]` could mutate the inner arrays. Not a current bug (no
+      consumer does this) but breaks the "deep readonly" intent of the DIP.
+    recommended_action: |
+      Lowest-cost fix: change `const rows: number[][] = []` to
+      `const rows: readonly (readonly number[])[] = []` after construction
+      (or just keep a mutable local and cast at return — what the code does
+      now). YAGNI applies; this is INFO-adjacent. Document in DIP that "the
+      returned arrays are treated as readonly by the consumer; the SDK does
+      not deep-freeze for performance".
+  - id: F-arch-6
+    severity: MINOR
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 127-143
+    plan_ref: T2.1 ADR D6 §165-188 + EC-11 absorption
+    summary: `resolveBackendMode` is correctly exported per its JSDoc (line 117-122) so the unit tests at `tests/unit/examples/` can exercise it in isolation, but exposing it in the demo's public surface is a leak — the demo IS the public surface for a Next.js app (everything in `examples/chat-with-memory/lib/` is reachable from any route). Not a SOLID violation; just a sign that the demo's internal module boundary is fuzzy.
+    evidence: |
+      examples/chat-with-memory/lib/memory.ts:127:
+        export function resolveBackendMode(): BackendMode {
+      tests/unit/examples/chat-with-memory-memory.test.ts:23:
+        import { resolveBackendMode } from '../../../examples/chat-with-memory/lib/memory.js';
+      The test correctly imports via the lib module; ideally `resolveBackendMode`
+      would live in a sibling private module (e.g., `lib/backend-mode.ts`)
+      with `lib/memory.ts` importing it. Today both ship from the same file.
+    recommended_action: |
+      Lowest-cost: keep as-is; the demo is not a SDK consumer surface.
+      Future cleanup: split `lib/memory.ts` into `lib/backend-mode.ts`
+      (export `BackendMode`, `VALID_BACKEND_MODES`, `resolveBackendMode`) +
+      `lib/memory.ts` (singleton wiring). Mirrors the v0.7 distillation
+      cycle's pattern of small named-purpose files. Out of scope for this
+      cycle; flag for next demo cleanup.
+  - id: F-arch-7
+    severity: MINOR
+    file: src/local/index.ts
+    line: 706-708
+    plan_ref: T0.1 EC-1 absorption + plan §276 "InvalidScope error message"
+    summary: `validateEmbeddingDim` throws `InvalidScope` for an embedding-dim violation. `InvalidScope` is semantically about Scope objects (user/session/agent keys), not embedding dimensions. SEPA iter-1 pre-RED CRITICAL #1 (per JSDoc line 700) chose this as "uniform InvalidScope for all pre-flight failures" but it conflates two distinct error domains. The plan's own ADR D1 in §83 hint suggested `InvalidScope` "or a new dedicated error — defer naming to RED test design"; the impl picked `InvalidScope` without revising the plan to commit to that name.
+    evidence: |
+      src/local/index.ts:702-712:
+        function validateEmbeddingDim(received: number | undefined): number {
+          if (received === undefined) {
+            return MAX_EMBEDDING_DIM;
+          }
+          if (!Number.isInteger(received) || received <= 0 || received > MAX_EMBEDDING_DIM) {
+            throw new InvalidScope(
+              `embeddingDim must be a positive integer ≤ ${String(MAX_EMBEDDING_DIM)}; got ${String(received)}`,
+            );
+          }
+          return received;
+        }
+      `InvalidScope` is defined in `src/core/errors.ts` — used 7+ places in the
+      SDK for malformed scope arguments. Using it for embedding-dim validation
+      means a caller catching `InvalidScope` to recover from "bad userId"
+      would also catch "bad embeddingDim", and vice versa. Cleaner: add a
+      new `InvalidEmbeddingDim` error class (sibling to `EmbeddingMismatch`)
+      OR reuse `EmbeddingMismatch`.
+    recommended_action: |
+      Either (a) introduce `InvalidEmbeddingDim` error class (cheap;
+      ~10 LoC in errors.ts) — most semantically correct; OR (b) reuse
+      `EmbeddingMismatch` with a constructor variant carrying the
+      "preflight" intent. Option (a) preferred per architecture.md § 8
+      "Domain errors are typed classes". Update plan ADR D1 + add to
+      CHANGELOG once decided.
+  - id: F-arch-8
+    severity: INFO
+    file: src/embedders/index.ts
+    line: 20
+    plan_ref: T1.1 + T1.2
+    summary: No issues found — barrel cleanly re-exports the new class alongside the existing stub/openai siblings, matching ADR D7 + the architecture.md § 9 public-API discipline (subpath-only; no root reexport).
+    evidence: |
+      src/embedders/index.ts:18-20:
+        export { DeterministicStubEmbedder } from './stub.js';
+        export { OpenAIEmbedder } from './openai.js';
+        export { LocalTransformerEmbedder } from './local.js';
+      package.json#exports has the matching subpath entry. No root index.ts
+      re-export (correctly mirrors the OpenAIEmbedder pattern).
+    recommended_action: None.
+  - id: F-arch-9
+    severity: INFO
+    file: src/embedders/local.ts
+    line: 47-51
+    plan_ref: T1.1 + architecture.md § 3 (DIP)
+    summary: No issues found — `LocalTransformerEmbedder` correctly imports only `Embedder` from `../core/dip/embedder.js` and the external `@xenova/transformers` package; ZERO imports from `src/local/` or `src/cloud/`. DIP boundary respected.
+    evidence: |
+      src/embedders/local.ts:48-51:
+        import type { FeatureExtractionPipeline } from '@xenova/transformers';
+        import { pipeline } from '@xenova/transformers';
+        import type { Embedder } from '../core/dip/embedder.js';
+    recommended_action: None.
+  - id: F-arch-10
+    severity: INFO
+    file: examples/chat-with-memory/lib/memory.ts
+    line: 80-104
+    plan_ref: T2.2 (Sub-goal 6) + plan §704 "MemorySingleton.embedderDim: number"
+    summary: No issues found — `MemorySingleton.adapterSource` union correctly widens to `'stub' | 'openai' | 'local-openrouter'` and `embedderDim` is added per ADR D6 / T2.2. The downstream `/api/info` route and EvictionTab consumers read from this surface; both fields are additive (existing consumers continue to work).
+    evidence: |
+      examples/chat-with-memory/lib/memory.ts:96:
+        readonly adapterSource: "stub" | "openai" | "local-openrouter";
+      examples/chat-with-memory/lib/memory.ts:103:
+        readonly embedderDim: number;
+    recommended_action: None.
+  - id: F-arch-11
+    severity: INFO
+    file: src/local/index.ts
+    line: 702-712
+    plan_ref: T0.1 EC-1 absorption + plan §276 (Number.isInteger guard)
+    summary: No issues found in the guard's logic — `Number.isInteger(received) || received <= 0 || received > MAX_EMBEDDING_DIM` correctly catches NaN (NaN <= 0 is false, NaN > MAX is false; Number.isInteger(NaN) is false), Infinity (Number.isInteger(Infinity) is false), float (Number.isInteger(384.5) is false), zero and negative (received <= 0), and > MAX. Error message includes literal received value via `String(received)`.
+    evidence: |
+      The 5-line guard correctly implements the plan's EC-1 contract. RED
+      tests in src/local/__tests__/factory.test.ts:88-93 cover NaN, float,
+      Infinity, zero, > MAX explicitly.
+    recommended_action: None — guard is canonical. (The naming concern is
+      captured separately in F-arch-7.)
+  - id: F-arch-12
+    severity: INFO
+    file: src/local/index.ts
+    line: 847-907 (applyDimChange)
+    plan_ref: T0.3 (EC-3 atomic tx + EC-4 HNSW DROP+RECREATE)
+    summary: No SOLID issues found in `applyDimChange` — single-purpose function (SRP), wraps the 6-statement sequence in BEGIN/COMMIT/ROLLBACK (EC-3), drops/recreates HNSW indexes correctly (EC-4), idempotency short-circuit via atttypmod probe runs BEFORE the destructive sequence. The plan-vs-impl divergence on `USING NULL` is captured in F-arch-2; the transactional and index-handling shape is otherwise textbook.
+    evidence: |
+      applyDimChange at line 847-907 follows the canonical Postgres tx pattern:
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          ... 6 DDL statements ...
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+    recommended_action: None.
+summary:
+  blocker: 0
+  critical: 0
+  major: 3
+  minor: 4
+  info: 5
+  total_findings: 12
+  changed_production_files_count: 8
+  files_per_finding_avg: 1.5
+verdict: |
+  NEEDS_FIXES. Three MAJOR findings should be addressed before merge:
+  (a) F-arch-1 PgvectorStore positional → options-object signature change
+      needs an explicit `BREAKING` CHANGELOG entry to honor Inquebrável
+      Rule 6 + pre-release honesty (the `pgvector-store.ts` constructor IS
+      part of the public API via the `src/local/index.ts` barrel).
+  (b) F-arch-2 plan ADR D3 specifies `ALTER ... USING NULL`; shipped code
+      uses `DELETE; ALTER` — plan-vs-impl drift not reflected back into
+      the plan, in violation of cycle-implement.md Stop Condition #4 +
+      Anti-pattern #3.
+  (c) F-arch-3 contradictory atttypmod claims in the same test file
+      (lines 18-19 say "+4 varlena offset", lines 30-34 say "identity")
+      — single-edit cleanup.
+  Four MINOR findings should be considered but are not blockers
+  (F-arch-4 LocalTransformerEmbedder constructor-arity for future model
+  options; F-arch-5 batch readonly cast hygiene; F-arch-6 demo internal-
+  module boundary; F-arch-7 InvalidScope reuse for embedding-dim
+  validation). The architectural shape — DIP boundary clean, OCP for
+  3-way adapter resolution, SRP for `applyDimChange` + `validateEmbeddingDim`
+  + `resolveBackendMode` extraction — is otherwise solid and matches the
+  plan's ADRs.

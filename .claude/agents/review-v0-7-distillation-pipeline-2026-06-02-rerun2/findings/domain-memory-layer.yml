@@ -1,0 +1,161 @@
+agent: review-v0-7-distillation-pipeline-domain-memory-layer
+review_target: main..HEAD for plan v0-7-distillation-pipeline (re-run #3 against commit f68727d)
+domain: memory-layer
+run: rerun2
+commit_under_review: f68727d
+prior_run_verdict: READY_TO_MERGE_WITH_CAVEATS
+expected_verdict_this_run: READY_TO_MERGE (clean — deferreds remain deferred-acceptable)
+domain_specific_patterns_checked:
+  - "three-tier scope isolation (User / Session / Agent) in distillation candidate query"
+  - "ADD-only invariant under conflict resolution (soft-delete via t_invalid, never hard delete)"
+  - "Mem0-shape six-phase pipeline + extracted vs derived `kind` discriminator integrity"
+  - "episodic→semantic boundary preserved via `kind = 'extracted'` filter (F-C2)"
+  - "mass-tombstone guard via maxRejectionRatio (F-C1)"
+  - "consolidation_history schema declaration parity (F-C3)"
+  - "bi-temporal t_valid/t_invalid honored in candidate query + persistConsolidations"
+  - "LWW abstention path leaves 0 tombstones (no consolidation_history INSERT, no soft-deletes)"
+  - "LlmJudgedMergeConflictPolicy EC-2 abstain on parse-null + EC-6 cluster cap"
+  - "skill-isolation integration test (F-tests-rerun-1/2 refinements verified)"
+
+evidence_collected:
+  - file: src/local/pgvector-store.ts
+    lines: 555-593
+    finding: |
+      `recallConsolidationCandidates` SQL WHERE clause is correctly bounded:
+        - `kind = 'extracted'` excludes both 'derived' (already-consolidated semantic) and
+          'skill' (v0.6 procedural memory). The schema CHECK constraint
+          `memories_kind_derived_from_check` enforces kind ∈ {'extracted','derived','skill'}
+          (schema.ts:147-149), so the filter is exhaustive — no fourth kind can leak in.
+        - `t_invalid IS NULL` honors ADD-only soft-delete semantics.
+        - `(t_valid IS NULL OR t_valid <= NOW())` forward-compats with v0.5 cloud asOf.
+        - Three-tier scope filters (user_id, session_id, agent_id) applied via parameterized
+          `$N` placeholders — no SQL injection vector.
+      The `'summary'` concern noted in the spawn brief is N/A: `history` (DrizzleHistoryManager)
+      lives in a separate table; only `memories` rows have the kind column.
+
+  - file: src/core/conflict-resolution/last-write-wins.ts
+    lines: 82-122
+    finding: |
+      LastWriteWinsConflictPolicy abstention path verified clean:
+        - Constructor clamps maxRejectionRatio to [0, 1] (line 91).
+        - Default 0.95: 20 candidates → ratio 0.95 (consolidates); 21 candidates →
+          ratio ~0.952 (abstains).
+        - Abstain path returns `[]` — caller (src/local/index.ts:403) gates
+          `persistConsolidations` on `length > 0`, so abstention produces ZERO
+          tombstones, ZERO consolidation_history rows, ZERO soft-deletes. No
+          partial state possible.
+        - Test coverage: 5 abstention-related tests in last-write-wins.test.ts:61-115
+          (default boundary at 20/21, opt-out at 1.0, no-op at 0, clamping ±2.5/-0.5).
+
+  - file: src/local/index.ts
+    lines: 373-406
+    finding: |
+      Conflict-resolution phase wired BEFORE LLM-driven derivation (line 374-406 vs
+      line 408+). EC-8 absorbed: persistConsolidations runs the soft-delete + history
+      INSERT inside a single withTransaction (pgvector-store.ts:609-633). Empty
+      results array short-circuits at line 403 — no transaction opened, no audit
+      noise. Scope-isolation: `this.filters` (derived from scopeToFilters) propagates
+      through unchanged.
+
+  - file: src/local/schema.ts
+    lines: 239-254
+    finding: |
+      consolidation_history table declared in schema.ts with kept_memory_id FK
+      `ON DELETE SET NULL` for GDPR survival. F-C3 closure verified — previously
+      table only lived in 0007_distillation_columns.sql + meta/0007_snapshot.json
+      and `drizzle-kit push` would have computed a destructive DROP TABLE diff.
+      Now drift-protected by tests/integration/schema-snapshot-parity.test.ts.
+
+  - file: src/core/conflict-resolution/llm-judged-merge.ts
+    lines: 92-120
+    finding: |
+      LlmJudgedMergeConflictPolicy abstention paths:
+        - Cluster cap (EC-6): candidates.length > clusterCap (default 20) → counter
+          increment + return `[]`. No LLM call.
+        - Parse-null (EC-2): semantic validation of `kept_id ∈ clusterIds`,
+          `rejected_ids ⊂ clusterIds`, `kept_id ∉ rejected_ids`. parseConsolidationResponse
+          null → abstain counter + return `[]`.
+        - Both abstention paths produce ZERO tombstones via the same
+          `consolidationResults.length > 0` gate in src/local/index.ts:403.
+      EC-4 lazy counter pattern matches v0.4b T10.1 (pg-evictor.ts:56-75) precedent —
+      consistent with F-dom-6 OTel lazy-init idiom.
+
+  - file: tests/integration/distillation/skill-isolation.test.ts
+    lines: 101-190
+    finding: |
+      F-C2 regression test verified honest:
+        - Test 1 (skill rows survive): seeds 2 skill + 2 extracted in same agent_id
+          scope; assertion that skill rows have t_invalid IS NULL post-reflect.
+        - Test 2 (derived rows NOT re-consolidated): F-tests-rerun-1 test name
+          corrected (body invokes reflect ONCE, not "subsequent reflect");
+          F-tests-rerun-2 void discards replaced with 4 actual t_invalid assertions
+          (lines 178-187) covering both extracted_older (rejected) and
+          extracted_newer (kept). Honest test passes when behavior is correct.
+
+acknowledged_deferreds:
+  - id: F-dom-mem-rerun-4
+    severity: MINOR
+    status: deferred-acceptable
+    summary: |
+      LastWriteWinsConflictPolicy abstains silently when maxRejectionRatio > threshold —
+      no OTel counter to surface the abstention to operations.
+    deferral_rationale: |
+      Deferred to v0.7.2 follow-up cycle. The abstain path is observable via
+      the absence of consolidation_history rows; operators inspecting the audit
+      table will see 0 rows for the offending scope. Adding the OTel counter
+      would mirror the LlmJudgedMergeConflictPolicy.ABSTAIN counter pattern
+      (llm-judged-merge.ts:34) — a future MOVE-only refactor candidate. Does
+      not affect correctness of the F-C1 guard, only observability.
+
+  - id: F-dom-mem-rerun-5
+    severity: MINOR
+    status: deferred-acceptable
+    summary: |
+      consolidation_history has kept_memory_id but no reciprocal `superseded_by_consolidation_id`
+      pointer on the memories table for rejected rows — must traverse via the JSONB
+      `rejected_memory_ids` array.
+    deferral_rationale: |
+      Deferred because the public API `history(memoryId)` covers the lineage need
+      for end-users; the JSONB array traversal is the audit-side query that
+      operators run via `db:repair-v0-7-partial-state` (now in package.json after
+      F-Mi12 closure). Adding a reciprocal column would be a schema migration
+      with no current consumer demand — falls under YAGNI.
+
+findings: []
+
+post_review_summary: |
+  ALL THREE CRITICAL CLOSURES FROM RE-RUN #1 REMAIN CORRECT AND COMPLETE:
+    - F-C1 (mass-tombstone guard): LastWriteWinsConflictPolicy.maxRejectionRatio
+      abstention verified — test coverage 5 cases; clamped [0,1]; produces
+      ZERO partial state via the `length > 0` gate in src/local/index.ts:403.
+    - F-C2 (episodic↔semantic boundary): `kind = 'extracted'` filter verified
+      against the exhaustive schema CHECK constraint enumeration. Regression
+      test in skill-isolation.test.ts asserts both skill and derived rows survive.
+    - F-C3 (consolidation_history schema declaration): table declared in
+      src/local/schema.ts with FK ON DELETE SET NULL; drift-protected by the
+      schema-snapshot-parity.test.ts sentinel which checks both directions
+      (snapshot → schema AND schema → snapshot).
+
+  THREE-TIER SCOPE SEMANTICS preserved: distillation respects user_id /
+  session_id / agent_id filters in recallConsolidationCandidates via the
+  standard `filters` object propagated from `scopeToFilters`. No cross-scope
+  contamination possible.
+
+  ADD-ONLY INVARIANT preserved: persistConsolidations soft-deletes via
+  `t_invalid = NOW()` (pgvector-store.ts:612-616); never UPDATE on memories
+  text/payload, never DELETE FROM memories.
+
+  BI-TEMPORAL SEMANTICS: candidate query honors t_invalid IS NULL AND
+  (t_valid IS NULL OR t_valid <= NOW()) — forward-compatible with v0.5 cloud
+  asOf bi-temporal queries when ADR-0006 backports asOf.
+
+  MEM0-SHAPE PIPELINE INTEGRITY: extracted (default) and derived rows correctly
+  discriminated by `kind` column. Procedural memory (kind='skill') from v0.6
+  Voyager skill library is isolated from semantic consolidation — preventing
+  the mass-tombstone failure mode F-C2 was named after.
+
+verdict: READY_TO_MERGE_CLEAN
+caveats:
+  - 2 acknowledged-deferred MINORs (F-dom-mem-rerun-4 silent abstain;
+    F-dom-mem-rerun-5 superseded_by omission) remain deferred per plan v1.2
+    deferral rationale family. NOT re-raised as actionable in this re-run.

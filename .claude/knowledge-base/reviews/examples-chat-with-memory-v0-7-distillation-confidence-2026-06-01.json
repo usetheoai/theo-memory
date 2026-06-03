@@ -1,0 +1,116 @@
+{
+  "plan_slug": "examples-chat-with-memory-v0-7-distillation",
+  "plan_path": ".claude/knowledge-base/plans/examples-chat-with-memory-v0-7-distillation-plan.md",
+  "plan_version": "1.1",
+  "scored_at": "2026-06-01T21:16:21+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 85.0,
+  "active_dimensions": [
+    "completude",
+    "risco_estrutural"
+  ],
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 94.0,
+  "hard_caps_triggered": [],
+  "final_score_after_caps": 94.0,
+  "verdict": "SHIPPABLE",
+  "motivos": {
+    "completude": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (6/6)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidencia": [],
+    "calibracao": [],
+    "risco_estrutural": [
+      {
+        "sign": "negative",
+        "label": "5 weak_imperatives hits",
+        "weight": -5.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 18,
+      "mapped_gaps": 18,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 6,
+      "with_alternatives": 6,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 5,
+      "by_category": {
+        "weak_imperatives": 5
+      },
+      "total_penalty": -15
+    },
+    "architecture_compliance": {
+      "compliance_score": 1.0,
+      "project_rules_found_count": 18,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": [
+        "architecture.md",
+        "cycle-plan.md",
+        "dogfood-golden-rule.md",
+        "no-paper-names-in-code.md",
+        "testing.md"
+      ],
+      "principles_cited": [
+        "SRP",
+        "DIP",
+        "SOLID",
+        "KISS",
+        "TDD"
+      ],
+      "has_dod_quality_signal": true,
+      "has_size_budget_signal": true,
+      "motivos": [
+        "References 5 project rule(s): ['architecture.md', 'cycle-plan.md', 'dogfood-golden-rule.md']",
+        "Cites 5 principle(s): ['SRP', 'DIP', 'SOLID']",
+        "Global DoD references quality gates (lint/complexity/size)",
+        "Plan mentions file-size budget"
+      ]
+    }
+  },
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  },
+  "code_quality": {
+    "verdict": "PASS",
+    "score_cap": 100,
+    "hard_caps_triggered": [],
+    "soft_caps_triggered": [],
+    "languages_audited": [
+      "typescript"
+    ]
+  }
+}

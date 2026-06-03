@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-27-proc-rio-27",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Rio region: Yuki from research publishes monthly; the postgres replica lags during peak (by 200 to 400 milliseconds); the build pipeline runs on every PR.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly"
+    },
+    {
+      "text": "the postgres replica lags during peak — by 200 to 400 milliseconds"
+    },
+    {
+      "text": "the build pipeline runs on every PR"
+    }
+  ]
+}

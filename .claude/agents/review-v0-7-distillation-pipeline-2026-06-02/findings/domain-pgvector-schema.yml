@@ -1,0 +1,333 @@
+agent: review-v0-7-distillation-pipeline-domain-pgvector-schema
+review_target: bab7a02^..HEAD for plan v0-7-distillation-pipeline
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - migration_idempotency_split_step_alter
+  - fk_on_delete_set_null_for_audit_survival
+  - drizzle_journal_snapshot_chain_continuity
+  - jsonb_value_storage_for_arrays_no_fk
+  - bi_temporal_t_invalid_compatibility_with_consolidation
+  - schema_ts_vs_migration_drift_db_push_vs_run_migrations
+  - destructive_dim_change_cascade_disclosure_accuracy
+  - hnsw_index_orthogonality_to_audit_table
+  - atomic_tx_BEGIN_COMMIT_ROLLBACK_for_persist_consolidations
+
+findings:
+  - id: F-dom-pgvector-1
+    severity: MAJOR
+    file: src/local/schema.ts
+    line: 1-225
+    plan_ref: ADR D3 / T0.1 + Coverage Matrix row #1 (Schema)
+    domain_anchor: architecture.md § 10.2 (drizzle-kit push vs runMigrations conflict); plan T3.2 EC-11 ("npm run db:push" listed as required pre-condition for npm run eval:distillation)
+    summary: |
+      `consolidation_history` table is declared in migration SQL (`0007_distillation_columns.sql`)
+      AND in the Drizzle journal snapshot (`meta/0007_snapshot.json:577-680`),
+      BUT it is NOT declared in `src/local/schema.ts` (the canonical Drizzle pgTable source).
+      This creates a silent dev-vs-prod schema drift along the documented two-path workflow.
+
+      `drizzle.config.ts:20` points drizzle-kit at `./src/local/schema.ts`. Per
+      `architecture.md § 10.2`, `drizzle-kit push` introspects the live DB and
+      synchronizes the schema based on `schema.ts` — it would see
+      `consolidation_history` as an "extra" table not declared in schema and
+      may (a) leave it in `--strict` mode + emit a warning, or (b) in a future
+      drizzle-kit version, attempt to DROP it as a destructive sync.
+
+      The plan REQUIRES `npm run db:push` as a pre-condition for
+      `npm run eval:distillation` (plan T3.2 § EC-11; docs/distillation-evaluation/README.md:48;
+      docs/distillation-evaluation/run.ts:128) AND as the RED-phase setup for T0.1
+      (plan line 228: "npm run db:push against fresh ankane/pgvector:v0.5.1 shows pre-migration").
+      Per `package.json:76`, `db:push` chains `drizzle-kit push && node scripts/apply-trigger-migrations.mjs`
+      — neither step applies SQL migration files from `src/local/migrations/0007_*.sql`.
+
+      Consequence: an operator who follows the documented dev workflow (`db:push`)
+      ends up with a database that lacks the `consolidation_history` table. The
+      integration tests (forget-hard-survives-audit.test.ts, reflect-atomic-rollback.test.ts,
+      reflect-empty-scope.test.ts, reflect-with-policy.test.ts, the-goal-test.test.ts)
+      would all fail with `relation "consolidation_history" does not exist`.
+
+      The only path that creates the table is `runMigrations(pool)` (called explicitly by
+      `tests/integration/adapters-or-local-e2e-smoke.test.ts:50` and `tests/integration/migrations/dim-change.test.ts`,
+      but NOT by the distillation integration suite which relies on the DB being
+      pre-migrated externally via `PG_URI`). The distillation integration tests
+      currently pass ONLY if the operator ran `runMigrations()` first; running
+      `db:push` against a fresh container produces a broken state.
+    evidence: |
+      `src/local/schema.ts` — final export is `history` (line 209-224); no `consolidationHistory` table export.
+      `grep "consolidation" src/local/schema.ts` returns zero matches.
+      `package.json:76 "db:push"`: chains `drizzle-kit push && node scripts/apply-trigger-migrations.mjs` — NO migration replay step.
+      `docs/distillation-evaluation/README.md:48`: documents `npm run db:push` as the migration step for eval.
+      `meta/0007_snapshot.json:577`: declares `public.consolidation_history` (snapshot has it — runMigrations path works).
+      `architecture.md § 10.2`: documents the orphan-schema-state mitigation but warns "Never mix the two paths".
+    recommended_action: |
+      Add the `consolidationHistory` pgTable declaration to `src/local/schema.ts`
+      with the same column shape declared in `meta/0007_snapshot.json` (`id uuid PK`,
+      `keptMemoryId uuid` with `.references(() => memories.id, { onDelete: 'set null' })`,
+      `rejectedMemoryIds jsonb $type<string[]>().default([])`, `reason text NOT NULL`,
+      `policyName text NOT NULL`, `originalEpisodeIds jsonb $type<string[]>().default([])`,
+      `createdAt timestamptz`). Plus two btree indexes: `idx_consolidation_history_kept`
+      on `keptMemoryId` and `idx_consolidation_history_created` on `createdAt DESC`.
+
+      After adding, run `npm run db:generate` against an empty DB to verify drizzle-kit
+      now considers schema in sync with migration 0007 (no diff). The new declaration
+      must NOT alter the journal id chain (`0007.id` stays at the current value).
+
+      As a defensive guard, extend `tests/integration/config-parity.test.ts` (per
+      `testing.md § Typecheck scope`) to assert that every table referenced in any
+      `meta/*_snapshot.json` is also declared in `schema.ts` — same shape guard that
+      F-T6.1-1 motivated for tsconfig coverage.
+
+  - id: F-dom-pgvector-2
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 14-42
+    plan_ref: ADR D3 + EC-3 + T0.1 acceptance ("Migration file ≤ 100 LoC; uses IF NOT EXISTS guards throughout")
+    domain_anchor: v0.4b T9.1 idempotency precedent + plan T0.1 "RED→GREEN-EC-3: add ON DELETE SET NULL clause"
+    summary: |
+      Migration `0007_distillation_columns.sql` is well-crafted for idempotency.
+      Split-step pattern is documented inline:
+      (a) `CREATE TABLE IF NOT EXISTS consolidation_history` declares ALL columns + PK
+          but DEFERS the FK clause (lines 14-22),
+      (b) a `DO $$ BEGIN IF NOT EXISTS (...catalog probe...) THEN ALTER TABLE ... ADD CONSTRAINT
+          ... ON DELETE SET NULL` block adds the FK conditionally (lines 28-39),
+      (c) two `CREATE INDEX IF NOT EXISTS` clauses (lines 41-42).
+
+      The rationale (in the file's leading comment) correctly notes:
+      "CREATE TABLE IF NOT EXISTS skips the whole statement when the table exists,
+      dropping any embedded FK clause." This is accurate Postgres behavior and
+      matches the v0.4b T9.1 precedent.
+
+      EC-3 is honored: FK is `ON DELETE SET NULL`. EC-9 is honored: no schema
+      change to `memories`. The integration test
+      `tests/integration/distillation/forget-hard-survives-audit.test.ts:73`
+      directly exercises this contract (FK survives hard-delete; row preserved with
+      `kept_memory_id = NULL`).
+
+      File LoC = 42 (≤ 100 budget). The migration passes the file-size budget
+      asserted in plan T0.1 acceptance.
+
+      All four idempotency invariants verified:
+       1. Table create is `IF NOT EXISTS` — second run no-ops at statement level.
+       2. FK constraint guarded by `information_schema.referential_constraints`
+          name-lookup — second run sees the FK exists, no-ops.
+       3. Both indexes `IF NOT EXISTS` — second run no-ops.
+       4. Journal `_journal.json` entry IDX 7 is registered with stable hash `b1aa9b27-2026-4607-b007-c6d3e2f4abcd`; `prevId` references `0006`'s `a0af2165-11bc-40ff-a273-5495de22cbc0` — chain continuity verified.
+
+      No defect found in the migration itself. Surfacing as INFO so reviewer
+      cross-validates the audit posture.
+    evidence: |
+      Line 28-39: DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_name = 'consolidation_history_kept_memory_id_fkey') THEN ALTER TABLE ... ADD CONSTRAINT ... ON DELETE SET NULL; END IF; END $$;
+      Line 16: "kept_memory_id" uuid (NULLABLE — required by ON DELETE SET NULL semantics)
+      Line 17-21: JSONB columns with NOT NULL + DEFAULT '[]'::jsonb — value-stored arrays; no FK on `rejected_memory_ids` (EC-3 mitigation: survives hard-delete by construction)
+      _journal.json IDX 7: tag "0007_distillation_columns" with `when: 1780341763029` — registered.
+    recommended_action: No action; INFO only. Use as positive precedent for future
+      v0.x migrations that need post-table FK additions for idempotency.
+
+  - id: F-dom-pgvector-3
+    severity: INFO
+    file: src/local/index.ts
+    line: 846-848, 932-933
+    plan_ref: Cross-cycle alignment between v0.7 plan T0.1 + adapters-or-local plan v1.2 ADR D3 amendment
+    domain_anchor: applyDimChange cascade disclosure must enumerate every dependent table including v0.7 additions
+    summary: |
+      The `applyDimChange()` destructive cascade disclosure in `src/local/index.ts`
+      explicitly enumerates `consolidation_history.kept_memory_id ON DELETE SET NULL`
+      as one of three cascades triggered by `DELETE FROM memories` during a
+      destructive dim change:
+
+        1. history.memory_id ON DELETE CASCADE → audit trail wiped.
+        2. consolidation_history.kept_memory_id ON DELETE SET NULL → v0.7
+           distillation provenance pointers nullified.
+        3. memories.superseded_by ON DELETE SET NULL → v0.6 supersession broken.
+
+      This cross-cycle alignment is correct: the disclosure in the adapters-or-local
+      cycle's runtime console.error (line 929-938) was written WITH v0.7's
+      `consolidation_history` table in mind, and the SQL behavior matches —
+      `DELETE FROM memories` will set `kept_memory_id = NULL` on matched
+      `consolidation_history` rows (FK semantics `ON DELETE SET NULL`, NOT
+      cascade-delete; audit row body survives — `reason`, `policy_name`,
+      `rejected_memory_ids`, `original_episode_ids`, `created_at` all preserved).
+
+      No defect found. Surfacing as INFO because cross-cycle disclosure accuracy
+      was specifically called out by the review prompt and required verification.
+    evidence: |
+      src/local/index.ts:846-848: docstring enumerates the cascade.
+      src/local/index.ts:932-933: runtime console.error names "consolidation_history.kept_memory_id ON DELETE SET NULL nullifies v0.7 distillation provenance".
+      Migration 0007 line 37: `ON DELETE SET NULL` confirmed in DDL.
+      Integration test `forget-hard-survives-audit.test.ts:73-107` exercises the contract via the equivalent `forget({hard:true})` path.
+    recommended_action: No action; cross-cycle disclosure is accurate and tested.
+
+  - id: F-dom-pgvector-4
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 589-617, 620-633
+    plan_ref: ADR D2 + T2.1 EC-8 (atomic rollback)
+    domain_anchor: v0.6.1 `insertDerivedSkillAtomic` withTransactionFn precedent (plan T2.1 cites it)
+    summary: |
+      `persistConsolidations()` correctly wraps the batch of `UPDATE memories SET t_invalid = NOW()`
+      + `INSERT INTO consolidation_history` operations inside a single `withTransaction()`
+      call. The transaction helper is well-formed: `BEGIN` → `fn(client)` → `COMMIT`
+      with `ROLLBACK` in the catch + `client.release()` in finally (lines 620-633).
+
+      EC-8 atomicity is honored: if any iteration of the `for (const r of results)` loop
+      throws (whether at the UPDATE or the INSERT step), the catch block ROLLBACKs,
+      so the consumer never observes a half-applied state where some memories are
+      soft-deleted but no audit rows exist (nor the inverse). The integration test
+      `reflect-atomic-rollback.test.ts:75-93` exercises this contract via a spy that
+      throws in `persistConsolidations` mid-batch.
+
+      The bi-temporal column compatibility (ADR-0006) is preserved: `t_invalid = NOW()`
+      uses the same write path as the v0.4b eviction soft-delete and the v0.4a
+      reflection invalidation, with the additional `AND t_invalid IS NULL` guard
+      preventing double-soft-delete of an already-invalidated row.
+
+      JSONB columns (`rejected_memory_ids`, `original_episode_ids`) are serialized
+      via `JSON.stringify([...r.rejectedMemoryIds])` — explicit array spread defends
+      against the readonly-array contract from `ConflictResolutionResult`. The
+      `::jsonb` cast on the parameter is required because pg's parameter binding
+      doesn't infer JSONB from a JSON-string param.
+
+      No reentrance concern: `persistConsolidations` is called from `reflect()`
+      execute orchestration AFTER the policy's `consolidate()` returns; the policy
+      runs OUTSIDE any tx (per the DIP contract — pure types only, no I/O), so
+      there is no nested-tx risk.
+
+      No defect found. Surfacing as INFO so reviewer can cross-validate the
+      tx discipline used for the new persistence shape.
+    evidence: |
+      Lines 589-617: persistConsolidations implementation
+      Line 593: this.withTransaction(async (client) => {
+      Line 598: AND t_invalid IS NULL guard — defends against double-invalidation.
+      Lines 620-633: withTransaction helper with BEGIN/COMMIT/ROLLBACK + finally release.
+      tests/integration/distillation/reflect-atomic-rollback.test.ts:75-93 exercises rollback.
+    recommended_action: No action; persistConsolidations matches the v0.6.1
+      atomic-tx precedent and honors the EC-8 contract.
+
+  - id: F-dom-pgvector-5
+    severity: MINOR
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 16
+    plan_ref: T0.1 Acceptance "JSDoc note on the column explains the rationale (GDPR hard-delete survival)"
+    domain_anchor: plan T0.1 acceptance bullet #3 — "kept_memory_id is NULLABLE (consequence of ON DELETE SET NULL); JSDoc note on the column explains the rationale (GDPR hard-delete survival)"
+    summary: |
+      The plan's T0.1 Acceptance explicitly requires: "JSDoc note on the column
+      explains the rationale (GDPR hard-delete survival)" — the per-COLUMN
+      rationale comment is not present in the SQL DDL. The leading comment
+      block (lines 1-13) explains the table-level rationale, but the individual
+      column `"kept_memory_id" uuid,` on line 16 has no inline `--` comment.
+
+      This is a documentation gap, not a functional defect. The schema.ts addition
+      (recommended in F-dom-pgvector-1) would carry a JSDoc per Drizzle convention
+      via TypeScript triple-slash comments. Adding an inline SQL `-- EC-3 / GDPR
+      hard-delete survival: NULLABLE because of ON DELETE SET NULL` between
+      lines 15 and 16 would close the acceptance gap completely.
+    evidence: |
+      Line 16: "kept_memory_id" uuid,  ← no per-column rationale comment.
+      Plan T0.1 line 237: "[ ] `kept_memory_id` is NULLABLE (consequence of `ON DELETE SET NULL`); JSDoc note on the column explains the rationale (GDPR hard-delete survival)"
+      The leading file comment lines 1-13 covers TABLE-level rationale; the per-column note is the missing piece.
+    recommended_action: |
+      Add an inline comment immediately before `"kept_memory_id" uuid,`:
+        -- EC-3 / GDPR hard-delete survival: NULLABLE because the FK declares
+        -- ON DELETE SET NULL (added via the DO $$ block below). When a kept
+        -- memory is hard-deleted via forget({hard:true}), this column is
+        -- nullified so the audit row body (reason/policy_name/rejected_ids)
+        -- survives for regulatory trail.
+      Then mirror the rationale in the schema.ts declaration recommended in F-dom-pgvector-1.
+
+  - id: F-dom-pgvector-6
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 14-42
+    plan_ref: ADR D3 + bi-temporal compatibility (ADR-0006)
+    domain_anchor: ADR-0006 bi-temporal local schema; v0.7 must honor t_valid/t_invalid semantics
+    summary: |
+      Bi-temporal compatibility check: `consolidation_history` itself does NOT
+      have bi-temporal columns (`t_valid` / `t_invalid`) — this is CORRECT by design.
+      The audit table records consolidation EVENTS (point-in-time facts: "at time T,
+      policy P kept memory A and rejected memories [B,C] with reason R"), not
+      bi-temporal claims about the world. Events are immutable; they don't need
+      `t_valid` / `t_invalid` semantics.
+
+      The bi-temporal contract (ADR-0006) is honored by the BUNDLED operation in
+      `persistConsolidations`: the soft-delete of rejected memories via
+      `UPDATE memories SET t_invalid = NOW()` uses the same v0.4b precedent for
+      eviction soft-delete + matches the `BiTemporalNotSupportedLocally` rule
+      (local recall does not honor `asOf` queries) because `t_invalid` is still
+      filtered out by the existing `WHERE t_invalid IS NULL` guards in
+      `pgvector-store.ts` search.
+
+      The `created_at` column on `consolidation_history` is a wall-clock timestamp,
+      NOT a bi-temporal `t_valid` field. The `idx_consolidation_history_created`
+      index is `DESC` ordered to support "show me the most recent consolidations
+      first" queries cheaply. This is the right shape.
+
+      No defect found. Surfacing as INFO because the review prompt explicitly
+      asked about bi-temporal compatibility.
+    evidence: |
+      Migration line 14-22: column list shows no t_valid / t_invalid — correct for an event-shape table.
+      Migration line 21: created_at timestamptz NOT NULL DEFAULT NOW() — wall-clock event timestamp.
+      Migration line 42: idx_consolidation_history_created btree DESC — supports recent-first audit queries.
+      v0.4b soft-delete precedent: src/local/pgvector-store.ts:597 SET t_invalid = NOW() — bi-temporal contract preserved on the memories table side.
+    recommended_action: No action; bi-temporal compatibility is correctly preserved
+      by NOT adding t_valid/t_invalid to the audit event table.
+
+  - id: F-dom-pgvector-7
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 595-600
+    plan_ref: EC-8 atomic rollback + integration test coverage
+    domain_anchor: ON DELETE SET NULL behavior verification + double-invalidate idempotency
+    summary: |
+      The `UPDATE memories SET t_invalid = NOW() WHERE id = ANY($1::uuid[]) AND t_invalid IS NULL`
+      query on line 597-599 has a subtle correctness property worth noting: the
+      `AND t_invalid IS NULL` predicate makes the operation idempotent — if a
+      memory was already soft-deleted (e.g., by a parallel eviction pass), the
+      UPDATE is a no-op for that row, NOT an overwrite.
+
+      This matters because the v0.7 consolidation can race with v0.4b eviction
+      (both write `t_invalid` on the same memory row, potentially from different
+      transactions). The idempotency guard means the first writer wins (its NOW()
+      stays); subsequent writers no-op. This matches `architecture.md § 10.2`
+      "Production deployments use runMigrations() against a fresh DB. Never mix
+      the two paths" by NOT introducing data corruption when the operator does
+      mix paths.
+
+      No defect found. Surfacing as INFO because the cross-cutting interaction
+      with v0.4b eviction soft-delete was a plausible concern that the
+      implementation handled correctly.
+    evidence: |
+      Line 597-599: UPDATE memories SET t_invalid = NOW() WHERE id = ANY($1::uuid[]) AND t_invalid IS NULL
+      The trailing `AND t_invalid IS NULL` is the load-bearing idempotency guard.
+    recommended_action: No action; the guard is correctly placed and matches
+      v0.4b eviction pattern.
+
+summary: |
+  pgvector-schema domain review for v0.7 distillation pipeline:
+  - 1 MAJOR finding (F-dom-pgvector-1) — schema.ts ↔ migration 0007 drift will silently
+    break the documented `db:push` dev workflow. Fix: add `consolidationHistory` pgTable
+    declaration to `src/local/schema.ts` matching the snapshot column shape.
+  - 1 MINOR finding (F-dom-pgvector-5) — missing per-column rationale comment for
+    `kept_memory_id` (plan T0.1 acceptance bullet #3).
+  - 5 INFO findings (F-dom-pgvector-2/3/4/6/7) confirming positive properties:
+    migration idempotency well-crafted, applyDimChange cascade disclosure accurate,
+    persistConsolidations atomic-tx correct, bi-temporal compatibility preserved,
+    `t_invalid IS NULL` idempotency guard correctly placed against v0.4b eviction races.
+
+  The one MAJOR finding is reachable via the documented dev workflow (eval script
+  pre-conditions in docs/distillation-evaluation/README.md:48) and would surface
+  as a hard test failure (`relation "consolidation_history" does not exist`)
+  rather than silent corruption — so the blast radius is loud-fail-loud,
+  not silent-corruption. Recommended remediation is one new pgTable export
+  in schema.ts plus a config-parity regression test.
+
+confidence:
+  level: HIGH
+  rationale: |
+    All findings are backed by direct file reads + line citations. The MAJOR
+    finding (F-dom-pgvector-1) was verified across 4 surfaces:
+    (a) absence in schema.ts via grep,
+    (b) presence in meta/0007_snapshot.json (proving runMigrations path works),
+    (c) documented db:push workflow in docs/distillation-evaluation/README.md,
+    (d) package.json "db:push" script does NOT replay SQL migrations.
+    The cross-cycle disclosure check (F-dom-pgvector-3) was verified by
+    reading the applyDimChange function and confirming `consolidation_history`
+    is named in both the docstring AND the runtime console.error.

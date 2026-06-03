@@ -1,0 +1,12 @@
+{
+  "id": "simulated-dialog-09-hand-pet-care-dialog",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: My golden retriever, Max, needs a vet appointment.\nAGENT: For what?\nUSER: Yearly checkup plus the bordetella vaccine — we're going to a dog hotel next month. Vet is Dr. Wallace at PetCare Clinic.",
+  "expectedFacts": [
+    { "text": "Owns a golden retriever named Max", "attributedTo": "user" },
+    { "text": "Needs yearly checkup and bordetella vaccine for Max", "attributedTo": "user" },
+    { "text": "Boarding Max at a dog hotel next month", "attributedTo": "user" },
+    { "text": "Vet is Dr. Wallace at PetCare Clinic", "attributedTo": "user" }
+  ]
+}

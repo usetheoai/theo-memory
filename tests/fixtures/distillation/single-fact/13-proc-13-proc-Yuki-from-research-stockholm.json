@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-13-proc-Yuki-from-research-stockholm",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Stockholm deployment, Yuki from research publishes monthly — the model evaluation report.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly (Stockholm deployment)"
+    }
+  ]
+}

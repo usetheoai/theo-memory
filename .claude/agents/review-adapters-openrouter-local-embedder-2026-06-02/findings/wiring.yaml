@@ -1,0 +1,361 @@
+agent: review-adapters-openrouter-local-embedder-wiring
+review_target: main..HEAD for plan adapters-openrouter-local-embedder
+plan: .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md
+plan_version: "1.1"
+plan_verdict: SHIPPABLE_WITH_CAVEATS (83.6)
+commits_in_scope:
+  - b3d0968 chore(plan): land cycle-plan chain artifacts
+  - e36faea feat(core): parametric embeddingDim via LocalMemoryConfig (T0.1 / EC-1)
+  - 804f2fa feat(local): PgvectorStore({ embeddingDim? }) constructor option (T0.2)
+  - e68a38a feat(local): runMigrations parametric embeddingDim atomic DROP+ALTER+RECREATE (T0.3 / EC-3 + EC-4)
+  - 6693ea4 chore(allowlist): allowlist 8 protobufjs chain CVEs with aggressive sunset
+  - c488734 feat(embedders): LocalTransformerEmbedder via @xenova/transformers ^2.17.0 (T1.1 / ADR D1)
+  - 8acdf8b feat: subpath export @usetheo/memory/embedders/local (T1.2 / ADR D7)
+  - c5425ec feat(examples): local-openrouter backend + THEOMEM_DEMO_BACKEND env var (T2.1 / ADR D6 / EC-11 + EC-13)
+  - 94e43a5 feat(examples): /api/info exposes adapterSource + embedderDim (T2.2)
+  - 22314e8 docs: README backend modes + CHANGELOG entry (T3.1)
+  - f7f822e test(integration): chat-with-memory local-openrouter HTTP surface (T4.1 / Final Phase) + T0.3 push-flow follow-up fix
+  - ad1432f chore(audit): land /implement cycle audit artifacts
+
+new_public_symbols_in_diff:
+  - symbol: LocalTransformerEmbedder
+    file: src/embedders/local.ts
+    subpath_export: "@usetheo/memory/embedders/local"
+  - symbol: PgvectorStore (constructor widened)
+    file: src/local/pgvector-store.ts
+    note: 2nd positional arg widened to options object with embeddingDim?
+  - symbol: runMigrations (signature widened)
+    file: src/local/index.ts
+    note: 2nd arg added — options?.embeddingDim
+  - symbol: LocalMemoryConfig.embeddingDim?
+    file: src/local/index.ts
+    note: optional field added (additive)
+  - symbol: resolveBackendMode (demo)
+    file: examples/chat-with-memory/lib/memory.ts
+    note: extracted as standalone exported function for unit testability per EC-13
+  - symbol: BackendMode type (demo)
+    file: examples/chat-with-memory/lib/memory.ts
+  - symbol: MemorySingleton.adapterSource (widened) + embedderDim (new)
+    file: examples/chat-with-memory/lib/memory.ts
+
+triad_revalidation:
+  total_new_symbols: 7
+  pillar_a_honest_pass: 7 / 7
+  pillar_b_honest_pass: 6 / 7
+  pillar_c_observed: 1 / 1   # only T2.2 declares a runtime-metric proof; T0.x/T1.x/T2.1 are n/a per plan
+  pillar_b_detail:
+    LocalTransformerEmbedder: pass — exercised by tests/integration/public-paths.test.ts (subpath resolution + class instantiation) AND tests/integration/examples/chat-with-memory-local-openrouter.test.ts (full HTTP round-trip via /api/info)
+    PgvectorStore_widened_ctor: pass — exercised by src/local/__tests__/pgvector-store.test.ts (unit) + tests/integration/migrations/dim-change.test.ts (integration via runMigrations path)
+    runMigrations_widened: pass — tests/integration/migrations/dim-change.test.ts covers backward-compat + parametric + EC-4 HNSW recreate + idempotent short-circuit + 1536 no-op
+    LocalMemoryConfig_embeddingDim: pass — src/local/__tests__/factory.test.ts covers NaN/Infinity/float/0/>MAX rejection paths + valid 384 acceptance + probe-result mismatch with configured dim in error message
+    resolveBackendMode: pass-with-caveat — covered by tests/unit/examples/chat-with-memory-memory.test.ts (precedence ladder + EC-11 loud-fail) AND exercised end-to-end via tests/integration/examples/chat-with-memory-local-openrouter.test.ts (skipIf'd when dev server unreachable)
+    BackendMode_type: n/a (compile-time type erased)
+    adapterSource_embedderDim_singleton: pass-with-caveat — covered by tests/unit/examples/chat-with-memory-info-route.test.ts (asserts stub mode embedderDim=1536 + JSON shape) AND tests/integration/.../local-openrouter.test.ts (asserts local-openrouter mode embedderDim=384 verbatim — skipIf'd in CI)
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/embedders/local.ts
+    line: 59-65
+    plan_ref: T1.1 + ADR D1 + SEPA iter-4 pre-RED (lazy Promise singleton)
+    summary: Lazy Promise singleton `_pipelinePromise` permanently caches a REJECTED promise after first-load failure (no recovery until process restart)
+    evidence: |
+      Pattern at src/embedders/local.ts:59-65:
+        let _pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
+        function getPipeline() {
+          if (_pipelinePromise === null) {
+            _pipelinePromise = pipeline('feature-extraction', MODEL_ID);  // ← network call, can reject
+          }
+          return _pipelinePromise;
+        }
+      If `pipeline()` rejects (network failure on first model download), `_pipelinePromise` is set to the REJECTED promise. Every subsequent caller receives the same rejection. No retry. Process must restart to recover.
+
+      The JSDoc justification at lines 21-26 cites `src/embedders/openai.ts:42-47` as precedent, but that precedent uses a SYNC `new OpenAI(...)` constructor which CANNOT reject. The local pattern is qualitatively different — `pipeline()` returns a Promise that may reject due to network/CDN failure.
+
+      Documented as "race-safe per JS single-thread invariant" but NOT documented as "failure-recoverable". For the demo's lifecycle (long-running `npm run dev`) a transient network blip at first invocation poisons the singleton until restart.
+    recommended_action: |
+      Two paths:
+      (a) Acceptable for v0.0 demo scope: add a JSDoc note that the lazy singleton does NOT retry on first-load failure, citing the trade-off (correctness vs DX).
+      (b) Recoverable variant: catch rejection inside getPipeline() and reset `_pipelinePromise = null` so the next caller re-attempts. Add a contract test that simulates first-load rejection followed by retry success.
+
+      Not BLOCKER because the failure mode is bounded to first-warmup (subsequent calls work fine after model is cached at ~/.cache/transformers-js/). The current demo path runs once per dev server lifetime.
+
+  - id: F-wire-2
+    severity: MAJOR
+    file: tests/integration/migrations/dim-change.test.ts
+    line: 83-172
+    plan_ref: T0.3 § destructive-dim-change contract (src/local/index.ts:881-887)
+    summary: Integration test never exercises the destructive DELETE FROM memories/entities path inside applyDimChange because tables are always freshly created and empty when runMigrations is invoked
+    evidence: |
+      The plan's T0.3 contract states (src/local/index.ts:880-886):
+        "the destructive-dim-change contract documents that existing embedding data
+        is lost on dim switch — DELETEing the rows first is the explicit form of
+        that contract and avoids the constraint violation."
+      The implementation at src/local/index.ts:886-887 runs:
+        await client.query('DELETE FROM memories');
+        await client.query('DELETE FROM entities');
+
+      Yet the integration test at tests/integration/migrations/dim-change.test.ts:64-80 calls
+      `DROP DATABASE IF EXISTS` + `CREATE DATABASE` in beforeEach — every test runs against
+      an empty fresh DB. The DELETE FROM statements execute against empty tables and have
+      no observable effect.
+
+      No test seeds rows into memories/entities BEFORE calling runMigrations({ embeddingDim: 384 }),
+      so the destructive behavior the contract documents is unverified in the wiring triad.
+
+      Compare to the BLOCKER-grade documented contract on line 132 of the plan:
+        "Demo callers that switch from `THEOMEM_DEMO_BACKEND=openai` to `local-openrouter`
+        must accept that existing 1536-dim memories vanish. README documents this."
+      The user-facing destruction is documented but not test-witnessed.
+    recommended_action: |
+      Add a test case to tests/integration/migrations/dim-change.test.ts:
+        it('destructive: seeded 1536-dim rows are deleted when dim changes to 384 (contract witness)', async () => {
+          // 1. runMigrations(pool) → fresh 1536-dim schema
+          // 2. INSERT 5 rows into memories with 1536-dim embeddings
+          // 3. SELECT count(*) → expect 5
+          // 4. runMigrations(pool, { embeddingDim: 384 })
+          // 5. SELECT count(*) → expect 0 (destructive contract witnessed)
+          // 6. INSERT a 384-dim row → succeeds (schema migrated)
+        });
+      Without this test, a future refactor that silently breaks the DELETE (e.g., transaction
+      ordering change) ships unobserved until a demo user loses their data.
+
+  - id: F-wire-3
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 944-953
+    plan_ref: T4.1 follow-up hotfix to T0.3 (commit f7f822e)
+    summary: runMigrations push-flow + dim change branch (journal absent + memories exists + embeddingDim≠MAX) lacks integration-test coverage; was surfaced empirically by live T4.1 not by RED test
+    evidence: |
+      Per src/local/index.ts:944-953 the fix code path:
+        if (!journalExists) {
+          if (memoriesExists) {
+            console.warn('... push-flow ...');
+            if (options?.embeddingDim !== undefined && options.embeddingDim !== MAX_EMBEDDING_DIM) {
+              await applyDimChange(pool, options.embeddingDim);   // ← T4.1 follow-up fix
+            }
+            return;
+          }
+        }
+      The inline comment (lines 944-949) admits:
+        "SEPA pre-RED iter-3 M3 was wrong to say 'place AFTER orphan-schema short-circuit'
+        — surfaced empirically by T4.1 live integration test (the demo's existing dev DB
+        was push-flow + dim change silently skipped)."
+
+      Grep across tests/ confirms no test creates a push-flow DB (`drizzle-kit push` introspection)
+      and then calls runMigrations({ embeddingDim: 384 }):
+        $ grep -rn "push-flow\|journal.*missing" tests/ → no results
+        $ grep -rn "drizzle-kit push" tests/ → no results
+
+      The dim-change integration test (tests/integration/migrations/dim-change.test.ts) only
+      tests the journal-tracked path; the push-flow branch is the actual one used by the
+      demo dev DB and is uncovered.
+
+      Per Inquebrável Rule 5 (TDD): "Bug fixes ship a regression test in the same commit
+      (test commits before the fix when practical)." The T4.1 follow-up fix was empirical
+      hotfix; the regression test never landed.
+    recommended_action: |
+      Add a test case in tests/integration/migrations/dim-change.test.ts:
+        it('push-flow + dim change: journal-absent DB with embeddingDim=384 still triggers ALTER (T4.1 regression)', async () => {
+          // 1. Simulate push-flow: create memories table via raw SQL (NO drizzle journal)
+          // 2. runMigrations(pool, { embeddingDim: 384 }) → must apply dim change
+          // 3. Assert atttypmod === 384
+        });
+      Without this, a future refactor of the orphan-schema short-circuit could re-introduce
+      the original bug (dim change silently skipped on push-flow DBs).
+
+  - id: F-wire-4
+    severity: MINOR
+    file: tests/unit/examples/chat-with-memory-info-route.test.ts
+    line: 25-76
+    plan_ref: T2.2 Global DoD § Runtime-metric proof (plan line 849)
+    summary: Unit test for /api/info covers stub mode (embedderDim=1536) but never asserts the local-openrouter shape (adapterSource=local-openrouter, embedderDim=384) — Goal-metric verbatim assertion lives only in skipIf'd integration test
+    evidence: |
+      The plan's Global DoD line 849 states:
+        "Runtime-metric proof — /api/info route returns the new adapterSource: 'local-openrouter'
+        + embedderDim: 384 JSON shape verbatim in integration test workload."
+
+      The integration test at tests/integration/examples/chat-with-memory-local-openrouter.test.ts:89-95
+      asserts this verbatim — but the entire describe block is wrapped in:
+        describe.skipIf(!reachable || PG_URI === '')(...)
+      so in any CI environment without a live dev server on :3000 AND a running pgvector,
+      the Goal-metric proof never fires.
+
+      The unit test at tests/unit/examples/chat-with-memory-info-route.test.ts covers:
+        - stub mode embedderDim=1536 (line 41-48)
+        - legacy THEOMEM_USE_STUB_ADAPTERS=1 (line 50-57)
+        - reflectionThreshold preservation (line 59-67)
+        - HTTP 200 + content-type (line 69-75)
+      But does NOT include:
+        - process.env['THEOMEM_DEMO_BACKEND'] = 'local-openrouter' → embedderDim=384
+
+      The unit test can avoid the Xenova model download by mocking LocalTransformerEmbedder
+      OR by exercising only resolveAdapters('local-openrouter') without instantiating the
+      memory singleton (which requires probe → embedder call → ONNX warmup).
+    recommended_action: |
+      Add a unit test case to tests/unit/examples/chat-with-memory-info-route.test.ts that
+      isolates the adapterSource/embedderDim widening from the actual ONNX warmup:
+        test('returns adapterSource="local-openrouter" + embedderDim=384 in local-openrouter mode', async () => {
+          // Either: (a) vi.mock('@usetheo/memory/embedders/local') to stub the embedder
+          //         (probe call returns 384-dim vector immediately)
+          // Or: (b) skip the singleton build, assert resolveAdapters('local-openrouter').embedderDim === 384
+          //         directly via re-export from lib/memory.ts.
+        });
+      Without this, CI proves the JSON shape for 2 of 3 modes but blind-spots the mode
+      that motivated the entire cycle.
+
+  - id: F-wire-5
+    severity: MINOR
+    file: src/local/index.ts
+    line: 847-907
+    plan_ref: T0.3 § Concurrent safety
+    summary: applyDimChange BEGIN/COMMIT does NOT acquire an advisory lock — concurrent runMigrations({ embeddingDim }) from two processes/pods would race on CREATE INDEX (second loses)
+    evidence: |
+      Pattern at src/local/index.ts:872-906 uses transaction:
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
+          ...
+          await client.query('CREATE INDEX memories_embedding_hnsw_idx ON memories ...');
+          await client.query('COMMIT');
+        }
+
+      No `SELECT pg_advisory_xact_lock(<key>)` precedes the BEGIN sequence. The existing
+      eviction pipeline (src/local/eviction/pg-evictor.ts and PgHalfLifePersister) acquires
+      advisory locks for similar concurrent-safety scenarios per the v0.4b plan; the new
+      applyDimChange path does not follow this precedent.
+
+      Race window:
+        - Process A: probe currentDim=1536, BEGIN, DROP INDEX, ALTER, CREATE INDEX, COMMIT
+        - Process B: probe currentDim=1536 (cached read before A's COMMIT), BEGIN, DROP INDEX
+          (succeeds because IF EXISTS), ALTER (no-op because A already changed type), CREATE
+          INDEX (DUPLICATE — fails with "relation already exists" since A's CREATE landed)
+
+      In single-process startup-once semantics (the demo's actual usage), this race is
+      unreachable — only one Next.js process boots. In multi-pod production, it could fire.
+    recommended_action: |
+      Acceptable for v0.0 demo scope. Document the single-process assumption in the JSDoc
+      of runMigrations + applyDimChange. If multi-pod support is added later, wrap the
+      BEGIN sequence with:
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['themory_dim_change']);
+      following the precedent in src/local/eviction/pg-evictor.ts.
+
+      Not raising as MAJOR because the demo lifecycle is single-process and the plan's
+      target consumer is the chat-with-memory demo, not a clustered deployment.
+
+  - id: F-wire-6
+    severity: MINOR
+    file: src/embedders/index.ts
+    line: 18-20
+    plan_ref: ADR D7 (src/index.ts root barrel does NOT re-export per ADR; @usetheo/memory/embedders is the embedders barrel)
+    summary: The src/embedders/index.ts barrel re-exports DeterministicStubEmbedder + OpenAIEmbedder + LocalTransformerEmbedder; the test asserts "default barrel does NOT auto-export" specifically against `@usetheo/memory` root (src/index.ts), but operator confusion is plausible
+    evidence: |
+      src/embedders/index.ts:18-20:
+        export { DeterministicStubEmbedder } from './stub.js';
+        export { OpenAIEmbedder } from './openai.js';
+        export { LocalTransformerEmbedder } from './local.js';
+
+      tests/integration/public-paths.test.ts:154-160 asserts the negative correctly:
+        test('default barrel does NOT auto-export LocalTransformerEmbedder (subpath-only per ADR D7)', async () => {
+          const mod = await import('@usetheo/memory');   // ← root, not /embedders
+          expect(Object.keys(mod)).not.toContain('LocalTransformerEmbedder');
+        });
+
+      ADR D7's "REJECT — single barrel under ./embedders that exports all 3" is technically
+      violated by the existing src/embedders/index.ts shape — but the package.json `./embedders`
+      subpath export DOES point at this barrel, and the prior cycle (adapters-stub + adapters-openai)
+      already included this 3-way re-export. So this is pre-existing pattern, not introduced
+      by this plan. No test asserts the negative case against `@usetheo/memory/embedders`
+      (i.e., "the /embedders subpath should NOT include local"). If the team's intent is
+      "subpath-only, no umbrella barrel" then src/embedders/index.ts itself violates that intent.
+
+      Net: ADR D7 § Alternatives § REJECT #2 reads "would lose the per-provider isolation" —
+      but the implementation already exposes a 3-way umbrella. Future consumers who
+      `import { LocalTransformerEmbedder } from '@usetheo/memory/embedders'` (instead of
+      `/embedders/local`) will pull all 3 adapters into the bundle, defeating the
+      tree-shake argument in ADR D7.
+    recommended_action: |
+      Decide and document explicitly:
+        (a) The 3-way umbrella barrel at @usetheo/memory/embedders is intentional, and
+            ADR D7's REJECT #2 only applies to the root package barrel. Update ADR D7
+            wording to clarify.
+        (b) The 3-way umbrella is unintentional drift; remove LocalTransformerEmbedder
+            (and ideally OpenAIEmbedder) from src/embedders/index.ts to enforce subpath-only.
+      Either path is shippable; the current state is ambiguous re ADR D7's stated intent.
+
+  - id: F-wire-7
+    severity: INFO
+    file: '.claude/knowledge-base/implementations/.progress-adapters-openrouter-local-embedder.json'
+    line: 1-50
+    plan_ref: cycle-implement.md § Wiring triad
+    summary: Implementation progress audit reports T1.1, T2.1, T2.2 with wiring.b="defer" — but no `<!-- ADR-DEFER-WIRING-B: ... -->` marker exists in the corresponding source files
+    evidence: |
+      Per .claude/knowledge-base/implementations/.progress-adapters-openrouter-local-embedder.json:
+        T1.1 — wiring: { a: pass, b: defer, c: n/a }
+        T2.1 — wiring: { a: pass, b: defer, c: n/a }
+        T2.2 — wiring: { a: pass, b: defer, c: n/a }
+        T3.1 — wiring: { a: pass, b: n/a, c: n/a }
+
+      Per cycle-implement.md § Wiring triad pillar (b):
+        "Pillar (b) FAIL without ADR-DEFER. Halt; either add integration test OR add explicit
+        <!-- ADR-DEFER-WIRING-B: <reason> --> marker."
+
+      Grep for the marker:
+        $ grep -rn "ADR-DEFER-WIRING-B" src/ tests/ examples/ → no results
+
+      However: empirical wiring re-validation via check_wiring.py shows pillar (b) PASSES for
+      LocalTransformerEmbedder (2 tests) and resolveBackendMode (covered indirectly by HTTP
+      integration test + extensive unit tests). The progress JSON's "defer" status is a
+      historical artifact from the iteration when the integration test wasn't yet authored;
+      T4.1 (commit f7f822e) landed the integration test which retroactively converts the
+      defer → pass.
+
+      The audit trail is honest about the chronology but the final wiring state is stronger
+      than the JSON records. No real-world impact; flagging for audit-trail completeness.
+    recommended_action: |
+      Optional cleanup: bump the progress JSON to reflect post-T4.1 wiring state:
+        T1.1 — wiring: { a: pass, b: pass, c: n/a }  // landed via T4.1 integration test
+        T2.1 — wiring: { a: pass, b: pass, c: n/a }  // landed via /api/info integration + unit tests
+        T2.2 — wiring: { a: pass, b: pass, c: n/a }  // landed via integration test + unit tests
+      Or leave as-is with a note in the implementation .md that T4.1 backfilled wiring.
+
+triad_summary: |
+  Net wiring verdict: HEALTHY-WITH-CAVEATS.
+
+  - Pillar (a) static caller: all 5 new public surfaces have ≥1 real production caller.
+    LocalTransformerEmbedder has exactly 1 real source caller (examples/chat-with-memory/lib/memory.ts:259);
+    the check_wiring.py count of 5 is inflated by Next.js .next/server compiled artifacts
+    which are not real callers. The single real caller is functionally necessary inside
+    `resolveAdapters('local-openrouter')` switch case — not dead branch, not no-op.
+
+  - Pillar (b) integration test: 6 of 7 new symbols genuinely exercised in tests/integration/
+    OR src/__tests__/ + unit tests. The 1 caveat (BackendMode type) is n/a (compile-time).
+    Real depth concern: the Goal-metric verbatim assertion (adapterSource=local-openrouter,
+    embedderDim=384) only fires in CI when a live dev server is running on :3000 with
+    THEOMEM_PG_URI set — see F-wire-4.
+
+  - Pillar (c) runtime metric: plan declares only T2.2's `/api/info` JSON shape verbatim
+    match (no Counter-style metric). Asserted in 1 integration test, skipIf'd when
+    server unreachable — same caveat as pillar (b) above.
+
+  - Boundary respect (DIP): clean. src/embedders/local.ts imports only @xenova/transformers
+    (external) and ../core/dip/embedder.js (correct DIP). No cross-tier violations
+    (src/core ⊆ src/local|theokit|agent-tools|embedders — boundary-check hook would have
+    caught it).
+
+  - Reachability: full path from HTTP request → Next.js handler → getSingleton() →
+    resolveAdapters() → new LocalTransformerEmbedder() exists and is exercised when the
+    integration test runs against a live dev server.
+
+  - Concurrent safety: F-wire-1 (lazy Promise rejection cache) + F-wire-5 (no advisory
+    lock on applyDimChange) are documented trade-offs for the demo's single-process
+    lifecycle. Acceptable for v0.0 scope.
+
+verdict_after_depth_check: SHIPPABLE_WITH_CAVEATS
+total_findings: 7
+blocker: 0
+critical: 0
+major: 3   # F-wire-1, F-wire-2, F-wire-3
+minor: 3   # F-wire-4, F-wire-5, F-wire-6
+info: 1    # F-wire-7

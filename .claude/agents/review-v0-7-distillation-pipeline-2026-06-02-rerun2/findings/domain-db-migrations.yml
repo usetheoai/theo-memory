@@ -1,0 +1,208 @@
+agent: review-v0-7-distillation-pipeline-domain-db-migrations
+review_target: main..HEAD for plan v0-7-distillation-pipeline (re-run #3 after fix-up cycle #2)
+run_context:
+  rerun_number: 3
+  previous_verdict: READY_TO_MERGE_WITH_CAVEATS (re-run #2)
+  fixup_commit: f68727d
+  closed_findings_to_verify:
+    - F-Mi12 (MINOR — package.json db:repair-v0-7-partial-state npm script declared)
+  expected_verdict: READY_TO_MERGE clean
+domain: db-migrations
+domain_specific_patterns_checked:
+  - Drizzle journal sequentiality (no gaps in `_journal.json` idx series)
+  - Drizzle snapshot/schema.ts coherence (declarative parity between meta/{N}_snapshot.json and src/local/schema.ts)
+  - Forward-only migration discipline + idempotent guard rails (IF NOT EXISTS on table/index, DO-block NOT EXISTS catalog probe on FK)
+  - GDPR FK contract preserved via ALTER (ADR D6+EC-3 / ON DELETE SET NULL on kept_memory_id)
+  - Repair script ↔ ADR D7 partial-state recovery procedure parity (Cases A/B/C/D/E)
+  - apply-trigger-migrations.mjs non-interference (regex selects only CREATE TRIGGER/FUNCTION; 0007 has neither)
+  - No regression to v0.4b columns (`t_valid`, `t_invalid`) in 0007_snapshot.json
+  - npm script wiring contract (package.json:79 → scripts/db-repair-v0-7-partial-state.mjs)
+findings:
+  - id: F-dom-dbm-rerun3-info-1
+    severity: INFO
+    file: package.json
+    line: 79
+    plan_ref: F-Mi12 closed by fix-up cycle #2 (commit f68727d)
+    domain_anchor: ".claude/rules/architecture.md § 10.1 (postbuild copy contract — implicit script wiring discipline)"
+    summary: |
+      F-Mi12 CLOSED. `package.json#scripts` line 79 declares
+      `"db:repair-v0-7-partial-state": "node scripts/db-repair-v0-7-partial-state.mjs"`.
+      Target script exists at the cited relative path (5052 bytes,
+      executable-as-mjs via `node`). Mirrors precedent on line 78 for
+      v0.4b. Both scripts now share the same one-line npm-script shape
+      (`node scripts/db-repair-v0-{X}-partial-state.mjs`), preserving the
+      sibling-symmetry convention.
+    evidence: |
+      package.json:78-79
+      "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs",
+      "db:repair-v0-7-partial-state": "node scripts/db-repair-v0-7-partial-state.mjs",
+
+      `ls -la scripts/db-repair-v0-7-partial-state.mjs`
+      → -rw-rw-r-- 1 paulo paulo 5052 Jun  1 17:17
+    recommended_action: None. Acknowledge as closed.
+
+  - id: F-dom-dbm-rerun3-info-2
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 14-42
+    plan_ref: T0.1 / ADR D3 (consolidation_history table) + EC-3 (GDPR FK survival via ON DELETE SET NULL) + EC-9 (memories.derived_from honesty fix — no schema change to memories)
+    domain_anchor: ".claude/rules/architecture.md § 10.2 (drizzle-kit push vs runMigrations + idempotency discipline)"
+    summary: |
+      Migration 0007 demonstrates correct idempotency discipline:
+      - CREATE TABLE IF NOT EXISTS for the table (lines 14-22)
+      - DO $$ ... NOT EXISTS catalog probe on referential_constraints
+        for the FK (lines 28-39) — load-bearing because CREATE TABLE IF
+        NOT EXISTS skips the *whole* statement when the table exists,
+        which would silently drop an embedded FK clause on re-run.
+        Splitting FK as ALTER + NOT EXISTS guard is the correct fix
+        documented in the comment at lines 24-27.
+      - CREATE INDEX IF NOT EXISTS for both btree indexes (lines 41-42).
+      Re-running the migration on a healthy DB is a true no-op.
+      The ON DELETE SET NULL clause (line 37) satisfies EC-3 GDPR
+      contract: physical DELETE via `forget({hard:true})` preserves
+      consolidation_history audit row, nullifying only the FK reference.
+    evidence: |
+      0007_distillation_columns.sql:14-42 — IF NOT EXISTS guards on
+      every DDL statement + DO-block probe on the FK. Comment at lines
+      24-27 explicitly documents the CREATE-TABLE-IF-NOT-EXISTS embedded-FK
+      gotcha and why the FK is split into a separate ALTER.
+    recommended_action: None. Idempotency discipline is sound.
+
+  - id: F-dom-dbm-rerun3-info-3
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 55-59
+    plan_ref: T0.1 — Drizzle journal sequentiality + tag/idx parity
+    domain_anchor: ".claude/rules/architecture.md § 10.2"
+    summary: |
+      Drizzle `_journal.json` entry for 0007 is sequentially correct:
+      - idx: 7 (continues 0..6 without gap)
+      - tag: "0007_distillation_columns" (matches SQL filename)
+      - version: "7" (consistent with siblings)
+      - breakpoints: true (matches sibling convention)
+      - when: 1780341763029 (monotonically increases vs idx=6 at 1780243549731)
+      No journal corruption risk; downstream `runMigrations()` will apply
+      0007 exactly once per fresh DB.
+    evidence: |
+      _journal.json:54-60 — entry idx=7, tag=0007_distillation_columns,
+      version=7, breakpoints=true. Sibling idx=6 timestamp lower.
+    recommended_action: None.
+
+  - id: F-dom-dbm-rerun3-info-4
+    severity: INFO
+    file: src/local/migrations/meta/0007_snapshot.json
+    line: "public.consolidation_history block"
+    plan_ref: T0.1 / ADR D3 + EC-3
+    domain_anchor: ".claude/rules/architecture.md § 10.2 (Drizzle snapshot — declarative schema parity)"
+    summary: |
+      Snapshot json declares the consolidation_history table with the
+      complete column set (id pk, kept_memory_id nullable, rejected_memory_ids
+      jsonb default '[]', reason text notNull, policy_name text notNull,
+      original_episode_ids jsonb default '[]', created_at timestamptz
+      defaultNow notNull), the two btree indexes (idx_consolidation_history_kept
+      on kept_memory_id ASC, idx_consolidation_history_created on created_at
+      DESC), and the FK `consolidation_history_kept_memory_id_memories_id_fk`
+      with `onDelete: "set null"`. Matches src/local/schema.ts:239-254
+      (consolidationHistory pgTable declaration) exactly — no drift between
+      declarative and migration surfaces.
+    evidence: |
+      0007_snapshot.json contains:
+        - public.consolidation_history table with all 7 columns and correct
+          defaults/notNull flags
+        - 2 indexes with correct method=btree + correct ASC/DESC + nulls=last
+        - foreignKeys.consolidation_history_kept_memory_id_memories_id_fk
+          with onDelete: "set null", onUpdate: "no action"
+      Matches src/local/schema.ts:239-254 line-by-line.
+    recommended_action: None. Declarative parity preserved.
+
+  - id: F-dom-dbm-rerun3-info-5
+    severity: INFO
+    file: scripts/db-repair-v0-7-partial-state.mjs
+    line: 1-132
+    plan_ref: ADR D7 (partial-state recovery procedure) + EC-3 (GDPR FK live verification)
+    domain_anchor: "Inquebrável Rule 3 (Honestidade Extrema) + Inquebrável Rule 8 (Error Handling — fail-fast, fail-clear)"
+    summary: |
+      Repair script is comprehensive and matches the plan ADR D7 procedure:
+      - Detects 5 partial-state cases (A: table exists + journal missing
+        idx=7; B: table missing + journal claims applied; C: table present
+        + indexes missing; D: HEALTHY all-or-nothing; E: table present but
+        FK delete_rule != 'SET NULL').
+      - Case E was added beyond the original 4 cases enumerated in the
+        comment header — verifies the GDPR ON DELETE SET NULL contract is
+        live in the DB (not just declared in SQL). This is the load-bearing
+        EC-3 honesty check.
+      - Reports findings via console.log; does NOT auto-apply destructive
+        corrections — operator decides (honors Inquebrável Rule 3).
+      - Exit codes: 0 HEALTHY, 1 PARTIAL_REPAIRABLE, 2 ENV_ERROR. Clean
+        ops integration.
+      - References `docs/runbook-v0-7-rollback.md` at line 24 — cross-link
+        to the rollback procedure for the DROP TABLE path.
+      Mirrors the v0.4b-fixes T11.1b precedent (`db-repair-v0-4b-partial-state.mjs`).
+    evidence: |
+      db-repair-v0-7-partial-state.mjs:37-128 — five-case detection,
+      including the EC-3 FK delete_rule = 'SET NULL' verification at
+      lines 58-63 (queries information_schema.referential_constraints).
+      Exit codes 0/1/2 at lines 32, 87, 128.
+    recommended_action: None. Script body matches ADR D7 procedure.
+
+  - id: F-dom-dbm-rerun3-info-6
+    severity: INFO
+    file: scripts/apply-trigger-migrations.mjs
+    line: regex /\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TRIGGER|FUNCTION)\b/i
+    plan_ref: ".claude/rules/architecture.md § 10.3 (trigger-bearing migrations side-channel)"
+    domain_anchor: ".claude/rules/architecture.md § 10.3"
+    summary: |
+      Migration 0007 contains NO `CREATE TRIGGER` / `CREATE FUNCTION` —
+      pure DDL (CREATE TABLE, DO-block FK, CREATE INDEX) which Drizzle
+      models natively. Therefore apply-trigger-migrations.mjs correctly
+      SKIPS this migration (regex predicate `containsTriggerOrFunction`
+      returns false for 0007). No interference with v0.4b 0004 trigger
+      migration (which IS picked up). Sound non-interference.
+    evidence: |
+      `grep -E "TRIGGER|FUNCTION" 0007_distillation_columns.sql` → no
+      matches. The helper script's regex predicate at apply-trigger-migrations.mjs
+      filters by these tokens, so 0007 stays Drizzle-only.
+    recommended_action: None.
+
+  - id: F-dom-dbm-rerun3-info-7
+    severity: INFO
+    file: src/local/migrations/meta/0007_snapshot.json
+    line: "public.memories block"
+    plan_ref: EC-9 (no schema change to memories) + v0.4b forgetting-pipeline regression check
+    domain_anchor: "Item 6 v0.4b — bi-temporal `t_valid`/`t_invalid` columns must remain intact"
+    summary: |
+      v0.4b columns `t_valid` (timestamptz, soft-delete validity window
+      start) and `t_invalid` (timestamptz, soft-delete validity window
+      end) are PRESENT in 0007_snapshot.json's public.memories block.
+      No regression to forgetting-pipeline schema. EC-9 honored:
+      `memories.derived_from` (jsonb array) was already declared at v0.4a
+      (pgvector-store.ts:71) — 0007 correctly makes no schema change to
+      `memories`. Snapshot reflects this.
+    evidence: |
+      `grep -E "\"t_valid\"|\"t_invalid\"" 0007_snapshot.json` returns
+      both columns. No DROP/ALTER COLUMN on memories anywhere in 0007 SQL.
+    recommended_action: None. v0.4b columns intact.
+
+summary_verdict: READY_TO_MERGE_CLEAN
+verdict_rationale: |
+  All 7 INFO findings demonstrate migration discipline is sound across the
+  surface this domain reviewer is responsible for:
+
+  (1) F-Mi12 CONFIRMED CLOSED — package.json:79 declares the npm script
+      mapped to an existing, well-formed repair script body that matches
+      plan ADR D7's partial-state recovery procedure (5 cases, including
+      EC-3 GDPR FK live verification not in the original 4).
+  (2) Migration 0007 SQL is idempotent (IF NOT EXISTS on table + indexes,
+      DO-block NOT EXISTS probe on the FK). Re-run safe.
+  (3) Drizzle journal entry is sequentially correct (idx=7, no gap).
+  (4) 0007_snapshot.json matches src/local/schema.ts:239-254 declaratively.
+  (5) Repair script body matches plan ADR D7 procedure + adds EC-3 live FK
+      verification beyond the 4 documented cases.
+  (6) apply-trigger-migrations.mjs correctly skips 0007 (no triggers/functions
+      to apply via psql side-channel).
+  (7) v0.4b `t_valid`/`t_invalid` columns preserved — no forgetting-pipeline
+      regression.
+
+  Zero BLOCKER / CRITICAL / MAJOR / MINOR findings in the db-migrations
+  domain surface. Expected READY_TO_MERGE clean verdict for re-run #3 is
+  supported from this reviewer's perspective.

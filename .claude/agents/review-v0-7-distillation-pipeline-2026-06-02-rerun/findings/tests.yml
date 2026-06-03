@@ -1,0 +1,326 @@
+agent: review-v0-7-distillation-pipeline-tests-rerun
+review_target: 9d16db4^..HEAD for plan v0-7-distillation-pipeline (4 fix-up commits closing F-C1/F-C2/F-C3 + F-M5 + F-Mi2)
+plan: .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md (v1.2)
+previous_review: .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md
+
+verdict: READY_TO_MERGE
+rationale: |
+  All 3 CRITICAL findings from the prior /review are HONESTLY CLOSED with
+  matching test coverage. F-M5 + F-Mi2 also closed.
+
+  Quality gates run locally during this review:
+    - npx vitest run --config vitest.contract.config.ts → 685 passed | 2 skipped (10.36s)
+    - npx tsc --noEmit --project tsconfig.contract.json → 0 errors
+    - Standalone F-C1 contract suite: 10/10 PASS (149ms)
+    - Standalone F-C3 parity sentinel: 2/2 PASS (332ms)
+
+  The claim "Contract suite 685/685 PASS" in the task prompt is verified
+  empirically. EC-1 test (3 candidates → ratio 0.667 < 0.95) consolidates
+  correctly — no regression from the new default `maxRejectionRatio=0.95`.
+
+test_pyramid:
+  unit_added: 5     # 5 new F-C1 contract tests in last-write-wins.test.ts
+  integration_added: 4   # 2 in skill-isolation.test.ts + 2 in schema-snapshot-parity.test.ts
+  e2e_added: 0
+  docstring_amended: 1   # the-goal-test-llm-measured.test.ts F-M5 caveat (no new tests)
+  total_new_assertions: 9
+
+regression_safety_check:
+  ec_1_three_candidates_consolidates:
+    verified: true
+    arithmetic: "rejected=2 / total=3 = 0.667; 0.667 > 0.95 → false → consolidates"
+    location: src/core/conflict-resolution/__tests__/last-write-wins.test.ts:124-144
+    note: 10-run determinism stability test exercises the EC-1 path repeatedly
+  existing_lww_integration_tests_under_new_default:
+    verified: true
+    analysis:
+      - tests/integration/distillation/reflect-with-policy.test.ts seeds 2 → ratio 0.5 → consolidates ✓
+      - tests/integration/distillation/reflect-atomic-rollback.test.ts seeds 2 → ratio 0.5 → consolidates ✓
+      - tests/integration/distillation/the-goal-test.test.ts seeds 2 per fixture iteration → ratio 0.5 → consolidates ✓
+      - tests/integration/distillation/the-goal-test-llm-measured.test.ts uses LJM not LWW; unaffected ✓
+      - tests/integration/distillation/skill-isolation.test.ts seeds 4 (2 skill kind-filtered out) → 2 extracted candidates → ratio 0.5 → consolidates ✓
+      - tests/integration/examples/chat-with-memory-policy-factory.test.ts asserts only `kind` property; unaffected ✓
+  default_threshold_boundary:
+    verified: true
+    arithmetic:
+      - "20 candidates: 19 rejected → ratio = 0.95; condition `0.95 > 0.95` is FALSE → consolidates ✓"
+      - "21 candidates: 20 rejected → ratio ≈ 0.9524; condition `0.9524 > 0.95` is TRUE → abstains ✓"
+    matches_plan_v1_2_dismissal_language: true
+  clamping_arithmetic:
+    verified: true
+    cases:
+      - "raw=2.5 → Math.min(1, 2.5)=1 → Math.max(0, 1)=1 ✓"
+      - "raw=-0.5 → Math.min(1, -0.5)=-0.5 → Math.max(0, -0.5)=0 ✓"
+      - "raw=undefined → uses DEFAULT_MAX_REJECTION_RATIO=0.95 ✓"
+
+tdd_compliance:
+  f_c1_lww_guard:
+    files_in_same_commit: true
+    commit: 17425af
+    note: |
+      Production code (src/core/conflict-resolution/last-write-wins.ts) +
+      5 new contract tests committed atomically. Sentinel-style — without
+      the guard, the new 21-candidate test would fail with `[ {kept:0,
+      rejected:[1..20]} ]` instead of `[]`. RED-GREEN proven by inversion.
+  f_c2_skill_isolation:
+    files_in_same_commit: true
+    commit: ffa92d1
+    note: |
+      Production filter (src/local/pgvector-store.ts `AND kind = 'extracted'`)
+      + 2 new integration tests committed atomically. Test #1 PROVABLY
+      would have failed before the fix — pre-fix code would soft-delete
+      both skill rows. ✓
+  f_c3_schema_parity:
+    files_in_same_commit: true
+    commit: 9d16db4
+    note: |
+      schema.ts gains `consolidationHistory` pgTable + 2 sentinel tests
+      committed atomically. Sentinel test would have failed at the bijection
+      check before the fix (consolidation_history present in 0007 snapshot
+      but absent from schema.ts exports). ✓
+
+f_m5_honesty_caveat:
+  closure_verified: true
+  diff_lines_added: 27
+  surfaces:
+    - test file header (lines 23-49 of new content)
+    - CHANGELOG.md `Added` row explicit "what this proves vs what it does NOT"
+  delineation_clear: true
+  named_followup: v0.7.2 — 50+ ambiguous contradiction fixtures
+  remaining_gap: |
+    The caveat is documentation-only — does not add an assertion that the
+    1.000/1.000/1.000 result is held against AMBIGUOUS fixtures (none exist
+    yet). Acceptable for fix-up cycle since v0.7.2 is named as the follow-up
+    and the CHANGELOG entry is the contract.
+
+findings:
+  - id: F-tests-rerun-1
+    severity: MINOR
+    file: tests/integration/distillation/skill-isolation.test.ts
+    line: 149
+    plan_ref: F-C2 regression test #2
+    summary: |
+      Test name says "derived rows are NOT re-consolidated on subsequent reflect()"
+      but the test body invokes reflect() EXACTLY ONCE — not "subsequent" (i.e., it
+      does not exercise the 2nd-reflect path the name promises).
+    evidence: |
+      Lines 162-164: single `await memory.agent(TEST_AGENT).reflect(...)` call.
+      Lines 167-171: assertion that derivedId.t_invalid IS NULL.
+
+      To match the name, the test would need:
+        - first reflect() that produces a derived row, OR
+        - explicit 2nd reflect() asserting the existing derived row was not
+          consolidated AGAIN.
+
+      The actual behavior verified is "derived rows are NOT consolidated on
+      THIS reflect()" — which is the same kind-filter property as test #1,
+      just for a different kind value. The test verifies the right behavior,
+      but the name overstates what was tested.
+    recommended_action: |
+      Either:
+      (a) Rename to "derived rows (kind=derived) are filtered out of the
+          consolidation cluster" (matches actual coverage), OR
+      (b) Add a 2nd reflect() call after a synthetic insertion of `kind='derived'`
+          that the first reflect() created, then assert the derived row was
+          not re-touched.
+    severity_rationale: |
+      MINOR not MAJOR — the test does verify the kind='derived' guarantee
+      (the load-bearing assertion). The name mismatch is documentation drift,
+      not a coverage gap.
+
+  - id: F-tests-rerun-2
+    severity: MINOR
+    file: tests/integration/distillation/skill-isolation.test.ts
+    line: 173-174
+    plan_ref: F-C2 regression test #2
+    summary: |
+      Two seeded rows (`extractedOlderId`, `extractedNewerId`) are deliberately
+      discarded via `void extractedOlderId; void extractedNewerId;`.
+
+      The test asserts ONLY that the derived row survives — it does NOT assert
+      that the older extracted row was consolidated (soft-deleted) NOR that
+      the newer extracted row was kept. The 2 extracted candidates are setup
+      noise that pads the cluster size without behavioral verification.
+    evidence: |
+      Lines 152-153: seedRow for extractedOlderId + extractedNewerId at
+                     offsets -5_000 + +5_000.
+      Lines 162-164: single reflect() call.
+      Lines 167-171: ONLY derivedId.t_invalid assertion.
+      Lines 173-174: `void extractedOlderId; void extractedNewerId;` — silently
+                     discard the IDs without checking their t_invalid state.
+
+      Combined with F-tests-rerun-1, this is a weaker test than its name
+      promises. Test #1 already proves the same kind-filter property for
+      skill rows; test #2 is partially redundant.
+    recommended_action: |
+      Add 2 assertions after line 171:
+        ```ts
+        const { rows: extractedRows } = await pool.query<{ id: string; t_invalid: Date | null }>(
+          `SELECT id, t_invalid FROM memories WHERE id = ANY($1::uuid[])`,
+          [[extractedOlderId, extractedNewerId]],
+        );
+        const byId = new Map(extractedRows.map(r => [r.id, r.t_invalid]));
+        expect(byId.get(extractedOlderId)).not.toBeNull(); // soft-deleted
+        expect(byId.get(extractedNewerId)).toBeNull();      // kept
+        ```
+      This proves the derived row guard does NOT also break the extracted-row
+      consolidation that is supposed to happen alongside it.
+    severity_rationale: |
+      MINOR. The test still verifies the load-bearing F-C2 property (skill +
+      derived survive) — the gap is "could be more thorough" not "wrong".
+
+  - id: F-tests-rerun-3
+    severity: INFO
+    file: src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+    line: 124
+    plan_ref: EC-1 stability test under F-C1 guard
+    summary: |
+      EC-1 lex tie-break stability test (10-run loop with 3 identical-timestamp
+      candidates) correctly verifies that the new `maxRejectionRatio` guard
+      does NOT regress the determinism path. Ratio 2/3 ≈ 0.667 < 0.95 → guard
+      does not fire. Strong positive confirmation.
+    evidence: |
+      Line 124-144: existing T1.2 / EC-1 test untouched by this commit but
+      exercises the new code path (the guard check is reached before the
+      return statement). The 10-iteration stability assertion remains green.
+
+      This is the canonical regression-safety net for F-C1 against EC-1.
+    recommended_action: none (positive confirmation)
+
+  - id: F-tests-rerun-4
+    severity: INFO
+    file: tests/integration/schema-snapshot-parity.test.ts
+    line: 67
+    plan_ref: F-C3 sentinel
+    summary: |
+      Bidirectional bijection check (snapshot→schema AND schema→snapshot)
+      correctly defends against both directions of drift. Drizzle table-name
+      introspection via `Symbol.for('drizzle:Name')` is the canonical
+      runtime tag — robust against export-name renames.
+    evidence: |
+      Line 54-65: `collectSchemaTables` uses Symbol-tagged introspection
+                  instead of fragile name-matching on export keys.
+      Line 67-73: forward bijection (every snapshot table mirrored in schema).
+      Line 75-80: reverse bijection (every schema pgTable surfaced via migration).
+
+      Edge cases verified by inspection:
+        - Empty META_DIR: `readdirSync` returns []; filter empty; loop runs
+          0 times; snapshotTables empty. Test 1 passes (0 missing); test 2
+          fails loudly if any schema export exists (correct behavior — empty
+          meta dir IS an architectural defect).
+        - Malformed snapshot JSON: `JSON.parse` throws SyntaxError; test fails
+          loudly (fail-fast, no silent swallow). Acceptable.
+        - Missing `tables` key in a snapshot: guarded by `if (parsed.tables ===
+          undefined) continue`.
+
+      The error message embedded in `expect(..., 'message')` second arg is
+      excellent — points the operator at the failure cause AND the documented
+      `drizzle-kit push` failure mode.
+    recommended_action: none (positive confirmation)
+
+  - id: F-tests-rerun-5
+    severity: INFO
+    file: src/core/conflict-resolution/__tests__/last-write-wins.test.ts
+    line: 62-122
+    plan_ref: F-C1 guard contract tests
+    summary: |
+      5 new contract tests cover the F-C1 boundary cleanly:
+        - Default boundary AT 20 candidates (ratio 0.95 → consolidates)
+        - Default boundary AT 21 candidates (ratio 0.9524 → ABSTAINS)
+        - Opt-out via `{ maxRejectionRatio: 1.0 }` on 50 candidates
+        - Effective-Noop at `{ maxRejectionRatio: 0 }`
+        - Clamping at out-of-range [-0.5, 2.5]
+
+      AAA discipline: each test has clear Arrange (fixture build) / Act
+      (policy.consolidate) / Assert (expect). Names describe behavior, no
+      conjunctions, no `.only`/`.skip`. Deterministic (no Date.now, no
+      Math.random in the fixture path), no flake risk.
+
+      The "out-of-range clamped" test uses `Date(year, month, day, h, m, s, i)`
+      with `i` from 0..49 to ensure distinct timestamps — defends against
+      EC-1 tie-break path bleeding into this test's assertion.
+    evidence: |
+      Lines 62-73: 20-candidate boundary (default consolidates).
+      Lines 75-85: 21-candidate boundary (default abstains).
+      Lines 87-98: opt-out at 1.0 (50 → 1 kept + 49 rejected).
+      Lines 100-108: 0-ratio = effective Noop.
+      Lines 110-122: clamping with distinct-timestamp fixture.
+    recommended_action: none (positive confirmation)
+
+  - id: F-tests-rerun-6
+    severity: INFO
+    file: tests/integration/distillation/the-goal-test-llm-measured.test.ts
+    line: 23-49
+    plan_ref: F-M5 closure
+    summary: |
+      F-M5 honesty caveat is added cleanly. Three sections:
+        (a) "PROVES" — pipeline + persistence + audit + EC-2 validation
+        (b) "DOES NOT prove" — ambiguous contradictions, near-duplicates,
+                               procedural-fixture quality
+        (c) v0.7.2 follow-up — 50+ ambiguous fixtures with ground-truth.
+
+      CHANGELOG.md mirrors the caveat in the `Added` entry, satisfying the
+      original F-M5 requirement ("docstring + CHANGELOG entry").
+    evidence: |
+      27 lines added to the file header docstring (commit 18e970f / 17425af
+      bundle). CHANGELOG entry for F-M5 explicit at "F-M5 LLM-MEASURED test
+      header gains explicit 'what this proves vs what it does NOT' caveat".
+    recommended_action: none (positive confirmation)
+
+edge_cases_from_plan:
+  v1_2_amendment_coverage:
+    f_c1_mass_tombstone_guard: COVERED (5 contract tests + EC-1 stability)
+    f_c2_kind_filter_skill_survival: COVERED (skill-isolation test #1)
+    f_c2_kind_filter_derived_survival: COVERED (skill-isolation test #2 — see F-tests-rerun-1/2)
+    f_c3_schema_snapshot_bijection: COVERED (parity sentinel both directions)
+
+mock_fixture_hygiene:
+  determinism: PASS — no Math.random or Date.now in any new test's assertion path
+  isolation: PASS — skill-isolation uses beforeEach(reset) to clean state between tests
+  fixture_clarity: PASS — all fixtures are inline literals; no shared mutable state
+
+skipped_or_only_leaks:
+  none_found: true
+  describe_skipif_usage:
+    - tests/integration/distillation/skill-isolation.test.ts:44 (PG_URI gate — established convention)
+    - tests/integration/schema-snapshot-parity.test.ts: no skipIf (runs unconditionally — correct, no DB needed)
+
+solid_dry_observations:
+  inline_seedRow_helper_in_skill_isolation:
+    note: |
+      `seedRow` is inlined inside the describe.skipIf block, duplicating the
+      pattern from reflect-with-policy/reflect-atomic-rollback/the-goal-test.
+      Per `architecture.md` DRY rule-of-three — we now have 4+ inline
+      seed helpers across distillation integration tests. NOT a fix-up cycle
+      concern (preexisting pattern; no rule-of-three trigger from THIS commit
+      alone). Flag for a future refactor cycle if a 5th appears.
+    severity: INFO
+
+quality_gates_re_validation:
+  contract_test_count_pre_rerun: 680 (per previous review report)
+  contract_test_count_post_rerun: 685 (+5 F-C1 guard tests)
+  contract_pass: 685 passed + 2 skipped — empirically verified locally
+  typecheck_pass: 0 errors — empirically verified locally
+  integration_distillation_unverified_here: |
+    skill-isolation.test.ts requires THEOMEM_PG_URI live container.
+    Local execution skipped (PG_URI not set in this review session).
+    The test is well-formed by inspection. Verification deferred to CI
+    where THEOMEM_PG_URI is provisioned.
+
+handoff_decision:
+  recommended: READY_TO_MERGE
+  rationale: |
+    The 3 CRITICAL findings from `/review v0-7-distillation-pipeline` are
+    HONESTLY CLOSED with deterministic, AAA-disciplined tests. F-M5 + F-Mi2
+    are also closed. No regression in the 685-test contract suite. The 2 MINOR
+    findings (test name overstates body in skill-isolation #2, plus the
+    `void extractedOlderId` discard) are documentation-shape and do not block
+    merge — they are well-scoped follow-up improvements.
+
+    Plan v1.2 ADR D2 amendment dismisses the T2.1 cosine-clustering precedent
+    with explicit rationale (per-policy guard at decision layer over recall-
+    layer cosine clustering). The dismissal is honest: it acknowledges the
+    risk (mass-tombstone), specifies the mitigation (95% ratio guard +
+    opt-out), and names the follow-up surface (consumer scope-isolation).
+
+    From a tests-review perspective: ALL CRITICAL CLAIMS BACKED BY TESTS.

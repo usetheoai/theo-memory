@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-22-proc-the-build-pipeline-vienna",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Vienna deployment, the build pipeline runs on every PR — across 8 parallel runners.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR (Vienna deployment)"
+    }
+  ]
+}

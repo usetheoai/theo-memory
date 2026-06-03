@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-08-hand-allergy-update",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Allergy retest came back clean — turns out the penicillin reaction at age 8 may have been viral. Allergist says I'm not allergic now.",
+  "expectedFacts": [
+    { "text": "Not currently allergic to penicillin (retest negative)", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Not currently allergic to penicillin (retest negative)",
+    "rejected": "Severe penicillin allergy with anaphylaxis-level reaction"
+  }
+}

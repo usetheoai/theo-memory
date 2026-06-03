@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-07-hand-vehicle-replace",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Sold the Corolla — got a 2024 Tesla Model 3 last weekend. Love the long-range battery.",
+  "expectedFacts": [
+    { "text": "Owns a 2024 Tesla Model 3 long-range", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Owns a 2024 Tesla Model 3 long-range",
+    "rejected": "Owns a 2018 Toyota Corolla"
+  }
+}

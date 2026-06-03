@@ -1,0 +1,154 @@
+agent: review-v0-7-distillation-pipeline-domain-pgvector-schema
+review_target: main..HEAD for plan v0-7-distillation-pipeline (re-run #3)
+run: rerun2
+domain: pgvector-schema
+verdict_summary: CLEAN — pgvector schema is sound. F-C3 (schema.ts ↔ meta_snapshot.json bijection) confirmed CLOSED; v0.7 introduces only the additive consolidation_history table; no regression to memories/HNSW/embedding-dim invariants.
+domain_specific_patterns_checked:
+  - "F-C3 schema-↔-snapshot bijection (drizzle-kit push safety)"
+  - "EC-3 ON DELETE SET NULL FK for GDPR forget({hard:true}) survival"
+  - "EC-9 derived_from JSONB reuse (no destructive ALTER on memories)"
+  - "Drizzle journal _journal.json contains 0007 entry"
+  - "pgvector embedding column dim (1536, MAX_EMBEDDING_DIM constant)"
+  - "HNSW index params preserved (vector_cosine_ops, unchanged in 0007)"
+  - "ADR D3 column-type contract (jsonb arrays, not UUID[] — plan-specified)"
+  - "Idempotent migration shape (CREATE TABLE IF NOT EXISTS + DO $$ FK guard)"
+  - "v0.4b eviction partial indexes (preserved, untouched by 0007)"
+  - "Check constraint memories_kind_derived_from_check (preserved)"
+findings:
+  - id: F-dom-pgvector-rerun2-1
+    severity: INFO
+    file: src/local/schema.ts
+    line: 239-254
+    plan_ref: F-C3 closure (plan v1.2, commit 9d16db4) + ADR D3 + EC-3
+    domain_anchor: architecture.md § 10.2 (drizzle-kit push vs runMigrations conflict)
+    summary: |
+      consolidationHistory pgTable export is declared correctly with all 6 expected
+      columns (id uuid PK / kept_memory_id uuid NULL / rejected_memory_ids jsonb / reason text /
+      policy_name text / original_episode_ids jsonb / created_at timestamptz), the
+      ON DELETE SET NULL FK to memories(id) (EC-3 satisfied), 2 supporting indexes
+      (idx_consolidation_history_kept btree, idx_consolidation_history_created btree desc),
+      and Drizzle's `.references((): AnyPgColumn => memories.id, { onDelete: 'set null' })`
+      shape is consistent with the supersededBy self-FK pattern at line 92. F-C3 is
+      definitively closed — bijection between src/local/schema.ts and src/local/migrations/meta/0007_snapshot.json holds.
+    evidence: |
+      schema.ts:239-254 declares pgTable('consolidation_history', ...) with the exact
+      shape mirrored in meta/0007_snapshot.json (lines 577-680). The schema-snapshot-parity
+      test at tests/integration/schema-snapshot-parity.test.ts (NEW in this fix-up,
+      pure file-inspection, no container required) enforces the bijection in BOTH
+      directions via Drizzle's Symbol.for('drizzle:Name') runtime tag — meaning any
+      future drift triggers a hard CI fail before drizzle-kit push can drop the table.
+    recommended_action: None — this is the F-C3 closure working as designed.
+
+  - id: F-dom-pgvector-rerun2-2
+    severity: INFO
+    file: src/local/migrations/0007_distillation_columns.sql
+    line: 14-42
+    plan_ref: T0.1 + ADR D3 + EC-3 + EC-9
+    domain_anchor: architecture.md § 10.2 + ADR D3
+    summary: |
+      Migration 0007 is correctly additive — adds only the consolidation_history
+      table + 2 indexes; touches NEITHER the memories table, NOR the embedding
+      column, NOR the HNSW index, NOR any v0.4a/b columns. EC-9 honesty fix is
+      reflected in migration header comment confirming derived_from already exists
+      as JSONB from v0.4a (no destructive ALTER). The split-step FK ALTER inside a
+      DO $$ block with information_schema probe is a sound idempotency pattern —
+      re-running the migration is a true no-op (the unguarded CREATE TABLE IF NOT
+      EXISTS path strips the FK clause on second run, which the explicit ALTER
+      restores). Drizzle journal (_journal.json) correctly registers tag
+      "0007_distillation_columns" with idx 7 + version "7".
+    evidence: |
+      Migration file is 43 lines; 0 ALTER COLUMN; 0 DROP; 0 vector() references
+      (vector() is only declared in 0000_crazy_mimic.sql at lines 11 + 30, dim
+      1536, unchanged across all 8 migrations). _journal.json entries 0..7 are
+      consecutive + monotonic by `when` timestamp, no out-of-order or missing idx.
+      meta/0007_snapshot.json declares both vector(1536) columns on memories +
+      entities unchanged from meta/0006_snapshot.json (regression check passes).
+    recommended_action: None — pgvector schema regression-free for v0.7.
+
+  - id: F-dom-pgvector-rerun2-3
+    severity: INFO
+    file: tests/integration/schema-snapshot-parity.test.ts
+    line: 1-82
+    plan_ref: F-C3 sentinel test (plan v1.2 closure)
+    domain_anchor: testing.md § Pyramid / Integration tier
+    summary: |
+      The bidirectional bijection sentinel is well-designed: (a) it uses Drizzle's
+      Symbol.for('drizzle:Name') runtime tag (the canonical Drizzle introspection
+      mechanism) rather than fragile regex/AST parsing of schema.ts; (b) it tests
+      BOTH directions (snapshot→schema AND schema→snapshot) — closing the failure
+      mode where someone adds a pgTable export but forgets to run db:generate;
+      (c) error messages explicitly cite drizzle-kit push as the destructive
+      scenario, helping future operators diagnose; (d) lives at tests/integration/
+      with no container dependency, so it runs in every PR CI cycle, not just the
+      pgvector-gated integration suite. Sound architectural sentinel placement.
+    evidence: |
+      Test enumerates 8 *_snapshot.json files + extracts tables under "public.{name}"
+      key prefix; enumerates schema.ts exports via runtime symbol probe; runs 2 it()
+      blocks with explicit failure messages including the table names that would
+      drift. Covers BOTH F-C3 (drop direction) AND the inverse failure mode where
+      schema.ts gets ahead of migrations.
+    recommended_action: None — sentinel is correctly designed.
+
+  - id: F-dom-pgvector-rerun2-4
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 595-633
+    plan_ref: T2.1 + EC-8 (atomic batch rollback)
+    domain_anchor: architecture.md § 10.2 + ADR D3 column shape
+    summary: |
+      persistConsolidations correctly matches the consolidation_history schema:
+      uses JSON.stringify + $2::jsonb / $5::jsonb casts for rejected_memory_ids
+      and original_episode_ids (matching the jsonb column type from ADR D3, NOT
+      uuid[] — the plan-prompt header claim of "UUID[]" was inaccurate; the actual
+      plan + schema + implementation all agree on jsonb). The soft-delete sequence
+      (UPDATE memories SET t_invalid = NOW() WHERE id = ANY($1::uuid[])) uses the
+      correct uuid[] cast for the memories.id column. The withTransaction wrapper
+      (BEGIN / COMMIT / ROLLBACK) honors EC-8 — a mid-batch failure rolls both
+      soft-deletes AND the partial consolidation_history INSERTs.
+    evidence: |
+      Lines 612-616: UPDATE uses $1::uuid[] (correct — memories.id is uuid).
+      Lines 618-622: INSERT uses $2::jsonb + $5::jsonb (correct — consolidation_history
+      stores arrays as jsonb per ADR D3 line 119).
+      Lines 636-649: withTransaction has BEGIN / try { COMMIT } / catch { ROLLBACK } /
+      finally { release() } pattern — canonical pg pool client lifecycle, no leaks.
+    recommended_action: None.
+
+  - id: F-dom-pgvector-rerun2-5
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 1-62
+    plan_ref: ADR D3 migration discipline
+    domain_anchor: architecture.md § 10.2 (drizzle journal contract)
+    summary: |
+      Drizzle journal _journal.json correctly extends to entry idx=7 with
+      monotonically-increasing `when` timestamp (1780341763029 > 1780243549731 for
+      0006), version "7" stamped on the journal AND on the snapshot file (both
+      match). prevId chain in meta/0007_snapshot.json correctly points to
+      meta/0006_snapshot.json's id (a0af2165-11bc-40ff-a273-5495de22cbc0). No
+      orphan snapshots; no missing journal entries; no version drift.
+    evidence: |
+      _journal.json entries 0..7 strictly monotonic by `when`. meta/0007_snapshot.json
+      `id` is unique (b1aa9b27-2026-4607-b007-c6d3e2f4abcd); `prevId` chain validated
+      against meta/0006_snapshot.json. version field is "7" on both files (consistent
+      with the other 7 snapshots; matches package.json drizzle-kit version).
+    recommended_action: None.
+
+verdict: READY_TO_MERGE — domain-pgvector-schema clean for v0.7 distillation pipeline
+notes_for_orchestrator: |
+  F-C3 closure verified definitively. The consolidation_history pgTable is declared
+  in src/local/schema.ts (lines 239-254), mirrors meta/0007_snapshot.json (lines 577-680)
+  exactly, and is enforced by a NEW bidirectional bijection sentinel at
+  tests/integration/schema-snapshot-parity.test.ts. v0.7 migration is purely additive
+  — pgvector embedding column (vector(1536)), HNSW indexes (vector_cosine_ops), and all
+  v0.1/v0.4a/v0.4b columns + indexes are preserved unchanged. Drizzle journal is
+  monotonic + consistent. Atomic-tx + ON DELETE SET NULL + JSONB-typed arrays all match
+  the plan ADR D3 specification.
+
+  Note: the prompt header summary mentioned "rejected_memory_ids (UUID[])" — the actual
+  plan ADR D3 + schema + migration + runtime INSERT all consistently use jsonb arrays,
+  not the Postgres native uuid[] type. This is the documented design (per ADR D3 line
+  119 and EC-3 absorption — JSONB value-stores survive hard-delete by construction
+  whereas a native uuid[] with REFERENCES would face FK action complexity). No defect;
+  the prompt summary was imprecise but reality + plan agree.
+
+  Zero CRITICAL / MAJOR / MINOR findings; 5 INFO entries documenting the closure.

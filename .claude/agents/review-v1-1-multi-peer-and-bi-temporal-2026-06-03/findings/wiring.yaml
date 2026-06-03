@@ -1,0 +1,307 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-wiring
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal v1.2
+plan: .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md
+plan_version_at_review: v1.2 (2026-06-02)
+
+triad_revalidation:
+  total_new_symbols: 9
+  pillar_a_honest_pass: 8 / 9          # F-wire-1 (skill+asOf) FAILS honest check
+  pillar_b_honest_pass: 8 / 9          # F-wire-1 same — no integration test
+  pillar_c_observed: n/a               # plan declares no new counters (per Global DoD)
+
+per_symbol_audit:
+  - symbol: MemoryItem.attributedTo (optional field on existing interface)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/core/extraction/pipeline.ts:84-101 toMemoryItem reads payload['attributed_to']
+      and propagates onto MemoryItem.attributedTo at line 100.
+      src/core/retrieval/pipeline.ts:165-181 surfaces it from row.payload onto
+      MemoryItemWithScore. Goal test scenario 1 asserts r.attributedTo equals expected
+      peer for filtered recall (lines 113-114, 121-122, 223-224).
+    pillar_b: PASS
+    pillar_b_evidence: |
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts scenarios 1 + 3 exercise
+      the field end-to-end (3 distinct attributions round-trip; cross-attribution
+      isolation; combined asOf+attributedTo verification).
+    pillar_c: n/a (plan Global DoD § Runtime-metric proof)
+
+  - symbol: RememberOptions.attributedTo
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/core/extraction/pipeline.ts:131-132 (verbatim runInferFalsePath consumes
+      options.attributedTo into payload). The infer:true (LLM) path uses
+      extracted[i].attributed_to at lines 300-303 — both branches route to the
+      same column hoist at src/local/pgvector-store.ts:300-311 + line 324.
+      Callers: goal test lines 93,96,99,159,205-208,211 — multiple .remember()
+      invocations with infer:false + attributedTo set.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test scenario 1.1 (Alice/Bob/Charlie 3 distinct verbatim attributions)
+      and scenario 3.1 (combined filter). All exercise the verbatim path with
+      attributedTo and assert it round-trips via recall().
+    pillar_c: n/a
+
+  - symbol: RecallOptions.attributedTo
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/local/index.ts:172,182-184 — applySkillFilters routes
+      options.attributedTo into Filters.attributed_to.
+      src/local/scoped-skill-memory.ts:124-128 — skill recall path does NOT route
+      attributedTo, but plan doesn't surface attributedTo on SkillRecallOptions
+      either (EC-13 deferral). Caller for non-skill path: goal test recall()
+      invocations with {attributedTo} (lines 112,119,146,220,230).
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test scenario 1.1 (filtered recall with attributedTo isolates per peer).
+      Scenario 1.2 (EC-7 empty-string semantics). Scenario 3.1 (combined filter).
+    pillar_c: n/a
+
+  - symbol: RecallOptions.asOf (LIFTED — throw removed)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      Pre-v1.1 throw site `src/local/index.ts:324-325` LIFTED → src/local/index.ts:339-344
+      now performs boundary NaN validation only (EC-3 + InvalidScope).
+      Routed via applySkillFilters (lines 185-187) into Filters.asOf.
+      Caller: goal test scenario 2 + 3 invokes recall() with asOf Date.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test 2.1 (forgotten memory recoverable via historical asOf; excluded by
+      post-forget asOf), 2.2 (EC-3 NaN throws InvalidScope), 2.3 (regression guard:
+      no asOf returns current state), 3.1 (combined asOf + attributedTo).
+    pillar_c: n/a
+
+  - symbol: Filters.attributed_to (NEW field on internal Filters)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/core/scope.ts:114 declared.
+      src/local/pgvector-store.ts:148-152 composeFilters consumes it into
+      "attributed_to = $N" parameterized clause. EC-5 + EC-7 honored via JSDoc
+      lines 138-147.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test scenarios 1.1, 1.2, 3.1 exercise the WHERE clause end-to-end.
+      Plus unit-level coverage: src/local/__tests__/pgvector-store.test.ts:200-253
+      (3 tests for INSERT/SELECT/regression guard + EC-7 NULL semantics).
+    pillar_c: n/a
+
+  - symbol: Filters.asOf (NEW field on internal Filters)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/core/scope.ts:128 declared.
+      src/local/pgvector-store.ts:360 (search) + 424 (keywordSearch) — both call
+      composeTemporalWhere(filters?.asOf, ...) BEFORE composeFilters.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test scenarios 2.1, 2.3, 3.1 exercise SQL composition via the full
+      recall() → applySkillFilters → vectorStore.search path.
+      Unit-level: src/local/__tests__/pgvector-store.test.ts:324-365 (regression
+      guard + composer fires when asOf set).
+    pillar_c: n/a
+
+  - symbol: composeTemporalWhere() (NEW private helper)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/local/pgvector-store.ts:108-120 defined.
+      Callers: line 360 (search()), line 424 (keywordSearch()). Both are real
+      callsites consuming the SQL fragment + parameter array.
+      NOT EXPORTED (lowercase function declaration inside module scope) — by
+      design; exercised through search()/keywordSearch() public methods.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Indirect coverage via Goal test scenarios 2 + 3 (Graphiti null-safe
+      predicate validated end-to-end). Unit-level: pgvector-store.test.ts:325-365
+      asserts SQL string contains the predicate when asOf set and currently-valid
+      when asOf omitted. check_wiring.py reports b_integration_test FAIL because
+      the symbol name `composeTemporalWhere` does not appear in tests/integration/
+      — this is a check_wiring.py limitation for private helpers (it only token-
+      matches symbol names; private helpers are exercised through their callers).
+      Honest pass via the search() boundary.
+    pillar_c: n/a
+
+  - symbol: Migration 0008 (src/local/migrations/0008_attributed_to.sql)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      runMigrations(pool) applies via Drizzle journal (meta/_journal.json entry
+      idx:8 added). Hand-authored ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT
+      EXISTS (EC-6 idempotency). Goal test beforeAll calls runMigrations + a
+      defensive ADD COLUMN IF NOT EXISTS fallback for orphan-schema DBs per
+      architecture.md § 10.2.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test scenario 4.1 explicitly tests idempotency — runMigrations 2x is
+      no-op and information_schema.columns reports attributed_to column exists.
+    pillar_c: n/a
+
+  - symbol: InvalidScope boundary throw (NEW use-site for asOf NaN)
+    pillar_a: PASS
+    pillar_a_evidence: |
+      src/local/index.ts:342-344 throws InvalidScope when options.asOf is an
+      invalid Date (Number.isNaN(getTime())). EC-3 absorbed.
+      Class definition: src/core/errors.ts:19-24 (pre-existing, not new).
+      Re-exported via src/core/index.ts:65 + src/index.ts:61 — publicly discoverable.
+    pillar_b: PASS
+    pillar_b_evidence: |
+      Goal test scenario 2.2 (lines 187-192) imports InvalidScope from
+      src/core/errors.js and asserts .rejects.toBeInstanceOf(InvalidScope).
+    pillar_c: n/a
+
+integration_with_existing_flows:
+  - flow: ScopedMemory.recall (user/session/agent tiers)
+    entry_to_new_code: src/local/index.ts:338-349 (LocalScopedMemory.recall)
+    threads_through: applySkillFilters → runRetrievalPipeline → vectorStore.search → composeTemporalWhere + composeFilters
+    integration_test_proof: tests/integration/v1-1-multi-peer-bitemporal.test.ts 7/7 PASS
+  - flow: ScopedMemory.remember (verbatim path)
+    entry_to_new_code: src/core/extraction/pipeline.ts:108-143 (runInferFalsePath)
+    threads_through: payload['attributed_to'] = options.attributedTo → pgvector-store.insertBatch hoist (line 300) → INSERT column
+    integration_test_proof: goal test scenario 1.1, 1.2, 3.1
+  - flow: ScopedMemory.remember (LLM extraction path)
+    entry_to_new_code: src/core/extraction/pipeline.ts:295-303 (runInferTruePath)
+    threads_through: extracted[i].attributed_to → payload → pgvector-store hoist → INSERT column
+    integration_test_proof: tests/integration/local-runtime.test.ts:68 (LLM stub returns attributed_to:'user')
+    note: |
+      Integration test does NOT explicitly assert column hoist from the LLM path;
+      it asserts standard recall returns the row. Unit test pgvector-store.test.ts:
+      149-173 covers the column hoist directly (INSERT SQL with attributed_to in
+      column list when payload carries it). Combined coverage honest.
+  - flow: ScopedSkillMemory.recall (memory.skills(repoId).recall)
+    entry_to_new_code: src/local/scoped-skill-memory.ts:118-147 — UNCHANGED for v1.1
+    threads_through: |
+      Filters constructed inline without asOf or attributedTo widening.
+      Plan T3.1 § Tasks step 10 + § TDD + § AC EC-9 required widening + integration
+      RED test — NOT shipped. See finding F-wire-1.
+    integration_test_proof: NONE (gap)
+
+dead_exports:
+  - symbol: BiTemporalNotSupportedLocally (class, src/core/errors.ts:61)
+    classification: not-dead
+    rationale: |
+      Re-exported via src/core/index.ts (line 65 area) per src/local/__tests__/
+      factory.test.ts:125-131 "class still exported (forward-compat with cloud
+      runtime)" — explicit forward-compat per ADR-0011. v0.5 cloud runtime will
+      consume. Documented escape from dead-export classification.
+  - new_exports_count: 0
+    rationale: |
+      git diff 2341426..HEAD shows ZERO new public exports — all field additions
+      are optional widenings on EXISTING interfaces (MemoryItem.attributedTo,
+      RememberOptions.attributedTo, RecallOptions.attributedTo, RecallOptions.asOf,
+      Filters.attributed_to, Filters.asOf). ADR-0008 method-count cap preserved.
+
+boundary_respect_dip:
+  - layer: src/core/options.ts
+    imports: ./dip/conflict-resolution-policy.js, ./scope.js — both core-internal. PASS.
+  - layer: src/core/scope.ts
+    imports: zero (self-contained). PASS.
+  - layer: src/core/memory-item.ts
+    imports: ./scope.js — core-internal. PASS.
+  - layer: src/core/extraction/pipeline.ts
+    imports: ../options.js, ../scope.js, ../memory-item.js, ../dip/*, ./prompt.js, node:crypto, @opentelemetry/api. All core-internal or external libs (allowed). PASS.
+  - layer: src/local/index.ts
+    imports: ../core/* (allowed); does NOT import from src/cloud/. PASS.
+  - layer: src/local/pgvector-store.ts
+    imports: ../core/scope.js, ../core/errors.js, ../core/dip/*, pg, @opentelemetry/api. All allowed. PASS.
+
+concurrent_safety:
+  - resource: pgvector + Postgres columns memories.attributed_to + t_valid + t_invalid
+    operations: |
+      INSERT (write path) — single-row or batched insert under ON CONFLICT(hash) DO NOTHING.
+      SELECT (recall path) — single read with WHERE clause; no read-modify-write.
+      Migration 0008 — ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS;
+      idempotent under concurrent invocation (Postgres handles via internal lock).
+    races_observed: none
+    rationale: |
+      v1.1 does NOT introduce new RMW patterns. The attributed_to column is
+      append-only on insert; never updated. The asOf filter is a pure read
+      predicate. composeTemporalWhere does not mutate any state. EC-10 (concurrent
+      dedup) was a SHOULD TEST item absorbed at T2.1 inline + T4.1 (per the
+      cross-validation report) — no new races introduced.
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/local/scoped-skill-memory.ts:122-128 + src/core/skill.ts:102-114 + tests/integration/v1-1-multi-peer-bitemporal.test.ts (missing skill+asOf scenario)
+    plan_ref: |
+      T3.1 § Tasks step 10 — "EC-9: Write RED integration test: skill row recall with `asOf` honors bi-temporal predicate."
+      T3.1 § TDD — "RED: test('integration: skill row recall with asOf honors bi-temporal predicate', ...) — EC-9"
+      T3.1 § Acceptance Criteria — "EC-9: Skill rows honor `asOf` filter at the WHERE-clause level."
+      Coverage Matrix gap 29 (EC-9 SHOULD TEST)
+      Global DoD § Plan-specific criterion 4 — "All 5 SHOULD TEST items shipped as RED tests in their owning tasks (EC-6/EC-7/EC-8/EC-9/EC-10)"
+    summary: |
+      EC-9 (skill rows + asOf interaction) is NOT WIRED at the public API surface
+      and has NO integration test. From a WIRING perspective, this is a missing
+      pillar-(b) — the SQL composer is uniform (composeTemporalWhere applies on
+      every search() invocation including skill recall via runRetrievalPipeline),
+      but a consumer calling memory.skills(repoId).recall('q', { asOf: t }) gets
+      a TypeScript type-rejection because SkillRecallOptions does not declare
+      asOf. The wiring chain in scoped-skill-memory.ts:124-128 builds Filters
+      inline ({...this.filters, kind:'skill', excludeSuperseded}) without
+      threading asOf from options. /implement-validate report's wiring triad
+      table (line 75) claims "Scenario 2.1 + 2.3 + 3.1" exercise composeTemporalWhere
+      for the skill path — but those scenarios use memory.user(ALICE).recall(),
+      NOT memory.skills(...).recall(). Cross-validation already flagged this as
+      F-xval-1; I confirm it from the wiring lens: the public-API thread for the
+      4th tier (RepoScope skill) is broken; the integration test that would
+      validate it is absent.
+    evidence: |
+      - src/core/skill.ts:102-114 — SkillRecallOptions has topK/threshold/includeSuperseded only
+      - src/local/scoped-skill-memory.ts:124-128 — Filters built without options.asOf widening
+      - grep -rn "skill.*asOf\|asOf.*skill" tests/ src/ → zero matches
+      - tests/integration/v1-1-multi-peer-bitemporal.test.ts → 7 test() bodies, all
+        memory.user(ALICE), no memory.skills() invocation
+      - Compare to src/local/index.ts:172,182-187 applySkillFilters — non-skill path
+        DOES route asOf into Filters.asOf
+    recommended_action: |
+      Option A (preferred): Widen SkillRecallOptions to include attributedTo?:
+      string + asOf?: Date in src/core/skill.ts; thread both into Filters in
+      src/local/scoped-skill-memory.ts:124-128 (mirror applySkillFilters lines
+      182-187); add an integration RED test exercising memory.skills(repoId)
+      .recall('q', { asOf }) — assert temporal predicate honored on skill rows.
+      Option B (honest narrowing): Author an ADR D4 amendment declaring EC-9
+      deferred to v1.2 + remove the T3.1 AC + DoD claim. Add CHANGELOG note
+      under `Changed` deferring the skill+asOf surface.
+      Option A keeps the plan's Coverage Matrix claim honest; Option B narrows
+      the contract.
+  - id: F-wire-2
+    severity: MINOR
+    file: src/local/__tests__/factory.test.ts:115-131
+    plan_ref: T3.2 (rejects.toThrow → positive returns-time-correct-results assertion)
+    summary: |
+      Plan T3.2 said to REPLACE the existing rejects.toThrow(BiTemporalNotSupportedLocally)
+      assertion with a positive "returns time-correct results" assertion. The
+      current factory.test.ts:125-131 retains a guard test asserting the class
+      is still EXPORTED (forward-compat for cloud runtime); this is consistent
+      with cross-validation's divergence-acknowledgement BUT does not include a
+      positive local-runtime assertion that asOf returns time-correct results
+      at THAT test file. The positive assertion is moved to
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts (scenario 2). Net
+      effect is identical (positive coverage via integration), but the factory
+      test file's surface no longer guards the lifted behavior at unit level.
+      Not a wiring failure — coverage exists at integration tier. Surface for
+      acknowledgment only.
+    evidence: |
+      git diff 2341426..HEAD -- src/local/__tests__/factory.test.ts shows the
+      old assertion was changed (rejects.toThrow no longer present at lines 105-110
+      in the new file body; only the export-still-present guard remains at 125-131).
+    recommended_action: |
+      Acceptable as-is given the integration-tier replacement. If consumers
+      want a unit-level positive smoke, add a one-liner: assert that
+      createLocalMemory + ConstantEmbedder + recall({asOf: new Date()}) does
+      NOT throw and returns an array. Not blocking.
+
+verdict_summary: |
+  WIRING VERDICT: NEEDS_FIXES_BEFORE_MERGE (1 MAJOR — F-wire-1; 1 MINOR — F-wire-2).
+  Of the 9 symbols in scope, 8 pass pillar (a) + (b) honestly via the
+  user/session/agent recall path. The single MAJOR is the F-xval-1 finding
+  re-confirmed from a wiring lens: skill recall (4th-tier RepoScope) does NOT
+  thread asOf (NOR attributedTo) into Filters, and the EC-9 integration test
+  required by T3.1 AC + Global DoD criterion 4 is absent. The /implement-validate
+  report's wiring triad table (line 75) over-claims by citing scenarios 2.1 +
+  2.3 + 3.1 as proof for composeTemporalWhere on the skill path — those
+  scenarios use memory.user, not memory.skills.
+  Pillar (c) is genuinely n/a per plan Global DoD; no new counters declared,
+  honest.
+  Boundary respect (DIP) is clean — no cross-tier imports introduced.
+  No dead exports introduced; BiTemporalNotSupportedLocally remains a documented
+  forward-compat export for the cloud runtime.
+  Recommendation: close F-wire-1 via Option A (widen SkillRecallOptions + add
+  integration RED test) OR Option B (honest deferral). F-wire-2 is acknowledged
+  for completeness; not blocking.
