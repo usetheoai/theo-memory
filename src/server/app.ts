@@ -13,20 +13,34 @@ import type { Memory } from '../core/memory-store.js';
 
 import { bearerAuth } from './auth/middleware.js';
 import { forgetHandler } from './handlers/forget.js';
+import { healthDbHandler, healthHandler } from './handlers/health.js';
 import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
+import { scopesHandler } from './handlers/scopes.js';
 
 export interface CreateServerOptions {
   readonly memory: Memory;
   readonly authVerifier?: AuthVerifier;
+  /**
+   * Optional DB liveness probe injected by the composition root (CLI's
+   * `themory server` subcommand at T2.3) without forcing `src/server/` to
+   * import `pg` — DIP discipline per ADR D11 + `architecture.md § 3`.
+   * Wraps a single `pool.query('SELECT 1')` in a 2s timeout (per EC-17).
+   * When omitted, `GET /v1/health/db` returns 503 with `no_probe_configured`.
+   */
+  readonly dbProbe?: () => Promise<void>;
 }
 
 export function createApp(options: CreateServerOptions): Hono {
-  const { memory, authVerifier } = options;
+  const { memory, authVerifier, dbProbe } = options;
   const app = new Hono();
 
   app.use('/v1/*', bearerAuth(authVerifier));
+
+  app.get('/v1/health', (c) => healthHandler(c));
+  app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+  app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
 
   app.post('/v1/remember', (c) => rememberHandler(c, memory));
   app.post('/v1/recall', (c) => recallHandler(c, memory));
