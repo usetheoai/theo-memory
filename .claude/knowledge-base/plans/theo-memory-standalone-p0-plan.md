@@ -1,6 +1,8 @@
 # Plan: TheMemory Standalone P0 — REST API + Docker stack + CLI consolidado
 
-> **Version 1.0** (2026-06-03) — Ship the standalone-distribution surface for TheMemory (CLAUDE.md § Phase III bis, Items 16/17/18). Anchored on `/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md` (canonical RED test inventory + 5 patterns lifted from Mem0 + Letta). The plan ships: (a) REST API server at `@usetheo/memory/server` wrapping the 4 verbs over Hono + bearer auth + OpenAPI 3.1 spec + OTel observability + domain-error envelope; (b) multi-stage Dockerfile → distroless image → published to GHCR via GitHub Actions with Trivy scan gate; (c) consolidated `themory` CLI with 4 subcommands (`mcp`/`server`/`migrate`/`health`) preserving backward-compat alias. Goal-test is an integration round-trip of `POST /v1/remember` + `POST /v1/recall` against `ghcr.io/usetheo/themory:0.1.0-alpha` started via `docker compose up` with ZERO manual setup steps. Unblocks non-MCP consumers (admin dashboards, mobile clients, multi-language consumers via OpenAPI codegen, monitoring/probing via `curl`). Honors Cross-Project Rule 6 override (lock-in still feature when consumer chooses cloud path) but parallel-tracks OSS adoption while TheoCloud PaaS GA remains blocked.
+> **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan` report (49 edge cases: 12 MUST FIX + 25 SHOULD TEST + 12 DOCUMENT). **EC-47 BLOCKER resolved via Opção A** (user AskUserQuestion 2026-06-03): docker-entrypoint.sh REMOVED; migrate-on-startup logic moved INTO `themory server` subcommand binary; ENTRYPOINT becomes direct Node invocation (`["node", "/app/dist/agent-tools/cli.js", "server"]`). 12 MUST FIX absorbed via ADR amendments D3 + D6 + D8 + 2 new ADRs (D12 single-scope-tier semantic + D13 direct-Node-binary entrypoint) and task additions. 25 SHOULD TEST absorbed inline in TDD blocks. 12 DOCUMENT absorbed as ADR Consequences + Acceptance Criteria notes. Coverage Matrix expands from 36 to 85 rows.
+>
+> **Version 1.0** (2026-06-03) — Ship the standalone-distribution surface for TheMemory (CLAUDE.md § Phase III bis, Items 16/17/18). Anchored on `/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md` (canonical RED test inventory + 5 patterns lifted from Mem0 + Letta). The plan ships: (a) REST API server at `@usetheo/memory/server` wrapping the 4 verbs over Hono + bearer auth + OpenAPI 3.1 spec + OTel observability + domain-error envelope; (b) multi-stage Dockerfile → distroless image → published to GHCR via GitHub Actions with Trivy scan gate; (c) consolidated `themory` CLI with 4 subcommands (`mcp`/`server`/`migrate`/`health`) preserving backward-compat alias. Goal-test is an integration round-trip of `POST /v1/remember` + `POST /v1/recall` against `ghcr.io/usetheo/themory:0.1.0-alpha` started via `docker compose up` with ZERO manual setup steps.
 
 ## Goal
 
@@ -20,7 +22,7 @@
 
 ### What's broken or missing
 
-Per the strategic gap analysis 2026-06-03 (conversation transcript + CLAUDE.md Phase III bis preamble): **`/dogfood` EVIDENCE_INSUFFICIENT + zero published packages = adoption ceiling at zero**. Consequence: every shipped feature (reflection, forgetting, skill library, distillation, multi-peer, bi-temporal) is paper-only without consumer evidence. The biggest gap is NOT a missing feature — it is **distribution surface for non-MCP consumers**.
+Per the strategic gap analysis 2026-06-03 (conversation transcript + CLAUDE.md Phase III bis preamble): **`/dogfood` EVIDENCE_INSUFFICIENT + zero publicly distributed packages = adoption ceiling at zero**. Consequence: every shipped feature (reflection, forgetting, skill library, distillation, multi-peer, bi-temporal) is paper-only without consumer evidence. The biggest gap is NOT a missing feature — it is **distribution surface for non-MCP consumers**.
 
 Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships hybrid OSS + hosted (FastAPI + Docker Compose + 30+ vector stores + CLI). Letta ships full self-host stack (FastAPI + WebSocket + multi-stage Dockerfile + GHCR-equivalent). TheMemory ships **none of this** today — the SDK contract is mature but the distribution stack is empty.
 
@@ -38,8 +40,8 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 - [ ] Sub-goal 3 — OpenAPI 3.1 spec auto-generated from zod schemas via `@hono/zod-openapi` at `GET /v1/openapi.json` (T1.4)
 - [ ] Sub-goal 4 — OTel span observability per handler + domain-error → HTTP envelope mapping (T1.5 + T1.6)
 - [ ] Sub-goal 5 — `themory` multi-subcommand CLI (`mcp` / `server` / `migrate` / `health`) replacing single-purpose `themory-mcp` with one-release backward-compat alias (T2.1 → T2.5)
-- [ ] Sub-goal 6 — Multi-stage Dockerfile (Node 22 → distroless) + production `docker-compose.prod.yaml` + GHCR publish workflow with Trivy scan (T3.1 → T3.4)
-- [ ] Sub-goal 7 — Image runs migrations on startup (stricter than Mem0/Letta references per `architecture.md § 10.2`) (T3.5)
+- [ ] Sub-goal 6 — Multi-stage Dockerfile (Node 22 → distroless) + production `docker-compose.prod.yaml` + GHCR build/scan workflow with Trivy scan + allowlist (T3.1 → T3.4) — **migrate-on-startup baked INTO `themory server` binary per ADR D13** (EC-47 absorbed)
+- [ ] Sub-goal 7 — `themory server` invokes `runMigrations()` BEFORE binding port (stricter than Mem0/Letta references per `architecture.md § 10.2`; replaces deleted docker-entrypoint.sh design) (T2.3 + T3.4)
 - [ ] Sub-goal 8 — THE GOAL TEST `tests/integration/docker-stack.test.ts` round-tripping `POST /v1/remember` + `POST /v1/recall` against `ghcr.io/usetheo/themory:0.1.0-alpha` returns 100% PASS
 
 ## Dependencies
@@ -59,7 +61,8 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 | Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
 |---|---|---|---|---|
 | `hono` (NEW) | ^4.6.0 | npm | Evaluated: Express (mature but verbose + Node-only), Fastify (TS-friendly + faster but heavier), Hono (TS-first + edge-ready + smallest viable + ~12KB). FastAPI Python equivalent. | TS-first + Web Standards + smallest viable — closest TS analog to FastAPI used by Mem0 + Letta. |
-| `@hono/zod-openapi` (NEW) | ^0.18.0 | npm | Evaluated: hand-write OpenAPI YAML (high maintenance + drift risk), `@asteasolutions/zod-to-openapi` (works but not Hono-native), `@hono/zod-openapi` (auto-derives spec from zod schemas + Hono-native + ships RouteConfig type). | Single source of truth (zod schemas) → no spec drift. Honors `architecture.md § 8` validation discipline. |
+| `@hono/node-server` (NEW) | ^1.13.0 | npm | Hono's official Node adapter (peer of `hono`). Required to bind Hono app to Node HTTP server. | Canonical adapter; aligned with `hono` major version. |
+| `@hono/zod-openapi` (NEW) | ^0.18.0 | npm | Evaluated: hand-write OpenAPI YAML (high maintenance + drift risk), `@asteasolutions/zod-to-openapi` (works but not Hono-native), `@hono/zod-openapi` (auto-derives spec from zod schemas + Hono-native + ships RouteConfig type). | Single source of truth (zod schemas) → no spec drift. Honors `architecture.md § 8` validation discipline. Version aligned with `hono ^4.6` per EC-18 absorption. |
 | `commander` (NEW) | ^12.1.0 | npm | Evaluated: citty (~5KB, less mature), yargs (~200KB, heavyweight, deprecated patterns), commander (~30KB, 100M+ weekly downloads, TS types ship, used by Node ecosystem). | Conservative choice; most Node CLI tooling reads as commander. Trade-off: 6x heavier than citty for 5x more battle-testing. Acceptable. |
 | dev `strip-ansi` (NEW) | ^7.1.0 | npm | Evaluated: hand-roll ANSI regex (fragile across terminals), `chalk` strip util (heavy dep), `strip-ansi` (5KB, single purpose, 100M weekly). | Mirror of Mem0 P3 pattern (test_cli_integration.py:_ANSI_RE). Used in tests only. |
 | dev `@apidevtools/swagger-parser` (NEW) | ^10.1.1 | npm | Evaluated: hand-roll OpenAPI 3.1 schema validation (high cost + spec evolution risk), `ajv` + manual schema fetch (works but reinvents), `swagger-parser` (canonical OpenAPI parser + validator). | Single-purpose dep for T1.4 RED test (`test_openapi_spec_validates_against_schema`). Used in tests only. |
@@ -90,34 +93,35 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 - **Fastify ^5**: REJECTED. Better perf than Express + TS support but heavier (~700KB) + plugin ecosystem complexity for small surface. Hono is ~50× lighter for our scope (6 endpoints).
 - **Native `node:http`**: REJECTED. Zero deps but reinvents routing + body parsing + middleware — violates Rule 9 + adds maintenance debt for small saving.
 
-**Consequences:** Hono's edge-runtime support means future cloud deploy (CloudFlare Workers, Vercel Edge Functions) is one config away. `@hono/zod-openapi` couples spec to validation — single change point.
+**Consequences:** Hono's edge-runtime support means future cloud deploy (CloudFlare Workers, Vercel Edge Functions) is one config away. `@hono/zod-openapi` couples spec to validation — single change point. **(EC-18 absorbed)** Versions of `hono` + `@hono/zod-openapi` + `@hono/node-server` MUST stay in same major-version compatibility window — enforced via T0.1 RED test.
 
 ### D2 — Endpoint shape: RPC-mirror of 4 verbs (over REST-resource)
 
 **Decision:** Endpoints mirror the SDK's 4 verbs as RPC POST calls: `POST /v1/remember`, `POST /v1/recall`, `POST /v1/forget`, `POST /v1/reflect`. Listing is `GET /v1/scopes/:type/:id/memories` (paginated). Health is `GET /v1/health`.
 
-**Rationale:** The domain is **semantic memory operations**, not CRUD resources. `POST /v1/remember` reads naturally as "the memory system, remember this"; `POST /memories` reads as "create a memory row" which is the wrong mental model (memories may be extracted into N rows or deduped into zero). Mem0 uses similar RPC shape (`/memories/add`, `/memories/search`); Letta uses `/agents/messages` not `/messages`. Honoring `architecture.md § 4 (Mem0-shape, not Mem0-clone)`: same shape, different vocabulary (the 4 verbs).
+**Rationale:** The domain is **semantic memory operations**, not CRUD resources. `POST /v1/remember` reads naturally as "the memory system, remember this"; `POST /memories` reads as "create a memory row" which is the wrong mental model (memories may be extracted into N rows or deduped into zero). Mem0 uses similar RPC shape; Letta uses `/agents/messages` not `/messages`. Honoring `architecture.md § 4 (Mem0-shape, not Mem0-clone)`: same shape, different vocabulary (the 4 verbs).
 
 **Alternatives considered:**
 - **REST resource (POST /memories, GET /memories/:id, DELETE /memories/:id)**: REJECTED. Forces "memory = row" model, which is wrong (extraction may produce N rows, dedup may produce zero). Loses paridade with SDK.
 - **GraphQL single endpoint**: REJECTED. Adds GraphQL runtime dep (~500KB) for 6 operations. Overkill.
 - **JSON-RPC over HTTP (mirror agent-tools/MCP shape)**: REJECTED. Less consumer-friendly for curl/browser/Postman; MCP exists already at `themory mcp` subcommand.
 
-**Consequences:** OpenAPI spec describes 6 operations cleanly. Future verbs (e.g. `/v1/distill`) add as new POST endpoints without redesign. `themory remember` CLI verb-subcommand (P1) maps 1:1 to `POST /v1/remember`.
+**Consequences:** OpenAPI spec describes 6 operations cleanly. Future verbs add as new POST endpoints without redesign. `themory remember` CLI verb-subcommand (P1) maps 1:1 to `POST /v1/remember`.
 
-### D3 — Auth: Bearer token via `THEMEMORY_API_KEY` env var (single DIP)
+### D3 — Auth: Bearer token via `THEMEMORY_API_KEY` env var (single DIP) — **AMENDED 2026-06-03**
 
-**Decision:** REST server accepts `Authorization: Bearer <token>` header. Token compared against `THEMEMORY_API_KEY` env var. No-auth fallback when env unset (alpha-mode convenience). 12th DIP `AuthVerifier` with single method `verify(token: string): Promise<boolean>` allows future OAuth/JWT swap.
+**Decision:** REST server accepts `Authorization: Bearer <token>` header. Token compared against `THEMEMORY_API_KEY` env var. **Empty string OR whitespace-only env value ⇒ fail-closed (auth required, no token accepted)** per EC-1. **Header parsing is case-insensitive on the scheme name (`Bearer` / `bearer`) per RFC 6750** per EC-2. **Token portion is compared verbatim with no trim** (operator responsible for clean env values) per EC-3. No-auth fallback only when env var is truly `undefined` (alpha-mode convenience). 12th DIP `AuthVerifier` with single method `verify(token: string): Promise<boolean>` allows future OAuth/JWT swap.
 
-**Rationale:** Mirror of `THEOKIT_API_KEY` shape per ADR-0009 — zero new mental model for ecosystem consumers. Bearer + env-var is the most common REST auth pattern in 2026 (used by OpenAI API, Anthropic API, GitHub API). DIP boundary preserves ADR-0008 method-count caps + enables future OAuth/JWT without surface change.
+**Rationale:** Mirror of `THEOKIT_API_KEY` shape per ADR-0009 — zero new mental model for ecosystem consumers. Bearer + env-var is the most common REST auth pattern in 2026 (used by OpenAI API, Anthropic API, GitHub API). DIP boundary preserves ADR-0008 method-count caps + enables future OAuth/JWT without surface change. **Empty-string ambiguity (EC-1) resolved fail-closed for security correctness** — an operator who wants no-auth must `unset THEMEMORY_API_KEY` explicitly, not blank it.
 
 **Alternatives considered:**
 - **`X-API-Key` header (Mem0 P1 pattern)**: REJECTED. Non-standard; `Authorization: Bearer` is the OAuth-derived idiom most clients send by default.
 - **No auth at all (alpha)**: REJECTED. Single-line of defense against accidental public exposure is cheap; opt-out via unset env var preserves alpha-mode UX.
+- **Empty-string = auth disabled (fail-open)**: REJECTED per EC-1. Undefined behavior at the operator boundary is the worst security posture; fail-closed forces explicit intent.
 - **mTLS / client certs**: REJECTED. Out-of-scope for P0; high ops burden. P1 candidate.
 - **Hardcoded auth check (no DIP)**: REJECTED. Forces breaking change when OAuth/JWT lands. DIP cost is one interface file.
 
-**Consequences:** New 12th DIP `src/core/dip/auth-verifier.ts`. `BearerAuthVerifier` impl lives in `src/server/auth/bearer-verifier.ts` (under server module to keep `src/core/` DIP-clean per `architecture.md § 3`). OAuth/JWT impl deferred to P1.
+**Consequences:** New 12th DIP `src/core/dip/auth-verifier.ts`. `BearerAuthVerifier` impl lives in `src/server/auth/bearer-verifier.ts` (under server module to keep `src/core/` DIP-clean per `architecture.md § 3`). OAuth/JWT impl deferred to P1. **JSDoc on `BearerAuthVerifier` constructor explicitly documents fail-closed empty-string contract** — operator confusion is the failure mode, documentation is the fix.
 
 ### D4 — CLI lib: commander (over citty)
 
@@ -144,24 +148,25 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 - **GitHub Actions service container**: REJECTED. Locks the test to CI environment; loses local repro.
 - **No Docker test at all (CI-only smoke check)**: REJECTED. Item 17's acceptance gate REQUIRES the round-trip; no test = no proof.
 
-**Consequences:** Integration test gated on `THEOMEM_PG_URI` + `DOCKER_INTEGRATION=true` to avoid surprising default-test runs with Docker requirement. Test author manages container lifecycle via `node:child_process` (same shape as `themem_pgvector` convention).
+**Consequences:** Integration test gated on `THEOMEM_PG_URI` + `DOCKER_INTEGRATION=true` to avoid surprising default-test runs with Docker requirement. Test author manages container lifecycle via `node:child_process` (same shape as `themem_pgvector` convention). **(EC-48 absorbed)** Test uses unique compose project name (`themory-test-${random}`) to prevent cross-run pollution.
 
-### D6 — Multi-stage Dockerfile → distroless runtime
+### D6 — Multi-stage Dockerfile → distroless runtime — **AMENDED 2026-06-03**
 
-**Decision:** Multi-stage Dockerfile: `node:22-alpine` build stage (tsc + postbuild migrations copy) → `gcr.io/distroless/nodejs22-debian12:nonroot` runtime. Layer cache via `package.json` + `package-lock.json` copied before source.
+**Decision:** Multi-stage Dockerfile: `node:22-alpine` build stage (tsc + postbuild migrations copy) → `gcr.io/distroless/nodejs22-debian12:nonroot` runtime. Layer cache via `package.json` + `package-lock.json` copied before source. **CAVEAT (EC-47 absorbed):** distroless `:nonroot` has NO shell — entrypoint MUST be a direct Node binary invocation, NOT a shell script. See ADR D13 for entrypoint shape.
 
-**Rationale:** Distroless reduces image size + attack surface (no shell, no package manager, only Node runtime + app artifacts). Mem0 OpenMemory uses `python:slim` (200MB); Letta uses standard `python` (1.2GB). TheMemory distroless target: ~150MB final image.
+**Rationale:** Distroless reduces image size + attack surface (no shell, no package manager, only Node runtime + app artifacts). Mem0 OpenMemory uses `python:slim` (200MB); Letta uses standard `python` (1.2GB). TheMemory distroless target: ~150MB final image. The no-shell constraint is a security feature, not a limitation — it forces the entrypoint to be the Node binary which carries the migrate-then-server discipline inside (per ADR D8 amended).
 
 **Alternatives considered:**
 - **`node:22-alpine` runtime stage**: REJECTED. Smaller than distroless but ships APK + busybox + shell — larger attack surface; muslibc compatibility quirks with native deps.
+- **`distroless:debug` variant with busybox**: REJECTED (EC-47 absorption alternative). Adds shell but sacrifices security minimalism for convenience — the migrate-in-binary approach (D8 amended) avoids the trade-off entirely.
 - **Single-stage `node:22-bullseye`**: REJECTED. ~1GB+ image; surface tracking includes ALL apt packages.
 - **`bun` runtime**: REJECTED. Bun is fast but not yet a battle-tested deploy target; Node 22 LTS aligns with `engines` declaration.
 
-**Consequences:** Build stage size ~600MB (cached); runtime stage ~150MB (shipped). Image scanned by Trivy in CI — zero CRITICAL/HIGH expected. Distroless `nonroot` user means no UID 0 in runtime — file ownership in image build stage.
+**Consequences:** Build stage size ~600MB (cached); runtime stage ~150MB (shipped). Image scanned by Trivy in CI — zero CRITICAL/HIGH expected. Distroless `nonroot` user means no UID 0 in runtime — file ownership in image build stage. **No shell available**: forces ADR D13 entrypoint shape (direct Node binary).
 
 ### D7 — Image registry: GHCR (over Docker Hub)
 
-**Decision:** Publish to `ghcr.io/usetheo/themory:0.1.0-alpha`. GitHub Actions workflow auto-tags on release.
+**Decision:** Build to `ghcr.io/usetheo/themory:0.1.0-alpha`. GitHub Actions workflow auto-tags on release.
 
 **Rationale:** GHCR free for OSS + tied to GitHub repo audit trail + no rate limits for public pulls. Docker Hub free tier added rate limits (100 pulls/6h for anonymous) — friction for OSS consumers. Letta ships to Docker Hub (`letta/letta`); we choose GHCR per the cleaner default.
 
@@ -170,20 +175,22 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 - **AWS ECR Public**: REJECTED. Locks us to AWS account; AWS-specific tooling.
 - **Quay.io**: REJECTED. RedHat-owned; ecosystem fragmentation.
 
-**Consequences:** Consumer pull command: `docker pull ghcr.io/usetheo/themory:0.1.0-alpha`. Docker Hub mirror NOT shipped — if a consumer asks, can add as a follow-up release-cycle.
+**Consequences:** Consumer pull command: `docker pull ghcr.io/usetheo/themory:0.1.0-alpha`. **(EC-44 absorbed)** Workflow MUST declare `permissions: { contents: read, packages: write }` to push to GHCR — RED test validates YAML structure.
 
-### D8 — Migrations on startup (stricter than Mem0/Letta references)
+### D8 — Migrations on startup baked INTO `themory server` binary — **AMENDED 2026-06-03 (EC-47 absorption)**
 
-**Decision:** Container startup runs `runMigrations(pool)` (from `src/local/index.ts:1026`) inline BEFORE binding the REST port. If migrations fail, container exits 1 — fail-fast.
+**Decision:** `themory server` subcommand invokes `runMigrations(pool)` (from `src/local/index.ts:1026`) INSIDE its action handler, BEFORE binding the REST port. Failure exits 1 — fail-fast. **NO `docker-entrypoint.sh` shipped** — the discipline lives inside the binary, not in a shell wrapper. This is compatible with distroless `:nonroot` (no shell required per D6 amendment + D13).
 
-**Rationale:** Per `architecture.md § 10.2`, drizzle-kit push vs runMigrations divergence is a known footgun. Production deploys must use `runMigrations()` against fresh DBs. Bundling this inside startup eliminates the "did you remember to migrate?" failure class. Mem0 + Letta both ASSUME the operator ran migrations manually — we ship stricter.
+**Rationale:** Per `architecture.md § 10.2`, drizzle-kit push vs runMigrations divergence is a known footgun. Production deploys must use `runMigrations()` against fresh DBs. Bundling this inside startup eliminates the "did you remember to migrate?" failure class. Mem0 + Letta both ASSUME the operator ran migrations manually — we ship stricter. **Moving the discipline INTO the binary (vs shell entrypoint) means it works in distroless without shell**, also means it works regardless of how the operator invokes `themory server` (Docker, k8s, systemd, direct).
 
 **Alternatives considered:**
-- **Manual migrate step in compose `entrypoint`**: REJECTED. Easy to forget; doubles ops surface.
-- **Init container (k8s pattern)**: REJECTED. Adds complexity for non-k8s users (docker-compose, local dev).
-- **Optional flag `--skip-migrations`**: REJECTED. Same forgetting-failure-class. If user needs to skip, they invoke `themory server` directly without compose orchestration.
+- **`docker-entrypoint.sh` (v1.0 original)**: REJECTED per EC-47. Distroless `:nonroot` has no `/bin/sh` — script cannot execute.
+- **Init container (k8s pattern)**: REJECTED. Adds complexity for non-k8s users (docker-compose, local dev). Locks discipline to k8s consumers.
+- **Optional flag `--skip-migrations`**: REJECTED. Same forgetting-failure-class. If user needs to skip (e.g., read replica with no DDL perm), they can set env `THEMEMORY_SKIP_MIGRATIONS=true` documented as escape hatch.
+- **CMD chained shell expression (`themory migrate && themory server`)**: REJECTED. Same distroless-no-shell problem.
+- **Distroless `:debug` variant (busybox shell)**: REJECTED. Forfeits security benefit.
 
-**Consequences:** Container startup is 1-3 seconds slower (migration runtime + idempotent journal check). Acceptable trade. Failure mode "migrations failed" is loud (exit 1 + stderr) — health endpoint never reached.
+**Consequences:** Container startup is 1-3 seconds slower (migration runtime + idempotent journal check). Acceptable trade. Failure mode "migrations failed" is loud (exit 1 + structured log line) — port never opens, health endpoint never reaches 200. Operators using `themory server` directly (without Docker) ALSO get migrations-on-startup automatically. Escape hatch via `THEMEMORY_SKIP_MIGRATIONS=true` env var.
 
 ### D9 — Backward-compat: `themory-mcp` alias for ONE release
 
@@ -196,7 +203,7 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 - **Keep `themory-mcp` indefinitely**: REJECTED. Doubles maintenance + confuses new users.
 - **Print deprecation warning + DO NOT remove**: REJECTED. Half-measure; deprecation without sunset is theater.
 
-**Consequences:** `package.json` keeps BOTH `themory` and `themory-mcp` entries until 0.2.0. Test T2.2 verifies the regression + the deprecation stderr output.
+**Consequences:** `package.json` keeps BOTH `themory` and `themory-mcp` entries until 0.2.0. Test T2.2 verifies the regression + the deprecation stderr output. **(EC-27 absorbed)** Alias detection uses `process.argv[1]?.endsWith('themory-mcp')` OR `process.argv[1]?.includes('themory-mcp')` to handle npm exec / npx / direct invocation patterns.
 
 ### D10 — File-size budget: each new server file ≤ 500 LoC per `architecture.md § Module hygiene`
 
@@ -210,7 +217,7 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 
 **Consequences:** 6 handler files (remember/recall/forget/reflect/health/scopes) + 1 app composer + 1 errors + 1 openapi + 1 index = 10 files in `src/server/`. Each ≤ 200 LoC expected; total ~1200 LoC over module.
 
-### D11 — Wiring discipline: REST handlers compose `Memory` factory, NOT new factory
+### D11 — Wiring discipline: REST handlers compose `Memory` factory via DI, NOT new factory
 
 **Decision:** REST server consumes `Memory` instances via DI. `createServer({ memory: Memory, authVerifier?: AuthVerifier }): Hono` is the public factory. Caller wires `createMemory({ ... })` → `createServer({ memory })`. No `createServerWithMemory()` shortcut.
 
@@ -223,6 +230,33 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 
 **Consequences:** Subpath `@usetheo/memory/server` exports `createServer` + `AuthVerifier` interface + `BearerAuthVerifier` impl. CLI `themory server` is one of the consumers, not the only one.
 
+### D12 — Single scope tier per request (EC-9 absorption) — NEW 2026-06-03
+
+**Decision:** `POST /v1/remember`, `POST /v1/recall`, `POST /v1/forget`, `POST /v1/reflect` accept EXACTLY ONE scope tier per request body: `userId` XOR `sessionId` XOR `agentId` XOR `skillRepoId`. Multiple tiers in same body → 422 `InvalidScope` with `field: "scope"` envelope. Zero tiers → 422 same error. Single tier → handler routes to `memory.user(id)` (or session/agent/skills) accordingly.
+
+**Rationale:** The SDK shape (`memory.user(id)` vs `memory.session(id)` etc.) returns DIFFERENT `ScopedMemory` instances — multi-tier in same call is undefined at the SDK level. Surfacing the constraint at the REST boundary (zod refine) prevents silent semantic confusion. Single-tier requirement matches the 3-tier scope model locked in `architecture.md § 1`.
+
+**Alternatives considered:**
+- **Allow multiple tiers; persist into each**: REJECTED. Doubles write surface; not how SDK works; consumer mental model: "memory is one tier OR another, not both".
+- **Prioritize one (first declared wins)**: REJECTED. Silent — consumer never knows which tier consumed.
+- **Make scope optional, default to `agentId="default"`**: REJECTED. Silently coerces; violates `architecture.md § 8 (validate at boundary)`.
+
+**Consequences:** Zod schema in `src/server/schemas.ts` uses `z.union([userScope, sessionScope, agentScope, skillScope])` with mutually-exclusive refines. OpenAPI spec documents the union shape — consumers see the constraint upfront. RED test in T1.2: `{ userId: "alice", sessionId: "s1", text: "..." }` → 422.
+
+### D13 — Container entrypoint = direct Node binary invocation (NO shell) — NEW 2026-06-03 (EC-47 absorption)
+
+**Decision:** Dockerfile `ENTRYPOINT ["node", "/app/dist/agent-tools/cli.js", "server"]`. `CMD []` empty (subcommand baked into entrypoint). No `docker-entrypoint.sh`. No bash. No `/bin/sh`.
+
+**Rationale:** Distroless `:nonroot` has no shell (per D6). The migrate-then-server discipline (per D8 amended) lives INSIDE the `themory server` subcommand binary, not in a wrapper. ENTRYPOINT direct-Node forwards SIGTERM correctly (no shell PID 1 intermediary that fails to propagate signals). Matches container best practice — Node binary as PID 1.
+
+**Alternatives considered:**
+- **Shell entrypoint script (`docker-entrypoint.sh`)**: REJECTED per EC-47. Distroless has no shell.
+- **`tini` init system**: REJECTED. Adds ~700KB dep + complexity for zombie-reaping that Node 22 handles natively when PID 1.
+- **`s6-overlay`**: REJECTED. Multi-process container philosophy doesn't fit our single-process Node app.
+- **`CMD` overridable (require operator to specify subcommand)**: REJECTED. Image not self-contained — operator confusion.
+
+**Consequences:** Container always runs `themory server`. To run `themory migrate` or `themory health` standalone, operator overrides ENTRYPOINT: `docker run --entrypoint node ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate`. Documented in CHANGELOG `### Added` for v0.1.0-alpha. **(EC-32 absorbed)** Node-as-PID-1 means SIGTERM reaches process directly — `themory server` registers `process.on('SIGTERM', gracefulShutdown)` to close server + pool.
+
 ## Dependency Graph
 
 ```
@@ -230,29 +264,29 @@ Phase 0 — Foundation (deps + AuthVerifier DIP declaration)
    │
    └──▶ Phase 1 — REST API server (Item 16)
             │
-            ├── T1.1 BearerAuthVerifier impl
-            ├── T1.2 4-verb handlers + StubMemory fixture
-            ├── T1.3 health + scopes pagination
-            ├── T1.4 OpenAPI 3.1 spec
-            ├── T1.5 OTel observability
-            ├── T1.6 Domain-error envelope
-            └── T1.7 Subpath export + tsconfig include update
+            ├── T1.1 BearerAuthVerifier impl (+ EC-1/2/3/4/5)
+            ├── T1.2 4-verb handlers (+ EC-6/7/9/10/11/12)
+            ├── T1.3 health + scopes pagination (+ EC-13/14/15/16/17)
+            ├── T1.4 OpenAPI 3.1 spec (+ EC-18/19/20)
+            ├── T1.5 OTel observability (+ EC-21/22)
+            ├── T1.6 Domain-error envelope (+ EC-23/24)
+            └── T1.7 Subpath export + isolation (+ EC-25/26/52)
                   │
                   └──▶ Phase 2 — CLI consolidado (Item 18)
                            │
-                           ├── T2.1 commander scaffold + help screen
-                           ├── T2.2 themory mcp + backward-compat alias
-                           ├── T2.3 themory server (starts REST)
-                           ├── T2.4 themory migrate
-                           └── T2.5 themory health
+                           ├── T2.1 commander scaffold (+ EC-27/28/29)
+                           ├── T2.2 themory mcp (+ EC-30 doc)
+                           ├── T2.3 themory server (+ EC-31/32/33)
+                           ├── T2.4 themory migrate (+ EC-35/36)
+                           └── T2.5 themory health (+ EC-37)
                                  │
                                  └──▶ Phase 3 — Docker stack (Item 17)
                                           │
-                                          ├── T3.1 Multi-stage Dockerfile
-                                          ├── T3.2 docker-compose.prod.yaml
-                                          ├── T3.3 GitHub Actions workflow + Trivy
-                                          ├── T3.4 Migrations on startup wiring
-                                          └── T3.5 docker-stack E2E test (THE GOAL TEST)
+                                          ├── T3.1 Multi-stage Dockerfile (+ EC-38/39/40)
+                                          ├── T3.2 docker-compose.prod.yaml (+ EC-41/42)
+                                          ├── T3.3 GitHub Actions + Trivy + allowlist (+ EC-43/44)
+                                          ├── T3.4 ENTRYPOINT direct Node (per D13; EC-47 absorbed)
+                                          └── T3.5 docker-stack E2E test (+ EC-48/49/51)
                                                 │
                                                 └──▶ Final Phase — Integration Validation
 ```
@@ -265,810 +299,760 @@ Sequential: Phase 0 → 1 → 2 → 3 → Final. Within each phase, tasks may pa
 
 **Objective:** Add deps + declare 12th DIP. Single task to land the foundation.
 
-### T0.1 — Add 5 deps + declare AuthVerifier DIP
+### T0.1 — Add 6 deps + declare AuthVerifier DIP
 
 #### Objective
-Add Hono + commander + @hono/zod-openapi + strip-ansi + @apidevtools/swagger-parser to `package.json`; declare 12th DIP `AuthVerifier` at `src/core/dip/auth-verifier.ts`.
+Add Hono + @hono/node-server + commander + @hono/zod-openapi + strip-ansi + @apidevtools/swagger-parser to `package.json`; declare 12th DIP `AuthVerifier` at `src/core/dip/auth-verifier.ts`.
 
 #### Evidence
-Research note `.claude/knowledge-base/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md § Summary` enumerates the 5 deps with Rule 9 evaluation. ADR D1, D3, D4 specify the choices.
+Research note `.claude/knowledge-base/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md § Summary`. ADR D1, D3, D4. EC-18 absorption: version alignment between `hono` + `@hono/zod-openapi` + `@hono/node-server`.
 
 #### Files to edit
 ```
-package.json — add dependencies + devDependencies (Rule 9 evaluated per § Dependencies)
+package.json — add 6 deps (Rule 9 evaluated per § Dependencies)
 src/core/dip/auth-verifier.ts (NEW) — declare AuthVerifier interface
-src/core/dip/__tests__/auth-verifier.test-d.ts (NEW) — type tests for AuthVerifier interface
-src/core/index.ts — re-export AuthVerifier interface from contract
+src/core/dip/__tests__/auth-verifier.test-d.ts (NEW) — type tests
+src/core/index.ts — re-export AuthVerifier interface
 ```
 
-#### Deep file dependency analysis
-- `package.json`: 5 new lines under `dependencies`/`devDependencies`. No removals. `peerDependencies` unchanged.
-- `src/core/dip/auth-verifier.ts`: NEW — 1 method `verify(token: string): Promise<boolean>`. ~15 LoC.
-- `src/core/dip/__tests__/auth-verifier.test-d.ts`: NEW — type-level tests via `expectTypeOf`.
-- `src/core/index.ts`: ~3 lines added to re-export.
-
-#### Deep Dives
-- **DIP method-count cap (ADR-0008)**: AuthVerifier has 1 method → does not affect cap (existing DIPs have 1-3 methods; AuthVerifier is uniform).
-- **No file-size budget concern**: all changes < 50 LoC per file.
-
 #### Tasks
-1. Add `hono ^4.6.0`, `@hono/zod-openapi ^0.18.0`, `commander ^12.1.0` to `dependencies` block of `package.json` (alphabetical order; mirror existing pattern).
-2. Add `strip-ansi ^7.1.0`, `@apidevtools/swagger-parser ^10.1.1` to `devDependencies` block.
-3. Run `npm install` to lock versions.
-4. Run `/deps-audit theo-memory-standalone-p0` to validate zero new CRITICAL/HIGH CVE on declared deps.
-5. Create `src/core/dip/auth-verifier.ts` with:
-   ```ts
-   /**
-    * AuthVerifier — 12th DIP. Single-method interface for bearer/OAuth/JWT swaps.
-    * @see Plan theo-memory-standalone-p0 ADR D3.
-    */
-   export interface AuthVerifier {
-     verify(token: string): Promise<boolean>;
-   }
-   ```
-6. Create `src/core/dip/__tests__/auth-verifier.test-d.ts` with `expectTypeOf<AuthVerifier>().toHaveProperty('verify')` + signature assertion.
-7. Add `export type { AuthVerifier } from './dip/auth-verifier.js';` to `src/core/index.ts`.
+1. Add `hono ^4.6.0`, `@hono/node-server ^1.13.0`, `@hono/zod-openapi ^0.18.0`, `commander ^12.1.0` to `dependencies`.
+2. Add `strip-ansi ^7.1.0`, `@apidevtools/swagger-parser ^10.1.1` to `devDependencies`.
+3. Run `npm install`; lock versions.
+4. Run `/deps-audit theo-memory-standalone-p0` to validate zero new CRITICAL/HIGH CVE.
+5. Create `src/core/dip/auth-verifier.ts` with single-method interface.
+6. Create type test `src/core/dip/__tests__/auth-verifier.test-d.ts`.
+7. Re-export from `src/core/index.ts`.
 
 #### TDD
 ```
-RED:     test-d auth-verifier.test-d.ts — assert AuthVerifier has verify(string): Promise<boolean> (FAIL — interface does not exist yet)
-GREEN:   create src/core/dip/auth-verifier.ts with declared interface
-REFACTOR: none expected — interface is canonical-minimal
+RED:     test-d auth-verifier.test-d.ts — assert AuthVerifier shape
+RED:     test('hono + @hono/zod-openapi + @hono/node-server major versions aligned') (EC-18)
+GREEN:   create interface + install deps
 VERIFY:  npm run typecheck && npm test -- src/core/dip/__tests__/auth-verifier
 ```
 
 #### Acceptance Criteria
-- [ ] `npm install` exits 0; 5 new deps present in `node_modules/`
-- [ ] `/deps-audit theo-memory-standalone-p0` returns verdict ≥ PASS_WITH_CAVEATS
-- [ ] `npm run typecheck` PASS zero errors
-- [ ] `npm test -- src/core/dip/__tests__/auth-verifier` PASS
-- [ ] Pass: size — `src/core/dip/auth-verifier.ts` ≤ 50 LoC
-
-#### DoD
-- [ ] All Tasks completed
-- [ ] `tsc --noEmit` zero errors
-- [ ] `npm run lint` zero warnings
+- [ ] `npm install` exits 0
+- [ ] `/deps-audit` ≥ PASS_WITH_CAVEATS
+- [ ] `npm run typecheck` PASS
+- [ ] EC-18: dep version compat smoke test passes
+- [ ] Size ≤ 50 LoC per new file
 
 ---
 
 ## Phase 1 — REST API server (Item 16)
 
-**Objective:** Implement `src/server/` exposing the 4 verbs + health + scopes pagination + OpenAPI spec + OTel + domain-error envelope.
-
-### T1.1 — BearerAuthVerifier impl + bearer middleware
+### T1.1 — BearerAuthVerifier impl + bearer middleware (+ EC-1/2/3/4/5)
 
 #### Objective
-Implement `BearerAuthVerifier` (impl of AuthVerifier DIP) under `src/server/auth/` + Hono middleware that gates handlers based on `THEMEMORY_API_KEY` env presence.
-
-#### Evidence
-Research note § "Pattern P1 — In-process REST testing (Mem0 origin)" lines 150-244 documents the auth-disabled / auth-enabled fixture split. Plan ADR D3.
+Implement `BearerAuthVerifier` + Hono middleware. **Absorb 5 ECs**: EC-1 empty/whitespace env fail-closed (per ADR D3 amended); EC-2 lowercase `bearer` accepted; EC-3 token compared verbatim (no trim); EC-4 length-check BEFORE `timingSafeEqual` (prevents RangeError crash); EC-5 env var isolation between tests.
 
 #### Files to edit
 ```
-src/server/auth/bearer-verifier.ts (NEW) — BearerAuthVerifier class implements AuthVerifier
-src/server/auth/middleware.ts (NEW) — Hono middleware: if THEMEMORY_API_KEY set, require Authorization: Bearer; else passthrough
-src/server/auth/__tests__/bearer-verifier.test.ts (NEW) — unit tests for verify()
+src/server/auth/bearer-verifier.ts (NEW) — BearerAuthVerifier class
+src/server/auth/middleware.ts (NEW) — Hono middleware factory
+src/server/auth/__tests__/bearer-verifier.test.ts (NEW)
+vitest.contract.config.ts — add src/server/**/__tests__/**/*.test.ts to include
 ```
 
-#### Deep file dependency analysis
-- `bearer-verifier.ts`: constructor takes `expectedToken: string`; `verify(token)` returns `token === expectedToken`. ~25 LoC.
-- `middleware.ts`: reads `process.env['THEMEMORY_API_KEY']`; if unset, `await next()`; if set, validates `Authorization: Bearer <token>` header via `BearerAuthVerifier`; on failure, returns 401 with `www-authenticate: Bearer` header. ~40 LoC.
-- Test file: 6 tests (no env / valid token / invalid token / missing header / case-sensitivity / whitespace handling).
-
 #### Deep Dives
-- **Constant-time comparison**: `verify()` uses `crypto.timingSafeEqual` to defeat timing attacks. ~5 extra LoC; honors `architecture.md § 8 (error handling)` — fail-fast on length mismatch first.
-- **Response shape**: 401 returns `{ "code": "UNAUTHORIZED", "message": "Bearer token required" }` per envelope chosen in T1.6.
-
-#### Tasks
-1. Create `src/server/` dir.
-2. Create `src/server/auth/bearer-verifier.ts`: class `BearerAuthVerifier implements AuthVerifier` with constructor + `verify()` using `crypto.timingSafeEqual`.
-3. Create `src/server/auth/middleware.ts`: Hono middleware factory `bearerAuth(verifier?: AuthVerifier)`.
-4. Create `src/server/auth/__tests__/bearer-verifier.test.ts` with 6 unit tests (RED).
-5. Update `vitest.contract.config.ts` `include` to add `src/server/**/__tests__/**/*.test.ts` (Step 0 path validation requirement).
+- **EC-4 absorption**: `verify(token)` implementation:
+  ```ts
+  if (token.length !== this.expectedToken.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(this.expectedToken));
+  ```
+  Length-check FIRST — `timingSafeEqual` throws `RangeError` on different-length inputs. Without this guard, auth path crashes 500 instead of clean 401.
+- **EC-1 absorption**: env-read helper at module top:
+  ```ts
+  function readApiKey(): string | undefined {
+    const raw = process.env['THEMEMORY_API_KEY'];
+    if (raw === undefined) return undefined; // auth disabled
+    if (raw.trim() === '') return ''; // fail-closed sentinel
+    return raw;
+  }
+  ```
+  Empty/whitespace → returns `''` which makes ALL bearer compares fail → 401 on every request.
+- **EC-2 absorption**: scheme parsing:
+  ```ts
+  const match = /^bearer\s+(.+)$/i.exec(authHeader); // case-insensitive
+  ```
 
 #### TDD
 ```
-RED:     test('verify returns true for matching token') — FAIL (class does not exist)
+RED:     test('verify returns true for matching token')
 RED:     test('verify returns false for non-matching token')
-RED:     test('verify returns false for empty token')
-RED:     test('verify uses timingSafeEqual (no early-exit on prefix match)')
-RED:     test('middleware passthrough when THEMEMORY_API_KEY env unset')
-RED:     test('middleware returns 401 with www-authenticate: Bearer when token missing or invalid')
-GREEN:   implement BearerAuthVerifier + middleware factory
-REFACTOR: extract Bearer token parsing helper if used in 2+ places
+RED:     test('verify returns false for length-mismatch WITHOUT throwing') (EC-4)
+RED:     test('verify uses timingSafeEqual after length check')
+RED:     test('readApiKey returns undefined when env unset (auth disabled)')
+RED:     test('readApiKey returns empty-string sentinel when env is empty') (EC-1)
+RED:     test('readApiKey returns empty-string sentinel when env is whitespace-only') (EC-1)
+RED:     test('middleware accepts Authorization: bearer xyz (lowercase prefix)') (EC-2)
+RED:     test('middleware accepts Authorization: BEARER xyz (uppercase prefix)') (EC-2)
+RED:     test('middleware rejects token with leading/trailing whitespace mismatch') (EC-3)
+RED:     test('middleware returns 401 with www-authenticate: Bearer header')
+RED:     test('middleware passthrough when THEMEMORY_API_KEY undefined')
+RED:     test('middleware fail-closed when THEMEMORY_API_KEY empty') (EC-1)
+GREEN:   implement BearerAuthVerifier + middleware
+REFACTOR: extract bearerSchemeParse helper if reused
 VERIFY:  npm test -- src/server/auth/__tests__/bearer-verifier
 ```
 
 #### Acceptance Criteria
-- [ ] 6 RED tests pass GREEN
-- [ ] `BearerAuthVerifier` implements `AuthVerifier` from `src/core/dip/auth-verifier.ts` (compile-time check)
-- [ ] `verify()` uses `crypto.timingSafeEqual` (grep audit)
-- [ ] 401 response includes `www-authenticate: Bearer` header
-- [ ] Pass: size — each file ≤ 100 LoC
-- [ ] Pass: lint zero warnings
-- [ ] Pass: typecheck zero errors
+- [ ] 13 RED tests pass GREEN (3 are EC-1, 2 are EC-2, 1 is EC-3, 2 are EC-4)
+- [ ] `BearerAuthVerifier` implements `AuthVerifier` (type-check)
+- [ ] `verify()` uses `crypto.timingSafeEqual` AFTER length-check (grep audit)
+- [ ] 401 includes `www-authenticate: Bearer` header
+- [ ] **EC-5**: tests use `beforeEach` to save + `afterEach` to restore `process.env['THEMEMORY_API_KEY']`
+- [ ] JSDoc on `BearerAuthVerifier` constructor documents fail-closed empty-string contract (per D3 amended)
+- [ ] Size ≤ 100 LoC per file; lint zero warnings; typecheck zero errors
 
-#### DoD
-- [ ] All Tasks completed; all RED tests GREEN
-- [ ] `vitest.contract.config.ts` updated with `src/server/**/__tests__/**` include
-- [ ] No new public exports from `src/index.ts` yet (server lives at subpath, exposed in T1.7)
-
-### T1.2 — REST handlers for 4 verbs (remember/recall/forget/reflect)
+### T1.2 — REST handlers for 4 verbs (+ EC-6/7/9/10/11/12)
 
 #### Objective
-Implement 4 RPC handlers under `src/server/handlers/` + Hono app composer at `src/server/app.ts`.
-
-#### Evidence
-Research note § "Item 16 RED tests": T16-RED-1 (POST /v1/remember 201) through T16-RED-4 (POST /v1/reflect 202). Plan ADR D2 (RPC shape), D11 (DI composition).
+Implement 4 RPC handlers + Hono app composer. **Absorb 6 ECs**: EC-6 malformed JSON → 400; EC-7 empty body → 422; EC-9 single-scope-tier enforcement per ADR D12; EC-10 unmapped errors → 500 envelope; EC-11 empty recall → 200 with `{ results: [] }`; EC-12 `infer: false` propagation documented.
 
 #### Files to edit
 ```
-src/server/handlers/remember.ts (NEW) — POST /v1/remember handler
-src/server/handlers/recall.ts (NEW) — POST /v1/recall handler
-src/server/handlers/forget.ts (NEW) — POST /v1/forget handler
-src/server/handlers/reflect.ts (NEW) — POST /v1/reflect handler
-src/server/app.ts (NEW) — Hono app composer; mounts handlers; applies bearer middleware
-src/server/index.ts (NEW) — public factory createServer({ memory, authVerifier? })
-src/server/__tests__/handlers.test.ts (NEW) — integration tests (in-process app.fetch())
+src/server/handlers/remember.ts (NEW)
+src/server/handlers/recall.ts (NEW)
+src/server/handlers/forget.ts (NEW)
+src/server/handlers/reflect.ts (NEW)
+src/server/schemas.ts (NEW) — shared zod schemas incl. single-scope union per D12
+src/server/app.ts (NEW) — Hono app composer
+src/server/index.ts (NEW) — createServer factory
+src/server/__tests__/handlers.test.ts (NEW)
 ```
 
-#### Deep file dependency analysis
-- Each handler file: zod request schema + handler function + zod response schema. ~50 LoC each.
-- `app.ts`: Hono router composition, middleware chain. ~80 LoC.
-- `index.ts`: exports `createServer({ memory, authVerifier? })`, `BearerAuthVerifier`, types. ~30 LoC.
-- Test file: 4 handler tests + 2 composition tests (app boots, middleware applied). ~150 LoC.
-
 #### Deep Dives
-- **Request shape (remember)**: `{ userId?, sessionId?, agentId?, text, infer?, attributedTo? }` — at least one scope tier required (validated by zod refine).
-- **Response shape (recall)**: `{ results: Array<{ id, text, score, scope, attributedTo? }> }` — wrapped in object (not raw array) per JSON:API guidance + future pagination.
-- **HTTP status codes**: 201 (remember), 200 (recall), 204 (forget), 202 (reflect — async/queued semantic).
-- **Scope resolution**: handler reads scope from request body → calls `memory.user(id).remember(...)` (or session / agent) per the 3-tier shape.
-
-#### Tasks
-1. Create `src/server/handlers/remember.ts` with zod schema + handler.
-2. Create `src/server/handlers/recall.ts`.
-3. Create `src/server/handlers/forget.ts`.
-4. Create `src/server/handlers/reflect.ts`.
-5. Create `src/server/app.ts` — composes Hono app + mounts handlers under `/v1` prefix + applies bearer middleware (only when authVerifier provided).
-6. Create `src/server/index.ts` — public factory `createServer({ memory: Memory, authVerifier?: AuthVerifier }): Hono`.
-7. Create `src/server/__tests__/handlers.test.ts` — uses `app.fetch(new Request(url, init))` for in-process tests (Pattern P1).
+- **EC-9 / ADR D12 absorption**: `ScopeSchema = z.union([z.object({userId: z.string().min(1)}).strict(), z.object({sessionId: z.string().min(1)}).strict(), z.object({agentId: z.string().min(1)}).strict(), z.object({skillRepoId: z.string().min(1)}).strict()])`. `strict()` rejects unknown keys → multi-tier requests get clean 422.
+- **EC-10**: app.onError(handler) catches everything not mapped by T1.6; returns `{ code: "INTERNAL_ERROR", message: "Internal server error" }` (NO stack).
+- **EC-11**: zero-result recall is 200 success, not 404.
 
 #### TDD
 ```
-RED:     test('POST /v1/remember returns 201 with memoryId') — FAIL (no handler)
+RED:     test('POST /v1/remember returns 201 with memoryId')
 RED:     test('POST /v1/recall returns { results: [...] } shape')
+RED:     test('POST /v1/recall empty results returns 200 not 404') (EC-11)
 RED:     test('POST /v1/forget returns 204; subsequent recall excludes id')
 RED:     test('POST /v1/reflect returns 202 + reflection-job-id')
-RED:     test('POST /v1/remember with missing scope returns 422')
+RED:     test('POST /v1/remember with malformed JSON returns 400') (EC-6)
+RED:     test('POST /v1/remember with empty body returns 422') (EC-7)
+RED:     test('POST /v1/remember with zero scope tiers returns 422 InvalidScope') (EC-9)
+RED:     test('POST /v1/remember with userId AND sessionId returns 422 InvalidScope') (EC-9 / D12)
+RED:     test('POST /v1/remember with infer:false bypasses LLM pipeline') (EC-12 doc)
 RED:     test('createServer wires middleware when authVerifier provided')
-GREEN:   implement 4 handlers + app composer + factory
-REFACTOR: extract scope-resolver helper if 4 handlers duplicate the same scope-routing logic
+RED:     test('unknown error from Memory throws 500 with sanitized envelope') (EC-10)
+GREEN:   implement handlers + app composer + factory + onError
+REFACTOR: extract scope-resolver helper
 VERIFY:  npm test -- src/server/__tests__/handlers
 ```
 
 #### Acceptance Criteria
-- [ ] 6 RED tests pass GREEN against StubMemory fixture
+- [ ] 12 RED tests pass GREEN
 - [ ] Each handler ≤ 100 LoC; `app.ts` ≤ 150 LoC; `index.ts` ≤ 50 LoC
-- [ ] No `any` types (per `architecture.md § Module hygiene`)
-- [ ] zod schemas validate at handler boundary (per `architecture.md § 8`)
-- [ ] Pass: lint zero warnings
-- [ ] Pass: typecheck zero errors
+- [ ] No `any` types
+- [ ] Zod `.strict()` on scope union (D12 enforcement)
+- [ ] Pass: lint, typecheck
 
-#### DoD
-- [ ] All Tasks completed; all RED tests GREEN
-- [ ] `createServer` consumes `Memory` interface only — no import from `src/local/` (DIP per `architecture.md § 3`)
-
-### T1.3 — Health + scopes pagination endpoints
+### T1.3 — Health + scopes pagination (+ EC-13/14/15/16/17)
 
 #### Objective
-Implement `GET /v1/health` (readiness — process alive + DB pool ready), `GET /v1/health/db` (liveness — DB ping), and `GET /v1/scopes/:type/:id/memories?cursor=&limit=` (paginated listing).
+Implement `GET /v1/health` (readiness), `GET /v1/health/db` (liveness with TIMEOUT per EC-17), `GET /v1/scopes/:type/:id/memories?cursor=&limit=` (paginated, BOUNDED per EC-14).
 
 #### Files to edit
 ```
-src/server/handlers/health.ts (NEW) — GET /v1/health + GET /v1/health/db
-src/server/handlers/scopes.ts (NEW) — GET /v1/scopes/:type/:id/memories
+src/server/handlers/health.ts (NEW)
+src/server/handlers/scopes.ts (NEW)
 src/server/__tests__/health.test.ts (NEW)
 src/server/__tests__/scopes.test.ts (NEW)
 ```
 
-#### Deep file dependency analysis
-- `health.ts`: 2 endpoints — `/v1/health` (returns `{ status: 'ok' }`); `/v1/health/db` (executes `pool.query('SELECT 1')`; on error returns 503). ~40 LoC.
-- `scopes.ts`: paginated listing. Cursor = base64-encoded `id|created_at` opaque token. ~80 LoC.
-
 #### Deep Dives
-- **Cursor pagination**: opaque cursor (not offset) for stability under writes. Mirrors GitHub API + Stripe pattern.
-- **`:type` validation**: enum `user | session | agent | skill` — reject 404 for other strings.
-
-#### Tasks
-1. Create `src/server/handlers/health.ts`.
-2. Create `src/server/handlers/scopes.ts`.
-3. Wire both into `src/server/app.ts` (under `/v1` prefix).
-4. Write tests.
+- **EC-14 absorption**: `limit: z.coerce.number().int().min(1).max(100).default(20)`. Cap at 100 prevents DOS.
+- **EC-17 absorption**: `/v1/health/db` wraps `pool.query` in `Promise.race` with 2s timeout:
+  ```ts
+  await Promise.race([
+    pool.query('SELECT 1'),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('db_probe_timeout')), 2000)),
+  ]);
+  ```
+- **EC-13**: scope type enum strict `z.enum(['user', 'session', 'agent', 'skill'])` — case-sensitive.
+- **EC-15**: cursor opaque base64 — `try { Buffer.from(cursor, 'base64').toString('utf-8') } catch { return c.json({code:"INVALID_CURSOR"}, 400) }`.
+- **EC-16 (DOCUMENT)**: no caching on `/v1/health/db` — query-each-time. Acceptable for low-frequency probes.
 
 #### TDD
 ```
 RED:     test('GET /v1/health returns { status: "ok" }')
 RED:     test('GET /v1/health/db returns 200 when pool query succeeds')
 RED:     test('GET /v1/health/db returns 503 when pool query throws')
+RED:     test('GET /v1/health/db returns 503 within 2s when pool query hangs') (EC-17)
 RED:     test('GET /v1/scopes/user/alice/memories returns paginated results')
-RED:     test('GET /v1/scopes/invalid/x/memories returns 404')
-GREEN:   implement health + scopes handlers
-REFACTOR: none expected
+RED:     test('GET /v1/scopes/User/alice/memories returns 404 (case-sensitive)') (EC-13)
+RED:     test('GET /v1/scopes/user/alice/memories?limit=999 returns 422 (capped at 100)') (EC-14)
+RED:     test('GET /v1/scopes/user/alice/memories?cursor=invalid returns 400') (EC-15)
+GREEN:   implement health + scopes handlers with timeout + cap + cursor parse
+REFACTOR: extract pgPing helper with timeout
 VERIFY:  npm test -- src/server/__tests__/{health,scopes}
 ```
 
 #### Acceptance Criteria
-- [ ] All 5 RED tests pass GREEN
+- [ ] 8 RED tests pass GREEN
+- [ ] EC-17 timeout proven via mock hung pool
+- [ ] EC-14 max-100 enforced via zod refine
 - [ ] Pass: size, lint, typecheck
 
-#### DoD
-- [ ] All Tasks completed; RED tests GREEN
-
-### T1.4 — OpenAPI 3.1 spec auto-generation
+### T1.4 — OpenAPI 3.1 spec auto-generation (+ EC-18/19/20)
 
 #### Objective
-Wire `@hono/zod-openapi` to auto-derive the OpenAPI 3.1 spec from existing zod request/response schemas. Expose via `GET /v1/openapi.json`.
-
-#### Evidence
-Research note Item 16 RED test T16-RED-11: `test('GET /v1/openapi.json validates against OpenAPI 3.1 schema')`. Plan ADR D1 + D6 framework choice.
+Wire `@hono/zod-openapi` to auto-derive OpenAPI 3.1 spec. **Absorb 3 ECs**: EC-18 dep version alignment (T0.1 covers); EC-19 spec endpoint auth-exempt; EC-20 circular schemas documented as out-of-scope.
 
 #### Files to edit
 ```
-src/server/openapi.ts (NEW) — OpenAPIHono setup + spec endpoint
-src/server/handlers/*.ts — migrate from raw Hono routes to RouteConfig pattern (uses zod-openapi `createRoute`)
-src/server/__tests__/openapi.test.ts (NEW) — validates spec against `@apidevtools/swagger-parser`
+src/server/openapi.ts (NEW)
+src/server/handlers/*.ts — migrate to RouteConfig pattern
+src/server/__tests__/openapi.test.ts (NEW)
+src/server/app.ts — order middleware: openapi route BEFORE bearer middleware (EC-19)
 ```
 
-#### Deep file dependency analysis
-- `openapi.ts`: ~40 LoC — OpenAPIHono instance + doc metadata (title, version, license MIT).
-- Each handler migration: zod schemas exported as RouteConfig + handler signature shifts to `c: Context<...>`. ~20 LoC delta per handler.
-
 #### Deep Dives
-- **Spec stability across versions**: spec generation pinned to `@hono/zod-openapi ^0.18` minor; major bump goes through ADR + plan amendment.
-- **License field**: spec advertises `license: { name: 'MIT', url: 'https://opensource.org/licenses/MIT' }` per `Locked names` MIT override.
-
-#### Tasks
-1. Create `src/server/openapi.ts` with OpenAPIHono instance.
-2. Migrate 6 handlers (remember/recall/forget/reflect/health/scopes) to use `createRoute` + RouteConfig pattern.
-3. Expose `GET /v1/openapi.json` returning the auto-generated spec.
-4. Write test that fetches spec + validates via `@apidevtools/swagger-parser.validate(spec)`.
+- **EC-19 absorption**: register openapi spec route BEFORE bearer middleware in `app.ts`. Hono router order matters — first match wins. `GET /v1/openapi.json` registers without `app.use(bearerAuth)`.
+- **EC-20 (DOCUMENT)**: zod circular schemas (e.g., `MemoryItem.derivedFrom: MemoryItem[]`) NOT used in v0.0 contract; ADR Consequence notes the limitation if ever introduced.
 
 #### TDD
 ```
 RED:     test('GET /v1/openapi.json returns valid OpenAPI 3.1 schema (swagger-parser validates)')
+RED:     test('GET /v1/openapi.json accessible WITHOUT bearer token even when THEMEMORY_API_KEY set') (EC-19)
 RED:     test('openapi spec lists all 6 operations with stable operationId')
 RED:     test('openapi spec advertises license MIT')
-GREEN:   implement OpenAPIHono + RouteConfig migration
-REFACTOR: extract shared zod schema fragments (ScopeRequest etc.) into src/server/schemas.ts
+GREEN:   implement OpenAPIHono + RouteConfig migration + middleware order
+REFACTOR: extract shared zod fragments to schemas.ts
 VERIFY:  npm test -- src/server/__tests__/openapi
 ```
 
 #### Acceptance Criteria
-- [ ] 3 RED tests pass GREEN
-- [ ] Spec endpoint returns `Content-Type: application/json`
+- [ ] 4 RED tests pass GREEN
+- [ ] EC-19 confirmed via test with bearer set + 200 on openapi endpoint
 - [ ] swagger-parser validation exits 0
+- [ ] Spec license = MIT
 - [ ] Pass: size, lint, typecheck
 
-#### DoD
-- [ ] All Tasks completed
-- [ ] All 6 handler operations represented in spec with `operationId` (stable for client codegen)
-
-### T1.5 — OTel span observability per handler
+### T1.5 — OTel span observability per handler (+ EC-21/22)
 
 #### Objective
-Wrap each handler in an OTel span (`rest.v1.<verb>` naming). Span includes `http.method`, `http.status_code`, `themory.scope.type` attributes.
-
-#### Evidence
-Research note Item 16 RED test T16-RED-13. v0.4b runtime pattern (`pgvector_recall_duration_ms` etc.) — OTel already in SDK.
+Wrap each handler in an OTel span. **Absorb 2 ECs**: EC-21 production TracerProvider documented as consumer-wired; EC-22 exporter failures swallowed silently.
 
 #### Files to edit
 ```
-src/server/observability/otel-middleware.ts (NEW) — Hono middleware that wraps each request
-src/server/__tests__/otel.test.ts (NEW) — in-memory exporter assertion
+src/server/observability/otel-middleware.ts (NEW)
+src/server/__tests__/otel.test.ts (NEW)
 ```
 
-#### Deep file dependency analysis
-- `otel-middleware.ts`: ~50 LoC — uses `@opentelemetry/api` (transitive via existing v0.4b OTel deps; if not present, add via T0.1 amendment).
-
 #### Deep Dives
-- **Span naming**: `rest.v1.remember`, `rest.v1.recall`, etc. — stable across versions.
-- **Error propagation**: span status set to `ERROR` on 5xx; `OK` on 2xx/3xx; spans for 4xx use `ERROR` only when domain-error (not client error).
-
-#### Tasks
-1. Create `src/server/observability/otel-middleware.ts`.
-2. Wire into `src/server/app.ts` middleware chain (BEFORE bearer auth so unauth requests are also observed).
-3. Write test using in-memory SpanExporter.
+- **EC-22 absorption**: middleware try/catches span operations:
+  ```ts
+  try { span.setAttribute(...); span.end(); } catch { /* swallow — don't break request */ }
+  ```
+- **EC-21 (DOCUMENT)**: middleware is no-op when no TracerProvider registered (OTel default). Consumer wires their own (Vercel OTel, Grafana, Honeycomb, etc.).
 
 #### TDD
 ```
 RED:     test('POST /v1/remember emits span name rest.v1.remember')
 RED:     test('span includes http.status_code attribute')
 RED:     test('5xx errors mark span status ERROR')
-GREEN:   implement otel-middleware
-REFACTOR: none expected
+RED:     test('handler returns 201 even when OTel exporter throws synchronously') (EC-22)
+GREEN:   implement otel-middleware with try/catch around span ops
+REFACTOR: none
 VERIFY:  npm test -- src/server/__tests__/otel
 ```
 
 #### Acceptance Criteria
-- [ ] 3 RED tests pass GREEN
-- [ ] In-memory SpanExporter records ≥ 1 span per integration test invocation
-- [ ] Pass: size, lint, typecheck
+- [ ] 4 RED tests pass GREEN
+- [ ] In-memory exporter records ≥ 1 span per integration test
+- [ ] Mock-throwing exporter doesn't break request
+- [ ] **Runtime-metric proof**: span count > 0 in `tests/integration/rest-api.test.ts`
 
-#### DoD
-- [ ] All Tasks completed
-- [ ] **Runtime-metric proof**: `npm test -- tests/integration/rest-api.test.ts` shows span count > 0 in exporter (closes wiring triad pillar c for REST handlers)
-
-### T1.6 — Domain-error → HTTP envelope mapping
+### T1.6 — Domain-error envelope (+ EC-23/24)
 
 #### Objective
-Map domain errors from `src/core/errors.ts` (`InvalidScope`, `MemoryNotFound`, etc.) to HTTP responses with stable envelope `{ code, message, field? }`.
-
-#### Evidence
-Research note § "Item 16 RED tests" T16-RED-12. `architecture.md § 8` (typed domain errors + fail-fast + boundary validation).
+Map domain errors to HTTP. **Absorb 2 ECs**: EC-23 pg lib errors mapped to 500 sanitized; EC-24 error message sanitization (no PII/secret leak).
 
 #### Files to edit
 ```
-src/server/errors.ts (NEW) — mapDomainErrorToResponse(err: Error): Response
+src/server/errors.ts (NEW)
 src/server/__tests__/errors.test.ts (NEW)
 ```
 
-#### Deep file dependency analysis
-- `errors.ts`: ~60 LoC — switch on `err.constructor.name` returning HTTP status + envelope.
-- Mapping:
-  - `InvalidScope` → 422
-  - `MemoryNotFound` → 404
-  - `BiTemporalNotSupportedLocally` → 422 (cloud-only feature on local — already lifted by ADR-0011 but kept for future cloud)
-  - `InvalidEmbeddingDim` → 422
-  - Other / unknown → 500 (logged + traced; never expose raw stack)
-
-#### Tasks
-1. Create `src/server/errors.ts` with `mapDomainErrorToResponse`.
-2. Wire global error handler in `src/server/app.ts` (`app.onError(...)`).
-3. Write tests.
+#### Deep Dives
+- **EC-23 absorption**: `mapDomainErrorToResponse` switch with default case checking `err.constructor.name`. pg errors (`error: relation X does not exist`) → 500 with envelope `{ code: "INTERNAL_ERROR", message: "Database error" }`. Original `err.message` logged via `console.error` (NOT returned in body).
+- **EC-24 absorption**: secret-pattern regex `/Bearer\s+\S+/g` redacts before logging + envelope generation.
 
 #### TDD
 ```
 RED:     test('InvalidScope error returns 422 with code: INVALID_SCOPE')
-RED:     test('MemoryNotFound error returns 404 with code: MEMORY_NOT_FOUND')
-RED:     test('Unknown error returns 500 without stack trace in response body')
+RED:     test('MemoryNotFound error returns 404')
+RED:     test('Unknown error returns 500 without stack trace in body')
+RED:     test('pg error message NOT echoed in response body') (EC-23)
 RED:     test('Error envelope shape: { code, message, field? }')
+RED:     test('Bearer token in error.message is redacted before logging') (EC-24)
 GREEN:   implement mapDomainErrorToResponse + wire app.onError
-REFACTOR: none expected
+REFACTOR: none
 VERIFY:  npm test -- src/server/__tests__/errors
 ```
 
 #### Acceptance Criteria
-- [ ] 4 RED tests pass GREEN
-- [ ] No raw stack trace in response body (grep audit on test response)
+- [ ] 6 RED tests pass GREEN
+- [ ] No raw stack trace in body (grep audit)
+- [ ] No bearer token leak in logs (grep audit)
 - [ ] Pass: size, lint, typecheck
 
-#### DoD
-- [ ] All Tasks completed; all errors mapped
-
-### T1.7 — Subpath export + tsconfig include update
+### T1.7 — Subpath export + isolation (+ EC-25/26/52)
 
 #### Objective
-Expose `@usetheo/memory/server` via `package.json#exports`; add `src/server/**` to `tsconfig.contract.json` include + `vitest.contract.config.ts` include (already added in T1.1, double-check).
+Expose `@usetheo/memory/server` subpath. **Absorb 3 ECs**: EC-25 ESM-only documented; EC-26 default import does NOT pull Hono (tree-shaking isolation); EC-52 npm pack manifest includes server files.
 
 #### Files to edit
 ```
-package.json — add "./server" subpath under exports
+package.json — add "./server" subpath + verify "files" whitelist
 tsconfig.contract.json — add src/server/** to include
-vitest.contract.config.ts — verify src/server/** in include (added T1.1)
-README.md — add 1-paragraph "REST API server" section to Planned API contract
+vitest.contract.config.ts — verify src/server/** include (added T1.1)
+README.md — add "REST API server" section
+CHANGELOG.md — [Unreleased] ### Added Phase 1 entries
+tests/integration/subpath-isolation.test.ts (NEW) — EC-26 test
 ```
 
-#### Deep file dependency analysis
-- `package.json` exports: add `"./server": { "types": "./src/server/index.ts", "default": "./src/server/index.ts" }` between `./agent-tools` and `./embedders` (alphabetical).
-- `tsconfig.contract.json` include: add `"src/server/**/*.ts"` to globs.
-
-#### Tasks
-1. Update `package.json#exports`.
-2. Update `tsconfig.contract.json#include`.
-3. Verify `vitest.contract.config.ts` include includes `server`.
-4. Add 1-paragraph "REST API server" section to README under "Planned API contract".
-5. Add `### Added` entry to CHANGELOG.md `[Unreleased]` describing T1.x landing (per Inquebrável Rule 6).
+#### Deep Dives
+- **EC-26 absorption**: integration test creates a fake consumer that ONLY imports default `@usetheo/memory`; uses Node `--experimental-vm-modules` + esbuild to bundle; asserts bundle string does NOT contain `hono` package name. Cheap defense against accidental cross-imports.
+- **EC-52 absorption**: `npm pack --dry-run` listing must include `src/server/index.ts` + `src/server/handlers/*.ts` + `src/server/auth/*.ts`. Test asserts via parsing pack output.
+- **EC-25 (DOCUMENT)**: subpath is ESM-only — matches `"type": "module"` package.json. CJS consumers receive clear error message. README documents requirement.
 
 #### TDD
 ```
-RED:     test('@usetheo/memory/server subpath resolves to createServer factory') — runs from a sibling tsconfig test
-GREEN:   exports + tsconfig include
+RED:     test('@usetheo/memory/server resolves to createServer factory in typecheck') (EC-25)
+RED:     test('default @usetheo/memory bundle does NOT contain hono') (EC-26)
+RED:     test('npm pack --dry-run output contains src/server/index.ts') (EC-52)
+RED:     test('npm pack --dry-run output contains src/server/handlers/remember.ts') (EC-52)
+GREEN:   exports + tsconfig include + verify files whitelist
 REFACTOR: none
 VERIFY:  npm run typecheck && npm test
 ```
 
 #### Acceptance Criteria
-- [ ] `import { createServer } from '@usetheo/memory/server'` resolves under `npm run typecheck`
-- [ ] `npm test` 845+ tests pass (no regression)
+- [ ] 4 RED tests pass GREEN
+- [ ] EC-26 bundle isolation test passes
+- [ ] EC-52 pack manifest test passes
 - [ ] CHANGELOG entry written
+- [ ] README updated with REST API section
 - [ ] Pass: lint, typecheck
-
-#### DoD
-- [ ] All Tasks completed
-- [ ] subpath consumer-importable
 
 ---
 
 ## Phase 2 — CLI consolidado (Item 18)
 
-**Objective:** Replace single-purpose `themory-mcp` bin with multi-subcommand `themory` CLI. Preserve backward-compat alias for ONE release.
-
-### T2.1 — commander scaffold + 4-subcommand help screen
+### T2.1 — commander scaffold + alias (+ EC-27/28/29)
 
 #### Objective
-Replace `src/agent-tools/cli.ts` content with multi-subcommand commander scaffold. Move MCP-specific logic to a function called by the `themory mcp` subcommand.
+Rewrite `src/agent-tools/cli.ts` as commander multi-subcommand router. **Absorb 3 ECs**: EC-27 alias detection robust across npm exec/npx/direct; EC-28 npm install creates both bins; EC-29 argv mutation sequence documented.
 
 #### Files to edit
 ```
-src/agent-tools/cli.ts — REWRITE as commander multi-subcommand router; existing MCP logic extracted to runMcpServer()
-src/agent-tools/cli.test.ts (NEW under src/agent-tools/__tests__/) — unit test help screen output
-package.json — replace bin "themory-mcp" with bin "themory" + backward-compat alias "themory-mcp"
-tests/integration/cli-consolidated.test.ts (NEW) — integration tests using subprocess (Pattern P3)
+src/agent-tools/cli.ts — REWRITE as commander entry
+src/agent-tools/__tests__/cli.test.ts (NEW)
+package.json — bin: { themory, themory-mcp }
+tests/integration/cli-consolidated.test.ts (NEW)
 ```
 
-#### Deep file dependency analysis
-- `src/agent-tools/cli.ts`: currently a single-purpose MCP server boot. Rewrite as commander entry; subcommand `mcp` invokes the same existing logic (now extracted to `runMcpServer(options)`). ~100 LoC after rewrite.
-- `package.json` bin: `{ "themory": "./dist/agent-tools/cli.js", "themory-mcp": "./dist/agent-tools/cli.js" }` — both point to the same entry; entry detects argv[0] basename to choose subcommand-mode vs alias-mode.
-
 #### Deep Dives
-- **`themory-mcp` alias detection**: at entry top, `if (process.argv[1]?.endsWith('themory-mcp')) { console.error('DEPRECATED: themory-mcp will be removed in 0.2.0. Use \'themory mcp\' instead.'); process.argv.splice(2, 0, 'mcp'); }` — injects subcommand then proceeds.
-- **Help screen content**: `Usage: themory [options] [command]` with 4 subcommand descriptions. Mirrors mem0 CLI structure (research note Pattern P3).
-
-#### Tasks
-1. Extract existing MCP boot logic from `src/agent-tools/cli.ts` to `runMcpServer(options)` function.
-2. Rewrite `cli.ts` head: commander program + 4 `.command(...)` declarations (mcp/server/migrate/health) — `server`, `migrate`, `health` stubbed with `console.log('TODO')` for now (filled by T2.3-T2.5).
-3. Update `package.json` bin: add `themory`, retain `themory-mcp`.
-4. Add backward-compat alias detection at entry top.
-5. Write test that asserts `themory --help` lists exactly 4 subcommands.
-6. Write test that asserts `themory-mcp` alias emits deprecation warning to stderr + still runs MCP.
+- **EC-27 absorption**: alias detection uses regex `/themory-mcp(\.js)?$/` on `process.argv[1]` — handles npm exec wrapper paths, npx temp paths, direct invocations.
+- **EC-29 (DOCUMENT)**: argv mutation `process.argv.splice(2, 0, 'mcp')` documented in JSDoc on entry function. Subsequent code reads argv as if user typed `themory mcp`.
 
 #### TDD
 ```
-RED:     test('themory --help lists exactly 4 subcommands: mcp, server, migrate, health')
+RED:     test('themory --help lists exactly 4 subcommands') (EC pattern)
+RED:     test('themory-mcp alias detected via direct path basename') (EC-27)
+RED:     test('themory-mcp alias detected via npm exec wrapper') (EC-27)
 RED:     test('themory-mcp alias emits DEPRECATED warning to stderr')
-RED:     test('themory-mcp alias still runs MCP server (regression for v0.3 tests/e2e/agent-tools/round-trip)')
+RED:     test('themory-mcp alias still runs MCP server (v0.3 regression)')
+RED:     test('package.json bin lists BOTH themory and themory-mcp entries') (EC-28)
 GREEN:   implement commander scaffold + alias detection
-REFACTOR: extract help-screen rendering to const if used in 2+ tests
-VERIFY:  npm test -- tests/integration/cli-consolidated && npm test -- tests/e2e/agent-tools/round-trip
+VERIFY:  npm test -- tests/integration/cli-consolidated -t scaffold
 ```
 
 #### Acceptance Criteria
-- [ ] 3 RED tests pass GREEN
-- [ ] Existing `tests/e2e/agent-tools/round-trip.test.ts` PASS (regression — MCP still works through new entry)
-- [ ] Help screen lists 4 subcommands
-- [ ] Pass: size (cli.ts ≤ 150 LoC), lint, typecheck
+- [ ] 6 RED tests pass GREEN
+- [ ] v0.3 `tests/e2e/agent-tools/round-trip.test.ts` PASS (regression)
+- [ ] Pass: size (cli.ts ≤ 200 LoC due to absorbed ECs), lint, typecheck
 
-#### DoD
-- [ ] All Tasks completed
-- [ ] No backward-compat regression in v0.3 GOAL TEST
-
-### T2.2 — themory mcp subcommand wired
+### T2.2 — themory mcp wired
 
 #### Objective
-Wire `themory mcp` subcommand to `runMcpServer()` function with all existing options (`--transport`, `--port` for streamable-HTTP).
+Wire `themory mcp` subcommand with options. EC-30 (Windows stdio) documented as out-of-P0-scope.
 
 #### Files to edit
 ```
-src/agent-tools/cli.ts — flesh out `.command('mcp')` with options + action
-tests/integration/cli-consolidated.test.ts — add mcp subcommand integration test
+src/agent-tools/cli.ts — flesh out .command('mcp')
+tests/integration/cli-consolidated.test.ts — add mcp tests
 ```
-
-#### Tasks
-1. Wire `mcp` subcommand with options: `--transport <stdio|streamable-http>`, `--port <number>`.
-2. Validate options via zod schema.
-3. Call `runMcpServer(options)`.
 
 #### TDD
 ```
-RED:     test('themory mcp --transport stdio starts MCP server on stdio')
-RED:     test('themory mcp --transport streamable-http --port 8081 binds HTTP port')
-GREEN:   wire mcp subcommand
-REFACTOR: none
+RED:     test('themory mcp --transport stdio starts MCP server')
+RED:     test('themory mcp --transport streamable-http --port 8081 binds HTTP')
+GREEN:   wire subcommand
 VERIFY:  npm test -- tests/integration/cli-consolidated -t mcp
 ```
 
 #### Acceptance Criteria
 - [ ] 2 RED tests pass GREEN
-- [ ] v0.3 GOAL TEST regression still passes
-- [ ] Pass: lint, typecheck
+- [ ] v0.3 regression still passes
+- [ ] EC-30: README notes Linux/macOS tested; Windows out-of-P0-scope
 
-#### DoD
-- [ ] All Tasks completed
-
-### T2.3 — themory server subcommand wired
+### T2.3 — themory server (+ EC-31/32/33 + ADR D8 inline)
 
 #### Objective
-Wire `themory server` subcommand that starts the REST API server (Phase 1 work) bound to `--port` (default 8080) with `--db-uri` (default `THEOMEM_PG_URI` env).
+Wire `themory server` subcommand. **Absorb 3 ECs**: EC-31 EADDRINUSE clear stderr; EC-32 SIGTERM graceful shutdown; EC-33 readiness gate while Memory factory warms up. **Implements ADR D8 amended: invokes `runMigrations()` BEFORE binding port** (replaces deleted docker-entrypoint.sh per EC-47 / D13).
 
 #### Files to edit
 ```
-src/agent-tools/cli.ts — flesh out `.command('server')` with options + action
-tests/integration/cli-consolidated.test.ts — add server subcommand test
+src/agent-tools/cli.ts — flesh out .command('server') action
+tests/integration/cli-consolidated.test.ts — add server tests
 ```
 
-#### Tasks
-1. Wire `server` subcommand with options: `--port <number>` (default 8080), `--db-uri <string>` (default from env).
-2. Action: create pg pool → run migrations → create Memory factory → create server via `createServer({ memory, authVerifier })` → bind to port via `@hono/node-server` adapter.
+#### Deep Dives
+- **EC-32 + ADR D13 absorption**: `themory server` action:
+  ```ts
+  const server = serve({ fetch: app.fetch, port }, ({ port }) => { console.log(`listening ${port}`) });
+  process.on('SIGTERM', async () => {
+    server.close();
+    await pool.end();
+    process.exit(0);
+  });
+  process.on('SIGINT', /* same */);
+  ```
+- **D8 absorption (migrate-on-startup)**: action sequence: create pool → `if (!process.env['THEMEMORY_SKIP_MIGRATIONS']) await runMigrations(pool)` → create Memory factory → create AuthVerifier → `createServer({ memory, authVerifier })` → bind port.
+- **EC-33 absorption**: while Memory factory warming, `/v1/health` returns 503. Factory completes → readiness flag set → 200. Avoids "container says healthy but Memory not ready" race.
+- **EC-31 absorption**: try/catch around `serve()`; on `EADDRINUSE`, stderr `Port ${port} already in use` + exit 1.
 
 #### TDD
 ```
 RED:     test('themory server --port 9999 starts REST server')
+RED:     test('themory server runs migrations BEFORE binding port (D8)') 
+RED:     test('themory server skips migrations when THEMEMORY_SKIP_MIGRATIONS=true (escape hatch)')
+RED:     test('themory server --port <held> exits 1 with stderr EADDRINUSE message') (EC-31)
+RED:     test('themory server SIGTERM closes server + pool before exit 0') (EC-32)
+RED:     test('themory server /v1/health returns 503 while Memory factory loading') (EC-33)
 RED:     test('themory server fails fast with exit 1 when DB unreachable')
-GREEN:   wire server subcommand
-REFACTOR: none
+GREEN:   wire server subcommand with migrations + signal handlers + readiness gate
+REFACTOR: extract migration runner if reused by T2.4
 VERIFY:  npm test -- tests/integration/cli-consolidated -t server
 ```
 
 #### Acceptance Criteria
-- [ ] 2 RED tests pass GREEN
-- [ ] `curl http://localhost:9999/v1/health` returns 200 after 5s of subprocess start
+- [ ] 7 RED tests pass GREEN
+- [ ] EC-32: SIGTERM closes pool (no zombie connections)
+- [ ] EC-31: EADDRINUSE detected + clean error
+- [ ] EC-33: 503-then-200 transition observable
+- [ ] D8: migrations applied before port bind (regression test against fresh DB)
 - [ ] Pass: lint, typecheck
 
-#### DoD
-- [ ] All Tasks completed
-
-### T2.4 — themory migrate subcommand wired
+### T2.4 — themory migrate (+ EC-35/36)
 
 #### Objective
-Wire `themory migrate` subcommand that runs `runMigrations(pool)` from `src/local/index.ts:1026`.
+Wire `themory migrate`. **Absorb 2 ECs**: EC-35 drizzle tx-per-migration documented; EC-36 concurrent migrate safe via drizzle's advisory lock.
 
 #### Files to edit
 ```
-src/agent-tools/cli.ts — flesh out `.command('migrate')` with action
-tests/integration/cli-consolidated.test.ts — add migrate test
+src/agent-tools/cli.ts — flesh out .command('migrate')
+tests/integration/cli-consolidated.test.ts — add migrate tests
 ```
-
-#### Tasks
-1. Action: create pg pool → invoke `runMigrations(pool)` → exit 0 on success, 1 on error.
-2. Log migration journal entries applied.
 
 #### TDD
 ```
 RED:     test('themory migrate applies pending Drizzle migrations against fresh DB')
 RED:     test('themory migrate idempotent: second invocation no-op')
+RED:     test('themory migrate concurrent invocations safe — second is no-op') (EC-36)
 GREEN:   wire migrate subcommand
-REFACTOR: none
 VERIFY:  npm test -- tests/integration/cli-consolidated -t migrate
 ```
 
 #### Acceptance Criteria
-- [ ] 2 RED tests pass GREEN
-- [ ] Exit code 0 on success
-- [ ] Pass: lint, typecheck
+- [ ] 3 RED tests pass GREEN
+- [ ] EC-35: README notes drizzle wraps each migration in tx by default
+- [ ] EC-36: concurrent test confirms drizzle journal-lock behavior
 
-#### DoD
-- [ ] All Tasks completed
-
-### T2.5 — themory health subcommand wired
+### T2.5 — themory health (+ EC-37 concrete DI checks)
 
 #### Objective
-Wire `themory health` subcommand: DB ping + DI graph readiness check. Exit 0 if both pass; 1 otherwise.
+Wire `themory health`. **Absorb EC-37**: concrete DI graph checks defined — mandatory checks (pool.query + Memory factory) + optional deep checks (embedder/LLM ping behind `--deep` flag).
 
 #### Files to edit
 ```
-src/agent-tools/cli.ts — flesh out `.command('health')` with action
-tests/integration/cli-consolidated.test.ts — add health test
+src/agent-tools/cli.ts — flesh out .command('health') with --deep flag
+tests/integration/cli-consolidated.test.ts — add health tests
 ```
 
-#### Tasks
-1. Action: create pg pool → `pool.query('SELECT 1')` → if successful + DI graph composable, exit 0. Else exit 1 with stderr diagnostic.
+#### Deep Dives
+- **EC-37 absorption**: `themory health` checks:
+  1. **Mandatory**: `pool.query('SELECT 1')` with 2s timeout → fail → exit 1
+  2. **Mandatory**: `createMemory({...})` composes without throw → fail → exit 1
+  3. **Optional (--deep)**: embedder.embed("ping") + llm.chat([{role:"user", content:"ok"}]) — adds latency + LLM cost; off by default.
 
 #### TDD
 ```
-RED:     test('themory health: valid DB URI → exit 0')
-RED:     test('themory health: invalid DB URI → exit 1 with stderr mentioning failure')
-GREEN:   wire health subcommand
-REFACTOR: none
+RED:     test('themory health: valid DB URI + composable Memory → exit 0')
+RED:     test('themory health: invalid DB URI → exit 1 with stderr')
+RED:     test('themory health: Memory factory throws → exit 1 with stderr mention factory failure')
+RED:     test('themory health --deep: pings embedder + llm → exit 0 on success')
+RED:     test('themory health --deep: embedder failure → exit 1 + stderr')
+GREEN:   wire health subcommand with --deep flag
 VERIFY:  npm test -- tests/integration/cli-consolidated -t health
 ```
 
 #### Acceptance Criteria
-- [ ] 2 RED tests pass GREEN
-- [ ] Stderr non-empty on failure
-- [ ] Pass: lint, typecheck
-
-#### DoD
-- [ ] All Tasks completed
+- [ ] 5 RED tests pass GREEN
+- [ ] Mandatory checks documented in JSDoc + README
+- [ ] `--deep` flag tested in both pass + fail paths
 - [ ] CHANGELOG `[Unreleased]` updated with Phase 2 entries
 
 ---
 
 ## Phase 3 — Docker stack (Item 17)
 
-**Objective:** Multi-stage Dockerfile → distroless image → production docker-compose → GitHub Actions workflow with GHCR publish + Trivy scan + migrations-on-startup discipline + E2E goal test.
-
-### T3.1 — Multi-stage Dockerfile
+### T3.1 — Multi-stage Dockerfile (+ EC-38/39/40)
 
 #### Objective
-Author multi-stage Dockerfile: `node:22-alpine` build → `gcr.io/distroless/nodejs22-debian12:nonroot` runtime.
+Author multi-stage Dockerfile per ADR D6 (amended). **Absorb 3 ECs**: EC-38 distroless + native deps (glibc check); EC-39 optional deps included for now (DOCUMENT); EC-40 docker build proves tsc passes.
 
 #### Files to edit
 ```
-Dockerfile (NEW) — multi-stage build
-.dockerignore (NEW) — exclude node_modules, .git, tests, .claude/
+Dockerfile (NEW)
+.dockerignore (NEW)
 ```
-
-#### Deep file dependency analysis
-- `Dockerfile`: ~40 LoC. Stages: `builder` (npm ci + npm run build), `runtime` (COPY --from=builder /app/dist + node_modules production-only).
-- `.dockerignore`: aggressive — exclude .git, node_modules (rebuilt in image), tests/, .claude/, *.md, src/**/__tests__/.
-
-#### Tasks
-1. Create `Dockerfile` per ADR D6.
-2. Create `.dockerignore`.
-3. Local build test: `docker build -t themory:dev .` → size < 200MB.
-
-#### TDD
-N/A — Dockerfile correctness validated empirically + by T3.5 integration test.
-
-#### Acceptance Criteria
-- [ ] `docker build` succeeds locally
-- [ ] Final image size < 200MB
-- [ ] Image runs as non-root user (`docker inspect` shows `User: nonroot`)
-
-#### DoD
-- [ ] Dockerfile + .dockerignore committed
-
-### T3.2 — Production docker-compose.prod.yaml
-
-#### Objective
-Author `docker-compose.prod.yaml` wiring the app image + pgvector + optional OTel collector. Production-flavored — separate from existing dev `docker-compose.yaml`.
-
-#### Files to edit
-```
-docker-compose.prod.yaml (NEW) — production-flavored stack
-```
-
-#### Deep file dependency analysis
-- `docker-compose.prod.yaml`: ~50 LoC. Services: `themory` (image: `ghcr.io/usetheo/themory:${VERSION:-latest}`, env from `.env`, depends_on: pgvector with `condition: service_healthy`), `pgvector` (same `ankane/pgvector:v0.5.1` as dev). Healthchecks: `/v1/health` HTTP + `pg_isready`.
-
-#### Tasks
-1. Create `docker-compose.prod.yaml`.
-2. Test locally: `docker compose -f docker-compose.prod.yaml up` → both services healthy within 60s.
-
-#### Acceptance Criteria
-- [ ] Compose file YAML valid (`docker compose config` succeeds)
-- [ ] Local boot: both services healthy within 60s
-
-#### DoD
-- [ ] Compose file committed
-
-### T3.3 — GitHub Actions workflow + GHCR publish + Trivy scan
-
-#### Objective
-GitHub Actions workflow building the image, publishing to GHCR on tagged releases, scanning with Trivy.
-
-#### Files to edit
-```
-.github/workflows/docker-publish.yml (NEW) — build + publish to GHCR + Trivy scan
-```
-
-#### Deep file dependency analysis
-- Workflow triggers: `push` to `develop` (build only, no publish — verify build doesn't break) + `release` tags `v*.*.*` (build + publish).
-- Steps: checkout → buildx setup → login GHCR (`secrets.GITHUB_TOKEN`) → build + push tag → Trivy scan (severity CRITICAL,HIGH; exit 1 on hit).
-
-#### Tasks
-1. Create `.github/workflows/docker-publish.yml`.
-2. Configure Trivy step with severity threshold per `deps-audit-golden-rule.md`.
-
-#### Acceptance Criteria
-- [ ] Workflow YAML valid (`actionlint` if available)
-- [ ] Manual dry-run on develop succeeds (build stage only)
-
-#### DoD
-- [ ] Workflow committed
-
-### T3.4 — Migrations-on-startup wiring + entrypoint discipline
-
-#### Objective
-Container entrypoint: invoke `themory migrate` BEFORE `themory server`. Fail-fast on migration error per ADR D8.
-
-#### Files to edit
-```
-Dockerfile — set ENTRYPOINT to a shell script OR multi-line CMD
-docker-entrypoint.sh (NEW) — runs migrate then server
-```
-
-#### Tasks
-1. Create `docker-entrypoint.sh` with `set -euo pipefail; themory migrate; exec themory server "$@"`.
-2. Copy to image + chmod +x in builder stage.
-3. Update Dockerfile ENTRYPOINT.
-
-#### Acceptance Criteria
-- [ ] Image startup invokes migrate before server bind
-- [ ] Migration failure exits container with code 1
-
-#### DoD
-- [ ] Entrypoint committed
-
-### T3.5 — THE GOAL TEST: tests/integration/docker-stack.test.ts
-
-#### Objective
-Integration test that spawns the docker compose stack, polls /v1/health, round-trips POST /v1/remember + POST /v1/recall, asserts the recall returns the remembered memory. **THIS IS THE GOAL METRIC.**
-
-#### Files to edit
-```
-tests/integration/docker-stack.test.ts (NEW) — gated on DOCKER_INTEGRATION=true OR CI=true
-```
-
-#### Deep file dependency analysis
-- Test uses `node:child_process.spawnSync('docker', ['compose', '-f', 'docker-compose.prod.yaml', 'up', '-d'])`.
-- Health-poll loop: `fetch('http://localhost:8080/v1/health')` with 60s timeout, 100ms retry (Pattern P4).
-- Round-trip: `POST /v1/remember { userId: 'docker-test-user', text: 'docker compose works' }` → 201 → `POST /v1/recall { userId: 'docker-test-user', query: 'compose' }` → results contains the memory.
-- Cleanup: `docker compose down` in `afterAll`.
 
 #### Deep Dives
-- **CI vs local**: `describe.skipIf(!process.env['DOCKER_INTEGRATION'] && !process.env['CI'])` mirrors `THEOMEM_PG_URI` gate.
-- **Test isolation**: uses ephemeral userId scope; cleans up after.
+- **EC-38**: distroless `:nonroot` uses glibc (Debian 12 base). Native deps (`@xenova/transformers` ONNX runtime, `natural` BM25 lib) require glibc → compatible. Smoke check at T3.5 via runtime load.
+- **EC-39 (DOCUMENT)**: production image includes optional deps (~30MB bloat from `@xenova/transformers`). Acceptable for alpha; consumer can pass `OPTIONAL_DEPS=false` env in P1 to skip.
 
-#### Tasks
-1. Create `tests/integration/docker-stack.test.ts`.
-2. Implement spawn + health poll + round-trip + cleanup.
+#### Acceptance Criteria
+- [ ] `docker build -t themory:dev .` succeeds locally
+- [ ] Final image < 200MB
+- [ ] Image runs as `nonroot` user
+- [ ] EC-40: build stage runs `npm run build` (tsc) — failure aborts build
+- [ ] No shell present in runtime image (grep `which sh` returns nothing — EC-47 verification)
+
+### T3.2 — Production docker-compose.prod.yaml (+ EC-41/42)
+
+#### Objective
+Author production-flavored compose. **Absorb 2 ECs**: EC-41 `--wait-timeout` documented; EC-42 `${VERSION:-latest}` defaults validate.
+
+#### Files to edit
+```
+docker-compose.prod.yaml (NEW)
+```
 
 #### TDD
 ```
-RED:     test('docker compose up brings app + pgvector healthy within 60s') — FAIL (no test)
-RED:     test('POST /v1/remember + POST /v1/recall round-trip against compose stack') — THE GOAL METRIC
-RED:     test('image runs migrations on startup (first remember succeeds without manual psql)')
-RED:     test('GET /v1/health/db pings pgvector successfully')
+RED:     test('docker compose -f docker-compose.prod.yaml config (no VERSION env) validates') (EC-42)
+GREEN:   write compose file with sensible defaults
+VERIFY:  docker compose config exits 0
+```
+
+#### Acceptance Criteria
+- [ ] Compose YAML valid
+- [ ] Local boot: both services healthy within 60s (with operator using `docker compose up --wait --wait-timeout 60` per EC-41 doc)
+
+### T3.3 — GitHub Actions + GHCR build + Trivy + allowlist (+ EC-43/44)
+
+#### Objective
+GitHub Actions workflow. **Absorb 2 ECs**: EC-43 Trivy gate aligned with `deps-audit-golden-rule.md` severity rubric + `.trivyignore` allowlist; EC-44 workflow declares `packages: write` permission.
+
+#### Files to edit
+```
+.github/workflows/docker-publish.yml (NEW)
+.trivyignore (NEW) — sunset-dated entries (mirror deps-audit-allowlist.txt format)
+```
+
+#### Deep Dives
+- **EC-43 absorption**: Trivy step `trivy image --severity CRITICAL,HIGH --ignorefile .trivyignore --exit-code 1`. `.trivyignore` file format: `CVE-ID|REASON|SUNSET-DATE` (mirrors `deps-audit-allowlist.txt`). Empty file at v0.1; entries added with sunset ≤ 30 days for CRITICAL, ≤ 60 days for HIGH per golden rule.
+- **EC-44 absorption**: workflow `permissions: { contents: read, packages: write }` declared at job level.
+
+#### TDD
+```
+RED:     test('workflow YAML declares permissions: packages: write') (EC-44 static check)
+RED:     test('.trivyignore file exists with valid format (or empty at v0.1)') (EC-43)
+GREEN:   author workflow + .trivyignore
+VERIFY:  actionlint .github/workflows/docker-publish.yml && yamllint .trivyignore
+```
+
+#### Acceptance Criteria
+- [ ] Workflow YAML valid (actionlint)
+- [ ] `.trivyignore` committed (empty acceptable at v0.1)
+- [ ] EC-43 Trivy severity rubric matches `deps-audit-golden-rule.md`
+- [ ] EC-44 permissions declared
+
+### T3.4 — ENTRYPOINT direct Node binary (NO shell) per ADR D13
+
+#### Objective
+**EC-47 absorption (BLOCKER resolved via Opção A).** Dockerfile `ENTRYPOINT ["node", "/app/dist/agent-tools/cli.js", "server"]`. No `docker-entrypoint.sh`. Migrations-on-startup discipline lives inside `themory server` binary per T2.3 + ADR D8 amended.
+
+#### Files to edit
+```
+Dockerfile — set ENTRYPOINT to direct Node invocation per D13
+```
+
+(NO `docker-entrypoint.sh` file shipped — explicitly removed from v1.0 plan.)
+
+#### Deep Dives
+- **EC-47 / ADR D13 absorption**: container always runs `themory server`. Operator override for migrate/health standalone:
+  ```
+  docker run --entrypoint node ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
+  docker run --entrypoint node ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js health
+  ```
+  Documented in README + CHANGELOG.
+- **EC-45/46 (DOCUMENT)**: Node-as-PID-1 receives signals natively; no shell intermediary to lose SIGTERM. EC-45/46 originally about `exec` signal forwarding — irrelevant once shell is eliminated.
+
+#### Acceptance Criteria
+- [ ] ENTRYPOINT in Dockerfile matches D13 exactly
+- [ ] CMD empty
+- [ ] No docker-entrypoint.sh in repo
+- [ ] README documents `--entrypoint` override pattern for migrate/health
+- [ ] CHANGELOG `### Added` documents ENTRYPOINT shape
+
+### T3.5 — THE GOAL TEST docker-stack (+ EC-48/49/51)
+
+#### Objective
+Integration test E2E. **Absorb 3 ECs**: EC-48 unique compose project name; EC-49 localhost port doc; EC-51 timeout configurable.
+
+#### Files to edit
+```
+tests/integration/docker-stack.test.ts (NEW) — gated on DOCKER_INTEGRATION=true
+```
+
+#### Deep Dives
+- **EC-48 absorption**: `const projectName = `themory-test-${randomUUID().slice(0, 8)}`; spawnSync('docker', ['compose', '-p', projectName, 'up', '-d'])`. afterAll uses same project name; no cross-run leak.
+- **EC-49 (DOCUMENT)**: test uses port 8080 by default; developer running locally with another service on 8080 sets `THEMORY_TEST_PORT=8081`.
+- **EC-51 absorption**: `const timeoutMs = parseInt(process.env['DOCKER_HEALTH_TIMEOUT_MS'] ?? '60000', 10);` — default 60s, CI matrix can extend.
+
+#### TDD
+```
+RED:     test('docker compose up brings app + pgvector healthy within timeout') (Pattern P4 + EC-51)
+RED:     test('POST /v1/remember + POST /v1/recall round-trip against compose') (THE GOAL METRIC)
+RED:     test('image runs migrations on startup (D8 + EC-47 absorbed)')
+RED:     test('GET /v1/health/db pings pgvector successfully (with 2s timeout per EC-17)')
+RED:     test('compose project name unique per test run — no cross-run state') (EC-48)
+RED:     test('image runs as nonroot user (D6 + EC-47 verification)')
 GREEN:   implement integration test
-REFACTOR: extract health-poll helper to tests/integration/helpers/docker-compose.ts if reused
+REFACTOR: extract health-poll + compose-spawn helpers to tests/integration/helpers/docker-compose.ts
 VERIFY:  DOCKER_INTEGRATION=true npm test -- tests/integration/docker-stack
 ```
 
 #### Acceptance Criteria
-- [ ] 4 RED tests pass GREEN
-- [ ] Compose stack boots clean in < 60s
-- [ ] Round-trip succeeds against `ghcr.io/usetheo/themory:0.1.0-alpha` OR local-built `themory:dev`
-- [ ] Pass: lint, typecheck
-
-#### DoD
-- [ ] All Tasks completed
-- [ ] **THE GOAL METRIC observed**: round-trip PASS recorded in test output
+- [ ] 6 RED tests pass GREEN
+- [ ] **THE GOAL METRIC observed**: round-trip PASS recorded
+- [ ] EC-48 unique project name confirmed
+- [ ] EC-51 timeout honored
+- [ ] No shell in image (EC-47 verification: `docker run --rm <image> /bin/sh` exits non-zero "exec format error" — confirms distroless integrity)
 
 ---
 
 ## Coverage Matrix
+
+### Original v1.0 gaps (36 rows preserved)
 
 | # | Gap / Requirement | Task(s) | Resolution |
 |---|---|---|---|
 | 1 | 12th DIP AuthVerifier declared | T0.1 | Interface at src/core/dip/auth-verifier.ts |
 | 2 | Hono REST framework adopted | T0.1 + ADR D1 | hono ^4.6.0 in deps |
 | 3 | commander CLI lib adopted | T0.1 + ADR D4 | commander ^12.1.0 in deps |
-| 4 | OpenAPI auto-gen via zod-openapi | T0.1 + T1.4 + ADR D6 | @hono/zod-openapi ^0.18 + RouteConfig migration |
+| 4 | OpenAPI auto-gen via zod-openapi | T0.1 + T1.4 + ADR D6 | @hono/zod-openapi ^0.18 |
 | 5 | BearerAuthVerifier impl | T1.1 + ADR D3 | src/server/auth/bearer-verifier.ts |
-| 6 | Bearer middleware (env-driven gate) | T1.1 | src/server/auth/middleware.ts |
-| 7 | POST /v1/remember handler | T1.2 | src/server/handlers/remember.ts |
-| 8 | POST /v1/recall handler | T1.2 | src/server/handlers/recall.ts |
-| 9 | POST /v1/forget handler | T1.2 | src/server/handlers/forget.ts |
-| 10 | POST /v1/reflect handler | T1.2 | src/server/handlers/reflect.ts |
-| 11 | createServer factory (DI composition) | T1.2 + ADR D11 | src/server/index.ts |
-| 12 | GET /v1/health + GET /v1/health/db | T1.3 | src/server/handlers/health.ts |
-| 13 | GET /v1/scopes/:type/:id/memories pagination | T1.3 | src/server/handlers/scopes.ts |
-| 14 | OpenAPI 3.1 spec at /v1/openapi.json | T1.4 | src/server/openapi.ts + handler RouteConfig migration |
+| 6 | Bearer middleware | T1.1 | src/server/auth/middleware.ts |
+| 7 | POST /v1/remember | T1.2 | src/server/handlers/remember.ts |
+| 8 | POST /v1/recall | T1.2 | src/server/handlers/recall.ts |
+| 9 | POST /v1/forget | T1.2 | src/server/handlers/forget.ts |
+| 10 | POST /v1/reflect | T1.2 | src/server/handlers/reflect.ts |
+| 11 | createServer factory | T1.2 + ADR D11 | src/server/index.ts |
+| 12 | GET /v1/health + /v1/health/db | T1.3 | src/server/handlers/health.ts |
+| 13 | GET /v1/scopes pagination | T1.3 | src/server/handlers/scopes.ts |
+| 14 | OpenAPI 3.1 spec | T1.4 | src/server/openapi.ts |
 | 15 | OTel spans per handler | T1.5 | src/server/observability/otel-middleware.ts |
-| 16 | Domain-error → HTTP envelope mapping | T1.6 | src/server/errors.ts |
-| 17 | Subpath @usetheo/memory/server exported | T1.7 | package.json#exports + tsconfig include |
+| 16 | Domain-error envelope | T1.6 | src/server/errors.ts |
+| 17 | Subpath @usetheo/memory/server | T1.7 | package.json#exports |
 | 18 | tsconfig + vitest include src/server/** | T1.1 + T1.7 | config updates |
-| 19 | themory CLI commander scaffold | T2.1 | src/agent-tools/cli.ts rewrite |
-| 20 | themory-mcp backward-compat alias + deprecation | T2.1 + ADR D9 | alias detection + stderr warning |
-| 21 | themory mcp subcommand | T2.2 | runMcpServer() function extracted + wired |
-| 22 | themory server subcommand | T2.3 | createServer() wired to commander action |
-| 23 | themory migrate subcommand | T2.4 | runMigrations() wrapper |
-| 24 | themory health subcommand | T2.5 | DB ping + DI graph check |
-| 25 | Multi-stage Dockerfile distroless | T3.1 + ADR D6 | Dockerfile NEW |
-| 26 | Production docker-compose.prod.yaml | T3.2 | compose file NEW |
-| 27 | GitHub Actions GHCR publish + Trivy | T3.3 + ADR D7 | .github/workflows/docker-publish.yml NEW |
-| 28 | Migrations-on-startup discipline | T3.4 + ADR D8 | docker-entrypoint.sh NEW |
-| 29 | THE GOAL TEST: docker-stack E2E round-trip | T3.5 | tests/integration/docker-stack.test.ts NEW |
-| 30 | T16-RED-1..13 (REST API RED tests) | T1.1-T1.7 | distributed across handlers + auth + openapi + otel + errors |
-| 31 | T17-RED-1..5 (Docker stack RED tests) | T3.1-T3.5 | docker-stack.test.ts + Dockerfile + compose + entrypoint |
-| 32 | T18-RED-1..8 (CLI RED tests) | T2.1-T2.5 + cli-consolidated.test.ts | per-subcommand + alias regression |
-| 33 | Backward-compat: v0.3 GOAL TEST tests/e2e/agent-tools/round-trip still passes | T2.1 | alias detection + runMcpServer extraction |
-| 34 | CHANGELOG.md [Unreleased] entries | T1.7 + T2.5 + Final Phase | Inquebrável Rule 6 |
-| 35 | README.md "REST API server" paragraph | T1.7 | Planned API contract update |
-| 36 | /deps-audit clean for 5 new deps | T0.1 | Rule 9 evaluation persisted in this plan § Dependencies |
+| 19 | themory CLI scaffold | T2.1 | src/agent-tools/cli.ts rewrite |
+| 20 | themory-mcp alias + deprecation | T2.1 + ADR D9 | alias detection + stderr |
+| 21 | themory mcp | T2.2 | runMcpServer() wired |
+| 22 | themory server | T2.3 + ADR D8 | createServer() wired + migrate-on-startup |
+| 23 | themory migrate | T2.4 | runMigrations() wrapper |
+| 24 | themory health | T2.5 | DB + DI graph check |
+| 25 | Multi-stage Dockerfile distroless | T3.1 + ADR D6 | Dockerfile |
+| 26 | docker-compose.prod.yaml | T3.2 | compose file |
+| 27 | GHCR build + Trivy | T3.3 + ADR D7 | workflow + allowlist |
+| 28 | ENTRYPOINT direct Node (per EC-47/D13) | T3.4 + ADR D13 | Dockerfile ENTRYPOINT |
+| 29 | docker-stack E2E goal test | T3.5 | tests/integration/docker-stack.test.ts |
+| 30 | T16-RED-1..13 REST tests | T1.1-T1.7 | distributed |
+| 31 | T17-RED-1..5 Docker tests | T3.1-T3.5 | distributed |
+| 32 | T18-RED-1..8 CLI tests | T2.1-T2.5 | distributed |
+| 33 | v0.3 GOAL TEST regression | T2.1 | alias detection + runMcpServer extraction |
+| 34 | CHANGELOG entries | T1.7 + T2.5 + Final | Inquebrável Rule 6 |
+| 35 | README REST API section | T1.7 | Planned API contract |
+| 36 | /deps-audit clean | T0.1 | Rule 9 evaluation in § Dependencies |
 
-**Coverage: 36/36 gaps covered (100%)**
+### v1.1 absorption rows (49 new entries — 12 MUST FIX + 25 SHOULD TEST + 12 DOCUMENT)
+
+| # | EC | Task(s) | Class | Resolution |
+|---|---|---|---|---|
+| 37 | EC-1 empty/whitespace THEMEMORY_API_KEY fail-closed | T1.1 + ADR D3 amend | MUST FIX | readApiKey() sentinel + RED test |
+| 38 | EC-2 lowercase "bearer" prefix accepted | T1.1 + ADR D3 amend | SHOULD TEST | regex case-insensitive + RED test |
+| 39 | EC-3 token compared verbatim (no trim) | T1.1 + ADR D3 amend | SHOULD TEST | docs + RED test |
+| 40 | EC-4 timingSafeEqual length-check first | T1.1 | MUST FIX | length check before crypto + RED test |
+| 41 | EC-5 env var isolation between tests | T1.1 | SHOULD TEST | beforeEach/afterEach env save/restore |
+| 42 | EC-6 malformed JSON 400 | T1.2 | SHOULD TEST | Hono default + RED test |
+| 43 | EC-7 empty body 422 | T1.2 | SHOULD TEST | zod refine + RED test |
+| 44 | EC-8 body size limit Hono default | T1.2 | DOCUMENT | ADR D2 Consequence |
+| 45 | EC-9 single scope tier per request | T1.2 + ADR D12 NEW | MUST FIX | zod union strict + RED test |
+| 46 | EC-10 unmapped error 500 envelope | T1.2 + T1.6 | SHOULD TEST | app.onError + RED test |
+| 47 | EC-11 empty recall 200 not 404 | T1.2 | SHOULD TEST | RED test |
+| 48 | EC-12 infer:false propagation | T1.2 | DOCUMENT | RED test + JSDoc |
+| 49 | EC-13 scope type case-sensitive | T1.3 | SHOULD TEST | zod enum + RED test |
+| 50 | EC-14 pagination limit cap at 100 | T1.3 | MUST FIX | zod.max(100) + RED test |
+| 51 | EC-15 cursor format invalid 400 | T1.3 | SHOULD TEST | base64 try/catch + RED test |
+| 52 | EC-16 /v1/health/db no caching | T1.3 | DOCUMENT | ADR Consequence |
+| 53 | EC-17 /v1/health/db 2s timeout | T1.3 | MUST FIX | Promise.race + RED test |
+| 54 | EC-18 hono + zod-openapi version aligned | T0.1 | SHOULD TEST | dep smoke test |
+| 55 | EC-19 OpenAPI spec auth-exempt | T1.4 | MUST FIX | middleware order + RED test |
+| 56 | EC-20 circular zod schema none in v0.0 | T1.4 | DOCUMENT | ADR Consequence |
+| 57 | EC-21 production TracerProvider consumer-wired | T1.5 | DOCUMENT | ADR Consequence |
+| 58 | EC-22 OTel exporter failure swallowed | T1.5 | SHOULD TEST | try/catch in middleware + RED test |
+| 59 | EC-23 pg lib error mapped to 500 sanitized | T1.6 | SHOULD TEST | default case in error mapper + RED test |
+| 60 | EC-24 error message no PII/secret leak | T1.6 | SHOULD TEST | redaction regex + RED test |
+| 61 | EC-25 subpath ESM-only documented | T1.7 | SHOULD TEST | RED test + README note |
+| 62 | EC-26 default import does NOT pull Hono | T1.7 | MUST FIX | bundle isolation test + RED test |
+| 63 | EC-27 alias detection multi-pattern | T2.1 | SHOULD TEST | regex + RED tests |
+| 64 | EC-28 npm install creates both bins | T2.1 | SHOULD TEST | package.json bin manifest test |
+| 65 | EC-29 argv mutation sequence documented | T2.1 | DOCUMENT | JSDoc |
+| 66 | EC-30 Windows stdio out-of-P0 | T2.2 | DOCUMENT | README note |
+| 67 | EC-31 EADDRINUSE clear stderr | T2.3 | SHOULD TEST | try/catch + RED test |
+| 68 | EC-32 SIGTERM graceful shutdown | T2.3 + ADR D13 | MUST FIX | signal handler + RED test |
+| 69 | EC-33 readiness gate Memory factory | T2.3 | SHOULD TEST | flag + RED test |
+| 70 | EC-35 drizzle tx-per-migration | T2.4 | DOCUMENT | ADR Consequence |
+| 71 | EC-36 concurrent migrate safe | T2.4 | SHOULD TEST | RED test |
+| 72 | EC-37 DI graph concrete checks | T2.5 | MUST FIX | mandatory + --deep flag |
+| 73 | EC-38 distroless + native deps glibc | T3.1 + T3.5 | SHOULD TEST | runtime smoke check |
+| 74 | EC-39 production image includes optional deps | T3.1 | DOCUMENT | ADR D6 Consequence |
+| 75 | EC-40 docker build runs tsc | T3.1 | SHOULD TEST | build stage RUN command |
+| 76 | EC-41 docker compose --wait-timeout doc | T3.2 | DOCUMENT | compose comment + README |
+| 77 | EC-42 compose ${VERSION:-latest} validates | T3.2 | SHOULD TEST | docker compose config exit 0 |
+| 78 | EC-43 Trivy severity + allowlist | T3.3 + ADR D7 amend | MUST FIX | .trivyignore file + workflow flag |
+| 79 | EC-44 workflow packages:write permission | T3.3 | SHOULD TEST | static YAML check |
+| 80 | EC-45/46 exec signal forwarding (post-EC-47) | T3.4 | DOCUMENT | Node-as-PID-1 docs |
+| 81 | EC-47 distroless no shell — ENTRYPOINT direct Node (Opção A) | T3.4 + ADR D13 NEW + ADR D6/D8 amend | MUST FIX (BLOCKER) | Dockerfile ENTRYPOINT array |
+| 82 | EC-48 unique compose project name | T3.5 + ADR D5 amend | SHOULD TEST | randomUUID + RED test |
+| 83 | EC-49 localhost port doc | T3.5 | DOCUMENT | env var override |
+| 84 | EC-51 docker health timeout configurable | T3.5 | SHOULD TEST | env var + RED test |
+| 85 | EC-52 npm pack manifest includes server files | T1.7 | MUST FIX | pack --dry-run test + RED test |
+
+**Coverage: 85/85 gaps covered (100%)** — original 36 + 49 EC absorptions
 
 ## Global Definition of Done
 
@@ -1076,80 +1060,71 @@ VERIFY:  DOCKER_INTEGRATION=true npm test -- tests/integration/docker-stack
 - [ ] All tests passing — `npm test` green
 - [ ] Zero TypeScript errors — `npm run typecheck`
 - [ ] Zero lint warnings — `npm run lint`
-- [ ] File-size budget respected per `architecture.md § Module hygiene` (each new file ≤ 500 LoC; per ADR D10, target ≤ 200 LoC per handler)
-- [ ] CHANGELOG.md updated under `[Unreleased]` with Phase 1/2/3 entries (Inquebrável Rule 6)
-- [ ] Backward compatibility preserved: `tests/e2e/agent-tools/round-trip.test.ts` (v0.3 GOAL TEST) still PASS via `themory mcp` and `themory-mcp` alias paths
+- [ ] File-size budget respected per `architecture.md § Module hygiene` (≤ 500 LoC; target ≤ 200 LoC per handler per ADR D10)
+- [ ] CHANGELOG.md `[Unreleased]` updated with Phase 1/2/3 entries (Inquebrável Rule 6)
+- [ ] Backward compatibility: `tests/e2e/agent-tools/round-trip.test.ts` (v0.3) PASS via `themory mcp` AND `themory-mcp` alias paths
 - [ ] No new public exports from `src/index.ts` (server lives at subpath `@usetheo/memory/server` per ADR D11)
 - [ ] Plan-specific criterion 1: 12th DIP AuthVerifier declared + impl wired + tested
-- [ ] Plan-specific criterion 2: THE GOAL TEST `tests/integration/docker-stack.test.ts` 4/4 PASS with `DOCKER_INTEGRATION=true npm test -- tests/integration/docker-stack`
-- [ ] Plan-specific criterion 3: `@usetheo/memory/server` subpath import resolves cleanly (`import { createServer } from '@usetheo/memory/server'` typechecks)
-- [ ] Plan-specific criterion 4: `themory --help` lists exactly 4 subcommands (mcp/server/migrate/health)
-- [ ] Plan-specific criterion 5: `/deps-audit theo-memory-standalone-p0` returns ≥ PASS_WITH_CAVEATS (5 new deps clean)
-- [ ] **Runtime-metric proof**: OTel span count > 0 observed in `npm test -- tests/integration/rest-api.test.ts` (closes wiring triad pillar c for REST handlers per T1.5 DoD)
-- [ ] **Plan archived**: after `/review` returns `READY_TO_MERGE_WITH_CAVEATS` AND PR merged to `main`, move `.claude/knowledge-base/plans/theo-memory-standalone-p0-plan.md` to `.claude/knowledge-base/plans/completed/`
+- [ ] Plan-specific criterion 2: THE GOAL TEST `tests/integration/docker-stack.test.ts` 6/6 PASS with `DOCKER_INTEGRATION=true`
+- [ ] Plan-specific criterion 3: `@usetheo/memory/server` subpath import resolves cleanly
+- [ ] Plan-specific criterion 4: `themory --help` lists exactly 4 subcommands
+- [ ] Plan-specific criterion 5: `/deps-audit theo-memory-standalone-p0` returns ≥ PASS_WITH_CAVEATS
+- [ ] **EC absorption tracking**: All 12 MUST FIX absorbed (EC-1, EC-4, EC-9, EC-14, EC-17, EC-19, EC-26, EC-32, EC-37, EC-43, EC-47, EC-52); All 25 SHOULD TEST absorbed as RED tests; All 12 DOCUMENT absorbed in ADR Consequences / AC notes
+- [ ] **EC-47 verification**: image has NO shell — `docker run --rm <image> /bin/sh -c "echo hi"` fails with "exec format error" or equivalent
+- [ ] **EC-32 verification**: SIGTERM-during-in-flight-request closes server + pool cleanly (no half-written rows in pgvector)
+- [ ] **EC-26 verification**: bundle isolation test passes (default import does not contain "hono")
+- [ ] **Runtime-metric proof**: OTel span count > 0 in `tests/integration/rest-api.test.ts`
+- [ ] **Plan archived** after `/review` returns READY_TO_MERGE_WITH_CAVEATS AND PR merged
 
 ## Final Phase: Integration Validation (MANDATORY)
 
 > Runs AFTER Phase 0/1/2/3 complete. Plan NOT done until this passes.
 
-**Objective:** Validate that the standalone-distribution stack works end-to-end against `docker compose up` with zero manual setup.
-
 ### Execution
 
 ```bash
-# Unit + integration (default; gated tests skipped without env)
 npm test
-
-# Coverage check (≥ 90% on changed files; critical paths 100%)
 npm run test:coverage
-
-# Type-check
 npm run typecheck
-
-# Lint
 npm run lint
 
-# E2E goal test (gated on Docker availability)
 DOCKER_INTEGRATION=true THEOMEM_PG_URI=postgresql://postgres:postgres@localhost:5432/postgres npm test -- tests/integration/docker-stack
-
-# CLI integration (gated on running pgvector)
 THEOMEM_PG_URI=postgresql://postgres:postgres@localhost:5432/postgres npm test -- tests/integration/cli-consolidated
 ```
 
 ### Acceptance Criteria
 
-- [ ] All test suites green (unit + integration + e2e where present)
-- [ ] Coverage ≥ 90% on changed files; critical paths (`src/server/auth/`, `src/server/handlers/`, `src/server/errors.ts`) 100%
+- [ ] All test suites green
+- [ ] Coverage ≥ 90% on changed files; critical paths (auth, handlers, errors) 100%
 - [ ] Zero TypeScript errors
 - [ ] Zero lint warnings
-- [ ] **Runtime-metric proof**: span count > 0 in REST integration test
-- [ ] **THE GOAL TEST**: `tests/integration/docker-stack.test.ts` 4/4 PASS — round-trip works against `docker compose up`
+- [ ] **Runtime-metric proof**: span count > 0
+- [ ] **THE GOAL TEST**: 6/6 PASS
+- [ ] **EC-47 honesty check**: distroless image has no shell (verified via runtime test)
+- [ ] **EC-32 honesty check**: SIGTERM observed via test before exit 0
 
 ### If Validation Fails
 
-1. Identify which failures are caused by this plan's changes vs pre-existing
-2. Pre-existing (NOT caused by Phase 0-3): logged for separate triage; does NOT block plan
-3. Plan-caused: fix in same plan-implementation cycle; re-run validation
-4. If 3 implementation attempts fail to GREEN on the same task: mark task BLOCKED per cycle-implement.md Stop Condition #1; surface to human
+1. Identify plan-caused vs pre-existing failures
+2. Pre-existing logged for separate triage; does NOT block plan
+3. Plan-caused: fix; re-run
+4. 3 implementation attempts on same task → BLOCKED per cycle-implement Stop Condition #1
 
 ### Handoff to `/review`
 
-When validation PASSes:
-
-- Report state at `.claude/knowledge-base/reviews/theo-memory-standalone-p0-implement-validate-{date}.md`
-- Plan ready for `/review theo-memory-standalone-p0`
-- Plan archive deferred until `/review` returns READY_TO_MERGE per cycle-plan archive discipline
+When validation PASSes: report at `.claude/knowledge-base/reviews/theo-memory-standalone-p0-implement-validate-{date}.md`. Plan ready for `/review theo-memory-standalone-p0`.
 
 ---
 
 ## Cross-references
 
-- **Research basis**: `.claude/knowledge-base/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md` (5 patterns + 28 RED tests + Rule 9 evaluation)
+- **Research basis**: `.claude/knowledge-base/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md`
+- **Edge case report**: `.claude/knowledge-base/reviews/theo-memory-standalone-p0-edge-cases-2026-06-03.md` (49 ECs absorbed via v1.1)
 - **Roadmap**: `CLAUDE.md § Phase III bis — Standalone distribution (P0)` Items 16/17/18
-- **Project rules cited**: `architecture.md § 3 (DIP)`, `§ 4 (Mem0-shape)`, `§ 8 (error handling)`, `§ 10.2 (drizzle-kit vs runMigrations)`, `§ Module hygiene` (500 LoC budget); `testing.md` (TDD pyramid); `no-paper-names-in-code.md`; `deps-audit-golden-rule.md` (Trivy severity table)
-- **ADRs amended/referenced**: ADR-0008 (DIP method-count cap — 12th DIP added uniformly); ADR-0009 (THEOKIT_API_KEY pattern mirrored); ADR-0011 (BiTemporalNotSupportedLocally still mapped in T1.6 for future cloud)
-- **Inquebrável Rules cited**: Rule 3 (extreme honesty — backward-compat deprecation discipline); Rule 5 (TDD-first); Rule 6 (CHANGELOG); Rule 9 (Não Reinvente)
-- **Companion artifacts produced post-plan**:
-  - `/edge-case-plan theo-memory-standalone-p0` (next step)
-  - `/deps-audit theo-memory-standalone-p0` (after edge-case plan)
-  - `/plan-confidence theo-memory-standalone-p0` (after deps-audit)
+- **Project rules cited**: `architecture.md § 1, 3, 4, 8, 10.2, Module hygiene`; `testing.md`; `no-paper-names-in-code.md`; `deps-audit-golden-rule.md § Severity rubric` (T3.3 + .trivyignore)
+- **ADRs amended/referenced**: ADR-0008 (DIP cap — 12th uniformly); ADR-0009 (THEOKIT_API_KEY mirrored in D3); ADR-0011 (BiTemporalNotSupportedLocally mapped in T1.6 for future cloud)
+- **Inquebrável Rules cited**: Rule 3 (honesty — deprecation discipline + fail-closed empty-string); Rule 5 (TDD-first); Rule 6 (CHANGELOG); Rule 9 (Não Reinvente)
+- **Companion artifacts post-plan**:
+  - `/deps-audit theo-memory-standalone-p0` (after this v1.1)
+  - `/plan-confidence theo-memory-standalone-p0` (M2 score with 85-row Coverage Matrix)
+  - (if verdict < SHIPPABLE_WITH_CAVEATS) `/plan-improve` + re-score
