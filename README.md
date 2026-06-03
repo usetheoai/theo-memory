@@ -232,6 +232,24 @@ curl -X POST http://localhost:8080/v1/remember \
 
 Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
 
+**Container entrypoint** (per ADR D13): the distroless image's `ENTRYPOINT` invokes the Node binary directly — `["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]` — with no shell wrapper. Migrate-on-startup runs inside the `themory server` binary (T2.3) so there is no `docker-entrypoint.sh`. Operators can run the other subcommands by overriding the entrypoint at `docker run` time:
+
+```bash
+# Apply pending migrations standalone (manual schema bootstrap).
+docker run --rm --entrypoint /nodejs/bin/node \
+  -e THEOMEM_PG_URI=postgres://... \
+  ghcr.io/usetheo/themory:0.1.0-alpha \
+  /app/dist/agent-tools/cli.js migrate
+
+# Probe DI graph + DB readiness (CI / orchestrator health checks).
+docker run --rm --entrypoint /nodejs/bin/node \
+  -e THEOMEM_PG_URI=postgres://... \
+  ghcr.io/usetheo/themory:0.1.0-alpha \
+  /app/dist/agent-tools/cli.js health
+```
+
+The `docker-compose.prod.yaml` stack (T3.2) boots both `themory` + `pgvector` with healthchecks suitable for `docker compose up -d --wait --wait-timeout 60`.
+
 
 
 ## Status — v0.6 (voyager-skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
