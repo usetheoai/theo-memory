@@ -50,6 +50,22 @@ export interface RecallOptions {
   readonly asOf?: Date;
 
   /**
+   * v1.1 T2.2: multi-peer attribution filter. When set, recall returns ONLY
+   * memories where `attributed_to` matches the supplied peer ID exactly
+   * (Postgres `=` semantics; NULL rows do NOT match per EC-7).
+   *
+   * N-valent semantic per blueprint Q5: accepts arbitrary string (user id,
+   * agent id, "system", or any peer identifier). The pipeline boundary routes
+   * this into `Filters.attributed_to` BEFORE reaching the vector store; the
+   * store composes `AND attributed_to = $N` into the recall WHERE clause.
+   *
+   * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T2.2 + ADR D2
+   */
+  readonly attributedTo?: string;
+
+  /**
    * v0.6: when `true`, restrict recall to `kind='skill'` rows. Default `false`.
    * Translated by the runtime into `Filters.kind = 'skill'` before reaching the store.
    *
