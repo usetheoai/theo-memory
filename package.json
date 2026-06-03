@@ -48,6 +48,10 @@
     "./llms/openai": {
       "types": "./src/llms/openai.ts",
       "default": "./src/llms/openai.ts"
+    },
+    "./server": {
+      "types": "./src/server/index.ts",
+      "default": "./src/server/index.ts"
     }
   },
   "bin": {

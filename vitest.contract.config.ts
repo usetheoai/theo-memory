@@ -37,7 +37,9 @@ export default defineConfig({
     testTimeout: 15_000,
     typecheck: {
       enabled: true,
-      include: ['src/{core,theokit}/**/__tests__/**/*.test-d.ts'],
+      // T1.7 (EC-25): `server` added so subpath-export.test-d.ts asserts
+      // `@usetheo/memory/server` resolves to createServer at typecheck time.
+      include: ['src/{core,theokit,server}/**/__tests__/**/*.test-d.ts'],
       tsconfig: './tsconfig.contract.json',
     },
     coverage: {
