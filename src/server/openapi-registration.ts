@@ -58,6 +58,11 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
         content: { 'application/json': { schema: z.object({ items: z.array(MemoryItemSchema) }) } },
       },
       400: { description: 'Malformed JSON body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      413: {
+        description:
+          'Request body exceeds 1 MB cap (T2.1 / F-rev-4 absorption; mapped from ContentTooLargeError via mapDomainErrorToResponse).',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
       422: { description: 'Validation failure.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
       500: { description: 'Internal error.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
     },
@@ -75,6 +80,11 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
         content: { 'application/json': { schema: z.object({ results: z.array(MemoryItemWithScoreSchema) }) } },
       },
       400: { description: 'Malformed JSON body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      413: {
+        description:
+          'Request body exceeds 1 MB cap (T2.1 / F-rev-4 absorption; mapped from ContentTooLargeError via mapDomainErrorToResponse).',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
       422: { description: 'Validation failure.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
     },
   });
@@ -88,6 +98,11 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     responses: {
       204: { description: 'Forgotten.' },
       400: { description: 'Malformed JSON body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      413: {
+        description:
+          'Request body exceeds 1 MB cap (T2.1 / F-rev-4 absorption; mapped from ContentTooLargeError via mapDomainErrorToResponse).',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
       422: { description: 'Validation failure.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
     },
   });
@@ -104,6 +119,11 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
         content: { 'application/json': { schema: z.object({ jobId: z.string(), derivedCount: z.number().optional() }) } },
       },
       400: { description: 'Malformed JSON body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      413: {
+        description:
+          'Request body exceeds 1 MB cap (T2.1 / F-rev-4 absorption; mapped from ContentTooLargeError via mapDomainErrorToResponse).',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
       422: { description: 'Validation failure.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
     },
   });
