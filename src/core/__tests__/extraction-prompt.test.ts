@@ -172,7 +172,7 @@ describe('T1.2 — N-valent attributed_to vocabulary (v1.1 + blueprint Q5 R1)', 
     );
     // The relaxed prompt MUST surface the N-valent intent so the LLM emits
     // arbitrary peer IDs ("alice", "bob", "system", "agent-3"), not just
-    // the bivalent Mem0 vocabulary.
+    // the prior two-role vocabulary.
     expect(prompt).toMatch(/attributed_to/);
     expect(prompt).toMatch(/<peer-id>|peer id|arbitrary/i);
   });
