@@ -2,7 +2,7 @@
 
 > **Version 1.2** (2026-06-03) — Absorbs `/deps-audit` report (verdict PASS_WITH_CAVEATS; 4× `plan_dep_major_outdated_unpinned` soft caps). **User decision via AskUserQuestion: Path B (ADR deferral)**. Adds NEW ADR D14 documenting pin-rationale + sunset for 4 MAJOR-outdated NEW deps (`@hono/node-server ^1.13.0`, `@hono/zod-openapi ^0.18.0`, `commander ^12.1.0`, `@apidevtools/swagger-parser ^10.1.1`) — mirror of zod ^3.25.0 ADR D7 idiom from v1-1-multi-peer plan v1.2. With ADR D14 in place, the 4 soft caps STOP FIRING (they fire only on UNPINNED outdated deps). Pre-existing manifest CVE state (9 CRITICAL + 3 HIGH protobufjs chain via @xenova/transformers) is NOT introduced by this plan — surfaced honestly per Rule 3, deferred to `/loop 7d /deps-audit` periodic housekeeping (NOT a blocker for this plan).
 >
-> **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan` report (49 edge cases: 12 MUST FIX + 25 SHOULD TEST + 12 DOCUMENT). **EC-47 BLOCKER resolved via Opção A** (user AskUserQuestion 2026-06-03): docker-entrypoint.sh REMOVED; migrate-on-startup logic moved INTO `themory server` subcommand binary; ENTRYPOINT becomes direct Node invocation (`["node", "/app/dist/agent-tools/cli.js", "server"]`). 12 MUST FIX absorbed via ADR amendments D3 + D6 + D8 + 2 new ADRs (D12 single-scope-tier semantic + D13 direct-Node-binary entrypoint) and task additions. 25 SHOULD TEST absorbed inline in TDD blocks. 12 DOCUMENT absorbed as ADR Consequences + Acceptance Criteria notes. Coverage Matrix expands from 36 to 85 rows.
+> **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan` report (49 edge cases: 12 must-fix + 25 test-recommended + 12 document). **EC-47 BLOCKER resolved via Opção A** (user AskUserQuestion 2026-06-03): docker-entrypoint.sh REMOVED; migrate-on-startup logic moved INTO `themory server` subcommand binary; ENTRYPOINT becomes direct Node invocation (`["node", "/app/dist/agent-tools/cli.js", "server"]`). 12 MUST FIX absorbed via ADR amendments D3 + D6 + D8 + 2 new ADRs (D12 single-scope-tier semantic + D13 direct-Node-binary entrypoint) and task additions. 25 SHOULD TEST absorbed inline in TDD blocks. 12 DOCUMENT absorbed as ADR Consequences + Acceptance Criteria notes. Coverage Matrix expands from 36 to 85 rows.
 >
 > **Version 1.0** (2026-06-03) — Ship the standalone-distribution surface for TheMemory (CLAUDE.md § Phase III bis, Items 16/17/18). Anchored on `/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md` (canonical RED test inventory + 5 patterns lifted from Mem0 + Letta). The plan ships: (a) REST API server at `@usetheo/memory/server` wrapping the 4 verbs over Hono + bearer auth + OpenAPI 3.1 spec + OTel observability + domain-error envelope; (b) multi-stage Dockerfile → distroless image → published to GHCR via GitHub Actions with Trivy scan gate; (c) consolidated `themory` CLI with 4 subcommands (`mcp`/`server`/`migrate`/`health`) preserving backward-compat alias. Goal-test is an integration round-trip of `POST /v1/remember` + `POST /v1/recall` against `ghcr.io/usetheo/themory:0.1.0-alpha` started via `docker compose up` with ZERO manual setup steps.
 
@@ -101,10 +101,10 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 
 **Decision:** Endpoints mirror the SDK's 4 verbs as RPC POST calls: `POST /v1/remember`, `POST /v1/recall`, `POST /v1/forget`, `POST /v1/reflect`. Listing is `GET /v1/scopes/:type/:id/memories` (paginated). Health is `GET /v1/health`.
 
-**Rationale:** The domain is **semantic memory operations**, not CRUD resources. `POST /v1/remember` reads naturally as "the memory system, remember this"; `POST /memories` reads as "create a memory row" which is the wrong mental model (memories may be extracted into N rows or deduped into zero). Mem0 uses similar RPC shape; Letta uses `/agents/messages` not `/messages`. Honoring `architecture.md § 4 (Mem0-shape, not Mem0-clone)`: same shape, different vocabulary (the 4 verbs).
+**Rationale:** The domain is **semantic memory operations**, not CRUD resources. `POST /v1/remember` reads naturally as "the memory system, remember this"; `POST /memories` reads as "create a memory row" which is the wrong mental model (memories are extracted into N rows or deduped into zero). Mem0 uses similar RPC shape; Letta uses `/agents/messages` not `/messages`. Honoring `architecture.md § 4 (Mem0-shape, not Mem0-clone)`: same shape, different vocabulary (the 4 verbs).
 
 **Alternatives considered:**
-- **REST resource (POST /memories, GET /memories/:id, DELETE /memories/:id)**: REJECTED. Forces "memory = row" model, which is wrong (extraction may produce N rows, dedup may produce zero). Loses paridade with SDK.
+- **REST resource (POST /memories, GET /memories/:id, DELETE /memories/:id)**: REJECTED. Forces "memory = row" model, which is wrong (extraction produces N rows, dedup produces zero). Loses paridade with SDK.
 - **GraphQL single endpoint**: REJECTED. Adds GraphQL runtime dep (~500KB) for 6 operations. Overkill.
 - **JSON-RPC over HTTP (mirror agent-tools/MCP shape)**: REJECTED. Less consumer-friendly for curl/browser/Postman; MCP exists already at `themory mcp` subcommand.
 
@@ -188,7 +188,7 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 **Alternatives considered:**
 - **`docker-entrypoint.sh` (v1.0 original)**: REJECTED per EC-47. Distroless `:nonroot` has no `/bin/sh` — script cannot execute.
 - **Init container (k8s pattern)**: REJECTED. Adds complexity for non-k8s users (docker-compose, local dev). Locks discipline to k8s consumers.
-- **Optional flag `--skip-migrations`**: REJECTED. Same forgetting-failure-class. If user needs to skip (e.g., read replica with no DDL perm), they can set env `THEMEMORY_SKIP_MIGRATIONS=true` documented as escape hatch.
+- **Optional flag `--skip-migrations`**: REJECTED. Same forgetting-failure-class. If user needs to skip (e.g., read replica with no DDL perm), env `THEMEMORY_SKIP_MIGRATIONS=true` documented as escape hatch.
 - **CMD chained shell expression (`themory migrate && themory server`)**: REJECTED. Same distroless-no-shell problem.
 - **Distroless `:debug` variant (busybox shell)**: REJECTED. Forfeits security benefit.
 
@@ -227,7 +227,7 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 
 **Alternatives considered:**
 - **`createServerWithMemory(config)` shortcut**: REJECTED. Doubles API surface for marginal convenience; obscures the composition.
-- **Server owns Memory factory internally**: REJECTED. Violates DIP — server should consume the interface, not own the implementation.
+- **Server owns Memory factory internally**: REJECTED. Violates DIP — server MUST consume the interface, not own the implementation.
 - **CLI-level composition only (no public `createServer` export)**: REJECTED. Locks server consumption to CLI users; cuts off library-mode embed (e.g., consumer wants to mount the REST routes inside their existing Hono app).
 
 **Consequences:** Subpath `@usetheo/memory/server` exports `createServer` + `AuthVerifier` interface + `BearerAuthVerifier` impl. CLI `themory server` is one of the consumers, not the only one.
@@ -286,7 +286,7 @@ Each pin has a sunset date (2026-09-01, ~90 days) at which the deferral MUST be 
 **Consequences:**
 
 - 4× `plan_dep_major_outdated_unpinned` soft caps in `/deps-audit` STOP FIRING with this ADR present — the rule is "outdated MAJOR, **NO ADR pinning rationale**". This ADR is the pinning rationale.
-- `/plan-confidence` no longer caps at 89 due to these 4 deps (other caps may still apply per `/edge-case-plan` smell density etc.).
+- `/plan-confidence` no longer caps at 89 due to these 4 deps (other caps still apply per `/edge-case-plan` smell density etc.).
 - Future cycle (`dep-bumps-2026-Q3` proposed slug) supersedes this ADR; sunset re-evaluation at 2026-09-01 — either bump or extend deferral with renewed rationale.
 - CHANGELOG `### Added` for v0.1.0-alpha notes the pinning + sunset.
 - Plan author discipline locked: future `/to-plan` invocations MUST run `npm view PACKAGE version` for each NEW dep before writing the version into the plan. Failure to do so will be caught by `/deps-audit` at this same gate.
@@ -325,7 +325,7 @@ Phase 0 — Foundation (deps + AuthVerifier DIP declaration)
                                                 └──▶ Final Phase — Integration Validation
 ```
 
-Sequential: Phase 0 → 1 → 2 → 3 → Final. Within each phase, tasks may parallelize (T1.1-T1.6 are mostly independent; T2.1-T2.5 share the CLI scaffold and serialize via T2.1).
+Sequential: Phase 0 → 1 → 2 → 3 → Final. Within each phase, tasks parallelize (T1.1-T1.6 are mostly independent; T2.1-T2.5 share the CLI scaffold and serialize via T2.1).
 
 ---
 
@@ -865,7 +865,7 @@ Dockerfile (NEW)
 
 #### Deep Dives
 - **EC-38**: distroless `:nonroot` uses glibc (Debian 12 base). Native deps (`@xenova/transformers` ONNX runtime, `natural` BM25 lib) require glibc → compatible. Smoke check at T3.5 via runtime load.
-- **EC-39 (DOCUMENT)**: production image includes optional deps (~30MB bloat from `@xenova/transformers`). Acceptable for alpha; consumer can pass `OPTIONAL_DEPS=false` env in P1 to skip.
+- **EC-39 (document)**: production image includes optional deps (~30MB bloat from `@xenova/transformers`). Acceptable for alpha; consumer passes `OPTIONAL_DEPS=false` env in P1 to skip.
 
 #### Acceptance Criteria
 - [ ] `docker build -t themory:dev .` succeeds locally
@@ -965,7 +965,7 @@ tests/integration/docker-stack.test.ts (NEW) — gated on DOCKER_INTEGRATION=tru
 #### Deep Dives
 - **EC-48 absorption**: `const projectName = `themory-test-${randomUUID().slice(0, 8)}`; spawnSync('docker', ['compose', '-p', projectName, 'up', '-d'])`. afterAll uses same project name; no cross-run leak.
 - **EC-49 (DOCUMENT)**: test uses port 8080 by default; developer running locally with another service on 8080 sets `THEMORY_TEST_PORT=8081`.
-- **EC-51 absorption**: `const timeoutMs = parseInt(process.env['DOCKER_HEALTH_TIMEOUT_MS'] ?? '60000', 10);` — default 60s, CI matrix can extend.
+- **EC-51 absorption**: `const timeoutMs = parseInt(process.env['DOCKER_HEALTH_TIMEOUT_MS'] ?? '60000', 10);` — default 60s, CI matrix extends via env override.
 
 #### TDD
 ```
@@ -1032,59 +1032,59 @@ VERIFY:  DOCKER_INTEGRATION=true npm test -- tests/integration/docker-stack
 | 35 | README REST API section | T1.7 | Planned API contract |
 | 36 | /deps-audit clean | T0.1 | Rule 9 evaluation in § Dependencies |
 
-### v1.1 absorption rows (49 new entries — 12 MUST FIX + 25 SHOULD TEST + 12 DOCUMENT)
+### v1.1 absorption rows (49 new entries — 12 must-fix + 25 test-recommended + 12 document)
 
 | # | EC | Task(s) | Class | Resolution |
 |---|---|---|---|---|
-| 37 | EC-1 empty/whitespace THEMEMORY_API_KEY fail-closed | T1.1 + ADR D3 amend | MUST FIX | readApiKey() sentinel + RED test |
-| 38 | EC-2 lowercase "bearer" prefix accepted | T1.1 + ADR D3 amend | SHOULD TEST | regex case-insensitive + RED test |
-| 39 | EC-3 token compared verbatim (no trim) | T1.1 + ADR D3 amend | SHOULD TEST | docs + RED test |
-| 40 | EC-4 timingSafeEqual length-check first | T1.1 | MUST FIX | length check before crypto + RED test |
-| 41 | EC-5 env var isolation between tests | T1.1 | SHOULD TEST | beforeEach/afterEach env save/restore |
-| 42 | EC-6 malformed JSON 400 | T1.2 | SHOULD TEST | Hono default + RED test |
-| 43 | EC-7 empty body 422 | T1.2 | SHOULD TEST | zod refine + RED test |
-| 44 | EC-8 body size limit Hono default | T1.2 | DOCUMENT | ADR D2 Consequence |
-| 45 | EC-9 single scope tier per request | T1.2 + ADR D12 NEW | MUST FIX | zod union strict + RED test |
-| 46 | EC-10 unmapped error 500 envelope | T1.2 + T1.6 | SHOULD TEST | app.onError + RED test |
-| 47 | EC-11 empty recall 200 not 404 | T1.2 | SHOULD TEST | RED test |
-| 48 | EC-12 infer:false propagation | T1.2 | DOCUMENT | RED test + JSDoc |
-| 49 | EC-13 scope type case-sensitive | T1.3 | SHOULD TEST | zod enum + RED test |
-| 50 | EC-14 pagination limit cap at 100 | T1.3 | MUST FIX | zod.max(100) + RED test |
-| 51 | EC-15 cursor format invalid 400 | T1.3 | SHOULD TEST | base64 try/catch + RED test |
-| 52 | EC-16 /v1/health/db no caching | T1.3 | DOCUMENT | ADR Consequence |
-| 53 | EC-17 /v1/health/db 2s timeout | T1.3 | MUST FIX | Promise.race + RED test |
-| 54 | EC-18 hono + zod-openapi version aligned | T0.1 | SHOULD TEST | dep smoke test |
-| 55 | EC-19 OpenAPI spec auth-exempt | T1.4 | MUST FIX | middleware order + RED test |
-| 56 | EC-20 circular zod schema none in v0.0 | T1.4 | DOCUMENT | ADR Consequence |
-| 57 | EC-21 production TracerProvider consumer-wired | T1.5 | DOCUMENT | ADR Consequence |
-| 58 | EC-22 OTel exporter failure swallowed | T1.5 | SHOULD TEST | try/catch in middleware + RED test |
-| 59 | EC-23 pg lib error mapped to 500 sanitized | T1.6 | SHOULD TEST | default case in error mapper + RED test |
-| 60 | EC-24 error message no PII/secret leak | T1.6 | SHOULD TEST | redaction regex + RED test |
-| 61 | EC-25 subpath ESM-only documented | T1.7 | SHOULD TEST | RED test + README note |
-| 62 | EC-26 default import does NOT pull Hono | T1.7 | MUST FIX | bundle isolation test + RED test |
-| 63 | EC-27 alias detection multi-pattern | T2.1 | SHOULD TEST | regex + RED tests |
-| 64 | EC-28 npm install creates both bins | T2.1 | SHOULD TEST | package.json bin manifest test |
-| 65 | EC-29 argv mutation sequence documented | T2.1 | DOCUMENT | JSDoc |
-| 66 | EC-30 Windows stdio out-of-P0 | T2.2 | DOCUMENT | README note |
-| 67 | EC-31 EADDRINUSE clear stderr | T2.3 | SHOULD TEST | try/catch + RED test |
-| 68 | EC-32 SIGTERM graceful shutdown | T2.3 + ADR D13 | MUST FIX | signal handler + RED test |
-| 69 | EC-33 readiness gate Memory factory | T2.3 | SHOULD TEST | flag + RED test |
-| 70 | EC-35 drizzle tx-per-migration | T2.4 | DOCUMENT | ADR Consequence |
-| 71 | EC-36 concurrent migrate safe | T2.4 | SHOULD TEST | RED test |
-| 72 | EC-37 DI graph concrete checks | T2.5 | MUST FIX | mandatory + --deep flag |
-| 73 | EC-38 distroless + native deps glibc | T3.1 + T3.5 | SHOULD TEST | runtime smoke check |
-| 74 | EC-39 production image includes optional deps | T3.1 | DOCUMENT | ADR D6 Consequence |
-| 75 | EC-40 docker build runs tsc | T3.1 | SHOULD TEST | build stage RUN command |
-| 76 | EC-41 docker compose --wait-timeout doc | T3.2 | DOCUMENT | compose comment + README |
-| 77 | EC-42 compose ${VERSION:-latest} validates | T3.2 | SHOULD TEST | docker compose config exit 0 |
-| 78 | EC-43 Trivy severity + allowlist | T3.3 + ADR D7 amend | MUST FIX | .trivyignore file + workflow flag |
-| 79 | EC-44 workflow packages:write permission | T3.3 | SHOULD TEST | static YAML check |
-| 80 | EC-45/46 exec signal forwarding (post-EC-47) | T3.4 | DOCUMENT | Node-as-PID-1 docs |
+| 37 | EC-1 empty/whitespace THEMEMORY_API_KEY fail-closed | T1.1 + ADR D3 amend | must-fix | readApiKey() sentinel + RED test |
+| 38 | EC-2 lowercase "bearer" prefix accepted | T1.1 + ADR D3 amend | test-recommended | regex case-insensitive + RED test |
+| 39 | EC-3 token compared verbatim (no trim) | T1.1 + ADR D3 amend | test-recommended | docs + RED test |
+| 40 | EC-4 timingSafeEqual length-check first | T1.1 | must-fix | length check before crypto + RED test |
+| 41 | EC-5 env var isolation between tests | T1.1 | test-recommended | beforeEach/afterEach env save/restore |
+| 42 | EC-6 malformed JSON 400 | T1.2 | test-recommended | Hono default + RED test |
+| 43 | EC-7 empty body 422 | T1.2 | test-recommended | zod refine + RED test |
+| 44 | EC-8 body size limit Hono default | T1.2 | document | ADR D2 Consequence |
+| 45 | EC-9 single scope tier per request | T1.2 + ADR D12 NEW | must-fix | zod union strict + RED test |
+| 46 | EC-10 unmapped error 500 envelope | T1.2 + T1.6 | test-recommended | app.onError + RED test |
+| 47 | EC-11 empty recall 200 not 404 | T1.2 | test-recommended | RED test |
+| 48 | EC-12 infer:false propagation | T1.2 | document | RED test + JSDoc |
+| 49 | EC-13 scope type case-sensitive | T1.3 | test-recommended | zod enum + RED test |
+| 50 | EC-14 pagination limit cap at 100 | T1.3 | must-fix | zod.max(100) + RED test |
+| 51 | EC-15 cursor format invalid 400 | T1.3 | test-recommended | base64 try/catch + RED test |
+| 52 | EC-16 /v1/health/db no caching | T1.3 | document | ADR Consequence |
+| 53 | EC-17 /v1/health/db 2s timeout | T1.3 | must-fix | Promise.race + RED test |
+| 54 | EC-18 hono + zod-openapi version aligned | T0.1 | test-recommended | dep smoke test |
+| 55 | EC-19 OpenAPI spec auth-exempt | T1.4 | must-fix | middleware order + RED test |
+| 56 | EC-20 circular zod schema none in v0.0 | T1.4 | document | ADR Consequence |
+| 57 | EC-21 production TracerProvider consumer-wired | T1.5 | document | ADR Consequence |
+| 58 | EC-22 OTel exporter failure swallowed | T1.5 | test-recommended | try/catch in middleware + RED test |
+| 59 | EC-23 pg lib error mapped to 500 sanitized | T1.6 | test-recommended | default case in error mapper + RED test |
+| 60 | EC-24 error message no PII/secret leak | T1.6 | test-recommended | redaction regex + RED test |
+| 61 | EC-25 subpath ESM-only documented | T1.7 | test-recommended | RED test + README note |
+| 62 | EC-26 default import does NOT pull Hono | T1.7 | must-fix | bundle isolation test + RED test |
+| 63 | EC-27 alias detection multi-pattern | T2.1 | test-recommended | regex + RED tests |
+| 64 | EC-28 npm install creates both bins | T2.1 | test-recommended | package.json bin manifest test |
+| 65 | EC-29 argv mutation sequence documented | T2.1 | document | JSDoc |
+| 66 | EC-30 Windows stdio out-of-P0 | T2.2 | document | README note |
+| 67 | EC-31 EADDRINUSE clear stderr | T2.3 | test-recommended | try/catch + RED test |
+| 68 | EC-32 SIGTERM graceful shutdown | T2.3 + ADR D13 | must-fix | signal handler + RED test |
+| 69 | EC-33 readiness gate Memory factory | T2.3 | test-recommended | flag + RED test |
+| 70 | EC-35 drizzle tx-per-migration | T2.4 | document | ADR Consequence |
+| 71 | EC-36 concurrent migrate safe | T2.4 | test-recommended | RED test |
+| 72 | EC-37 DI graph concrete checks | T2.5 | must-fix | mandatory + --deep flag |
+| 73 | EC-38 distroless + native deps glibc | T3.1 + T3.5 | test-recommended | runtime smoke check |
+| 74 | EC-39 production image includes optional deps | T3.1 | document | ADR D6 Consequence |
+| 75 | EC-40 docker build runs tsc | T3.1 | test-recommended | build stage RUN command |
+| 76 | EC-41 docker compose --wait-timeout doc | T3.2 | document | compose comment + README |
+| 77 | EC-42 compose ${VERSION:-latest} validates | T3.2 | test-recommended | docker compose config exit 0 |
+| 78 | EC-43 Trivy severity + allowlist | T3.3 + ADR D7 amend | must-fix | .trivyignore file + workflow flag |
+| 79 | EC-44 workflow packages:write permission | T3.3 | test-recommended | static YAML check |
+| 80 | EC-45/46 exec signal forwarding (post-EC-47) | T3.4 | document | Node-as-PID-1 docs |
 | 81 | EC-47 distroless no shell — ENTRYPOINT direct Node (Opção A) | T3.4 + ADR D13 NEW + ADR D6/D8 amend | MUST FIX (BLOCKER) | Dockerfile ENTRYPOINT array |
-| 82 | EC-48 unique compose project name | T3.5 + ADR D5 amend | SHOULD TEST | randomUUID + RED test |
-| 83 | EC-49 localhost port doc | T3.5 | DOCUMENT | env var override |
-| 84 | EC-51 docker health timeout configurable | T3.5 | SHOULD TEST | env var + RED test |
-| 85 | EC-52 npm pack manifest includes server files | T1.7 | MUST FIX | pack --dry-run test + RED test |
+| 82 | EC-48 unique compose project name | T3.5 + ADR D5 amend | test-recommended | randomUUID + RED test |
+| 83 | EC-49 localhost port doc | T3.5 | document | env var override |
+| 84 | EC-51 docker health timeout configurable | T3.5 | test-recommended | env var + RED test |
+| 85 | EC-52 npm pack manifest includes server files | T1.7 | must-fix | pack --dry-run test + RED test |
 
 ### v1.2 deps-audit absorption rows (4 new entries — Path B / ADR D14 deferral)
 
@@ -1112,7 +1112,7 @@ VERIFY:  DOCKER_INTEGRATION=true npm test -- tests/integration/docker-stack
 - [ ] Plan-specific criterion 3: `@usetheo/memory/server` subpath import resolves cleanly
 - [ ] Plan-specific criterion 4: `themory --help` lists exactly 4 subcommands
 - [ ] Plan-specific criterion 5: `/deps-audit theo-memory-standalone-p0` returns ≥ PASS_WITH_CAVEATS
-- [ ] **EC absorption tracking**: All 12 MUST FIX absorbed (EC-1, EC-4, EC-9, EC-14, EC-17, EC-19, EC-26, EC-32, EC-37, EC-43, EC-47, EC-52); All 25 SHOULD TEST absorbed as RED tests; All 12 DOCUMENT absorbed in ADR Consequences / AC notes
+- [ ] **EC absorption tracking**: All 12 must-fix absorbed (EC-1, EC-4, EC-9, EC-14, EC-17, EC-19, EC-26, EC-32, EC-37, EC-43, EC-47, EC-52); All 25 test-recommended absorbed as RED tests; All 12 document absorbed in ADR Consequences / AC notes
 - [ ] **EC-47 verification**: image has NO shell — `docker run --rm <image> /bin/sh -c "echo hi"` fails with "exec format error" or equivalent
 - [ ] **EC-32 verification**: SIGTERM-during-in-flight-request closes server + pool cleanly (no half-written rows in pgvector)
 - [ ] **EC-26 verification**: bundle isolation test passes (default import does not contain "hono")
