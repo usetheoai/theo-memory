@@ -78,6 +78,20 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     expect(spec.info.license?.name).toBe('MIT');
   });
 
+  test('7. FC2-T1.3-RED — all 4 verbs advertise 413 CONTENT_TOO_LARGE (F-dom-api-2 absorption)', async () => {
+    const app = createServer({ memory: stubMemory() });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    interface Op { responses?: Record<string, { description?: string }> }
+    interface PathItem { post?: Op }
+    interface Spec { paths: Record<string, PathItem> }
+    const spec = (await res.json()) as Spec;
+    for (const verb of ['/v1/remember', '/v1/recall', '/v1/forget', '/v1/reflect']) {
+      const responses = spec.paths[verb]?.post?.responses;
+      expect(responses?.['413']).toBeDefined();
+      expect(responses?.['413']?.description).toMatch(/1\s*MB|body|content too large/i);
+    }
+  });
+
   test('6. FC2-T1.2-RED — listScopeMemories advertises 501 SKILL_LISTING_NOT_IMPLEMENTED (F-dom-api-1 absorption)', async () => {
     const app = createServer({ memory: stubMemory() });
     const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
