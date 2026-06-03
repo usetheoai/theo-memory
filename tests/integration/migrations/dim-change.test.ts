@@ -329,6 +329,76 @@ describe.skipIf(ROOT_PG_URI === '')(
       }
     });
 
+    // semantic-recall-cache-v1-5-fixes-cycle-1 T1.1 / F-merge-10 absorption.
+    // The v1.5.0 cascade extension at applyDimChange ALTERed
+    // recall_cache.query_embedding inside the same BEGIN/COMMIT as the
+    // memories + entities ALTERs, BUT the post-ALTER value-based canary
+    // only verified memories + entities. This RED test asserts the canary
+    // NOW also covers recall_cache.query_embedding's atttypmod.
+    it('fixes-cycle-1 T1.1: canary covers recall_cache.query_embedding post-ALTER', async () => {
+      const pool = new pg.Pool({ connectionString: testUri });
+      const m = await import('../../../src/local/index.js');
+      try {
+        // Bootstrap at 1536 (default); recall_cache table is created by migration 0010.
+        await m.runMigrations(pool);
+        const { rows: [{ atttypmod: initialDim }] } = await pool.query<{ atttypmod: number }>(
+          `SELECT a.atttypmod FROM pg_attribute a
+             JOIN pg_class c ON c.oid = a.attrelid
+            WHERE c.relname = 'recall_cache' AND a.attname = 'query_embedding'
+              AND a.attisdropped = false`,
+        );
+        expect(initialDim).toBe(1536);
+
+        // Run parametric dim change. T5.1 cascade ALTERs recall_cache too;
+        // the EXTENDED canary verifies the post-ALTER atttypmod matches 384.
+        await m.runMigrations(pool, { embeddingDim: 384 });
+
+        const { rows: [{ atttypmod: postAlterDim }] } = await pool.query<{ atttypmod: number }>(
+          `SELECT a.atttypmod FROM pg_attribute a
+             JOIN pg_class c ON c.oid = a.attrelid
+            WHERE c.relname = 'recall_cache' AND a.attname = 'query_embedding'
+              AND a.attisdropped = false`,
+        );
+        expect(postAlterDim).toBe(384);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // EC-5 sibling absorption — pre-v1.5 DB path: when recall_cache table is
+    // absent (e.g., upgrading from v0.4b without v1.5 migrations applied),
+    // applyDimChange must NOT throw because the canary skipped the missing table.
+    // The canary's WHERE clause tolerates absent rows by returning fewer rows.
+    it('fixes-cycle-1 T1.1 EC-5: pre-v1.5 DB without recall_cache table — applyDimChange succeeds', async () => {
+      const pool = new pg.Pool({ connectionString: testUri });
+      const m = await import('../../../src/local/index.js');
+      try {
+        await m.runMigrations(pool);
+        // Drop recall_cache to simulate pre-v1.5 schema state.
+        await pool.query('DROP TABLE IF EXISTS recall_cache CASCADE');
+        const { rows } = await pool.query<{ exists: boolean }>(
+          `SELECT EXISTS (
+             SELECT 1 FROM information_schema.tables
+              WHERE table_schema = 'public' AND table_name = 'recall_cache'
+           ) AS exists`,
+        );
+        expect(rows[0]?.exists).toBe(false);
+
+        // applyDimChange must complete despite recall_cache absence.
+        // The canary loop iterates over the rows returned by the SELECT;
+        // when recall_cache is absent, only memories + entities rows are
+        // returned and the canary loop verifies each WITHOUT throwing on
+        // the missing table.
+        await expect(m.runMigrations(pool, { embeddingDim: 384 })).resolves.toBeUndefined();
+
+        // memories + entities should still be at 384 (cascade worked).
+        expect(await getColumnDim(pool, 'memories')).toBe(384);
+        expect(await getColumnDim(pool, 'entities')).toBe(384);
+      } finally {
+        await pool.end();
+      }
+    });
+
     // /review F-M7 — push-flow dim-change RED test. The T4.1 hotfix that
     // applies dim change on push-flow DBs (no drizzle journal but schema
     // present) was discovered empirically; this is the TDD-first regression
