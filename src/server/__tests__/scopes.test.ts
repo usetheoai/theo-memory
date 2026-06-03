@@ -165,17 +165,36 @@ describe('T1.3 — GET /v1/scopes/:type/:id/memories', () => {
     expect(typeof body.nextCursor).toBe('string');
   });
 
-  test('12. skill type dispatches to memory.skills(repoId) per ADR-0010', async () => {
+  test('12. FC1-T1.1 — skill type returns 501 SKILL_LISTING_NOT_IMPLEMENTED (F-rev-1 absorption)', async () => {
+    // Rewritten from the original "12. skill type dispatches to memory.skills(repoId)".
+    // F-rev-1 root cause: ScopedSkillMemory.getAll() does NOT exist; routing skill
+    // scope through the legacy ScopedMemory dispatch crashes into 500. Plan T1.1 +
+    // EC-4 absorption short-circuit the 'skill' branch BEFORE the dispatch, surfacing
+    // an honest 501 (per CLAUDE.md ADR-0010: skill scope is exposed ONLY via SDK).
     const scoped = stubScopedWithItems([]);
     const memory = stubMemory(scoped);
     const app = createServer({ memory });
     const res = await app.fetch(
       new Request('http://localhost/v1/scopes/skill/repo-alpha/memories'),
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(501);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe('SKILL_LISTING_NOT_IMPLEMENTED');
+  });
+
+  test('12b. FC1-T1.1 EC-4 — skill branch short-circuits BEFORE calling memory.skills', async () => {
+    const scoped = stubScopedWithItems([]);
+    const memory = stubMemory(scoped);
+    // If the 501 branch is in the wrong order, memory.skills will be invoked
+    // and the stub returns a fake; assert it was NOT called.
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/scopes/skill/repo-alpha/memories'),
+    );
+    expect(res.status).toBe(501);
     // eslint-disable-next-line @typescript-eslint/unbound-method -- vitest mock-call assertion idiom
     const skillsMock = memory.skills;
-    expect(skillsMock).toHaveBeenCalledWith('repo-alpha');
+    expect(skillsMock).not.toHaveBeenCalled();
   });
 
   test('13. empty :id path segment yields 404 per Hono routing', async () => {

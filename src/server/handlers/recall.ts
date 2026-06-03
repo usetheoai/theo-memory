@@ -6,7 +6,7 @@
 import type { Context } from 'hono';
 
 import type { Memory } from '../../core/memory-store.js';
-import { RecallBody, resolveScope, type MemoryLike } from '../schemas.js';
+import { RecallBody, resolveScope } from '../schemas.js';
 
 import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
 
@@ -26,7 +26,7 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
     return scopeOrValidationError(parsed.error, c);
   }
   const { query, topK, threshold, attributedTo, asOf } = parsed.data;
-  const scoped = resolveScope(memory as unknown as MemoryLike, parsed.data);
+  const scoped = resolveScope(memory, parsed.data);
   const results = await scoped.recall(query, {
     topK,
     threshold,

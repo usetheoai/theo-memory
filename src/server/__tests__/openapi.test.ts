@@ -77,4 +77,21 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     const spec = (await res.json()) as Spec;
     expect(spec.info.license?.name).toBe('MIT');
   });
+
+  test('5. FC1-T1.1 EC-5 — skillRepoId absent from all 4 verb request bodies (F-rev-1 absorption)', async () => {
+    const app = createServer({ memory: stubMemory() });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    interface Schema { properties?: Record<string, unknown> }
+    interface RequestBody { content?: { 'application/json'?: { schema?: Schema } } }
+    interface Op { requestBody?: RequestBody }
+    interface PathItem { post?: Op }
+    interface Spec { paths: Record<string, PathItem> }
+    const spec = (await res.json()) as Spec;
+    for (const verb of ['/v1/remember', '/v1/recall', '/v1/reflect', '/v1/forget']) {
+      const props = spec.paths[verb]?.post?.requestBody?.content?.['application/json']?.schema?.properties;
+      if (props !== undefined) {
+        expect(Object.keys(props)).not.toContain('skillRepoId');
+      }
+    }
+  });
 });
