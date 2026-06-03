@@ -67,7 +67,10 @@ if (PG_URI === undefined || PG_URI === '') {
 } else {
   describe('agent-tools CLI subprocess — MCP handshake + tools/list (T7.1)', () => {
     it('spawns the CLI, completes initialize handshake, lists 4 locked tool verbs', async () => {
-      proc = spawn('node', [CLI_PATH], {
+      // T2.1: CLI consolidated under commander — invoke `mcp` subcommand
+      // explicitly. The legacy `themory-mcp` basename alias (EC-27) is
+      // covered separately by tests/integration/cli-consolidated.test.ts.
+      proc = spawn('node', [CLI_PATH, 'mcp'], {
         env: { ...process.env, THEOMEM_PG_URI: PG_URI },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
