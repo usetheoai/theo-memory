@@ -46,6 +46,8 @@ describe('memories table', () => {
         'last_accessed_at',
         'access_count',
         'half_life_seconds',
+        // v1.1 additions (T1.1 — see "attributed_to column" test below for ADR D2 + EC-2 details)
+        'attributed_to',
       ].sort(),
     );
   });
@@ -80,6 +82,14 @@ describe('memories table', () => {
       expect(col).toBeDefined();
       expect(col?.notNull).toBe(false);
     }
+  });
+
+  test('attributed_to column is nullable text (v1.1 T1.1 + EC-2 absorption)', () => {
+    const cfg = getTableConfig(memories);
+    const col = cfg.columns.find((c) => c.name === 'attributed_to');
+    expect(col).toBeDefined();
+    expect(col?.notNull).toBe(false);
+    expect(col?.dataType).toBe('string');
   });
 });
 

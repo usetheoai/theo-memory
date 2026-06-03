@@ -78,6 +78,12 @@ export const memories = pgTable(
     agentId: text('agent_id'),
     tValid: timestamp('t_valid', { withTimezone: true }).defaultNow(),
     tInvalid: timestamp('t_invalid', { withTimezone: true }),
+    /** v1.1 T1.1: first-class promoted column for multi-peer attribution per blueprint Q3 + R1.
+     *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
+     *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
+     *  (any peer ID accepted; not restricted to Mem0's bivalent "user"/"assistant" vocabulary).
+     *  @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2. */
+    attributedTo: text('attributed_to'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
     /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
      *  v0.6: also accepts 'skill' (code-as-skill) per plan ADR D3. */
