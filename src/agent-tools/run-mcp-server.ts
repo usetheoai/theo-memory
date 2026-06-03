@@ -88,6 +88,20 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   const pool = new Pool({ connectionString: pgUri });
   await runMigrations(pool);
 
+  // fixes-cycle-1 T2.2 / F-rev-9 absorption: same consumer-honesty warning
+  // as run-server.ts. MCP transport carries the same default-stub baggage.
+  // FOLLOW-UP: gate this warning when run-mcp-server.ts gains real-provider
+  // config (e.g., THEMORY_EMBEDDER=openai|local). Currently unconditional.
+  process.stderr.write(
+    'themory mcp: WARNING — Stub embedder + Stub LLM in use (StubEmbedder + StubLLM).\n',
+  );
+  process.stderr.write(
+    'themory mcp: Recall returns shape-correct results but is NOT semantic — only exact-text round-trips work reliably.\n',
+  );
+  process.stderr.write(
+    'themory mcp: For production, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n',
+  );
+
   const memory = await createLocalMemory({
     vectorStore: new PgvectorStore(pool),
     embedder: new StubEmbedder(),
