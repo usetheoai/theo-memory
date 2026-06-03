@@ -18,7 +18,7 @@
  *
  * Skipped when THEOMEM_PG_URI is unset (no flaky CI).
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import {
   metrics,
@@ -167,12 +167,15 @@ describe.skipIf(ROOT_PG_URI === '')(
           });
         }
       }
+      // EC-14 stderr-spy convention per plan T2.3 + cycle-1 T2.2 precedent
+      // (mirror src/local/__tests__/embedder-cache-gate-warning.test.ts).
       const writes: string[] = [];
-      const originalWrite = process.stderr.write.bind(process.stderr);
-      process.stderr.write = ((chunk: unknown) => {
-        writes.push(typeof chunk === 'string' ? chunk : String(chunk));
-        return true;
-      }) as typeof process.stderr.write;
+      const stderrSpy = vi
+        .spyOn(process.stderr, 'write')
+        .mockImplementation((chunk: unknown): true => {
+          writes.push(typeof chunk === 'string' ? chunk : String(chunk));
+          return true;
+        });
       try {
         await createLocalMemory({
           vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
@@ -182,7 +185,7 @@ describe.skipIf(ROOT_PG_URI === '')(
           recallCache: { threshold: 0.8 },
         });
       } finally {
-        process.stderr.write = originalWrite;
+        stderrSpy.mockRestore();
       }
       const cacheLines = writes.filter((w) => w.startsWith('themory cache:'));
       expect(cacheLines).toHaveLength(3);
