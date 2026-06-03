@@ -230,6 +230,8 @@ curl -X POST http://localhost:8080/v1/remember \
 
 **ESM-only.** The subpath `@usetheo/memory/server` is ESM-only — matches the package's `"type": "module"`. CJS consumers (`require('@usetheo/memory/server')`) will see Node's standard ESM-resolution error.
 
+**Body limit:** 1 MB cap on `/v1/*` POST endpoints (DOS guard via `hono/body-limit`; 413 response carries the structured `{code: 'CONTENT_TOO_LARGE', message: ...}` envelope). Compressed request bodies (`Content-Encoding: gzip`) are NOT auto-decompressed by Hono — operators serving large compressed payloads should enforce body limits at the reverse-proxy layer (nginx `client_max_body_size`, Caddy `request_body max_size`) for production deployments.
+
 Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
 
 **Container entrypoint** (per ADR D13): the distroless image's `ENTRYPOINT` invokes the Node binary directly — `["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]` — with no shell wrapper. Migrate-on-startup runs inside the `themory server` binary (T2.3) so there is no `docker-entrypoint.sh`. Operators can run the other subcommands by overriding the entrypoint at `docker run` time:
