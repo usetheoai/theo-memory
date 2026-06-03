@@ -82,6 +82,11 @@ function buildPayload(text: string, hash: string, filters: Filters, metadata: Pa
 }
 
 function toMemoryItem(id: string, text: string, hash: string, scope: Scope, metadata: Payload, now: Date): MemoryItem {
+  // v1.1 T2.1: surface attributed_to on the DTO. Reads from payload because
+  // both the LLM-extraction path AND the verbatim path route attribution
+  // through the payload key BEFORE this conversion.
+  const attributedToRaw = metadata['attributed_to'];
+  const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
   return {
     id,
     text,
@@ -92,6 +97,7 @@ function toMemoryItem(id: string, text: string, hash: string, scope: Scope, meta
     metadata,
     tValid: now,
     tInvalid: null,
+    ...(attributedTo !== undefined ? { attributedTo } : {}),
   };
 }
 
@@ -120,6 +126,11 @@ async function runInferFalsePath(
     const now = new Date();
     const metadata = options?.metadata ?? {};
     const payload = buildPayload(msg.content, hash, filters, metadata);
+    // v1.1 T2.1 + EC-2: verbatim path attribution. RememberOptions.attributedTo
+    // routes through the payload to the column hoist in pgvector-store.
+    if (options?.attributedTo !== undefined) {
+      payload['attributed_to'] = options.attributedTo;
+    }
     items.push(toMemoryItem(id, msg.content, hash, scope, payload, now));
     vectors.push(vector);
     ids.push(id);
@@ -281,6 +292,15 @@ export async function runExtractionPipeline(
     const now = new Date();
     const payload = buildPayload(text, hash, filters, metadata);
     payload['text_lemmatized'] = lemmatizeForBm25(text).join(' ');
+    // v1.1 T2.1 + EC-1 closed: LLM-emitted attributed_to propagates into
+    // payload here so the pgvector-store hoist writes it to the column.
+    // Pre-v1.1 this line was MISSING — extracted[i].attributed_to was discarded
+    // at payload composition (the bug EC-1 documents). T2.1 closes it for new
+    // writes; historical rows remain NULL per ADR D2 Consequences.
+    const llmAttributedTo = extracted[i]?.attributed_to;
+    if (llmAttributedTo !== undefined) {
+      payload['attributed_to'] = llmAttributedTo;
+    }
     survivingIds.push(id);
     survivingVectors.push(vector);
     survivingPayloads.push(payload);
