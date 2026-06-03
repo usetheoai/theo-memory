@@ -1,0 +1,71 @@
+# Docker build context exclusions for `@usetheo/memory` standalone image.
+# Keeps the context small + prevents leaks of secrets, reviews, audit
+# trails, and irrelevant assets into the builder stage.
+
+# Build outputs (the image regenerates dist/ in the builder stage)
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Dependencies — the builder runs `npm ci` from package-lock.json
+node_modules/
+
+# Version control
+.git/
+.gitignore
+.github/
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Environment + secrets (NEVER ship into images)
+.env
+.env.*
+*.pem
+*.key
+
+# Project meta / planning / audit trails (massive; not runtime artifacts)
+.claude/
+docs/
+examples/
+benchmarks/
+plans/
+spec/
+
+# Tests (production image excludes tests by design)
+tests/
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test-d.ts
+**/*.spec.ts
+**/*.spec.tsx
+vitest.config.ts
+vitest.*.config.ts
+
+# Docker meta itself
+Dockerfile
+.dockerignore
+docker-compose*.yaml
+docker-compose*.yml
+
+# Top-level docs (CHANGELOG kept out; surfaces via package registry)
+CHANGELOG.md
+CLAUDE.md
+LICENSE
+README.md
+
+# Lock files for ecosystems we don't build with
+pnpm-lock.yaml
+yarn.lock
+
+# Migration-tooling configs not needed in runtime
+drizzle.config.ts
+
+# Compiled type-check helpers / scripts not part of the runtime path
+scripts/
