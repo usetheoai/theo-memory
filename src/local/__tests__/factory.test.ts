@@ -3,7 +3,8 @@
  *
  * Covers: 8 public Memory methods, 3 ScopedMemory tiers (user/session/agent),
  * embedder dimension probe (EC-5), forget MemoryNotFound (EC-12), reset InvalidScope (EC-13),
- * bi-temporal asOf throws (ADR-0006), tracer defaults to no-op.
+ * bi-temporal asOf honored on local (ADR-0011 supersedes ADR-0006 runtime clause),
+ * EC-3 invalid-Date boundary validation throws InvalidScope, tracer defaults to no-op.
  */
 import { describe, expect, test, vi } from 'vitest';
 
@@ -102,11 +103,32 @@ describe('createLocalMemory factory', () => {
     await expect(memory.reset({})).rejects.toThrow(InvalidScope);
   });
 
-  test('ADR-0006: recall with options.asOf throws BiTemporalNotSupportedLocally', async () => {
+  test('ADR-0011 (supersedes ADR-0006 runtime clause): recall with valid asOf resolves to time-correct results', async () => {
+    // T3.2 — replaces the pre-v1.1 negative assertion that pinned the lifted
+    // throw. Valid Date input flows through; in-memory store's recall
+    // resolves to a (possibly empty) result array. No exception.
     const memory = await createLocalMemory(baseConfig());
     await expect(
-      memory.user('alice').recall('q', { asOf: new Date() }),
-    ).rejects.toThrow(BiTemporalNotSupportedLocally);
+      memory.user('alice').recall('q', { asOf: new Date('2026-03-15T10:00:00Z') }),
+    ).resolves.toBeDefined();
+  });
+
+  test('EC-3 boundary validation: recall with invalid Date (NaN getTime) throws InvalidScope', async () => {
+    // architecture.md § 8 boundary discipline — validate at the boundary
+    // (src/local/index.ts::recall) instead of letting NaN propagate to SQL.
+    const memory = await createLocalMemory(baseConfig());
+    await expect(
+      memory.user('alice').recall('q', { asOf: new Date('not-a-date') }),
+    ).rejects.toThrow(InvalidScope);
+  });
+
+  test('BiTemporalNotSupportedLocally class still exported (forward-compat with cloud runtime)', () => {
+    // ADR-0011 lifts the throw on local but keeps the class exported per the
+    // ADR's Consequences section — cloud runtime retains the option to throw
+    // for unsupported edge configurations, and existing consumers catching
+    // the class for forward-compat shouldn't have their code rejected at
+    // compile time.
+    expect(BiTemporalNotSupportedLocally).toBeDefined();
   });
 
   test('history(memoryId) returns the audit trail when historyManager is wired', async () => {

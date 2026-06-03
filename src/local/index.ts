@@ -13,7 +13,9 @@
  * Per ADR-0005, reflection is explicit-only at v0.0; LocalScopedMemory.reflect
  * throws ReflectionNotConfigured unless config.reflectionPolicy is provided.
  *
- * Per ADR-0006, recall with options.asOf throws BiTemporalNotSupportedLocally.
+ * Per ADR-0011 (supersedes ADR-0006 runtime clause): recall honors `options.asOf`
+ * from v1.1 on the local runtime; EC-3 boundary validation throws `InvalidScope`
+ * when asOf is an invalid Date (NaN).
  *
  * Per EC-12, forget(unknown_id) throws MemoryNotFound.
  * Per EC-13, reset({}) throws InvalidScope (prevents whole-table wipe).
@@ -38,6 +40,9 @@ import {
   EmbeddingMismatch,
   InvalidEmbeddingDim,
   InvalidScope,
+  // BiTemporalNotSupportedLocally import retained for backward compat re-export
+  // through src/core/errors.ts (consumers may still catch it for forward-compat
+  // with cloud runtime). Local runtime no longer throws it per ADR-0011.
   MemoryNotFound,
   ReflectionNotConfigured,
 } from '../core/errors.js';
@@ -164,17 +169,22 @@ export const PROBE_TEXT = '__themem_probe__';
  */
 function applySkillFilters(
   baseFilters: Filters,
-  options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string },
+  options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string; asOf?: Date },
 ): Filters {
   if (options === undefined) {
     return baseFilters;
   }
   // v1.1 T2.2: route RecallOptions.attributedTo into Filters.attributed_to so
   // composeFilters in pgvector-store appends the WHERE clause.
-  const base: Filters =
-    options.attributedTo !== undefined
-      ? { ...baseFilters, attributed_to: options.attributedTo }
-      : { ...baseFilters };
+  // v1.1 T3.1 + ADR-0011: route RecallOptions.asOf into Filters.asOf so the
+  // store composes the null-safe bi-temporal predicate.
+  let base: Filters = { ...baseFilters };
+  if (options.attributedTo !== undefined) {
+    base = { ...base, attributed_to: options.attributedTo };
+  }
+  if (options.asOf !== undefined) {
+    base = { ...base, asOf: options.asOf };
+  }
   if (options.onlySkills === true) {
     return {
       ...base,
@@ -326,8 +336,11 @@ class LocalScopedMemory implements ScopedMemory {
   }
 
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
-    if (options?.asOf !== undefined) {
-      throw new BiTemporalNotSupportedLocally();
+    // v1.1 T3.1 + EC-3 + ADR-0011: BiTemporalNotSupportedLocally throw lifted.
+    // Boundary validation rejects invalid Date input per architecture.md § 8
+    // (validate at boundaries; inside src/core/ trust the contract).
+    if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
+      throw new InvalidScope('asOf must be a valid Date');
     }
     return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
