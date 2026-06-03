@@ -28,7 +28,8 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
-import { createLocalMemory, runMigrations, StubEmbedder, StubLLM } from '../local/index.js';
+import { DeterministicStubEmbedder } from '../embedders/stub.js';
+import { createLocalMemory, runMigrations, StubLLM } from '../local/index.js';
 import { PgvectorStore } from '../local/pgvector-store.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
 import { createServer } from '../server/index.js';
@@ -107,7 +108,16 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const warmPromise = (async () => {
     memory = await createLocalMemory({
       vectorStore: new PgvectorStore(pool),
-      embedder: new StubEmbedder(),
+      // T3.5 absorption (surfaced by THE GOAL TEST docker-stack round-trip):
+      // `StubEmbedder` from src/local/stubs.ts returns ZERO vectors with a
+      // production warning, which collapses cosine similarity to NaN and
+      // breaks recall semantically. `DeterministicStubEmbedder` is the
+      // debug-grade alternative — pure-function MD5+Lehmer LCG so identical
+      // text round-trips at cosine 1.0 (sufficient for the GOAL TEST shape
+      // round-trip + dev kicking-tires). Real consumers swap this for
+      // `OpenAIEmbedder` / `LocalTransformerEmbedder` via consumer wiring
+      // when they ship to production.
+      embedder: new DeterministicStubEmbedder(),
       llm: new StubLLM(),
     });
     isReady = true;
