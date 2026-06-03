@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-09-hand-routine-flip",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "New training plan — dropped bouldering, switched to road cycling. Riding 4 to 5 days a week now.",
+  "expectedFacts": [
+    { "text": "Road cycles 4-5 days a week (replaces bouldering)", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Road cycles 4-5 days a week (replaces bouldering)",
+    "rejected": "Boulders 2-3 times a week at the climbing gym"
+  }
+}

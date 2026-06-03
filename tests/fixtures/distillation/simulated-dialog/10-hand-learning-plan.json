@@ -1,0 +1,12 @@
+{
+  "id": "simulated-dialog-10-hand-learning-plan",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: I want to learn Rust this year.\nAGENT: Nice. Any specific reason?\nUSER: My team is migrating one service from Go to Rust. I'm aiming to ship my first Rust PR by end of Q2.\nAGENT: That's a great goal. What resources are you using?\nUSER: Working through The Rust Programming Language book and writing toy projects.",
+  "expectedFacts": [
+    { "text": "Learning Rust this year", "attributedTo": "user" },
+    { "text": "Team migrating one service from Go to Rust", "attributedTo": "user" },
+    { "text": "Goal: ship first Rust PR by end of Q2", "attributedTo": "user" },
+    { "text": "Studying with The Rust Programming Language book + toy projects", "attributedTo": "user" }
+  ]
+}

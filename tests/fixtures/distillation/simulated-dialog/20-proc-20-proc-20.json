@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-20-proc-20",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to evaluate a vendor proposal.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: the stack is TypeScript + Node + Postgres; and the budget cap is 50k USD.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: evaluate a vendor proposal"
+    },
+    {
+      "text": "the stack is TypeScript + Node + Postgres"
+    },
+    {
+      "text": "the budget cap is 50k USD"
+    }
+  ]
+}

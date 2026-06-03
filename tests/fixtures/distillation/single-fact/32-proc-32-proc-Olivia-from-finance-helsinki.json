@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-32-proc-Olivia-from-finance-helsinki",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Helsinki deployment, Olivia from finance reviews every Friday — the quarterly burn rate.",
+  "expectedFacts": [
+    {
+      "text": "Olivia from finance reviews every Friday (Helsinki deployment)"
+    }
+  ]
+}

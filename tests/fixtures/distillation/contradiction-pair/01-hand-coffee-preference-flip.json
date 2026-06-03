@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-01-hand-coffee-preference-flip",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Update: I switched from oat milk back to whole milk in my coffee. Oat milk wasn't doing it for me anymore.",
+  "expectedFacts": [
+    { "text": "Currently prefers whole milk in coffee", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Currently prefers whole milk in coffee",
+    "rejected": "Prefers oat milk in coffee"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "multi-fact-03-hand-team-context",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Our team has 8 engineers. Sarah leads frontend, Marcus runs backend, and I'm tech lead for infrastructure. We do weekly 1:1s on Mondays.",
+  "expectedFacts": [
+    { "text": "Team has 8 engineers", "attributedTo": "user" },
+    { "text": "Sarah leads frontend", "attributedTo": "user" },
+    { "text": "Marcus runs backend", "attributedTo": "user" },
+    { "text": "User is tech lead for infrastructure", "attributedTo": "user" },
+    { "text": "Weekly 1:1s scheduled on Mondays", "attributedTo": "user" }
+  ]
+}

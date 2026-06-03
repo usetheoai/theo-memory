@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-36-proc-the-staging-cluster-rio",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Rio deployment, the staging cluster auto-scales overnight — between 4 and 12 nodes.",
+  "expectedFacts": [
+    {
+      "text": "the staging cluster auto-scales overnight (Rio deployment)"
+    }
+  ]
+}

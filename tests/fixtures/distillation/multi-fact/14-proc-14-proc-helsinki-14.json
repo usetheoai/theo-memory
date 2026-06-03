@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-14-proc-helsinki-14",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Helsinki region: Yuki from research publishes monthly; the postgres replica lags during peak (by 200 to 400 milliseconds); Theo from support rotates weekly.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly"
+    },
+    {
+      "text": "the postgres replica lags during peak — by 200 to 400 milliseconds"
+    },
+    {
+      "text": "Theo from support rotates weekly"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "multi-fact-08-hand-conference-attended",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Attended QCon London last week. Best talks were on event-driven architectures, Rust at the edge, and observability for serverless.",
+  "expectedFacts": [
+    { "text": "Attended QCon London", "attributedTo": "user" },
+    { "text": "Favorite talk topic: event-driven architectures", "attributedTo": "user" },
+    { "text": "Favorite talk topic: Rust at the edge", "attributedTo": "user" },
+    { "text": "Favorite talk topic: observability for serverless", "attributedTo": "user" }
+  ]
+}

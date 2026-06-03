@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-42-proc-Theo-from-support-montréal",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Montréal deployment, Theo from support rotates weekly — through the on-call schedule.",
+  "expectedFacts": [
+    {
+      "text": "Theo from support rotates weekly (Montréal deployment)"
+    }
+  ]
+}

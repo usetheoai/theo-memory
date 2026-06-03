@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-35-proc-the-API-gateway-toronto",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Toronto deployment, the API gateway rate-limits per IP — at 1000 requests per minute.",
+  "expectedFacts": [
+    {
+      "text": "the API gateway rate-limits per IP (Toronto deployment)"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-50-proc-toronto-50",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Toronto region: Yuki from research publishes monthly; the API gateway rate-limits per IP (at 1000 requests per minute); the analytics dashboard refreshes every 15 minutes.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly"
+    },
+    {
+      "text": "the API gateway rate-limits per IP — at 1000 requests per minute"
+    },
+    {
+      "text": "the analytics dashboard refreshes every 15 minutes"
+    }
+  ]
+}

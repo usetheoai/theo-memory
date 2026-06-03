@@ -1,0 +1,11 @@
+{
+  "id": "entity-overlap-08-hand-investor-context",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "Sequoia led our Series A. The lead partner is Roelof Botha. We met him through an intro from Patrick Collison.",
+  "expectedFacts": [
+    { "text": "Sequoia led the Series A", "attributedTo": "user" },
+    { "text": "Roelof Botha is the lead partner from Sequoia", "attributedTo": "user" },
+    { "text": "Patrick Collison made the intro to Roelof Botha", "attributedTo": "user" }
+  ]
+}

@@ -11,10 +11,35 @@
  *  - HNSW index on embedding with vector_cosine_ops
  *  - Unique BTREE index on hash (MD5 collision rare enough for v0.1 to UNIQUE)
  *  - Scope columns (user_id/session_id/agent_id) nullable; AND-composed by Filters at query time
- *  - Bi-temporal columns (t_valid/t_invalid) nullable per ADR-0006 — local runtime throws
- *    BiTemporalNotSupportedLocally on asOf queries until v0.5
+ *  - Bi-temporal columns (t_valid/t_invalid) nullable per ADR-0006 (schema clause).
+ *    Local runtime honors `asOf` recall queries from v1.1 per ADR-0011 (supersedes
+ *    the ADR-0006 runtime clause); pre-v1.1 callers got `BiTemporalNotSupportedLocally`.
  *  - payload: jsonb storing Record<string, string | number | boolean | null>
  *  - text_lemmatized: jsonb storing string[] (pre-computed BM25 tokens, blueprint Recommendation 3)
+ *
+ * **F-M3 review finding — parametric-dim drift constraint (LOCKED, document-only mitigation):**
+ *
+ *   When `runMigrations(pool, { embeddingDim: N })` is called with N != 1536,
+ *   the live DB ends up with `vector(N)` columns, but this schema.ts file
+ *   still declares `vector(1536)` literally (Drizzle's `pgTable` cannot
+ *   read `MAX_EMBEDDING_DIM` from runtime constants — the parameter is
+ *   resolved at build time when drizzle-kit generates migrations).
+ *
+ *   Consequence: **NEVER run `drizzle-kit push` against a database whose
+ *   live embedding dim diverges from this file.** drizzle-kit introspects
+ *   the live DB and computes a destructive ALTER back to 1536, silently
+ *   reverting the parametric change (and dropping all 384-dim rows in the
+ *   process). The orphan-schema mitigation in architecture.md § 10.2 does
+ *   NOT cover this case — it only short-circuits when the journal is
+ *   missing, not when columns disagree.
+ *
+ *   The contract: production deploys go through `runMigrations()` on a
+ *   fresh DB (which honors `embeddingDim` symmetrically). Dev/CI envs
+ *   that use `db:push` MUST stay at 1536. The applyDimChange console.error
+ *   in src/local/index.ts surfaces this constraint at runtime when the
+ *   operator triggers the parametric path.
+ *
+ *   See: .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-M3 + F-Mi5
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1 + ADR D1.7
  * @see .claude/knowledge-base/references/REDACTED/REDACTED/orm/passage.py:1-105
@@ -54,6 +79,12 @@ export const memories = pgTable(
     agentId: text('agent_id'),
     tValid: timestamp('t_valid', { withTimezone: true }).defaultNow(),
     tInvalid: timestamp('t_invalid', { withTimezone: true }),
+    /** v1.1 T1.1: first-class promoted column for multi-peer attribution per blueprint Q3 + R1.
+     *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
+     *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
+     *  (any peer ID accepted; not restricted to REDACTED's bivalent "user"/"assistant" vocabulary).
+     *  @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2. */
+    attributedTo: text('attributed_to'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
     /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
      *  v0.6: also accepts 'skill' (code-as-skill) per plan ADR D3. */
@@ -116,6 +147,16 @@ export const memories = pgTable(
     index('idx_memories_eviction_score_session')
       .on(table.sessionId)
       .where(sql`${table.tInvalid} IS NULL`),
+    // v1.1 (T1.1): partial composite index on (user_id, attributed_to) for
+    // peer-attributed recall. WHERE clause keeps the index narrow — most rows
+    // (pre-v1.1 + non-attributed v1.1) have NULL attributed_to and skip indexing.
+    // Declared here to close the `drizzle-kit push` parity gap surfaced by
+    // /review F-dom-dbmig-1 — migration 0008_attributed_to.sql already creates
+    // the index via runMigrations(); this declaration makes push-flow developers
+    // land the same index per architecture.md § 10.2.
+    index('idx_memories_user_attributed_to')
+      .on(table.userId, table.attributedTo)
+      .where(sql`${table.attributedTo} IS NOT NULL`),
     check(
       // EC-1 absorption (plan v1.1): name verbatim, cited by
       // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
@@ -196,5 +237,35 @@ export const history = pgTable(
   (table) => [
     index('history_memory_id_idx').on(table.memoryId),
     index('history_timestamp_idx').on(sql`${table.timestamp} DESC, ${table.id} DESC`),
+  ],
+);
+
+/**
+ * v0.7 distillation pipeline audit trail — every conflict-resolution decision
+ * lands here as one row. `kept_memory_id` uses ON DELETE SET NULL so a GDPR
+ * `Memory.forget(id, { hard: true })` survives at the audit layer (the row
+ * stays, the FK pointer goes NULL). Closes /review F-C3: previously declared
+ * only in migration `0007_distillation_columns.sql` + `meta/0007_snapshot.json`
+ * but NOT here; `drizzle-kit push` would have computed a destructive diff
+ * (DROP TABLE) and silently lost all GDPR-survival audit rows.
+ *
+ * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3
+ * @see src/local/migrations/0007_distillation_columns.sql
+ * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md § F-C3
+ */
+export const consolidationHistory = pgTable(
+  'consolidation_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    keptMemoryId: uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' }),
+    rejectedMemoryIds: jsonb('rejected_memory_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    reason: text('reason').notNull(),
+    policyName: text('policy_name').notNull(),
+    originalEpisodeIds: jsonb('original_episode_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('idx_consolidation_history_kept').on(table.keptMemoryId),
+    index('idx_consolidation_history_created').on(sql`${table.createdAt} DESC`),
   ],
 );

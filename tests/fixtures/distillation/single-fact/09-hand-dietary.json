@@ -1,0 +1,9 @@
+{
+  "id": "single-fact-09-hand-dietary",
+  "category": "single-fact",
+  "source": "hand",
+  "episodeText": "Been vegetarian since I was 16 — over a decade now. No fish or seafood either.",
+  "expectedFacts": [
+    { "text": "Vegetarian for over a decade (since age 16), no fish or seafood", "attributedTo": "user" }
+  ]
+}

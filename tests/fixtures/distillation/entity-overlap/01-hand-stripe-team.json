@@ -1,0 +1,10 @@
+{
+  "id": "entity-overlap-01-hand-stripe-team",
+  "category": "entity-overlap",
+  "source": "hand",
+  "episodeText": "At Stripe, I worked under Lisa Chen on the Treasury team. She mentored me through my first staff promotion.",
+  "expectedFacts": [
+    { "text": "Lisa Chen was manager at Stripe Treasury team", "attributedTo": "user" },
+    { "text": "Lisa Chen mentored user through first staff promotion", "attributedTo": "user" }
+  ]
+}

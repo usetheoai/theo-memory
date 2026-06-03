@@ -1,0 +1,10 @@
+{
+  "id": "simulated-dialog-05-hand-recipe-dialog",
+  "category": "simulated-dialog",
+  "source": "hand",
+  "episodeText": "USER: I want to make pasta tonight, what do I have at home?\nAGENT: Let me check your last grocery note. You have eggs, guanciale, pecorino, and spaghetti.\nUSER: Perfect, carbonara it is. I'm cooking for 4 people.",
+  "expectedFacts": [
+    { "text": "Cooking carbonara tonight for 4 people", "attributedTo": "user" },
+    { "text": "Has eggs, guanciale, pecorino, and spaghetti at home", "attributedTo": "user" }
+  ]
+}

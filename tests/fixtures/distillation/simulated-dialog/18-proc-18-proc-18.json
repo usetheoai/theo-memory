@@ -1,0 +1,17 @@
+{
+  "id": "simulated-dialog-18-proc-18",
+  "category": "simulated-dialog",
+  "source": "procedural-seed",
+  "episodeText": "USER: I need to set up a monitoring dashboard for the new service.\nAGENT: Got it — what context should I keep in mind?\nUSER: A few things: on-call covers business hours only; and the stack is TypeScript + Node + Postgres.\nAGENT: Noted. Let's start with the highest-priority item.",
+  "expectedFacts": [
+    {
+      "text": "Working on: set up a monitoring dashboard for the new service"
+    },
+    {
+      "text": "on-call covers business hours only"
+    },
+    {
+      "text": "the stack is TypeScript + Node + Postgres"
+    }
+  ]
+}

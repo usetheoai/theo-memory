@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-28-proc-Yuki-from-research-rio",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Rio deployment, Yuki from research publishes monthly — the model evaluation report.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly (Rio deployment)"
+    }
+  ]
+}
