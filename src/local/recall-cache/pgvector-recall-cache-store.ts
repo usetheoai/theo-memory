@@ -63,9 +63,18 @@ import { withSerializableTransactionAndRetry } from './serializable-tx.js';
  * `get()` SQL — selects the closest non-expired row with similarity ≥ threshold.
  *
  * Cosine similarity = `1 - (a <=> b)` (pgvector cosine distance operator).
- * NaN filtering (EC-8): when query_embedding has zero norm, distance is NaN
- * and `(1 - NaN) >= 0.8` evaluates false, so zero-norm rows are excluded
- * naturally without an explicit guard.
+ *
+ * **EC-8 zero-norm handling (READ CAREFULLY — load-bearing application guard):**
+ * Pgvector `<=> 0_vec` yields `NaN`. PostgreSQL float comparisons treat NaN
+ * as GREATER-THAN every non-NaN value (per PG docs § 8.1.4), so the
+ * `(1 - NaN) >= 0.8` filter HERE evaluates to TRUE and would let zero-norm
+ * rows through — the opposite of IEEE 754 semantics. The fix lives at the
+ * application boundary: `isZeroNorm()` short-circuits MISS at `get()` entry
+ * BEFORE this SQL is run. **DO NOT remove the `isZeroNorm()` guard "because
+ * the SQL filters it" — the SQL does NOT, and removing the guard silently
+ * re-introduces the EC-8 cache-poisoning bug.** Cross-references the
+ * file-level JSDoc above + `pgvector-recall-cache-store.test.ts` T1.1-RED-9
+ * + plan EC-8 absorption.
  */
 const GET_SQL = `SELECT result_set, threshold_used, (1 - (query_embedding <=> $2::vector)) AS similarity, created_at
    FROM recall_cache

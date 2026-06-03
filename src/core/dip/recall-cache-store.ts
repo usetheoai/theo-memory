@@ -13,15 +13,18 @@
  *
  * **Design decisions** (locked by blueprint v1.0 — see § ADRs of plan v1.1):
  *   - Default similarity threshold: cosine ≥ 0.8 — validated by independent
- *     convergence of embedchain (`similarity_threshold=0.8`) and LangChain
- *     (`distance_threshold=0.2 ≈ similarity 0.8` via algebra `1 - distance`).
- *     LangChain's known calibration failure at distance 0.3 (similarity 0.7)
- *     confirms 0.7 is too strict for OpenAI-class embeddings.
+ *     convergence across two canonical RAG-cache libraries surveyed by the
+ *     blueprint (both ship the same numeric threshold via different operator
+ *     conventions: one as cosine-similarity ≥ 0.8, the other as
+ *     cosine-distance ≤ 0.2 — equivalent under `similarity = 1 − distance`).
+ *     The same survey records an empirical calibration failure at
+ *     similarity 0.7, confirming 0.7 is too strict for general-purpose
+ *     embeddings.
  *   - TTL gated by scope-tier: user 24h / agent 1h / session 10min / repo 1h.
  *     `repo` is the skill-scope tier per ADR-0010 (the 4th tier added by v0.6;
  *     surfaced via `Memory.skills(repoId)`).
  *   - LRU eviction at max_size=1000 per scope — empirical consumer-pairing
- *     from embedchain `gptcache_data_manager(max_size=1000, eviction="LRU")`.
+ *     mirroring the conservative default of one of the surveyed cache libraries.
  *   - Cache key = `(scope_key, query_embedding)`. Does NOT include `asOf`,
  *     `attributedTo`, or `topK`; recall paths with those options BYPASS the
  *     cache entirely per ADR D8 (v1.5.0 cache applicability boundary).
@@ -35,7 +38,7 @@
  * @see Plan semantic-recall-cache-v1-5 § ADR D2 (threshold default 0.8)
  * @see Plan semantic-recall-cache-v1-5 § ADR D3 (4 scope-tier TTL spread)
  * @see Plan semantic-recall-cache-v1-5 § ADR D8 (cache applicability boundary)
- * @see Blueprint semantic-recall-cache § Q4 + Q7 (threshold convergence)
+ * @see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § Q4 + Q7 (threshold convergence + library survey)
  * @see ADR-0008 (DIP method-count cap)
  * @see ADR-0010 (RepoScope = 4th tier surfaced via Memory.skills(repoId))
  */
@@ -92,9 +95,9 @@ export interface RecallCacheStoreConfig {
   readonly ttlSecondsByScopeTier?: ScopeTierTtlConfig;
 
   /**
-   * Per-scope row cap for LRU eviction. Default 1000 (empirical consumer
-   * default per embedchain Q4). Values < 10 cause cache thrashing — README
-   * warns against, but validator only enforces `>= 1`.
+   * Per-scope row cap for LRU eviction. Default 1000 (conservative consumer
+   * default per blueprint Q4 library survey). Values < 10 cause cache
+   * thrashing — README warns against, but validator only enforces `>= 1`.
    */
   readonly maxSizePerScope?: number;
 }
@@ -158,13 +161,16 @@ export const DEFAULT_TTL_SECONDS_BY_SCOPE_TIER: ScopeTierTtlConfig = Object.free
 
 /**
  * Default cosine similarity threshold for cache hit per blueprint D2.
- * Convergent across embedchain (similarity 0.8) AND LangChain (distance 0.2).
+ * Convergent across two canonical libraries surveyed by the blueprint — one
+ * expressing the threshold as cosine-similarity ≥ 0.8, the other as
+ * cosine-distance ≤ 0.2 (equivalent under `similarity = 1 − distance`).
  */
 export const DEFAULT_THRESHOLD = 0.8;
 
 /**
  * Default per-scope row cap for LRU eviction per blueprint Rec #8.
- * Empirical consumer default from embedchain `gptcache_data_manager(max_size=1000)`.
+ * Conservative consumer default mirroring one of the libraries surveyed in
+ * the blueprint Q4 prior-art table (max_size=1000).
  */
 export const DEFAULT_MAX_SIZE_PER_SCOPE = 1_000;
 
