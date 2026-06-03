@@ -1,0 +1,233 @@
+agent: review-theo-memory-standalone-p0-fixes-cycle-1-wiring
+review_target: 0e40344..HEAD for plan theo-memory-standalone-p0-fixes-cycle-1
+plan: .claude/knowledge-base/plans/theo-memory-standalone-p0-fixes-cycle-1-plan.md
+diff_base: 0e40344
+fix_up_commits:
+  - 6e3b4ee  # T1.1 F-rev-1 remove skillRepoId from REST scope keys
+  - 703fc5a  # T1.2 F-rev-12 extract _body-parsing.ts (SRP)
+  - 1512654  # T2.1 F-rev-4 mount hono/body-limit 1MB cap
+  - ab03ae0  # T2.2 F-rev-9 stub-embedder loud startup warning
+  - 9883462  # T2.3 F-rev-3 source plan v1.3 -> v1.4 (docs only)
+  - c9fc343  # T3.1 lightweight re-review verification (docs only)
+
+triad_revalidation:
+  total_new_symbols_in_scope: 6
+  # T1.2 _body-parsing.ts: safeJson, scopeOrValidationError, EMPTY_BODY, MALFORMED_BODY
+  # T1.1 scopes.ts: 501 short-circuit branch (no new symbol; behavior change inside scopesHandler)
+  # T2.1 app.ts: bodyLimit middleware mount (no new export; behavior change inside createApp)
+  # T2.2 run-server.ts + run-mcp-server.ts: process.stderr.write startup warning (no new export; behavior change)
+  pillar_a_honest_pass: 6 / 6
+  pillar_b_honest_pass: 5 / 6  # MCP-side T2.2 warning has no dedicated test
+  pillar_c_observed: n/a / n/a  # No new runtime metrics declared by the fix-up cycle
+
+dead_export_audit:
+  result: PARTIAL
+  details: |
+    - _body-parsing.ts ALL exports consumed: safeJson by remember/recall/reflect/forget;
+      scopeOrValidationError by remember/recall/reflect (not by forget — forget uses
+      generic error path because ForgetBody has no superRefine scope-tier discriminator,
+      validated by inspection of forget.ts:24-31);
+      EMPTY_BODY + MALFORMED_BODY by all 4 verb handlers.
+    - schemas.ts MemoryLike: still EXPORTED but consumed ONLY internally as resolveScope
+      parameter type. No external import. Pre-existing (the export was already there
+      before T1.1; the fix REMOVED the skills() member, did not delete the interface).
+      Not "newly orphaned by this cycle" — neutral.
+    - schemas.ts ScopedMemoryLike: same shape (exported, used only by MemoryLike).
+      Pre-existing; not newly orphaned by this cycle.
+    - schemas.ts skillRepoId: fully removed from SCOPE_KEYS, ScopeFields, resolveScope,
+      MemoryLike. No dead reference remains in src/ (only documented in JSDoc of the
+      same file and in test names that assert its REJECTION).
+
+integration_with_existing_flows:
+  middleware_order:
+    declared_by_adr: "ADR D3 v1.1 — OTel → bodyLimit → bearer"
+    observed_in_source:
+      file: src/server/app.ts
+      sequence:
+        - "L80: app.use('/v1/*', otelMiddleware(tracer))           # OTel FIRST"
+        - "L96-L107: app.use('/v1/*', bodyLimit({maxSize: 1_000_000, onError}))  # bodyLimit SECOND"
+        - "L117-L118: app.get('/v1/health', ...) + healthDb        # auth-exempt health routes BEFORE bearer"
+        - "L120: app.use('/v1/*', bearerAuth(authVerifier))        # bearer LAST"
+        - "L122+: verb mounts"
+    verdict: COMPLIANT
+    pillar_b_proof: src/server/__tests__/handlers.test.ts FC1-T2.1-RED-2 asserts 2MB body + no Authorization + key set → 413 (NOT 401), pinning bodyLimit-before-bearer ordering.
+  route_mounts:
+    - "scopesHandler mounted at GET /v1/scopes/:type/:id/memories (app.ts:122)"
+    - "rememberHandler → POST /v1/remember (app.ts:124)"
+    - "recallHandler → POST /v1/recall (app.ts:125)"
+    - "forgetHandler → POST /v1/forget (app.ts:126)"
+    - "reflectHandler → POST /v1/reflect (app.ts:127)"
+  composition_root:
+    - "src/agent-tools/run-server.ts imports createServer (from src/server/index.ts) AND createLocalMemory (from src/local/index.ts) — per ADR D8 the bin entry IS the composition site."
+    - "src/server/ stays pg-free: grep 'from .*pg' src/server/**/*.ts returns 0 matches."
+
+boundary_check_dip:
+  src_server_imports_from_local_or_cloud: false
+  src_server_imports_from_theokit_or_agent_tools: false
+  verdict: COMPLIANT
+
+findings:
+  - id: F-wire-1
+    severity: MINOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: 81-92
+    plan_ref: theo-memory-standalone-p0-fixes-cycle-1 § T2.2 (F-rev-9 absorption) — Wiring triad pillar (b)
+    summary: |
+      T2.2 / F-rev-9 stub-embedder startup warning was added to BOTH
+      composition roots (run-server.ts AND run-mcp-server.ts) — but only
+      run-server.ts has a dedicated FC1-T2.2-RED test asserting the warning
+      fires on stderr. The MCP-side variant (`themory mcp: WARNING —
+      StubEmbedder + StubLLM in use ...`) is wired in code but un-tested.
+    evidence: |
+      - src/agent-tools/run-mcp-server.ts L81-L92 emits 3 lines of stderr.
+      - Commit ab03ae0 message claims "Wiring triad: (b) integration:
+        FC1-T2.2-RED test verifies via captured spy" — singular. The
+        FC1-T2.2-RED test in run-server.test.ts (L202-L208) imports
+        '../run-server.js' and asserts the captured stderr matches
+        /themory server/i — it does NOT exercise run-mcp-server.
+      - No equivalent test exists in src/agent-tools/__tests__/ for
+        run-mcp-server.ts (verified: only cli.test.ts touches
+        runMcpServer and that file has zero refs to stub-embedder /
+        WARNING / FC1-T2.2).
+    recommended_action: |
+      Add a sibling test in src/agent-tools/__tests__/cli.test.ts (or a
+      new src/agent-tools/__tests__/run-mcp-server.test.ts) that imports
+      '../run-mcp-server.js', invokes runMcpServer(), captures stderr,
+      and asserts the warning text contains "themory mcp" + "stub
+      embedder". The existing cli.test.ts already mocks the same module
+      surface (pg Pool, createLocalMemory, StubEmbedder, StubLLM) so the
+      addition is ~10 LoC.
+    blast_radius_today: |
+      LOW — the warning IS emitted at runtime; the missing test means a
+      future refactor could silently drop the MCP-side warning and
+      no CI gate would catch it. Not a regression today.
+
+  - id: F-wire-2
+    severity: INFO
+    file: src/server/schemas.ts
+    line: 102-106
+    plan_ref: theo-memory-standalone-p0-fixes-cycle-1 § T1.1 (F-rev-1 absorption)
+    summary: |
+      The `MemoryLike` interface (and its sibling `ScopedMemoryLike`) is
+      `export`-ed from src/server/schemas.ts but has ZERO external
+      importers. It is consumed only internally as the parameter type of
+      `resolveScope`. This is a PRE-EXISTING orphan export — not newly
+      introduced by T1.1 — but T1.1 had the opportunity to demote it to
+      `interface MemoryLike` (no `export`) since the cycle was already
+      restructuring the symbol (skills() member removed).
+    evidence: |
+      grep -rn 'import.*MemoryLike' src returns only the in-file definition
+      and the in-file consumer (resolveScope at schemas.ts:109). No test
+      file imports MemoryLike either.
+    recommended_action: |
+      NEXT-CYCLE follow-up — drop the `export` keyword on MemoryLike +
+      ScopedMemoryLike in src/server/schemas.ts (downgrade to module-
+      private). Out of scope for the current fix-up cycle since the
+      orphan export pre-dated it. Mention in the next refactor cycle
+      that absorbs the F-arch-2 / F-arch-6 / F-arch-7 LoC budget debt
+      (per CLAUDE.md Roadmap Item 12 caveats).
+    blast_radius_today: |
+      ZERO — pre-existing surface; cycle did not regress.
+
+  - id: F-wire-3
+    severity: INFO
+    file: src/server/handlers/_body-parsing.ts
+    line: 1-43
+    plan_ref: theo-memory-standalone-p0-fixes-cycle-1 § T1.2 (F-rev-12 SRP discipline)
+    summary: |
+      _body-parsing.ts cleanly extracted with all 4 exports consumed by
+      at least 3 of 4 verb handlers (safeJson by all 4; EMPTY_BODY +
+      MALFORMED_BODY by all 4; scopeOrValidationError by remember +
+      recall + reflect; forget intentionally uses its own error path
+      because ForgetBody has no scope-tier discriminator). Pillar (a)
+      static caller fully honest. Pillar (b) integration test honest —
+      the 4 handlers ARE the tests for these exports via existing
+      handlers.test.ts (EC-6 malformed-JSON, EC-7 empty-body coverage)
+      that already pre-dated the extraction.
+    evidence: |
+      - remember.ts:14 imports {EMPTY_BODY, MALFORMED_BODY, safeJson,
+        scopeOrValidationError} — uses all 4.
+      - recall.ts:11 imports same 4 — uses all 4.
+      - reflect.ts:11 imports same 4 — uses all 4.
+      - forget.ts:12 imports {EMPTY_BODY, MALFORMED_BODY, safeJson} —
+        uses 3 (scopeOrValidationError NOT applicable; forget body has
+        no scope-tier discriminator).
+      - handlers.test.ts existing tests "6. malformed JSON returns 400
+        (EC-6)" and "7. empty body returns 422 (EC-7)" exercise both
+        sentinels indirectly across all 4 verbs.
+    recommended_action: NONE — extraction is clean and fully wired.
+    blast_radius_today: ZERO.
+
+  - id: F-wire-4
+    severity: INFO
+    file: src/server/handlers/scopes.ts
+    line: 88-102
+    plan_ref: theo-memory-standalone-p0-fixes-cycle-1 § T1.1 (F-rev-1 / EC-4 absorption)
+    summary: |
+      The 501 SKILL_LISTING_NOT_IMPLEMENTED short-circuit lands BEFORE
+      pathParamsToScoped() dispatch — per the in-source comment and
+      verified by scopes.test.ts test #12b which asserts
+      `memory.skills` mock was NEVER called when the route hits with
+      type='skill'. Pillar (a) (the route IS mounted in app.ts:122),
+      pillar (b) (test #12 + #12b) both honest.
+    evidence: |
+      - scopes.ts L88: comment "EC-4 absorption: this branch lands
+        BEFORE any call to memory.skills()".
+      - scopes.ts L96-L102: switch on typeParse.data === 'skill'
+        returns 501 + SKILL_LISTING_NOT_IMPLEMENTED envelope.
+      - scopes.test.ts L186 test '12b. FC1-T1.1 EC-4 — skill branch
+        short-circuits BEFORE calling memory.skills' asserts
+        expect(skillsMock).not.toHaveBeenCalled().
+    recommended_action: NONE — branch order verified by EC-4 test.
+    blast_radius_today: ZERO.
+
+summary:
+  verdict: READY_TO_MERGE_WITH_CAVEATS
+  rationale: |
+    All 6 fix-up commits land their wiring triad honestly:
+    - T1.1 (skillRepoId removal): pillar (a) resolveScope reduced to 3
+      branches, all callers updated; pillar (b) 3 RED tests
+      (FC1-T1.1-RED-1/2/3) + scopes #12 + #12b + openapi #5 = 6 new
+      tests pinning the contract; pillar (c) n/a.
+    - T1.2 (_body-parsing.ts extraction): pillar (a) all 4 verb
+      handlers consume the exports; pillar (b) existing EC-6/EC-7
+      tests exercise the extracted code paths transparently; pillar
+      (c) n/a.
+    - T2.1 (bodyLimit middleware): pillar (a) middleware IS the
+      production wire (mounted in createApp); pillar (b) 3 tests
+      (FC1-T2.1-RED-1/2/3) pin payload-too-large + middleware order
+      + small-body passthrough; pillar (c) n/a. ADR D3 v1.1 ordering
+      (OTel → bodyLimit → bearer) verified in source AND in test
+      RED-2.
+    - T2.2 (stub-embedder warning): pillar (a) emitted in BOTH
+      run-server.ts AND run-mcp-server.ts at startup; pillar (b)
+      FC1-T2.2-RED test covers run-server only — MCP-side is
+      untested (F-wire-1 above).
+    - T2.3 + T3.1: docs-only commits — no wiring claim, no
+      regression possible.
+
+    Boundary check (DIP): src/server/ contains zero imports from
+    src/local/, src/cloud/, src/theokit/, src/agent-tools/. The
+    composition root in src/agent-tools/run-server.ts is the
+    legitimate import locus per ADR D8 + architecture.md § 3.
+
+    Dead-export audit: T1.1's removal of skills() from MemoryLike did
+    NOT orphan any imports — the interface stays live (used by
+    resolveScope's param type). Pre-existing MemoryLike export is
+    orphaned at the module-public boundary (no external importers) but
+    was orphaned BEFORE this cycle; flagged as F-wire-2 INFO for the
+    next refactor cycle, not as a fix-up-cycle regression.
+
+    The MAJOR vs MINOR call on F-wire-1: the warning IS emitted at
+    runtime (verified by code inspection of run-mcp-server.ts:81-92),
+    so consumer-honesty Rule 3 IS satisfied today. The gap is a
+    missing CI gate that would catch a future silent drop. Calling it
+    MINOR because the user-facing contract is intact and the
+    remediation is a ~10-LoC test addition reusing existing mock
+    infrastructure.
+
+  blockers_count: 0
+  critical_count: 0
+  major_count: 0
+  minor_count: 1
+  info_count: 3

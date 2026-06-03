@@ -1,0 +1,219 @@
+agent: review-theo-memory-standalone-p0-fixes-cycle-1-architecture
+review_target: 0e40344..HEAD for plan theo-memory-standalone-p0-fixes-cycle-1 (6 fix-up commits only)
+plan: .claude/knowledge-base/plans/theo-memory-standalone-p0-fixes-cycle-1-plan.md
+diff_summary:
+  files_changed: 22 (12 source/tests + 10 doc/changelog/plan)
+  source_files_changed:
+    - src/server/schemas.ts (-9/+18 — F-rev-1 skillRepoId removed from REST scope keys)
+    - src/server/handlers/scopes.ts (-3/+22 — 501 short-circuit for skill type)
+    - src/server/handlers/remember.ts (-37/+8 — SRP refactor; body-parsing helpers extracted)
+    - src/server/handlers/_body-parsing.ts (NEW +43 — shared helpers per SRP)
+    - src/server/handlers/recall.ts (small — import re-pointed)
+    - src/server/handlers/reflect.ts (small — import re-pointed)
+    - src/server/handlers/forget.ts (small — import re-pointed)
+    - src/server/app.ts (+25 — hono/body-limit 1MB cap wired BEFORE bearer)
+    - src/agent-tools/run-server.ts (+18 — stub-embedder loud warning)
+    - src/agent-tools/run-mcp-server.ts (+14 — same warning, parity)
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: src/server/schemas.ts
+    line: 23-46
+    plan_ref: T1.1 / F-rev-1 / EC-2 absorption
+    summary: F-rev-1 CRITICAL absorption is structurally clean — skillRepoId fully purged from SCOPE_KEYS, ScopeFields, MemoryLike, resolveScope. The contract divergence is GONE, not hidden.
+    evidence: |
+      Before (line 23 / 36 / 105 / 108): `const SCOPE_KEYS = ['userId', 'sessionId', 'agentId', 'skillRepoId'] as const;`
+      After: 4-tuple reduced to 3; ScopeFields lost the skillRepoId entry; MemoryLike lost the `skills:` method; resolveScope dispatch lost its `skillRepoId` branch.
+      Sweep across src/server/ confirms zero residual `skillRepoId` references outside (a) historical JSDoc explaining the removal and (b) RED tests that explicitly probe rejection. `as unknown as MemoryLike` casts were dropped from the 4 verb handlers — handlers now pass `Memory` directly to `resolveScope`, which is structurally compatible (Memory is a superset of MemoryLike).
+    recommended_action: None — accept as clean architectural absorption of CRITICAL finding.
+  - id: F-arch-2
+    severity: MINOR
+    file: src/server/openapi-registration.ts
+    line: 24, 138-139
+    plan_ref: T1.1 / F-rev-1 (incomplete contract surface — OpenAPI ScopeTypeEnum still advertises 'skill')
+    summary: The `/v1/scopes/:type/:id/memories` OpenAPI path enum still advertises `'skill'` as a valid `type` parameter, but the runtime handler returns 501 SKILL_LISTING_NOT_IMPLEMENTED. Codegen clients (openapi-generator, Postman) will produce SDK methods that call a guaranteed-501 endpoint.
+    evidence: |
+      ```ts
+      // src/server/openapi-registration.ts:24
+      const ScopeTypeEnum = z.enum(['user', 'session', 'agent', 'skill']);
+      // ...
+      // line 138-139
+      params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
+      ```
+      Plan T1.1 step explicitly says CHANGELOG must document that skill scope listing is unsupported via REST; the OpenAPI spec is the machine-readable contract version of that statement and should likewise narrow the enum to `['user','session','agent']` (or keep skill but explicitly document the 501 in the responses block — currently only 200/400/404 are declared).
+    recommended_action: Either (a) drop `'skill'` from the OpenAPI `ScopeTypeEnum` so codegen clients never emit calls for a guaranteed-501 path, or (b) add a `501: { description: 'Skill scope listing is exposed only via the SDK (see CLAUDE.md ADR-0010).' }` response in `registry.registerPath({...path: '/v1/scopes/{type}/{id}/memories'})`. Option (a) is cleaner — it surfaces the contract divergence at the SDK-gen layer; option (b) keeps URL space symmetric but documents the gap. Plan's F-rev-1 absorption strategy chose Option (b) approach at runtime but did NOT propagate to the OpenAPI surface. Followup ticket acceptable; not BLOCKER for this fix-up cycle.
+  - id: F-arch-3
+    severity: INFO
+    file: src/server/handlers/_body-parsing.ts
+    line: 1-43
+    plan_ref: T1.2 / F-rev-12 SRP refactor
+    summary: Extraction is mechanically clean — EMPTY_BODY / MALFORMED_BODY symbols + safeJson + scopeOrValidationError moved verbatim with no behavior change. remember.ts is now 33 LoC (was 63) and has a single reason to change (the /v1/remember semantic). recall.ts, reflect.ts, forget.ts all re-pointed imports cleanly. Zero remaining `from './remember.js'` for body-parsing symbols.
+    evidence: |
+      `grep -rn "from.*['\"]\\./remember\\.js['\"]" src/server/` returns empty (modulo schemas-level imports).
+      `remember.ts` now imports `{ EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js'` — symmetric with the other 3 verb handlers.
+      JSDoc on `_body-parsing.ts` honestly documents the leading-underscore prefix as informational (no runtime semantic — Hono routes are explicit in `app.ts`).
+    recommended_action: None — accept as clean SRP absorption.
+  - id: F-arch-4
+    severity: MINOR
+    file: src/server/handlers/_body-parsing.ts
+    line: 1 (file path)
+    plan_ref: T1.2 / F-rev-12 — SRP location
+    summary: The new shared-helper module lives directly inside `src/server/handlers/` next to the 5 verb-named route handler files. The convention in `handlers/` is verb-named per route; a shared helper does not fit. Per architecture.md § 6 (Module hygiene), shared internals typically live in a sibling directory.
+    evidence: |
+      Current layout:
+      ```
+      src/server/handlers/
+      ├── _body-parsing.ts   ← shared helper, leading-underscore convention
+      ├── forget.ts          ← route handler
+      ├── health.ts
+      ├── recall.ts
+      ├── reflect.ts
+      ├── remember.ts
+      └── scopes.ts
+      ```
+      A cleaner home would be `src/server/lib/body-parsing.ts` or `src/server/_internal/body-parsing.ts` — co-locating helpers with handler files mixes two scopes (verb-route surface vs internal helper). The leading underscore prefix is a useful signal but not a project convention enforced anywhere else.
+    recommended_action: Future refactor (NOT in this fix-up cycle): consider moving `_body-parsing.ts` to `src/server/lib/body-parsing.ts` so `handlers/` contains only route-mapped files. Acceptable as-is for v0.1.0-alpha; flagging for hygiene. The fix-up plan itself rationally chose minimal-blast-radius (one new file in the same dir) over a larger layout change.
+  - id: F-arch-5
+    severity: INFO
+    file: src/server/app.ts
+    line: 89-109
+    plan_ref: T2.1 / F-rev-4 / EC-1 / EC-7
+    summary: hono/body-limit landed verbatim per ADR D3 v1.1. Middleware order is OTel → bodyLimit → bearer (load-bearing per EC-7). The onError callback constructs `ContentTooLargeError` and routes through `mapDomainErrorToResponse` so the 413 envelope shape matches every other 4xx/5xx — EC-1 absorption is structurally honored.
+    evidence: |
+      ```ts
+      // src/server/app.ts:87-109
+      app.use('/v1/*', otelMiddleware(tracer));
+      app.use('/v1/*', bodyLimit({
+        maxSize: 1_000_000,
+        onError: (c) => {
+          const { status, body } = mapDomainErrorToResponse(
+            new ContentTooLargeError(1_000_000, -1),
+          );
+          return c.json(body, status as Parameters<typeof c.json>[1]);
+        },
+      }));
+      // ...
+      app.use('/v1/*', bearerAuth(authVerifier));
+      ```
+      Two health endpoints land BEFORE `bearerAuth` so probes stay auth-exempt — pre-existing EC-22 ordering preserved. ContentTooLargeError exists in src/core/errors.ts:297, mapDomainErrorToResponse handles it at src/server/errors.ts:71 → returns `{ code: 'CONTENT_TOO_LARGE', message: 'Payload exceeds maximum allowed size.' }` with HTTP 413. Sanitized message hides the misleading "-1 bytes" sentinel from the wire.
+    recommended_action: None — accept. Both RED tests in handlers.test.ts (FC1-T2.1-RED-1, RED-2, RED-3) cover the envelope shape + middleware order regression + small-body passthrough.
+  - id: F-arch-6
+    severity: MINOR
+    file: src/server/app.ts
+    line: 104
+    plan_ref: T2.1 / EC-1 absorption
+    summary: The `-1` actualSize sentinel passed to `new ContentTooLargeError(1_000_000, -1)` produces an internal error message that says "Content exceeds maximum allowed payload: -1 bytes > 1000000 bytes" which is misleading if it ever escapes to logs. The wire-level 413 envelope is sanitized via `mapDomainErrorToResponse` so consumers never see the `-1`, BUT any future logger that pulls `err.message` (e.g., OTel exception event recorders) will surface the negative value.
+    evidence: |
+      ```ts
+      // src/core/errors.ts:304-308
+      constructor(maxBytes: number, actualBytes: number, options?: ErrorOptions) {
+        super(
+          `Content exceeds maximum allowed payload: ${String(actualBytes)} bytes > ${String(maxBytes)} bytes. Split the input and retry.`,
+          options,
+        );
+      ```
+      `new ContentTooLargeError(1_000_000, -1)` → message "Content exceeds maximum allowed payload: -1 bytes > 1000000 bytes. Split the input and retry." (logger artifact).
+      Comment on app.ts:96-97 honestly explains the sentinel rationale (hono does not surface actual size on limit hit). Hono v4+ docs confirm the onError callback does not receive the actual size — the sentinel is the honest signal.
+    recommended_action: Future hardening (NOT in this fix-up cycle): either (a) widen the `ContentTooLargeError` constructor to accept `actualBytes: number | 'unknown'` and emit a special message when unknown, or (b) gate the message template at construction time. Acceptable as-is because the wire envelope is sanitized — only logs are affected. Suggest a paired follow-up if/when OTel exception events start being recorded on 413s.
+  - id: F-arch-7
+    severity: MAJOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: 91-103
+    plan_ref: T2.2 / F-rev-9 — TDD discipline for MCP warning
+    summary: The MCP-side stub-embedder warning (`run-mcp-server.ts:91-103`) has NO RED test. Only `run-server.ts` got the symmetric RED test in `run-server.test.ts:200-208` (FC1-T2.2-RED). This is a TDD gap per Inquebrável Rule 5 — the MCP warning went straight to GREEN. The plan's T2.2 task step 3 explicitly calls for "Add RED test in `run-server.test.ts`" but step 2 (edit `run-mcp-server.ts`) has no sibling RED-test step. The plan absorbed this gap implicitly; the architectural review surfaces it explicitly.
+    evidence: |
+      ```bash
+      $ find src/agent-tools/__tests__ -name "*mcp*"
+      # → empty
+      $ grep -rln "stub embedder\|WARNING" src/agent-tools/__tests__/
+      # → src/agent-tools/__tests__/run-server.test.ts (only)
+      ```
+      The MCP warning code in `run-mcp-server.ts:91-103` is verbatim parity with `run-server.ts:102-118` (just different banner labels), but the parity is verified ONLY by code review — no executable test pins it.
+      Plan line 416: "Edit `run-mcp-server.ts`: same warning + same EC-8 follow-up comment before transport connects." — no test step.
+      Plan line 417: "Add RED test in `run-server.test.ts` asserting stderr contains 'STUB EMBEDDER ACTIVE' or equivalent token" — singular, no MCP sibling.
+    recommended_action: Add a paired test under `src/agent-tools/__tests__/run-mcp-server.test.ts` (or extend `cli.test.ts` which already mocks the MCP run-path) asserting that `runMcpServer()` writes the "stub embedder" warning to stderr on startup. The test would mirror `run-server.test.ts:200-208` line-by-line with `themory mcp` token expected instead of `themory server`. NOT BLOCKER for this fix-up cycle (the v0.1.0-alpha consumer signal still fires correctly at runtime) but MUST be added in the next maintenance cycle to honor TDD on both stub-warning paths. Could be filed as a follow-up MINOR.
+  - id: F-arch-8
+    severity: INFO
+    file: src/server/handlers/scopes.ts
+    line: 40-47, 84-99
+    plan_ref: T1.1 / EC-4 absorption
+    summary: scopesHandler's skill-type 501 short-circuit lands BEFORE the dispatch table, AND the `pathParamsToScoped` signature narrowed to `Exclude<ScopeType, 'skill'>`. The dispatch table no longer carries the dangerous `as unknown as ScopedMemory` cast that masked the runtime TypeError. TS now refuses to compile if the 501 branch is ever removed without restoring the cast — that's the right safety net.
+    evidence: |
+      ```ts
+      // src/server/handlers/scopes.ts:40
+      function pathParamsToScoped(memory: Memory, type: Exclude<ScopeType, 'skill'>, id: string): ScopedMemory {
+        switch (type) {
+          case 'user':    return memory.user(id);
+          case 'session': return memory.session(id);
+          case 'agent':   return memory.agent(id);
+        }
+      }
+      // line 91-99 — short-circuit BEFORE the dispatch
+      if (typeParse.data === 'skill') {
+        return c.json({ code: 'SKILL_LISTING_NOT_IMPLEMENTED', ... }, 501);
+      }
+      ```
+      EC-4 explicitly asks that `memory.skills` NEVER be called for the skill type; the test `scopes.test.ts:185-198` (12b) asserts `skillsMock.not.toHaveBeenCalled()`. Order is load-bearing — the 501 branch sits AFTER `typeParse.success` validation but BEFORE the dispatch.
+    recommended_action: None — accept. The TS-level narrowing + the explicit short-circuit + the EC-4 test together form a triadic safety net.
+  - id: F-arch-9
+    severity: INFO
+    file: src/server/
+    line: N/A (boundary check)
+    plan_ref: architecture.md § 3 (DIP)
+    summary: DIP boundary intact — `grep -rn "from 'pg'" src/server/` returns empty; `grep -rn "from '../local\|from '../cloud" src/server/` returns empty. The fix-up cycle adds no new `pg` imports inside src/server/. `ContentTooLargeError` is imported from `../core/errors.js` (allowed — core is the DIP target). `bodyLimit` from `hono/body-limit` is a peer-of-Hono import, also allowed.
+    evidence: |
+      ```bash
+      $ grep -rn "from 'pg'\|from \"pg\"" src/server/
+      # empty
+      $ grep -rn "from '../local\|from '../cloud" src/server/
+      # empty
+      ```
+      `app.ts` adds `import { ContentTooLargeError } from '../core/errors.js'` and `import { bodyLimit } from 'hono/body-limit'`. Both honor architecture.md § 3 — src/core/ is the only intra-project upstream allowed.
+    recommended_action: None — accept. The fix-up cycle preserves the DIP discipline cleanly.
+  - id: F-arch-10
+    severity: INFO
+    file: src/agent-tools/run-server.ts, src/agent-tools/run-mcp-server.ts
+    line: run-server.ts:102-118, run-mcp-server.ts:91-103
+    plan_ref: T2.2 / F-rev-9 / EC-8
+    summary: Stub-embedder warning text is hand-duplicated (3 stderr.write lines × 2 files = 6 near-identical strings differing only in `themory server` vs `themory mcp` token). This is borderline DRY — the duplication is small (~6 strings), conceptually identical, and BOTH sites carry the identical `FOLLOW-UP: gate this warning when...` comment, meaning a future change has to land in both places. Plan's T2.2 step 6 calls out that "Currently unconditional" — accepted technical debt with a documented sunset.
+    evidence: |
+      ```ts
+      // run-server.ts:110-118
+      process.stderr.write('themory server: WARNING — Stub embedder + Stub LLM in use (DeterministicStubEmbedder + StubLLM).\n');
+      process.stderr.write('themory server: Recall returns shape-correct results but is NOT semantic — only exact-text round-trips work reliably.\n');
+      process.stderr.write('themory server: For production, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n');
+
+      // run-mcp-server.ts:95-103 — same text, "themory mcp" prefix
+      ```
+      Per CLAUDE.md inquebráveis § DRY: small duplication that DOES carry knowledge of the same gap (stub-default disclosure) and that MUST move together when the EC-8 follow-up gates the warning. Borderline — qualifies as the "Regra de 3" precondition (TWO sites is duplication; a THIRD would compel extraction).
+    recommended_action: Optional follow-up: when the EC-8 conditional-warning gating ships (real-provider config — e.g., `THEMORY_EMBEDDER` env), the warning text should be lifted to a shared helper `src/agent-tools/lib/stub-warning.ts` exporting `emitStubWarning(prefix: 'themory server' | 'themory mcp'): void`. Acceptable as-is for v0.1.0-alpha; flagging because the FOLLOW-UP comments at both sites already hint that both must move together.
+  - id: F-arch-11
+    severity: INFO
+    file: src/server/__tests__/handlers.test.ts, src/server/__tests__/openapi.test.ts, src/server/__tests__/scopes.test.ts
+    line: handlers.test.ts:303-407 (105 LoC added); openapi.test.ts:80-93 (14 LoC added); scopes.test.ts:165-198 (rewritten test 12 + new 12b)
+    plan_ref: T1.1 / T1.2 / T2.1 / EC-3 / EC-4 / EC-5 / EC-6 / EC-7
+    summary: Test additions are RED-FIRST per TDD discipline: 3 RED tests for T1.1 F-rev-1 (skillRepoId rejection across remember + reflect verbs), 3 RED tests for T2.1 F-rev-4 (413 envelope + middleware order + small-body passthrough), 1 OpenAPI surface test (skillRepoId absent), 2 scopes tests (12 rewritten for 501; 12b for EC-4 short-circuit assertion). All follow the project's GWT / AAA convention from testing.md.
+    evidence: |
+      RED tests in handlers.test.ts:303-345 (F-rev-1 absorption: 3 paths probed — userId + skillRepoId mixed, skillRepoId only, /v1/reflect with skillRepoId).
+      RED tests in handlers.test.ts:348-407 (T2.1 absorption: 2MB body → 413, order regression with bearer set, 4KB passthrough → 201).
+      scopes.test.ts:165-184 rewrites the original "skill type dispatches to memory.skills(repoId)" — turns it into the negative assertion (501 SKILL_LISTING_NOT_IMPLEMENTED) per ADR-0010; line 185-198 adds 12b asserting `skillsMock.not.toHaveBeenCalled()` per EC-4. Pair correctly pins the contract.
+      openapi.test.ts:80-93 walks the OpenAPI spec for all 4 verb request bodies and asserts `Object.keys(props).not.toContain('skillRepoId')`. Useful contract sentinel.
+    recommended_action: None — accept. Tests follow TDD + testing.md convention. The MCP-side warning RED gap is captured in F-arch-7 above (not duplicated here).
+summary_counts:
+  BLOCKER: 0
+  CRITICAL: 0
+  MAJOR: 1
+  MINOR: 3
+  INFO: 7
+overall_verdict: |
+  READY_TO_MERGE_WITH_CAVEATS — the 6 fix-up commits absorb F-rev-1 CRITICAL + 4 MAJOR cleanly. The skill-scope contract divergence is GENUINELY gone (not covered up): SCOPE_KEYS narrowed, ScopeFields narrowed, MemoryLike interface narrowed, resolveScope dispatch narrowed, scopesHandler short-circuits to 501 BEFORE the dispatch table, and pathParamsToScoped's signature uses `Exclude<ScopeType, 'skill'>` so TS refuses to compile if the safety net is removed.
+
+  hono/body-limit landed verbatim per ADR D3 v1.1 with the correct middleware order (OTel → bodyLimit → bearer) and the EC-1 structured envelope wiring through `mapDomainErrorToResponse(new ContentTooLargeError(...))`. SRP refactor extracted `_body-parsing.ts` cleanly with all 4 verb handlers re-pointed.
+
+  CAVEATS:
+  1. F-arch-7 MAJOR — MCP-side stub-embedder warning has no RED test (TDD gap per Inquebrável Rule 5); plan absorbed implicitly but architectural review surfaces it. Recommended follow-up: add `run-mcp-server.test.ts` or extend `cli.test.ts` in the next maintenance cycle.
+  2. F-arch-2 MINOR — OpenAPI `ScopeTypeEnum` still advertises 'skill' as a valid path param while the runtime returns 501. Codegen clients will emit guaranteed-501 calls. Either narrow the enum or document the 501 in the OpenAPI responses block.
+  3. F-arch-4 MINOR — `_body-parsing.ts` location convention (shared helper next to verb-route files) is a hygiene smell; flagged for future layout cleanup.
+  4. F-arch-6 MINOR — `ContentTooLargeError(1_000_000, -1)` sentinel produces a misleading message at the logger surface (wire is sanitized). Acceptable as-is until OTel exception events get recorded on 413s.
+
+  No BLOCKER / CRITICAL findings. DIP boundary intact (zero `pg` imports added to src/server/, zero src/local|cloud imports added to src/server/). No `any` types introduced. No `console.*` in production paths. The fix-up cycle delivers what it promised; the 4 caveats are all follow-ups, none invalidate the absorption.
