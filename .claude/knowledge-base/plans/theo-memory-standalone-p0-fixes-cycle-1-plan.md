@@ -1,5 +1,7 @@
 # Plan: theo-memory-standalone-p0 Fixes Cycle 1 — F-rev-1 CRITICAL + 4 MAJOR absorption
 
+> **Version 1.2** (2026-06-03) — Absorbs `/deps-audit theo-memory-standalone-p0-fixes-cycle-1` pre-flight: plan lacked `## Dependencies` section. Patched: NEW `## Dependencies` section added declaring zero new deps (all 5 absorption tasks use existing dependencies already pinned by the source plan's ADR D14). T2.1 specifically uses `hono ^4.6.0`'s built-in `body-limit` middleware (subpath `hono/body-limit` — no separate package install).
+>
 > **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan theo-memory-standalone-p0-fixes-cycle-1` report (9 edge cases: 2 MUST FIX + 5 SHOULD TEST + 2 DOCUMENT). **2 MUST FIX absorbed**: EC-1 (T2.1 ADR D3 contradiction on 413 envelope shape — clarified `onError` callback wiring constructs the `ContentTooLargeError` envelope via `mapDomainErrorToResponse` since `hono/body-limit`'s `onError` returns Response directly, NOT throwing to `app.onError`); EC-2 (T1.1 RED test 1 assertion drift — `POST /v1/remember` with `skillRepoId` hits zod `.strict()` `unrecognized_keys` path returning generic `VALIDATION_ERROR`, NOT `INVALID_SCOPE`; test assertion updated to match the production code path). **5 SHOULD TEST absorbed inline** in TDD blocks: EC-3 (T1.2 cross-file import sweep before refactor), EC-4 (scopesHandler skill short-circuit verification — `memory.skills` never called), EC-5 (OpenAPI re-validation post-removal — properties walk), EC-6 (T2.2 stderr noise mitigation via `vi.spyOn` in 8 existing run-server tests), EC-7 (T2.1 middleware order regression — bodyLimit fires before bearer). **2 DOCUMENT absorbed** in Acceptance Criteria notes: EC-8 (T2.2 future conditional-warning gating reminder comment), EC-9 (T2.1 gzip-compressed body bypass at P0 alpha — README note + reverse-proxy guidance).
 >
 > **Version 1.0** (2026-06-03) — Lift `/review theo-memory-standalone-p0` verdict from **NEEDS_FIXES** to **READY_TO_MERGE_WITH_CAVEATS**. Absorbs the 1 CRITICAL finding (skill-scope contract divergence — F-rev-1, confirmed by memory-layer F-dom-mem-1 + architecture F-arch-1 reviewers) + the 4 recommended MAJOR findings (F-rev-3 health-auth-exempt ADR D3 amendment; F-rev-4 ContentTooLargeError DOS surface — hono/body-limit middleware; F-rev-9 stub-embedder consumer honesty disclosure; F-rev-12 `_body-parsing.ts` SRP refactor). All 5 absorptions surface as small, focused commits the re-review can validate without re-spawning the full agent panel.
@@ -46,6 +48,36 @@
 - [ ] Sub-goal 5 — F-rev-9: `themory server` writes loud stderr warning at startup when wired to `DeterministicStubEmbedder` + `StubLLM` (default path); README/CHANGELOG note the gap
 - [ ] Sub-goal 6 — F-rev-3: ADR D3 amendment block added to the SOURCE plan (`theo-memory-standalone-p0-plan.md` v1.3 → v1.4) documenting health-auth-exempt extension as RFC-9110 / OWASP-conformant; CHANGELOG entry mirrors the rationale
 - [ ] Sub-goal 7 — re-running `/review theo-memory-standalone-p0` (against the SAME diff base `f94c3007^`) returns **0 BLOCKER + 0 CRITICAL**; verdict moves to `READY_TO_MERGE_WITH_CAVEATS` or `READY_TO_MERGE`
+
+## Dependencies
+
+Per `cycle-plan.md` v1.1 § Trigger conditions — every plan declares its dependency surface, even when it introduces ZERO new packages.
+
+### Existing — use as-is (NO version changes)
+
+| Package | Version (current in `package.json`) | Ecosystem | Why this plan uses it |
+|---|---|---|---|
+| `hono` | `^4.6.0` | npm | T2.1 uses `hono/body-limit` (built-in middleware subpath ~~no separate dep~~). Pin already locked via source plan ADR D14 (sunset 2026-09-01). |
+| `vitest` | `^4.0.0` | npm | All RED tests across T1.1, T1.2, T2.1, T2.2 run on the existing vitest install. |
+| `zod` | `^3.25.0` | npm | T1.1 leverages existing `.strict()` schema rejection of unknown `skillRepoId` key (EC-2 absorption hinges on this behavior). |
+| `@modelcontextprotocol/sdk` | `^1.29.0` | npm | T2.2 stub-embedder warning fires in `run-mcp-server.ts` (uses the existing SDK transport). |
+| `pg` | `^8.13.0` | npm | T1.1 + T2.1 do not touch pg directly; mentioned for completeness — runServer composition root (T2.3 of source plan, unchanged here) already pins this. |
+
+### New — to be introduced
+
+| Package | Version | Ecosystem | Rule 9 rationale | Why |
+|---|---|---|---|---|
+| **(none)** | — | — | — | This fix-up plan introduces ZERO new dependencies. T2.1 specifically uses `hono ^4.6.0`'s **built-in** `body-limit` middleware via the `hono/body-limit` subpath — this is a Hono SDK feature, NOT a separate npm package. Verified at `node_modules/hono/dist/types/middleware/body-limit/index.d.ts`. |
+
+### Removed
+
+| Package | Last version | Why removed |
+|---|---|---|
+| **(none)** | — | — |
+
+### Note on `hono/body-limit` subpath
+
+`hono/body-limit` is a documented Hono built-in middleware exported under the `hono` package at the `body-limit` subpath. `package.json#exports` of `hono ^4.6.0` advertises this subpath. No `npm install` required; no ADR D14 amendment needed. The existing `hono ^4.6.0` pin (with ADR D14 sunset 2026-09-01) covers this usage.
 
 ## ADRs
 
