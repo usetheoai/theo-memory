@@ -40,6 +40,17 @@ vi.mock('../../local/index.js', () => ({
   StubLLM: class MockStubLLM {},
 }));
 
+vi.mock('../../embedders/stub.js', () => ({
+  DeterministicStubEmbedder: class MockDeterministicStubEmbedder {
+    async embed(): Promise<readonly number[]> {
+      return [0.1, 0.2, 0.3];
+    }
+    async embedBatch(texts: readonly string[]): Promise<readonly (readonly number[])[]> {
+      return texts.map(() => [0.1, 0.2, 0.3]);
+    }
+  },
+}));
+
 vi.mock('../../local/pgvector-store.js', () => ({
   PgvectorStore: class MockPgvectorStore {},
 }));
