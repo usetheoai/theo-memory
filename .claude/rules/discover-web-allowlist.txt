@@ -63,3 +63,7 @@ www.getzep.com                   # added for v0-8-benchmark-methodology Q7 at 20
 docs.langchain.com               # added for v0-8-benchmark-methodology Q4+Q8 at 2026-06-02 — LangChain LangSmith Evaluations docs (Q8 Rule 9 candidate #2); subdomain of langchain.com per allowlist subdomain rule
 python.langchain.com             # added for v0-8-benchmark-methodology Q4+Q8 at 2026-06-02 — LangChain official Python docs (Q8 Rule 9 candidate methodology); subdomain of langchain.com per allowlist subdomain rule
 developer.nvidia.com             # added for v0-8-benchmark-methodology Q8 at 2026-06-02 — NVIDIA NeMo Eval / NeMo Guardrails docs (Q8 candidate #6 — investigated only if budget allows per EC-2 cap)
+
+honcho.dev                       # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho root domain (theory-of-mind peer perspective claims, marketing); needed for Q5 prior_art on multi-peer attribution
+docs.honcho.dev                  # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho technical documentation subdomain (most likely location of the data-model spec); subdomain of honcho.dev per allowlist subdomain rule
+app.honcho.dev                   # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho application subdomain (may host live API docs / playground); subdomain of honcho.dev per allowlist subdomain rule
