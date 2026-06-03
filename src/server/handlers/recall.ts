@@ -8,7 +8,7 @@ import type { Context } from 'hono';
 import type { Memory } from '../../core/memory-store.js';
 import { RecallBody, resolveScope } from '../schemas.js';
 
-import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';
 
 export async function recallHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await safeJson(c);
