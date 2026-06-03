@@ -58,6 +58,24 @@ export class InvalidEmbeddingDim extends Error {
   }
 }
 
+/**
+ * Thrown by {@link validateRecallCacheStoreConfig} (T0.1) when the
+ * `RecallCacheStoreConfig` fails any invariant — out-of-bounds threshold,
+ * non-positive-integer `maxSizePerScope`, NaN/Infinity numeric values, or
+ * negative TTL per scope-tier (EC-1 + EC-3 absorptions).
+ *
+ * @see Plan semantic-recall-cache-v1-5 § ADR D1+D2+D3
+ * @see src/core/dip/recall-cache-store.ts
+ */
+export class InvalidCacheConfig extends Error {
+  override readonly name = 'InvalidCacheConfig' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, InvalidCacheConfig.prototype);
+  }
+}
+
 export class BiTemporalNotSupportedLocally extends Error {
   override readonly name = 'BiTemporalNotSupportedLocally' as const;
 
