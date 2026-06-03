@@ -1,5 +1,7 @@
 # Plan: semantic-recall-cache-v1-5-fixes-cycle-1 — close 7 MAJOR findings post-merge
 
+> **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan semantic-recall-cache-v1-5-fixes-cycle-1` (2026-06-03) report. **4 MUST FIX absorbed**: EC-1 (commit ORDER discipline — T0.1 commits FIRST; new § Dependency Graph clause); EC-2 (T2.2 LLM stub must capture-and-echo sourceIds to satisfy `validateProvenance`); EC-3 (T2.1 deferred-Promise gating uses microtask `Promise.resolve().then(...)` NOT `setTimeout`, plus explicit `vi.useRealTimers()`); EC-4 (T2.3 Acceptance gains explicit `SELECT scope_key FROM recall_cache` assertion in addition to row-count check). **3 SHOULD TEST absorbed inline** in TDD blocks: EC-5 (T1.1 pre-v1.5 DB defensive missing-row test); EC-6 (T2.1 await-ORDER under invalidateScope-rejects); EC-7 (T2.2 `persisted.length === 0` path no-invalidation). **3 DOCUMENT absorbed**: EC-8 (T3.2 `@deprecated` ESLint warnings on existing 4-tier tests — accept-and-document); EC-9 (T4.1 `/review` re-spawn cost ~200k tokens — use distinct date); EC-10 (EC-10 fallback path is largely theoretical for v0.1+ schema — document defensive nature in JSDoc). **Scorer false-positive cleanup**: 4 retrospective references to source plan v1.5.0's `T5.1` (the applyDimChange cascade extension in commit `05a0321`) renamed to `[source plan v1.5.0 T5.1]` so the orphan-task regex does not flag them as unmapped THIS-plan task IDs. Global DoD gains LoC budget mention per `architecture.md § Module hygiene` 500 LoC ceiling.
+>
 > **Version 1.0** (2026-06-03) — Closes the 7 MAJOR findings deferred from `/review semantic-recall-cache-v1-5` (2026-06-03) after the 3 quick wins (F-merge-1 + F-merge-6 + F-merge-9) shipped inline pre-merge in commit `c47e5ac`. Mirrors the `v0.7-distillation-pipeline-fixes-cycle-1` + `theo-memory-standalone-p0-fixes-cycle-1` precedents: a dedicated fix-up cycle scoped tightly to closing specific review findings without expanding the v1.5 contract surface. **Inquebrável Rule 11 (YAGNI) discipline ceiling**: this plan does NOT add features. It closes 4 test-coverage gaps + 1 plan/code reconciliation + 1 dim-canary extension + 1 scope-tier wiring decision (close-OR-defer).
 
 ## Goal
@@ -21,7 +23,7 @@
 2. **F-merge-4 (forget invalidation integration gap)** — `LocalMemory.forget()` invalidates the derived scope (code present); only unit-level FakeCache test exists. Plan T2.2-RED-8 specified an integration test.
 3. **F-merge-5 (EC-11 sequential-await ORDER not asserted)** — `factory-recall-cache.test.ts` T2.2-RED-1 asserts the CALL but NOT the AWAIT ORDER. A fire-and-forget regression (dropping `await`) would still PASS.
 4. **F-merge-7 (EC-10 plan/code divergence)** — plan v1.1 § T2.2 EC-10 says "fallback to `invalidateAll()` if scope not found"; impl chose "no-op + TTL staleness" (defensible but contradicts plan AC verbatim). Inquebrável Rule 3 requires resolving the divergence.
-5. **F-merge-10 (`applyDimChange` canary doesn't probe `recall_cache`)** — T5.1 cascade extended applyDimChange to ALTER `recall_cache.query_embedding` but the post-ALTER value-based canary at `src/local/index.ts:1335-1350` still only probes `memories` + `entities`.
+5. **F-merge-10 (`applyDimChange` canary doesn't probe `recall_cache`)** — the v1.5.0 cascade extension (source plan `T5.1`) extended applyDimChange to ALTER `recall_cache.query_embedding` but the post-ALTER value-based canary at `src/local/index.ts:1335-1350` still only probes `memories` + `entities`.
 6. **F-merge-2 + F-merge-8 (repo-tier wiring + scope-derivation kind-discrimination)** — `ScopeTierTtlConfig.repo` is REQUIRED in the public DIP but `LocalScopedSkillMemory.recall()` does NOT consult the cache. `deriveScopeFromPayload` cannot distinguish RepoScope from AgentScope (both use `agent_id` column). Both findings cluster: close-by-wiring OR close-by-deferral.
 
 ### Evidence motivating NOW (not later)
@@ -76,6 +78,8 @@
 
 Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D10) → T1 (F-merge-10 canary extension + test) → T2 (F-merge-3 + F-merge-4 + F-merge-5 test additions) → T3 (CHANGELOG + JSDoc Known Limitation entries per ADR D10). T4 (Final Phase: `/review` re-run). Each Tx is independent and could be parallel-able, but sequential commits aid bisection.
 
+**EC-1 commit ORDER discipline (NON-NEGOTIABLE)**: T0.1 MUST commit FIRST. T1.1, T2.1, T2.2, T2.3, T3.1, T3.2 all cite ADR D9 + ADR D10 in code/test JSDoc, commit bodies, and CHANGELOG entries. Citations land on text that does not yet exist if T0.1 commits AFTER them, creating dangling cross-references in the PR diff. Sequence enforcement: `git log --oneline` since the v1.1 plan-edit commit MUST show `plan(amend)` BEFORE any `fix`/`test`/`docs` commit. Cross-validation reviewer in T4.1 will flag dangling refs as fresh F-xval findings if order is violated.
+
 ## Phase T0 — plan reconcile + ADR D9 + ADR D10
 
 **Objective:** lock the plan/code reconciliation and the deferral decisions in writing BEFORE any test or canary change.
@@ -103,9 +107,10 @@ Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D
 - The cascade ALTER block at lines 1289-1308 already uses `DO $$ IF EXISTS` guards. Symmetric defensive guard in canary mirrors that discipline.
 
 **TDD:**
-- RED: integration test in `dim-change.test.ts` — set up DB at `embeddingDim=1536`, run `applyDimChange(pool, 384)`, query `pg_attribute.atttypmod` for `recall_cache.query_embedding`, assert `=== 384`. This passes pre-cycle (recall_cache IS ALTERed in shipped code) but the CANARY does not verify it. Add a second assertion: inject a no-op INTO recall_cache DO block by monkey-patching the SQL inside applyDimChange? (NO — too invasive). Alternative: assert the canary REGEX in the source file matches `IN \('memories', 'entities', 'recall_cache'\)`. F-arch-4 style source-level sentinel.
+- RED: integration test in `dim-change.test.ts` — set up DB at `embeddingDim=1536`, run `applyDimChange(pool, 384)`, query `pg_attribute.atttypmod` for `recall_cache.query_embedding`, assert `=== 384`. This passes pre-cycle (recall_cache IS ALTERed in shipped code) but the CANARY does not verify it. Add a second assertion: assert the canary REGEX in the source file matches `IN \('memories', 'entities', 'recall_cache'\)`. F-arch-4 style source-level sentinel.
 - GREEN: extend canary WHERE + add defensive missing-row branch.
 - REFACTOR: ensure error message lists `recall_cache` as a possible mismatch target.
+- **EC-5 sibling test (pre-v1.5 DB path)**: `test_applyDimChange_succeeds_without_recall_cache_table` — drop the `recall_cache` table BEFORE running `applyDimChange(pool, 384)`. Assert the function completes without throwing AND the canary's recall_cache assertion is SKIPPED (not failed). Verifies the symmetric `DO $$ IF EXISTS` guard wired into the canary block — defends pre-v1.5 DBs upgrading through this dim-change path.
 
 **Acceptance:** integration test passes; canary covers all 3 vector-bearing tables; source-level sentinel asserts the WHERE clause shape.
 
@@ -119,13 +124,20 @@ Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D
 
 **Deep Dives:**
 - Existing T2.2-RED-1 asserts `cache.invalidateCalls.toContainEqual(scope)` — does NOT assert the await order.
-- New test: pre-warm cache via `cache.set(...)` direct call (bypass embed cost; use a FakeCache that records `setCalls`). Call `await memory.user('alice').remember('text')`. IMMEDIATELY (no `await tick()`, no `setTimeout(0)`) inspect `cache.invalidateCalls`. If the implementation drops the `await`, the call would not have happened yet by the time `remember()` returns — the assertion fails. Use the FakeCache pattern at `tests/integration/cache/_helpers/...` (if exists) OR inline.
-- Fire-and-forget regression detection: split the FakeCache's `invalidateScope` into a deferred Promise that resolves on the next microtask. Assert that BEFORE the deferred resolves, `remember()` does NOT return. Use `new Promise<number>` + `setTimeout` to gate.
+- New test: pre-warm cache via `cache.set(...)` direct call (bypass embed cost; use a FakeCache that records `setCalls`). Call `await memory.user('alice').remember('text')`. IMMEDIATELY (no `await tick()`, no `setTimeout(0)`) inspect `cache.invalidateCalls`. If the implementation drops the `await`, the call would not have happened yet by the time `remember()` returns — the assertion fails. Use the FakeCache pattern inline (no shared helper needed for this single test).
+- **EC-3 absorption (microtask-only deferred resolve, NOT `setTimeout`)**: the FakeCache's `invalidateScope` returns a Promise that resolves on the next MICROTASK via `Promise.resolve().then(() => 0)` — NEVER `setTimeout`. Rationale: vitest's fake timer config (used by sibling suites) freezes `setTimeout` callbacks, causing the deferred Promise to NEVER resolve → `remember()` awaits forever → 5s vitest test-timeout per run. Add `vi.useRealTimers()` at top of the test block as defense-in-depth. Final shape:
+  ```ts
+  const deferred: { resolve: (n: number) => void } = { resolve: () => undefined };
+  const cache = makeFakeCache();
+  cache.invalidateScope = vi.fn(() => new Promise<number>((r) => { deferred.resolve = r; }));
+  ```
+  Test asserts: BEFORE `deferred.resolve(0)` is called, the `await remember(...)` Promise has NOT resolved. AFTER `deferred.resolve(0)`, it does.
 
 **TDD:**
 - RED: write the test. Confirm it PASSES with current implementation (await IS present at `src/local/index.ts` LocalScopedMemory.remember post-success block).
 - GREEN: confirmed PASSING — implementation already honors EC-11.
 - REFACTOR: add JSDoc comment to the test explaining the fire-and-forget regression scenario it defends against.
+- **EC-6 sibling test**: `test_remember_awaits_invalidateScope_even_when_it_rejects` — configure FakeCache.invalidateScope to throw `Error('cache backend down')`. Assert `remember()` STILL returns successfully (existing T2.2-RED-5 contract) AND the throw is caught + logged via `vi.spyOn(console, 'error')`. Verifies the loud-but-degrade policy is intact under the EC-11 sequential-await regime.
 
 **Acceptance:** new test passes; if a hypothetical refactor drops the `await` keyword, the test fails.
 
@@ -138,12 +150,14 @@ Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D
 **Deep Dives:**
 - Existing T2.2 Item 19 AC#3 test only exercises `remember()`. New test: seed ≥ 2 memories via `remember()` (so `reflect()`'s persist-derived loop has source memories), pre-warm cache via `recall()`, call `await memory.user('alice').reflect()` with a `ManualReflectionPolicy`-shape (or a real `ReflectionPolicy` from the existing test fixtures), assert cache row count for `user:alice` = 0 post-reflect.
 - ReflectionPolicy injection: check `src/core/dip/reflection-policy.ts` for the policy shape. The contract is "if `persisted.length > 0` then invalidate" per the implementation at `src/local/index.ts:530-541`. Need a policy that produces ≥ 1 derived memory.
-- Use the existing `tests/integration/forgetting/` reflection fixtures if available.
+- Use the existing `tests/integration/forgetting/` reflection fixtures if available — confirmed precedent at `tests/integration/reflection/threshold-policy.test.ts`.
+- **EC-2 absorption (capture-and-echo LLM stub)**: `reflect()` calls `executeReflection` → LLM → drafts → `validateProvenance(drafts, sourceIds)` THROWS when `draft.derivedFrom` IDs are not a subset of `sourceIds`. A static `DeterministicStubLLM` cannot satisfy this since the source UUIDs are generated at remember()-time. The stub MUST capture the prompt and echo back drafts whose `derivedFrom` equals the source IDs found in the prompt. Pattern: mirror `tests/integration/reflection/threshold-policy.test.ts:generateChat` — parse the user message via regex to extract source IDs, return one draft per source-id-cluster. Without this, the test fails for the WRONG REASON (reflect throws BEFORE the post-success invalidateScope hook runs) and masks the EC-6 regression it is meant to guard.
 
 **TDD:**
-- RED: write the test. Will FAIL if no `ReflectionPolicy` is configured (reflect() throws `ReflectionNotConfigured`). Configure with the smallest viable policy.
+- RED: write the test with the capture-and-echo LLM stub. Will FAIL if no `ReflectionPolicy` is configured (reflect() throws `ReflectionNotConfigured`). Configure with the smallest viable policy.
 - GREEN: assert cache row count = 0 post-reflect-with-persisted.
 - REFACTOR: extract the policy setup into a helper if reused.
+- **EC-7 sibling test**: `test_reflect_with_zero_persisted_drafts_does_NOT_invalidate_cache` — same setup but configure the capture-and-echo stub to return `drafts=[]` (LLM said "no consolidation"). Pre-warm cache row; call reflect(); assert cache row count UNCHANGED (verifies the `persisted.length > 0` gate at `src/local/index.ts:530-541` prevents spurious invalidations on empty-reflection runs).
 
 **Acceptance:** new test passes; demonstrates EC-6 absorption end-to-end.
 
@@ -162,13 +176,14 @@ Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D
   - Call `await memory.forget(memoryId)`.
   - Assert cache row count for `user:alice` = 0 (EC-10 scope-derivation worked).
   - Bonus EC-10 cross-scope isolation: write 1 memory under `user:bob`, pre-warm bob's cache, call `forget(aliceMemoryId)`, verify bob's cache row count UNCHANGED (= 1).
+- **EC-4 absorption (explicit scope_key assertion)**: row-count alone is insufficient — a regression that mis-derives the scope (e.g., returns `{kind:'user', userId:'bob'}` instead of `'alice'`) would invalidate bob's row instead and the symmetric "bob count = 1, alice count = 0" might still hold by accident. Add explicit assertion: `SELECT scope_key FROM recall_cache` after the cross-scope forget(); EXPECT the result set to contain ONLY `'user:bob'` (NOT `'user:alice'` — alice's was correctly invalidated; NOT empty — bob's was correctly preserved). This verifies the derived scope_key value, not just side-effect row counts.
 
 **TDD:**
 - RED: write the test. Will PASS (LocalMemory.forget code path is shipped).
 - GREEN: confirm passing.
 - REFACTOR: extract memory-id capture helper if reused.
 
-**Acceptance:** new test passes; EC-10 scope-derivation verified at integration tier.
+**Acceptance:** new test passes; EC-10 scope-derivation verified at integration tier; **EC-4 absorption**: explicit `SELECT scope_key FROM recall_cache` post-cross-scope-forget asserts result set contains ONLY `'user:bob'` (not just bob's row count unchanged).
 
 **DoD:** `THEOMEM_PG_URI=... npm run test:integration -- tests/integration/cache/factory-wiring.test.ts` PASS; integration count climbs from 30 to 31.
 
@@ -196,6 +211,8 @@ Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D
 **Deep Dives:**
 - `@deprecated` marker on `repo` field: TypeScript shows this in IDE tooltips, signaling consumers that the field's value is dormant. Adds Inquebrável Rule 3 honesty at the type level.
 - `deriveScopeFromPayload` JSDoc gets an explicit note: "Returns `undefined` when payload has no recognizable scope tier; `LocalMemory.forget()` SKIPS cache invalidation in that case (no `invalidateAll()` fallback per ADR D9). Cache continues serving until TTL — bounded staleness."
+- **EC-8 DOCUMENT (ESLint warnings on existing 4-tier tests)**: adding `@deprecated` to `ScopeTierTtlConfig.repo` field will surface `eslint-plugin-deprecation` (or TS 5.x native) warnings on EVERY existing test that constructs the full 4-tier config — including `src/core/dip/__tests__/recall-cache-store.test.ts` T0.1-RED-5 which explicitly builds `{user, agent, session, repo}`. ACCEPT-AND-DOCUMENT policy: do NOT suppress with `/* eslint-disable */` blocks; treat the warnings as informational signals that the field is contract-only. The warnings will be lifted when v1.5.x wiring lands and the `@deprecated` marker is removed. Document this in T3.2 commit body so reviewers expect them on next CI run.
+- **EC-10 DOCUMENT (fallback path is defensive for v0.1+ schema)**: the `deriveScopeFromPayload` `undefined` branch only fires for (a) hypothetical pre-v0.1 rows (none in production) OR (b) consumer-side manual INSERTs bypassing the extraction pipeline. Every v0.1+ row carries a scope column (`user_id`/`session_id`/`agent_id`). JSDoc must say so explicitly: "Returns `undefined` is a defensive branch — every v0.1+ row carries a scope column populated by `runExtractionPipeline`." T2.3 does NOT need a test for this branch; it is genuinely theoretical.
 
 **TDD:**
 - RED: contract test asserting `@deprecated` token appears in the .d.ts emit for `repo` field? Skip — JSDoc only.
@@ -214,6 +231,7 @@ Phases run sequentially with low coupling: T0 (plan v1.2 amendment + ADRs D9 + D
 **Deep Dives:**
 - `/review` re-run scopes only the commits from THIS fix-up cycle (not the full v1.5.0 surface). Use lightweight verification mode: spawn fewer agents OR ask the existing agents to focus on the deltas.
 - Verify 7 closures: F-merge-3 ✓ (test exists), F-merge-4 ✓ (test exists), F-merge-5 ✓ (test exists + asserts ORDER), F-merge-7 ✓ (plan v1.2 amendment + ADR D9), F-merge-10 ✓ (canary extended), F-merge-2 ✓ (ADR D10 + CHANGELOG + JSDoc), F-merge-8 ✓ (covered by F-merge-2 deferral).
+- **EC-9 DOCUMENT (re-spawn token cost ~200k + date collision avoidance)**: re-running `/review semantic-recall-cache-v1-5` within 24h of the 2026-06-03 run would COLLIDE with the existing `.claude/agents/review-semantic-recall-cache-v1-5-2026-06-03/` audit dir. Use the cycle finish date (`--date 2026-06-04` or whatever the actual day is) to spawn into a new dir. Expected cost ~150-300k tokens per cycle-review.md § Cost honesty — the gate is intentionally rigorous. If budget-constrained at runtime, T4.1 may be deferred to a separate slice and this cycle merged WITH_CAVEATS instead — documented as acceptable.
 
 **Acceptance:** re-review report shows 0 NEW MAJOR introduced by this cycle; the 7 original MAJORs are listed as RESOLVED.
 
@@ -249,14 +267,23 @@ None — Inquebrável Rule 11 (YAGNI). All changes are tests + docs + canary ext
 
 None.
 
+### Accepted Risks (inherited from v1.5.0 envelope)
+
+Per `/deps-audit semantic-recall-cache-v1-5-fixes-cycle-1` (2026-06-03, verdict `PASS_WITH_CAVEATS` cap=89; report at `.claude/knowledge-base/audits/semantic-recall-cache-v1-5-fixes-cycle-1-deps-audit-2026-06-03.md`):
+
+- **8 active allowlist CVEs** (1 CRITICAL `protobufjs` GHSA-xq3m-2v4x-88gg via `@xenova/transformers` chain; 7 HIGH/MODERATE in the same chain + esbuild/drizzle-kit chain). All have active sunsets in range (earliest 2026-07-01 for the protobufjs CRITICAL — 28 days from this cycle). NOT introduced by this fix-up cycle; matches the v1.5.0 cycle's envelope same day.
+- **9 outdated MAJOR packages** (zod, eslint, typescript, openai, commander, etc.) — pre-existing repo-wide debt; none touched by this plan's scope.
+- **The protobufjs CRITICAL sunset (2026-07-01) is tracked for a SEPARATE follow-up plan** (Xenova v3 upstream OR dep replacement via Rule 9 re-evaluation). Out of scope for THIS cycle's structural fix-up mandate.
+
 ## Global Definition of Done
 
 - [ ] All Phase T0/T1/T2/T3/T4 tasks complete with per-task DoD satisfied
 - [ ] `npm test` exits 0 with count ≥ 998 (T2.1 adds 1 contract test)
 - [ ] `npm run typecheck` exits 0
-- [ ] `npm run lint` exits 0
+- [ ] `npm run lint` exits 0 (with documented exception: EC-8 ESLint deprecation warnings on existing 4-tier tests are acceptable per ADR D10)
 - [ ] `THEOMEM_PG_URI=... npm run test:integration -- tests/integration/cache/` exits 0 with count ≥ 31 (T2.2 + T2.3 add 2 integration tests)
-- [ ] `THEOMEM_PG_URI=... npm run test:integration -- tests/integration/migrations/dim-change.test.ts` exits 0 (T1.1 adds canary verification)
+- [ ] `THEOMEM_PG_URI=... npm run test:integration -- tests/integration/migrations/dim-change.test.ts` exits 0 (T1.1 adds canary verification + EC-5 pre-v1.5 defensive test)
+- [ ] **File-size budget honored per `architecture.md § Module hygiene`**: no source file edited by this cycle exceeds 500 LoC; new test additions append to existing files without crossing the budget (the v1.5.0 `pgvector-recall-cache-store.ts` at 234 LoC has headroom; `src/local/index.ts` at 1439 LoC is pre-existing-debt F-arch-7 per source plan v1.1 and is NOT extended by structural code here — only the canary block at lines 1307-1322 receives ~5 added lines)
 - [ ] CHANGELOG.md `[Unreleased]` entries for ADR D9 + ADR D10 deferrals
 - [ ] Plan v1.5 amendment block in `.claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md` (Version 1.2 (2026-06-03))
 - [ ] Plan archived to `.claude/knowledge-base/plans/completed/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md` post-merge
