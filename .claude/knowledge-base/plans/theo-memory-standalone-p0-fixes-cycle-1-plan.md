@@ -1,5 +1,7 @@
 # Plan: theo-memory-standalone-p0 Fixes Cycle 1 — F-rev-1 CRITICAL + 4 MAJOR absorption
 
+> **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan theo-memory-standalone-p0-fixes-cycle-1` report (9 edge cases: 2 MUST FIX + 5 SHOULD TEST + 2 DOCUMENT). **2 MUST FIX absorbed**: EC-1 (T2.1 ADR D3 contradiction on 413 envelope shape — clarified `onError` callback wiring constructs the `ContentTooLargeError` envelope via `mapDomainErrorToResponse` since `hono/body-limit`'s `onError` returns Response directly, NOT throwing to `app.onError`); EC-2 (T1.1 RED test 1 assertion drift — `POST /v1/remember` with `skillRepoId` hits zod `.strict()` `unrecognized_keys` path returning generic `VALIDATION_ERROR`, NOT `INVALID_SCOPE`; test assertion updated to match the production code path). **5 SHOULD TEST absorbed inline** in TDD blocks: EC-3 (T1.2 cross-file import sweep before refactor), EC-4 (scopesHandler skill short-circuit verification — `memory.skills` never called), EC-5 (OpenAPI re-validation post-removal — properties walk), EC-6 (T2.2 stderr noise mitigation via `vi.spyOn` in 8 existing run-server tests), EC-7 (T2.1 middleware order regression — bodyLimit fires before bearer). **2 DOCUMENT absorbed** in Acceptance Criteria notes: EC-8 (T2.2 future conditional-warning gating reminder comment), EC-9 (T2.1 gzip-compressed body bypass at P0 alpha — README note + reverse-proxy guidance).
+>
 > **Version 1.0** (2026-06-03) — Lift `/review theo-memory-standalone-p0` verdict from **NEEDS_FIXES** to **READY_TO_MERGE_WITH_CAVEATS**. Absorbs the 1 CRITICAL finding (skill-scope contract divergence — F-rev-1, confirmed by memory-layer F-dom-mem-1 + architecture F-arch-1 reviewers) + the 4 recommended MAJOR findings (F-rev-3 health-auth-exempt ADR D3 amendment; F-rev-4 ContentTooLargeError DOS surface — hono/body-limit middleware; F-rev-9 stub-embedder consumer honesty disclosure; F-rev-12 `_body-parsing.ts` SRP refactor). All 5 absorptions surface as small, focused commits the re-review can validate without re-spawning the full agent panel.
 
 ## Goal
@@ -64,13 +66,40 @@
   - **B (Move into `src/server/schemas.ts`):** rejected — schemas.ts is the zod schema surface; adding HTTP body-parsing utilities expands its concern.
   - **C (Leave as is, accept the smell):** rejected — F-rev-12 + F-arch-3 + F-dom-api-6 + F-wire-6 — four reviewers independently flagged this. The cost of NOT fixing now grows as more handlers are added.
 
-### D3 — `hono/body-limit` middleware with 1 MB cap
+### D3 — `hono/body-limit` middleware with 1 MB cap (EC-1 MUST FIX absorbed)
 
-- **Decision:** Mount `bodyLimit({ maxSize: 1_000_000 })` from `hono/body-limit` (built-in middleware in `hono ^4.6.0`, ADR D14-pinned) on `/v1/*` AFTER the existing OTel + bearer middlewares but BEFORE the verb handlers. When the limit is exceeded, the middleware responds 413 directly (no `ContentTooLargeError` is thrown — `hono/body-limit` writes the response itself).
-- **Rationale:** Cheap DOS guard at the edge per `architecture.md § 8` (validate at boundaries). 1 MB is generous for a single-fact remember call (typical body < 4 KB); leaves headroom for `infer:false` callers shipping pre-extracted fact arrays. Operators can override via a future `--body-limit` flag (out of scope for this plan).
+- **Decision:** Mount `bodyLimit({ maxSize: 1_000_000, onError })` from `hono/body-limit` (built-in middleware in `hono ^4.6.0`, ADR D14-pinned) on `/v1/*` BETWEEN the existing OTel and bearer middlewares (ORDER: `OTel → bodyLimit → bearer`). The `onError` callback explicitly constructs the `ContentTooLargeError` envelope via `mapDomainErrorToResponse` and returns it through `c.json` — preserving the T1.6 consumer contract that EVERY 4xx/5xx from `/v1/*` carries the structured `{code, message, field?}` envelope shape.
+  - **Verified library shape** (per `node_modules/hono/dist/types/middleware/body-limit/index.d.ts`): `BodyLimitOptions = { maxSize: number; onError?: (c: Context) => Response | Promise<Response> }`. The `onError` callback returns a Response directly — it does NOT throw to `app.onError`. Without an explicit `onError`, `hono/body-limit` writes its own default 413 response that does NOT match the structured envelope.
+  - **Exact wiring (verbatim — implementer copies this into `app.ts`):**
+    ```ts
+    import { bodyLimit } from 'hono/body-limit';
+    import { mapDomainErrorToResponse } from './errors.js';
+    import { ContentTooLargeError } from '../core/errors.js';
+    // ...
+    app.use('/v1/*', otelMiddleware(tracer));
+    app.use(
+      '/v1/*',
+      bodyLimit({
+        maxSize: 1_000_000,
+        onError: (c) => {
+          // EC-1 absorption: hono/body-limit's onError returns Response directly
+          // without going through app.onError. Construct the T1.6 envelope here so
+          // 413 responses carry the same {code, message} shape as every other 4xx.
+          // `-1` actualSize sentinel — hono doesn't surface the actual size at hit.
+          const { status, body } = mapDomainErrorToResponse(
+            new ContentTooLargeError(1_000_000, -1),
+          );
+          return c.json(body, status as Parameters<typeof c.json>[1]);
+        },
+      }),
+    );
+    app.use('/v1/*', bearerAuth(authVerifier));
+    ```
+- **Rationale:** Cheap DOS guard at the edge per `architecture.md § 8` (validate at boundaries). 1 MB is generous for a single-fact remember call (typical body < 4 KB); leaves headroom for `infer:false` callers shipping pre-extracted fact arrays. Middleware order `OTel → bodyLimit → bearer` ensures: (a) OTel captures all 413s for ops visibility; (b) bodyLimit rejects oversized payloads before bearer is consulted (no auth-status information leak on oversize unauth requests); (c) handlers run last. Operators can override via a future `--body-limit` flag (out of scope for this plan).
 - **Alternatives considered:**
-  - **B (Wire `ContentTooLargeError` instead of using built-in 413):** rejected — `hono/body-limit` writes the response directly without going through `app.onError`; reusing the `ContentTooLargeError → 413` mapper would require a custom `onError` callback that re-raises and gets caught. Built-in path is simpler + standard.
-  - **C (Defer to operator-side reverse proxy):** rejected — README + the standalone image stance is "consumer decides on reverse proxy" but the image MUST be safe out-of-box. DOS guard belongs in the image.
+  - **B (Built-in 413 — no `onError` callback):** rejected after EC-1 MUST FIX absorption — `hono/body-limit` writes a plain 413 by default that does NOT match the structured `{code, message}` envelope from T1.6. Consumers parsing 4xx envelopes uniformly would break. Reusing `mapDomainErrorToResponse` via explicit `onError` is the consistent path.
+  - **C (Wire `ContentTooLargeError` through `app.onError` by throwing inside `onError`):** rejected — `onError` returns `Response` per the library type; throwing would propagate but Hono's internal middleware dispatch may not route throws from middleware uniformly. Direct `c.json` from `onError` is the documented + tested path.
+  - **D (Defer to operator-side reverse proxy):** rejected — README + the standalone image stance is "consumer decides on reverse proxy" but the image MUST be safe out-of-box. DOS guard belongs in the image.
 
 ### D4 — Stub-embedder loud startup warning
 
@@ -167,23 +196,35 @@ tests/integration/docker-stack.test.ts         — verify (THE GOAL TEST uses us
 
 #### TDD
 ```
-RED:     test('POST /v1/remember with skillRepoId returns 422 INVALID_SCOPE') (NEW handlers.test.ts assertion — proves the scope key is rejected)
+RED:     test('POST /v1/remember with skillRepoId in body returns 422 (zod .strict() unrecognized_keys path)') (NEW handlers.test.ts assertion — proves the scope key is rejected at the SCHEMA layer, not the superRefine layer)
+         — assert res.status === 422 AND body code is VALIDATION_ERROR (or whatever scopeOrValidationError surfaces for non-INVALID_SCOPE issues — see EC-2 absorption note below)
+RED:     test('POST /v1/remember with ONLY skillRepoId (no userId/sessionId/agentId) returns 422 — same code path, double-confirmation')
 RED:     test('GET /v1/scopes/skill/repo-x/memories returns 501 SKILL_LISTING_NOT_IMPLEMENTED') (REWRITE of scopes.test.ts test #12)
+RED:     test('scopesHandler short-circuits skill BEFORE calling memory.skills') (EC-4 — vi.spyOn(memory,'skills').mockImplementation throw 'should not be called'; assert 501 returned without spy firing)
+RED:     test('OpenAPI spec drops skillRepoId from remember/recall/reflect/forget request bodies') (EC-5 — walk paths['/v1/remember'].post.requestBody.content['application/json'].schema.properties; assert skillRepoId absent on all 4 verbs)
 RED:     test('GET /v1/scopes/user/alice/memories still returns 200 with items') (regression guard — no collateral damage on supported tiers)
 GREEN:   apply T1.1 tasks 1-4
 REFACTOR: drop `as unknown as MemoryLike` from 3 handlers (lands in GREEN — the type collapses to identity once MemoryLike loses the false `skills` field)
-VERIFY:  npm test -- src/server/__tests__/handlers.test.ts src/server/__tests__/scopes.test.ts
+VERIFY:  npm test -- src/server/__tests__/handlers.test.ts src/server/__tests__/scopes.test.ts src/server/__tests__/openapi.test.ts
 ```
+
+**EC-2 MUST FIX absorption note:** `RememberBody` is defined with `.strict().superRefine(...)`. When a request includes `{userId:'a', skillRepoId:'r', text:'x'}`, zod's `.strict()` rejects on `skillRepoId` as an unknown key (`ZodIssueCode.unrecognized_keys`) BEFORE `superRefine` counts tier presence. The existing `scopeOrValidationError` helper at `remember.ts:47-50` only branches on `i.message.startsWith('INVALID_SCOPE')` — unknown-key issues fall through to the generic `VALIDATION_ERROR` branch returning 422 with a path-aware field. The RED test 1 assertion is therefore "status 422 + body code is NOT 'INTERNAL_ERROR'" (any of `VALIDATION_ERROR` / `INVALID_BODY` is acceptable since the body shape is rejected at the schema layer, not the scope layer). Implementer MUST verify against the actual `scopeOrValidationError` return shape — pinning `code === 'INVALID_SCOPE'` would FAIL because that code only fires when `superRefine` runs (and `superRefine` runs only if `.strict()` passes).
+
+**EC-4 absorption note:** the scopes-skill short-circuit test uses `vi.spyOn(memory, 'skills').mockImplementation(() => { throw new Error('should not be called'); })`. If the implementation order is wrong (memory.skills called before the 501 branch), the spy fires and the test fails with the thrown error. This pins the load-bearing branch ordering in `scopesHandler` so a future refactor can't silently relocate the dispatch above the short-circuit.
+
+**EC-5 absorption note:** OpenAPI spec validation walks `paths['/v1/{verb}'].post.requestBody.content['application/json'].schema.properties` for the 4 verbs (remember, recall, reflect, forget) and asserts `'skillRepoId' in properties === false`. Existing `openapi.test.ts` test #1 only validates well-formedness via `SwaggerParser.validate`; this test adds field-membership validation specifically for the removal.
 
 #### Acceptance Criteria
 - [ ] `grep -n "skillRepoId" src/server/` returns ZERO hits
 - [ ] `grep -n "as unknown as MemoryLike" src/server/handlers/` returns ZERO hits
 - [ ] `src/server/__tests__/scopes.test.ts` test #12 asserts 501 + `SKILL_LISTING_NOT_IMPLEMENTED`
-- [ ] New `handlers.test.ts` test asserts `POST /v1/remember` with `skillRepoId` returns 422 INVALID_SCOPE
+- [ ] New `handlers.test.ts` test asserts `POST /v1/remember` with `skillRepoId` returns 422 (any 4xx body-validation code per EC-2 absorption note — NOT pinning `INVALID_SCOPE`)
+- [ ] EC-4 absorption: `scopesHandler` skill short-circuit test confirms `memory.skills` is NEVER called (vi.spyOn throws if invoked)
+- [ ] EC-5 absorption: OpenAPI field-membership test confirms `skillRepoId` absent from all 4 verb request bodies
 - [ ] `npm test` passes (all 943+ tests + new ones)
 - [ ] `npm run typecheck` PASS — drop of `as unknown as MemoryLike` doesn't surface new errors
 - [ ] `npm run lint` PASS — zero warnings
-- [ ] OpenAPI spec at `GET /v1/openapi.json` no longer documents `skillRepoId` (verify via `openapi.test.ts` test #1 SwaggerParser.validate still passes)
+- [ ] OpenAPI spec at `GET /v1/openapi.json` no longer documents `skillRepoId` (verify via the new EC-5 field-membership test)
 - [ ] File size: `src/server/schemas.ts` ≤ 200 LoC (currently ~125, decreases)
 - [ ] CHANGELOG entry under `[Unreleased] ### Fixed` documenting the CRITICAL absorption with `Fixes /review F-rev-1` reference
 
@@ -222,23 +263,26 @@ src/server/handlers/reflect.ts                — update import path
 - **Why NOT move into `src/server/schemas.ts`?** Per ADR D2 Rationale.
 
 #### Tasks
-1. Create `src/server/handlers/_body-parsing.ts` with the 4 exports (cut from `remember.ts`).
-2. Update `remember.ts`: remove the function bodies + their `export` keywords; import the 4 names from `./_body-parsing.js`.
-3. Update `recall.ts`, `forget.ts`, `reflect.ts`: change `import { ... } from './remember.js'` to `import { ... } from './_body-parsing.js'`.
-4. Verify zero behavior change: re-run `npm test`. All 14 T1.2 tests + 12 T1.3 tests + 6 T1.6 tests + new T1.1 tests still pass.
+1. **EC-3 pre-flight sweep:** run `grep -rn "from.*'\\./remember\\.js'" src/server/__tests__ tests/` AND `grep -rn "{[^}]*safeJson\\|EMPTY_BODY\\|MALFORMED_BODY\\|scopeOrValidationError[^}]*}" src/server/__tests__ tests/` BEFORE editing. Catalog every file that imports the 4 symbols from `./remember.js` (currently: `recall.ts`, `forget.ts`, `reflect.ts`; verify NO test file imports them directly — if any does, that file is in scope for this commit).
+2. Create `src/server/handlers/_body-parsing.ts` with the 4 exports (cut from `remember.ts`).
+3. Update `remember.ts`: remove the function bodies + their `export` keywords; import the 4 names from `./_body-parsing.js`.
+4. Update `recall.ts`, `forget.ts`, `reflect.ts` AND any test files surfaced by Task 1: change `import { ... } from './remember.js'` to `import { ... } from './_body-parsing.js'`.
+5. Verify zero behavior change: re-run `npm test`. All 14 T1.2 tests + 12 T1.3 tests + 6 T1.6 tests + new T1.1 tests still pass.
 
 #### TDD
 ```
 RED:     None new — the existing 32+ handler tests in handlers.test.ts cover the contract. Refactor must keep them green.
-GREEN:   apply T1.2 tasks 1-3
+         EC-3 pre-flight sweep (Task 1) IS the test that the import surface is fully catalogued before edits begin.
+GREEN:   apply T1.2 tasks 2-4
 REFACTOR: None expected
 VERIFY:  npm test -- src/server/__tests__/handlers.test.ts src/server/__tests__/errors.test.ts
+         grep -rn "from.*'\\./remember\\.js'" src/server/handlers/ src/server/__tests__ tests/  → returns ZERO hits (every consumer updated)
 ```
 
 #### Acceptance Criteria
 - [ ] `src/server/handlers/_body-parsing.ts` exists, ≤ 60 LoC
 - [ ] `src/server/handlers/remember.ts` ≤ 60 LoC + no longer exports `safeJson`/`scopeOrValidationError`/`EMPTY_BODY`/`MALFORMED_BODY`
-- [ ] `grep -n "from './remember.js'" src/server/handlers/` returns ZERO hits (sibling handlers no longer import from remember.ts)
+- [ ] EC-3 absorption: `grep -rn "from.*'\\./remember\\.js'" src/server/handlers/ src/server/__tests__ tests/` returns ZERO hits (every consumer — handlers AND test files — updated to import from `./_body-parsing.js`)
 - [ ] All existing handler/errors tests pass GREEN unchanged
 - [ ] `npm test` + `npm run typecheck` + `npm run lint` all GREEN
 
@@ -274,27 +318,33 @@ src/server/__tests__/handlers.test.ts          — RED test asserting POST /v1/r
 - **Middleware order (CONFIRMED in deep dive — not deferred):** mount order `OTel → bodyLimit → bearer → handlers`. Rationale: (a) OTel captures all 413s for ops visibility; (b) bodyLimit rejects oversized payloads before any further processing (DOS guard); (c) bearer verifies auth after the payload passed size gate (no token leak on oversize unauth requests); (d) handlers run last. Tested by the RED test asserting 413 with NO bearer header still fires (or 401-then-413 acceptable depending on hono internals; deep test will confirm exact order).
 
 #### Tasks
-1. Edit `src/server/app.ts`: `import { bodyLimit } from 'hono/body-limit';` then `app.use('/v1/*', bodyLimit({ maxSize: 1_000_000 }));` between the existing `otelMiddleware` mount and the `bearerAuth` mount.
-2. Add RED test in `handlers.test.ts`: `POST /v1/remember` with a JSON body of size 2 MB (e.g., `text: 'a'.repeat(2_000_000)`) returns 413 with `Content-Type: application/json` (per hono's default).
-3. Confirm the existing tests still pass — small bodies (< 1MB) are unaffected.
+1. Edit `src/server/app.ts`: import `bodyLimit` from `'hono/body-limit'` AND wire `onError` per ADR D3 verbatim block above. Mount on `/v1/*` BETWEEN `otelMiddleware` and `bearerAuth`.
+2. Add RED test in `handlers.test.ts`: `POST /v1/remember` with a JSON body of size 2 MB (e.g., `text: 'a'.repeat(2_000_000)`) returns **413** with **`Content-Type: application/json`** AND body **`{code: 'CONTENT_TOO_LARGE', message: ...}`** (the structured envelope — EC-1 MUST FIX absorbed; confirms the `onError` path constructs the envelope).
+3. Add EC-7 RED test: `POST /v1/remember` with NO Authorization header AND a 2MB body, when `THEMEMORY_API_KEY` is set, returns **413** (NOT 401). Pins the load-bearing middleware order `OTel → bodyLimit → bearer`.
+4. EC-9 DOCUMENT: add a one-line note to README under "REST API server" section: `**Body limit:** 1 MB on `/v1/*` POST endpoints. Compressed request bodies (`Content-Encoding: gzip`) are NOT auto-decompressed by Hono — operators serving large compressed payloads should enforce body limits at the reverse-proxy layer (nginx `client_max_body_size`, Caddy `request_body max_size`).`
+5. Confirm the existing tests still pass — small bodies (< 1MB) are unaffected.
 
 #### TDD
 ```
-RED:     test('POST /v1/remember with 2MB body returns 413 (DOS guard)') (NEW handlers.test.ts assertion)
-GREEN:   apply T2.1 tasks 1
+RED:     test('POST /v1/remember with 2MB body returns 413 with structured {code:CONTENT_TOO_LARGE,...} envelope') (NEW handlers.test.ts assertion — EC-1 MUST FIX)
+RED:     test('bodyLimit fires BEFORE bearer: 2MB body + no Authorization + THEMEMORY_API_KEY set → 413 (NOT 401)') (NEW handlers.test.ts — EC-7 SHOULD TEST)
+GREEN:   apply T2.1 tasks 1-4
 REFACTOR: None expected
 VERIFY:  npm test -- src/server/__tests__/handlers.test.ts
 ```
 
 #### Acceptance Criteria
-- [ ] `app.ts` imports `bodyLimit` from `'hono/body-limit'` and mounts it on `/v1/*` between OTel and bearer middlewares
-- [ ] RED test asserts 413 on 2 MB body
+- [ ] `app.ts` imports `bodyLimit` from `'hono/body-limit'` AND wires the `onError` callback that constructs the `ContentTooLargeError` envelope via `mapDomainErrorToResponse` (per ADR D3 verbatim block)
+- [ ] `app.use('/v1/*', bodyLimit(...))` mounts BETWEEN `otelMiddleware` and `bearerAuth` (verify by grep of `app.ts`)
+- [ ] EC-1 RED test asserts 413 body matches `{code: 'CONTENT_TOO_LARGE', message: string}` (structured envelope shape from T1.6)
+- [ ] EC-7 RED test asserts middleware order: 2MB body without bearer (when key set) returns 413, NOT 401
+- [ ] EC-9 DOCUMENT: README "REST API server" section gains the gzip + reverse-proxy note
 - [ ] Existing 32+ handler tests still PASS (smaller bodies are unaffected)
 - [ ] `npm test` + `npm run typecheck` + `npm run lint` all GREEN
-- [ ] CHANGELOG `[Unreleased] ### Added` entry: 413 DOS guard via `hono/body-limit` 1 MB cap
+- [ ] CHANGELOG `[Unreleased] ### Added` entry: 413 DOS guard via `hono/body-limit` 1 MB cap with structured envelope
 
 #### DoD
-- [ ] Commit message: `feat(server): T2.1 F-rev-4 mount hono/body-limit 1MB cap (DOS guard)`
+- [ ] Commit message: `feat(server): T2.1 F-rev-4 mount hono/body-limit 1MB cap (structured 413 envelope + EC-1/EC-7)`
 
 ### T2.2 — Stub-embedder loud startup warning (F-rev-9 absorption)
 
@@ -330,30 +380,35 @@ CHANGELOG.md                                   — [Unreleased] ### Added entry 
 - **Why three lines?** Each line is intentionally < 80 chars so it survives narrow terminals + log aggregators. Line 1 is the headline; line 2 is the operational impact; line 3 is the call-to-action.
 
 #### Tasks
-1. Edit `run-server.ts`: after factory resolves, emit the 3-line warning to `process.stderr`.
-2. Edit `run-mcp-server.ts`: same warning before transport connects.
+1. Edit `run-server.ts`: after factory resolves, emit the 3-line warning to `process.stderr`. **EC-8 absorption:** add a `// FOLLOW-UP: gate this warning when src/agent-tools/run-server.ts gains real-provider config (e.g., THEMORY_EMBEDDER=openai|local env or --embedder flag). Currently unconditional because the default code path always uses DeterministicStubEmbedder.` comment near the emit site.
+2. Edit `run-mcp-server.ts`: same warning + same EC-8 follow-up comment before transport connects.
 3. Add RED test in `run-server.test.ts` asserting stderr contains "STUB EMBEDDER ACTIVE" or equivalent token (case-insensitive match on "stub embedder" suffices).
-4. Edit `README.md`: add "Stub providers (alpha default)" under "REST API server" section linking from the warning text.
-5. Edit `CHANGELOG.md`: `[Unreleased] ### Added` — stub-embedder loud-warn discipline.
+4. **EC-6 absorption:** mock `process.stderr.write` in the EXISTING 8 `run-server.test.ts` tests via `vi.spyOn(process.stderr, 'write').mockImplementation(() => true)` in a top-level `beforeEach` (right after the existing `vi.stubEnv` setup). The dedicated EC-6/T2.2 RED test (the one asserting the warning fires) checks `spy.mock.calls.flat().some(c => /stub embedder/i.test(String(c)))` against the same captured spy — it does NOT need `mockRestore`. Outcome: vitest log output stays clean across the 8 existing tests; the new test still asserts the warning honestly via the spy's call record.
+5. Edit `README.md`: add "Stub providers (alpha default)" under "REST API server" section linking from the warning text.
+6. Edit `CHANGELOG.md`: `[Unreleased] ### Added` — stub-embedder loud-warn discipline.
 
 #### TDD
 ```
-RED:     test('runServer writes stub-embedder warning to stderr on startup') (NEW run-server.test.ts)
-GREEN:   apply T2.2 tasks 1-2
+RED:     test('runServer writes stub-embedder warning to stderr on startup (case-insensitive "stub embedder" match in captured spy calls)') (NEW run-server.test.ts)
+RED:     None new for EC-6 — the EC-6 absorption is INFRASTRUCTURE (beforeEach spy) shared by ALL run-server.test.ts tests. The 8 existing tests continue passing; the new test reads from the same spy.
+GREEN:   apply T2.2 tasks 1-5
 REFACTOR: None
 VERIFY:  npm test -- src/agent-tools/__tests__/run-server.test.ts
+         # Confirm test output is clean (no warning lines leaking to stderr during the 8 existing tests).
 ```
 
 #### Acceptance Criteria
 - [ ] `run-server.ts` emits stderr warning containing "Stub embedder" (case-insensitive) at startup
 - [ ] `run-mcp-server.ts` emits same warning
+- [ ] **EC-8 absorption:** both files carry the `// FOLLOW-UP: gate this warning when...` comment near the emit site
+- [ ] **EC-6 absorption:** `run-server.test.ts` `beforeEach` mocks `process.stderr.write`; existing 8 tests still PASS; new EC-6/T2.2 test asserts the warning via the spy's call record (no stderr leak in CI log output)
 - [ ] RED test asserts the warning fires
 - [ ] README has "Stub providers (alpha default)" sub-section
 - [ ] CHANGELOG entry added
 - [ ] `npm test` + `npm run typecheck` + `npm run lint` GREEN
 
 #### DoD
-- [ ] Commit message: `feat(cli): T2.2 F-rev-9 stub-embedder loud startup warning`
+- [ ] Commit message: `feat(cli): T2.2 F-rev-9 stub-embedder loud startup warning (EC-6/EC-8 absorbed)`
 
 ### T2.3 — ADR D3 amendment + CHANGELOG entry for health auth-exempt (F-rev-3 absorption)
 
@@ -454,8 +509,17 @@ VERIFY:  cat .claude/knowledge-base/reviews/theo-memory-standalone-p0-review-{da
 | 4 | F-rev-9 MAJOR — stub-embedder silent default (consumer honesty gap) | T2.2 | `themory server` + `themory mcp` emit loud stderr warning on startup; README + CHANGELOG document the gap |
 | 5 | F-rev-3 MAJOR — health auth-exempt shipped without ADR D3 amendment | T2.3 | Plan v1.3 → v1.4 with ADR D3 amendment block (RFC 9110 + OWASP); CHANGELOG entry |
 | 6 | Final gate — re-run `/review` returns 0 BLOCKER + 0 CRITICAL | T3.1 | The cycle-review gate IS the test for the fix-up plan |
+| 7 | **EC-1 MUST FIX** — T2.1 ADR D3 vs Sub-goal 4 contradiction on 413 envelope shape | T2.1 | ADR D3 v1.1 specifies verbatim `onError` callback constructing `ContentTooLargeError` envelope via `mapDomainErrorToResponse`; RED test asserts `{code:'CONTENT_TOO_LARGE',...}` body shape |
+| 8 | **EC-2 MUST FIX** — T1.1 RED test 1 assertion mismatch (`INVALID_SCOPE` vs actual zod `.strict()` `VALIDATION_ERROR`) | T1.1 | Test assertion updated: 422 + body code is NOT `INTERNAL_ERROR`; absorption note explains zod `.strict()` runs BEFORE `superRefine` |
+| 9 | **EC-3 SHOULD TEST** — T1.2 cross-file import sweep before refactor (catch test-file imports of moved symbols) | T1.2 | Pre-flight Task 1 catalogs every importer via grep; acceptance criterion verifies grep returns ZERO post-refactor |
+| 10 | **EC-4 SHOULD TEST** — `scopesHandler` skill short-circuit verification | T1.1 | RED test uses `vi.spyOn(memory,'skills').mockImplementation throw`; asserts 501 returned without spy firing |
+| 11 | **EC-5 SHOULD TEST** — OpenAPI re-validation post-`skillRepoId`-removal (field-membership) | T1.1 | RED test walks `paths['/v1/{verb}'].post.requestBody.content['application/json'].schema.properties`; asserts `skillRepoId` absent on all 4 verbs |
+| 12 | **EC-6 SHOULD TEST** — T2.2 stderr noise mitigation in existing 8 tests | T2.2 | `beforeEach` `vi.spyOn(process.stderr, 'write')` shared infra; dedicated test asserts warning via captured spy calls |
+| 13 | **EC-7 SHOULD TEST** — T2.1 middleware order regression (bodyLimit BEFORE bearer) | T2.1 | RED test: 2MB body + no Authorization + key set → 413 (NOT 401); pins load-bearing OTel→bodyLimit→bearer order |
+| 14 | **EC-8 DOCUMENT** — T2.2 future conditional-warning gating when real-provider config lands | T2.2 | Inline `// FOLLOW-UP: gate this warning when...` comment near emit site in both run-server.ts + run-mcp-server.ts |
+| 15 | **EC-9 DOCUMENT** — T2.1 gzip-compressed body bypasses size limit at P0 alpha | T2.1 | README "REST API server" gains note: Hono does NOT auto-decompress; recommend reverse-proxy enforcement (nginx `client_max_body_size`, Caddy `request_body max_size`) |
 
-**Coverage: 6/6 gaps covered (100%)**
+**Coverage: 15/15 gaps covered (100%)** — 6 original (review findings) + 9 absorbed (edge-case-plan).
 
 ## Global Definition of Done
 
