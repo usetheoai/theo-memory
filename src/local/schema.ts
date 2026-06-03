@@ -11,8 +11,9 @@
  *  - HNSW index on embedding with vector_cosine_ops
  *  - Unique BTREE index on hash (MD5 collision rare enough for v0.1 to UNIQUE)
  *  - Scope columns (user_id/session_id/agent_id) nullable; AND-composed by Filters at query time
- *  - Bi-temporal columns (t_valid/t_invalid) nullable per ADR-0006 — local runtime throws
- *    BiTemporalNotSupportedLocally on asOf queries until v0.5
+ *  - Bi-temporal columns (t_valid/t_invalid) nullable per ADR-0006 (schema clause).
+ *    Local runtime honors `asOf` recall queries from v1.1 per ADR-0011 (supersedes
+ *    the ADR-0006 runtime clause); pre-v1.1 callers got `BiTemporalNotSupportedLocally`.
  *  - payload: jsonb storing Record<string, string | number | boolean | null>
  *  - text_lemmatized: jsonb storing string[] (pre-computed BM25 tokens, blueprint Recommendation 3)
  *
