@@ -78,6 +78,26 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     expect(spec.info.license?.name).toBe('MIT');
   });
 
+  test('8. FC2-T1.4-RED — ScopeTypeEnum description documents 501-for-skill semantic (F-arch-2 + F-dom-api-6 absorption)', async () => {
+    const app = createServer({ memory: stubMemory() });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    interface Param { name?: string; description?: string; schema?: { description?: string } }
+    interface Op { parameters?: Param[] }
+    interface PathItem { get?: Op }
+    interface Spec { paths: Record<string, PathItem> }
+    const spec = (await res.json()) as Spec;
+    const params = spec.paths['/v1/scopes/{type}/{id}/memories']?.get?.parameters ?? [];
+    const typeParam = params.find((p) => p.name === 'type');
+    // EC-1 absorption: zod-to-openapi may put .describe() at Parameter Object
+    // level OR Schema Object level depending on version. Walk BOTH paths via
+    // fallback chain. Both are OpenAPI 3.1-conformant; both equally satisfy
+    // the F-arch-2 / F-dom-api-6 honesty intent.
+    const descr = typeParam?.description ?? typeParam?.schema?.description;
+    expect(descr).toBeDefined();
+    expect(descr).toMatch(/501|SDK-only/);
+    expect(descr).toMatch(/skill/i);
+  });
+
   test('7. FC2-T1.3-RED — all 4 verbs advertise 413 CONTENT_TOO_LARGE (F-dom-api-2 absorption)', async () => {
     const app = createServer({ memory: stubMemory() });
     const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
