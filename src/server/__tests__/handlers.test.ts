@@ -346,3 +346,62 @@ describe('T1.1 fixes-cycle-1 — F-rev-1 absorption (skillRepoId removed from RE
     expect(res.status).toBe(422);
   });
 });
+
+describe('T2.1 fixes-cycle-1 — F-rev-4 absorption (hono/body-limit 1MB cap + EC-1 envelope)', () => {
+  test('FC1-T2.1-RED-1. POST /v1/remember with 2MB body returns 413 with structured envelope', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const oversized = 'a'.repeat(2_000_000);
+    const res = await app.fetch(
+      new Request('http://localhost/v1/remember', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', text: oversized }),
+      }),
+    );
+    expect(res.status).toBe(413);
+    // EC-1 absorption: the 413 envelope shape MUST match T1.6's
+    // structured {code, message} contract via hono/body-limit onError
+    // calling mapDomainErrorToResponse(new ContentTooLargeError(...)).
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe('CONTENT_TOO_LARGE');
+    expect(typeof body.message).toBe('string');
+  });
+
+  test('FC1-T2.1-RED-2. EC-7 middleware order: 2MB body + no Authorization + key set → 413 (not 401)', async () => {
+    // Order MUST be OTel → bodyLimit → bearer so the DOS guard rejects
+    // BEFORE auth status is consulted. Pins the load-bearing ordering
+    // from ADR D3.
+    process.env['THEMEMORY_API_KEY'] = 'sk-secret';
+    try {
+      const memory = stubMemory(stubScopedMemory());
+      const app = createServer({ memory });
+      const oversized = 'a'.repeat(2_000_000);
+      const res = await app.fetch(
+        new Request('http://localhost/v1/remember', {
+          method: 'POST',
+          // NO Authorization header on purpose.
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: 'alice', text: oversized }),
+        }),
+      );
+      expect(res.status).toBe(413);
+      expect(res.status).not.toBe(401);
+    } finally {
+      delete process.env['THEMEMORY_API_KEY'];
+    }
+  });
+
+  test('FC1-T2.1-RED-3. small body (4KB) is unaffected — passes through to handler', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/remember', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', text: 'a'.repeat(4_000) }),
+      }),
+    );
+    expect(res.status).toBe(201);
+  });
+});

@@ -8,8 +8,10 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Tracer } from '@opentelemetry/api';
+import { bodyLimit } from 'hono/body-limit';
 
 import type { AuthVerifier } from '../core/dip/auth-verifier.js';
+import { ContentTooLargeError } from '../core/errors.js';
 import type { Memory } from '../core/memory-store.js';
 
 import { bearerAuth } from './auth/middleware.js';
@@ -78,11 +80,33 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
     },
   });
 
-  // OTel span middleware mounts BEFORE bearer so spans capture all requests
-  // (including 401s). Scope `/v1/*` so /v1/openapi.json itself also gets a
-  // span without polluting unrelated routes (none today; safe-guards future
-  // additions). Per T1.5 + EC-21 + EC-22.
+  // OTel span middleware mounts BEFORE everything else so spans capture all
+  // requests (including 401s + 413s). Scope `/v1/*` so /v1/openapi.json
+  // itself also gets a span without polluting unrelated routes. Per T1.5 +
+  // EC-21 + EC-22.
   app.use('/v1/*', otelMiddleware(tracer));
+
+  // fixes-cycle-1 T2.1 / F-rev-4 absorption: bodyLimit middleware caps
+  // request bodies at 1MB BEFORE bearer is consulted. Order is load-bearing
+  // per ADR D3 v1.1: OTel → bodyLimit → bearer. EC-1 absorption: the
+  // onError callback constructs the structured T1.6 envelope via
+  // mapDomainErrorToResponse(new ContentTooLargeError(...)) so 413 carries
+  // the same {code, message} shape as every other 4xx response (consumers
+  // parsing 4xx envelopes uniformly would break with the default plain 413).
+  // The `-1` actualSize sentinel signals the actual size is unknown at limit
+  // hit (hono does not surface it).
+  app.use(
+    '/v1/*',
+    bodyLimit({
+      maxSize: 1_000_000,
+      onError: (c) => {
+        const { status, body } = mapDomainErrorToResponse(
+          new ContentTooLargeError(1_000_000, -1),
+        );
+        return c.json(body, status as Parameters<typeof c.json>[1]);
+      },
+    }),
+  );
 
   // Health endpoints (T3.5 absorption — surfaced by the docker-compose
   // healthcheck round-trip): orchestrator liveness/readiness probes do not
