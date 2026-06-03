@@ -1,0 +1,210 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-domain-pgvector-schema
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal
+domain: pgvector-schema
+plan_version: "1.2"
+domain_specific_patterns_checked:
+  - "ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS idempotency (EC-6)"
+  - "partial composite index (user_id, attributed_to) WHERE attributed_to IS NOT NULL"
+  - "Drizzle schema.ts mirror discipline (architecture.md § 10.2 db:push vs runMigrations divergence)"
+  - "Drizzle migration journal sync (idx=8 entry, 0008_snapshot.json column declared)"
+  - "INSERT batch column list + ON CONFLICT (hash) DO NOTHING parametric"
+  - "UPDATE path mirror of INSERT hoist pattern (re-upsert preserves attribution)"
+  - "SELECT projection across 4 sites (search/keywordSearch/get/list) consistency"
+  - "composeTemporalWhere() Graphiti null-safe bi-temporal predicate (ADR-0011)"
+  - "composeFilters() conditional WHERE attributed_to clause + EC-7 NULL semantics + EC-5 inline comment"
+  - "HNSW vector_cosine_ops + MAX_EMBEDDING_DIM=1536 invariant preserved"
+  - "FK cascade discipline (history ON DELETE CASCADE / consolidation_history ON DELETE SET NULL)"
+  - "EC-11 GDPR hard-delete cascade across history + consolidation_history + superseded_by self-FK"
+
+findings:
+  - id: F-dom-pg-1
+    severity: MAJOR
+    file: src/local/schema.ts
+    line: 87
+    plan_ref: "T1.1 § Files to edit + ADR D2 (partial composite index `(user_id, attributed_to) WHERE attributed_to IS NOT NULL`)"
+    domain_anchor: |
+      `.claude/rules/architecture.md § 10.2` documents the exact failure mode this finding is about — `drizzle-kit push` introspects the live DB and computes a destructive diff when schema.ts diverges from migrations. `src/local/schema.ts` lines 240-244 explicitly cite the F-C3 prior precedent: "previously declared only in migration `0007_distillation_columns.sql` + `meta/0007_snapshot.json` but NOT here; `drizzle-kit push` would have computed a destructive diff (DROP TABLE) and silently lost all GDPR-survival audit rows".
+    summary: |
+      `idx_memories_user_attributed_to` partial index is declared in migration `0008_attributed_to.sql` (lines 27-29) and `meta/_journal.json` idx=8 but is NOT mirrored in `src/local/schema.ts`. The 3 sibling partial indexes (`idx_memories_eviction_score`/`_user`/`_session` at schema.ts lines 141-149) ARE declared via the `.where(sql\`${table.tInvalid} IS NULL\`)` pattern — establishing precedent that partial indexes belong in schema.ts. The `attributedTo` column declaration at line 87 lacks the corresponding sibling index entry in the table-builder array at lines 121-158. Identical drift hazard documented in v0.7 F-C3 review (consolidation_history table) + architecture.md § 10.2.
+    evidence: |
+      Migration 0008 (lines 27-29):
+        CREATE INDEX IF NOT EXISTS "idx_memories_user_attributed_to"
+          ON "memories" ("user_id", "attributed_to")
+          WHERE "attributed_to" IS NOT NULL;
+      schema.ts indexes block (lines 121-158) — present:
+        index('idx_memories_eviction_score').on(table.agentId).where(sql`${table.tInvalid} IS NULL`),
+        index('idx_memories_eviction_score_user').on(table.userId).where(sql`${table.tInvalid} IS NULL`),
+        index('idx_memories_eviction_score_session').on(table.sessionId).where(sql`${table.tInvalid} IS NULL`),
+      schema.ts indexes block — MISSING:
+        // expected sibling:
+        // index('idx_memories_user_attributed_to').on(table.userId, table.attributedTo).where(sql`${table.attributedTo} IS NOT NULL`),
+    impact: |
+      Consumer running `npm run db:push` (the dev path) gets the `attributed_to` column but NOT the partial index. The recall path `WHERE attributed_to = $N` then degrades to a sequential scan instead of the O(log N) index hit promised by T1.1 ADR D2 (Q3 Mem0 promoted-key precedent). Worse: any future `drizzle-kit push` run AFTER `runMigrations()` applied 0008 would compute a `DROP INDEX idx_memories_user_attributed_to` diff (silent index loss). Same hazard the v0.7 F-C3 + architecture.md §10.2 explicitly warns against.
+    recommended_action: |
+      Add the partial index declaration in the table-builder array, immediately after the 3 eviction-score partial indexes (around schema.ts:150). Use the same `.where()` pattern with a `sql\`${table.attributedTo} IS NOT NULL\`` predicate:
+        index('idx_memories_user_attributed_to')
+          .on(table.userId, table.attributedTo)
+          .where(sql`${table.attributedTo} IS NOT NULL`),
+      Then regenerate `meta/0008_snapshot.json` via `drizzle-kit generate` (or hand-add the `indexes` entry under the memories table block) so future push/migrate runs see identical state. Document the convergence in a JSDoc cross-reference to migration 0008 (mirroring how lines 240-244 cite the v0.7 F-C3 precedent).
+
+  - id: F-dom-pg-2
+    severity: MAJOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts
+    line: null
+    plan_ref: "T2.1 § Tasks step 8 + § TDD RED line: 'integration: concurrent remember(text, {attributedTo: a/b}) — dedup keeps first writer attribution' — EC-10 absorption"
+    domain_anchor: |
+      Plan v1.2 § T2.1 Acceptance Criteria explicitly lists `- [ ] **EC-10:** Concurrent-remember test passes deterministically (dedup-hash collision behavior documented).` The dedup-collision behavior is a load-bearing invariant of the v1.1 contract because two callers passing different `attributedTo` values for the same text could race the `ON CONFLICT (hash) DO NOTHING` pgvector-store.insertBatch INSERT (line 330). Without the test, the contract "first writer's attribution wins" is undocumented + unverified.
+    summary: |
+      No EC-10 concurrent-remember test exists anywhere in the diff. Plan T2.1 Tasks step 8 mandates "RED integration test for concurrent `Promise.all([remember(text, opts1), remember(text, opts2)])` where opts carry different `attributedTo` values; assert deterministic behavior (dedup-hash collision keeps first writer's attribution per existing dedup semantics — `extraction/pipeline.ts:276` `if (existingHashes.has(hash)) continue;`)" + § TDD RED line + § Acceptance Criteria checkbox EC-10. `grep -rn "concurrent.*remember\|Promise.all.*attributedTo\|dedup.*attribution\|first writer"` over `src/` + `tests/` returns zero hits.
+    evidence: |
+      Plan T2.1 line 473:
+        "EC-10: Write RED integration test for concurrent `Promise.all([remember(text, opts1), remember(text, opts2)])`..."
+      Plan T2.1 TDD § line 482:
+        "RED: test('integration: concurrent remember(text, {attributedTo: a/b}) — dedup keeps first writer attribution', ...) — EC-10"
+      Plan T2.1 Acceptance Criteria line 496:
+        "- [ ] **EC-10:** Concurrent-remember test passes deterministically (dedup-hash collision behavior documented)."
+      pgvector-store.insertBatch line 330: `ON CONFLICT (hash) DO NOTHING` — the dedup race surface.
+      Verification grep over src/ + tests/ for "concurrent.*remember", "Promise.all.*attributedTo", "first writer" — zero hits.
+    impact: |
+      The race-condition contract that motivated EC-10 is documented in the plan + pgvector-store comments BUT not verified by code. A future regression that changes the dedup semantics (e.g., switching `ON CONFLICT DO NOTHING` to `ON CONFLICT DO UPDATE` with `attributed_to = EXCLUDED.attributed_to`) would flip the "first writer wins" invariant silently, breaking consumers depending on attribution determinism. The plan's acceptance checkbox is unverifiable as-shipped.
+    recommended_action: |
+      Add a new test block to `tests/integration/v1-1-multi-peer-bitemporal.test.ts` titled "Scenario 5 — EC-10 concurrent-remember dedup attribution determinism" with at least one test:
+        test('Promise.all([remember(text, {attributedTo: a}), remember(text, {attributedTo: b})]) — dedup keeps first writer attribution', ...)
+      Use `infer: false` + identical text so hash collides; assert that exactly 1 row persists AND `attributedTo` matches one of {a, b} consistently across re-runs (Postgres ON CONFLICT serializes writes so the first committed transaction wins). If determinism cannot be guaranteed (e.g., the test discovers both orderings happen across runs), DOCUMENT that ambiguity in the CHANGELOG migration notes rather than asserting a false determinism.
+
+  - id: F-dom-pg-3
+    severity: MAJOR
+    file: src/core/skill.ts
+    line: 102
+    plan_ref: "T3.1 § Tasks step 4 + § TDD RED line: 'integration: skill row recall with asOf honors bi-temporal predicate' — EC-9 absorption"
+    domain_anchor: |
+      Plan v1.2 § T3.1 Acceptance Criteria explicitly lists `- [ ] **EC-9:** Skill rows honor `asOf` filter at the WHERE-clause level.` The SQL-layer composition IS wired via `composeTemporalWhere()` because `scoped-skill-memory.ts:129 runRetrievalPipeline` ultimately reaches `vectorStore.search()`. BUT the public-API surface `SkillRecallOptions` does NOT carry `asOf`, so a consumer using `memory.skills(repoId).recall(query, options)` cannot pass `asOf`. The plan's intent on EC-9 (per "skill row recall with `asOf` honors bi-temporal predicate") implies the API path is reachable.
+    summary: |
+      `SkillRecallOptions` at `src/core/skill.ts:102-114` defines only `topK | threshold | includeSuperseded` — no `asOf` field. EC-9 acceptance is structurally unreachable from the public skill API: `memory.skills(repoId).recall(query, { asOf: T })` is a TypeScript error today. The SQL composition at `pgvector-store.ts:357-360` would HONOR an asOf if a Filters.asOf reached it, but the skill-recall consumer cannot supply one. There is also no integration test exercising the skill+asOf path (verified via `grep -rn "skill.*asOf"`).
+    evidence: |
+      src/core/skill.ts:102-114 (SkillRecallOptions) — no asOf field.
+      src/local/scoped-skill-memory.ts:118-138 — recall() builds `Filters` from `this.filters` (NOT from options.asOf — there is no options.asOf).
+      tests/integration/ — no test exercising `memory.skills(repoId).recall(q, { asOf })`.
+      Plan T3.1 task 4 (line 638):
+        "EC-9 absorbed: Apply the same WHERE composition to the SKILL query path (kind='skill') in pgvector-store."
+      Plan T3.1 Acceptance Criteria line 668:
+        "- [ ] **EC-9:** Skill rows honor `asOf` filter at the WHERE-clause level."
+      Plan T3.1 TDD § line 655:
+        "RED: test('integration: skill row recall with asOf honors bi-temporal predicate', ...) — EC-9"
+    impact: |
+      Two interpretations possible (must be resolved by plan owner before merge):
+      (a) The plan's EC-9 intent is "skill rows passing through search() inherit the asOf predicate when filters.asOf is set" — which IS satisfied at the SQL layer, but the public API surface is intentionally narrower than memory.user(...).recall(). This is the conservative reading; if so, T3.1 Acceptance is met but the integration test is still missing.
+      (b) The plan's EC-9 intent is "skill consumers can time-travel via asOf" — in which case `SkillRecallOptions` MUST be widened with `asOf?: Date` AND scoped-skill-memory.recall must propagate it into the filters passed to runRetrievalPipeline. The plan's wording ("skill row recall with asOf honors bi-temporal predicate" — present tense) leans toward (b).
+    recommended_action: |
+      Choose interpretation explicitly:
+      Option A (conservative, defer surface widening): keep SkillRecallOptions unchanged; ADD a SQL-layer integration test asserting that when a skill row has t_invalid set, an internal vectorStore.search call with filters.asOf=tPreInvalid still returns it. Document in T3.1 retrospective that EC-9 satisfaction is at the WHERE-clause layer only; consumer-facing widening of SkillRecallOptions deferred to a future v1.x.
+      Option B (full closure): widen SkillRecallOptions with `asOf?: Date` + JSDoc cross-reference to ADR-0011 + EC-3 validation in scoped-skill-memory.recall() + new integration test asserting historical asOf recovers a forgotten skill row. This matches the plan's pattern-symmetry with `RecallOptions.asOf`.
+      Either way, add the integration test that pins the chosen behavior.
+
+  - id: F-dom-pg-4
+    severity: MINOR
+    file: src/local/schema.ts
+    line: 14
+    plan_ref: "T3.1 § EC-4 stale-references audit (line 671) — grep `ADR-0006` shows zero non-deliberate hits in src/ tests/ examples/ docs/"
+    domain_anchor: |
+      Plan v1.2 T3.1 EC-4 absorption: "EC-4: Stale-references audit cleared — grep `BiTemporalNotSupportedLocally\\|ADR-0006\\|v0.5+` shows zero non-deliberate hits in src/ tests/ examples/ docs/."
+    summary: |
+      schema.ts:14 JSDoc still says `- Bi-temporal columns (t_valid/t_invalid) nullable per ADR-0006 (schema clause).` and schema.ts:16 says `the ADR-0006 runtime clause); pre-v1.1 callers got BiTemporalNotSupportedLocally`. These ARE stale references to ADR-0006 — but they ARE the "schema clause" branch of ADR-0006 which T0.1 explicitly preserves (per ADR D3: "Lift BiTemporalNotSupportedLocally via supplementary ADR-0011" — supplementing ADR-0006 runtime clause; the schema clause stands). Lines 14-16 are nuanced wording that distinguishes the runtime clause (now superseded by ADR-0011) from the schema clause (still owned by ADR-0006). On balance the JSDoc IS correct, but the partial supersession would benefit from an inline ADR-0011 cross-reference for future readers.
+    evidence: |
+      src/local/schema.ts:14: ` *  - Bi-temporal columns (t_valid/t_invalid) nullable per ADR-0006 (schema clause).`
+      src/local/schema.ts:16: ` *    the ADR-0006 runtime clause); pre-v1.1 callers got BiTemporalNotSupportedLocally.`
+      schema.ts already adds a 3-line v1.1 amendment at lines 15-17 citing ADR-0011 — so the supersession IS surfaced. No action strictly required; just a polish opportunity.
+    impact: |
+      A future reader of schema.ts grepping for `ADR-0006` finds these references but the surrounding context is clear about the schema-vs-runtime split. Minor risk: a careless reader might think these JSDoc lines were missed by EC-4.
+    recommended_action: |
+      Add a short inline comment after line 14 making the partial supersession explicit: `// (schema clause stands at v1.1; runtime clause superseded by ADR-0011 — see line 15)`. This is polish; not blocking.
+
+  - id: F-dom-pg-5
+    severity: MINOR
+    file: src/local/migrations/0008_attributed_to.sql
+    line: 27
+    plan_ref: "T1.1 Deep Dives — Partial index rationale + EC-6 idempotency"
+    domain_anchor: |
+      Production deploys of partial indexes on large tables typically use `CREATE INDEX CONCURRENTLY` to avoid blocking writes during the index build. The Drizzle-generated convention is non-CONCURRENT for transactional migrations (CONCURRENTLY cannot run inside a transaction block). Migration 0008 uses `CREATE INDEX IF NOT EXISTS` (correct for idempotency) but NOT `CONCURRENTLY`. Acceptable for v1.1 milestone because the column is brand-new and table-write throughput at any consumer is presumably low — but worth noting for the CHANGELOG migration runbook.
+    summary: |
+      Migration 0008 creates `idx_memories_user_attributed_to` without `CONCURRENTLY`. For consumers running this migration against a live production DB with active write traffic on `memories`, the CREATE INDEX will hold a SHARE lock blocking writes (no writes blocked by SHARE-on-SHARE per Postgres docs, but ROW EXCLUSIVE write attempts will queue). The lock duration is proportional to the number of NON-NULL `attributed_to` rows — at v1.1 launch this is exactly zero (per EC-1 honest no-backfill clarification: pre-v1.1 rows have NULL attribution permanently), so the partial index build will be instantaneous. The issue is forward-looking: any FUTURE migration that adds an index on a populated column should ship a runbook note about `CONCURRENTLY` for prod.
+    evidence: |
+      0008_attributed_to.sql:27:
+        CREATE INDEX IF NOT EXISTS "idx_memories_user_attributed_to"
+          ON "memories" ("user_id", "attributed_to")
+          WHERE "attributed_to" IS NOT NULL;
+      No CONCURRENTLY keyword. Drizzle generated migrations run inside an implicit transaction so CONCURRENTLY would error anyway — switching it on would require restructuring as a non-transactional migration step.
+    impact: |
+      Zero impact at v1.1 launch (partial index over zero rows). Pattern-level worth documenting: future migrations adding indexes on populated columns should ship a separate non-transactional step OR a runbook note.
+    recommended_action: |
+      No code change required for v1.1. Recommend adding a comment to migration 0008 (or to architecture.md § 10.x as a new bullet) noting "future migrations adding non-partial indexes on populated columns should consider a non-transactional CONCURRENTLY step OR runbook note for prod deploys".
+
+  - id: F-dom-pg-6
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 108
+    plan_ref: "T3.1 § Tasks step 3 + Deep Dives (NULL semantics) — Graphiti null-safe predicate"
+    domain_anchor: |
+      Plan T3.1 Deep Dives explicitly specifies the null-safe shape: `SQL: (t_valid IS NULL OR t_valid <= :asOf). t_invalid IS NULL means "still valid"; SQL: (t_invalid IS NULL OR t_invalid > :asOf).` The implementation matches.
+    summary: |
+      `composeTemporalWhere()` (lines 108-120) implements the Graphiti null-safe predicate EXACTLY as the plan specifies. JSDoc cites ADR-0011 + plan T3.1. Parametric binding uses `[asOf, asOf]` (two copies of the same Date) to bind both `$N` and `$N+1` independently — clean. nextParamIndex computation correctly advances by +2. When `asOf === undefined`, falls back to the pre-v1.1 `t_invalid IS NULL` so existing callers see ZERO behavior change. Regression-guard test at v1-1-multi-peer-bitemporal.test.ts:194-198 pins this.
+    evidence: |
+      pgvector-store.ts:108-120 — composeTemporalWhere() implementation is clean.
+      Wired into search() (line 360), keywordSearch() (line 424).
+      Default `t_invalid IS NULL` preserved for asOf=undefined path.
+    impact: |
+      No issue. Documenting the strength of this implementation as INFO so a future reviewer understands the bi-temporal predicate path is solid.
+    recommended_action: |
+      No action required. Worth citing as exemplary pattern in any future bi-temporal/Graphiti port skill.
+
+  - id: F-dom-pg-8
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 116
+    plan_ref: "T3.1 + ADR-0011 — composeTemporalWhere parametric Date binding"
+    domain_anchor: |
+      Symmetric defensive-cast pattern. The pgvector path uses explicit `$N::vector` cast (see vectorLiteral + all INSERT/UPDATE/SELECT sites). The jsonb path uses explicit `$N::jsonb`. The uuid array path uses explicit `$N::uuid[]` (recordAccess line 406; persistConsolidations line 700). Date binding to `timestamp with timezone` columns relies on implicit pg-node serialization (Date.toISOString() → ISO string with `Z` suffix), which Postgres coerces correctly against `timestamptz` columns IF the server timezone GUC is not pathological. Defensive ::timestamptz cast would harmonize with the rest of the codebase's explicit-cast discipline.
+    summary: |
+      `composeTemporalWhere()` line 116 binds `Date` instances directly: `t_valid <= $${startParamIndex}` with `params: [asOf, asOf]`. No explicit `::timestamptz` cast on `$N` positions. The pg-node driver serializes Date via `Date.toISOString()` (UTC-marked); Postgres CAN coerce text→timestamptz, but the coercion is implicit and depends on the session's TimeZone GUC for parsing ambiguous strings. ISO-8601 with `Z` suffix is unambiguous (RFC 3339), so practical risk is LOW — but the codebase's pattern is to add explicit type casts on every parametric position ($N::vector, $N::jsonb, $N::uuid[]). Adding `::timestamptz` would harmonize and pre-empt a future ts-utc serialization quirk.
+    evidence: |
+      pgvector-store.ts:116:
+        sql: `(t_valid IS NULL OR t_valid <= $${startParamIndex}) AND (t_invalid IS NULL OR t_invalid > $${startParamIndex + 1})`,
+        params: [asOf, asOf],
+      Sibling pattern with explicit cast (pgvector-store.ts:706-707 persistConsolidations):
+        `UPDATE memories SET t_invalid = NOW() WHERE id = ANY($1::uuid[]) AND t_invalid IS NULL`
+    impact: |
+      Practically zero in current runtime: Date.toISOString() produces RFC 3339 with `Z`; Postgres parses unambiguously regardless of session TimeZone. Risk surfaces only if pg-node ever changes Date serialization (unlikely) or a custom Date subclass overrides toISOString. Defensive cast eliminates the latent dependency without performance cost.
+    recommended_action: |
+      Change to:
+        sql: `(t_valid IS NULL OR t_valid <= $${startParamIndex}::timestamptz) AND (t_invalid IS NULL OR t_invalid > $${startParamIndex + 1}::timestamptz)`,
+      Symmetric with $N::vector / $N::jsonb / $N::uuid[] patterns elsewhere in the file. Cost-free polish; harmonizes with the file's "explicit cast at every $N" discipline.
+
+  - id: F-dom-pg-7
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 244
+    plan_ref: "T2.1 § Tasks step 2 + EC-2 absorption (verbatim-path RememberOptions widening)"
+    domain_anchor: |
+      Plan T2.1 mandates "INSERT path must read `payload.attributed_to` (string | undefined) and pass it as a column value; SELECT path must read the column and surface it on the `MemoryItem` projection." Both paths must converge (LLM-extraction via pipeline.buildPayload + verbatim-path via options.attributedTo).
+    summary: |
+      INSERT batch (insertBatch lines 283-333), UPDATE method (lines 458-501), all 4 SELECT sites (search line 363, keywordSearch line 427, get line 447, list line 521) consistently add `attributed_to` to column lists. cleanedPayload deletion pattern (line 311, 476) mirrors the precedent set for user_id/session_id/agent_id. INSERT param numbering increments correctly: `$1..$9` (id/text/hash/embedding/payload/user_id/session_id/agent_id/attributed_to). UPDATE param numbering correctly: `$1..$9` (id is $1, then embedding/text/hash/payload/userId/sessionId/agentId/attributedTo). composeFilters() conditional WHERE attributed_to clause (lines 148-152) is correctly parametric AND advances idx; EC-7 null-equality semantics inline comment + EC-5 entity-store opt-out rationale inline comment are present.
+    evidence: |
+      INSERT VALUES placeholder template (line 312-314): `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++})` — 9 params, matches the 9-column INSERT.
+      INSERT params order matches column list order (lines 315-325).
+      UPDATE SET clause adds `attributed_to = $9` (line 486), param array adds attributedTo at index 9 (line 498).
+      All SELECT sites add `attributed_to` immediately after `agent_id` in the column list — consistent ordering.
+      composeFilters() at lines 148-152 — correct parametric idx increment.
+    impact: |
+      Strong pattern adherence. The 4-SELECT-site consistency is exactly what prevents subtle "search returns it but list/get doesn't" bugs. Worth citing in cross-validation review.
+    recommended_action: |
+      No action required.
+
+summary_of_concerns: |
+  Two MAJOR findings block READY_TO_MERGE if strictly enforced:
+  - F-dom-pg-1 (schema.ts missing the partial index declaration — db:push divergence hazard documented by architecture.md § 10.2 + the F-C3 prior precedent in schema.ts:240-244).
+  - F-dom-pg-2 (EC-10 concurrent-remember test missing — plan T2.1 Acceptance Criteria checkbox unverifiable).
+  One MAJOR finding requires plan-owner clarification:
+  - F-dom-pg-3 (EC-9 skill+asOf surface ambiguity — depending on intent, either an integration test is missing OR SkillRecallOptions widening is missing).
+  Two MINOR findings are polish (F-dom-pg-4 ADR-0006 partial supersession inline note; F-dom-pg-5 forward-looking CONCURRENTLY runbook note).
+  Two INFO findings document strong pattern adherence (F-dom-pg-6 Graphiti null-safe predicate clean; F-dom-pg-7 4-SELECT-site INSERT/UPDATE consistency).
+  The bi-temporal predicate (composeTemporalWhere), multi-peer attribution filter (composeFilters extension), and pgvector schema migration (0008) are correctly implemented. Drizzle journal sync is clean. HNSW + MAX_EMBEDDING_DIM=1536 invariant preserved. No FK cascade surprises (history ON DELETE CASCADE, consolidation_history ON DELETE SET NULL, superseded_by self-FK ON DELETE SET NULL — EC-11 GDPR hard-delete survives audit layer).

@@ -1,0 +1,279 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-domain-db-migrations
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal
+domain: db-migrations
+domain_specific_patterns_checked:
+  - Postgres 14+ syntax (ADD COLUMN IF NOT EXISTS / CREATE INDEX IF NOT EXISTS)
+  - Drizzle `--> statement-breakpoint` parser delimiter
+  - Drizzle journal monotonic ordering (idx + when timestamp)
+  - Drizzle snapshot vs schema.ts vs migration SQL parity
+  - runMigrations() orphan-schema short-circuit interaction (architecture.md § 10.2)
+  - Trigger-bearing migration policy (architecture.md § 10.3)
+  - Migration idempotency (EC-6 absorbed)
+  - Forward-only migration discipline (no down())
+  - Partial-index discipline (WHERE attributed_to IS NOT NULL)
+  - Production deployment safety (CREATE INDEX without CONCURRENTLY)
+  - Cross-migration interaction (0001-0007 + 0008 monotonic chain)
+  - File header docstring shape (mirrors 0007 format per plan T1.1 step 1)
+
+findings:
+  - id: F-dom-dbmig-1
+    severity: MAJOR
+    file: src/local/schema.ts
+    line: "120-159 (table-builder block) + 87 (attributedTo column)"
+    plan_ref: T1.1 § AC #2 + AC #3 (drizzle-kit push parity) + architecture.md § 10.2 + § 10.3
+    domain_anchor: Drizzle snapshot drift — schema.ts is the source of truth Drizzle uses to introspect for `drizzle-kit push`
+    summary: |
+      `schema.ts` declares the `attributed_to` column at line 87 but DOES NOT declare the
+      partial composite index `idx_memories_user_attributed_to ON memories (user_id,
+      attributed_to) WHERE attributed_to IS NOT NULL` in the `(table) => [...]` index
+      builder block. As a result the auto-generated `0008_snapshot.json` is missing the
+      index, and `drizzle-kit push` against a fresh dev DB will create the column WITHOUT
+      the partial index. This silently degrades the recall WHERE filter from O(log N)
+      index-scan to O(N) sequential-scan whenever a push-flow dev DB is used.
+    evidence: |
+      ```ts
+      // src/local/schema.ts:87 — column declared
+      attributedTo: text('attributed_to'),
+
+      // src/local/schema.ts:121-149 — index builder block. Has the v0.4b eviction
+      // partial indexes BUT NO `idx_memories_user_attributed_to`:
+      (table) => [
+        uniqueIndex('memories_hash_unique_idx').on(table.hash),
+        index('memories_user_id_idx').on(table.userId),
+        ...
+        index('idx_memories_eviction_score').on(table.agentId).where(sql`...`),
+        index('idx_memories_eviction_score_user').on(table.userId).where(sql`...`),
+        index('idx_memories_eviction_score_session').on(table.sessionId).where(sql`...`),
+        check(...),
+      ],
+      ```
+      Verification:
+      ```
+      $ grep -c "idx_memories_user_attributed_to" src/local/migrations/meta/0008_snapshot.json src/local/schema.ts
+      src/local/migrations/meta/0008_snapshot.json:0   ← MISSING from snapshot
+      src/local/schema.ts:0                            ← MISSING from schema.ts
+      $ grep -c "idx_memories_user_attributed_to" src/local/migrations/0008_attributed_to.sql
+      1                                                ← Only in raw SQL
+      ```
+
+      The integration test at `tests/integration/v1-1-multi-peer-bitemporal.test.ts:65-70`
+      effectively confirms this gap — it manually inlines BOTH `ALTER TABLE ADD COLUMN
+      IF NOT EXISTS` AND `CREATE INDEX IF NOT EXISTS idx_memories_user_attributed_to`
+      after `runMigrations(pool)`. The inline CREATE INDEX would be redundant if
+      schema.ts declared the index (drizzle-kit push would create it; runMigrations would
+      apply 0008). The fact that the test's author had to inline it reveals the drift.
+
+      Same architectural class as architecture.md § 10.3 trigger drift — push path
+      silently misses constructs that schema.ts doesn't model.
+    recommended_action: |
+      Add the partial index to `schema.ts` in the `memories` table-builder block:
+
+      ```ts
+      // v1.1 T1.1: partial composite index for O(log N) recall filter on
+      // (user_id, attributed_to). WHERE attributed_to IS NOT NULL keeps the index
+      // small (Mem0 promoted-key precedent + EC-6 absorption).
+      index('idx_memories_user_attributed_to')
+        .on(table.userId, table.attributedTo)
+        .where(sql`${table.attributedTo} IS NOT NULL`),
+      ```
+
+      Then regenerate the snapshot via `npm run db:generate` (or hand-patch
+      `0008_snapshot.json` if you do not want to bump the migration). Verify the index
+      lands in the snapshot's `public.memories.indexes` block. Drop the inline
+      `CREATE INDEX IF NOT EXISTS` from the goal test `beforeAll` once parity is restored.
+
+      Cross-reference: architecture.md § 10.2 explicitly calls out the drizzle-kit push
+      vs runMigrations() reconciliation gap; § 10.3 documents the same shape for
+      triggers (psql side-channel). Partial indexes that schema.ts doesn't declare are
+      a third instance of the same pattern.
+
+  - id: F-dom-dbmig-2
+    severity: MINOR
+    file: src/local/migrations/0008_attributed_to.sql
+    line: 27
+    plan_ref: T1.1 + architecture.md § 10.2 (production deploy via runMigrations)
+    domain_anchor: Postgres CREATE INDEX blocking-vs-CONCURRENT semantics for production-grade migrations
+    summary: |
+      `CREATE INDEX IF NOT EXISTS idx_memories_user_attributed_to ON memories (user_id,
+      attributed_to) WHERE attributed_to IS NOT NULL` uses the blocking form. On a
+      production `memories` table with high write throughput AND a non-trivial row
+      count, this acquires a `SHARE` lock on the table for the duration of the index
+      build, blocking concurrent INSERTs into `memories`.
+      For TheMemory pre-release where the `attributed_to` column has just been ADDED
+      and is NULL on all historical rows, the partial-index build with
+      `WHERE attributed_to IS NOT NULL` scans an effectively empty filtered set —
+      build time is near-zero, lock window is brief. For early adopters this is
+      acceptable.
+      BUT once v1.x is in production with non-trivial row counts AND consumers backfill
+      `attributed_to` via subsequent rememberings, future migrations against the same
+      table SHOULD prefer `CREATE INDEX CONCURRENTLY` to avoid write-stalling.
+      Note: `CREATE INDEX CONCURRENTLY` cannot run inside a transaction (Drizzle's
+      `migrate()` wraps each migration in `BEGIN/COMMIT`). This is a known constraint
+      and would require a different migration mechanism (raw psql or split file). For
+      v1.1 the blocking form is honest given the project status (pre-release per
+      CLAUDE.md). Flagging for the post-v1.0 production-grade migrations doc.
+    evidence: |
+      ```sql
+      -- src/local/migrations/0008_attributed_to.sql:27-29
+      CREATE INDEX IF NOT EXISTS "idx_memories_user_attributed_to"
+        ON "memories" ("user_id", "attributed_to")
+        WHERE "attributed_to" IS NOT NULL;
+      ```
+
+      Postgres docs: "Creating an index can interfere with regular operation of a
+      database. Normally PostgreSQL locks the table to be indexed against writes and
+      performs the entire index build with a single scan of the table. ... PostgreSQL
+      supports building indexes without locking out writes. This method is invoked by
+      specifying the CONCURRENTLY option of CREATE INDEX."
+    recommended_action: |
+      For v1.1 with the column freshly added and empty: NO ACTION (acceptable trade-off
+      per project status pre-release). Surface this as a documented constraint in the
+      `## Consequences` section of ADR D2 OR in a follow-up README § "Production
+      migrations" subsection: "Migrations that introduce indexes on hot tables should
+      prefer CREATE INDEX CONCURRENTLY in dedicated migration files; v1.1's 0008 used
+      the blocking form because the partial index built against an empty filtered set
+      had no observable cost."
+
+  - id: F-dom-dbmig-3
+    severity: MINOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts
+    line: "239-252 (Scenario 4 — Migration idempotency)"
+    plan_ref: T1.1 § AC #9 (EC-6 idempotency real-DB test)
+    domain_anchor: EC-6 idempotency contract — re-running `runMigrations(pool)` must be a no-op AT BOTH column AND index level
+    summary: |
+      The EC-6 idempotency integration test (`Scenario 4`) only asserts the
+      `attributed_to` COLUMN exists after a second `runMigrations(pool)` call. It does
+      NOT assert the partial INDEX `idx_memories_user_attributed_to` exists or remains
+      stable across re-runs. Given F-dom-dbmig-1 (schema.ts doesn't declare the index,
+      drift between SQL migration + snapshot + push-flow), the test as authored cannot
+      detect a regression where the index silently vanishes on a push-flow DB.
+    evidence: |
+      ```ts
+      // tests/integration/v1-1-multi-peer-bitemporal.test.ts:240-251
+      describe('Scenario 4 — Migration idempotency (EC-6)', () => {
+        test('runMigrations(pool) invoked twice is a no-op ...', async () => {
+          await runMigrations(pool);
+          const result = await pool.query<{ exists: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'memories' AND column_name = 'attributed_to'
+             ) AS exists`,
+          );
+          expect(result.rows[0]?.exists).toBe(true);  // ← only column existence
+        }, 15_000);
+      });
+      ```
+    recommended_action: |
+      Extend Scenario 4 with a second assertion that the partial index exists:
+
+      ```ts
+      const idxResult = await pool.query<{ indexname: string; indexdef: string }>(
+        `SELECT indexname, indexdef FROM pg_indexes
+          WHERE schemaname = 'public'
+            AND tablename = 'memories'
+            AND indexname = 'idx_memories_user_attributed_to'`,
+      );
+      expect(idxResult.rowCount).toBe(1);
+      // Confirm it is the WHERE-filtered partial form (not a bare composite index).
+      expect(idxResult.rows[0]?.indexdef).toMatch(/WHERE.*attributed_to IS NOT NULL/i);
+      ```
+
+      This closes the test gap AND surfaces F-dom-dbmig-1 directly when push-flow drift
+      occurs.
+
+  - id: F-dom-dbmig-4
+    severity: MINOR
+    file: src/local/migrations/meta/0008_snapshot.json
+    line: "consolidation_history block (pre-existing drift)"
+    plan_ref: T1.1 commit message: "Auto-generated snapshot retained for drift detection; pre-existing consolidation_history index/default drift left for a follow-up cycle per YAGNI"
+    domain_anchor: Drizzle snapshot drift detection — commit message documented pre-existing drift but did not file a follow-up cycle
+    summary: |
+      The T1.1 commit message acknowledges pre-existing `consolidation_history`
+      index/default drift surfaced by `npm run db:generate` but defers to a follow-up
+      cycle ("the out-of-scope migration was deleted"). No tracking item or follow-up
+      issue was filed. The 0008 snapshot embeds the consolidation_history representation
+      from schema.ts which may differ from the actual SQL applied by migration 0007 +
+      runtime state. Future migrations will inherit the drift baseline and may
+      auto-generate spurious diff statements.
+    evidence: |
+      Commit `ef4a434` body (line):
+      > Drizzle journal: idx 8 tag 0008_attributed_to. Auto-generated snapshot
+      > (0008_snapshot.json) retained for drift detection; pre-existing
+      > consolidation_history index/default drift left for a follow-up cycle per
+      > YAGNI (out of v1.1 scope; surfaced via npm run db:generate but the
+      > out-of-scope migration was deleted).
+    recommended_action: |
+      Honest tracking: add an entry to a follow-up plan or a CHANGELOG `Deferred` line
+      pointing to the consolidation_history snapshot drift. The honest discipline
+      (Inquebrável Rule 3) requires the deferral to live somewhere durable — a
+      one-line commit acknowledgement is not enough audit trail. Acceptable closure
+      paths: (a) follow-up cycle `consolidation-history-snapshot-realign` opens after
+      v1.1 lands; (b) ADR-style note in the plan v1.3 § Out-of-Scope explicitly
+      enumerates the drift and the trigger for closure.
+
+  - id: F-dom-dbmig-5
+    severity: INFO
+    file: src/local/migrations/0008_attributed_to.sql
+    line: "1-30 (whole file)"
+    plan_ref: T1.1 Step 1 — "Author 0008_attributed_to.sql mirroring 0007 format"
+    domain_anchor: Migration file header docstring contract (mirrors 0007 format)
+    summary: |
+      Migration 0008 header docstring is well-formed: cites T1.1, ADR D2, EC-2, EC-6;
+      explains EC-1 (no backfill) and EC-2 (verbatim path) absorptions inline with
+      file/line references; links to the plan + edge-case review markdown. Format
+      matches 0007. ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS are both
+      idempotent. The single `--> statement-breakpoint` between ALTER and CREATE INDEX
+      correctly delimits Drizzle migrate parser statements. Postgres 14+ syntax (target
+      pgvector v0.5.1 → PG 14 minimum) is honored (ADD COLUMN IF NOT EXISTS exists
+      since PG 9.6; CREATE INDEX IF NOT EXISTS since 9.5; partial WHERE clause since
+      7.x — all comfortably below the floor). No down() migration is consistent with
+      Drizzle's forward-only convention used by 0000-0007.
+    evidence: |
+      ```sql
+      -- T1.1 / ADR D2 + EC-2 + EC-6 — v1.1 multi-peer attribution: first-class
+      -- promoted column.
+      --
+      -- Adds `attributed_to text NULL` to the memories table + a partial composite
+      -- index `(user_id, attributed_to) WHERE attributed_to IS NOT NULL` for
+      -- O(log N) filter queries via the T2.2 recall API.
+      --
+      -- EC-6 absorbed: ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS make
+      -- the migration idempotent ...
+      -- EC-1 absorbed: NO `UPDATE memories SET attributed_to = (payload->>'...')`
+      -- statement here ...
+      ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "attributed_to" text;--> statement-breakpoint
+      CREATE INDEX IF NOT EXISTS "idx_memories_user_attributed_to"
+        ON "memories" ("user_id", "attributed_to")
+        WHERE "attributed_to" IS NOT NULL;
+      ```
+
+      Drizzle journal idx 8, monotonic timestamp (1780445431070 > 1780341763029 for
+      0007). Snapshot version 7 matches predecessor.
+    recommended_action: |
+      None — migration SQL file shape itself is exemplary. The drift problem
+      (F-dom-dbmig-1) is at the schema.ts + snapshot layer, NOT the migration SQL.
+
+summary:
+  total_findings: 5
+  by_severity:
+    CRITICAL: 0
+    MAJOR: 1
+    MINOR: 3
+    INFO: 1
+  net_assessment: |
+    Migration 0008 SQL file is exemplary in shape — idempotency primitives (IF NOT
+    EXISTS), Postgres 14+ syntax, partial index, header docstring matching 0007 format,
+    correct `--> statement-breakpoint` delimiter, monotonic Drizzle journal entry. The
+    EC-6 idempotency absorption is honored at the SQL layer. The single MAJOR finding
+    is the silent drift between the migration SQL (declares the partial index) and
+    `schema.ts` + `0008_snapshot.json` (do NOT declare the partial index). This means
+    `drizzle-kit push`-flow dev DBs silently miss the index, degrading recall WHERE
+    filter to sequential scan — a third instance of the same architectural pattern
+    documented in architecture.md § 10.2 (push vs runMigrations) and § 10.3 (trigger
+    drift). The integration test confirms the gap by inlining the index creation
+    AFTER `runMigrations(pool)`. Closure is mechanical: declare the index in schema.ts
+    and regenerate the snapshot. The 3 MINOR + 1 INFO are non-blocking caveats around
+    production CONCURRENTLY semantics, EC-6 test depth, snapshot drift tracking, and
+    docstring quality.
+  blockers: 0
+  ready_for_review_handoff: yes_after_F-dom-dbmig-1_resolved

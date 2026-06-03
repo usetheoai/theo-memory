@@ -1,0 +1,137 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-tests
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal v1.2
+plan: .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md
+plan_version_at_review: v1.2 (2026-06-02)
+
+test_pyramid:
+  unit_added: 24    # 9 schema + ~9 new pgvector-store (T2.1 hoist+projection + T2.2 filter + T3.1 asOf SQL) + 2 factory (T3.2 rewrite + EC-3 + class-export) + 1 memory-item + 4 options (T3.1 JSDoc x3 + EC-2 + T2.2) + 5 extraction-prompt (T1.2 N-valent + EC-8 stability + BIVALENT regression). Order-of-magnitude tally; some tests sit in pre-existing describe blocks and were modified rather than purely added.
+  integration_added: 7  # 4 describe blocks in v1-1-multi-peer-bitemporal.test.ts × 1-2 tests each = 7 total: Scenario 1 (2 tests), Scenario 2 (3 tests), Scenario 3 (1 test), Scenario 4 (1 test)
+  e2e_added: 0
+  total: 31  # rough — pyramid is healthy (many unit + few integration + zero E2E in this branch)
+  pyramid_balance_verdict: HEALTHY — strong unit base (24) + targeted integration (7) at the SQL-against-real-pgvector boundary; no E2E delta this cycle (consistent with v1.1 scope being SDK contract; UX deferred to v1.2 per EC-13).
+
+edge_cases_from_plan:
+  covered:
+    - EC-1 (no-backfill honest contract — closed at schema/migration test layer + commit message; documented)
+    - EC-2 (RememberOptions.attributedTo verbatim path — options.test.ts + pgvector-store.test.ts:149-173)
+    - EC-3 (asOf invalid-Date boundary — factory.test.ts:116-123 + integration scenario 2 test 2)
+    - EC-5 (entity-boost path attribution isolation — only verified via the cross-attribution check in goal-test scenario 1; entityBoost=true default per ADR-0007 so it IS the path under test)
+    - EC-6 (migration 0008 idempotency — integration scenario 4)
+    - EC-7 (empty-string vs NULL semantics — pgvector-store.test.ts:234-252 + integration scenario 1 test 2)
+    - EC-8 (stub LLM fixture stability — extraction-prompt.test.ts T1.2 block)
+    - EC-10 (concurrent dedup w/ different attributions — listed in plan T2.1 step 8 as a RED test; verified covered at contract layer by INSERT hoist tests + dedup behavior is inherited from pre-v1.1; cross-validation agent did not flag missing)
+    - EC-11 (GDPR caveat — integration scenario 2 test 1 exercises hard-delete after soft-delete + asOf)
+    - EC-12 (skill rows inherit NULL attribution — DOCUMENT-tier; no RED test required per plan)
+    - EC-13 (TheoKit + UI deferred — DOCUMENT-tier; CHANGELOG note only)
+  missing:
+    - EC-9 (skill rows + asOf interaction — plan T3.1 § Tasks step 10 / TDD line / AC ALL declare an integration RED test; the test was NEVER written. See F-tests-1 below. Cross-validation agent flagged this as F-xval-1 as a contract divergence; here we surface the tests-side concern about scenario depth missing entirely from goal test.)
+  covered_count: 11
+  missing_count: 1
+
+tdd_compliance:
+  red_before_green: PARTIAL
+  notes: |
+    Commits are bundled (RED + GREEN + REFACTOR per task in one commit per ralph-loop / cycle-implement v1.5 discipline) so per-file `git log --follow` cannot prove RED-before-GREEN purely from commit order. The commit messages explicitly call out "RED→GREEN with full contract suite passing" (ef4a434, 7f4eb05, 24d4f05, 73cd889, 8876fb3). Test file headers cite RED-phase intent (e.g., memory-item.test.ts header line 2, schema.test.ts line 2). No commit lands implementation source WITHOUT a sibling test edit. TDD discipline judged honored in spirit, but the audit trail cannot pin RED-precedes-GREEN at the SHA level.
+
+aaa_given_when_then_format:
+  verdict: MOSTLY_HONORED
+  notes: |
+    Integration goal test (v1-1-multi-peer-bitemporal.test.ts) uses no explicit Arrange/Act/Assert or Given/When/Then comment markers. The structure IS Arrange-Act-Assert by line-grouping convention (seed rows → invoke recall/forget → expect chain), and tests are well-formed, but testing.md § BDD § Mandatory format says "Given-When-Then (or Arrange-Act-Assert)". Strict reading: no comment markers = MINOR formatting drift but does NOT block. Contract tests in pgvector-store.test.ts (T2.1/T2.2/T3.1 added blocks) all follow the same un-marked AAA shape consistently with the rest of the test suite (pre-existing convention).
+
+test_naming_split_check:
+  - One test descriptor in goal-test scenario 1 uses "and" connecting subjects, not behaviors: "Alice and Bob memories with distinct attributedTo round-trip disjoint via recall filter" (line 90). The test asserts ONE behavior (filter disjointness across two peers) so the "and" is enumerating fixture entities, not chaining behaviors — acceptable per Inquebrável Rule 7 spirit ("no `and` in test names chaining BEHAVIORS"). Two more "and"/"AND" hits in pre-existing tests (schema.test.ts:68 ADR-0006 description, pgvector-store.test.ts:378 "BOTH embeddingDim AND tracer" — option-shape enumeration); neither chains behaviors. Verdict: PASS.
+
+skipped_and_only_check:
+  verdict: PASS
+  notes: |
+    Zero `.skip` / `.only` / `xit` / `xtest` hits across the 8 modified test files. The lone `describe.skipIf(PG_URI === '')` in the integration goal test is the legitimate testcontainers-gated pattern (testing.md § Pyramid § E2E and integration tests, plus per the precedent of all other tests/integration/*.test.ts files). NOT a skipped test in the Inquebrável Rule 7 sense.
+
+fixture_hygiene:
+  constant_embedder_rationale:
+    verdict: SOUND
+    notes: |
+      Test header lines 25-32 explicitly justify why ConstantEmbedder (and not DeterministicStubEmbedder) is chosen: the goal test exercises SQL-layer MECHANICS (column hoist, WHERE filter composition, temporal predicate, scope isolation), NOT semantic relevance. ConstantEmbedder makes ALL rows trivially pass the threshold so the SQL contract is the ONLY variable. Semantic plumbing is covered by the existing 670+ contract tests. Cross-validation agent already documented this as divergence-4-honest and accepted it.
+      RISK: ConstantEmbedder also means that recall() rankings are degenerate (all distances zero, score=1). If recall() ever started failing to RETURN rows when distances are exactly zero (e.g., a future "tied-distance-tiebreaker" change), this test would silently hide the bug. Recommend: add a counter-assertion `expect(all.length).toBeLessThanOrEqual(N + tolerance)` or document this as a known property of the fixture. Treat as F-tests-2 below.
+  beforeach_reset:
+    verdict: SOUND
+    notes: |
+      `beforeEach(async () => { await resetTestRows(pool); })` at line 80-82 truncates the alice + bob test rows before each test. Good isolation. Note: relies on userId scoping (resetTestRows DELETEs WHERE user_id = ANY(...)); any future test that seeds other userIds would skip cleanup. NOT a current bug.
+  deterministic:
+    verdict: SOUND_WITH_FLAKINESS_CAVEAT
+    notes: |
+      ConstantEmbedder + DeterministicStubLLM are fully deterministic. BUT scenario 2 (forgotten memory recoverable by historical asOf) uses three `await new Promise(resolve => setTimeout(resolve, 50))` calls at lines 165, 169, 214 to manufacture time gaps between `Date.now()` snapshots. See F-tests-3 below.
+
+flakiness_concerns:
+  - id: F-tests-3 surface
+    location: tests/integration/v1-1-multi-peer-bitemporal.test.ts:165, 169, 214
+    description: |
+      Three 50ms `setTimeout` sleeps to manufacture temporal separation between `tBeforeForget` / `forget(id)` / `tAfterForget` and between `remember()` / `tBefore`. On a slow CI runner (containerized clock skew, GC pauses, Postgres NOW() resolution), 50ms is the minimum spacing that still beats Postgres `now()` granularity (microseconds in PG14+) and JS `Date.now()` (1ms resolution). In practice 50ms is fine for most CI environments. But:
+        - There is NO documented justification for the 50ms specifically.
+        - If the goal test ever flakes on a CI runner, the first symptom would be a non-deterministic Scenario 2 test 1.
+        - Alternative: use `vi.useFakeTimers()` for the JS clock + advance Postgres clock via raw SQL `SELECT pg_sleep(...)` OR inject explicit Date stamps as parameters to forget/recall. The current 50ms approach is the simplest and trusts the OS scheduler, which is reasonable for a goal test against a real container.
+      Verdict: ACCEPTABLE today; recommended to add a brief comment justifying the 50ms or upgrade to fake timers in a follow-up if flake surfaces.
+
+findings:
+  - id: F-tests-1
+    severity: MAJOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts (missing skill-scope scenario)
+    plan_ref: |
+      T3.1 § Tasks step 10 — "Write RED integration test: skill row recall with `asOf` honors bi-temporal predicate."
+      T3.1 § TDD — line "test('integration: skill row recall with asOf honors bi-temporal predicate', ...) — EC-9"
+      Global DoD § Plan-specific criterion 4 — "All 5 SHOULD TEST items shipped as RED tests in their owning tasks (EC-6/EC-7/EC-8/EC-9/EC-10)"
+      Coverage Matrix gap 29 (EC-9)
+    summary: |
+      EC-9 integration test (skill rows + asOf) absent. Goal test (v1-1-multi-peer-bitemporal.test.ts) has 4 scenarios; ALL exercise memory.user(ALICE).recall(). Zero scenarios touch memory.skills(repoId).recall(). grep -rn "skill.*asOf\|asOf.*skill" tests/ → 0 matches. The plan AC EC-9 says the SHOULD TEST integration coverage was the resolution; that test was never written.
+    evidence: |
+      - tests/integration/v1-1-multi-peer-bitemporal.test.ts:89-252 — all 4 describe blocks use memory.user(ALICE)
+      - tests/integration/v1-1-multi-peer-bitemporal.test.ts has zero references to .skills(
+      - Cross-validation agent F-xval-1 confirms the SDK type-rejects memory.skills(repoId).recall(q, {asOf}) at the API surface (SkillRecallOptions lacks asOf, scoped-skill-memory.ts builds Filters without asOf)
+    recommended_action: |
+      Coordinate with cross-validation agent's F-xval-1 resolution. If Option A (widen SkillRecallOptions + Filters wiring) is chosen, ADD a 5th scenario to v1-1-multi-peer-bitemporal.test.ts: seed a skill via memory.skills('repo-a').remember(...); soft-delete; recall with tBeforeForget asOf returns it; recall with tAfter excludes. If Option B (honest deferral) is chosen, REMOVE EC-9 from Global DoD § Plan-specific criterion 4 + update Coverage Matrix gap 29 to a DEFER row. Do NOT leave the gap silently open.
+    note_on_duplication: |
+      Cross-validation agent's F-xval-1 already flagged this as a contract divergence (API surface + acceptance criterion). This finding is filed from the tests-perspective: the goal test's scenario coverage is structurally incomplete for the plan's declared scope. SAME root cause; we surface different fix-up surface (test scenarios vs API + Coverage Matrix).
+
+  - id: F-tests-2
+    severity: MINOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts:25-41 (ConstantEmbedder rationale)
+    plan_ref: T4.1 § Files to edit + divergence-4-honest in cross-validation findings (already accepted)
+    summary: |
+      ConstantEmbedder ensures all rows pass the threshold filter — this is correct for THIS goal test's mechanical contract. But it also means: any future regression where recall() drops rows due to a tied-distance / score-collision path (e.g., a future scoring tweak that breaks on score==1 ties) would silently pass this test. There is no canary asserting "ranking ordering preserved" because the goal test deliberately doesn't measure ranking.
+    evidence: |
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts:25-37 — CONSTANT_UNIT_VEC + ConstantEmbedder
+    recommended_action: |
+      Add a brief JSDoc comment at the ConstantEmbedder declaration noting "This embedder is INTENTIONALLY degenerate — semantic ranking is not tested here. If a future scoring change breaks on tied-distance rows, surface it via the existing semantic-ranking contract tests in src/local/__tests__/pgvector-store.test.ts (T0.2 dimension-guard + EC-7 empty-string blocks)." Two-line documentation update; no test changes.
+
+  - id: F-tests-3
+    severity: MINOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts:165, 169, 214
+    plan_ref: T4.1 § Deep Dives (not explicitly addressed)
+    summary: |
+      Three undocumented 50ms `setTimeout` sleeps create temporal separation for Scenario 2 + Scenario 3. On heavily-loaded CI runners these could collapse to sub-millisecond effective spacing (Postgres NOW() vs JS Date.now() race) and produce intermittent failures. Probability is low (50ms >> Postgres NOW() granularity), but the magic number is unjustified.
+    evidence: |
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts:163-170 — Scenario 2 forget-window
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts:213-214 — Scenario 3 setup gap
+    recommended_action: |
+      Add a one-line comment justifying 50ms (e.g., "// 50ms >> Postgres NOW() microsecond granularity + JS Date.now() 1ms resolution; defensive margin"). If the test flakes once in CI, upgrade to `vi.useFakeTimers()` or pass explicit Date arguments to forget/recall via a test-only seam.
+
+  - id: F-tests-4
+    severity: MINOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts:80-82 (resetTestRows scope coupling)
+    plan_ref: T4.1 § Deep Dives (real pgvector pattern)
+    summary: |
+      `resetTestRows` DELETEs WHERE user_id = ANY([ALICE, BOB]). Scenario 1 test 2 (EC-7) inserts two extra rows via raw SQL using ALICE as user_id, so reset catches them. BUT Scenario 4 (migration idempotency) does NOT seed under those user_ids, and any future scenario that uses a different user_id or skill-scope row would silently bleed across tests. Defense-in-depth: `DELETE FROM memories WHERE user_id LIKE 'v1-1-goal-test-%'` would be more resilient to future scenario additions.
+    evidence: |
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts:48-50 — resetTestRows query
+    recommended_action: |
+      Either (a) tighten the prefix-based DELETE pattern to catch any future v1-1-goal-test-* userId, OR (b) document the contract "every test seeds rows under ALICE or BOB only". Choice is stylistic; both are fine.
+
+verdict_summary: |
+  TESTS REVIEW VERDICT: NEEDS_FIXES_BEFORE_MERGE (1 MAJOR + 3 MINOR).
+  Pyramid is healthy (24 unit + 7 integration + 0 E2E). TDD discipline honored at the commit-message level (RED→GREEN bundling per cycle-implement v1.5). AAA/Given-When-Then format is followed by line-grouping without explicit comment markers — consistent with the rest of the suite; no regression. Zero skipped tests, zero .only leaks.
+  The single MAJOR (F-tests-1) is the tests-side mirror of cross-validation's F-xval-1 EC-9 finding: the integration RED test required by plan T3.1 step 10 was never written; the goal test's 4 scenarios all use memory.user() scope and zero scenarios exercise memory.skills(repoId).recall() with asOf. Resolution depends on whether F-xval-1 is closed via Option A (widen API + add test) or Option B (honest deferral); either path mandates a fix.
+  The 3 MINORs are fixture hygiene + documentation drift:
+    - F-tests-2: ConstantEmbedder rationale documented in test header but no canary against future tied-distance regressions; recommend a JSDoc note.
+    - F-tests-3: three 50ms setTimeout sleeps in Scenario 2/3 lack documented justification; recommend a one-line comment + flake-watch.
+    - F-tests-4: resetTestRows couples to ALICE/BOB user_ids; recommend prefix-based DELETE for future scenario additions.
+  Edge-case coverage is 11/12 (EC-9 is the singular miss; same root as F-tests-1). All other EC items (EC-1 through EC-13) have associated RED tests at the appropriate layer per the plan's resolution column.
+  ConstantEmbedder fixture is SOUND for the goal test's mechanical contract — properly justified in the test header, accepted by cross-validation agent as divergence-4-honest.

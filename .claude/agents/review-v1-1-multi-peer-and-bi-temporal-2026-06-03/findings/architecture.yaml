@@ -1,0 +1,443 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-architecture
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal
+plan: .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md
+plan_version: v1.2 (2026-06-02)
+date: 2026-06-03
+commits_in_range:
+  - 2e4da30 chore(plans) cycle-plan chain artifacts
+  - ee6056d docs(adr) T0.1 ADR-0011 + EC-4 stale-refs audit
+  - ef4a434 feat(memory) T1.1 schema + DTO
+  - 7f4eb05 feat(memory) T1.2 prompt relaxation
+  - 24d4f05 feat(memory) T2.1 hoist + projection + wiring
+  - 73cd889 feat(memory) T2.2 attributedTo filter + WHERE clause
+  - 8876fb3 feat(memory) T3.1 + T3.2 lift + asOf SQL composition
+  - 42e2ace feat(memory) T4.1 E2E + CHANGELOG
+  - 373e540 chore(v1.1) final lint cleanup
+  - 3669cb7 chore(v1.1) T4.1 defensive migration in beforeAll
+
+findings:
+
+  # ============================================================
+  # SOLID — composeTemporalWhere helper (T3.1)
+  # ============================================================
+  - id: F-arch-1
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 108
+    plan_ref: T3.1 Acceptance Criteria + ADR-0011
+    summary: composeTemporalWhere() helper is a textbook SRP-clean pure SQL fragment composer
+    evidence: |
+      The new helper has a single, narrow contract: turn an optional Date into
+      a SQL WHERE fragment + Date param pair + next-param-index. It is:
+        - SRP-clean: only composes the temporal predicate; doesn't mix scope or
+          attribution concerns.
+        - OCP-clean: the asOf-undefined branch returns the pre-v1.1 default
+          (`t_invalid IS NULL`), preserving the regression-guard contract
+          documented in JSDoc.
+        - Side-effect-free + deterministic; trivially testable in isolation.
+        - Shares the same `nextParamIndex` threading convention as the
+          neighboring composeFilters() function — symmetric with the existing
+          design.
+      No issues found.
+
+  # ============================================================
+  # SOLID — applySkillFilters widening (T2.2 + T3.1)
+  # ============================================================
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 170
+    plan_ref: T2.2 + T3.1 (applySkillFilters widening for attributedTo + asOf)
+    summary: applySkillFilters() options parameter is an ad-hoc inline structural type rather than the public RecallOptions / GetAllOptions union; risks drift on future widenings
+    evidence: |
+      ```ts
+      function applySkillFilters(
+        baseFilters: Filters,
+        options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string; asOf?: Date },
+      ): Filters {
+      ```
+      The helper is called from BOTH `recall(query, options?: RecallOptions)`
+      (line 345) and `getAll(options?: GetAllOptions)` (line 509). The
+      structural inline type silently drops RecallOptions fields (`topK`,
+      `threshold`) and GetAllOptions fields (`filters`) at this boundary; this
+      v1.1 commit grew the parameter by two more fields (`attributedTo`, `asOf`)
+      without addressing the drift. Consequence: when future
+      RecallOptions/GetAllOptions widenings land, the inline type either
+      accumulates every new option OR silently drops the new field at the
+      boundary, depending on where the maintainer remembers to add it.
+    recommended_action: |
+      Declare a narrow internal `SkillFilterOptions` type
+      (e.g., `Pick<RecallOptions, 'onlySkills' | 'includeSuperseded' | 'attributedTo' | 'asOf'>`)
+      and have `applySkillFilters` accept that. The pick keeps the helper's
+      surface explicit AND tracks future widenings automatically via TS error
+      when a Pick'd field is renamed. Non-blocking for v1.1 merge; tracked as
+      DRY-debt.
+
+  # ============================================================
+  # DIP boundary check (src/core/ ↛ src/local/cloud/)
+  # ============================================================
+  - id: F-arch-3
+    severity: INFO
+    file: src/core/options.ts, src/core/memory-item.ts, src/core/scope.ts, src/core/extraction/pipeline.ts, src/core/retrieval/pipeline.ts
+    line: n/a
+    plan_ref: architecture.md § 3 (DIP) + plan Coverage Matrix item 18
+    summary: DIP boundary clean — no src/core/ → src/local/ or src/cloud/ imports introduced by v1.1
+    evidence: |
+      `grep -rn "from '\.\./local\|from '\.\./cloud" src/core/` returns ZERO
+      hits across all 8 core files touched by v1.1. The widening discipline
+      held: every new field (Filters.attributed_to, Filters.asOf,
+      MemoryItem.attributedTo, RememberOptions.attributedTo,
+      RecallOptions.attributedTo, RecallOptions.asOf) lives in src/core/
+      and is consumed by src/local/ adapters. boundary-check.sh hook
+      enforcement preserved.
+
+  # ============================================================
+  # ADR-0008 method-count caps
+  # ============================================================
+  - id: F-arch-4
+    severity: INFO
+    file: src/core/dip/*.ts
+    line: n/a
+    plan_ref: T2.2 + T3.1 ADR D4 (DIP method-count cap preserved)
+    summary: Zero new methods on any DIP — entire v1.1 wiring is optional-param widening
+    evidence: |
+      `git diff 2341426..HEAD -- src/core/dip/` returns EMPTY diff. All v1.1
+      wiring rides on existing methods:
+        - VectorStore.search(query, topK, filters) — unchanged signature; new
+          asOf + attributedTo composed inside filters.
+        - VectorStore.insert/update/list — unchanged; attributed_to flows via
+          payload then hoisted in PgvectorStore impl.
+      ADR-0008's 11 DIPs × 6-method-cap budget is intact.
+
+  # ============================================================
+  # ADR adherence
+  # ============================================================
+  - id: F-arch-5
+    severity: INFO
+    file: src/local/pgvector-store.ts, src/local/index.ts, src/core/options.ts, src/core/scope.ts
+    line: n/a
+    plan_ref: ADR-0002 / ADR-0003 / ADR-0006 / ADR-0011
+    summary: ADR adherence verified — 3-tier scope preserved, ADD-only preserved, ADR-0006 schema reinforced, ADR-0011 runtime lift correctly scoped
+    evidence: |
+      - ADR-0002 (3-tier): no fourth tier added. attributed_to is orthogonal —
+        it filters WITHIN a scope, not a new scope dimension. filtersFromScope()
+        unchanged for user/session/agent/repo branches.
+      - ADR-0003 (ADD-only): no new mutator verbs. attributedTo on RememberOptions
+        is set at write; modifications require forget + remember (verified
+        via JSDoc + the existing update() impl symmetry at pgvector-store.ts:496-499
+        which mirrors insert).
+      - ADR-0006 schema clause reinforced: t_valid / t_invalid columns
+        unchanged in schema.ts. ADR-0006 line 1-3 header updated to
+        "Superseded in part by ADR-0011".
+      - ADR-0011 runtime lift scoped correctly to runtime clause only;
+        SQL composition lives in composeTemporalWhere helper;
+        BiTemporalNotSupportedLocally class preserved (errors.ts:61) per
+        cloud forward-compat rationale.
+
+  # ============================================================
+  # Module hygiene — file size budget
+  # ============================================================
+  - id: F-arch-6
+    severity: MAJOR
+    file: src/local/pgvector-store.ts
+    line: 788 (file total)
+    plan_ref: architecture.md § 7 (Module hygiene) + Coverage Matrix item 17
+    summary: pgvector-store.ts grew to 788 LoC, exceeding the 500-LoC architecture budget; v1.1 added +86 LoC on top of pre-existing 702-LoC violation
+    evidence: |
+      Pre-v1.1 baseline (commit 2341426): 702 LoC.
+      Post-v1.1 (HEAD): 788 LoC (+86).
+      Plan T1.1/T2.1/T2.2/T3.1 each declared the ≤ 500 LoC AC, but no task
+      proposed an extraction. The file already housed the
+      v0.6 skill split (PgvectorSkillStore composition, line 18) and the
+      v0.7 consolidation methods; v1.1's adds compounded the situation:
+        - composeTemporalWhere helper (12 LoC)
+        - Filters.attributed_to branch in composeFilters (15 LoC)
+        - INSERT/UPDATE attributed_to hoist (4 sites)
+        - SELECT projection in rowToResult (5 LoC)
+        - bi-temporal predicate weaving in 2 query paths + recallConsolidationCandidates
+      The plan's Coverage Matrix item 17 ("LoC budget cited in every task DoD")
+      was never enforced — pre-existing 702 LoC was already over budget; no
+      cycle-implement gate caught it.
+    recommended_action: |
+      Tracked as architectural debt; the v1.1 increment does not BLOCK merge
+      (the 500-LoC budget was already violated; v1.1 didn't introduce the
+      violation). Schedule a follow-up cycle: extract composeFilters +
+      composeTemporalWhere + rowToResult into pgvector-query-builder.ts (~150 LoC);
+      keep PgvectorStore as the orchestrator. Mirrors the T3.1/F3 split that
+      created PgvectorSkillStore. Cite this finding when the v1.2 plan
+      authors the extraction.
+
+  - id: F-arch-7
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 1097 (file total)
+    plan_ref: architecture.md § 7 (Module hygiene) + Coverage Matrix item 17
+    summary: src/local/index.ts grew to 1097 LoC, already 2.2× over budget; v1.1 added +18 LoC of necessary wiring but file is structurally untenable
+    evidence: |
+      Pre-v1.1 baseline: 1079 LoC. Post-v1.1: 1097 LoC.
+      The file is a god-module bundling: factory function (createLocalMemory),
+      LocalMemory + LocalScopedMemory classes, applySkillFilters helper,
+      filtersFromScope, EvictionNotSupported error, applyDimChange + runMigrations
+      utilities, type declarations (LocalMemoryConfig, DisposableMemory),
+      AND public re-exports.
+      The v1.1 increments themselves are minimal and correct:
+        - EC-3 boundary validation (3 LoC at line 342)
+        - applySkillFilters widening (~6 LoC)
+        - ADR-0011 import cleanup + JSDoc
+      But each new feature touching this file makes maintenance more brittle.
+    recommended_action: |
+      Non-blocking for v1.1 merge (debt is pre-existing). Schedule a follow-up
+      cycle to split: src/local/factory.ts (createLocalMemory + dispose),
+      src/local/migrations.ts (runMigrations + applyDimChange), src/local/scoped-memory.ts
+      (LocalScopedMemory + applySkillFilters). Index becomes barrel re-exports
+      only. Cite this finding in the v1.2 plan.
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/core/options.ts, src/core/memory-item.ts, src/core/scope.ts, src/local/migrations/0008_attributed_to.sql
+    line: n/a
+    plan_ref: architecture.md § 7 (Module hygiene) + Coverage Matrix item 17
+    summary: core/ and migration files are within budget — options.ts (152), memory-item.ts (100), scope.ts (142), schema.ts (261), migration 0008 (29)
+    evidence: |
+      All v1.1-touched files in src/core/ and src/local/migrations/ are well
+      under the 500-LoC budget. The widening discipline (single optional field
+      per option type, single column on schema, single migration with idempotent
+      ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS) kept the public
+      contract surface lean.
+
+  # ============================================================
+  # Module hygiene — no `any`, ES modules, .js ext
+  # ============================================================
+  - id: F-arch-9
+    severity: INFO
+    file: all v1.1-touched files
+    line: n/a
+    plan_ref: architecture.md § 7 (Module hygiene)
+    summary: No `any` types introduced; ES modules + `.js` extension discipline preserved
+    evidence: |
+      grep across all 8 v1.1-touched src/ files returns ZERO `: any` /
+      `<any>` / `as any` hits. Only "any string" appears in JSDoc prose
+      (memory-item.ts:44, false positive). All new imports use `.js`
+      extension (ES modules); `import type` discipline preserved for
+      type-only imports (e.g., `import type { Filters } from '../scope.js'`).
+      No `console.log` introduced in production paths; existing
+      `console.warn` / `console.error` instances in runMigrations are
+      pre-existing and out-of-scope for v1.1.
+
+  # ============================================================
+  # Public API backward-compat
+  # ============================================================
+  - id: F-arch-10
+    severity: INFO
+    file: src/core/options.ts, src/core/memory-item.ts, src/core/scope.ts
+    line: n/a
+    plan_ref: Global DoD "Backward compatibility preserved across public API"
+    summary: All 5 public-API widenings ship as optional fields; zero breaking changes
+    evidence: |
+      Widening audit:
+        1. RememberOptions.attributedTo?: string  (options.ts:34) — optional
+        2. RecallOptions.attributedTo?: string    (options.ts:83) — optional
+        3. RecallOptions.asOf?: Date              (options.ts:67) — was already declared at v0.0 per ADR-0006 (schema clause); local runtime now honors instead of throwing
+        4. MemoryItem.attributedTo?: string       (memory-item.ts:55) — optional
+        5. Filters.attributed_to?: string         (scope.ts:114) — optional (internal type, but exported)
+        6. Filters.asOf?: Date                    (scope.ts:128) — optional (internal type)
+      The ONLY public-contract behavior change is `recall({ asOf: ... })` no
+      longer throwing BiTemporalNotSupportedLocally on local runtime; this is
+      a CAPABILITY ADD, not a break, and the error class stays exported per
+      ADR-0011 cloud forward-compat rationale (errors.ts:61).
+      CHANGELOG line at HEAD reflects this as `### Added` (not `### Changed
+      **BREAKING**`), correctly categorized.
+
+  # ============================================================
+  # no-paper-names-in-code (architecture-specific issues beyond domain agent's scope)
+  # ============================================================
+  - id: F-arch-11
+    severity: MAJOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts
+    line: 156
+    plan_ref: .claude/rules/no-paper-names-in-code.md + Coverage Matrix item 20
+    summary: Test descriptor name contains paper reference "Graphiti null-safe predicate"
+    evidence: |
+      ```ts
+      test('Forgotten memory recoverable by historical asOf, excluded by post-forget asOf (Graphiti null-safe predicate)', async () => {
+      ```
+      The rule explicitly forbids paper names in `tests/**` (per § "The rule"
+      sub-bullet "test files: `describe` / `it` / `test` names"). The
+      domain-memory-layer agent flagged the Graphiti citations in
+      pgvector-store.ts:99,359 and options.ts:51 + scope.ts:122; this is the
+      symmetric violation in the NEW v1.1 integration test added by T4.1
+      (commit 42e2ace).
+      Coverage Matrix item 20 explicitly listed T4.1 as scoped for the
+      no-paper-names rule but the implementer added the citation in test
+      naming.
+    recommended_action: |
+      Rename to: `test('Forgotten memory recoverable by historical asOf, excluded by post-forget asOf (null-safe temporal predicate)', ...)`.
+      The shape descriptor ("null-safe temporal predicate") describes the
+      behavior; the Graphiti citation belongs in the plan/blueprint only.
+
+  - id: F-arch-12
+    severity: MAJOR
+    file: src/local/__tests__/pgvector-store.test.ts
+    line: 359
+    plan_ref: .claude/rules/no-paper-names-in-code.md + Coverage Matrix item 20
+    summary: Inline test comment contains paper reference "Graphiti precedent" (NEW in v1.1 T3.1)
+    evidence: |
+      ```ts
+      // Graphiti precedent + null-safe: NULL t_valid treated as -Infinity (always-valid).
+      ```
+      Pre-v1.1 the file had no Graphiti references; this comment landed in
+      commit 8876fb3 (T3.1) per `git blame`. The rule forbids paper names in
+      test-file inline comments (§ "The rule" sub-bullet "test files: ... inline
+      comments").
+    recommended_action: |
+      Replace with: `// Null-safe temporal predicate: NULL t_valid treated as -Infinity (always-valid).`
+      The behavior description stays; the prior-art citation moves to the ADR
+      (ADR-0011 already cites Graphiti in its References section, where it
+      belongs).
+
+  - id: F-arch-13
+    severity: MAJOR
+    file: src/core/__tests__/extraction-prompt.test.ts
+    line: 175
+    plan_ref: .claude/rules/no-paper-names-in-code.md + Coverage Matrix item 20
+    summary: Inline test comment contains paper reference "bivalent Mem0 vocabulary" (NEW in v1.1 T1.2)
+    evidence: |
+      ```ts
+      // arbitrary peer IDs ("alice", "bob", "system", "agent-3"), not just
+      // the bivalent Mem0 vocabulary.
+      ```
+      Landed in commit 7f4eb05 (T1.2 prompt relax). Pre-v1.1 the file had ONE
+      pre-existing Mem0 mention at line 133 ("canonical Mem0 response shape"
+      in a describe label) which is opportunistic cleanup material per the
+      rule's "Pre-existing references" guidance. Line 175 is NEW and avoidable.
+    recommended_action: |
+      Replace lines 174-175 with: `// arbitrary peer IDs ("alice", "bob",
+      "system", "agent-3"), not just the bivalent reference vocabulary.`
+      OR: `// any N-valent string, not just the bivalent default vocabulary.`
+      Opportunistically clean line 133 in the same commit while editing this
+      file (per the rule's opportunistic-cleanup guidance).
+
+  # ============================================================
+  # Design pattern usage
+  # ============================================================
+  - id: F-arch-14
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 108-167 + 343-382
+    plan_ref: T2.2 + T3.1 (Composer pattern for SQL fragment composition)
+    summary: composeTemporalWhere + composeFilters pattern is a sound application of the Composer/Builder seam — both are pure functions that thread a `nextParamIndex`
+    evidence: |
+      Both helpers honor the same shape:
+        - Input: optional value(s) to filter on + startParamIndex.
+        - Output: { sql, params, nextParamIndex }.
+        - Composition: search/keywordSearch call composeTemporalWhere FIRST
+          (so its $2/$3 params hit the temporal predicate), then composeFilters
+          (which picks up at temporal.nextParamIndex).
+      The ordering matters because asOf reuses the same Date twice (start +
+      end-of-validity bound), so the param-index threading is non-trivial.
+      The chosen pattern is the simplest readable form (KISS); no Strategy
+      abstraction needed.
+      Pattern is "justified" by ADR-0011 (cited in JSDoc) + applied correctly
+      (parameterized; no SQL injection surface; same shape as pre-existing
+      composeFilters). Not "invented" mid-implementation; the helper extracts
+      a previously-inlined `t_invalid IS NULL` fragment.
+
+  # ============================================================
+  # Cohesion + coupling
+  # ============================================================
+  - id: F-arch-15
+    severity: INFO
+    file: src/core/extraction/pipeline.ts, src/core/retrieval/pipeline.ts
+    line: pipeline.ts:300-303 + retrieval/pipeline.ts:169-170
+    plan_ref: T2.1 + T2.2 (DTO surfacing + LLM-path attribution propagation)
+    summary: Payload-as-glue pattern between LLM extraction → pgvector hoist → DTO projection is consistent and traceable
+    evidence: |
+      Three sites, one convention — `payload['attributed_to']` is the agreed
+      glue field:
+        - extraction/pipeline.ts:300-303: LLM-extracted value enters payload
+          (closes EC-1 bug for new writes).
+        - extraction/pipeline.ts:131-133: verbatim-path options.attributedTo
+          enters the same payload key (closes EC-2).
+        - pgvector-store.ts:304: payload['attributed_to'] hoisted to column
+          on INSERT (both paths converge here).
+        - pgvector-store.ts:62: column projected back to payload on SELECT.
+        - extraction/pipeline.ts:89 + retrieval/pipeline.ts:170: payload
+          projected to MemoryItem.attributedTo at DTO boundary.
+      The convention is uniformly applied; no fanout-then-merge risk. The
+      payload-as-glue approach is consistent with how user_id/session_id/agent_id
+      already flow today (no new pattern introduced; the same shape replicated).
+
+  # ============================================================
+  # Naming + cohesion: defensive migration in beforeAll (commit 3669cb7)
+  # ============================================================
+  - id: F-arch-16
+    severity: MINOR
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts
+    line: (beforeAll block — defensive ADD COLUMN IF NOT EXISTS)
+    plan_ref: commit 3669cb7 ("defensive ADD COLUMN IF NOT EXISTS in beforeAll")
+    summary: Defensive migration logic in a TEST beforeAll bypasses the runMigrations() canonical path; suggests integration test brittleness, not architectural cleanness
+    evidence: |
+      Commit 3669cb7's commit message reads "T4.1 goal-test resilience —
+      defensive ADD COLUMN IF NOT EXISTS in beforeAll". The fact that the
+      goal-test needed to manually re-apply migration 0008 inside its own
+      beforeAll suggests either:
+        (a) the docker-compose / runMigrations() bootstrap path doesn't pick
+            up migration 0008 reliably in CI, OR
+        (b) the test runs against a long-lived DB that wasn't reset.
+      Neither path is a v1.1 SDK defect — it's a test-fixture brittleness
+      issue. But surfacing this here so the v1.2 plan can decide whether to
+      harden the CI bootstrap or accept the defensive duplicate.
+    recommended_action: |
+      Out-of-scope cleanup: file a follow-up task to either (a) ensure CI
+      always uses fresh docker-compose containers (drops the duplication
+      need) OR (b) document explicitly that beforeAll defensive-migrations
+      are the contract for integration tests against persistent dev DBs.
+      Do NOT block v1.1 merge on this — the goal-test passes either way.
+
+  # ============================================================
+  # Overall summary (re-review correctness check)
+  # ============================================================
+  - id: F-arch-17
+    severity: INFO
+    file: n/a
+    line: n/a
+    plan_ref: v1.1 plan v1.2 overall
+    summary: v1.1 architecture is sound; widening discipline preserved, DIP boundary clean, ADR adherence good; bulk of MAJOR findings are pre-existing module-hygiene debt (F-arch-6 / F-arch-7) that v1.1 inherited rather than caused
+    evidence: |
+      Scorecard:
+        - SOLID compliance         PASS (1 MAJOR DRY-debt: F-arch-2 inline type)
+        - DIP boundary             PASS (F-arch-3)
+        - ADR-0008 method count    PASS (F-arch-4)
+        - ADR-0002/3/6/11 adherence PASS (F-arch-5)
+        - File-size budget         FAIL (F-arch-6 / F-arch-7, pre-existing)
+        - No `any` / ES modules    PASS (F-arch-9)
+        - Public API backward-compat PASS (F-arch-10)
+        - no-paper-names-in-code   FAIL (F-arch-11/12/13 NEW in v1.1)
+        - Design patterns          PASS (F-arch-14)
+        - Cohesion / coupling      PASS (F-arch-15)
+        - Test fixture hygiene     INFO (F-arch-16 defensive migration)
+      Architectural blockers for merge: ZERO.
+      v1.1-introduced MAJOR findings: 3 paper-name violations in test files
+      (F-arch-11/12/13) + 1 DRY-debt on applySkillFilters type
+      (F-arch-2). All are fixable in a single sub-30-LoC patch and should
+      be addressed pre-merge per the no-paper-names rule explicit scoping
+      to tests/** and src/**/__tests__/**.
+
+summary_counts:
+  BLOCKER: 0
+  CRITICAL: 0
+  MAJOR: 6  # F-arch-2 (DRY-debt), F-arch-6 + F-arch-7 (pre-existing LoC debt), F-arch-11 + F-arch-12 + F-arch-13 (NEW paper-name violations)
+  MINOR: 1  # F-arch-16 (defensive migration in test)
+  INFO: 10
+verdict: NEEDS_FIXES_BEFORE_MERGE
+verdict_rationale: |
+  No BLOCKER / CRITICAL architectural issues; v1.1 is architecturally
+  sound. However, 3 NEW MAJOR no-paper-names-in-code violations
+  (F-arch-11, F-arch-12, F-arch-13) landed in v1.1 commits and the rule
+  explicitly scopes tests/** AND src/**/__tests__/**. These are
+  ~3-line fixes and should land before merge per the rule's "lock"
+  language. The remaining MAJOR findings are pre-existing module-hygiene
+  debt (F-arch-6, F-arch-7) that v1.1 inherited — track as follow-up cycle,
+  do not block merge. F-arch-2 (DRY-debt on applySkillFilters inline type)
+  is also pre-existing pattern; v1.1 widened it but did not introduce it —
+  acceptable to defer.

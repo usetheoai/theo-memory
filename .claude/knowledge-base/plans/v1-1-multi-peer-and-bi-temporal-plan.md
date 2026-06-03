@@ -1,5 +1,7 @@
 # Plan: v1.1 Multi-Peer Attribution + Bi-Temporal Local Runtime
 
+> **Version 1.3** (2026-06-03) — Absorbs `/review` 2026-06-03 fix-up cycle. Three v1.1-introduced MAJOR findings addressed: (1) F-arch-11/12/13 paper-name violations fixed via 3 single-line edits (commit pending); (2) F-dom-dbmig-1 partial-index parity gap closed by declaring `idx_memories_user_attributed_to` in `schema.ts` + Drizzle snapshot regen (migration `0009_v1_1_index_parity.sql` is idempotent no-op via `IF NOT EXISTS`); (3) F-xval-1/F-tests-1/F-wire-1 EC-9 (skill-scope + asOf) DEFERRED to a follow-up cycle via amendment to ADR D4 — honest deferral over silent miss. v1.3 does NOT widen `SkillRecallOptions` and does NOT add a skill-scope integration test. Three pre-existing MAJOR (F-arch-2 ad-hoc structural type, F-arch-6 pgvector-store.ts LoC budget, F-arch-7 index.ts LoC budget) deferred to a dedicated refactor plan per `/review` recommendation. 14 MINOR + 22 INFO surfaced honestly in the review report.
+>
 > **Version 1.2** (2026-06-02) — Absorbs `/deps-audit` report (verdict INVALID_PLAN_DEPS 4× `plan_dep_version_unspecified`). Replaces the 4 `(current)` placeholders in `### Existing — use as-is` with explicit manifest pins: `drizzle-orm ^0.45.0`, `drizzle-kit ^0.31.0`, `pg ^8.13.0`, `zod ^3.25.0`. Adds new ADR D7 pinning zod to `^3.25.0` (defers 4.x migration) to clear the soft cap `plan_dep_major_outdated_unpinned`. Surfaces the allowlisted MODERATE drizzle-kit chain (esbuild dev-server-leak per existing allowlist sunset 2026-08-23) as documented soft signal — downgraded to LOW, `plan_dep_low_cve` caps at 89 (SHIPPABLE_WITH_CAVEATS).
 >
 > **Version 1.1** (2026-06-02) — Absorbs `/edge-case-plan` report (13 edge cases: 4 MUST FIX + 5 SHOULD TEST + 4 DOCUMENT). MUST FIX absorptions (EC-2 verbatim path RememberOptions widening + EC-3 asOf boundary NaN validation + EC-4 stale-reference grep audit gate + EC-5 entity-boost filter consistency) land in ADRs + Acceptance Criteria of T1.1/T2.1/T2.2/T3.1. SHOULD TEST (EC-6/EC-7/EC-8/EC-9/EC-10) inlined into respective TDD sections. DOCUMENT (EC-1 honest no-backfill clarification + EC-11 GDPR caveat + EC-12 skill rows NULL inheritance + EC-13 TheoKit+UI deferral) inlined as ADR Consequences. **EC-1 reclassified** from MUST FIX to DOCUMENT after empirical audit revealed pre-v1.1 pipeline DISCARDS `attributed_to` at payload composition (`src/core/extraction/pipeline.ts:285` `buildPayload(text, hash, filters, metadata)` doesn't propagate `extracted[i].attributed_to`); backfill from payload would be a no-op, so the honest contract is "historical rows have NULL attribution permanently".
@@ -126,6 +128,27 @@
 - Use `Date | null` literal for "always-valid" rows instead of NULL — REJECTED: TypeScript `Date | undefined` (current shape) is the idiomatic optional; NULL semantics live at the SQL layer only.
 
 **Consequences:** Future widening via additive `RecallOptions.temporalFilter?: TemporalFilter` is non-breaking. Public docs flag `asOf` as v1.1+ feature (no longer "cloud-only until v0.5"). JSDoc `@throws` annotation removed from `options.ts:33`.
+
+#### D4 amendment (2026-06-03) — EC-9 skill-scope `asOf` deferred to a follow-up cycle
+
+`/review` 2026-06-03 surfaced that v1.1 ships `asOf` wired ONLY at the memory-scope path (`memory.user(id).recall(...)` / `memory.session(id).recall(...)` / `memory.agent(id).recall(...)`). The skill-scope path (`memory.skills(repoId).recall(...)`) does NOT accept `asOf`: `SkillRecallOptions` at `src/core/skill.ts:102-114` declares only `{ topK, threshold, includeSuperseded }`. THE GOAL TEST covers memory scopes only; no `tests/integration/v1-1-multi-peer-bitemporal.test.ts` scenario exercises skills + asOf.
+
+T3.1 § Tasks step 10 originally required this RED test ("EC-9: Write RED integration test: skill row recall with `asOf` honors bi-temporal predicate"). The implementation gap is honest: the skill path is a structurally separate flow (`LocalScopedSkillMemory.recall` at `src/local/scoped-skill-memory.ts:124` vs `ScopedMemory.recall` at `src/local/index.ts`) and adding `asOf` to it requires widening `SkillRecallOptions` + routing through `applySkillFilters` + writing the integration test against `memory.skills(repoId)`.
+
+**Deferral decision:** EC-9 is deferred to a follow-up v1.x cycle. The v1.1 contract for `asOf` covers memory scopes only; skill-scope `asOf` is OUT OF SCOPE for v1.1.
+
+**Rationale:** Honest deferral (Inquebrável Rule 3) is preferable to silent contract drift. The memory-scope path covers the v1.1 Goal verbatim (`recall({ asOf, attributedTo })` against `memory.user(...).recall`); skill-scope `asOf` was an absorption SHOULD TEST (EC-9), not a Goal criterion. THE GOAL TEST passes 7/7 on the in-scope contract. Closing the gap requires ~30-50 LoC across 3 files + 1 new integration RED test; doing so post-/review during fix-up shifts scope creep into a merge-time decision rather than letting it land as silent miss.
+
+**CHANGELOG contract:** v1.1 `### Added` section MUST declare the boundary explicitly so consumers understand the contract surface they receive. Format: `"\`asOf\` is honored on memory-scope recall (\`memory.user/session/agent(id).recall({ asOf })\`); skill-scope recall (\`memory.skills(repoId).recall(...)\`) does NOT accept \`asOf\` in v1.1 — tracked as a follow-up cycle."`
+
+**Wiring triad status (skill-scope path):**
+- pillar (a) static caller: ❌ field does not exist → cannot be called
+- pillar (b) integration test: ❌ not written (RED test from T3.1 step 10 deferred)
+- pillar (c) runtime metric: n/a per plan Global DoD
+
+These three holes are surfaced honestly in `.claude/knowledge-base/reviews/v1-1-multi-peer-and-bi-temporal-review-2026-06-03.md § F-xval-1/F-tests-1/F-wire-1`.
+
+**Follow-up scope (NOT in v1.1):** Future cycle slug e.g. `v1-2-skill-scope-bi-temporal` MAY add `asOf?: Date` to `SkillRecallOptions`, route through `applySkillFilters` (already widened in v1.1 T3.1), and ship the RED test originally specified in T3.1 step 10.
 
 ### D5 — Relax LLM extraction vocabulary from TRINARY to N-VALENT
 

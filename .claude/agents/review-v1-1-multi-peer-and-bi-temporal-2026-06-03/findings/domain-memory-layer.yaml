@@ -1,0 +1,358 @@
+agent: review-v1-1-multi-peer-and-bi-temporal-domain-memory-layer
+review_target: 2341426..HEAD for plan v1-1-multi-peer-and-bi-temporal v1.2
+domain: memory-layer
+plan_path: .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md
+domain_specific_patterns_checked:
+  - Mem0-shape eight-phase write pipeline (Phase 0..8 per ADR-0001)
+  - Mem0-shape nine-step search pipeline (Steps 1..9 per ADR-0001)
+  - Three-tier scope routing (User/Session/Agent + RepoScope ADR-0010)
+  - ADD-only invariant (ADR-0003) — no public update() introduced
+  - Promoted-key pattern (Mem0 main.py:815-816 reference; column-shape parity)
+  - N-valent attribution semantic (Honcho-attack vector; plan ADR D5)
+  - Additive scoring formula (NOT multiplicative Generative Agents)
+  - LLM extraction prompt N-valent relaxation (TRINARY → arbitrary)
+  - Verbatim path (infer:false) attribution propagation (EC-2)
+  - LLM path attribution propagation (EC-1 closed for new writes)
+  - Hybrid retrieval (semantic + BM25 + entity-boost) — unchanged by v1.1
+  - Bi-temporal predicate composition (Graphiti null-safe shape)
+  - applySkillFilters routing — attributedTo + asOf added uniformly
+  - Skill-row attribution inheritance (EC-12 — NULL via insertSkill bypass)
+  - GDPR hard-delete + asOf interaction (EC-11)
+  - TheoKit binding scope (EC-13 — additive, no auto-set)
+
+findings:
+  - id: F-dom-mem-1
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 99
+    plan_ref: Coverage Matrix row 20 (no-paper-names-in-code applies to src/)
+    domain_anchor: .claude/rules/no-paper-names-in-code.md § Rule + § How to apply (1)
+    summary: |
+      JSDoc on `composeTemporalWhere` says "compose the Graphiti-precedent null-safe clause".
+      Paper/marketing name ("Graphiti") appears in v1.1-NEW production-code JSDoc — direct
+      violation of the no-paper-names-in-code rule. Plan Coverage Matrix row 20 explicitly
+      states '"Mem0-pattern" / "Graphiti precedent" cited in ADR Rationale only, NOT in src/
+      JSDoc or test names', but this v1.1 commit `8876fb3` introduced the violation. The
+      neutral rewording is to describe behavior ("null-safe bi-temporal predicate") + cite
+      ADR-0011 (which itself cites the prior art).
+    evidence: |
+      src/local/pgvector-store.ts:99
+        * v1.1 T3.1 + ADR-0011: bi-temporal recall predicate. When `asOf` is set,
+        * compose the Graphiti-precedent null-safe clause:
+
+      src/local/pgvector-store.ts:359
+        // null-safe Graphiti-precedent predicate (ADR-0011).
+    recommended_action: |
+      Replace "Graphiti-precedent" with neutral wording in BOTH JSDoc + inline comment.
+      Suggested: "null-safe bi-temporal predicate per ADR-0011" — the ADR is the citation
+      surface; the code describes intent + shape. Same cleanup applies to the test file
+      `src/local/__tests__/pgvector-store.test.ts:359` ("Graphiti precedent + null-safe").
+
+  - id: F-dom-mem-2
+    severity: MINOR
+    file: src/core/options.ts
+    line: 51
+    plan_ref: Coverage Matrix row 20 (no-paper-names-in-code applies to src/)
+    domain_anchor: .claude/rules/no-paper-names-in-code.md § Rule + § How to apply (1)
+    summary: |
+      JSDoc on `RecallOptions.asOf` includes the literal text "Graphiti Apache-2.0 prior art".
+      Same class of violation as F-dom-mem-1, in a load-bearing public-API doc-comment that
+      consumers will see in IntelliSense. The neutral rewording ("schema clause reinforced
+      by independent OSS prior art per ADR-0011") + the ADR-0011 @see ref is sufficient.
+    evidence: |
+      src/core/options.ts:50-51
+        * Available on the local runtime since v1.1 per ADR-0011 (supersedes
+        * ADR-0006 runtime clause). ADR-0006 schema clause (`t_valid`/`t_invalid`
+        * columns since v0.1) is reinforced by Graphiti Apache-2.0 prior art.
+
+      src/core/scope.ts:122
+        * composes the SQL WHERE clause; NULL-safe semantics match the Graphiti
+        * (Apache-2.0) prior art referenced in ADR-0011.
+    recommended_action: |
+      Remove "Graphiti" name from `src/core/options.ts:51` and `src/core/scope.ts:122`.
+      Both ADRs (ADR-0006 + ADR-0011) cite the prior art at the appropriate layer; code
+      JSDoc should describe behavior + @see the ADR. Same audit-trail rotation policy
+      applies as F-dom-mem-1 — these surface during /implement and were missed.
+
+  - id: F-dom-mem-3
+    severity: INFO
+    file: src/core/extraction/pipeline.ts
+    line: 65-82
+    plan_ref: EC-1 absorption + ADR D2 Consequences
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked (eight-phase pipeline) + Mem0 main.py:815-816
+    summary: |
+      Mem0-shape pipeline integrity preserved. `runInferFalsePath` (lines 108-143) and
+      `runInferTruePath` (the main pipeline 201-366) BOTH correctly route attribution
+      into payload BEFORE persist:
+        - Verbatim/infer:false path: line 131-133 writes `options.attributedTo` to
+          `payload['attributed_to']` BEFORE `vectorStore.insert(...)` at line 140.
+          EC-2 absorption verified — `RememberOptions.attributedTo` flows through.
+        - LLM/infer:true path: line 300-303 writes `extracted[i].attributed_to` to
+          `payload['attributed_to']` BEFORE `persistWithFallback(...)` at line 317.
+          EC-1 absorption verified for NEW writes; historical NULL persistence honest.
+      Both paths converge at `pgvector-store.ts:300-304` where the payload key is
+      hoisted to the dedicated column inside insertBatch. The 8-phase ordering
+      (Phase 0..6.5..8) is preserved; attribution doesn't perturb phase boundaries.
+      `toMemoryItem` (line 84-102) surfaces attribution on the DTO from payload metadata
+      via a string-type-guard — correct shape per MemoryItem.attributedTo?: string.
+    evidence: |
+      src/core/extraction/pipeline.ts:131-133 (verbatim path)
+        if (options?.attributedTo !== undefined) {
+          payload['attributed_to'] = options.attributedTo;
+        }
+
+      src/core/extraction/pipeline.ts:300-303 (LLM path)
+        const llmAttributedTo = extracted[i]?.attributed_to;
+        if (llmAttributedTo !== undefined) {
+          payload['attributed_to'] = llmAttributedTo;
+        }
+
+      Mem0 reference precedent (.claude/knowledge-base/references/mem0/mem0/memory/main.py:815-816):
+        if mem.get("attributed_to"):
+            mem_metadata["attributed_to"] = mem["attributed_to"]
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-4
+    severity: INFO
+    file: src/core/retrieval/pipeline.ts
+    line: 164-184
+    plan_ref: ADR-0001 nine-step search preservation + T2.1 read-path projection
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked (nine-step search) + Mem0-shape additive scoring
+    summary: |
+      Nine-step search integrity preserved. v1.1 adds attribution surfacing at Step 9
+      (Format) only — the SQL-layer filter (composeFilters in pgvector-store.ts:148-152)
+      runs BEFORE over-fetch + scoring, so Steps 3-8 (semantic over-fetch, BM25, sigmoid
+      normalization, entity-boost stub, additive scoring, threshold gate) see the
+      already-filtered rowset. The threshold + format steps remain unchanged. asOf
+      composition also lives at the SQL layer (`composeTemporalWhere`) BEFORE Step 3
+      over-fetch — same insertion locus as the attribution filter. Both v1.1 widenings
+      are additive at the SQL boundary; the JS pipeline is byte-identical post-T2.1/T3.1.
+      Additive Mem0-style scoring (NOT multiplicative Generative Agents) preserved.
+    evidence: |
+      src/local/pgvector-store.ts:360-370 (semantic search SQL composition)
+        const temporal = composeTemporalWhere(filters?.asOf, 2);
+        const filter = composeFilters(filters, temporal.nextParamIndex);
+        const sql = `
+          SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
+                 ...
+                 embedding <=> $1::vector AS distance
+          FROM memories
+          WHERE ${temporal.sql}${filter.sql}
+          ORDER BY distance ASC
+          LIMIT $${filter.nextParamIndex}
+
+      src/core/retrieval/pipeline.ts:164-184 (Step 9 format-and-surface)
+        return top.map((row) => {
+          const attributedToRaw = row.payload['attributed_to'];
+          const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+          ...
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-5
+    severity: INFO
+    file: src/local/index.ts
+    line: 170-200
+    plan_ref: T2.2 + T3.1 scope-routing per ADR-0002
+    domain_anchor: architecture.md § 1 (three-tier scope routing) + EC-9 skill-row asOf parity
+    summary: |
+      applySkillFilters extension correctly routes BOTH attributedTo + asOf through to
+      the store's Filters bag, alongside the pre-existing onlySkills + includeSuperseded
+      routing. The composition order is correct (attribution + asOf first; onlySkills
+      branch returns AFTER consuming both new fields). This means EC-9 (skill rows
+      honor asOf) is structurally guaranteed: when `onlySkills: true` AND `asOf` are
+      both set, the filter chain still injects `asOf` into base before the kind='skill'
+      discriminator clause — `composeTemporalWhere` then applies uniformly to the
+      skill-projecting query. Verified by reading `pgvector-store.ts:360-370`: the
+      same SELECT statement (with attributed_to + kind in the column list) is used
+      for both memory and skill recall, so the temporal predicate is single-source.
+    evidence: |
+      src/local/index.ts:170-200 (applySkillFilters)
+        function applySkillFilters(
+          baseFilters: Filters,
+          options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string; asOf?: Date },
+        ): Filters {
+          ...
+          if (options.attributedTo !== undefined) {
+            base = { ...base, attributed_to: options.attributedTo };
+          }
+          if (options.asOf !== undefined) {
+            base = { ...base, asOf: options.asOf };
+          }
+          if (options.onlySkills === true) {
+            return { ...base, kind: 'skill', excludeSuperseded: ... };
+          }
+          ...
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-6
+    severity: INFO
+    file: src/local/index.ts
+    line: 338-350
+    plan_ref: EC-3 boundary validation + ADR-0011 throw-site lift
+    domain_anchor: architecture.md § 8 (validate at boundaries; inside src/core/ trust contract)
+    summary: |
+      Boundary discipline observed — EC-3 absorption lands the InvalidScope throw at
+      LocalScopedMemory.recall() (the runtime boundary), NOT inside src/core/. The
+      `BiTemporalNotSupportedLocally` throw is correctly LIFTED (no longer thrown);
+      the error class remains EXPORTED via `src/core/index.ts` for forward-compat
+      with cloud runtime per plan ADR D3 Consequences. The import-cleanup commit
+      `373e540` removed the dead `BiTemporalNotSupportedLocally` import from
+      src/local/index.ts (line 38-41 comment) — no consumer-visible regression.
+      ADD-only invariant (ADR-0003) preserved: no public update() introduced; attribution
+      is set at write time only (RememberOptions.attributedTo) — mutation still requires
+      forget(id) + remember(newText, {attributedTo: new-peer-id}).
+    evidence: |
+      src/local/index.ts:338-350 (recall with EC-3 guard)
+        async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
+          // v1.1 T3.1 + EC-3 + ADR-0011: BiTemporalNotSupportedLocally throw lifted.
+          // Boundary validation rejects invalid Date input per architecture.md § 8
+          if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
+            throw new InvalidScope('asOf must be a valid Date');
+          }
+          return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {...});
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-7
+    severity: INFO
+    file: src/local/scoped-skill-memory.ts
+    line: 78-105
+    plan_ref: EC-12 documentation (DOCUMENT) + ADR D2 Consequences
+    domain_anchor: ADR-0010 RepoScope 4th tier + Mem0-shape promoted-key parity
+    summary: |
+      EC-12 absorption verified — skill rows (`memory.skills(repoId).add(draft)`)
+      do NOT route through the LLM extraction pipeline; insertSkill is a direct
+      INSERT that does not carry attribution. Skill rows inherit `attributed_to=NULL`
+      by structural bypass of the LLM path. This is the documented honest contract
+      (plan ADR D2 Consequences + Coverage Matrix row 32). RepoScope→agent_id
+      mapping (line 75 `this.filters = { agent_id: repoId }`) preserves the existing
+      EC-4 absorption from voyager-skill-library plan. No regression.
+    evidence: |
+      src/local/scoped-skill-memory.ts:90-98
+        const id = await this.deps.vectorStore.insertSkill({
+          embedding,
+          hash,
+          code: draft.code,
+          description: draft.description,
+          codeLanguage: draft.codeLanguage,
+          scope: { agentId: this.scope.repoId },
+          // attributedTo NOT in args (intentional per EC-12)
+        });
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-8
+    severity: INFO
+    file: src/agent-tools/tools/recall-schema.ts
+    line: 35-71
+    plan_ref: EC-13 deferral (TheoKit binding + UI updates v1.2) + plan ADR D2
+    domain_anchor: CLAUDE.md § Roadmap row 12 wiring scope
+    summary: |
+      EC-13 absorption verified — agent-tools recall-schema (MCP output surface)
+      documents `attributedTo` is "shipped at v1.1 as first-class column + filter,
+      but the MCP recall tool surface is deferred to v1.2 alongside TheoKit
+      binding alignment". Inspection of src/theokit/ shows ZERO attribution
+      references — `memoryFromCtx` does not auto-set attribution from
+      `ctx.session.userId`, matching the EC-13 deferral. INPUT_SCHEMA (line ~30)
+      similarly does not accept `attributedTo`. This is the honest scope deferral
+      per blueprint R2 + ADR D1 Consequences. CHANGELOG entry mirrors this
+      ("TheoKit binding + examples/chat-with-memory UI updates deferred to v1.2").
+    evidence: |
+      src/agent-tools/tools/recall-schema.ts:44-48
+        * under ADD-only ADR-0003), `tValid`/`tInvalid` (bi-temporal columns; `asOf` query
+        * surface lifted in v1.1 per ADR-0011 — exposed via separate option, not on the row
+        * shape). `attributedTo` is shipped at v1.1 (T1.1 + T2.2) as a first-class column
+        * + filter, but the MCP recall tool surface is deferred to v1.2 alongside TheoKit
+        * binding alignment (EC-13 plan deferral).
+
+      src/theokit/ — grep for attributedTo / attributed_to returns ZERO hits.
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-9
+    severity: INFO
+    file: src/core/extraction/prompt.ts
+    line: 32-45, 94-103
+    plan_ref: T1.2 + ADR D5 (N-valent vocabulary relax)
+    domain_anchor: Honcho-attack vertical (blueprint Q5) + Mem0 promoted-key parity (Q3)
+    summary: |
+      ADR D5 (TRINARY → N-valent) absorbed correctly. SYSTEM_PROMPT (line 32-45)
+      explicitly instructs the LLM to "Accept ARBITRARY string values: a user id,
+      agent id, 'system' for self-statements, or any peer identifier supplied in
+      conversation context. NOT restricted to a fixed vocabulary." The Zod schema
+      (line 99) was already permissive (`z.string().optional()`); the change is
+      purely advisory in the NL prompt spec. Backward compat preserved: BIVALENT
+      and TRINARY subsets continue to work. The Mem0-shape (promoted key) +
+      Honcho-semantic (N-valent) combination per plan ADR D5 is the differentiation
+      surface vs both Mem0 (BIVALENT user/assistant) and Honcho (AGPL N-valent).
+    evidence: |
+      src/core/extraction/prompt.ts:38-41
+        '`attributed_to` is the perspective owner of the fact — the peer ID it belongs to.',
+        'Accept ARBITRARY string values: a user id, agent id, "system" for self-statements,',
+        'or any peer identifier supplied in conversation context. NOT restricted to a fixed',
+        'vocabulary.',
+
+      src/core/extraction/prompt.ts:94-103 (Zod)
+        export const AdditiveExtractionSchema = z.object({
+          memory: z.array(
+            z.object({
+              id: z.string(),
+              text: z.string(),
+              attributed_to: z.string().optional(),  // unchanged — permissive
+              linked_memory_ids: z.array(z.string()).optional(),
+            }),
+          ),
+        });
+    recommended_action: No action needed; cited for review depth.
+
+  - id: F-dom-mem-10
+    severity: INFO
+    file: tests/integration/v1-1-multi-peer-bitemporal.test.ts
+    line: 155-198
+    plan_ref: EC-11 GDPR caveat + T4.1 goal-test
+    domain_anchor: ADR-0011 + v0.4b forget({hard:true}) hard-delete contract
+    summary: |
+      EC-11 (GDPR caveat) verified end-to-end in the goal test, Scenario 2.
+      Lines 180-184 explicitly assert: after `forget(id, {hard: true})`, even
+      a HISTORICAL `asOf` cannot resurrect the row (`erased.some(r => r.id === id)`
+      is false). This closes the EC-11 documentation surface (RecallOptions.asOf
+      JSDoc + CHANGELOG entry) with executable evidence. Soft-delete recovery
+      (lines 173-177) demonstrates the complementary contract: pre-forget asOf
+      RETURNS the row; post-forget asOf EXCLUDES it. The interaction with the
+      v0.4b ForgetOptions.hard contract is honest and tested.
+    evidence: |
+      tests/integration/v1-1-multi-peer-bitemporal.test.ts:180-184
+        // EC-11 verified: GDPR-strict erasure path. Hard-delete the row, then
+        // even historical asOf cannot resurrect it (row is physically gone).
+        await memory.forget(id, { hard: true });
+        const erased = await memory.user(ALICE).recall('lavender', { asOf: tBeforeForget, threshold: 0 });
+        expect(erased.some((r) => r.id === id)).toBe(false);
+    recommended_action: No action needed; cited for review depth.
+
+summary:
+  total_findings: 10
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 0
+    MINOR: 2
+    INFO: 8
+  mem0_shape_regression: NONE
+  adr_violation: NONE
+  scope_routing_surprise: NONE
+  llm_extraction_integrity: PRESERVED
+  add_only_invariant_preserved: TRUE
+  promoted_key_pattern_preserved: TRUE
+  hybrid_retrieval_unchanged: TRUE
+  bi_temporal_predicate_correctness: VERIFIED (null-safe; pre-bi-temporal NULL t_valid treated as -Infinity)
+  gdpr_hard_delete_interaction: VERIFIED end-to-end (scenario 2 of goal test)
+  theokit_binding_compat: PRESERVED (EC-13 deferral honored; zero attributedTo refs in src/theokit/)
+  pre_existing_mem0_refs:
+    note: Pre-existing 'Mem0' references in src/core/{options,scope,memory-item,retrieval/pipeline,extraction/pipeline}.ts are PRE-V1.1. Per `no-paper-names-in-code.md § Pre-existing references`, those clean up opportunistically. NOT flagged as v1.1 findings; would be in scope of a separate cleanup cycle.
+  new_paper_name_violations_introduced_by_v1_1:
+    count: 5
+    files:
+      - src/local/pgvector-store.ts:99 (Graphiti-precedent)
+      - src/local/pgvector-store.ts:359 (Graphiti-precedent)
+      - src/local/__tests__/pgvector-store.test.ts:359 (Graphiti precedent)
+      - src/core/options.ts:51 (Graphiti Apache-2.0 prior art)
+      - src/core/scope.ts:122 (Graphiti (Apache-2.0) prior art)
+    aggregate_severity: MINOR (consolidated under F-dom-mem-1 + F-dom-mem-2)
+    plan_acknowledgment: Plan Coverage Matrix row 20 explicitly required "Mem0-pattern / Graphiti precedent cited in ADR Rationale only, NOT in src/ JSDoc or test names". v1.1 commits introduced 5 such hits — should be cleaned in a small fix-up before READY_TO_MERGE.
