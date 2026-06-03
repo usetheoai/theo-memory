@@ -42,10 +42,27 @@ export interface RecallOptions {
   readonly threshold?: number;
 
   /**
-   * Bi-temporal point-in-time query. When set, recall returns the memories that were valid at the given instant.
+   * Bi-temporal point-in-time query. When set, recall returns the memories
+   * that were valid at the given instant via the null-safe predicate
+   * `(t_valid IS NULL OR t_valid <= asOf) AND (t_invalid IS NULL OR t_invalid > asOf)`.
    *
-   * @see ADR-0006 — local v0.1 runtime throws BiTemporalNotSupportedLocally when this field is provided; cloud v0.5+ honors it.
-   * @throws BiTemporalNotSupportedLocally — on the local runtime until v0.5+ backports the asOf query support.
+   * Available on the local runtime since v1.1 per ADR-0011 (supersedes
+   * ADR-0006 runtime clause). ADR-0006 schema clause (`t_valid`/`t_invalid`
+   * columns since v0.1) is reinforced by REDACTED Apache-2.0 prior art.
+   *
+   * EC-11 absorbed (GDPR caveat): soft-deleted memories (`forget(id)`
+   * without `{ hard: true }`) remain recoverable via historical `asOf`
+   * queries. GDPR-strict erasure REQUIRES `forget(id, { hard: true })`
+   * (per the v0.4b hard-delete option shipped 2026-05-31). Hard-deleted
+   * rows are PHYSICALLY removed and cannot be resurrected by asOf.
+   *
+   * EC-3 absorbed (boundary validation): the local runtime throws
+   * `InvalidScope('asOf must be a valid Date')` when `asOf.getTime()` is
+   * NaN, per architecture.md § 8 (validate at boundaries).
+   *
+   * @see ADR-0006 — schema clause (t_valid/t_invalid columns).
+   * @see ADR-0011 — runtime-clause lift; recall honors asOf from v1.1.
+   * @throws InvalidScope — when asOf is an invalid Date (NaN .getTime()).
    */
   readonly asOf?: Date;
 

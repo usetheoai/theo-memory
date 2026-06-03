@@ -321,6 +321,48 @@ describe('PgvectorStore.search — attributed_to SELECT projection (v1.1 T2.1)',
   });
 });
 
+describe('PgvectorStore.search — bi-temporal asOf SQL composition (v1.1 T3.1 + ADR-0011)', () => {
+  test('search WHERE clause uses currently-valid predicate when asOf is undefined (regression guard)', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice' });
+
+    const selectCall = captured.find((c) => c.sql.includes('SELECT'));
+    expect(selectCall).toBeDefined();
+    // Pre-asOf semantic: t_invalid IS NULL filter only.
+    expect(selectCall!.sql).toMatch(/t_invalid IS NULL/);
+    // asOf-aware clause should NOT fire when undefined.
+    expect(selectCall!.sql).not.toMatch(/t_valid\s*<=\s*\$/);
+  });
+
+  test('search WHERE clause composes asOf bi-temporal predicate when filters.asOf is set', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const asOf = new Date('2026-03-15T10:00:00Z');
+    await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice', asOf });
+
+    const selectCall = captured.find((c) => c.sql.includes('SELECT'));
+    expect(selectCall).toBeDefined();
+    // asOf semantic: t_valid <= asOf AND (t_invalid IS NULL OR t_invalid > asOf).
+    // REDACTED precedent + null-safe: NULL t_valid treated as -Infinity (always-valid).
+    expect(selectCall!.sql).toMatch(/t_valid IS NULL OR t_valid\s*<=\s*\$/);
+    expect(selectCall!.sql).toMatch(/t_invalid IS NULL OR t_invalid\s*>\s*\$/);
+    expect(selectCall!.params).toContain(asOf);
+  });
+});
+
 describe('PgvectorStore constructor — tracer still works via options-object (T0.2 / SEPA iter 2 M2)', () => {
   test('accepts new PgvectorStore(pool, { tracer }) — tracer moved into options object', () => {
     const { pool } = buildPool();
