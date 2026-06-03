@@ -356,7 +356,7 @@ describe('PgvectorStore.search — bi-temporal asOf SQL composition (v1.1 T3.1 +
     const selectCall = captured.find((c) => c.sql.includes('SELECT'));
     expect(selectCall).toBeDefined();
     // asOf semantic: t_valid <= asOf AND (t_invalid IS NULL OR t_invalid > asOf).
-    // REDACTED precedent + null-safe: NULL t_valid treated as -Infinity (always-valid).
+    // null-safe temporal predicate: NULL t_valid treated as -Infinity (always-valid).
     expect(selectCall!.sql).toMatch(/t_valid IS NULL OR t_valid\s*<=\s*\$/);
     expect(selectCall!.sql).toMatch(/t_invalid IS NULL OR t_invalid\s*>\s*\$/);
     expect(selectCall!.params).toContain(asOf);
