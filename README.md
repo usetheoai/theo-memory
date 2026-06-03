@@ -479,6 +479,37 @@ const agent = await Agent.create({
 │   └── agent-tools/             MCP tools for @usetheo/sdk agents
 ```
 
+### Semantic recall cache (v1.5)
+
+Opt-in read-side cache for `recall()` keyed by **query-embedding cosine similarity** (NOT string match). A near-duplicate query (`"what is my favorite color?"` vs `"what color do I prefer?"`) within the same scope reuses the cached result instead of re-running the 9-step retrieval pipeline. Backs Roadmap Item 19 / v1.5.
+
+```ts
+import { createLocalMemory, runMigrations, PgvectorStore } from '@usetheo/memory';
+
+await runMigrations(pool);                   // migration 0010 ships recall_cache
+
+const memory = await createLocalMemory({
+  vectorStore: new PgvectorStore(pool),
+  embedder,
+  llm,
+  recallCache: { threshold: 0.8 },           // opt-in; cache disabled by default
+});
+
+await memory.user('alice').recall('what is my favorite color?');  // MISS → populates
+await memory.user('alice').recall('what color do I prefer?');     // HIT (cosine >= 0.8)
+```
+
+- **Threshold**: default `0.8` cosine similarity (convergent across embedchain `similarity_threshold=0.8` and REDACTED `distance_threshold=0.2`).
+- **Per-tier TTL**: default `user` 24h, `agent` 1h, `session` 10min, `repo` 1h. Override via `recallCache.ttlSecondsByScopeTier`.
+- **LRU eviction**: default cap `1000` rows per scope. Concurrent `set()` calls serialize via Postgres SERIALIZABLE isolation (single retry on `40001`).
+- **Write-trigger invalidation**: `remember()` / `forget()` / `reflect()` await `invalidateScope()` post-success so the consumer's next `recall()` sees fresh state (Inquebrável Rule 3 + Item 19 AC#3).
+- **Bypass boundary**: `recall(query, { asOf })` AND `recall(query, { attributedTo })` BYPASS the cache (no get, no set) — v1.5 cache key is `(scope_key, query_embedding)` and does not include bi-temporal/multi-peer dimensions.
+- **Observability**: 3 OTel instruments — `theo.memory.recall_cache.hit` (Counter) + `theo.memory.recall_cache.hit.duration_ms` (Histogram) + `theo.memory.recall_cache.miss.duration_ms` (Histogram). Labels `{ scope_tier, embedder_kind }`.
+- **Subpath**: `@usetheo/memory/cache-pg` exposes `PgvectorRecallCacheStore` + metric resolvers for custom wirings.
+- **Stub-embedder gate**: when cache is enabled and the embedder is `StubEmbedder` / `DeterministicStubEmbedder`, a 3-line stderr warning fires at factory time — cache hits with stub vectors are COINCIDENTAL, not semantic.
+
+THE GOAL TEST (`tests/integration/cache/semantic-recall-cache.test.ts`) verifies hit rate ≥ 0.5 on 10 hand-authored near-duplicate query pairs at `threshold=0.8` against real `ankane/pgvector:v0.5.1`. Last run: **6/10 = 0.60**.
+
 ### Dependency direction (planned, enforced at CI)
 
 ```
