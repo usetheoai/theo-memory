@@ -13,6 +13,7 @@ import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import type { Memory } from '../core/memory-store.js';
 
 import { bearerAuth } from './auth/middleware.js';
+import { mapDomainErrorToResponse } from './errors.js';
 import { forgetHandler } from './handlers/forget.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
 import { recallHandler } from './handlers/recall.js';
@@ -82,11 +83,12 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   app.post('/v1/forget', (c) => forgetHandler(c, memory));
   app.post('/v1/reflect', (c) => reflectHandler(c, memory));
 
-  app.onError((_err, c) => {
-    // EC-10 absorption — sanitized 500 envelope; never leak raw error.message
-    // or stack. T1.6 will EXPAND this to map domain errors (InvalidScope,
-    // MemoryNotFound, etc.) BEFORE this catch-all.
-    return c.json({ code: 'INTERNAL_ERROR', message: 'Internal server error' }, 500);
+  app.onError((err, c) => {
+    // T1.6 — domain-error mapping (EC-10 / EC-23 / EC-24 absorbed inside
+    // mapDomainErrorToResponse). Pure-function mapper keeps Hono Context
+    // decoupled and reusable for non-HTTP transports.
+    const { status, body } = mapDomainErrorToResponse(err);
+    return c.json(body, status as Parameters<typeof c.json>[1]);
   });
 
   return app;
