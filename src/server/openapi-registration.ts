@@ -159,6 +159,11 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
       400: { description: 'Invalid cursor.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
       404: { description: 'Unknown scope type or empty id.' },
       422: { description: 'Invalid query parameters.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      501: {
+        description:
+          "Listing memories on 'skill' scope is not implemented at P0 (SDK-only via Memory.skills(...) per ADR-0010; closes F-rev-1 from theo-memory-standalone-p0 review).",
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
     },
   });
 }

@@ -78,6 +78,19 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     expect(spec.info.license?.name).toBe('MIT');
   });
 
+  test('6. FC2-T1.2-RED — listScopeMemories advertises 501 SKILL_LISTING_NOT_IMPLEMENTED (F-dom-api-1 absorption)', async () => {
+    const app = createServer({ memory: stubMemory() });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    interface Op { responses?: Record<string, { description?: string }> }
+    interface PathItem { get?: Op }
+    interface Spec { paths: Record<string, PathItem> }
+    const spec = (await res.json()) as Spec;
+    const responses = spec.paths['/v1/scopes/{type}/{id}/memories']?.get?.responses;
+    expect(responses?.['501']).toBeDefined();
+    expect(responses?.['501']?.description).toMatch(/skill/i);
+    expect(responses?.['501']?.description).toMatch(/ADR-0010|SDK-only|not implemented/i);
+  });
+
   test('5. FC1-T1.1 EC-5 — skillRepoId absent from all 4 verb request bodies (F-rev-1 absorption)', async () => {
     const app = createServer({ memory: stubMemory() });
     const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
