@@ -300,3 +300,49 @@ describe('T1.2 — createServer wires middleware + handles unknown errors', () =
     expect(body.message).not.toContain('Internal database explosion');
   });
 });
+
+describe('T1.1 fixes-cycle-1 — F-rev-1 absorption (skillRepoId removed from REST scope keys)', () => {
+  test('FC1-T1.1-RED-1. POST /v1/remember with skillRepoId in body returns 422 + code NOT INTERNAL_ERROR', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/remember', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', skillRepoId: 'repo-x', text: 'x' }),
+      }),
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { code: string };
+    // EC-2 absorption: zod .strict() rejects unknown skillRepoId BEFORE superRefine
+    // runs, so the code may be VALIDATION_ERROR / INVALID_BODY rather than
+    // INVALID_SCOPE. Pin "NOT INTERNAL_ERROR" to assert the body-validation path.
+    expect(body.code).not.toBe('INTERNAL_ERROR');
+  });
+
+  test('FC1-T1.1-RED-2. POST /v1/remember with ONLY skillRepoId returns 422 (no remaining tier)', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/remember', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillRepoId: 'repo-x', text: 'x' }),
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  test('FC1-T1.1-RED-3. POST /v1/reflect with skillRepoId returns 422 (same code path)', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/reflect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillRepoId: 'repo-x' }),
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
+});

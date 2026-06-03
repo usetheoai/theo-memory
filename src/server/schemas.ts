@@ -3,15 +3,24 @@
  *
  * **ADR D12 / EC-9 absorption** — single scope tier per request enforced via
  * `superRefine` counting present tier keys. Exactly one of `userId`,
- * `sessionId`, `agentId`, `skillRepoId` MUST be present; 0 or ≥2 raise an
- * `INVALID_SCOPE` issue. zod's plain `.union()` cannot enforce this reliably
- * because no discriminator key exists — see SEPA pre-RED iter 3 finding.
+ * `sessionId`, `agentId` MUST be present; 0 or ≥2 raise an `INVALID_SCOPE`
+ * issue. zod's plain `.union()` cannot enforce this reliably because no
+ * discriminator key exists — see SEPA pre-RED iter 3 finding.
+ *
+ * **fixes-cycle-1 T1.1 / F-rev-1 absorption (2026-06-03):** `skillRepoId`
+ * removed from `SCOPE_KEYS` + `ScopeFields` + `resolveScope` + `MemoryLike`.
+ * Skill scope is exposed ONLY via the SDK `Memory.skills(repoId)` per
+ * CLAUDE.md ADR-0010; the prior `skillRepoId` REST surface routed to
+ * `ScopedSkillMemory` which has `add`/`recall`/`consolidate`/`forget`,
+ * NOT `remember`/`reflect`/`getAll` — the handlers crashed at runtime
+ * with TypeError. Production blast radius eliminated.
  *
  * @see Plan theo-memory-standalone-p0 § ADR D12
+ * @see Plan theo-memory-standalone-p0-fixes-cycle-1 § ADR D1 + EC-2
  */
 import { z } from 'zod';
 
-const SCOPE_KEYS = ['userId', 'sessionId', 'agentId', 'skillRepoId'] as const;
+const SCOPE_KEYS = ['userId', 'sessionId', 'agentId'] as const;
 
 const SingleScopeRefine = (
   data: Record<string, unknown>,
@@ -23,7 +32,7 @@ const SingleScopeRefine = (
       code: z.ZodIssueCode.custom,
       message:
         present.length === 0
-          ? 'INVALID_SCOPE: exactly one scope tier required (userId, sessionId, agentId, or skillRepoId)'
+          ? 'INVALID_SCOPE: exactly one scope tier required (userId, sessionId, or agentId)'
           : `INVALID_SCOPE: exactly one scope tier required; received ${present.length} (${present.join(', ')})`,
       path: ['scope'],
     });
@@ -34,7 +43,6 @@ const ScopeFields = {
   userId: z.string().min(1).optional(),
   sessionId: z.string().min(1).optional(),
   agentId: z.string().min(1).optional(),
-  skillRepoId: z.string().min(1).optional(),
 };
 
 export const RememberBody = z
@@ -95,7 +103,6 @@ export interface MemoryLike {
   user: (userId: string) => ScopedMemoryLike;
   session: (sessionId: string) => ScopedMemoryLike;
   agent: (agentId: string) => ScopedMemoryLike;
-  skills: (repoId: string) => ScopedMemoryLike;
 }
 
 export function resolveScope<T extends Record<string, unknown>>(
@@ -105,6 +112,5 @@ export function resolveScope<T extends Record<string, unknown>>(
   if (typeof body['userId'] === 'string') return memory.user(body['userId']);
   if (typeof body['sessionId'] === 'string') return memory.session(body['sessionId']);
   if (typeof body['agentId'] === 'string') return memory.agent(body['agentId']);
-  if (typeof body['skillRepoId'] === 'string') return memory.skills(body['skillRepoId']);
   throw new Error('resolveScope: no scope tier present; should be filtered by superRefine');
 }

@@ -8,7 +8,7 @@
 import type { Context } from 'hono';
 
 import type { Memory } from '../../core/memory-store.js';
-import { ReflectBody, resolveScope, type MemoryLike } from '../schemas.js';
+import { ReflectBody, resolveScope } from '../schemas.js';
 
 import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
 
@@ -28,7 +28,7 @@ export async function reflectHandler(c: Context, memory: Memory): Promise<Respon
     return scopeOrValidationError(parsed.error, c);
   }
   const { maxIterations } = parsed.data;
-  const scoped = resolveScope(memory as unknown as MemoryLike, parsed.data);
+  const scoped = resolveScope(memory, parsed.data);
   const result = await scoped.reflect({ maxIterations });
   return c.json(result, 202);
 }
