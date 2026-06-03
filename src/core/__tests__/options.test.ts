@@ -36,3 +36,12 @@ describe('EC-2 absorbed — RememberOptions.attributedTo widening (v1.1 T1.1)', 
     expectTypeOf<RememberOptions['attributedTo']>().toEqualTypeOf<string | undefined>();
   });
 });
+
+describe('T2.2 — RecallOptions.attributedTo filter widening (v1.1)', () => {
+  test('RecallOptions.attributedTo is an optional string (recall filter per ADR D2 + T2.2)', () => {
+    expectTypeOf<import('../options.js').RecallOptions>().toHaveProperty('attributedTo');
+    expectTypeOf<import('../options.js').RecallOptions['attributedTo']>().toEqualTypeOf<
+      string | undefined
+    >();
+  });
+});

@@ -164,24 +164,29 @@ export const PROBE_TEXT = '__themem_probe__';
  */
 function applySkillFilters(
   baseFilters: Filters,
-  options?: { onlySkills?: boolean; includeSuperseded?: boolean },
+  options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string },
 ): Filters {
   if (options === undefined) {
     return baseFilters;
   }
-  const next: Filters = { ...baseFilters };
+  // v1.1 T2.2: route RecallOptions.attributedTo into Filters.attributed_to so
+  // composeFilters in pgvector-store appends the WHERE clause.
+  const base: Filters =
+    options.attributedTo !== undefined
+      ? { ...baseFilters, attributed_to: options.attributedTo }
+      : { ...baseFilters };
   if (options.onlySkills === true) {
     return {
-      ...next,
+      ...base,
       kind: 'skill',
       // Default for skill recall: exclude superseded unless the caller explicitly opts in.
       excludeSuperseded: options.includeSuperseded === true ? false : true,
     };
   }
   if (options.includeSuperseded === false) {
-    return { ...next, excludeSuperseded: true };
+    return { ...base, excludeSuperseded: true };
   }
-  return next;
+  return base;
 }
 
 function filtersFromScope(scope: Scope): Filters {
