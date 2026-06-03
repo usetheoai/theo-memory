@@ -62,6 +62,16 @@ vi.mock('pg', () => ({
   },
 }));
 
+// EC-6 absorption (fixes-cycle-1 T2.2): mock process.stderr.write in beforeEach
+// so the new T2.2 stub-embedder warning does NOT pollute the test log output
+// across the 8 existing tests. The dedicated EC-6/T2.2 RED test reads from
+// the shared spy's call record.
+interface StderrSpy {
+  mockRestore: () => void;
+  mock: { calls: unknown[][] };
+}
+let stderrSpy: StderrSpy;
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -74,10 +84,12 @@ beforeEach(() => {
   mockRunMigrations.mockResolvedValue(undefined);
   mockCreateLocalMemory.mockResolvedValue({});
   vi.stubEnv('THEOMEM_PG_URI', 'postgres://themem:themem@localhost:5432/themem');
+  stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  stderrSpy.mockRestore();
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
 });
@@ -175,13 +187,23 @@ describe('T2.3 — runServer composition contract', () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((_code?: number) => {
       throw new Error('process.exit-called');
     }) as never);
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    // Use a SECOND spy here (in addition to the beforeEach one) because this
+    // test pre-dates the EC-6 absorption and asserts a specific narrow path.
+    const localStderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const { runServer } = await import('../run-server.js');
     await expect(runServer({ port: 9992 })).rejects.toThrow('process.exit-called');
     expect(exitSpy).toHaveBeenCalledWith(2);
-    const stderr = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+    const stderr = localStderrSpy.mock.calls.map((c) => String(c[0])).join('');
     expect(stderr).toContain('THEOMEM_PG_URI');
     exitSpy.mockRestore();
-    stderrSpy.mockRestore();
+    localStderrSpy.mockRestore();
+  });
+
+  it('FC1-T2.2-RED. runServer writes stub-embedder warning to stderr on startup (F-rev-9 + EC-6)', async () => {
+    const { runServer } = await import('../run-server.js');
+    await runServer({ port: 9991 });
+    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
+    expect(captured).toMatch(/stub embedder/i);
+    expect(captured).toMatch(/themory server/i);
   });
 });
