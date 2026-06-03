@@ -33,6 +33,7 @@ import { Command, Option } from 'commander';
 
 import { runMcpServer } from './run-mcp-server.js';
 import type { RunMcpServerOptions } from './run-mcp-server.js';
+import { runMigrate } from './run-migrate.js';
 import { runServer } from './run-server.js';
 import type { RunServerOptions } from './run-server.js';
 
@@ -112,7 +113,7 @@ export function buildProgram(): Command {
   program
     .command('migrate')
     .description('Apply pending Drizzle migrations against THEOMEM_PG_URI.')
-    .action(stubNotImplemented('T2.4'));
+    .action(runMigrate);
 
   program
     .command('health')

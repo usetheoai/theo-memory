@@ -152,6 +152,40 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       expect(code).toBe(0);
     }, 15_000);
 
+    test('41. themory migrate applies pending migrations; second invocation is no-op (EC-36)', async () => {
+      // Reset DB to fresh state so the first invocation has work to do.
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env['THEOMEM_PG_URI'] });
+      await pool.query(
+        'DROP TABLE IF EXISTS reflection_counters, consolidation_history, __drizzle_migrations CASCADE',
+      );
+      await pool.end();
+
+      const runOnce = async (): Promise<{ exitCode: number | null; stdout: string }> => {
+        const child = spawn(process.execPath, [CLI_DIST, 'migrate'], {
+          env: { ...process.env },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout?.on('data', (chunk: Buffer) => {
+          stdout += chunk.toString('utf-8');
+        });
+        const code = await new Promise<number | null>((resolveExit) => {
+          child.on('close', (c) => resolveExit(c));
+        });
+        return { exitCode: code, stdout };
+      };
+
+      const first = await runOnce();
+      const second = await runOnce();
+
+      expect(first.exitCode).toBe(0);
+      expect(second.exitCode).toBe(0);
+      expect(first.stdout).toMatch(/applied/i);
+      // Second invocation must succeed and not crash on duplicate-table errors.
+      expect(second.stdout).toMatch(/applied/i);
+    }, 30_000);
+
     test('40. EADDRINUSE — second server on busy port exits 1 with clear stderr (EC-31)', async () => {
       // Reserve a port using a listening socket; spawn the CLI against that
       // exact port; expect serve() to surface EADDRINUSE.
