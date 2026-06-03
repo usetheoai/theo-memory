@@ -199,6 +199,41 @@ THEOMEM_PG_URI=postgres://... \
 
 
 
+## REST API server (`@usetheo/memory/server`)
+
+Standalone HTTP distribution surface for TheMemory — exposes the 4 verbs (`remember`/`recall`/`forget`/`reflect`) + health probes + paginated scope listing under `/v1/*`. Use it when your consumer is not Node.js (mobile apps, Python/Go/Rust services via OpenAPI codegen, admin dashboards, monitoring curl probes).
+
+**Compose the server from a local memory factory:**
+
+```ts
+import { createMemory } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory/server';
+import { serve } from '@hono/node-server';
+
+const memory = await createMemory({ /* local runtime config */ });
+const app = createServer({ memory });
+serve({ fetch: app.fetch, port: 8080 });
+```
+
+**Bearer authentication** is opt-in via `THEMEMORY_API_KEY` env var (mirrors the `THEOKIT_API_KEY` convention per ADR-0009). When set, every `/v1/*` request requires `Authorization: Bearer <token>`:
+
+```bash
+curl -X POST http://localhost:8080/v1/remember \
+  -H "Authorization: Bearer $THEMEMORY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"alice","text":"prefers dark mode"}'
+```
+
+**OpenAPI 3.1 spec** auto-derived from the zod schemas at `GET /v1/openapi.json` — auth-exempt per EC-19 so codegen tools (openapi-generator, Postman, Swagger UI) can fetch the spec before having credentials.
+
+**Observability:** every handler emits an OTel span (`rest.v1.remember`, `rest.v1.recall`, etc.) with `http.status_code`/`http.method`/`http.route` attributes. Pass a `Tracer` via `createServer({ memory, tracer })` to wire your provider; default falls through to the global no-op tracer at zero cost.
+
+**ESM-only.** The subpath `@usetheo/memory/server` is ESM-only — matches the package's `"type": "module"`. CJS consumers (`require('@usetheo/memory/server')`) will see Node's standard ESM-resolution error.
+
+Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
+
+
+
 ## Status — v0.6 (skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
 
 > **v0.8 — Independent benchmark reproduction (Roadmap Item 10) — published 2026-06-02.** Smoke validation across LongMemEval / LoCoMo / DMR for TheMemory; vendor adapter cells (REDACTED/REDACTED/REDACTED) shipping `VendorClient` DIP only with real SDK wiring deferred per Drift-T6.x-1. Matrix at [`docs/benchmarks/v0.8.md`](docs/benchmarks/v0.8.md), methodology at [`docs/benchmarks/v0.8-methodology.md`](docs/benchmarks/v0.8-methodology.md), reproducibility runbook at [`docs/benchmarks/v0.8-reproducibility.md`](docs/benchmarks/v0.8-reproducibility.md). **`/dogfood` gate remains EVIDENCE_INSUFFICIENT — v0.8 does NOT unblock v1.0 production-ready claims.**
