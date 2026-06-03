@@ -1,5 +1,7 @@
 # Plan: TheMemory Standalone P0 — REST API + Docker stack + CLI consolidado
 
+> **Version 1.2** (2026-06-03) — Absorbs `/deps-audit` report (verdict PASS_WITH_CAVEATS; 4× `plan_dep_major_outdated_unpinned` soft caps). **User decision via AskUserQuestion: Path B (ADR deferral)**. Adds NEW ADR D14 documenting pin-rationale + sunset for 4 MAJOR-outdated NEW deps (`@hono/node-server ^1.13.0`, `@hono/zod-openapi ^0.18.0`, `commander ^12.1.0`, `@apidevtools/swagger-parser ^10.1.1`) — mirror of zod ^3.25.0 ADR D7 idiom from v1-1-multi-peer plan v1.2. With ADR D14 in place, the 4 soft caps STOP FIRING (they fire only on UNPINNED outdated deps). Pre-existing manifest CVE state (9 CRITICAL + 3 HIGH protobufjs chain via @xenova/transformers) is NOT introduced by this plan — surfaced honestly per Rule 3, deferred to `/loop 7d /deps-audit` periodic housekeeping (NOT a blocker for this plan).
+>
 > **Version 1.1** (2026-06-03) — Absorbs `/edge-case-plan` report (49 edge cases: 12 MUST FIX + 25 SHOULD TEST + 12 DOCUMENT). **EC-47 BLOCKER resolved via Opção A** (user AskUserQuestion 2026-06-03): docker-entrypoint.sh REMOVED; migrate-on-startup logic moved INTO `themory server` subcommand binary; ENTRYPOINT becomes direct Node invocation (`["node", "/app/dist/agent-tools/cli.js", "server"]`). 12 MUST FIX absorbed via ADR amendments D3 + D6 + D8 + 2 new ADRs (D12 single-scope-tier semantic + D13 direct-Node-binary entrypoint) and task additions. 25 SHOULD TEST absorbed inline in TDD blocks. 12 DOCUMENT absorbed as ADR Consequences + Acceptance Criteria notes. Coverage Matrix expands from 36 to 85 rows.
 >
 > **Version 1.0** (2026-06-03) — Ship the standalone-distribution surface for TheMemory (CLAUDE.md § Phase III bis, Items 16/17/18). Anchored on `/research/theo-memory-standalone-p0-test-patterns-2026-06-03.md` (canonical RED test inventory + 5 patterns lifted from Mem0 + Letta). The plan ships: (a) REST API server at `@usetheo/memory/server` wrapping the 4 verbs over Hono + bearer auth + OpenAPI 3.1 spec + OTel observability + domain-error envelope; (b) multi-stage Dockerfile → distroless image → published to GHCR via GitHub Actions with Trivy scan gate; (c) consolidated `themory` CLI with 4 subcommands (`mcp`/`server`/`migrate`/`health`) preserving backward-compat alias. Goal-test is an integration round-trip of `POST /v1/remember` + `POST /v1/recall` against `ghcr.io/usetheo/themory:0.1.0-alpha` started via `docker compose up` with ZERO manual setup steps.
@@ -61,11 +63,11 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 | Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
 |---|---|---|---|---|
 | `hono` (NEW) | ^4.6.0 | npm | Evaluated: Express (mature but verbose + Node-only), Fastify (TS-friendly + faster but heavier), Hono (TS-first + edge-ready + smallest viable + ~12KB). FastAPI Python equivalent. | TS-first + Web Standards + smallest viable — closest TS analog to FastAPI used by Mem0 + Letta. |
-| `@hono/node-server` (NEW) | ^1.13.0 | npm | Hono's official Node adapter (peer of `hono`). Required to bind Hono app to Node HTTP server. | Canonical adapter; aligned with `hono` major version. |
-| `@hono/zod-openapi` (NEW) | ^0.18.0 | npm | Evaluated: hand-write OpenAPI YAML (high maintenance + drift risk), `@asteasolutions/zod-to-openapi` (works but not Hono-native), `@hono/zod-openapi` (auto-derives spec from zod schemas + Hono-native + ships RouteConfig type). | Single source of truth (zod schemas) → no spec drift. Honors `architecture.md § 8` validation discipline. Version aligned with `hono ^4.6` per EC-18 absorption. |
-| `commander` (NEW) | ^12.1.0 | npm | Evaluated: citty (~5KB, less mature), yargs (~200KB, heavyweight, deprecated patterns), commander (~30KB, 100M+ weekly downloads, TS types ship, used by Node ecosystem). | Conservative choice; most Node CLI tooling reads as commander. Trade-off: 6x heavier than citty for 5x more battle-testing. Acceptable. |
+| `@hono/node-server` (NEW) | ^1.13.0 | npm | Hono's official Node adapter (peer of `hono`). Required to bind Hono app to Node HTTP server. | Canonical adapter. **PINNED to v1 per ADR D14** (defer v2 to dep-bumps cycle; sunset 2026-09-01). |
+| `@hono/zod-openapi` (NEW) | ^0.18.0 | npm | Evaluated: hand-write OpenAPI YAML (high maintenance + drift risk), `@asteasolutions/zod-to-openapi` (works but not Hono-native), `@hono/zod-openapi` (auto-derives spec from zod schemas + Hono-native + ships RouteConfig type). | Single source of truth (zod schemas) → no spec drift. Honors `architecture.md § 8` validation discipline. Version aligned with `hono ^4.6` per EC-18 absorption. **PINNED to ^0.18 per ADR D14** (defer 1.x; sunset 2026-09-01). |
+| `commander` (NEW) | ^12.1.0 | npm | Evaluated: citty (~5KB, less mature), yargs (~200KB, heavyweight, deprecated patterns), commander (~30KB, 100M+ weekly downloads, TS types ship, used by Node ecosystem). | Conservative choice; most Node CLI tooling reads as commander. Trade-off: 6x heavier than citty for 5x more battle-testing. Acceptable. **PINNED to ^12 per ADR D14** (defer 13/14/15; sunset 2026-09-01). |
 | dev `strip-ansi` (NEW) | ^7.1.0 | npm | Evaluated: hand-roll ANSI regex (fragile across terminals), `chalk` strip util (heavy dep), `strip-ansi` (5KB, single purpose, 100M weekly). | Mirror of Mem0 P3 pattern (test_cli_integration.py:_ANSI_RE). Used in tests only. |
-| dev `@apidevtools/swagger-parser` (NEW) | ^10.1.1 | npm | Evaluated: hand-roll OpenAPI 3.1 schema validation (high cost + spec evolution risk), `ajv` + manual schema fetch (works but reinvents), `swagger-parser` (canonical OpenAPI parser + validator). | Single-purpose dep for T1.4 RED test (`test_openapi_spec_validates_against_schema`). Used in tests only. |
+| dev `@apidevtools/swagger-parser` (NEW) | ^10.1.1 | npm | Evaluated: hand-roll OpenAPI 3.1 schema validation (high cost + spec evolution risk), `ajv` + manual schema fetch (works but reinvents), `swagger-parser` (canonical OpenAPI parser + validator). | Single-purpose dep for T1.4 RED test (`test_openapi_spec_validates_against_schema`). Used in tests only. **PINNED to ^10 per ADR D14** (defer 11/12; sunset 2026-09-01). |
 
 ### Removed
 
@@ -256,6 +258,38 @@ Per Mem0 + Letta packaging audit 2026-06-03 (Agent Explore output): Mem0 ships h
 - **`CMD` overridable (require operator to specify subcommand)**: REJECTED. Image not self-contained — operator confusion.
 
 **Consequences:** Container always runs `themory server`. To run `themory migrate` or `themory health` standalone, operator overrides ENTRYPOINT: `docker run --entrypoint node ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate`. Documented in CHANGELOG `### Added` for v0.1.0-alpha. **(EC-32 absorbed)** Node-as-PID-1 means SIGTERM reaches process directly — `themory server` registers `process.on('SIGTERM', gracefulShutdown)` to close server + pool.
+
+### D14 — Pin 4 NEW deps to current MAJOR; defer next-major to follow-up cycles — NEW 2026-06-03 (4 SOFT cap absorption)
+
+**Decision:** Plan declares 4 NEW deps at pinned MAJOR versions explicitly (NOT at latest available):
+- `@hono/node-server ^1.13.0` (latest available: 2.0.4) — defer v2 to next cycle
+- `@hono/zod-openapi ^0.18.0` (latest available: 1.4.0) — defer 1.x to next cycle
+- `commander ^12.1.0` (latest available: 15.0.0) — defer 13/14/15 to next cycle
+- `@apidevtools/swagger-parser ^10.1.1` (latest available: 12.1.0) — defer 11/12 to next cycle
+
+Each pin has a sunset date (2026-09-01, ~90 days) at which the deferral MUST be re-evaluated. Mirror of `zod ^3.25.0` ADR D7 idiom (from v1-1-multi-peer plan v1.2).
+
+**Rationale:**
+
+- **KISS (Rule 10) + YAGNI (Rule 11):** v0.1.0-alpha milestone ships the standalone-distribution surface — bundling N major-version migrations into the same cycle would expand scope significantly + risk regressions in surfaces (commander action-handler signature changes; @hono/zod-openapi 0.x → 1.x `createRoute` API renames; swagger-parser 11+ ESM-only).
+- **Plan author honesty (Rule 3):** the v1.1 plan declared these versions without `npm view PACKAGE version` verification. `/deps-audit` caught the gap. Path B keeps the v1.1 task envelope intact; Path A (bump-all) would require re-running every TDD block.
+- **Observed at audit (2026-06-03):** zero CVE on any of the 4 deps at declared versions. Soft cap is about FRESHNESS, not security.
+- **Future cycle scope:** dedicated `dep-bumps-2026-Q3` cycle (or similar) handles v1→v2 of @hono adapters, v12→v15 of commander, v10→v12 of swagger-parser. Allows breaking-change validation in isolation from feature work.
+
+**Alternatives considered:**
+
+- **Path A (bump all 4 to latest in v1.1 → v1.2)**: REJECTED. Risk: 4 simultaneous major-version migrations bundled into same plan-implement cycle. Commander 12→15 changes action-handler signature; @hono/zod-openapi 0.x→1.x reorganizes RouteConfig API; touches every handler. Real impact: doubles `/implement` halt-loop iteration count + risks regression in surfaces already RED-tested at planned versions.
+- **Path C (mixed bump)**: REJECTED. User decision via AskUserQuestion 2026-06-03 selected Path B explicitly for consistency. Path C's piecemeal logic ("bump these, pin those") is harder to defend at later audit.
+- **Leave versions as `(current)` placeholders or unpinned**: REJECTED. Deps-audit golden rule inquebrável #2 fires `plan_dep_version_unspecified` → INVALID_PLAN_DEPS cap 49. Placeholder is structurally non-compliant.
+- **Sunset > 90 days**: REJECTED. Deps-audit golden rule § Allowlist mechanism caps sunset at 90 days for MEDIUM/LOW; we apply the same discipline to MAJOR-outdated pins for consistency.
+
+**Consequences:**
+
+- 4× `plan_dep_major_outdated_unpinned` soft caps in `/deps-audit` STOP FIRING with this ADR present — the rule is "outdated MAJOR, **NO ADR pinning rationale**". This ADR is the pinning rationale.
+- `/plan-confidence` no longer caps at 89 due to these 4 deps (other caps may still apply per `/edge-case-plan` smell density etc.).
+- Future cycle (`dep-bumps-2026-Q3` proposed slug) supersedes this ADR; sunset re-evaluation at 2026-09-01 — either bump or extend deferral with renewed rationale.
+- CHANGELOG `### Added` for v0.1.0-alpha notes the pinning + sunset.
+- Plan author discipline locked: future `/to-plan` invocations MUST run `npm view PACKAGE version` for each NEW dep before writing the version into the plan. Failure to do so will be caught by `/deps-audit` at this same gate.
 
 ## Dependency Graph
 
@@ -1052,7 +1086,16 @@ VERIFY:  DOCKER_INTEGRATION=true npm test -- tests/integration/docker-stack
 | 84 | EC-51 docker health timeout configurable | T3.5 | SHOULD TEST | env var + RED test |
 | 85 | EC-52 npm pack manifest includes server files | T1.7 | MUST FIX | pack --dry-run test + RED test |
 
-**Coverage: 85/85 gaps covered (100%)** — original 36 + 49 EC absorptions
+### v1.2 deps-audit absorption rows (4 new entries — Path B / ADR D14 deferral)
+
+| # | Finding | Task(s) | Class | Resolution |
+|---|---|---|---|---|
+| 86 | @hono/node-server ^1.13.0 MAJOR-outdated vs 2.0.4 | T0.1 + ADR D14 NEW | DEFER | Pinned via ADR D14; sunset 2026-09-01 |
+| 87 | @hono/zod-openapi ^0.18.0 pre-1.0 vs 1.4.0 | T0.1 + ADR D14 NEW | DEFER | Pinned via ADR D14; sunset 2026-09-01 |
+| 88 | commander ^12.1.0 MAJOR-outdated vs 15.0.0 | T0.1 + ADR D14 NEW | DEFER | Pinned via ADR D14; sunset 2026-09-01 |
+| 89 | @apidevtools/swagger-parser ^10.1.1 MAJOR-outdated vs 12.1.0 | T0.1 + ADR D14 NEW | DEFER | Pinned via ADR D14; sunset 2026-09-01 |
+
+**Coverage: 89/89 gaps covered (100%)** — original 36 + 49 EC absorptions + 4 deps-audit deferrals
 
 ## Global Definition of Done
 
