@@ -197,6 +197,61 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
   });
 });
 
+describe('PgvectorStore.search — attributed_to recall WHERE filter (v1.1 T2.2)', () => {
+  test('search WHERE clause appends attributed_to = $N when filters.attributed_to set', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice', attributed_to: 'paulo' });
+
+    const selectCall = captured.find((c) => c.sql.includes('SELECT'));
+    expect(selectCall).toBeDefined();
+    expect(selectCall!.sql).toMatch(/attributed_to = \$\d+/);
+    expect(selectCall!.params).toContain('paulo');
+  });
+
+  test('search WHERE clause OMITS attributed_to when filters.attributed_to undefined (regression guard)', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice' });
+
+    const selectCall = captured.find((c) => c.sql.includes('SELECT'));
+    expect(selectCall).toBeDefined();
+    expect(selectCall!.sql).not.toMatch(/attributed_to = \$/);
+  });
+
+  test('EC-7: empty-string attributed_to filters with `= \'\'` Postgres semantics (NULL rows excluded)', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    // EC-7: when caller passes attributedTo='' through to filters.attributed_to,
+    // composeFilters must emit `attributed_to = $N` with '' in the param. Postgres
+    // semantics then exclude NULL rows (NULL = '' returns NULL, not true).
+    await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice', attributed_to: '' });
+
+    const selectCall = captured.find((c) => c.sql.includes('SELECT'));
+    expect(selectCall).toBeDefined();
+    expect(selectCall!.sql).toMatch(/attributed_to = \$\d+/);
+    expect(selectCall!.params).toContain('');
+  });
+});
+
 describe('PgvectorStore.search — attributed_to SELECT projection (v1.1 T2.1)', () => {
   test('SELECT SQL includes attributed_to column', async () => {
     const captured: { sql: string; params: unknown[] }[] = [];

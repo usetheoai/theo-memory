@@ -41,8 +41,11 @@ export type RecallInput = z.infer<typeof INPUT_SCHEMA>;
  *
  * Minimal honest subset of `MemoryItemWithScore` (src/core/memory-item.ts:48):
  * LLM-visible fields only. Dropped: `hash` (internal dedup), `updatedAt` (==createdAt
- * under ADD-only ADR-0003), `tValid`/`tInvalid` (bi-temporal asOf surface v0.5+),
- * `attributedTo` (v1.1 Roadmap Item 12 — not in v0.0 contract).
+ * under ADD-only ADR-0003), `tValid`/`tInvalid` (bi-temporal columns; `asOf` query
+ * surface lifted in v1.1 per ADR-0011 — exposed via separate option, not on the row
+ * shape). `attributedTo` is shipped at v1.1 (T1.1 + T2.2) as a first-class column
+ * + filter, but the MCP recall tool surface is deferred to v1.2 alongside TheoKit
+ * binding alignment (EC-13 plan deferral).
  *
  * `scope` shape matches `src/core/scope.ts` discriminated union (UserScope/SessionScope/AgentScope).
  */
