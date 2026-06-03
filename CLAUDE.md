@@ -1,3 +1,13 @@
+IMPORTANTE: 
+*Neim toda memoria tem a mesma importancia*
+ - Relevancia pode ser modelaca como score contino que considera fatores como frequencia, recencia, confiança, confirmacao e relevancia.
+ 
+*Priorizacao e diversidade é melhor que volume*
+ - Recuparar x memorias certas vale mais do ue recuperar 50 parecidas
+  
+*Memoria precisa ser auditavel*
+ - Toda decisao de gravar , atualizar ignorar ou subistiguir uma moria deve ser justificada permitndo reastreabilidade revisao e controle de qualidade.
+ 
 # CLAUDE.md — TheMemory
 
 Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [usetheo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
