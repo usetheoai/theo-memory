@@ -99,6 +99,24 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     }
   }
 
+  // fixes-cycle-1 T2.2 / F-rev-9 absorption: loud stderr warning so consumers
+  // booting ghcr.io/usetheo/themory:0.1.0-alpha know that recall is shape-
+  // correct but semantically a smoke test until they wire real providers.
+  // Inquebrável Rule 3 (honesty) at the consumer-facing boundary.
+  // FOLLOW-UP: gate this warning when src/agent-tools/run-server.ts gains
+  // real-provider config (e.g., THEMORY_EMBEDDER=openai|local env or
+  // --embedder flag). Currently unconditional because the default code
+  // path always uses DeterministicStubEmbedder + StubLLM.
+  process.stderr.write(
+    'themory server: WARNING — Stub embedder + Stub LLM in use (DeterministicStubEmbedder + StubLLM).\n',
+  );
+  process.stderr.write(
+    'themory server: Recall returns shape-correct results but is NOT semantic — only exact-text round-trips work reliably.\n',
+  );
+  process.stderr.write(
+    'themory server: For production, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n',
+  );
+
   // EC-33 readiness gate — bind port EAGERLY; warm Memory factory async so
   // /v1/health observes the 503-then-200 transition. Without async kickoff,
   // the factory resolves before any HTTP probe could land and the gate
