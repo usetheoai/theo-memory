@@ -37,7 +37,7 @@ const QuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): ScopedMemory {
+function pathParamsToScoped(memory: Memory, type: Exclude<ScopeType, 'skill'>, id: string): ScopedMemory {
   switch (type) {
     case 'user':
       return memory.user(id);
@@ -45,8 +45,6 @@ function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): Scoped
       return memory.session(id);
     case 'agent':
       return memory.agent(id);
-    case 'skill':
-      return memory.skills(id) as unknown as ScopedMemory;
   }
 }
 
@@ -81,6 +79,24 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   const typeParse = ScopeTypeSchema.safeParse(rawType);
   if (!typeParse.success || id === undefined || id.length === 0) {
     return c.notFound();
+  }
+
+  // fixes-cycle-1 T1.1 / F-rev-1 absorption (2026-06-03): skill scope listing
+  // is exposed ONLY via the SDK Memory.skills(repoId) per CLAUDE.md ADR-0010.
+  // Short-circuit BEFORE the legacy dispatch (which used to cast
+  // memory.skills(id) as ScopedMemory then call getAll() — a method that does
+  // not exist on ScopedSkillMemory; the cast bypassed TypeScript and crashed
+  // into 500 at runtime). EC-4 absorption: this branch lands BEFORE any call
+  // to memory.skills().
+  if (typeParse.data === 'skill') {
+    return c.json(
+      {
+        code: 'SKILL_LISTING_NOT_IMPLEMENTED',
+        message:
+          'Skill scope listing is not exposed via REST at v0.1.0-alpha. Use the SDK Memory.skills(repoId).recall(...) directly. See README § Skill scope.',
+      },
+      501,
+    );
   }
 
   const queryParse = QuerySchema.safeParse({

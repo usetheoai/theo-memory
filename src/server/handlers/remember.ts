@@ -8,7 +8,7 @@ import type { Context } from 'hono';
 import type { z } from 'zod';
 
 import type { Memory } from '../../core/memory-store.js';
-import { RememberBody, resolveScope, type MemoryLike } from '../schemas.js';
+import { RememberBody, resolveScope } from '../schemas.js';
 
 export async function rememberHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await safeJson(c);
@@ -26,7 +26,7 @@ export async function rememberHandler(c: Context, memory: Memory): Promise<Respo
     return scopeOrValidationError(parsed.error, c);
   }
   const { text, infer, attributedTo, metadata } = parsed.data;
-  const scoped = resolveScope(memory as unknown as MemoryLike, parsed.data);
+  const scoped = resolveScope(memory, parsed.data);
   const items = await scoped.remember(text, { infer, attributedTo, metadata });
   return c.json({ items }, 201);
 }
