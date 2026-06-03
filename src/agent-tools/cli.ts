@@ -29,9 +29,10 @@
  * @see Plan theo-memory-standalone-p0 § T2.1 + EC-27 + EC-28 + EC-29
  * @see Roadmap Item 18 — CLI consolidado
  */
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 
 import { runMcpServer } from './run-mcp-server.js';
+import type { RunMcpServerOptions } from './run-mcp-server.js';
 
 const ALIAS_PATTERN = /themory-mcp(?:\.(?:js|mjs|cjs|ts))?$/;
 
@@ -67,7 +68,25 @@ export function buildProgram(): Command {
   program
     .command('mcp')
     .description('Start the MCP server (stdio or streamable-http transport).')
-    .action(runMcpServer);
+    .addOption(
+      new Option('--transport <kind>', 'MCP transport kind').choices(['stdio', 'streamable-http']),
+    )
+    .option('--port <number>', 'Port for streamable-http transport (1..65535)', (raw: string) => {
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isInteger(n) || n <= 0 || n > 65_535) {
+        throw new Error(`Invalid --port: ${raw} (must be an integer in 1..65535).`);
+      }
+      return n;
+    })
+    .option('--host <address>', 'Bind host for streamable-http transport')
+    .action(async (opts: { transport?: 'stdio' | 'streamable-http'; port?: number; host?: string }) => {
+      const options: RunMcpServerOptions = {
+        ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
+        ...(opts.port !== undefined ? { port: opts.port } : {}),
+        ...(opts.host !== undefined ? { host: opts.host } : {}),
+      };
+      await runMcpServer(options);
+    });
 
   program
     .command('server')
