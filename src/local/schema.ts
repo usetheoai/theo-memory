@@ -55,6 +55,7 @@ import {
   jsonb,
   pgTable,
   real,
+  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -267,5 +268,52 @@ export const consolidationHistory = pgTable(
   (table) => [
     index('idx_consolidation_history_kept').on(table.keptMemoryId),
     index('idx_consolidation_history_created').on(sql`${table.createdAt} DESC`),
+  ],
+);
+
+/**
+ * v1.5 semantic recall cache — backs the 13th DIP `RecallCacheStore` per
+ * `semantic-recall-cache-v1-5-plan.md § T0.2`.
+ *
+ * Key composition `(scope_key, query_embedding)` per blueprint D4: scope_key
+ * isolates per-tier results; HNSW partial index on `query_embedding` with
+ * `vector_cosine_ops` powers the cosine-similarity lookup at `get()`.
+ *
+ * Independent of the memories table — cache rows do NOT FK back. Write-triggered
+ * invalidation via `invalidateScope()` is the correctness gate.
+ *
+ * Parametric dim discipline: the column declares `vector(MAX_EMBEDDING_DIM)`
+ * (1536). When `runMigrations({ embeddingDim: N })` rewrites memories.embedding,
+ * `applyDimChange()` must ALSO rewrite this column to keep the cache aligned with
+ * the embedder. T2.1 (cache wrap) is the canonical mismatch-detection gate via
+ * `atttypmod` probe (EC-2 absorption).
+ *
+ * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T0.2
+ * @see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § 3 + D4
+ * @see src/core/dip/recall-cache-store.ts (13th DIP contract)
+ */
+export const recallCache = pgTable(
+  'recall_cache',
+  {
+    id: serial('id').primaryKey(),
+    scopeKey: text('scope_key').notNull(),
+    queryEmbedding: vector('query_embedding', { dimensions: MAX_EMBEDDING_DIM }).notNull(),
+    resultSet: jsonb('result_set').notNull(),
+    hitCount: integer('hit_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    thresholdUsed: real('threshold_used').notNull().default(0.8),
+  },
+  (table) => [
+    // HNSW partial index per blueprint § 3. Conservative pgvector defaults
+    // (m=16, ef_construction=64) per ADR D7 v1.1 amendment + EC-15 DOCUMENT:
+    // tuning DEFERRED to v1.5.x dogfood-evidence-driven adjustment per Inquebrável Rule 11 (YAGNI).
+    index('recall_cache_scope_hnsw_idx').using('hnsw', table.queryEmbedding.op('vector_cosine_ops')),
+    // B-tree on scope_key powers invalidateScope() DELETE perf.
+    index('recall_cache_scope_key_idx').on(table.scopeKey),
+    // Partial B-tree on expires_at powers clearExpired() sweep.
+    index('recall_cache_expires_at_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.expiresAt} IS NOT NULL`),
   ],
 );
