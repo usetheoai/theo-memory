@@ -9,7 +9,7 @@ import type { Context } from 'hono';
 import type { Memory } from '../../core/memory-store.js';
 import { ForgetBody } from '../schemas.js';
 
-import { EMPTY_BODY, MALFORMED_BODY, safeJson } from './remember.js';
+import { EMPTY_BODY, MALFORMED_BODY, safeJson } from './_body-parsing.js';
 
 export async function forgetHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await safeJson(c);
