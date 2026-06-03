@@ -550,8 +550,12 @@ VERIFY:  cat .claude/knowledge-base/reviews/theo-memory-standalone-p0-review-{da
 | 13 | **EC-7 SHOULD TEST** — T2.1 middleware order regression (bodyLimit BEFORE bearer) | T2.1 | RED test: 2MB body + no Authorization + key set → 413 (NOT 401); pins load-bearing OTel→bodyLimit→bearer order |
 | 14 | **EC-8 DOCUMENT** — T2.2 future conditional-warning gating when real-provider config lands | T2.2 | Inline `// FOLLOW-UP: gate this warning when...` comment near emit site in both run-server.ts + run-mcp-server.ts |
 | 15 | **EC-9 DOCUMENT** — T2.1 gzip-compressed body bypasses size limit at P0 alpha | T2.1 | README "REST API server" gains note: Hono does NOT auto-decompress; recommend reverse-proxy enforcement (nginx `client_max_body_size`, Caddy `request_body max_size`) |
+| 16 | Preserve SOURCE plan case-sensitive scope enum (the `'skill'` branch short-circuits via this fix-up BEFORE reaching the legacy dispatch) | T1.3 (source) preserved-by T1.1 | T1.1 short-circuit lands BEFORE the legacy dispatch in `scopesHandler`; no functional change to the source-plan T1.3 enum |
+| 17 | Preserve SOURCE plan OTel span middleware mount order (`otelMiddleware` precedes any new middleware) | T1.5 (source) preserved-by T2.1 | T2.1 inserts `bodyLimit` BETWEEN `otelMiddleware` and `bearerAuth` without disturbing the source-plan T1.5 ordering; pillar (c) `rest.v1.*` spans still observed |
+| 18 | Preserve SOURCE plan domain-error envelope shape `{code, message, field?}` (T1.6) — reused inside `bodyLimit.onError` | T1.6 (source) reused-by T2.1 | T2.1 calls `mapDomainErrorToResponse(new ContentTooLargeError(...))` inside the body-limit `onError` callback; EC-1 absorption hinges on this contract reuse |
+| 19 | Preserve SOURCE plan THE GOAL TEST docker-stack round-trip (T3.5) — final-gate `/review` re-run confirms 6/6 PASS still holds after Phase 1+2 commits | T3.5 (source) preserved-by T3.1 | T3.1 re-runs `/review`; the absorbing edits in T1.1/T1.2/T2.1/T2.2/T2.3 do NOT touch the docker-stack composition or the GOAL-METRIC round-trip |
 
-**Coverage: 15/15 gaps covered (100%)** — 6 original (review findings) + 9 absorbed (edge-case-plan).
+**Coverage: 19/19 gaps covered (100%)** — 6 original (review findings) + 9 absorbed (edge-case-plan) + 4 source-plan-task references mapped to their preservation tasks in this fix-up.
 
 ## Global Definition of Done
 
