@@ -110,6 +110,21 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
     params.push(value);
     idx += 1;
   }
+  // v1.1 T2.2: multi-peer attribution filter. EC-7 absorbed: Postgres `=`
+  // semantics treat empty-string and NULL distinctly (`'' = ''` true; `NULL = ''`
+  // returns NULL, no match), so passing attributedTo='' matches empty-string
+  // rows only — NULL rows from pre-v1.1 stay excluded.
+  // EC-5 absorbed: this single filter clause runs on the PRIMARY memory query
+  // path inside vectorStore.search; the entity-boost subquery doesn't exist as
+  // a separate SQL fragment in pgvector-store (entity store is opt-out per
+  // ADR-0007 and currently disabled), so cross-attribution isolation holds via
+  // this single clause. Future entity-store revival MUST add the same filter
+  // to its subquery — guarded by the EC-5 integration assertion in T4.1.
+  if (filters.attributed_to !== undefined) {
+    parts.push(`attributed_to = $${idx}`);
+    params.push(filters.attributed_to);
+    idx += 1;
+  }
   // v0.6: kind discriminator and supersession filter per voyager-skill-library T2.2.
   if (filters.kind !== undefined) {
     parts.push(`kind = $${idx}`);

@@ -101,6 +101,17 @@ export interface Filters {
   readonly user_id?: string;
   readonly agent_id?: string;
   readonly session_id?: string;
+  /**
+   * v1.1 T2.2: multi-peer attribution filter. When set, recall returns ONLY rows
+   * where `attributed_to = :attributed_to` (exact match; NULL rows do NOT match
+   * any value per EC-7 empty-string semantics).
+   *
+   * The pipeline boundary in `src/local/index.ts::recall` routes
+   * `RecallOptions.attributedTo` into this field before reaching the store.
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T2.2
+   */
+  readonly attributed_to?: string;
   /** v0.6: discriminate kind at the SQL/store layer ('extracted' | 'derived' | 'skill'). */
   readonly kind?: 'extracted' | 'derived' | 'skill';
   /**
