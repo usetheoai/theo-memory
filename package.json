@@ -55,6 +55,7 @@
     }
   },
   "bin": {
+    "themory": "./dist/agent-tools/cli.js",
     "themory-mcp": "./dist/agent-tools/cli.js"
   },
   "engines": {
