@@ -29,7 +29,11 @@
 
 services:
   themory:
-    image: ghcr.io/usetheo/themory:${VERSION:-0.1.0-alpha}
+    # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
+    # running the compose against a locally-built image) can point at
+    # `themory:dev` without forking this file. Default keeps the public
+    # GHCR coordinate.
+    image: ${THEMORY_IMAGE:-ghcr.io/usetheo/themory:${VERSION:-0.1.0-alpha}}
     container_name: themory_app
     restart: unless-stopped
     depends_on:
