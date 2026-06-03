@@ -26,7 +26,11 @@ Each task MUST complete TDD cycle (RED → GREEN → REFACTOR → WIRING → COM
 
 | # | Plan ref | Locus | Status | (a) | (b) | (c) | Commit |
 |---|---|---|---|---|---|---|---|
-| T0.1 | Phase 0 | 6 deps + AuthVerifier DIP | pending | — | — | n/a | — |
+| T0.1 | Phase 0 | 6 deps + AuthVerifier DIP | committed | defer | defer | n/a | <pending> |
+
+<!-- ADR-DEFER-WIRING-A T0.1: AuthVerifier is an INTERFACE-DECLARATION foundation task. The canonical caller is BearerAuthVerifier (impl) which lands in T1.1 next-iteration. Wiring pillar (a) closes at T1.1 commit. -->
+<!-- ADR-DEFER-WIRING-B T0.1: Integration test that exercises AuthVerifier via real boundary lands in T1.1 (`src/server/auth/__tests__/bearer-verifier.test.ts`) + later T3.5 docker-stack E2E. -->
+
 | T1.1 | Phase 1 | BearerAuthVerifier + bearer middleware (EC-1/2/3/4/5) | pending | — | — | n/a | — |
 | T1.2 | Phase 1 | 4-verb REST handlers + factory + EC-6/7/9/10/11/12 | pending | — | — | n/a | — |
 | T1.3 | Phase 1 | health + scopes pagination + EC-13/14/15/16/17 | pending | — | — | n/a | — |
