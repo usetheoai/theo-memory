@@ -94,6 +94,31 @@ interface FilterClause {
   readonly nextParamIndex: number;
 }
 
+/**
+ * v1.1 T3.1 + ADR-0011: bi-temporal recall predicate. When `asOf` is set,
+ * compose the Graphiti-precedent null-safe clause:
+ *
+ *   (t_valid IS NULL OR t_valid <= $N) AND (t_invalid IS NULL OR t_invalid > $N+1)
+ *
+ * NULL `t_valid` rows (pre-bi-temporal legacy) treated as `-Infinity`
+ * (always-valid since creation). When asOf is omitted, fall back to the
+ * pre-v1.1 currently-valid filter `t_invalid IS NULL` so existing callers
+ * see ZERO behavior change (regression guard locked in unit tests).
+ */
+function composeTemporalWhere(
+  asOf: Date | undefined,
+  startParamIndex: number,
+): { sql: string; params: readonly Date[]; nextParamIndex: number } {
+  if (asOf === undefined) {
+    return { sql: 't_invalid IS NULL', params: [], nextParamIndex: startParamIndex };
+  }
+  return {
+    sql: `(t_valid IS NULL OR t_valid <= $${startParamIndex}) AND (t_invalid IS NULL OR t_invalid > $${startParamIndex + 1})`,
+    params: [asOf, asOf],
+    nextParamIndex: startParamIndex + 2,
+  };
+}
+
 function composeFilters(filters: Filters | undefined, startParamIndex: number): FilterClause {
   if (filters === undefined) {
     return { sql: '', params: [], nextParamIndex: startParamIndex };
@@ -329,21 +354,23 @@ export class PgvectorStore implements VectorStore {
     // for symmetry with the createLocalMemory boot-time probe + the public
     // taxonomy in `src/core/errors.ts`.
     this.assertEmbeddingDim(query, 'search');
-    const filter = composeFilters(filters, 2);
-    // v0.4b T6.1 / D17: exclude soft-deleted rows (t_invalid IS NOT NULL)
-    // from semantic recall. Audit query (raw SQL WHERE t_invalid IS NOT NULL)
-    // still returns them per ADR-0006 bi-temporal contract.
+    // v0.4b T6.1 / D17 + v1.1 T3.1: bi-temporal recall predicate. Default
+    // currently-valid `t_invalid IS NULL`; with filters.asOf, switch to the
+    // null-safe Graphiti-precedent predicate (ADR-0011).
+    const temporal = composeTemporalWhere(filters?.asOf, 2);
+    const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
              kind, code, description, code_language, derived_from, superseded_by,
              embedding <=> $1::vector AS distance
       FROM memories
-      WHERE t_invalid IS NULL${filter.sql}
+      WHERE ${temporal.sql}${filter.sql}
       ORDER BY distance ASC
       LIMIT $${filter.nextParamIndex}
     `;
     const result = await this.pool.query<MemoriesRow>(sql, [
       vectorLiteral(query),
+      ...temporal.params,
       ...filter.params,
       topK,
     ]);
@@ -393,19 +420,25 @@ export class PgvectorStore implements VectorStore {
     topK = 10,
     filters?: Filters,
   ): Promise<readonly VectorStoreResult[] | null> {
-    const filter = composeFilters(filters, 2);
-    // v0.4b T6.1 / D17: exclude soft-deleted rows from keyword recall.
+    // v0.4b T6.1 / D17 + v1.1 T3.1: same bi-temporal handling as semantic search.
+    const temporal = composeTemporalWhere(filters?.asOf, 2);
+    const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
              kind, code, description, code_language, derived_from, superseded_by,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
       WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)
-        AND t_invalid IS NULL${filter.sql}
+        AND ${temporal.sql}${filter.sql}
       ORDER BY rank DESC
       LIMIT $${filter.nextParamIndex}
     `;
-    const result = await this.pool.query<MemoriesRow>(sql, [query, ...filter.params, topK]);
+    const result = await this.pool.query<MemoriesRow>(sql, [
+      query,
+      ...temporal.params,
+      ...filter.params,
+      topK,
+    ]);
     return result.rows.map(rowToResult);
   }
 
@@ -614,11 +647,12 @@ export class PgvectorStore implements VectorStore {
     // on an agent_id scope that ALSO holds a memory.skills(repoId) library
     // would mass-tombstone the skill library. The 2nd reflect() call would
     // also re-consolidate already-derived rows, breaking the boundary.
-    // /review v0-7 F-M7: forward-compat with v0.5 cloud bi-temporal — guard
-    // `t_valid <= NOW()` so future-valid rows (when ADR-0006 honors asOf
-    // in queries) do not enter consolidation prematurely. The current
-    // local runtime always inserts t_valid=NOW() so this is a no-op today
-    // but documents intent for the cloud backport.
+    // /review v0-7 F-M7 (extended at v1.1 T3.1): consolidation guards against
+    // future-valid rows. ADR-0011 lifts the local-runtime `asOf` gate, so
+    // future-valid `t_valid > NOW()` rows could now legitimately exist if a
+    // consumer time-travels via `RecallOptions.asOf`. The `t_valid <= NOW()`
+    // predicate keeps consolidation focused on the CURRENT epoch regardless
+    // of historical/future projections at recall time.
     const where: string[] = [
       "kind = 'extracted'",
       't_invalid IS NULL',

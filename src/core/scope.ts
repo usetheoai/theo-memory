@@ -112,6 +112,20 @@ export interface Filters {
    * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T2.2
    */
   readonly attributed_to?: string;
+  /**
+   * v1.1 T3.1 + ADR-0011: bi-temporal point-in-time filter. When set, recall
+   * returns memories that were valid at the given instant — `t_valid <= asOf
+   * AND (t_invalid IS NULL OR t_invalid > asOf)`. NULL `t_valid` rows
+   * (pre-bi-temporal legacy) are treated as `-Infinity` (always-valid).
+   *
+   * Routed from `RecallOptions.asOf` at the recall boundary. The store layer
+   * composes the SQL WHERE clause; NULL-safe semantics match the Graphiti
+   * (Apache-2.0) prior art referenced in ADR-0011.
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T3.1
+   * @see .claude/knowledge-base/adrs/ADR-0011-bi-temporal-local-runtime-gate-lift.md
+   */
+  readonly asOf?: Date;
   /** v0.6: discriminate kind at the SQL/store layer ('extracted' | 'derived' | 'skill'). */
   readonly kind?: 'extracted' | 'derived' | 'skill';
   /**
