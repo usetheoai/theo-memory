@@ -1,0 +1,323 @@
+agent: review-theo-memory-standalone-p0-wiring
+review_target: f94c3007b72703b62b75b1b88a4dd7dd3287cff4..HEAD for plan theo-memory-standalone-p0
+plan: .claude/knowledge-base/plans/theo-memory-standalone-p0-plan.md
+diff_summary:
+  commits: 19
+  src_files_touched_non_test: 21
+  src_test_files: 13
+  integration_test_files: 7
+  e2e_test_files: 0
+triad_revalidation:
+  total_new_public_exports: 39
+  pillar_a_honest_pass: 38 / 39       # every new export has ≥1 functionally-necessary in-tree caller; 1 MINOR orphan (redactSecrets — exported but only self-file caller)
+  pillar_b_honest_pass: 39 / 39       # exercised in tests/integration/ AND/OR src/**/__tests__/ — no skipped or no-op tests
+  pillar_c_observed: 2 / 2            # T1.5 OTel spans (rest.v1.* names verified in tests/integration/rest-api.test.ts) + T3.5 THE GOAL METRIC (remember 201 + recall 200 returns persisted text in tests/integration/docker-stack.test.ts)
+boundary_respect_dip:
+  src_core_imports_outside_core: 0   # PASS — src/core/ never reaches src/server/, src/local/, src/agent-tools/, src/embedders/
+  src_server_imports_outside_core: 0 # PASS — src/server/** imports ONLY from src/core/** (verified via grep on every `from '../`)
+  src_local_to_cloud_or_v_v: 0       # PASS (no cross-tier between sibling runtimes)
+  agent_tools_composition_root_imports:
+    # NOTE: src/agent-tools/run-*.ts is the COMPOSITION ROOT — by design it
+    # imports concrete adapters from src/local/, src/server/, src/embedders/.
+    # architecture.md § 3 ("src/agent-tools/ depends on src/core/ only") is a
+    # rule authored BEFORE the CLI was lifted to composition root by ADR D11.
+    # See F-wire-3 below — needs an architecture.md amendment to keep the
+    # rule honest going forward.
+    counts:
+      - run-migrate.ts -> src/local/ : 1
+      - run-health.ts  -> src/local/ : 2
+      - run-server.ts  -> src/local/ : 2
+      - run-server.ts  -> src/server/ : 2
+      - run-server.ts  -> src/embedders/ : 1
+      - run-mcp-server.ts -> src/local/ : 2
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: tsconfig.build.json
+    line: 11
+    plan_ref: T1.7 (subpath export) + Global DoD § "All tests passing / Zero TypeScript errors"
+    summary: |
+      tsconfig.build.json#include omits `src/server/**/*.ts` even though the
+      package exposes the subpath `@usetheo/memory/server`. dist/server/* IS
+      currently produced ONLY via transitive expansion from
+      src/agent-tools/cli.ts → run-server.ts → src/server/index.ts. If a future
+      refactor stops importing the server from agent-tools (e.g., a consumer
+      uses @usetheo/memory/server library-mode without going through the CLI),
+      `npm run build` will silently omit the entire server tree — `npm pack`
+      will include the .ts sources (per EC-52 guard) but no compiled .js/.d.ts,
+      breaking subpath ESM resolution for runtime consumers.
+    evidence: |
+      tsconfig.build.json:11
+        "include": ["src/core/**/*.ts", "src/theokit/**/*.ts",
+                    "src/agent-tools/**/*.ts", "src/embedders/**/*.ts",
+                    "src/llms/**/*.ts"]
+      tsconfig.contract.json:26 (typecheck) DOES list src/server/**/*.ts.
+      eslint.config.ts:20 DOES list src/{...,server}/**/*.ts.
+      The build config is the lone outlier — same omission pattern that
+      tests/integration/config-parity.test.ts was created to prevent (per its
+      own header: "v0-3-agent-tools-mcp halt-loop ... silent skips are the worst
+      kind of green"). The parity test today checks tsconfig.contract.json vs
+      eslint.config.ts but does NOT cover tsconfig.build.json.
+    recommended_action: |
+      1) Add "src/server/**/*.ts" to tsconfig.build.json#include.
+      2) Extend tests/integration/config-parity.test.ts with a third assertion:
+         "every src/* dir in tsconfig.contract.json#include is ALSO in
+         tsconfig.build.json#include". Silent build skip is exactly the failure
+         class that parity test was created to catch.
+
+  - id: F-wire-2
+    severity: MINOR
+    file: src/server/errors.ts
+    line: 47
+    plan_ref: T1.6 EC-24 redaction + ADR D11 (DI composition)
+    summary: |
+      `redactSecrets` is exported from src/server/errors.ts but has ZERO
+      external callers (verified via grep across src/ + tests/). The only
+      reference outside its definition is inside the same file at
+      `console.error(redactSecrets(raw))`. The 6 server contract tests
+      (errors.test.ts) do not import it directly. Either re-export from
+      `src/server/index.ts` (public utility for consumers who want to log
+      sanitized error strings) OR demote from `export function` to internal
+      `function` (per architecture.md § 9 — "Internal helpers stay un-exported.
+      Test them through the public API.").
+    evidence: |
+      $ grep -rn "redactSecrets" src/ tests/
+      src/server/errors.ts:47:export function redactSecrets(input: string): string {
+      src/server/errors.ts:58:  console.error(redactSecrets(raw));
+      (no external callers)
+
+      src/server/index.ts (the subpath barrel) re-exports createServer,
+      CreateServerOptions, BearerAuthVerifier, readApiKey, bearerAuth — but
+      NOT mapDomainErrorToResponse, redactSecrets, ErrorEnvelope, or
+      MappedErrorResponse. The export from errors.ts is therefore
+      unreachable from the public subpath surface.
+    recommended_action: |
+      Pick one:
+      (a) Re-export from src/server/index.ts under a Public Error Utilities
+          section (alongside mapDomainErrorToResponse if it's meant to be
+          consumer-mountable), OR
+      (b) Drop the `export` keyword and make `redactSecrets` file-local.
+          Tested via mapDomainErrorToResponse behavior (already covered).
+
+  - id: F-wire-3
+    severity: MINOR
+    file: .claude/rules/architecture.md
+    line: 33
+    plan_ref: T2.1-T2.5 CLI composition + ADR D11 (DI composition root)
+    summary: |
+      `architecture.md § 3` says verbatim: "src/agent-tools/ (when created —
+      v0.3) depends on src/core/ only." The new run-*.ts composition-root
+      files necessarily import from src/local/, src/server/, src/embedders/
+      to compose the runtime. This is the intentional Composition Root
+      pattern locked by ADR D11 — but the architecture rule wording predates
+      ADR D11 and still claims "core only", creating a contradictory contract.
+      Boundary-check.sh today does not enforce the original rule (no hits in
+      grep), but a future reviewer or hook tightening could read the rule
+      literally and block the CLI.
+    evidence: |
+      .claude/rules/architecture.md:33
+        - `src/agent-tools/` (when created — v0.3) depends on `src/core/` only.
+
+      Imports newly introduced by this plan:
+      src/agent-tools/run-migrate.ts:22:import { runMigrations } from '../local/index.js';
+      src/agent-tools/run-health.ts:31:import { createLocalMemory, StubEmbedder, StubLLM } from '../local/index.js';
+      src/agent-tools/run-health.ts:32:import { PgvectorStore } from '../local/pgvector-store.js';
+      src/agent-tools/run-server.ts:31:import { DeterministicStubEmbedder } from '../embedders/stub.js';
+      src/agent-tools/run-server.ts:32:import { createLocalMemory, runMigrations, StubLLM } from '../local/index.js';
+      src/agent-tools/run-server.ts:33:import { PgvectorStore } from '../local/pgvector-store.js';
+      src/agent-tools/run-server.ts:34:import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
+      src/agent-tools/run-server.ts:35:import { createServer } from '../server/index.js';
+      src/agent-tools/run-mcp-server.ts:22:import { createLocalMemory, runMigrations, StubEmbedder, StubLLM } from '../local/index.js';
+      src/agent-tools/run-mcp-server.ts:23:import { PgvectorStore } from '../local/pgvector-store.js';
+
+      The plan's ADR D11 says: "Subpath @usetheo/memory/server exports
+      createServer ... CLI `themory server` is one of the consumers, not the
+      only one." This is correct composition-root discipline but conflicts
+      with the literal text of architecture.md § 3.
+    recommended_action: |
+      Amend .claude/rules/architecture.md § 3 to add a Composition Root
+      carve-out for src/agent-tools/run-*.ts (the CLI subcommand handlers)
+      AND src/agent-tools/cli.ts. Cite ADR D11 (theo-memory-standalone-p0)
+      as the source. Pattern: same wording style as the v0.6.1 RepoScope
+      4th-tier ADR-0010 note in § 1.
+
+  - id: F-wire-4
+    severity: MINOR
+    file: src/server/schemas.ts
+    line: 88
+    plan_ref: T1.2 + T1.7 (subpath public surface)
+    summary: |
+      `ScopedMemoryLike` is `export interface` but has ONLY one in-tree
+      consumer: the parent `MemoryLike` interface that declares
+      `user/session/agent/skills` as returning `ScopedMemoryLike`. Because
+      `MemoryLike` is itself not re-exported from src/server/index.ts,
+      `ScopedMemoryLike` is unreachable from any external API path. It is
+      effectively an internal type used by handlers + resolveScope. The
+      `export` keyword promises a public surface that no caller can reach.
+    evidence: |
+      $ grep -rn "ScopedMemoryLike" src/ tests/
+      src/server/schemas.ts:88:export interface ScopedMemoryLike {
+      src/server/schemas.ts:95-98 (used to type MemoryLike fields)
+      src/server/schemas.ts:104 (used as return type of resolveScope)
+      (no external consumers; not re-exported from src/server/index.ts)
+
+      Similarly: `MemoryLike`, `RememberBody`/`RecallBody`/`ReflectBody`/
+      `ForgetBody` (zod schemas AND inferred types), `resolveScope` —
+      all `export`-ed from schemas.ts, NONE re-exported from
+      src/server/index.ts. Consumers writing a custom Hono app that
+      wants to reuse our zod schemas cannot do so via the subpath.
+    recommended_action: |
+      Pick one (apply uniformly to MemoryLike + ScopedMemoryLike + the 4
+      body schemas + resolveScope):
+      (a) Re-export from src/server/index.ts as the intentional library-mode
+          surface (matches ADR D11 "library-mode embed" rationale), OR
+      (b) Drop the `export` keyword and confine to file-local scope.
+      A mixed state (exported in schemas.ts but not in the subpath barrel)
+      is the worst of both worlds — half-public, half-private, no consumer
+      ergonomics.
+
+  - id: F-wire-5
+    severity: INFO
+    file: .claude/knowledge-base/reviews/theo-memory-standalone-p0-implement-validate-2026-06-03.md
+    line: 19
+    plan_ref: cycle-implement § Final validation gate
+    summary: |
+      The implement-validate report reports `wiring_triad: total tasks: 0`
+      with `pass: 0, fail: 0` across all three pillars — looks like a
+      no-op pass. The `.progress-theo-memory-standalone-p0.json` (sibling
+      file) DOES have all 18 task wiring slots populated explicitly. The
+      validate script appears to read a different state file (or none) and
+      silently emits "0 tasks" as PASS. This is not a code defect on the
+      plan branch but it IS a misleading audit-trail signal — a reviewer
+      glancing at the validate report would conclude the wiring triad was
+      not actually checked. Surfacing as INFO because the actual wiring is
+      verifiable via the progress JSON; the report shape is the audit gap.
+    evidence: |
+      .claude/knowledge-base/reviews/theo-memory-standalone-p0-implement-validate-2026-06-03.md:19
+        ### wiring_triad — `PASS`
+        - Total tasks: 0
+        - Pillar (a) static caller: {'pass': 0, 'fail': 0}
+        - Pillar (b) integration test: {'pass': 0, 'defer': 0, 'fail': 0}
+        - Pillar (c) runtime metric: {'pass': 0, 'n/a': 0, 'fail': 0}
+
+      .claude/knowledge-base/implementations/.progress-theo-memory-standalone-p0.json
+        18 tasks with explicit wiring entries — T0.1 (defer:T1.1), T1.1-T1.7
+        (mostly pass:* or defer:T1.5), T2.1-T2.5 (all pass:* in pillars a+b),
+        T3.1-T3.5 (T3.5 has full triad PASS including pillar c "THE GOAL
+        METRIC observed").
+    recommended_action: |
+      Out of scope for this PR — file a follow-up under cycle-implement
+      tooling (scripts/run_validation.py) to read .progress-*.json directly
+      OR write a sentinel test in tests/integration/ that asserts the report
+      file's task count matches the JSON's. Avoids silent "0 PASS" green for
+      future cycles.
+
+  - id: F-wire-6
+    severity: INFO
+    file: src/server/handlers/remember.ts
+    line: 63
+    plan_ref: T1.2 (4-verb handlers)
+    summary: |
+      `remember.ts` re-exports `safeJson`, `scopeOrValidationError`,
+      `EMPTY_BODY`, `MALFORMED_BODY` to share with siblings (recall.ts,
+      forget.ts, reflect.ts). This is functional reuse — pillar (a) PASS
+      with 3 real callers per symbol — but the chosen locus (the remember
+      handler exporting helpers used by the other 3 verbs) is a SRP smell:
+      `remember.ts` should own its handler only, not be a de-facto helpers
+      module. The honest refactor is to move the 4 helpers to
+      `src/server/handlers/body.ts` (or similar) so remember/recall/forget/
+      reflect each import from a shared neutral source. Plan budget
+      constraint (≤ 200 LoC/handler per ADR D10) probably motivated the
+      consolidation but the result couples the 3 other verbs to the
+      remember module's lifecycle.
+    evidence: |
+      src/server/handlers/recall.ts:11:
+        import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+      src/server/handlers/forget.ts:12:
+        import { EMPTY_BODY, MALFORMED_BODY, safeJson } from './remember.js';
+      src/server/handlers/reflect.ts:13:
+        import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+
+      If remember.ts is refactored or split, the other 3 break silently
+      at import time.
+    recommended_action: |
+      Out of scope for this PR (does not affect wire-up correctness).
+      File a CLEAN-UP follow-up to extract `src/server/handlers/body.ts`
+      (or `src/server/handlers/_shared.ts`) with the 4 helpers; rewire
+      recall/forget/reflect imports.
+
+orphan_module_scan:
+  - module: src/server/openapi-registration.ts
+    integrated: YES
+    note: |
+      registerAllPaths called from src/server/app.ts:68 (line 24 import + line
+      68 invocation) — fully wired into createServer flow, observed via
+      tests/integration/rest-api.test.ts (/v1/openapi.json route resolves).
+
+  - module: src/server/observability/otel-middleware.ts
+    integrated: YES
+    note: |
+      otelMiddleware mounted in src/server/app.ts:85; pillar (c) observed
+      via spans in tests/integration/rest-api.test.ts AND
+      src/server/__tests__/otel.test.ts.
+
+  - module: src/core/dip/auth-verifier.ts
+    integrated: YES
+    note: |
+      AuthVerifier 12th DIP — implemented by src/server/auth/bearer-verifier.ts
+      BearerAuthVerifier, consumed by src/server/auth/middleware.ts bearerAuth,
+      DI'd into src/server/app.ts CreateServerOptions.authVerifier, composed
+      by src/agent-tools/run-server.ts as runtime entry. Re-exported via
+      src/core/index.ts:146 for SDK consumers. Full wiring chain present.
+
+  - module: src/agent-tools/run-{server,migrate,health,mcp-server}.ts
+    integrated: YES
+    note: |
+      Each invoked exclusively from src/agent-tools/cli.ts via
+      .command(...).action(...) callbacks. The CLI bin entries in
+      package.json#bin point at dist/agent-tools/cli.js → main() →
+      buildProgram() → subcommand router. All 4 commands wired.
+
+  - module: src/server/handlers/{remember,recall,forget,reflect,health,scopes}.ts
+    integrated: YES
+    note: |
+      Mounted in src/server/app.ts:95-105 (4 POST verbs + 2 GET health/scopes).
+      tests/integration/rest-api.test.ts fires `app.fetch(new Request(...))`
+      for all 6 routes and asserts OTel spans.
+
+build_pipeline_note: |
+  dist/server/* IS present after `npm run build` despite
+  tsconfig.build.json NOT including src/server/** explicitly — tsc walks
+  the import graph transitively from src/agent-tools/cli.ts → run-server.ts
+  → ../server/index.js → all 11 .ts files under src/server/. The build
+  works TODAY but is fragile (see F-wire-1). The Dockerfile relies on this
+  emit at line 85 (COPY --from=builder /build/dist/ /app/dist/) and
+  ENTRYPOINT (`/nodejs/bin/node /app/dist/agent-tools/cli.js server`)
+  resolves /app/dist/server/index.js correctly via Node ESM resolution.
+
+concurrent_safety: |
+  No shared-resource race conditions found in the diff:
+  - Pool pg connections are scoped per call (createLocalMemory wires
+    PgvectorStore(pool) — pool managed by caller); not new in this plan.
+  - SIGTERM handler in run-server.ts uses an idempotent flag pattern
+    (EC-32 absorbed; verified via run-server.test.ts).
+  - run-migrate.ts uses Drizzle's journal-locked migrate() (EC-36 absorbed).
+  - Bearer auth uses crypto.timingSafeEqual with length pre-check (EC-4).
+  - OTel exporter failures wrapped in narrow try/catch (EC-22 fail-quiet).
+
+summary: |
+  Wiring triad is HONEST. Every new public export has a real in-tree
+  caller, exercised in a real test, with the two declared runtime metrics
+  (T1.5 rest.v1.* spans + T3.5 THE GOAL METRIC remember+recall round-trip)
+  observed in dedicated integration tests against real exporters /
+  real Docker stack. 0 BLOCKER, 0 CRITICAL. The 6 findings are:
+    - 1 MAJOR config-parity gap (tsconfig.build.json omits src/server/**
+      — works via transitive expansion today, fragile to future refactor)
+    - 3 MINOR cleanup items (one orphan-ish export `redactSecrets`,
+      stale `architecture.md § 3` text vs ADR D11 composition root,
+      half-public `ScopedMemoryLike`/`MemoryLike`/zod schemas not
+      re-exported from subpath barrel)
+    - 2 INFO observations (validate report wiring_triad "0 tasks" audit
+      gap; remember.ts being the de-facto helpers module for the other 3
+      verbs)

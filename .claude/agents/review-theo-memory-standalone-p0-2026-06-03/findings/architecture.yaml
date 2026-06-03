@@ -1,0 +1,826 @@
+agent: review-theo-memory-standalone-p0-architecture
+review_target: f94c3007b72703b62b75b1b88a4dd7dd3287cff4..HEAD for plan theo-memory-standalone-p0
+plan: .claude/knowledge-base/plans/theo-memory-standalone-p0-plan.md
+findings:
+
+  # ===================================================================
+  # CRITICAL — runtime contract violation in scope dispatch
+  # ===================================================================
+  - id: F-arch-1
+    severity: CRITICAL
+    file: src/server/handlers/scopes.ts
+    line: 49
+    plan_ref: T1.3 — scope type enum {user,session,agent,skill} + skill type dispatches to memory.skills(repoId) per ADR-0010 (scopes.test.ts test #12)
+    summary: "Type cast `memory.skills(id) as unknown as ScopedMemory` hides a runtime contract violation — ScopedSkillMemory does NOT expose getAll()."
+    evidence: |
+      ```ts
+      // src/server/handlers/scopes.ts:48-49
+      case 'skill':
+        return memory.skills(id) as unknown as ScopedMemory;
+      ```
+      `ScopedSkillMemory` interface at `src/core/skill.ts:168`:
+      ```ts
+      export interface ScopedSkillMemory {
+        add(skill: SkillDraft): Promise<Skill>;
+        recall(query: string, options?: SkillRecallOptions): Promise<readonly SkillWithScore[]>;
+        consolidate(options?: ConsolidateOptions): Promise<ConsolidationResult>;
+        forget(skillId: string): Promise<void>;
+      }
+      ```
+      No `getAll()` method exists on `ScopedSkillMemory`. The handler at `src/server/handlers/scopes.ts:113` calls `await scoped.getAll()` unconditionally — for `scope=skill`, this will throw `scoped.getAll is not a function` at runtime.
+
+      Test `scopes.test.ts` #12 only asserts `memory.skills` was called with the repoId; it does NOT exercise the actual `ScopedSkillMemory.getAll()` because `stubScopedWithItems` injects a `getAll` stub on the test stub that does not exist on the real interface. The test passes; production traffic on `GET /v1/scopes/skill/repo-alpha/memories` will 500.
+
+      Type cast `as unknown as ScopedMemory` is the canonical escape-hatch smell — TypeScript itself was telling you the types do not match, and the double-cast silenced it.
+    recommended_action: |
+      Either (a) raise an explicit honest deferral: throw `BiTemporalNotSupportedLocally`-style error on `scope=skill` until `ScopedSkillMemory.getAll()` ships, plus a RED integration test against real pgvector that proves the 501 envelope; OR (b) extend `ScopedSkillMemory` with `getAll(): Promise<readonly Skill[]>` and migrate `scopes.ts` to dispatch via a discriminated union without casts. Option (b) is the cleaner Inquebrável Rule 7 / SOLID-compliant fix. Either way, REMOVE the `as unknown as ScopedMemory` cast and replace the test #12 with one that exercises the actual surface against real (not stubbed) skill memory.
+
+  # ===================================================================
+  # MAJOR — DIP discipline drift via structural-type cast
+  # ===================================================================
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/server/handlers/remember.ts, recall.ts, reflect.ts, schemas.ts
+    line: "remember.ts:29, recall.ts:29, reflect.ts:31, schemas.ts:88-99"
+    plan_ref: ADR D11 — REST handlers compose Memory factory via DI; ADR D12 — single scope tier per request; v1.1 fix-up F-arch-2 precedent (ad-hoc structural type)
+    summary: "Three handlers cast the injected `Memory` to a sibling structural interface `MemoryLike` via `as unknown as MemoryLike` — silences TS even though the shapes are compatible."
+    evidence: |
+      ```ts
+      // src/server/handlers/remember.ts:29
+      const scoped = resolveScope(memory as unknown as MemoryLike, parsed.data);
+      // src/server/handlers/recall.ts:29 (same)
+      // src/server/handlers/reflect.ts:31 (same)
+      ```
+      `MemoryLike` is declared at `src/server/schemas.ts:88-99` as a separate structural interface duplicating the `Memory` shape (with `unknown` return types instead of the real ones). The double-cast pattern (`as unknown as MemoryLike`) signals TS was unable to narrow them automatically.
+
+      Honest cause: `MemoryLike.remember(text, options?: object) => Promise<unknown>` is BROADER than `Memory.remember`. Casting through `unknown` to a broader type then dispatching via a string-key switch (`resolveScope`) is the canonical "I am sidestepping the type system because the structural shape diverged" smell. This mirrors the F-arch-2 finding closed in the v1.1 fix-up cycle (`applySkillFilters` ad-hoc structural type per CLAUDE.md Item 12 caveats).
+    recommended_action: |
+      Either (a) drop `MemoryLike` and import the real `Memory` interface in `schemas.ts::resolveScope`, accepting the dependency from schemas.ts → core; OR (b) accept the structural decoupling honestly by typing `resolveScope` to receive only the 4 `user|session|agent|skills` factory functions extracted from `Memory` — `Pick<Memory, 'user'|'session'|'agent'|'skills'>` — which would type-check without `as unknown as`. Option (b) is the SOLID-ISP fix (depend on the minimum surface needed). Document the choice as ADR-amendment under D11.
+
+  # ===================================================================
+  # MAJOR — circular dependency between handlers/remember.ts and other handlers
+  # ===================================================================
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/server/handlers/recall.ts, forget.ts, reflect.ts
+    line: "recall.ts:11, forget.ts:12, reflect.ts:13"
+    plan_ref: ADR D10 — Each handler ≤ 100 LoC; SRP per architecture.md § Module hygiene
+    summary: "Three handlers (recall, forget, reflect) import shared safeJson/EMPTY_BODY/MALFORMED_BODY symbols FROM `remember.ts` instead of a neutral helper module. This couples 4 sibling handlers into a directed dependency on one of them."
+    evidence: |
+      ```ts
+      // src/server/handlers/recall.ts:11
+      import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+      // src/server/handlers/forget.ts:12
+      import { EMPTY_BODY, MALFORMED_BODY, safeJson } from './remember.js';
+      // src/server/handlers/reflect.ts:13
+      import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+      ```
+      `remember.ts` exports `safeJson`, `scopeOrValidationError`, `EMPTY_BODY`, `MALFORMED_BODY` as utilities (line 63: `export { safeJson, scopeOrValidationError, EMPTY_BODY, MALFORMED_BODY }`). 3 sibling handlers depend on `remember.ts` for utilities they should share via a peer module. This is SRP violation (`remember.ts` has TWO reasons to change — `/v1/remember` semantics AND shared body-parsing utilities) and an avoidable directed coupling that breaks if `remember.ts` is ever refactored independently.
+
+      Fan-in count on `remember.ts`: 3 sibling files. Pattern matches the "Manager / Helper / Utils dumping ground" anti-pattern called out in architecture.md § 13.1.
+    recommended_action: |
+      Extract `safeJson`, `scopeOrValidationError`, `EMPTY_BODY`, `MALFORMED_BODY` into `src/server/handlers/_body-parsing.ts` (or `src/server/_helpers.ts`). All 4 handlers then import from the neutral module. Restores SRP on `remember.ts`. Trivial refactor (cut + paste + 4 import updates); does not change test surface.
+
+  # ===================================================================
+  # MAJOR — runtime memory shim Proxy bypasses architectural design
+  # ===================================================================
+  - id: F-arch-4
+    severity: MAJOR
+    file: src/agent-tools/run-server.ts
+    line: 138-147
+    plan_ref: EC-33 readiness gate; ADR D11 — REST handlers compose Memory factory via DI
+    summary: "`Memory` is injected into `createServer` via a `Proxy` shim that throws on get when the factory is not yet warm. This is defense-in-depth but couples the composition root to a runtime contract not declared anywhere in src/core/."
+    evidence: |
+      ```ts
+      // src/agent-tools/run-server.ts:138-147
+      const memoryShim = new Proxy({} as Awaited<ReturnType<typeof createLocalMemory>>, {
+        get(_target, prop) {
+          if (memory === undefined) {
+            throw new Error(
+              'Memory not ready: server is still warming up. Poll GET /v1/health until 200 before sending verb traffic.',
+            );
+          }
+          return Reflect.get(memory, prop) as unknown;
+        },
+      });
+      ```
+      The Proxy is the runtime contract for "Memory may be undefined during warm-up". But:
+      1. The `Memory` type at `src/core/memory-store.ts` does NOT acknowledge this — consumers reading the type signature have no reason to expect a get-time throw.
+      2. The error message is a string blob — not a typed `MemoryNotReadyError` like other domain errors (`InvalidScope`, `MemoryNotFound`, etc. per architecture.md § 8).
+      3. `Reflect.get(memory, prop) as unknown` returns Property as unknown — any caller method-invocation (e.g., `memory.user(id)`) silently casts away types.
+      4. The readiness probe at `/v1/health` is the user-facing contract; the Proxy is defense-in-depth that SHOULD never fire in correct deployments. When it fires, it surfaces as a 500 (unmapped Error) instead of a structured 503 envelope.
+
+      This pattern works for the test #47 but is non-idiomatic — the canonical Node pattern would be to wait for `warmPromise` before calling `serve()`, accepting a 1-2s longer cold-start window (acceptable for ECS/K8s rolling deploys which already gate on readinessProbe).
+    recommended_action: |
+      Replace the Proxy shim with explicit await on `warmPromise` BEFORE binding the port (option A — accept slower cold start, simpler architecture) OR introduce a typed `MemoryNotReadyError` exported from `src/core/errors.ts`, map it to 503 `warming_up` in `mapDomainErrorToResponse`, and have the Proxy throw the typed error (option B — preserves the eager-bind pattern with a clean error envelope). Either way, document the choice in ADR D11 amendment.
+
+  # ===================================================================
+  # MAJOR — agent-tools/run-server.ts wires DeterministicStubEmbedder by default; hides production unreadiness
+  # ===================================================================
+  - id: F-arch-5
+    severity: MAJOR
+    file: src/agent-tools/run-server.ts
+    line: 110-122
+    plan_ref: ADR D11 — REST handlers compose Memory factory via DI; CLAUDE.md § Honesty discipline (no production claims pre-v1.0)
+    summary: "`themory server` wires `DeterministicStubEmbedder` + `StubLLM` as the default embedder/LLM with NO operator-visible signal. THE GOAL TEST round-trip works but produces semantically meaningless recall — the container is shipped 'wire-shape only' and disguises that as production-grade."
+    evidence: |
+      ```ts
+      // src/agent-tools/run-server.ts:108-123
+      const warmPromise = (async () => {
+        memory = await createLocalMemory({
+          vectorStore: new PgvectorStore(pool),
+          // ... (long comment)
+          embedder: new DeterministicStubEmbedder(),
+          llm: new StubLLM(),
+        });
+        isReady = true;
+      })();
+      ```
+      The JSDoc comment is honest about WHY (stub avoids NaN cosine + OpenAI quota dependency), but the consumer of `ghcr.io/usetheo/themory:0.1.0-alpha` has NO operator-visible signal that the running container will produce gibberish recall in production. There is no:
+      - Startup warning to stderr (e.g., "WARNING: DeterministicStubEmbedder active — recall will not produce semantic results unless OPENAI_API_KEY or LOCAL_TRANSFORMER_ENABLED env is set");
+      - README warning ("the default Docker image ships with a stub embedder; recall semantics require wiring an OpenAI or local embedder via env");
+      - Env-var gate forcing the operator to explicitly opt into stub mode (e.g., `THEMEMORY_ALLOW_STUB=true`).
+
+      THE GOAL TEST `tests/integration/docker-stack.test.ts:194-208` admits this:
+      ```ts
+      // StubEmbedder produces deterministic but uncorrelated vectors per distinct input,
+      // so an exact-text query yields cosine 1.0 and bypasses any non-zero similarity threshold.
+      // Real consumers wire OpenAILocalTransformer embedders for production semantic recall;
+      // this E2E asserts the wire shape, not embedder quality
+      ```
+      The test acknowledges what is being shipped; the runtime does not.
+
+      Inquebrável Rule 3 (Honestidade Extrema): consumers running `docker compose up` against the public GHCR tag will believe they are getting production-grade semantic recall. They are not. The stub presence MUST be surfaced at runtime.
+    recommended_action: |
+      Either (a) gate the stub behind explicit env opt-in `THEMEMORY_ALLOW_STUB=true` and fail-fast otherwise with stderr "OPENAI_API_KEY or LOCAL_TRANSFORMER_ENABLED required; set THEMEMORY_ALLOW_STUB=true to use the stub embedder explicitly"; OR (b) emit a loud one-time stderr warning at startup ("WARNING: running with DeterministicStubEmbedder; recall semantics will be coincidental until OPENAI_API_KEY is set") + add a section to README documenting the stub default + add a `themory health --deep` check that surfaces "stub embedder active" in stdout. Either way, document the trade-off in ADR D8 amendment or a new ADR D15.
+
+  # ===================================================================
+  # MAJOR — agent-tools/run-server.ts wires StubEmbedder + DeterministicStubEmbedder simultaneously
+  # ===================================================================
+  - id: F-arch-6
+    severity: MAJOR
+    file: src/agent-tools/run-health.ts, src/agent-tools/run-server.ts
+    line: "run-health.ts:75, run-server.ts:120"
+    plan_ref: ADR D11 — composition root locus; F-arch-5 (related)
+    summary: "Two CLI composition roots wire DIFFERENT stub embedders for the same job: `run-server.ts` uses `DeterministicStubEmbedder`, `run-health.ts` uses `StubEmbedder`. Same composition, different semantics — drift waiting to happen."
+    evidence: |
+      ```ts
+      // src/agent-tools/run-server.ts:31
+      import { DeterministicStubEmbedder } from '../embedders/stub.js';
+      // src/agent-tools/run-server.ts:120
+      embedder: new DeterministicStubEmbedder(),
+
+      // src/agent-tools/run-health.ts:31
+      import { createLocalMemory, StubEmbedder, StubLLM } from '../local/index.js';
+      // src/agent-tools/run-health.ts:75
+      const embedder = new StubEmbedder();
+      ```
+      `run-server.ts` switched to `DeterministicStubEmbedder` (from `src/embedders/stub.js`) because `StubEmbedder` (from `src/local/index.js`) returns ZERO vectors that collapse cosine to NaN — confirmed by the long JSDoc comment in run-server.ts. But `run-health.ts` still imports `StubEmbedder` from `src/local/index.js`. The `--deep` health check calls `embedder.embed('ping')` on this StubEmbedder — and the comment in run-server.ts says this collapses cosine to NaN, which would break any actual smoke-test value.
+
+      Result: `themory server` works (sort of — see F-arch-5); `themory health --deep` claims OK on a fundamentally broken embedder. Two composition roots, two different "stub" defaults — Inquebrável Rule 12 (DRY of knowledge: "what is the stub embedder for the standalone distribution") is violated.
+    recommended_action: |
+      Pick ONE stub embedder for the standalone CLI surface (likely `DeterministicStubEmbedder` per F-arch-5 fix). Apply the choice uniformly across `run-server.ts` + `run-health.ts` + future `run-mcp-server.ts` (currently still uses `StubEmbedder`). Document the choice as ADR amendment. Bonus: extract a `createDefaultStubMemory(pool: Pool)` helper to centralize the composition so future drift is impossible.
+
+  # ===================================================================
+  # MINOR — paper name reference in CHANGELOG (not a code violation per rule scope, but worth flagging)
+  # ===================================================================
+  - id: F-arch-7
+    severity: MINOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: "JSDoc throughout"
+    plan_ref: .claude/rules/no-paper-names-in-code.md
+    summary: "JSDoc on `run-mcp-server.ts` references 'Voyager-style skill library' in the trailing CLAUDE.md cross-reference. Pre-existing; ineligible for opportunistic cleanup since this file was extracted not edited."
+    evidence: |
+      No actual paper-name violations introduced by this diff in NEW files. Existing comments in `src/agent-tools/server.ts:34` (per CLAUDE.md grandfathered list) still reference "Voyager-style skill library lands v0.6" — pre-existing, opportunistic-cleanup target per no-paper-names-in-code.md.
+
+      All NEW JSDoc in `src/server/**` + `src/agent-tools/run-{health,migrate,server,mcp-server}.ts` correctly uses neutral wording (e.g., "4 verbs", "REST surface", "single scope tier", "migrate-on-startup discipline") and cites ADRs by name rather than papers.
+    recommended_action: |
+      No action needed for this plan — the rule is honored in the new diff. The pre-existing `server.ts:34` reference will be cleaned in a future cycle that touches the surrounding code per the opportunistic discipline.
+
+  # ===================================================================
+  # MINOR — eslint disable comment on bearer-verifier.ts is honest but worth noting
+  # ===================================================================
+  - id: F-arch-8
+    severity: MINOR
+    file: src/server/auth/bearer-verifier.ts
+    line: 56
+    plan_ref: ADR D3 amended; ISP discipline architecture.md § 13.4
+    summary: "BearerAuthVerifier.verify is declared async but is fully synchronous; eslint suppression `@typescript-eslint/require-await` carries an honest justification — DIP contract returns Promise<boolean> for future OAuth/JWT swap."
+    evidence: |
+      ```ts
+      // src/server/auth/bearer-verifier.ts:56-57
+      // eslint-disable-next-line @typescript-eslint/require-await -- DIP contract returns Promise<boolean> for future async impls (OAuth/JWT); bearer compare is sync.
+      async verify(token: string): Promise<boolean> {
+      ```
+      This is honest YAGNI tension. The DIP method signature is `Promise<boolean>` because future OAuth/JWT impls WILL need async. Forcing sync today (drop the `async`) breaks the LSP contract: a JWT impl using `await jose.jwtVerify(...)` cannot substitute for `BearerAuthVerifier` without changing the interface. Current code is correct under LSP + future-proof under OCP; the lint suppression is the trade-off cost.
+
+      Not a defect — flagged for traceability so any future architecture review knows this is intentional.
+    recommended_action: |
+      Keep as-is. The JSDoc on the method already explains the contract intent. If ISP review of v0.5 introduces a JWT impl, this trade-off pays off; otherwise consider whether `AuthVerifier` could declare `verify(token: string): boolean | Promise<boolean>` for both sync + async impls (canonical TypeScript idiom).
+
+  # ===================================================================
+  # MINOR — eviction-related JSDoc references Voyager / blueprint cross-references
+  # ===================================================================
+  - id: F-arch-9
+    severity: MINOR
+    file: src/server/openapi-registration.ts
+    line: 5-12
+    plan_ref: ADR D1 — Hono REST framework; SEPA pre-RED iter 5 CRITICAL
+    summary: "Hybrid OpenAPI registration explicitly forgoes the canonical RouteConfig migration. Honest trade-off documented in the JSDoc; acceptable trade for shipping T1.4 without rewriting T1.2/T1.3 handlers, but doubles the surface where spec + handler can drift."
+    evidence: |
+      ```ts
+      // src/server/openapi-registration.ts:5-10
+      // Per SEPA pre-RED iter 5 CRITICAL — Path A full RouteConfig migration risks
+      // defaultHook envelope drift across 6 handlers. Hybrid registration honors
+      // the plan's "single source of truth (zod schemas) → no spec drift" rationale
+      // (ADR D1 Consequences) without re-implementing the safeJson + scopeOrValidationError
+      // pipeline that the T1.2/T1.3 RED tests pin.
+      ```
+      The hybrid approach means:
+      - `src/server/openapi-registration.ts` declares the OpenAPI path shape MANUALLY (164 LoC of `registry.registerPath({...})` calls);
+      - `src/server/handlers/*.ts` declare the ACTUAL route handlers via vanilla `app.get/post`;
+      - The two CAN drift: a handler refactor changing query param shape will not propagate to the OpenAPI spec.
+
+      This is a real architectural trade-off honestly documented. A future v1.1 OpenAPI cycle should migrate handlers to RouteConfig — but that is out-of-scope here.
+    recommended_action: |
+      Add a static integration test that hits every handler and parses the OpenAPI spec to assert that documented request shapes match observed handler validation. This is the cheapest "drift detector" available short of full RouteConfig migration. Defer to a v1.1 cycle; not a blocker for THIS plan.
+
+  # ===================================================================
+  # INFO — files that are clean (single line per file or sweep)
+  # ===================================================================
+
+  - id: F-arch-10
+    severity: INFO
+    file: src/core/dip/auth-verifier.ts
+    line: 0
+    plan_ref: T0.1 — 12th DIP AuthVerifier declared
+    summary: "no issues found — single-method DIP per ISP, JSDoc cites ADR D3 amended + RFC 6750 + EC-1/2/3/4; 31 LoC well under budget."
+    evidence: |
+      Single-method interface as required by ISP discipline (architecture.md § 13.4). The test-d.ts companion at line 27 asserts `Method` collapses to `'verify'` only — a structural check that future expansion will fail compile-time. JSDoc cites the plan + ADR + RFC + EC chain. Idiomatic DIP shape.
+    recommended_action: none
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/core/dip/__tests__/auth-verifier.test-d.ts
+    line: 0
+    plan_ref: T0.1
+    summary: "no issues found — type-only assertion correctly uses expectTypeOf with parameters/returns narrowing + ISP collapse via keyof."
+    evidence: |
+      Uses `expectTypeOf<AuthVerifier['verify']>().parameters.toEqualTypeOf<[string]>()` and `.returns.toEqualTypeOf<Promise<boolean>>()` — correct Vitest type-only test idiom. The `keyof` collapse to `'verify'` is the canonical ISP single-method guard.
+    recommended_action: none
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/core/index.ts
+    line: 145-146
+    plan_ref: T0.1 — re-export AuthVerifier interface
+    summary: "no issues found — 12th DIP re-export sits alongside the other 11 DIPs in deterministic order; correct architectural placement."
+    evidence: |
+      ```ts
+      // 12th DIP — AuthVerifier (theo-memory-standalone-p0 T0.1, ADR D3 amended).
+      export type { AuthVerifier } from './dip/auth-verifier.js';
+      ```
+      Re-export-only type; preserves the `@usetheo/memory/contract` subpath as a pure type barrel for adapter authors per ADR-0008.
+    recommended_action: none
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/server/index.ts
+    line: 0
+    plan_ref: T1.7 — Subpath export
+    summary: "no issues found — single re-export module under 15 LoC; correctly aliases `createApp as createServer` per ADR D11 public-name lock."
+    evidence: |
+      Public factory name `createServer` matches plan ADR D11 + README documentation. `CreateServerOptions` type also re-exported. `BearerAuthVerifier` + `readApiKey` + `bearerAuth` re-exported as the impls operators wire from CLI.
+    recommended_action: none
+
+  - id: F-arch-14
+    severity: INFO
+    file: src/server/app.ts
+    line: 0
+    plan_ref: T1.2 + ADR D11
+    summary: "no issues found — Hono app composer at 116 LoC; correct middleware ordering (openapi → otel → bearer → routes) per EC-19 + EC-33 absorption."
+    evidence: |
+      Ordering correctly mounts /v1/openapi.json + /v1/health + /v1/health/db BEFORE the bearer middleware — auth-exempt per EC-19 + RFC 9110 §5.1 health-probe convention. OTel middleware ALSO mounts before bearer so 401s get observability spans. JSDoc cites the ordering reasoning. SRP clean: app.ts composes; handlers in handlers/ live; errors in errors.ts.
+    recommended_action: none
+
+  - id: F-arch-15
+    severity: INFO
+    file: src/server/auth/bearer-verifier.ts
+    line: 0
+    plan_ref: T1.1 + ADR D3 amended
+    summary: "no issues found — 68 LoC; readApiKey sentinel correctly absorbs EC-1; length-check before timingSafeEqual absorbs EC-4; private-field `#expectedToken` idiom."
+    evidence: |
+      `readApiKey()` correctly returns 3-state value (`undefined` | `''` | `string`). `BearerAuthVerifier.verify()` length-checks BEFORE `timingSafeEqual` per EC-4; empty-string sentinel correctly fails-closed at line 61. Private-field `#expectedToken` is the canonical TS 4.3+ private idiom — encapsulation correct.
+    recommended_action: none
+
+  - id: F-arch-16
+    severity: INFO
+    file: src/server/auth/middleware.ts
+    line: 0
+    plan_ref: T1.1
+    summary: "no issues found — 69 LoC; case-insensitive Bearer regex per EC-2; passes through when env undefined; fail-closed when env empty."
+    evidence: |
+      `BEARER_SCHEME_RE = /^bearer\s+(.+)$/i` is the canonical RFC 6750 §2.1 idiom per EC-2. 3-state branching (undefined → pass; missing header → 401; mismatch → 401) is correct. `WWW-Authenticate: Bearer` header on every 401 matches RFC 6750 §3.
+    recommended_action: none
+
+  - id: F-arch-17
+    severity: INFO
+    file: src/server/handlers/remember.ts
+    line: 0
+    plan_ref: T1.2
+    summary: "no issues found — 63 LoC under 100 LoC budget; correct 400/422/201 envelope shape; Symbol sentinels for body-parse states is idiomatic TS."
+    evidence: |
+      Symbol-based EMPTY_BODY / MALFORMED_BODY sentinels are the canonical TS pattern for typed "no value" semantics — avoids string-comparison fragility. (See F-arch-3 for the cross-handler import concern — orthogonal to this handler's local correctness.)
+    recommended_action: none
+
+  - id: F-arch-18
+    severity: INFO
+    file: src/server/handlers/recall.ts
+    line: 0
+    plan_ref: T1.2 + EC-11
+    summary: "no issues found — 37 LoC; EC-11 correctly absorbed (empty results 200, not 404); asOf conversion to Date at boundary correct."
+    evidence: |
+      Returns `{ results }` with 200 even when empty — matches REST convention that resource collections returning empty are 200 not 404. `asOf` string parsed at boundary per architecture.md § 8 (validate at boundary). The structural-type cast issue is captured in F-arch-2.
+    recommended_action: none
+
+  - id: F-arch-19
+    severity: INFO
+    file: src/server/handlers/forget.ts
+    line: 0
+    plan_ref: T1.2 + v0.4b T7.1 contract
+    summary: "no issues found — 35 LoC; correctly calls top-level memory.forget (NOT scoped) per v0.4b PUBLIC API contract; hard option respected."
+    evidence: |
+      `memory.forget(memoryId, hard !== undefined ? { hard } : undefined)` — passes options only when provided, preserving exact-optional-property-types discipline. 204 No Content correct for DELETE-equivalent semantic.
+    recommended_action: none
+
+  - id: F-arch-20
+    severity: INFO
+    file: src/server/handlers/reflect.ts
+    line: 0
+    plan_ref: T1.2 + ADR D2
+    summary: "no issues found — 34 LoC; 202 Accepted shape matches ADR D2 async/queued semantic."
+    evidence: |
+      Returns the reflection result with 202 (Accepted) — correct REST semantic for async/queued operations per ADR D2. Structural cast concern lives in F-arch-2.
+    recommended_action: none
+
+  - id: F-arch-21
+    severity: INFO
+    file: src/server/handlers/health.ts
+    line: 0
+    plan_ref: T1.3 + EC-17 + EC-33
+    summary: "no issues found — 50 LoC; readiness gate correctly returns 503 warming_up; dbProbe correctly raced with 2s timeout per EC-17."
+    evidence: |
+      Promise.race with explicit timeout reject — canonical Node idiom. 503 envelope shape `{ status: 'unavailable', reason: 'no_probe_configured' }` correctly disambiguates "no probe wired" from "probe failed" — operator can tell which.
+    recommended_action: none
+
+  - id: F-arch-22
+    severity: INFO
+    file: src/server/handlers/scopes.ts
+    line: 0
+    plan_ref: T1.3 + EC-13/14/15
+    summary: "main correctness fine except for the skill-scope cast in F-arch-1; cursor 2-layer validation absorbs EC-15 correctly; limit cap 100 absorbs EC-14."
+    evidence: |
+      `decodeCursor()` performs base64 decode → JSON.parse → zod.safeParse — the 2-layer validation per SEPA pre-RED iter 4. Limit clamped at 100 via `z.coerce.number().int().min(1).max(100).default(20)`. EC-13 case-sensitivity via `z.enum(SCOPE_TYPES)`. CORE DEFECT lives in `pathParamsToScoped` skill branch — see F-arch-1.
+    recommended_action: see F-arch-1
+
+  - id: F-arch-23
+    severity: INFO
+    file: src/server/schemas.ts
+    line: 0
+    plan_ref: T1.2 + ADR D12 + EC-9
+    summary: "no issues found — superRefine correctly counts present tier keys and emits structured INVALID_SCOPE issue when count != 1; .strict() rejects unknown keys."
+    evidence: |
+      `superRefine` counting `SCOPE_KEYS.filter` is the canonical zod idiom for XOR refinement when no discriminator key exists (per SEPA iter 3). `.strict()` rejects unknown keys → multi-tier requests get clean 422. ScopedMemoryLike/MemoryLike interfaces are the cause of F-arch-2 — flagged separately.
+    recommended_action: see F-arch-2
+
+  - id: F-arch-24
+    severity: INFO
+    file: src/server/errors.ts
+    line: 0
+    plan_ref: T1.6 + EC-23/24
+    summary: "no issues found — pure-function domain-error → HTTP envelope; redactSecrets correctly absorbs EC-24; pg native errors fall to sanitized 500 per EC-23."
+    evidence: |
+      `mapDomainErrorToResponse` is a pure function — correct SRP (one reason to change: the domain-error → HTTP envelope contract). `redactSecrets` applied BEFORE `console.error` per EC-24. 9 typed errors mapped to 404/413/422/501/503/503 with consistent envelope shape. Default branch correctly returns sanitized 500.
+    recommended_action: none
+
+  - id: F-arch-25
+    severity: INFO
+    file: src/server/observability/otel-middleware.ts
+    line: 0
+    plan_ref: T1.5 + EC-21/22
+    summary: "no issues found — fail-quiet try/catch around every OTel interaction per EC-22; default tracer = global no-op when undefined; span-name derivation explicit and ordered."
+    evidence: |
+      `deriveSpanName` switch with explicit priority ordering (more-specific paths first) — defensive against future route additions. Every `span.setAttribute`/`span.setStatus`/`span.end` wrapped in try/catch absorbing exporter sync throws (EC-22). Handler thrown errors re-thrown after recording for Hono onError to map (EC-10).
+    recommended_action: none
+
+  - id: F-arch-26
+    severity: INFO
+    file: src/server/openapi-registration.ts
+    line: 0
+    plan_ref: T1.4 + ADR D1
+    summary: "164 LoC of hybrid registration; honest trade-off flagged in F-arch-9 but the file itself is internally consistent."
+    evidence: |
+      All 6 routes registered with stable operationId (remember/recall/forget/reflect/getHealth/getHealthDb/listScopeMemories). License MIT advertised per ADR D6 amendment. Request body/response/error shapes consistent across routes. Drift risk surfaced in F-arch-9.
+    recommended_action: see F-arch-9
+
+  - id: F-arch-27
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 0
+    plan_ref: T2.1 + EC-27/28/29
+    summary: "no issues found — 158 LoC under 200 LoC budget; commander scaffold + alias detection regex + idempotent argv shim correctly absorb EC-27/29; SRP clean (routing only — actions extracted to run-{mcp,server,migrate,health}.ts)."
+    evidence: |
+      `detectMcpAlias` regex `/themory-mcp(?:\.(?:js|mjs|cjs|ts))?$/` covers Windows + npm exec + npx temp paths (EC-27). `applyAliasArgvShim` idempotent guard at line 50 prevents double-injection per EC-29. Deprecation stderr fires BEFORE argv mutation per SEPA iter 9 MAJOR. `isDirectInvocation` regex correctly skips module-imported usage.
+    recommended_action: none
+
+  - id: F-arch-28
+    severity: INFO
+    file: src/agent-tools/run-mcp-server.ts
+    line: 0
+    plan_ref: T2.1 + EC-7
+    summary: "no issues found — 124 LoC; CLI > env > default precedence correctly resolved ONCE inside runMcpServer; SIGINT + SIGTERM handlers + 5s shutdown timeout race; EC-7 hard-fail preserved verbatim from v0.3 extraction."
+    evidence: |
+      `resolveTransport` / `resolvePort` / `resolveHost` are the canonical precedence-chain idiom. Port validated EAGERLY (line 85) before pool creation — avoids connection leak on typo. Shutdown via Promise.race with 5s timeout is the canonical Node graceful-shutdown pattern. Note: this file uses StubEmbedder vs run-server.ts's DeterministicStubEmbedder — drift surfaced in F-arch-6.
+    recommended_action: see F-arch-6
+
+  - id: F-arch-29
+    severity: INFO
+    file: src/agent-tools/run-server.ts
+    line: 0
+    plan_ref: T2.3 + ADR D8 + EC-31/32/33 + EC-7
+    summary: "206 LoC; migrate-on-startup correctly ordered; SIGTERM idempotent guard; EADDRINUSE detection; EC-7 + ADR D8 absorbed. Two MAJOR concerns surfaced in F-arch-4 (Proxy shim) + F-arch-5 (silent stub embedder)."
+    evidence: |
+      Migrate-then-bind ordering correct. `shuttingDown` boolean guard prevents double-fire on SIGTERM + SIGINT (EC-32). EADDRINUSE detected via `listener.on('error', err)` callback (EC-31). `THEMEMORY_SKIP_MIGRATIONS` positive opt-in correctly avoids silent skip. Concerns are surfaced separately.
+    recommended_action: see F-arch-4 + F-arch-5
+
+  - id: F-arch-30
+    severity: INFO
+    file: src/agent-tools/run-migrate.ts
+    line: 0
+    plan_ref: T2.4 + EC-7
+    summary: "no issues found — 47 LoC; pool.end correctly called on both success and failure paths; EC-7 hard-fail preserved; idempotency relies on drizzle journal."
+    evidence: |
+      pool.end with `.catch(() => undefined)` on failure path correctly avoids unhandled rejection masking the original error. Exit code semantics consistent across runMcpServer / runServer / runMigrate / runHealth (2 = env missing, 1 = runtime failure, 0 = success).
+    recommended_action: none
+
+  - id: F-arch-31
+    severity: INFO
+    file: src/agent-tools/run-health.ts
+    line: 0
+    plan_ref: T2.5 + EC-37 + EC-17 + EC-7
+    summary: "121 LoC; mandatory + --deep checks correctly split; withTimeout correctly clears timer on success/failure. StubEmbedder choice surfaced in F-arch-6."
+    evidence: |
+      `withTimeout` helper correctly clears the timer in `finally` — avoids dangling timeouts. Returns suggested exit code (NOT calling process.exit) — clean separation between policy (the cli action) and mechanism (the run function). Testable via direct invocation. EC-7 hard-fail consistent.
+    recommended_action: see F-arch-6
+
+  - id: F-arch-32
+    severity: INFO
+    file: src/core/index.ts
+    line: 0
+    plan_ref: T0.1
+    summary: "no issues found — single re-export added; preserves type-only barrel discipline."
+    evidence: |
+      Only the type re-export added: `export type { AuthVerifier } from './dip/auth-verifier.js';`. No runtime symbols leak; preserves Inquebrável Rule 6 (DRY) by re-exporting from the canonical interface file.
+    recommended_action: none
+
+  - id: F-arch-33
+    severity: INFO
+    file: package.json
+    line: 52-55
+    plan_ref: T1.7 + ADR D11
+    summary: "no issues found — `./server` subpath added at correct position; `bin` entries dual-listed (themory + themory-mcp alias) per EC-28; 4 NEW deps pinned per ADR D14."
+    evidence: |
+      `./server` subpath at lines 52-55 maps to `./src/server/index.ts` with both `types` and `default` — ESM-only as documented per EC-25. `bin` declares both `themory` AND `themory-mcp` pointing to the same compiled CLI (EC-28). Dependencies pinned at the exact versions declared in plan ADR D14 (hono ^4.6.0, @hono/node-server ^1.13.0, @hono/zod-openapi ^0.18.0, commander ^12.1.0).
+    recommended_action: none
+
+  - id: F-arch-34
+    severity: INFO
+    file: Dockerfile
+    line: 0
+    plan_ref: T3.1 + ADR D6 amended + ADR D13 + EC-38/39/40/47
+    summary: "no issues found — 99 LoC; 3-stage multi-stage build; distroless nonroot runtime; ENTRYPOINT direct Node binary; INCLUDE_OPTIONAL build-arg correctly absorbs EC-39."
+    evidence: |
+      Builder stage runs tsc gate per EC-40 (`npm run build` fails the image). Production-deps stage correctly defaults `--omit=optional` and gates via `INCLUDE_OPTIONAL` build-arg for consumers who need the local Transformer embedder + OpenAI providers. Runtime stage at `gcr.io/distroless/nodejs22-debian12:nonroot` — glibc-compatible per EC-38, no shell per EC-47, nonroot UID 65532 by base default. ENTRYPOINT exactly matches ADR D13: `["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]`. CMD empty.
+    recommended_action: none
+
+  - id: F-arch-35
+    severity: INFO
+    file: .dockerignore
+    line: 0
+    plan_ref: T3.1
+    summary: "no issues found — excludes `.claude/`, examples, docs, benchmarks, tests, env files; keeps build context small + prevents secret leaks."
+    evidence: |
+      Comprehensive exclusion list. `.git/`, `.env*`, `*.pem`, `*.key`, `node_modules/`, `dist/` correctly excluded. `.claude/` (massive audit trail) explicitly excluded — keeps the build context narrow. Cross-checked against package.json `files` whitelist — symmetric. Drizzle config excluded since it's only used at db:push time.
+    recommended_action: none
+
+  - id: F-arch-36
+    severity: INFO
+    file: docker-compose.prod.yaml
+    line: 0
+    plan_ref: T3.2 + EC-41/42
+    summary: "no issues found — 90 LoC; both services declare healthchecks; fail-safe defaults via `${VAR:-default}` absorbs EC-42; healthcheck shape uses /nodejs/bin/node directly per distroless integrity."
+    evidence: |
+      Health-check uses `node -e "require('node:http').get(...)"` form — necessary because distroless has no `curl`. `depends_on: pgvector { condition: service_healthy }` correctly gates app boot on DB readiness. Volume `themory_pgdata` named for cross-restart durability. All env defaults use `${VAR:-default}` so `docker compose config` validates without exporting anything (EC-42).
+    recommended_action: none
+
+  - id: F-arch-37
+    severity: INFO
+    file: .github/workflows/docker-publish.yml
+    line: 0
+    plan_ref: T3.3 + EC-43/44
+    summary: "no issues found — permissions correctly declared at both workflow + job level; Trivy gates CRITICAL+HIGH with exit-code 1; .trivyignore wired."
+    evidence: |
+      `permissions: { contents: read, packages: write }` declared at both workflow + job level (defense-in-depth) per EC-44. Trivy step uses `severity: CRITICAL,HIGH` + `exit-code: '1'` + `trivyignores: .trivyignore` per EC-43. Image metadata action populates sha + semver tags. Cache via type=gha (GitHub Actions cache backend) avoids cold builds.
+    recommended_action: none
+
+  - id: F-arch-38
+    severity: INFO
+    file: .trivyignore
+    line: 0
+    plan_ref: T3.3 + EC-43
+    summary: "no issues found — empty at v0.1.0-alpha (intentional); comments document the sunset discipline per deps-audit-golden-rule.md severity rubric."
+    evidence: |
+      Empty file with thorough comments documenting the `CVE-ID|REASON|SUNSET-DATE` format AND the 30/60/90-day sunset discipline per `deps-audit-golden-rule.md`. Future entries will be auditable by surrounding `# sunset: YYYY-MM-DD` trailing comments per the policy.
+    recommended_action: none
+
+  - id: F-arch-39
+    severity: INFO
+    file: tsconfig.contract.json
+    line: 26
+    plan_ref: T0.1 (SEPA v1.3 pre-loop absorption)
+    summary: "no issues found — include glob extended to cover `src/server/**/*.ts`; preserves transitive-typecheck discipline per testing.md § Typecheck scope."
+    evidence: |
+      Single-line addition `src/server/**/*.ts` to include array. Subpath `paths` mapping still only for `@usetheo/memory/contract` — `@usetheo/memory/server` resolves via Node's `exports` field with nodenext moduleResolution (not via tsconfig paths), which is correct.
+    recommended_action: none
+
+  - id: F-arch-40
+    severity: INFO
+    file: vitest.contract.config.ts
+    line: 22, 37, 42
+    plan_ref: T0.1 (SEPA v1.3 pre-loop absorption) + T1.7
+    summary: "no issues found — include glob extends to `server` subfolder; testTimeout bumped to 15s honestly (justified by dep-install graph growth); typecheck include adds `server` for test-d files."
+    evidence: |
+      `'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/__tests__/**/*.test.ts'` correctly extends. testTimeout bump from 5s default to 15s justified in comment honestly (dep graph grew with hono+adapters+commander). `typecheck.include` adds `server` so `subpath-export.test-d.ts` runs.
+    recommended_action: none
+
+  - id: F-arch-41
+    severity: INFO
+    file: eslint.config.ts
+    line: 20
+    plan_ref: T0.1 (SEPA v1.3 pre-loop absorption)
+    summary: "no issues found — lint glob extended to `server` subfolder."
+    evidence: |
+      Files array correctly extended to include `src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/*.ts`. The test-files block at line 48 does NOT include `server` for the test glob — minor inconsistency that does not affect the new test files since they pick up the broader test config via the `__tests__` pattern earlier, but should be tightened in a follow-up.
+    recommended_action: |
+      Minor follow-up: extend test-files glob at eslint.config.ts:48 to include `server` so future server tests get the test-file rule exemptions (`@typescript-eslint/no-unused-vars`, etc.) without surprise.
+
+  - id: F-arch-42
+    severity: INFO
+    file: src/server/__tests__/handlers.test.ts
+    line: 0
+    plan_ref: T1.2
+    summary: "no issues found in test surface — 302 LoC covers EC-6/7/9/10/11/12 per plan; AAA discipline; mocks scoped via vi.fn; per-test stub composition."
+    evidence: |
+      Tests use `Request`/`Response` Web Standards directly per Hono idiom — no super-test wrapper. Per-test memory stub composed via `stubMemory(stubScopedMemory())`. EC-9 multi-tier 422 test correctly asserts the union refine fires. EC-11 empty-results-200 correctly asserts the non-404 contract.
+    recommended_action: none
+
+  - id: F-arch-43
+    severity: INFO
+    file: src/server/__tests__/health.test.ts
+    line: 0
+    plan_ref: T1.3 + EC-17
+    summary: "no issues found — 78 LoC; EC-17 2s timeout verified via Date.now() bracketing (≥2000ms, <3000ms) — the empirical assertion shape."
+    evidence: |
+      The hanging-promise test correctly proves the timeout fires within 2-3s window. `dbProbe` injected as `vi.fn()` per ADR D11 DIP discipline — test does not import `pg`.
+    recommended_action: none
+
+  - id: F-arch-44
+    severity: INFO
+    file: src/server/__tests__/scopes.test.ts
+    line: 0
+    plan_ref: T1.3 + EC-13/14/15
+    summary: "188 LoC; test #12 (`skill type dispatches to memory.skills(repoId)`) PASSES because the test stub injects a fake `getAll` on the `ScopedSkillMemory` shape — see F-arch-1 for the production-time defect that test stub conceals."
+    evidence: |
+      Tests #5-13 cover EC-13/14/15 + pagination cursor + skill scope routing. The defect is NOT in this test — it's that the test's `stubScopedWithItems` defines `getAll` on the stub, while the real `ScopedSkillMemory` interface does not. The test passes BUT does not catch the runtime defect because it doesn't use the real types.
+    recommended_action: see F-arch-1
+
+  - id: F-arch-45
+    severity: INFO
+    file: src/server/__tests__/openapi.test.ts
+    line: 0
+    plan_ref: T1.4 + EC-19
+    summary: "no issues found — 80 LoC; swagger-parser validation; EC-19 auth-exempt verified by setting THEMEMORY_API_KEY env then asserting 200; 6 operationIds verified."
+    evidence: |
+      Tests validate the spec against the OpenAPI 3.1 spec via swagger-parser. EC-19 auth-exempt test correctly leaks `THEMEMORY_API_KEY = 'sk-secret'` to `process.env` and asserts 200 (correctly cleaned up via `delete process.env['THEMEMORY_API_KEY']` after the call — though `vi.stubEnv` would be safer per EC-5; minor).
+    recommended_action: |
+      Minor: replace direct `process.env['THEMEMORY_API_KEY'] = 'sk-secret'` with `vi.stubEnv` + `vi.unstubAllEnvs` in `afterEach` per EC-5 discipline already established in `bearer-verifier.test.ts`. Trivial trade for test isolation guarantee.
+
+  - id: F-arch-46
+    severity: INFO
+    file: src/server/__tests__/otel.test.ts
+    line: 0
+    plan_ref: T1.5 + EC-21/22
+    summary: "no issues found — 136 LoC; uses real BasicTracerProvider + InMemorySpanExporter; EC-22 fail-quiet verified via custom FailingExporter; provider.shutdown() in finally."
+    evidence: |
+      `setupTracer` returns the full triple (tracer + exporter + provider) so provider.shutdown can run after each test, preventing resource leaks. `FailingExporter` correctly implements `SpanExporter` interface for EC-22 assertion. Test #17 5xx case correctly forces handler throw + asserts span.status.code === 2 (ERROR).
+    recommended_action: none
+
+  - id: F-arch-47
+    severity: INFO
+    file: src/server/__tests__/errors.test.ts
+    line: 0
+    plan_ref: T1.6 + EC-23/24
+    summary: "no issues found — 95 LoC; pg-shaped error duck-typed (does NOT import pg); EC-24 redaction verified via console.error spy."
+    evidence: |
+      Test #22 duck-types the pg native error via `Object.assign(new Error(...), { code: '42P01', severity: 'ERROR' })` — preserves DIP boundary (`src/server/__tests__/` does not import `pg`). EC-24 redaction test uses `vi.spyOn(console, 'error')` and asserts `joined` contains `bearer [REDACTED]` and does NOT contain the secret.
+    recommended_action: none
+
+  - id: F-arch-48
+    severity: INFO
+    file: src/server/__tests__/subpath-export.test-d.ts
+    line: 0
+    plan_ref: T1.7 + EC-25
+    summary: "no issues found — 21 LoC; type-only test imports from `@usetheo/memory/server` (resolves via package.json#exports + nodenext); asserts createServer is a function + CreateServerOptions has memory."
+    evidence: |
+      Resolves via Node's `exports` field with `nodenext` moduleResolution — not tsconfig `paths`. This is the canonical way to test subpath exports at typecheck time.
+    recommended_action: none
+
+  - id: F-arch-49
+    severity: INFO
+    file: src/server/auth/__tests__/bearer-verifier.test.ts
+    line: 0
+    plan_ref: T1.1 + EC-1/2/3/4/5
+    summary: "no issues found — 184 LoC; EC-5 env save/restore via `vi.stubEnv` + `vi.unstubAllEnvs`; EC-4 timing-safe-equal behavioral test (10000-char-mismatch); ORIGINAL_ENV_VALUE guard."
+    evidence: |
+      EC-5 discipline correctly applies: `beforeEach` + `afterEach` both run `vi.unstubAllEnvs()`, and `afterEach` asserts `process.env['THEMEMORY_API_KEY'] === ORIGINAL_ENV_VALUE`. EC-4 test correctly forces a 10000-character input against a 5-char expected token — if the length-check were missing, timingSafeEqual would throw RangeError synchronously.
+    recommended_action: none
+
+  - id: F-arch-50
+    severity: INFO
+    file: src/agent-tools/__tests__/cli.test.ts
+    line: 0
+    plan_ref: T2.1 + EC-27/28/29
+    summary: "no issues found — 266 LoC; mocks isolated per beforeEach; alias regex coverage exhaustive (Windows + npm exec + npx + .mjs/.cjs/.ts variants)."
+    evidence: |
+      `detectMcpAlias` regex test covers 5+ shapes including Windows backslash paths. `applyAliasArgvShim` idempotent guard test verifies double-injection prevention. Help-output test counts subcommands strictly. T2.2 tests verify CLI > env > default precedence + invalid port reject.
+    recommended_action: none
+
+  - id: F-arch-51
+    severity: INFO
+    file: src/agent-tools/__tests__/run-server.test.ts
+    line: 0
+    plan_ref: T2.3 + EC-31/32/33
+    summary: "no issues found — 187 LoC; readiness gate transition (503 → 200) observable via deferred mock factory resolution; SIGTERM + SIGINT handler registration count verified."
+    evidence: |
+      EC-33 test correctly defers `mockCreateLocalMemory` resolution via an inner Promise, probes `/v1/health` mid-warmup (asserts 503), then resolves the deferred promise and re-probes (asserts 200). Test isolation via `process.removeAllListeners` in afterEach prevents handler accumulation across tests.
+    recommended_action: none
+
+  - id: F-arch-52
+    severity: INFO
+    file: src/agent-tools/__tests__/run-migrate.test.ts
+    line: 0
+    plan_ref: T2.4 + EC-7
+    summary: "no issues found — 103 LoC; mocks isolated; pool.end verified called; EC-7 hard-fail verified; idempotency framed honestly (sequential second-call as proxy for journal-level idempotency)."
+    evidence: |
+      Test #52 framing is honest — acknowledges that two child processes racing the same DB is "inherently flaky in CI per testing.md § Determinism", so the asserted contract is the entry-point-level safety of re-invocation, not the cross-process race semantic. Real journal idempotency exercised in `tests/integration/cli-consolidated.test.ts`.
+    recommended_action: none
+
+  - id: F-arch-53
+    severity: INFO
+    file: src/agent-tools/__tests__/run-health.test.ts
+    line: 0
+    plan_ref: T2.5 + EC-37 + EC-17 + EC-7
+    summary: "no issues found — 152 LoC; mandatory + --deep checks separately covered; EC-17 2s timeout proven via hanging mock query."
+    evidence: |
+      EC-17 timeout proven via `mockPoolQuery.mockImplementation(() => new Promise(() => undefined))` — same idiom as `health.test.ts`. Exit codes 0/1/2 all covered with corresponding stderr assertions. `--deep` failure paths covered for both embedder + llm.
+    recommended_action: none
+
+  - id: F-arch-54
+    severity: INFO
+    file: tests/integration/rest-api.test.ts
+    line: 0
+    plan_ref: T1.5 (SEPA v1.3 pre-loop absorption — pillar c integration locus)
+    summary: "no issues found — 99 LoC; cross-verb OTel span sweep validates all 6 `rest.v1.*` span names fire at least once; correctly cleaned up via `afterEach` provider.shutdown."
+    evidence: |
+      The single integration test exercises all 6 verbs sequentially against a stub Memory + real OTel BasicTracerProvider + InMemorySpanExporter. Asserts the set of span names contains all 6 — the wiring triad pillar (c) runtime-metric proof required by the plan.
+    recommended_action: none
+
+  - id: F-arch-55
+    severity: INFO
+    file: tests/integration/subpath-isolation.test.ts
+    line: 0
+    plan_ref: T1.7 + EC-26 + EC-52
+    summary: "no issues found — 109 LoC; recursive static-import walk (not esbuild) correctly catches transitive server imports; EC-52 npm pack manifest parsed from JSON output."
+    evidence: |
+      The recursive walker reads imports via regex, resolves relative-only specifiers, and walks the transitive graph from `src/index.ts`. Filters for `/src/server/` substring to detect leaks. This is honest + cheap — esbuild bundle test would tree-shake leaks invisibly, as the JSDoc correctly explains.
+    recommended_action: none
+
+  - id: F-arch-56
+    severity: INFO
+    file: tests/integration/cli-consolidated.test.ts
+    line: 0
+    plan_ref: T2.1 + EC-27/28
+    summary: "no issues found — spawns the BUILT cli.js as a child process via symlink to assert real argv[1] shape exercises alias detection; gated on dist/ presence via describe.skipIf."
+    evidence: |
+      Tests use real symlink + spawn rather than mocked argv — proves the alias detection works against Node's actual argv resolution. Gated on `existsSync(CLI_DIST)` so fresh clones without `npm run build` don't fail. Tests 37/38 correctly assert stderr DEPRECATED + EC-7 path executed (not "not yet implemented" stub).
+    recommended_action: none
+
+  - id: F-arch-57
+    severity: INFO
+    file: tests/integration/docker-compose-prod.test.ts
+    line: 0
+    plan_ref: T3.2 + EC-41/42
+    summary: "no issues found — 75 LoC; static-config validation via real `docker compose config`; gated on docker availability via describe.skipIf; EC-42 fail-safe-default verified by dropping VERSION env."
+    evidence: |
+      `docker compose -f ... config --quiet` correctly returns exit 0 when the file validates. Default substitution `${VERSION:-0.1.0-alpha}` verified by clearing process.env.VERSION before spawning. Healthcheck declaration count verified ≥ 2.
+    recommended_action: none
+
+  - id: F-arch-58
+    severity: INFO
+    file: tests/integration/dockerfile-entrypoint.test.ts
+    line: 0
+    plan_ref: T3.4 + ADR D13 + EC-47
+    summary: "no issues found — 89 LoC; static Dockerfile invariants pinned via regex; recursive shell-entrypoint hunt verifies no `docker-entrypoint.sh` exists; README override-pattern check absorbs EC-47."
+    evidence: |
+      Tests 50-54 lock the 4 invariants (ENTRYPOINT direct Node + CMD empty + no shell entrypoint file + distroless base) AS STATIC SHAPE checks against the Dockerfile text. The recursive walk correctly skips `.git/`, `.claude/`, `node_modules/`, `dist/` to keep runtime fast.
+    recommended_action: none
+
+  - id: F-arch-59
+    severity: INFO
+    file: tests/integration/docker-publish-workflow.test.ts
+    line: 0
+    plan_ref: T3.3 + EC-43/44
+    summary: "no issues found — 65 LoC; static-string YAML assertions over the workflow + .trivyignore; cheap (~ms) regression guards without actionlint dependency."
+    evidence: |
+      Tests assert `permissions: contents: read` + `permissions: packages: write` regex separately, then trivy-action invocation + severity CRITICAL,HIGH + exit-code 1 + trivyignores wiring + ghcr.io registry + semver/sha tags. Cheap + correct.
+    recommended_action: none
+
+  - id: F-arch-60
+    severity: INFO
+    file: tests/integration/docker-stack.test.ts
+    line: 0
+    plan_ref: T3.5 + EC-17/47/48/49/51
+    summary: "228 LoC; THE GOAL TEST — round-trip remember+recall through container. Gated on DOCKER_INTEGRATION + docker compose + image presence. EC-47 verification via `docker run --entrypoint /bin/sh` failure assert. F-arch-5 honest caveat re: StubEmbedder."
+    evidence: |
+      `projectName = themory-test-${randomUUID().slice(0, 8)}` per EC-48. `bearerToken = sk-test-${randomUUID().slice(0, 12)}` proves the round-trip exercises the production bearer path. `DOCKER_HEALTH_TIMEOUT_MS` per EC-51. Test 58 (THE GOAL METRIC) round-trips remember+recall and the JSDoc honestly admits StubEmbedder produces deterministic-but-uncorrelated vectors — see F-arch-5 for the architectural concern.
+    recommended_action: see F-arch-5
+
+  - id: F-arch-61
+    severity: INFO
+    file: tests/unit/deps/dep-version-alignment.test.ts
+    line: 0
+    plan_ref: T0.1 + EC-18 + ADR D14
+    summary: "no issues found — 74 LoC; smoke-tests each NEW dep at the pinned MAJOR version per ADR D14 sunset 2026-09-01."
+    evidence: |
+      Tests parse package.json and assert each of 6 deps matches a regex pin appropriate for ADR D14 (hono ^4.6+, @hono/node-server ^1.13+, @hono/zod-openapi ^0.18, commander ^12, strip-ansi ^7, swagger-parser ^10). Drift between ADR D14 and the manifest will fire here.
+    recommended_action: none
+
+  - id: F-arch-62
+    severity: INFO
+    file: src/agent-tools/__tests__/run-mcp-server.test.ts (UPDATED — pre-existing file, t2.1/2.2 expanded with new tests)
+    line: 0
+    plan_ref: T2.1 + T2.2
+    summary: "no issues found — pre-existing test file expanded with T2.1 (commander router + alias detection) + T2.2 (transport/port/host options) coverage; EC-7 invariants preserved."
+    evidence: |
+      File was renamed/refactored as part of T2.1 (composition-root extraction). The MCP behavioral tests (SIGINT/SIGTERM, env-var hard-fail) now exercise the extracted `runMcpServer` rather than inline `cli.ts::main()` — preserves v0.3 regression coverage.
+    recommended_action: none
+
+  - id: F-arch-63
+    severity: INFO
+    file: tests/e2e/agent-tools/round-trip.test.ts (MODIFIED — v0.3 regression test)
+    line: 0
+    plan_ref: T2.1 v0.3 regression preservation
+    summary: "no issues found — v0.3 e2e regression test continues to PASS via updated `spawn('node', [CLI_PATH, 'mcp'])` invocation OR the legacy alias path. Plan acceptance criterion met."
+    evidence: |
+      File modified to accommodate the commander-routed `themory mcp` invocation. The v0.3 GOAL METRIC (cross-userId isolation via stdio + JSON-RPC handshake) is preserved.
+    recommended_action: none
+
+  - id: F-arch-64
+    severity: INFO
+    file: .claude/knowledge-base/implementations/theo-memory-standalone-p0-implementation.md (MODIFIED) + sepa-iterations/iteration-{7..12}-pre-red.md (NEW)
+    line: 0
+    plan_ref: cycle-implement audit-trail discipline
+    summary: "no issues found — SEPA per-iteration logs persisted per audit-trail-rotation.md v1.3 discipline; .claude/agents/ stays for definitions only."
+    evidence: |
+      6 NEW SEPA pre-RED iteration logs (iter 7-12) shipped via chore commit `43b0ffc`. Implementation md updated to reflect progress. Correct location per the v1.3 split — `.claude/knowledge-base/implementations/{slug}/sepa-iterations/` for LOG outputs vs `.claude/agents/implement-{slug}-{date}/sepa.md` for the agent DEFINITION.
+    recommended_action: none
+
+  - id: F-arch-65
+    severity: INFO
+    file: CHANGELOG.md (MODIFIED)
+    line: 0
+    plan_ref: Inquebrável Rule 6 + Global DoD
+    summary: "no issues found — 3 substantial entries under `[Unreleased] ### Added` covering Phase 1/2/3; honestly surfaces `/dogfood` gate state + future Phase scope; cites tasks + commit SHAs."
+    evidence: |
+      Each Phase entry: (a) cites ADRs + EC absorptions, (b) lists tasks with commit SHAs, (c) surfaces test count delta, (d) repeats the `/dogfood` gate boundary `EVIDENCE_INSUFFICIENT — this commit does NOT unblock production-ready claims`. Inquebrável Rule 3 honesty discipline correctly applied.
+    recommended_action: none
+
+  - id: F-arch-66
+    severity: INFO
+    file: README.md (MODIFIED)
+    line: 199-258
+    plan_ref: T1.7 + T3.4 README override pattern
+    summary: "no issues found — new REST API section uses correct vocabulary lock (no `production-ready`, no `vector engine` paper names); docker entrypoint override section absorbs EC-47."
+    evidence: |
+      The new section follows the project's voice and tone: opens with the concrete consumer composition, documents bearer auth + OpenAPI + observability + ESM-only constraint, then the docker entrypoint override pattern with explicit `--entrypoint /nodejs/bin/node` examples for migrate/health. No `production-ready` claim. Voice consistent with the locked tone in CLAUDE.md.
+    recommended_action: none

@@ -1,0 +1,428 @@
+agent: review-theo-memory-standalone-p0-domain-api-design
+review_target: f94c3007b72703b62b75b1b88a4dd7dd3287cff4..HEAD for plan theo-memory-standalone-p0
+domain: api-design
+domain_specific_patterns_checked:
+  - "REST 4-verb shape (POST remember=201 / recall=200 / forget=204 / reflect=202)"
+  - "RFC 6750 § 2.1 case-insensitive bearer scheme"
+  - "RFC 9110 + OWASP /healthz auth-exempt convention"
+  - "OpenAPI 3.1 spec auto-derivation + license advertisement"
+  - "ADR D12 single-scope-tier semantic via zod superRefine"
+  - "Error envelope { code, message, field? } across all error responses"
+  - "HTTP status semantics 400/422/401/404/413/503/500"
+  - "Two-layer cursor validation (base64 + zod shape)"
+  - "Hono middleware registration ordering for auth-exempt routes"
+  - "DIP composition via createServer({ memory, authVerifier?, dbProbe?, tracer?, readinessProbe? })"
+
+summary:
+  red_test_pass_estimate: "All TDD RED tests appear to map cleanly to implementation; cannot execute."
+  contract_compliance: "HIGH — 4 verbs, status codes, scope union, error envelope, auth-exempt routes ALL match plan."
+  contract_drift_risk: "MEDIUM — 5 inconsistencies found between plan ADR text, implementation, OpenAPI spec, and JSDoc comments."
+  fabricated_apis_detected: "None — all imports resolve to real exports."
+
+findings:
+  - id: F-dom-api-1
+    severity: MAJOR
+    file: src/server/app.ts
+    line: 81-85
+    plan_ref: "T1.5 Deep Dive — `Scope `/v1/*` so /v1/openapi.json itself also gets a span without polluting unrelated routes`"
+    domain_anchor: "Hono middleware registration semantics (verified by ad-hoc Hono smoke test 2026-06-03): middleware applies ONLY to routes registered AFTER the `app.use()` call."
+    summary: |
+      The OpenAPI doc route (`app.doc('/v1/openapi.json', ...)`) is registered at line 69, BEFORE `app.use('/v1/*', otelMiddleware(tracer))` at line 85. By Hono's documented order semantics, the openapi.json route does NOT receive the OTel span middleware. However, the in-source comment at line 81-85 explicitly claims "Scope `/v1/*` so /v1/openapi.json itself also gets a span without polluting unrelated routes" — this is FALSE. The comment misdirects future readers about the wiring.
+
+      Evidence: empirical Hono test (handler GET /a registered before app.use('/*', mw) returns 200, handler GET /b registered after returns 403 → ordering enforced).
+
+      The behavioral consequence is benign (openapi.json should not emit observability spans for a static-shape spec fetch — Codegen tools polling rapidly would create noise). But the COMMENT lying about the behavior is a documentation defect.
+    evidence: |
+      ```ts
+      // src/server/app.ts:68-85
+      registerAllPaths(app.openAPIRegistry);
+      app.doc('/v1/openapi.json', { ... });          // ← registered FIRST → no otel
+      // ...
+      // OTel span middleware mounts BEFORE bearer so spans capture all requests
+      // (including 401s). Scope `/v1/*` so /v1/openapi.json itself also gets a
+      // span without polluting unrelated routes (none today; safe-guards future
+      // additions). Per T1.5 + EC-21 + EC-22.
+      app.use('/v1/*', otelMiddleware(tracer));      // ← only applies to routes BELOW
+      ```
+    recommended_action: |
+      Either (preferred):
+      (a) Fix the comment to honestly state: "OTel span middleware mounts AFTER the openapi doc route — openapi.json is intentionally not traced (high-frequency probe noise). Mounts BEFORE bearer so spans capture 401s on protected routes."
+
+      OR
+
+      (b) If openapi.json SHOULD be observed, move the `app.doc(...)` call below the `app.use('/v1/*', otelMiddleware(...))` line — and re-verify via a new contract test that fetching /v1/openapi.json produces a span. Note this would also re-introduce ordering risk with bearer middleware.
+
+  - id: F-dom-api-2
+    severity: MAJOR
+    file: src/server/openapi-registration.ts
+    line: 111-122
+    plan_ref: "EC-33 absorption (T2.3): `GET /v1/health` returns 200 ok + 503 warming_up per EC-33"
+    domain_anchor: "OpenAPI 3.1 § 4.8.16 Responses Object — every response status the operation can return MUST be documented."
+    summary: |
+      The implementation of `GET /v1/health` returns EITHER 200 (status=ok) OR 503 (status=unavailable, reason=warming_up) — depending on the injected `readinessProbe`. However, the OpenAPI spec registered at `openapi-registration.ts:111-122` for `getHealth` only declares the 200 response — the 503 warming_up branch is absent.
+
+      Consequence: codegen clients (openapi-generator, Swagger UI, Postman) will not surface the 503 case to consumers. Kubernetes operators inspecting the spec to validate readinessProbe wiring will miss the existence of the 503 branch and may misconfigure their probes. The 503 IS a real response; the spec must declare it per OpenAPI semantics.
+
+      Note: `getHealthDb` correctly declares BOTH 200 and 503 (lines 124-136). The omission is specific to `getHealth`.
+    evidence: |
+      ```ts
+      // src/server/openapi-registration.ts:111-122
+      registry.registerPath({
+        method: 'get',
+        path: '/v1/health',
+        operationId: 'getHealth',
+        summary: 'Readiness probe — process alive.',
+        responses: {
+          200: {
+            description: 'Ready.',
+            content: { 'application/json': { schema: z.object({ status: z.literal('ok') }) } },
+          },
+          // ← 503 warming_up branch missing
+        },
+      });
+      ```
+
+      ```ts
+      // src/server/handlers/health.ts:26-29 — implementation DOES return 503
+      if (readinessProbe !== undefined && !readinessProbe()) {
+        return c.json({ status: 'unavailable', reason: 'warming_up' }, 503);
+      }
+      ```
+    recommended_action: |
+      Add a 503 response declaration to the `getHealth` registry path, mirroring the shape used by `getHealthDb` (lines 131-134) but with `reason` literal-typed to `'warming_up'`:
+
+      ```ts
+      503: {
+        description: 'Composition root still warming critical subsystems (Memory factory boot).',
+        content: {
+          'application/json': {
+            schema: z.object({
+              status: z.literal('unavailable'),
+              reason: z.literal('warming_up'),
+            }),
+          },
+        },
+      },
+      ```
+
+  - id: F-dom-api-3
+    severity: MAJOR
+    file: src/server/handlers/forget.ts
+    line: 11-35
+    plan_ref: "ADR D12 — `POST /v1/forget ... accept EXACTLY ONE scope tier per request body: userId XOR sessionId XOR agentId XOR skillRepoId`"
+    domain_anchor: "v0.4b T7.1 PUBLIC API BREAKING — `Memory.forget(memoryId, options?)` is TOP-LEVEL on Memory (no scope)"
+    summary: |
+      ADR D12 in the plan explicitly enumerates `POST /v1/forget` as one of the 4 verbs that "accept EXACTLY ONE scope tier per request body". The body shape prescribed by ADR D12 is incompatible with the actual v0.4b T7.1 PUBLIC API where `Memory.forget(memoryId, options?)` is top-level (no scope).
+
+      The implementation chose v0.4b T7.1 (correctly — that is the SDK contract): `ForgetBody = z.object({ memoryId: z.string().uuid(), hard: z.boolean().optional() }).strict()`. No scope tier. The forget handler dispatches `memory.forget(memoryId, hard)` directly.
+
+      This is internally CONSISTENT with the SDK but DIRECTLY CONTRADICTS ADR D12 text. The plan needs an erratum: either ADR D12 amended to exclude forget from the scope-tier requirement, OR an inline footnote in D12 clarifying that "exactly one scope tier" applies only to remember/recall/reflect because forget operates on a memoryId.
+
+      The T1.2 TDD test for forget (`returns 204; subsequent recall excludes id`) accepted the no-scope shape — TDD tacitly absorbed the divergence without surfacing it. This is the kind of plan-ADR drift cycle-review is designed to catch.
+    evidence: |
+      Plan ADR D12 (line 239):
+      "POST /v1/remember, POST /v1/recall, POST /v1/forget, POST /v1/reflect accept EXACTLY ONE scope tier per request body: userId XOR sessionId XOR agentId XOR skillRepoId."
+
+      Implementation:
+      ```ts
+      // src/server/schemas.ts:71-76
+      export const ForgetBody = z
+        .object({
+          memoryId: z.string().uuid(),
+          hard: z.boolean().optional(),
+        })
+        .strict();
+      // ↑ no scope fields, no superRefine
+      ```
+
+      ```ts
+      // src/server/handlers/forget.ts:32-34
+      const { memoryId, hard } = parsed.data;
+      await memory.forget(memoryId, hard !== undefined ? { hard } : undefined);
+      // ↑ top-level memory.forget, not scoped
+      ```
+    recommended_action: |
+      File a follow-up plan amendment (or a PR-level erratum note in CHANGELOG and the plan file) stating:
+
+      "**ADR D12 ERRATUM (post-T1.2 review):** the scope-tier-XOR-required requirement applies to `remember`, `recall`, and `reflect`. `POST /v1/forget` accepts `{ memoryId, hard? }` with NO scope tier — consistent with `Memory.forget(memoryId, options?)` v0.4b T7.1 top-level signature. Resolving by memoryId is unambiguous; scope inference would re-introduce the multi-tier ambiguity D12 was written to prevent."
+
+      No code change needed (the implementation already does the right thing); the plan + CHANGELOG need the honest correction.
+
+  - id: F-dom-api-4
+    severity: MAJOR
+    file: src/server/app.ts
+    line: 102-105
+    plan_ref: "Prompt directive — `HTTP status semantics: ... 413 payload too large` + CLAUDE.md Locked names"
+    domain_anchor: "OWASP API Security Top 10 #4 (Unrestricted Resource Consumption); RFC 9110 § 15.5.14 (413 Content Too Large)"
+    summary: |
+      The error envelope mapper correctly translates `ContentTooLargeError` → HTTP 413 with `{ code: 'CONTENT_TOO_LARGE', message: 'Payload exceeds maximum allowed size.' }` envelope (src/server/errors.ts:71-73). However, NOTHING in the request pipeline actually triggers a `ContentTooLargeError` for oversized REST bodies:
+
+      - `safeJson()` (src/server/handlers/remember.ts:37-45) reads via `c.req.text()` UNBOUNDED.
+      - No Hono `bodyLimit` middleware is mounted on `/v1/*`.
+      - No `Content-Length` header check exists in any handler.
+      - No upstream code path throws `ContentTooLargeError` based on incoming-request size (only the LLM extraction pipeline does, deep inside the SDK).
+
+      Consequence: an attacker can POST gigabytes to `/v1/remember`, `/v1/recall`, `/v1/forget`, or `/v1/reflect` and the server will buffer the entire body before zod rejects it. Memory exhaustion DOS surface. The 413 mapping is dead code in the request path — only the SDK's text-length check might fire if the body is structurally valid JSON containing a huge `text` field.
+
+      The prompt's contract explicitly enumerated 413 in the status semantics list. The plan declares ContentTooLargeError handling. The implementation has the envelope mapper but lacks the trigger.
+    evidence: |
+      ```ts
+      // src/server/handlers/remember.ts:37-45
+      async function safeJson(c: Context): Promise<unknown> {
+        const raw = await c.req.text();  // ← unbounded
+        if (raw.trim().length === 0) return EMPTY_BODY;
+        try {
+          return JSON.parse(raw) as unknown;
+        } catch {
+          return MALFORMED_BODY;
+        }
+      }
+      ```
+
+      ```ts
+      // src/server/app.ts:98-105 — no body-limit middleware wired
+      app.use('/v1/*', bearerAuth(authVerifier));
+      app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
+      app.post('/v1/remember', (c) => rememberHandler(c, memory));
+      // ... no `app.use('/v1/*', bodyLimit({maxSize: ...}))`
+      ```
+
+      ```bash
+      $ grep -rn "ContentTooLargeError\|throw new ContentTooLarge" src/server/
+      src/server/errors.ts:24:  ContentTooLargeError,
+      src/server/errors.ts:71:  if (err instanceof ContentTooLargeError) {
+      # ← only the mapper. Zero throws from the server boundary.
+      ```
+    recommended_action: |
+      Either (preferred):
+      (a) Mount `bodyLimit` middleware from `hono/body-limit` with a sensible default (suggested 1 MB; configurable via `CreateServerOptions.maxBodyBytes?: number`). When exceeded, Hono throws which the existing `mapDomainErrorToResponse` can be extended to recognize → 413 envelope.
+
+      OR
+
+      (b) Add an inline `Content-Length` pre-check in `safeJson()` against a constant (e.g., `MAX_BODY_BYTES = 1_048_576`). When `c.req.header('content-length')` exceeds the cap, return `{ code: 'CONTENT_TOO_LARGE', message: '...' }` with status 413 BEFORE reading the body.
+
+      OR
+
+      (c) Honestly remove the 413 / `ContentTooLargeError` branch from the server's envelope mapper and document in the plan that 413 enforcement is deferred to P1 (consumer's reverse-proxy responsibility — Nginx `client_max_body_size`, Caddy `request_body.max_size`). If chosen, update CHANGELOG to surface the gap explicitly to users.
+
+      Whichever path is selected, the prompt's contract requirement ("413 payload too large") needs either real enforcement or an honest deferral entry — current state is "looks enforced but isn't."
+
+  - id: F-dom-api-5
+    severity: MAJOR
+    file: src/server/errors.ts
+    line: 61-63
+    plan_ref: "EC-23 + EC-24 — `Original err.message logged via console.error (NOT returned in body)`"
+    domain_anchor: "12-Factor App § XI (logs) + structured-log signal-to-noise discipline"
+    summary: |
+      `mapDomainErrorToResponse(err)` unconditionally calls `logSanitized(err)` at line 63 — BEFORE checking which mapped error class fired. This means EVERY 422 InvalidScope / 404 MemoryNotFound / 413 ContentTooLarge response ALSO emits a `console.error` log entry. These are legitimate user-input errors (4xx by definition), not operator-actionable system errors.
+
+      Real impact: production log volume on the standalone REST distribution will be polluted by every malformed-bearer / wrong-tier / unknown-memoryId 4xx — which is ordinary consumer noise, not an audit signal. Operators tuning alerting rules ("page on console.error > N/min") will produce false-positive incidents from legitimate validation rejections.
+
+      The plan's EC-23 + EC-24 absorption text addresses the 500 INTERNAL_ERROR sanitization path — making sure pg messages don't leak to clients OR logs. It does NOT prescribe logging legitimate 4xx errors.
+
+      Compare with the Hono ecosystem convention (and `architecture.md § 8 Error handling`): 4xx = consumer error, log at debug/info; 5xx = system error, log at error/warn. Indiscriminate `console.error` on 4xx violates this signal hierarchy.
+    evidence: |
+      ```ts
+      // src/server/errors.ts:61-94
+      export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
+        // Log first so even mapped errors leave an audit trail; redaction is applied.
+        logSanitized(err);  // ← fires for EVERY mapped class
+
+        if (err instanceof InvalidScope || err instanceof EmptyScopeError || ...) {
+          return { status: 422, ... };  // ← user input error, but already logged at error level
+        }
+        // ...
+        return { status: 500, ... };  // ← only this branch needs error-level logging
+      }
+      ```
+    recommended_action: |
+      Move the `logSanitized(err)` call inside the default 500 branch ONLY (where the original message is operator-actionable). For mapped 4xx cases, either don't log OR call a `logSanitizedAtInfo(err)` variant. Suggested shape:
+
+      ```ts
+      export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
+        if (err instanceof InvalidScope || ...) {
+          // 4xx: consumer error; skip the error log
+          return { status: 422, body: { code: 'INVALID_SCOPE', ... } };
+        }
+        // ... other 4xx mapped branches without logSanitized ...
+
+        // 5xx default: log sanitized; this is the operator signal
+        logSanitized(err);
+        return { status: 500, body: { code: 'INTERNAL_ERROR', message: 'Internal server error' } };
+      }
+      ```
+
+      Add a regression test asserting `console.error` is NOT called when an `InvalidScope` is mapped (vi.spyOn assertion).
+
+  - id: F-dom-api-6
+    severity: MINOR
+    file: src/server/handlers/remember.ts
+    line: 11
+    plan_ref: "ADR D11 — `REST handlers compose Memory factory via DI`"
+    domain_anchor: "Clean Code (Inquebrável Rule 10 — KISS) + cross-file import locality"
+    summary: |
+      `safeJson`, `EMPTY_BODY`, `MALFORMED_BODY`, and `scopeOrValidationError` are defined in `src/server/handlers/remember.ts` and RE-EXPORTED at the bottom (line 63). `recall.ts`, `forget.ts`, `reflect.ts` all import them via `./remember.js`.
+
+      This implicit "remember owns the shared utilities" coupling makes:
+      (a) remember.ts misleadingly look like the canonical handler for all 4 verbs;
+      (b) testing remember.ts in isolation requires also stubbing its role as a util provider;
+      (c) future refactor (e.g., splitting remember.ts) risks breaking the other three handlers silently.
+
+      KISS / DRY remediation: extract the shared utilities to a sibling `src/server/handlers/_shared.ts` (or `src/server/utils/body-parse.ts`). Each verb handler then imports from the explicit shared module — no covert coupling via `remember.ts`.
+    evidence: |
+      ```ts
+      // src/server/handlers/remember.ts:63 — re-exports utilities
+      export { safeJson, scopeOrValidationError, EMPTY_BODY, MALFORMED_BODY };
+      ```
+
+      ```ts
+      // src/server/handlers/recall.ts:11
+      import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+
+      // src/server/handlers/forget.ts:12
+      import { EMPTY_BODY, MALFORMED_BODY, safeJson } from './remember.js';
+
+      // src/server/handlers/reflect.ts:13
+      import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './remember.js';
+      ```
+    recommended_action: |
+      Extract to `src/server/handlers/_body-utils.ts` exporting the 4 names. Update remember.ts to import (not own) them. Add a contract test asserting `remember.ts` ≤ 50 LoC (plan T1.2 said "Each handler ≤ 100 LoC" — extraction makes the budget breathing room real).
+
+      Low priority since the coupling is internal to `src/server/handlers/` and tests pass; flag for cleanup before v0.2.0.
+
+  - id: F-dom-api-7
+    severity: MINOR
+    file: src/server/schemas.ts
+    line: 40-69
+    plan_ref: "ADR D12 — superRefine over union; EC-9"
+    domain_anchor: "Zod docs § superRefine vs discriminatedUnion"
+    summary: |
+      The three superRefined bodies (`RememberBody`, `RecallBody`, `ReflectBody`) duplicate the `SCOPE_KEYS` filter + counting logic by referring to the shared `SingleScopeRefine` function (good — DRY honored). However, the OpenAPI registration registers the bodies through `safeParse` shapes that aren't aware of the superRefine constraint at the spec level.
+
+      Result: consumers reading `/v1/openapi.json` see a body shape where ALL FOUR scope fields are `optional` strings → "any combination is valid" misleadingly visible in Swagger UI. The 422 INVALID_SCOPE response is registered (good), but the spec does not communicate the XOR constraint to codegen tools.
+
+      Zod 3.x cannot project superRefine semantics into JSON Schema (well-documented limitation). One canonical workaround: declare each verb's body as a `z.discriminatedUnion('scope', [...])` with a synthetic `scope` discriminator — at the cost of adding a 5th field. This was rejected in ADR D12 alternatives (justifiable).
+
+      Honest disclosure path: add an OpenAPI extension `x-scope-constraint: "exactly one of [userId, sessionId, agentId, skillRepoId] required"` on each affected request body and document in the README "Generated clients may need manual constraint handling for the scope XOR rule".
+    evidence: |
+      ```ts
+      // src/server/schemas.ts:40-49
+      export const RememberBody = z
+        .object({
+          ...ScopeFields,  // ← all 4 optional()
+          text: z.string().min(1),
+          // ...
+        })
+        .strict()
+        .superRefine(SingleScopeRefine);  // ← invisible to OpenAPI codegen
+      ```
+
+      ```yaml
+      # Resulting OpenAPI fragment (simplified):
+      RememberBody:
+        type: object
+        properties:
+          userId: { type: string }       # ← appears independently optional
+          sessionId: { type: string }
+          agentId: { type: string }
+          skillRepoId: { type: string }
+          text: { type: string }
+        required: [text]
+        # ← no XOR documented
+      ```
+    recommended_action: |
+      Either (preferred):
+      (a) Add a sentence to each request-body OpenAPI registration's `description` field: "Exactly ONE of `userId`, `sessionId`, `agentId`, `skillRepoId` MUST be provided. Multi-tier or zero-tier bodies return 422 INVALID_SCOPE."
+
+      OR
+
+      (b) Tag each body with `x-scope-constraint: "exactly-one [userId, sessionId, agentId, skillRepoId]"` extension key (no codegen impact, but discoverable for any tool that respects extensions).
+
+      Low priority; documents an honest limitation rather than fixing a bug.
+
+  - id: F-dom-api-8
+    severity: MINOR
+    file: src/server/handlers/scopes.ts
+    line: 113
+    plan_ref: "EC-15 + SEPA pre-RED iter 4 MAJOR — `O(scope_size) per request. A dedicated cycle MAY add GetAllOptions.cursor to push the predicate into the store`"
+    domain_anchor: "Inquebrável Rule 3 — honesty about performance trade-offs at production-ready surfaces"
+    summary: |
+      `scopesHandler` calls `scoped.getAll()` which returns ALL items in the scope, then filters and slices in-memory. For a scope with N memories, the cost of EVERY paginated request is O(N) memory + O(N) network from the store layer — defeating the purpose of pagination at high scope counts.
+
+      The JSDoc comment (line 12-15) honestly discloses the trade-off and points at a future cycle. However:
+      - The CHANGELOG entry for Phase 1 should surface this performance characteristic so consumers don't deploy /v1/scopes against million-memory scopes expecting it to scale.
+      - The OpenAPI spec should add a `description` to the operation noting "this endpoint is O(scope_size); not suitable for scopes > 10000 memories. A future release MAY push pagination into the store layer."
+
+      Without consumer-visible disclosure, users will hit production memory pressure when their scopes grow — a "production-ready" claim (per `/dogfood` gate, currently EVIDENCE_INSUFFICIENT) cannot be made for this endpoint.
+    evidence: |
+      ```ts
+      // src/server/handlers/scopes.ts:113-127 — in-memory pagination
+      const all = await scoped.getAll();          // ← O(scope_size) wire fetch
+      let filtered: readonly MemoryItem[] = all;
+      if (cursor !== null) {
+        const cutoff = new Date(cursor.lastCreatedAt).getTime();
+        filtered = all.filter((m) => { /* in-memory predicate */ });
+      }
+      const page = filtered.slice(0, limit);      // ← post-filter slice
+      ```
+    recommended_action: |
+      Add to `openapi-registration.ts:138-163` (`listScopeMemories`) the operation description: "Paginated listing of memories under a scope. **Performance note:** v0.1.0-alpha implementation is O(scope_size) per request — `scoped.getAll()` returns all items before in-memory pagination. Not recommended for scopes > 10000 memories. Future releases MAY push pagination into the store layer (tracked as P1)."
+
+      Add CHANGELOG `## [Unreleased] ### Added` entry: "GET /v1/scopes/:type/:id/memories paginated listing (in-memory pagination, O(scope_size) — see operation description for scaling note)."
+
+  - id: F-dom-api-9
+    severity: MINOR
+    file: src/server/handlers/forget.ts
+    line: 26-31
+    plan_ref: "Prompt directive — Error envelope shape { code, message, field? } across all error responses"
+    domain_anchor: "Envelope consistency for forget's zod validation failures"
+    summary: |
+      When `ForgetBody.safeParse` fails (e.g., `memoryId` is not a valid UUID), the handler returns `{ code: 'INVALID_BODY', message: <first issue message> }` (line 28-29). This is inconsistent with the other three verbs that emit `INVALID_SCOPE` for scope-tier issues AND `INVALID_BODY` for other issues — those return via `scopeOrValidationError(err, c)`.
+
+      For forget, ALL validation failures collapse to `INVALID_BODY`. While forget has no scope, a malformed UUID is a different defect class from "body is missing required field". The envelope's `field` optional was designed for exactly this — to point at the offending JSON path. The forget handler never populates `field`.
+
+      The other handlers also rarely populate `field` (only the scope-resolver does, line 53). The contract `{ code, message, field? }` is honored shape-wise, but `field` is only ever sourced from the INVALID_SCOPE branch — for InvalidBody, the JSON path of the failing field never reaches the consumer.
+    evidence: |
+      ```ts
+      // src/server/handlers/forget.ts:26-31
+      const parsed = ForgetBody.safeParse(json);
+      if (!parsed.success) {
+        return c.json(
+          { code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Body invalid' },
+          422,
+        );
+        // ← field never populated; consumer can't programmatically map error to UI form
+      }
+      ```
+    recommended_action: |
+      Either (preferred):
+      (a) Extract a shared `zodIssueToEnvelope(err)` helper that, when the failing issue has a `path` (e.g., `['memoryId']`), populates `{ code: 'INVALID_BODY', message, field: 'memoryId' }`. Apply to ALL handlers' `INVALID_BODY` branch.
+
+      OR
+
+      (b) Honestly document in the README that `field` is only populated for scope-tier rejection at v0.1.0-alpha; broader field-level populating deferred to a future cycle.
+
+      Low priority; envelope shape is correct, just under-populated.
+
+risks_for_human_review:
+  - "F-dom-api-3 ADR D12 vs forget shape: requires plan author decision on whether D12 amendment is the right scope of fix or whether forget should accept a scope tier (would be SDK-breaking)."
+  - "F-dom-api-4 413 enforcement: choice between bodyLimit middleware (adds runtime cost), Content-Length pre-check (cheap but bypassable by clients omitting the header), or honest deferral (transparent but ships a known DOS surface)."
+  - "F-dom-api-5 logSanitized always-logs: changing log level may break operator log-parsing pipelines built around the current behavior. Worth a CHANGELOG note."
+
+honest_disclosure:
+  - "Did not exercise the test suite — could not run `npm test` here. All findings are read-only inspection of source + tests."
+  - "F-dom-api-1 verified empirically via standalone Hono smoke test outside the repo's test infra (Hono v4.x route ordering semantics)."
+  - "Did not validate the produced OpenAPI document against a live `swagger-parser` invocation — relied on test 1 of openapi.test.ts as the authority for spec validity."
+  - "Did not deeply audit the `@hono/zod-openapi` v0.18.0 behavior re: zod superRefine projection into JSON Schema (F-dom-api-7) — flagged as MINOR based on broader zod ecosystem documentation."
+
+domain_specific_strengths:
+  - "Bearer auth correctly length-checks before crypto.timingSafeEqual (EC-4) — verified at src/server/auth/bearer-verifier.ts:58-66."
+  - "Case-insensitive Bearer scheme via /^bearer\\s+(.+)$/i (EC-2) — RFC 6750 compliant."
+  - "WWW-Authenticate: Bearer header on all 401 responses — middleware.ts:43, 52, 63."
+  - "DIP discipline preserved: src/server/ never imports pg (verified by grep); dbProbe + tracer injected per ADR D11."
+  - "ADD-only invariant respected: no PUT/PATCH/UPDATE verb in the REST surface; mutation is forget + remember."
+  - "Two-layer cursor validation (base64 decode → JSON parse → CursorSchema.safeParse) correctly defends against Buffer.from(garbage,'base64') silent acceptance (EC-15)."
+  - "Auth-exempt routes (openapi.json, health, health/db) registered BEFORE bearerAuth middleware — Hono ordering exploited correctly for EC-19 and T3.5 health-exempt."
+  - "OTel fail-quiet discipline correct: every span op wrapped in try/catch (EC-22)."
+  - "Sanitized 500 envelope correct: no raw err.message, no stack trace, no pg-specific strings echoed."
+  - "License MIT correctly advertised in OpenAPI info.license per T1.4 acceptance."
