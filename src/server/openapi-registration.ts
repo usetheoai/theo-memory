@@ -21,7 +21,11 @@ import {
   RememberBody,
 } from './schemas.js';
 
-const ScopeTypeEnum = z.enum(['user', 'session', 'agent', 'skill']);
+const ScopeTypeEnum = z
+  .enum(['user', 'session', 'agent', 'skill'])
+  .describe(
+    "Scope type for path params. Values 'user'|'session'|'agent' list memories under the corresponding tier. Value 'skill' returns 501 SKILL_LISTING_NOT_IMPLEMENTED — skill listing is SDK-only via Memory.skills(...) per ADR-0010.",
+  );
 
 const MemoryItemSchema = z.object({
   id: z.string().uuid(),
