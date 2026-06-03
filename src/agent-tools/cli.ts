@@ -31,6 +31,7 @@
  */
 import { Command, Option } from 'commander';
 
+import { runHealth } from './run-health.js';
 import { runMcpServer } from './run-mcp-server.js';
 import type { RunMcpServerOptions } from './run-mcp-server.js';
 import { runMigrate } from './run-migrate.js';
@@ -50,15 +51,6 @@ export function applyAliasArgvShim(argv: string[]): string[] {
   const next = argv.slice();
   next.splice(2, 0, 'mcp');
   return next;
-}
-
-function stubNotImplemented(taskRef: string): () => Promise<never> {
-  return async () => {
-    await Promise.resolve();
-    process.stderr.write(`themory: subcommand not yet implemented (lands in ${taskRef}).\n`);
-    process.exit(1);
-    throw new Error('unreachable'); // satisfies typecheck for never-return
-  };
 }
 
 export function buildProgram(): Command {
@@ -118,7 +110,11 @@ export function buildProgram(): Command {
   program
     .command('health')
     .description('Probe DI graph + DB readiness; exit 0 only when both green.')
-    .action(stubNotImplemented('T2.5'));
+    .option('--deep', 'Additionally invoke embedder.embed + llm.generateChat smoke probes')
+    .action(async (opts: { deep?: boolean }) => {
+      const exitCode = await runHealth({ deep: opts.deep === true });
+      process.exit(exitCode);
+    });
 
   return program;
 }
