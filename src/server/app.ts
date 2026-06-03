@@ -6,7 +6,7 @@
  *
  * @see Plan theo-memory-standalone-p0 § T1.2 + ADR D11 (DI factory shape)
  */
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
 
 import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import type { Memory } from '../core/memory-store.js';
@@ -18,6 +18,7 @@ import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopesHandler } from './handlers/scopes.js';
+import { registerAllPaths } from './openapi-registration.js';
 
 export interface CreateServerOptions {
   readonly memory: Memory;
@@ -32,9 +33,28 @@ export interface CreateServerOptions {
   readonly dbProbe?: () => Promise<void>;
 }
 
-export function createApp(options: CreateServerOptions): Hono {
+export function createApp(options: CreateServerOptions): OpenAPIHono {
   const { memory, authVerifier, dbProbe } = options;
-  const app = new Hono();
+  const app = new OpenAPIHono();
+
+  // EC-19 absorption — /v1/openapi.json MUST resolve auth-exempt even when
+  // THEMEMORY_API_KEY is configured. Codegen tools (openapi-generator,
+  // Postman, Swagger UI) fetch the spec BEFORE having credentials. Mount
+  // BEFORE the bearer middleware so the route resolves first (Hono executes
+  // middleware along the matched path; ordering here is load-bearing per
+  // SEPA pre-RED iter 5 CRITICAL).
+  registerAllPaths(app.openAPIRegistry);
+  app.doc('/v1/openapi.json', {
+    openapi: '3.1.0',
+    info: {
+      title: '@usetheo/memory REST API',
+      version: '0.1.0-alpha',
+      description:
+        'Standalone REST distribution surface for TheMemory — 4 verbs ' +
+        '(remember/recall/forget/reflect) + health + paginated scope listing.',
+      license: { name: 'MIT', url: 'https://opensource.org/licenses/MIT' },
+    },
+  });
 
   app.use('/v1/*', bearerAuth(authVerifier));
 
