@@ -232,6 +232,36 @@ describe('T1.2 — POST /v1/reflect', () => {
   });
 });
 
+describe('T3.5 absorption — health endpoints are auth-exempt', () => {
+  test('11a. GET /v1/health returns 200 WITHOUT bearer token even when THEMEMORY_API_KEY set', async () => {
+    process.env['THEMEMORY_API_KEY'] = 'sk-secret';
+    try {
+      const memory = stubMemory(stubScopedMemory());
+      const app = createServer({ memory });
+      const res = await app.fetch(new Request('http://localhost/v1/health'));
+      expect(res.status).toBe(200);
+    } finally {
+      delete process.env['THEMEMORY_API_KEY'];
+    }
+  });
+
+  test('11b. GET /v1/health/db returns 503 (no probe) without bearer even when THEMEMORY_API_KEY set', async () => {
+    // The point: NOT 401. 503 is the honest no-probe-configured response;
+    // 401 would mean the bearer middleware ate the request before the
+    // health handler ran — the bug T3.5 absorption fixes.
+    process.env['THEMEMORY_API_KEY'] = 'sk-secret';
+    try {
+      const memory = stubMemory(stubScopedMemory());
+      const app = createServer({ memory });
+      const res = await app.fetch(new Request('http://localhost/v1/health/db'));
+      expect(res.status).toBe(503);
+      expect(res.status).not.toBe(401);
+    } finally {
+      delete process.env['THEMEMORY_API_KEY'];
+    }
+  });
+});
+
 describe('T1.2 — createServer wires middleware + handles unknown errors', () => {
   test('11. wires bearer middleware when authVerifier provided', async () => {
     const memory = stubMemory(stubScopedMemory());

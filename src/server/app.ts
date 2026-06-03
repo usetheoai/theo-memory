@@ -83,10 +83,20 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // span without polluting unrelated routes (none today; safe-guards future
   // additions). Per T1.5 + EC-21 + EC-22.
   app.use('/v1/*', otelMiddleware(tracer));
-  app.use('/v1/*', bearerAuth(authVerifier));
 
+  // Health endpoints (T3.5 absorption — surfaced by the docker-compose
+  // healthcheck round-trip): orchestrator liveness/readiness probes do not
+  // carry credentials, so `/v1/health` + `/v1/health/db` MUST be
+  // auth-exempt even when THEMEMORY_API_KEY is configured. Mount BEFORE
+  // the bearer middleware so the routes resolve first along the matched
+  // path (same load-bearing ordering as `/v1/openapi.json` per EC-19).
+  // Mirrors RFC 9110 + OWASP `/healthz` convention — gated health
+  // endpoints break Kubernetes / docker-compose `--wait` readiness gates.
   app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
   app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+
+  app.use('/v1/*', bearerAuth(authVerifier));
+
   app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
 
   app.post('/v1/remember', (c) => rememberHandler(c, memory));
