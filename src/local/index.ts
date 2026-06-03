@@ -33,6 +33,11 @@ import type { Pool } from 'pg';
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
 import type { Embedder } from '../core/dip/embedder.js';
+import {
+  type RecallCacheStore,
+  type RecallCacheStoreConfig,
+  validateRecallCacheStoreConfig,
+} from '../core/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
 // BiTemporalNotSupportedLocally NOT imported here per ADR-0011 — local runtime
@@ -41,6 +46,7 @@ import type { VectorStore } from '../core/dip/vector-store.js';
 // for forward-compat with cloud runtime.
 import {
   EmbeddingMismatch,
+  InvalidCacheConfig,
   InvalidEmbeddingDim,
   InvalidScope,
   MemoryNotFound,
@@ -79,6 +85,7 @@ import {
 } from './eviction/index.js';
 import type { LocalEvictionConfig } from './eviction/index.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
+import { PgvectorRecallCacheStore } from './recall-cache/pgvector-recall-cache-store.js';
 import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 
@@ -135,6 +142,28 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
    */
   readonly embeddingDim?: number;
+  /**
+   * semantic-recall-cache-v1-5 T2.1 — opt-in semantic recall cache.
+   *
+   * Dual-shape (Blueprint D5):
+   *   - `RecallCacheStoreConfig` (POJO): factory constructs a default
+   *     `PgvectorRecallCacheStore` against the same Pool that backs the
+   *     vector store. Config is validated at factory time per
+   *     `architecture.md § 8` fail-fast; `InvalidCacheConfig` thrown
+   *     before any side effect.
+   *   - `RecallCacheStore` (DIP instance): used verbatim — caller has
+   *     already constructed an impl (e.g., Redis-backed in v1.5.x, or
+   *     a test double).
+   *
+   * Cache opt-in requires the vector store to be a `PgvectorStore`
+   * (cache backing table lives in Postgres; in-memory adapter has no
+   * matching surface). The factory throws `InvalidCacheConfig` when
+   * config shape is provided without a Postgres vector store.
+   *
+   * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.1
+   * @see src/core/dip/recall-cache-store.ts (13th DIP)
+   */
+  readonly recallCache?: RecallCacheStoreConfig | RecallCacheStore;
 }
 
 /**
@@ -239,6 +268,140 @@ function assertScopeIsNonEmpty(scope: Scope): void {
   }
 }
 
+/**
+ * semantic-recall-cache-v1-5 T2.1 — discriminator between the dual-shape config.
+ * A pre-constructed DIP impl has the 4 method names; a POJO config does not.
+ */
+function isRecallCacheStoreInstance(value: unknown): value is RecallCacheStore {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as RecallCacheStore).get === 'function' &&
+    typeof (value as RecallCacheStore).set === 'function' &&
+    typeof (value as RecallCacheStore).invalidateScope === 'function' &&
+    typeof (value as RecallCacheStore).clearExpired === 'function'
+  );
+}
+
+/**
+ * semantic-recall-cache-v1-5 T2.1 — EC-2 absorption.
+ *
+ * Probe `recall_cache.query_embedding` `atttypmod` to detect embedder/table
+ * dim mismatch caused by mid-deployment embedder swap WITHOUT a corresponding
+ * `runMigrations({embeddingDim})`. Mirrors v1.4 `adapters-openrouter-local-embedder`
+ * T2.1 pattern — pgvector v0.5.1 stores N directly in `atttypmod` (verified
+ * empirically by that cycle).
+ *
+ * Returns `null` when the table does not yet exist (pre-migration state) so
+ * the factory can defer the check until the consumer runs `runMigrations()`.
+ */
+/**
+ * semantic-recall-cache-v1-5 T2.2 — EC-10 absorption: derive the scope of a
+ * memory row from its persisted payload so `LocalMemory.forget()` can issue
+ * a targeted `invalidateScope` instead of an all-scope sweep. The payload
+ * carries `user_id` / `session_id` / `agent_id` columns (the same shape
+ * `runExtractionPipeline` persisted at write time). When the row is too old
+ * or malformed to carry a recognizable tier, return `undefined` so the caller
+ * can no-op (cache continues serving until TTL — bounded staleness).
+ */
+function deriveScopeFromPayload(payload: Readonly<Record<string, unknown>>): Scope | undefined {
+  const userId = payload['user_id'];
+  const sessionId = payload['session_id'];
+  const agentId = payload['agent_id'];
+  // session is the most specific tier; prefer it when present.
+  if (typeof sessionId === 'string' && sessionId.length > 0) {
+    return { kind: 'session', sessionId };
+  }
+  if (typeof agentId === 'string' && agentId.length > 0) {
+    return { kind: 'agent', agentId };
+  }
+  if (typeof userId === 'string' && userId.length > 0) {
+    return { kind: 'user', userId };
+  }
+  return undefined;
+}
+
+/**
+ * semantic-recall-cache-v1-5 T2.1 — resolve TTL per scope tier from the config.
+ * Honors per-tier override → default 4-tier table fallback. Mirrors
+ * `RecallCacheStore` default behavior so wraps without an explicit config
+ * receive the same values as the impl's internal default.
+ */
+function resolveCacheTtl(
+  scope: Scope,
+  cacheConfig: RecallCacheStoreConfig | RecallCacheStore | undefined,
+): number {
+  // Default fallback table (mirror DEFAULT_TTL_SECONDS_BY_SCOPE_TIER without
+  // importing the constant — keeps the wiring module readable).
+  const defaults = { user: 86_400, agent: 3_600, session: 600, repo: 3_600 } as const;
+  if (cacheConfig !== undefined && !isRecallCacheStoreInstance(cacheConfig)) {
+    const override = cacheConfig.ttlSecondsByScopeTier?.[scope.kind];
+    if (override !== undefined) return override;
+  }
+  return defaults[scope.kind];
+}
+
+async function probeCacheTableDim(pool: Pool): Promise<number | null> {
+  const { rows } = await pool.query<{ atttypmod: number }>(
+    `SELECT a.atttypmod
+       FROM pg_attribute a
+       JOIN pg_class c ON c.oid = a.attrelid
+      WHERE c.relname = 'recall_cache'
+        AND a.attname = 'query_embedding'
+        AND a.attisdropped = false`,
+  );
+  const row = rows[0];
+  if (row === undefined) return null;
+  return row.atttypmod;
+}
+
+/**
+ * semantic-recall-cache-v1-5 T2.1 — dual-shape factory resolver.
+ *
+ * Returns `undefined` when the consumer did not opt in. Otherwise:
+ *   - DIP instance shape: used verbatim (escape hatch — caller built impl).
+ *   - POJO config shape: validates config → probes the table dim against
+ *     `embeddingDim` (EC-2 mismatch detection) → constructs
+ *     `PgvectorRecallCacheStore` against the vector store's pool.
+ *
+ * Cache config provided alongside a non-Postgres vector store is rejected
+ * (the default impl lives in Postgres; the in-memory adapter has no
+ * matching surface).
+ */
+async function resolveRecallCacheStore(
+  config: LocalMemoryConfig,
+  embedderDim: number,
+): Promise<RecallCacheStore | undefined> {
+  const optIn = config.recallCache;
+  if (optIn === undefined) return undefined;
+  if (isRecallCacheStoreInstance(optIn)) {
+    return optIn;
+  }
+  // POJO config: validate FIRST so InvalidCacheConfig fires before any DB call.
+  validateRecallCacheStoreConfig(optIn);
+  if (!(config.vectorStore instanceof PgvectorStoreClass)) {
+    throw new InvalidCacheConfig(
+      'recallCache config requires a PgvectorStore vector store (got ' +
+        `${config.vectorStore.constructor.name}). The default ` +
+        'PgvectorRecallCacheStore lives in Postgres; supply a custom ' +
+        'RecallCacheStore instance to use a non-Postgres backend.',
+    );
+  }
+  const pool = config.vectorStore.poolForEviction;
+  // EC-2 absorption: detect embedder/cache-table dim mismatch caused by
+  // mid-deployment embedder swap WITHOUT a corresponding runMigrations
+  // ({embeddingDim}). Pre-migration null-table case is honored (returns null);
+  // the consumer is expected to call runMigrations BEFORE createLocalMemory.
+  const cacheTableDim = await probeCacheTableDim(pool);
+  if (cacheTableDim !== null && cacheTableDim !== embedderDim) {
+    throw new InvalidCacheConfig(
+      `embedder dim ${embedderDim} mismatches recall_cache.query_embedding dim ${cacheTableDim}; ` +
+        `run runMigrations(pool, { embeddingDim: ${embedderDim} }) OR DELETE FROM recall_cache before retrying`,
+    );
+  }
+  return new PgvectorRecallCacheStore(pool, optIn);
+}
+
 interface VectorStoreWithDerivedInsert {
   insertDerivedMemory(args: {
     text: string;
@@ -285,6 +448,8 @@ class LocalScopedMemory implements ScopedMemory {
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
     /** v0.4a EC-7: shared pending-reflections set owned by LocalMemory. */
     private readonly pendingReflections: Set<Promise<unknown>> = new Set(),
+    /** semantic-recall-cache-v1-5 T2.1 — opt-in cache wrap; undefined = unchanged behavior. */
+    private readonly recallCacheStore: RecallCacheStore | undefined = undefined,
   ) {}
 
   async remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]> {
@@ -308,6 +473,21 @@ class LocalScopedMemory implements ScopedMemory {
         await this.config.postRememberHook(this.scope);
       } catch {
         // Eviction failures are observability-only; do not poison remember().
+      }
+    }
+
+    // semantic-recall-cache-v1-5 T2.2 — Item 19 AC#3: write-trigger cache
+    // invalidation post-success. EC-11 absorption: AWAITED sequentially so
+    // the consumer's next recall() in the same scope sees the fresh post-write
+    // state without races. Failures are logged loudly but do NOT poison
+    // remember() — cache failure is a degraded path (callers fall through to
+    // the 9-step pipeline on the next recall).
+    if (this.recallCacheStore !== undefined) {
+      try {
+        await this.recallCacheStore.invalidateScope(this.scope);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[themory] recall-cache invalidateScope (remember) failed:', err);
       }
     }
 
@@ -342,11 +522,40 @@ class LocalScopedMemory implements ScopedMemory {
     if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
       throw new InvalidScope('asOf must be a valid Date');
     }
-    return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
+
+    // semantic-recall-cache-v1-5 T2.1 — cache applicability boundary (ADR D8).
+    // EC-4 + EC-5 absorption: v1.5.0 cache key is (scope_key, query_embedding)
+    // per Blueprint D4 — it does NOT include `asOf` (bi-temporal) OR
+    // `attributedTo` (multi-peer). Serving cached current/unfiltered results
+    // when the consumer asked for a historical OR peer-filtered slice would be
+    // a correctness bug (Inquebrável Rule 3). BYPASS path: when EITHER option
+    // is set, skip the cache entirely (no get, no set).
+    const cache = this.recallCacheStore;
+    const cacheApplicable =
+      cache !== undefined && options?.asOf === undefined && options?.attributedTo === undefined;
+
+    if (!cacheApplicable || cache === undefined) {
+      return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
+        vectorStore: this.config.vectorStore,
+        embedder: this.config.embedder,
+        ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
+      }, options);
+    }
+
+    // Cache-aware path: embed once, consult cache, populate on miss.
+    const queryEmbedding = await this.config.embedder.embed(query);
+    const cached = await cache.get(queryEmbedding, this.scope);
+    if (cached !== undefined) {
+      return [...cached.results];
+    }
+    const results = await runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
     }, options);
+    const ttlSeconds = resolveCacheTtl(this.scope, this.config.recallCache);
+    await cache.set(queryEmbedding, this.scope, results, ttlSeconds);
+    return results;
   }
 
   async reflect(options?: ReflectOptions): Promise<ReflectionResult> {
@@ -491,6 +700,19 @@ class LocalScopedMemory implements ScopedMemory {
       if (this.reflectionPolicy.onReflectionEnd !== undefined) {
         await this.reflectionPolicy.onReflectionEnd(this.scope, result);
       }
+      // semantic-recall-cache-v1-5 T2.2 — EC-6 absorption: reflect() produces
+      // derived memories (v0.4a) + distillation rows (v0.7). Without scope
+      // invalidation, the cache serves stale results post-reflect for the
+      // same scope. Same correctness gate as remember/forget per Item 19 AC#3.
+      // Awaited sequentially (EC-11). Failures logged but do NOT poison reflect().
+      if (this.recallCacheStore !== undefined && persisted.length > 0) {
+        try {
+          await this.recallCacheStore.invalidateScope(this.scope);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('[themory] recall-cache invalidateScope (reflect) failed:', err);
+        }
+      }
       return result;
     } catch (err) {
       if (this.reflectionPolicy.onReflectionEnd !== undefined) {
@@ -530,6 +752,8 @@ class LocalMemory implements Memory {
   constructor(
     private readonly config: LocalMemoryConfig,
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
+    /** semantic-recall-cache-v1-5 T2.1 — undefined when cache disabled. */
+    private readonly recallCacheStore: RecallCacheStore | undefined = undefined,
   ) {}
 
   user(userId: string): ScopedMemory {
@@ -540,6 +764,7 @@ class LocalMemory implements Memory {
       this.config,
       this.reflectionPolicy,
       this.pendingReflections,
+      this.recallCacheStore,
     );
   }
 
@@ -551,6 +776,7 @@ class LocalMemory implements Memory {
       this.config,
       this.reflectionPolicy,
       this.pendingReflections,
+      this.recallCacheStore,
     );
   }
 
@@ -562,6 +788,7 @@ class LocalMemory implements Memory {
       this.config,
       this.reflectionPolicy,
       this.pendingReflections,
+      this.recallCacheStore,
     );
   }
 
@@ -604,6 +831,11 @@ class LocalMemory implements Memory {
     if (existing === null) {
       throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: strict-mode forget throws on missing id)`);
     }
+    // semantic-recall-cache-v1-5 T2.2 — EC-10 absorption: derive the memory's
+    // scope BEFORE the delete so we can issue a targeted `invalidateScope`
+    // instead of an all-scope sweep. Falls back to undefined when the payload
+    // does not carry any scope column (defensive — pre-v0.1 rows in theory).
+    const scopeFromMemory = deriveScopeFromPayload(existing.payload);
     const hardDelete = options?.hard === true;
     const isPgStore = this.config.vectorStore instanceof PgvectorStoreClass;
     if (hardDelete || !isPgStore) {
@@ -628,6 +860,18 @@ class LocalMemory implements Memory {
         );
       } catch {
         // Silent swallow — history persistence failure must not block forget
+      }
+    }
+    // semantic-recall-cache-v1-5 T2.2 — Item 19 AC#3 cache invalidation
+    // post-success. EC-11: sequentially awaited. EC-10: targeted to the
+    // memory's resolved scope when discoverable; otherwise no-op (the cache
+    // simply continues serving — slightly stale but bounded by TTL).
+    if (this.recallCacheStore !== undefined && scopeFromMemory !== undefined) {
+      try {
+        await this.recallCacheStore.invalidateScope(scopeFromMemory);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[themory] recall-cache invalidateScope (forget) failed:', err);
       }
     }
   }
@@ -761,8 +1005,14 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   await probeEmbedder(config.embedder, effectiveDim);
   await config.vectorStore.initialize();
 
+  // semantic-recall-cache-v1-5 T2.1 — opt-in cache wiring.
+  // Resolved BEFORE the eviction branch so both eviction-on and eviction-off
+  // paths get the cache (the two features are orthogonal — eviction touches
+  // memories; cache touches recall_cache).
+  const recallCacheStore = await resolveRecallCacheStore(config, effectiveDim);
+
   if (config.eviction === undefined) {
-    const memory = new LocalMemory(config, config.reflectionPolicy);
+    const memory = new LocalMemory(config, config.reflectionPolicy, recallCacheStore);
     return Object.assign(memory, { dispose: (): Promise<void> => Promise.resolve() });
   }
 
@@ -809,7 +1059,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
       ? { ...config, postRememberHook }
       : config;
 
-  const memory = new LocalMemory(augmentedConfig, config.reflectionPolicy);
+  const memory = new LocalMemory(augmentedConfig, config.reflectionPolicy, recallCacheStore);
   const dispose = (): Promise<void> => {
     if (stopCron !== undefined) {
       stopCron();
