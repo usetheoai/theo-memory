@@ -33,6 +33,8 @@ import { Command, Option } from 'commander';
 
 import { runMcpServer } from './run-mcp-server.js';
 import type { RunMcpServerOptions } from './run-mcp-server.js';
+import { runServer } from './run-server.js';
+import type { RunServerOptions } from './run-server.js';
 
 const ALIAS_PATTERN = /themory-mcp(?:\.(?:js|mjs|cjs|ts))?$/;
 
@@ -91,7 +93,21 @@ export function buildProgram(): Command {
   program
     .command('server')
     .description('Start the REST API server on PORT (default 8080).')
-    .action(stubNotImplemented('T2.3'));
+    .option('--port <number>', 'Port to bind (1..65535)', (raw: string) => {
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isInteger(n) || n <= 0 || n > 65_535) {
+        throw new Error(`Invalid --port: ${raw} (must be an integer in 1..65535).`);
+      }
+      return n;
+    })
+    .option('--host <address>', 'Bind host (default 0.0.0.0)')
+    .action(async (opts: { port?: number; host?: string }) => {
+      const options: RunServerOptions = {
+        ...(opts.port !== undefined ? { port: opts.port } : {}),
+        ...(opts.host !== undefined ? { host: opts.host } : {}),
+      };
+      await runServer(options);
+    });
 
   program
     .command('migrate')

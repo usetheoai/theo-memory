@@ -42,10 +42,21 @@ export interface CreateServerOptions {
    * `createLocalMemory({ tracer })`.
    */
   readonly tracer?: Tracer;
+  /**
+   * Optional readiness predicate consulted by `GET /v1/health` per EC-33.
+   * Returns `true` once the composition root has finished warming critical
+   * subsystems (typically: `createLocalMemory(...)` resolved). While the
+   * probe returns `false`, `/v1/health` answers 503 `warming_up` so
+   * orchestrators (Kubernetes readinessProbe, ECS health) do not route
+   * traffic until the Memory factory has booted. When omitted, the gate
+   * is a no-op and `/v1/health` answers 200 immediately (backward compat
+   * for callers that pre-warm before invoking `createServer`).
+   */
+  readonly readinessProbe?: () => boolean;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe } = options;
   const app = new OpenAPIHono();
 
   // EC-19 absorption — /v1/openapi.json MUST resolve auth-exempt even when
@@ -74,7 +85,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   app.use('/v1/*', otelMiddleware(tracer));
   app.use('/v1/*', bearerAuth(authVerifier));
 
-  app.get('/v1/health', (c) => healthHandler(c));
+  app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
   app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
   app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
 
