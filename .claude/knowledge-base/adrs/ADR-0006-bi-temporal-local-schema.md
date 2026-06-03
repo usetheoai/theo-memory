@@ -1,6 +1,6 @@
 # ADR-0006: Bi-temporal columns — schema-yes-in-local, query-API-no-until-v0.5
 
-- **Status:** Accepted
+- **Status:** Accepted; runtime-clause SUPERSEDED IN PART by [ADR-0011](./ADR-0011-bi-temporal-local-runtime-gate-lift.md) (2026-06-02). The SCHEMA clause (path c chose to provision `t_valid`/`t_invalid` from v0.1) is REINFORCED by ADR-0011's Graphiti prior-art finding. The RUNTIME clause ("local v0.1 throws `BiTemporalNotSupportedLocally` on `asOf`") is lifted in v1.1 — local `recall()` HONORS `asOf` from v1.1 onward. See ADR-0011 for the empirical evidence + sign-off audit trail.
 - **Date:** 2026-05-22
 - **Plan:** [`memory-contract-v0-0-plan.md`](../plans/memory-contract-v0-0-plan.md) § ADRs § D6
 - **Owner:** TheMemory v0.0 contract design
