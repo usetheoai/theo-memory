@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-21-proc-Yuki-from-research-helsinki",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Helsinki deployment, Yuki from research publishes monthly — the model evaluation report.",
+  "expectedFacts": [
+    {
+      "text": "Yuki from research publishes monthly (Helsinki deployment)"
+    }
+  ]
+}

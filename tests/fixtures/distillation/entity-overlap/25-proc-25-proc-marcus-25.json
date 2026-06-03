@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-25-proc-marcus-25",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Marcus runs the SRE team — also a deep expert in Rust + Postgres.",
+  "expectedFacts": [
+    {
+      "text": "Marcus runs the SRE team"
+    },
+    {
+      "text": "Marcus is a deep expert in Rust + Postgres"
+    }
+  ]
+}

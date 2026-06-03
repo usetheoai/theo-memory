@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-26-proc-rio-26",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Rio region: project Halcyon launches in Q4; Yuki from research publishes monthly (the model evaluation report); the build pipeline runs on every PR.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4"
+    },
+    {
+      "text": "Yuki from research publishes monthly — the model evaluation report"
+    },
+    {
+      "text": "the build pipeline runs on every PR"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "multi-fact-01-hand-onboarding",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Hi! Quick intro: I'm Alex, I'm a backend engineer at Datadog, based in Lisbon. Mostly working in Go but I also use Python for ML pipelines.",
+  "expectedFacts": [
+    { "text": "Name is Alex", "attributedTo": "user" },
+    { "text": "Backend engineer at Datadog", "attributedTo": "user" },
+    { "text": "Based in Lisbon", "attributedTo": "user" },
+    { "text": "Primary language is Go; uses Python for ML pipelines", "attributedTo": "user" }
+  ]
+}

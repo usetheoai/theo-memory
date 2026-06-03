@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-10-hand-tech-pivot",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Honestly, I've been writing more Rust than TypeScript lately for new services. Rust is my default now for anything performance-sensitive.",
+  "expectedFacts": [
+    { "text": "Default language for performance-sensitive services is Rust", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Default language for performance-sensitive services is Rust",
+    "rejected": "Prefers TypeScript with strict mode for new Node projects"
+  }
+}

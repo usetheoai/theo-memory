@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-49-proc-helsinki-49",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Helsinki region: the build pipeline runs on every PR; the build pipeline runs on every PR (across 8 parallel runners); Yuki from research publishes monthly.",
+  "expectedFacts": [
+    {
+      "text": "the build pipeline runs on every PR"
+    },
+    {
+      "text": "the build pipeline runs on every PR — across 8 parallel runners"
+    },
+    {
+      "text": "Yuki from research publishes monthly"
+    }
+  ]
+}

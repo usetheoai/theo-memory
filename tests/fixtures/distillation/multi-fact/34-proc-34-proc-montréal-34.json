@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-34-proc-montréal-34",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Montréal region: the staging cluster auto-scales overnight; project Halcyon launches in Q4 (500 enterprise pilots); the staging cluster auto-scales overnight.",
+  "expectedFacts": [
+    {
+      "text": "the staging cluster auto-scales overnight"
+    },
+    {
+      "text": "project Halcyon launches in Q4 — 500 enterprise pilots"
+    },
+    {
+      "text": "the staging cluster auto-scales overnight"
+    }
+  ]
+}

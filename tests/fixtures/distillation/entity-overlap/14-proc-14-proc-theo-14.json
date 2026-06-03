@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-14-proc-theo-14",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Theo mentors juniors — also a deep expert in Rust + Postgres.",
+  "expectedFacts": [
+    {
+      "text": "Theo mentors juniors"
+    },
+    {
+      "text": "Theo is a deep expert in Rust + Postgres"
+    }
+  ]
+}

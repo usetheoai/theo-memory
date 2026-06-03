@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-16-proc-priya-16",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Priya reviews architecture decisions — also a deep expert in observability.",
+  "expectedFacts": [
+    {
+      "text": "Priya reviews architecture decisions"
+    },
+    {
+      "text": "Priya is a deep expert in observability"
+    }
+  ]
+}

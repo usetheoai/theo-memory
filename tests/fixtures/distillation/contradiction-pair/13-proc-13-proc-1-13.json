@@ -1,0 +1,15 @@
+{
+  "id": "contradiction-pair-13-proc-1-13",
+  "category": "contradiction-pair",
+  "source": "procedural-seed",
+  "episodeText": "Update: Olivia rotated to product; Marcus now owns the Friday review. (Previously: Olivia from finance reviews every Friday.)",
+  "expectedFacts": [
+    {
+      "text": "Olivia rotated to product; Marcus now owns the Friday review"
+    }
+  ],
+  "expectedConflictPair": {
+    "kept": "Olivia rotated to product; Marcus now owns the Friday review",
+    "rejected": "Olivia from finance reviews every Friday"
+  }
+}

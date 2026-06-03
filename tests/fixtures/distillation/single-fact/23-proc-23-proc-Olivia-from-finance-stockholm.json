@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-23-proc-Olivia-from-finance-stockholm",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Stockholm deployment, Olivia from finance reviews every Friday — the quarterly burn rate.",
+  "expectedFacts": [
+    {
+      "text": "Olivia from finance reviews every Friday (Stockholm deployment)"
+    }
+  ]
+}

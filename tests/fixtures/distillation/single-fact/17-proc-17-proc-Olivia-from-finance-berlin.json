@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-17-proc-Olivia-from-finance-berlin",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Berlin deployment, Olivia from finance reviews every Friday — the quarterly burn rate.",
+  "expectedFacts": [
+    {
+      "text": "Olivia from finance reviews every Friday (Berlin deployment)"
+    }
+  ]
+}

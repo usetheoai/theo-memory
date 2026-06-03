@@ -67,6 +67,98 @@ and it transparently swaps to `PgvectorStore` + runs migrations on boot —
 the same contract, persisted state, cross-restart survival. The badge in
 the sidebar header shows which runtime is active.
 
+## Backend modes (adapter selection)
+
+The demo supports 3 adapter modes selected by `THEOMEM_DEMO_BACKEND`. The
+sidebar header shows the active mode next to the persistence badge.
+
+| Mode | Embedder | LLM | Network | Dim |
+|---|---|---|---|---|
+| `stub` | `DeterministicStubEmbedder` (hash-based) | `DeterministicStubLLM` (canned response) | none | 1536 |
+| `openai` (default) | `OpenAIEmbedder` (`text-embedding-3-small`) | `OpenAILLM` (`gpt-4o-mini`) | OpenAI API | 1536 |
+| `local-openrouter` | `LocalTransformerEmbedder` (Xenova MiniLM, local Wasm) | `OpenAILLM` routed via `OPENAI_BASE_URL` | OpenRouter for chat; LOCAL for embed | 384 |
+
+Selection precedence (per ADR D6):
+
+1. `THEOMEM_DEMO_BACKEND` — canonical signal (values: `stub`, `openai`, `local-openrouter`)
+2. Legacy `THEOMEM_USE_STUB_ADAPTERS=1` → `stub` (sunset 2026-09-01)
+3. Default → `openai`
+
+Unknown `THEOMEM_DEMO_BACKEND` values (e.g., underscore typo `local_openrouter`)
+throw an explicit error at boot listing the 3 valid values — silent fallthrough
+would mislead the operator about which mode actually loaded (per EC-11
+absorption of plan v1.1).
+
+### OpenRouter recipe — `local-openrouter` mode
+
+Use this mode when you have an OpenRouter key (`sk-or-v1-...`) but NO OpenAI
+key. Chat completions route through OpenRouter; embeddings run locally via
+Wasm (OpenRouter does not proxy `/v1/embeddings`).
+
+```bash
+# in .env.local (or .env):
+OPENAI_API_KEY=sk-or-v1-...your-openrouter-key
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+THEOMEM_DEMO_BACKEND=local-openrouter
+THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
+```
+
+The OpenAI Node SDK natively reads `OPENAI_BASE_URL` env var (verified at
+`node_modules/openai/index.mjs:46`) — no SDK code change required for
+OpenRouter chat routing.
+
+### First-use embedder cache (`local-openrouter` mode)
+
+The first `embed()` call downloads the Xenova/all-MiniLM-L6-v2 ONNX model
+(~22 MB) from `huggingface.co/Xenova/all-MiniLM-L6-v2` and caches it under
+`~/.cache/transformers-js/`. Requires internet at warmup; subsequent calls
+are offline. CI environments without internet must warm the cache OR accept
+the one-time network cost on first run.
+
+### Destructive dim change caveat (UPDATED — plan v1.2 ADR D3 + EC-B amendment)
+
+If you previously ran with `THEOMEM_DEMO_BACKEND=openai` (1536-dim
+embeddings persisted) and switch to `local-openrouter` (384-dim), the
+next demo boot calls `runMigrations(pool, { embeddingDim: 384 })`
+which executes a destructive sequence inside a single atomic
+transaction (`BEGIN/COMMIT/ROLLBACK`):
+
+```sql
+DROP INDEX IF EXISTS memories_embedding_hnsw_idx;
+DROP INDEX IF EXISTS entities_embedding_hnsw_idx;
+DELETE FROM memories;     -- + cascade collateral, see below
+DELETE FROM entities;     -- + cascade collateral, see below
+ALTER TABLE memories ALTER COLUMN embedding TYPE vector(384);
+ALTER TABLE entities ALTER COLUMN embedding TYPE vector(384);
+CREATE INDEX memories_embedding_hnsw_idx ON memories USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX entities_embedding_hnsw_idx ON entities USING hnsw (embedding vector_cosine_ops);
+```
+
+**Cascade collateral (full data-loss envelope):**
+
+The `DELETE FROM memories` triggers the following FK cascades from
+`src/local/migrations/0000_crazy_mimic.sql`:
+
+1. **`history` table** — `ON DELETE CASCADE` — the **entire history
+   audit trail is wiped**. Provenance for every past memory mutation
+   is gone.
+2. **`consolidation_history.kept_memory_id`** — `ON DELETE SET NULL` —
+   v0.7 distillation provenance pointers nullified; consolidation
+   audit rows survive but lose the FK back to the (now-deleted)
+   `kept_memory`.
+3. **`memories.superseded_by`** self-FK — `ON DELETE SET NULL` —
+   v0.6 REDACTED skill supersession chains broken; supersession
+   pointers nullified.
+
+The pgvector ALTER recipe locked in plan v1.0/v1.1 ADR D3 (`USING NULL`)
+was empirically rejected by the live `NOT NULL` constraint on the
+embedding column; plan v1.2 amendment documents the substitution.
+
+**Operator action required before flipping modes:** either start with
+a fresh DB (drop schema + recreate) or accept the entire `memories`
++ `entities` + `history` table wipe + the two SET NULL effects on
+`consolidation_history` + `superseded_by`.
+
 ## Quick start
 
 Prerequisites: **Node ≥ 22.12** (SDK requirement). The repo uses nvm — run
@@ -97,7 +189,45 @@ npm run dev
 | `THEOMEM_REFLECTION_THRESHOLD` | `10` | Auto-fire `memory.reflect()` every N turns. Set `0` to disable |
 | `THEOMEM_PG_URI` | _(unset)_ | When set, swap `InMemoryVectorStore` → `PgvectorStore` + run migrations automatically |
 | `THEOMEM_EVICTION_DEMO` | _(unset)_ | When set to `1` AND `THEOMEM_PG_URI` is set, opt in to the v0.4b capacity-trigger eviction pipeline (`maxMemoriesPerScope: 10` — low cap chosen so a normal demo session triggers eviction). The `Eviction` tab surfaces live state. Strict equality with `1` (POSIX convention); other truthy values are ignored. |
-| `THEOMEM_USE_STUB_ADAPTERS` | _(unset)_ | When set to `1`, swap `OpenAIEmbedder` + `OpenAILLM` for `DeterministicStubEmbedder` + `DeterministicStubLLM` from `@usetheo/memory/embedders/stub` + `@usetheo/memory/llms/stub`. Useful when OpenAI quota is exhausted OR for offline/CI runs requiring 100% reproducible adapter behavior. Strict equality with `1`. Note: the demo singleton is read at first request — set the var before `npm run dev` (Next.js dev mode does not re-read env mid-session). |
+| `THEOMEM_USE_STUB_ADAPTERS` | _(unset)_ | _Legacy — superseded by `THEOMEM_DEMO_BACKEND=stub` (sunset 2026-09-01)._ When set to `1`, swap `OpenAIEmbedder` + `OpenAILLM` for `DeterministicStubEmbedder` + `DeterministicStubLLM` from `@usetheo/memory/embedders/stub` + `@usetheo/memory/llms/stub`. Useful when OpenAI quota is exhausted OR for offline/CI runs requiring 100% reproducible adapter behavior. Strict equality with `1`. Note: the demo singleton is read at first request — set the var before `npm run dev` (Next.js dev mode does not re-read env mid-session). |
+| `THEOMEM_DEMO_BACKEND` | _(unset → `openai`)_ | Canonical adapter selector. Values: `stub`, `openai`, `local-openrouter`. See **Backend modes** section above. Unknown values throw at boot. |
+| `OPENAI_BASE_URL` | _(unset → `https://api.openai.com/v1`)_ | Override OpenAI SDK base URL — set to `https://openrouter.ai/api/v1` for OpenRouter routing. Read natively by the OpenAI Node SDK. |
+
+## Distillation tab — v0.7 ConflictResolutionPolicy demo
+
+The `Distillation` tab (6th tab, after `Eviction`) wires the v0.7 episodic→semantic distillation pipeline into the demo. Pick one of 3 conflict-resolution policies, click `Distill now`, and watch the `consolidation_history` audit table populate.
+
+**Policies** (per ADR D2 of the v0.7 SDK cycle):
+
+- **Noop (DEFAULT)** — returns empty array; preserves ADD-only invariant (matches the SDK's silent default behavior).
+- **Last-Write-Wins** — deterministic: picks the most recent `created_at` per cluster; ties broken by lexicographic-DESC `memory_id` (EC-1 absorbed for batch-persist scenarios).
+- **LLM-Judged-Merge** — one LLM call per cluster via the OpenAI adapter; emits 4 OTel counters (`distillation.consolidation.{kept,rejected,abstain,cluster_too_large}`).
+
+**HTTP contract:**
+
+- `POST /api/memory/distill` — body `{userId, policy}`; returns `{derivedMemoriesCreated, reason, invocationId}`. Validates the policy enum **before** invoking the factory (EC-3 absorbed → 400, not 500). Returns `422 { code: 'OPENAI_API_KEY_MISSING' }` when LJM + no key (EC-B / Rule 3: no silent fallback). Returns `422 { code: 'STUB_LLM_NOT_USABLE_FOR_LJM' }` when LJM + `THEOMEM_USE_STUB_ADAPTERS=1` (EC-1 absorbed; stub returns empty `{}` → policy would abstain silently).
+- `GET /api/memory/consolidation-history?userId=...&limit=N&offset=M` — paginates (default 50, max 200); returns `{rows, total}` ordered by `created_at DESC`.
+
+**Operator walk-through** (after `npm run dev`):
+
+1. Seed two contradictory memories via chat: "I like oat milk in coffee" → wait → "Actually I switched back to whole milk".
+2. Click the `Distillation` tab.
+3. Pick `last-write-wins` → click `Distill now`.
+4. Watch the result: the older fact's row gets `t_invalid = NOW()` (visible by re-querying); the `Consolidation history` panel below shows the new audit row with `policy_name=last-write-wins`, `kept_memory_id` pointing at the newer fact, `rejected_memory_ids` listing the older.
+
+**EC-7 (idempotency expectation):** every `Distill now` click writes new `consolidation_history` rows by design (matches v0.7 SDK T2.1 contract; no client-side dedup). The audit-history list paginates so the UI never tries to render thousands of rows.
+
+**EC-8 (post-GDPR orphan audit rows):** when a memory is hard-deleted via `forget(memId, { hard: true })`, the v0.7 SDK migration 0007 declares `ON DELETE SET NULL` on `consolidation_history.kept_memory_id`. The audit row is preserved in DB (regulatory) but excluded from the `Distillation` tab view because the route uses `INNER JOIN memories ON ch.kept_memory_id = m.id`. Operators can query raw SQL for orphan audit rows:
+
+```sql
+SELECT * FROM consolidation_history WHERE kept_memory_id IS NULL ORDER BY created_at DESC;
+```
+
+A future cycle can add a separate `/api/memory/consolidation-history/orphans` view if needed.
+
+**UI verification status:** automated UI scenarios for the `Distillation` tab are BLOCKED-pending-Chrome-MCP-lift per the existing `F-T4.1-1` note in CHANGELOG. The HTTP-layer integration test at `tests/integration/examples/chat-with-memory-distillation.test.ts` (9 scenarios) is the load-bearing regression guard.
+
+@see plan `.claude/knowledge-base/plans/examples-chat-with-memory-v0-7-distillation-plan.md` + v0.7 SDK commit `7dc06f9` (shipped 2026-06-01).
 
 ## Walk-through
 

@@ -1,0 +1,17 @@
+{
+  "id": "multi-fact-38-proc-helsinki-38",
+  "category": "multi-fact",
+  "source": "procedural-seed",
+  "episodeText": "In the Helsinki region: Theo from support rotates weekly; Olivia from finance reviews every Friday (the quarterly burn rate); the postgres replica lags during peak.",
+  "expectedFacts": [
+    {
+      "text": "Theo from support rotates weekly"
+    },
+    {
+      "text": "Olivia from finance reviews every Friday — the quarterly burn rate"
+    },
+    {
+      "text": "the postgres replica lags during peak"
+    }
+  ]
+}

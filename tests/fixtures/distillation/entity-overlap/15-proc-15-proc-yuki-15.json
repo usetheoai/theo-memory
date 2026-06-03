@@ -1,0 +1,14 @@
+{
+  "id": "entity-overlap-15-proc-yuki-15",
+  "category": "entity-overlap",
+  "source": "procedural-seed",
+  "episodeText": "Yuki mentors juniors — also a deep expert in distributed systems.",
+  "expectedFacts": [
+    {
+      "text": "Yuki mentors juniors"
+    },
+    {
+      "text": "Yuki is a deep expert in distributed systems"
+    }
+  ]
+}

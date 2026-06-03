@@ -1,0 +1,12 @@
+{
+  "id": "multi-fact-05-hand-medical-context",
+  "category": "multi-fact",
+  "source": "hand",
+  "episodeText": "Medical notes from last checkup: blood pressure 118/76, resting heart rate 62, vitamin D was low (28 ng/mL). Doctor recommended 2000 IU daily.",
+  "expectedFacts": [
+    { "text": "Blood pressure measured 118/76", "attributedTo": "user" },
+    { "text": "Resting heart rate is 62 bpm", "attributedTo": "user" },
+    { "text": "Vitamin D was low at 28 ng/mL", "attributedTo": "user" },
+    { "text": "Prescribed vitamin D 2000 IU daily", "attributedTo": "user" }
+  ]
+}

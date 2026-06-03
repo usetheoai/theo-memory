@@ -4,6 +4,7 @@
  * @see ADR-0004 — API verbs (remember / recall / forget / reflect + parity helpers).
  * @see ADR-0006 — bi-temporal columns (asOf is uniform at the type level; runtime divergence per local v0.1).
  */
+import type { ConflictResolutionPolicy } from './dip/conflict-resolution-policy.js';
 import type { Filters } from './scope.js';
 
 export interface RememberOptions {
@@ -17,6 +18,20 @@ export interface RememberOptions {
    * @see ADR-0001 — `infer: false` escape hatch.
    */
   readonly infer?: boolean;
+
+  /**
+   * v1.1 T1.1 (EC-2 absorbed): multi-peer attribution for verbatim-path callers.
+   * The perspective owner of the fact — typically a peer ID (user id, agent id,
+   * or `'system'` for self-statements). N-valent semantic per blueprint Q5
+   * (any string accepted). Hoisted to the `attributed_to` column at persist
+   * time. Read by T2.1 when `infer: false`; the LLM-extracted
+   * `extracted[i].attributed_to` wins when `infer: true` (the default).
+   *
+   * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § ADR D2
+   */
+  readonly attributedTo?: string;
 }
 
 export interface RecallOptions {
@@ -27,12 +42,45 @@ export interface RecallOptions {
   readonly threshold?: number;
 
   /**
-   * Bi-temporal point-in-time query. When set, recall returns the memories that were valid at the given instant.
+   * Bi-temporal point-in-time query. When set, recall returns the memories
+   * that were valid at the given instant via the null-safe predicate
+   * `(t_valid IS NULL OR t_valid <= asOf) AND (t_invalid IS NULL OR t_invalid > asOf)`.
    *
-   * @see ADR-0006 — local v0.1 runtime throws BiTemporalNotSupportedLocally when this field is provided; cloud v0.5+ honors it.
-   * @throws BiTemporalNotSupportedLocally — on the local runtime until v0.5+ backports the asOf query support.
+   * Available on the local runtime since v1.1 per ADR-0011 (supersedes
+   * ADR-0006 runtime clause). ADR-0006 schema clause (`t_valid`/`t_invalid`
+   * columns since v0.1) is reinforced by REDACTED Apache-2.0 prior art.
+   *
+   * EC-11 absorbed (GDPR caveat): soft-deleted memories (`forget(id)`
+   * without `{ hard: true }`) remain recoverable via historical `asOf`
+   * queries. GDPR-strict erasure REQUIRES `forget(id, { hard: true })`
+   * (per the v0.4b hard-delete option shipped 2026-05-31). Hard-deleted
+   * rows are PHYSICALLY removed and cannot be resurrected by asOf.
+   *
+   * EC-3 absorbed (boundary validation): the local runtime throws
+   * `InvalidScope('asOf must be a valid Date')` when `asOf.getTime()` is
+   * NaN, per architecture.md § 8 (validate at boundaries).
+   *
+   * @see ADR-0006 — schema clause (t_valid/t_invalid columns).
+   * @see ADR-0011 — runtime-clause lift; recall honors asOf from v1.1.
+   * @throws InvalidScope — when asOf is an invalid Date (NaN .getTime()).
    */
   readonly asOf?: Date;
+
+  /**
+   * v1.1 T2.2: multi-peer attribution filter. When set, recall returns ONLY
+   * memories where `attributed_to` matches the supplied peer ID exactly
+   * (Postgres `=` semantics; NULL rows do NOT match per EC-7).
+   *
+   * N-valent semantic per blueprint Q5: accepts arbitrary string (user id,
+   * agent id, "system", or any peer identifier). The pipeline boundary routes
+   * this into `Filters.attributed_to` BEFORE reaching the vector store; the
+   * store composes `AND attributed_to = $N` into the recall WHERE clause.
+   *
+   * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
+   *
+   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T2.2 + ADR D2
+   */
+  readonly attributedTo?: string;
 
   /**
    * v0.6: when `true`, restrict recall to `kind='skill'` rows. Default `false`.
@@ -68,6 +116,19 @@ export interface ReflectOptions {
    * @see ADR-0005 — reflection trigger (explicit-only at v0.0).
    */
   readonly maxIterations?: number;
+
+  /**
+   * v0.7 episodic→semantic distillation per ADR D2. When supplied, the
+   * post-derivation phase passes the recall'd memories as a single cluster
+   * to `policy.consolidate(candidates, ctx)` and atomically soft-deletes
+   * the rejected rows + writes one `consolidation_history` audit row per
+   * returned result (EC-8). When omitted, behavior is byte-identical to
+   * v0.4a (no consolidation; `NoopConflictPolicy` would also short-circuit
+   * to the same result).
+   *
+   * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + ADR D2
+   */
+  readonly conflictResolution?: ConflictResolutionPolicy;
 }
 
 export interface GetAllOptions {

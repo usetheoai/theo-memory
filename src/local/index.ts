@@ -13,7 +13,9 @@
  * Per ADR-0005, reflection is explicit-only at v0.0; LocalScopedMemory.reflect
  * throws ReflectionNotConfigured unless config.reflectionPolicy is provided.
  *
- * Per ADR-0006, recall with options.asOf throws BiTemporalNotSupportedLocally.
+ * Per ADR-0011 (supersedes ADR-0006 runtime clause): recall honors `options.asOf`
+ * from v1.1 on the local runtime; EC-3 boundary validation throws `InvalidScope`
+ * when asOf is an invalid Date (NaN).
  *
  * Per EC-12, forget(unknown_id) throws MemoryNotFound.
  * Per EC-13, reset({}) throws InvalidScope (prevents whole-table wipe).
@@ -29,12 +31,17 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { Pool } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
+import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
 import type { Embedder } from '../core/dip/embedder.js';
 import type { ReflectionPolicy } from '../core/dip/reflection-policy.js';
 import type { VectorStore } from '../core/dip/vector-store.js';
+// BiTemporalNotSupportedLocally NOT imported here per ADR-0011 — local runtime
+// no longer throws it. The class stays exported via src/core/errors.ts →
+// src/core/index.ts (public API) so consumers retain the ability to catch it
+// for forward-compat with cloud runtime.
 import {
-  BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
+  InvalidEmbeddingDim,
   InvalidScope,
   MemoryNotFound,
   ReflectionNotConfigured,
@@ -80,6 +87,13 @@ export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { entities, history, memories } from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
+// v0.7 T2.1 — re-export conflict-resolution policies for convenience
+// (integration tests + consumer apps).
+export {
+  NoopConflictPolicy,
+  LastWriteWinsConflictPolicy,
+  LlmJudgedMergeConflictPolicy,
+} from '../core/index.js';
 export * from './eviction/index.js';
 
 /** Extended MemoryConfig with the OTel tracer slot from ADR D1.3. */
@@ -101,6 +115,26 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * configure eviction via the `eviction` option above.
    */
   readonly postRememberHook?: (scope: Scope) => Promise<void>;
+  /**
+   * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
+   * declared embedding dimension produced by the embedder. Defaults to
+   * `MAX_EMBEDDING_DIM` (1536) to preserve backward compatibility with
+   * every existing caller. When set to a smaller value (e.g., 384 for
+   * Xenova/all-MiniLM-L6-v2), the probe asserts against this configured
+   * dim instead of the constant, and `PgvectorStore` / `runMigrations`
+   * accept the matching dim for the `vector(N)` schema column.
+   *
+   * Pre-flight validation rejects (with `InvalidScope`) any value that is
+   * NOT a positive integer ≤ `MAX_EMBEDDING_DIM`. The guard uses
+   * `Number.isInteger` to catch NaN / float / Infinity values that bare
+   * arithmetic comparisons miss silently. The error message includes the
+   * literal received value via `String(received)` for operator
+   * diagnosability.
+   *
+   * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.1 + ADR D2
+   * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
+   */
+  readonly embeddingDim?: number;
 }
 
 /**
@@ -135,24 +169,34 @@ export const PROBE_TEXT = '__themem_probe__';
  */
 function applySkillFilters(
   baseFilters: Filters,
-  options?: { onlySkills?: boolean; includeSuperseded?: boolean },
+  options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string; asOf?: Date },
 ): Filters {
   if (options === undefined) {
     return baseFilters;
   }
-  const next: Filters = { ...baseFilters };
+  // v1.1 T2.2: route RecallOptions.attributedTo into Filters.attributed_to so
+  // composeFilters in pgvector-store appends the WHERE clause.
+  // v1.1 T3.1 + ADR-0011: route RecallOptions.asOf into Filters.asOf so the
+  // store composes the null-safe bi-temporal predicate.
+  let base: Filters = { ...baseFilters };
+  if (options.attributedTo !== undefined) {
+    base = { ...base, attributed_to: options.attributedTo };
+  }
+  if (options.asOf !== undefined) {
+    base = { ...base, asOf: options.asOf };
+  }
   if (options.onlySkills === true) {
     return {
-      ...next,
+      ...base,
       kind: 'skill',
       // Default for skill recall: exclude superseded unless the caller explicitly opts in.
       excludeSuperseded: options.includeSuperseded === true ? false : true,
     };
   }
   if (options.includeSuperseded === false) {
-    return { ...next, excludeSuperseded: true };
+    return { ...base, excludeSuperseded: true };
   }
-  return next;
+  return base;
 }
 
 function filtersFromScope(scope: Scope): Filters {
@@ -203,6 +247,15 @@ interface VectorStoreWithDerivedInsert {
     derivedFrom: readonly string[];
     scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string>;
+}
+
+interface VectorStoreWithConsolidation {
+  recallConsolidationCandidates?: (
+    filters: Filters,
+  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date }[]>;
+  persistConsolidations?: (
+    results: readonly ConflictResolutionResult[],
+  ) => Promise<void>;
 }
 
 function scopeToCounterTuple(scope: Scope): {
@@ -283,8 +336,11 @@ class LocalScopedMemory implements ScopedMemory {
   }
 
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
-    if (options?.asOf !== undefined) {
-      throw new BiTemporalNotSupportedLocally();
+    // v1.1 T3.1 + EC-3 + ADR-0011: BiTemporalNotSupportedLocally throw lifted.
+    // Boundary validation rejects invalid Date input per architecture.md § 8
+    // (validate at boundaries; inside src/core/ trust the contract).
+    if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
+      throw new InvalidScope('asOf must be a valid Date');
     }
     return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
@@ -333,6 +389,40 @@ class LocalScopedMemory implements ScopedMemory {
     }
 
     try {
+      // v0.7 T2.1: pre-derivation conflict-resolution phase.
+      // EC-7 absorbed: empty scope already short-circuited at line 354
+      // ("EC-5: empty-source short-circuit"); here we additionally guard on
+      // sourceMemories.length < 2 (nothing to consolidate with a singleton).
+      // EC-8 absorbed: persistConsolidations
+      // wraps t_invalid UPDATE + insertConsolidationHistory INSERT in a
+      // single withTransaction (rollback on any error). Runs BEFORE
+      // executeReflection so LLM-extraction failure paths don't mask the
+      // consolidation's own failure modes.
+      const conflictPolicy = options?.conflictResolution;
+      if (conflictPolicy !== undefined && sourceMemories.length >= 2) {
+        const storeWithConsolidate = this.config.vectorStore as unknown as VectorStoreWithConsolidation;
+        if (
+          typeof storeWithConsolidate.recallConsolidationCandidates !== 'function' ||
+          typeof storeWithConsolidate.persistConsolidations !== 'function'
+        ) {
+          throw new Error(
+            'reflect: conflictResolution requires a vector store with ' +
+              'recallConsolidationCandidates() + persistConsolidations() — ' +
+              'use PgvectorStore from @usetheo/memory/local.',
+          );
+        }
+        const candidates = await storeWithConsolidate.recallConsolidationCandidates(
+          this.filters,
+        );
+        const consolidationResults = await conflictPolicy.consolidate(
+          candidates,
+          { scope: this.scope, observationDate: new Date() },
+        );
+        if (consolidationResults.length > 0) {
+          await storeWithConsolidate.persistConsolidations(consolidationResults);
+        }
+      }
+
       // Execute reflection LLM call
       const drafts = await executeReflection({
         llm: this.config.llm,
@@ -512,7 +602,7 @@ class LocalMemory implements Memory {
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
     const existing = await this.config.vectorStore.get(memoryId);
     if (existing === null) {
-      throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: divergence from REDACTED's silent no-op)`);
+      throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: strict-mode forget throws on missing id)`);
     }
     const hardDelete = options?.hard === true;
     const isPgStore = this.config.vectorStore instanceof PgvectorStoreClass;
@@ -537,7 +627,7 @@ class LocalMemory implements Memory {
           new Date(),
         );
       } catch {
-        // Silent swallow per REDACTED pattern (history failure must not block forget)
+        // Silent swallow — history persistence failure must not block forget
       }
     }
   }
@@ -607,11 +697,40 @@ class LocalMemory implements Memory {
   }
 }
 
-async function probeEmbedder(embedder: Embedder): Promise<void> {
+async function probeEmbedder(embedder: Embedder, expectedDim: number): Promise<void> {
   const vector = await embedder.embed(PROBE_TEXT);
-  if (vector.length !== MAX_EMBEDDING_DIM) {
-    throw new EmbeddingMismatch(MAX_EMBEDDING_DIM, vector.length);
+  if (vector.length !== expectedDim) {
+    throw new EmbeddingMismatch(expectedDim, vector.length);
   }
+}
+
+/**
+ * adapters-openrouter-local-embedder T0.1 (EC-1 absorption): pre-flight
+ * guard for `LocalMemoryConfig.embeddingDim`. Uses `Number.isInteger` to
+ * catch NaN / float / Infinity values that bare arithmetic comparisons
+ * miss silently (`NaN <= 0` is `false`, `NaN > MAX` is `false`, so an
+ * unguarded check lets them through). The error message includes the
+ * literal received value via `String(received)` so the operator can
+ * diagnose typos / wrong .env entries.
+ *
+ * Runs BEFORE `probeEmbedder` and BEFORE `vectorStore.initialize()` so
+ * config-level rejection happens at startup with zero side effects.
+ *
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
+ * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-1-pre-red.md (CRITICAL #1 — uniform InvalidScope for all pre-flight failures)
+ */
+function validateEmbeddingDim(received: number | undefined): number {
+  if (received === undefined) {
+    return MAX_EMBEDDING_DIM;
+  }
+  if (!Number.isInteger(received) || received <= 0 || received > MAX_EMBEDDING_DIM) {
+    // /review F-Mi4: typed `InvalidEmbeddingDim` (not generic `InvalidScope`).
+    // The plan deferred the naming choice during /implement; the consolidated
+    // /review caught the conflation between Scope-level errors and dim
+    // config-shape errors and recommended a dedicated error class.
+    throw new InvalidEmbeddingDim(received, MAX_EMBEDDING_DIM);
+  }
+  return received;
 }
 
 /**
@@ -636,7 +755,10 @@ export type DisposableMemory = Memory & { dispose(): Promise<void> };
  * SEPA iter 5 pre-RED CRITICAL #3 — eviction is PG-only).
  */
 export async function createLocalMemory(config: LocalMemoryConfig): Promise<DisposableMemory> {
-  await probeEmbedder(config.embedder);
+  // adapters-openrouter-local-embedder T0.1 (EC-1 absorption): pre-flight
+  // FIRST — config-level rejection before any side effect (probe / store init).
+  const effectiveDim = validateEmbeddingDim(config.embeddingDim);
+  await probeEmbedder(config.embedder, effectiveDim);
   await config.vectorStore.initialize();
 
   if (config.eviction === undefined) {
@@ -721,7 +843,190 @@ export { createLocalMemory as createMemory };
  *   - dev:  `npm run db:push` (introspection-based, runs CREATE EXTENSION first via npm script)
  *   - prod: `await runMigrations(pool)` at app boot, then `createMemory({...})`.
  */
-export async function runMigrations(pool: Pool): Promise<void> {
+/**
+ * adapters-openrouter-local-embedder T0.3: post-migration ALTER COLUMN sequence
+ * with EC-3 (atomic transaction) + EC-4 (HNSW DROP+RECREATE) absorption.
+ *
+ * pgvector REJECTS `ALTER COLUMN TYPE` against a column with any index, so
+ * both HNSW indexes (`memories_embedding_hnsw_idx` + `entities_embedding_hnsw_idx`
+ * at `src/local/migrations/0000_crazy_mimic.sql:44,51`) must be dropped before
+ * the ALTER and recreated after. The full DROP → DELETE → ALTER → CREATE
+ * sequence runs inside a single BEGIN/COMMIT acquired from a dedicated
+ * `pool.connect()` client (SEPA iter-3 pre-RED CRITICAL #1: NEVER nest inside
+ * Drizzle's tx; NEVER reuse `pool.query` which autocommits per statement).
+ *
+ * **DESTRUCTIVE — full cascade collateral disclosure** (plan v1.2 ADR D3 + EC-B
+ * amendment, /review F-C1):
+ *
+ *   The `DELETE FROM memories; DELETE FROM entities;` statements trigger the
+ *   following FK cascades from `0000_crazy_mimic.sql` + later migrations:
+ *
+ *   1. `history.memory_id ON DELETE CASCADE` → entire history audit trail wiped.
+ *   2. `consolidation_history.kept_memory_id ON DELETE SET NULL` → v0.7
+ *      distillation provenance pointers nullified (audit rows survive but
+ *      lose the FK back to the kept memory).
+ *   3. `memories.superseded_by` self-FK ON DELETE SET NULL → v0.6 procedural
+ *      skill supersession chains broken.
+ *
+ *   The original plan v1.0 ADR D3 specified `ALTER ... USING NULL` (only the
+ *   embedding column data lost). That recipe was empirically rejected by the
+ *   existing `vector(1536) NOT NULL` constraint (PG error 23502: "column ...
+ *   contains null values" because USING NULL coerces every row's embedding
+ *   to NULL then the NOT NULL check fires). The DELETE-before-ALTER pattern
+ *   is the explicit form of the destructive-dim-change contract and avoids
+ *   the constraint violation, but it widens the data-loss envelope. README
+ *   "Destructive dim change caveat" enumerates the full cascade graph.
+ *
+ * Idempotency short-circuit: probe `pg_attribute.atttypmod` for memories.embedding;
+ * if it already matches the requested dim, skip the entire sequence.
+ * pgvector v0.5.1 stores `vector(N)` dimension in `atttypmod` directly (NO +4
+ * varlena offset — empirically verified against the ankane/pgvector:v0.5.1
+ * container in RED test phase; SEPA's training-data claim of `N + 4` was wrong
+ * for this version).
+ *
+ * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3 + v1.2 ADR D3 amendment
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-3 + EC-4
+ * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-C1
+ * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 atomic tx + C2 atttypmod empirical correction)
+ */
+async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
+  // /review F-Mi8 — defensive extversion probe. The identity decoder
+  // (atttypmod stores N directly) was verified empirically against
+  // pgvector v0.5.1. If a future pgvector release changes the encoding
+  // (e.g., adopts the +4 varlena header SEPA originally claimed), the
+  // identity decoder would silently produce a wrong dim → silently
+  // mismatched ALTER. Probe the installed pgvector version and warn
+  // (not throw — we keep moving so the demo still boots, but the
+  // operator sees the canary so they know to re-verify).
+  //
+  // /review re-run F-dom-db-rerun-residual-M1: `startsWith('0.5.')` is
+  // intentional and exhaustive — the trailing dot in the prefix forbids
+  // a hypothetical pgvector `0.50.x` from matching (`'0.50.0'.startsWith('0.5.')`
+  // is FALSE because the 4th char `'0'` !== `'.'`). So the canary correctly
+  // fires on `0.5.x`-NOT-true versions including `0.50.x`, `0.6.x`, `1.x`.
+  const ext = await pool.query<{ extversion: string | null }>(
+    `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
+  );
+  const installedVersion = ext.rows[0]?.extversion ?? null;
+  if (installedVersion !== null && !installedVersion.startsWith('0.5.')) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[themory] runMigrations: pgvector extversion=${installedVersion} ` +
+        '(adapters-openrouter-local-embedder T0.3 verified the atttypmod identity ' +
+        'decoder against v0.5.x). If a future release changes the encoding, ' +
+        're-verify dim-change idempotency.',
+    );
+  }
+
+  // Probe current dim. atttypmod stores N directly for pgvector v0.5.1.
+  //
+  // /review re-run F-dom-db-rerun-residual-M2: probing ONLY memories.embedding
+  // is sufficient because both ALTERs run inside the same BEGIN/COMMIT
+  // transaction (see client.query('BEGIN') below). PG guarantees both
+  // ALTER COLUMN statements succeed-or-fail atomically — so memories.atttypmod
+  // is a faithful proxy for entities.atttypmod. The post-ALTER assertion below
+  // verifies both columns explicitly anyway, closing the residual.
+  const probe = await pool.query<{ atttypmod: number }>(
+    `SELECT a.atttypmod
+       FROM pg_attribute a
+       JOIN pg_class c ON c.oid = a.attrelid
+      WHERE c.relname = 'memories'
+        AND a.attname = 'embedding'
+        AND a.attisdropped = false`,
+  );
+  const currentDim = probe.rows[0]?.atttypmod ?? -1;
+  if (currentDim === targetDim) {
+    // Idempotency: schema already at requested dim, skip DROP+ALTER+RECREATE.
+    // eslint-disable-next-line no-console
+    console.error(
+      `[themory] runMigrations: embeddingDim=${String(targetDim)} matches existing schema; no-op.`,
+    );
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.error(
+    `[themory] runMigrations: dim change ${String(currentDim)} → ${String(targetDim)} — DESTRUCTIVE cascade: ` +
+      'DELETE FROM memories (FK→history.memory_id ON DELETE CASCADE wipes audit trail; ' +
+      'consolidation_history.kept_memory_id ON DELETE SET NULL nullifies v0.7 distillation provenance; ' +
+      'memories.superseded_by ON DELETE SET NULL breaks v0.6 supersession chains) + ' +
+      'DELETE FROM entities + DROP/RECREATE HNSW indexes (T0.3 / EC-3 + EC-4; plan v1.2 ADR D3; /review F-C1). ' +
+      '/review F-M3: src/local/schema.ts still declares vector(1536) literally — ' +
+      `DO NOT run \`drizzle-kit push\` against this DB while embeddingDim=${String(targetDim)} ` +
+      'is active (push would silently revert the ALTER and drop all rows).',
+  );
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
+    await client.query('DROP INDEX IF EXISTS entities_embedding_hnsw_idx');
+    // T4.1 follow-up to T0.3: `ALTER COLUMN TYPE vector(N) USING NULL`
+    // collides with the existing `NOT NULL` constraint (PG error 23502:
+    // "column ... contains null values" because every row's existing
+    // embedding gets coerced to NULL during the ALTER and then violates
+    // the constraint). The destructive-dim-change contract documents
+    // that existing embedding data is lost on dim switch — DELETEing
+    // the rows first is the explicit form of that contract and avoids
+    // the constraint violation. DELETE preserves entity FK rows; the
+    // empty `embedding` columns are then ALTERable cleanly.
+    await client.query('DELETE FROM memories');
+    await client.query('DELETE FROM entities');
+    await client.query(`ALTER TABLE "memories" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
+    await client.query(`ALTER TABLE "entities" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
+    // /review F-Mi9: match the migration's quoted-identifier style at
+    // src/local/migrations/0000_crazy_mimic.sql:44,51 so a future PG
+    // case-sensitivity change does not cause a runtime/migration drift.
+    await client.query('CREATE INDEX "memories_embedding_hnsw_idx" ON "memories" USING hnsw ("embedding" vector_cosine_ops)');
+    await client.query('CREATE INDEX "entities_embedding_hnsw_idx" ON "entities" USING hnsw ("embedding" vector_cosine_ops)');
+
+    // /review re-run F-dom-pgvector-rerun-2: belt-and-suspenders value-based
+    // canary INSIDE the transaction (so an unexpected outcome rolls back
+    // cleanly rather than leaking a broken schema). Re-probes atttypmod
+    // for BOTH memories AND entities post-ALTER and asserts the actual
+    // dim matches targetDim. Protects against:
+    //  - hypothetical future pgvector release that changes atttypmod encoding
+    //    (F-Mi8 extversion canary warns; this assertion fail-closes)
+    //  - PG side-effects we did not anticipate (e.g., DEFAULT clause that
+    //    overrides the ALTER, trigger that rewrites the type)
+    //  - the entities ALTER silently no-op'ing while memories ALTER succeeds
+    const verify = await client.query<{ rel: string; dim: number }>(
+      `SELECT c.relname AS rel, a.atttypmod AS dim
+         FROM pg_attribute a
+         JOIN pg_class c ON c.oid = a.attrelid
+        WHERE c.relname IN ('memories', 'entities')
+          AND a.attname = 'embedding'
+          AND a.attisdropped = false
+        ORDER BY c.relname`,
+    );
+    for (const row of verify.rows) {
+      if (row.dim !== targetDim) {
+        throw new Error(
+          `[themory] dim-change post-ALTER canary FAILED: ${row.rel}.embedding atttypmod=${String(row.dim)} ≠ targetDim=${String(targetDim)}`,
+        );
+      }
+    }
+    await client.query('COMMIT');
+    // eslint-disable-next-line no-console
+    console.error(
+      `[themory] runMigrations: dim change complete; column types vector(${String(targetDim)}); HNSW indexes recreated.`,
+    );
+  } catch (err) {
+    await client.query('ROLLBACK');
+    // eslint-disable-next-line no-console
+    console.error(
+      `[themory] runMigrations: dim change rolled back; schema preserved at vector(${String(currentDim)})`,
+    );
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function runMigrations(
+  pool: Pool,
+  options?: { readonly embeddingDim?: number },
+): Promise<void> {
   // pgvector extension MUST exist before tables with vector columns can be created.
   // Idempotent; safe to re-run.
   await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
@@ -747,12 +1052,30 @@ export async function runMigrations(pool: Pool): Promise<void> {
     if (memoriesExists) {
       // Schema present but not journal-tracked → push-flow was used. Skip migrate()
       // gracefully; this is a deployment-config smell, not a runtime error.
+      // /review F-M13: warning text must honestly state that we still apply the
+      // explicit dim change when caller passed options.embeddingDim — only the
+      // migrate() call is skipped, not the entire runMigrations() invocation.
       // eslint-disable-next-line no-console
       console.warn(
         '[themory] schema present but `drizzle.__drizzle_migrations` journal missing. ' +
-          'Likely `drizzle-kit push` was used — skipping runMigrations(). ' +
+          'Likely `drizzle-kit push` was used — skipping migrate(); ' +
+          'applying explicit dim change only when options.embeddingDim is set. ' +
           'For production reproducibility, prefer `runMigrations()` on a fresh DB (F-T7.1-2).',
       );
+      // T4.1 follow-up to T0.3: dim change must STILL apply on push-flow DBs.
+      // SEPA pre-RED iter-3 M3 was wrong to say "place AFTER orphan-schema
+      // short-circuit" — surfaced empirically by T4.1 live integration test
+      // (the demo's existing dev DB was push-flow + dim change silently
+      // skipped). When the operator explicitly passes embeddingDim, intent
+      // is clear: apply the dim change regardless of journal state.
+      // /review F-M4: do NOT short-circuit on `embeddingDim === MAX_EMBEDDING_DIM`.
+      // The asymmetric guard blocked the legitimate 384 → 1536 revert (operator
+      // switches local-openrouter → openai). The inner atttypmod probe in
+      // applyDimChange already handles idempotency cleanly when the schema
+      // already matches the requested dim.
+      if (options?.embeddingDim !== undefined) {
+        await applyDimChange(pool, options.embeddingDim);
+      }
       return;
     }
   }
@@ -763,4 +1086,12 @@ export async function runMigrations(pool: Pool): Promise<void> {
 
   const db = drizzleNodePostgres(pool);
   await migrate(db, { migrationsFolder });
+
+  // T0.3: post-migration parametric dim change for journal-tracked DBs.
+  // Idempotency short-circuit in applyDimChange covers re-runs.
+  // /review F-M4: same symmetry — always invoke when caller passes embeddingDim;
+  // the inner atttypmod probe is the single source of truth for no-op detection.
+  if (options?.embeddingDim !== undefined) {
+    await applyDimChange(pool, options.embeddingDim);
+  }
 }

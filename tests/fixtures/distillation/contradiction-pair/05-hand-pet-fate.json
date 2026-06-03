@@ -1,0 +1,13 @@
+{
+  "id": "contradiction-pair-05-hand-pet-fate",
+  "category": "contradiction-pair",
+  "source": "hand",
+  "episodeText": "Sad news — Lua passed away last week. She was sick for a couple of months and the vet said it was kidney failure.",
+  "expectedFacts": [
+    { "text": "Lua the cat passed away from kidney failure", "attributedTo": "user" }
+  ],
+  "expectedConflictPair": {
+    "kept": "Lua the cat passed away from kidney failure",
+    "rejected": "Owns a 3-year-old tabby cat named Lua"
+  }
+}

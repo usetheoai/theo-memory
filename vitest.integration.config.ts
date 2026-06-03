@@ -16,6 +16,15 @@ import { defineConfig } from 'vitest/config';
  * @see .claude/rules/testing.md § Pyramid
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      // `server-only` is a Next.js build-time guard that throws when imported
+      // from non-server code. Integration tests run outside Next.js and need
+      // to import `examples/chat-with-memory/lib/memory.ts` (which uses the
+      // guard). Alias to a noop so the import succeeds in test environment.
+      'server-only': new URL('./tests/integration/examples/server-only-shim.ts', import.meta.url).pathname,
+    },
+  },
   test: {
     include: ['tests/integration/**/*.test.ts'],
     passWithNoTests: true,

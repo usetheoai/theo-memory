@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-20-proc-the-postgres-replica-toronto",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Toronto deployment, the postgres replica lags during peak — by 200 to 400 milliseconds.",
+  "expectedFacts": [
+    {
+      "text": "the postgres replica lags during peak (Toronto deployment)"
+    }
+  ]
+}

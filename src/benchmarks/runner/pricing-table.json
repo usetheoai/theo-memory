@@ -1,0 +1,38 @@
+{
+  "fetched_at": "2026-06-02",
+  "source": "OpenAI public pricing + OpenRouter pricing snapshot 2026-06-02; refresh every 30 days per EC-13",
+  "models": {
+    "gpt-4o-mini": {
+      "input_per_1k": 0.000150,
+      "output_per_1k": 0.000600
+    },
+    "gpt-4o": {
+      "input_per_1k": 0.0025,
+      "output_per_1k": 0.010
+    },
+    "gpt-4o-2024-08-06": {
+      "input_per_1k": 0.0025,
+      "output_per_1k": 0.010
+    },
+    "anthropic/claude-3.5-sonnet": {
+      "input_per_1k": 0.003,
+      "output_per_1k": 0.015
+    },
+    "anthropic/claude-3-5-sonnet": {
+      "input_per_1k": 0.003,
+      "output_per_1k": 0.015
+    },
+    "anthropic/claude-3.5-haiku": {
+      "input_per_1k": 0.0008,
+      "output_per_1k": 0.004
+    },
+    "openai/gpt-4o-mini": {
+      "input_per_1k": 0.000150,
+      "output_per_1k": 0.000600
+    },
+    "openai/gpt-4o": {
+      "input_per_1k": 0.0025,
+      "output_per_1k": 0.010
+    }
+  }
+}

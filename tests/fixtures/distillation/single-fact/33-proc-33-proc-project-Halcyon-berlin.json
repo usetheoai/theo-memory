@@ -1,0 +1,11 @@
+{
+  "id": "single-fact-33-proc-project-Halcyon-berlin",
+  "category": "single-fact",
+  "source": "procedural-seed",
+  "episodeText": "For the Berlin deployment, project Halcyon launches in Q4 — 500 enterprise pilots.",
+  "expectedFacts": [
+    {
+      "text": "project Halcyon launches in Q4 (Berlin deployment)"
+    }
+  ]
+}
