@@ -52,6 +52,10 @@ import {
 import type { MemoryItemWithScore } from '../../core/memory-item.js';
 import type { Scope } from '../../core/scope.js';
 
+import {
+  getRecallCacheHitCounter,
+  getRecallCacheHitDurationHistogram,
+} from './recall-cache-metrics.js';
 import { deriveScopeKey } from './scope-key.js';
 import { withSerializableTransactionAndRetry } from './serializable-tx.js';
 
@@ -104,18 +108,31 @@ interface GetRow {
 /** Marker type so `Scope.kind` maps cleanly into `ScopeTierTtlConfig` keys. */
 type ScopeTierKey = keyof ScopeTierTtlConfig;
 
+export interface PgvectorRecallCacheStoreOptions {
+  /**
+   * semantic-recall-cache-v1-5 T3.1 — embedder-kind label for OTel metric
+   * attributes (per blueprint D5: `{ scope_tier, embedder_kind }`). Best-effort
+   * — passed in by the factory at construction time so the metric attribute is
+   * stable across the impl's lifetime. Defaults to `'unknown'` when omitted.
+   */
+  readonly embedderKind?: string;
+}
+
 export class PgvectorRecallCacheStore implements RecallCacheStore {
   private readonly threshold: number;
   private readonly ttlSecondsByScopeTier: ScopeTierTtlConfig;
   private readonly maxSizePerScope: number;
+  private readonly embedderKind: string;
 
   constructor(
     private readonly pool: Pool,
     config: RecallCacheStoreConfig = {},
+    options: PgvectorRecallCacheStoreOptions = {},
   ) {
     this.threshold = config.threshold ?? DEFAULT_THRESHOLD;
     this.ttlSecondsByScopeTier = config.ttlSecondsByScopeTier ?? DEFAULT_TTL_SECONDS_BY_SCOPE_TIER;
     this.maxSizePerScope = config.maxSizePerScope ?? DEFAULT_MAX_SIZE_PER_SCOPE;
+    this.embedderKind = options.embedderKind ?? 'unknown';
   }
 
   /** Resolve TTL for a scope tier (EC-3 absorption: 4 tiers including `repo`). */
@@ -133,11 +150,18 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
     }
     const scopeKey = deriveScopeKey(scope);
     const vectorLiteral = embeddingToVectorLiteral(queryEmbedding);
+    // T3.1 — wall-clock latency observation for the HIT path (miss-path
+    // latency is observed at the Memory.recall() wrap site since miss includes
+    // the 9-step pipeline cost).
+    const start = performance.now();
     const { rows } = await this.pool.query<GetRow>(GET_SQL, [scopeKey, vectorLiteral, this.threshold]);
     const row = rows[0];
     if (row === undefined) {
       return undefined;
     }
+    const attrs = { scope_tier: scope.kind, embedder_kind: this.embedderKind };
+    getRecallCacheHitCounter().add(1, attrs);
+    getRecallCacheHitDurationHistogram().record(performance.now() - start, attrs);
     return {
       results: row.result_set,
       cachedAt: row.created_at,
