@@ -147,6 +147,16 @@ export const memories = pgTable(
     index('idx_memories_eviction_score_session')
       .on(table.sessionId)
       .where(sql`${table.tInvalid} IS NULL`),
+    // v1.1 (T1.1): partial composite index on (user_id, attributed_to) for
+    // peer-attributed recall. WHERE clause keeps the index narrow — most rows
+    // (pre-v1.1 + non-attributed v1.1) have NULL attributed_to and skip indexing.
+    // Declared here to close the `drizzle-kit push` parity gap surfaced by
+    // /review F-dom-dbmig-1 — migration 0008_attributed_to.sql already creates
+    // the index via runMigrations(); this declaration makes push-flow developers
+    // land the same index per architecture.md § 10.2.
+    index('idx_memories_user_attributed_to')
+      .on(table.userId, table.attributedTo)
+      .where(sql`${table.attributedTo} IS NOT NULL`),
     check(
       // EC-1 absorption (plan v1.1): name verbatim, cited by
       // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
