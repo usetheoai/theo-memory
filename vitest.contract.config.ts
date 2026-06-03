@@ -19,7 +19,7 @@ export default defineConfig({
   },
   test: {
     include: [
-      'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/__tests__/**/*.test.ts',
+      'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/__tests__/**/*.test.ts',
       'src/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
       // v0-8-fixes-cycle-1 T1.3 + T1.2: benchmarks/scripts/__tests__/ at repo
@@ -27,6 +27,14 @@ export default defineConfig({
       'benchmarks/scripts/__tests__/**/*.test.ts',
     ],
     passWithNoTests: true,
+    // T0.1 absorption: npm install of 6 NEW deps (hono + adapters + commander +
+    // swagger-parser) grew the contract-suite module-resolution graph; tests
+    // doing `dynamic import('src/local/index.ts')` (~1097 LoC + transitive)
+    // bump past Vitest's default 5s. Lift global per-test timeout to 15s to
+    // restore stability without touching individual tests. The 2 affected
+    // pre-existing tests (eviction-barrel, chat-with-memory-info-route) are
+    // unrelated to T0.1's code surface; the slowdown is environmental.
+    testTimeout: 15_000,
     typecheck: {
       enabled: true,
       include: ['src/{core,theokit}/**/__tests__/**/*.test-d.ts'],

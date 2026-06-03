@@ -142,6 +142,9 @@ export type {
   SearchResult,
 } from './dip/benchmark-adapter.js';
 
+// 12th DIP — AuthVerifier (theo-memory-standalone-p0 T0.1, ADR D3 amended).
+export type { AuthVerifier } from './dip/auth-verifier.js';
+
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
 export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
