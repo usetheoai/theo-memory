@@ -7,6 +7,7 @@
  * @see Plan theo-memory-standalone-p0 § T1.2 + ADR D11 (DI factory shape)
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { Tracer } from '@opentelemetry/api';
 
 import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import type { Memory } from '../core/memory-store.js';
@@ -18,6 +19,7 @@ import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopesHandler } from './handlers/scopes.js';
+import { otelMiddleware } from './observability/otel-middleware.js';
 import { registerAllPaths } from './openapi-registration.js';
 
 export interface CreateServerOptions {
@@ -31,10 +33,18 @@ export interface CreateServerOptions {
    * When omitted, `GET /v1/health/db` returns 503 with `no_probe_configured`.
    */
   readonly dbProbe?: () => Promise<void>;
+  /**
+   * Optional OTel `Tracer` injected by the composition root. When omitted,
+   * `trace.getTracer('@usetheo/memory/server', '0.1.0-alpha')` resolves to
+   * the global no-op tracer — zero cost for consumers without an OTel
+   * provider registered. DIP discipline per ADR D11; mirrors
+   * `createLocalMemory({ tracer })`.
+   */
+  readonly tracer?: Tracer;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe } = options;
+  const { memory, authVerifier, dbProbe, tracer } = options;
   const app = new OpenAPIHono();
 
   // EC-19 absorption — /v1/openapi.json MUST resolve auth-exempt even when
@@ -56,6 +66,11 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
     },
   });
 
+  // OTel span middleware mounts BEFORE bearer so spans capture all requests
+  // (including 401s). Scope `/v1/*` so /v1/openapi.json itself also gets a
+  // span without polluting unrelated routes (none today; safe-guards future
+  // additions). Per T1.5 + EC-21 + EC-22.
+  app.use('/v1/*', otelMiddleware(tracer));
   app.use('/v1/*', bearerAuth(authVerifier));
 
   app.get('/v1/health', (c) => healthHandler(c));
