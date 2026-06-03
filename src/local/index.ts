@@ -1325,26 +1325,37 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     // /review re-run F-dom-pgvector-rerun-2: belt-and-suspenders value-based
     // canary INSIDE the transaction (so an unexpected outcome rolls back
     // cleanly rather than leaking a broken schema). Re-probes atttypmod
-    // for BOTH memories AND entities post-ALTER and asserts the actual
-    // dim matches targetDim. Protects against:
+    // for memories, entities, AND recall_cache post-ALTER and asserts the
+    // actual dim matches targetDim. Protects against:
     //  - hypothetical future pgvector release that changes atttypmod encoding
     //    (F-Mi8 extversion canary warns; this assertion fail-closes)
     //  - PG side-effects we did not anticipate (e.g., DEFAULT clause that
     //    overrides the ALTER, trigger that rewrites the type)
     //  - the entities ALTER silently no-op'ing while memories ALTER succeeds
-    const verify = await client.query<{ rel: string; dim: number }>(
-      `SELECT c.relname AS rel, a.atttypmod AS dim
+    //
+    // fixes-cycle-1 T1.1 / F-merge-10 absorption: extended to probe
+    // `recall_cache.query_embedding` as well (v1.5.0 T5.1 cascade ALTERed
+    // that column inside the same BEGIN/COMMIT but the canary only checked
+    // memories + entities). The `recall_cache` row is absent on pre-v1.5
+    // databases — the `WHERE` clause uses LEFT JOIN-style absence-tolerance:
+    // the query simply returns 0-2 rows depending on which tables exist,
+    // and the loop verifies each present row. Symmetric with the `DO $$ IF EXISTS`
+    // guards on the recall_cache cascade ALTER block above.
+    const verify = await client.query<{ rel: string; col: string; dim: number }>(
+      `SELECT c.relname AS rel, a.attname AS col, a.atttypmod AS dim
          FROM pg_attribute a
          JOIN pg_class c ON c.oid = a.attrelid
-        WHERE c.relname IN ('memories', 'entities')
-          AND a.attname = 'embedding'
+        WHERE (
+                (c.relname IN ('memories', 'entities') AND a.attname = 'embedding')
+             OR (c.relname = 'recall_cache' AND a.attname = 'query_embedding')
+              )
           AND a.attisdropped = false
         ORDER BY c.relname`,
     );
     for (const row of verify.rows) {
       if (row.dim !== targetDim) {
         throw new Error(
-          `[themory] dim-change post-ALTER canary FAILED: ${row.rel}.embedding atttypmod=${String(row.dim)} ≠ targetDim=${String(targetDim)}`,
+          `[themory] dim-change post-ALTER canary FAILED: ${row.rel}.${row.col} atttypmod=${String(row.dim)} ≠ targetDim=${String(targetDim)}`,
         );
       }
     }
