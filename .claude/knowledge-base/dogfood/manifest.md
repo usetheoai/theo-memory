@@ -22,12 +22,12 @@ This manifest declares the dogfood scenarios required before any `production-rea
 ### S1 — Claude Code auto-memory backed by TheMemory
 
 **Slug:** `claude-code-auto-memory`
-**Status:** `planned`
+**Status:** `wired`
 **Locked at:** 2026-05-22
 **Required by:** v1.0
 **Owner:** project owner (`usetheodev@gmail.com`)
-**Latest evidence:** N/A (no evidence file yet)
-**First evidence:** N/A
+**Latest evidence:** `2026-06-04-anchor-claude-code-first-wiring.md`
+**First evidence:** `2026-06-04-anchor-claude-code-first-wiring.md`
 
 #### Description
 
@@ -100,6 +100,7 @@ Adding any of these as `required` for v1.0 (versus optional) requires strategic 
 | Date | Decision | Rationale | Author |
 |---|---|---|---|
 | 2026-05-22 | Anchor scenario locked: Claude Code auto-memory backed by TheMemory. | Most direct dogfood available (same problem shape, high frequency, non-privileged access). Locked at day 0 to prevent silent slide into easier-but-less-honest scenarios when wiring is near. | project owner |
+| 2026-06-04 | Anchor S1 transitions `planned` → `wired`. Plan: `dogfood-anchor-scenario-launch` T2.2. Round-trip integration test PASSES against real `themory mcp` + pgvector via Option C MCP `_meta` scope binding (`io.usetheo.themory/user_id`). T2.1 architectural gap (MCP stdio scope binding) closed in commit `95bd168`. Phase B 30-day soak window opens; `/dogfood audit` will return `EVIDENCE_INSUFFICIENT` with soft cap `soft_sustained_lt_30d` firing as EXPECTED steady state through day +29 (EC-11 absorption). T5.1 final audit runs at day +30+ when cap clears — interim audits during soak are NOT regressions. | dogfood-anchor-scenario-launch cycle |
 
 Future decisions modifying the anchor scenario MUST be appended here with an ADR reference.
 
