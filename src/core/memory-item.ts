@@ -86,6 +86,38 @@ export interface MemoryItem {
    * computes via the D14 formula at scoring time.
    */
   readonly halfLifeSeconds?: number | null;
+
+  /**
+   * principles-alignment-hardening T2.1 / ADR D1 — Princípio 1 (CLAUDE.md § IMPORTANTE)
+   * confirmação factor: how many times the SAME hash was asserted within the SAME
+   * scope. Starts at 1 on fresh insert; bumps on dedup-collision via
+   * PgvectorStore's composite ON CONFLICT (ADR D5). Consumers can filter by
+   * `confirmation_count > N` to surface high-confidence facts.
+   *
+   * Optional on the type for backward compat: adapters lacking UPSERT semantics
+   * (in-memory store, external REDACTED/REDACTED adapters not yet upgraded) leave
+   * it undefined.
+   *
+   * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1 + § T2.1
+   * @see CLAUDE.md § IMPORTANTE Princípio 1
+   */
+  readonly confirmationCount?: number;
+
+  /**
+   * principles-alignment-hardening T2.1 / ADR D4 — Princípio 3 (CLAUDE.md § IMPORTANTE)
+   * IGNORE auditability surface: `true` when this item is the existing row
+   * returned after a dedup-collision UPSERT (hash + scope tuple matched an
+   * existing row; confirmation_count was bumped instead of a fresh INSERT).
+   * `false` (or undefined) means a fresh row was inserted.
+   *
+   * Consumers detecting dedup-collision use `if (item.rejectedAsDuplicate === true)`.
+   * Per ADR D4 this is an additive optional widening of the existing MemoryItem
+   * shape (NOT a new return type) honoring ADR-0003 ADD-only invariant.
+   *
+   * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D4 + § T2.1
+   * @see CLAUDE.md § IMPORTANTE Princípio 3
+   */
+  readonly rejectedAsDuplicate?: boolean;
 }
 
 /**

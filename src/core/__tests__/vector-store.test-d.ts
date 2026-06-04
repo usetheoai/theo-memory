@@ -1,6 +1,6 @@
 import { expectTypeOf, test } from 'vitest';
 
-import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
+import type { InsertOutcome, VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import type { Filters } from '../scope.js';
 
 test('VectorStore has exactly 11 required methods (D8 lock)', () => {
@@ -33,7 +33,7 @@ test('initialize() returns Promise<void>', () => {
   expectTypeOf<VectorStore['initialize']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('insert(vectors, ids, payloads) returns Promise<void>', () => {
+test('insert(vectors, ids, payloads) returns Promise<readonly InsertOutcome[]> per principles-alignment-hardening T2.1', () => {
   expectTypeOf<VectorStore['insert']>().parameters.toEqualTypeOf<
     [
       readonly (readonly number[])[],
@@ -41,7 +41,7 @@ test('insert(vectors, ids, payloads) returns Promise<void>', () => {
       readonly Record<string, string | number | boolean | null>[],
     ]
   >();
-  expectTypeOf<VectorStore['insert']>().returns.resolves.toEqualTypeOf<void>();
+  expectTypeOf<VectorStore['insert']>().returns.resolves.toEqualTypeOf<readonly InsertOutcome[]>();
 });
 
 test('search(query, topK?, filters?) returns Promise<readonly VectorStoreResult[]>', () => {
@@ -105,9 +105,11 @@ test('synthetic stub class implementing all 11 methods compiles', () => {
 
     async insert(
       _vectors: readonly (readonly number[])[],
-      _ids: readonly string[],
+      ids: readonly string[],
       _payloads: readonly Record<string, string | number | boolean | null>[],
-    ): Promise<void> {}
+    ): Promise<readonly InsertOutcome[]> {
+      return ids.map((id) => ({ id, confirmationCount: 1, rejectedAsDuplicate: false }));
+    }
 
     async search(
       _query: readonly number[],
