@@ -20,7 +20,7 @@ import {
 import { MAX_EMBEDDING_DIM } from '../constants.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { LLM } from '../dip/llm.js';
-import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
+import type { InsertOutcome, VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import type { Filters } from '../scope.js';
 import { runExtractionPipeline } from '../extraction/pipeline.js';
 
@@ -30,11 +30,15 @@ class StubVectorStore implements VectorStore {
   private rows = new Map<string, { vector: readonly number[]; payload: Payload }>();
 
   initialize(): Promise<void> { return Promise.resolve(); }
-  async insert(vectors: readonly (readonly number[])[], ids: readonly string[], payloads: readonly Payload[]): Promise<void> {
+  async insert(vectors: readonly (readonly number[])[], ids: readonly string[], payloads: readonly Payload[]): Promise<readonly InsertOutcome[]> {
+    const outcomes: InsertOutcome[] = [];
     for (let i = 0; i < ids.length; i += 1) {
-      this.rows.set(ids[i] as string, { vector: vectors[i] as readonly number[], payload: payloads[i] as Payload });
+      const id = ids[i] as string;
+      this.rows.set(id, { vector: vectors[i] as readonly number[], payload: payloads[i] as Payload });
+      outcomes.push({ id, confirmationCount: 1, rejectedAsDuplicate: false });
     }
     await Promise.resolve();
+    return outcomes;
   }
   async search(_q: readonly number[], topK = 10, _filters?: Filters): Promise<readonly VectorStoreResult[]> {
     const out: VectorStoreResult[] = [];
