@@ -287,6 +287,19 @@ export async function runExtractionPipeline(
   }
 
   if (extracted.length === 0) {
+    // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per ADR D2.
+    // LLM returned drafts=[]; before this commit remember() returned []
+    // indistinguishably from "no input". emitEvent surfaces the IGNORE decision
+    // to OTel dashboards. EC-5 absorption: emitEvent is no-op when tracer === undefined.
+    const inputLength = messages.reduce((acc, m) => acc + m.content.length, 0);
+    const scopeTier: string =
+      filters.session_id !== undefined ? 'session' :
+      filters.agent_id !== undefined ? 'agent' :
+      filters.user_id !== undefined ? 'user' : 'none';
+    emitEvent(tracer, 'extraction_zero_facts', {
+      input_length: inputLength,
+      scope_tier: scopeTier,
+    });
     return [];
   }
 

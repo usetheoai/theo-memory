@@ -7,8 +7,8 @@ import { MEMORY_EVENTS, emitEvent } from '../memory-event.js';
 import type { MemoryEvent } from '../memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 14 values (13 prior + dedup_collision_confirmed per principles-alignment-hardening T1.1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(14);
+  test('has 15 values (14 prior + extraction_zero_facts per principles-alignment-hardening T3.1)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(15);
   });
 
   test('includes extraction_failed (EC-10 absorption)', () => {
@@ -17,6 +17,10 @@ describe('MEMORY_EVENTS', () => {
 
   test('includes dedup_collision_confirmed (principles-alignment-hardening T1.1, ADR D2)', () => {
     expect(MEMORY_EVENTS).toContain('dedup_collision_confirmed');
+  });
+
+  test('includes extraction_zero_facts (principles-alignment-hardening T3.1, ADR D2)', () => {
+    expect(MEMORY_EVENTS).toContain('extraction_zero_facts');
   });
 
   test('includes the 8 write-phase _completed events', () => {

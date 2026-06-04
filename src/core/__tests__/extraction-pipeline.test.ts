@@ -129,6 +129,35 @@ describe('runExtractionPipeline (8-phase write)', () => {
     expect(insertSpy).not.toHaveBeenCalled();
   });
 
+  test('principles-alignment-hardening T3.1 — emits extraction_zero_facts when LLM returns drafts=[] (ADR D2 Princípio 3)', async () => {
+    const { tracer, exporter } = setupTracer();
+    const store = new StubVectorStore();
+    const llm = makeLlm({ memory: [] });
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'silence' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+    );
+    expect(result).toEqual([]);
+    const spans = exporter.getFinishedSpans();
+    const zeroFactsSpan = spans.find((s) => s.name === 'extraction_zero_facts');
+    expect(zeroFactsSpan).toBeDefined();
+    expect(zeroFactsSpan!.attributes['input_length']).toBe('silence'.length);
+    expect(zeroFactsSpan!.attributes['scope_tier']).toBe('user');
+  });
+
+  test('principles-alignment-hardening T3.1 EC-5 — extraction_zero_facts no-op when tracer === undefined', async () => {
+    const store = new StubVectorStore();
+    const llm = makeLlm({ memory: [] });
+    // No tracer in deps — emitEvent must be a clean no-op.
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'silence' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), llm },
+    );
+    expect(result).toEqual([]);
+  });
+
   test('EC-10: malformed LLM JSON returns [] + emits extraction_failed event', async () => {
     const { tracer, exporter } = setupTracer();
     const store = new StubVectorStore();
