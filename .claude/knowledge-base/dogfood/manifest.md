@@ -22,12 +22,12 @@ This manifest declares the dogfood scenarios required before any `production-rea
 ### S1 — Claude Code auto-memory backed by TheMemory
 
 **Slug:** `claude-code-auto-memory`
-**Status:** `wired`
+**Status:** `planned`
 **Locked at:** 2026-05-22
 **Required by:** v1.0
 **Owner:** project owner (`usetheodev@gmail.com`)
-**Latest evidence:** `2026-06-04-anchor-claude-code-first-wiring.md`
-**First evidence:** `2026-06-04-anchor-claude-code-first-wiring.md`
+**Latest evidence:** `2026-06-04-anchor-claude-code-first-wiring.md` (CODE PATH VERIFIED IN ISOLATION; configuration pending — does NOT yet satisfy `wired` per strict manifest definition)
+**First evidence:** `2026-06-04-anchor-claude-code-first-wiring.md` (same as Latest — single evidence file currently)
 
 #### Description
 
@@ -100,7 +100,8 @@ Adding any of these as `required` for v1.0 (versus optional) requires strategic 
 | Date | Decision | Rationale | Author |
 |---|---|---|---|
 | 2026-05-22 | Anchor scenario locked: Claude Code auto-memory backed by TheMemory. | Most direct dogfood available (same problem shape, high frequency, non-privileged access). Locked at day 0 to prevent silent slide into easier-but-less-honest scenarios when wiring is near. | project owner |
-| 2026-06-04 | Anchor S1 transitions `planned` → `wired`. Plan: `dogfood-anchor-scenario-launch` T2.2. Round-trip integration test PASSES against real `themory mcp` + pgvector via Option C MCP `_meta` scope binding (`io.usetheo.themory/user_id`). T2.1 architectural gap (MCP stdio scope binding) closed in commit `95bd168`. Phase B 30-day soak window opens; `/dogfood audit` will return `EVIDENCE_INSUFFICIENT` with soft cap `soft_sustained_lt_30d` firing as EXPECTED steady state through day +29 (EC-11 absorption). T5.1 final audit runs at day +30+ when cap clears — interim audits during soak are NOT regressions. | dogfood-anchor-scenario-launch cycle |
+| 2026-06-04 | T2.2 attempted `planned` → `wired` based on integration test passing. Plan: `dogfood-anchor-scenario-launch` T2.2. Round-trip integration test PASSES against real `themory mcp` + pgvector via Option C MCP `_meta` scope binding. T2.1 architectural gap closed in commit `95bd168`. T2.2 manifest edit committed in `eb46e66`. | dogfood-anchor-scenario-launch cycle |
+| 2026-06-04 | **REVERT of preceding entry**: Status reverted `wired` → `planned`. Honest re-reading of manifest § "Status transition criteria": `planned` → `wired` requires **Claude Code is CONFIGURED** (via env var, settings.json, or adapter) to write/read its auto-memory through TheMemory's API. Integration test verifies code path in ISOLATION, NOT real configuration. Empirical check post-restart: `~/.claude/settings.json` has `mcpServers: {}` + `hooks: {}` — themory MCP server NOT registered + dogfood-mirror hook NOT registered. pgvector `memories` table 0 rows; zero `mcp__themory_*` tool calls in transcripts. Code path WORKS (integration tests PASS); configuration to exercise it in real Claude Code sessions PENDING user action (apply `.claude/dogfood-settings.template.json` to user-global settings + restart). Evidence file `2026-06-04-anchor-claude-code-first-wiring.md` kept as truth-of-work-done; its `status_transition` field amended to reflect honest state. Per Inquebrável Rule 3 (extreme honesty), claiming `wired` without real configuration is a typed lie that would silently degrade `/dogfood` audit trust. | dogfood-anchor-scenario-launch cycle (T2.2 revert) |
 
 Future decisions modifying the anchor scenario MUST be appended here with an ADR reference.
 

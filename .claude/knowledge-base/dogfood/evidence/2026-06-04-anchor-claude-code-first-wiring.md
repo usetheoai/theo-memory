@@ -1,13 +1,13 @@
 ---
 scenario: claude-code-auto-memory
 date: 2026-06-04
-status_transition: planned → wired
-unlocks_production_ready_claim: true
+status_transition: planned → planned (code path verified in isolation; configuration pending)
+unlocks_production_ready_claim: false
 ---
 
 # First wiring evidence — Claude Code auto-memory backed by TheMemory
 
-**T2.2 of dogfood-anchor-scenario-launch plan v1.1.** First evidence file for anchor scenario S1. Transitions manifest status from `planned` to `wired` per `dogfood-golden-rule.md` § Status transition criteria.
+**T2.2 of dogfood-anchor-scenario-launch plan v1.1.** First evidence file for anchor scenario S1. Documents Phase A code-path work completed on 2026-06-04. **Honest amendment 2026-06-04**: this file originally claimed `planned → wired` transition based on integration test passing. Empirical post-restart check showed `~/.claude/settings.json` has zero themory entries, pgvector `memories` has 0 rows, and zero `mcp__themory_*` tool calls exist in any transcript. The code path is VERIFIED IN ISOLATION (integration test 2/2 PASS); REAL configuration in Claude Code is PENDING user action. Status remains `planned` per strict manifest definition. `unlocks_production_ready_claim` flipped to `false` until configuration lands.
 
 > **Honesty discipline (EC-12 absorption)**: the `date:` frontmatter above MUST reflect WHEN the dogfood event ACTUALLY happened. This file's content describes wiring work completed on 2026-06-04. NO backdating. NO automated check enforces this — the human author is the gatekeeper per Inquebrável Rule 3.
 
