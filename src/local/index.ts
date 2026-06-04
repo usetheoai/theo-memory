@@ -1067,6 +1067,23 @@ export type DisposableMemory = Memory & { dispose(): Promise<void> };
  * SEPA iter 5 pre-RED CRITICAL #3 — eviction is PG-only).
  */
 export async function createLocalMemory(config: LocalMemoryConfig): Promise<DisposableMemory> {
+  // verbs-as-cli-fixes-cycle-1 T1.1 / ADR D1: default reflectionPolicy when
+  // the consumer OMITS the key entirely. `'reflectionPolicy' in config`
+  // distinguishes omission (→ default to `kind: 'manual'`) from explicit
+  // `reflectionPolicy: undefined` (→ preserve ADR-0005's
+  // `ReflectionNotConfigured` throw for consumers that want strict no-default
+  // behavior). EC-2 absorbed via 3 explicit factory contract tests covering
+  // the 3 distinguishing paths.
+  //
+  // @see ADR-0005 supplementary amendment authorized via project-owner
+  //      Option A response to `/review verbs-as-cli` NEEDS_FIXES verdict
+  //      (2026-06-04 same session); the v0.4a ReflectionPolicy DIP + 3 impls
+  //      make ManualReflectionPolicy the least-surprising default.
+  const resolvedReflectionPolicy: ReflectionPolicy | undefined =
+    'reflectionPolicy' in config
+      ? config.reflectionPolicy
+      : { kind: 'manual', shouldReflect: () => Promise.resolve(true) };
+
   // adapters-openrouter-local-embedder T0.1 (EC-1 absorption): pre-flight
   // FIRST — config-level rejection before any side effect (probe / store init).
   const effectiveDim = validateEmbeddingDim(config.embeddingDim);
@@ -1091,7 +1108,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   }
 
   if (config.eviction === undefined) {
-    const memory = new LocalMemory(config, config.reflectionPolicy, recallCacheStore);
+    const memory = new LocalMemory(config, resolvedReflectionPolicy, recallCacheStore);
     return Object.assign(memory, { dispose: (): Promise<void> => Promise.resolve() });
   }
 
@@ -1138,7 +1155,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
       ? { ...config, postRememberHook }
       : config;
 
-  const memory = new LocalMemory(augmentedConfig, config.reflectionPolicy, recallCacheStore);
+  const memory = new LocalMemory(augmentedConfig, resolvedReflectionPolicy, recallCacheStore);
   const dispose = (): Promise<void> => {
     if (stopCron !== undefined) {
       stopCron();

@@ -1,19 +1,17 @@
 /**
  * `themory reflect` handler — invokes Memory.scoped.reflect() and renders
- * the projected CLI-shape (sourceCount + derivedCount).
+ * the RAW `ReflectionResult` shape (3-way contract parity with MCP + REST).
  *
- * Per plan verbs-as-cli-themory-remember-recall-forget-reflect v1.1 § T2.4
- * + ADRs D2 + D3 + D4. EC-3 absorbed via createCliMemory.
+ * Per plan verbs-as-cli-fixes-cycle-1 § T1.2 + ADR D2. Closes F-dom-api-1
+ * (CLI reflect projection broke 3-way parity vs REST: consumers piping
+ * `themory reflect --json | jq .higherOrderMemories` got `null` because the
+ * projection renamed it to `derived`).
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.4
+ * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2
  */
-import { createCliMemory } from './cli-memory-factory.js';
-import {
-  renderCliOutput,
-  type CliFormat,
-  type CliReflectResult,
-} from './cli-output.js';
-import { resolveCliScope } from './cli-scope.js';
+import { createCliMemory } from './agent-tools-memory.js';
+import { renderCliOutput, type CliFormat } from './cli-output.js';
+import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
 export interface RunReflectOptions {
   readonly user?: string;
@@ -23,19 +21,15 @@ export interface RunReflectOptions {
 }
 
 export async function runReflect(opts: RunReflectOptions): Promise<void> {
+  // verbs-as-cli-fixes-cycle-1 T3.2 / F-dom-cli-2 absorption: validate scope
+  // flags BEFORE the ~2-5s createCliMemory warm-up.
+  validateScopeOpts(opts);
+
   const [memory, dispose] = await createCliMemory();
   try {
     const scoped = resolveCliScope(memory, opts);
     const result = await scoped.reflect();
-    // Project ReflectionResult into the consumer-friendly CLI shape per
-    // ADR D3 + T2.4 Deep Dives.
-    const projected: CliReflectResult = {
-      sourceCount: result.sourceIds.length,
-      derivedCount: result.derivedMemoriesCreated,
-      derived: result.higherOrderMemories,
-      ...(result.reason !== undefined ? { reason: result.reason } : {}),
-    };
-    const out = renderCliOutput({ verb: 'reflect', result: projected }, opts.format);
+    const out = renderCliOutput({ verb: 'reflect', result }, opts.format);
     process.stdout.write(out + '\n');
   } finally {
     await dispose();

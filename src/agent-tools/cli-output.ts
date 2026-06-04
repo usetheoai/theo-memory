@@ -2,12 +2,14 @@
  * CLI output renderer — DRY helper for `themory remember/recall/forget/reflect`
  * stdout serialization (JSON default OR --text human-readable).
  *
- * Per plan verbs-as-cli-themory-remember-recall-forget-reflect v1.1 § T1.2
- * + ADR D3.
+ * Per plan verbs-as-cli-fixes-cycle-1 § T1.2 + ADR D2: the reflect variant
+ * now emits the RAW `ReflectionResult` (not a projection). Restores 3-way
+ * parity with MCP + REST surfaces (closes F-dom-api-1).
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T1.2 + ADR D3
+ * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2 + ADR D2
  */
 import type { MemoryItem, MemoryItemWithScore } from '../core/memory-item.js';
+import type { ReflectionResult } from '../core/reflection-result.js';
 
 export type CliFormat = 'json' | 'text';
 
@@ -18,28 +20,15 @@ export interface CliForgetResult {
   readonly hard: boolean;
 }
 
-/**
- * CLI-shaped reflect result. Projected from the public `ReflectionResult` so
- * consumer scripts see ergonomic `{ sourceCount, derivedCount, derived,
- * reason? }` instead of the raw `{ higherOrderMemories, sourceIds,
- * derivedMemoriesCreated, reason? }` shape — see ADR D3 + T2.4 Deep Dives.
- */
-export interface CliReflectResult {
-  readonly sourceCount: number;
-  readonly derivedCount: number;
-  readonly derived: readonly MemoryItem[];
-  readonly reason?: 'no-source-memories' | 'no-consolidation';
-}
-
 export type CliRenderableResult =
   | { verb: 'remember'; items: readonly MemoryItem[] }
   | { verb: 'recall'; items: readonly MemoryItemWithScore[] }
   | { verb: 'forget'; result: CliForgetResult }
-  | { verb: 'reflect'; result: CliReflectResult };
+  | { verb: 'reflect'; result: ReflectionResult };
 
 /**
  * Render a verb result to stdout text. JSON via `JSON.stringify(_, null, 2)`;
- * text via verb-specific renderer per ADR D3 wording contract.
+ * text via verb-specific renderer.
  */
 export function renderCliOutput(payload: CliRenderableResult, format: CliFormat): string {
   if (format === 'json') {
@@ -63,6 +52,6 @@ export function renderCliOutput(payload: CliRenderableResult, format: CliFormat)
     case 'forget':
       return `Forgot ${payload.result.id} (hard=${String(payload.result.hard)})`;
     case 'reflect':
-      return `Reflected ${String(payload.result.sourceCount)} → ${String(payload.result.derivedCount)} insights`;
+      return `Reflected ${String(payload.result.sourceIds.length)} → ${String(payload.result.derivedMemoriesCreated)} insights`;
   }
 }

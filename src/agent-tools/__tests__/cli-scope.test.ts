@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { resolveCliScope } from '../cli-scope.js';
+import { resolveCliScope, validateScopeOpts } from '../cli-scope.js';
 
 import type { Memory, ScopedMemory } from '../../core/memory-store.js';
 
@@ -70,6 +70,27 @@ describe('T1.1 — resolveCliScope', () => {
   test('6. user + agent both → throws', () => {
     const memory = makeMockMemory();
     expect(() => resolveCliScope(memory, { user: 'u', agent: 'a' })).toThrow(
+      /exactly one required/,
+    );
+  });
+});
+
+// ── verbs-as-cli-fixes-cycle-1 T3.2 / EC-6 — validateScopeOpts boundary tests.
+//    Mirrors resolveCliScope's zero/exactly-one/multi paths but at the boundary
+//    BEFORE Memory factory warm-up. Locks fail-fast behavior at the contract
+//    layer; integration test 3 (verbs-cli-fixes.test.ts) captures end-to-end
+//    elapsed-time guarantee.
+describe('T3.2 — validateScopeOpts (fail-fast boundary)', () => {
+  test('zero scope → throws "exactly one required"', () => {
+    expect(() => validateScopeOpts({})).toThrow(/exactly one required/);
+  });
+
+  test('exactly one scope (user) → returns void (does NOT throw)', () => {
+    expect(() => validateScopeOpts({ user: 'alice' })).not.toThrow();
+  });
+
+  test('multi scope (user + session) → throws "exactly one required"', () => {
+    expect(() => validateScopeOpts({ user: 'a', session: 'b' })).toThrow(
       /exactly one required/,
     );
   });
