@@ -147,8 +147,29 @@ export interface MemoryConfig {
   /** Optional. v0.1 ships DummyHistoryManager (no-op) by default; consumers wire SQLite / Supabase later. */
   readonly historyManager?: HistoryManager;
 
-  /** Optional. v0.0 ships ManualReflectionPolicy as the only built-in. */
-  readonly reflectionPolicy?: ReflectionPolicy;
+  /**
+   * Optional. v0.0 shipped ManualReflectionPolicy as the only built-in; v0.4a
+   * added ThresholdReflectionPolicy + SleepTimeReflectionPolicy behind the
+   * same DIP.
+   *
+   * Behavior under `createLocalMemory` (ADR-0005 v1.1 supplementary
+   * amendment, locked by verbs-as-cli-fixes-cycle-1 T1.1):
+   * - **Key OMITTED** → factory defaults to `{ kind: 'manual', shouldReflect: () => Promise.resolve(true) }`.
+   *   `reflect()` succeeds without explicit wiring.
+   * - **Explicit `undefined` (key present)** → preserves the ADR-0005 v1.0
+   *   `ReflectionNotConfigured` throw on the first `reflect()` call. Use this
+   *   path when consumer code MUST fail loudly on missing-policy. Type
+   *   widened to `ReflectionPolicy | undefined` by verbs-as-cli-fixes-cycle-2
+   *   ADR D3 so this opt-in is typed-reachable under
+   *   `exactOptionalPropertyTypes: true`.
+   * - **Explicit policy** → factory wires the passed reference (no
+   *   substitution); the policy's `onReflectionEnd` hook fires on each
+   *   `reflect()` call.
+   *
+   * @see ADR-0005 § Supplementary amendment v1.1 — the runtime distinction
+   * @see src/local/__tests__/factory.test.ts § EC-2 paths a/b/c — locks the 3 paths
+   */
+  readonly reflectionPolicy?: ReflectionPolicy | undefined;
 
   /** Default `true`. When `false`, no entity vector store is instantiated; halves storage cost. @see ADR-0007 */
   readonly entityBoost?: boolean;

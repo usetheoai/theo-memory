@@ -3,24 +3,25 @@
  *
  * Single source of truth for the THEOMEM_PG_URI + OPENAI_API_KEY env-validation
  * triplicated across the agent-tools subpath (CLI verbs + MCP runner + REST
- * runner). Per plan verbs-as-cli-fixes-cycle-1 § T2.1 + ADR D3, this file
- * (rename of `cli-memory-factory.ts`) is now consumed by:
+ * runner) AND for the Memory factory provider tuple (`PgvectorStore` +
+ * `LocalTransformerEmbedder` + `OpenAILLM`).
  *
- *   - src/agent-tools/run-{remember,recall,forget,reflect}.ts (CLI verb handlers)
- *   - src/agent-tools/run-mcp-server.ts (MCP transport runner)
- *   - src/agent-tools/run-server.ts (REST API runner)
+ * Per plan verbs-as-cli-fixes-cycle-2 § T3.1 + ADR D4, the provider-tuple
+ * factory body is now extracted as `wireMemoryFromPool(pool)` so all 3
+ * agent-tools entry points can share it:
  *
- * `createCliMemory` is preserved as an exported alias for backward-compat with
- * the 4 verb handlers; new call-sites SHOULD use `createAgentToolsMemory`.
+ *   - `createAgentToolsMemory()` (CLI verb handlers) — full lifecycle
+ *     including assertEnvOrExit + new Pool + runMigrations + dispose closure.
+ *   - `run-mcp-server.ts` — calls `wireMemoryFromPool(pool)` directly with
+ *     its existing pool + migration lifecycle.
+ *   - `run-server.ts` — calls `wireMemoryFromPool(pool)` INSIDE the EC-33
+ *     readiness-Proxy warm Promise, preserving the readiness gate semantics.
  *
- * EC-4 absorption — the explicit `reflectionPolicy: { kind: 'manual', ... }`
- * wire from the pre-T1.1 version of this file is INTENTIONALLY DROPPED:
- * post-T1.1, `createLocalMemory` defaults `reflectionPolicy` at the factory
- * level when the consumer OMITS the key (per ADR D1 + ADR-0005 supplementary
- * amendment). Explicit-wire here would be dead code AND a DRY violation
- * visible at the refactor source.
+ * EC-3 absorption (verbs-as-cli-fixes-cycle-2 plan T3.1 step 6): the helper
+ * does NOT close the pool — caller owns the pool lifecycle. A contract test
+ * pins this invariant at `src/agent-tools/__tests__/agent-tools-memory.test.ts`.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T2.1 + ADRs D1 + D3
+ * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T3.1 + ADRs D3 + D4
  */
 import { Pool } from 'pg';
 
@@ -33,11 +34,13 @@ import { PgvectorStore } from '../local/pgvector-store.js';
 const LOCAL_EMBEDDER_DIM = 384;
 
 /**
+ * @internal Shared boundary helper for agent-tools subpath (CLI/MCP/REST).
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
  * Boundary env-fail helper. Each spec is `{ name, errorMessage }`. When the
  * env var is undefined OR empty-string, writes `errorMessage` to stderr and
  * calls `process.exit(2)` (commander v12 maps invalid-arg to exit 2; we want
- * the same contract at the env-presence boundary). The whole call is
- * synchronous; `process.exit` does not return.
+ * the same contract at the env-presence boundary).
  */
 export function assertEnvOrExit(
   specs: readonly { readonly name: string; readonly errorMessage: string }[],
@@ -52,14 +55,12 @@ export function assertEnvOrExit(
 }
 
 /**
- * Canonical env specs for the agent-tools subpath. Exported so the 3 callers
- * (CLI / MCP / REST) reference the same byte-identical stderr strings —
- * single source of truth (closes F-arch-2 + F-wire-1).
+ * @internal Shared env spec for agent-tools subpath (CLI/MCP/REST).
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
  *
- * The literal `OPENAI_API_KEY required` substring is preserved verbatim so
- * existing test sentinels (`tests/integration/p0-audit/*`) continue to pass
- * after the EC-3 absorption (preserve PER-TEST wording when retrofit collapses
- * duplicates into shared helper).
+ * Single source of truth for `Error: THEOMEM_PG_URI required ...` stderr
+ * string consumed by the 3 callers + by existing test sentinels at
+ * `tests/integration/p0-audit/*`.
  */
 export const PG_URI_ENV_SPEC = {
   name: 'THEOMEM_PG_URI',
@@ -67,6 +68,13 @@ export const PG_URI_ENV_SPEC = {
     'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).\n',
 } as const;
 
+/**
+ * @internal Shared env spec for agent-tools subpath (CLI/MCP/REST).
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
+ * Single source of truth for `Error: OPENAI_API_KEY required ...` stderr
+ * string consumed by the 3 callers + by existing test sentinels.
+ */
 export const OPENAI_API_KEY_ENV_SPEC = {
   name: 'OPENAI_API_KEY',
   errorMessage:
@@ -74,6 +82,36 @@ export const OPENAI_API_KEY_ENV_SPEC = {
 } as const;
 
 /**
+ * @internal Shared Memory factory composition helper for agent-tools subpath.
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
+ * Builds a `Memory` instance from the provided `pool`. Composes the provider
+ * tuple (`PgvectorStore` + `LocalTransformerEmbedder` + `OpenAILLM`) at the
+ * SINGLE SOURCE OF TRUTH. Called by:
+ *   - `createAgentToolsMemory()` (CLI verb handlers + tuple lifecycle)
+ *   - `run-mcp-server.ts::runMcpServer` (direct, after env-validation)
+ *   - `run-server.ts::runServer` (inside the EC-33 readiness warm Promise)
+ *
+ * EC-3 contract: the helper DOES NOT close the pool. Caller owns the pool
+ * lifecycle (close it on dispose / shutdown). Pinned by
+ * `test_wireMemoryFromPool_does_not_close_pool` at
+ * `src/agent-tools/__tests__/agent-tools-memory.test.ts`.
+ *
+ * @see plan verbs-as-cli-fixes-cycle-2 § ADR D4 — extract rationale
+ */
+export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
+  return createLocalMemory({
+    vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
+    embedder: new LocalTransformerEmbedder(),
+    llm: new OpenAILLM(),
+    embeddingDim: LOCAL_EMBEDDER_DIM,
+  });
+}
+
+/**
+ * @internal Shared CLI Memory factory for agent-tools verb handlers.
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
  * Build a `Memory` instance from env config. Hard-exits with code 2 on
  * missing `THEOMEM_PG_URI` or `OPENAI_API_KEY` via `assertEnvOrExit`.
  *
@@ -81,8 +119,9 @@ export const OPENAI_API_KEY_ENV_SPEC = {
  * by the handler in a try/finally to release the connection without
  * blocking process exit.
  *
- * EC-4 absorption: no explicit `reflectionPolicy:` wire — the factory's
- * post-T1.1 default (`{ kind: 'manual', ... }`) applies via key-omission.
+ * EC-4 absorption (fix-cycle-1): no explicit `reflectionPolicy:` wire — the
+ * factory's post-T1.1 default (`{ kind: 'manual', ... }`) applies via
+ * key-omission.
  */
 export async function createAgentToolsMemory(): Promise<readonly [Memory, () => Promise<void>]> {
   assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
@@ -93,12 +132,7 @@ export async function createAgentToolsMemory(): Promise<readonly [Memory, () => 
   const pool = new Pool({ connectionString: pgUri });
   await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
 
-  const memory = await createLocalMemory({
-    vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
-    embedder: new LocalTransformerEmbedder(),
-    llm: new OpenAILLM(),
-    embeddingDim: LOCAL_EMBEDDER_DIM,
-  });
+  const memory = await wireMemoryFromPool(pool);
 
   const dispose = async (): Promise<void> => {
     await pool.end();
@@ -106,9 +140,3 @@ export async function createAgentToolsMemory(): Promise<readonly [Memory, () => 
 
   return [memory, dispose] as const;
 }
-
-/**
- * Backward-compat alias for the 4 verb handlers' pre-existing import name.
- * New call-sites SHOULD prefer `createAgentToolsMemory`.
- */
-export const createCliMemory = createAgentToolsMemory;

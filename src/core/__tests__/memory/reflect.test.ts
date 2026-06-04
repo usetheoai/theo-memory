@@ -56,17 +56,15 @@ describe('Memory.reflect() (T4.3)', () => {
     // the consumer OMITS the key entirely. Strict no-default behavior is opt-in
     // via explicit `reflectionPolicy: undefined` per the `'in' operator`
     // distinguishing semantics. This test locks the opt-in throw path.
-    // `exactOptionalPropertyTypes: true` in tsconfig.contract.json rejects
-    // explicit `undefined` on a `?:` optional. We cast through a partial widen
-    // to express "this code path EXPLICITLY passes undefined" without
-    // weakening the public surface type.
-    const config = {
+    // verbs-as-cli-fixes-cycle-2 T2.2 / ADR D3: type widened to
+    // `ReflectionPolicy | undefined` so explicit `undefined` is typed-
+    // reachable under `exactOptionalPropertyTypes: true`. No cast needed.
+    const memory = await createLocalMemory({
       vectorStore: new InMemoryVectorStore(),
       embedder: stubEmbedder(),
       llm: stubLLM('[]'),
       reflectionPolicy: undefined,
-    } as unknown as Parameters<typeof createLocalMemory>[0];
-    const memory = await createLocalMemory(config);
+    });
     await expect(memory.user('alice').reflect()).rejects.toThrow(ReflectionNotConfigured);
   });
 

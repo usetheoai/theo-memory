@@ -28,10 +28,8 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
-import { LocalTransformerEmbedder } from '../embedders/local.js';
-import { OpenAILLM } from '../llms/openai.js';
-import { createLocalMemory, runMigrations } from '../local/index.js';
-import { PgvectorStore } from '../local/pgvector-store.js';
+import type { Memory } from '../core/memory-store.js';
+import { runMigrations } from '../local/index.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
 import { createServer } from '../server/index.js';
 
@@ -39,6 +37,7 @@ import {
   assertEnvOrExit,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
+  wireMemoryFromPool,
 } from './agent-tools-memory.js';
 
 /**
@@ -123,14 +122,14 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // the factory resolves before any HTTP probe could land and the gate
   // would be unobservable.
   let isReady = false;
-  let memory: Awaited<ReturnType<typeof createLocalMemory>> | undefined;
+  let memory: Memory | undefined;
+  // verbs-as-cli-fixes-cycle-2 T3.1 / ADR D4 retrofit (closes M1): provider
+  // tuple composition delegated to shared `wireMemoryFromPool` helper INSIDE
+  // the warm Promise — preserves the EC-33 readiness-Proxy lifecycle exactly
+  // (memory assignment happens at the same `await` point; flag flip
+  // unchanged).
   const warmPromise = (async () => {
-    memory = await createLocalMemory({
-      vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
-      embedder: new LocalTransformerEmbedder(),
-      llm: new OpenAILLM(),
-      embeddingDim: LOCAL_EMBEDDER_DIM,
-    });
+    memory = await wireMemoryFromPool(pool);
     isReady = true;
   })();
 
@@ -146,7 +145,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // a verb handler fires before the factory resolves. The 503-readiness
   // gate at /v1/health should prevent the orchestrator from routing user
   // traffic during that window; this shim is the defense-in-depth.
-  const memoryShim = new Proxy({} as Awaited<ReturnType<typeof createLocalMemory>>, {
+  const memoryShim = new Proxy({} as Memory, {
     get(_target, prop) {
       if (memory === undefined) {
         throw new Error(

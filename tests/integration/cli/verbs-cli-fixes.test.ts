@@ -177,31 +177,36 @@ describe.skipIf(!DIST_EXISTS)('verbs-as-CLI fix-cycle integration', () => {
 
   // ─── Theme 4: locked names ────────────────────────────────────────────────
 
-  test('test 5 — cli.ts contains the 4 locked verb-command names (F-dom-api-3)', () => {
+  test('test 5 — cli.ts contains the 4 locked verb-command names INSIDE .command() (F-dom-api-3 + ADR D6 regex-pinned)', () => {
     const src = readFileSync(CLI_SRC_PATH, 'utf8');
-    // The 4 verb subcommands per CLAUDE.md § Locked names extension (T5.3).
-    expect(src).toContain("'remember <text>'");
-    expect(src).toContain("'recall <query>'");
-    expect(src).toContain("'forget <id>'");
-    expect(src).toContain("'reflect'");
+    // verbs-as-cli-fixes-cycle-2 T3.3 / ADR D6: regex-pinned to .command()
+    // call site (M6 closure) — substring grep would match comments + other
+    // contexts; the regex requires the verb to be inside `.command(...)`.
+    expect(src).toMatch(/\.command\(\s*['"]remember <text>['"]/);
+    expect(src).toMatch(/\.command\(\s*['"]recall <query>['"]/);
+    expect(src).toMatch(/\.command\(\s*['"]forget <id>['"]/);
+    expect(src).toMatch(/\.command\(\s*['"]reflect['"]/);
   });
 
-  test('test 6 — cli.ts contains all 9 locked CLI flag strings (F-dom-api-3)', () => {
+  test('test 6 — cli.ts contains all 9 locked flag strings INSIDE .option() (F-dom-api-3 + EC-4 boundary char)', () => {
     const src = readFileSync(CLI_SRC_PATH, 'utf8');
-    // The 9 stable flags per CLAUDE.md § Locked names extension (T5.3).
-    const FLAGS = [
-      '--user',
-      '--session',
-      '--agent',
-      '--top-k',
-      '--threshold',
-      '--diversify',
-      '--hard',
-      '--json',
-      '--text',
+    // verbs-as-cli-fixes-cycle-2 T3.3 / ADR D6 + EC-4: regex pinned to
+    // .option() WITH BOUNDARY CHAR after flag name. Boundary char class
+    // [\s'"<] prevents false-positive matches against `--user-name` (compound
+    // option) AND against `parseIntInRange('--top-k', 1, 100)` factory args.
+    const FLAGS_WITH_BOUNDARY: readonly RegExp[] = [
+      /\.option\(\s*['"]--user[\s'"<]/,
+      /\.option\(\s*['"]--session[\s'"<]/,
+      /\.option\(\s*['"]--agent[\s'"<]/,
+      /\.option\(\s*['"]--top-k[\s'"<]/,
+      /\.option\(\s*['"]--threshold[\s'"<]/,
+      /\.option\(\s*['"]--diversify[\s'"<]/,
+      /\.option\(\s*['"]--hard[\s'"<]/,
+      /\.option\(\s*['"]--json[\s'"<]/,
+      /\.option\(\s*['"]--text[\s'"<]/,
     ];
-    for (const flag of FLAGS) {
-      expect(src, `cli.ts missing flag ${flag}`).toContain(flag);
+    for (const pattern of FLAGS_WITH_BOUNDARY) {
+      expect(src, `cli.ts missing flag matching ${pattern.source}`).toMatch(pattern);
     }
   });
 
