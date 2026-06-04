@@ -39,6 +39,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -132,6 +133,13 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
         throw new Error(`tar -xzf failed: ${tarRun.stderr}`);
       }
       extractedPackageDir = join(extractDir, 'package');
+      // Simulate post-install dependency resolution by symlinking the project's
+      // node_modules into the extracted package dir. `npm install @usetheo/memory`
+      // would create an equivalent layout via npm's dep resolver. Without this,
+      // the `require()` round-trip fails for bare specifiers like `commander`,
+      // `hono`, `pg` — which is a npm-install-environment limitation, NOT a
+      // regression of our publish manifest.
+      symlinkSync(join(REPO_ROOT, 'node_modules'), join(extractedPackageDir, 'node_modules'), 'dir');
     });
 
     afterAll(() => {
