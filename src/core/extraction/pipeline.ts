@@ -148,9 +148,15 @@ async function runInferFalsePath(
  * UPSERT outcomes from the vector store. Surfaces Princípio 1 (confirmação)
  * + Princípio 3 (rejectedAsDuplicate IGNORE auditability) on the DTO.
  *
- * Outcomes are matched by id (input-order positional match is the fast path;
- * Map fallback handles the per-row insert path where positional order may
- * differ from the original input).
+ * Pairing is POSITIONAL by input order: outcomes[i] corresponds to items[i].
+ * This handles the ON CONFLICT DO UPDATE case where PgvectorStore's
+ * RETURNING projects the EXISTING row's id (not the random id we attempted
+ * to INSERT) — positional pairing preserves the consumer's expectation that
+ * "I asked for fact X; here is what the store knows about it (existing id +
+ * post-bump count + dedup flag)".
+ *
+ * When `outcomes.length !== items.length` (e.g., per-row fallback dropped
+ * some rows), items beyond the outcomes length are returned unpatched.
  */
 function patchItemsWithOutcomes(
   items: readonly MemoryItem[],
@@ -159,14 +165,16 @@ function patchItemsWithOutcomes(
   if (outcomes.length === 0) {
     return items;
   }
-  const byId = new Map(outcomes.map((o) => [o.id, o]));
-  return items.map((item) => {
-    const outcome = byId.get(item.id);
+  return items.map((item, i) => {
+    const outcome = outcomes[i];
     if (outcome === undefined) {
       return item;
     }
     return {
       ...item,
+      // Overwrite id with the store's authoritative value: identical for fresh
+      // inserts, but the EXISTING row's id when ON CONFLICT bumped instead.
+      id: outcome.id,
       confirmationCount: outcome.confirmationCount,
       rejectedAsDuplicate: outcome.rejectedAsDuplicate,
     };
@@ -312,10 +320,15 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 4-5: dedup + payload composition
   // ============================================================
-  const [existingPayloads] = await deps.vectorStore.list(filters, 500);
-  const existingHashes = new Set<string>(
-    existingPayloads.map((r) => String(r.payload['hash'] ?? '')),
-  );
+  // principles-alignment-hardening T1.1 — app-level dedup against DB state
+  // (`existingPayloads` Set) was REMOVED in favor of the DB-level composite
+  // UPSERT (PgvectorStore ON CONFLICT per ADR D5). The DB constraint handles
+  // cross-batch dedup correctly and surfaces the outcome via InsertOutcome
+  // (confirmationCount + rejectedAsDuplicate) so consumers SEE the bump
+  // instead of receiving silent []. The dedup_skipped event still fires for
+  // WITHIN-batch duplicates (the LLM extraction emitting the same fact twice
+  // in one drafts list).
+  const inBatchHashes = new Set<string>();
 
   const scope = scopeFromFilters(filters);
   const metadata = options?.metadata ?? {};
@@ -332,11 +345,12 @@ export async function runExtractionPipeline(
       continue; // embed failed for this row; skip
     }
     const hash = hashFact(text);
-    if (existingHashes.has(hash)) {
+    if (inBatchHashes.has(hash)) {
+      // Within-batch duplicate (same fact emitted twice by the LLM in one call).
       emitEvent(tracer, 'dedup_skipped', { hash });
       continue;
     }
-    existingHashes.add(hash);
+    inBatchHashes.add(hash);
     const id = randomUUID();
     const now = new Date();
     const payload = buildPayload(text, hash, filters, metadata);

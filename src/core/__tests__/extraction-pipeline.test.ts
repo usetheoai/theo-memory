@@ -172,21 +172,27 @@ describe('runExtractionPipeline (8-phase write)', () => {
     expect(spanNames).toContain('extraction_failed');
   });
 
-  test('skips dedup hit (hash collision against existing memory)', async () => {
+  test('emits dedup_skipped for WITHIN-batch duplicates (LLM emits same fact twice in one call)', async () => {
+    // principles-alignment-hardening T1.1 contract change: dedup against
+    // existing DB state moved from app-level to DB-level (PgvectorStore composite
+    // UPSERT per ADR D5). The dedup_skipped event still fires for WITHIN-batch
+    // duplicates (the LLM emitting the same fact twice in one extraction call).
+    const { tracer, exporter } = setupTracer();
     const store = new StubVectorStore();
-    const llm1 = makeLlm({ memory: [{ id: '0', text: 'Paulo likes coffee' }] });
-    await runExtractionPipeline(
-      [{ role: 'user', content: 'first time' }],
-      { user_id: 'alice' },
-      { vectorStore: store, embedder: makeEmbedder(), llm: llm1 },
-    );
-    const llm2 = makeLlm({ memory: [{ id: '0', text: 'Paulo likes coffee' }] });
+    const llm = makeLlm({
+      memory: [
+        { id: '0', text: 'Paulo likes coffee' },
+        { id: '1', text: 'Paulo likes coffee' }, // duplicate within the SAME drafts list
+      ],
+    });
     const result = await runExtractionPipeline(
-      [{ role: 'user', content: 'second time' }],
+      [{ role: 'user', content: 'within batch dup' }],
       { user_id: 'alice' },
-      { vectorStore: store, embedder: makeEmbedder(), llm: llm2 },
+      { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
     );
-    expect(result).toEqual([]);
+    expect(result).toHaveLength(1); // second copy dedup-skipped within the batch
+    const spanNames = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spanNames).toContain('dedup_skipped');
   });
 
   test('per-row fallback on embedBatch failure: still persists via single embed', async () => {
