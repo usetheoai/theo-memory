@@ -9,7 +9,7 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2
  */
-import { createCliMemory } from './agent-tools-memory.js';
+import { createAgentToolsMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
@@ -22,10 +22,10 @@ export interface RunReflectOptions {
 
 export async function runReflect(opts: RunReflectOptions): Promise<void> {
   // verbs-as-cli-fixes-cycle-1 T3.2 / F-dom-cli-2 absorption: validate scope
-  // flags BEFORE the ~2-5s createCliMemory warm-up.
+  // flags BEFORE the ~2-5s createAgentToolsMemory warm-up.
   validateScopeOpts(opts);
 
-  const [memory, dispose] = await createCliMemory();
+  const [memory, dispose] = await createAgentToolsMemory();
   try {
     const scoped = resolveCliScope(memory, opts);
     const result = await scoped.reflect();

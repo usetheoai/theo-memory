@@ -5,12 +5,12 @@
  * + ADR D2 (EC-1 absorbed: NO scope flags — memoryId globally unique per
  * ADR-0002 + memory-store.ts:59-60 EXPLICIT comment "Notably excludes
  * `forget` (memoryId is globally unique — use top-level Memory.forget)").
- * EC-3 absorbed via createCliMemory. EC-5 absorbed: UUID v4 validator
+ * EC-3 absorbed via createAgentToolsMemory. EC-5 absorbed: UUID v4 validator
  * at handler entry.
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.3
  */
-import { createCliMemory } from './agent-tools-memory.js';
+import { createAgentToolsMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 
 export interface RunForgetOptions {
@@ -28,7 +28,7 @@ export async function runForget(opts: RunForgetOptions): Promise<void> {
     process.exit(2);
   }
 
-  const [memory, dispose] = await createCliMemory();
+  const [memory, dispose] = await createAgentToolsMemory();
   try {
     const hard = opts.hard ?? false;
     await memory.forget(opts.id, { hard });

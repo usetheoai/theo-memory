@@ -66,15 +66,28 @@ export function applyAliasArgvShim(argv: string[]): string[] {
 }
 
 export function buildProgram(): Command {
-  // verbs-as-cli-fixes-cycle-1 T2.2 / ADR D4: parser factories collapse 5
-  // byte-similar `--top-k` / `--threshold` / `--diversify` / `--port` (×2)
-  // validators into single-line invocations. Closes F-arch-3 (DRY § Regra
-  // de 3 violation). The `label` argument MUST include the `--` prefix so
-  // the synthesized error message reads `Invalid --top-k: 0 (...)` — preserves
-  // existing stderr regex `/.*?top-k/i` in parent verbs-cli.test.ts test 16.
+  // verbs-as-cli-fixes-cycle-2 T1.1 / ADR D1: STRICT-COERCION parser factories.
+  // Replaces fix-cycle-1's lossy Number.parseInt/Number.parseFloat (which
+  // silently truncated `5.7` → 5 and `5abc` → 5). Now uses Number() + regex
+  // pre-check + isInteger/isFinite + range. Closes M4 + EC-1 (empty string)
+  // + EC-2 (hex `0x1F` / scientific `5e2` notation). Pre-regex check rejects
+  // empty strings AND hex/scientific notation BEFORE Number() coercion;
+  // Number() then catches decimal-trailing-garbage via isInteger/isFinite.
+  // The `label` argument MUST include the `--` prefix to preserve parent
+  // verbs-cli.test.ts test 16 stderr regex `/.*?top-k/i`.
+  const INT_REGEX = /^-?\d+$/;
+  const FLOAT_REGEX = /^-?\d+(\.\d+)?$/;
   const parseIntInRange = (label: string, min: number, max: number) =>
     (raw: string): number => {
-      const n = Number.parseInt(raw, 10);
+      // EC-1 + EC-2 absorption: regex pre-check rejects empty string AND hex
+      // (`0x1F`) AND scientific (`5e2`) AND trailing garbage (`5abc`)
+      // BEFORE Number() coercion.
+      if (raw.trim().length === 0 || !INT_REGEX.test(raw)) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be an integer in ${String(min)}..${String(max)}).`,
+        );
+      }
+      const n = Number(raw);
       if (!Number.isInteger(n) || n < min || n > max) {
         throw new InvalidArgumentError(
           `Invalid ${label}: ${raw} (must be an integer in ${String(min)}..${String(max)}).`,
@@ -84,7 +97,12 @@ export function buildProgram(): Command {
     };
   const parseFloatInRange = (label: string, min: number, max: number) =>
     (raw: string): number => {
-      const n = Number.parseFloat(raw);
+      if (raw.trim().length === 0 || !FLOAT_REGEX.test(raw)) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be a float in [${String(min)}, ${String(max)}]).`,
+        );
+      }
+      const n = Number(raw);
       if (!Number.isFinite(n) || n < min || n > max) {
         throw new InvalidArgumentError(
           `Invalid ${label}: ${raw} (must be a float in [${String(min)}, ${String(max)}]).`,

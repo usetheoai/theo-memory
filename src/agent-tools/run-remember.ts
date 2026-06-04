@@ -10,7 +10,7 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.1
  */
-import { createCliMemory } from './agent-tools-memory.js';
+import { createAgentToolsMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
@@ -31,11 +31,11 @@ export async function runRemember(opts: RunRememberOptions): Promise<void> {
   }
 
   // verbs-as-cli-fixes-cycle-1 T3.2 / F-dom-cli-2 absorption: validate scope
-  // flags BEFORE the ~2-5s createCliMemory warm-up so consumers with
+  // flags BEFORE the ~2-5s createAgentToolsMemory warm-up so consumers with
   // malformed `--user a --session b` exit in <2s.
   validateScopeOpts(opts);
 
-  const [memory, dispose] = await createCliMemory();
+  const [memory, dispose] = await createAgentToolsMemory();
   try {
     const scoped = resolveCliScope(memory, opts);
     const items = await scoped.remember(opts.text);

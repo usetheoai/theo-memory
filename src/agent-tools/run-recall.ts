@@ -2,7 +2,7 @@
  * `themory recall` handler — queries Memory.scoped.recall() and renders.
  *
  * Per plan verbs-as-cli-themory-remember-recall-forget-reflect v1.1 § T2.2
- * + ADRs D2 + D4. EC-3 absorbed via createCliMemory. EC-6 absorbed: bounds
+ * + ADRs D2 + D4. EC-3 absorbed via createAgentToolsMemory. EC-6 absorbed: bounds
  * validators for --top-k (int 1-100), --threshold (float 0-1), --diversify
  * (float 0-1). EC-7 absorbed: BEFORE rendering, the handler strips the
  * `embedding` field from each item to prevent 1536-float arrays from
@@ -14,7 +14,7 @@
  */
 import type { MemoryItemWithScore } from '../core/memory-item.js';
 
-import { createCliMemory } from './agent-tools-memory.js';
+import { createAgentToolsMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
@@ -31,10 +31,10 @@ export interface RunRecallOptions {
 
 export async function runRecall(opts: RunRecallOptions): Promise<void> {
   // verbs-as-cli-fixes-cycle-1 T3.2 / F-dom-cli-2 absorption: validate scope
-  // flags BEFORE the ~2-5s createCliMemory warm-up.
+  // flags BEFORE the ~2-5s createAgentToolsMemory warm-up.
   validateScopeOpts(opts);
 
-  const [memory, dispose] = await createCliMemory();
+  const [memory, dispose] = await createAgentToolsMemory();
   try {
     const scoped = resolveCliScope(memory, opts);
     const recallOpts: { topK?: number; threshold?: number; diversify?: { lambda: number } } = {};
