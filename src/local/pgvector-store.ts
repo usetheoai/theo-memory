@@ -324,12 +324,44 @@ export class PgvectorStore implements VectorStore {
         attributedTo,
       );
     }
+    // principles-alignment-hardening T1.1 — composite ON CONFLICT per ADR D5.
+    // The conflict target MUST match migration 0011's memories_hash_scope_unique_idx
+    // expression list (hash, COALESCE(user_id,''), COALESCE(session_id,''), COALESCE(agent_id,'')).
+    // On collision, bump confirmation_count by 1 (Princípio 1 — confirmação factor per ADR D1).
+    // RETURNING (xmax = 0) AS inserted is the canonical PG tell-tale for INSERT-vs-UPDATE:
+    // xmax = 0 on fresh inserts, non-zero on updates. confirmation_count is RETURNed post-bump.
     const sql = `
       INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to)
       VALUES ${values.join(', ')}
-      ON CONFLICT (hash) DO NOTHING
+      ON CONFLICT (hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
+      DO UPDATE SET confirmation_count = memories.confirmation_count + 1
+      RETURNING id, confirmation_count, user_id, session_id, agent_id, (xmax = 0) AS inserted
     `;
-    await this.pool.query(sql, params);
+    const result = await this.pool.query<{
+      id: string;
+      confirmation_count: number;
+      user_id: string | null;
+      session_id: string | null;
+      agent_id: string | null;
+      inserted: boolean;
+    }>(sql, params);
+    // principles-alignment-hardening T1.1 — Princípio 3 IGNORE auditability per ADR D2.
+    // Emit dedup_collision_confirmed for each row whose ON CONFLICT branch fired
+    // (existed in scope; confirmation_count bumped). Skip for fresh inserts.
+    // EC-5 absorption: emitEvent is a no-op when tracer === undefined (handled
+    // by emitEvent itself per src/core/memory-event.ts:46), so no explicit guard
+    // needed here.
+    for (const row of result.rows) {
+      if (!row.inserted) {
+        const scopeTier: string =
+          row.session_id !== null ? 'session' : row.agent_id !== null ? 'agent' : row.user_id !== null ? 'user' : 'none';
+        emitEvent(this.tracer, 'dedup_collision_confirmed', {
+          memory_id: row.id,
+          confirmation_count: row.confirmation_count,
+          scope_tier: scopeTier,
+        });
+      }
+    }
   }
 
   private async insertSingle(
