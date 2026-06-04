@@ -268,3 +268,18 @@ describe('T2.2 — themory mcp wired with --transport / --port / --host options'
     await expect(rms({ transport: 'streamable-http', port: 99_999 })).rejects.toThrow(/port/i);
   });
 });
+
+// ── verbs-as-cli-fixes-cycle-2 T1.1 / ADR D1 — parser strict-coercion
+//    contract tests at the runtime-behavior layer.
+//    The strict-coercion factories `parseIntInRange` + `parseFloatInRange` at
+//    src/agent-tools/cli.ts are inline-defined inside buildProgram() (per ADR
+//    D4 of fix-cycle-1) and exposed only via commander's option-parser path —
+//    making them unreachable as a direct import target. The canonical contract
+//    test surface is the INTEGRATION SUITE at
+//    `tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts` (8 spawn-based
+//    assertions covering all 6 parser-strict paths + 2 EC absorption paths
+//    via real `node dist/agent-tools/cli.js ... --top-k <X>` invocations + exit
+//    code 2 verification). The integration tier is the load-bearing TDD layer
+//    for ADR D1; this comment is the locus pointer.
+//
+// @see tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts § tests 1-4, 7-8

@@ -22,15 +22,13 @@
  */
 import { Pool } from 'pg';
 
-import { LocalTransformerEmbedder } from '../embedders/local.js';
-import { OpenAILLM } from '../llms/openai.js';
-import { createLocalMemory, runMigrations } from '../local/index.js';
-import { PgvectorStore } from '../local/pgvector-store.js';
+import { runMigrations } from '../local/index.js';
 
 import {
   assertEnvOrExit,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
+  wireMemoryFromPool,
 } from './agent-tools-memory.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
@@ -111,12 +109,11 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     `themory mcp: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${LOCAL_EMBEDDER_DIM}) + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
-  const memory = await createLocalMemory({
-    vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
-    embedder: new LocalTransformerEmbedder(),
-    llm: new OpenAILLM(),
-    embeddingDim: LOCAL_EMBEDDER_DIM,
-  });
+  // verbs-as-cli-fixes-cycle-2 T3.1 / ADR D4 retrofit (closes M1): provider
+  // tuple composition delegated to shared `wireMemoryFromPool` helper. Single
+  // source of truth for `PgvectorStore` + `LocalTransformerEmbedder` +
+  // `OpenAILLM` wiring across CLI/MCP/REST.
+  const memory = await wireMemoryFromPool(pool);
 
   const server = new McpServer({
     name: 'themory',

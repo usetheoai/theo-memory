@@ -109,3 +109,30 @@ If a caller invokes `reflect()` without configuring a policy, throw `ReflectionN
 - `LocalScopedMemory.reflect()` `ReflectionNotConfigured` throw at `src/local/index.ts:632` is narrowed to the explicit-undefined opt-in path.
 - CLI / MCP / REST surfaces all `reflect()` work without explicit wiring; T2.1 of fix-cycle-1 drops the redundant explicit wire from `agent-tools-memory.ts` (EC-4 absorption).
 - ADR-0005 v1.0 status remains `Accepted`; v1.1 is a supplementary widening, not a retraction. Original rationale stays load-bearing for the DIP shape + locked 4 verbs.
+
+### Alternatives considered (M11 absorption from verbs-as-cli-fixes-cycle-2 ADR D6 of plan-confidence-golden-rule.md § "ADR with alternatives" requirement)
+
+| Alternative | Verdict | Rejection rationale |
+|---|---|---|
+| Keep ADR-0005 v1.0 throw discipline unchanged; require all 3 surfaces (CLI/MCP/REST) to wire `ManualReflectionPolicy` explicitly | Rejected | 3 sites with byte-identical wires; drift inevitable; F-arch-1/F-wire-2 of `/review verbs-as-cli` surfaced this exact divergence after 4 cycles of "we'll just remember to wire it". The defect is structural, not discipline-fixable. |
+| Default at the CLI surface only (3-line wire in `agent-tools-memory.ts`) | Rejected | Doesn't fix MCP + REST; same drift surface with one fewer site. The CLI/MCP/REST symmetry is load-bearing per ADR D2 of fix-cycle-1 (3-way parity restored for reflect output shape — must also hold for the policy-default path). |
+| Widen the field type to `ReflectionPolicy \| undefined` so the explicit-`undefined` opt-in is typed-reachable under `exactOptionalPropertyTypes: true` | **CHOSEN — applied 2026-06-04 via verbs-as-cli-fixes-cycle-2 ADR D3** | The original v1.1 amendment was honest at runtime but typed-unreachable; M8 of `/review verbs-as-cli-fixes-cycle-1` surfaced the gap. Widening is a 1-character TS edit (`\| undefined` added), backward-compatible (superset of original type), and lands the opt-in path at a typed-reachable surface. CHANGELOG `### Changed` entry under verbs-as-cli-fixes-cycle-2. |
+
+### Decision
+
+The supplementary amendment v1.1 (2026-06-04) WIDENS the original ADR-0005 v1.0 contract:
+- **Runtime default at factory layer** — `createLocalMemory` injects `ManualReflectionPolicy` on key-omission.
+- **Explicit-`undefined` opt-in preserved** — consumers wanting strict no-default behavior signal intent via `{ reflectionPolicy: undefined }`.
+- **Type-system widening** (verbs-as-cli-fixes-cycle-2 ADR D3 applied 2026-06-04) — `MemoryConfig.reflectionPolicy?: ReflectionPolicy | undefined` makes the opt-in typed-reachable.
+
+The 3 distinguishing paths are LOCKED by 3 contract tests at `src/local/__tests__/factory.test.ts` § EC-2 paths (a)/(b)/(c). Future implementations of the factory MUST honor the `'reflectionPolicy' in config` distinction.
+
+### Reversibility
+
+**LOW** — reverting the widening would convert the now-working default path into a `ReflectionNotConfigured` throw for every consumer that adopted the v1.1 behavior (default-on omission). Effectively a BREAKING change requiring a major version bump under semver. Conversely, EXTENDING the widening (e.g., adding more policy kinds with auto-default per-kind) is non-breaking and can be done freely.
+
+If reversal is ever required, the migration path is:
+1. New ADR superseding ADR-0005 v1.1 with explicit `Supersedes:` header.
+2. CHANGELOG `### Removed` entry citing the breaking-change scope.
+3. SemVer major bump.
+4. Migration guide instructing consumers to wire `ManualReflectionPolicy` explicitly at every Memory factory call site.
