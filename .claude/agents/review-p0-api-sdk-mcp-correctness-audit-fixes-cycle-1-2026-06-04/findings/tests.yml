@@ -1,0 +1,298 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-tests
+review_target: 4f13028..HEAD for plan p0-api-sdk-mcp-correctness-audit-fixes-cycle-1
+plan: .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md
+verdict: READY_TO_MERGE_WITH_MINORS
+summary: >-
+  5 test files staged in Phase 0 (commit 9b71227) BEFORE GREEN fixes
+  (ed7c4ac, 9fedb17, 194bccf) — TDD ordering preserved. All 13 RED
+  tests prescribed across plan T0.1-T0.5 landed verbatim
+  (8 + 1 + 1 + 3 + 1 strengthening = 14 test bodies covering 13 plan
+  assertions). EC-1/EC-2/EC-3/EC-4 absorptions all materially present
+  in test code. b1acbba string-concat refactor of paper-name regex
+  honestly closes the meta-circularity that the no-paper-names test
+  cannot itself contain banned tokens — grep verified 0 hits across
+  src/ for the 5 GOAL TEST tokens. Snapshot in prompt.test.ts is
+  paper-name-clean by inspection AND deterministic (UUID-v4 hits
+  cross-check FIXTURE_UUIDS set). Skip/only leaks: zero. afterAll
+  cleanup + describe.skipIf prereq gates per parent EC-3 pattern
+  present. Test names follow BDD (behavioral), no "and" anti-pattern,
+  no method-name tests.
+test_pyramid:
+  unit_added: 4
+  integration_added: 9
+  integration_strengthened: 1
+  e2e_added: 0
+  total_added: 13
+  total_strengthened: 1
+  notes: >-
+    Pyramid leans integration-heavy because the CRITICAL fix
+    (F-dom-api-1 + EC-1) is a publish-readiness gap that only
+    materializes at the npm-pack/install boundary; impossible to
+    reproduce in a unit test. Defensible. 4 contract-tier tests
+    (changelog grep + reflection prompt snapshot/regex) keep the
+    base layer populated.
+edge_cases_from_plan:
+  covered:
+    - "EC-1 (MUST FIX) — dist/**/*.sql ship — T0.1 tests 7+8 (existSync extracted + pack file-list)"
+    - "EC-2 (SHOULD TEST) — prompt determinism — T0.4 test 3 (ISO-8601 + UUID-v4-non-fixture + unix-timestamp regex)"
+    - "EC-3 (SHOULD TEST) — build-first ordering in T4.1 — implement-validate report 5b48193 confirms `npm run build` ran before `npm test`"
+    - "EC-4 (DOCUMENT) — npm >= 7 prereq documented in T0.1 file header (lines 26-30)"
+    - "EC-8 (parent plan) — reflection prompt SHAPE stability — T0.4 test 2 inline snapshot"
+  missing: []
+  count_covered: 5
+  count_missing: 0
+tdd_compliance:
+  red_first: true
+  evidence: >-
+    git log --oneline 4f13028..HEAD --reverse shows
+    9b71227 (test commit: RED tests) precedes ed7c4ac (T1.1+T1.2 GREEN
+    CRITICAL fix), 9fedb17 (T2.1+T2.2 docs GREEN), 194bccf (T3.1 GREEN
+    CHANGELOG marker). All 5 production fix-cycle commits land AFTER
+    the Phase 0 RED commit. The b1acbba commit is a test-side honesty
+    refactor (regex assembly via string-concat) that does NOT
+    invalidate TDD ordering — fixes the test file to honor the
+    no-paper-names rule it itself defends; runtime regex byte-identical
+    per commit message.
+  notes: >-
+    T0.4 + T3.2 are co-located in commit 9b71227 (file creation + body
+    + snapshot all at once). Plan acknowledged this in T0.4 § Note
+    ("Tests PASS post-creation because parent T3.1 already removed
+    paper names from prompt.ts — but the regression guard was missing.
+    Adding the test LOCKS the property"). Regression sentinel over
+    already-shipped code is a legitimate TDD shape per Inquebrável
+    Rule 5 (the test would have failed against a regressed prompt.ts).
+findings:
+  - id: F-tests-1
+    severity: MINOR
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 161
+    plan_ref: T0.1 test 2 + ADR D2
+    summary: >-
+      Test name says "cli require() round-trip" but body uses dynamic
+      `import()`. ADR D2 prescribed `node -e "require()"` — the impl
+      diverged because the package is `"type": "module"` (ESM-only)
+      and `require()` of an ESM file throws ERR_REQUIRE_ESM. Behavioral
+      check is sound (module-resolution + dependency resolution
+      exercised end-to-end), but the test name is misleading vs the
+      semantic actually being tested.
+    evidence: |
+      Line 161: `test('2. cli require() round-trip succeeds post-extract', ...)`
+      Line 165: `node -e "import(${...}).then(...)"` — dynamic import, not require
+      package.json#type === "module"
+    recommended_action: >-
+      Rename test to "2. cli dynamic-import resolves all transitive
+      siblings post-extract" OR add an inline comment explaining why
+      `import()` is the ESM-aware analog of `require()` per the ADR D2
+      intent. No behavioral change needed.
+  - id: F-tests-2
+    severity: MINOR
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 136-142
+    plan_ref: T0.1 § Deep Dives
+    summary: >-
+      symlinkSync(REPO_ROOT/node_modules → extractDir/package/node_modules)
+      simulates post-install dependency resolution. The comment block
+      (lines 136-142) discloses this honestly. However, the test asserts
+      "post-install simulation" while reusing the dev tree's
+      node_modules — if a runtime dep is listed in devDependencies
+      (not in dependencies / peerDependencies), the test would
+      false-PASS today but break in a real `npm install` (where only
+      `dependencies` resolve). Honest disclosure exists per ADR D2's
+      "honest-disclosure: this test exercises the EXTRACTED tree, NOT
+      a fully-published-then-installed tree" — but the gap deserves a
+      tracked follow-up.
+    evidence: |
+      symlinkSync(join(REPO_ROOT, 'node_modules'), join(extractedPackageDir, 'node_modules'), 'dir');
+    recommended_action: >-
+      Track a follow-up to harden test 2 by spawning a fresh
+      `npm install --prefix <tmp> <tarball-path>` flow (instead of the
+      symlink shortcut). Out of scope for this fix-cycle (ADR D2
+      already documents the limitation). The symlink approach is
+      acceptable for now; the gap is honest and bounded.
+  - id: F-tests-3
+    severity: MINOR
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 77-82
+    plan_ref: T0.1 — implicit
+    summary: >-
+      SIBLINGS hardcodes 4 module names (run-mcp-server, run-server,
+      run-migrate, run-health). Future plan tasks that extract a new
+      subcommand from cli.ts (e.g., `themory dogfood`) would add a 5th
+      sibling and silently bypass tests 1+3 — the dist/**/*.js glob
+      ships it, but test 1+3 only check the 4 hardcoded names. The
+      test would NOT regress, but would have a coverage hole. The
+      pack-manifest test #4 (D3 pattern) uses readdirSync for dynamic
+      enumeration — this same pattern would close the gap here.
+    evidence: |
+      const SIBLINGS = [
+        'run-mcp-server.js', 'run-server.js', 'run-migrate.js', 'run-health.js',
+      ] as const;
+      // No dynamic enumeration; new sibling extracted in a future cycle would
+      // not be exercised by tests 1 or 3.
+    recommended_action: >-
+      Out of scope for this fix-cycle. Future hardening: enumerate
+      dist/agent-tools/run-*.js via readdirSync (mirror of ADR D3's
+      pattern for pack-manifest test #4) so any new sibling auto-enrolls.
+      Acceptable today — the 4 siblings cover the empirical CRITICAL.
+  - id: F-tests-4
+    severity: INFO
+    file: src/core/reflection/__tests__/prompt.test.ts
+    line: 23-41
+    plan_ref: T0.4 + b1acbba refactor commit
+    summary: >-
+      The string-concat paper-name regex assembly is documented
+      honestly via a 6-line inline comment (lines 23-28) explaining
+      that the GOAL TEST grep applies word-boundary matching and that
+      the fragments are reassembled at runtime byte-identical to the
+      original literal. The refactor was strictly necessary — the
+      initial v1 of this file would have broken THE GOAL TEST tests
+      29-33 (`Voyager` / `Mem0` / `Letta` / `LangMem` / `Graphiti`
+      word-count must be 0 across src/**/*.ts). Verification reproduced
+      live: `grep -rwn -E "\\b(Voyager|Mem0|Letta|LangMem|Graphiti)\\b"
+      src/ --include='*.ts' | grep -v knowledge-base` returns 0 hits.
+      Inline comment satisfies Inquebrável Rule 3 honesty AND prevents
+      future contributors from collapsing the concat for stylistic
+      reasons.
+    evidence: |
+      Lines 23-28 explain the pattern.
+      Lines 29-41 declare BANNED_TOKENS via 'V'+'oyager' etc.
+      Live grep confirms 0 hits.
+    recommended_action: >-
+      No action — this is INFO confirming the b1acbba refactor was
+      executed correctly and the meta-circularity (paper-name-defending
+      test cannot itself contain paper names) is honestly resolved.
+  - id: F-tests-5
+    severity: INFO
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 145-152
+    plan_ref: T0.1 § DoD + Acceptance Criteria
+    summary: >-
+      afterAll() cleanup uses fs.rmSync with `{ recursive: true,
+      force: true }` for BOTH packDir and extractDir. Guard checks
+      (`packDir !== ''`) prevent NPE if beforeAll never ran. tmp-dir
+      cleanup is correct.
+    evidence: lines 145-152
+    recommended_action: No action — DoD met.
+  - id: F-tests-6
+    severity: INFO
+    file: src/core/reflection/__tests__/prompt.test.ts
+    line: 96-115
+    plan_ref: T0.4 test 2 — snapshot
+    summary: >-
+      The inline snapshot captures the rendered prompt for the frozen
+      3-fact UserScope fixture. Snapshot contains: paper-name-clean
+      (visual inspection — no banned tokens); the 3 hardcoded fixture
+      UUIDs (match FIXTURE_UUIDS set used by test 3); no ISO-8601 / no
+      unix-timestamp tokens. Test 3 cross-verifies with regex; test 2
+      pins the shape. Both tests would catch the same regression
+      class via different mechanisms — defensive depth, not redundant.
+    evidence: lines 98-114 (snapshot body); test 3 lines 117-125.
+    recommended_action: No action.
+  - id: F-tests-7
+    severity: INFO
+    file: tests/integration/p0-audit/pack-manifest.test.ts
+    line: 76-83
+    plan_ref: T3.3 + ADR D3
+    summary: >-
+      Test #4 strengthening from `>= 1` floor to behavioral
+      readdirSync+toContain loop. Test name was updated to
+      "fixes-cycle-1 F-dom-api-3 — pack manifest ships EVERY ... .sql
+      file (behavioral floor)". Sanity check on `expectedSql.length`
+      protects against an empty source dir false-pass. Imports
+      `readdirSync` correctly added to top-of-file imports.
+    evidence: |
+      Line 18: `import { readdirSync } from 'node:fs';`
+      Lines 76-83: behavioral assertion per ADR D3
+    recommended_action: No action.
+  - id: F-tests-8
+    severity: INFO
+    file: tests/integration/p0-audit/readme-mcp-section.test.ts
+    line: 69-71
+    plan_ref: T0.2 + T2.2 + sub-goal 3
+    summary: >-
+      New test #7 asserts `.mcp.json.example` token presence in README.
+      Uses `readme` (full file content) instead of `section` (MCP
+      section slice) — this is INTENTIONAL per the plan's "No layout
+      enforcement" (Deep Dives § "do NOT assert positional location").
+      Token-presence is sufficient; positional assertions age out
+      with README evolution.
+    evidence: lines 69-71
+    recommended_action: No action.
+  - id: F-tests-9
+    severity: INFO
+    file: src/__tests__/changelog-breaking-marker.test.ts
+    line: 28-34
+    plan_ref: T0.3 + ADR D4
+    summary: >-
+      extractUnreleased helper slices the changelog between
+      `## [Unreleased]` header and the next versioned header
+      (`\\n## \\[\\d`). Sanity check on `unreleased.length > 0`
+      prevents test from passing if the [Unreleased] section is
+      empty/missing. Assertion targets the EXACT marker shape
+      `**BREAKING (REST server):**` per ADR D4.
+    evidence: lines 28-42
+    recommended_action: No action.
+plan_tdd_blocks_vs_shipped:
+  T0_1_post_install_bin_8_tests:
+    planned: 8
+    shipped: 8
+    status: COMPLETE
+  T0_2_readme_mcp_xref_1_test:
+    planned: 1
+    shipped: 1
+    status: COMPLETE
+  T0_3_changelog_breaking_marker_1_test:
+    planned: 1
+    shipped: 1
+    status: COMPLETE
+  T0_4_reflection_prompt_3_tests:
+    planned: 3
+    shipped: 3
+    status: COMPLETE
+  T0_5_pack_manifest_4_strengthening:
+    planned: 1
+    shipped: 1
+    status: COMPLETE
+  total:
+    planned: 14
+    shipped: 14
+    status: COMPLETE
+anti_patterns_audit:
+  skipped_tests_xit_xtest: 0
+  only_leaks_test_only_describe_only: 0
+  commented_out_test_blocks: 0
+  and_in_test_names: 0
+  method_name_style_tests: 0
+  intermittent_failures_data_available: not_available
+  test_names_describe_behavior_not_method: true
+  aaa_or_gwt_format_throughout: true
+honesty_disclosures:
+  node_modules_symlink_hack: >-
+    Lines 136-142 of post-install-bin.test.ts disclose that the
+    symlink is a real-tree approximation, not a true `npm install`
+    sandbox. ADR D2 also documents this limitation. Honest per
+    Inquebrável Rule 3.
+  paper_name_regex_string_concat: >-
+    Lines 23-28 of prompt.test.ts disclose that the fragments are
+    runtime-concatenated to dodge the GOAL TEST grep word-boundary
+    matching. Honest per Inquebrável Rule 3 + b1acbba commit body.
+  description_skipIf_console_warn: >-
+    Three console.warn calls (lines 62, 68, 74) surface which
+    precondition triggered the skip — DIST_EXISTS / NPM_AVAILABLE
+    / TAR_AVAILABLE. Per parent EC-3 pattern (LOUD skip, never silent).
+  inline_snapshot_paper_name_clean: >-
+    Visual inspection of the snapshot (lines 99-113) confirms zero
+    paper-name tokens AND zero ISO-8601/unix-timestamp/UUID-v4 tokens
+    beyond the 3 fixture UUIDs. Plan T0.4 § DoD checkbox honored.
+final_verdict: >-
+  All 14 RED tests prescribed by the plan landed verbatim. TDD
+  ordering preserved (RED commit 9b71227 precedes all 4 GREEN
+  commits). Edge case coverage 5/5 (EC-1, EC-2, EC-3, EC-4, EC-8
+  parent). Test names BDD-shaped, no skip/only leaks, AAA structure
+  throughout. Two MINOR findings (F-tests-1 + F-tests-3) on test-name
+  drift (require vs import) and hardcoded SIBLINGS list (vs dynamic
+  enumeration) — both bounded by honest plan disclosure and out of
+  scope for this fix-cycle. One MINOR (F-tests-2) tracks node_modules
+  symlink approximation as honest follow-up. Seven INFO findings
+  document the cleanup, snapshot inspection, and test-strengthening
+  craft. Recommended verdict for tests dimension: READY_TO_MERGE.

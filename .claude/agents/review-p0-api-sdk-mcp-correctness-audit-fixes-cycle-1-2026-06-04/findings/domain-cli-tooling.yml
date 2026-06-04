@@ -1,0 +1,262 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-domain-cli-tooling
+review_target: 4f13028..HEAD for plan p0-api-sdk-mcp-correctness-audit-fixes-cycle-1 v1.2
+domain: cli-tooling
+scope:
+  - themory CLI (mcp/server/migrate/health subcommands)
+  - README MCP setup documentation surface
+  - post-install bin contract (npm pack + extract + bin dispatch)
+  - EC-1 absorption depth (architecture.md § 10.1 F-T7-1-3 regression class)
+domain_specific_patterns_checked:
+  - "JSDoc accuracy of composition root (run-mcp-server.ts post-e43d801)"
+  - "README MCP cross-reference to .mcp.json.example template"
+  - "post-install npm pack manifest completeness for bin dispatch"
+  - "Drizzle migrate() runtime requirements (meta/_journal.json contract)"
+  - "MCP env-var table currency vs src/ env-var consumption surface"
+  - "Test design depth — require() round-trip vs end-to-end migrate()"
+
+findings:
+  - id: F-dom-cli-blocker-1
+    severity: BLOCKER
+    file: package.json
+    line: 26-34
+    plan_ref: ADR D1 "Why three globs not two (EC-1)" + Sub-goal 1b
+    domain_anchor: architecture.md § 10.1 (F-T7-1-3 publish-readiness regression class) + Drizzle migrator runtime contract
+    summary: |
+      The 3-glob extension `dist/**/*.sql` is INCOMPLETE — it ships SQL migrations
+      but NOT the `meta/_journal.json` file Drizzle requires. Post-install
+      `themory migrate` will fail with `Can't find meta/_journal.json file`. This
+      reproduces F-T7-1-3 exactly along a different path: the plan claims EC-1
+      closes the migrate post-install hole, but it closes only 1 of 2 files
+      Drizzle needs. Inquebrável Rule 3 honesty violation (claims P0 sub-goal 3
+      closed; in reality `themory migrate` still 100% breaks post-install).
+    evidence: |
+      EMPIRICAL VERIFICATION (independent — performed via simulated post-install
+      tarball extraction at /tmp/themory-cli-test):
+
+      Step 1 — Drizzle migrator runtime contract (node_modules/drizzle-orm/migrator.js:6-10):
+        const journalPath = `${migrationFolderTo}/meta/_journal.json`;
+        if (!fs.existsSync(journalPath)) {
+          throw new Error(`Can't find meta/_journal.json file`);
+        }
+        const journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
+      => `migrate()` reads meta/_journal.json BEFORE any *.sql file. Without
+         _journal.json, ZERO migrations can apply — instantaneous throw.
+
+      Step 2 — runtime path resolution (src/local/index.ts:1452-1456):
+        const here = dirname(fileURLToPath(import.meta.url));   // → dist/local/
+        const migrationsFolder = resolvePath(here, 'migrations'); // → dist/local/migrations/
+        await migrate(db, { migrationsFolder });                // reads dist/local/migrations/meta/_journal.json
+      => Drizzle resolves dist/local/migrations/meta/_journal.json at runtime.
+
+      Step 3 — pack manifest empirical proof (npm pack --dry-run --json):
+        $ npm pack --dry-run --json | jq -r '.[0].files[].path' | grep dist/local/migrations
+        dist/local/migrations/0000_crazy_mimic.sql
+        dist/local/migrations/0001_reflection_columns.sql
+        ... (12 .sql files only)
+        # ZERO entries in dist/local/migrations/meta/
+        # src/local/migrations/meta/* ship via 'src/local/migrations/**' glob,
+        # but they land at src/local/migrations/ post-install, NOT
+        # dist/local/migrations/ where Drizzle looks.
+
+      Step 4 — post-install tarball reproduction (definitive):
+        $ cd /tmp && npm pack /path/to/theo-memory   # produces usetheo-memory-0.0.0-rc.2.tgz
+        $ tar -xzf usetheo-memory-0.0.0-rc.2.tgz
+        $ ls package/dist/local/migrations/meta/
+        ls: cannot access 'package/dist/local/migrations/meta/': No such file or directory
+        # CONFIRMED — _journal.json + 11 *.json snapshots ALL ABSENT from dist.
+
+      Step 5 — empirical break (deterministic):
+        $ node -e "import('./package/dist/local/index.js').then(m => m.runMigrations(...))"
+        Error: Can't find meta/_journal.json file
+            at readMigrationFiles (node_modules/drizzle-orm/migrator.js:8:11)
+    recommended_action: |
+      Extend `package.json#files` glob from `"dist/**/*.sql"` to ALSO include the
+      meta directory. Two options:
+
+      Option A (narrow + targeted — recommended):
+        "files": [
+          "src/**/*.ts",
+          "!src/**/__tests__/**",
+          "!src/**/*.test.ts",
+          "!src/**/*.test-d.ts",
+          "src/local/migrations/**",
+          "dist/**/*.js",
+          "dist/**/*.d.ts",
+          "dist/**/*.sql",
+          "dist/local/migrations/meta/**"     // <-- NEW 4th glob
+        ]
+      => 4 globs total. Ships `dist/local/migrations/meta/_journal.json` + 11
+         `dist/local/migrations/meta/{NNNN}_snapshot.json` files. Drizzle migrator
+         contract satisfied; post-install `themory migrate` succeeds.
+
+      Option B (broader — risk of bundle bloat):
+        Replace `"dist/**/*.sql"` with `"dist/**/*.json"` AND keep .sql.
+      => Ships ALL .json under dist/ (potentially picks up tsconfig.tsbuildinfo,
+         package metadata JSONs, etc. depending on tsc output). Higher blast
+         radius; rejected unless Option A audit surprises emerge.
+
+      ALSO: extend `tests/integration/p0-audit-fixes/post-install-bin.test.ts`
+      with a new test (call it #9 — EC-1 reinforcement) that asserts
+      `package/dist/local/migrations/meta/_journal.json` exists post-extract AND
+      `pack.files` contains the path. Without this test, the regression remains
+      grep-shape (current tests 7+8 only check `.sql` files; they would still
+      PASS under the broken Option-A-less state).
+
+  - id: F-dom-cli-2
+    severity: MAJOR
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 161-169
+    plan_ref: T0.1 RED test 2 "cli require() round-trip succeeds post-extract"
+    domain_anchor: cycle-implement.md § Wiring triad pillar (b) — Integration test must exercise the behavior
+    summary: |
+      Test #2 design is too shallow — `import('./dist/agent-tools/cli.js')` only
+      loads the module entry point and exercises the import graph. It does NOT
+      invoke any subcommand. The test would PASS even if `themory migrate`
+      throws at runtime (Drizzle journal missing), because the module-level code
+      only registers commander subcommands; it does not execute them. The
+      fixes-cycle's confidence that the bin contract is "post-install verified
+      end-to-end" is overstated.
+    evidence: |
+      The test (line 161-169) runs:
+        node -e "import(<cliPath>).then(() => process.exit(0)).catch(...)"
+
+      cli.js per dist/agent-tools/cli.js entry: invokes commander.parse() which
+      builds the subcommand tree WITHOUT running any action callback. The
+      'migrate' action is wired but not executed. Therefore F-dom-cli-blocker-1
+      (broken `themory migrate`) would still see test #2 GREEN — a false-pass.
+
+      Compare to the wiring triad's intent: pillar (b) requires the integration
+      test to actually exercise the behavior. The current test exercises
+      module-load only, NOT `themory migrate` end-to-end.
+    recommended_action: |
+      Add a deeper test (call it #10 — bin end-to-end smoke) that actually runs
+      a subcommand against the extracted tarball:
+        const helpRun = spawnSync('node', [cliPath, 'migrate', '--help'], { ... });
+        expect(helpRun.status).toBe(0);
+      Even `--help` runs the subcommand and would catch import resolution failures
+      in run-migrate.js if it ever needs runtime fixtures. Stronger still: an
+      describe.skipIf-gated test that invokes `themory migrate` against a real
+      pgvector container (THEOMEM_PG_URI present) and asserts it actually
+      reaches the Drizzle migrate() call without journal-file errors. This
+      mirrors the THE GOAL TEST shape from v0.1 P0 § integration tests.
+
+  - id: F-dom-cli-3
+    severity: MINOR
+    file: README.md
+    line: 197-203
+    plan_ref: F-dom-cli-2 (extended scope — env-var table currency)
+    domain_anchor: public-copy.md § Banned terms + README.md § "Required environment variables"
+    summary: |
+      The 5-row env-var table for MCP server is missing `THEOMEM_MCP_TRANSPORT`
+      and `THEOMEM_MCP_HTTP_PORT`, which ARE used in the "Or HTTP" example
+      block immediately below (lines 246-254) WITHOUT prior table documentation.
+      Consumers reading top-to-bottom encounter undocumented env vars in copy-
+      paste recipes. NOT a regression introduced by fixes-cycle-1 (these vars
+      pre-date this cycle), but the cycle's README touches (line 207 cross-ref
+      insert) provided an opportunity to fix; missed.
+    evidence: |
+      $ grep -nE "THEOMEM_MCP_TRANSPORT|THEOMEM_MCP_HTTP_PORT" README.md
+      251:  THEOMEM_MCP_TRANSPORT=streamable-http \
+      252:  THEOMEM_MCP_HTTP_PORT=8080 \
+      # Neither appears in the env-var table at lines 197-203.
+
+      $ grep -n "THEOMEM_MCP_TRANSPORT" src/agent-tools/run-mcp-server.ts
+      61:  const envValue = process.env['THEOMEM_MCP_TRANSPORT'];
+      # Real env var, real runtime consumption — undocumented in the table.
+
+      Similarly THEMEMORY_SKIP_MIGRATIONS is consumed by src/agent-tools/run-server.ts:74
+      but documented nowhere in README. Less critical for MCP-only consumers, but
+      relevant when REST server consumers read the "Quickstart" or "Standalone
+      Docker" section.
+    recommended_action: |
+      Out of fix-cycle-1 scope (not a 6 actionable findings entry). Defer to
+      fixes-cycle-2 OR a docs-only commit. Document for honest disclosure now.
+      Suggested rows to append to the table (lines 197-203):
+        | `THEOMEM_MCP_TRANSPORT` | no | `stdio` | Transport for MCP server. `stdio` (default) for local Claude Code-style integration; `streamable-http` for remote agent loops. |
+        | `THEOMEM_MCP_HTTP_PORT` | no | `8080` | Port for `streamable-http` transport. Ignored when TRANSPORT=stdio. |
+
+  - id: F-dom-cli-4-confirmation
+    severity: INFO
+    file: src/agent-tools/run-mcp-server.ts
+    line: 9-15
+    plan_ref: F-dom-cli-1 fix (T2.1) — JSDoc rewrite without literal "stub" word
+    domain_anchor: no-paper-names-in-code.md analog (regex \bstubs?\b) + e43d801 wiring rationale
+    summary: |
+      F-dom-cli-1 fix verified accurate. JSDoc post-fix (lines 9-15) describes
+      the correct post-e43d801 wiring — `LocalTransformerEmbedder + OpenAILLM
+      real providers` — and explicitly cites the rationale for the placeholder-
+      removal pattern. Regex `\bstubs?\b` returns zero hits inside the JSDoc
+      block. Sibling src/agent-tools/run-server.ts JSDoc (lines 1-27) never had
+      the stale "stubs" reference (it was authored post-e43d801); no fix needed.
+    evidence: |
+      $ grep -nE "\\bstubs?\\b" src/agent-tools/run-mcp-server.ts
+      (no output) — confirmed clean
+
+      $ grep -nE "LocalTransformerEmbedder|OpenAILLM|real providers?" src/agent-tools/run-mcp-server.ts
+      10:  * Composition root (DIP-allowed): this file wires src/local/ (pgvector +
+      11:  *  LocalTransformerEmbedder + OpenAILLM real providers) into the
+      # Real-providers narrative explicit + accurate.
+    recommended_action: None — confirms F-dom-cli-1 fix is correct.
+
+  - id: F-dom-cli-5-confirmation
+    severity: INFO
+    file: README.md
+    line: 205-225
+    plan_ref: F-dom-cli-2 fix (T2.2) — README cross-references .mcp.json.example
+    domain_anchor: CLAUDE.md § PRIORITY 0 sub-goal 3 (MCP setup guide explicit)
+    summary: |
+      F-dom-cli-2 fix verified accurate. README line 207 inserts the cross-
+      reference `[`.mcp.json.example`](.mcp.json.example)` BEFORE the inline
+      recipe (line 209-225). Link target is repo-relative + correct. Inline
+      recipe contents (THEOMEM_PG_URI, THEOMEM_MCP_DEFAULT_USER_ID,
+      OPENAI_BASE_URL, OPENAI_CHAT_MODEL, OPENAI_API_KEY) mirror the
+      .mcp.json.example template at repo root verbatim — same env-var keys in
+      same order. Consumer who reads the README sees both paths (template-copy
+      AND inline copy-paste).
+    evidence: |
+      README.md:207:
+        A copy-and-fill template is committed at [`.mcp.json.example`](.mcp.json.example) — duplicate it as `.mcp.json` (gitignored), populate `OPENAI_API_KEY`, and restart Claude Code. The inline recipe below mirrors that template for reference:
+
+      Both blocks (README inline + .mcp.json.example) share the same 5 env-var
+      keys: THEOMEM_PG_URI, THEOMEM_MCP_DEFAULT_USER_ID, OPENAI_BASE_URL,
+      OPENAI_CHAT_MODEL, OPENAI_API_KEY. Recipe accuracy: verified.
+    recommended_action: None — confirms F-dom-cli-2 fix is correct.
+
+summary: |
+  TWO confirmation positives + ONE BLOCKER + ONE MAJOR + ONE MINOR.
+
+  F-dom-cli-1 fix (JSDoc) and F-dom-cli-2 fix (README cross-ref) are both
+  technically correct and well-executed — they close the 2 MAJOR docs findings
+  the fixes-cycle scoped them for.
+
+  HOWEVER, the BLOCKER F-dom-cli-blocker-1 (independently confirmed —
+  `dist/local/migrations/meta/_journal.json` does NOT ship) means the cycle's
+  claim that EC-1 closes the F-T7-1-3 regression vector for `themory migrate`
+  is INACCURATE. The 3-glob extension is INCOMPLETE. Post-install
+  `themory migrate` reproduces F-T7-1-3 exactly along a parallel path: instead
+  of `Cannot find module migrations/0000_*.sql` (the original symptom), it
+  throws `Can't find meta/_journal.json file` from Drizzle's migrator.js:8.
+
+  Per CLAUDE.md § PRIORITY 0 sub-goal 3 ("MCP server available + reliable"),
+  this BLOCKER means the v1.0 promotion gate cannot honestly flip; per
+  Inquebrável Rule 3 (extreme honesty), the cycle's `READY_TO_MERGE` aspiration
+  cannot be granted — the cycle is in `NEEDS_FIXES` until F-dom-cli-blocker-1
+  is closed via a 4th glob (or equivalent).
+
+  The MAJOR F-dom-cli-2 (test #2 design too shallow) explains WHY the BLOCKER
+  was not caught by the cycle's RED tests: test 2 only does module-load via
+  `import()`, not end-to-end `themory migrate` execution. The cycle's
+  test coverage gives false confidence — recommendation is to add a
+  describe.skipIf-gated test that actually invokes the migrate subcommand.
+
+  The MINOR F-dom-cli-3 (env-var table currency) is out-of-scope for cycle-1
+  but documented for honest disclosure; defer to fixes-cycle-2 or a docs PR.
+
+verdict_recommended: NEEDS_FIXES
+verdict_rationale: |
+  BLOCKER F-dom-cli-blocker-1 is exactly the kind of P0 sub-goal 3 regression
+  that fixes-cycle-1 was designed to prevent. The fix is mechanical (1 extra
+  package.json#files glob entry: `"dist/local/migrations/meta/**"`) — but the
+  current commit set DOES NOT include it. Verdict cannot flip from
+  NEEDS_FIXES until the 4th glob lands AND post-install-bin.test.ts gains a
+  reinforcement test asserting meta/_journal.json ships.

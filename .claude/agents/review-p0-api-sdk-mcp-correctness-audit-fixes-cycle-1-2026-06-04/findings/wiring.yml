@@ -1,0 +1,351 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-wiring
+review_target: 4f13028..HEAD for plan p0-api-sdk-mcp-correctness-audit-fixes-cycle-1 (v1.2)
+plan: .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md
+date: 2026-06-04
+
+# ==============================================================================
+# CONTEXT
+# ==============================================================================
+# Fix-cycle scope: hardening + docs only per ADR D5. No new public exports,
+# no runtime metrics, no new DIPs. Source diff = 4 files:
+#   - src/__tests__/changelog-breaking-marker.test.ts (NEW test)
+#   - src/agent-tools/run-mcp-server.ts (JSDoc-only edit)
+#   - src/core/reflection/__tests__/prompt.test.ts (NEW test)
+#   - tests/integration/p0-audit-fixes/post-install-bin.test.ts (NEW test)
+#   - tests/integration/p0-audit/{pack-manifest,readme-mcp-section}.test.ts (strengthened)
+#   - package.json (files glob extension: dist/**/*.js, dist/**/*.d.ts, dist/**/*.sql)
+#   - README.md (mcp.json.example cross-reference + Quickstart MCP one-liner row)
+#   - CHANGELOG.md (BREAKING marker + fix-cycle closure entry)
+# Wiring triad applied to this surface:
+#   (a) caller pillar = "is each new test file registered in the right vitest config?"
+#   (b) integration test pillar = "does each fix have a regression-detection sentinel?"
+#   (c) runtime metric pillar = N/A per ADR D5 + Inquebrável Rule 11 YAGNI
+# ==============================================================================
+
+triad_revalidation:
+  total_new_test_files: 3
+  total_strengthened_test_files: 2
+  total_new_public_exports: 0      # this cycle is hardening + docs only
+  pillar_a_honest_pass: 3 / 3      # all 3 new test files registered in correct config
+  pillar_b_honest_pass: 6 / 6      # each fix (F-dom-api-1, EC-1, F-dom-cli-1, F-dom-cli-2, F-dom-api-2, F-dom-api-3, F-tests-2/EC-8) has a regression sentinel
+  pillar_c_observed: 0 / 0          # N/A — no runtime metrics this cycle (locked by plan ADR D5)
+  notes: |
+    Triad shape inverted vs typical /implement cycles: no new public exports
+    means pillar (a) collapses to "are tests discoverable by the config they
+    belong to?" instead of "are new symbols imported by production code?".
+
+# ==============================================================================
+# PILLAR (a) — CALLER / CONFIG-DISCOVERABILITY CHECK
+# ==============================================================================
+# Each new test file is matched by exactly one vitest config glob:
+#
+# 1. tests/integration/p0-audit-fixes/post-install-bin.test.ts
+#    → vitest.integration.config.ts include: ['tests/integration/**/*.test.ts'] ✅
+#
+# 2. src/__tests__/changelog-breaking-marker.test.ts
+#    → vitest.contract.config.ts include: ['src/__tests__/**/*.test.ts'] ✅
+#
+# 3. src/core/reflection/__tests__/prompt.test.ts
+#    → vitest.contract.config.ts include: ['src/{core,...}/**/__tests__/**/*.test.ts'] ✅
+#
+# All three discoverable. validation report shows execution counts (+4 contract
+# = 1049 PASS; +5 integration = 136 PASS) matching the new file additions.
+
+# ==============================================================================
+# PILLAR (b) — REGRESSION SENTINEL DEPTH CHECK
+# ==============================================================================
+# Per-fix sentinel mapping:
+#
+# F-dom-api-1 (CRITICAL — package.json files glob extension):
+#   - post-install-bin.test.ts tests 1-4 (extracted-tarball file existence)
+#   - pack-manifest.test.ts test 4 (behavioral readdirSync + toContain loop)
+#   - test 2 (cli require round-trip) verifies the 4 siblings load post-extract
+#   Sentinel depth: STRONG — tests EXERCISE the extraction + import path,
+#   not just grep pack.files. The symlink shortcut (node_modules linked into
+#   extractedPackageDir) is honestly disclosed in the test file header and
+#   represents the same resolver-tree shape `npm install` would create.
+#
+# EC-1 (MUST FIX — dist/**/*.sql migrations shipping):
+#   - post-install-bin.test.ts tests 7+8 (readdirSync src/local/migrations
+#     dynamically; assert each .sql present in both pack manifest AND
+#     extracted tree)
+#   Sentinel depth: STRONG for file-shipping invariant. CAVEAT below.
+#
+# F-dom-cli-1 (MAJOR — JSDoc stubs token removal):
+#   - post-install-bin.test.ts tests 5+6 (JSDoc regex: zero \bstubs?\b
+#     AND positive LocalTransformerEmbedder|OpenAILLM|real providers match)
+#   Sentinel depth: STRONG — both negative AND positive assertions.
+#
+# F-dom-cli-2 (MAJOR — README .mcp.json.example cross-reference):
+#   - readme-mcp-section.test.ts test 7 (toMatch /\.mcp\.json\.example/)
+#   Sentinel depth: ADEQUATE — checks the literal token presence; does not
+#   verify the cross-reference is in the right section, but the file IS the
+#   asserted contract per ADR D2 in the parent plan.
+#
+# F-dom-api-2 (MAJOR — CHANGELOG BREAKING marker):
+#   - changelog-breaking-marker.test.ts (extracts [Unreleased] slice;
+#     asserts toContain('**BREAKING (REST server):**'))
+#   Sentinel depth: STRONG — slice extraction + literal marker check.
+#
+# F-dom-api-3 (MAJOR — pack-manifest #4 behavioral floor):
+#   - pack-manifest.test.ts test 4 STRENGTHENED from `toBeGreaterThanOrEqual(N)`
+#     to `readdirSync + for (sql of expectedSql) expect(paths).toContain(...)`.
+#   Sentinel depth: STRONG — every source .sql file enumerated dynamically;
+#   adding a new migration without updating files glob would fail this test.
+#
+# F-tests-2 / EC-8 (MAJOR — reflection prompt SHAPE-stability):
+#   - prompt.test.ts test 1 (paper-name regex assertion)
+#   - prompt.test.ts test 2 (toMatchInlineSnapshot of the entire rendered prompt)
+#   - prompt.test.ts test 3 (EC-2: ISO-8601 + UNIX_SECONDS + UUID-v4-non-fixture
+#     all assert zero hits)
+#   Sentinel depth: STRONG — actually CALLS buildReflectionPrompt() with a
+#   frozen fixture and asserts the byte-stable shape + determinism invariants.
+#   `buildReflectionPrompt` real production caller exists at
+#   src/core/reflection/execute.ts:87 (NOT a dead branch).
+
+# ==============================================================================
+# PILLAR (c) — RUNTIME METRIC CHECK
+# ==============================================================================
+# Plan ADR D5 explicitly declares: "No new runtime metrics this cycle. The fix
+# surface is package.json#files (publish manifest) + JSDoc/README copy +
+# CHANGELOG entry — none of these warrant Counter / Histogram instrumentation."
+# Inquebrável Rule 11 YAGNI honored. No .wiring-evidence.json delta expected.
+# Validation report § "No new runtime metrics introduced" matches.
+
+findings:
+  - id: F-wire-1
+    severity: MINOR
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 199-216
+    plan_ref: T0.1 EC-1 absorption tests 7+8; § 10.1 architecture.md F-T7-1-3 guard
+    summary: |
+      EC-1 sentinel verifies dist/local/migrations/*.sql FILE PLACEMENT but
+      does NOT exercise the runtime resolution path that the test header
+      asserts is being guarded (themory migrate → runMigrations() →
+      migrationsFolder = dirname(fileURLToPath(import.meta.url)) + 'migrations').
+    evidence: |
+      Test 7: existsSync(join(extractedPackageDir, 'dist', 'local', 'migrations', sqlFile))
+      Test 8: packResult.files.map(f.path).includes('dist/local/migrations/{sqlFile}')
+
+      Neither test actually executes `node -e "import('./dist/agent-tools/run-migrate.js').then(...)"`
+      or invokes runMigrations() against a live pgvector instance. The
+      runtime path src/local/index.ts:1452-1453 (`const here = dirname(fileURLToPath(import.meta.url));
+      const migrationsFolder = resolvePath(here, 'migrations');`) is verified
+      ONLY by inspection at code-review time.
+
+      Mitigating factor: file-shipping invariant + pre-existing migration
+      integration tests (tests/integration/migrations/) cover the runtime path
+      separately. The F-T7-1-3 regression class is "files don't ship" — that
+      class IS closed by tests 7+8. The "files ship but runtime fails to find
+      them" class is theoretically untested but architecturally impossible
+      given the resolvePath formula resolves to the same dist/local/ tree
+      that tests 7+8 just verified exists.
+    recommended_action: |
+      Optional strengthening for a follow-up cycle: add test #9 that does
+      `spawnSync('node', ['-e', "import('${distRunMigrate}').then(m => m.runMigrateAction({...}))..."])`
+      against an empty test database to verify the runtime path actually
+      resolves. NOT a BLOCKER for this cycle — the architectural guarantee
+      holds and pre-existing migration integration coverage is adequate.
+
+  - id: F-wire-2
+    severity: MINOR
+    file: .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md
+    line: 974
+    plan_ref: T4.1 § Execution chain step 1
+    summary: |
+      Plan T4.1 step 1 says "Run `npm test` — full suite green (1045 contract
+      + 127 integration + ...)" but package.json#scripts.test is
+      "vitest run --config vitest.contract.config.ts" — runs ONLY the contract
+      suite. Integration tests (post-install-bin.test.ts is one of them)
+      require `npm run test:integration`. Plan-vs-execution drift.
+    evidence: |
+      package.json#scripts.test: `vitest run --config vitest.contract.config.ts`
+      package.json#scripts.test:integration: `vitest run --config vitest.integration.config.ts`
+      Plan T4.1 step 1 text: "Run `npm test`" + claims integration tests are part of `npm test`
+
+      The Acceptance Criteria § "All test suites green (contract + integration; e2e
+      not touched this cycle)" line 1058 is honest about needing both suites,
+      but the Execution chain (lines 1034-1046) only invokes `npm test`.
+
+      Validation report shows the implementer caught this and ran integration
+      separately — 136 PASS + 2 SKIP via vitest.integration.config.ts. The
+      gate was honored in execution; only the plan wording is ambiguous.
+    recommended_action: |
+      In a follow-up plan-improve cycle, edit T4.1 § Execution chain step 1
+      to `npm run build && npm test && npm run test:integration` so future
+      replays of the plan invoke both configs explicitly. Honest correction
+      that does NOT change the verdict for this cycle (the gates DID run).
+
+  - id: F-wire-3
+    severity: INFO
+    file: package.json (files glob)
+    line: 73-83
+    plan_ref: T1.1 + ADR D1; ADR D7 (bundle isolation per EC-26 precedent)
+    summary: |
+      The 3 new globs ("dist/**/*.js", "dist/**/*.d.ts", "dist/**/*.sql") ship
+      MORE dist files but DO NOT leak Xenova / openai / hono into the default
+      barrel. Verified by 3 ortogonal checks.
+    evidence: |
+      1. src/index.ts re-exports from src/local/index.js (default barrel).
+         The exports[.] field points at "./src/index.ts" (TS-source-as-exports
+         pattern), so the consumer's default-import resolves to src/index.ts
+         directly — not through dist/.
+      2. grep -rln "@xenova" src/local/ src/core/ → ZERO hits. Xenova is
+         confined to src/embedders/local.ts (subpath @usetheo/memory/embedders/local).
+      3. grep -rln "from 'openai'" src/local/ src/core/ → ZERO hits. openai
+         sdk confined to src/llms/openai.ts + src/embedders/openai.ts
+         (subpath @usetheo/memory/{llms,embedders}/openai).
+      4. grep -rln "from 'hono'" src/ → only in src/server/. Subpath
+         @usetheo/memory/server.
+
+      EC-26 bundle-isolation precedent (cache-pg subpath, dynamic-import shape)
+      remains intact. The expanded files glob ships MORE files for SUBPATH
+      consumers but does not pull them into the default barrel for the
+      `@usetheo/memory` consumer that imports only from "./src/index.ts".
+    recommended_action: None. This is honest hardening — more files ship,
+      bundle isolation preserved by import topology not by files glob.
+
+  - id: F-wire-4
+    severity: INFO
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 136-143
+    plan_ref: T0.1 § TDD
+    summary: |
+      The symlinkSync(REPO_ROOT/node_modules, extractedPackageDir/node_modules)
+      shortcut is honestly disclosed and architecturally sound. It is NOT a
+      gaming-the-test pattern — it represents the same resolver tree shape
+      that `npm install @usetheo/memory` would create at the consumer site.
+    evidence: |
+      Header comment (lines 137-141) discloses the rationale: "Simulate
+      post-install dependency resolution by symlinking the project's
+      node_modules into the extracted package dir. `npm install @usetheo/memory`
+      would create an equivalent layout via npm's dep resolver. Without this,
+      the require() round-trip fails for bare specifiers like `commander`,
+      `hono`, `pg` — which is a npm-install-environment limitation, NOT a
+      regression of our publish manifest."
+
+      The test still genuinely EXERCISES (a) npm pack manifest, (b) tarball
+      extraction, (c) ESM dynamic import resolution of the bin's 4 siblings,
+      (d) the bin's own commander+chalk+pg startup path up to the
+      `module.exports` settlement boundary.
+
+      A stricter test would `npm install` into a tmp dir (slower; ~30-60s)
+      and skip the symlink. The current shortcut is reasonable for a CI
+      integration test budget. Documented appropriately.
+    recommended_action: None. The shortcut is honest, scoped, and disclosed.
+
+  - id: F-wire-5
+    severity: INFO
+    file: src/agent-tools/run-mcp-server.ts
+    line: 1-21 (JSDoc block)
+    plan_ref: T2.1 + F-dom-cli-1 closure
+    summary: |
+      JSDoc edit is purely documentation. No exports added/removed/renamed.
+      The composition-root invariant ("library layer src/agent-tools/index.ts
+      does NOT re-export src/local/ — the bin entry IS the composition site
+      per ADR D8") is preserved by the wording. DIP boundary respected.
+    evidence: |
+      Diff: removed "pgvector + stubs"; added "LocalTransformerEmbedder +
+      OpenAILLM real providers" + paragraph about OPENAI_API_KEY hard-fail
+      semantics. No code-line additions/removals; pure JSDoc.
+
+      grep -n "DeterministicStubEmbedder\|StubLLM" src/agent-tools/run-mcp-server.ts → 0 hits
+      (confirms JSDoc no longer references stub providers).
+
+      src/agent-tools/index.ts unchanged in this fix-cycle; library layer
+      still does NOT re-export src/local/ — only the bin entry composes them.
+    recommended_action: None.
+
+  - id: F-wire-6
+    severity: INFO
+    file: src/core/reflection/__tests__/prompt.test.ts
+    line: 29-41 (paper-name regex)
+    plan_ref: T0.4 + EC-8 + b1acbba (paper-name regex construction)
+    summary: |
+      Test file honors no-paper-names-in-code.md by constructing the banned-token
+      regex via string concatenation. The literal banned tokens (V+oyager,
+      Me+m0, etc.) do NOT appear as contiguous words in src/**/*.ts, so the
+      THE GOAL TEST grep -wE pattern from the parent plan returns 0 hits.
+      Runtime concatenation reassembles the actual regex for assertion.
+    evidence: |
+      Commit b1acbba ("fix(p0-fixes): reflection prompt test — build paper-name
+      regex via string concat to honor no-paper-names-in-code rule") explicitly
+      addresses the constraint. The technique is documented inline (lines 23-28).
+
+      grep -wE "(Voyager|Mem0|Letta|LangMem|MemGPT|Graphiti|Generative Agents|CoALA|ProcMEM|Honcho)" \
+        src/core/reflection/__tests__/prompt.test.ts → 0 hits.
+
+      The buildReflectionPrompt callers:
+      - src/core/reflection/execute.ts:87 (production reflection pipeline)
+      - src/core/reflection/__tests__/prompt.test.ts × 3 (this NEW test)
+      - src/core/__tests__/reflection/prompt.test.ts (pre-existing T4.1 test
+        from v0-4a-reflection-pipeline cycle)
+      Production caller exists; no orphan-export risk.
+    recommended_action: None.
+
+# ==============================================================================
+# DEAD EXPORTS CHECK
+# ==============================================================================
+# git diff 4f13028..HEAD -- 'src/**' --name-only:
+#   src/__tests__/changelog-breaking-marker.test.ts  (test — NO exports)
+#   src/agent-tools/run-mcp-server.ts               (JSDoc-only — NO new exports)
+#   src/core/reflection/__tests__/prompt.test.ts    (test — NO exports)
+# Result: ZERO new public/internal exports. Dead-export risk is structurally
+# impossible for this fix-cycle. Pre-existing buildReflectionPrompt has the
+# verified production caller (execute.ts:87).
+
+# ==============================================================================
+# BOUNDARY (DIP) CHECK
+# ==============================================================================
+# - src/agent-tools/run-mcp-server.ts: imports preserved verbatim
+#   (Pool from 'pg', LocalTransformerEmbedder, OpenAILLM, createLocalMemory,
+#   runMigrations, PgvectorStore, McpServer, connectStdio,
+#   connectStreamableHttp). No new cross-tier imports introduced.
+# - src/__tests__/changelog-breaking-marker.test.ts: imports only node:fs,
+#   node:path, node:url, vitest. No src/ imports — purely a file-read sentinel.
+# - src/core/reflection/__tests__/prompt.test.ts: imports
+#   ../../memory-item.js, ../../scope.js, ../prompt.js — all within
+#   src/core/. No core→local|cloud|agent-tools leak.
+# Boundary respected. boundary-check.sh would have caught any violation.
+
+# ==============================================================================
+# CONCURRENT SAFETY CHECK
+# ==============================================================================
+# No Postgres / pgvector / shared cache / file system mutations introduced
+# by this fix-cycle (hardening + docs only). post-install-bin.test.ts mutates
+# tmpdir but uses mkdtempSync (unique per-test) + rmSync afterAll (cleanup).
+# No race-condition surface.
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+summary:
+  blocker_count: 0
+  critical_count: 0
+  major_count: 0
+  minor_count: 2
+  info_count: 4
+  verdict: WIRING_HONEST_AND_DEEP
+  rationale: |
+    The fix-cycle is hardening + docs only per ADR D5. No new public exports,
+    no runtime metrics, no DIPs introduced. Pillar (a) reduces to test-config
+    discoverability (3/3 PASS), pillar (b) to per-fix regression-detection
+    sentinels (6/6 STRONG or ADEQUATE), pillar (c) is N/A per ADR D5.
+
+    Two MINOR findings surfaced:
+      - F-wire-1: EC-1 sentinel verifies file placement, not runtime
+        resolution. Architecturally guaranteed by the resolvePath formula
+        + pre-existing migration integration coverage. Strengthening is
+        optional, not blocking.
+      - F-wire-2: Plan T4.1 step 1 text says "npm test" but the actual
+        gate requires both `npm test` AND `npm run test:integration`.
+        Implementer caught this and ran both (per validation report
+        showing 136 integration PASS). Plan wording drift only — execution
+        was correct. Worth a plan-improve follow-up.
+
+    Four INFO findings document positive-confirmation checks (bundle
+    isolation preserved, symlink shortcut honest, JSDoc edit boundary-safe,
+    paper-name rule honored).
+
+    No BLOCKER, CRITICAL, or MAJOR wiring defects. The wiring triad is
+    HONESTLY and DEEPLY satisfied for this cycle's scope.
