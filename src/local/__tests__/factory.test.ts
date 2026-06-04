@@ -263,4 +263,54 @@ describe('createLocalMemory factory — parametric embeddingDim (T0.1 + EC-1 abs
     await expect(createLocalMemory(config)).rejects.toThrow(/expected 384/);
     await expect(createLocalMemory(config)).rejects.toThrow(/got 768/);
   });
+
+  // ── verbs-as-cli-fixes-cycle-1 T1.1 / EC-2 — default-policy 'in' operator
+  //    distinguishing semantics. The 3 paths cover:
+  //      (a) empty config (no key)               → factory defaults to manual
+  //      (b) explicit { reflectionPolicy: undefined } → preserves ADR-0005 throw
+  //      (c) explicit policy                     → factory uses passed value
+  //    Lock the subtle TypeScript runtime distinction at the contract layer.
+  test('EC-2 path (a) — config without reflectionPolicy key defaults to ManualReflectionPolicy', async () => {
+    const memory = await createLocalMemory(baseConfig());
+    // The default policy is `kind: 'manual'` per T1.1; reflect() on an empty
+    // scope returns early via the no-source-memories short-circuit instead of
+    // throwing ReflectionNotConfigured.
+    await expect(memory.user('alice').reflect()).resolves.toEqual({
+      higherOrderMemories: [],
+      sourceIds: [],
+      derivedMemoriesCreated: 0,
+      reason: 'no-source-memories',
+    });
+  });
+
+  test('EC-2 path (b) — explicit reflectionPolicy: undefined preserves ADR-0005 throw', async () => {
+    const memory = await createLocalMemory({ ...baseConfig(), reflectionPolicy: undefined });
+    // Explicit-undefined value (vs key-omission) signals strict no-default
+    // mode; reflect() throws ReflectionNotConfigured per ADR-0005. Match on
+    // the error message (canonical: "reflect() invoked but no
+    // ReflectionPolicy is configured.").
+    await expect(memory.user('alice').reflect()).rejects.toThrow(/no ReflectionPolicy/);
+  });
+
+  test('EC-2 path (c) — explicit reflectionPolicy uses passed value (NOT factory default)', async () => {
+    // Custom MANUAL policy with onReflectionEnd spy. The spy fires after the
+    // empty-source-memories short-circuit, locking the fact that the FACTORY
+    // wired the EXPLICIT policy (not the default) — both happen to be `manual`
+    // but only one carries the spy. If the factory had substituted its
+    // default, the spy would never fire.
+    const onReflectionEnd = vi.fn(async () => undefined);
+    const customPolicy = {
+      kind: 'manual' as const,
+      shouldReflect: () => Promise.resolve(true),
+      onReflectionEnd,
+    };
+    const memory = await createLocalMemory({
+      ...baseConfig(),
+      reflectionPolicy: customPolicy,
+    });
+    await memory.user('alice').reflect();
+    // The hook fires only if the factory wired the EXPLICIT policy reference
+    // — proving no substitution by the default code-path.
+    expect(onReflectionEnd).toHaveBeenCalledTimes(1);
+  });
 });

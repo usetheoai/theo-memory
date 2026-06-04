@@ -85,3 +85,27 @@ If a caller invokes `reflect()` without configuring a policy, throw `ReflectionN
 - ADR-0004 (`reflect` locked as a public verb).
 - ADR-0008 (DIP method counts — `ReflectionPolicy` interface shape).
 - `.claude/knowledge-base/references/letta/letta/orm/` — Letta's sleep-time agent reference (no `t_valid` columns; sleep-time worker is the trigger mechanism).
+
+---
+
+## Supplementary amendment — v1.1 (2026-06-04, verbs-as-cli-fixes-cycle-1)
+
+**Authorization**: project-owner Option A response to `/review verbs-as-cli-themory-remember-recall-forget-reflect` NEEDS_FIXES verdict (same session, 2026-06-04). The Option A scope ("Open verbs-as-cli-fixes-cycle-1 to absorb the 11 MAJORs") implicitly authorizes this amendment as the means to close F-arch-1 + F-wire-2 (ReflectionPolicy auto-wire asymmetry) at the factory level rather than at each consumer surface (CLI / MCP / REST). Honest disclosure of the implicit-authorization path is itself part of the amendment per Inquebrável Rule 3.
+
+**What changes**: `createLocalMemory({ ...config })` now defaults `reflectionPolicy` to `{ kind: 'manual', shouldReflect: () => Promise.resolve(true) }` when the consumer OMITS the key entirely. The original ADR-0005 v1.0 contract said "reflect() throws `ReflectionNotConfigured` unless `config.reflectionPolicy` is provided". The v1.1 amendment narrows the throw path to consumers who pass `reflectionPolicy: undefined` EXPLICITLY (vs key-omission) — the `'reflectionPolicy' in config` operator distinguishes the two.
+
+**Why**:
+- The v0.4a `ReflectionPolicy` DIP + 3 impls (Manual / Threshold / SleepTime) make `ManualReflectionPolicy` the least-surprising default. The original no-default discipline made sense pre-v0.4a when reflect() was explicit-only at v0.0; now it penalizes every consumer-facing surface (CLI / MCP / REST) that wants `reflect()` to "just work" with the default.
+- Closes 2 MAJOR findings (F-arch-1 + F-wire-2) at one site instead of three (`run-mcp-server.ts` + `run-server.ts` + `cli-memory-factory.ts` all carry identical 3-line wires that drift over time).
+- Strict no-default callers retain control via `reflectionPolicy: undefined` opt-in.
+
+**Locked tests** (EC-2 absorption — 3 contract tests at `src/local/__tests__/factory.test.ts`):
+- **Path (a)** — config without `reflectionPolicy` key → factory defaults to `ManualReflectionPolicy`; `reflect()` succeeds (returns no-source-memories short-circuit).
+- **Path (b)** — explicit `{ reflectionPolicy: undefined }` → preserves the original `ReflectionNotConfigured` throw.
+- **Path (c)** — explicit policy → factory wires the passed reference (no substitution); the policy's `onReflectionEnd` hook fires on reflect().
+
+**Consequences**:
+- Single change at `src/local/index.ts` `createLocalMemory` factory body (one `'in' operator` distinguish + reassignment of resolved policy).
+- `LocalScopedMemory.reflect()` `ReflectionNotConfigured` throw at `src/local/index.ts:632` is narrowed to the explicit-undefined opt-in path.
+- CLI / MCP / REST surfaces all `reflect()` work without explicit wiring; T2.1 of fix-cycle-1 drops the redundant explicit wire from `agent-tools-memory.ts` (EC-4 absorption).
+- ADR-0005 v1.0 status remains `Accepted`; v1.1 is a supplementary widening, not a retraction. Original rationale stays load-bearing for the DIP shape + locked 4 verbs.

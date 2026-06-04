@@ -14,9 +14,9 @@
  */
 import type { MemoryItemWithScore } from '../core/memory-item.js';
 
-import { createCliMemory } from './cli-memory-factory.js';
+import { createCliMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
-import { resolveCliScope } from './cli-scope.js';
+import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
 export interface RunRecallOptions {
   readonly query: string;
@@ -30,6 +30,10 @@ export interface RunRecallOptions {
 }
 
 export async function runRecall(opts: RunRecallOptions): Promise<void> {
+  // verbs-as-cli-fixes-cycle-1 T3.2 / F-dom-cli-2 absorption: validate scope
+  // flags BEFORE the ~2-5s createCliMemory warm-up.
+  validateScopeOpts(opts);
+
   const [memory, dispose] = await createCliMemory();
   try {
     const scoped = resolveCliScope(memory, opts);

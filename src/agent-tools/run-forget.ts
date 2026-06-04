@@ -10,7 +10,7 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.3
  */
-import { createCliMemory } from './cli-memory-factory.js';
+import { createCliMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 
 export interface RunForgetOptions {

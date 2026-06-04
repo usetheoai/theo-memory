@@ -328,7 +328,56 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 The `docker-compose.prod.yaml` stack (T3.2) boots both `themory` + `pgvector` with healthchecks suitable for `docker compose up -d --wait --wait-timeout 60`.
 
+## CLI verbs
 
+`themory` ships 8 subcommands: 4 lifecycle commands (`mcp` / `server` / `migrate` / `health` — documented in the sections above) and 4 memory verbs (`remember` / `recall` / `forget` / `reflect`) that round-trip a single memory operation from the shell without a long-running server. All 4 verbs emit JSON by default; pass `--text` for human-readable output.
+
+```bash
+export THEOMEM_PG_URI=postgres://memory:memory@localhost:5432/themory
+export OPENAI_API_KEY=sk-...             # OR an OpenRouter key + OPENAI_BASE_URL
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # optional
+
+# Write a fact under a user scope
+themory remember 'I prefer dark coffee in the morning' --user alice
+
+# Query the same scope
+themory recall 'morning beverage' --user alice --top-k 5 --threshold 0.5
+
+# Delete a memory by id (NO scope flag — memoryId globally unique)
+themory forget 11111111-2222-3333-4444-555555555555 --hard
+
+# Trigger reflection over a scope; emits raw ReflectionResult JSON
+themory reflect --user alice
+```
+
+### Stable flags (v1.0 contract — see `CLAUDE.md` § Locked names)
+
+| Flag | Where | Type | Notes |
+|---|---|---|---|
+| `--user <id>` | `remember` / `recall` / `reflect` | string | Mutually exclusive with `--session` / `--agent`. |
+| `--session <id>` | `remember` / `recall` / `reflect` | string | Mutually exclusive with `--user` / `--agent`. |
+| `--agent <id>` | `remember` / `recall` / `reflect` | string | Mutually exclusive with `--user` / `--session`. |
+| `--top-k <n>` | `recall` | int 1..100 | Max items returned. |
+| `--threshold <f>` | `recall` | float [0, 1] | Semantic similarity floor. |
+| `--diversify <l>` | `recall` | float [0, 1] | MMR diversification lambda (opt-in). |
+| `--hard` | `forget` | flag | Hard-delete (default is soft via `t_invalid`). |
+| `--json` | all 4 verbs | flag | Output JSON (default). |
+| `--text` | all 4 verbs | flag | Human-readable text instead of JSON. |
+
+### Docker-exec composability
+
+The published image at `ghcr.io/usetheo/themory:0.1.0-alpha` includes the CLI:
+
+```bash
+docker exec themory \
+  node /app/dist/agent-tools/cli.js recall 'morning beverage' --user alice --top-k 5
+```
+
+### Caveats (honest disclosure per Inquebrável Rule 3)
+
+- **Cold-start cost.** Each verb invocation pays ~2-5s warm-up: model download (first run only, then disk-cached), pg connect + journal sync, factory probe. For batch operations > 50 invocations, use the REST server (`themory server`) + `curl` instead of one CLI invocation per item.
+- **Output contract.** `reflect --json` emits the RAW `ReflectionResult` shape (`{ higherOrderMemories, sourceIds, derivedMemoriesCreated, reason? }`) so scripts portable across CLI + MCP + REST consume the same field names. There is no projection step.
+- **Mutually-exclusive scope.** `remember` / `recall` / `reflect` REQUIRE exactly one of `--user` / `--session` / `--agent`; zero or multiple → exit 2 in <2s (boundary-first ordering, no factory warm-up paid). `forget` takes NO scope flag because `memoryId` is globally unique.
 
 ## Status — v0.6 (voyager-skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
 
