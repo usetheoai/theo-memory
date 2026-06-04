@@ -1,7 +1,7 @@
 {
   "name": "@usetheo/memory",
   "version": "0.0.0-rc.2",
-  "description": "Managed three-tier memory layer for the usetheo ecosystem. Pre-release.",
+  "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -70,7 +70,10 @@
     "!src/**/__tests__/**",
     "!src/**/*.test.ts",
     "!src/**/*.test-d.ts",
-    "src/local/migrations/**"
+    "src/local/migrations/**",
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.sql"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
