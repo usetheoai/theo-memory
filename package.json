@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/memory",
-  "version": "0.0.0-rc.2",
+  "version": "0.0.0-rc.3",
   "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
   "type": "module",
   "license": "MIT",
