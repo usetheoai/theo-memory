@@ -270,7 +270,7 @@ curl -X POST http://localhost:8080/v1/remember \
 
 **Body limit:** 1 MB cap on `/v1/*` POST endpoints (DOS guard via `hono/body-limit`; 413 response carries the structured `{code: 'CONTENT_TOO_LARGE', message: ...}` envelope). Compressed request bodies (`Content-Encoding: gzip`) are NOT auto-decompressed by Hono — operators serving large compressed payloads should enforce body limits at the reverse-proxy layer (nginx `client_max_body_size`, Caddy `request_body max_size`) for production deployments.
 
-**Wiring real providers (alpha default uses stubs).** Both `themory server` (REST) and `themory mcp` (MCP) wire `DeterministicStubEmbedder` + `StubLLM` by default at v0.1.0-alpha. The startup banner surfaces a loud stderr warning so operators see the disclosure. Stub embedders produce deterministic but uncorrelated vectors — recall returns shape-correct results but only round-trips reliably on EXACT-text queries (no semantic matching). For production, wire `OpenAIEmbedder` (set `OPENAI_API_KEY`) or `LocalTransformerEmbedder` (subpath `@usetheo/memory/embedders/local`, requires `@xenova/transformers` optional dep). Real-provider wiring as a CLI flag (`--embedder openai|local`) is a future cycle.
+**Wiring real providers (post-T3.2 — no stubs in production path).** As of p0-api-sdk-mcp-correctness-audit T3.2 (mirror of MCP commit `e43d801`), BOTH `themory server` (REST) and `themory mcp` (MCP) hard-fail at startup when `OPENAI_API_KEY` is unset. Real providers wired by default: `LocalTransformerEmbedder` (Xenova MiniLM, 384-dim, keyless — `@xenova/transformers` optional dep) for embeddings and `OpenAILLM` for fact extraction. The `OPENAI_API_KEY` env var works for OpenAI proper AND for OpenRouter via `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. No silent stub fallback. The earlier "alpha default uses stubs" pattern is retired.
 
 Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
 
@@ -603,7 +603,7 @@ Honest claims only — v0.0 + v0.1 + v0.2 PR-A + v0.3 + v0.4a + v0.6 shipped to 
 
 ## Where this fits
 
-`@usetheo/memory` is a community auxiliary of the [usetheo stack](../README.md), with a managed runtime that lives inside TheoCloud:
+`@usetheo/memory` is a community auxiliary of the [Theo stack](../README.md), with a managed runtime that lives inside TheoCloud:
 
 | Tier | Project | License | What it does |
 |---|---|---|---|
