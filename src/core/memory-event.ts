@@ -38,6 +38,13 @@ export const MEMORY_EVENTS = [
   // indistinguishably from "no input" — the IGNORE decision was silent.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_zero_facts',
+  // principles-alignment-hardening T4.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when retrieval pipeline's threshold-filter step drops N
+  // sub-threshold candidates. Attributes include filtered_count so consumers
+  // can dashboard the IGNORE volume. NOT emitted when filtered_count = 0
+  // (no-op observability discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_threshold_filtered',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
