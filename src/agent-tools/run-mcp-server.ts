@@ -7,9 +7,12 @@
  * changed (now invoked via `themory mcp` OR the `themory-mcp` alias).
  *
  * Composition root (DIP-allowed): this file wires src/local/ (pgvector +
- * stubs) into the agent-tools McpServer. Library layer `src/agent-tools/
- * index.ts` does NOT re-export src/local/ — the bin entry IS the composition
- * site per ADR D8.
+ * LocalTransformerEmbedder + OpenAILLM real providers) into the
+ * agent-tools McpServer. Library layer `src/agent-tools/index.ts` does
+ * NOT re-export src/local/ — the bin entry IS the composition site per
+ * ADR D8. The runtime hard-fails on missing OPENAI_API_KEY rather than
+ * silently wiring a deterministic placeholder; see commit e43d801 of the
+ * parent cycle for the placeholder-removal rationale.
  *
  * @see ADR D1 — stdio is the primary transport for local CLI deployment
  * @see ADR D4 — McpServer consumes memoryFactory; T5.1 dispatch resolves scoped memory

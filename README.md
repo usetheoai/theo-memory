@@ -202,7 +202,9 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 | `OPENAI_CHAT_MODEL` | no | `gpt-4o-mini` | Model identifier for fact extraction. Honored by both direct OpenAI and OpenRouter. |
 | `THEOMEM_MCP_DEFAULT_USER_ID` | no | — | Default scope binding for stdio callers that do not pass `_meta.io.usetheo.themory/user_id`. Required for Claude Code direct use. |
 
-**Install as a stdio MCP server for Claude Code** via project-local `.mcp.json` (the canonical Claude Code mechanism):
+**Install as a stdio MCP server for Claude Code** via project-local `.mcp.json` (the canonical Claude Code mechanism).
+
+A copy-and-fill template is committed at [`.mcp.json.example`](.mcp.json.example) — duplicate it as `.mcp.json` (gitignored), populate `OPENAI_API_KEY`, and restart Claude Code. The inline recipe below mirrors that template for reference:
 
 ```json
 {
