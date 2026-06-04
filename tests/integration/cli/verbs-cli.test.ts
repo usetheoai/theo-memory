@@ -67,7 +67,10 @@ function runCli(args: readonly string[], extraEnv: Record<string, string> = {}):
   const result = spawnSync('node', [CLI_PATH, ...args], {
     encoding: 'utf8',
     timeout: 60_000,
-    env: { ...process.env, ...extraEnv },
+    // DOTENV_CONFIG_QUIET silences the dotenv v17 tip-of-the-day banner that
+    // is auto-emitted to stdout by some transitive dep at module load; without
+    // it, JSON.parse(stdout) fails on the leading `◇ injected env ...` lines.
+    env: { ...process.env, DOTENV_CONFIG_QUIET: 'true', ...extraEnv },
   });
   return {
     status: result.status,
@@ -140,8 +143,9 @@ describe.skipIf(!DIST_EXISTS || !HAS_OPENAI || !HAS_PG_URI)(
 
     test('8. EC-1 — forget (NO scope flag) outputs JSON with id', () => {
       const userId = randomUUID();
-      const remResult = runCli(['remember', 'fact-to-forget', '--user', userId]);
+      const remResult = runCli(['remember', 'I like dark coffee in the morning', '--user', userId]);
       const items = JSON.parse(remResult.stdout) as ReadonlyArray<{ id: string }>;
+      expect(items.length, `remember stdout=${remResult.stdout}`).toBeGreaterThan(0);
       const targetId = items[0]!.id;
       const result = runCli(['forget', targetId]);
       expect(result.status, `stderr=${result.stderr}`).toBe(0);
@@ -151,8 +155,9 @@ describe.skipIf(!DIST_EXISTS || !HAS_OPENAI || !HAS_PG_URI)(
 
     test('9. EC-1 — forget --hard (NO scope flag) outputs JSON', () => {
       const userId = randomUUID();
-      const remResult = runCli(['remember', 'fact-to-hard-delete', '--user', userId]);
+      const remResult = runCli(['remember', 'My favorite color is blue', '--user', userId]);
       const items = JSON.parse(remResult.stdout) as ReadonlyArray<{ id: string }>;
+      expect(items.length, `remember stdout=${remResult.stdout}`).toBeGreaterThan(0);
       const targetId = items[0]!.id;
       const result = runCli(['forget', targetId, '--hard']);
       expect(result.status).toBe(0);
@@ -182,8 +187,14 @@ describe.skipIf(!DIST_EXISTS || !HAS_OPENAI || !HAS_PG_URI)(
 
     test('12. EC-1 — round-trip remember → recall → forget (NO scope) → recall', () => {
       const userId = randomUUID();
-      const remResult = runCli(['remember', 'unique-fact-zebra-octopus', '--user', userId]);
+      const remResult = runCli([
+        'remember',
+        'I have a pet zebra named Octopus',
+        '--user',
+        userId,
+      ]);
       const items = JSON.parse(remResult.stdout) as ReadonlyArray<{ id: string }>;
+      expect(items.length, `remember stdout=${remResult.stdout}`).toBeGreaterThan(0);
       const targetId = items[0]!.id;
       const recall1 = runCli(['recall', 'zebra octopus', '--user', userId]);
       const recall1Items = JSON.parse(recall1.stdout) as ReadonlyArray<{ id: string }>;
