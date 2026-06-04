@@ -1,0 +1,351 @@
+agent: review-semantic-recall-cache-v1-5-domain-memory-layer
+review_target: main..HEAD for plan semantic-recall-cache-v1-5
+domain: memory-layer
+domain_specific_patterns_checked:
+  - Mem0-shape architecture integrity (cache wraps the 9-step retrieval pipeline; MISS path falls through to runRetrievalPipeline)
+  - 3-tier scope discipline + RepoScope (4th tier per ADR-0010) cache-key derivation
+  - ADD-only invariant preserved on cache layer (read-side memoization only)
+  - ADR-0008 method-count cap on 13th DIP (RecallCacheStore = 4 methods)
+  - ADR D8 cache applicability boundary (asOf + attributedTo BYPASS, single and combined)
+  - Bi-temporal contract (ADR-0011 v1.1) — recall({asOf}) must not be cache-served
+  - Multi-peer attribution (ADR-0011 v1.1) — recall({attributedTo}) must not be cache-served
+  - Item 19 AC#3 write-triggered invalidation across remember/forget/reflect
+  - EC-10 forget scope-derivation (deriveScopeFromPayload reads user_id/session_id/agent_id, most-specific tier wins)
+  - EC-6 reflect-derived staleness (only invalidates when persisted.length > 0)
+  - EC-11 sequential await discipline (remember/forget/reflect await invalidateScope before returning)
+  - Stub-embedder loud warning at factory time (Rule 3 honesty gate)
+findings:
+  - id: F-dom-memory-1
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 977
+    plan_ref: ADR D3 v1.1 amendment + T0.1 EC-3 absorption + RecallCacheStoreConfig.ttlSecondsByScopeTier with required `repo` tier
+    domain_anchor: CLAUDE.md § Architectural Decisions Locked — RepoScope 4th tier (ADR-0010); plan v1.1 T0.1 RED-5/RED-6 declared the `skill`/`repo` tier as part of the cache contract
+    summary: |
+      `LocalMemory.skills(repoId)` does NOT plumb `recallCacheStore` into the
+      returned `LocalScopedSkillMemory`. Consequence — `memory.skills(repoId).recall(query)`
+      ALWAYS executes the full 9-step retrieval pipeline; the cache never
+      observes a skill-scope hit, even though:
+        (a) `ScopeTierTtlConfig.repo` is required + defaults to 3600s
+            (`src/core/dip/recall-cache-store.ts:73`);
+        (b) `deriveScopeKey(scope)` handles the `repo` discriminator and
+            produces `'repo:${repoId}'` (`src/local/recall-cache/scope-key.ts:29`);
+        (c) the `applyDimChange` ALTER TYPE cascade INCLUDES `recall_cache`
+            (`src/local/index.ts:1278`), implying skill-scope rows are an
+            expected workload.
+      The contract surface advertises 4-tier caching; only 3 tiers (user /
+      session / agent) actually wire end-to-end. v1.1 EC-9 honest-deferral
+      precedent (skill-scope `asOf` deferred) was documented in CHANGELOG —
+      the equivalent honest-deferral for skill-scope CACHE is NOT documented
+      anywhere in the plan, the DIP JSDoc, or CHANGELOG. Either ship the
+      skill wiring or document the boundary as an honest deferral mirroring
+      v1.1's pattern.
+    evidence: |
+      ```ts
+      // src/local/index.ts:977
+      skills(repoId: string): ScopedSkillMemory {
+        const skillStore = this.config.vectorStore as VectorStore & VectorStoreWithSkillInsert;
+        return new LocalScopedSkillMemory(repoId, {
+          vectorStore: skillStore,
+          embedder: this.config.embedder,
+          llm: this.config.llm,
+          forgetDelegate: (id: string) => this.forget(id),
+          getDelegate: (id: string) => this.get(id),
+          ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
+          // ← `recallCacheStore` NOT forwarded
+        });
+      }
+      ```
+      ```ts
+      // src/local/scoped-skill-memory.ts:118-147 — recall() runs the
+      // pipeline directly with NO cache lookup or populate
+      async recall(query: string, options?: SkillRecallOptions): Promise<readonly SkillWithScore[]> {
+        // ...filters composition...
+        const results = await runRetrievalPipeline(query, filters, { ... }, options);
+        // ← no cache.get(), no cache.set()
+      }
+      ```
+      ```ts
+      // src/core/dip/recall-cache-store.ts:73 (DIP REQUIRES repo tier)
+      export interface ScopeTierTtlConfig {
+        readonly user: number;
+        readonly agent: number;
+        readonly session: number;
+        readonly repo: number;  // ← contract surface
+      }
+      ```
+    recommended_action: |
+      Either (a) plumb `recallCacheStore` into `LocalScopedSkillMemory` so
+      skill-scope reads observe cache hits at `repo:${repoId}` scope_key, OR
+      (b) document the v1.5.0 honest-deferral mirroring v1.1 EC-9: amend
+      `ScopeTierTtlConfig.repo` JSDoc to "currently advertised; skill-scope
+      cache wiring scheduled for v1.5.x" + CHANGELOG `[Unreleased] § Notes`
+      block + plan v1.2 ADR D9 documenting the deferral. The current state
+      is silently mis-advertised contract.
+
+  - id: F-dom-memory-2
+    severity: MAJOR
+    file: src/local/__tests__/factory-recall-cache.test.ts
+    line: 166
+    plan_ref: T2.2 declares 10 RED tests (T2.2-RED-1 through T2.2-RED-10) covering EC-6 + EC-10 + EC-11 absorptions across remember/forget/reflect
+    domain_anchor: testing.md § TDD Red-Green-Refactor + Inquebrável Rule 5 (TDD-first); plan T2.2 Acceptance Criteria mandate
+    summary: |
+      The contract test suite for write-trigger invalidation (T2.2) ships
+      only 2 of the 10 declared RED tests. Specifically MISSING:
+        - T2.2-RED-2 (remember FAILURE does NOT invoke invalidateScope) —
+          guards against cache thrash on rolled-back writes
+        - T2.2-RED-3 (forget() success invokes invalidateScope)
+        - T2.2-RED-4 (Item 19 AC#3 regression for remember end-to-end)
+        - T2.2-RED-6 (EC-6: reflect() success invokes invalidateScope)
+        - T2.2-RED-7 (EC-6: Item 19 AC#3 regression for reflect)
+        - T2.2-RED-8 (EC-10: forget scope derivation — most-specific tier wins)
+        - T2.2-RED-9 (EC-10 fallback when memory not found)
+        - T2.2-RED-10 (EC-11: sequential await — pre-warm + remember +
+          immediate cache.get must return undefined)
+      The implementation (`src/local/index.ts:527-534`, `761-768`,
+      `922-929`) DOES hook all three verbs — but the behavior is asserted
+      only at the integration layer for `remember()` (`tests/integration/cache/factory-wiring.test.ts:107`).
+      Reflect + forget integration coverage is NIL despite the doc-block of
+      `factory-wiring.test.ts:7` advertising "remember/forget/reflect
+      invalidate". This is TDD-discipline drift: code shipped without
+      asserting the failure modes the EC absorptions explicitly called out.
+    evidence: |
+      ```ts
+      // src/local/__tests__/factory-recall-cache.test.ts — only 2 tests
+      // in the T2.2 describe block:
+      describe('T2.2 — write-trigger cache invalidation hooks', () => {
+        test('T2.2-RED-1 — remember() success invokes invalidateScope(scope)', ...);
+        test('T2.2-RED-5 — invalidateScope failure does NOT propagate; remember() still succeeds', ...);
+      });
+      ```
+      ```
+      grep -n "memory.*\.reflect\|memory.*\.forget" tests/integration/cache/factory-wiring.test.ts
+      (no output — neither verb invoked end-to-end)
+      ```
+    recommended_action: |
+      Add the 8 missing RED tests to `factory-recall-cache.test.ts` (unit
+      with fake cache spy) AND extend `factory-wiring.test.ts` integration
+      to cover `forget` AND `reflect` cache-invalidation end-to-end against
+      real pgvector. Special care on T2.2-RED-10 (EC-11 sequential discipline):
+      a fire-and-forget regression in the wrap would pass T2.2-RED-1 (eventual
+      call observed) but fail the AC#3 contract (immediate post-write recall
+      MUST see fresh state).
+
+  - id: F-dom-memory-3
+    severity: MAJOR
+    file: src/local/index.ts
+    line: 311
+    plan_ref: T2.2 EC-10 absorption — "deriveScopeFromPayload reads user_id/session_id/agent_id... Most specific tier wins (session > agent > user)"
+    domain_anchor: ADR-0010 (RepoScope 4th tier maps to `agent_id` column per EC-4); plan T2.2 Deep Dives — "scope derivable from memory record per EC-10 strategy"
+    summary: |
+      `deriveScopeFromPayload` cannot distinguish a v0.6 RepoScope skill row
+      from a regular AgentScope memory row because both occupy the same
+      persisted column (`agent_id`, per ADR-0010 EC-4 column-mapping). Today
+      this defect is DORMANT (F-dom-memory-1: skill-scope cache wiring
+      missing means no `repo:${repoId}` row ever lands in `recall_cache`).
+      But the moment F-dom-memory-1 is closed, the silent collision becomes
+      a real bug: `Memory.forget(skillId)` invoked directly (NOT through
+      `memory.skills(repoId).forget()`) would `invalidateScope({kind:'agent',
+      agentId})` while the cache holds a `repo:${repoId}` row that stays
+      stale until TTL. Reading the row payload's `kind` field
+      (`'skill'` vs absent → regular) is the canonical way to disambiguate;
+      the persisted column shape exists for exactly this discrimination
+      (the existing `SkillRecallOptions` already filters by `kind:'skill'`,
+      proving the column exists).
+    evidence: |
+      ```ts
+      // src/local/index.ts:311
+      function deriveScopeFromPayload(payload: Readonly<Record<string, unknown>>): Scope | undefined {
+        const userId = payload['user_id'];
+        const sessionId = payload['session_id'];
+        const agentId = payload['agent_id'];
+        // session is the most specific tier; prefer it when present.
+        if (typeof sessionId === 'string' && sessionId.length > 0) {
+          return { kind: 'session', sessionId };
+        }
+        if (typeof agentId === 'string' && agentId.length > 0) {
+          return { kind: 'agent', agentId };  // ← skill rows hit this branch
+        }
+        // ...
+      }
+      ```
+      ```ts
+      // src/local/scoped-skill-memory.ts:126 — confirms skill rows carry
+      // the discriminator on the payload
+      const filters: Filters = { ...this.filters, kind: 'skill', ... };
+      ```
+    recommended_action: |
+      Read `payload['kind']` first; when `'skill'`, return `{kind:'repo',
+      repoId: String(agentId)}`. Add unit test that `forget(skillId)` for a
+      skill row derives `repo:${repoId}` scope_key — even though the wiring
+      is dormant today, locking the test prevents regression when
+      F-dom-memory-1 is closed. Without this, future skill-scope cache work
+      will silently leak stale entries.
+
+  - id: F-dom-memory-4
+    severity: MINOR
+    file: src/local/index.ts
+    line: 340
+    plan_ref: T2.1 Deep Dives — "Default fallback table (mirror DEFAULT_TTL_SECONDS_BY_SCOPE_TIER without importing the constant)"
+    domain_anchor: Inquebrável Rule 12 (DRY) — same conhecimento represented in two places means a future TTL spread bump in `DEFAULT_TTL_SECONDS_BY_SCOPE_TIER` drifts silently
+    summary: |
+      `resolveCacheTtl` re-declares the 4-tier defaults inline as a
+      module-private constant rather than importing
+      `DEFAULT_TTL_SECONDS_BY_SCOPE_TIER` from
+      `src/core/dip/recall-cache-store.ts:152`. The JSDoc admits the
+      duplication is intentional ("keeps the wiring module readable"), but
+      that rationale is weaker than the DRY violation: two sources of
+      truth for the same TTL spread WILL drift the first time a v1.5.x
+      dogfood-evidence-driven tune lands. Mirror discipline: the validator
+      iterates `['user','agent','session','repo']` AND
+      `DEFAULT_TTL_SECONDS_BY_SCOPE_TIER` lists the same 4 keys with the
+      same values — adding a 3rd copy here triples the drift surface.
+    evidence: |
+      ```ts
+      // src/local/index.ts:340
+      function resolveCacheTtl(scope: Scope, cacheConfig: ...): number {
+        // Default fallback table (mirror DEFAULT_TTL_SECONDS_BY_SCOPE_TIER
+        // without importing the constant — keeps the wiring module readable).
+        const defaults = { user: 86_400, agent: 3_600, session: 600, repo: 3_600 } as const;
+        // ...
+      }
+      ```
+      ```ts
+      // src/core/dip/recall-cache-store.ts:152 — authoritative source
+      export const DEFAULT_TTL_SECONDS_BY_SCOPE_TIER: ScopeTierTtlConfig = Object.freeze({
+        user: 86_400, agent: 3_600, session: 600, repo: 3_600,
+      });
+      ```
+    recommended_action: |
+      `import { DEFAULT_TTL_SECONDS_BY_SCOPE_TIER } from
+      '../core/dip/recall-cache-store.js'` and use it directly. Readability
+      cost is one extra import line; DRY win is permanent. Alternatively,
+      add a parity sentinel test that asserts the two literals are
+      structurally equal — but importing is the canonical fix.
+
+  - id: F-dom-memory-5
+    severity: MINOR
+    file: src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: 86
+    plan_ref: T1.2 LRU eviction at max_size=1000 per scope (Blueprint Rec #8)
+    domain_anchor: testing.md § Determinism — "No flaky tests... time-dependent tests use a frozen clock"; same-ms inserts via Promise.all collide in created_at resolution
+    summary: |
+      `DELETE_OLDEST_SQL` uses `ORDER BY created_at ASC LIMIT 1` with no
+      secondary tiebreaker. PostgreSQL `now()` resolves to microseconds, but
+      same-transaction or millisecond-burst inserts via `Promise.all`
+      (precisely the EC-7 concurrent path the SERIALIZABLE transaction
+      defends against) can produce two rows sharing the same `created_at`
+      timestamp. The DELETE then picks one row non-deterministically — LRU
+      semantics degrade to "delete any of the oldest" rather than "delete
+      THE oldest". For a v1.5.0 cache the practical impact is small, but it
+      makes the T1.2-RED-2 acceptance ("oldest row is gone, others stay")
+      sometimes flaky. Adding `, id ASC` as a tiebreaker is one-token cost
+      and gives deterministic eviction.
+    evidence: |
+      ```ts
+      // src/local/recall-cache/pgvector-recall-cache-store.ts:86
+      const DELETE_OLDEST_SQL = `DELETE FROM recall_cache
+         WHERE id = (
+           SELECT id FROM recall_cache
+            WHERE scope_key = $1
+            ORDER BY created_at ASC
+            LIMIT 1
+         )`;
+      ```
+    recommended_action: |
+      Append `, id ASC` to the inner ORDER BY so eviction is deterministic
+      under same-timestamp collisions. `ORDER BY created_at ASC, id ASC
+      LIMIT 1`.
+
+  - id: F-dom-memory-6
+    severity: INFO
+    file: src/local/index.ts
+    line: 575
+    plan_ref: ADR D8 cache applicability boundary
+    domain_anchor: positive control — verifies the surface this review was tasked to find regressions in
+    summary: |
+      ADR D8 (cache applicability boundary) is correctly implemented at
+      `LocalScopedMemory.recall()` — when `options.asOf !== undefined` OR
+      `options.attributedTo !== undefined` (single OR combined), the wrap
+      sets `cacheApplicable = false` and falls through to
+      `runRetrievalPipeline` directly without consulting `cache.get` or
+      writing `cache.set`. Bypass is verified by three unit tests
+      (T2.1-RED-8 / RED-9 / RED-10) at
+      `src/local/__tests__/factory-recall-cache.test.ts:116-141` that assert
+      BOTH `cache.getCalls.length === 0` AND `cache.setCalls.length === 0`
+      after the bypassed recall. Bi-temporal contract (ADR-0011 v1.1) and
+      multi-peer attribution contract (ADR-0011 v1.1) both honored. This
+      finding logged for cross-validation traceability.
+    evidence: |
+      ```ts
+      // src/local/index.ts:575-585
+      const cache = this.recallCacheStore;
+      const cacheApplicable =
+        cache !== undefined && options?.asOf === undefined && options?.attributedTo === undefined;
+      if (!cacheApplicable || cache === undefined) {
+        return runRetrievalPipeline(query, applySkillFilters(this.filters, options), { ... }, options);
+      }
+      ```
+    recommended_action: |
+      No action — implementation matches plan ADR D8 + EC-4 + EC-5
+      absorption verbatim. Continue forward.
+
+  - id: F-dom-memory-7
+    severity: INFO
+    file: src/core/dip/recall-cache-store.ts
+    line: 107
+    plan_ref: ADR D1 — 4-method DIP within ADR-0008 method-count cap
+    domain_anchor: ADR-0008 method-count cap (caps DIPs from growing into god-interfaces)
+    summary: |
+      Positive control: `RecallCacheStore` interface (13th DIP) declares
+      exactly 4 methods — `get`, `set`, `invalidateScope`, `clearExpired`.
+      Honors ADR-0008 cap. Each method has a single, focused responsibility
+      (SRP-clean): read on hot path, write on miss path, write-trigger
+      correctness gate, cron-driven housekeeping. Interface lives at
+      `src/core/dip/` per architecture.md § 3 (DIP); ZERO I/O, ZERO imports
+      from `src/local/` (verified via `grep -E "from '\.\./\.\./local'"`
+      = 0 hits). The default impl lives at
+      `src/local/recall-cache/pgvector-recall-cache-store.ts`, depending
+      ONLY on `pg` + the core DIP — correct DIP direction. Logged for
+      traceability.
+    evidence: |
+      ```ts
+      // src/core/dip/recall-cache-store.ts:107-145
+      export interface RecallCacheStore {
+        get(queryEmbedding, scope): Promise<CachedResult | undefined>;
+        set(queryEmbedding, scope, results, ttlSeconds): Promise<void>;
+        invalidateScope(scope): Promise<number>;
+        clearExpired(): Promise<number>;
+      }  // ← exactly 4 methods
+      ```
+    recommended_action: |
+      No action — DIP shape is correct. Mem0-shape architecture integrity
+      preserved: cache WRAPS the 9-step retrieval pipeline (the MISS path
+      at `LocalScopedMemory.recall` line 599 calls `runRetrievalPipeline`
+      verbatim); ADD-only invariant preserved (cache is read-side
+      memoization, never mutates the canonical `memories` table).
+
+  - id: F-dom-memory-8
+    severity: INFO
+    file: src/local/index.ts
+    line: 1074
+    plan_ref: ADR D6 + Inquebrável Rule 3 (Honesty) — stub embedder + cache produces COINCIDENTAL not semantic hits
+    domain_anchor: cycle-1 T2.2 / F-rev-9 precedent (stub-embedder warning at run-server.ts:81-92)
+    summary: |
+      Positive control: the stub-embedder loud warning correctly fires
+      at `createLocalMemory` time when `recallCacheStore !== undefined` AND
+      `isStubEmbedder(config.embedder)` (constructor.name match against
+      `StubEmbedder` OR `DeterministicStubEmbedder`). 3-line stderr shape
+      mirrors cycle-1 precedent: (1) WARNING + detected class; (2)
+      behavior delta; (3) production guidance. Cache continues to operate
+      — refusing would break consumers using stubs in CI shape-validation
+      flows. Inquebrável Rule 3 honored at the consumer-facing boundary.
+      Logged for traceability.
+    evidence: |
+      ```ts
+      // src/local/index.ts:1074-1076
+      if (recallCacheStore !== undefined && isStubEmbedder(config.embedder)) {
+        emitStubEmbedderCacheWarning(config.embedder.constructor.name);
+      }
+      ```
+    recommended_action: No action — implementation matches ADR D6 verbatim.

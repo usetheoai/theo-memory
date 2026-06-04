@@ -1,0 +1,617 @@
+agent: review-semantic-recall-cache-v1-5-architecture
+review_target: 4332382^..05a0321 (6-commit cache cycle on develop) for plan semantic-recall-cache-v1-5
+plan: .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md
+date: 2026-06-03
+findings:
+  - id: F-arch-1
+    severity: MAJOR
+    file: src/core/dip/recall-cache-store.ts
+    line: 16-18,24,96,161,167
+    plan_ref: T0.1 — 13th DIP declaration
+    rule: .claude/rules/no-paper-names-in-code.md
+    summary: |
+      Five JSDoc references to vendor product names `embedchain` and `LangChain` in src/core/ —
+      direct violation of the no-paper-names-in-code golden rule for production code.
+    evidence: |
+      Line 16-18:
+      ```ts
+       *     convergence of embedchain (`similarity_threshold=0.8`) and LangChain
+       *     (`distance_threshold=0.2 ≈ similarity 0.8` via algebra `1 - distance`).
+       *     LangChain's known calibration failure at distance 0.3 (similarity 0.7)
+      ```
+      Line 24:
+      ```ts
+       *     from embedchain `gptcache_data_manager(max_size=1000, eviction="LRU")`.
+      ```
+      Line 96:
+      ```ts
+       * default per embedchain Q4). Values < 10 cause cache thrashing — README
+      ```
+      Line 161 + 167:
+      ```ts
+       * Convergent across embedchain (similarity 0.8) AND LangChain (distance 0.2).
+       * Empirical consumer default from embedchain `gptcache_data_manager(max_size=1000)`.
+      ```
+      Per no-paper-names-in-code.md § The rule: "Research-paper and marketing names —
+      Voyager, Mem0, Letta, LangMem, MemGPT, Generative Agents, CoALA, ProcMEM,
+      *vendor product names*, etc. — SHALL NOT appear in: src/** production code:
+      JSDoc, inline comments, identifiers, error messages, log strings, structured event names."
+      `embedchain` and `LangChain` are both vendor product names. Citation belongs in
+      the plan / blueprint / ADR (allowed surfaces per the rule), not in src/.
+    recommended_action: |
+      Replace JSDoc citations with neutral wording (e.g., "validated by independent
+      convergence with two consumer-pairing implementations at similarity 0.8 / distance 0.2")
+      and add `@see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § Q4 + Q7`
+      as a filesystem-coordinate citation. The blueprint surface IS the citation locus
+      per the rule. Same opportunistic-cleanup discipline as v0.6.1 T5.2 / F-arch-10.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/core/dip/recall-cache-store.ts
+    line: 69-74
+    plan_ref: T0.1 ADR D3 + Blueprint § D3
+    summary: |
+      `ScopeTierTtlConfig.repo` is part of the 13th DIP's public contract surface
+      but no code path in this cycle invokes the cache wrap for skill scope.
+      `LocalScopedSkillMemory.recall()` (src/local/scoped-skill-memory.ts:118)
+      runs `runRetrievalPipeline` directly with NO `recallCacheStore` wrap —
+      the cache is wired only into `LocalScopedMemory.recall()` (the 3-tier path).
+      The `repo` TTL value is therefore dead-code in the wire-up: a consumer
+      passing `recallCache: { ttlSecondsByScopeTier: { repo: 7200 } }` will see
+      that value never honored on `memory.skills(repoId).recall(...)`. This is
+      a speculative contract surface (YAGNI violation per Inquebrável Rule 11)
+      AND a consumer-expectation mismatch (Inquebrável Rule 3 honesty).
+    evidence: |
+      Contract surface (claims repo support):
+      ```ts
+      // src/core/dip/recall-cache-store.ts:69-74
+      export interface ScopeTierTtlConfig {
+        readonly user: number;
+        readonly agent: number;
+        readonly session: number;
+        readonly repo: number;
+      }
+      ```
+      DIP JSDoc:
+      ```
+      // line 20-22: TTL gated by scope-tier: user 24h / agent 1h / session 10min / repo 1h.
+      //   `repo` is the skill-scope tier per ADR-0010 (the 4th tier added by v0.6;
+      //   surfaced via `Memory.skills(repoId)`).
+      ```
+      Actual wiring (no cache on skill path):
+      ```ts
+      // src/local/scoped-skill-memory.ts:118-138
+      async recall(query: string, options?: SkillRecallOptions): Promise<...> {
+        // Honor includeSuperseded (default false). Skills always require kind='skill'.
+        const filters: Filters = { ...this.filters, kind: 'skill', excludeSuperseded: ... };
+        const results = await runRetrievalPipeline(query, filters, { ... }); // <-- NO cache wrap
+      }
+      ```
+      No integration test in tests/integration/cache/ exercises memory.skills(repoId).recall.
+    recommended_action: |
+      Pick one of two paths:
+      (A) Document the boundary explicitly — extend the DIP JSDoc and DEFAULT_TTL_SECONDS_BY_SCOPE_TIER
+          comment to state "v1.5.0: `repo` tier is reserved for forward-compat with v1.5.x skill-scope
+          cache wrap (Roadmap follow-up). Current default impl does NOT consult the cache on
+          memory.skills(...).recall()." Add the same note to README. This is the honest YAGNI path.
+      (B) Wire the cache into LocalScopedSkillMemory.recall() in a follow-up task with corresponding
+          integration test (tests/integration/cache/skill-scope-cache.test.ts). This validates
+          the speculative surface.
+      Path (A) is consistent with v1.5.0 scope per the plan; path (B) is the actual contract
+      fulfillment. Plan v1.1 § Acceptance Criteria does NOT mention skill-scope cache hit,
+      so (A) is the right path for THIS cycle — the contract surface needs a documented disclaimer.
+
+  - id: F-arch-3
+    severity: MINOR
+    file: src/local/index.ts
+    line: 334-346
+    plan_ref: T2.1 — dual-shape factory resolver
+    rule: DRY (Inquebrável Rule 12)
+    summary: |
+      `resolveCacheTtl()` defines its own `defaults` table that duplicates
+      `DEFAULT_TTL_SECONDS_BY_SCOPE_TIER` from src/core/dip/recall-cache-store.ts.
+      The comment justifies it ("keeps the wiring module readable — without
+      importing the constant") but the constant IS already exported from
+      src/core/index.ts (line 127) and the file already imports `RecallCacheStoreConfig`
+      and `validateRecallCacheStoreConfig` from the same module. Future tuning
+      (v1.5.x dogfood-evidence-driven adjustment per the ADR D7 v1.1 amendment) will
+      drift between the two copies silently.
+    evidence: |
+      Duplicate at src/local/index.ts:340:
+      ```ts
+      function resolveCacheTtl(scope, cacheConfig): number {
+        // Default fallback table (mirror DEFAULT_TTL_SECONDS_BY_SCOPE_TIER without
+        // importing the constant — keeps the wiring module readable).
+        const defaults = { user: 86_400, agent: 3_600, session: 600, repo: 3_600 } as const;
+        ...
+      }
+      ```
+      Canonical at src/core/dip/recall-cache-store.ts:152:
+      ```ts
+      export const DEFAULT_TTL_SECONDS_BY_SCOPE_TIER: ScopeTierTtlConfig = Object.freeze({
+        user: 86_400, agent: 3_600, session: 600, repo: 3_600,
+      });
+      ```
+    recommended_action: |
+      Import `DEFAULT_TTL_SECONDS_BY_SCOPE_TIER` from `../core/dip/recall-cache-store.js`
+      and use it directly in `resolveCacheTtl`. Single source of truth. The "readability"
+      justification is not load-bearing — the import is one line; the duplicate const is four.
+
+  - id: F-arch-4
+    severity: MINOR
+    file: src/local/index.ts,src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: src/local/index.ts:598,607 + pgvector-recall-cache-store.ts:156,164
+    plan_ref: T3.1 — OTel metric instruments
+    rule: architecture.md § 7 (no `console.log` rule; companion: `node:` prefix for built-ins)
+    summary: |
+      `performance.now()` is used as a global without an explicit `import { performance }
+      from 'node:perf_hooks'`. Node 16+ exposes it on globalThis so the code works at
+      runtime, but architecture.md § 7 requires `node:` prefix for built-ins explicitly
+      (`import { readFile } from 'node:fs/promises'`). The `performance` global is the same
+      shape — should be sourced from `node:perf_hooks` for clarity and grep-discoverability.
+    evidence: |
+      src/local/index.ts:598:
+      ```ts
+      const missStart = performance.now();
+      ```
+      src/local/index.ts:607:
+      ```ts
+      getRecallCacheMissDurationHistogram().record(performance.now() - missStart, ...);
+      ```
+      src/local/recall-cache/pgvector-recall-cache-store.ts:156:
+      ```ts
+      const start = performance.now();
+      ```
+      No `import { performance }` anywhere in either file.
+    recommended_action: |
+      Add `import { performance } from 'node:perf_hooks';` at the top of both files.
+      Single line; eliminates the global-dependency smell; matches the project rule.
+
+  - id: F-arch-5
+    severity: MINOR
+    file: src/local/index.ts
+    line: 575-579
+    plan_ref: T2.1 — cache-applicability boundary
+    summary: |
+      Redundant clause in the boolean expression. `cacheApplicable` already requires
+      `cache !== undefined` in the `&&` chain on line 577. The `|| cache === undefined`
+      on line 579 is only needed for TypeScript's narrowing on the post-branch lines
+      (line 589 `cache.get(...)` requires `cache` defined). Acceptable for narrowing
+      but could be rewritten more cleanly as `if (!cacheApplicable) { return ... }`
+      with a separate type-guard, or just `if (cache === undefined || ...)`.
+    evidence: |
+      ```ts
+      const cache = this.recallCacheStore;
+      const cacheApplicable =
+        cache !== undefined && options?.asOf === undefined && options?.attributedTo === undefined;
+
+      if (!cacheApplicable || cache === undefined) {  // <-- 2nd clause redundant from control-flow view
+        return runRetrievalPipeline(...);
+      }
+      ```
+    recommended_action: |
+      Either restructure to remove the duplicated narrowing, OR add an inline comment
+      explaining "second clause is a TypeScript narrowing helper, not a control-flow
+      branch." Cosmetic; impact is style only.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/local/index.ts
+    line: 1-1439
+    plan_ref: N/A — broader concern
+    summary: |
+      `src/local/index.ts` is now 1439 LoC after this cycle (added ~348 lines net,
+      mostly for cache wiring + helpers + JSDoc). Pre-existing concern (Plan v1.1
+      F-arch-7 documented at 1097 LoC); this cycle widens it further. Architecture.md
+      does NOT declare a hard LoC budget but the file is now well above the soft
+      ≤500 LoC budget that the v0.6.1 cycle adopted for pgvector-store.ts splits.
+      `LocalMemory` + `LocalScopedMemory` + factory + applyDimChange + runMigrations
+      are 5 distinct responsibilities; SRP-wise the file is doing a lot.
+    evidence: |
+      `wc -l src/local/index.ts` → 1439
+      Same file holds:
+        - `LocalScopedMemory` class (lines 485-799) — 314 LoC
+        - `LocalMemory` class (lines 801-994) — 193 LoC
+        - `createLocalMemory` factory (lines 1054-1134) — 80 LoC
+        - `applyDimChange` (lines 1206-1366) — 160 LoC
+        - `runMigrations` (lines 1368-1439) — 71 LoC
+        - Helper functions (filtersFromScope, applySkillFilters, assertScopeIsNonEmpty,
+          deriveScopeFromPayload, resolveCacheTtl, resolveRecallCacheStore, probeCacheTableDim,
+          isStubEmbedder, emitStubEmbedderCacheWarning, validateEmbeddingDim, probeEmbedder) ~400 LoC
+    recommended_action: |
+      Track as a follow-up cycle (NOT scoped here): extract the cache-related helpers
+      (`deriveScopeFromPayload`, `resolveCacheTtl`, `resolveRecallCacheStore`,
+      `probeCacheTableDim`, `isStubEmbedder`, `emitStubEmbedderCacheWarning`)
+      into `src/local/recall-cache/wiring.ts`, leaving `src/local/index.ts` to
+      coordinate. Pairs with the existing F-arch-7 (Plan v1.1) refactor cycle that
+      v1.1 deferred. This finding is INFO because it does not BLOCK the cycle —
+      cycle did its job; the bigger architectural defect predates it.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/local/index.ts
+    line: 311-326
+    plan_ref: T2.2 — EC-10 absorption (forget cache invalidation)
+    summary: |
+      `deriveScopeFromPayload` returns `{ kind: 'agent', agentId }` for any
+      payload carrying `agent_id`. But per v0.6 / ADR-0010 / EC-4, skill rows
+      ALSO use the `agent_id` column to persist `repoId`. When `LocalMemory.forget(skillMemoryId)`
+      is invoked via `LocalScopedSkillMemory.forgetDelegate`, the function returns
+      `{ kind: 'agent', agentId: <repoId> }` — semantically NOT the skill scope
+      `{ kind: 'repo', repoId }`. The cache invalidation fires for scopeKey
+      `agent:<repoId>` not `repo:<repoId>`.
+      NO correctness break in v1.5.0 because skill recall bypasses the cache
+      entirely (F-arch-2 above) — no stale cache row exists to invalidate.
+      But if the v1.5.x path (B from F-arch-2 recommendation) ships, this helper
+      will silently invalidate the WRONG scopeKey on skill-row forget.
+    evidence: |
+      src/local/index.ts:319-321:
+      ```ts
+      if (typeof agentId === 'string' && agentId.length > 0) {
+        return { kind: 'agent', agentId };  // <-- could be a repo row in disguise
+      }
+      ```
+      Skill row persistence (EC-4):
+        src/local/index.ts:247-251:
+        ```ts
+        case 'repo':
+          // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column.
+          return { agent_id: scope.repoId };
+        ```
+      No way to distinguish agent row vs skill row from `agent_id` alone — need to
+      look at the payload's `kind` discriminator (which IS present per the v0.6 schema).
+    recommended_action: |
+      Pair with F-arch-2 follow-up. When the skill-scope cache wrap ships,
+      extend `deriveScopeFromPayload` to check `payload['kind'] === 'skill'` first
+      and return `{ kind: 'repo', repoId: agentId }` when so. Add a unit test for
+      the boundary. INFO-only today because the gap is unreachable on v1.5.0.
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/core/errors.ts
+    line: 70-77
+    plan_ref: T0.1 — InvalidCacheConfig class added
+    summary: |
+      Clean addition. `InvalidCacheConfig` follows the established pattern from
+      the file (Error subclass + `Object.setPrototypeOf` + `override readonly name`
+      per EC-2 absorption). Imported via barrel re-export from src/core/index.ts
+      line 130. No SOLID / SRP issues. Documentation explicitly cites the
+      `validateRecallCacheStoreConfig` consumer + ADR D1+D2+D3 + EC-1+EC-3.
+    evidence: |
+      ```ts
+      export class InvalidCacheConfig extends Error {
+        override readonly name = 'InvalidCacheConfig' as const;
+
+        constructor(message: string, options?: ErrorOptions) {
+          super(message, options);
+          Object.setPrototypeOf(this, InvalidCacheConfig.prototype);
+        }
+      }
+      ```
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-9
+    severity: INFO
+    file: src/core/index.ts
+    line: 117-130
+    plan_ref: T0.1 — 13th DIP barrel export
+    summary: |
+      Type + value exports for the cache DIP are well-organized in their own block
+      with section comment "v1.5 RecallCacheStore DIP (13th interface)". Follows the
+      existing pattern for other DIPs (vector-store, embedder, llm, history-manager, etc.).
+      `InvalidCacheConfig` is re-exported from errors.ts at line 130 — distinct from
+      the type/value DIP exports, matching the pattern for other domain errors at
+      lines 61-70.
+    evidence: |
+      ```ts
+      // v1.5 RecallCacheStore DIP (13th interface) — plan semantic-recall-cache-v1-5 T0.1 / ADR D1
+      export type {
+        RecallCacheStore, RecallCacheStoreConfig, ScopeTierTtlConfig, CachedResult,
+      } from './dip/recall-cache-store.js';
+      export {
+        validateRecallCacheStoreConfig,
+        DEFAULT_THRESHOLD, DEFAULT_TTL_SECONDS_BY_SCOPE_TIER, DEFAULT_MAX_SIZE_PER_SCOPE,
+      } from './dip/recall-cache-store.js';
+      export { InvalidCacheConfig } from './errors.js';
+      ```
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-10
+    severity: INFO
+    file: src/local/recall-cache/scope-key.ts
+    line: 1-32
+    plan_ref: T1.1 — scope key derivation
+    summary: |
+      Pure function module. ZERO I/O. Exhaustive switch over Scope discriminator
+      union (TypeScript-enforced via exhaustiveness checking — no default case
+      needed since the union is closed). 32 LoC including JSDoc. Kebab-case filename.
+      camelCase function `deriveScopeKey`. Clean SRP.
+    evidence: |
+      ```ts
+      export function deriveScopeKey(scope: Scope): string {
+        switch (scope.kind) {
+          case 'user':    return `user:${scope.userId}`;
+          case 'session': return `session:${scope.sessionId}`;
+          case 'agent':   return `agent:${scope.agentId}`;
+          case 'repo':    return `repo:${scope.repoId}`;
+        }
+      }
+      ```
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/local/recall-cache/serializable-tx.ts
+    line: 1-54
+    plan_ref: T1.2 — SERIALIZABLE transaction wrapper for EC-7 LRU race
+    summary: |
+      Single-purpose module (54 LoC). Wraps SERIALIZABLE isolation BEGIN/COMMIT/
+      ROLLBACK with single-retry-on-40001 semantics. JSDoc explains the race
+      (concurrent set on a full scope) + rationale for retry-once-not-backoff.
+      Pure functional pattern. Strong SRP. The unreachable-throw at line 53 is
+      a defensive belt-and-suspenders against control-flow refactors — acceptable.
+    evidence: |
+      ```ts
+      const PG_SERIALIZATION_FAILURE = '40001';
+
+      export async function withSerializableTransactionAndRetry<T>(...): Promise<T> {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+            const result = await work(client);
+            await client.query('COMMIT');
+            return result;
+          } catch (err) {
+            await client.query('ROLLBACK').catch(() => undefined);
+            const code = (err as { code?: string })?.code;
+            if (attempt === 0 && code === PG_SERIALIZATION_FAILURE) continue;
+            throw err;
+          } finally { client.release(); }
+        }
+        throw new Error('... exhausted 2 attempts (unreachable)');
+      }
+      ```
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/local/recall-cache/recall-cache-metrics.ts
+    line: 1-83
+    plan_ref: T3.1 — lazy-init OTel metric instruments
+    summary: |
+      Lazy-init pattern mirroring `src/local/eviction/pg-evictor.ts:56-75`
+      (F-dom-6 v0.4b-fixes T10.1 precedent). 3 instruments (1 Counter + 2 Histograms)
+      resolved on first observation, cached thereafter. JSDoc cites the precedent
+      and the rationale (consumer's MeterProvider registered AFTER import must be
+      honored). `__resetRecallCacheMetricsForTesting` is `@internal Test-only` —
+      production paths do not call it. Stable instrument names per blueprint D5.
+    evidence: |
+      ```ts
+      const METER_NAME = '@usetheo/memory/cache-pg';
+      const RECALL_CACHE_HIT_COUNTER_NAME = 'theo.memory.recall_cache.hit';
+      const RECALL_CACHE_HIT_DURATION_HISTOGRAM_NAME = 'theo.memory.recall_cache.hit.duration_ms';
+      const RECALL_CACHE_MISS_DURATION_HISTOGRAM_NAME = 'theo.memory.recall_cache.miss.duration_ms';
+
+      let lazyHitCounter: Counter | undefined;
+      // ... 3 lazy-getters
+      export function __resetRecallCacheMetricsForTesting(): void { ... }
+      ```
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/local/recall-cache/pgvector-recall-cache-store.ts
+    line: 1-234
+    plan_ref: T1.1+T1.2 — default RecallCacheStore impl
+    summary: |
+      4-method DIP implementation. 234 LoC, well within the ≤300 LoC target stated
+      in the file's own header. Cyclomatic complexity ≤ 8 per method (each method
+      is straightforward query-and-map). Composition over inheritance: uses
+      `withSerializableTransactionAndRetry` from sibling module rather than
+      embedding the retry logic. Uses scope-key derivation from sibling module.
+      Lifts SQL strings to module-level constants (GET_SQL, INSERT_SQL,
+      COUNT_SCOPE_SQL, DELETE_OLDEST_SQL, INVALIDATE_SCOPE_SQL, CLEAR_EXPIRED_SQL)
+      — improves grep-discoverability + makes the class body smaller. EC-8
+      zero-norm short-circuit is correctly motivated in the JSDoc (PG NaN > x
+      semantics differ from IEEE 754).
+    evidence: |
+      4 methods (matches ADR-0008 DIP method-count cap):
+        - `get(queryEmbedding, scope) → CachedResult | undefined`
+        - `set(queryEmbedding, scope, results, ttlSeconds) → void`
+        - `invalidateScope(scope) → number`
+        - `clearExpired() → number`
+      + 1 helper `resolveTtlSeconds(scope) → number` (semantic-only; not on the DIP).
+      SOLID: SRP intact (table-row read/write/sweep for the cache). OCP via
+      construction-time threshold/ttl/maxSize override. LSP/ISP/DIP all clean.
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-14
+    severity: INFO
+    file: src/local/recall-cache/index.ts
+    line: 1-39
+    plan_ref: T4.1 — @usetheo/memory/cache-pg subpath barrel
+    summary: |
+      Subpath barrel for `@usetheo/memory/cache-pg`. Re-exports impl class + 3 metric
+      lazy-getters + DIP types from `../../core/dip/recall-cache-store.js` so consumers
+      using the subpath don't need to import from both `@usetheo/memory/contract` AND
+      `@usetheo/memory/cache-pg`. Mirrors `src/embedders/local.ts` precedent.
+      Subpath wired in package.json `exports`. Integration test at
+      tests/integration/subpath-isolation.test.ts asserts EC-26 bundle isolation
+      (default barrel does NOT pull this module transitively — dynamic-import discipline
+      in src/local/index.ts:441 preserves the boundary).
+    evidence: |
+      package.json:56-59:
+      ```json
+      "./cache-pg": {
+        "types": "./src/local/recall-cache/index.ts",
+        "default": "./src/local/recall-cache/index.ts"
+      }
+      ```
+      tests/integration/subpath-isolation.test.ts:125-132:
+      ```ts
+      test('default @usetheo/memory barrel does NOT reach src/local/recall-cache/pgvector-recall-cache-store.ts', () => {
+        const entry = resolve(REPO_ROOT, 'src/index.ts');
+        const reachable = walkImports(entry);
+        const implLeaks = Array.from(reachable).filter((p) =>
+          p.endsWith('src/local/recall-cache/pgvector-recall-cache-store.ts'),
+        );
+        expect(implLeaks).toEqual([]);
+      });
+      ```
+    recommended_action: |
+      INFO: no issues found. EC-26 dynamic-import bundle isolation discipline
+      executed correctly.
+
+  - id: F-arch-15
+    severity: INFO
+    file: src/local/schema.ts
+    line: 274-319
+    plan_ref: T0.2 — recallCache Drizzle table declaration
+    summary: |
+      Drizzle table declaration matches migration 0010 SQL: same columns
+      (id serial PK, scope_key text NN, query_embedding vector(MAX_EMBEDDING_DIM) NN,
+      result_set jsonb NN, hit_count integer NN default 0, created_at timestamptz NN
+      defaultNow, expires_at timestamptz, threshold_used real NN default 0.8).
+      Same 3 indexes (HNSW on query_embedding using vector_cosine_ops, B-tree on
+      scope_key, partial B-tree on expires_at WHERE NOT NULL). Parity sentinel
+      test in tests/integration/cache/migration-0010.test.ts T0.2-RED-4 enforces
+      drift detection.
+    evidence: |
+      Schema declaration uses `vector('query_embedding', { dimensions: MAX_EMBEDDING_DIM })`
+      which maps to the migration's `vector(1536)`. Same parametric-dim discipline as
+      memories/entities columns (rewritten by applyDimChange).
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-16
+    severity: INFO
+    file: src/local/migrations/0010_recall_cache.sql
+    line: 1-40
+    plan_ref: T0.2 — migration SQL
+    summary: |
+      `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` mirror the v1.1
+      EC-6 pattern (closes the orphan-schema collision footgun documented in
+      architecture.md § 10.2). Conservative HNSW parameters per ADR D7 v1.1
+      amendment. Documentation cross-references the plan, blueprint, DIP file,
+      and the rationale for deferring tuning per Inquebrável Rule 11 (YAGNI).
+      Migration meta files (meta/_journal.json, meta/0010_snapshot.json) properly
+      added in same commit (1b275c3).
+    evidence: |
+      ```sql
+      CREATE TABLE IF NOT EXISTS "recall_cache" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "scope_key" text NOT NULL,
+        "query_embedding" vector(1536) NOT NULL,
+        ...
+      );
+      CREATE INDEX IF NOT EXISTS "recall_cache_scope_hnsw_idx" ON "recall_cache" USING hnsw ("query_embedding" vector_cosine_ops);
+      CREATE INDEX IF NOT EXISTS "recall_cache_scope_key_idx" ON "recall_cache" USING btree ("scope_key");
+      CREATE INDEX IF NOT EXISTS "recall_cache_expires_at_idx" ON "recall_cache" USING btree ("expires_at") WHERE "recall_cache"."expires_at" IS NOT NULL;
+      ```
+    recommended_action: |
+      INFO: no issues found. Deep DB-migration concerns belong to the
+      domain-db-migrations agent (sibling finding file).
+
+  - id: F-arch-17
+    severity: INFO
+    file: package.json
+    line: 56-59
+    plan_ref: T4.1 — subpath export wiring
+    summary: |
+      `./cache-pg` subpath added cleanly. Same dual `types` + `default` shape as
+      sibling subpath exports (./embedders/local, ./llms/openai, etc.). No
+      mistakes in the JSON shape. Consumed by tests/integration/subpath-isolation.test.ts.
+    evidence: |
+      Same JSON shape as 10 other subpath exports already declared. No semver
+      anomalies. `npm pack --dry-run` confirms the module enters the tarball
+      via the existing `src/**/*.ts` glob in `files` declaration.
+    recommended_action: |
+      INFO: no issues found.
+
+  - id: F-arch-18
+    severity: INFO
+    file: src/core/dip/__tests__/recall-cache-store.test.ts,src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts,src/local/recall-cache/__tests__/recall-cache-metrics.test.ts,src/local/__tests__/factory-recall-cache.test.ts,src/local/__tests__/embedder-cache-gate-warning.test.ts,tests/fixtures/cache/near-duplicate-query-pairs.ts,tests/integration/cache/cache-hit-miss.test.ts,tests/integration/cache/factory-wiring.test.ts,tests/integration/cache/lru-eviction.test.ts,tests/integration/cache/migration-0010.test.ts,tests/integration/cache/otel-metrics-observed.test.ts,tests/integration/cache/semantic-recall-cache.test.ts,tests/integration/subpath-isolation.test.ts
+    line: N/A
+    plan_ref: All T-tasks — test coverage
+    summary: |
+      Test pyramid is well-shaped for this cycle:
+        - Unit/contract (4 files, 86 tests): DIP validator, scope-key, metrics
+          lazy-init, factory wiring with fake cache, stub-embedder warning
+        - Integration (6 files, 231 tests): live pgvector for hit/miss semantics,
+          LRU race, factory POJO config, OTel metric capture, THE GOAL TEST
+        - Subpath isolation (1 file, EC-26 + EC-52 sentinel)
+      Coverage of the 13th DIP's 4 methods + 4 scope tiers + 4 EC absorptions
+      (EC-1 NaN/Infinity, EC-7 concurrent-set race, EC-8 zero-norm vector,
+      EC-26 bundle isolation). Tests respect testing.md pyramid (unit → integration → E2E)
+      and use `describe.skipIf(ROOT_PG_URI === '')` honestly for integration
+      gating. No flaky tests, no shared state across `beforeEach` resets.
+    evidence: |
+      Test count per file:
+        src/core/dip/__tests__/recall-cache-store.test.ts:                    10 it
+        src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts: ~36 cases
+        src/local/recall-cache/__tests__/recall-cache-metrics.test.ts:         4 cases
+        src/local/__tests__/factory-recall-cache.test.ts:                     ~10 cases
+        src/local/__tests__/embedder-cache-gate-warning.test.ts:               4 cases
+        tests/integration/cache/cache-hit-miss.test.ts:                       ~10 cases
+        tests/integration/cache/factory-wiring.test.ts:                        ~8 cases
+        tests/integration/cache/lru-eviction.test.ts:                          ~5 cases
+        tests/integration/cache/migration-0010.test.ts:                        4 cases
+        tests/integration/cache/otel-metrics-observed.test.ts:                ~5 cases
+        tests/integration/cache/semantic-recall-cache.test.ts:                ~7 cases
+        tests/integration/subpath-isolation.test.ts:                         +6 cases (T4.1 block)
+    recommended_action: |
+      INFO: no issues found. Test depth is the responsibility of the tests agent
+      (sibling finding file).
+
+summary:
+  total_findings: 18
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 2
+    MINOR: 3
+    INFO: 13
+  changed_files_covered: 27/27
+  notes: |
+    Coverage:
+      - src/core/dip/recall-cache-store.ts (NEW) — F-arch-1 (MAJOR paper names) + F-arch-2 (MAJOR repo tier dead-code)
+      - src/core/errors.ts — F-arch-8 (INFO)
+      - src/core/index.ts — F-arch-9 (INFO)
+      - src/local/index.ts — F-arch-3 (MINOR DRY) + F-arch-4 (MINOR perf import) + F-arch-5 (MINOR redundant clause) + F-arch-6 (INFO LoC) + F-arch-7 (INFO scope payload)
+      - src/local/migrations/0010_recall_cache.sql — F-arch-16 (INFO)
+      - src/local/migrations/meta/_journal.json, meta/0010_snapshot.json — covered by F-arch-16
+      - src/local/recall-cache/pgvector-recall-cache-store.ts (NEW) — F-arch-4 (perf import) + F-arch-13 (INFO clean impl)
+      - src/local/recall-cache/scope-key.ts (NEW) — F-arch-10 (INFO)
+      - src/local/recall-cache/serializable-tx.ts (NEW) — F-arch-11 (INFO)
+      - src/local/recall-cache/recall-cache-metrics.ts (NEW) — F-arch-12 (INFO)
+      - src/local/recall-cache/index.ts (NEW) — F-arch-14 (INFO)
+      - src/local/schema.ts — F-arch-15 (INFO)
+      - package.json — F-arch-17 (INFO)
+      - All test + fixture files — F-arch-18 (INFO)
+
+    Key takeaways:
+      1. SOLID compliance is solid (pun intended). SRP, OCP, LSP, ISP, DIP all
+         clean on the new files. The 13th DIP follows ADR-0008 method-count cap.
+      2. DIP boundary discipline preserved: src/core/dip/recall-cache-store.ts
+         imports only from src/core/; impl modules under src/local/recall-cache/
+         only import from src/core/* + sibling modules + pg + @opentelemetry/api.
+      3. EC-26 dynamic-import bundle isolation correctly executed via the
+         `await import('./recall-cache/...')` pattern in resolveRecallCacheStore.
+         Confirmed by integration test (no static-import leak of the impl module
+         into the default `@usetheo/memory` barrel).
+      4. The two MAJOR findings are honesty/cleanup issues, not correctness bugs:
+         (a) paper-name JSDoc violations are easy fixes per the established rule
+         (b) `repo` tier in TTL config is a forward-compat surface that needs
+             explicit consumer-disclaimer documentation OR full wiring.
+      5. MINOR findings are stylistic / DRY hygiene — none block merge.
+
+    Verdict suggestion to consolidator: READY_TO_MERGE_WITH_CAVEATS
+      — 2 MAJOR documentation/cleanup items + 3 MINOR style items.
+      No BLOCKER, no CRITICAL. All findings have actionable recommendations.

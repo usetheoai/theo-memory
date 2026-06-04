@@ -1,0 +1,349 @@
+agent: review-theo-memory-standalone-p0-domain-memory-layer
+review_target: f94c3007b72703b62b75b1b88a4dd7dd3287cff4..HEAD for plan theo-memory-standalone-p0
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Three-tier scope (User / Session / Agent) — single tier per request per ADR D12 / EC-9"
+  - "ADD-only invariant — no update() on REST surface per ADR-0003"
+  - "Mem0-shape 8-phase write + 9-step search pipeline untouched by REST"
+  - "DIP boundary: src/server/ MUST NOT import from src/local/ or src/cloud/ (architecture.md § 3)"
+  - "Memory verbs (remember/recall/forget/reflect) correctly mapped to scope sub-objects"
+  - "ScopeType enum case-sensitive {user,session,agent,skill} per EC-13"
+  - "src/agent-tools/run-server.ts as composition root bridging server + local per ADR D8"
+  - "v1.1 EC-9 skill-scope asOf DEFERRED — memory.skills(repoId).recall does NOT accept asOf"
+
+findings:
+  - id: F-dom-mem-1
+    severity: CRITICAL
+    file: src/server/schemas.ts
+    line: 40-69
+    plan_ref: "ADR D12 (single scope tier) + ADR-0010 (RepoScope for skills only) + ScopedSkillMemory contract (src/core/skill.ts:168-173) + CLAUDE.md § Roadmap Item 12 caveat"
+    domain_anchor: "architecture.md § 1 (Three-tier scope) + § 4 (Mem0-shape, not Mem0-clone) — ScopedSkillMemory is a DIFFERENT interface from ScopedMemory"
+    summary: |
+      RememberBody, RecallBody, and ReflectBody all accept `skillRepoId` as a valid scope tier,
+      but ScopedSkillMemory (returned by memory.skills(repoId)) does NOT implement remember(),
+      recall(asOf|attributedTo), or reflect(). The four skill verbs are add/recall/consolidate/forget.
+
+      Specifically:
+        - POST /v1/remember with {skillRepoId, text} → resolveScope returns memory.skills(repoId)
+          → handler calls scoped.remember(text, ...) → TypeError: scoped.remember is not a function.
+          ScopedSkillMemory has add(skill: SkillDraft), NOT remember(text: string).
+        - POST /v1/reflect with {skillRepoId} → handler calls scoped.reflect(...) → TypeError.
+          ScopedSkillMemory has consolidate(), NOT reflect() (explicitly removed per skill.ts:165).
+        - POST /v1/recall with {skillRepoId, query, asOf, attributedTo} → silently drops asOf
+          and attributedTo (SkillRecallOptions only knows topK/threshold/includeSuperseded).
+          CLAUDE.md Roadmap Item 12 CAVEAT explicitly states "EC-9 skill-scope asOf DEFERRED"
+          per plan v1.3 ADR D4 — but the REST schema admits the request silently.
+
+      The cast `memory as unknown as MemoryLike` in remember/recall/reflect handlers (lines 29, 29, 31
+      respectively) plus MemoryLike's declaration `skills: (repoId: string) => ScopedMemoryLike` masks
+      this entirely from the type system. The mock in handlers.test.ts:54 returns the same `scoped`
+      stub for `skills()` that implements all 4 verbs, so the production-vs-test divergence is never
+      exercised by any test.
+
+    evidence: |
+      src/server/schemas.ts:14
+        const SCOPE_KEYS = ['userId', 'sessionId', 'agentId', 'skillRepoId'] as const;
+
+      src/server/schemas.ts:88-99 (the lying interface)
+        export interface ScopedMemoryLike {
+          remember: (text: string, options?: object) => Promise<unknown>;
+          recall: (query: string, options?: object) => Promise<unknown>;
+          reflect: (options?: object) => Promise<unknown>;
+        }
+        export interface MemoryLike {
+          ...
+          skills: (repoId: string) => ScopedMemoryLike;  // FALSE — returns ScopedSkillMemory
+        }
+
+      src/core/skill.ts:168-173 (ground truth)
+        export interface ScopedSkillMemory {
+          add(skill: SkillDraft): Promise<Skill>;
+          recall(query: string, options?: SkillRecallOptions): Promise<readonly SkillWithScore[]>;
+          consolidate(options?: ConsolidateOptions): Promise<ConsolidationResult>;
+          forget(skillId: string): Promise<void>;
+        }
+
+      src/server/handlers/remember.ts:29-30 (runtime breakage path)
+        const scoped = resolveScope(memory as unknown as MemoryLike, parsed.data);
+        const items = await scoped.remember(text, { infer, attributedTo, metadata });
+
+      src/local/scoped-skill-memory.ts:62 (production class)
+        export class LocalScopedSkillMemory implements ScopedSkillMemory {
+        // implements: add, recall, consolidate, forget — NO remember, NO reflect, NO getAll
+
+      CLAUDE.md § Roadmap Item 12 caveat:
+        "EC-9 skill-scope asOf DEFERRED to a follow-up cycle per plan v1.3 ADR D4 amendment
+         — memory.skills(repoId).recall(...) does NOT accept asOf in v1.1"
+
+      tests/integration/rest-api.test.ts:36-46 (the mock that masks it)
+        const scoped = { remember: ..., recall: ..., reflect: ..., getAll: ... };
+        return { ..., skills: vi.fn().mockReturnValue(scoped), ... };
+
+    recommended_action: |
+      Three options, smallest-blast-radius first:
+
+      Option A (preferred — narrow the schema): drop `skillRepoId` from RememberBody, RecallBody,
+      and ReflectBody. Keep it only on a future skill-specific endpoint family
+      (POST /v1/skills/{repoId}/add, POST /v1/skills/{repoId}/recall, POST /v1/skills/{repoId}/consolidate).
+      Document in CHANGELOG that skills are NOT exposed via the 4 verbs at v0.1.0-alpha. Skills tier
+      remains accessible via GET /v1/scopes/skill/:id/memories listing IF F-dom-mem-2 below is also
+      addressed.
+
+      Option B (skill-aware dispatch): make resolveScope return a discriminated union
+      { kind: 'memory'|'skill', scoped: ScopedMemory|ScopedSkillMemory }. Each handler then branches
+      and returns 422 SCOPE_UNSUPPORTED_FOR_VERB when the verb does not apply to the scope kind
+      (remember+reflect for skill → 422; recall with asOf+skillRepoId → 422 per the v1.3 ADR D4
+      deferral; recall without asOf+skillRepoId → route to ScopedSkillMemory.recall).
+
+      Option C (least preferred): make ScopedSkillMemory expose remember/reflect as aliases for
+      add/consolidate. Rejected — it would re-introduce the conceptual conflation that ADR D5 of
+      voyager-skill-library plan explicitly broke; skills have a different write contract
+      (SkillDraft, not text).
+
+      Regardless of option, delete the `memory as unknown as MemoryLike` casts in
+      remember/recall/reflect handlers — they are the load-bearing lie. Add an integration
+      test that exercises POST /v1/{remember,reflect} with skillRepoId against a real
+      LocalScopedSkillMemory and asserts a structured 422, NOT a 500 TypeError.
+
+  - id: F-dom-mem-2
+    severity: MAJOR
+    file: src/server/handlers/scopes.ts
+    line: 48-50
+    plan_ref: "Plan T1.3 + ADR-0010 (RepoScope) + EC-13 (case-sensitive scope enum)"
+    domain_anchor: "ScopedSkillMemory contract (src/core/skill.ts:168-173) does NOT expose getAll()"
+    summary: |
+      GET /v1/scopes/skill/:id/memories dispatches to memory.skills(id), casts the result
+      `as unknown as ScopedMemory`, then calls scoped.getAll() (line 113). But
+      ScopedSkillMemory has no getAll() method — at runtime this is a TypeError that the
+      app.onError catch-all maps to a sanitized 500 INTERNAL_ERROR per src/server/errors.ts:93.
+      Consumers reading the OpenAPI spec (openapi-registration.ts:24,144 advertises `skill`
+      in the ScopeTypeEnum) will get 500s instead of the documented 200 page.
+
+      This is the same root cause as F-dom-mem-1: the type cast hides the contract divergence.
+
+    evidence: |
+      src/server/handlers/scopes.ts:48-51
+        case 'skill':
+          return memory.skills(id) as unknown as ScopedMemory;
+
+      src/server/handlers/scopes.ts:113
+        const all = await scoped.getAll();   // TypeError when scoped is LocalScopedSkillMemory
+
+      src/server/openapi-registration.ts:24
+        const ScopeTypeEnum = z.enum(['user', 'session', 'agent', 'skill']);
+      ...:144
+        params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
+
+      src/server/__tests__/scopes.test.ts:168-179 (mock that masks it)
+        test('12. skill type dispatches to memory.skills(repoId) per ADR-0010', async () => {
+          const scoped = stubScopedWithItems([]);  // <-- has getAll
+          const memory = stubMemory(scoped);
+          ...
+        });
+
+      Plan T1.3 acceptance "EC-13 scope type enum case-sensitive {user,session,agent,skill}" is met
+      at the parsing layer; the runtime dispatch downstream is broken.
+
+    recommended_action: |
+      Either (a) drop `skill` from ScopeTypeEnum in scopes.ts:25 + openapi-registration.ts:24
+      and return 404 for skill-type listings at v0.1.0-alpha (the SDK does not yet ship a getAll
+      for skills — add it as a v0.7+ scope expansion); OR (b) add `getAll` to ScopedSkillMemory
+      in src/core/skill.ts as a v0.1.0-alpha extension AND implement it in LocalScopedSkillMemory
+      (pass kind='skill' filter through to runRetrievalPipeline's getAll equivalent). Option (a)
+      is the smallest move and aligns with the "skills as opt-in tier" lock in ADR-0010.
+
+      Add an integration test that exercises GET /v1/scopes/skill/repo-alpha/memories against
+      a REAL local Memory (not a mock with getAll) and asserts the documented behavior — 200
+      with items, or honest 404 / 501 if listings are not supported for the skill tier.
+
+  - id: F-dom-mem-3
+    severity: MAJOR
+    file: src/server/schemas.ts
+    line: 51-61
+    plan_ref: "CLAUDE.md § Roadmap Item 12 CAVEAT (v1.1 EC-9 skill-scope asOf DEFERRED) + plan v1.3 ADR D4 amendment"
+    domain_anchor: "architecture.md § 8 (Validate at boundaries — never silently coerce or drop fields)"
+    summary: |
+      RecallBody.asOf is accepted in combination with any of the 4 scope tiers. When the
+      tier is `skillRepoId`, the resolved ScopedSkillMemory.recall(...) accepts only
+      SkillRecallOptions (topK, threshold, includeSuperseded) — asOf is silently dropped
+      from the option-bag. The consumer believes they ran a point-in-time query; the server
+      ran a current-time query.
+
+      The same hole applies to RecallBody.attributedTo with skillRepoId (SkillRecallOptions
+      has no attributedTo; multi-peer attribution is a memory-scope feature added in v1.1).
+
+      This violates architecture.md § 8 "validate at boundaries" — the server accepts a
+      request body that the downstream handler cannot honor, with no error surface. EC-9 of
+      the v1.1 plan explicitly carved out skill-scope asOf as a known deferral; the REST
+      layer should reflect that deferral with a structured 422, not silent semantic drift.
+
+    evidence: |
+      src/server/schemas.ts:51-61
+        export const RecallBody = z
+          .object({
+            ...ScopeFields,                    // includes skillRepoId
+            query: z.string().min(1),
+            topK: z.number().int().min(1).max(100).optional(),
+            threshold: z.number().min(0).max(1).optional(),
+            attributedTo: z.string().optional(),
+            asOf: z.string().datetime().optional(),
+          })
+          .strict()
+          .superRefine(SingleScopeRefine);     // only enforces single tier
+
+      src/core/skill.ts:102-114
+        export interface SkillRecallOptions {
+          readonly topK?: number;
+          readonly threshold?: number;
+          readonly includeSuperseded?: boolean;
+          // NO asOf, NO attributedTo
+        }
+
+      src/server/handlers/recall.ts:28-36
+        const { query, topK, threshold, attributedTo, asOf } = parsed.data;
+        const scoped = resolveScope(memory as unknown as MemoryLike, parsed.data);
+        const results = await scoped.recall(query, {
+          topK, threshold, attributedTo,
+          asOf: asOf !== undefined ? new Date(asOf) : undefined,
+        });
+        // For ScopedSkillMemory.recall, asOf + attributedTo are silently dropped.
+
+      CLAUDE.md Roadmap Item 12 (v1.1):
+        "CAVEAT: EC-9 skill-scope `asOf` DEFERRED to a follow-up cycle per plan v1.3
+         ADR D4 amendment — `memory.skills(repoId).recall(...)` does NOT accept `asOf`
+         in v1.1; CHANGELOG carries the explicit consumer boundary."
+
+    recommended_action: |
+      If F-dom-mem-1 Option A is adopted (drop skillRepoId from RecallBody), this finding
+      collapses into F-dom-mem-1 automatically. Otherwise, add a superRefine that rejects
+      `{ skillRepoId, ... , asOf }` and `{ skillRepoId, ... , attributedTo }` with structured
+      issues:
+
+        if (data.skillRepoId !== undefined && data.asOf !== undefined) {
+          ctx.addIssue({ ..., message: 'ASOF_NOT_SUPPORTED_FOR_SKILL_SCOPE: see v1.1 EC-9 / ADR D4 deferral' });
+        }
+        if (data.skillRepoId !== undefined && data.attributedTo !== undefined) {
+          ctx.addIssue({ ..., message: 'ATTRIBUTED_TO_NOT_SUPPORTED_FOR_SKILL_SCOPE' });
+        }
+
+      Add a RED test for each rejection path. Update openapi-registration.ts to document
+      the constraint (description on the RecallBody schema, or a discriminated-union shape
+      that hides asOf/attributedTo when skillRepoId is present).
+
+  - id: F-dom-mem-4
+    severity: MINOR
+    file: src/server/schemas.ts
+    line: 88-99
+    plan_ref: "ADR D11 (DIP composition) + architecture.md § 3 (DIP — depend on abstractions)"
+    domain_anchor: "Type system is the contract — re-declaring a fake MemoryLike weakens it"
+    summary: |
+      `ScopedMemoryLike` and `MemoryLike` in schemas.ts are local re-declarations that DO NOT
+      match the real `Memory` / `ScopedMemory` / `ScopedSkillMemory` interfaces in src/core/.
+      The cast `memory as unknown as MemoryLike` is a double cast that erases all type info,
+      then re-applies a fake type. This is precisely the architecture.md § 7 anti-pattern
+      "if you must escape the type system, use unknown with a runtime assertion".
+
+      The honest path is to import `Memory` from src/core/ directly and either (a) split
+      resolveScope into 3 functions (one per safely-castable scope tier), or (b) make the
+      return type a discriminated union (per F-dom-mem-1 Option B).
+
+      Note: this is the structural-typing escape that F-arch-2 already flagged in v1.1
+      (`applySkillFilters` ad-hoc structural type) as pre-existing debt; the standalone-p0
+      cycle re-uses the same idiom, expanding it.
+
+    evidence: |
+      src/server/schemas.ts:88-99 (the re-declared fakes)
+        export interface ScopedMemoryLike {
+          remember: (text: string, options?: object) => Promise<unknown>;
+          recall: (query: string, options?: object) => Promise<unknown>;
+          reflect: (options?: object) => Promise<unknown>;
+        }
+        export interface MemoryLike {
+          user: (userId: string) => ScopedMemoryLike;
+          session: (sessionId: string) => ScopedMemoryLike;
+          agent: (agentId: string) => ScopedMemoryLike;
+          skills: (repoId: string) => ScopedMemoryLike;   // <-- WRONG TYPE
+        }
+
+      src/core/memory-store.ts:64-69 (truth for user/session/agent)
+        export interface ScopedMemory {
+          remember(...): Promise<readonly MemoryItem[]>;
+          recall(...): Promise<readonly MemoryItemWithScore[]>;
+          reflect(...): Promise<ReflectionResult>;
+          getAll(...): Promise<readonly MemoryItem[]>;
+        }
+
+      src/core/memory-store.ts:77-91 (truth for Memory.skills)
+        export interface Memory {
+          ...
+          skills(repoId: string): ScopedSkillMemory;  // NOT ScopedMemory
+          ...
+        }
+
+    recommended_action: |
+      Delete `ScopedMemoryLike` and `MemoryLike` from schemas.ts. Import `Memory` and
+      `ScopedMemory` from src/core/memory-store.js directly. Change `resolveScope`'s
+      signature to return `ScopedMemory` (for user/session/agent) and either skip the
+      skill branch OR return a discriminated union per F-dom-mem-1 Option B.
+
+      Once the cast is removed, TypeScript will compile-fail on the skills() branch —
+      which is the desired signal. Fix by branching at the handler level: each handler
+      decides whether it supports the skill scope.
+
+  - id: F-dom-mem-5
+    severity: INFO
+    file: src/server/app.ts
+    line: 98-105
+    plan_ref: "ADR D2 (RPC-mirror of 4 verbs) + ADR-0003 (ADD-only) + ADR-0004 (verbs)"
+    domain_anchor: "architecture.md § 2 (ADD-only by design) + § 4 (Mem0-shape, not Mem0-clone)"
+    summary: |
+      ADD-only invariant preserved: zero PUT / PATCH / update endpoints. The four verbs
+      (remember/recall/forget/reflect) are 1:1 with the SDK contract. Mem0-shape pipeline
+      is untouched — REST is a thin wrapper that forwards `text` / `query` / options to
+      `Memory.{user,session,agent,skills}().{remember,recall,reflect}()`. Eight-phase write
+      and nine-step search happen entirely inside the SDK; the REST layer does not interfere.
+
+      DIP discipline: src/server/ imports only from src/core/ + `hono` + `@hono/zod-openapi`
+      + `@opentelemetry/api` + `zod`. No imports from src/local/ or src/cloud/. Composition
+      bridge lives at src/agent-tools/run-server.ts per ADR D11 + D8.
+
+      EC-13 case-sensitive scope enum: honored via `z.enum(['user', 'session', 'agent', 'skill'])`
+      at scopes.ts:25 + 28. Uppercase / mixed-case paths yield clean 404 (not silent normalization).
+
+      No findings on these surfaces; this entry is the positive-coverage note for the audit trail.
+
+    evidence: |
+      No `method: 'put'` / `method: 'patch'` / `update` endpoint declared:
+        grep -rn "method: 'put'\|method: 'patch'\|update" src/server/handlers/ → empty
+
+      DIP boundary clean:
+        grep -rn "from '../local\|from '../cloud" src/server/ → empty
+
+      4 verbs mapped 1:1 in src/server/app.ts:102-105
+        app.post('/v1/remember', (c) => rememberHandler(c, memory));
+        app.post('/v1/recall',   (c) => recallHandler(c, memory));
+        app.post('/v1/forget',   (c) => forgetHandler(c, memory));
+        app.post('/v1/reflect',  (c) => reflectHandler(c, memory));
+
+    recommended_action: |
+      None. Capture as evidence that the standalone-p0 cycle preserved the locked
+      contract for memory-scope verbs (the breakage is confined to skill-scope per
+      F-dom-mem-1 / F-dom-mem-2 / F-dom-mem-3).
+
+summary:
+  patterns_validated_pass:
+    - "Three-tier scope discipline enforced via superRefine for user/session/agent (ADR D12 / EC-9)"
+    - "ADD-only invariant preserved — no PUT/PATCH/update endpoints on REST surface"
+    - "Mem0-shape 8-phase write + 9-step search pipeline NOT modified by REST layer"
+    - "DIP boundary clean: src/server/ does not import from src/local/ or src/cloud/"
+    - "src/agent-tools/run-server.ts correctly bridges REST + local per ADR D11 + D8"
+    - "ScopeType enum case-sensitive {user,session,agent,skill} per EC-13"
+    - "Memory verbs remember/recall/forget/reflect map to memory-scope sub-objects correctly"
+
+  patterns_violated:
+    - "Skill scope (skillRepoId) wired into REST schemas as if interchangeable with memory scopes, but the underlying ScopedSkillMemory interface is structurally INCOMPATIBLE (has add/recall/consolidate/forget, NOT remember/recall/reflect/getAll). This is the load-bearing bug — F-dom-mem-1 (CRITICAL) + F-dom-mem-2 (MAJOR) + F-dom-mem-3 (MAJOR)."
+    - "MemoryLike re-declaration in schemas.ts diverges from the real Memory contract via `as unknown as` cast — type system is bypassed precisely where the runtime breakage lives. F-dom-mem-4 (MINOR)."
+
+  honest_uncertainties:
+    - "I did not run the test suite; the runtime breakage in F-dom-mem-1 / F-dom-mem-2 is reasoned from contract inspection (ScopedSkillMemory interface + LocalScopedSkillMemory implements clause). A focused integration test against a real LocalScopedSkillMemory would empirically confirm. The mocks in handlers.test.ts and rest-api.test.ts stub `skills()` with a full ScopedMemory shape, so existing tests cannot surface this."
+    - "F-dom-mem-3 (skill-scope asOf silently dropped) — I confirmed SkillRecallOptions does NOT contain asOf, but I did not trace whether `runRetrievalPipeline` in src/local/scoped-skill-memory.ts:129 might still observe options.asOf via duck-typing. If it does, the drop is partial, not total. Either way, the REST contract is misleading."

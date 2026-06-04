@@ -1,0 +1,130 @@
+agent: review-theo-memory-standalone-p0-domain-pgvector-schema
+review_target: f94c3007b72703b62b75b1b88a4dd7dd3287cff4..HEAD for plan theo-memory-standalone-p0
+domain: pgvector-schema
+diff_base: f94c3007b72703b62b75b1b88a4dd7dd3287cff4
+plan_path: .claude/knowledge-base/plans/theo-memory-standalone-p0-plan.md
+plan_class: distribution-surface (REST API + Docker stack + multi-subcommand CLI)
+schema_change_expectation: ZERO new src/local/migrations/ files
+
+domain_specific_patterns_checked:
+  - "no-new-migration: distribution plan must not introduce schema changes"
+  - "themory-migrate-drizzle-journal: thin wrapper must delegate to runMigrations(pool) which calls Drizzle migrate() with the __drizzle_migrations journal"
+  - "themory-server-migrate-on-startup: ADR D8 + positive opt-in via THEMEMORY_SKIP_MIGRATIONS === 'true'"
+  - "src/server/ pg-isolation: DIP per ADR D11 (closure-injected dbProbe)"
+  - "health-db-2s-timeout: EC-17 Promise.race against 2s timer"
+  - "pgvector-pinning: ankane/pgvector:v0.5.1 convergent across Mem0+Letta blueprint Q7"
+  - "pg_isready healthcheck on pgvector service"
+  - "GOAL-TEST real-pgvector: tests/integration/docker-stack.test.ts must boot real container, not stub"
+
+structural_observations:
+  - check: "No new src/local/migrations/ files"
+    result: PASS
+    evidence: |
+      git diff --name-only f94c3007..HEAD | grep -E "migrations|migrate" returns only:
+        - src/agent-tools/__tests__/run-migrate.test.ts  (CLI subcommand test)
+        - src/agent-tools/run-migrate.ts                 (CLI subcommand impl)
+      ZERO new .sql files under src/local/migrations/. Distribution surface plan correctly ships no schema deltas.
+
+  - check: "themory migrate delegates to runMigrations(pool) without bypassing Drizzle journal"
+    result: PASS
+    evidence: |
+      src/agent-tools/run-migrate.ts:22-46:
+        - imports `runMigrations` from `../local/index.js` (single source of truth)
+        - constructs `new Pool({ connectionString: pgUri })` and calls `await runMigrations(pool)`
+        - no direct SQL execution, no manual __drizzle_migrations manipulation
+      src/local/index.ts:30 + :1087-1088:
+        - runMigrations imports `migrate` from `drizzle-orm/node-postgres/migrator`
+        - calls `await migrate(db, { migrationsFolder })` which honors the journal
+      JSDoc at run-migrate.ts:6-9 correctly documents EC-35 (per-migration tx) + EC-36 (idempotent re-run) as Drizzle-native guarantees.
+
+  - check: "themory server ADR D8 migrate-on-startup with positive opt-in"
+    result: PASS
+    evidence: |
+      src/agent-tools/run-server.ts:63-67:
+        function shouldSkipMigrations(): boolean {
+          // Positive opt-in per SEPA iter 11 CRITICAL Q6a: ONLY `=== 'true'` skips.
+          // Fail-safe default is to run migrations.
+          return process.env['THEMEMORY_SKIP_MIGRATIONS'] === 'true';
+        }
+      Strict equality against literal 'true' — rejects 'TRUE', '1', 'yes', 'on', non-empty-string truthy values.
+      Fail-safe default: when unset OR any value other than literal 'true', migrations RUN.
+      Called at run-server.ts:90 BEFORE port binds (line 156), matching ADR D8 ordering.
+
+  - check: "GET /v1/health/db: dbProbe DIP + 2s timeout per EC-17"
+    result: PASS
+    evidence: |
+      src/server/handlers/health.ts:14: `const DB_PROBE_TIMEOUT_MS = 2_000;`
+      src/server/handlers/health.ts:32-50: `healthDbHandler` wraps `dbProbe()` in `Promise.race` against `setTimeout(..., 2_000)` that rejects with `new Error('db_probe_timeout')`.
+      src/server/handlers/health.ts:36-37: undefined dbProbe → 503 `{status: 'unavailable', reason: 'no_probe_configured'}` (honest fail-closed).
+      src/server/app.ts:33-36 (JSDoc): documents the DIP contract — composition root injects probe wrapping `pool.query('SELECT 1')`.
+      src/agent-tools/run-server.ts:127-129 (composition root, the ONLY pg-importing file):
+        const dbProbe = async (): Promise<void> => {
+          await pool.query('SELECT 1');
+        };
+      src/agent-tools/run-server.ts:152: `dbProbe` passed to `createServer({ ..., dbProbe, ... })`.
+
+  - check: "src/server/ does NOT import pg (DIP per ADR D11)"
+    result: PASS
+    evidence: |
+      grep -rn "from 'pg'" src/server/ → no matches.
+      grep -rn "import.*'pg'" src/server/ → no matches.
+      Only composition root (src/agent-tools/run-server.ts:29) imports `Pool` from 'pg'.
+      DIP boundary clean: src/server/ depends on a `() => Promise<void>` closure (CreateServerOptions.dbProbe), not on pg.
+
+  - check: "docker-compose.prod.yaml uses ankane/pgvector:v0.5.1 with pg_isready healthcheck"
+    result: PASS
+    evidence: |
+      docker-compose.prod.yaml:69: `image: ankane/pgvector:v0.5.1` (pinned tag, not :latest).
+      docker-compose.prod.yaml:78-85: healthcheck uses CMD-SHELL with `pg_isready -U ${POSTGRES_USER:-themem} -d ${POSTGRES_DB:-themem}` — correct semantic (TCP ready + accepts connections), 5s interval, 12 retries, 10s start_period.
+      docker-compose.prod.yaml:39-41: themory depends_on pgvector with `condition: service_healthy` → app boot waits for pg_isready PASS before migrate-on-startup runs.
+      Matches blueprint Q7 convergence (Mem0 + Letta both pin to ankane variants; v0.5.1 is HNSW-capable).
+      Same pin in dev docker-compose.yaml:19, so dev/prod converge.
+
+  - check: "GOAL TEST docker-stack.test.ts exercises real pgvector (not stub)"
+    result: PASS
+    evidence: |
+      tests/integration/docker-stack.test.ts:31-35: imports node:child_process (execSync, spawnSync), no testcontainers/pg-mem/in-memory stub.
+      tests/integration/docker-stack.test.ts:99: `const projectName = \`themory-test-${randomUUID().slice(0, 8)}\``  EC-48 unique project isolates each run.
+      tests/integration/docker-stack.test.ts:132-145: actual `docker compose -p {projectName} -f docker-compose.prod.yaml up -d --wait --wait-timeout {N}` → real pgvector container boots.
+      tests/integration/docker-stack.test.ts:172-176: test '57' hits `/v1/health/db` over real HTTP and asserts 200 + body contains `"status":"ok"` → genuine `pool.query('SELECT 1')` against the live pgvector container.
+      tests/integration/docker-stack.test.ts:178-209: test '58' THE GOAL METRIC POSTs to `/v1/remember` then `/v1/recall` over real HTTP through the running container; recall body must contain the persisted text.
+      tests/integration/docker-stack.test.ts:211-217: test '59' confirms container runs as nonroot UID 65532 (distroless ADR D6 + EC-47).
+      tests/integration/docker-stack.test.ts:219-226: test '60' confirms image has no shell (distroless integrity).
+      tests/integration/docker-stack.test.ts:150-153: afterAll runs `compose(['down', '-v', '--remove-orphans'])` for honest tear-down.
+      Gating discipline: opt-in via `DOCKER_INTEGRATION=true` (line 47) + docker CLI presence + Dockerfile presence + compose file presence (lines 93-97); honest SKIP when prerequisites absent.
+
+  - check: "Bonus: pg_isready healthcheck semantics matches embedded dbProbe semantics"
+    result: PASS
+    evidence: |
+      pgvector container readiness (pg_isready, docker-compose) and themory's runtime DB liveness (pool.query('SELECT 1'), 2s timeout in /v1/health/db) converge: pg_isready is the boot-time gate that depends_on uses; SELECT 1 is the steady-state liveness probe orchestrators poll. Both target the same TCP+SQL surface — coherent vertical.
+
+findings: []
+
+summary:
+  verdict: NO_FINDINGS
+  rationale: |
+    All 6 mandatory pgvector-schema validation items requested by the parent
+    /review skill returned PASS:
+      1. ZERO new src/local/migrations/ files in the diff (correct — this is a
+         distribution-surface plan, not a schema plan).
+      2. `themory migrate` is a thin wrapper over `runMigrations(pool)` which
+         calls Drizzle's `migrate()` — journal-aware, no bypass.
+      3. `themory server` migrate-on-startup uses `=== 'true'` strict equality
+         (positive opt-in), fail-safe default = run, executed before port binds.
+      4. `/v1/health/db` uses `pool.query('SELECT 1')` wrapped in
+         `Promise.race` against a 2s timer (EC-17); src/server/ does NOT
+         import `pg` — the closure is injected by the composition root
+         (DIP per ADR D11).
+      5. Docker compose pgvector service uses `ankane/pgvector:v0.5.1` with
+         `pg_isready` CMD-SHELL healthcheck; matches blueprint Q7 convergence.
+      6. THE GOAL TEST docker-stack.test.ts boots a real ankane/pgvector:v0.5.1
+         container via the prod compose file and exercises the full
+         remember→recall round-trip over real HTTP — no stubs, no
+         in-memory fakes.
+    The diff respects the distribution-surface scope boundary: zero schema
+    deltas, all pgvector interaction routed through the existing
+    src/local/runtime DIP. The migrate-on-startup wiring + DIP-injected
+    dbProbe are textbook composition-root patterns (caller knows pg, server
+    knows only the closure).
+
+  domain_recommendation: APPROVE_FROM_PGVECTOR_SCHEMA_PERSPECTIVE

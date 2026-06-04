@@ -199,6 +199,63 @@ THEOMEM_PG_URI=postgres://... \
 
 
 
+## REST API server (`@usetheo/memory/server`)
+
+Standalone HTTP distribution surface for TheMemory — exposes the 4 verbs (`remember`/`recall`/`forget`/`reflect`) + health probes + paginated scope listing under `/v1/*`. Use it when your consumer is not Node.js (mobile apps, Python/Go/Rust services via OpenAPI codegen, admin dashboards, monitoring curl probes).
+
+**Compose the server from a local memory factory:**
+
+```ts
+import { createMemory } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory/server';
+import { serve } from '@hono/node-server';
+
+const memory = await createMemory({ /* local runtime config */ });
+const app = createServer({ memory });
+serve({ fetch: app.fetch, port: 8080 });
+```
+
+**Bearer authentication** is opt-in via `THEMEMORY_API_KEY` env var (mirrors the `THEOKIT_API_KEY` convention per ADR-0009). When set, every `/v1/*` request requires `Authorization: Bearer <token>`:
+
+```bash
+curl -X POST http://localhost:8080/v1/remember \
+  -H "Authorization: Bearer $THEMEMORY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"alice","text":"prefers dark mode"}'
+```
+
+**OpenAPI 3.1 spec** auto-derived from the zod schemas at `GET /v1/openapi.json` — auth-exempt per EC-19 so codegen tools (openapi-generator, Postman, Swagger UI) can fetch the spec before having credentials.
+
+**Observability:** every handler emits an OTel span (`rest.v1.remember`, `rest.v1.recall`, etc.) with `http.status_code`/`http.method`/`http.route` attributes. Pass a `Tracer` via `createServer({ memory, tracer })` to wire your provider; default falls through to the global no-op tracer at zero cost.
+
+**ESM-only.** The subpath `@usetheo/memory/server` is ESM-only — matches the package's `"type": "module"`. CJS consumers (`require('@usetheo/memory/server')`) will see Node's standard ESM-resolution error.
+
+**Body limit:** 1 MB cap on `/v1/*` POST endpoints (DOS guard via `hono/body-limit`; 413 response carries the structured `{code: 'CONTENT_TOO_LARGE', message: ...}` envelope). Compressed request bodies (`Content-Encoding: gzip`) are NOT auto-decompressed by Hono — operators serving large compressed payloads should enforce body limits at the reverse-proxy layer (nginx `client_max_body_size`, Caddy `request_body max_size`) for production deployments.
+
+**Wiring real providers (alpha default uses stubs).** Both `themory server` (REST) and `themory mcp` (MCP) wire `DeterministicStubEmbedder` + `StubLLM` by default at v0.1.0-alpha. The startup banner surfaces a loud stderr warning so operators see the disclosure. Stub embedders produce deterministic but uncorrelated vectors — recall returns shape-correct results but only round-trips reliably on EXACT-text queries (no semantic matching). For production, wire `OpenAIEmbedder` (set `OPENAI_API_KEY`) or `LocalTransformerEmbedder` (subpath `@usetheo/memory/embedders/local`, requires `@xenova/transformers` optional dep). Real-provider wiring as a CLI flag (`--embedder openai|local`) is a future cycle.
+
+Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
+
+**Container entrypoint** (per ADR D13): the distroless image's `ENTRYPOINT` invokes the Node binary directly — `["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]` — with no shell wrapper. Migrate-on-startup runs inside the `themory server` binary (T2.3) so there is no `docker-entrypoint.sh`. Operators can run the other subcommands by overriding the entrypoint at `docker run` time:
+
+```bash
+# Apply pending migrations standalone (manual schema bootstrap).
+docker run --rm --entrypoint /nodejs/bin/node \
+  -e THEOMEM_PG_URI=postgres://... \
+  ghcr.io/usetheo/themory:0.1.0-alpha \
+  /app/dist/agent-tools/cli.js migrate
+
+# Probe DI graph + DB readiness (CI / orchestrator health checks).
+docker run --rm --entrypoint /nodejs/bin/node \
+  -e THEOMEM_PG_URI=postgres://... \
+  ghcr.io/usetheo/themory:0.1.0-alpha \
+  /app/dist/agent-tools/cli.js health
+```
+
+The `docker-compose.prod.yaml` stack (T3.2) boots both `themory` + `pgvector` with healthchecks suitable for `docker compose up -d --wait --wait-timeout 60`.
+
+
+
 ## Status — v0.6 (voyager-skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
 
 > **v0.8 — Independent benchmark reproduction (Roadmap Item 10) — published 2026-06-02.** Smoke validation across LongMemEval / LoCoMo / DMR for TheMemory; vendor adapter cells (Mem0/Zep/Letta) shipping `VendorClient` DIP only with real SDK wiring deferred per Drift-T6.x-1. Matrix at [`docs/benchmarks/v0.8.md`](docs/benchmarks/v0.8.md), methodology at [`docs/benchmarks/v0.8-methodology.md`](docs/benchmarks/v0.8-methodology.md), reproducibility runbook at [`docs/benchmarks/v0.8-reproducibility.md`](docs/benchmarks/v0.8-reproducibility.md). **`/dogfood` gate remains EVIDENCE_INSUFFICIENT — v0.8 does NOT unblock v1.0 production-ready claims.**
@@ -421,6 +478,39 @@ const agent = await Agent.create({
 │   ├── theokit/                 TheoKit-native binding (request-context aware)
 │   └── agent-tools/             MCP tools for @usetheo/sdk agents
 ```
+
+### Semantic recall cache (v1.5)
+
+Opt-in read-side cache for `recall()` keyed by **query-embedding cosine similarity** (NOT string match). A near-duplicate query (`"what is my favorite color?"` vs `"what color do I prefer?"`) within the same scope reuses the cached result instead of re-running the 9-step retrieval pipeline. Backs Roadmap Item 19 / v1.5.
+
+```ts
+import { createLocalMemory, runMigrations, PgvectorStore } from '@usetheo/memory';
+
+await runMigrations(pool);                   // migration 0010 ships recall_cache
+
+const memory = await createLocalMemory({
+  vectorStore: new PgvectorStore(pool),
+  embedder,
+  llm,
+  recallCache: { threshold: 0.8 },           // opt-in; cache disabled by default
+});
+
+await memory.user('alice').recall('what is my favorite color?');  // MISS → populates
+await memory.user('alice').recall('what color do I prefer?');     // HIT (cosine >= 0.8)
+```
+
+- **Threshold**: default `0.8` cosine similarity (convergent across embedchain `similarity_threshold=0.8` and LangChain `distance_threshold=0.2`).
+- **Per-tier TTL**: default `user` 24h, `agent` 1h, `session` 10min, `repo` 1h. Override via `recallCache.ttlSecondsByScopeTier`.
+- **LRU eviction**: default cap `1000` rows per scope. Concurrent `set()` calls serialize via Postgres SERIALIZABLE isolation (single retry on `40001`).
+- **Write-trigger invalidation**: `remember()` / `forget()` / `reflect()` await `invalidateScope()` post-success so the consumer's next `recall()` sees fresh state (Inquebrável Rule 3 + Item 19 AC#3).
+- **Bypass boundary**: `recall(query, { asOf })` AND `recall(query, { attributedTo })` BYPASS the cache (no get, no set) — v1.5 cache key is `(scope_key, query_embedding)` and does not include bi-temporal/multi-peer dimensions.
+- **Observability**: 3 OTel instruments — `theo.memory.recall_cache.hit` (Counter) + `theo.memory.recall_cache.hit.duration_ms` (Histogram) + `theo.memory.recall_cache.miss.duration_ms` (Histogram). Labels `{ scope_tier, embedder_kind }`.
+- **Subpath**: `@usetheo/memory/cache-pg` exposes `PgvectorRecallCacheStore` + metric resolvers for custom wirings.
+- **Stub-embedder gate**: when cache is enabled and the embedder is `StubEmbedder` / `DeterministicStubEmbedder`, a 3-line stderr warning fires at factory time — cache hits with stub vectors are COINCIDENTAL, not semantic.
+
+**Known limitation (v1.5.0):** `memory.skills(repoId).recall(...)` does NOT consult the recall cache — the cache wrap lives on `LocalScopedMemory.recall()` only. Skill-scope cache wiring is tracked for v1.5.x. `ScopeTierTtlConfig.repo` remains REQUIRED in the public DIP because consumer configs that set it forward-port without rewrites; the field's TTL value is dormant until the wiring lands. Mirrors the v1.1 EC-9 skill-scope `asOf` honest deferral precedent. See `semantic-recall-cache-v1-5-fixes-cycle-1-plan.md` § ADR D10.
+
+THE GOAL TEST (`tests/integration/cache/semantic-recall-cache.test.ts`) verifies hit rate ≥ 0.5 on 10 hand-authored near-duplicate query pairs at `threshold=0.8` against real `ankane/pgvector:v0.5.1`. Last run: **6/10 = 0.60**.
 
 ### Dependency direction (planned, enforced at CI)
 

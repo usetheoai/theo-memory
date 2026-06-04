@@ -1,18 +1,139 @@
+IMPORTANTE: 
+*Neim toda memoria tem a mesma importancia*
+ - Relevancia pode ser modelaca como score contino que considera fatores como frequencia, recencia, confiança, confirmacao e relevancia.
+ 
+*Priorizacao e diversidade é melhor que volume*
+ - Recuparar x memorias certas vale mais do ue recuperar 50 parecidas
+  
+*Memoria precisa ser auditavel*
+ - Toda decisao de gravar , atualizar ignorar ou subistiguir uma moria deve ser justificada permitndo reastreabilidade revisao e controle de qualidade.
+ 
 # CLAUDE.md — TheMemory
 
-Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [usetheo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
+Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [Theo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
 
 This file complements `/home/paulo/Projetos/usetheo/CLAUDE.md` and `/home/paulo/.claude/CLAUDE.md`. Root rules apply unconditionally. TheMemory-specific rules layer on top.
 
 ---
 
+## PRIORITY 0 — HARDENING (locked 2026-06-04)
+
+**GO-TO CTO directive (project-owner sign-off 2026-06-04):** stop shipping new features. The only work that ships from this date forward is **HARDENING**:
+
+1. **All public APIs correct** — every export in `src/index.ts` / `src/core/index.ts` / every subpath in `package.json#exports` is documented, typed, narrowable, JSDoc-cross-referenced, and exercised by a contract test. No `any` in public surface. No paper names in exported identifiers. No undocumented behavior.
+2. **SDKs 100% functional** — every shipped feature has integration test against real `ankane/pgvector:v0.5.1`. Every shipped DIP has a working default impl. Every subpath in `package.json#exports` resolves to working code (smoke import gate). `npm pack --dry-run` ships every needed file; `__tests__` excluded. Bundle isolation gates pass (default barrel does NOT pull subpath impls per EC-26 precedent). `/dogfood` anchor scenario evidence is COLLECTED (gate flips to `EVIDENCE_SUFFICIENT`).
+3. **MCP server available + reliable** — `themory mcp` boots deterministically; 4 tools (`remember` / `recall` / `forget` / `reflect`) registered with stable names + schema validation; `ghcr.io/usetheo/themory:0.1.0-alpha` (or successor tag) pullable; README + MCP setup guide explicit; real third-party consumer can install + use without project-internal knowledge.
+
+### What does NOT ship under Priority 0
+
+The following Roadmap items are **FROZEN until P0 closure** (no PRs, no plans, no discovery cycles spawned against them):
+
+| Nº | Item | Status under P0 |
+|---|---|---|
+| 13 | v1.2 — Adaptive retrieval | **FROZEN** |
+| 14 | v1.3 — Optional graph backend | **FROZEN** |
+| 15 | v1.4 — Domain ontologies | **FROZEN** |
+| Any unlisted Phase V+ | Future expansion | **FROZEN** |
+
+### What CONTINUES under Priority 0 (hardening, not new features)
+
+| Workstream | Why it qualifies as hardening |
+|---|---|
+| `semantic-recall-cache-v1-5-fixes-cycle-1` (4 of 8 task commits shipped: `0589a8f`, `bae2fda`, `595ef01`, `e7eb240`) | Closes 7 of 10 MAJORs from `/review` of an already-shipped surface (v1.5.0). Pure hardening; no new public API. |
+| 3 pre-existing-debt MAJORs from v1.1 review (F-arch-2 ad-hoc structural type, F-arch-6/F-arch-7 LoC budget) | Internal hygiene. No public API change. |
+| `/dogfood` anchor scenario evidence collection (S1: Claude Code auto-memory backed by TheMemory) | The single gate blocking v1.0. P0 sub-goal 2. |
+| **API audit cycle** (NEW — to be planned) | Enumerate every public export, verify JSDoc + contract test + cross-ref; surface gaps; close them. P0 sub-goal 1. |
+| **SDK functional audit cycle** (NEW — to be planned) | Enumerate every `package.json#exports` subpath; smoke-import each; verify bundle isolation; close gaps. P0 sub-goal 2. |
+| **MCP availability audit cycle** (NEW — to be planned) | Reproduce `themory mcp` boot from a fresh `npm install @usetheo/memory` against the published package (when published); document setup; publish if needed. P0 sub-goal 3. |
+| v0.5 TheoCloud runtime (Item 7) | Blocked by Theo PaaS GA; if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not as a new feature — the contract was always two-runtime per Locked Names). |
+
+### P0 closure criteria (when do we lift the freeze?)
+
+All three MUST be true:
+
+- **Sub-goal 1 (APIs correct)** — `npm run typecheck` zero errors; `npm run lint` zero warnings; every public export has a `@see` cross-ref to the plan/blueprint that introduced it; no `@deprecated` markers older than 30 days; no `// TODO` / `// FIXME` in `src/`; `no-paper-names-in-code.md` grep shows zero hits in `src/**/*.ts`.
+- **Sub-goal 2 (SDK functional)** — every subpath in `package.json#exports` has a passing smoke import test; bundle isolation tests pass; THE GOAL TEST of every shipped Item still passes; `/dogfood` gate returns `EVIDENCE_SUFFICIENT` per `dogfood-golden-rule.md`.
+- **Sub-goal 3 (MCP available)** — `themory mcp` boots from a fresh `npx @usetheo/memory mcp` AFTER the package is published OR from the published Docker image; tested by a third-party reproducer.
+
+Only the project owner signs off the P0 closure. After closure, Phase IV items unfreeze.
+
+### Honest disclosure
+
+This directive does NOT change the README Status (`Pre-release`), the locked names, the voice & tone, or the 3 root overrides. It does NOT delete any Roadmap item from history. It SCOPES forward work to hardening only. Per Inquebrável Rule 3 (extreme honesty), any future commit that introduces a new feature outside this scope must be reverted OR re-classified as in-scope with explicit rationale.
+
+---
+
 ## What this project is
 
-`@usetheo/memory` (TheMemory) is the **managed three-tier memory layer** of the [usetheo](https://usetheo.dev) ecosystem. **Mem0-shape architecture** (vector + LLM fact extraction + hybrid retrieval), with three scope tiers (**User / Session / Agent**), shipping in two runtimes (**local** Postgres + pgvector for dev/CI, **TheoCloud-managed** for production). **MIT-licensed.** Native to [TheoKit](../theokit) by design.
+`@usetheo/memory` (TheMemory) is the **managed three-tier memory layer** of the [Theo](https://usetheo.dev) ecosystem. **Mem0-shape architecture** (vector + LLM fact extraction + hybrid retrieval), with three scope tiers (**User / Session / Agent**), shipping in two runtimes (**local** Postgres + pgvector for dev/CI, **TheoCloud-managed** for production). **MIT-licensed.** Native to [TheoKit](../theokit) by design.
 
-Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](../theokit-sdk) and [`@usetheo/ui`](../theo-ui). **Pre-release** (contract being locked; no package published yet) — single exception to the monorepo's "every product is production-ready" claim (2026-05-15 lock).
+Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../theokit-sdk) and [`@usetheo/ui`](../theo-ui). **Pre-release** (contract being locked; no package published yet) — single exception to the monorepo's "every product is production-ready" claim (2026-05-15 lock).
 
 **Strategic positioning:** the managed memory line item on the TheoCloud invoice. Analog: Vercel KV ↔ Vercel. Lock-in to TheoKit + TheoCloud is a deliberate feature, not an accident — see `## Architectural Decisions Locked` below.
+
+---
+
+## Feature Status (canonical reading — 2026-06-04)
+
+**TL;DR.** The system is feature-ready for the majority of Mem0-shape OSS use cases AND for standalone REST/Docker/MCP consumers. The system is **NOT production-ready by project policy** — `/dogfood` gate returns `EVIDENCE_INSUFFICIENT` (Roadmap Item 11 + `dogfood-golden-rule.md`).
+
+### What works today (consumer can use it now)
+
+| Capability | Subpath / API surface | Roadmap Item | Caveat |
+|---|---|---|---|
+| 4-verb API (remember / recall / forget / reflect) + 3-tier scope (User / Session / Agent) | `@usetheo/memory` default barrel | 1, 2 | None |
+| Voyager-shaped skill memory (4th tier `Repo` via `Memory.skills(repoId)`) | `Memory.skills(repoId)` | 8 + ADR-0010 | TheoCode wiring integration test pending |
+| Reflection pipeline (manual + threshold + sleep-time policies) | `ReflectionPolicy` DIP | 5 | None |
+| Forgetting with long-tail preservation (Ebbinghaus + LRU + LLM importance + isolation guardrail) | `Memory.forget(id, { hard? })` + `EvictionPolicy` DIP | 6 | Demo wiring `createLocalMemory({ eviction })` paused (race-condition `b2909ff` — SDK direct path works) |
+| Distillation (episodic → semantic with LLM-judged conflict resolution) | `ConflictResolutionPolicy` 9th DIP via `reflect({ conflictResolution })` | 9 | LLM-MEASURED p=r=1.000 on 10 hand-authored contradictions; procedural-fixture quality untested |
+| Independent benchmarks (LongMemEval / LoCoMo / DMR fixtures + multi-judge panel) | `benchmarks/` + `BenchmarkAdapter` 10th DIP | 10 | TheMemory smoke-validated only; Mem0/Zep/Letta cells DEFERRED per Drift-T6.x-1 |
+| Multi-peer attribution + bi-temporal `asOf` in local OSS tier (MIT, vs Honcho AGPL / Graphiti) | `RememberOptions.attributedTo` + `RecallOptions.{asOf, attributedTo}` | 12 (v1.1) | EC-9 skill-scope `asOf` deferred to follow-up cycle |
+| Semantic recall cache (13th DIP at the `recall()` layer, query-embedding cosine, write-trigger invalidation, 3 OTel metrics) | `createLocalMemory({ recallCache })` + `@usetheo/memory/cache-pg` | 19 (v1.5) | THE GOAL TEST hit rate 0.60 on 10 hand-authored pairs; skill-scope cache wiring deferred to v1.5.x per ADR D10 of fixes-cycle-1 |
+| TheoKit-native binding (auto-scope from `ctx.session.userId`) | `@usetheo/memory/theokit` | 3 (v0.2 PR-A) | PR-B (scaffolded `create-theo` templates + E2E) pending in sibling `theokit` repo |
+| MCP agent tools (stdio + streamable-HTTP transports) | `@usetheo/memory/agent-tools` | 4 (v0.3) | None |
+| REST API server (Hono + OpenAPI 3.1 + Bearer auth + 12th DIP `AuthVerifier`) | `@usetheo/memory/server` | 16 | None |
+| Docker stack (distroless Node 22 image at `ghcr.io/usetheo/themory:0.1.0-alpha`, 199.7 MB) | `docker-compose.prod.yaml` + Trivy CRITICAL+HIGH gate | 17 | `ghcr.io/...:0.1.0-alpha` tag-published; no semver release yet |
+| Consolidated CLI (`themory {mcp,server,migrate,health}`) | `themory` bin (alias `themory-mcp` retained 1 release) | 18 | Verbs-as-CLI (`themory remember`/`recall`) deferred to P1 |
+| Parametric embedding dim (384 via Xenova MiniLM, no API key) + OpenRouter env-shift | `LocalTransformerEmbedder` at `@usetheo/memory/embedders/local` | adapters-openrouter-local-embedder | TheoKit Agent itself still requires valid `THEOKIT_API_KEY` |
+
+### What is planned (not built yet)
+
+| Capability | Blocker | Roadmap Item |
+|---|---|---|
+| **TheoCloud managed runtime + multi-region** | Theo PaaS GA | 7 (v0.5) |
+| **`production-ready` label / v1.0 contract freeze** | `/dogfood` `EVIDENCE_SUFFICIENT` (anchor scenario ≥ 30 days) + independent v0.8 benchmark reproduction | 11 (v1.0) |
+| Adaptive retrieval (Self-RAG / CRAG / Adaptive-RAG hooks) | None (next major after v1.0) | 13 (v1.2) |
+| Optional graph backend (`@usetheo/memory/graph` via Apache AGE / Neo4j) | None | 14 (v1.3) |
+| Domain ontologies (typed schemas: medical / legal / code / support) | Depends on Item 9 | 15 (v1.4) |
+| Scaffolded TheoKit templates + default-on memory + E2E | Sibling `theokit` repo PR-B | 3 (v0.2 PR-B) |
+
+### Production-ready gate (Item 11)
+
+The `production-ready` token is **deliberately blocked** by two hard gates per `dogfood-golden-rule.md` + Roadmap Item 11:
+
+1. **`/dogfood` gate** = `EVIDENCE_INSUFFICIENT` (persistent audit 2026-05-31 `6f7ff87`). Two hard caps firing: `anchor_not_running` (anchor scenario "Claude Code auto-memory backed by TheMemory" S1 status = `planned`) + `no_anchor_evidence` (0 evidence files). Gate blocks the v1.0 promotion until the anchor scenario runs ≥ 30 days with evidence logs.
+2. **Independent v0.8 benchmark reproduction** = NOT yet logged at `benchmarks/reproductions/`. Item 10 smoke-validated TheMemory cells only; competitor cells (Mem0 / Zep / Letta) deferred to vendor-SDK wiring.
+
+Until BOTH gates close: README Status stays `Pre-release`, no `production-ready` badge, no `production-grade` claim in any public copy. Every shipped cycle since 2026-05-31 honors this in its CHANGELOG/commit message — see § Inviolable Rule 3.
+
+### Per-audience readiness
+
+| Audience | Ready? | Path |
+|---|---|---|
+| Mem0-shape pgvector OSS consumer | YES | `@usetheo/memory` default barrel + `runMigrations(pool)` |
+| TheoKit-native app | YES (PR-A) | `@usetheo/memory/theokit` + `memoryFromCtx(ctx, memory)` |
+| MCP-aware agent loop (any framework) | YES | `themory mcp` OR `@usetheo/memory/agent-tools` |
+| Audit/replay (bi-temporal `asOf`) | YES (v1.1) | `recall({ asOf })` — memory scopes; skill scope deferred |
+| Multi-peer attribution (`attributed_to`) | YES (v1.1) | `recall({ attributedTo })` + LLM extraction N-valent |
+| Semantic-cache opt-in | YES (v1.5) | `createLocalMemory({ recallCache: { threshold: 0.8 } })` |
+| Standalone Docker / REST | YES | `docker compose up` against `ghcr.io/usetheo/themory:0.1.0-alpha` |
+| TheoCloud / SaaS managed | NO | Blocked by Theo PaaS GA (Item 7) |
+| Graph queries (Cognee/Zep) | NO | Item 14 (v1.3) planned |
+| Domain ontologies (medical/legal) | NO | Item 15 (v1.4) planned |
+| Adaptive retrieval (Self-RAG hooks) | NO | Item 13 (v1.2) planned |
+| **`production-ready` label** | **NO** | Blocked by `/dogfood` gate + benchmark reproduction (Item 11) |
+
+---
 
 ## Locked names
 
@@ -31,6 +152,8 @@ Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](.
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
 
+---
+
 ## Voice and Tone
 
 **Locked 2026-05-21** (Option A strategic review — 7th OSS adopter, completing the monorepo's voice contract). TheMemory has adopted the aspirational voice originally scoped to TheoKit. The operational guide — three communication layers (HERO / BODY / DEEP DIVE), vocabulary translation, banned terms list, storytelling rules, before/after examples — lives in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md). Read it before writing any public copy for this project. This file does not duplicate it.
@@ -45,8 +168,8 @@ Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](.
 **Does NOT apply to (stays technical-direct):**
 
 - `README.md` from `## How it works` downward — Status section, Planned API contract, Architecture, Foundation, Roadmap, Where this fits
-- This `CLAUDE.md`, `CHANGELOG.md` (when created), source code, JSDoc, inline comments
-- Migration guides, runbooks, ADRs (when created)
+- This `CLAUDE.md`, `CHANGELOG.md`, source code, JSDoc, inline comments
+- Migration guides, runbooks, ADRs
 
 **Cross-project narrative anchors that must hold (regardless of voice):**
 
@@ -59,6 +182,8 @@ Positioned as a **Community auxiliary** of usetheo, alongside [`@usetheo/sdk`](.
 - **Cross-Project Rule 9 (Cloud abstraction)** — cloud runtime user-copy says `memory store`, NEVER `Qdrant` / `pgvector` / `vector engine` / `vector store engine` etc.
 
 If a piece of TheMemory copy contradicts the locked narrative in [`../CLAUDE.md`](../CLAUDE.md) or the operational rules in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md), the root and TheoKit rules win — surface the conflict before publishing.
+
+---
 
 ## Architectural Decisions Locked
 
@@ -76,17 +201,124 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 - **ADR-0010 — `RepoScope` for skill memory.** `Memory.skills(repoId)` returns a `ScopedSkillMemory` bound to `RepoScope{ kind: 'repo', repoId }`. Exposed ONLY through `Memory.skills(...)` (not on the public 4 verbs); maps internally to `filters.agent_id` per EC-4. Extends ADR-0002's 3-tier contract; does not soften it. Source: [`ADR-0010-repo-scope-fourth-tier.md`](.claude/knowledge-base/adrs/ADR-0010-repo-scope-fourth-tier.md).
 
+### Bi-temporal runtime lift (2026-06-03, v1.1)
+
+- **ADR-0011 supplementary** — v1.1 LIFTS the ADR-0006 runtime-clause: local `recall({ asOf })` is honored via null-safe predicate `(t_valid IS NULL OR t_valid <= asOf) AND (t_invalid IS NULL OR t_invalid > asOf)`. Schema clause of ADR-0006 (columns since v0.1) is REINFORCED — Graphiti Apache-2.0 prior art (blueprint Q6) validates the same shape. `BiTemporalNotSupportedLocally` class still exported (cloud retains the option; `@deprecated for local`). CAVEAT: EC-9 skill-scope `asOf` deferred to follow-up cycle.
+
+---
+
+## Roadmap
+
+Source of truth for status changes: this file + `README.md` § Status + `README.md` § Roadmap. If this file and the root `CLAUDE.md § Roadmap por Domínio` disagree, update both in the same PR.
+
+Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → **Foundation artifacts (audit trail)**.
+
+### Shipped (consumer can use today)
+
+| Nº | Name | Acceptance + caveat | Shipped |
+|---|---|---|---|
+| 1 | **v0.0 — Contract design** | `tsc --noEmit` passes on `src/core/**/*.ts`. 5 DIP interfaces declared with method counts per ADR-0008. Nine ADRs locked (ADR-0001 → ADR-0009) covering Mem0-shape, three-scope, ADD-only, API verbs, reflection trigger, bi-temporal local schema, entity-store opt-out, DIP method counts, cloud auth. | 2026-05-22 (PR #4) |
+| 2 | **v0.1 — Core + local runtime** | Eight-phase write pipeline + 9-step search (additive scoring) + over-fetch + per-row fallback + auto-dim probe (1536 cap per pgvector 0.5.1 HNSW limit). In-memory adapter (unit tests) + pgvector adapter (raw SQL). THE GOAL TEST: `remember + recall` round-trip in top-3 against real `ankane/pgvector:v0.5.1`. Total: 229 contract + 28 integration = 257. Zero CRITICAL/HIGH CVE. | 2026-05-23 (PR #8) |
+| 3 | **v0.2 PR-A — TheoKit binding** | `@usetheo/memory/theokit` resolves `user_id` via `memoryFromCtx(ctx, memory)`. Structural typing, ZERO peer-dep on theokit. Isolation test PASS. CAVEAT: PR-B (scaffolded `create-theo` templates + E2E) pending in sibling `theokit` repo. | 2026-05-23 (PR #11) |
+| 4 | **v0.3 — Agent tools (MCP)** | `@usetheo/memory/agent-tools` exposes 4 verbs as MCP tools. Stdio + streamable-HTTP transports + AsyncLocalStorage scope binding. End-to-end via `tests/e2e/agent-tools/round-trip.test.ts`. | 2026-05-25 (PR #17 + hardening #18) |
+| 5 | **v0.4a — Reflection pipeline** | `ReflectionPolicy` DIP shipped with 3 impls: `ManualReflectionPolicy` + `ThresholdReflectionPolicy` + `SleepTimeReflectionPolicy`. THE GOAL TEST: 50 memories → reflect() → ≥ 1 derived row with provenance. | 2026-05-23 (commit `494bceb`) |
+| 6 | **v0.4b — Forgetting with long-tail preservation** | `TriadicScoringPolicy` (Ebbinghaus + LRU + LLM-judged importance) wired via `EvictionPolicy` DIP per ADR D12. `CapacityBasedTrigger` (post-remember) + `TimeBasedTrigger` (cron) + `PgEvictor` (soft-delete via `t_invalid`). THE GOAL TEST: `recall@10 = 1.000` on 1000-memory × 50-rare-query set. **PUBLIC API BREAKING**: `Memory.forget(id, options?: ForgetOptions)` widens with `hard?: boolean` (GDPR escape hatch). CAVEAT: Demo wiring `createLocalMemory({ eviction })` paused via hotfix `b2909ff` (race condition F-T4.1-2); SDK direct path works (67/67 integration). | 2026-05-31 (PR #24 merge `9a8bca3`) |
+| 8 | **v0.6 — Voyager-style skill library** | `Memory.skills(repoId)` returns `ScopedSkillMemory` exposing 4 skill verbs. Hash identity via `hashFact(description)`. Scope-isolated forget (v0.6.1 T4.1 EC-2). THE GOAL TEST: 2 semantically-equivalent skills → consolidate → 1 derived with both source IDs in `derivedFrom`. v0.6.1 fixes-cycle closed 2 CRITICAL + 8 MAJOR + 13 MINOR. CAVEAT: TheoCode integration test (cache-hit metric > 0) still pending. | 2026-05-30 (`feat/v0-6-voyager-skill-library`); v0.6.1 fixes `b6aead6` |
+| 9 | **v0.7 — Episodic→Semantic distillation** | `ConflictResolutionPolicy` 9th DIP + 3 impls (Noop / LastWriteWins / LlmJudgedMergeConflictPolicy) + reflect() wiring + migration `0007_distillation_columns.sql` (consolidation_history table with `ON DELETE SET NULL` FK for GDPR survival). v0.7.1 LLM-MEASURED: precision = recall = conflict-resolution accuracy = 1.000 on 10 hand-authored contradictions via `openai/gpt-4o-mini`. CAVEAT: 1.000 reflects 10/10 unambiguous fixtures; broader procedural-fixture quality untested at LLM surface (v0.7.2 if needed). | 2026-06-02 (HEAD `83a8eb5` + paper-name cleanup `f7f14e6`) |
+| 10 | **v0.8 — Independent benchmark reproduction** | `BenchmarkAdapter` 10th DIP + 4 adapter implementations + runner orchestrator + multi-judge panel via OpenRouter (NO `@anthropic-ai/sdk` per user directive). LongMemEval / LoCoMo / DMR fixture loaders. Matrix at `docs/benchmarks/v0.8.md`. v0.8-fixes-cycle-1 absorbed `/plan-confidence` INVALID 34.3/100. CAVEAT: TheMemory smoke-validated only; Mem0/Zep/Letta cells DEFERRED per Drift-T6.x-1 (VendorClient DIP shipped but SDK wiring deferred). **`/dogfood` gate STILL `EVIDENCE_INSUFFICIENT`** — benchmarks alone do NOT unblock production-ready. | 2026-06-02 |
+| 12 | **v1.1 — Multi-peer attribution + Bi-temporal local-runtime lift** | `attributed_to` as first-class promoted column on `memories` (migration `0008_attributed_to.sql`). `recall({ asOf })` honored via null-safe predicate against `t_valid`/`t_invalid` (ADR-0011 supplementary supersedes ADR-0006 runtime clause). N-valent attribution semantic per blueprint Q5 — attacks Honcho's AGPL-3.0 moat under MIT. THE GOAL TEST 7/7 PASS. CAVEAT: EC-9 skill-scope `asOf` deferred per plan v1.3 ADR D4 amendment. 3 pre-existing-debt MAJOR (F-arch-2/6/7) deferred to refactor cycle. Pre-v1.1 rows have `attributed_to=NULL` permanently per EC-1 honest no-backfill. | 2026-06-03 (PR #28 merge `0433484`) |
+| 16 | **REST API server (`@usetheo/memory/server`)** | Hono + RPC-mirror endpoints `POST /v1/{remember,recall,forget,reflect}` + `GET /v1/health` + `GET /v1/health/db` + `GET /v1/scopes/:type/:id/memories` + `GET /v1/openapi.json`. Bearer-token auth via `THEMEMORY_API_KEY`. 12th DIP `AuthVerifier` for future OAuth/JWT swap. OpenAPI 3.1 spec auto-derived from zod schemas. OTel spans per handler. 1 MB body-limit DOS guard. Single-scope-tier enforcement via zod `.strict().superRefine()` per ADR D12. | 2026-06-03 (`theo-memory-standalone-p0` chain) |
+| 17 | **Docker stack** | Multi-stage Dockerfile (Node 22-bookworm-slim builder → distroless runtime). `ghcr.io/usetheo/themory:0.1.0-alpha` at 199.7 MB (under 200 MB target). ENTRYPOINT direct Node per ADR D13 (no `docker-entrypoint.sh` — migrate-on-startup discipline inside `themory server`). GitHub Actions publishes to GHCR with Trivy CRITICAL+HIGH gate. THE GOAL TEST: `docker compose up` round-trips against the published image. | 2026-06-03 |
+| 18 | **CLI consolidado `themory`** | `themory {mcp,server,migrate,health}` — replaces standalone `themory-mcp` bin with multi-subcommand commander entry preserving backward-compat alias for one release. `themory mcp` reproduces v0.3 behavior. `themory server` binds port EAGERLY while Memory factory warms async (`GET /v1/health` returns 503 `warming_up` per EC-33). `themory migrate` applies pending Drizzle migrations. `themory health --deep` smoke-validates embedder + LLM. Both `themory server` AND `themory mcp` emit 3-line stub-embedder stderr disclosure on startup per Inquebrável Rule 3 honesty. CAVEAT: Verbs-as-CLI (`themory remember`/`recall`) DEFERRED to P1. | 2026-06-03 |
+| 19 | **v1.5 — Semantic recall cache** | Cache `recall()` results at the `recall()` layer keyed by query-embedding cosine. 13th DIP `RecallCacheStore` (4 methods within ADR-0008 cap). `PgvectorRecallCacheStore` default impl. Write-trigger scope invalidation on remember/forget/reflect. SERIALIZABLE-isolated LRU eviction. 3 OTel metrics (Counter + 2 Histograms). Subpath `@usetheo/memory/cache-pg` with EC-26 bundle isolation (dynamic-import). THE GOAL TEST hit rate **0.60** on 10-pair hand-authored fixture set (Xenova MiniLM 384-dim, threshold 0.8) against real `ankane/pgvector:v0.5.1`. Post-merge `/review` `READY_TO_MERGE_WITH_CAVEATS` (10 MAJOR). 3 MAJORs closed inline via `c47e5ac`; remaining 7 in `semantic-recall-cache-v1-5-fixes-cycle-1` (4 of 8 task commits shipped: T0.1 `0589a8f`, T1.1 `bae2fda`, T2.1 `595ef01`, T2.2 `e7eb240`). CAVEAT: hit rate 0.60 reflects chosen fixture distribution. Skill-scope cache wiring deferred to v1.5.x per ADR D10. **`/dogfood` gate STILL `EVIDENCE_INSUFFICIENT`** — v1.5 does NOT unblock production-ready. | 2026-06-03 + fixes-cycle-1 in flight |
+
+### Pending (not built yet)
+
+**Pre-P0 trichotomy:**
+
+- **(a) On the P0 critical path** — items whose blocker IS the P0 sub-goals. Continue under hardening.
+- **(b) FROZEN under P0** — no work until P0 closes. The Roadmap entry stays for audit history.
+- **(c) Cross-repo dependency** — waiting on sibling repo; not blocked by P0 directly.
+
+| Nº | Name | Acceptance + dependency | P0 classification |
+|---|---|---|---|
+| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) `docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" running ≥ 30 days). README Status flipped to `Production-ready` in same PR that bumps to v1.0. **Current state (persistent audit 2026-05-31 `6f7ff87`):** `EVIDENCE_INSUFFICIENT`; hard caps firing: `anchor_not_running` + `no_anchor_evidence`. The gate is correctly blocking. **Depends:** Item 10 + `/dogfood` infra (shipped 2026-05-22) | **(a) On P0 critical path** — P0 sub-goal 2 directly covers `/dogfood` closure |
+| 7 | **v0.5 — TheoCloud runtime + multi-region premium** | `@usetheo/memory/cloud` subpath imports cloud client (bundle-size gate). `THEOKIT_API_KEY` auth flow against staging. Multi-region failover. (Bi-temporal `asOf` MOVED to v1.1 local OSS tier per ADR-0011; cloud premium narrows to multi-region + audit-mgmt + managed embedding pricing.) **Depends:** Item 2 + Theo PaaS GA | **(a) Conditional** — if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not a new feature) per P0 § "What CONTINUES" |
+| 3 (PR-B) | **v0.2 PR-B — Scaffolded TheoKit templates + E2E** | T4.1-T4.4 + T5.1 from v0.2 plan ADR D7: default-on memory in scaffolded TheoKit apps. **Depends:** sibling `theokit` repo PR | **(c) Cross-repo dependency** — sibling repo work; not blocked by P0 directly. Ship when sibling lands. |
+| 13 | **v1.2 — Adaptive retrieval** | `shouldRetrieve` + `wasRetrievalGood` decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). | **(b) FROZEN under P0** — no plans, no PRs, no discovery cycles |
+| 14 | **v1.3 — Optional graph backend** | `@usetheo/memory/graph` adapter for KG-style queries. Backend: Postgres + Apache AGE OR Neo4j. | **(b) FROZEN under P0** |
+| 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical / legal / code / support) layered over LLM extraction. | **(b) FROZEN under P0** |
+
+### Items cut / deferred (audit trail)
+
+| Item | Status | Rationale |
+|---|---|---|
+| Adapters (Mem0, Zep, Letta) | Out of scope (cut 2026-05-21) | Focus on being native backend, not wrapper. `@usetheo/sdk` already ships 3 `MemoryAdapter` packages (2026-05-20) for that use case. |
+| Recency × importance × relevance scoring | Deferred to v0.4a behind strategy interface | README v1 promised; locked 2026-05-21 — v0.1 ships additive Mem0-style (production-tested). Multiplicative becomes opt-in strategy at v0.4a. |
+| Demo `examples/chat-with-memory` eviction wiring via `createLocalMemory({ eviction })` | Deferred to follow-up cycle (paused 2026-05-31 via hotfix `b2909ff`) | F-T4.1-2 regression: when eviction is enabled AND `rememberTurn` calls `Promise.all([userScoped.remember, sessionScoped.remember])` in parallel, the `postRememberHook` + `CapacityBasedTrigger.fire` pipeline consumes user-scope rows even with scope size 0. Race-condition root cause; debugging deferred. Core eviction WORKS via the SDK direct path (integration suite 67/67 PASS); the disabled wiring is consumer-demo-only. |
+| EC-9 skill-scope `asOf` (`memory.skills(repoId).recall({ asOf })`) | Deferred to follow-up cycle per plan v1-1 v1.3 ADR D4 amendment | v1.1 ships `asOf` for memory scopes only. Skill-scope adds extra ADR-0010 coordination — kept v1.1 focused. |
+| Repo-tier semantic cache wiring (`memory.skills(repoId).recall()` does NOT consult cache) | Deferred to v1.5.x per `semantic-recall-cache-v1-5-fixes-cycle-1` ADR D10 | `ScopeTierTtlConfig.repo` REQUIRED in public DIP but `LocalScopedSkillMemory.recall()` skip cache. Mirrors v1.1 EC-9 honest deferral precedent. |
+
+### Foundation artifacts (audit trail)
+
+Detailed history of infrastructure cycles. Source-of-truth for "what landed when" beyond the macro Items table above.
+
+| Artifact | Shipped |
+|---|---|
+| `.claude/knowledge-base/references/` clones (Mem0 + Letta + LangMem, `--depth 1`, gitignored) | 2026-05-21 |
+| `README.md` + strategic placement (Community auxiliary MIT, TheoKit-native, Mem0-shape, two runtimes) | 2026-05-21 |
+| This `CLAUDE.md` (3 root overrides + RepoScope ADR-0010 + ADR-0011 supplementary) | 2026-05-21; updated 2026-05-30, 2026-06-03, 2026-06-04 |
+| `examples/chat-with-memory/` Next.js demo (4 tabs over User/Session/Skills/History) | 2026-05-30 (`22f148b`) |
+| `.claude/skills/test-chat-with-memory/` exhaustive E2E skill (30 scenarios via Chrome DevTools MCP) | 2026-05-30 (`069a257`) |
+| v0.6.1 voyager-skill-library-fixes cycle (14 commits; verdict `READY_TO_MERGE`) | 2026-05-30 (`b6aead6`) |
+| `chat-with-memory-e2e-fixes` cycle (4 commits; `/test-chat-with-memory READY 30/30`) | 2026-05-30 (`9e09bb9`) |
+| **PR #24 — Release `develop` → `main`** (85 commits: v0.4b-fixes + v0.6 + v0.6.1 + chat-with-memory-e2e-fixes + v0.4b-forgetting) | 2026-05-31 (`9a8bca3`) |
+| `examples-chat-with-memory-v0-4b-expansion` cycle (12 commits T0.1 → T6.1 + SEPA iter logs) | 2026-05-31 + hotfix `b2909ff` (F-T4.1-2 demo eviction regression) |
+| `/dogfood` first persistent audit (`EVIDENCE_INSUFFICIENT`; 2 hard caps: `anchor_not_running` + `no_anchor_evidence`) | 2026-05-31 (`6f7ff87`) |
+| `adapters-openrouter-local-embedder` cycle (`LocalTransformerEmbedder` + parametric `embeddingDim` + atomic dim-change pipeline) | 2026-06-02 (`4b5b0e7` → `aec5c33`) |
+| **PR #28 — Release `develop` → `main`** (269 commits: v0.4b expansion + v0.7 distillation + v0.8 benchmarks + v1.1 + v1.1 fix-up cycle 2) | 2026-06-03 (`0433484`) |
+| `theo-memory-standalone-p0` chain (Items 16 + 17 + 18) | 2026-06-03 |
+
+---
+
 ## Relationship to other pillars
 
 | Pillar | Project | Current integration (verify before claiming) |
 | --- | --- | --- |
 | Apex (runtime) | [TheoCloud](../theo) | Cloud runtime depends on Theo PaaS GA. No code today. v0.5 milestone. |
-| Framework | [TheoKit](../theokit) | `@usetheo/memory/theokit` subpath ships v0.2 PR-A (PR #11 merged 2026-05-23). `memoryFromCtx(ctx, memory)` auto-scopes `user_id` from `ctx.session.userId` via structural typing (zero peer-dep on `theokit`, ADR D1). T4.1-T4.4 + T5.1 (scaffolded `create-theo` templates + E2E) live in sibling `theokit` repo PR-B per ADR D7 — pending. |
-| Harness | [`@usetheo/sdk`](../theokit-sdk) | `@usetheo/memory/agent-tools` exposes `remember`/`recall`/`forget`/`reflect` as MCP tools (stdio + streamable-HTTP transports, AsyncLocalStorage scope binding via `memoryFromCtx`) consumable by any MCP-aware agent loop including `@usetheo/sdk` agents. Shipped 2026-05-25 (PR #17 + hardening #18, v0.3 milestone). **Note:** `@usetheo/sdk` already ships its own `MemoryAdapter` interface + 3 adapter packages (`@usetheo/memory-supermemory`, `@usetheo/memory-honcho`, `@usetheo/memory-mem0`, shipped 2026-05-20). TheMemory does **not** consume those — they are SDK-shape; TheMemory is the runtime. Future: `@usetheo/sdk` will accept TheMemory as one of the adapter targets via `MemoryAdapter`. |
-| UI | [`@usetheo/ui`](../theo-ui) | `MemoryEditor` primitive already exists in `@usetheo/ui` (one of the 81 primitives). Natural consumer of TheMemory's API for dashboard surfaces. No wiring today. |
-| Coding assistant | [`theo-code`](../theo-code) | TheoCode has its own memory subsystem (`crates/theo-infra-memory/`). Different domain (coding agent project memory) — no shared code planned. |
+| Framework | [TheoKit](../theokit) | `@usetheo/memory/theokit` subpath ships v0.2 PR-A (PR #11). `memoryFromCtx(ctx, memory)` auto-scopes via structural typing (zero peer-dep, ADR D1). T4.1-T4.4 + T5.1 in sibling `theokit` repo PR-B pending. |
+| Harness | [`@usetheo/sdk`](../theokit-sdk) | `@usetheo/memory/agent-tools` exposes 4 verbs as MCP tools consumable by any MCP-aware agent loop. `@usetheo/sdk` already ships its own `MemoryAdapter` interface + 3 adapter packages (2026-05-20) — different surface; TheMemory is the runtime, not the adapter. Future: `@usetheo/sdk` may accept TheMemory as a `MemoryAdapter` target. |
+| UI | [`@usetheo/ui`](../theo-ui) | `MemoryEditor` primitive already exists in `@usetheo/ui` (one of 81 primitives). Natural consumer of TheMemory's API. No wiring today. |
+| Coding assistant | [`theo-code`](../theo-code) | TheoCode has its own memory subsystem (`crates/theo-infra-memory/`). Different domain — no shared code planned. |
 
 > "Do not invent integration that does not exist yet." (Root `CLAUDE.md` Cross-Project Rule 2.) Verify the actual import / dependency before claiming wiring exists in copy.
+
+---
+
+## Competitive superiority matrix
+
+How each roadmap item maps to a specific competitor weakness.
+
+| Competitor | Their moat | Our attack | Roadmap item(s) |
+|---|---|---|---|
+| **Mem0** ($24M) | Drop-in simplicity, vector-centric, large provider catalog | Same architecture + reflection + long-tail forgetting + Voyager skill library + bi-temporal local OSS (v1.1) + multi-region premium cloud (v0.5) + TheoKit-native default-on | 2, 5, 6, 7, 8, 3, 12 |
+| **Letta** ($10M) | Function-calling memory + sleep-time agents | Function-calling memory **without** agent-loop lock-in (we are primitive, not framework) | 4, 5 |
+| **Zep/Graphiti** (YC W24) | Bi-temporal knowledge graph with audit | Bi-temporal queries (`asOf`) shipped in v1.1 local OSS (MIT) — Graphiti's headline feature now commodity under our license. Multi-region replication + audit-mgmt remain the v0.5 cloud premium. Graph backend separately tracked as Item 14 (v1.3). | 12, 7, 14 |
+| **Honcho** ($5.35M) | Theory-of-mind / identity modeling | Multi-peer `attributed_to` **without** AGPL restriction (MIT) | 12 |
+| **Cognee** | Ontologies + poly-store | Typed domain ontologies without poly-store complexity | 15 |
+| **LangMem** | Procedural memory via prompt rewriting | Procedural skill library **with** automatic refactoring (Voyager-style, ships executable code not just prompts) | 8 |
+| **All competitors (Mem0/Letta/LangMem/Zep)** | No documented read-side query cache layer | Semantic recall cache via query-embedding cosine — caches `recall()` results without re-running pipeline + LLM rerank on near-duplicate queries. Greenfield surface. | 19 |
+| **LlamaIndex Memory** | Block composition with priority truncation | Three-scope tier model + reflection + skill library (their blocks have no identity, no procedural) | 1, 5, 8 |
+| **Vector DBs** (Pinecone/Qdrant/Chroma/etc.) | Multi-tenancy at scale | Real semantic memory primitives (extraction, consolidation, scoring, forgetting) on top of pgvector | 2, 5, 9 |
+
+### Honesty discipline (Inquebrável Rule 3)
+
+- **No production claims** until v1.0 with benchmarks reproduced independently. The README's Status section is the authoritative declaration; never weaken it without a PR-level decision.
+- **No `production-ready` badge** in the README or marketing — TheMemory is the explicit exception to the monorepo "production-ready" claim (2026-05-15 lock).
+- **Roadmap moves backward via PR with one-line rationale.** Items don't disappear silently. Removed items appear as `Removed` with date and reason.
+- **Caveat disclosure is non-negotiable.** Every shipped feature lists its caveats in its `Acceptance + caveat` cell above. No silent omission.
+
+---
 
 ## Reference projects (study material)
 
@@ -94,136 +326,52 @@ The `.claude/knowledge-base/references/` directory contains three clones (`--dep
 
 | Project | Tamanho | License | Status of exploration |
 |---|---|---|---|
-| [`mem0`](./.claude/knowledge-base/references/mem0/) | 78 MB | Apache-2.0 | Pending exploration — primary architectural reference (vector + LLM extraction + hybrid retrieval) |
-| [`letta`](./.claude/knowledge-base/references/letta/) | 34 MB | Apache-2.0 | Pending exploration — relevant for Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
-| [`langmem`](./.claude/knowledge-base/references/langmem/) | 3.9 MB | MIT | Pending exploration — relevant for procedural memory via prompt rewriting |
+| [`mem0`](./.claude/knowledge-base/references/mem0/) | 78 MB | Apache-2.0 | Primary architectural reference (vector + LLM extraction + hybrid retrieval) |
+| [`letta`](./.claude/knowledge-base/references/letta/) | 34 MB | Apache-2.0 | Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
+| [`langmem`](./.claude/knowledge-base/references/langmem/) | 3.9 MB | MIT | Procedural memory via prompt rewriting |
 
 The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 
-## Roadmap
+---
 
-The roadmap below mirrors the consolidated view in the root `CLAUDE.md § Roadmap por Domínio` for theo-memory. Source of truth for status changes: this file + `README.md` § Status + `README.md` § Roadmap. **If this file and the root disagree, update both in the same PR.**
+## Open questions for the contract design (all resolved)
 
-### Foundation artifacts (shipped)
+1. ~~**Multi-peer / `attributed_to` support.**~~ **RESOLVED 2026-05-22 → v1.1 (Item 12).** Deferred from v0.0 to keep contract minimal; backward-compat via optional column.
+2. ~~**`update()` semantics inside ADD-only.**~~ **RESOLVED 2026-05-22 → [ADR-0003](.claude/knowledge-base/adrs/ADR-0003-add-only-public-api.md).** ADD-only. No public `update()`. Mutation = `forget(id) + remember(newText)`. `history(memoryId)` exists for audit.
+3. ~~**Reflection trigger.**~~ **RESOLVED 2026-05-22 → [ADR-0005](.claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md).** Explicit-only at v0.0. Threshold + sleep-time policies land at v0.4a behind same DIP — zero contract change.
+4. ~~**Bi-temporal `t_valid` / `t_invalid` columns on local.**~~ **RESOLVED 2026-05-22 → [ADR-0006](.claude/knowledge-base/adrs/ADR-0006-bi-temporal-local-schema.md); AMENDED 2026-06-03 → [ADR-0011](.claude/knowledge-base/adrs/ADR-0011-bi-temporal-local-runtime-gate-lift.md).** v1.1 LIFTS the runtime-clause: local `recall({ asOf })` honored via null-safe predicate. Schema clause REINFORCED. CAVEAT: EC-9 skill-scope `asOf` deferred to follow-up cycle.
+5. ~~**Entity store opt-out.**~~ **RESOLVED 2026-05-22 → [ADR-0007](.claude/knowledge-base/adrs/ADR-0007-entity-store-opt-out.md).** Constructor-level flag `MemoryConfig.entityBoost?: boolean` defaults to `true` (Mem0 parity). When `false`, no entity vector store instantiated.
+6. ~~**`THEOKIT_API_KEY` reuse.**~~ **RESOLVED 2026-05-22 → [ADR-0009](.claude/knowledge-base/adrs/ADR-0009-cloud-auth-theokit-api-key.md).** Reuse `THEOKIT_API_KEY` env var with optional explicit `apiKey` constructor parameter override. No separate `THEMEMORY_API_KEY` (REST API server (Item 16) uses `THEMEMORY_API_KEY` for bearer auth specifically, distinct from cloud SDK auth).
 
-| Artifact | Status |
-|---|---|
-| `.claude/knowledge-base/references/` clones (Mem0 + Letta + LangMem, `--depth 1`, gitignored) | Shipped 2026-05-21 |
-| `README.md` + strategic placement (Community auxiliary MIT, TheoKit-native, Mem0-shape, two runtimes) | Shipped 2026-05-21 |
-| This `CLAUDE.md` (3 root overrides documented + RepoScope 4th tier ADR-0010) | Shipped 2026-05-21 (updated 2026-05-30 for RepoScope) |
-| `examples/chat-with-memory/` Next.js demo (4 tabs over User/Session/Skills/History + auto-detect pgvector/in-memory backend) | Shipped 2026-05-30 (commit `22f148b`) |
-| `.claude/skills/test-chat-with-memory/` exhaustive E2E skill (30 scenarios via Chrome DevTools MCP) | Shipped 2026-05-30 (commit `069a257`) |
-| v0.6.1 voyager-skill-library-fixes cycle (14 commits closing 2 CRITICAL + 8 MAJOR + 13 MINOR findings from the first-pass `/review`; verdict `READY_TO_MERGE`) | Shipped 2026-05-30 (commit `b6aead6`) |
-| `chat-with-memory-e2e-fixes` cycle (4 commits closing 2 demo-environment FAILs: D4 cluster threshold + F3 HMR-safe writeCounts; `/test-chat-with-memory` verdict `READY 30/30`) | Shipped 2026-05-30 (commit `9e09bb9`) |
-| **PR #24 — Release `develop` → `main` covering v0.4b-fixes-cycle + v0.6 + v0.6.1 + chat-with-memory-e2e-fixes + v0-4b-forgetting-pipeline** (85 commits; verdict `READY_TO_MERGE` via /review with 7 spawned agents). | Shipped 2026-05-31 (merge commit `9a8bca3`) |
-| `examples-chat-with-memory-v0-4b-expansion` cycle (12 commits T0.1 → T6.1 + scaffolding + SEPA iter logs; closes the 3-gap post-PR-#24 honest review: demo doesn't exercise `createLocalMemory({ eviction })`, forget endpoints lack `{ hard }` opt-in, `/test-chat-with-memory` baseline stale + dogfood evidence dir empty). | Shipped 2026-05-31 (commits `05a0ce6` → `1d7aa50`); **REGRESSION HOTFIXED** `b2909ff` (F-T4.1-2 — see roadmap Item 6 nota) |
-| `/dogfood` first full persistent audit (verdict `EVIDENCE_INSUFFICIENT`; 2 hard caps firing: `anchor_not_running` + `no_anchor_evidence`; gate correctly blocks any production-ready claim). | Shipped 2026-05-31 (commit `6f7ff87`) |
-| `adapters-openrouter-local-embedder` cycle — unblocks demo testing for users with an OpenRouter API key (no OpenAI quota needed). Composed of (a) **SDK additions**: `LocalTransformerEmbedder` (Xenova `all-MiniLM-L6-v2`, 384-dim, L2-normalized) at `src/embedders/local.ts` + subpath `@usetheo/memory/embedders/local`; parametric `embeddingDim` widening on `LocalMemoryConfig` / `PgvectorStore({ embeddingDim })` / `runMigrations(pool, { embeddingDim })`; atomic `DROP+DELETE+ALTER+RECREATE` HNSW dim-change pipeline inside BEGIN/COMMIT with post-ALTER value-based canary; `OpenAILLM.resolveChatModel()` env-bridge to `OPENAI_CHAT_MODEL` for OpenRouter provider/model ids; new `InvalidEmbeddingDim` typed error class. (b) **Demo wiring**: `examples/chat-with-memory/lib/memory.ts` env-shift (`OPENROUTER_(API_)KEY` → `OPENAI_API_KEY` override, `OPENAI_BASE_URL` default to `openrouter.ai/api/v1`, `OPENAI_CHAT_MODEL` default to `openai/gpt-4o-mini`), `DrizzleHistoryManager` wired so History tab shows event chains, and TheoKit Agent fallback to `OpenAILLM.generateChat` when `status: error` (random `THEOKIT_API_KEY` no longer blocks chat replies). (c) **Discipline**: full cycle-plan + cycle-implement + cycle-review pipeline with 7 spawned reviewer agents; 28 original findings (1 CRITICAL + 15 MAJOR + 12 MINOR) + 5 re-review findings closed via 14 fix-up commits; `/review` re-run returned `READY_TO_MERGE` (0 BLOCKER / 0 CRITICAL / 0 MAJOR / 0 actionable MINOR / 0 deferred MINOR). (d) **THE GOAL TEST**: real-user E2E in browser via chrome-devtools MCP against a running pgvector + OpenRouter — `/api/info` returns `{adapterSource: local-openrouter, embedderDim: 384}`, multi-turn chat extracts facts via OpenRouter LLM into `vector(384)`, semantic recall ranqueia hits, Inspect history surfaces REMEMBER events. Contract suite **669/669 PASS**, integration dim-change **9/9 PASS**. **Caveat**: TheoKit Agent itself still requires valid `THEOKIT_API_KEY` (fallback path is the demo-time mitigation; not a TheoKit fix). | Shipped 2026-06-02 (commits `4b5b0e7` → `aec5c33`) |
-
-### Macro roadmap — competitive positioning
-
-Premise: ship Mem0-shape commodity + **attack the 3 open problems** (long-tail forgetting, Voyager-style skill libraries, episodic→semantic distillation) + lock-in deliberato via TheoKit/TheoCloud. Each item below carries `Nº` (sequence), `Name` (semver + descriptor), `Description` (concrete scope), `Acceptance` (binary test + `Depends`), `Status`.
-
-**Reading the Acceptance column:** Every item declares (a) one or more **binary tests** the implementation must pass, (b) **numeric thresholds** marked `TBD (lock by v0.X kickoff)` for criteria that need calibration, (c) explicit **`Depends:`** prerequisites by item number. An item is NOT considered done until its Acceptance row passes verifiably; "looks right" is not acceptable per Inquebrável Rule 5 (TDD) + Rule 7 (testes não negociáveis).
-
-#### Phase I — Foundation (Mem0-shape, do not reinvent)
-
-| Nº | Name | Description | Acceptance | Status |
-|---|---|---|---|---|
-| 1 | **v0.0 — Contract design** | Type contract for `Memory`, `MemoryStore`, **five DIPs** (`VectorStore`, `LLM`, `Embedder`, `HistoryManager`, `ReflectionPolicy`), three-scope `user_id`/`agent_id`/`session_id`, API verbs `remember/recall/forget/reflect` (ADD-only). Implementation under `src/core/`; ADRs under `.claude/knowledge-base/adrs/`. | `tsc --noEmit` passes on `src/core/**/*.ts`. 5 DIP interfaces declared with method counts per ADR-0008. Nine ADRs locked (ADR-0001 through ADR-0009) covering Mem0-shape, three-scope, ADD-only, API verbs, reflection trigger, bi-temporal local schema, entity-store opt-out, DIP method counts, cloud auth. **Depends:** — | **Shipped 2026-05-22** (PR #4) |
-| 2 | **v0.1 — Core + local runtime** | **Eight-phase write pipeline** (per blueprint D1 / ADR-0001 implementation note; ADR-0001 narrates it as six — Phase 0 context + Phase 1 existing retrieval + UUID→int + Phase 2 LLM extraction + Phase 3 batch embed + Phase 4-5 hash dedup + payload + Phase 6 batch persist + Phase 6.5 history persist + Phase 7+8 entity linking + save messages scaffolded for v0.2) + 9-step search with additive scoring `(semantic + bm25 + entity_boost) / max_possible` + over-fetch `max(topK*4, 60)` + per-row fallback at every I/O boundary + auto-detected embedding dim (1536 cap at v0.1 per plan ADR D1.7 due to pgvector 0.5.1 HNSW limit). Backend: Postgres + pgvector + Drizzle ORM. Two adapters ship: in-memory (Map-backed, for unit tests + dev quickstart) + pgvector (raw SQL via `pg`). `createMemory` factory + `runMigrations` helper + public barrel + `docker-compose.yaml` + integration test suite. | Integration test (`tests/integration/local-runtime.test.ts`): `remember("Paulo likes coffee", {userId:"alice"})` → `recall("beverages", {userId:"alice"})` returns the memory in top-3 against real `ankane/pgvector:v0.5.1`. OTel spans observed via in-memory exporter for write+search flow. `drizzle-kit push` applies pgvector schema to a fresh database WITHOUT manual `psql -c "CREATE EXTENSION"` step (npm script runs it inline). Fallback path tested: simulated batch-embed failure completes via per-item fallback. Total tests: **229 contract + 28 integration = 257**. Zero CRITICAL/HIGH CVE (4 MODERATE allowlisted with sunset 2026-08-23 — dev-only `esbuild` chain via drizzle-kit). **Depends:** Item 1 | **Shipped 2026-05-23** (PR #8) |
-| 3 | **v0.2 — TheoKit binding** | Subpath `@usetheo/memory/theokit` resolves `user_id` from `ctx.session.userId` via `memoryFromCtx(ctx, memory)` per ADR D4 3-state resolver; `sessionId` / `agentId` reserved on the `ScopedContext` interface (v0.3+ deferral, EC-11). Structural typing with ZERO peer-dep on `theokit` (ADR D1). Stub adapters (`StubEmbedder` + `StubLLM`) ship for scaffold-demo defaults so `npm install && npm run dev` boots probe-safely (ADR D8). Default-on memory in scaffolded TheoKit apps deferred to PR-B in sibling `theokit` repo per ADR D7 (T4.1-T4.4 + T5.1). **This is the deliberate lock-in surface** (override of Cross-Project Rule 6). | Isolation test (`tests/integration/theokit-binding.test.ts`): two distinct `ctx.session.userId` values produce DISJOINT `recall()` result sets — `expect(intersect).toEqual([])` against real `ankane/pgvector:v0.5.1`. ✓ PR-A verified. E2E test in scaffolded TheoKit app + template snapshot test deferred to PR-B per ADR D7 cross-repo coordination. Total tests at PR-A merge: **258 contract + 46 integration = 304**. **Depends:** Item 2 | **PR-A shipped 2026-05-23** (PR #11); PR-B pending in sibling `theokit` repo |
-| 4 | **v0.3 — Agent tools (MCP)** | Subpath `@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as MCP tools for `@usetheo/sdk` agents. Function-calling-driven memory ops (lesson from MemGPT/Letta) without inheriting the agent-loop lock-in. 6 ADRs locked (D1-D6) + ADR D9 (JSON Schema dialect 2020-12). Per-plan paired knowledge skill at `.claude/skills/implement-v0-3-agent-tools-mcp-sepa-knowledge/` (PR #19). | MCP server boots; `tools/list` returns exactly 4 tools with stable names. End-to-end via `@usetheo/sdk` agent: each verb invoked successfully with valid payload; schema validation rejects malformed payloads with structured error. JSON-RPC trace test confirms no cross-tool state leakage. ✓ THE GOAL METRIC OBSERVED via `tests/e2e/agent-tools/round-trip.test.ts` (subprocess stdio + JSON-RPC handshake + cross-userId isolation). **Depends:** Item 2 | **Shipped 2026-05-25** (discovery PRs #14-#15, plan PR #16, implementation PR #17, hardening PR #18) |
-
-#### Phase II — Consolidation infrastructure + cloud foundation
-
-> Items 5+6 deliver the consolidation primitive (reflection unlocks forgetting). Item 7 lands the cloud runtime that also exposes the bi-temporal moat. These three items are the bedrock for Phase III differentiation.
-
-| Nº | Name | Description | Acceptance | Status |
-|---|---|---|---|---|
-| 5 | **v0.4a — Reflection pipeline** | `reflect()` async via sleep-time worker (Letta pattern). Scoring tier opcional behind strategy interface: additive Mem0 (default) OR multiplicative Generative Agents (`recency × importance × relevance`). LLM-importance cached at write to avoid per-query cost. | Test: seed 50 memories in a scope; trigger `reflect()`; assert ≥ 1 higher-order memory exists with `derived_from: string[]` provenance linking source memory IDs. Both scoring strategies pass identical recall-shape contract test (interface compliance). Sleep-time worker test: background trigger fires within TBD seconds (lock by v0.4a kickoff) when threshold of N new memories crossed. LLM-importance score persisted on first write; second-write same content does NOT re-invoke LLM. **Depends:** Item 2 | **Shipped 2026-05-23** (`develop` commit `494bceb` — THE GOAL TEST landed: 50 memories → reflect() → ≥ 1 derived row with provenance; `ManualReflectionPolicy` + `ThresholdReflectionPolicy` + `SleepTimeReflectionPolicy` all behind the `ReflectionPolicy` DIP) |
-| 6 | **v0.4b — Forgetting with long-tail preservation** | **OPEN PROBLEM #1 — no competitor solved this.** Triadic signal (Ebbinghaus time decay + LRU/LFU + LLM-judged importance) WITH explicit anti-long-tail guardrail: rare-but-semantically-isolated memories receive a protection multiplier to defeat frequency bias. | Curated test set: 1000 memories with 50 rare-query targets seeded. After `forget()` cycle removing 30% by triadic score: `recall@10` on rare-query set ≥ TBD (lock by v0.4b kickoff). Guardrail unit test: a rare-but-isolated memory survives ≥ 5 consecutive LRU eviction passes against frequent siblings. Evaluation matrix published at `docs/forgetting-evaluation.md` (artifact must exist + be reproducible). **Depends:** Item 5 | **Shipped 2026-05-31** (PR #24 merge `9a8bca3` covering v0-4b-forgetting-pipeline + v0-4b-fixes-cycle). **THE GOAL TEST**: `recall@10 = 1.000` against the 1000-memory × 50-rare-query seeded set; `TriadicScoringPolicy` (Ebbinghaus half-life + LRU access + LLM-judged importance) wired via `EvictionPolicy` DIP per ADR D12; `CapacityBasedTrigger` (post-remember) + `TimeBasedTrigger` (cron) + `PgEvictor` (soft-delete via `t_invalid`) compose the pipeline; **T7.1 PUBLIC API BREAKING**: `Memory.forget(memoryId, options?: ForgetOptions)` widens with `hard?: boolean` for GDPR escape hatch (CHANGELOG `**BREAKING**:` prefix); integration suite 67/67 PASS against `ankane/pgvector:v0.5.1`; v0.4b-fixes-cycle closed 11 EC findings + 2 BLOCKER + 8 CRITICAL pre-merge. **CAVEAT (consumer-demo regression)**: the `examples-chat-with-memory-v0-4b-expansion` cycle attempted to wire `createLocalMemory({ eviction })` into the demo singleton, BUT empirical isolation 2026-05-31 confirmed a regression: when eviction is enabled AND `rememberTurn` calls `Promise.all([userScoped.remember, sessionScoped.remember])` in parallel, the `postRememberHook` + `CapacityBasedTrigger.fire` pipeline consumes the user-scope rows even with scope size 0 (far below cap=10). Hotfix `b2909ff` disables `resolveEviction` in demo `lib/memory.ts` until the race is debugged. Eviction WORKS via direct SDK path (integration tests confirm); the CONSUMER-FACING demo wiring is on hold for a follow-up cycle. Evaluation matrix `docs/forgetting-evaluation.md` (artifact reproducible) still pending. |
-| 7 | **v0.5 — TheoCloud runtime + multi-region premium** | `cloud/` package + TheoCloud-managed backend. **Scope NARROWED 2026-06-02 per ADR-0011**: bi-temporal queries (`asOf`) moved to v1.1 local OSS tier (no longer cloud-exclusive); cloud premium narrows to multi-region replication + audit-mgmt + managed embedding pricing. (Graph backend explicitly NOT in this item — see Item 14.) | `@usetheo/memory/cloud` subpath imports the cloud client and does NOT pull local runtime deps (bundle-size assertion). `THEOKIT_API_KEY` auth flow passes against staging environment (CI secret). Multi-region failover: write in region A, read in region B succeeds within TBD seconds (lock by v0.5 kickoff). Bi-temporal acceptance criterion moved to v1.1 (Item 12 expanded). **Depends:** Item 2, Theo PaaS GA | Planned (depends on PaaS GA) |
-
-#### Phase III — Differentiation (open problems #2 + #3) and v1.0 gate
-
-| Nº | Name | Description | Acceptance | Status |
-|---|---|---|---|---|
-| 8 | **v0.6 — Voyager-style skill library** | **OPEN PROBLEM #2 — only the paper exists.** Procedural memory for coding agents: stores executable reusable code/playbooks indexed by retrieval; reflection refactors + dedups skills periodically (no one shipped this as infra). Natural alignment with TheoCode. Opt-in tier `memory.skills(repoId)`. | TheoCode integration test: a successful run produces ≥ 1 skill artifact in `memory.skills(repoId)`. Subsequent run with semantically-similar prompt retrieves + reuses the skill (cache-hit metric > 0). Refactoring test: feed 2 syntactically-different but semantically-equivalent skills; reflection consolidates to 1 with both source IDs in `derived_from`. **Depends:** Item 5 | **Shipped 2026-05-30** on `feat/v0-6-voyager-skill-library`. **THE GOAL TEST** `tests/integration/skills/consolidate-two-skills.test.ts` PASS against real `ankane/pgvector:v0.5.1`: 2 semantically-equivalent skills → consolidate() → 1 derived skill with `derivedFrom` carrying BOTH source ids + scope isolation across `repo-A` / `repo-B`. **v0.6.1 fixes cycle** (commit `b6aead6`) closed 2 CRITICAL + 8 MAJOR + 13 MINOR `/review` findings: ADR-0010 `RepoScope` 4th tier; `LocalScopedSkillMemory.forget` scope-isolated (v0.6.1 T4.1 EC-2); `hashFact(description)` identity (v0.6.1 T1.2 / F7); `PgvectorStore` split via composition into `PgvectorSkillStore` (497 LoC ≤ 500 budget); 490 contract tests PASS; `/review` re-run `READY_TO_MERGE` (0 BLOCKER / 0 CRITICAL / 0 MAJOR). **Demo** at `examples/chat-with-memory/` + `chat-with-memory-e2e-fixes` cycle (commit `9e09bb9`) `/test-chat-with-memory READY 30/30`. TheoCode integration test (cache-hit metric > 0) **still pending** — needs TheoCode wiring against `memory.skills(repoId)`. |
-| 9 | **v0.7 — Episodic→Semantic distillation pipeline** | **OPEN PROBLEM #3 — Mem0/Zep try, quality remains open.** Managed pipeline: raw episodes → entity extraction → conflict resolution (LLM-judged) → semantic facts with provenance link back to source episodes. | Gold set: 200 manually-labeled raw episodes committed under `tests/fixtures/distillation/`. Entity-extraction precision ≥ TBD (lock by v0.7 kickoff); recall ≥ TBD (lock by v0.7 kickoff). Conflict-resolution test: two contradictory facts → pipeline resolves to one + history records rejected alternative with reason. Every persisted semantic fact has non-empty `derived_from: episodeId[]`. Metrics published at `docs/distillation-evaluation.md`. **Depends:** Item 5 | **Shipped 2026-06-02 + fix-up cycle plan v1.2 closing 3 CRITICAL findings from `/review`**. SDK: `ConflictResolutionPolicy` 9th DIP (commit `77f3be4`) + 3 implementations (`Noop` / `LastWriteWins` / `LlmJudgedMergeConflictPolicy` per ADR D2-D5 — commits `92334e0`, `6b5ca31`) + reflect() wiring (`8b4e4d1`) + migration `0007_distillation_columns.sql` adding `consolidation_history` table with `ON DELETE SET NULL` FK for GDPR survival (`bab7a02`). Eval: gold-set 200 fixtures (50 hand + 150 procedural per ADR D4, commit `8756fd2`) + reproducible harness `docs/distillation-evaluation/run.ts` + matrix (`b4fc509`). Validation: T3.3 THE GOAL TEST harness-correctness via LWW oracle + EC-5 stability (commit `f7262ed`); LLM-MEASURED follow-up `v0.7.1` against `openai/gpt-4o-mini` via OpenRouter (2026-06-02) on 10 hand-authored contradiction-pair fixtures: **precision=1.000, recall=1.000, conflict-resolution accuracy=1.000 (10/10 attempted, ~21s, ~$0.01-0.05)** — closes ADR-EC-B deferral; reproducible via `tests/integration/distillation/the-goal-test-llm-measured.test.ts` (gated on OPENROUTER_(API_)KEY). Demo: `DistillationTab` + `/api/memory/distill` + `/api/memory/consolidation-history` (cycle `examples-chat-with-memory-v0-7-distillation`, commits `039aacb` → `2811dfe`). **Caveat:** the 1.000 numbers reflect 10/10 unambiguous hand-authored contradictions; the broader procedural-fixture quality remains untested at the LLM-measured surface (deferred to v0.7.2 if needed). **`/review` formal pass landed 2026-06-02 (HEAD `83a8eb5`):** initial `/review` returned NEEDS_FIXES (0 BLOCKER / 3 CRITICAL / 11 MAJOR / 12 MINOR); fix-up cycle #1 closed the 3 CRITICAL (F-C1 mass-tombstone guard, F-C2 episodic↔semantic boundary via `kind='extracted'` filter, F-C3 `consolidation_history` declared in `schema.ts` + parity sentinel); `/review` re-run #2 returned READY_TO_MERGE_WITH_CAVEATS (2 MAJOR honesty gaps — atomicity rationale + ADR D1 wiring locus); fix-up #2 (`f68727d`) added ADR D7 (4-step SQL recovery procedure for outer-flow partial-commit window) + ADR D1 v1.2 amendment block; `/review` re-run #3 returned READY_TO_MERGE_WITH_CAVEATS (2 actionable MINOR paper-name violations introduced by fix-up #1 commits, post `no-paper-names-in-code.md` rule promotion); fix-up #3 (`f7f14e6`) cleaned 5 paper-name hits (2 NEW post-rule + 3 opportunistic pre-rule in `src/local/index.ts` including a consumer-visible error message). **Final verdict: READY_TO_MERGE clean** (0 BLOCKER / 0 CRITICAL / 0 MAJOR / 0 actionable MINOR / 2 deferred-acceptable MINOR — consistent v0.4a type-cast precedent + F-wire-1/F-wire-2 v1.0 benchmark-cycle bundling per plan v1.2). 685 contract PASS + integration distillation 7/7 + skill-isolation 2/2 across all 3 /review runs. **Independent `/dogfood` gate** (`dogfood-golden-rule.md`) remains EVIDENCE_INSUFFICIENT per audit 2026-05-31 (`6f7ff87`) and continues to block any production-ready claim regardless of /review outcome until anchor scenario "Claude Code auto-memory backed by TheMemory" runs ≥ 30 days with evidence logs. |
-| 10 | **v0.8 — Independent benchmark reproduction** | Reproduce LongMemEval + LoCoMo + DMR **independently**. Compare against Mem0/Zep/Letta on real fixtures. Publish matrix: P95 latency, recall@10, cost/session, temporal accuracy. **Zero benchmark theater** — methodology + raw fixtures published alongside numbers. | All 3 benchmarks run in CI against TheMemory v0.7 + Mem0 v3 + Zep + Letta on identical fixtures (committed under `benchmarks/fixtures/`). Matrix published at `docs/benchmarks/v0.8.md` with 4 columns: P95 latency, recall@10, cost/session, temporal accuracy. Reproducibility: a third party running `pnpm bench` produces matching numbers within TBD% tolerance (lock by v0.8 kickoff). Target: TheMemory ≥ Mem0 on at least TBD of TBD metrics (lock by v0.8 kickoff); shortfalls documented honestly. **Depends:** Items 6, 8, 9 | Planned |
-| 11 | **v1.0 — Contract stable** | Contract frozen. `production-ready` claim permitted ONLY after: (a) Item 10 reproduced independently with verifiable artifacts, (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" `running` ≥ 30 days). | (a) `docs/benchmarks/v0.8.md` exists + at least one external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (per `dogfood-golden-rule.md`). README Status section flipped to `Production-ready` in the same PR that bumps to v1.0. No `production-ready` token appears anywhere in repo before this PR (grep gate). **Current `/dogfood` state (2026-05-31, persistent audit `6f7ff87`)**: `EVIDENCE_INSUFFICIENT`. Hard caps firing: `anchor_not_running` (S1 status = `planned`) + `no_anchor_evidence` (0 files with `scenario: claude-code-auto-memory`). Vocabulary lock grep returned 104 hits across the repo but all sampled occurrences are negation/gate-describing contexts (no actual production-ready claims detected). The gate is correctly blocking. **Depends:** Item 10 + `/dogfood` infra (already shipped 2026-05-22) | Planned |
-
-#### Phase IV — Post v1.0 (competitive expansion)
-
-| Nº | Name | Description | Acceptance | Status |
-|---|---|---|---|---|
-| 12 | **v1.1 — Multi-peer / `attributed_to`** | Memories carrying perspective ("memory A is about user X, said by user Y") via `attributed_to` field in payload. Delivers theory-of-mind-style perspective filtering WITHOUT inheriting Honcho's AGPL restriction. *(Decision 2026-05-22: NOT day-0 — see `## Open questions` § 1, now resolved.)* | Test: `remember(text, {userId:"x", attributedTo:"y"})` persists with both fields. `recall(query, {userId:"x", attributedTo:"y"})` returns it; `recall(query, {userId:"x"})` (no filter) also returns it under x's scope. Schema migration adds optional `attributed_to` column; existing rows remain valid (NULL). Backward-compat test: pre-v1.1 caller code keeps working unchanged. **Depends:** Item 2 | Planned |
-| 13 | **v1.2 — Adaptive retrieval** | "Should I retrieve?" + "Was it good?" decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns — arxiv 2310.11511, 2401.15884, 2403.14403). Retrieval as policy, not constant — reduces token cost and ranking noise. | Baseline measurement: N test queries → N retrievals (M2 = no hook). With `shouldRetrieve` hook installed: M < N retrievals AND recall on emitted retrievals ≥ baseline recall (no quality regression). `wasRetrievalGood` callback receives `{score, query, results}` post-recall and consumer can mutate downstream behavior (test via state-mutation spy). **Depends:** Item 2 | Planned |
-| 14 | **v1.3 — Optional graph backend** | Adapter `@usetheo/memory/graph` for KG-style queries (Cognee/Zep use cases). **Composition** via interface, NOT replacement of vector core. Backend: Postgres + Apache AGE OR Neo4j. | Shape-shared test suite: same `MemoryStore` interface, same assertions, runs green against (a) pgvector backend AND (b) AGE backend. Graph-specific API: `memory.traverse(entityId, {depth: 2})` returns correct neighborhood verified against seeded fixture. Bundle gate: importing `@usetheo/memory` (default) does NOT pull graph deps. **Depends:** Item 2 | Planned |
-| 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical, legal, code, support) layered over LLM extraction. Attacks Cognee's pitch WITHOUT replicating its poly-store complexity. | Pilot domain (medical) ships with declared TypeScript schema. Extraction over domain-relevant fixture text produces entities conforming to schema (Zod validation passes). Consumer code: `recall<MedicalSchema>(...)` narrows return type at compile time (`tsc --noEmit` test). At least 1 cross-domain conflict caught at write time (e.g., medical-domain memory rejected from legal scope). **Depends:** Item 9 (distillation pipeline feeds typed extraction) | Planned |
-
-### Items cut / deferred
-
-| Item | Status | Rationale |
-|---|---|---|
-| Adapters (Mem0, Zep, Letta) | Out of scope (cut 2026-05-21) | Focus on being native backend, not wrapper. `@usetheo/sdk` already ships 3 `MemoryAdapter` packages (2026-05-20) for that use case. |
-| Recency × importance × relevance scoring | Deferred to v0.4a behind strategy interface | README v1 promised; locked 2026-05-21 — v0.1 ships additive Mem0-style (production-tested). Multiplicative becomes opt-in strategy at v0.4a. |
-| Demo `examples/chat-with-memory` eviction wiring via `createLocalMemory({ eviction })` | Deferred to follow-up cycle (paused 2026-05-31 via hotfix `b2909ff`) | F-T4.1-2 regression: when eviction is enabled AND `rememberTurn` calls `Promise.all([userScoped.remember, sessionScoped.remember])` in parallel, the `postRememberHook` + `CapacityBasedTrigger.fire` pipeline consumes user-scope rows even with scope size 0 (far below cap=10). Race-condition root cause; debugging deferred to a follow-up cycle. Core eviction WORKS via the SDK direct path (integration suite 67/67 PASS); the disabled wiring is consumer-demo-only. `/api/memory/eviction-status` route + `EvictionTab` UI + `forget({ hard })` opt-in remain shipped — they render the disabled hint correctly. `/test-chat-with-memory` Group H 3/3 PASS at API+SQL layer pre-hotfix; UI re-verification deferred to next /test-chat-with-memory run. |
-
-### Competitive superiority matrix
-
-How each roadmap item maps to a specific competitor weakness.
-
-| Competitor | Their moat | Our attack | Roadmap item(s) |
-|---|---|---|---|
-| **Mem0** ($24M) | Drop-in simplicity, vector-centric, large provider catalog | Same architecture + reflection + long-tail forgetting + Voyager skill library + bi-temporal cloud + TheoKit-native default-on | 2, 5, 6, 7, 8, 3 |
-| **Letta** ($10M) | Function-calling memory + sleep-time agents | Function-calling memory **without** agent-loop lock-in (we are primitive, not framework) | 4, 5 |
-| **Zep/Graphiti** (YC W24) | Bi-temporal knowledge graph with audit | Bi-temporal in paid tier bundled with TheoCloud (no Neo4j operations for consumer) | 7 |
-| **Honcho** ($5.35M) | Theory-of-mind / identity modeling | Multi-peer `attributed_to` **without** AGPL restriction (MIT) | 12 |
-| **Cognee** | Ontologies + poly-store | Typed domain ontologies without poly-store complexity | 15 |
-| **LangMem** | Procedural memory via prompt rewriting | Procedural skill library **with** automatic refactoring (Voyager-style, ships executable code not just prompts) | 8 |
-| **LlamaIndex Memory** | Block composition with priority truncation | Three-scope tier model + reflection + skill library (their blocks have no identity, no procedural) | 1, 5, 8 |
-| **Vector DBs** (Pinecone/Qdrant/Chroma/etc.) | Multi-tenancy at scale | Real semantic memory primitives (extraction, consolidation, scoring, forgetting) on top of pgvector | 2, 5, 9 |
-
-**Honesty discipline (Inquebrável Rule #3):**
-
-- **No production claims** until v1.0 with benchmarks reproduced independently. The README's Status section is the authoritative declaration; never weaken it without a PR-level decision.
-- **No `production-ready` badge** in the README or marketing — TheMemory is the explicit exception to the monorepo "production-ready" claim (2026-05-15 lock).
-- **Roadmap moves backward via PR with one-line rationale.** Items don't disappear silently. Removed items appear as `Removed` with date and reason.
-
-## Open questions for the contract design
-
-**Lock before v0.0 contract ships:**
-
-1. ~~**Multi-peer / `attributed_to` support.** Mem0 has the field as opt-in. Day-one for TheMemory?~~ **RESOLVED 2026-05-22:** deferred to v1.1 (roadmap Item 12). Rationale: keeps v0.0 contract minimal; no consumer asked for day-0; backward-compat path via optional column.
-2. **`update()` semantics inside ADD-only.** Mem0 has `update()`; we hold the line. Edge case: should it ever exist? **RESOLVED 2026-05-22 → [ADR-0003](.claude/knowledge-base/adrs/ADR-0003-add-only-public-api.md):** ADD-only. No public `update()`. Mutation = `forget(id) + remember(newText)`. `history(memoryId)` exists for audit.
-3. **Reflection trigger.** Background scheduler? Explicit call? Threshold-based? Shapes the storage layer. **RESOLVED 2026-05-22 → [ADR-0005](.claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md):** Explicit-only at v0.0. `ReflectionPolicy` DIP declared; `ManualReflectionPolicy` is the only v0.0 impl. Threshold + sleep-time policies land at v0.4a (roadmap Item 5) behind the same DIP — zero contract change.
-4. **Bi-temporal `t_valid` / `t_invalid` columns on local.** Always there (cloud exposes them), or schema differs? **RESOLVED 2026-05-22 → [ADR-0006](.claude/knowledge-base/adrs/ADR-0006-bi-temporal-local-schema.md):** Local schema HAS the columns from v0.1; local `recall()` does NOT accept `asOf` until v0.5+ backports (throws `BiTemporalNotSupportedLocally`). Cloud (v0.5) is the first to honor `asOf` in queries. Contract types are uniform across runtimes; divergence is a runtime error, not a type error.
-5. **Entity store opt-out.** Doubles storage cost. Configurable flag `entityBoost: false`? **RESOLVED 2026-05-22 → [ADR-0007](.claude/knowledge-base/adrs/ADR-0007-entity-store-opt-out.md):** Constructor-level flag `MemoryConfig.entityBoost?: boolean` defaults to `true` (Mem0 parity). When `false`, no entity vector store instantiated; recall's entity-boost score component is zero.
-6. **`THEOKIT_API_KEY` reuse** — confirm with `@usetheo/sdk` that cloud auth path is shared. **RESOLVED 2026-05-22 → [ADR-0009](.claude/knowledge-base/adrs/ADR-0009-cloud-auth-theokit-api-key.md):** Reuse `THEOKIT_API_KEY` env var with optional explicit `apiKey` constructor parameter override. No separate `THEMEMORY_API_KEY`. Matches the locked consolidation pattern per Cross-Project Rule 6 exception.
+---
 
 ## Inviolable rules (from root and global)
 
 1. **95% confidence gate.** Ask if uncertain. Especially load-bearing for theo-memory — the 4 root overrides are documented because they came from confirming with the project owner explicitly, not from inference.
 2. **Task completion gate.** Finish before starting a new task.
-3. **Extreme honesty.** Admit ignorance. Surface risks. The single biggest honesty risk here is claiming production-ready before v1.0 + reproduced benchmarks.
+3. **Extreme honesty.** Admit ignorance. Surface risks. The single biggest honesty risk here is claiming production-ready before v1.0 + reproduced benchmarks + `/dogfood` `EVIDENCE_SUFFICIENT`.
 4. **Git rules.** No `git checkout` or `git revert`. No direct work on `main`.
 5. **TDD.** Tests before production code; bug fixes start with a regression test. Especially critical for the LLM-extraction pipeline — write the prompt-output assertion test first.
-6. **Changelog discipline.** Every code change updates `CHANGELOG.md` (when created — does not exist yet).
+6. **Changelog discipline.** Every code change updates `CHANGELOG.md`.
 7. **Don't reinvent.** `pgvector`, `pg`, `zod` for the schema layer. `@usetheo/sdk`'s LLM client + `MemoryAdapter` for ecosystem reuse. Mem0's two-stage pipeline is the proven shape — adopt, don't redesign.
 8. **No emojis** in code, READMEs, CHANGELOGs, or CLAUDE.md files unless explicitly requested.
+9. **No paper names in code** per `.claude/rules/no-paper-names-in-code.md` (promoted 2026-05-30). Knowledge-base docs MAY cite Voyager / Mem0 / Letta / etc.; `src/**` + tests MUST NOT.
+10. **PRIORITY 0 freeze** (locked 2026-06-04). No new features outside the 3 P0 sub-goals (API correct + SDK functional + MCP available). Items 13/14/15 + future Phase V expansion are FROZEN until P0 closure. Any commit introducing a feature outside this scope MUST be reverted OR re-classified as in-scope with explicit rationale in the commit body. See § PRIORITY 0 above.
 
 Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Projetos/usetheo/CLAUDE.md`.
 
+---
+
 ## When this file is wrong
 
-The code (when it lands) and the README are authoritative. If this file disagrees with them, the code/README win — update this file via PR with a one-line rationale in the commit message.
+The code and the README are authoritative. If this file disagrees with them, the code/README win — update this file via PR with a one-line rationale in the commit message.
 
 **Locked items** require explicit strategic review:
 
 - **Locked names** (npm package, license MIT exception, tier, memory tiers, API verbs, two runtimes, subpath exports) — root-level strategic review.
 - **Voice and tone** — root-level strategic review per Voice and Tone section.
 - **Three root overrides** (Cross-Project Rule 6 exception, Phase 1 scope, MIT license exception) — root-level strategic review.
+- **ADR-0010 RepoScope 4th tier** + **ADR-0011 bi-temporal runtime lift** — project-owner sign-off required.
+- **PRIORITY 0 directive** (locked 2026-06-04, GO-TO CTO project-owner sign-off) — lifting the freeze on Items 13/14/15 OR introducing new features outside the 3 P0 sub-goals requires project-owner sign-off recorded in CHANGELOG + CLAUDE.md amendment.
 
 Do not edit any of the above silently. Surface the conflict to the user first.

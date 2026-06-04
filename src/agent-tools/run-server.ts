@@ -1,0 +1,224 @@
+/**
+ * REST server composition root for `themory server` (Roadmap Item 16-18).
+ *
+ * Absorbs three edge cases from plan T2.3:
+ *  - EC-31 EADDRINUSE → stderr `Port ${port} already in use` + exit 1.
+ *  - EC-32 SIGTERM/SIGINT → idempotent graceful shutdown: HTTP server close
+ *    → pool.end() → exit 0. Re-entrant guard via `shuttingDown` boolean so
+ *    a double signal does not double-call `pool.end()` (which would throw).
+ *  - EC-33 readiness gate: while `createLocalMemory()` is warming, the
+ *    `serve()` call has already bound the port BUT `/v1/health` answers
+ *    503 `warming_up`. Flag flips when the factory resolves.
+ *
+ * ADR D8 (migrate-on-startup): runMigrations runs BEFORE the port binds.
+ * Skipped when `THEMEMORY_SKIP_MIGRATIONS === 'true'` (positive opt-in;
+ * fail-safe default = run). Replaces deleted docker-entrypoint.sh per
+ * EC-47 / ADR D13 distroless discipline.
+ *
+ * DIP discipline: src/agent-tools/run-server.ts IS the composition root
+ * (per ADR D8 + architecture.md § 3) — it imports both src/server/ (REST
+ * surface) and src/local/ (pg pool + Memory factory). src/server/ itself
+ * stays pg-free.
+ *
+ * EC-7 reuse: identical THEOMEM_PG_URI hard-fail discipline as
+ * runMcpServer — exit 2 + stderr example URI when env var missing.
+ *
+ * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
+ */
+import { serve } from '@hono/node-server';
+import { Pool } from 'pg';
+
+import { DeterministicStubEmbedder } from '../embedders/stub.js';
+import { createLocalMemory, runMigrations, StubLLM } from '../local/index.js';
+import { PgvectorStore } from '../local/pgvector-store.js';
+import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
+import { createServer } from '../server/index.js';
+
+const SHUTDOWN_TIMEOUT_MS = 5_000;
+
+export interface RunServerOptions {
+  readonly port?: number;
+  readonly host?: string;
+}
+
+function resolvePort(opt?: number): number {
+  if (opt !== undefined) {
+    if (!Number.isInteger(opt) || opt <= 0 || opt > 65_535) {
+      throw new Error(`Invalid port: ${String(opt)} (must be an integer in 1..65535).`);
+    }
+    return opt;
+  }
+  const envRaw = process.env['PORT'];
+  const envPort = envRaw === undefined ? 8080 : Number.parseInt(envRaw, 10);
+  if (!Number.isInteger(envPort) || envPort <= 0 || envPort > 65_535) {
+    throw new Error(`Invalid port from PORT env: ${String(envRaw)} (must be an integer in 1..65535).`);
+  }
+  return envPort;
+}
+
+function resolveHost(opt?: string): string {
+  return opt ?? process.env['HOST'] ?? '0.0.0.0';
+}
+
+function shouldSkipMigrations(): boolean {
+  // Positive opt-in per SEPA iter 11 CRITICAL Q6a: ONLY `=== 'true'` skips.
+  // Fail-safe default is to run migrations.
+  return process.env['THEMEMORY_SKIP_MIGRATIONS'] === 'true';
+}
+
+interface HttpListener {
+  close: (cb?: (err?: Error) => void) => void;
+  on?: (event: string, cb: (err: Error) => void) => void;
+}
+
+export async function runServer(options?: RunServerOptions): Promise<void> {
+  const pgUri = process.env['THEOMEM_PG_URI'];
+  if (pgUri === undefined || pgUri.length === 0) {
+    process.stderr.write(
+      'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).\n',
+    );
+    process.exit(2);
+    return;
+  }
+
+  const port = resolvePort(options?.port);
+  const host = resolveHost(options?.host);
+
+  const pool = new Pool({ connectionString: pgUri });
+
+  // ADR D8 — migrate-on-startup BEFORE port binds.
+  if (!shouldSkipMigrations()) {
+    try {
+      await runMigrations(pool);
+    } catch (err) {
+      process.stderr.write(
+        `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
+      );
+      process.exit(1);
+      return;
+    }
+  }
+
+  // fixes-cycle-1 T2.2 / F-rev-9 absorption: loud stderr warning so consumers
+  // booting ghcr.io/usetheo/themory:0.1.0-alpha know that recall is shape-
+  // correct but semantically a smoke test until they wire real providers.
+  // Inquebrável Rule 3 (honesty) at the consumer-facing boundary.
+  // FOLLOW-UP: gate this warning when src/agent-tools/run-server.ts gains
+  // real-provider config (e.g., THEMORY_EMBEDDER=openai|local env or
+  // --embedder flag). Currently unconditional because the default code
+  // path always uses DeterministicStubEmbedder + StubLLM.
+  process.stderr.write(
+    'themory server: WARNING — Stub embedder + Stub LLM in use (DeterministicStubEmbedder + StubLLM).\n',
+  );
+  process.stderr.write(
+    'themory server: Recall returns shape-correct results but is NOT semantic — only exact-text round-trips work reliably.\n',
+  );
+  process.stderr.write(
+    'themory server: For production, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n',
+  );
+
+  // EC-33 readiness gate — bind port EAGERLY; warm Memory factory async so
+  // /v1/health observes the 503-then-200 transition. Without async kickoff,
+  // the factory resolves before any HTTP probe could land and the gate
+  // would be unobservable.
+  let isReady = false;
+  let memory: Awaited<ReturnType<typeof createLocalMemory>> | undefined;
+  const warmPromise = (async () => {
+    memory = await createLocalMemory({
+      vectorStore: new PgvectorStore(pool),
+      // T3.5 absorption (surfaced by THE GOAL TEST docker-stack round-trip):
+      // `StubEmbedder` from src/local/stubs.ts returns ZERO vectors with a
+      // production warning, which collapses cosine similarity to NaN and
+      // breaks recall semantically. `DeterministicStubEmbedder` is the
+      // debug-grade alternative — pure-function MD5+Lehmer LCG so identical
+      // text round-trips at cosine 1.0 (sufficient for the GOAL TEST shape
+      // round-trip + dev kicking-tires). Real consumers swap this for
+      // `OpenAIEmbedder` / `LocalTransformerEmbedder` via consumer wiring
+      // when they ship to production.
+      embedder: new DeterministicStubEmbedder(),
+      llm: new StubLLM(),
+    });
+    isReady = true;
+  })();
+
+  // dbProbe closure — thin (no timeout); healthDbHandler owns the 2s race.
+  const dbProbe = async (): Promise<void> => {
+    await pool.query('SELECT 1');
+  };
+
+  const apiKey = readApiKey();
+  const authVerifier = apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
+
+  // Memory is injected via a small shim that surfaces an honest error if
+  // a verb handler fires before the factory resolves. The 503-readiness
+  // gate at /v1/health should prevent the orchestrator from routing user
+  // traffic during that window; this shim is the defense-in-depth.
+  const memoryShim = new Proxy({} as Awaited<ReturnType<typeof createLocalMemory>>, {
+    get(_target, prop) {
+      if (memory === undefined) {
+        throw new Error(
+          'Memory not ready: server is still warming up. Poll GET /v1/health until 200 before sending verb traffic.',
+        );
+      }
+      return Reflect.get(memory, prop) as unknown;
+    },
+  });
+
+  const app = createServer({
+    memory: memoryShim,
+    ...(authVerifier !== undefined ? { authVerifier } : {}),
+    dbProbe,
+    readinessProbe: () => isReady,
+  });
+
+  const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
+    process.stdout.write(`themory server: listening on ${host}:${String(info.port)}\n`);
+  }) as unknown as HttpListener;
+
+  if (listener.on !== undefined) {
+    listener.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        process.stderr.write(`themory server: Port ${String(port)} already in use\n`);
+        process.exit(1);
+        return;
+      }
+      process.stderr.write(`themory server: listen error: ${err.message}\n`);
+      process.exit(1);
+    });
+  }
+
+  // EC-32 idempotent shutdown — guard against double-fire.
+  let shuttingDown = false;
+  const shutdown = (): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    void (async () => {
+      try {
+        await Promise.race([
+          new Promise<void>((resolve, reject) => {
+            listener.close((err) => (err !== undefined ? reject(err) : resolve()));
+          }),
+          new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+        ]);
+        await pool.end();
+      } finally {
+        process.exit(0);
+      }
+    })();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
+  // Let the warm Promise surface its rejection (if any) to the loop so the
+  // process exits non-zero on Memory bootstrap failure.
+  warmPromise.catch((err: unknown) => {
+    process.stderr.write(
+      `themory server: Memory factory failed to warm (${err instanceof Error ? err.message : String(err)})\n`,
+    );
+    process.exit(1);
+  });
+  // In tests (mocked factory resolves synchronously inside microtasks), the
+  // warm promise completes before this function returns — let runServer
+  // await it so the EC-33 test can deterministically observe both states.
+  await warmPromise.catch(() => undefined);
+}

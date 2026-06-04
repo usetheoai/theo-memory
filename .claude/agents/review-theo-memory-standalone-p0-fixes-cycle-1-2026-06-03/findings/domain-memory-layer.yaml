@@ -1,0 +1,148 @@
+agent: review-theo-memory-standalone-p0-fixes-cycle-1-domain-memory-layer
+review_target: 0e40344..HEAD for plan theo-memory-standalone-p0-fixes-cycle-1 (v1.2)
+domain: memory-layer
+diff_base: 0e40344dad5c99dbbd08b76545e6e2de5f937079
+branch: develop
+verdict: ABSORPTION_GENUINE_NO_BLOCKERS
+
+domain_specific_patterns_checked:
+  - "Three-tier scope (User/Session/Agent) — architecture.md § 1"
+  - "ADR-0010 RepoScope 4th tier exposed ONLY via Memory.skills(...) — not on the 4 verbs"
+  - "Mem0-shape ADD-only invariant (no update on public API) — architecture.md § 2"
+  - "Eight-phase write pipeline + nine-step search untouched — architecture.md § 4"
+  - "DIP boundary src/core/ vs src/server/ — architecture.md § 3"
+  - "Standalone-p0 plan T1.3 case-sensitive scope enum {user,session,agent,skill} preserved at path level per EC-13"
+  - "Fix-up plan ADR D1: Option A (remove from REST) over Option B (extend ScopedSkillMemory) or Option C (discriminated-union dispatch)"
+
+absorption_depth_audit:
+  schemas_ts:
+    SCOPE_KEYS_correct: true
+    SCOPE_KEYS_value: "['userId', 'sessionId', 'agentId'] (line 23 — exactly 3 keys)"
+    ScopeFields_skillRepoId_dropped: true
+    ScopeFields_evidence: "lines 42-46 — only 3 optional fields, no skillRepoId"
+    resolveScope_skillRepoId_branch_dropped: true
+    resolveScope_evidence: "lines 108-116 — 3 if-branches (user/session/agent); skillRepoId branch absent"
+    MemoryLike_skills_member_dropped: true
+    MemoryLike_evidence: "lines 102-106 — interface declares only user/session/agent (no skills member)"
+    superRefine_error_msg_updated: true
+    superRefine_evidence: "lines 33-37 — message lists only 3 tiers"
+  scopes_ts:
+    SCOPE_TYPES_path_enum_preserved: true
+    SCOPE_TYPES_evidence: "line 25 — ['user','session','agent','skill'] case-sensitive per EC-13 still present"
+    skill_branch_short_circuits_BEFORE_dispatch: true
+    skill_branch_evidence: "lines 91-100 — returns 501 SKILL_LISTING_NOT_IMPLEMENTED with structured envelope BEFORE pathParamsToScoped call at line 128"
+    pathParamsToScoped_narrowed_signature: true
+    pathParamsToScoped_evidence: "line 40 — type: Exclude<ScopeType, 'skill'> guarantees the 'skill' branch is unreachable via TypeScript flow analysis"
+    no_memory_skills_call_in_handler: true
+    no_memory_skills_evidence: "memory.skills only appears inside the explanatory comment (lines 87-90) describing what was REMOVED"
+  handlers_remember_recall_reflect:
+    double_cast_dropped_in_remember: true
+    remember_evidence: "src/server/handlers/remember.ts:32 — resolveScope(memory, parsed.data) — plain call, no cast"
+    double_cast_dropped_in_recall: true
+    recall_evidence: "src/server/handlers/recall.ts:29 — resolveScope(memory, parsed.data) — plain call, no cast"
+    double_cast_dropped_in_reflect: true
+    reflect_evidence: "src/server/handlers/reflect.ts:31 — resolveScope(memory, parsed.data) — plain call, no cast"
+    type_clean_at_load_bearing_call_site: true
+    type_clean_evidence: "real Memory (memory-store.ts:73-77 user/session/agent → ScopedMemory) is structurally compatible with trimmed MemoryLike (user/session/agent → ScopedMemoryLike where ScopedMemoryLike's options are loose `object` superset of real RememberOptions/etc.). tsc --noEmit on the contract config passes — Type Errors: no errors per vitest typecheck output."
+
+grep_gates_verified:
+  - check: "grep -rn skillRepoId src/server/"
+    expected: "ZERO functional hits"
+    actual: "2 hits in schemas.ts comments (documenting what was removed) + 5 hits in __tests__/handlers.test.ts (RED tests asserting 422) + 1 hit in __tests__/openapi.test.ts (EC-5 field-membership test). ZERO hits in src/server/handlers/*.ts production code."
+    verdict: PASS
+  - check: "grep -rn 'as unknown as MemoryLike' src/server/"
+    expected: "ZERO hits"
+    actual: "ZERO hits across entire src/server/ tree"
+    verdict: PASS
+  - check: "grep -rn 'memory.skills' src/server/handlers/"
+    expected: "ZERO functional hits (only in explanatory comments)"
+    actual: "2 hits in scopes.ts inside explanatory comment block (lines 87+90) — describing the removed dispatch path; no functional call"
+    verdict: PASS
+
+mem0_shape_invariants:
+  add_only_preserved:
+    verdict: PRESERVED
+    evidence: "git diff 0e40344..HEAD -- src/core/ returns empty — zero changes to ADD-only public API surface"
+  eight_phase_write_pipeline_untouched:
+    verdict: PRESERVED
+    evidence: "no diff under src/core/extraction/ — pipeline architecture.md § 4 lock holds"
+  nine_step_search_pipeline_untouched:
+    verdict: PRESERVED
+    evidence: "no diff under src/core/retrieval/ — additive scoring lock holds"
+  three_tier_scope_preserved_at_contract:
+    verdict: PRESERVED
+    evidence: "Memory interface (memory-store.ts) unchanged — user/session/agent + skills(repoId) for SDK; REST surface NOW correctly limited to the 3 verbs"
+  ADR_0010_honored:
+    verdict: HONORED
+    evidence: "CLAUDE.md ADR-0010: 'Memory.skills(...) (not on the public 4 verbs)' — the fix-up enforces this AT the REST schema layer (skillRepoId removed) AND at the listing endpoint (501 SKILL_LISTING_NOT_IMPLEMENTED). Both surfaces now reject skill via REST in favor of SDK Memory.skills(repoId)."
+
+design_coherence_skill_enum_at_path_level:
+  question: "Is preserving SCOPE_TYPES = ['user','session','agent','skill'] at the path level while short-circuiting BEFORE dispatch a coherent design?"
+  answer: "YES — coherent and intentional per plan T1.1 § Decision and § Consequences."
+  rationale: |
+    The source plan (theo-memory-standalone-p0) T1.3 + EC-13 declared SCOPE_TYPES as
+    case-sensitive {user,session,agent,skill} for the path-param validation layer. This
+    governs WHAT path strings are accepted as the :type segment. Preserving the 4-element
+    enum keeps three properties:
+    1. Path 'skill' returns 501 (an honest, intentional response) NOT 404 (which would
+       falsely imply the route doesn't exist at the routing layer)
+    2. Path 'Skill'/'SKILL' continue to return 404 (case-sensitive — EC-13 preserved)
+    3. The dispatch function pathParamsToScoped is TypeScript-narrowed via
+       Exclude<ScopeType, 'skill'> so the 'skill' branch is statically unreachable
+       in the dispatch — the runtime short-circuit and the type system are aligned
+
+    The alternative (drop 'skill' from SCOPE_TYPES too) would change the consumer
+    contract from "501 NOT_IMPLEMENTED" to "404 NOT_FOUND" for a known-but-unsupported
+    operation — strictly less honest. The current design correctly distinguishes
+    "you asked for something we know about but don't expose via REST" (501) from
+    "you asked for something we don't know about" (404).
+
+adr_d1_option_a_execution:
+  option_chosen: "A (Remove skillRepoId from REST scope keys)"
+  alternatives_rejected:
+    - "B (Extend ScopedSkillMemory with remember/reflect/getAll) — would violate ADR-0010"
+    - "C (Discriminated-union dispatch in handlers) — would keep the misleading affordance"
+  execution_quality: CLEAN
+  cleanness_evidence:
+    - "Surgical: 4 production files (schemas.ts, 3 handlers) + 1 routing file (scopes.ts) — minimum-diff change set per plan T1.1 § Files to edit (12-line check)"
+    - "Zero rippling into core/ DIP boundary — DIP boundary architecture.md § 3 preserved"
+    - "ScopedMemoryLike interface (lines 96-100) accurately models the REAL ScopedMemory call surface (remember/recall/reflect with permissive `options?: object` superset typing) — no longer LIES about skills"
+    - "Real Memory now structurally assignable to MemoryLike WITHOUT cast (TypeScript flow + tsc --noEmit confirms)"
+    - "Test coverage upgraded: handlers.test.ts adds 3 RED tests (FC1-T1.1-RED-1/2/3) covering 422 path on skillRepoId at remember + ONLY-skillRepoId scope + reflect (parallel pattern). scopes.test.ts test #12 REWRITTEN (was: dispatches to memory.skills) to (now: returns 501) + test #12b added explicitly verifying memory.skills NOT called (EC-4 absorption)"
+    - "OpenAPI field-membership verified via openapi.test.ts:81-94 (EC-5 absorption — walks paths['/v1/{verb}'].post.requestBody.content.schema.properties for all 4 verbs)"
+
+cross_validation_with_other_findings:
+  - finding_id: F-arch-2
+    relationship: "Closed as side effect per plan T1.1 § Wiring effects (line 211)"
+    verification: "The previous F-arch-2 was the 'as unknown as MemoryLike' cast — once MemoryLike loses the false skills member, the cast becomes redundant and was dropped. Verified by grep -rn 'as unknown as MemoryLike' src/server/ → ZERO hits."
+
+findings: []
+
+# No findings to surface. The F-rev-1 absorption is GENUINE per all 6 verification dimensions:
+# 1. schemas.ts — SCOPE_KEYS, ScopeFields, resolveScope, MemoryLike correctly trimmed
+# 2. scopes.ts — 'skill' branch short-circuits BEFORE pathParamsToScoped; signature narrowed via Exclude
+# 3. handlers — all 3 'as unknown as MemoryLike' casts dropped; type-clean per vitest typecheck
+# 4. CLAUDE.md § ADR-0010 honored (skill exposed only via SDK)
+# 5. architecture.md § 1 three-tier scope preserved
+# 6. Mem0-shape architecture (ADD-only, 8-phase write, 9-step search, src/core/) untouched (0 LoC diff)
+
+summary: |
+  F-rev-1 CRITICAL absorption is GENUINE — not covered up. The double-cast was the
+  symptom of a deeper LIE (MemoryLike falsely declared a `skills` member that returned
+  ScopedMemoryLike with `remember/recall/reflect`, when the real Memory.skills returns
+  ScopedSkillMemory with `add/recall/consolidate/forget`). The fix-up corrected the
+  contract at the TYPE layer first (MemoryLike trimmed to user/session/agent only) +
+  the SCHEMA layer (SCOPE_KEYS, ScopeFields, resolveScope) + the ROUTING layer
+  (scopes.ts skill branch short-circuits before dispatch with Exclude<ScopeType,'skill'>
+  signature narrowing) — making the double-cast redundant rather than smuggling it
+  past the type system again.
+
+  Plan ADR D1 Option A executed cleanly. The 'skill' enum entry at SCOPE_TYPES path
+  level is intentionally preserved per EC-13 + the design distinction between
+  501 NOT_IMPLEMENTED (we know about it, don't expose it via REST) vs 404 NOT_FOUND
+  (we don't know about it). Mem0-shape architectural invariants are untouched —
+  zero diff under src/core/.
+
+  Test coverage is genuine: 30/30 tests PASS (handlers.test.ts + scopes.test.ts) +
+  Type Errors: no errors per the contract tsconfig — confirming the type-clean
+  call sites without the cast.

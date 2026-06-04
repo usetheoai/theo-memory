@@ -1,0 +1,351 @@
+agent: review-theo-memory-standalone-p0-fixes-cycle-1-domain-api-design
+review_target: 0e40344dad5c99dbbd08b76545e6e2de5f937079..HEAD for plan theo-memory-standalone-p0-fixes-cycle-1
+domain: api-design
+domain_specific_patterns_checked:
+  - Endpoint shapes match plan's OpenAPI / contract section
+  - Status codes correct per RFC 9110 (501, 413, 422, 401)
+  - Error response shape consistent across endpoints (T1.6 envelope `{code, message, field?}`)
+  - Middleware order load-bearing per ADR D3 v1.1 (OTel → bodyLimit → health → bearer → handlers)
+  - Three-tier scope contract preserved (ADR-0010 — skill scope SDK-only)
+  - CLAUDE.md ADR-0010 (RepoScope 4th tier exposed ONLY via Memory.skills)
+
+findings:
+  - id: F-dom-api-1
+    severity: MAJOR
+    file: src/server/openapi-registration.ts
+    line: 138-163
+    plan_ref: T1.1 ADR D1 Consequences + EC-5
+    domain_anchor: |
+      Plan T1.1 § Why deferrals "501 envelope shape" + cycle-implement
+      anti-pattern #7 (silent scope creep — when surface behavior changes,
+      the OpenAPI spec MUST keep up). CLAUDE.md architecture.md § 9: "the
+      `index.ts` at `src/` is the only thing TypeScript consumers import
+      directly. Subpath exports ... explicit per the locked names table."
+    summary: |
+      OpenAPI spec does NOT advertise the 501 SKILL_LISTING_NOT_IMPLEMENTED
+      response for GET /v1/scopes/{type}/{id}/memories, but the handler
+      shipped in T1.1 (src/server/handlers/scopes.ts:91-100) returns 501
+      with body `{code: 'SKILL_LISTING_NOT_IMPLEMENTED', message: ...}`
+      when path param `type === 'skill'`. The spec's response map for
+      this operation only lists 200 / 400 / 404 / 422 — consumers using
+      codegen (openapi-generator, Postman) or contract testing tools
+      (Pact, Dredd) will see UNDOCUMENTED status code 501 with an
+      unmodeled error envelope. ScopeTypeEnum at line 24 still includes
+      'skill' so the path is advertised as valid; the operationId
+      `listScopeMemories` therefore signals "skill scope listing
+      supported" while the implementation honestly returns 501.
+    evidence: |
+      src/server/openapi-registration.ts:138-163:
+        registry.registerPath({
+          method: 'get',
+          path: '/v1/scopes/{type}/{id}/memories',
+          operationId: 'listScopeMemories',
+          ...
+          responses: {
+            200: { ... },
+            400: { ... },  // Invalid cursor
+            404: { ... },  // Unknown scope type or empty id
+            422: { ... },  // Invalid query parameters
+            // ← MISSING: 501 SKILL_LISTING_NOT_IMPLEMENTED (T1.1 ships this status)
+          },
+        });
+      src/server/handlers/scopes.ts:91-100 (the actual behavior):
+        if (typeParse.data === 'skill') {
+          return c.json(
+            { code: 'SKILL_LISTING_NOT_IMPLEMENTED', message: '...' },
+            501,
+          );
+        }
+    recommended_action: |
+      Add a 501 response entry to the listScopeMemories registration:
+          501: {
+            description: 'Operation not supported on this scope (skill listing is SDK-only at v0.1.0-alpha).',
+            content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+          },
+      AND consider documenting in the description that 'skill' is reserved
+      in the enum but returns 501 from this REST path; the SDK
+      `Memory.skills(repoId).recall(...)` is the supported access route.
+      EC-5 OpenAPI test (openapi.test.ts:81-96) caught the request-body
+      removal but did NOT assert response coverage — the test surface
+      gap allowed this drift through.
+
+  - id: F-dom-api-2
+    severity: MAJOR
+    file: src/server/openapi-registration.ts
+    line: 55-109
+    plan_ref: T2.1 ADR D3 v1.1 + EC-1 (envelope consistency)
+    domain_anchor: |
+      T1.6 contract: "EVERY 4xx/5xx from /v1/* carries the structured
+      {code, message, field?} envelope shape" (per plan T2.1 ADR D3
+      verbatim block, line 103). RFC 9110 § 15.5.14 (413 Content Too
+      Large): "request entity is larger than limits defined by server".
+    summary: |
+      OpenAPI spec does NOT advertise the 413 CONTENT_TOO_LARGE response
+      for any of the 4 verb endpoints (/v1/remember, /v1/recall,
+      /v1/forget, /v1/reflect), but T2.1 shipped `hono/body-limit`
+      middleware on /v1/* with a 1 MB cap that returns the structured
+      `{code: 'CONTENT_TOO_LARGE', message: ...}` envelope on oversize.
+      Consumers parsing the OpenAPI spec see the verbs as 201/200/204/202
+      + 400/422/500 and would be surprised by an undocumented 413. EC-1
+      explicitly states the 413 envelope MUST match T1.6's `{code,
+      message}` shape — the contract is satisfied at runtime but the
+      contract is invisible at the discoverability layer.
+    evidence: |
+      src/server/openapi-registration.ts:55-63 (RememberBody responses):
+        responses: {
+          201: { ... },
+          400: { ... },  // Malformed JSON body
+          422: { ... },  // Validation failure
+          500: { ... },  // Internal error
+          // ← MISSING: 413 CONTENT_TOO_LARGE (T2.1 ships this status)
+        }
+      Same gap repeats at lines 71-79 (recall), 87-93 (forget), 100-108 (reflect).
+      Production behavior (verified via FC1-T2.1-RED-1 in handlers.test.ts:351-369):
+        POST /v1/remember with 2MB body → 413 + {code:'CONTENT_TOO_LARGE',...}
+    recommended_action: |
+      Add a 413 response entry to each of the 4 verb registrations:
+          413: {
+            description: 'Request body exceeds the 1 MB cap. Split the input and retry.',
+            content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+          },
+      Honest README disclosure (already in place at line 233) is the
+      consumer-side workaround; the spec gap is for codegen-driven
+      consumers.
+
+  - id: F-dom-api-3
+    severity: MINOR
+    file: src/server/openapi-registration.ts
+    line: 95-109
+    plan_ref: T1.1 (skillRepoId removal — EC-5 OpenAPI field-membership test)
+    domain_anchor: |
+      Plan T1.1 § Files to edit: "src/server/openapi-registration.ts —
+      drop skillRepoId from body schemas (RememberBody etc. that this
+      file references through zod imports)". CLAUDE.md architecture.md
+      § 1: "Three-tier scope (User / Session / Agent) Locked".
+    summary: |
+      The `/v1/forget` registration at lines 82-93 includes a 422
+      response but the implementation can ALSO return 400 INVALID_BODY
+      on malformed JSON. The 400 response IS documented. However, the
+      response coverage for `/v1/recall` (lines 66-80) does NOT include
+      500 INTERNAL_ERROR even though the catch-all `app.onError` at
+      src/server/app.ts:131-137 maps unknown throws to 500 sanitized.
+      Similar gap for `/v1/forget` (no 500 documented) and `/v1/reflect`
+      (no 500 documented). Only `/v1/remember` lists 500 in its responses.
+      This is INHERITED debt from the pre-T1.1 spec (not introduced by
+      this cycle) — flagging for completeness since the cycle touched
+      openapi-registration.ts.
+    evidence: |
+      openapi-registration.ts:55-63 (remember): 201/400/422/500 ✓
+      openapi-registration.ts:71-79 (recall): 200/400/422 — missing 500
+      openapi-registration.ts:87-93 (forget): 204/400/422 — missing 500
+      openapi-registration.ts:100-108 (reflect): 202/400/422 — missing 500
+      app.ts:131-137 confirms all routes can return 500 via app.onError.
+    recommended_action: |
+      Decide: either (a) extract a shared `commonErrorResponses` helper
+      and apply uniformly to all 4 verbs (200/201/202/204 + 400 + 422 +
+      413 + 500), OR (b) document this gap as an explicit "out-of-scope
+      for this cycle — paper cut to address in a follow-up". The cycle
+      scope was narrow per the plan, so (b) is acceptable; flag as
+      MINOR because it predates this fix-up cycle.
+
+  - id: F-dom-api-4
+    severity: INFO
+    file: src/server/app.ts
+    line: 98-122
+    plan_ref: T2.1 ADR D3 v1.1 (middleware order) + T3.5/T2.3 (health auth-exempt)
+    domain_anchor: |
+      Plan T2.1 ADR D3 v1.1: "ORDER: OTel → bodyLimit → bearer".
+      Plan T3.5 absorbed via T2.3: "health endpoints between bodyLimit
+      and bearer". RFC 9110 § 15.6.2 (501): "the server does not support
+      the functionality required to fulfill the request".
+    summary: |
+      Middleware mount order is CORRECT and load-bearing:
+        line 87: otelMiddleware (first — captures all 4xx/5xx spans)
+        line 98-109: bodyLimit (second — DOS guard before any further work)
+        line 119-120: health endpoints (third — auth-exempt, but DOES
+                      go through bodyLimit; a 2MB body to /v1/health
+                      would correctly return 413)
+        line 122: bearerAuth (fourth — runs only on /v1/* requests that
+                  passed body-size gate AND are NOT health endpoints)
+        line 124-129: handlers (last)
+      This honors all three load-bearing constraints simultaneously:
+      (a) DOS guard precedes auth (no token-validity leak via 401 on
+      oversized unauthenticated probes per ADR D3 rationale)
+      (b) health endpoints are auth-exempt (RFC 9110 + OWASP /healthz)
+      (c) OTel observes all spans (including 413 and 401)
+      An undeclared but correct behavior: oversize body to /v1/health
+      ALSO returns 413 (not 200) — because bodyLimit precedes health
+      route handlers. This is industry-correct (Kubernetes probes never
+      send 2MB bodies) but is not documented anywhere.
+    evidence: |
+      app.ts:
+        87: app.use('/v1/*', otelMiddleware(tracer));
+        98-109: app.use('/v1/*', bodyLimit({maxSize: 1_000_000, onError: ...}));
+        119: app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
+        120: app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+        122: app.use('/v1/*', bearerAuth(authVerifier));
+        124+: handler mounts
+    recommended_action: |
+      None — this is information-only verification that the mount order
+      satisfies all 3 conflicting constraints simultaneously. The 413
+      on /v1/health is correct edge behavior; document if a future
+      cycle adds a docs/middleware-order.md.
+
+  - id: F-dom-api-5
+    severity: INFO
+    file: src/server/handlers/scopes.ts
+    line: 25, 40-49
+    plan_ref: T1.1 ADR D1 + EC-13
+    domain_anchor: |
+      Plan T1.1 § Why deferrals: "Why keep 'skill' in scope listing
+      SCOPE_TYPES but return 501? Removing 'skill' from SCOPE_TYPES
+      makes the route return 404 (per the case-sensitive enum). 404
+      is OK shape-wise but misleading semantically — the operator
+      might think the route doesn't exist. 501 NOT_IMPLEMENTED is
+      the honest HTTP status".
+    summary: |
+      Verified SCOPE_TYPES enum at handler-level (line 25) still
+      includes 'skill' AND case-sensitive validation per EC-13 still
+      works: test #6 (scopes.test.ts:87-93) confirms capitalized
+      'User' returns 404 (rejected by ScopeTypeSchema.safeParse).
+      The `pathParamsToScoped` switch (line 40-49) is now restricted
+      to `Exclude<ScopeType, 'skill'>` — TypeScript at the function
+      signature level pins that 'skill' cannot reach the dispatch
+      after the line 91-100 short-circuit. The exhaustive switch
+      compiles without a `default` because the type narrows to 3
+      cases. Excellent type-driven design — the compiler would have
+      rejected a refactor that moved the 501 branch below the switch.
+    evidence: |
+      scopes.ts:25:
+        const SCOPE_TYPES = ['user', 'session', 'agent', 'skill'] as const;
+      scopes.ts:40-49:
+        function pathParamsToScoped(memory: Memory, type: Exclude<ScopeType, 'skill'>, id: string): ScopedMemory {
+          switch (type) {
+            case 'user':    return memory.user(id);
+            case 'session': return memory.session(id);
+            case 'agent':   return memory.agent(id);
+          }
+        }
+      scopes.test.ts:87-93 (test #6 — EC-13 still holds):
+        test('6. scope type case-sensitive — "User" (capitalized) returns 404 (EC-13)', ...)
+      scopes.test.ts:185-198 (test #12b — EC-4 short-circuit ordering):
+        eslint-disable + expect(skillsMock).not.toHaveBeenCalled() pins
+        that memory.skills() is NEVER reached for skill scope GET.
+    recommended_action: |
+      None — this is verification that the type narrowing + runtime
+      short-circuit + EC-4 spy assertion form a 3-layer defense
+      against future regressions. The Inquebrável Rule 5 TDD discipline
+      shows: RED-1 (501 status) + RED-12b (no-memory-skills-call) +
+      TypeScript narrow type = three independent ways to catch a
+      regression.
+
+  - id: F-dom-api-6
+    severity: MINOR
+    file: src/server/openapi-registration.ts
+    line: 144
+    plan_ref: T1.1 ADR D1 (route path scope listing) + EC-5
+    domain_anchor: |
+      Plan T1.1 says: "ScopeTypeEnum keeps 'skill' in the enum
+      (case-sensitive validation per EC-13) — the handler returns
+      the 501 before reaching the dispatch shim". CLAUDE.md
+      architecture.md § 8 Error handling: "errors should be explicit
+      and typed".
+    summary: |
+      OpenAPI registration `request.params: z.object({type: ScopeTypeEnum, ...})`
+      at line 144 declares `type` as one of `{user, session, agent, skill}`
+      WITHOUT any description annotation hinting that `skill` is
+      special-cased to 501. The openapi spec consumer sees an enum
+      with 4 equal values but only 3 produce 200; the 4th returns
+      a status code that's not even in the response map (per F-dom-api-1).
+      Adding a JSDoc/description hint to the param OR the path's
+      summary would surface this honestly.
+    evidence: |
+      openapi-registration.ts:142-144:
+        registry.registerPath({
+          method: 'get',
+          path: '/v1/scopes/{type}/{id}/memories',
+          operationId: 'listScopeMemories',
+          summary: 'Paginated listing of memories under a scope.',
+          request: {
+            params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
+            ...
+          },
+    recommended_action: |
+      Extend the path summary OR add a description on the type param:
+        summary: 'Paginated listing of memories under a scope (user/session/agent only; skill returns 501 per ADR-0010 — use SDK).',
+      OR drop 'skill' from ScopeTypeEnum entirely AND accept the 404 trade-off
+      (rejected in T1.1 ADR with rationale but worth re-visiting in a
+      follow-up cycle for cleaner consumer DX).
+
+  - id: F-dom-api-7
+    severity: INFO
+    file: src/server/__tests__/openapi.test.ts
+    line: 81-96
+    plan_ref: T1.1 EC-5 absorption
+    domain_anchor: |
+      Plan EC-5 absorption note (plan line 247): "OpenAPI spec
+      validation walks paths['/v1/{verb}'].post.requestBody.content
+      ['application/json'].schema.properties for the 4 verbs ... and
+      asserts 'skillRepoId' in properties === false".
+    summary: |
+      EC-5 test (test #5) verifies skillRepoId absent from all 4 verb
+      REQUEST BODIES — confirmed PASS at design time. HONEST GAP: the
+      test does NOT verify the RESPONSE shape coverage (no assertion
+      that 413 / 501 are documented). This testing gap allowed F-dom-api-1
+      and F-dom-api-2 through. A complement to EC-5 ("OpenAPI spec
+      documents every status code the implementation can return")
+      would have caught both findings. The current EC-5 surface only
+      catches request-body drift, not response-coverage drift.
+    evidence: |
+      openapi.test.ts:81-96:
+        test('5. FC1-T1.1 EC-5 — skillRepoId absent from all 4 verb request bodies (F-rev-1 absorption)', ...
+          for (const verb of ['/v1/remember', '/v1/recall', '/v1/reflect', '/v1/forget']) {
+            const props = spec.paths[verb]?.post?.requestBody?.content?.['application/json']?.schema?.properties;
+            if (props !== undefined) {
+              expect(Object.keys(props)).not.toContain('skillRepoId');
+            }
+          }
+        );
+    recommended_action: |
+      Add a complementary test #6 in openapi.test.ts:
+        test('6. spec documents 413 + 501 status codes that handlers can return', ...)
+      Walk responses for each verb + scopes endpoint; assert the
+      documented status codes match the set the implementation
+      can emit. This catches future drift (a new mapped error status
+      shipped in the implementation without a corresponding spec entry).
+
+# Summary
+# =======
+# Domain-specific patterns checked: 6 areas (REST status semantics,
+# envelope consistency, middleware order, three-tier scope contract,
+# RFC 9110 / OWASP conventions, OpenAPI spec coverage).
+#
+# Findings:
+#   2 MAJOR — F-dom-api-1 (501 missing from OpenAPI), F-dom-api-2 (413 missing from OpenAPI)
+#   2 MINOR — F-dom-api-3 (500 missing from 3 verbs — pre-existing debt),
+#             F-dom-api-6 (ScopeTypeEnum description gap)
+#   3 INFO  — F-dom-api-4 (middleware order verified correct),
+#             F-dom-api-5 (type-driven short-circuit verified),
+#             F-dom-api-7 (EC-5 test gap surfaces F-1 + F-2)
+#
+# Honest contract observations:
+#   - Implementation correctly satisfies the T1.6 envelope contract
+#     and ADR D3 v1.1 middleware order at runtime
+#   - The OpenAPI spec ships incomplete response coverage; consumers
+#     using codegen will be surprised by 413 and 501 status codes
+#   - All 3 sub-goals of the plan (T1.1 F-rev-1, T2.1 F-rev-4, T2.3
+#     F-rev-3 ADR amendment) are technically closed, but the
+#     discoverability surface (OpenAPI spec) ships honest gaps
+#   - skillRepoId removal is COMPLETE in production code; tests retain
+#     references as regression guards (expected); CHANGELOG entry is
+#     present and properly tagged with severity (CRITICAL) closure
+#
+# No BLOCKER / CRITICAL findings.
+#
+# Recommended verdict for this domain reviewer: READY_TO_MERGE_WITH_CAVEATS
+# — the MAJOR findings (F-dom-api-1, F-dom-api-2) describe documentation
+# gaps in the OpenAPI spec that do NOT change runtime behavior; they
+# affect codegen / contract testing tools. A follow-up cycle to harden
+# the OpenAPI spec response coverage is the natural sequel; the cycle's
+# scope (closing F-rev-1 CRITICAL + F-rev-3/4 MAJOR + EC-1/2/4/5/7/9
+# absorptions) was respected.

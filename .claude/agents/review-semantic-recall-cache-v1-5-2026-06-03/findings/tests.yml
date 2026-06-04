@@ -1,0 +1,581 @@
+agent: review-semantic-recall-cache-v1-5-tests
+review_target: main..HEAD for plan semantic-recall-cache-v1-5
+plan: .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md
+plan_version: v1.1
+branch: develop
+commits_audited:
+  - 4332382  # T0.1 — DIP + InvalidCacheConfig
+  - 1b275c3  # T0.2 — migration 0010 + schema declaration
+  - d1664ec  # T1.1 + T1.2 — PgvectorRecallCacheStore + LRU eviction
+  - 8e3f815  # T2.1 + T2.2 — factory wiring + write-trigger invalidation
+  - b0778db  # T2.3 + T3.1 + T4.1 — stub warning + OTel + subpath
+  - 05a0321  # T5.1 + T5.2 — THE GOAL TEST hit rate 0.60 + docs
+
+test_pyramid:
+  unit_added: 41        # 10 DIP + 10 factory + 4 stub warning + 13 pgvector store + 4 metrics
+  integration_added: 33 # 4 migration + 10 cache-hit-miss + 4 lru + 4 factory-wiring + 3 OTel + 4 GOAL + 6 subpath-isolation cache-pg block - 2 subpath EC-52 pack ITs already counted in T1.7 scope (brief said +5 entries, file actually adds 6)
+  e2e_added: 0
+  total: 74
+  note_brief_count: "Brief claimed totals (10+10+4+13+4+4+10+4+4+3+4+5 = 75); actual is 74 (subpath-isolation cache-pg block contains 6 entries, not 5). Tiny off-by-one against the brief; pyramid is appropriately weighted toward integration since cache semantics live in pgvector + SERIALIZABLE behavior — mocks insufficient."
+
+edge_cases_from_plan:
+  total_claimed_v1_1: 15
+  covered: 11
+  missing:
+    - "EC-6 (MUST FIX absorbed): `reflect()` post-success hook → `invalidateScope`. Plan T2.2 lists T2.2-RED-6 + T2.2-RED-7. NO TEST file calls `memory.reflect(...)` against a pre-warmed cache to assert invalidation. `factory-wiring.test.ts:7` JSDoc says 'remember/forget/reflect invalidate' but only `remember()` invalidation is exercised."
+    - "EC-9 (SHOULD TEST absorbed): concurrent get() during clearExpired() MVCC snapshot consistency. Plan T1.2-RED-6. NO TEST in lru-eviction.test.ts OR cache-hit-miss.test.ts exercises Promise.all([store.get(), store.clearExpired()])."
+    - "EC-10 (SHOULD TEST absorbed): `forget()` scope-derivation strategy (SELECT scope_key FROM memories WHERE id=$1; fallback to invalidateAll on not-found). Plan T2.2-RED-8 + T2.2-RED-9. NO TEST exercises `memory.forget(memoryId)` against the cache, and no test exercises the not-found fallback path."
+    - "EC-11 (SHOULD TEST absorbed): sequential await discipline — remember/forget/reflect AWAIT invalidateScope before returning. Plan T2.2-RED-10 specifies 'pre-warm cache; await memory.remember; cache.get() immediately after MUST return undefined'. NO TEST asserts the ORDER (await-before-return); fire-and-forget regression would slip through."
+  covered_list:
+    - "EC-1 (NaN/Infinity guard) — recall-cache-store.test.ts:36-41 (T0.1-RED-4) + extended at TTL field RED-7"
+    - "EC-2 (embedder/cache-table dim mismatch) — factory-wiring.test.ts:136 (T2.1-RED-6) + pre-migration null-table T2.1-RED-7"
+    - "EC-3 (4th scope-tier) — recall-cache-store.test.ts:43 (T0.1-RED-5) + pgvector-recall-cache-store.test.ts:106 (scope_key for repo) + factory-wiring uses repoId path indirectly"
+    - "EC-4 (asOf bypass) — factory-recall-cache.test.ts:116 (T2.1-RED-8)"
+    - "EC-5 (attributedTo bypass) — factory-recall-cache.test.ts:124 (T2.1-RED-9)"
+    - "EC-4+EC-5 combined — factory-recall-cache.test.ts:132 (T2.1-RED-10)"
+    - "EC-7 (SERIALIZABLE race + 40001 retry) — lru-eviction.test.ts:117 (T1.2-RED-4) + pgvector-recall-cache-store.test.ts:171 (T1.2-RED-5) + non-40001 negative case T1.2-RED-5b"
+    - "EC-8 (zero-norm NaN) — cache-hit-miss.test.ts:165 (T1.1-RED-9)"
+    - "EC-12 (oversized JSONB) — cache-hit-miss.test.ts:174 (T1.1-RED-10)"
+    - "EC-13 (maxSizePerScope < 10) — recall-cache-store.test.ts:72 (T0.1-RED-9) confirms validator accepts 1; README warning is a doc-side absorption"
+    - "EC-14 (stderr spy discipline) — embedder-cache-gate-warning.test.ts:70 (beforeEach installs vi.spyOn) — mirrors run-server.test.ts EC-6 precedent"
+
+tdd_compliance:
+  status: ACCEPTABLE
+  notes: |
+    All test files were committed in the SAME commit as their corresponding
+    implementation (e.g., 4332382 ships both src/core/dip/recall-cache-store.ts
+    AND src/core/dip/__tests__/recall-cache-store.test.ts). This matches the
+    project's standard squash-per-task workflow documented in
+    cycle-implement.md § Halt-loop execute (RED + GREEN + REFACTOR within one
+    task commit). The TDD ORDER (RED first, then GREEN) cannot be verified
+    from squashed commits — verifying via SEPA per-iteration logs is out of
+    tests-review scope.
+    Cross-validation note: review-sepa-iterations could confirm via the
+    .claude/knowledge-base/implementations/{slug}/sepa-iterations/ logs whether
+    each task's RED phase was executed before GREEN.
+
+scope_tier_naming_drift:
+  observation: |
+    Plan v1.1 § T0.1 Deep Dives line 241 specifies the 4th scope-tier field
+    as `skill: number` ("EC-3 absorption: skill scope (v0.6 ADR-0010 RepoScope)
+    is 4th tier"). The shipped DIP at src/core/dip/recall-cache-store.ts uses
+    `repo` instead (lines 65, 73, 154, 156, 205). Tests match the IMPL — the
+    drift is between PLAN TEXT and CODE+TESTS, not between code and tests.
+    Cross-validation concern (not tests-review): is `repo` the canonical
+    on-disk name per ADR-0010 (where the scope type is `RepoScope`)? If yes,
+    the plan should be amended; if no, the code should rename. Tests pass
+    either way because they assert against the shipped IMPL.
+
+findings:
+  - id: F-tests-1
+    severity: CRITICAL
+    file: src/local/__tests__/factory-recall-cache.test.ts
+    line: "166-182 (T2.2 describe block)"
+    plan_ref: "plan v1.1 § T2.2 — EC-6 (MUST FIX absorbed) + T2.2-RED-6 + T2.2-RED-7"
+    summary: "EC-6 reflect()-hooks-invalidateScope edge case NOT TESTED despite MUST FIX absorption claim in plan v1.1"
+    evidence: |
+      Plan T2.2 Acceptance Criteria § EC-6 absorption:
+        "`reflect()` post-success hooked to call `invalidateScope(scope)`"
+      Plan T2.2 TDD RED list:
+        T2.2-RED-6 — reflect() success invokes invalidateScope(scope) post-success
+        T2.2-RED-7 — Item 19 AC#3 regression for reflect: pre-warm cache; reflect; next recall returns FRESH results
+      grep results across all test files added in this cycle:
+        $ grep -rE 'reflect\(' tests/integration/cache/ src/local/__tests__/factory-recall-cache.test.ts
+        (no matches in test bodies; only one comment in factory-wiring.test.ts:7
+         claims 'remember/forget/reflect invalidate' but no `reflect()` call exists)
+      factory-recall-cache.test.ts T2.2 describe contains only T2.2-RED-1
+      (remember invalidates) and T2.2-RED-5 (failure does not propagate).
+      Plan T2.2-RED-3 (forget invalidates), T2.2-RED-6 (reflect invalidates),
+      T2.2-RED-7 (Item 19 AC#3 reflect regression) are ALL MISSING.
+    impact: |
+      Without these tests, a future refactor could silently remove the reflect()
+      hook (or the forget() hook) — Item 19 AC#3 would be violated for the
+      reflect() and forget() write surfaces. Plan v1.1 explicitly states this
+      was a "cross-feature composition gap with v1.1 bi-temporal + v1.1
+      multi-peer + v0.6 skill scope + v0.4a reflect" — leaving reflect()
+      untested re-opens the exact gap the absorption was meant to close.
+    recommended_action: |
+      Add to factory-recall-cache.test.ts T2.2 describe block:
+        test('T2.2-RED-3 — forget() success invokes invalidateScope(scope)', ...);
+        test('T2.2-RED-6 (EC-6) — reflect() success invokes invalidateScope(scope)', ...);
+      Add to tests/integration/cache/factory-wiring.test.ts:
+        it('T2.2-RED-7 (EC-6) — Item 19 AC#3 reflect: pre-warm cache; await memory.reflect(); next recall is FRESH', ...);
+
+  - id: F-tests-2
+    severity: CRITICAL
+    file: src/local/__tests__/factory-recall-cache.test.ts
+    line: "166-182 (T2.2 describe block)"
+    plan_ref: "plan v1.1 § T2.2 — EC-10 (SHOULD TEST absorbed) + T2.2-RED-8 + T2.2-RED-9"
+    summary: "EC-10 forget() scope-derivation strategy (SELECT scope_key + fallback to invalidateAll on not-found) NOT TESTED"
+    evidence: |
+      Plan T2.2 Acceptance Criteria § EC-10 absorption (concrete decision):
+        "forget() scope derivation: `SELECT scope_key FROM memories WHERE id = $memoryId`
+         BEFORE the DELETE; invalidate ONLY the derived scope. Fallback: if memory
+         not found (already-deleted or invalid id), call `invalidateAll()` as
+         conservative safety net."
+      Plan T2.2 TDD RED list:
+        T2.2-RED-8 — forget() scope derivation: SELECT scope_key FROM memories
+                     WHERE id=$1; invalidate ONLY that scope (not all)
+        T2.2-RED-9 — forget(memoryId) when memory NOT found (already deleted) →
+                     invalidateAll() fallback
+      No test exercises `memory.forget(memoryId)` at all in the cache test
+      surface. The not-found fallback path is completely untested — a regression
+      that turns the fallback into a no-op (silent drop) would not be caught.
+    impact: |
+      The fallback-to-invalidateAll branch is the CONSERVATIVE SAFETY NET for
+      a real-world bug class (forget against a stale id, race against a
+      concurrent delete). If this branch silently regresses to "do nothing",
+      the cache would serve stale results for the wrong scope without any
+      surface indication. This violates Inquebrável Rule 3 (Honesty —
+      correctness over silent regression).
+    recommended_action: |
+      Add to tests/integration/cache/factory-wiring.test.ts:
+        it('T2.2-RED-8 (EC-10) — forget(memoryId) invalidates ONLY the scope where the memory lived', ...);
+        it('T2.2-RED-9 (EC-10 fallback) — forget(non-existent-id) falls back to invalidateAll', ...);
+      The fallback test should pre-warm 2 scopes, call forget() on a UUID that
+      does not exist, and assert both scopes were cleared (conservative safety
+      net behavior).
+
+  - id: F-tests-3
+    severity: MAJOR
+    file: src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts
+    line: "n/a — file omission"
+    plan_ref: "plan v1.1 § T1.2 — EC-9 (SHOULD TEST absorbed) + T1.2-RED-6"
+    summary: "EC-9 concurrent get() during clearExpired() MVCC snapshot consistency NOT TESTED"
+    evidence: |
+      Plan T1.2 Acceptance Criteria § EC-9 absorption:
+        "concurrent get() during clearExpired() returns consistent snapshot
+         (Postgres MVCC verified)"
+      Plan T1.2-RED-6 (EC-9):
+        "concurrent get() during clearExpired() sweep: get returns row OR
+         undefined consistently (no partial state)"
+      No test in lru-eviction.test.ts, cache-hit-miss.test.ts, or the mocked
+      pgvector-recall-cache-store.test.ts fires Promise.all([store.get(...),
+      store.clearExpired()]) and asserts that the get() observation is
+      semantically consistent (either the row is fully there OR fully gone,
+      never partial).
+    impact: |
+      Postgres MVCC under DEFAULT isolation should handle this correctly, but
+      the EC-9 absorption was added explicitly because the cross-feature
+      composition with concurrent reads + sweeps was an identified gap.
+      Without a test, a future regression that drops the implicit transaction
+      around clearExpired() (or moves to a weaker isolation) would not be
+      caught. SHOULD TEST absorption is documented; test was not delivered.
+    recommended_action: |
+      Add to tests/integration/cache/lru-eviction.test.ts (or a new
+      tests/integration/cache/concurrent-mvcc.test.ts):
+        it('T1.2-RED-6 (EC-9) — concurrent get() during clearExpired() returns row OR undefined, never partial', async () => {
+          // Seed N expired + N fresh rows in scope alice
+          // Promise.all([store.get(e, alice), store.clearExpired()])
+          // assert: get() returns either the row (fully populated CachedResult) OR undefined,
+          // NEVER a malformed result.
+        });
+
+  - id: F-tests-4
+    severity: MAJOR
+    file: src/local/__tests__/factory-recall-cache.test.ts
+    line: "166-182"
+    plan_ref: "plan v1.1 § T2.2 — EC-11 (SHOULD TEST absorbed) + T2.2-RED-10"
+    summary: "EC-11 sequential-await discipline (remember/forget/reflect AWAIT invalidateScope before returning) NOT TESTED"
+    evidence: |
+      Plan T2.2 Acceptance Criteria § EC-11 absorption:
+        "remember/forget/reflect AWAIT `invalidateScope()` before returning —
+         no fire-and-forget. Sequential discipline prevents in-flight cache-hit
+         serving stale post-write."
+      Plan T2.2-RED-10 (EC-11):
+        "remember() awaits invalidateScope BEFORE returning (sequential
+         discipline); test: pre-warm cache; await memory.remember('...');
+         cache.get() immediately after MUST return undefined"
+      The current T2.2-RED-1 only asserts that invalidateScope WAS CALLED with
+      the right scope (via FakeCache.invalidateCalls). It does NOT assert the
+      ORDER — specifically, that the call completed BEFORE memory.remember()
+      resolved. A regression that changes the hook to fire-and-forget
+      (`void this.recallCacheStore.invalidateScope(...)`) would still pass
+      T2.2-RED-1.
+    impact: |
+      A fire-and-forget invalidation introduces a race: a concurrent recall()
+      after a remember() RESOLVED could observe the OLD cache row (the
+      invalidation is still in flight). Item 19 AC#3 ("write to scope → next
+      recall MUST miss") would be silently violated for the millisecond
+      window where the invalidation hasn't landed. Plan v1.1 absorbed this
+      explicitly; test was not delivered.
+    recommended_action: |
+      Add to factory-recall-cache.test.ts T2.2 describe block:
+        test('T2.2-RED-10 (EC-11) — remember() awaits invalidateScope BEFORE resolving', async () => {
+          let invalidateResolved = false;
+          const cache = makeFakeCache();
+          cache.invalidateScope = async (scope) => {
+            await new Promise((r) => setTimeout(r, 50)); // simulate slow invalidation
+            invalidateResolved = true;
+            return 1;
+          };
+          const memory = await createLocalMemory(baseConfig(cache));
+          await memory.user('alice').remember('I like dark mode');
+          // The await above MUST have observed invalidateResolved=true before resolving.
+          expect(invalidateResolved).toBe(true);
+        });
+
+  - id: F-tests-5
+    severity: MAJOR
+    file: tests/integration/cache/semantic-recall-cache.test.ts
+    line: "150-190"
+    plan_ref: "plan T2.3 § Testing convention + EC-14 absorption"
+    summary: "Stub-embedder regression smoke uses raw `process.stderr.write` override instead of vi.spyOn — diverges from EC-14 absorption convention claimed in plan T2.3"
+    evidence: |
+      Plan T2.3 Acceptance Criteria § EC-14 absorption (DOCUMENT):
+        "§ Testing note added to T2.3 README — tests that create memory factory
+         with stub embedder + cache MUST install stderr spy in beforeEach
+         (mirror v0.6.1 / cycle-1 EC-6 pattern) to prevent log pollution
+         across the existing 956 test baseline"
+      semantic-recall-cache.test.ts:171-186:
+        const originalWrite = process.stderr.write.bind(process.stderr);
+        process.stderr.write = ((chunk: unknown) => { writes.push(...); return true; }) as ...;
+        try { ... } finally { process.stderr.write = originalWrite; }
+      Contrast with the canonical embedder-cache-gate-warning.test.ts:70-79
+      which uses `vi.spyOn(process.stderr, 'write').mockImplementation((): true => true)`
+      and `mockRestore()` in afterEach — the discipline plan T2.3 explicitly
+      documents.
+    impact: |
+      Raw override leaks to subsequent tests if the try/finally block does not
+      execute (e.g., a panic in createLocalMemory mid-test would skip the
+      restore). The vi.spyOn pattern is panic-safe via afterEach lifecycle.
+      Plan v1.1 absorbed this as a convention; one of the new tests violates
+      the convention.
+    recommended_action: |
+      Refactor the regression smoke to use vi.spyOn(process.stderr, 'write')
+      in a top-level beforeEach + afterEach for the describe block (or scoped
+      vi.spyOn inside the it() with mockRestore). Mirror the discipline at
+      embedder-cache-gate-warning.test.ts:67-79 verbatim.
+
+  - id: F-tests-6
+    severity: MINOR
+    file: src/core/dip/__tests__/recall-cache-store.test.ts
+    line: 67
+    plan_ref: "testing.md § Anti-patterns 'no \"and\" in test names'"
+    summary: "Test name contains 'and' (testing two boundaries in one block)"
+    evidence: |
+      it('T0.1-RED-8 — accepts threshold = 0 boundary (cache disabled hit)
+                       and threshold = 1 boundary (exact-only)', () => {
+        expect(() => validateRecallCacheStoreConfig({ threshold: 0 })).not.toThrow();
+        expect(() => validateRecallCacheStoreConfig({ threshold: 1 })).not.toThrow();
+      });
+    impact: Minor — two boundary assertions for the same validation function
+      collapsed into one it() block. Per testing.md anti-pattern "Tests with
+      `and` in the name — split into two tests". If the threshold=0 case
+      regresses but threshold=1 still passes (or vice versa), the failure
+      message would not pinpoint which boundary.
+    recommended_action: |
+      Split into:
+        it('T0.1-RED-8a — accepts threshold = 0 (cache disabled boundary)', ...);
+        it('T0.1-RED-8b — accepts threshold = 1 (exact-similarity boundary)', ...);
+
+  - id: F-tests-7
+    severity: MINOR
+    file: src/local/__tests__/factory-recall-cache.test.ts
+    line: 84
+    plan_ref: "testing.md § Anti-patterns 'no \"and\" in test names'"
+    summary: "Test name contains 'and' (asserts both 'passed verbatim' and 'consulted on recall')"
+    evidence: |
+      test('T2.1-RED-3 — recallCache: DIP instance passed verbatim and consulted on recall', ...);
+    impact: Same as F-tests-6 — collapsing two behaviors into one test block.
+      "passed verbatim" (factory uses the instance, not a wrapper) and
+      "consulted on recall" (the wrap is wired correctly) are independent
+      assertions.
+    recommended_action: |
+      Split into:
+        test('T2.1-RED-3a — DIP instance is passed verbatim (no wrapper)', ...);
+        test('T2.1-RED-3b — recall() consults the DIP instance via get()', ...);
+
+  - id: F-tests-8
+    severity: MINOR
+    file: tests/integration/cache/migration-0010.test.ts
+    line: 39
+    plan_ref: "testing.md § Anti-patterns + Independence between tests"
+    summary: "Test name uses 'and' AND tests share state across the describe block (idempotency depends on RED-1 having migrated)"
+    evidence: |
+      it('T0.2-RED-1 — migration applies; recall_cache exists and is empty', ...);
+      // Then RED-2 calls runMigrations() AGAIN to assert idempotency — implicitly
+      // assuming RED-1 already migrated. Test independence is weakened: if Vitest's
+      // intra-describe ordering changes (unlikely but not contractually fixed),
+      // RED-2 becomes the FIRST migration application and "idempotency" becomes
+      // "second-application no-op", which is what we want, but the test labels
+      // would lie about which run is the "first".
+    impact: |
+      Minor — tests within a describe block share the `beforeAll`-created DB.
+      Vitest default semantics serialize within a describe so this works in
+      practice. The "and" naming is also minor since both assertions
+      (migration applies + table is empty) are direct consequences of the same
+      migration apply.
+    recommended_action: |
+      Split T0.2-RED-1 into:
+        it('T0.2-RED-1a — migration applies; recall_cache table exists', ...);
+        it('T0.2-RED-1b — recall_cache table is empty post-migration', ...);
+      Optionally collapse all 4 idempotency/index/parity tests into a single
+      beforeAll-driven `runMigrations()` call + separate it() bodies asserting
+      independent observable outcomes; current shape ALREADY does that
+      modulo RED-2 which explicitly re-runs runMigrations().
+
+  - id: F-tests-9
+    severity: MINOR
+    file: src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts
+    line: 144
+    plan_ref: "plan T1.2 — RED label discipline"
+    summary: "Test missing T1.2-RED-N label; uses bare 'T1.2 (mock)' instead of a RED-N tag"
+    evidence: |
+      Line 109: it('T1.1 (mock) — set() opens SERIALIZABLE transaction, COUNTs scope, INSERTs', ...);
+      Line 144: it('T1.2 (mock) — set() with COUNT < maxSizePerScope does NOT issue DELETE', ...);
+      Line 83 : it('T1.1 (mock) — get() binds scope_key + vector literal + threshold to SQL params', ...);
+      Line 231: it('T1.1 (mock) — defaults applied when config absent (threshold=0.8, max=1000, TTL 4-tier)', ...);
+      The labeled RED-N tests (RED-1..10) map back to plan TDD sections via
+      grep audit. The bare 'T1.1 (mock)' / 'T1.2 (mock)' entries are extra
+      coverage but cannot be cross-referenced against a plan RED bullet.
+    impact: Minor — does not weaken coverage; just complicates traceability
+      when /review or future cycle-implement reads cross-cycle.
+    recommended_action: |
+      Tag with a 'T1.x-extra-N' identifier OR retroactively renumber as
+      additional RED bullets in a plan amendment. Either path keeps the
+      audit trail honest.
+
+  - id: F-tests-10
+    severity: MINOR
+    file: tests/integration/cache/lru-eviction.test.ts
+    line: 87
+    plan_ref: "testing.md § Determinism"
+    summary: "5ms setTimeout used to spread created_at across rows — relies on host clock precision"
+    evidence: |
+      for (let i = 0; i < SMALL_CAP; i++) {
+        await store.set(vec(i + 1), ALICE, SAMPLE, 600);
+        await new Promise((r) => setTimeout(r, 5));  // <-- timing-dependent
+      }
+    impact: |
+      Postgres timestamptz precision is microseconds; INSERTs from a tight
+      loop without the spacer could collide in `created_at`. With the 5ms
+      spacer, collisions are extremely rare but NOT impossible on a heavily
+      loaded CI runner. If two rows share an exact timestamp, "oldest" is
+      ambiguous and the post-eviction check at line 96-100 could pick a
+      different row than expected. Probability is low; if observed, this
+      becomes a flaky-test bug per testing.md § Determinism.
+    recommended_action: |
+      Either (a) make the test deterministic by explicitly setting created_at
+      via SQL UPDATE before the eviction-triggering set() — eliminates clock
+      dependency, OR (b) accept current risk and document in a comment that
+      the 5ms spacer is empirical; suggest bumping to 25ms if any flake is
+      observed in CI.
+
+  - id: F-tests-11
+    severity: MINOR
+    file: tests/integration/cache/cache-hit-miss.test.ts
+    line: 174
+    plan_ref: "plan T1.1 EC-12 — JSONB oversize behavior"
+    summary: "EC-12 oversize boundary test asserts SUCCESS only — does NOT exercise the upper bound where pgvector/jsonb DOES reject"
+    evidence: |
+      it('T1.1-RED-10 (EC-12 DOCUMENT) — set() with large result_set (10 items × 50 KB each) succeeds', ...);
+      // total ~500 KB JSONB — well within Postgres practical row limits.
+      const big = Array.from({ length: 10 }, (_, i) => ({ ..., text: 'x'.repeat(50_000), ... }));
+      await expect(store.set(e, ALICE, big, 600)).resolves.toBeUndefined();
+    impact: |
+      Plan T1.1 Acceptance Criteria § EC-12: "result_set size boundary
+      documented in JSDoc — practical limit ~1MB JSONB row; large content
+      items beyond 50KB may approach pgvector practical limits". The shipped
+      test confirms the HAPPY path at ~500KB. It does NOT confirm the FAILURE
+      mode at 100MB+ (Postgres TOAST limits, jsonb upper bound). Per
+      testing.md "test edge cases including failure scenarios" — only one
+      side of the boundary is tested. Acceptable for a DOCUMENT-tier EC.
+    recommended_action: |
+      OPTIONAL — add a sibling assertion that a deliberately oversized
+      result_set (e.g., 1 item × 1.5GB content) either throws a TYPED error OR
+      gracefully truncates — documenting actual behavior is more honest than
+      letting consumers discover the failure mode in production. Defer to
+      v1.5.x if dogfood evidence demands.
+
+  - id: F-tests-12
+    severity: INFO
+    file: src/core/dip/__tests__/recall-cache-store.test.ts
+    line: "1-86"
+    plan_ref: "plan v1.1 § T0.1 TDD RED-1..6 + EC-1 + EC-3"
+    summary: "DIP validator contract tests — well-structured, AAA discipline visible per block, all RED bullets covered + 4 extra boundary tests"
+    evidence: |
+      Plan T0.1 RED list: RED-1..6 (6 tests).
+      Shipped: RED-1..10 (10 tests, 4 extra boundary/messaging coverage at
+      RED-8 zero/one boundaries, RED-9 EC-13 maxSize=1 acceptance, RED-10
+      error message debuggability, RED-7 NaN-in-TTL extension of EC-1).
+      All EC absorption claims for T0.1 (EC-1 IEEE 754 guard, EC-3 4th tier)
+      are testable assertions backed by direct expectations.
+    impact: Positive — exceeds plan RED budget with proportionate behavior
+      coverage. Pure unit tests, no flakiness risk, < 50ms each per
+      testing.md § Pyramid.
+    recommended_action: None.
+
+  - id: F-tests-13
+    severity: INFO
+    file: src/local/recall-cache/__tests__/recall-cache-metrics.test.ts
+    line: "43-53 (RED-1d)"
+    plan_ref: "plan v1.1 § T3.1 RED-1..5 + lazy-init contract"
+    summary: "Author honestly documented the limitation of mock-only lazy-init verification; deferred reset-behavior to integration test against a capturing MeterProvider"
+    evidence: |
+      Line 43-53 JSDoc:
+        "Default no-op MeterProvider returns the SAME NoopCounter singleton
+         regardless of createCounter() call count, so we cannot assert
+         identity changes. The observable contract is that emissions on a
+         reset+re-resolved Counter continue to work without throwing. The
+         reset path matters only when a real MeterProvider is installed —
+         covered by the integration test that registers a capturing provider
+         via metrics.setGlobalMeterProvider."
+      Integration test at tests/integration/cache/otel-metrics-observed.test.ts
+      delivers on this commitment.
+    impact: Positive — Inquebrável Rule 3 (Honesty) compliance + correct
+      pyramid split (mocks for shape, integration for end-to-end identity).
+    recommended_action: None.
+
+  - id: F-tests-14
+    severity: INFO
+    file: tests/integration/cache/semantic-recall-cache.test.ts
+    line: "192-235 (the goal test it() block)"
+    plan_ref: "plan v1.1 § T5.1 — Item 19 AC#1 (hit rate ≥ 0.5)"
+    summary: "THE GOAL TEST is properly structured, honest about hit rate measurement, and emits a runtime log line for audit traceability"
+    evidence: |
+      Lines 192-235:
+        - Truncates recall_cache between pairs (no cross-pair contamination)
+        - Loops over 10 hand-authored fixtures with deterministic
+          LocalTransformerEmbedder
+        - Counts hits via captured OTel observations (not via direct cache
+          inspection — proves the end-to-end wiring works)
+        - Emits `[T5.1 GOAL TEST] hits=N/10 → hit rate X.XX (target ≥ 0.50)`
+          for audit trail
+        - Asserts `hitRate >= 0.5` per Item 19 AC#1
+      Commit message claims 6/10 = 0.60 — leaves 0.10 headroom above target.
+    impact: Positive — proves THE GOAL TEST against real pgvector +
+      Transformers.js + capturing MeterProvider end-to-end. Per plan T5.1
+      acceptance "Honest disclosure if any fixture rewording was needed to
+      reach 0.5" — fixture file shows 10 hand-authored pairs unchanged.
+    recommended_action: None (subject to cross-validation re-running the
+      test in CI to confirm the 0.60 figure is reproducible).
+
+  - id: F-tests-15
+    severity: INFO
+    file: tests/integration/cache/otel-metrics-observed.test.ts
+    line: "56-85"
+    plan_ref: "plan v1.1 § T3.1 + Inquebrável Rule 11 (no @opentelemetry/sdk-metrics dep)"
+    summary: "Inline capturing MeterProvider build avoids a new dependency on @opentelemetry/sdk-metrics per YAGNI; mirrors v0.4b T10.1 precedent"
+    evidence: |
+      Line 56-85: buildCapturingMeterProvider constructs a minimal Meter-shaped
+      object inline. JSDoc cites "without depending on @opentelemetry/sdk-metrics
+      (not in dependencies; Inquebrável Rule 11 YAGNI)".
+      The deps-audit at .claude/knowledge-base/audits/semantic-recall-cache-v1-5-deps-audit-2026-06-03.md
+      should confirm no new deps were added.
+    impact: Positive — keeps the cycle's "0 new dependencies" claim honest.
+    recommended_action: None.
+
+  - id: F-tests-16
+    severity: INFO
+    file: tests/integration/subpath-isolation.test.ts
+    line: "124-177"
+    plan_ref: "plan v1.1 § T4.1 — bundle isolation + pack manifest"
+    summary: "cache-pg subpath isolation block correctly extends the EC-26 + EC-52 contract; recursive walk asserts negative leak"
+    evidence: |
+      Test "default @usetheo/memory barrel does NOT reach
+       src/local/recall-cache/pgvector-recall-cache-store.ts" verifies the
+      dynamic-import discipline at src/local/index.ts:441 holds.
+      Pack manifest tests confirm the published artifact includes the cache
+      module + excludes its __tests__ dir.
+      Honest acknowledgement of the EXPECTED LEAK (DIP types in src/core/
+      DO reach the default barrel) is documented in the JSDoc at lines 117-122
+      and matches the actual assertion target (impl file only, not DIP types).
+    impact: Positive — bundle isolation regression guard is non-trivial and
+      well-targeted.
+    recommended_action: None.
+
+  - id: F-tests-17
+    severity: INFO
+    file: src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts
+    line: "248-255 (deriveScopeKey block)"
+    plan_ref: "plan v1.1 § T1.1 Deep Dives + EC-3"
+    summary: "deriveScopeKey() pure-function smoke test covers all 4 scope tiers"
+    evidence: |
+      Block at lines 248-255 verifies deriveScopeKey() produces the correct
+      string for user/session/agent/repo (4-tier per EC-3 absorption).
+      Pure unit test, no I/O.
+    impact: Positive — locks the scope-key composition that the SERIALIZABLE
+      eviction + invalidateScope SQL depends on.
+    recommended_action: None.
+
+  - id: F-tests-18
+    severity: INFO
+    file: src/local/__tests__/factory-recall-cache.test.ts
+    line: "154-163"
+    plan_ref: "plan v1.1 § T2.1 — POJO + InMemoryVectorStore rejection"
+    summary: "Honest test that POJO cache config paired with InMemoryVectorStore throws — closes a real consumer-error path"
+    evidence: |
+      Line 154-163 asserts:
+        createLocalMemory({ ..., vectorStore: new InMemoryVectorStore(),
+                            recallCache: { threshold: 0.8 } })
+      rejects with /PgvectorStore/. This matches the factory guard at
+      src/local/index.ts:418-425.
+    impact: Positive — closes the "I tried POJO config with in-memory adapter
+      and got a confusing runtime error 2 minutes later" footgun. Loud
+      failure at factory time per Inquebrável Rule 3.
+    recommended_action: None.
+
+  - id: F-tests-19
+    severity: INFO
+    file: src/local/__tests__/embedder-cache-gate-warning.test.ts
+    line: "67-134"
+    plan_ref: "plan v1.1 § T2.3 + EC-14 (DOCUMENT)"
+    summary: "Stub-embedder warning test follows the EC-14 absorption convention (vi.spyOn in beforeEach + restore in afterEach) exactly"
+    evidence: |
+      Line 67-79: beforeEach installs `vi.spyOn(process.stderr, 'write')`
+      with mockImplementation; afterEach calls mockRestore.
+      Tests verify positive cases (StubEmbedder + DeterministicStubEmbedder
+      → 3 lines emitted) AND negative cases (no cache → no warning; real
+      embedder → no warning).
+      Matches plan T2.3 acceptance criterion explicitly: "Test infra uses
+      `vi.spyOn(process.stderr, 'write')` per `run-server.test.ts:75-88`
+      precedent".
+    impact: Positive — canonical EC-14 implementation. F-tests-5 above flags
+      the ONE divergence elsewhere in the cycle.
+    recommended_action: None.
+
+skipped_or_only_audit:
+  status: CLEAN
+  evidence: "grep -c '\\.only\\|xit\\|xtest\\|\\.skip[^I]' across all 12 cache test files returned 0 in every file. describe.skipIf(ROOT_PG_URI === '') is the environment-conditional pattern documented as acceptable per v0.7 plan precedent — gates integration tests when THEOMEM_PG_URI is absent (CI hygiene). NOT a code smell."
+
+flakiness_audit:
+  status: MOSTLY_DETERMINISTIC_WITH_TIME_DEPENDENCIES
+  observations:
+    - "setTimeout(2000) waits for Postgres TTL expiry in cache-hit-miss.test.ts:127, cache-hit-miss.test.ts:146, semantic-recall-cache.test.ts:143. Necessary because pgvector NOW() cannot be frozen from JS-side via vi.useFakeTimers. Risk: heavily loaded CI runners + 2s sleep + 10s test timeout = tight margin. Mitigation: test timeout is 10_000ms explicitly. Acceptable per testing.md trade-off."
+    - "setTimeout(5ms) spacer in lru-eviction.test.ts:87 — flagged at F-tests-10. Low but non-zero flake risk."
+    - "Promise.all([set, set, set]) under SERIALIZABLE in lru-eviction.test.ts:124-128 — the SERIALIZABLE + retry-once helper is the correctness mechanism; failure mode under high contention is 'retry exhausted → throws'. Test asserts the success path; the throw path is not asserted. Cross-cutting concern with F-tests-3 (no MVCC consistency test)."
+    - "Model download in semantic-recall-cache.test.ts is gated by 300_000ms timeout — generous, accounts for first-run @xenova/transformers Wasm fetch."
+
+aaa_format_audit:
+  status: PASS
+  notes: |
+    Sampled across the 12 test files: every it()/test() block follows
+    Arrange-Act-Assert with the arrange block typically scoping setup to the
+    block itself (no module-level shared mutable state). beforeEach/afterEach
+    used for DB truncation + spy restoration only — acceptable per the
+    Given-When-Then example in testing.md:45-59.
+
+behavior_vs_implementation_naming:
+  status: MOSTLY_BEHAVIOR
+  notes: |
+    Plan-tagged tests like 'T0.1-RED-N — accepts threshold = 0.8 ... (defaults
+    pass)' describe the behavior post the dash. The T*-RED-N prefix is the
+    traceability tag, not the test description per se. Pattern matches
+    testing.md style (behavior-focused names with a contract reference).
+    The 'T1.2-RED-5b' suffix variant is a deliberate split of a single RED
+    bullet into positive (retry on 40001) + negative (no retry on 23503)
+    — good practice.
+
+cross_references:
+  - "F-tests-1 + F-tests-2 + F-tests-4 are bundled as a 'T2.2 RED budget under-shipped' cluster — plan v1.1 specified 10 T2.2 RED tests; implementation shipped 2 (RED-1 + RED-5). Recommended consolidated remediation: a single T2.2 RED-expansion commit adding RED-3, RED-6, RED-7, RED-8, RED-9, RED-10 to either factory-recall-cache.test.ts (unit-level with FakeCache + spy on memory.forget/reflect) OR a new tests/integration/cache/invalidation-after-write.test.ts (the file the plan explicitly names at line 821) which DOES NOT EXIST in the diff."
+  - "F-tests-3 + F-tests-10 — both reach into Postgres timing semantics. F-tests-3 (EC-9 MVCC) could be addressed by the same SERIALIZABLE pattern used in T1.2; F-tests-10 (5ms spacer) is a less-critical observation."
+
+summary_verdict:
+  bucket: NEEDS_FIXES_AT_T2_2
+  one_line: "T0.1 + T1.1 + T1.2 (eviction) + T2.1 + T2.3 + T3.1 + T4.1 + T5.1 test surfaces are well-shipped; T2.2 (write-trigger invalidation hooks) is UNDER-SHIPPED — 4 absorbed edge cases (EC-6 reflect, EC-9 MVCC, EC-10 forget scope-derivation, EC-11 sequential await) are documented in plan v1.1 but UNTESTED in code. This is a CRITICAL gap because Item 19 AC#3 ('write to scope → next recall MUST miss') is the cycle's correctness guarantee."
+  blockers: 0
+  criticals: 2  # F-tests-1 (EC-6 reflect untested) + F-tests-2 (EC-10 forget untested)
+  majors: 3    # F-tests-3 (EC-9), F-tests-4 (EC-11), F-tests-5 (EC-14 convention drift)
+  minors: 6    # F-tests-6..F-tests-11
+  infos: 8     # F-tests-12..F-tests-19

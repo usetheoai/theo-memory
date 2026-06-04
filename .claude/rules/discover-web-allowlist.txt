@@ -67,3 +67,10 @@ developer.nvidia.com             # added for v0-8-benchmark-methodology Q8 at 20
 honcho.dev                       # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho root domain (theory-of-mind peer perspective claims, marketing); needed for Q5 prior_art on multi-peer attribution
 docs.honcho.dev                  # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho technical documentation subdomain (most likely location of the data-model spec); subdomain of honcho.dev per allowlist subdomain rule
 app.honcho.dev                   # added for multi-peer-and-bi-temporal-gaps Q5 at 2026-06-02 — Honcho application subdomain (may host live API docs / playground); subdomain of honcho.dev per allowlist subdomain rule
+
+# Added for semantic-recall-cache discovery at 2026-06-03 — canonical prior_art for semantic-recall caching
+python.langchain.com             # added for semantic-recall-cache Q7 at 2026-06-03 — LangChain RedisSemanticCache + InMemoryCache docs (THE canonical doc for LLM-recall semantic caching patterns)
+docs.llamaindex.ai               # added for semantic-recall-cache Q7 at 2026-06-03 — LlamaIndex IngestionPipelineCache + cache layers (sibling to LangChain in adoption)
+redis.io                         # added for semantic-recall-cache Q8 at 2026-06-03 — Redis Search + Vector Similarity Search docs (DIP backend candidate per CLAUDE.md Item 19 description)
+milvus.io                        # added for semantic-recall-cache Q6 at 2026-06-03 — Milvus is the storage backend that GPTCache uses by default; needed to cite GPTCache's threshold defaults
+aclanthology.org              # added for semantic-recall-cache Q6 at 2026-06-03 — canonical GPTCache 2023 paper venue (NLP-OSS workshop); arxiv.org/abs/2310.07831 was WRONG placeholder per EC-1 absorption (different paper)
