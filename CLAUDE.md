@@ -73,9 +73,8 @@ The following Roadmap items are **FROZEN until P0 closure** (no PRs, no plans, n
 | `semantic-recall-cache-v1-5-fixes-cycle-1` (4 of 8 task commits shipped: `0589a8f`, `bae2fda`, `595ef01`, `e7eb240`) | Closes 7 of 10 MAJORs from `/review` of an already-shipped surface (v1.5.0). Pure hardening; no new public API. |
 | 3 pre-existing-debt MAJORs from v1.1 review (F-arch-2 ad-hoc structural type, F-arch-6/F-arch-7 LoC budget) | Internal hygiene. No public API change. |
 | `/dogfood` anchor scenario evidence collection (S1: Claude Code auto-memory backed by TheMemory) | The single gate blocking v1.0. P0 sub-goal 2. |
-| **API audit cycle** (NEW — to be planned) | Enumerate every public export, verify JSDoc + contract test + cross-ref; surface gaps; close them. P0 sub-goal 1. |
-| **SDK functional audit cycle** (NEW — to be planned) | Enumerate every `package.json#exports` subpath; smoke-import each; verify bundle isolation; close gaps. P0 sub-goal 2. |
-| **MCP availability audit cycle** (NEW — to be planned) | Reproduce `themory mcp` boot from a fresh `npm install @usetheo/memory` against the published package (when published); document setup; publish if needed. P0 sub-goal 3. |
+| **`p0-api-sdk-mcp-correctness-audit`** SHIPPED 2026-06-04 (14 tasks × 17 commits; `cb63d87` HEAD) — APIs + SDKs + MCP closed in one cycle | All 8 root exports + 41 contract exports JSDoc + `@see` closure; 13 subpath smoke gates + 9 bundle isolation gates; paper-name violations 74 → 0; `themory mcp` dist-boot sentinel against `node dist/agent-tools/cli.js mcp`. P0 sub-goals 1 + 2 + 3 declared CLOSED at cycle close (local-build perspective). |
+| **`p0-api-sdk-mcp-correctness-audit-fixes-cycle-1`** SHIPPED 2026-06-04 (11 tasks × 6 commits; `5b48193` HEAD) — post-`/review` fix-cycle | Closes 1 CRITICAL (F-dom-api-1 bin/files mismatch: post-install `npx @usetheo/memory mcp` would `Cannot find module './run-mcp-server.js'`) + 5 MAJOR + 1 absorbed MUST FIX (EC-1: `dist/local/migrations/*.sql` not shipped → `themory migrate` post-install would reproduce F-T7-1-3 per `architecture.md § 10.1`). `package.json#files` extended with `dist/**/*.js` + `dist/**/*.d.ts` + `dist/**/*.sql`. Pack manifest 172 → 415 entries; dist/ 1 → 244; dist migrations 0 → 12. P0 sub-goal 3 now EMPIRICALLY closed for third-party install (not just local-build). |
 | v0.5 TheoCloud runtime (Item 7) | Blocked by Theo PaaS GA; if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not as a new feature — the contract was always two-runtime per Locked Names). |
 
 ### P0 closure criteria (when do we lift the freeze?)
@@ -298,7 +297,7 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 |---|---|
 | `.claude/knowledge-base/references/` clones (Mem0 + Letta + LangMem, `--depth 1`, gitignored) | 2026-05-21 |
 | `README.md` + strategic placement (Community auxiliary MIT, TheoKit-native, Mem0-shape, two runtimes) | 2026-05-21 |
-| This `CLAUDE.md` (3 root overrides + RepoScope ADR-0010 + ADR-0011 supplementary) | 2026-05-21; updated 2026-05-30, 2026-06-03, 2026-06-04 |
+| This `CLAUDE.md` (3 root overrides + RepoScope ADR-0010 + ADR-0011 supplementary) | 2026-05-21; updated 2026-05-30, 2026-06-03, 2026-06-04 (x3 — PRIORITY 0 lock + p0-api-sdk fix-cycle close) |
 | `examples/chat-with-memory/` Next.js demo (4 tabs over User/Session/Skills/History) | 2026-05-30 (`22f148b`) |
 | `.claude/skills/test-chat-with-memory/` exhaustive E2E skill (30 scenarios via Chrome DevTools MCP) | 2026-05-30 (`069a257`) |
 | v0.6.1 voyager-skill-library-fixes cycle (14 commits; verdict `READY_TO_MERGE`) | 2026-05-30 (`b6aead6`) |
@@ -309,6 +308,8 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 | `adapters-openrouter-local-embedder` cycle (`LocalTransformerEmbedder` + parametric `embeddingDim` + atomic dim-change pipeline) | 2026-06-02 (`4b5b0e7` → `aec5c33`) |
 | **PR #28 — Release `develop` → `main`** (269 commits: v0.4b expansion + v0.7 distillation + v0.8 benchmarks + v1.1 + v1.1 fix-up cycle 2) | 2026-06-03 (`0433484`) |
 | `theo-memory-standalone-p0` chain (Items 16 + 17 + 18) | 2026-06-03 |
+| `p0-api-sdk-mcp-correctness-audit` cycle (14 tasks; THE GOAL TEST 42/42; paper-names 74→0; 12 new p0-audit/ integration files; declared P0 sub-goals 1+2+3 CLOSED from local-build perspective) | 2026-06-04 (`cb63d87`) |
+| `p0-api-sdk-mcp-correctness-audit-fixes-cycle-1` cycle (11 tasks × 6 commits; closes 1 CRITICAL + 5 MAJOR + 1 absorbed MUST FIX EC-1 dist sql migrations; pack manifest 172→415; P0 sub-goal 3 EMPIRICALLY closed for third-party install) | 2026-06-04 (`5b48193`) |
 
 ---
 
