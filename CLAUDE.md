@@ -16,6 +16,53 @@ This file complements `<HOME>/Projetos/usetheo/CLAUDE.md` and `<HOME>/.claude/CL
 
 ---
 
+## PRIORITY 0 — HARDENING (locked 2026-06-04)
+
+**GO-TO CTO directive (project-owner sign-off 2026-06-04):** stop shipping new features. The only work that ships from this date forward is **HARDENING**:
+
+1. **All public APIs correct** — every export in `src/index.ts` / `src/core/index.ts` / every subpath in `package.json#exports` is documented, typed, narrowable, JSDoc-cross-referenced, and exercised by a contract test. No `any` in public surface. No paper names in exported identifiers. No undocumented behavior.
+2. **SDKs 100% functional** — every shipped feature has integration test against real `ankane/pgvector:v0.5.1`. Every shipped DIP has a working default impl. Every subpath in `package.json#exports` resolves to working code (smoke import gate). `npm pack --dry-run` ships every needed file; `__tests__` excluded. Bundle isolation gates pass (default barrel does NOT pull subpath impls per EC-26 precedent). `/dogfood` anchor scenario evidence is COLLECTED (gate flips to `EVIDENCE_SUFFICIENT`).
+3. **MCP server available + reliable** — `themory mcp` boots deterministically; 4 tools (`remember` / `recall` / `forget` / `reflect`) registered with stable names + schema validation; `ghcr.io/usetheo/themory:0.1.0-alpha` (or successor tag) pullable; README + MCP setup guide explicit; real third-party consumer can install + use without project-internal knowledge.
+
+### What does NOT ship under Priority 0
+
+The following Roadmap items are **FROZEN until P0 closure** (no PRs, no plans, no discovery cycles spawned against them):
+
+| Nº | Item | Status under P0 |
+|---|---|---|
+| 13 | v1.2 — Adaptive retrieval | **FROZEN** |
+| 14 | v1.3 — Optional graph backend | **FROZEN** |
+| 15 | v1.4 — Domain ontologies | **FROZEN** |
+| Any unlisted Phase V+ | Future expansion | **FROZEN** |
+
+### What CONTINUES under Priority 0 (hardening, not new features)
+
+| Workstream | Why it qualifies as hardening |
+|---|---|
+| `semantic-recall-cache-v1-5-fixes-cycle-1` (4 of 8 task commits shipped: `0589a8f`, `bae2fda`, `595ef01`, `e7eb240`) | Closes 7 of 10 MAJORs from `/review` of an already-shipped surface (v1.5.0). Pure hardening; no new public API. |
+| 3 pre-existing-debt MAJORs from v1.1 review (F-arch-2 ad-hoc structural type, F-arch-6/F-arch-7 LoC budget) | Internal hygiene. No public API change. |
+| `/dogfood` anchor scenario evidence collection (S1: Claude Code auto-memory backed by TheMemory) | The single gate blocking v1.0. P0 sub-goal 2. |
+| **API audit cycle** (NEW — to be planned) | Enumerate every public export, verify JSDoc + contract test + cross-ref; surface gaps; close them. P0 sub-goal 1. |
+| **SDK functional audit cycle** (NEW — to be planned) | Enumerate every `package.json#exports` subpath; smoke-import each; verify bundle isolation; close gaps. P0 sub-goal 2. |
+| **MCP availability audit cycle** (NEW — to be planned) | Reproduce `themory mcp` boot from a fresh `npm install @usetheo/memory` against the published package (when published); document setup; publish if needed. P0 sub-goal 3. |
+| v0.5 TheoCloud runtime (Item 7) | Blocked by Theo PaaS GA; if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not as a new feature — the contract was always two-runtime per Locked Names). |
+
+### P0 closure criteria (when do we lift the freeze?)
+
+All three MUST be true:
+
+- **Sub-goal 1 (APIs correct)** — `npm run typecheck` zero errors; `npm run lint` zero warnings; every public export has a `@see` cross-ref to the plan/blueprint that introduced it; no `@deprecated` markers older than 30 days; no `// TODO` / `// FIXME` in `src/`; `no-paper-names-in-code.md` grep shows zero hits in `src/**/*.ts`.
+- **Sub-goal 2 (SDK functional)** — every subpath in `package.json#exports` has a passing smoke import test; bundle isolation tests pass; THE GOAL TEST of every shipped Item still passes; `/dogfood` gate returns `EVIDENCE_SUFFICIENT` per `dogfood-golden-rule.md`.
+- **Sub-goal 3 (MCP available)** — `themory mcp` boots from a fresh `npx @usetheo/memory mcp` AFTER the package is published OR from the published Docker image; tested by a third-party reproducer.
+
+Only the project owner signs off the P0 closure. After closure, Phase IV items unfreeze.
+
+### Honest disclosure
+
+This directive does NOT change the README Status (`Pre-release`), the locked names, the voice & tone, or the 3 root overrides. It does NOT delete any Roadmap item from history. It SCOPES forward work to hardening only. Per Inquebrável Rule 3 (extreme honesty), any future commit that introduces a new feature outside this scope must be reverted OR re-classified as in-scope with explicit rationale.
+
+---
+
 ## What this project is
 
 `@usetheo/memory` (TheMemory) is the **managed three-tier memory layer** of the [Theo](https://usetheo.dev) ecosystem. **vector-based hybrid architecture** (vector + LLM fact extraction + hybrid retrieval), with three scope tiers (**User / Session / Agent**), shipping in two runtimes (**local** Postgres + pgvector for dev/CI, **TheoCloud-managed** for production). **MIT-licensed.** Native to [TheoKit](../theokit) by design.
@@ -187,14 +234,20 @@ Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → 
 
 ### Pending (not built yet)
 
-| Nº | Name | Acceptance + dependency | Status |
+**Pre-P0 trichotomy:**
+
+- **(a) On the P0 critical path** — items whose blocker IS the P0 sub-goals. Continue under hardening.
+- **(b) FROZEN under P0** — no work until P0 closes. The Roadmap entry stays for audit history.
+- **(c) Cross-repo dependency** — waiting on sibling repo; not blocked by P0 directly.
+
+| Nº | Name | Acceptance + dependency | P0 classification |
 |---|---|---|---|
-| 7 | **v0.5 — TheoCloud runtime + multi-region premium** | `@usetheo/memory/cloud` subpath imports cloud client (bundle-size gate). `THEOKIT_API_KEY` auth flow against staging. Multi-region failover. (Bi-temporal `asOf` MOVED to v1.1 local OSS tier per ADR-0011; cloud premium narrows to multi-region + audit-mgmt + managed embedding pricing.) **Depends:** Item 2 + Theo PaaS GA | Planned (PaaS GA dependency) |
-| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) `docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" running ≥ 30 days). README Status section flipped to `Production-ready` in same PR that bumps to v1.0. No `production-ready` token appears anywhere in repo before this PR (grep gate). **Current state (persistent audit 2026-05-31 `6f7ff87`):** `EVIDENCE_INSUFFICIENT`; hard caps firing: `anchor_not_running` + `no_anchor_evidence`. The gate is correctly blocking. **Depends:** Item 10 + `/dogfood` infra (shipped 2026-05-22) | Planned (`/dogfood` gate active) |
-| 13 | **v1.2 — Adaptive retrieval** | `shouldRetrieve` + `wasRetrievalGood` decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). Baseline measurement: M < N retrievals AND recall ≥ baseline (no quality regression). **Depends:** Item 2 | Planned |
-| 14 | **v1.3 — Optional graph backend** | `@usetheo/memory/graph` adapter for KG-style queries (REDACTED/REDACTED use cases). Backend: Postgres + Apache AGE OR a graph database. Shape-shared test suite runs green against both backends. `memory.traverse(entityId, {depth: 2})` graph-specific API. Bundle gate: default barrel does NOT pull graph deps. **Depends:** Item 2 | Planned |
-| 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical / legal / code / support) layered over LLM extraction. `recall<MedicalSchema>(...)` narrows return type at compile time. Cross-domain conflict caught at write time. **Depends:** Item 9 (distillation feeds typed extraction) | Planned |
-| 3 (PR-B) | **v0.2 PR-B — Scaffolded TheoKit templates + E2E** | T4.1-T4.4 + T5.1 from v0.2 plan ADR D7: default-on memory in scaffolded TheoKit apps. **Depends:** sibling `theokit` repo PR | Pending (cross-repo coordination) |
+| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) `docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" running ≥ 30 days). README Status flipped to `Production-ready` in same PR that bumps to v1.0. **Current state (persistent audit 2026-05-31 `6f7ff87`):** `EVIDENCE_INSUFFICIENT`; hard caps firing: `anchor_not_running` + `no_anchor_evidence`. The gate is correctly blocking. **Depends:** Item 10 + `/dogfood` infra (shipped 2026-05-22) | **(a) On P0 critical path** — P0 sub-goal 2 directly covers `/dogfood` closure |
+| 7 | **v0.5 — TheoCloud runtime + multi-region premium** | `@usetheo/memory/cloud` subpath imports cloud client (bundle-size gate). `THEOKIT_API_KEY` auth flow against staging. Multi-region failover. (Bi-temporal `asOf` MOVED to v1.1 local OSS tier per ADR-0011; cloud premium narrows to multi-region + audit-mgmt + managed embedding pricing.) **Depends:** Item 2 + Theo PaaS GA | **(a) Conditional** — if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not a new feature) per P0 § "What CONTINUES" |
+| 3 (PR-B) | **v0.2 PR-B — Scaffolded TheoKit templates + E2E** | T4.1-T4.4 + T5.1 from v0.2 plan ADR D7: default-on memory in scaffolded TheoKit apps. **Depends:** sibling `theokit` repo PR | **(c) Cross-repo dependency** — sibling repo work; not blocked by P0 directly. Ship when sibling lands. |
+| 13 | **v1.2 — Adaptive retrieval** | `shouldRetrieve` + `wasRetrievalGood` decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). | **(b) FROZEN under P0** — no plans, no PRs, no discovery cycles |
+| 14 | **v1.3 — Optional graph backend** | `@usetheo/memory/graph` adapter for KG-style queries. Backend: Postgres + Apache AGE OR a graph database. | **(b) FROZEN under P0** |
+| 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical / legal / code / support) layered over LLM extraction. | **(b) FROZEN under P0** |
 
 ### Items cut / deferred (audit trail)
 
@@ -303,6 +356,7 @@ The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 7. **Don't reinvent.** `pgvector`, `pg`, `zod` for the schema layer. `@usetheo/sdk`'s LLM client + `MemoryAdapter` for ecosystem reuse. REDACTED's two-stage pipeline is the proven shape — adopt, don't redesign.
 8. **No emojis** in code, READMEs, CHANGELOGs, or CLAUDE.md files unless explicitly requested.
 9. **No paper names in code** per `.claude/rules/no-paper-names-in-code.md` (promoted 2026-05-30). Knowledge-base docs MAY cite REDACTED / REDACTED / REDACTED / etc.; `src/**` + tests MUST NOT.
+10. **PRIORITY 0 freeze** (locked 2026-06-04). No new features outside the 3 P0 sub-goals (API correct + SDK functional + MCP available). Items 13/14/15 + future Phase V expansion are FROZEN until P0 closure. Any commit introducing a feature outside this scope MUST be reverted OR re-classified as in-scope with explicit rationale in the commit body. See § PRIORITY 0 above.
 
 Full text: `<HOME>/.claude/CLAUDE.md`. Cross-project rules: `<HOME>/Projetos/usetheo/CLAUDE.md`.
 
@@ -318,5 +372,6 @@ The code and the README are authoritative. If this file disagrees with them, the
 - **Voice and tone** — root-level strategic review per Voice and Tone section.
 - **Three root overrides** (Cross-Project Rule 6 exception, Phase 1 scope, MIT license exception) — root-level strategic review.
 - **ADR-0010 RepoScope 4th tier** + **ADR-0011 bi-temporal runtime lift** — project-owner sign-off required.
+- **PRIORITY 0 directive** (locked 2026-06-04, GO-TO CTO project-owner sign-off) — lifting the freeze on Items 13/14/15 OR introducing new features outside the 3 P0 sub-goals requires project-owner sign-off recorded in CHANGELOG + CLAUDE.md amendment.
 
 Do not edit any of the above silently. Surface the conflict to the user first.
