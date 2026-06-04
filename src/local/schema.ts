@@ -83,7 +83,7 @@ export const memories = pgTable(
     /** v1.1 T1.1: first-class promoted column for multi-peer attribution per blueprint Q3 + R1.
      *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
      *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
-     *  (any peer ID accepted; not restricted to REDACTED's bivalent "user"/"assistant" vocabulary).
+     *  (any peer ID accepted; not restricted to the upstream bivalent "user"/"assistant" vocabulary).
      *  @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2. */
     attributedTo: text('attributed_to'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),

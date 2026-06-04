@@ -2,7 +2,7 @@
  * SleepTimeReflectionPolicy — fires reflection on a cron schedule.
  *
  * Per plan v0-4a-reflection-pipeline § T3.1 + ADR D7 + ADR D10 (`croner` adopted
- * as runtime dep per blueprint D7) + blueprint Q5 (REDACTED v4 fire-and-forget
+ * as runtime dep per blueprint D7) + blueprint Q5 (the upstream v4 fire-and-forget
  * pattern from `safe_create_task`).
  *
  * Behavior:
