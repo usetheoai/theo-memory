@@ -57,6 +57,10 @@ beforeEach(async () => {
   mockConnect.mockReset();
   mockStop.mockReset();
   vi.stubEnv('THEOMEM_PG_URI', 'postgres://themem:themem@localhost:5432/themem');
+  // T3.2 alignment — run-mcp-server.ts (e43d801) + run-server.ts (T3.2) both
+  // hard-fail on missing OPENAI_API_KEY. Stub a fake key so bootstrap tests
+  // reach the connectStdio / connectStreamableHttp / serve() call sites.
+  vi.stubEnv('OPENAI_API_KEY', 'sk-fake-test-key-for-boot');
   // Lazily import AFTER vi.mock takes effect
   const mcpModule = await import('../run-mcp-server.js');
   runMcpServer = mcpModule.runMcpServer;
