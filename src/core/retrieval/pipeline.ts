@@ -34,6 +34,8 @@ import type { RecallOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 import { combineScores, maxPossible, sigmoidBm25 } from '../scoring.js';
 
+import { mmrRerank } from './mmr.js';
+
 export interface RetrievalDeps {
   readonly vectorStore: VectorStore;
   readonly embedder: Embedder;
@@ -134,6 +136,9 @@ export async function runRetrievalPipeline(
 
   // Step 8: threshold filter (semantic gate BEFORE combining + final threshold AFTER)
   // EC-8: NaN-scored candidates dropped here because `NaN > threshold` is false.
+  // principles-alignment-hardening T4.1: capture pre-threshold count for the
+  // recall_threshold_filtered event (Princípio 3 IGNORE auditability per ADR D2).
+  const preThresholdCount = candidates.size;
   const scored: { id: string; payload: Payload; score: number }[] = [];
   for (const [id, c] of candidates.entries()) {
     if (c.semantic < threshold) {
@@ -151,10 +156,44 @@ export async function runRetrievalPipeline(
     }
     scored.push({ id, payload: c.payload, score: combined });
   }
+  // principles-alignment-hardening T4.1 — emit recall_threshold_filtered ONLY
+  // when filtered_count > 0 (no-op observability discipline; do not flood
+  // dashboards with zero-filter events). EC-5 absorption: emitEvent is no-op
+  // when tracer === undefined.
+  const filteredCount = preThresholdCount - scored.length;
+  if (filteredCount > 0) {
+    emitEvent(tracer, 'recall_threshold_filtered', {
+      filtered_count: filteredCount,
+      pre_threshold_count: preThresholdCount,
+      post_threshold_count: scored.length,
+    });
+  }
 
-  // Step 9: sort + format top-K
+  // Step 8.5: MMR diversify rerank (principles-alignment-hardening T4.2 / ADR D3).
+  // Opt-in via options.diversify; default (undefined) = byte-identical to v1.5.
   scored.sort((a, b) => b.score - a.score);
-  const top = scored.slice(0, topK);
+  let top: readonly { id: string; payload: Payload; score: number }[];
+  if (options?.diversify !== undefined) {
+    const { lambda, topPool } = options.diversify;
+    const effectiveTopPool = topPool ?? topK * 3;
+    // Embed candidate texts in ONE batch for diversity computation. Cost is
+    // bounded by topPool (default topK*3 ≤ 60) — one extra embedder call.
+    // The mmrRerank function throws InvalidScope when lambda ∉ [0, 1] (EC-3).
+    const candidatesForMmr = scored.slice(0, effectiveTopPool);
+    const texts = candidatesForMmr.map((c) => String(c.payload['text'] ?? ''));
+    const embeddings = await deps.embedder.embedBatch(texts);
+    const mmrCandidates = candidatesForMmr.map((c, i) => ({
+      id: c.id,
+      score: c.score,
+      embedding: embeddings[i] ?? [],
+      payload: c.payload,
+    }));
+    const selected = mmrRerank(mmrCandidates, lambda, effectiveTopPool, topK);
+    top = selected.map((s) => ({ id: s.id, payload: s.payload, score: s.score }));
+  } else {
+    // Step 9: sort + format top-K (v1.5 default path)
+    top = scored.slice(0, topK);
+  }
 
   const scope = scopeFromFilters(filters);
   const now = new Date();

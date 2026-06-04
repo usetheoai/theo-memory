@@ -98,6 +98,31 @@ export interface RecallOptions {
    * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.2 + EC-3
    */
   readonly includeSuperseded?: boolean;
+
+  /**
+   * principles-alignment-hardening T4.2 / ADR D3 — Princípio 2 (CLAUDE.md § IMPORTANTE)
+   * priorização > volume via MMR rerank. When set, retrieval applies Maximal
+   * Marginal Relevance reranking AFTER score combine + BEFORE topK truncation:
+   *
+   *   selected = MMR(candidates, lambda, topPool ?? topK*3, topK)
+   *
+   * Default (when undefined) is byte-identical to v1.5 — no rerank, no behavior
+   * change for existing callers (opt-in per ADR D3 Alternatives B rejection).
+   *
+   * - `lambda` ∈ [0, 1]: relevance vs diversity trade-off. lambda=1 ⇒ pure
+   *   relevance order (no diversity); lambda=0 ⇒ pure diversity (no relevance);
+   *   lambda=0.7 ⇒ literature default for diverse-but-relevant. Throws
+   *   `InvalidScope` when lambda ∉ [0, 1] (EC-3 absorption per architecture.md § 8).
+   * - `topPool`: candidate pool size before MMR selection. Defaults to `topK * 3`.
+   *
+   * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T4.2 + § ADR D3
+   * @see CLAUDE.md § IMPORTANTE Princípio 2
+   * @throws InvalidScope — when `diversify.lambda` is outside [0, 1].
+   */
+  readonly diversify?: {
+    readonly lambda: number;
+    readonly topPool?: number;
+  };
 }
 
 export interface ForgetOptions {
