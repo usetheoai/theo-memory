@@ -508,6 +508,8 @@ await memory.user('alice').recall('what color do I prefer?');     // HIT (cosine
 - **Subpath**: `@usetheo/memory/cache-pg` exposes `PgvectorRecallCacheStore` + metric resolvers for custom wirings.
 - **Stub-embedder gate**: when cache is enabled and the embedder is `StubEmbedder` / `DeterministicStubEmbedder`, a 3-line stderr warning fires at factory time — cache hits with stub vectors are COINCIDENTAL, not semantic.
 
+**Known limitation (v1.5.0):** `memory.skills(repoId).recall(...)` does NOT consult the recall cache — the cache wrap lives on `LocalScopedMemory.recall()` only. Skill-scope cache wiring is tracked for v1.5.x. `ScopeTierTtlConfig.repo` remains REQUIRED in the public DIP because consumer configs that set it forward-port without rewrites; the field's TTL value is dormant until the wiring lands. Mirrors the v1.1 EC-9 skill-scope `asOf` honest deferral precedent. See `semantic-recall-cache-v1-5-fixes-cycle-1-plan.md` § ADR D10.
+
 THE GOAL TEST (`tests/integration/cache/semantic-recall-cache.test.ts`) verifies hit rate ≥ 0.5 on 10 hand-authored near-duplicate query pairs at `threshold=0.8` against real `ankane/pgvector:v0.5.1`. Last run: **6/10 = 0.60**.
 
 ### Dependency direction (planned, enforced at CI)
