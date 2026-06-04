@@ -46,7 +46,7 @@ describe('recallSchema (T2.1)', () => {
     // Given: minimal valid input
     // When: parsed
     const result = recallSchema.safeParse({ query: 'beverages' });
-    // Then: topK defaults to 20 — honored from v0.0 contract (Mem0 parity, per architecture.md § 5)
+    // Then: topK defaults to 20 — honored from v0.0 contract (upstream-pipeline parity, per architecture.md § 5)
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.topK).toBe(20);
