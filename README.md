@@ -190,9 +190,41 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 
 ## Agent loops via MCP (v0.3 — `@usetheo/memory/agent-tools`)
 
-`@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as an MCP server (Model Context Protocol per [spec 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25)) consumable by any MCP-aware agent loop — Claude Desktop, Cursor, [`@usetheo/sdk`](../theokit-sdk) agents via their existing `mcpServers` config.
+`@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as an MCP server (Model Context Protocol per [spec 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25)) consumable by any MCP-aware agent loop — Claude Desktop, Claude Code, Cursor, [`@usetheo/sdk`](../theokit-sdk) agents via their existing `mcpServers` config.
 
-**Install as a stdio MCP server** in your agent's `.theokit/mcp.json`:
+**Required environment variables (post-T3.2 — no stubs in production path):**
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `THEOMEM_PG_URI` | **YES** | — | Postgres connection string (e.g., `postgresql://themem:themem@localhost:5432/themem`). |
+| `OPENAI_API_KEY` | **YES** | — | OpenAI-compatible API key. Works for OpenAI proper AND for OpenRouter (see `OPENAI_BASE_URL` below). Without it the MCP server hard-fails at startup with exit code 2. |
+| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` | Set to `https://openrouter.ai/api/v1` to route LLM calls through OpenRouter (one key serves OpenAI + Anthropic + Mistral + others). |
+| `OPENAI_CHAT_MODEL` | no | `gpt-4o-mini` | Model identifier for fact extraction. Honored by both direct OpenAI and OpenRouter. |
+| `THEOMEM_MCP_DEFAULT_USER_ID` | no | — | Default scope binding for stdio callers that do not pass `_meta.io.usetheo.themory/user_id`. Required for Claude Code direct use. |
+
+**Install as a stdio MCP server for Claude Code** via project-local `.mcp.json` (the canonical Claude Code mechanism):
+
+```json
+{
+  "mcpServers": {
+    "themory": {
+      "command": "node",
+      "args": ["/absolute/path/to/dist/agent-tools/cli.js", "mcp"],
+      "env": {
+        "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem",
+        "THEOMEM_MCP_DEFAULT_USER_ID": "claude-code-my-project",
+        "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+        "OPENAI_CHAT_MODEL": "openai/gpt-4o-mini",
+        "OPENAI_API_KEY": "sk-or-..."
+      }
+    }
+  }
+}
+```
+
+After saving `.mcp.json`, RESTART Claude Code. The 4 tools (`mcp__themory__remember/recall/forget/reflect`) appear in the available-tools list once the server boots.
+
+**Install as a stdio MCP server for other agents** (Claude Desktop, Cursor, `@usetheo/sdk`):
 
 ```json
 {
@@ -201,7 +233,8 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
       "command": "npx",
       "args": ["@usetheo/memory/agent-tools"],
       "env": {
-        "THEOMEM_PG_URI": "postgres://user:pass@host:5432/dbname"
+        "THEOMEM_PG_URI": "postgresql://...",
+        "OPENAI_API_KEY": "sk-..."
       }
     }
   }
@@ -212,6 +245,7 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 
 ```bash
 THEOMEM_PG_URI=postgres://... \
+  OPENAI_API_KEY=sk-... \
   THEOMEM_MCP_TRANSPORT=streamable-http \
   THEOMEM_MCP_HTTP_PORT=8080 \
   npx @usetheo/memory/agent-tools
