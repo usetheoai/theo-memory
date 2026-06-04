@@ -315,6 +315,66 @@ describe.skipIf(ROOT_PG_URI === '')(
       expect(after.rows[0]?.count).toBe('1');
     }, 60_000);
 
+    /**
+     * fixes-cycle-1 T2.3 / F-merge-4 — forget() post-success cache invalidation
+     * integration test + EC-10 scope-derivation (per ADR D9).
+     *
+     * EC-4 absorption (explicit scope_key assertion): row-count alone is
+     * insufficient. A regression that mis-derives the scope (e.g., returns
+     * `{kind:'user', userId:'bob'}` instead of `'alice'`) would invalidate
+     * bob's row instead and the symmetric "bob count = 1, alice count = 0"
+     * would still hold by accident. Explicit `SELECT scope_key` assertion
+     * verifies the derived value, not just side-effect row counts.
+     *
+     * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § T2.3
+     */
+    it('fixes-cycle-1 T2.3 — forget() invokes invalidateScope on derived scope (F-merge-4 + EC-4)', async () => {
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: fixedEmbedder(),
+        llm: echoLlm(),
+        recallCache: { threshold: 0.8 },
+      });
+
+      // Seed memories in two scopes.
+      const aliceWrite = await memory.user('alice').remember('Alice likes coffee');
+      const aliceMemoryId = aliceWrite[0]?.id;
+      expect(aliceMemoryId).toBeDefined();
+
+      const bobWrite = await memory.user('bob').remember('Bob likes tea');
+      expect(bobWrite[0]?.id).toBeDefined();
+
+      // Pre-warm both caches.
+      await memory.user('alice').recall('coffee');
+      await memory.user('bob').recall('tea');
+
+      const before = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM recall_cache`,
+      );
+      expect(before.rows[0]?.count).toBe('2');
+
+      // Cross-scope forget — only alice's cache row should disappear.
+      await memory.forget(aliceMemoryId!);
+
+      const aliceAfter = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+      );
+      expect(aliceAfter.rows[0]?.count).toBe('0');
+
+      const bobAfter = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:bob'`,
+      );
+      expect(bobAfter.rows[0]?.count).toBe('1');
+
+      // EC-4 absorption: explicit scope_key assertion — the surviving row set
+      // contains ONLY 'user:bob', proving the derived scope (alice) was the
+      // one invalidated, not a coincidence of symmetric row counts.
+      const surviving = await pool.query<{ scope_key: string }>(
+        `SELECT scope_key FROM recall_cache ORDER BY scope_key`,
+      );
+      expect(surviving.rows.map((r) => r.scope_key)).toEqual(['user:bob']);
+    }, 60_000);
+
     it('T2.1-RED-7 (EC-2 pre-migration) — null table dim does NOT throw (deferred check)', async () => {
       // Drop the table → probeCacheTableDim returns null → factory accepts config.
       // The cache wiring then proceeds; first set() would fail later (table missing)
