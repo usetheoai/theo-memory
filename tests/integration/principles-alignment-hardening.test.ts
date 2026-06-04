@@ -176,6 +176,28 @@ describe.skipIf(ROOT_PG_URI === '')(
       expect(spanNames).toContain('recall_threshold_filtered');          // 16
     }, 180_000);
 
+    it('EC-6 absorption — recall() returns MemoryItems with confirmationCount hoisted from DB projection', async () => {
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
+        embedder: new LocalTransformerEmbedder(),
+        llm: echoLlm(),
+        embeddingDim: 384,
+      });
+      await pool.query('TRUNCATE memories, entities, history CASCADE');
+
+      // alice writes "I like tea" twice → confirmation_count = 2 in DB
+      await memory.user('alice').remember('I like tea');
+      await memory.user('alice').remember('I like tea');
+
+      // Recall the same query — the returned MemoryItem must carry
+      // confirmationCount = 2 (hoisted from pgvector-store SELECT projection).
+      const results = await memory.user('alice').recall('I like tea', { topK: 5, threshold: 0.1 });
+      expect(results.length).toBeGreaterThan(0);
+      const teaItem = results.find((r) => r.text.toLowerCase().includes('tea'));
+      expect(teaItem).toBeDefined();
+      expect(teaItem!.confirmationCount).toBe(2);
+    }, 120_000);
+
     it('Princípio 2 (diversify) — MMR reduces near-paraphrase redundancy (EC-9 honest measurement)', async () => {
       const memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
