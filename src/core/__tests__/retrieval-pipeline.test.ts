@@ -57,7 +57,7 @@ function makeStore(rows: readonly FakeRow[], bm25Mode: 'pass' | 'null' = 'pass')
   });
   return {
     initialize: () => Promise.resolve(),
-    insert: () => Promise.resolve(),
+    insert: () => Promise.resolve([] as const),
     search,
     keywordSearch,
     get: () => Promise.resolve(null),

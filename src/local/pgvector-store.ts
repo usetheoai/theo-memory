@@ -10,7 +10,7 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
-import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import type { InsertOutcome, VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
 import { EmbeddingMismatch } from '../core/errors.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
@@ -246,7 +246,7 @@ export class PgvectorStore implements VectorStore {
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Payload[],
-  ): Promise<void> {
+  ): Promise<readonly InsertOutcome[]> {
     if (vectors.length !== ids.length || vectors.length !== payloads.length) {
       throw new Error('insert: vectors, ids, and payloads must have equal length');
     }
@@ -257,19 +257,21 @@ export class PgvectorStore implements VectorStore {
       this.assertEmbeddingDim(vec, 'insert');
     }
     try {
-      await this.insertBatch(vectors, ids, payloads);
+      return await this.insertBatch(vectors, ids, payloads);
     } catch {
       // F-arch-3: persist_fallback fires per batch invocation; per-row failures
       // are skipped (do not poison the rest of the batch) and tallied below.
       emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
+      const outcomes: InsertOutcome[] = [];
       let failed = 0;
       for (let i = 0; i < vectors.length; i += 1) {
         try {
-          await this.insertSingle(
+          const singleOutcomes = await this.insertSingle(
             vectors[i] as readonly number[],
             ids[i] as string,
             payloads[i] as Payload,
           );
+          outcomes.push(...singleOutcomes);
         } catch {
           failed += 1;
         }
@@ -277,6 +279,7 @@ export class PgvectorStore implements VectorStore {
       if (failed > 0) {
         emitEvent(this.tracer, 'persist_fallback', { failed_rows: failed, total: vectors.length });
       }
+      return outcomes;
     }
   }
 
@@ -284,7 +287,7 @@ export class PgvectorStore implements VectorStore {
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Payload[],
-  ): Promise<void> {
+  ): Promise<readonly InsertOutcome[]> {
     const values: string[] = [];
     const params: unknown[] = [];
     let p = 1;
@@ -351,6 +354,7 @@ export class PgvectorStore implements VectorStore {
     // EC-5 absorption: emitEvent is a no-op when tracer === undefined (handled
     // by emitEvent itself per src/core/memory-event.ts:46), so no explicit guard
     // needed here.
+    const outcomes: InsertOutcome[] = [];
     for (const row of result.rows) {
       if (!row.inserted) {
         const scopeTier: string =
@@ -361,15 +365,21 @@ export class PgvectorStore implements VectorStore {
           scope_tier: scopeTier,
         });
       }
+      outcomes.push({
+        id: row.id,
+        confirmationCount: row.confirmation_count,
+        rejectedAsDuplicate: !row.inserted,
+      });
     }
+    return outcomes;
   }
 
   private async insertSingle(
     vector: readonly number[],
     id: string,
     payload: Payload,
-  ): Promise<void> {
-    await this.insertBatch([vector], [id], [payload]);
+  ): Promise<readonly InsertOutcome[]> {
+    return this.insertBatch([vector], [id], [payload]);
   }
 
   async search(

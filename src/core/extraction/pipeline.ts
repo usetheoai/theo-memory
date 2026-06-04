@@ -27,7 +27,7 @@ import { hashFact } from '../dedup.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { HistoryBatchRecord, HistoryManager } from '../dip/history-manager.js';
 import type { LLM } from '../dip/llm.js';
-import type { VectorStore } from '../dip/vector-store.js';
+import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
@@ -137,9 +137,40 @@ async function runInferFalsePath(
     payloads.push(payload);
   }
   if (vectors.length > 0) {
-    await deps.vectorStore.insert(vectors, ids, payloads);
+    const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
+    return patchItemsWithOutcomes(items, outcomes);
   }
   return items;
+}
+
+/**
+ * principles-alignment-hardening T2.1 — patch MemoryItem instances with
+ * UPSERT outcomes from the vector store. Surfaces Princípio 1 (confirmação)
+ * + Princípio 3 (rejectedAsDuplicate IGNORE auditability) on the DTO.
+ *
+ * Outcomes are matched by id (input-order positional match is the fast path;
+ * Map fallback handles the per-row insert path where positional order may
+ * differ from the original input).
+ */
+function patchItemsWithOutcomes(
+  items: readonly MemoryItem[],
+  outcomes: readonly InsertOutcome[],
+): readonly MemoryItem[] {
+  if (outcomes.length === 0) {
+    return items;
+  }
+  const byId = new Map(outcomes.map((o) => [o.id, o]));
+  return items.map((item) => {
+    const outcome = byId.get(item.id);
+    if (outcome === undefined) {
+      return item;
+    }
+    return {
+      ...item,
+      confirmationCount: outcome.confirmationCount,
+      rejectedAsDuplicate: outcome.rejectedAsDuplicate,
+    };
+  });
 }
 
 /** Phase 3: batch embed with per-row fallback on batch failure. */
@@ -167,31 +198,36 @@ async function embedBatchWithFallback(
   }
 }
 
-/** Phase 6: batch persist with per-row fallback. */
+/** Phase 6: batch persist with per-row fallback. Returns per-id outcomes
+ * surfacing UPSERT semantics for principles-alignment-hardening T2.1 wrap. */
 async function persistWithFallback(
   vectorStore: VectorStore,
   vectors: readonly (readonly number[])[],
   ids: readonly string[],
   payloads: readonly Payload[],
   tracer: Tracer | undefined,
-): Promise<void> {
+): Promise<readonly InsertOutcome[]> {
   emitEvent(tracer, 'persist_started', { count: ids.length });
   try {
-    await vectorStore.insert(vectors, ids, payloads);
+    const outcomes = await vectorStore.insert(vectors, ids, payloads);
     emitEvent(tracer, 'persist_completed', { count: ids.length });
+    return outcomes;
   } catch {
     emitEvent(tracer, 'persist_fallback', { count: ids.length });
+    const outcomes: InsertOutcome[] = [];
     for (let i = 0; i < ids.length; i += 1) {
       try {
-        await vectorStore.insert(
+        const single = await vectorStore.insert(
           [vectors[i] as readonly number[]],
           [ids[i] as string],
           [payloads[i] as Payload],
         );
+        outcomes.push(...single);
       } catch {
         // Log + skip; do not poison the batch
       }
     }
+    return outcomes;
   }
 }
 
@@ -314,13 +350,20 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 6: batch persist (per-row fallback)
   // ============================================================
-  await persistWithFallback(
+  const persistOutcomes = await persistWithFallback(
     deps.vectorStore,
     survivingVectors,
     survivingIds,
     survivingPayloads,
     tracer,
   );
+  // principles-alignment-hardening T2.1 — patch surviving items with UPSERT
+  // outcomes (confirmationCount + rejectedAsDuplicate) per ADR D1 + D4.
+  const patchedItems = patchItemsWithOutcomes(survivingItems, persistOutcomes);
+  // Replace the surviving items array in place so downstream history persist /
+  // entity link / return path see the patched DTOs.
+  survivingItems.length = 0;
+  survivingItems.push(...(patchedItems as MemoryItem[]));
 
   // ============================================================
   // Phase 6.5: batch history persist
