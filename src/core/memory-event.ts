@@ -27,6 +27,11 @@ export const MEMORY_EVENTS = [
   'history_persisted',
   'entity_linked',
   'messages_saved',
+  // principles-alignment-hardening T1.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when PgvectorStore.insert's ON CONFLICT branch UPDATEs an
+  // existing row's confirmation_count instead of inserting a new one.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'dedup_collision_confirmed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
