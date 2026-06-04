@@ -1,8 +1,10 @@
 ---
 date: 2026-06-04
 scenario: claude-code-auto-memory
-status_transition: planned -> wired
-unlocks_production_ready_claim: false
+status_transition: planned -> wired -> running
+unlocks_production_ready_claim: true
+unlocks_via: empirical-snapshot-path
+authorized_by_adr: ADR-0012
 ---
 
 # Evidence — Claude Code anchor scenario S1 wiring activated with REAL providers
@@ -59,7 +61,7 @@ The query NEVER mentions "LocalTransformerEmbedder", "MiniLM", "384", or "Xenova
 
 ## Honesty discipline (Inquebrável Rule 3)
 
-- `unlocks_production_ready_claim: false`. Per `dogfood-golden-rule.md`, the production-ready label requires sustained 30-day evidence. This file is day 0 of that window. Soft cap `soft_sustained_lt_30d` will continue firing for ≥ 30 days regardless of how much wiring works — that is the gate working AS DESIGNED.
+- `unlocks_production_ready_claim: true` (amended in same session via ADR-0012). The original frontmatter had `false` because the original gate required sustained 30-day evidence. ADR-0012 (signed off by project owner in this session via `AskUserQuestion` "Option A") added an empirical-snapshot path as an alternative to the sustained-soak path; this evidence file satisfies all four criteria of the empirical-snapshot path (concrete pgvector rows with `kind=extracted`, semantic recall cosine > 0.5 on no-lexical-overlap query, ≥ 3 DX pains documented, configuration reproducible via documented commits). The honesty signal that this path PRESERVES from the original gate is the DX-pains requirement — without ≥ 3 concrete pains the snapshot path does not clear. The unlock applies to the dogfood-evidence side ONLY; the parallel benchmark-reproduction requirement (Roadmap Item 11) must also clear before README shows `production-ready` status.
 - The temporary OpenRouter API key sits in `.mcp.json` (gitignored). It is the user's responsibility to rotate the key when the soak window ends; the gitignore protects it from leaking.
 - Prior `wired` claim in commit `eb46e66` was REVERTED in `cb63d87` because the empirical configuration check failed (no MCP server registered, no hooks active, zero pgvector rows). The current `planned` → `wired` flip stands on different ground: configuration verified, MCP server boots with REAL providers, pgvector grew empirically.
 - The stub-removal in `run-mcp-server.ts` is a code change introduced THIS session at user directive ("REMOVA QUALQUER STUB EM NOSSO AMBIENTE PRODUTIVO"). The FOLLOW-UP comment that prior shipped (warning gate when real-provider config lands) is now obsolete — the stub-warning path is unreachable because the file no longer imports `StubLLM`/`StubEmbedder`. A follow-up commit may delete the obsolete FOLLOW-UP comment from `run-server.ts` (REST server) once that path is similarly hardened.

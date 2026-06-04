@@ -71,14 +71,23 @@ Em ordem:
 
 ### Passo 4 — Aplicar soft caps (apenas se os 4 hard caps passaram)
 
+Per ADR-0012 (2026-06-04 amendment), only ONE soft cap remains active:
+
 | # | Check | Flag emitida |
 |---|---|---|
-| 5 | Primeiro arquivo de evidência da âncora tem `date:` ≥ 30 dias do today | `soft_sustained_lt_30d` (se falha) |
-| 6 | Razão `(número de evidência files da âncora) / (dias rodando / 10)` ≥ 1.0 | `soft_evidence_density_low` (se falha) |
-| 7 | Ao menos um arquivo de evidência da âncora tem conteúdo não-vazio em `## DX pains encountered` ou `## API gaps surfaced` | `soft_no_pains_logged` (se falha) |
+| 5 | Ao menos um arquivo de evidência da âncora tem conteúdo não-vazio em `## DX pains encountered` ou `## API gaps surfaced` | `soft_no_pains_logged` (se falha) |
 
 **Qualquer soft cap emitido → veredicto `EVIDENCE_WITH_CAVEATS`** (não bloqueia, mas exige footnote em qualquer claim).
 **Nenhuma flag emitida → veredicto `EVIDENCE_SUFFICIENT`.**
+
+#### Dropped soft caps (per ADR-0012)
+
+These no longer fire and should NOT appear in audit reports:
+
+- ~~`soft_sustained_lt_30d`~~ — first evidence ≥ 30 days old. Dropped because empirical-snapshot path treats day-0 evidence as legitimate.
+- ~~`soft_evidence_density_low`~~ — density per running day. Dropped for the same rationale.
+
+The active soft cap list lives here AND in `dogfood-golden-rule.md § Soft gates`.
 
 ### Passo 5 — Vocabulary lock check
 

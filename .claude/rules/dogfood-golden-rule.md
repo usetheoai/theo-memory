@@ -15,7 +15,7 @@
 **A `production-ready` claim, a promotion to v1.0, or any public copy stating that TheMemory is production-grade is INVALID and CANNOT be made when:**
 
 1. **The anchor scenario is missing from the manifest.** `.claude/knowledge-base/dogfood/manifest.md` does not declare the anchor scenario "Claude Code auto-memory backed by TheMemory" with `Status:` field present.
-2. **The anchor scenario is not `running`.** Status is `planned`, `wired`, `paused`, or `abandoned`. Only `running` counts.
+2. **The anchor scenario is not `running`.** Status is `planned`, `wired`, `paused`, or `abandoned`. Only `running` counts. As of [ADR-0012](../knowledge-base/adrs/ADR-0012-dogfood-gate-empirical-snapshot-amendment.md) (2026-06-04), the `running` status is reachable via either the original sustained-soak path OR the empirical-snapshot path — see § Status transition criteria in the manifest.
 3. **No evidence file exists for the anchor scenario.** `.claude/knowledge-base/dogfood/evidence/` contains zero files whose frontmatter `scenario:` matches the anchor scenario slug.
 4. **The latest anchor-scenario evidence file is older than 30 days.** A `running` status with stale evidence (no log in the last 30 days) is treated as silent abandonment.
 
@@ -70,9 +70,16 @@ PRs that **add** new dogfood scenarios (e.g., `@usetheo/sdk agents using agent-t
 
 These are NOT inquebrável — they downgrade verdict from `EVIDENCE_SUFFICIENT` to `EVIDENCE_WITH_CAVEATS`, not to `EVIDENCE_INSUFFICIENT`:
 
-1. **Sustained < 30 days running.** Anchor is `running` with evidence, but the first evidence file is less than 30 days old. Genuine dogfood needs sustained exposure to surface long-tail issues.
-2. **Evidence file density low.** Fewer than 1 evidence file per 10 days running. Suggests the dogfood is happening but not being logged — defeats the audit trail.
-3. **No DX pains or API gaps logged.** All evidence files have empty `DX pains encountered` / `API gaps surfaced` sections. Either dogfood is too shallow OR the API is suspiciously perfect (the latter is rarely true).
+1. **No DX pains or API gaps logged.** Evidence files have empty `DX pains encountered` / `API gaps surfaced` sections. Stable identifier `soft_no_pains_logged`. Either dogfood is too shallow OR the API is suspiciously perfect (the latter is rarely true). This soft cap is REINFORCED as of ADR-0012 — promoted to mandatory pre-requisite of the empirical-snapshot path (the evidence file documenting the snapshot MUST list ≥ 3 concrete DX pains to satisfy the path's bar).
+
+### Dropped soft gates (per ADR-0012 — 2026-06-04)
+
+The following soft caps applied only to the original sustained-soak path. With the empirical-snapshot path added by ADR-0012, they no longer fire under any path:
+
+- **`soft_sustained_lt_30d`** — first evidence file is less than 30 days old. Dropped because the empirical-snapshot path treats day-0 evidence as legitimate when the snapshot bar is met.
+- **`soft_evidence_density_low`** — fewer than 1 evidence file per 10 days running. Dropped for the same rationale; density-per-running-day is a sustained-soak measure that does not apply to snapshot evidence.
+
+Teams that prefer the original sustained-soak operating model can still satisfy the gate that way (the path remains in the manifest's § Status transition criteria), but the soft caps no longer enforce density / 30-day soak — DX pains documentation is now the load-bearing honesty signal.
 
 ## Related
 
@@ -87,3 +94,4 @@ These are NOT inquebrável — they downgrade verdict from `EVIDENCE_SUFFICIENT`
 | Date | Change | Rationale |
 |---|---|---|
 | 2026-05-22 | Rule created at day 0 of TheMemory project. Anchor scenario locked. | User decision: enforce dogfood discipline before any code lands, to prevent silent slide into production-ready claims backed only by benchmarks. |
+| 2026-06-04 | **ADR-0012 amendment** — added empirical-snapshot validation as an alternative path to `running` status (sustained-soak path REMAINS). Dropped soft caps `soft_sustained_lt_30d` + `soft_evidence_density_low`. Reinforced `soft_no_pains_logged` as mandatory pre-requisite of the empirical-snapshot path. The 30-day calendar window did not match project velocity at this stage; rather than incentivize evidence file backdating (anti-pattern #3) or gate-bypass (anti-pattern #6), the rule now recognizes session-bounded end-to-end empirical validation as legitimate evidence when measurable criteria are met (concrete pgvector row counts, semantic recall cosine threshold, configuration reproducibility, ≥ 3 DX pains logged). Authorized via project-owner `AskUserQuestion` response "Option A" in the same session that produced the empirical artifacts. | [ADR-0012](../knowledge-base/adrs/ADR-0012-dogfood-gate-empirical-snapshot-amendment.md) — see § Decision + § Consequences for the trade-off rationale and the rollback procedure. |
