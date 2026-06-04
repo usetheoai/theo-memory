@@ -304,9 +304,24 @@ function isRecallCacheStoreInstance(value: unknown): value is RecallCacheStore {
  * memory row from its persisted payload so `LocalMemory.forget()` can issue
  * a targeted `invalidateScope` instead of an all-scope sweep. The payload
  * carries `user_id` / `session_id` / `agent_id` columns (the same shape
- * `runExtractionPipeline` persisted at write time). When the row is too old
- * or malformed to carry a recognizable tier, return `undefined` so the caller
- * can no-op (cache continues serving until TTL — bounded staleness).
+ * `runExtractionPipeline` persisted at write time).
+ *
+ * Returns `undefined` when payload has no recognizable scope tier;
+ * `LocalMemory.forget()` SKIPS cache invalidation in that case (no
+ * `invalidateAll()` fallback per ADR D9 of `semantic-recall-cache-v1-5-fixes-cycle-1`).
+ * Cache continues serving until TTL — bounded staleness.
+ *
+ * The `undefined` branch is DEFENSIVE: every v0.1+ row carries a scope column
+ * populated by `runExtractionPipeline`. The branch only fires for (a) hypothetical
+ * pre-v0.1 rows (none in production) OR (b) consumer-side manual INSERTs bypassing
+ * the extraction pipeline.
+ *
+ * Repo-tier scope is NOT exercised here yet (per ADR D10 of `semantic-recall-cache-v1-5-fixes-cycle-1`):
+ * `LocalScopedSkillMemory.recall()` does not consult the cache at v1.5.0, so the
+ * derivation function returns the most specific memory-scope tier without checking
+ * for a `repo_id` column. Skill-scope cache wiring lands in v1.5.x.
+ *
+ * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § ADR D9 + § ADR D10
  */
 function deriveScopeFromPayload(payload: Readonly<Record<string, unknown>>): Scope | undefined {
   const userId = payload['user_id'];
