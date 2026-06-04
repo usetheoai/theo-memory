@@ -23,6 +23,6 @@
       "@usetheo/memory/contract": ["./src/core/index.ts"]
     }
   },
-  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts", "src/embedders/**/*.ts", "src/llms/**/*.ts", "src/benchmarks/**/*.ts", "src/__tests__/**/*.ts", "benchmarks/scripts/**/*.ts"],
+  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts", "src/embedders/**/*.ts", "src/llms/**/*.ts", "src/benchmarks/**/*.ts", "src/server/**/*.ts", "src/__tests__/**/*.ts", "benchmarks/scripts/**/*.ts"],
   "exclude": ["node_modules", "referencia", "dist", ".claude"]
 }

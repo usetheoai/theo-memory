@@ -114,6 +114,21 @@ export type {
 } from './dip/eviction-policy.js';
 export { InvalidFractionError, assertValidFraction } from './dip/eviction-policy.js';
 
+// v1.5 RecallCacheStore DIP (13th interface) — plan semantic-recall-cache-v1-5 T0.1 / ADR D1
+export type {
+  RecallCacheStore,
+  RecallCacheStoreConfig,
+  ScopeTierTtlConfig,
+  CachedResult,
+} from './dip/recall-cache-store.js';
+export {
+  validateRecallCacheStoreConfig,
+  DEFAULT_THRESHOLD,
+  DEFAULT_TTL_SECONDS_BY_SCOPE_TIER,
+  DEFAULT_MAX_SIZE_PER_SCOPE,
+} from './dip/recall-cache-store.js';
+export { InvalidCacheConfig } from './errors.js';
+
 export type {
   ConflictResolutionPolicy,
   ConflictResolutionResult,
@@ -141,6 +156,9 @@ export type {
   BenchmarkQuery,
   SearchResult,
 } from './dip/benchmark-adapter.js';
+
+// 12th DIP — AuthVerifier (theo-memory-standalone-p0 T0.1, ADR D3 amended).
+export type { AuthVerifier } from './dip/auth-verifier.js';
 
 // Pure-core algorithms (v0.1, Phase 1)
 export { hashFact } from './dedup.js';
