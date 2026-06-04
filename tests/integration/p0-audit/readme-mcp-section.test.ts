@@ -65,4 +65,8 @@ describe('T3.4 — README § Agent loops via MCP currency', () => {
   test('6. MCP section documents OPENAI_BASE_URL OpenRouter compatibility', () => {
     expect(section).toMatch(/OPENAI_BASE_URL|openrouter|OpenRouter/);
   });
+
+  test('7. fixes-cycle-1 F-dom-cli-2 — README cross-references .mcp.json.example template', () => {
+    expect(readme).toMatch(/\.mcp\.json\.example/);
+  });
 });
