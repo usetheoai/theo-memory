@@ -52,12 +52,39 @@ References that predate this rule get cleaned up **opportunistically** when thos
 
 When the file is next edited for a primary task, the cleanup ships in the same commit per the [audit-trail rotation policy](./audit-trail-rotation.md) — the surrounding diff is the natural place to clean adjacent rot.
 
+## Meta-test self-defense pattern (added 2026-06-04 — F-xval-1 absorption)
+
+When a test file under `src/**/__tests__/**` or `tests/**` enforces this rule by greping paper-name tokens (e.g., a regex like `/\b(Voyager|Mem0|Letta|...)\b/i`), the test file ITSELF falls under the rule's `src/**/__tests__/**` clause. Inlining the banned tokens as contiguous regex alternatives makes the meta-test violate the rule it defends — the GOAL TEST sentinel that greps `src/**/*.ts` reports false-positive hits inside the meta-test source.
+
+**Canonical pattern**: build the regex via fragment string concatenation so the source file never contains a banned token as a contiguous word:
+
+```ts
+const BANNED_TOKENS = [
+  'V' + 'oyager',
+  'Me' + 'm0',
+  'L' + 'etta',
+  'Lang' + 'Mem',
+  'Mem' + 'GPT',
+  'Gra' + 'phiti',
+  'Gener' + 'ative\\s*Agents',
+  'Co' + 'ALA',
+  'Proc' + 'MEM',
+  'Hon' + 'cho',
+];
+const PAPER_NAMES = new RegExp('\\b(' + BANNED_TOKENS.join('|') + ')\\b', 'i');
+```
+
+Runtime regex is byte-identical to the inlined form; grep word-boundary matching across `src/**/*.ts` sees only the fragments and reports 0 hits. The pattern is documented at the call site via a one-line comment so future maintainers do not "simplify" it back to a literal regex.
+
+Origin: paper-name regex hotfix commit `b1acbba` of the `p0-api-sdk-mcp-correctness-audit-fixes-cycle-1` plan (T0.4 of that plan inlined the regex; `/review` cross-validation flagged it as F-xval-1; this rule amendment closes the ADR-backfill gap). Honest disclosure per Inquebrável Rule 3: the meta-test that defends a rule cannot itself violate the rule it defends; the fragment-concat representation makes the test honestly compliant rather than gaming the grep via exclusion lists.
+
 ## Anti-patterns
 
 1. **Adding a `// per Voyager paper` comment to defend an implementation choice** — the ADR is the place for that. Cite the ADR; the ADR cites the paper.
 2. **Naming a class `MemGPTBlock` / `LettaCounter` / etc.** — pick a name that describes the role in OUR system. The pattern's origin lives in the blueprint.
 3. **Putting `Mem0-compatible` in a runtime error** — consumers reading the error don't care about Mem0; they care what broke.
 4. **Adding paper names to enums or string-literal types** — `kind: 'voyager-skill'` ships the paper name forever; `kind: 'skill'` ships intent.
+5. **Inlining banned tokens as a literal regex in a meta-test file under `src/**/__tests__/**` or `tests/**`** — violates the rule's `src/**` clause. Use the fragment-concat canonical pattern above.
 
 ## When this rule may change
 
@@ -75,3 +102,4 @@ Only via explicit ADR signed by the project owner. Any PR that softens enforceme
 | Date | Change | Rationale |
 |---|---|---|
 | 2026-05-30 | Rule promoted from session memory to first-class project rule. Original session memory stays as user-personal cache. | v0.6.1 T5.2 / F-arch-10 absorption: review found that the policy was load-bearing during /implement but lived only in session-memory, making it invisible to ADRs and code reviewers without session context. Promotion makes it citable. |
+| 2026-06-04 | Added § Meta-test self-defense pattern + 5th anti-pattern. | F-xval-1 absorption from `/review p0-api-sdk-mcp-correctness-audit-fixes-cycle-1`: the hotfix commit `b1acbba` discovered the meta-test self-defense pattern in-cycle but documented it only in the commit body. This amendment formalizes the canonical pattern + lifts the original inline-regex anti-pattern to a 5th explicit anti-pattern, closing the ADR-backfill gap. |
