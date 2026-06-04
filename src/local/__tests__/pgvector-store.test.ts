@@ -223,15 +223,15 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
   });
 
   test('emits dedup_collision_confirmed for each row with inserted=false; NOT for inserted=true', async () => {
-    const events: { event: string; attrs?: Record<string, unknown> }[] = [];
+    const events: { event: string; attrs: Record<string, unknown> }[] = [];
     const tracer = {
-      startActiveSpan: vi.fn().mockImplementation((event: string, fn: (span: { setAttribute: (k: string, v: unknown) => void; end: () => void }) => void) => {
+      startActiveSpan: vi.fn((event: string, fn: (span: { setAttribute: (k: string, v: unknown) => void; end: () => void }) => void) => {
         const attrs: Record<string, unknown> = {};
-        fn({ setAttribute: (k: string, v: unknown) => { attrs[k] = v; }, end: () => {} });
+        fn({ setAttribute: (k: string, v: unknown) => { attrs[k] = v; }, end: () => undefined });
         events.push({ event, attrs });
       }),
       startSpan: vi.fn(),
-    } as unknown as Tracer;
+    };
     const poolQuery = vi.fn().mockImplementation(() => ({
       rows: [
         { id: 'id-new', confirmation_count: 1, user_id: 'alice', session_id: null, agent_id: null, inserted: true },
@@ -239,7 +239,7 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
       ],
     }));
     const pool = { query: poolQuery } as unknown as Pool;
-    const store = new PgvectorStore(pool, { embeddingDim: 3, tracer });
+    const store = new PgvectorStore(pool, { embeddingDim: 3, tracer: tracer as never });
 
     await store.insert(
       [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
@@ -270,9 +270,38 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
     // Construct WITHOUT tracer — emitEvent must handle gracefully.
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
-    await expect(
-      store.insert([[0.1, 0.2, 0.3]], ['id-dup'], [{ text: 'fact', hash: 'h-fact', user_id: 'alice' }]),
-    ).resolves.toBeUndefined();
+    // T2.1 changed insert() return type from Promise<void> to
+    // Promise<readonly InsertOutcome[]>. The EC-5 invariant (no throw, no span)
+    // is verified by the operation completing cleanly + the rejectedAsDuplicate
+    // outcome surfacing without requiring a tracer.
+    const outcomes = await store.insert([[0.1, 0.2, 0.3]], ['id-dup'], [{ text: 'fact', hash: 'h-fact', user_id: 'alice' }]);
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toEqual({ id: 'id-dup', confirmationCount: 2, rejectedAsDuplicate: true });
+  });
+
+  test('T2.1 — insert() returns InsertOutcome[] surfacing confirmationCount + rejectedAsDuplicate per row (ADR D1 + D4)', async () => {
+    const poolQuery = vi.fn().mockImplementation(() => ({
+      rows: [
+        { id: 'id-fresh', confirmation_count: 1, user_id: 'alice', session_id: null, agent_id: null, inserted: true },
+        { id: 'id-bumped', confirmation_count: 3, user_id: 'alice', session_id: null, agent_id: null, inserted: false },
+      ],
+    }));
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const outcomes = await store.insert(
+      [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+      ['id-fresh', 'id-bumped'],
+      [
+        { text: 'fresh', hash: 'h-fresh', user_id: 'alice' },
+        { text: 'bumped', hash: 'h-bumped', user_id: 'alice' },
+      ],
+    );
+
+    expect(outcomes).toEqual([
+      { id: 'id-fresh', confirmationCount: 1, rejectedAsDuplicate: false },
+      { id: 'id-bumped', confirmationCount: 3, rejectedAsDuplicate: true },
+    ]);
   });
 });
 
