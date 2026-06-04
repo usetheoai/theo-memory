@@ -2,7 +2,7 @@
  * ThresholdReflectionPolicy — fires reflection every N memories per scope.
  *
  * Per plan v0-4a-reflection-pipeline § T2.1 + ADR D4 (counter table) + ADR D5
- * (per-recall override) + blueprint D8 (Letta sleeptime_multi_agent_v4.py
+ * (per-recall override) + blueprint D8 (the upstream sleeptime_multi_agent_v4.py
  * counter-modular pattern at line 138-146).
  *
  * Behavior:

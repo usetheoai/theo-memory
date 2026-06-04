@@ -22,7 +22,7 @@ export const DESCRIPTION =
  * Input shape for `tools/call recall`.
  *
  * topK default 20 honors v0.0 contract per `src/core/retrieval/pipeline.ts:73`
- * (Mem0 parity, architecture.md § 5 "two surfaces, one contract").
+ * (upstream-pipeline parity, architecture.md § 5 "two surfaces, one contract").
  * threshold default 0 means "return everything ranked"; EC-10 caps range to [0, 1].
  */
 export const INPUT_SCHEMA = z.object({
@@ -30,7 +30,7 @@ export const INPUT_SCHEMA = z.object({
   query: z.string().min(1).max(MAX_QUERY_BYTES),
   /** Maximum results to return. Default 20 per v0.0 contract. */
   topK: z.number().int().min(1).max(100).default(20),
-  /** Minimum composite score to include (additive Mem0-style, [0, 1] range per EC-10). */
+  /** Minimum composite score to include (additive composite, [0, 1] range per EC-10). */
   threshold: z.number().min(0).max(1).default(0),
 });
 

@@ -8,7 +8,7 @@
  *
  * NFC vs NFD: 'café' (precomposed, 4 codepoints) and 'café' (decomposed,
  * 5 codepoints) hash to different values. This is intentional byte-level
- * dedup matching Mem0's behavior (EC-6).
+ * dedup matching the upstream behavior (EC-6).
  *
  * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § D3
  * @see .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:735

@@ -1,0 +1,2192 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-06-04T12:05:44Z",
+  "exports": [
+    {
+      "name": "ActiveSignals",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "AddMetrics",
+      "source_file": "src/core/dip/benchmark-adapter.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/runner/__tests__/runner.test.ts",
+        "src/core/__tests__/benchmark-adapter.test-d.ts"
+      ]
+    },
+    {
+      "name": "AdditiveExtractionResponse",
+      "source_file": "src/core/extraction/prompt.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "AdditiveExtractionSchema",
+      "source_file": "src/core/extraction/prompt.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-prompt.test.ts",
+        "src/llms/__tests__/stub.test.ts"
+      ]
+    },
+    {
+      "name": "AgentScope",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/scope.test-d.ts",
+        "src/local/eviction/__tests__/get-neighbor-scope-id.test.ts",
+        "src/local/eviction/__tests__/scope-candidate.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "AttributeValue",
+      "source_file": "src/core/memory-event.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "AuthVerifier",
+      "source_file": "src/core/dip/auth-verifier.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/dip/__tests__/auth-verifier.test-d.ts",
+        "src/server/auth/__tests__/bearer-verifier.test.ts"
+      ]
+    },
+    {
+      "name": "BenchmarkAdapter",
+      "source_file": "src/core/dip/benchmark-adapter.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/runner/__tests__/runner.test.ts",
+        "src/core/__tests__/benchmark-adapter.test-d.ts"
+      ]
+    },
+    {
+      "name": "BenchmarkCorpus",
+      "source_file": "src/core/dip/benchmark-adapter.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/runner/__tests__/runner.test.ts",
+        "src/core/__tests__/benchmark-adapter.test-d.ts"
+      ]
+    },
+    {
+      "name": "BenchmarkCorpusItem",
+      "source_file": "src/core/dip/benchmark-adapter.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/benchmark-adapter.test-d.ts"
+      ]
+    },
+    {
+      "name": "BenchmarkQuery",
+      "source_file": "src/core/dip/benchmark-adapter.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/benchmarks/runner/__tests__/runner.test.ts",
+        "src/core/__tests__/benchmark-adapter.test-d.ts"
+      ]
+    },
+    {
+      "name": "BiTemporalNotSupportedLocally",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/errors.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/options.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "CONFLICT_MERGE_PROMPT",
+      "source_file": "src/core/conflict-resolution/prompts.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/conflict-resolution/__tests__/prompts.test.ts"
+      ]
+    },
+    {
+      "name": "CachedResult",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts"
+      ]
+    },
+    {
+      "name": "CandidateScores",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "CapacityBasedTrigger",
+      "source_file": "src/local/eviction/capacity-based-trigger.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts",
+        "tests/integration/eviction/capacity-trigger.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts",
+        "tests/integration/forgetting/triadic-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "CloudMemoryConfig",
+      "source_file": "src/core/memory-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts"
+      ]
+    },
+    {
+      "name": "ConflictResolutionPolicy",
+      "source_file": "src/core/dip/conflict-resolution-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-conflict-resolution-policy.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "tests/integration/examples/chat-with-memory-distillation.test.ts",
+        "tests/integration/examples/chat-with-memory-policy-factory.test.ts"
+      ]
+    },
+    {
+      "name": "ConflictResolutionResult",
+      "source_file": "src/core/dip/conflict-resolution-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-conflict-resolution-policy.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts"
+      ]
+    },
+    {
+      "name": "ConsolidateOptions",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts"
+      ]
+    },
+    {
+      "name": "ConsolidationCandidate",
+      "source_file": "src/core/dip/conflict-resolution-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-conflict-resolution-policy.test.ts",
+        "src/core/conflict-resolution/__tests__/last-write-wins.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "src/core/conflict-resolution/__tests__/noop.test.ts",
+        "src/core/conflict-resolution/__tests__/prompts.test.ts"
+      ]
+    },
+    {
+      "name": "ConsolidationContext",
+      "source_file": "src/core/dip/conflict-resolution-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-conflict-resolution-policy.test.ts",
+        "src/core/conflict-resolution/__tests__/last-write-wins.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "src/core/conflict-resolution/__tests__/noop.test.ts",
+        "src/core/conflict-resolution/__tests__/prompts.test.ts"
+      ]
+    },
+    {
+      "name": "ConsolidationResult",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts",
+        "src/local/skills/__tests__/consolidate.test.ts"
+      ]
+    },
+    {
+      "name": "ContentTooLargeError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/error-classifier.test.ts",
+        "src/server/__tests__/errors.test.ts",
+        "src/server/__tests__/handlers.test.ts"
+      ]
+    },
+    {
+      "name": "DEFAULT_MAX_SIZE_PER_SCOPE",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts"
+      ]
+    },
+    {
+      "name": "DEFAULT_THRESHOLD",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts",
+        "tests/integration/subpath-isolation.test.ts"
+      ]
+    },
+    {
+      "name": "DEFAULT_TRIADIC_CONSTANTS",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts",
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts"
+      ]
+    },
+    {
+      "name": "DEFAULT_TRIADIC_WEIGHTS",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts",
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts"
+      ]
+    },
+    {
+      "name": "DEFAULT_TTL_SECONDS_BY_SCOPE_TIER",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts"
+      ]
+    },
+    {
+      "name": "DisposableMemory",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "DrizzleHistoryManager",
+      "source_file": "src/local/history-manager.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "tests/integration/history-manager.test.ts",
+        "tests/integration/local-runtime.test.ts"
+      ]
+    },
+    {
+      "name": "ENTITY_BOOST_WEIGHT",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/scoring.test.ts"
+      ]
+    },
+    {
+      "name": "Embedder",
+      "source_file": "src/core/dip/embedder.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/embedder.test-d.ts",
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/retrieval-pipeline.test.ts",
+        "src/embedders/__tests__/local.test.ts",
+        "src/embedders/__tests__/openai.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "EmbedderError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/error-classifier.test.ts"
+      ]
+    },
+    {
+      "name": "EmbeddingMismatch",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/errors.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts",
+        "src/local/__tests__/stubs.test.ts"
+      ]
+    },
+    {
+      "name": "EmptyScopeError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/local/__tests__/reflection/threshold-policy.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts"
+      ]
+    },
+    {
+      "name": "EvictionNotSupported",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "EvictionPolicy",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts"
+      ]
+    },
+    {
+      "name": "EvictionResult",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts",
+        "tests/integration/eviction/evict-soft-delete.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts"
+      ]
+    },
+    {
+      "name": "Evictor",
+      "source_file": "src/local/eviction/pg-evictor.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts"
+      ]
+    },
+    {
+      "name": "ExtractionDeps",
+      "source_file": "src/core/extraction/pipeline.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "Filters",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/options.test-d.ts",
+        "src/core/__tests__/scope.test-d.ts",
+        "src/core/__tests__/vector-store.test-d.ts",
+        "src/core/__tests__/vector-store.test.ts",
+        "src/local/__tests__/recall-filters.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts"
+      ]
+    },
+    {
+      "name": "ForgetOptions",
+      "source_file": "src/core/options.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/options.test-d.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts"
+      ]
+    },
+    {
+      "name": "GetAllOptions",
+      "source_file": "src/core/options.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/options.test-d.ts",
+        "src/local/__tests__/recall-filters.test.ts"
+      ]
+    },
+    {
+      "name": "HalfLifePersister",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts"
+      ]
+    },
+    {
+      "name": "HistoryBatchRecord",
+      "source_file": "src/core/dip/history-manager.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/history-manager.test-d.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts"
+      ]
+    },
+    {
+      "name": "HistoryEntry",
+      "source_file": "src/core/history-entry.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/history-manager.test-d.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts"
+      ]
+    },
+    {
+      "name": "HistoryManager",
+      "source_file": "src/core/dip/history-manager.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/history-manager.test-d.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts"
+      ]
+    },
+    {
+      "name": "ImportanceScoringError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/reflection/importance.test.ts"
+      ]
+    },
+    {
+      "name": "InMemoryVectorStore",
+      "source_file": "src/local/in-memory-store.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/in-memory-store.test.ts",
+        "src/local/__tests__/recall-filters.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/__tests__/stubs.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts"
+      ]
+    },
+    {
+      "name": "InsertOutcome",
+      "source_file": "src/core/dip/vector-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/vector-store.test-d.ts",
+        "src/local/__tests__/pgvector-store.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidCacheConfig",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/dip/__tests__/recall-cache-store.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidCronExpressionError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/local/__tests__/reflection/sleep-time-policy.test.ts",
+        "tests/integration/eviction/time-trigger.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidEmbeddingDim",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/factory.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidFractionError",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidScope",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/errors.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/options.test.ts",
+        "src/core/retrieval/__tests__/mmr.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/server/__tests__/errors.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidScoringWeightsError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/scoring-strategies/additive-weighted-scoring.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidSkillError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/local/__tests__/pgvector-skill-store.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts"
+      ]
+    },
+    {
+      "name": "InvalidWeightsError",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts"
+      ]
+    },
+    {
+      "name": "LLM",
+      "source_file": "src/core/dip/llm.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/error-classifier.test.ts",
+        "src/agent-tools/__tests__/run-mcp-server.test.ts",
+        "src/benchmarks/llm-judge/__tests__/single-judge.test.ts",
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/core/__tests__/dip-conflict-resolution-policy.test.ts",
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/extraction-prompt.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/llm.test-d.ts",
+        "src/core/__tests__/llm.test.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/llm-importance-cache.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/reflection/execute.test.ts",
+        "src/core/__tests__/reflection/importance.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "src/core/conflict-resolution/__tests__/prompts.test.ts",
+        "src/llms/__tests__/openai.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "tests/integration/adapters-or-local-e2e-smoke.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/examples/chat-with-memory-local-openrouter.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "LLMResponse",
+      "source_file": "src/core/message.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/llm.test-d.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/llm-importance-cache.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/reflection/execute.test.ts",
+        "src/core/__tests__/reflection/importance.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "src/llms/__tests__/stub.test.ts",
+        "src/local/__tests__/stubs.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts"
+      ]
+    },
+    {
+      "name": "LastWriteWinsConflictPolicy",
+      "source_file": "src/core/conflict-resolution/last-write-wins.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/conflict-resolution/__tests__/last-write-wins.test.ts",
+        "tests/integration/distillation/reflect-atomic-rollback.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/examples/chat-with-memory-policy-factory.test.ts"
+      ]
+    },
+    {
+      "name": "LastWriteWinsConflictPolicyOptions",
+      "source_file": "src/core/conflict-resolution/last-write-wins.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "LlmJudgedMergeConflictPolicy",
+      "source_file": "src/core/conflict-resolution/llm-judged-merge.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/examples/chat-with-memory-policy-factory.test.ts"
+      ]
+    },
+    {
+      "name": "LlmJudgedMergeConflictPolicyOptions",
+      "source_file": "src/core/conflict-resolution/llm-judged-merge.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "LocalEvictionConfig",
+      "source_file": "src/local/eviction/index.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts"
+      ]
+    },
+    {
+      "name": "LocalMemoryConfig",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts"
+      ]
+    },
+    {
+      "name": "MAX_EMBEDDING_DIM",
+      "source_file": "src/core/constants.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/constants.test.ts",
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/retrieval-pipeline.test.ts",
+        "src/embedders/__tests__/stub.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts",
+        "src/local/__tests__/stubs.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/migration-0010.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/eviction/capacity-trigger.test.ts",
+        "tests/integration/eviction/evict-soft-delete.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts",
+        "tests/integration/eviction/nearest-neighbor.test.ts",
+        "tests/integration/eviction/time-trigger.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts",
+        "tests/integration/forgetting/recall-bookkeeping.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "MEMORY_EVENTS",
+      "source_file": "src/core/memory-event.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/memory-event.test.ts"
+      ]
+    },
+    {
+      "name": "ManualReflectionPolicy",
+      "source_file": "src/core/dip/reflection-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/reflection-policy.test-d.ts",
+        "tests/integration/adapters-or-local-e2e-smoke.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts"
+      ]
+    },
+    {
+      "name": "Memory",
+      "source_file": "src/core/memory-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/cli.test.ts",
+        "src/agent-tools/__tests__/run-health.test.ts",
+        "src/agent-tools/__tests__/run-server.test.ts",
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/skill.test-d.ts",
+        "src/core/conflict-resolution/__tests__/noop.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/server/__tests__/handlers.test.ts",
+        "src/server/__tests__/health.test.ts",
+        "src/server/__tests__/openapi.test.ts",
+        "src/server/__tests__/otel.test.ts",
+        "src/server/__tests__/scopes.test.ts",
+        "src/theokit/__tests__/memory-from-ctx.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts",
+        "tests/integration/rest-api.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "MemoryConfig",
+      "source_file": "src/core/memory-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts"
+      ]
+    },
+    {
+      "name": "MemoryEvent",
+      "source_file": "src/core/memory-event.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/memory-event.test.ts"
+      ]
+    },
+    {
+      "name": "MemoryItem",
+      "source_file": "src/core/memory-item.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "src/core/__tests__/extraction-prompt.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-item.test-d.ts",
+        "src/core/__tests__/memory-item.test.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/reflection/execute.test.ts",
+        "src/core/__tests__/reflection/prompt.test.ts",
+        "src/core/__tests__/skill.test-d.ts",
+        "src/local/eviction/__tests__/scoring-math.test.ts",
+        "src/server/__tests__/handlers.test.ts",
+        "src/server/__tests__/scopes.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts"
+      ]
+    },
+    {
+      "name": "MemoryItemWithScore",
+      "source_file": "src/core/memory-item.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-item.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/retrieval-pipeline.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts",
+        "src/server/__tests__/handlers.test.ts",
+        "tests/integration/cache/cache-hit-miss.test.ts",
+        "tests/integration/cache/lru-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "MemoryNotFound",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/errors.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/server/__tests__/errors.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts"
+      ]
+    },
+    {
+      "name": "MemoryStore",
+      "source_file": "src/core/memory-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/benchmark-adapter.test-d.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts"
+      ]
+    },
+    {
+      "name": "MemoryStoreError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/error-classifier.test.ts",
+        "src/agent-tools/tools/__tests__/handlers.test.ts"
+      ]
+    },
+    {
+      "name": "Message",
+      "source_file": "src/core/message.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/llm-judge/__tests__/judge-prompt.test.ts",
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/core/__tests__/extraction-prompt.test.ts",
+        "src/core/__tests__/history-manager.test-d.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/llm.test-d.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/llm-importance-cache.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/reflection/execute.test.ts",
+        "src/core/__tests__/reflection/importance.test.ts",
+        "src/core/conflict-resolution/__tests__/llm-judged-merge.test.ts",
+        "src/llms/__tests__/stub.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts"
+      ]
+    },
+    {
+      "name": "MissingScopeError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/error-classifier.test.ts",
+        "src/agent-tools/__tests__/scope.test.ts",
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/errors.test.ts",
+        "src/theokit/__tests__/memory-from-ctx.test.ts",
+        "src/theokit/__tests__/types.test-d.ts",
+        "tests/integration/public-paths.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "NearestNeighborProvider",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts"
+      ]
+    },
+    {
+      "name": "NoopConflictPolicy",
+      "source_file": "src/core/conflict-resolution/noop.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/conflict-resolution/__tests__/noop.test.ts",
+        "tests/integration/examples/chat-with-memory-policy-factory.test.ts"
+      ]
+    },
+    {
+      "name": "PROBE_TEXT",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/stubs.test.ts"
+      ]
+    },
+    {
+      "name": "PgEvictor",
+      "source_file": "src/local/eviction/pg-evictor.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts",
+        "src/local/eviction/__tests__/pg-evictor-meter-init.test.ts",
+        "tests/integration/eviction/evict-soft-delete.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts",
+        "tests/integration/forgetting/triadic-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "PgEvictorOptions",
+      "source_file": "src/local/eviction/pg-evictor.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "PgHalfLifePersister",
+      "source_file": "src/local/eviction/pg-half-life-persister.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts"
+      ]
+    },
+    {
+      "name": "PgNearestNeighborProvider",
+      "source_file": "src/local/eviction/pg-nearest-neighbor-provider.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts",
+        "tests/integration/eviction/capacity-trigger.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts",
+        "tests/integration/eviction/nearest-neighbor.test.ts",
+        "tests/integration/eviction/time-trigger.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts",
+        "tests/integration/forgetting/triadic-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "PgvectorStore",
+      "source_file": "src/local/pgvector-store.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/cli.test.ts",
+        "src/agent-tools/__tests__/run-health.test.ts",
+        "src/agent-tools/__tests__/run-mcp-server.test.ts",
+        "src/agent-tools/__tests__/run-server.test.ts",
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/memory/llm-importance-cache.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts",
+        "src/local/__tests__/reflection/threshold-policy.test.ts",
+        "tests/integration/adapters-or-local-e2e-smoke.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/distillation/forget-hard-survives-audit.test.ts",
+        "tests/integration/distillation/reflect-atomic-rollback.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/eviction/evict-soft-delete.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts",
+        "tests/integration/forgetting/recall-bookkeeping.test.ts",
+        "tests/integration/forgetting/triadic-eviction.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/pgvector-store.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "PromptResult",
+      "source_file": "src/core/extraction/prompt.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "RecallCacheStore",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/dip/__tests__/recall-cache-store.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts"
+      ]
+    },
+    {
+      "name": "RecallCacheStoreConfig",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/dip/__tests__/recall-cache-store.test.ts"
+      ]
+    },
+    {
+      "name": "RecallOptions",
+      "source_file": "src/core/options.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/options.test-d.ts",
+        "src/core/__tests__/options.test.ts",
+        "src/local/__tests__/recall-filters.test.ts"
+      ]
+    },
+    {
+      "name": "ReflectOptions",
+      "source_file": "src/core/options.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/options.test-d.ts",
+        "src/core/__tests__/reflection-policy.test-d.ts"
+      ]
+    },
+    {
+      "name": "ReflectionLLMResponseError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/reflection/execute.test.ts"
+      ]
+    },
+    {
+      "name": "ReflectionNotConfigured",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/errors.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts"
+      ]
+    },
+    {
+      "name": "ReflectionPolicy",
+      "source_file": "src/core/dip/reflection-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/reflection-policy.test-d.ts"
+      ]
+    },
+    {
+      "name": "ReflectionProvenanceMissingError",
+      "source_file": "src/core/errors.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/reflection/provenance.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts"
+      ]
+    },
+    {
+      "name": "ReflectionResult",
+      "source_file": "src/core/reflection-result.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/reflection-policy.test-d.ts"
+      ]
+    },
+    {
+      "name": "ReflectionTrigger",
+      "source_file": "src/core/dip/reflection-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/reflection-policy.test-d.ts",
+        "src/local/__tests__/reflection/sleep-time-policy.test.ts",
+        "src/local/__tests__/reflection/threshold-policy.test.ts"
+      ]
+    },
+    {
+      "name": "RememberOptions",
+      "source_file": "src/core/options.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/options.test-d.ts",
+        "src/core/__tests__/options.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts"
+      ]
+    },
+    {
+      "name": "RepoScope",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/scope.test-d.ts",
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/local/eviction/__tests__/get-neighbor-scope-id.test.ts"
+      ]
+    },
+    {
+      "name": "RetrievalDeps",
+      "source_file": "src/core/retrieval/pipeline.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "Role",
+      "source_file": "src/core/message.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/llm.test-d.ts"
+      ]
+    },
+    {
+      "name": "STOP_WORDS",
+      "source_file": "src/core/lemmatization.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/lemmatization.test.ts"
+      ]
+    },
+    {
+      "name": "Scope",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/error-classifier.test.ts",
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/dip-conflict-resolution-policy.test.ts",
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-item.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/reflection-policy.test-d.ts",
+        "src/core/__tests__/reflection/execute.test.ts",
+        "src/core/__tests__/reflection/prompt.test.ts",
+        "src/core/__tests__/scope.test-d.ts",
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts",
+        "src/local/__tests__/reflection/sleep-time-policy.test.ts",
+        "src/local/__tests__/reflection/threshold-policy.test.ts",
+        "src/local/eviction/__tests__/get-neighbor-scope-id.test.ts",
+        "src/local/recall-cache/__tests__/pgvector-recall-cache-store.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "src/local/skills/__tests__/payload.test.ts",
+        "tests/integration/cache/cache-hit-miss.test.ts",
+        "tests/integration/cache/lru-eviction.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/migrations/dim-change.test.ts"
+      ]
+    },
+    {
+      "name": "ScopeTierTtlConfig",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/dip/__tests__/recall-cache-store.test.ts"
+      ]
+    },
+    {
+      "name": "ScopedContext",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/scope.test.ts",
+        "src/theokit/__tests__/memory-from-ctx.test.ts",
+        "src/theokit/__tests__/types.test-d.ts",
+        "tests/integration/public-paths.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "ScopedMemory",
+      "source_file": "src/core/memory-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/server/__tests__/scopes.test.ts",
+        "src/theokit/__tests__/memory-from-ctx.test.ts"
+      ]
+    },
+    {
+      "name": "ScopedSkillMemory",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/server/__tests__/scopes.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts"
+      ]
+    },
+    {
+      "name": "ScoreContext",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts",
+        "src/local/eviction/__tests__/scoring-math.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts"
+      ]
+    },
+    {
+      "name": "SearchResult",
+      "source_file": "src/core/dip/benchmark-adapter.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/benchmarks/letta/__tests__/adapter.test.ts",
+        "src/benchmarks/mem0/__tests__/adapter.test.ts",
+        "src/benchmarks/runner/__tests__/runner.test.ts",
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/benchmarks/zep/__tests__/adapter.test.ts",
+        "src/core/__tests__/benchmark-adapter.test-d.ts"
+      ]
+    },
+    {
+      "name": "SessionScope",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/scope.test-d.ts",
+        "src/local/eviction/__tests__/get-neighbor-scope-id.test.ts",
+        "src/local/eviction/__tests__/scope-candidate.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts"
+      ]
+    },
+    {
+      "name": "Skill",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts",
+        "src/local/skills/__tests__/payload.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts"
+      ]
+    },
+    {
+      "name": "SkillDraft",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill-representation-strategy.test-d.ts",
+        "src/core/__tests__/skill.test-d.ts"
+      ]
+    },
+    {
+      "name": "SkillLanguage",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts"
+      ]
+    },
+    {
+      "name": "SkillRecallOptions",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts"
+      ]
+    },
+    {
+      "name": "SkillRepresentation",
+      "source_file": "src/core/dip/skill-representation-strategy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill-representation-strategy.test-d.ts"
+      ]
+    },
+    {
+      "name": "SkillRepresentationStrategy",
+      "source_file": "src/core/dip/skill-representation-strategy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill-representation-strategy.test-d.ts"
+      ]
+    },
+    {
+      "name": "SkillWithScore",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts",
+        "src/local/skills/__tests__/payload.test.ts"
+      ]
+    },
+    {
+      "name": "SourceCluster",
+      "source_file": "src/core/skill.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/skill-barrel.test.ts",
+        "src/core/__tests__/skill.test-d.ts"
+      ]
+    },
+    {
+      "name": "StubEmbedder",
+      "source_file": "src/local/stubs.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/__tests__/no-root-reexport.test.ts",
+        "src/agent-tools/__tests__/cli.test.ts",
+        "src/agent-tools/__tests__/run-health.test.ts",
+        "src/agent-tools/__tests__/run-mcp-server.test.ts",
+        "src/agent-tools/__tests__/run-server.test.ts",
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/core/__tests__/embedder.test-d.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/__tests__/stubs.test.ts",
+        "tests/integration/distillation/forget-hard-survives-audit.test.ts",
+        "tests/integration/distillation/reflect-atomic-rollback.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/docker-stack.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts"
+      ]
+    },
+    {
+      "name": "StubLLM",
+      "source_file": "src/local/stubs.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/__tests__/no-root-reexport.test.ts",
+        "src/agent-tools/__tests__/cli.test.ts",
+        "src/agent-tools/__tests__/run-health.test.ts",
+        "src/agent-tools/__tests__/run-mcp-server.test.ts",
+        "src/agent-tools/__tests__/run-server.test.ts",
+        "src/core/__tests__/llm.test-d.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/__tests__/stubs.test.ts",
+        "tests/e2e/agent-tools/round-trip.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/distillation/forget-hard-survives-audit.test.ts",
+        "tests/integration/distillation/reflect-atomic-rollback.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts"
+      ]
+    },
+    {
+      "name": "TimeBasedTrigger",
+      "source_file": "src/local/eviction/time-based-trigger.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/time-trigger.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "TimeBasedTriggerConfig",
+      "source_file": "src/local/eviction/time-based-trigger.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "Tokenizer",
+      "source_file": "src/core/dip/tokenizer.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/benchmarks/letta/__tests__/adapter.test.ts",
+        "src/benchmarks/mem0/__tests__/adapter.test.ts",
+        "src/benchmarks/runner/__tests__/runner.test.ts",
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/benchmarks/zep/__tests__/adapter.test.ts",
+        "src/core/dip/__tests__/tokenizer.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/public-paths.test.ts"
+      ]
+    },
+    {
+      "name": "TriadicConstants",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "TriadicScoringPolicy",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/eviction-barrel.test.ts",
+        "src/local/eviction/__tests__/scoring-math.test.ts",
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts",
+        "tests/integration/eviction/capacity-trigger.test.ts",
+        "tests/integration/eviction/evict-soft-delete.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts",
+        "tests/integration/eviction/nearest-neighbor.test.ts",
+        "tests/integration/eviction/time-trigger.test.ts",
+        "tests/integration/eviction/trigger-race-window.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts",
+        "tests/integration/forgetting/triadic-eviction.test.ts"
+      ]
+    },
+    {
+      "name": "TriadicScoringPolicyOptions",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": []
+    },
+    {
+      "name": "TriadicWeights",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/triadic-scoring-options.test.ts"
+      ]
+    },
+    {
+      "name": "UserScope",
+      "source_file": "src/core/scope.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/scope.test-d.ts",
+        "src/local/eviction/__tests__/get-neighbor-scope-id.test.ts",
+        "src/local/eviction/__tests__/scope-candidate.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts"
+      ]
+    },
+    {
+      "name": "VectorStore",
+      "source_file": "src/core/dip/vector-store.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/retrieval-pipeline.test.ts",
+        "src/core/__tests__/vector-store.test-d.ts",
+        "src/local/__tests__/in-memory-store.test.ts",
+        "tests/integration/pgvector-store.test.ts"
+      ]
+    },
+    {
+      "name": "VectorStoreResult",
+      "source_file": "src/core/dip/vector-store.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/index.test-d.ts",
+        "src/core/__tests__/retrieval-pipeline.test.ts",
+        "src/core/__tests__/vector-store.test-d.ts",
+        "src/local/__tests__/pgvector-store.test.ts"
+      ]
+    },
+    {
+      "name": "advisoryLockKey",
+      "source_file": "src/local/eviction/scope-where.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": []
+    },
+    {
+      "name": "assertValidFraction",
+      "source_file": "src/core/dip/eviction-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dip-eviction-policy.test.ts"
+      ]
+    },
+    {
+      "name": "combineScores",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/scoring.test.ts"
+      ]
+    },
+    {
+      "name": "compareCandidatesDesc",
+      "source_file": "src/core/conflict-resolution/last-write-wins.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "computeFrequency",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts"
+      ]
+    },
+    {
+      "name": "computeHalfLifeSeconds",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts"
+      ]
+    },
+    {
+      "name": "computeImportance",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts"
+      ]
+    },
+    {
+      "name": "computeOverflowFraction",
+      "source_file": "src/local/eviction/capacity-based-trigger.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "tests/integration/eviction/capacity-trigger.test.ts"
+      ]
+    },
+    {
+      "name": "computeRecency",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/scoring-math.test.ts"
+      ]
+    },
+    {
+      "name": "consolidationHistory",
+      "source_file": "src/local/schema.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": []
+    },
+    {
+      "name": "createLocalMemory",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/cli.test.ts",
+        "src/agent-tools/__tests__/run-health.test.ts",
+        "src/agent-tools/__tests__/run-mcp-server.test.ts",
+        "src/agent-tools/__tests__/run-server.test.ts",
+        "src/benchmarks/themory/__tests__/adapter.test.ts",
+        "src/core/__tests__/memory/flush-reflections.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/__tests__/stubs.test.ts",
+        "src/server/__tests__/otel.test.ts",
+        "tests/integration/adapters-or-local-e2e-smoke.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/cli-consolidated.test.ts",
+        "tests/integration/distillation/forget-hard-survives-audit.test.ts",
+        "tests/integration/distillation/reflect-atomic-rollback.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/p0-audit/matrix.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "createMemory",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/index.test-d.ts",
+        "tests/integration/p0-audit/matrix.test.ts"
+      ]
+    },
+    {
+      "name": "emitEvent",
+      "source_file": "src/core/memory-event.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/memory-event.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts"
+      ]
+    },
+    {
+      "name": "entities",
+      "source_file": "src/local/schema.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/local/__tests__/migrations/0001-ordering.test.ts",
+        "src/local/__tests__/schema.test.ts",
+        "tests/e2e/agent-tools/round-trip.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/migrations/dim-change.test.ts",
+        "tests/integration/pgvector-store.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "entityBoost",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/scoring.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "escapeMarkdownHeaders",
+      "source_file": "src/core/extraction/prompt.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-prompt.test.ts"
+      ]
+    },
+    {
+      "name": "generateAdditiveExtractionPrompt",
+      "source_file": "src/core/extraction/prompt.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-prompt.test.ts"
+      ]
+    },
+    {
+      "name": "generateConflictMergePrompt",
+      "source_file": "src/core/conflict-resolution/prompts.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/conflict-resolution/__tests__/prompts.test.ts"
+      ]
+    },
+    {
+      "name": "getNeighborScopeId",
+      "source_file": "src/local/eviction/triadic-scoring-policy.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/local/eviction/__tests__/get-neighbor-scope-id.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts"
+      ]
+    },
+    {
+      "name": "hashFact",
+      "source_file": "src/core/dedup.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/dedup.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/local/skills/__tests__/consolidate.test.ts"
+      ]
+    },
+    {
+      "name": "history",
+      "source_file": "src/local/schema.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts",
+        "src/core/__tests__/history-manager.test-d.ts",
+        "src/core/__tests__/index.test.ts",
+        "src/core/__tests__/memory-store.test-d.ts",
+        "src/core/__tests__/scoring-strategy.test-d.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/migrations/0001-ordering.test.ts",
+        "src/local/__tests__/schema.test.ts",
+        "src/local/__tests__/scoped-skill-memory.test.ts",
+        "src/server/__tests__/handlers.test.ts",
+        "src/server/__tests__/health.test.ts",
+        "src/server/__tests__/openapi.test.ts",
+        "src/server/__tests__/otel.test.ts",
+        "src/server/__tests__/scopes.test.ts",
+        "tests/e2e/agent-tools/round-trip.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/examples/chat-with-memory-distillation.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/history-manager.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/migrations/dim-change.test.ts",
+        "tests/integration/migrations/migration-0011.test.ts",
+        "tests/integration/pgvector-store.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/rest-api.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts"
+      ]
+    },
+    {
+      "name": "lemmatizeForBm25",
+      "source_file": "src/core/lemmatization.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/lemmatization.test.ts"
+      ]
+    },
+    {
+      "name": "maxPossible",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/scoring.test.ts"
+      ]
+    },
+    {
+      "name": "memories",
+      "source_file": "src/local/schema.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/tools/__tests__/handlers.test.ts",
+        "src/core/__tests__/memory/reflect.test.ts",
+        "src/core/__tests__/reflection/execute.test.ts",
+        "src/core/__tests__/reflection/prompt.test.ts",
+        "src/local/__tests__/factory.test.ts",
+        "src/local/__tests__/migrations/0001-ordering.test.ts",
+        "src/local/__tests__/pgvector-store.test.ts",
+        "src/local/__tests__/recall-filters.test.ts",
+        "src/local/__tests__/schema-v0-4a.test.ts",
+        "src/local/__tests__/schema-v0-4b.test.ts",
+        "src/local/__tests__/schema-v0-6.test.ts",
+        "src/local/__tests__/schema.test.ts",
+        "src/server/__tests__/errors.test.ts",
+        "src/server/__tests__/openapi.test.ts",
+        "src/server/__tests__/scopes.test.ts",
+        "tests/e2e/agent-tools/round-trip.test.ts",
+        "tests/integration/adapters-or-local-e2e-smoke.test.ts",
+        "tests/integration/agent-tools/the-goal.test.ts",
+        "tests/integration/benchmarks/themory-adapter-pg.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/db-push/trigger-applied.test.ts",
+        "tests/integration/distillation/forget-hard-survives-audit.test.ts",
+        "tests/integration/distillation/reflect-atomic-rollback.test.ts",
+        "tests/integration/distillation/reflect-empty-scope.test.ts",
+        "tests/integration/distillation/reflect-with-policy.test.ts",
+        "tests/integration/distillation/skill-isolation.test.ts",
+        "tests/integration/distillation/the-goal-test-llm-measured.test.ts",
+        "tests/integration/distillation/the-goal-test.test.ts",
+        "tests/integration/eviction/capacity-trigger.test.ts",
+        "tests/integration/eviction/evict-soft-delete.test.ts",
+        "tests/integration/eviction/lazy-half-life.test.ts",
+        "tests/integration/eviction/lifecycle-hooks.test.ts",
+        "tests/integration/eviction/multi-tier-eviction.test.ts",
+        "tests/integration/eviction/multiplier-integration.test.ts",
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts",
+        "tests/integration/eviction/nearest-neighbor.test.ts",
+        "tests/integration/eviction/time-trigger.test.ts",
+        "tests/integration/eviction/trigger-race-window.test.ts",
+        "tests/integration/examples/chat-with-memory-distillation.test.ts",
+        "tests/integration/examples/chat-with-memory-local-openrouter.test.ts",
+        "tests/integration/forgetting/createLocalMemory-eviction.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/forgetting/forget-soft-delete.test.ts",
+        "tests/integration/forgetting/guardrail-long-tail.test.ts",
+        "tests/integration/forgetting/recall-bookkeeping.test.ts",
+        "tests/integration/forgetting/triadic-eviction.test.ts",
+        "tests/integration/history-manager.test.ts",
+        "tests/integration/local-runtime.test.ts",
+        "tests/integration/migrations/dim-change.test.ts",
+        "tests/integration/migrations/idempotency.test.ts",
+        "tests/integration/migrations/migration-0011.test.ts",
+        "tests/integration/migrations/repair-partial-state.test.ts",
+        "tests/integration/pgvector-store.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/reflection/threshold-policy.test.ts",
+        "tests/integration/rest-api.test.ts",
+        "tests/integration/schema-snapshot-parity.test.ts",
+        "tests/integration/schema-v0-4a-constraints.test.ts",
+        "tests/integration/skills/consolidate-two-skills.test.ts",
+        "tests/integration/theokit-binding.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "parseConsolidationResponse",
+      "source_file": "src/core/conflict-resolution/llm-judged-merge.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "recallCache",
+      "source_file": "src/local/schema.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/local/__tests__/embedder-cache-gate-warning.test.ts",
+        "src/local/__tests__/factory-recall-cache.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/migration-0010.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts"
+      ]
+    },
+    {
+      "name": "reflectionCounters",
+      "source_file": "src/local/schema.ts",
+      "jsdoc_present": true,
+      "see_ref_present": true,
+      "contract_test_files": [
+        "src/local/__tests__/schema-v0-4a.test.ts"
+      ]
+    },
+    {
+      "name": "runExtractionPipeline",
+      "source_file": "src/core/extraction/pipeline.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/extraction-pipeline.test.ts"
+      ]
+    },
+    {
+      "name": "runMigrations",
+      "source_file": "src/local/index.ts",
+      "jsdoc_present": false,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/agent-tools/__tests__/cli.test.ts",
+        "src/agent-tools/__tests__/run-mcp-server.test.ts",
+        "src/agent-tools/__tests__/run-migrate.test.ts",
+        "src/agent-tools/__tests__/run-server.test.ts",
+        "tests/e2e/agent-tools/round-trip.test.ts",
+        "tests/integration/adapters-or-local-e2e-smoke.test.ts",
+        "tests/integration/cache/cache-hit-miss.test.ts",
+        "tests/integration/cache/factory-wiring.test.ts",
+        "tests/integration/cache/lru-eviction.test.ts",
+        "tests/integration/cache/migration-0010.test.ts",
+        "tests/integration/cache/otel-metrics-observed.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts",
+        "tests/integration/db-push/trigger-applied.test.ts",
+        "tests/integration/dogfood/claude-code-bridge-roundtrip.test.ts",
+        "tests/integration/examples/chat-with-memory-local-openrouter.test.ts",
+        "tests/integration/forgetting/f-t4-1-2-stub-reproduction.test.ts",
+        "tests/integration/migrations/dim-change.test.ts",
+        "tests/integration/migrations/idempotency.test.ts",
+        "tests/integration/migrations/journal-sync.test.ts",
+        "tests/integration/migrations/migration-0011.test.ts",
+        "tests/integration/migrations/repair-partial-state.test.ts",
+        "tests/integration/p0-audit/matrix.test.ts",
+        "tests/integration/principles-alignment-hardening.test.ts",
+        "tests/integration/schema-snapshot-parity.test.ts",
+        "tests/integration/v1-1-multi-peer-bitemporal.test.ts"
+      ]
+    },
+    {
+      "name": "runRetrievalPipeline",
+      "source_file": "src/core/retrieval/pipeline.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/retrieval-pipeline.test.ts",
+        "tests/integration/cache/semantic-recall-cache.test.ts"
+      ]
+    },
+    {
+      "name": "scopeColumn",
+      "source_file": "src/local/eviction/scope-where.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts"
+      ]
+    },
+    {
+      "name": "scopeValue",
+      "source_file": "src/local/eviction/scope-where.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "tests/integration/eviction/multiplier-tier-coverage.test.ts"
+      ]
+    },
+    {
+      "name": "scopeWhereClause",
+      "source_file": "src/local/eviction/scope-where.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": []
+    },
+    {
+      "name": "sigmoidBm25",
+      "source_file": "src/core/scoring.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/scoring.test.ts"
+      ]
+    },
+    {
+      "name": "simpleStem",
+      "source_file": "src/core/lemmatization.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/__tests__/lemmatization.test.ts"
+      ]
+    },
+    {
+      "name": "validateRecallCacheStoreConfig",
+      "source_file": "src/core/dip/recall-cache-store.ts",
+      "jsdoc_present": true,
+      "see_ref_present": false,
+      "contract_test_files": [
+        "src/core/dip/__tests__/recall-cache-store.test.ts",
+        "tests/integration/subpath-isolation.test.ts"
+      ]
+    }
+  ]
+}

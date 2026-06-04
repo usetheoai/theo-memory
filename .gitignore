@@ -20,6 +20,11 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# Project-local MCP server registration (Claude Code reads this for mcpServers;
+# contains OPENAI_API_KEY for the themory MCP server). .mcp.json.example IS
+# committed as the docs template; the real file is local-only per .mcp.json.example § _README.
+.mcp.json
+
 # OS
 .DS_Store
 Thumbs.db

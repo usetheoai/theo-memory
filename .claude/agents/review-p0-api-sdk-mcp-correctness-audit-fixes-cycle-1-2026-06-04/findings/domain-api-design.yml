@@ -1,0 +1,374 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-domain-api-design
+review_target: 4f13028..HEAD for plan p0-api-sdk-mcp-correctness-audit-fixes-cycle-1 v1.2
+domain: api-design
+domain_specific_patterns_checked:
+  - "package.json publish surface (files glob × bin entries × subpath exports)"
+  - "Keep-a-Changelog 1.1.0 § Types — BREAKING marker prefix in Changed category (Inquebrável Rule 6 closed-set discipline)"
+  - "Drizzle migrator runtime contract (meta/_journal.json + meta/*_snapshot.json discovery)"
+  - "architecture.md § 10.1 F-T7-1-3 post-install regression class"
+  - "Behavioral test floor vs grep-shape floor (ADR D2 + D3 rationale)"
+  - "Bundle isolation invariant (EC-26 precedent — default barrel does NOT pull subpath impls)"
+  - "Public-copy.md README Status field — Pre-release preserved"
+  - "Dogfood golden rule — anchor scenario state preserved by non-manifest cycles"
+  - "ADR D5 parent — registry-push deferral (this cycle validates publish-readiness only)"
+
+empirical_verifications_performed:
+  - "npm pack --dry-run --json → 415 entries (was 172); 244 under dist/ (was 1); 12 .sql migrations under dist/local/migrations/ (was 0)"
+  - "All 4 sibling .js files (run-mcp-server, run-server, run-migrate, run-health) ship in pack"
+  - "All 4 sibling .d.ts files ship in pack"
+  - "All 12 src/local/migrations/*.sql files map 1:1 to dist/local/migrations/*.sql files in pack"
+  - "Real tar extraction at /tmp/themory-test: confirmed dist/local/migrations/ has 12 .sql files but ZERO meta/*.json files"
+  - "drizzle-orm/migrator.js source inspection: migrate() reads ${migrationFolderTo}/meta/_journal.json via fs.existsSync + fs.readFileSync; throws 'Can\\'t find meta/_journal.json file' when absent"
+  - "Source pack ships src/local/migrations/meta/_journal.json + meta/*_snapshot.json via src/local/migrations/** glob"
+  - "Dist pack does NOT ship dist/local/migrations/meta/_journal.json (dist/**/*.sql glob matches only .sql, not .json)"
+  - "Integration test post-install-bin.test.ts 8/8 PASS (but test 7+8 only assert .sql presence, NOT meta/_journal.json)"
+  - "Contract changelog-breaking-marker.test.ts 1/1 PASS"
+  - "Contract reflection prompt.test.ts 3/3 PASS"
+  - "Bundle isolation 7+1+1+1 PASS (no leak of @xenova/transformers / openai / hono)"
+  - "Pack-manifest test #4 strengthened: readdirSync + toContain loop with sanity > 0 guard at line 79"
+  - "README ships .mcp.json.example cross-reference at line 207"
+  - "src/agent-tools/run-mcp-server.ts JSDoc rewritten: zero \\bstubs?\\b tokens; names LocalTransformerEmbedder + OpenAILLM real providers"
+  - "CHANGELOG line 11: **BREAKING (REST server):** marker in [Unreleased] § Changed"
+  - "README line 15: status-pre--release badge preserved; line 126: Pre-release sentence intact"
+  - "Dogfood manifest S1 Status: running preserved (no manifest edits in cycle)"
+  - "ADR D5 parent (registry-push deferral) preserved — cycle commit message explicitly: 'this commit validates pre-release readiness only'"
+
+findings:
+  - id: F-dom-api-fix-1
+    severity: CRITICAL
+    file: package.json
+    line: 74-76
+    plan_ref: |
+      ADR D1 — "Why three globs not two (EC-1)" + Sub-goal 1b — "themory migrate post-install
+      resolves dist/local/migrations/ without Cannot find module migrations/0000_*.sql"
+    domain_anchor: |
+      architecture.md § 10.1 — F-T7-1-3 publish-readiness regression class. Rule:
+      "Asset SHALL be discoverable at runtime via dirname(fileURLToPath(import.meta.url))
+      after tsc build (production) AND after the test runner's transient compile (test)."
+    summary: |
+      Sub-goal 1b CLAIMS the F-T7-1-3 regression class is closed by the 3rd glob
+      `dist/**/*.sql`. EMPIRICALLY IT IS NOT — `themory migrate` post-install will
+      still throw at the Drizzle layer because `meta/_journal.json` is REQUIRED by
+      drizzle-orm/migrator.js and is NOT in the pack. The same INVALID DISCLOSURE
+      pattern the parent /review flagged as F-dom-api-1 (closed 1 of 2 holes, claimed
+      both closed) RE-EMERGES at the meta-files layer.
+    evidence: |
+      Empirical reproduction at /tmp/themory-test:
+      ```
+      $ npm pack /home/paulo/Projetos/usetheo/theo-memory --pack-destination /tmp/themory-test
+      $ cd /tmp/themory-test && tar -xzf usetheo-memory-0.0.0-rc.2.tgz
+      $ ls package/dist/local/migrations/
+      0000_crazy_mimic.sql ... 0011_confirmation_count_and_composite_unique.sql
+      $ ls package/dist/local/migrations/meta/ 2>/dev/null
+      ls: cannot access 'package/dist/local/migrations/meta/': No such file or directory
+      $ ls package/src/local/migrations/meta/
+      0000_snapshot.json ... _journal.json
+      ```
+
+      Drizzle's migrator at node_modules/drizzle-orm/migrator.js lines 6-15:
+      ```js
+      const journalPath = `${migrationFolderTo}/meta/_journal.json`;
+      if (!fs.existsSync(journalPath)) {
+        throw new Error(`Can't find meta/_journal.json file`);
+      }
+      const journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
+      ```
+
+      Runtime resolution path (src/local/index.ts:1451-1456):
+      ```ts
+      const here = dirname(fileURLToPath(import.meta.url));
+      const migrationsFolder = resolvePath(here, 'migrations');
+      const db = drizzleNodePostgres(pool);
+      await migrate(db, { migrationsFolder });  // throws — no _journal.json in dist/local/migrations/meta/
+      ```
+
+      Pack manifest grep confirms dist meta absent:
+      ```
+      $ npm pack --dry-run --json | jq -r '.[0].files[].path' | grep 'dist/local/migrations/meta'
+      (zero results)
+      ```
+
+      RED test gap: tests/integration/p0-audit-fixes/post-install-bin.test.ts tests
+      7+8 enumerate only `.sql` files (`readdirSync(sourceMigrationsDir).filter((f) => f.endsWith('.sql'))`).
+      They do NOT enumerate the `meta/` subdir or assert `_journal.json` presence.
+      Tests PASS despite the gap → false-green camouflage (the exact anti-pattern
+      Inquebrável Rule 3 + the parent plan's EC-3 absorption were meant to prevent).
+
+      The cycle commit message ed7c4ac claims: "without dist/**/*.sql the themory
+      migrate post-install path would reproduce the F-T7-1-3 regression". TRUE but
+      INCOMPLETE — adding dist/**/*.sql alone does NOT prevent the regression; the
+      meta/_journal.json absence reproduces it via a different error message
+      (`Can't find meta/_journal.json` instead of `Cannot find module migrations/0000_*.sql`).
+    recommended_action: |
+      Add a 4th glob `"dist/**/*.json"` to package.json#files OR a more targeted
+      `"dist/local/migrations/meta/**"`. Preferred: the targeted glob to avoid
+      shipping unintended .json files (e.g., tsbuildinfo siblings if config drifts).
+
+      Diff:
+      ```diff
+         "files": [
+           "src/**/*.ts",
+           "!src/**/__tests__/**",
+           "!src/**/*.test.ts",
+           "!src/**/*.test-d.ts",
+           "src/local/migrations/**",
+           "dist/**/*.js",
+           "dist/**/*.d.ts",
+           "dist/**/*.sql",
+      +    "dist/local/migrations/meta/**"
+         ],
+      ```
+
+      Strengthen tests/integration/p0-audit-fixes/post-install-bin.test.ts with a
+      new test 9 + 10:
+
+      ```ts
+      test('9. EC-1+ — dist/local/migrations/meta/_journal.json exists in extracted tarball', () => {
+        const journalPath = join(extractedPackageDir, 'dist', 'local', 'migrations', 'meta', '_journal.json');
+        expect(existsSync(journalPath), 'drizzle migrator requires meta/_journal.json or migrate() throws').toBe(true);
+      });
+
+      test('10. EC-1+ — extracted dist/local/migrations supports drizzle migrate() init (folder-shape sanity)', () => {
+        // Sanity: every entry in _journal.json points to an extant .sql file in the same dir.
+        const journalPath = join(extractedPackageDir, 'dist', 'local', 'migrations', 'meta', '_journal.json');
+        const journal = JSON.parse(readFileSync(journalPath, 'utf8'));
+        for (const entry of journal.entries) {
+          const sqlPath = join(extractedPackageDir, 'dist', 'local', 'migrations', `${entry.tag}.sql`);
+          expect(existsSync(sqlPath), `journal entry ${entry.tag} has no matching .sql in extracted tree`).toBe(true);
+        }
+      });
+      ```
+
+      This closes the regression honestly AND defends future migration adds the
+      same way the .sql floor does.
+
+  - id: F-dom-api-fix-2
+    severity: MAJOR
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 199-216
+    plan_ref: |
+      Plan v1.1 § "EC-1 MUST FIX absorbed: tests 7+8 enumerate src/local/migrations/*.sql
+      dynamically and assert ship + extract-tree presence". Tests assert .sql presence
+      but NOT the meta/ siblings drizzle migrator depends on.
+    domain_anchor: |
+      ADR D2 — "behavioral round-trip catches BOTH — if the bin can't require() its
+      imports, the test fails regardless of which file is missing". Pattern claim
+      not honored at the migrate() layer: the test's require() round-trip only
+      validates module resolution, NOT the drizzle journal file presence.
+    summary: |
+      Tests 7 + 8 are grep-shape at the file-extension level — they enumerate only
+      .sql files. The parent finding F-dom-api-3 explicitly criticized grep-shape
+      assertions (the original >= 1 floor) and the fix-cycle prides itself on
+      "behavioral, not floor" wording. The same grep-shape gap re-emerges here:
+      enumerating `.sql` while excluding `.json` siblings replicates the F-dom-api-3
+      pattern.
+    evidence: |
+      Plan v1.1 ADR D3 (test #4 strengthening) states: "Hardcoded count alternative
+      (rejected): would require updating the test every time a new migration lands
+      ... Filesystem dynamic alternative (chosen): self-maintaining. Test source of
+      truth is the directory contents at test time."
+
+      Tests 7+8 implement the dynamic enumeration ONLY at the `.sql` granularity:
+      ```ts
+      const expectedSql = readdirSync(sourceMigrationsDir).filter((f) => f.endsWith('.sql'));
+      ```
+
+      `meta/_journal.json` lives in the same source dir but is NOT enumerated. A
+      future migration add to the meta/ dir or a future drizzle-kit shape change
+      that adds a new meta file (e.g., `0011_snapshot.json`) is silently ignored
+      by this test even though Drizzle would require it at runtime.
+
+      Cross-reference to F-dom-api-fix-1 above: this MAJOR is the test-quality
+      mirror of the CRITICAL. Closing F-dom-api-fix-1 must include this MAJOR's
+      remediation.
+    recommended_action: |
+      Same as F-dom-api-fix-1 § recommended_action — adding tests 9+10 closes
+      both findings simultaneously.
+
+  - id: F-dom-api-fix-3
+    severity: MINOR
+    file: package.json
+    line: 4
+    plan_ref: |
+      Plan does NOT scope a description-casing fix. The ed7c4ac commit body
+      discloses: "Rider: package.json line 4 description change (usetheo to Theo
+      casing) was pre-existing in working tree before this cycle started; per
+      parent /implement-validate honest disclosure, it stays."
+    domain_anchor: |
+      cycle-implement.md § Anti-pattern 7 (NEVER scope-creep mid-task — if you
+      discover an unrelated improvement opportunity, log it in followups.md and
+      continue). Honest-disclosure precedent in parent /implement-validate
+      authorized similar non-plan riders in T1.1 commit.
+    summary: |
+      The description-casing change ("usetheo ecosystem" → "Theo ecosystem") is
+      cosmetically aligned with the brand voice in CLAUDE.md but is NOT mapped
+      in the plan's Coverage Matrix and lacks a task ID. The commit body's
+      "stays per parent precedent" rationale is technically acceptable but
+      sets a precedent that drift-riders ship without coverage entries. Accept
+      as MINOR per parent precedent; FLAG as scope-discipline signal for
+      reviewer awareness.
+    evidence: |
+      git diff 4f13028..HEAD -- package.json line 4:
+      ```diff
+      -  "description": "Managed three-tier memory layer for the usetheo ecosystem. Pre-release.",
+      +  "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
+      ```
+
+      Plan v1.2 Coverage Matrix has no row for description-casing. Plan §
+      "What did NOT change since /review" line 40 explicitly states the cycle
+      does NOT touch pre-existing modified files; the description change is
+      one of those files (modified pre-cycle per ed7c4ac commit body).
+    recommended_action: |
+      Accept per parent precedent — the commit body discloses honestly. For
+      future cycles: consider adding a "## Riders" section to the plan template
+      OR a single Coverage Matrix row "Pre-existing pristine-tree riders" so
+      these are tracked rather than appearing as commit-body footnotes. Not a
+      blocker for this cycle.
+
+  - id: F-dom-api-fix-4
+    severity: INFO
+    file: src/__tests__/changelog-breaking-marker.test.ts
+    line: 36-42
+    plan_ref: |
+      T0.3 § TDD: "extract the [Unreleased] section from CHANGELOG.md ... assert
+      the slice contains **BREAKING (REST server):**".
+    domain_anchor: |
+      ADR D4 — "Section heading STAYS Changed (Keep-a-Changelog category list
+      permits the change category to carry breaking sub-content per the
+      keepachangelog.com/en/1.1.0/ spec)."
+    summary: |
+      Test extracts the [Unreleased] section but does NOT enforce the marker
+      lives specifically inside the `### Changed` subsection. If a future
+      cycle added the marker to `### Removed` or `### Added` by mistake, the
+      test would still PASS. ADR D4 explicitly requires the marker inside
+      Changed; test is one level too loose.
+    evidence: |
+      ```ts
+      function extractUnreleased(changelog: string): string {
+        const start = changelog.indexOf('## [Unreleased]');
+        if (start === -1) return '';
+        const after = changelog.slice(start);
+        const nextRel = after.search(/\n## \[\d/);
+        return nextRel === -1 ? after : after.slice(0, nextRel);
+      }
+      ...
+      expect(unreleased).toContain('**BREAKING (REST server):**');
+      ```
+
+      Empirical state: marker IS inside ### Changed at line 11 (verified via
+      `grep -nE "^## |^### " CHANGELOG.md`). Test currently PASSES for the
+      right reason but would PASS for the wrong reason if a category moved.
+    recommended_action: |
+      Tighten the slicer to extract `### Changed` within `[Unreleased]`:
+
+      ```ts
+      function extractUnreleasedChanged(changelog: string): string {
+        const unreleased = extractUnreleased(changelog);
+        const start = unreleased.indexOf('### Changed');
+        if (start === -1) return '';
+        const after = unreleased.slice(start);
+        const nextSection = after.search(/\n### /);
+        return nextSection === -1 ? after : after.slice(0, nextSection);
+      }
+      ```
+
+      INFO not MAJOR because (a) marker IS in the right place today, (b) ADR
+      D4 compliance is enforced by reviewer convention as much as by test,
+      (c) the cosmetic risk is low. Surface for future hardening.
+
+  - id: F-dom-api-fix-5
+    severity: INFO
+    file: tests/integration/p0-audit/pack-manifest.test.ts
+    line: 76-83
+    plan_ref: |
+      T3.3 § "Pack-manifest #4 strengthening uses filesystem dynamic enumeration
+      of `src/local/migrations/*.sql`, NOT a hard-coded count" + sanity `> 0` guard
+      requirement.
+    domain_anchor: |
+      ADR D3 — behavioral floor against silent migration drops. Sanity guard
+      `expect(expectedSql.length).toBeGreaterThan(0)` PRESENT at line 79.
+    summary: |
+      Pack-manifest test #4 strengthening is correctly implemented per ADR D3.
+      Sanity guard present. Test asserts the SOURCE migrations ship — but the
+      DIST migrations behavioral floor lives in post-install-bin.test.ts test
+      #8 separately. Both are needed; the split is honest. INFO note: a future
+      reviewer might miss the split and assume test #4 covers both surfaces.
+      Recommend a JSDoc cross-reference between the two.
+    evidence: |
+      pack-manifest.test.ts test #4 enumerates src/local/migrations/ and
+      asserts pack contains src/local/migrations/{name}. It does NOT assert
+      dist/local/migrations/{name}. That assertion lives in
+      post-install-bin.test.ts test #8. Together they cover both surfaces.
+    recommended_action: |
+      Add a brief JSDoc note above pack-manifest test #4 cross-referencing
+      post-install-bin test #8 so reviewers see the split. Not blocking.
+
+scope_compliance:
+  parent_adr_d5_registry_push_deferral: |
+    PRESERVED. ed7c4ac commit body line: "ADR D5 of parent plan defers the
+    registry-push step itself — this commit validates pre-release readiness only."
+    No `npm publish` invocation in any cycle commit. CHANGELOG line 9 sub-(g)
+    closes the loop: "ADR D5 of parent plan defers the registry-push step itself
+    — this fix-cycle validates pre-release readiness only, does not publish."
+
+  readme_pre_release_status: |
+    UNCHANGED. README line 15 ships `status-pre--release-orange` badge; line 126
+    sentence "Pre-release. Not production-ready." intact. No `production-ready`
+    or `production-grade` tokens introduced anywhere in the cycle range
+    (verified via `git diff 4f13028..HEAD -- README.md CHANGELOG.md` inspection
+    — only the inserted line 11 BREAKING marker + line 207 .mcp.json.example
+    xref).
+
+  dogfood_gate_state: |
+    PRESERVED. dogfood/manifest.md S1 Status field stays at `running` per
+    ADR-0012 amendment path. No manifest edits in cycle commits. Evidence dir
+    carries 2 anchor evidence files dated 2026-06-04 (`-anchor-claude-code-first-
+    wiring.md` + `-anchor-claude-code-real-providers-wired.md`) — gate semantics
+    align with claim "EVIDENCE_SUFFICIENT" per ADR-0012 empirical-snapshot path.
+    Cycle does NOT regress the gate.
+
+  bundle_isolation_regression_check: |
+    NO REGRESSION. bundle-isolation.test.ts walks the static-import graph of
+    src/index.ts and asserts none of the 9 subpath impl files (including
+    embedders/local, embedders/openai, llms/openai, server/index) appear in
+    the reachable set. The graph is sourced from .ts imports under src/, NOT
+    from the package.json files glob. Adding dist/**/*.{js,d.ts,sql} to the
+    files glob ships MORE artifacts in the tarball but does NOT change static
+    import graphs. Therefore @xenova/transformers / openai / hono cannot leak
+    via this mechanism. Test ran 7+1+1+1 = 10 assertions PASS.
+
+summary_for_consolidation:
+  goal_closure_empirical: |
+    Sub-goal 1 (F-dom-api-1) CLOSED — verified via 3 globs and 8/8 sentinel
+    tests PASS.
+
+    Sub-goal 1b (EC-1 absorption) PARTIALLY CLOSED — `themory migrate` post-
+    install will STILL FAIL at runtime due to missing dist/local/migrations/
+    meta/_journal.json. The plan claims P0 sub-goal 3 closure but a real
+    `npm install @usetheo/memory && npx @usetheo/memory migrate` would throw
+    `Can't find meta/_journal.json file` from drizzle-orm/migrator.js.
+
+    Sub-goals 2-6 CLOSED — verified via grep + test execution. All 4 PASS:
+      - JSDoc rewritten with zero `stubs` tokens, names real providers
+      - README cross-references .mcp.json.example template at line 207
+      - CHANGELOG carries **BREAKING (REST server):** marker at line 11
+      - pack-manifest test #4 strengthened to behavioral floor with sanity guard
+      - reflection prompt SHAPE-stability test ships with paper-name + snapshot + determinism guards
+
+  honesty_disclosure_assessment: |
+    The cycle commits and CHANGELOG entry are otherwise honest per Inquebrável
+    Rule 3 — they disclose the symlink trick for test 2, the description-casing
+    rider, the ADR D5 deferral preservation. The ONLY honesty gap is the
+    implicit-but-unstated claim that Sub-goal 1b closes the F-T7-1-3 regression
+    class. Empirically it does not; only an additional `dist/local/migrations/
+    meta/**` glob closes it.
+
+verdict: |
+  NEEDS_FIXES on F-dom-api-fix-1 (CRITICAL — incomplete F-T7-1-3 closure;
+  dist/local/migrations/meta/_journal.json missing breaks `themory migrate`
+  post-install). All other findings are MINOR/INFO hardening signals. Bundle
+  isolation, README status, dogfood gate, ADR D5 deferral all PRESERVED.
+
+  Recommend the cycle return to ralph-loop for a follow-up T1.3 (4th glob +
+  tests 9-10), then re-validate. Estimated additional effort: < 30 minutes
+  (1 package.json edit + 2 test additions + npm pack re-verification).

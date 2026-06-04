@@ -1,0 +1,343 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-architecture
+review_target: 4f13028..HEAD for plan p0-api-sdk-mcp-correctness-audit-fixes-cycle-1
+plan: .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md
+verdict_summary: |
+  No BLOCKER, no CRITICAL, no MAJOR architectural defects introduced by this fix-cycle.
+  The 3-glob expansion (D1), the JSDoc rewrite (T2.1), the BREAKING marker (T3.1), the
+  meta-test placement (T0.3 + T0.4), and the symlink-based post-install test (T0.1) are
+  all architecturally sound. DIP boundaries are preserved (no src/core/ → src/local/
+  imports). The `run-mcp-server.ts` composition root role is correctly maintained per
+  ADR D8 of the parent plan. Two MINOR docs hygiene observations + four INFO entries
+  documenting clean files.
+
+findings:
+  - id: F-arch-1
+    severity: MINOR
+    file: package.json
+    line: 73-76
+    plan_ref: T1.1 / ADR D1
+    summary: |
+      `package.json#exports` still points at `./src/**` paths (TypeScript-source-ship
+      model) while `package.json#files` now also ships `./dist/**/*.{js,d.ts,sql}`. The
+      two-runtime ship (source + dist) is intentional per D1 § Consequences row 4
+      ("`.sql` files in `src/local/migrations/` ship TWICE"), but the asymmetry
+      between `exports` (src-only) and `files` (src + dist) is not documented at the
+      module-hygiene level — a future contributor inspecting only `exports` could
+      conclude dist is auxiliary and prune the entries.
+    evidence: |
+      ```json
+      "exports": {
+        ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+        "./contract": { "types": "./src/core/index.ts", "default": "./src/core/index.ts" },
+        ... (all subpaths point at ./src/**)
+      },
+      "files": [
+        "src/**/*.ts",
+        "!src/**/__tests__/**",
+        ...
+        "src/local/migrations/**",
+        "dist/**/*.js",
+        "dist/**/*.d.ts",
+        "dist/**/*.sql"
+      ]
+      ```
+    recommended_action: |
+      Add a brief comment block above the `files` array (or in CLAUDE.md § Build pipeline)
+      documenting WHY dist/** ships in parallel to src/**: bin entry `dist/agent-tools/cli.js`
+      and its 4 siblings are required for `npx @usetheo/memory mcp` UX (per ADR D1
+      Option C rationale), and the dist tree is NOT consumed by `package.json#exports`
+      consumers. Out of fix-cycle scope; track as a docs follow-up.
+
+  - id: F-arch-2
+    severity: MINOR
+    file: CHANGELOG.md
+    line: 9
+    plan_ref: T4.1 cycle-close
+    summary: |
+      The fix-cycle's `[Unreleased] § Changed` entry is a single dense paragraph of
+      ~1200 words. Inquebrável Rule 6 (`/home/paulo/.claude/CLAUDE.md § 6`) says "One
+      line per change. If you need more, the change is large enough that the PR scope
+      is wrong." The fix-cycle's actual scope is genuinely tight (1 CRITICAL + 5 MAJOR
+      + 1 MUST FIX), but the entry compresses 7 sub-changes (a-g) into one paragraph
+      rather than 7 bullets. This makes consumer scanning harder.
+    evidence: |
+      Single paragraph (CHANGELOG.md:9) spanning the 7 sub-fixes labeled (a) through
+      (g) plus EC absorptions. Compared with the sibling BREAKING entry below it
+      (CHANGELOG.md:11) which is a tight focused single paragraph for one change.
+    recommended_action: |
+      Restructure the fix-cycle entry into 7 sub-bullets under the parent bullet (one
+      per F-finding closed) OR split into 7 separate `Changed` entries. The BREAKING
+      marker entry (line 11) already shows the right shape for a focused single-change
+      paragraph. Acceptable to defer to a docs follow-up; not blocking the gate.
+
+  - id: F-arch-3
+    severity: INFO
+    file: src/agent-tools/run-mcp-server.ts
+    line: 9-15
+    plan_ref: T2.1 / F-dom-cli-1
+    summary: |
+      JSDoc composition-root block rewritten to name `LocalTransformerEmbedder` +
+      `OpenAILLM` instead of the stale "pgvector + stubs". The rewrite preserves the
+      DIP-allowed composition-root role (per ADR D8 of parent plan), names the
+      real-providers wiring, AND avoids the literal `\bstubs?\b` token so the regression
+      sentinel regex in `tests/integration/p0-audit-fixes/post-install-bin.test.ts`
+      tests 5+6 hold. The honest disclosure of the hard-fail-on-missing-OPENAI_API_KEY
+      behavior (line 13-15) cross-references commit e43d801 of the parent cycle —
+      filesystem-coordinate citation per `no-paper-names-in-code.md § How to apply`
+      bullet 3.
+    evidence: |
+      ```ts
+      * Composition root (DIP-allowed): this file wires src/local/ (pgvector +
+      * LocalTransformerEmbedder + OpenAILLM real providers) into the
+      * agent-tools McpServer. Library layer `src/agent-tools/index.ts` does
+      * NOT re-export src/local/ — the bin entry IS the composition site per
+      * ADR D8. The runtime hard-fails on missing OPENAI_API_KEY rather than
+      * silently wiring a deterministic placeholder; see commit e43d801 of the
+      * parent cycle for the placeholder-removal rationale.
+      ```
+    recommended_action: |
+      No action needed. Architecturally clean.
+
+  - id: F-arch-4
+    severity: INFO
+    file: src/core/reflection/__tests__/prompt.test.ts
+    line: 1-126
+    plan_ref: T0.4 + T3.2 / ADR D5
+    summary: |
+      Contract-tier placement of the EC-8 reflection-prompt SHAPE-stability test honors
+      ADR D5 ("EC-8 RED test lives at `src/core/reflection/__tests__/prompt.test.ts`
+      (contract tier), NOT `tests/integration/`"). The placement matches:
+      (a) `vitest.contract.config.ts` include glob `src/{core,...}/**/__tests__/**/*.test.ts`;
+      (b) the per-module test colocation convention used by `core/extraction`,
+      `core/retrieval`, `core/forgetting`;
+      (c) the pure-function nature of `buildReflectionPrompt` (no I/O, deterministic).
+      The MemoryItem fixture is complete — all 9 required readonly fields populated
+      (id, text, hash, scope, createdAt, updatedAt, metadata, tValid, tInvalid);
+      optional fields correctly omitted. The 3 assertions (paper-name regex + inline
+      snapshot + EC-2 determinism guard) form a defense-in-depth shape gate.
+    evidence: |
+      File path `src/core/reflection/__tests__/prompt.test.ts` matches contract-tier
+      include glob. Fixture uses `UserScope: { kind: 'user', userId: 'alice' }` from
+      `src/core/scope.ts:8-9` (verified to be the canonical shape). The frozen-snapshot
+      assertion (lines 95-110) captures `buildReflectionPrompt` output verbatim.
+    recommended_action: |
+      No action needed. Architecturally clean.
+
+  - id: F-arch-5
+    severity: INFO
+    file: src/core/reflection/__tests__/prompt.test.ts
+    line: 25-45
+    plan_ref: b1acbba hotfix / no-paper-names-in-code.md
+    summary: |
+      The string-concat regex pattern for paper-name tokens (lines 30-41) is a clever
+      and legitimate self-defense against the rule the test enforces. The meta-test
+      asserts the rendered prompt has zero paper-name tokens via a regex built at
+      runtime; if the regex itself were written as a literal containing those tokens,
+      the test file itself would violate `no-paper-names-in-code.md § ## How to apply`
+      bullet 4 ("Test names describe behavior, not the source"). The string-concat
+      approach (e.g., `'V' + 'oyager'`) keeps the file grep-clean per the rule's
+      `\b<token>\b` audit pattern AND reassembles the actual regex at runtime for
+      correct assertion semantics. The inline comment at lines 25-29 honestly discloses
+      the rationale.
+    evidence: |
+      ```ts
+      // Paper-name regex built via string concatenation so this test file itself
+      // does NOT contain the literal banned tokens as contiguous words — grep -wE
+      // "\b<token>\b" applied across src/**/*.ts (THE GOAL TEST tests 29-33 of the
+      // parent plan) sees only the fragments, not the joined tokens, and reports
+      // 0 hits per the no-paper-names-in-code rule.
+      const BANNED_TOKENS = [
+        'V' + 'oyager',
+        'Me' + 'm0',
+        ...
+      ];
+      ```
+    recommended_action: |
+      No action needed. The pattern is reusable for any future meta-test enforcing
+      a token-blacklist on src/**; worth documenting in the rule's § Anti-patterns
+      with-a-positive-example callout as a docs follow-up.
+
+  - id: F-arch-6
+    severity: INFO
+    file: tests/integration/p0-audit-fixes/post-install-bin.test.ts
+    line: 119-126
+    plan_ref: T0.1 / ADR D2 + EC-4
+    summary: |
+      The `symlinkSync(node_modules, extractedPackageDir/node_modules)` trick correctly
+      simulates npm-dep-resolution without requiring a full `npm install` round-trip in
+      the test. The inline 7-line comment (lines 119-126) honestly discloses this as a
+      "npm-install-environment limitation, NOT a regression of our publish manifest" —
+      satisfies Inquebrável Rule 3 (extreme honesty) at the test-design level. The
+      8 assertions form a behavioral-shape contract (D2 rationale): tarball extract +
+      `node -e` import round-trip + file existence + pack-list inspection + JSDoc
+      regex sentinel + EC-1 .sql file enumeration. The `describe.skipIf` 3-tier gate
+      with LOUD `console.warn` per parent EC-3 pattern keeps CI green when prereqs
+      are absent.
+    evidence: |
+      ```ts
+      // Simulate post-install dependency resolution by symlinking the project's
+      // node_modules into the extracted package dir. `npm install @usetheo/memory`
+      // would create an equivalent layout via npm's dep resolver. Without this,
+      // the `require()` round-trip fails for bare specifiers like `commander`,
+      // `hono`, `pg` — which is a npm-install-environment limitation, NOT a
+      // regression of our publish manifest.
+      symlinkSync(join(REPO_ROOT, 'node_modules'), join(extractedPackageDir, 'node_modules'), 'dir');
+      ```
+    recommended_action: |
+      No action needed. The trade-off (env-fidelity vs reproducibility) is correctly
+      surfaced inline. A higher-fidelity test (full `npm install` against a local
+      registry like verdaccio) would belong at an E2E tier — out of scope here.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/__tests__/changelog-breaking-marker.test.ts
+    line: 1-43
+    plan_ref: T0.3 / F-dom-api-2 / ADR D4
+    summary: |
+      Placement at `src/__tests__/` (alongside sibling `no-root-reexport.test.ts`) is
+      architecturally consistent — both are repo-scoped contract-tier meta-tests that
+      assert invariants over root-level project files (CHANGELOG.md and the root
+      barrel respectively). The vitest contract config explicitly includes
+      `src/__tests__/**/*.test.ts` per `vitest.contract.config.ts`. The slice-extract
+      helper `extractUnreleased()` (lines 28-33) is a 5-line pure function with no I/O
+      beyond the readFileSync at line 36 — KISS-compliant per Inquebrável Rule 10.
+      The single assertion (the BREAKING marker token presence) matches ADR D4's
+      Keep-a-Changelog 1.1.0 § Types compliance approach (no new category needed).
+    evidence: |
+      Test asserts `expect(unreleased).toContain('**BREAKING (REST server):**')` —
+      single tight assertion matching the marker pattern locked by D4. File header
+      cross-references plan slug + ADR D4 inline per § How to apply bullet 2 of
+      no-paper-names-in-code.md.
+    recommended_action: |
+      No action needed. Architecturally clean.
+
+  - id: F-arch-8
+    severity: INFO
+    file: tests/integration/p0-audit/pack-manifest.test.ts
+    line: 76-82
+    plan_ref: T0.5 / F-dom-api-3 / ADR D3
+    summary: |
+      Test #4 strengthened per ADR D3 from grep-shape `>= 1` floor to behavioral
+      `readdirSync` + `toContain` loop. The strengthening eliminates the "1-row
+      tolerant floor" failure mode that masked F-dom-api-3 originally — same grep-shape
+      anti-pattern as F-dom-api-1. The use of `fs.readdirSync` at test time (NOT a
+      hardcoded count) is self-maintaining per D3 § Rationale: new migrations land
+      append-only and the test source-of-truth is the filesystem at test-execution
+      moment. Inquebrável Rule 9 honored — `fs` stdlib, no new dependency.
+    evidence: |
+      ```ts
+      test('4. fixes-cycle-1 F-dom-api-3 — pack manifest ships EVERY src/local/migrations/*.sql file (behavioral floor)', () => {
+        const migrationsDir = join(REPO_ROOT, 'src', 'local', 'migrations');
+        const expectedSql = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
+        expect(expectedSql.length, 'sanity — at least one .sql file in source migrations dir').toBeGreaterThan(0);
+        for (const sqlFile of expectedSql) {
+          expect(paths).toContain(`src/local/migrations/${sqlFile}`);
+        }
+      });
+      ```
+    recommended_action: |
+      No action needed. Architecturally clean.
+
+  - id: F-arch-9
+    severity: INFO
+    file: README.md
+    line: 205-207
+    plan_ref: T2.2 / F-dom-cli-2
+    summary: |
+      One-line cross-reference to the committed `.mcp.json.example` template added at
+      README.md line 207 ("A copy-and-fill template is committed at [`.mcp.json.example`]..."),
+      template-first ahead of the inline recipe. Matches the parent plan task-T3-4
+      step-3 surface that was silently dropped. Consumer-greppable for the literal
+      `.mcp.json.example` token (verified by new test #7 in
+      `tests/integration/p0-audit/readme-mcp-section.test.ts`). Module hygiene preserved
+      — no new dependencies, no architectural shift.
+    evidence: |
+      ```markdown
+      **Install as a stdio MCP server for Claude Code** via project-local `.mcp.json` (the canonical Claude Code mechanism).
+
+      A copy-and-fill template is committed at [`.mcp.json.example`](.mcp.json.example) — duplicate it as `.mcp.json` (gitignored), populate `OPENAI_API_KEY`, and restart Claude Code. The inline recipe below mirrors that template for reference:
+      ```
+    recommended_action: |
+      No action needed. Architecturally clean.
+
+  - id: F-arch-10
+    severity: INFO
+    file: package.json
+    line: 4
+    plan_ref: T1.1 commit body (out-of-plan scope rider)
+    summary: |
+      The `description` field cased change ("usetheo ecosystem" → "Theo ecosystem")
+      committed as part of T1.1 with disclosure in the commit body — `ed7c4ac`. This
+      is an out-of-cycle scope rider per the implement-validate report. It does not
+      introduce an architectural defect (only product-naming consistency with CLAUDE.md
+      § What this project is which uses "Theo ecosystem"), but the change technically
+      sits outside the plan's declared task surface (T1.1 scopes `files` array, NOT
+      `description`). Cycle-implement anti-pattern #7 ("NEVER scope-creep mid-task")
+      was honored in spirit through the in-commit-body disclosure rather than silent
+      inclusion. Not blocking.
+    evidence: |
+      ```diff
+      -  "description": "Managed three-tier memory layer for the usetheo ecosystem. Pre-release.",
+      +  "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
+      ```
+    recommended_action: |
+      No action needed. The disclosure pattern (in-commit-body) is the correct anti-
+      pattern-#7 mitigation when a rider lands. Future cycles should ideally hoist
+      such rider changes into their own atomic commit (e.g., `chore(package): align
+      description with CLAUDE.md naming`) rather than bundling, but a 1-line cosmetic
+      rider is below the threshold where the cost of splitting exceeds the benefit.
+
+solid_check:
+  srp: PASS — each modified file has single responsibility (CHANGELOG test asserts
+    one marker; reflection prompt test asserts one shape; post-install-bin test
+    asserts one end-to-end contract; run-mcp-server JSDoc describes one composition
+    root)
+  ocp: N/A — no variation point added; this is a hardening cycle, not an extension
+  lsp: N/A — no inheritance hierarchies touched
+  isp: N/A — no interfaces added or modified
+  dip: PASS — no new src/core/ → src/local/ imports; run-mcp-server.ts composition
+    root role preserved per ADR D8 (the bin entry IS the composition site)
+
+boundary_check:
+  src_core_imports_src_local: NONE detected in the diff
+  src_core_imports_src_cloud: NONE detected in the diff
+  cross_runtime_imports: NONE detected (src/local/ and src/cloud/ remain siblings)
+
+naming_hygiene:
+  kebab_case_files: PASS — all 3 new files use kebab-case (changelog-breaking-marker.test.ts,
+    prompt.test.ts, post-install-bin.test.ts)
+  any_introduced: NONE detected
+  console_log_in_production: NONE (console.warn at test-skip surface only;
+    eslint-disabled with comments per existing test convention)
+  commonjs_introduced: NONE detected (all imports use ES modules)
+
+design_patterns:
+  introduced: NONE — this is a hardening cycle, not a pattern extension
+  removed: NONE
+  misused: NONE detected
+
+coupling_cohesion:
+  circular_dependencies: NONE detected
+  cross_module_imports: All cleanly ascending (src/core/ → no other src/; tests
+    import from src/* and node:* only; run-mcp-server.ts at composition root
+    correctly imports from src/local/ + src/embedders/ + src/llms/ + src/agent-tools/
+    per ADR D8)
+  high_fan_in_modules: NONE introduced
+
+overall_verdict: READY_TO_MERGE
+overall_rationale: |
+  The fix-cycle's architectural surface is clean. The 3-glob expansion (D1) is the
+  correct minimal-blast-radius fix per architecture.md § 10.1 F-T7-1-3 regression
+  class. The JSDoc rewrite (T2.1) preserves the composition-root role per ADR D8
+  while honoring the no-paper-names rule. The contract-tier placement of the
+  reflection-prompt SHAPE-stability test (D5) matches existing per-module test
+  colocation convention. The string-concat regex pattern (b1acbba) is a clever
+  legitimate self-defense against the rule the test enforces. The symlink-based
+  post-install simulation (T0.1) is honestly disclosed inline. No DIP boundary
+  violations, no SOLID regressions, no naming-hygiene defects, no `any` introductions.
+
+  Two MINOR docs hygiene observations (F-arch-1 docs gap on exports-vs-files
+  asymmetry; F-arch-2 CHANGELOG paragraph density vs Rule 6 spirit) are improvement
+  suggestions, NOT blockers. The remaining 8 INFO findings document clean files.
+
+  Recommendation: verdict-flip from NEEDS_FIXES to READY_TO_MERGE.

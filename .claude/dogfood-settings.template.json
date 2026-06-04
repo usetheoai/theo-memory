@@ -1,0 +1,27 @@
+{
+  "_README": "Copy the relevant blocks BELOW into ~/.claude/settings.json (your USER-GLOBAL Claude Code settings). Per Inquebrável Rule 1, this file is documentation only — Claude does NOT auto-edit ~/.claude/settings.json. After applying the edit, RESTART Claude Code for the MCP server registration AND hook registration to take effect (EC-10 absorption). T1.2 of dogfood-anchor-scenario-launch plan v1.1.",
+
+  "mcpServers": {
+    "themory": {
+      "command": "node",
+      "args": ["/home/paulo/Projetos/usetheo/theo-memory/dist/agent-tools/cli.js", "mcp"],
+      "env": {
+        "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem"
+      }
+    }
+  },
+
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/paulo/Projetos/usetheo/theo-memory/.claude/hooks/dogfood-mirror.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

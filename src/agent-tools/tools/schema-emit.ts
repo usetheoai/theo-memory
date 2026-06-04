@@ -2,7 +2,7 @@
  * JSON Schema emitter for v0.3 tool schemas — single point of dialect control.
  *
  * Pins `target: 'jsonSchema7'` to guarantee:
- * - `required` arrays emitted correctly (proves LangMem `_ToolWithRequired`
+ * - `required` arrays emitted correctly (proves the discover blueprint `_ToolWithRequired`
  *   workaround unneeded — blueprint Q6 + F-zod-schema-fixture-test)
  * - `.strict()` translates to `additionalProperties: false` (EC-11 + F-T2.1-3)
  *

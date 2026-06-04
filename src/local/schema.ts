@@ -83,7 +83,7 @@ export const memories = pgTable(
     /** v1.1 T1.1: first-class promoted column for multi-peer attribution per blueprint Q3 + R1.
      *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
      *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
-     *  (any peer ID accepted; not restricted to Mem0's bivalent "user"/"assistant" vocabulary).
+     *  (any peer ID accepted; not restricted to the upstream bivalent "user"/"assistant" vocabulary).
      *  @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2. */
     attributedTo: text('attributed_to'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
@@ -116,11 +116,32 @@ export const memories = pgTable(
     /** v0.4b: per-row half-life in seconds for exponential time decay; lazy-backfilled from
      *  llm_importance_score on first scoring per plan T2.2 (D14). NULL until first backfill. */
     halfLifeSeconds: integer('half_life_seconds'),
+    /** principles-alignment-hardening T0.1: Princípio 1 (confirmação) factor —
+     *  bumped on dedup-collision via ON CONFLICT DO UPDATE per ADR D1. Tracks
+     *  how many times the SAME hash was asserted within the SAME scope. DEFAULT 1
+     *  treats pre-cycle rows as "1 confirmation" (EC-4 honest floor — pre-cycle
+     *  schema did not track confirmations; 1 is NOT fabricated history).
+     *  @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1
+     *  @see CLAUDE.md § IMPORTANTE Princípio 1 */
+    confirmationCount: integer('confirmation_count').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex('memories_hash_unique_idx').on(table.hash),
+    // principles-alignment-hardening T0.1 / ADR D5 — composite UNIQUE on
+    // (hash, scope_columns) replaces v0.1 global UNIQUE on hash alone.
+    // COALESCE() treats NULL scope columns as empty string for uniqueness:
+    // (hash, NULL, NULL, NULL) deduplicates with (hash, NULL, NULL, NULL) but
+    // (hash, 'alice', NULL, NULL) is independent from (hash, 'bob', NULL, NULL).
+    // The v0.1 global UNIQUE was a pre-existing cross-scope dedup defect — see
+    // EC-1 absorption in the principles-alignment-hardening edge-case review.
+    // @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D5
+    uniqueIndex('memories_hash_scope_unique_idx').on(
+      table.hash,
+      sql`COALESCE(${table.userId}, '')`,
+      sql`COALESCE(${table.sessionId}, '')`,
+      sql`COALESCE(${table.agentId}, '')`,
+    ),
     index('memories_user_id_idx').on(table.userId),
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),

@@ -1,0 +1,20 @@
+{
+  "_README": "Project-local MCP server registration for Claude Code. Copy to .mcp.json AND fill in OPENAI_API_KEY before restarting Claude Code. .mcp.json is gitignored so the secret never reaches git. OPENAI_BASE_URL points at OpenRouter (chat completions only); embedder runs locally via Xenova MiniLM (no API key, 384-dim). Per the dogfood-anchor-scenario-launch plan v1.1 + PRIORITY 0 hardening directive 2026-06-04 (no stubs in production path).",
+
+  "mcpServers": {
+    "themory": {
+      "command": "node",
+      "args": [
+        "/home/paulo/Projetos/usetheo/theo-memory/dist/agent-tools/cli.js",
+        "mcp"
+      ],
+      "env": {
+        "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem",
+        "THEOMEM_MCP_DEFAULT_USER_ID": "claude-code-theo-memory",
+        "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+        "OPENAI_CHAT_MODEL": "openai/gpt-4o-mini",
+        "OPENAI_API_KEY": "REPLACE_WITH_YOUR_OPENROUTER_OR_OPENAI_KEY"
+      }
+    }
+  }
+}

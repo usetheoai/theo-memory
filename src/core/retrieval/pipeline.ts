@@ -2,7 +2,7 @@
  * 9-step search pipeline — T5.1 of v0-1-local-runtime plan v1.3.
  *
  * Port of Mem0-ts's `search` (.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/
- * index.ts:1037-1269) per blueprint ADR D2. Steps named after Mem0's comments:
+ * index.ts:1037-1269) per blueprint ADR D2. Steps named after the upstream code comments:
  *
  * Step 1: preprocess query (lemmatize for BM25)
  * Step 2: embed query
@@ -33,6 +33,8 @@ import type { MemoryItemWithScore } from '../memory-item.js';
 import type { RecallOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 import { combineScores, maxPossible, sigmoidBm25 } from '../scoring.js';
+
+import { mmrRerank } from './mmr.js';
 
 export interface RetrievalDeps {
   readonly vectorStore: VectorStore;
@@ -134,6 +136,9 @@ export async function runRetrievalPipeline(
 
   // Step 8: threshold filter (semantic gate BEFORE combining + final threshold AFTER)
   // EC-8: NaN-scored candidates dropped here because `NaN > threshold` is false.
+  // principles-alignment-hardening T4.1: capture pre-threshold count for the
+  // recall_threshold_filtered event (Princípio 3 IGNORE auditability per ADR D2).
+  const preThresholdCount = candidates.size;
   const scored: { id: string; payload: Payload; score: number }[] = [];
   for (const [id, c] of candidates.entries()) {
     if (c.semantic < threshold) {
@@ -151,10 +156,44 @@ export async function runRetrievalPipeline(
     }
     scored.push({ id, payload: c.payload, score: combined });
   }
+  // principles-alignment-hardening T4.1 — emit recall_threshold_filtered ONLY
+  // when filtered_count > 0 (no-op observability discipline; do not flood
+  // dashboards with zero-filter events). EC-5 absorption: emitEvent is no-op
+  // when tracer === undefined.
+  const filteredCount = preThresholdCount - scored.length;
+  if (filteredCount > 0) {
+    emitEvent(tracer, 'recall_threshold_filtered', {
+      filtered_count: filteredCount,
+      pre_threshold_count: preThresholdCount,
+      post_threshold_count: scored.length,
+    });
+  }
 
-  // Step 9: sort + format top-K
+  // Step 8.5: MMR diversify rerank (principles-alignment-hardening T4.2 / ADR D3).
+  // Opt-in via options.diversify; default (undefined) = byte-identical to v1.5.
   scored.sort((a, b) => b.score - a.score);
-  const top = scored.slice(0, topK);
+  let top: readonly { id: string; payload: Payload; score: number }[];
+  if (options?.diversify !== undefined) {
+    const { lambda, topPool } = options.diversify;
+    const effectiveTopPool = topPool ?? topK * 3;
+    // Embed candidate texts in ONE batch for diversity computation. Cost is
+    // bounded by topPool (default topK*3 ≤ 60) — one extra embedder call.
+    // The mmrRerank function throws InvalidScope when lambda ∉ [0, 1] (EC-3).
+    const candidatesForMmr = scored.slice(0, effectiveTopPool);
+    const texts = candidatesForMmr.map((c) => String(c.payload['text'] ?? ''));
+    const embeddings = await deps.embedder.embedBatch(texts);
+    const mmrCandidates = candidatesForMmr.map((c, i) => ({
+      id: c.id,
+      score: c.score,
+      embedding: embeddings[i] ?? [],
+      payload: c.payload,
+    }));
+    const selected = mmrRerank(mmrCandidates, lambda, effectiveTopPool, topK);
+    top = selected.map((s) => ({ id: s.id, payload: s.payload, score: s.score }));
+  } else {
+    // Step 9: sort + format top-K (v1.5 default path)
+    top = scored.slice(0, topK);
+  }
 
   const scope = scopeFromFilters(filters);
   const now = new Date();
@@ -168,6 +207,11 @@ export async function runRetrievalPipeline(
     // DTO's optional contract.
     const attributedToRaw = row.payload['attributed_to'];
     const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+    // principles-alignment-hardening T2.1 / EC-6 — hoist confirmation_count
+    // from row payload (search SQL now projects it). recall() results now
+    // surface Princípio 1 confirmação signal.
+    const confirmationCountRaw = row.payload['confirmation_count'];
+    const confirmationCount = typeof confirmationCountRaw === 'number' ? confirmationCountRaw : undefined;
     return {
       id: row.id,
       text: String(row.payload['text'] ?? ''),
@@ -179,6 +223,7 @@ export async function runRetrievalPipeline(
       tValid: now,
       tInvalid: null,
       ...(attributedTo !== undefined ? { attributedTo } : {}),
+      ...(confirmationCount !== undefined ? { confirmationCount } : {}),
       score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,
     };
   });

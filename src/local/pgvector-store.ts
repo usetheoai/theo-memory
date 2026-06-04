@@ -10,7 +10,7 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../core/constants.js';
 import type { ConflictResolutionResult } from '../core/dip/conflict-resolution-policy.js';
-import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import type { InsertOutcome, VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
 import { EmbeddingMismatch } from '../core/errors.js';
 import { emitEvent } from '../core/memory-event.js';
 import type { Filters } from '../core/scope.js';
@@ -37,6 +37,8 @@ interface MemoriesRow extends QueryResultRow {
   readonly code_language?: string | null;
   readonly derived_from?: unknown;
   readonly superseded_by?: string | null;
+  /** principles-alignment-hardening T2.1 / ADR D1 — Princípio 1 confirmação factor. */
+  readonly confirmation_count?: number;
   readonly distance?: number;
   readonly rank?: number;
 }
@@ -82,6 +84,12 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   if (row.superseded_by !== undefined && row.superseded_by !== null) {
     payload['superseded_by'] = row.superseded_by;
   }
+  // principles-alignment-hardening T2.1 / EC-6 — project confirmation_count
+  // into payload when the column is part of the SELECT projection. recall()'s
+  // wrap pipeline hoists this into MemoryItem.confirmationCount.
+  if (row.confirmation_count !== undefined && row.confirmation_count !== null) {
+    payload['confirmation_count'] = row.confirmation_count;
+  }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   return score !== undefined
     ? { id: row.id, payload, score }
@@ -96,7 +104,7 @@ interface FilterClause {
 
 /**
  * v1.1 T3.1 + ADR-0011: bi-temporal recall predicate. When `asOf` is set,
- * compose the Graphiti-precedent null-safe clause:
+ * compose the null-safe clause per ADR-0011:
  *
  *   (t_valid IS NULL OR t_valid <= $N) AND (t_invalid IS NULL OR t_invalid > $N+1)
  *
@@ -246,7 +254,7 @@ export class PgvectorStore implements VectorStore {
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Payload[],
-  ): Promise<void> {
+  ): Promise<readonly InsertOutcome[]> {
     if (vectors.length !== ids.length || vectors.length !== payloads.length) {
       throw new Error('insert: vectors, ids, and payloads must have equal length');
     }
@@ -257,19 +265,21 @@ export class PgvectorStore implements VectorStore {
       this.assertEmbeddingDim(vec, 'insert');
     }
     try {
-      await this.insertBatch(vectors, ids, payloads);
+      return await this.insertBatch(vectors, ids, payloads);
     } catch {
       // F-arch-3: persist_fallback fires per batch invocation; per-row failures
       // are skipped (do not poison the rest of the batch) and tallied below.
       emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
+      const outcomes: InsertOutcome[] = [];
       let failed = 0;
       for (let i = 0; i < vectors.length; i += 1) {
         try {
-          await this.insertSingle(
+          const singleOutcomes = await this.insertSingle(
             vectors[i] as readonly number[],
             ids[i] as string,
             payloads[i] as Payload,
           );
+          outcomes.push(...singleOutcomes);
         } catch {
           failed += 1;
         }
@@ -277,6 +287,7 @@ export class PgvectorStore implements VectorStore {
       if (failed > 0) {
         emitEvent(this.tracer, 'persist_fallback', { failed_rows: failed, total: vectors.length });
       }
+      return outcomes;
     }
   }
 
@@ -284,7 +295,7 @@ export class PgvectorStore implements VectorStore {
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Payload[],
-  ): Promise<void> {
+  ): Promise<readonly InsertOutcome[]> {
     const values: string[] = [];
     const params: unknown[] = [];
     let p = 1;
@@ -324,20 +335,59 @@ export class PgvectorStore implements VectorStore {
         attributedTo,
       );
     }
+    // principles-alignment-hardening T1.1 — composite ON CONFLICT per ADR D5.
+    // The conflict target MUST match migration 0011's memories_hash_scope_unique_idx
+    // expression list (hash, COALESCE(user_id,''), COALESCE(session_id,''), COALESCE(agent_id,'')).
+    // On collision, bump confirmation_count by 1 (Princípio 1 — confirmação factor per ADR D1).
+    // RETURNING (xmax = 0) AS inserted is the canonical PG tell-tale for INSERT-vs-UPDATE:
+    // xmax = 0 on fresh inserts, non-zero on updates. confirmation_count is RETURNed post-bump.
     const sql = `
       INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to)
       VALUES ${values.join(', ')}
-      ON CONFLICT (hash) DO NOTHING
+      ON CONFLICT (hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
+      DO UPDATE SET confirmation_count = memories.confirmation_count + 1
+      RETURNING id, confirmation_count, user_id, session_id, agent_id, (xmax = 0) AS inserted
     `;
-    await this.pool.query(sql, params);
+    const result = await this.pool.query<{
+      id: string;
+      confirmation_count: number;
+      user_id: string | null;
+      session_id: string | null;
+      agent_id: string | null;
+      inserted: boolean;
+    }>(sql, params);
+    // principles-alignment-hardening T1.1 — Princípio 3 IGNORE auditability per ADR D2.
+    // Emit dedup_collision_confirmed for each row whose ON CONFLICT branch fired
+    // (existed in scope; confirmation_count bumped). Skip for fresh inserts.
+    // EC-5 absorption: emitEvent is a no-op when tracer === undefined (handled
+    // by emitEvent itself per src/core/memory-event.ts:46), so no explicit guard
+    // needed here.
+    const outcomes: InsertOutcome[] = [];
+    for (const row of result.rows) {
+      if (!row.inserted) {
+        const scopeTier: string =
+          row.session_id !== null ? 'session' : row.agent_id !== null ? 'agent' : row.user_id !== null ? 'user' : 'none';
+        emitEvent(this.tracer, 'dedup_collision_confirmed', {
+          memory_id: row.id,
+          confirmation_count: row.confirmation_count,
+          scope_tier: scopeTier,
+        });
+      }
+      outcomes.push({
+        id: row.id,
+        confirmationCount: row.confirmation_count,
+        rejectedAsDuplicate: !row.inserted,
+      });
+    }
+    return outcomes;
   }
 
   private async insertSingle(
     vector: readonly number[],
     id: string,
     payload: Payload,
-  ): Promise<void> {
-    await this.insertBatch([vector], [id], [payload]);
+  ): Promise<readonly InsertOutcome[]> {
+    return this.insertBatch([vector], [id], [payload]);
   }
 
   async search(
@@ -356,12 +406,12 @@ export class PgvectorStore implements VectorStore {
     this.assertEmbeddingDim(query, 'search');
     // v0.4b T6.1 / D17 + v1.1 T3.1: bi-temporal recall predicate. Default
     // currently-valid `t_invalid IS NULL`; with filters.asOf, switch to the
-    // null-safe Graphiti-precedent predicate (ADR-0011).
+    // null-safe predicate per ADR-0011.
     const temporal = composeTemporalWhere(filters?.asOf, 2);
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by,
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              embedding <=> $1::vector AS distance
       FROM memories
       WHERE ${temporal.sql}${filter.sql}
@@ -425,7 +475,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by,
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
       WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)
@@ -445,7 +495,7 @@ export class PgvectorStore implements VectorStore {
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
       `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-              kind, code, description, code_language, derived_from, superseded_by
+              kind, code, description, code_language, derived_from, superseded_by, confirmation_count
          FROM memories WHERE id = $1`,
       [vectorId],
     );
@@ -519,7 +569,7 @@ export class PgvectorStore implements VectorStore {
 
     const pageSql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count
       FROM memories
       WHERE 1=1${filter.sql}
       ORDER BY created_at ASC

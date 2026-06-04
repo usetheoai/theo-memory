@@ -83,6 +83,44 @@ Same `remember` / `recall` / `forget` / `reflect` verbs across all three tiers �
 
 Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, and status.
 
+## Foundational principles
+
+Three principles anchor every design decision in TheMemory — schema, API contract, retrieval policy, scoring heuristics. When a technical choice conflicts with a principle, the principle wins.
+
+### Princípio 1 — Nem toda memória tem o mesmo peso.
+
+Relevance is a continuous score, not a boolean. The system composes orthogonal signals:
+
+- **Frequency / confirmation** — `confirmation_count` bumps when the same fact is asserted under the same scope (composite UPSERT per ADR D5; surfaces via `MemoryItem.confirmationCount`).
+- **Recency** — `last_accessed_at` + `created_at` feed exponential decay via `half_life_seconds` (v0.4b forgetting pipeline).
+- **Confidence** — `llm_importance_score` cached by the LLM extraction (v0.4a).
+- **Semantic similarity** — cosine over embeddings (Mem0-shape 9-step search).
+- **BM25 + entity boost** — lexical and structural signals composed additively.
+
+The system does NOT treat each `remember()` call as an isolated event. When the same fact arrives from different sources or at different moments, the confirmation signal is reinforced and becomes queryable (`WHERE confirmation_count > N`) for filtering, ranking, and audit.
+
+### Princípio 2 — Priorização e diversidade valem mais que volume.
+
+Recalling 5 right and varied memories is worth more than recalling 50 near-paraphrases. The recall pipeline reflects this by design:
+
+- **Semantic threshold** gates BEFORE additive combination (`score = (semantic + bm25 + entity) / max_possible`) — sub-threshold dropped, not weighted.
+- **Top-K cap** bounds the raw result set.
+- **MMR diversify (opt-in)** — `RecallOptions.diversify` applies Maximal Marginal Relevance rerank between score-combine and top-K, reducing redundancy without sacrificing relevance (ADR D3 + EC-3 boundary validation: throws on `lambda ∉ [0, 1]`).
+- **Triadic eviction (v0.4b)** — when capacity saturates, the eviction policy composes Ebbinghaus + LRU + LLM-importance and protects the long-tail (`rare-isolated` survives ≥ 5 LRU passes).
+
+The contract favors information density over raw coverage. Volume without prioritization is noise.
+
+### Princípio 3 — Memória precisa ser auditável.
+
+Every decision to record, ignore, deduplicate, expire, or substitute a memory is OBSERVABLE and TRACEABLE. IGNORE is never silent:
+
+- **`MEMORY_EVENTS` typed union** (16 literals) — each phase of write / recall / reflect emits a typed OTel event via `emitEvent(tracer, ...)`. Includes `extraction_zero_facts` (LLM produced nothing), `dedup_collision_confirmed` (UPSERT bumped `confirmation_count`), `recall_threshold_filtered` (N sub-threshold candidates dropped) — the 3 IGNORE decisions that used to be silent.
+- **`MemoryItem.rejectedAsDuplicate`** — consumer-visible flag: when `remember()` returns the EXISTING row after dedup-collision, the consumer KNOWS.
+- **Audit tables** — `history` records remember/forget; `consolidation_history` records reflect with FK `ON DELETE SET NULL` for GDPR survival; `MemoryItem.derivedFrom` carries provenance for derived memories (v0.4a reflection, v0.7 distillation).
+- **Bi-temporal `t_valid` + `t_invalid`** — `recall({ asOf })` returns the valid state at any historical instant (v1.1 supersedes the ADR-0006 runtime clause).
+
+Traceability is part of the contract, not optional. Every decision to write / ignore / substitute must be justifiable and reviewable.
+
 ## Quickstart (v0.1 local runtime)
 
 > **Pre-release.** Not production-ready. Status: dogfooding via the `/dogfood` gate. The embedding dimension is capped at **1536** at v0.1 (see plan ADR D1.7 in `.claude/knowledge-base/plans/v0-1-local-runtime-plan.md`).
@@ -152,9 +190,43 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 
 ## Agent loops via MCP (v0.3 — `@usetheo/memory/agent-tools`)
 
-`@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as an MCP server (Model Context Protocol per [spec 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25)) consumable by any MCP-aware agent loop — Claude Desktop, Cursor, [`@usetheo/sdk`](../theokit-sdk) agents via their existing `mcpServers` config.
+`@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as an MCP server (Model Context Protocol per [spec 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25)) consumable by any MCP-aware agent loop — Claude Desktop, Claude Code, Cursor, [`@usetheo/sdk`](../theokit-sdk) agents via their existing `mcpServers` config.
 
-**Install as a stdio MCP server** in your agent's `.theokit/mcp.json`:
+**Required environment variables (post-T3.2 — no stubs in production path):**
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `THEOMEM_PG_URI` | **YES** | — | Postgres connection string (e.g., `postgresql://themem:themem@localhost:5432/themem`). |
+| `OPENAI_API_KEY` | **YES** | — | OpenAI-compatible API key. Works for OpenAI proper AND for OpenRouter (see `OPENAI_BASE_URL` below). Without it the MCP server hard-fails at startup with exit code 2. |
+| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` | Set to `https://openrouter.ai/api/v1` to route LLM calls through OpenRouter (one key serves OpenAI + Anthropic + Mistral + others). |
+| `OPENAI_CHAT_MODEL` | no | `gpt-4o-mini` | Model identifier for fact extraction. Honored by both direct OpenAI and OpenRouter. |
+| `THEOMEM_MCP_DEFAULT_USER_ID` | no | — | Default scope binding for stdio callers that do not pass `_meta.io.usetheo.themory/user_id`. Required for Claude Code direct use. |
+
+**Install as a stdio MCP server for Claude Code** via project-local `.mcp.json` (the canonical Claude Code mechanism).
+
+A copy-and-fill template is committed at [`.mcp.json.example`](.mcp.json.example) — duplicate it as `.mcp.json` (gitignored), populate `OPENAI_API_KEY`, and restart Claude Code. The inline recipe below mirrors that template for reference:
+
+```json
+{
+  "mcpServers": {
+    "themory": {
+      "command": "node",
+      "args": ["/absolute/path/to/dist/agent-tools/cli.js", "mcp"],
+      "env": {
+        "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem",
+        "THEOMEM_MCP_DEFAULT_USER_ID": "claude-code-my-project",
+        "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+        "OPENAI_CHAT_MODEL": "openai/gpt-4o-mini",
+        "OPENAI_API_KEY": "sk-or-..."
+      }
+    }
+  }
+}
+```
+
+After saving `.mcp.json`, RESTART Claude Code. The 4 tools (`mcp__themory__remember/recall/forget/reflect`) appear in the available-tools list once the server boots.
+
+**Install as a stdio MCP server for other agents** (Claude Desktop, Cursor, `@usetheo/sdk`):
 
 ```json
 {
@@ -163,7 +235,8 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
       "command": "npx",
       "args": ["@usetheo/memory/agent-tools"],
       "env": {
-        "THEOMEM_PG_URI": "postgres://user:pass@host:5432/dbname"
+        "THEOMEM_PG_URI": "postgresql://...",
+        "OPENAI_API_KEY": "sk-..."
       }
     }
   }
@@ -174,6 +247,7 @@ For the full Quickstart end-to-end test, see `tests/integration/local-runtime.te
 
 ```bash
 THEOMEM_PG_URI=postgres://... \
+  OPENAI_API_KEY=sk-... \
   THEOMEM_MCP_TRANSPORT=streamable-http \
   THEOMEM_MCP_HTTP_PORT=8080 \
   npx @usetheo/memory/agent-tools
@@ -232,7 +306,7 @@ curl -X POST http://localhost:8080/v1/remember \
 
 **Body limit:** 1 MB cap on `/v1/*` POST endpoints (DOS guard via `hono/body-limit`; 413 response carries the structured `{code: 'CONTENT_TOO_LARGE', message: ...}` envelope). Compressed request bodies (`Content-Encoding: gzip`) are NOT auto-decompressed by Hono — operators serving large compressed payloads should enforce body limits at the reverse-proxy layer (nginx `client_max_body_size`, Caddy `request_body max_size`) for production deployments.
 
-**Wiring real providers (alpha default uses stubs).** Both `themory server` (REST) and `themory mcp` (MCP) wire `DeterministicStubEmbedder` + `StubLLM` by default at v0.1.0-alpha. The startup banner surfaces a loud stderr warning so operators see the disclosure. Stub embedders produce deterministic but uncorrelated vectors — recall returns shape-correct results but only round-trips reliably on EXACT-text queries (no semantic matching). For production, wire `OpenAIEmbedder` (set `OPENAI_API_KEY`) or `LocalTransformerEmbedder` (subpath `@usetheo/memory/embedders/local`, requires `@xenova/transformers` optional dep). Real-provider wiring as a CLI flag (`--embedder openai|local`) is a future cycle.
+**Wiring real providers (post-T3.2 — no stubs in production path).** As of p0-api-sdk-mcp-correctness-audit T3.2 (mirror of MCP commit `e43d801`), BOTH `themory server` (REST) and `themory mcp` (MCP) hard-fail at startup when `OPENAI_API_KEY` is unset. Real providers wired by default: `LocalTransformerEmbedder` (Xenova MiniLM, 384-dim, keyless — `@xenova/transformers` optional dep) for embeddings and `OpenAILLM` for fact extraction. The `OPENAI_API_KEY` env var works for OpenAI proper AND for OpenRouter via `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. No silent stub fallback. The earlier "alpha default uses stubs" pattern is retired.
 
 Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
 
@@ -565,7 +639,7 @@ Honest claims only — v0.0 + v0.1 + v0.2 PR-A + v0.3 + v0.4a + v0.6 shipped to 
 
 ## Where this fits
 
-`@usetheo/memory` is a community auxiliary of the [usetheo stack](../README.md), with a managed runtime that lives inside TheoCloud:
+`@usetheo/memory` is a community auxiliary of the [Theo stack](../README.md), with a managed runtime that lives inside TheoCloud:
 
 | Tier | Project | License | What it does |
 |---|---|---|---|

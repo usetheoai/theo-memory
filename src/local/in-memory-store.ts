@@ -3,7 +3,7 @@
  *
  * Pure-JS implementation of the VectorStore DIP. Zero I/O, zero deps.
  * Purpose:
- *  - Unit-test fixture for extraction + retrieval pipelines (Mem0 mockEmbedding pattern)
+ *  - Unit-test fixture for extraction + retrieval pipelines (mockEmbedding fixture-pattern)
  *  - Dev quickstart for consumers experimenting without spinning up Postgres
  *  - Reference implementation that any other adapter is compared against
  *
@@ -16,7 +16,7 @@
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.2
  * @see blueprint Recommendation 6 + ADR D6
  */
-import type { VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
+import type { InsertOutcome, VectorStore, VectorStoreResult } from '../core/dip/vector-store.js';
 import { InvalidSkillError } from '../core/errors.js';
 import type { Filters } from '../core/scope.js';
 import type { SkillLanguage } from '../core/skill.js';
@@ -92,17 +92,24 @@ export class InMemoryVectorStore implements VectorStore {
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Payload[],
-  ): Promise<void> {
+  ): Promise<readonly InsertOutcome[]> {
     if (vectors.length !== ids.length || vectors.length !== payloads.length) {
       throw new Error('insert: vectors, ids, and payloads must have equal length');
     }
+    const outcomes: InsertOutcome[] = [];
     for (let i = 0; i < vectors.length; i += 1) {
       const id = ids[i] as string;
       const vector = vectors[i] as readonly number[];
       const payload = payloads[i] as Payload;
       this.rows.set(id, { vector, payload });
+      // principles-alignment-hardening T2.1 — InMemoryVectorStore has no
+      // UPSERT semantics (Map.set overwrites silently). Each row is treated
+      // as a fresh insert: confirmationCount=1, rejectedAsDuplicate=false.
+      // PgvectorStore is the source of truth for dedup-collision semantics.
+      outcomes.push({ id, confirmationCount: 1, rejectedAsDuplicate: false });
     }
     await Promise.resolve();
+    return outcomes;
   }
 
   async search(

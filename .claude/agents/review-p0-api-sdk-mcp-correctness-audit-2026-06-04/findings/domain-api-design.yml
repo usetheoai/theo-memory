@@ -1,0 +1,294 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-domain-api-design
+review_target: main..HEAD for plan p0-api-sdk-mcp-correctness-audit
+domain: api-design
+domain_specific_patterns_checked:
+  - "JSDoc + @see closure on every public export"
+  - "@see citation existence (no fabricated knowledge-base paths)"
+  - "Type-narrowing preserved (no `any` regression in public surface)"
+  - "Subpath count + identity preservation (13 subpaths)"
+  - "Export count preservation (8 root + 41 contract)"
+  - "Default-barrel bundle isolation (9 subpath impls)"
+  - "MCP tools/list verb registration (4 verbs: remember/recall/forget/reflect)"
+  - "npm pack manifest hygiene (zero test-file leaks)"
+  - "Backward-compat disclosure discipline (BREAKING marker conventions per Keep a Changelog)"
+  - "Post-install consumability of `bin` target (themory mcp boot from a fresh tarball)"
+  - "Public-API symbol preservation (StubEmbedder/StubLLM still exported)"
+
+findings:
+  - id: F-dom-api-1
+    severity: CRITICAL
+    file: package.json
+    line: 76
+    plan_ref: "Plan § Goal + Sub-goal 3 + ADR D5 ('themory mcp boots from the dist/ artifact')"
+    domain_anchor: "CLAUDE.md § PRIORITY 0 sub-goal 3 (MCP server available + reliable post-install)"
+    summary: |
+      `package.json#bin` points BOTH `themory` and `themory-mcp` at
+      `./dist/agent-tools/cli.js`, but `package.json#files` declares the
+      published artifact as source-only (`src/**/*.ts` + `src/local/migrations/**`)
+      with NO `dist/**` glob. Empirically verified via `npm pack --dry-run --json`:
+      only ONE `dist/` entry ships — `dist/agent-tools/cli.js` itself, auto-included
+      by npm because it is a bin target.
+
+      `src/agent-tools/cli.ts` (and its compiled dist sibling) imports from
+      `./run-mcp-server.js`, `./run-server.js`, `./run-migrate.js`, `./run-health.js`.
+      After `npm install @usetheo/memory`, those sibling `.js` files would NOT
+      exist in the installed tree because (a) they are not in `files` and
+      (b) they are not bin targets so npm does not auto-include them.
+
+      Net effect: `npx @usetheo/memory mcp` will fail post-install with
+      `Cannot find module './run-mcp-server.js'`. The T3.3 boot sentinel
+      runs against the LOCALLY-built dist tree which is complete, but does
+      NOT simulate post-install conditions. Sub-goal 3 ("MCP server
+      available + reliable") is empirically open: locally yes, third-party
+      install no.
+
+      Plan § Context line 23 ("dist/** is consumed only by the bin entries;
+      published artifact is source-only (consumer compiles)") restates the
+      contract, but that contract is incoherent with the bin pointing to a
+      compiled file — consumers cannot "compile" the source if the bin
+      target itself is pre-compiled. Either (a) files must include
+      `dist/**` and the bin must continue pointing at `dist/agent-tools/cli.js`,
+      OR (b) the bin must point at a `src/agent-tools/cli.ts` runnable via
+      a shebang + a runtime TS loader (functionally equivalent of `tsx`),
+      OR (c) a tarball-install regression test must be added so this gap
+      is at least surfaced.
+    evidence: |
+      $ node -e "console.log(JSON.stringify(require('./package.json').bin))"
+      {"themory":"./dist/agent-tools/cli.js","themory-mcp":"./dist/agent-tools/cli.js"}
+
+      $ node -e "console.log(JSON.stringify(require('./package.json').files))"
+      ["src/**/*.ts","!src/**/__tests__/**","!src/**/*.test.ts","!src/**/*.test-d.ts","src/local/migrations/**"]
+
+      $ npm pack --dry-run --json | jq '.[0].files | map(.path) | map(select(startswith("dist/")))'
+      ["dist/agent-tools/cli.js"]
+
+      $ grep -E '^import' src/agent-tools/cli.ts
+      import { Command, Option } from 'commander';
+      import { runHealth } from './run-health.js';
+      import { runMcpServer } from './run-mcp-server.js';
+      import type { RunMcpServerOptions } from './run-mcp-server.js';
+      import { runMigrate } from './run-migrate.js';
+      import { runServer } from './run-server.js';
+      import type { RunServerOptions } from './run-server.js';
+    recommended_action: |
+      OPTION A (matches plan's "consumer compiles" intent, but breaks bin):
+        Remove the `bin` field; document `themory mcp` only as a dev-time
+        command after the consumer runs `tsc` themselves. Conflicts with
+        the ergonomics Sub-goal 3 promises.
+
+      OPTION B (minimal change; preserves bin ergonomics):
+        Extend `package.json#files` to include
+        `"dist/agent-tools/**", "dist/local/**", "dist/core/**", "dist/embedders/**", "dist/llms/**", "dist/server/**", "dist/theokit/**"`
+        (or simply `"dist/**"` if bundle-size is acceptable). The plan's
+        own narrative "dist/** is consumed only by the bin entries" then
+        becomes empirically TRUE.
+
+      OPTION C (defensive — catch this in CI):
+        Add T2.4 (or extend T3.3) — tarball-install regression test:
+        `npm pack` → install into `tmp/install-test/node_modules` → run
+        `node tmp/install-test/node_modules/@usetheo/memory/dist/agent-tools/cli.js mcp`
+        and assert `tools/list` returns 4 verbs. This would have caught
+        the gap automatically.
+
+      Recommended: B + C in the same follow-up cycle. P0 sub-goal 3 is
+      explicitly contingent on third-party install working.
+
+  - id: F-dom-api-2
+    severity: MAJOR
+    file: CHANGELOG.md
+    line: 9
+    plan_ref: "Plan ADR D3 (REST server stub removal) + T3.2 acceptance"
+    domain_anchor: "Keep a Changelog § Categorias permitidas + CLAUDE.md Inquebrável Rule 6 (changelog discipline)"
+    summary: |
+      T3.2 ships a behavioral break in the `themory server` CLI: pre-T3.2
+      the REST server booted by default with `DeterministicStubEmbedder` +
+      `StubLLM` and printed a stub-warning; post-T3.2 it hard-fails with
+      exit 2 on missing `OPENAI_API_KEY`. This break is described in the
+      `[Unreleased] § Changed` prose ("hard-fails with exit 2", "No silent
+      stub fallback") but is NOT marked as **BREAKING** in the same
+      explicit way prior cycles flagged behavioral breaks (e.g., line 75
+      "BREAKING (theoretical) — PgvectorStore constructor 2nd arg
+      widened" and line 118 "BREAKING: Memory.forget(id) now soft-deletes").
+
+      Any third-party operator running `themory server` against a
+      pgvector deployment WITHOUT `OPENAI_API_KEY` set (a working
+      configuration pre-T3.2, since the stubs returned shape-correct
+      empty extractions) will see their deployment crash at startup
+      post-upgrade.
+
+      Public-API symbols `StubEmbedder` + `StubLLM` are PRESERVED
+      (verified at `src/index.ts:76` + `src/embedders/index.ts` +
+      `src/llms/index.ts`), so the break is wiring/CLI-only, not
+      surface-API. That's the correct scope, but it deserves explicit
+      **BREAKING** marking for ops who consume the bin.
+    evidence: |
+      $ grep -n "BREAKING" CHANGELOG.md
+      73:- (BREAKING theoretical PgvectorStore)
+      75:- BREAKING (theoretical) — PgvectorStore constructor 2nd arg widened
+      118:- BREAKING: Memory.forget(id) now soft-deletes via t_invalid
+
+      The Unreleased entry at line 9 does not contain a BREAKING marker;
+      the T3.2 break is described as "hard-fails with exit 2" in the
+      Changed prose. Operators reading the CHANGELOG for upgrade
+      guidance would miss the explicit signal.
+    recommended_action: |
+      Add a sibling BREAKING entry under [Unreleased] § Changed (or
+      under a dedicated § Removed for the stub default-wiring) following
+      the established marker pattern. Minimal text:
+
+      - **BREAKING — `themory server` CLI no longer boots with stubs by
+        default**: post-T3.2 (`f1e50dc`), the REST server hard-fails
+        with exit 2 when `OPENAI_API_KEY` is unset. Migration: set
+        `OPENAI_API_KEY` (real OpenAI or OpenRouter via `OPENAI_BASE_URL`)
+        before starting the server. The exported `StubEmbedder` +
+        `StubLLM` symbols are preserved at `@usetheo/memory` for
+        consumers needing stubs in custom wirings; only the CLI's
+        DEFAULT changed.
+
+      This costs ~5 lines, takes <2 min, and closes the honesty gap
+      Inquebrável Rule 3 + Rule 6 jointly require.
+
+  - id: F-dom-api-3
+    severity: MAJOR
+    file: tests/integration/p0-audit/pack-manifest.test.ts
+    line: 75
+    plan_ref: "Plan T2.3 § Acceptance Criteria + EC-12 absorption"
+    domain_anchor: "architecture.md § 10.1 (non-.ts assets must reach dist/)"
+    summary: |
+      Test #4 of `pack-manifest.test.ts` asserts only `>= 1` migration
+      entry ships under `src/local/migrations/**`. That floor lets a
+      future regression slip through where (e.g.) only the journal
+      ships but the SQL migration files do not, or where a NEW
+      migration is added but a typo in the files glob excludes it.
+
+      The plan's Coverage Matrix entry #6 is "npm pack manifest
+      assertions incomplete → T2.3 (pack-manifest test)". Stronger
+      assertion that ALL expected migration files ship would close the
+      gap properly.
+    evidence: |
+      $ awk 'NR>=75 && NR<=78' tests/integration/p0-audit/pack-manifest.test.ts
+      test('4. pack manifest ships >= 1 src/local/migrations/** entry...
+      ...
+        expect(migrations.length).toBeGreaterThanOrEqual(1);
+
+      $ ls src/local/migrations/*.sql | wc -l
+      12  (rough count; actual N varies)
+
+      Floor "1" + reality "12" leaves 11 migrations of slack where a
+      drop-out would not break this test.
+    recommended_action: |
+      Replace `>= 1` with a count derived from the filesystem at test
+      time (e.g., `expect(migrationsShipped.length).toBe(migrationsOnDisk.length)`),
+      OR list the migration filenames explicitly and assert each ships.
+      The first form is robust against new migrations landing
+      automatically; the second is more explicit but requires updating
+      the test on every new migration. EC-12 absorption already
+      established "tolerant assertions" — favor the first form, which
+      is tolerant of count drift but rigorous about completeness.
+
+  - id: F-dom-api-4
+    severity: MINOR
+    file: src/index.ts
+    line: 148
+    plan_ref: "Plan T1.1 § Deep Dives (canonical home for JSDoc)"
+    domain_anchor: "architecture.md § 6 (canonical home + 'avoid deep re-export chains')"
+    summary: |
+      The wildcard `export * from './core/index.js'` at line 148 of
+      src/index.ts re-exports all 41 contract symbols into the default
+      barrel. The plan's T1.1 + T1.2 ADR D4 absorption places JSDoc at
+      the declaration site OR at the export site; for wildcard re-exports
+      neither location carries JSDoc per symbol. Consumers reading
+      `import { hashFact } from '@usetheo/memory'` IDE-hover get the
+      JSDoc from `src/core/index.ts`, which is present. So the
+      ergonomic outcome is fine. But the JSDoc block on the wildcard
+      re-export at line 137-147 of src/index.ts mentions ONLY 5 token
+      categories ("Memory interface, scoped sub-objects, options shapes,
+      error classes, MemoryEvent union, MemoryItem DTO, and the 10 DIP
+      interfaces") — empirically `src/core/index.ts` now exports 13 DIPs
+      (Embedder, LLM, Tokenizer, VectorStore, HistoryManager,
+      ReflectionPolicy, SkillRepresentationStrategy, EvictionPolicy,
+      RecallCacheStore, ConflictResolutionPolicy, BenchmarkAdapter,
+      AuthVerifier — 12 visible + the eviction subset). The "10 DIP
+      interfaces" count is empirically out of date.
+    evidence: |
+      $ awk 'NR>=137 && NR<=148' src/index.ts
+      /**
+       * Re-export the full v0.0 contract from `src/core` — Memory interface,
+       * scoped sub-objects, options shapes, error classes, MemoryEvent union,
+       * MemoryItem DTO, and the 10 DIP interfaces under `src/core/dip/`.
+       ...
+       */
+      export * from './core/index.js';
+
+      $ ls src/core/dip/*.ts | wc -l
+      ~13 DIPs visible
+    recommended_action: |
+      Update the wildcard re-export's JSDoc count phrase from "10 DIP
+      interfaces" to a count that does not require maintenance, e.g.,
+      "all DIP interfaces declared under src/core/dip/" — or fold the
+      precise count into a single source-of-truth ADR (ADR-0008 §
+      method counts) and link via `@see`. The latter is more rigorous;
+      the former is the YAGNI-aligned 1-line fix.
+
+  - id: F-dom-api-5
+    severity: INFO
+    file: src/index.ts
+    line: 64
+    plan_ref: "Plan T1.1 acceptance (every export has @see) + ADR D4"
+    domain_anchor: "architecture.md § 9 (public API surface)"
+    summary: |
+      Five Drizzle table objects (`entities`, `history`, `memories`)
+      are re-exported at line 64 with JSDoc citing the schema ADR.
+      Consumers building custom queries against these tables couple
+      directly to the Drizzle schema shape — a TIGHT coupling that
+      survives future migrations only if the schema stays stable.
+      The JSDoc honestly discloses "schema-coupling cost in exchange
+      for query freedom" (lines 56-59), which honors Inquebrável
+      Rule 3. No defect. Logged for cross-validation reviewer as a
+      surface to watch when v1.2+ schema migrations land.
+    evidence: |
+      $ awk 'NR>=54 && NR<=65' src/index.ts
+      /**
+       * Drizzle table objects re-exported for consumers building custom
+       * queries outside the `Memory` API (e.g., ETL pipelines, custom
+       * dashboards).
+       *
+       * The 4-verb Memory API is the contract; these tables are the
+       * LOAD-BEARING primitives behind it. Consumers using these
+       * directly accept the schema-coupling cost in exchange for query
+       * freedom.
+       * ...
+       */
+      export { entities, history, memories } from './local/index.js';
+    recommended_action: |
+      No action. Logged for visibility.
+
+confirmed_clean:
+  - "8 root exports preserved at src/index.ts (`grep -cE '^export ' = 8`)"
+  - "41 contract exports preserved at src/core/index.ts (`grep -cE '^export ' = 41`)"
+  - "13 package.json#exports subpaths preserved"
+  - "All 22 unique @see references resolve via Path.exists() — zero fabricated citations"
+  - "Each of 8 root exports has BOTH JSDoc block AND >= 1 @see line (awk-validated)"
+  - "Each of 41 contract exports has BOTH JSDoc block AND >= 1 @see line (awk-validated)"
+  - "Zero `\\bany\\b` regression in src/index.ts + src/core/index.ts (T1.3 sentinel + manual grep)"
+  - "Bundle isolation 12/12 PASS — default barrel does NOT statically import any of 9 subpath impl files"
+  - "MCP tools/list contract preserved — 4 TOOL_NAME constants ('remember'/'recall'/'forget'/'reflect') present at src/agent-tools/tools/*-schema.ts"
+  - "npm pack manifest hygiene: 0 __tests__/ leaks, 0 *.test.ts leaks, 0 *.test-d.ts leaks"
+  - "Public symbols StubEmbedder/StubLLM preserved at src/index.ts:76 (T3.2 break is CLI-default-only, not public API)"
+  - "THE GOAL TEST 42/42 PASS (>= 30 floor cited in plan SMART Goal)"
+
+summary_verdict: NEEDS_FIXES
+rationale: |
+  1 CRITICAL (F-dom-api-1) — post-install MCP boot is empirically broken
+  by the bin/files mismatch; this is the exact contract P0 sub-goal 3
+  promises. T3.3 sentinel ran against locally-built dist, masked the gap.
+  2 MAJOR (F-dom-api-2 backward-compat disclosure, F-dom-api-3 weak
+  migration-floor assertion). 1 MINOR (stale "10 DIP" count in wildcard
+  re-export JSDoc). 1 INFO (Drizzle table re-export coupling, honestly
+  disclosed already).
+
+  Core public surface (49 exports + 13 subpaths + 4 MCP verbs + zero
+  `any` + JSDoc/@see closure + bundle isolation + test-leak hygiene)
+  is CLEAN. The blocker for P0 sub-goal 3 closure is the bin/files
+  mismatch; addressing F-dom-api-1 (Option B or Option C) plus
+  F-dom-api-2 (BREAKING marker) clears the path to publish-readiness.

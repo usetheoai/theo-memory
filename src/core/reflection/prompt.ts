@@ -1,9 +1,9 @@
 /**
  * Reflection prompt builder per plan v0-4a-reflection-pipeline § T4.1 + ADR D11.
  *
- * Prompt structure (per blueprint Q5 + D11 — Letta v4 system-reminder pattern):
+ * Prompt structure (per blueprint Q5 + D11 — system-reminder pattern from the upstream v4 reflection cycle):
  *   System: "You are a reflection helper..." + scope-specific framing.
- *   User: source memories enumerated with IDs (UUID-as-int per Mem0 anti-hallucination).
+ *   User: source memories enumerated with IDs (UUID-as-int per the upstream anti-hallucination convention).
  *
  * Format constraint: every derived insight MUST cite at least one source ID
  * from the enumerated set. The model MUST NOT invent IDs (per plan D7 fail-fast

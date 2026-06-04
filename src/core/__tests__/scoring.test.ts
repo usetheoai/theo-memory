@@ -1,7 +1,7 @@
 /**
  * RED-phase tests for src/core/scoring.ts — T1.3 of v0-1-local-runtime plan v1.3.
  *
- * Pure-core scoring functions ported verbatim from Mem0's
+ * Pure-core scoring functions ported verbatim from the upstream additive composition
  * .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:1-138 per blueprint D2.
  *
  * EC-1 absorbed: combineScores guards maxPossible=0 → returns 0 (no divide-by-zero NaN).
@@ -17,7 +17,7 @@ import {
 } from '../scoring.js';
 
 describe('ENTITY_BOOST_WEIGHT constant', () => {
-  test('equals 0.5 (Mem0 verbatim)', () => {
+  test('equals 0.5 (upstream verbatim)', () => {
     expect(ENTITY_BOOST_WEIGHT).toBe(0.5);
   });
 });
