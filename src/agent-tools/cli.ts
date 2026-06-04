@@ -1,3 +1,11 @@
+// verbs-as-cli-fixes-cycle-1 T3.1b / F-dom-cli-1 absorption: side-effect
+// import below silences dotenv@17 banner BEFORE any other module loads. ESM
+// evaluates imports in source order, depth-first. `cli-preload.js` carries
+// zero own imports so it is a leaf — its side-effect runs before commander
+// / run-mcp-server / run-server / verb handlers are evaluated. This MUST
+// be the FIRST `import` line in this module.
+import './cli-preload.js';
+
 /**
  * CLI router for `themory` — consolidated multi-subcommand entry per
  * Roadmap Item 18 + plan T2.1.
@@ -58,6 +66,33 @@ export function applyAliasArgvShim(argv: string[]): string[] {
 }
 
 export function buildProgram(): Command {
+  // verbs-as-cli-fixes-cycle-1 T2.2 / ADR D4: parser factories collapse 5
+  // byte-similar `--top-k` / `--threshold` / `--diversify` / `--port` (×2)
+  // validators into single-line invocations. Closes F-arch-3 (DRY § Regra
+  // de 3 violation). The `label` argument MUST include the `--` prefix so
+  // the synthesized error message reads `Invalid --top-k: 0 (...)` — preserves
+  // existing stderr regex `/.*?top-k/i` in parent verbs-cli.test.ts test 16.
+  const parseIntInRange = (label: string, min: number, max: number) =>
+    (raw: string): number => {
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isInteger(n) || n < min || n > max) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be an integer in ${String(min)}..${String(max)}).`,
+        );
+      }
+      return n;
+    };
+  const parseFloatInRange = (label: string, min: number, max: number) =>
+    (raw: string): number => {
+      const n = Number.parseFloat(raw);
+      if (!Number.isFinite(n) || n < min || n > max) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be a float in [${String(min)}, ${String(max)}]).`,
+        );
+      }
+      return n;
+    };
+
   const program = new Command();
   program
     .name('themory')
@@ -84,13 +119,11 @@ export function buildProgram(): Command {
     .addOption(
       new Option('--transport <kind>', 'MCP transport kind').choices(['stdio', 'streamable-http']),
     )
-    .option('--port <number>', 'Port for streamable-http transport (1..65535)', (raw: string) => {
-      const n = Number.parseInt(raw, 10);
-      if (!Number.isInteger(n) || n <= 0 || n > 65_535) {
-        throw new Error(`Invalid --port: ${raw} (must be an integer in 1..65535).`);
-      }
-      return n;
-    })
+    .option(
+      '--port <number>',
+      'Port for streamable-http transport (1..65535)',
+      parseIntInRange('--port', 1, 65_535),
+    )
     .option('--host <address>', 'Bind host for streamable-http transport')
     .action(async (opts: { transport?: 'stdio' | 'streamable-http'; port?: number; host?: string }) => {
       const options: RunMcpServerOptions = {
@@ -104,13 +137,7 @@ export function buildProgram(): Command {
   program
     .command('server')
     .description('Start the REST API server on PORT (default 8080).')
-    .option('--port <number>', 'Port to bind (1..65535)', (raw: string) => {
-      const n = Number.parseInt(raw, 10);
-      if (!Number.isInteger(n) || n <= 0 || n > 65_535) {
-        throw new Error(`Invalid --port: ${raw} (must be an integer in 1..65535).`);
-      }
-      return n;
-    })
+    .option('--port <number>', 'Port to bind (1..65535)', parseIntInRange('--port', 1, 65_535))
     .option('--host <address>', 'Bind host (default 0.0.0.0)')
     .action(async (opts: { port?: number; host?: string }) => {
       const options: RunServerOptions = {
@@ -138,27 +165,11 @@ export function buildProgram(): Command {
   // remember / recall / reflect: 3-tier mutually-exclusive scope flags.
   // forget: NO scope flags per EC-1 (memoryId globally unique).
 
-  const parseTopK = (raw: string): number => {
-    const n = Number.parseInt(raw, 10);
-    if (!Number.isInteger(n) || n < 1 || n > 100) {
-      throw new InvalidArgumentError(`Invalid --top-k: ${raw} (must be an integer in 1..100).`);
-    }
-    return n;
-  };
-  const parseThreshold = (raw: string): number => {
-    const n = Number.parseFloat(raw);
-    if (!Number.isFinite(n) || n < 0 || n > 1) {
-      throw new InvalidArgumentError(`Invalid --threshold: ${raw} (must be a float in [0, 1]).`);
-    }
-    return n;
-  };
-  const parseDiversify = (raw: string): number => {
-    const n = Number.parseFloat(raw);
-    if (!Number.isFinite(n) || n < 0 || n > 1) {
-      throw new InvalidArgumentError(`Invalid --diversify: ${raw} (must be a float in [0, 1]).`);
-    }
-    return n;
-  };
+  // T2.2 / ADR D4: replaced 3 byte-similar parsers with parseIntInRange +
+  // parseFloatInRange factory invocations (see top of buildProgram).
+  const parseTopK = parseIntInRange('--top-k', 1, 100);
+  const parseThreshold = parseFloatInRange('--threshold', 0, 1);
+  const parseDiversify = parseFloatInRange('--diversify', 0, 1);
   const resolveFormat = (opts: { json?: boolean; text?: boolean }): 'json' | 'text' =>
     opts.text === true ? 'text' : 'json';
 

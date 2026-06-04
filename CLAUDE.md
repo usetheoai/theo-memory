@@ -181,6 +181,8 @@ Until BOTH gates close: README Status stays `Pre-release`, no `production-ready`
 | API verbs | `remember` / `recall` / `forget` / `reflect` | strategic |
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
+| themory CLI verbs | `remember <text>` / `recall <query>` / `forget <id>` / `reflect` (closes Roadmap Item 18 verbs-as-CLI; per ADR D2 of verbs-as-cli plan + verbs-as-cli-fixes-cycle-1 T5.3) | strategic |
+| themory CLI flags (stable) | `--user` / `--session` / `--agent` / `--top-k` / `--threshold` / `--diversify` / `--hard` / `--json` / `--text` (sentinel-guarded by `src/__tests__/cli-locked-names.test.ts`) | strategic |
 
 ---
 

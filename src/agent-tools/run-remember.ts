@@ -10,9 +10,9 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.1
  */
-import { createCliMemory } from './cli-memory-factory.js';
+import { createCliMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';
-import { resolveCliScope } from './cli-scope.js';
+import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
 export interface RunRememberOptions {
   readonly text: string;
@@ -29,6 +29,11 @@ export async function runRemember(opts: RunRememberOptions): Promise<void> {
     process.stderr.write('Error: remember requires a non-empty text positional argument.\n');
     process.exit(2);
   }
+
+  // verbs-as-cli-fixes-cycle-1 T3.2 / F-dom-cli-2 absorption: validate scope
+  // flags BEFORE the ~2-5s createCliMemory warm-up so consumers with
+  // malformed `--user a --session b` exit in <2s.
+  validateScopeOpts(opts);
 
   const [memory, dispose] = await createCliMemory();
   try {
