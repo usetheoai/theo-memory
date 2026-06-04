@@ -84,6 +84,8 @@ beforeEach(() => {
   mockRunMigrations.mockResolvedValue(undefined);
   mockCreateLocalMemory.mockResolvedValue({});
   vi.stubEnv('THEOMEM_PG_URI', 'postgres://themem:themem@localhost:5432/themem');
+  // T3.2 alignment — run-server.ts hard-fails on missing OPENAI_API_KEY.
+  vi.stubEnv('OPENAI_API_KEY', 'sk-fake-test-key-for-boot');
   stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 });
 
@@ -199,11 +201,15 @@ describe('T2.3 — runServer composition contract', () => {
     localStderrSpy.mockRestore();
   });
 
-  it('FC1-T2.2-RED. runServer writes stub-embedder warning to stderr on startup (F-rev-9 + EC-6)', async () => {
+  it('FC1-T2.2. runServer writes the real-providers disclosure to stderr on startup (post-T3.2)', async () => {
+    // Post-T3.2 (mirror of MCP e43d801): stub-embedder warning REMOVED;
+    // replacement banner announces real providers (LocalTransformerEmbedder
+    // + OpenAILLM).
+    process.env['OPENAI_API_KEY'] = 'sk-fake-test-key-for-boot';
     const { runServer } = await import('../run-server.js');
     await runServer({ port: 9991 });
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
-    expect(captured).toMatch(/stub embedder/i);
+    expect(captured).toMatch(/real providers wired/i);
     expect(captured).toMatch(/themory server/i);
   });
 });
