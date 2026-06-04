@@ -104,7 +104,7 @@ interface FilterClause {
 
 /**
  * v1.1 T3.1 + ADR-0011: bi-temporal recall predicate. When `asOf` is set,
- * compose the REDACTED-precedent null-safe clause:
+ * compose the null-safe clause per ADR-0011:
  *
  *   (t_valid IS NULL OR t_valid <= $N) AND (t_invalid IS NULL OR t_invalid > $N+1)
  *
@@ -406,7 +406,7 @@ export class PgvectorStore implements VectorStore {
     this.assertEmbeddingDim(query, 'search');
     // v0.4b T6.1 / D17 + v1.1 T3.1: bi-temporal recall predicate. Default
     // currently-valid `t_invalid IS NULL`; with filters.asOf, switch to the
-    // null-safe REDACTED-precedent predicate (ADR-0011).
+    // null-safe predicate per ADR-0011.
     const temporal = composeTemporalWhere(filters?.asOf, 2);
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `

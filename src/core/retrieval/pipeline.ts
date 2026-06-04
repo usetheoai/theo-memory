@@ -2,7 +2,7 @@
  * 9-step search pipeline — T5.1 of v0-1-local-runtime plan v1.3.
  *
  * Port of reference TS port's `search` (.claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/
- * index.ts:1037-1269) per blueprint ADR D2. Steps named after REDACTED's comments:
+ * index.ts:1037-1269) per blueprint ADR D2. Steps named after the upstream code comments:
  *
  * Step 1: preprocess query (lemmatize for BM25)
  * Step 2: embed query
