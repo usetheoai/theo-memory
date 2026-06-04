@@ -48,6 +48,8 @@ describe('memories table', () => {
         'half_life_seconds',
         // v1.1 additions (T1.1 — see "attributed_to column" test below for ADR D2 + EC-2 details)
         'attributed_to',
+        // principles-alignment-hardening T0.1 (ADR D1 — Princípio 1 confirmação factor)
+        'confirmation_count',
       ].sort(),
     );
   });
