@@ -2,7 +2,7 @@
  * VectorStore DIP — adapter contract for vector-storage backends (pgvector, REDACTED, etc).
  *
  * @see ADR-0008 — DIP method counts (VectorStore: 11 required).
- * @see ADR-0001 — vector-based hybrid architecture (nine-step search requires keywordSearch BM25 fallback).
+ * @see ADR-0001 — upstream-shape architecture (nine-step search requires keywordSearch BM25 fallback).
  *
  * v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the
  * concrete local stores as duck-typed extensions (matching the v0.4a
@@ -21,19 +21,43 @@ export interface VectorStoreResult {
   readonly score?: number;
 }
 
+/**
+ * Per-id outcome returned by `VectorStore.insert` — surfaces UPSERT semantics
+ * to the wrap site so `MemoryItem.confirmationCount` + `MemoryItem.rejectedAsDuplicate`
+ * can be populated honestly per ADR D1 + D4 of principles-alignment-hardening.
+ *
+ * For adapters lacking UPSERT semantics (e.g., in-memory backends), each row is
+ * treated as a fresh insert: confirmationCount=1, rejectedAsDuplicate=false.
+ *
+ * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1 + § ADR D4
+ */
+export interface InsertOutcome {
+  readonly id: string;
+  readonly confirmationCount: number;
+  readonly rejectedAsDuplicate: boolean;
+}
+
 export interface VectorStore {
   /** Idempotent setup: create collection/table, indices, dimension probe, etc. Adapters MAY no-op when already initialized. */
   initialize(): Promise<void>;
 
   /**
-   * Persist N vectors with matching ids + payloads.
-   * Per ADR-0001, adapters MUST implement the per-row fallback path: batch failure -> per-item retry.
+   * Persist N vectors with matching ids + payloads. Returns per-id outcomes
+   * exposing UPSERT semantics: when the underlying store has scope-aware dedup
+   * (e.g., PgvectorStore via migration 0011's composite UNIQUE), repeated
+   * writes of the same (hash, scope) tuple bump `confirmationCount` and mark
+   * `rejectedAsDuplicate=true`; fresh inserts return `confirmationCount=1` +
+   * `rejectedAsDuplicate=false`.
+   *
+   * Per ADR-0001, adapters MUST implement the per-row fallback path: batch
+   * failure -> per-item retry. Per principles-alignment-hardening ADR D1 + D4,
+   * the outcome array MUST contain one entry per input id, in input order.
    */
   insert(
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Record<string, string | number | boolean | null>[],
-  ): Promise<void>;
+  ): Promise<readonly InsertOutcome[]>;
 
   /** Semantic search over the query vector. */
   search(
@@ -81,7 +105,7 @@ export interface VectorStore {
 
   /**
    * @see ADR-0002 — tenant isolation uses `Filters` on every call, NOT this method.
-   * This pair is preserved for REDACTED-port parity (adapter-side observability / single-client telemetry).
+   * This pair is preserved for upstream-port parity (adapter-side observability / single-client telemetry).
    * Adapters SHALL NOT use `setUserId` to encode the active scope; the call MUST work for every tenant.
    */
   getUserId(): Promise<string>;

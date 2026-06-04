@@ -18,7 +18,7 @@ export const MAX_CONTENT_BYTES = 50_000;
 /**
  * Maximum byte length for `recall.query` input.
  *
- * Queries are typically nouns or short phrases (per REDACTED Q6 finding); 2 KB is
+ * Queries are typically nouns or short phrases (per discover blueprint Q6 finding); 2 KB is
  * generous for legitimate use and tight enough to catch payload abuse.
  */
 export const MAX_QUERY_BYTES = 2_000;

@@ -130,7 +130,7 @@ describe('generateAdditiveExtractionPrompt', () => {
 });
 
 describe('AdditiveExtractionSchema (Zod)', () => {
-  test('parses the canonical REDACTED response shape', () => {
+  test('parses the canonical upstream response shape', () => {
     const parsed = AdditiveExtractionSchema.parse({
       memory: [{ id: '0', text: 'I prefer dark mode', attributed_to: 'user' }],
     });

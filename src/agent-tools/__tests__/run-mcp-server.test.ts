@@ -91,6 +91,8 @@ beforeEach(() => {
   // env carries THEOMEM_MCP_TRANSPORT=streamable-http.
   vi.stubEnv('THEOMEM_PG_URI', 'postgres://themem:themem@localhost:5432/themem');
   vi.stubEnv('THEOMEM_MCP_TRANSPORT', '');
+  // e43d801 alignment — run-mcp-server.ts hard-fails on missing OPENAI_API_KEY.
+  vi.stubEnv('OPENAI_API_KEY', 'sk-fake-test-key-for-boot');
   stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 });
 
@@ -101,12 +103,15 @@ afterEach(() => {
   process.removeAllListeners('SIGINT');
 });
 
-describe('T1.1 — runMcpServer stub-embedder warning', () => {
-  it('FC2-T1.1-RED — runMcpServer writes stub-embedder warning to stderr on startup (F-arch-7 = F-wire-1)', async () => {
+describe('T1.1 — runMcpServer startup banner (post-e43d801 real-providers regime)', () => {
+  it('FC2-T1.1 — runMcpServer writes the real-providers disclosure to stderr on startup', async () => {
+    // Post-e43d801: stub-embedder warning is REMOVED. The replacement banner
+    // announces real providers (LocalTransformerEmbedder + OpenAILLM).
+    process.env['OPENAI_API_KEY'] = 'sk-fake-test-key-for-boot';
     const { runMcpServer } = await import('../run-mcp-server.js');
     await runMcpServer();
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
-    expect(captured).toMatch(/stub embedder/i);
+    expect(captured).toMatch(/real providers wired/i);
     expect(captured).toMatch(/themory mcp/i);
   });
 });

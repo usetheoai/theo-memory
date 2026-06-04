@@ -109,6 +109,11 @@ describe.skipIf(
     POSTGRES_PASSWORD: 'themem',
     POSTGRES_DB: 'themem',
     THEMEMORY_API_KEY: bearerToken,
+    // T3.2 / EC-2 — run-server.ts hard-fails when OPENAI_API_KEY is unset
+    // (commit e43d801 mirror). Inject a fake key for boot validation; real
+    // LLM round-trips are out of THE GOAL TEST scope (the test exercises
+    // shape, not extraction quality).
+    OPENAI_API_KEY: process.env['OPENAI_API_KEY'] ?? 'sk-fake-test-key-for-boot',
   };
   const authHeaders = { authorization: `Bearer ${bearerToken}` };
 

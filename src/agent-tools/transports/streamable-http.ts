@@ -2,7 +2,7 @@
  * Streamable-HTTP transport adapter — T6.2.
  *
  * Wires `@modelcontextprotocol/sdk/server/streamableHttp.js#StreamableHTTPServerTransport`
- * in STATELESS mode (per REDACTED blueprint Q5 — `sessionIdGenerator: undefined`) behind
+ * in STATELESS mode (per discover blueprint Q5 — `sessionIdGenerator: undefined`) behind
  * a node:http server. Secondary transport per ADR D1 (stdio is primary); used for
  * HTTP-deployed scenarios (TheoCloud v0.5 alignment).
  *
@@ -16,7 +16,7 @@
  * primary v0.3 transport is stdio; HTTP testing depth ramps up at v0.5 cloud.
  *
  * @see ADR D1 — Transport: stdio + streamable-HTTP (skip SSE + fastmcp)
- * @see REDACTED blueprint Q5 — stateless mode pattern
+ * @see .claude/knowledge-base/discoveries/blueprints discover Q5 — stateless mode pattern
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
@@ -52,7 +52,7 @@ export async function connectStreamableHttp(
   server: McpServer,
   options: StreamableHttpOptions,
 ): Promise<StreamableHttpHandle> {
-  // Stateless mode per REDACTED Q5 — no session persistence across requests.
+  // Stateless mode per discover Q5 — no session persistence across requests.
   // SDK accepts `sessionIdGenerator: undefined` at runtime per its docstring example;
   // type def omits undefined under strict exactOptionalPropertyTypes — narrow cast at boundary.
   const transport = new StreamableHTTPServerTransport({

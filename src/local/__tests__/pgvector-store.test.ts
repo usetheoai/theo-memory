@@ -197,6 +197,114 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
   });
 });
 
+describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confirmed (principles-alignment-hardening T1.1)', () => {
+  test('SQL uses composite ON CONFLICT (hash, COALESCE(user_id,""), COALESCE(session_id,""), COALESCE(agent_id,"")) per ADR D5', async () => {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [{ id: 'id-1', confirmation_count: 1, user_id: 'alice', session_id: null, agent_id: null, inserted: true }] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    await store.insert(
+      [[0.1, 0.2, 0.3]],
+      ['id-1'],
+      [{ text: 'fact', hash: 'h-fact', user_id: 'alice' }],
+    );
+
+    const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
+    expect(insertCall).toBeDefined();
+    // Composite ON CONFLICT — 4-key tuple matching migration 0011 index expression.
+    expect(insertCall!.sql).toMatch(/ON CONFLICT \(hash, COALESCE\(user_id, ''\), COALESCE\(session_id, ''\), COALESCE\(agent_id, ''\)\)/);
+    expect(insertCall!.sql).toMatch(/DO UPDATE SET confirmation_count = memories\.confirmation_count \+ 1/);
+    // RETURNING projects (xmax = 0) AS inserted so the wrap site can branch.
+    expect(insertCall!.sql).toMatch(/RETURNING.*\(xmax = 0\) AS inserted/);
+  });
+
+  test('emits dedup_collision_confirmed for each row with inserted=false; NOT for inserted=true', async () => {
+    const events: { event: string; attrs: Record<string, unknown> }[] = [];
+    const tracer = {
+      startActiveSpan: vi.fn((event: string, fn: (span: { setAttribute: (k: string, v: unknown) => void; end: () => void }) => void) => {
+        const attrs: Record<string, unknown> = {};
+        fn({ setAttribute: (k: string, v: unknown) => { attrs[k] = v; }, end: () => undefined });
+        events.push({ event, attrs });
+      }),
+      startSpan: vi.fn(),
+    };
+    const poolQuery = vi.fn().mockImplementation(() => ({
+      rows: [
+        { id: 'id-new', confirmation_count: 1, user_id: 'alice', session_id: null, agent_id: null, inserted: true },
+        { id: 'id-dup', confirmation_count: 2, user_id: 'bob', session_id: null, agent_id: null, inserted: false },
+      ],
+    }));
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3, tracer: tracer as never });
+
+    await store.insert(
+      [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+      ['id-new', 'id-dup'],
+      [
+        { text: 'fresh fact', hash: 'h-fresh', user_id: 'alice' },
+        { text: 'dup fact', hash: 'h-dup', user_id: 'bob' },
+      ],
+    );
+
+    // Exactly ONE dedup_collision_confirmed (for inserted=false row only).
+    const dedupEvents = events.filter((e) => e.event === 'dedup_collision_confirmed');
+    expect(dedupEvents).toHaveLength(1);
+    expect(dedupEvents[0]?.attrs).toEqual({
+      memory_id: 'id-dup',
+      confirmation_count: 2,
+      scope_tier: 'user',
+    });
+  });
+
+  test('EC-5: dedup_collision_confirmed no-op when tracer is undefined', async () => {
+    const poolQuery = vi.fn().mockImplementation(() => ({
+      rows: [
+        { id: 'id-dup', confirmation_count: 2, user_id: 'alice', session_id: null, agent_id: null, inserted: false },
+      ],
+    }));
+    const pool = { query: poolQuery } as unknown as Pool;
+    // Construct WITHOUT tracer — emitEvent must handle gracefully.
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    // T2.1 changed insert() return type from Promise<void> to
+    // Promise<readonly InsertOutcome[]>. The EC-5 invariant (no throw, no span)
+    // is verified by the operation completing cleanly + the rejectedAsDuplicate
+    // outcome surfacing without requiring a tracer.
+    const outcomes = await store.insert([[0.1, 0.2, 0.3]], ['id-dup'], [{ text: 'fact', hash: 'h-fact', user_id: 'alice' }]);
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toEqual({ id: 'id-dup', confirmationCount: 2, rejectedAsDuplicate: true });
+  });
+
+  test('T2.1 — insert() returns InsertOutcome[] surfacing confirmationCount + rejectedAsDuplicate per row (ADR D1 + D4)', async () => {
+    const poolQuery = vi.fn().mockImplementation(() => ({
+      rows: [
+        { id: 'id-fresh', confirmation_count: 1, user_id: 'alice', session_id: null, agent_id: null, inserted: true },
+        { id: 'id-bumped', confirmation_count: 3, user_id: 'alice', session_id: null, agent_id: null, inserted: false },
+      ],
+    }));
+    const pool = { query: poolQuery } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    const outcomes = await store.insert(
+      [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+      ['id-fresh', 'id-bumped'],
+      [
+        { text: 'fresh', hash: 'h-fresh', user_id: 'alice' },
+        { text: 'bumped', hash: 'h-bumped', user_id: 'alice' },
+      ],
+    );
+
+    expect(outcomes).toEqual([
+      { id: 'id-fresh', confirmationCount: 1, rejectedAsDuplicate: false },
+      { id: 'id-bumped', confirmationCount: 3, rejectedAsDuplicate: true },
+    ]);
+  });
+});
+
 describe('PgvectorStore.search — attributed_to recall WHERE filter (v1.1 T2.2)', () => {
   test('search WHERE clause appends attributed_to = $N when filters.attributed_to set', async () => {
     const captured: { sql: string; params: unknown[] }[] = [];
