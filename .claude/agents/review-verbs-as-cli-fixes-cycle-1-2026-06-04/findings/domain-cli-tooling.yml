@@ -1,0 +1,502 @@
+agent: review-verbs-as-cli-fixes-cycle-1-domain-cli-tooling
+review_target: verbs-as-cli-fixes-cycle-1 @ commit b06429e
+domain: cli-tooling
+domain_specific_patterns_checked:
+  - commander v12 InvalidArgumentError + exitOverride idioms
+  - Node ESM source-order side-effect imports for env mutation
+  - parseInt/parseFloat trailing-garbage coercion edge cases
+  - package.json#bin Unix shebang requirements
+  - DRY hardening across CLI / MCP / REST factories
+  - Locked-names regression sentinel rigor
+  - JSON-vs-text renderer edge cases (empty arrays, embedded newlines)
+  - dist/ staleness vs git mv at source
+
+findings:
+  - id: F-dom-cli-1
+    severity: MAJOR
+    file: src/agent-tools/cli.ts
+    line: 75-94
+    plan_ref: T2.2 / ADR D4 (parseIntInRange + parseFloatInRange factories)
+    domain_anchor: architecture.md § 8 (fail-fast at boundaries)
+    summary: |
+      parseIntInRange silently coerces decimal + trailing-garbage input via Number.parseInt.
+      `--top-k 5.7` → 5 (accepted). `--top-k 5abc` → 5 (accepted). parseFloatInRange has the
+      same defect: `--threshold 0.5abc` → 0.5 (accepted). Boundary validation should reject
+      malformed numeric input; instead the factory silently truncates. The parent test 16
+      (verbs-cli.test.ts) only covered integer-out-of-range, never decimals-for-int or
+      trailing-garbage, so this defect was not caught by RED tests. This MAJOR was the
+      central refactor of Theme 2 — collapsing 5 byte-similar validators into 2 factories —
+      so the silent coercion now ships across `--top-k`, `--threshold`, `--diversify`,
+      `--port` (mcp), `--port` (server). Fail-fast principle violated at the canonical
+      CLI boundary.
+    evidence: |
+      ```ts
+      const parseIntInRange = (label: string, min: number, max: number) =>
+        (raw: string): number => {
+          const n = Number.parseInt(raw, 10);
+          if (!Number.isInteger(n) || n < min || n > max) {
+            throw new InvalidArgumentError(...);
+          }
+          return n;
+        };
+
+      // node -e "console.log(Number.parseInt('5.7', 10))" → 5
+      // node -e "console.log(Number.parseInt('5abc', 10))" → 5
+      // Both pass Number.isInteger(5) → silent acceptance.
+      ```
+    recommended_action: |
+      Replace `Number.parseInt(raw, 10)` with strict number coercion + integer assertion:
+      ```ts
+      const n = Number(raw);
+      if (!Number.isInteger(n) || !Number.isFinite(n) || n < min || n > max) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be an integer in ${min}..${max}).`,
+        );
+      }
+      ```
+      `Number('5.7') === 5.7` (not integer) → throws. `Number('5abc') === NaN` → throws.
+      Same fix for parseFloatInRange: `const n = Number(raw)` rejects trailing garbage
+      (Number('0.5abc') === NaN), preserving the `Number.isFinite` guard.
+      Add 4 RED tests to tests/integration/cli/verbs-cli-fixes.test.ts covering
+      `--top-k 5.7`, `--top-k 5abc`, `--threshold 0.5abc`, `--threshold NaN`.
+
+  - id: F-dom-cli-2
+    severity: MAJOR
+    file: src/agent-tools/run-mcp-server.ts, src/agent-tools/run-server.ts
+    line: run-mcp-server.ts:107-119; run-server.ts:120-138
+    plan_ref: Sub-goal 2 / ADR D3 (retrofit MCP + REST to use createAgentToolsMemory)
+    domain_anchor: cycle-plan.md anti-pattern (NEVER claim Coverage Matrix 100% without backing every gap)
+    summary: |
+      Sub-goal 2 promised `run-mcp-server.ts` + `run-server.ts` would be retrofitted to call
+      `createAgentToolsMemory()` to close the Pool + runMigrations + createLocalMemory
+      triplication. Implementation only retrofitted the ENV-VALIDATION duplicate (via
+      `assertEnvOrExit` + PG_URI_ENV_SPEC + OPENAI_API_KEY_ENV_SPEC); the Memory FACTORY
+      wiring (Pool / runMigrations(LOCAL_EMBEDDER_DIM=384) / createLocalMemory with
+      LocalTransformerEmbedder + OpenAILLM) remains duplicated 3 times: agent-tools-memory.ts
+      lines 87-108, run-mcp-server.ts lines 107-119, run-server.ts lines 120-138. The plan
+      ADR D3 § Tasks step 5 + step 6 explicitly mandated this retrofit:
+      "Replace run-mcp-server.ts createLocalMemory call with createAgentToolsMemory()" /
+      "Replace run-server.ts createLocalMemory call with createAgentToolsMemory()". Future
+      Embedder/LLM swap will touch 3 sites instead of 1. F-arch-2 / F-wire-1 closure is
+      partial. The REST runner's EC-33 readiness-gate async pattern is a legitimate
+      constraint that the plan did not foresee — it should be surfaced honestly OR
+      createAgentToolsMemory refactored to a 2-call shape (sync `bindServer`, async
+      `warmMemory`) so REST can wire eagerly + warm async.
+    evidence: |
+      Both files inline the same factory pattern post-retrofit:
+      ```ts
+      // run-mcp-server.ts lines 107-119:
+      const pool = new Pool({ connectionString: pgUri });
+      await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
+        embedder: new LocalTransformerEmbedder(),
+        llm: new OpenAILLM(),
+        embeddingDim: LOCAL_EMBEDDER_DIM,
+      });
+
+      // run-server.ts lines 120-138: same pattern, plus EC-33 async warm wrap.
+
+      // agent-tools-memory.ts:87-108: same pattern.
+
+      // grep -n "createAgentToolsMemory\|createCliMemory" run-mcp-server.ts run-server.ts
+      // → ZERO matches (env-validation retrofitted; factory call NOT).
+      ```
+    recommended_action: |
+      Two options:
+      (a) **Honest disclosure** — open a follow-up cycle that documents why the factory
+          retrofit is constrained by the REST EC-33 async-warm pattern, and either
+          (i) refactors createAgentToolsMemory to expose a 2-phase API
+          `[bindResources, warmMemory]: [() => sync, () => Promise<Memory>]` that REST
+          can split, OR (ii) accepts the duplication permanently behind a `// DRIFT-D3-1`
+          comment naming the constraint. Update CHANGELOG honest-disclosure.
+      (b) **Close inline** — extract a `wireMemoryFromPool(pool): Promise<Memory>` helper
+          to agent-tools-memory.ts and have all 3 sites call it. REST keeps its EC-33
+          async-warm pattern wrapping the helper. Mechanical extraction, ~15 LoC saved
+          per call site, single source of truth for embedder dim + provider choice.
+
+  - id: F-dom-cli-3
+    severity: MAJOR
+    file: dist/agent-tools/cli-memory-factory.js
+    line: shipped artifact
+    plan_ref: ADR D3 (git mv cli-memory-factory.ts → agent-tools-memory.ts)
+    domain_anchor: package.json#files `dist/**/*.js` glob
+    summary: |
+      The `git mv cli-memory-factory.ts → agent-tools-memory.ts` deleted the SOURCE file
+      but left STALE compiled artifacts in `dist/agent-tools/`: `cli-memory-factory.js`,
+      `.d.ts`, `.js.map`, `.d.ts.map`. tsc never cleans stale output unless `--clean` is
+      run. The stale `dist/agent-tools/cli-memory-factory.js` contains the OLD code with
+      the explicit `reflectionPolicy: { kind: 'manual', shouldReflect: () => Promise.resolve(true) }`
+      wire that the EC-4 sentinel test 9 explicitly forbids at the source level. Because
+      `package.json#files` declares `dist/**/*.js`, this stale artifact WILL ship in
+      `npm pack`. The EC-4 sentinel only checks `.ts` source, NOT dist artifacts, so it
+      passes despite the contradiction shipping. Any third-party import via deep path
+      `node_modules/@usetheo/memory/dist/agent-tools/cli-memory-factory.js` (NOT via
+      package.json#exports, but legal Node resolution against the published tree) gets
+      the dead-code version.
+    evidence: |
+      ```sh
+      $ ls dist/agent-tools/cli-memory-factory.* src/agent-tools/cli-memory-factory.ts
+      ls: src/agent-tools/cli-memory-factory.ts: No such file
+      dist/agent-tools/cli-memory-factory.d.ts
+      dist/agent-tools/cli-memory-factory.d.ts.map
+      dist/agent-tools/cli-memory-factory.js
+      dist/agent-tools/cli-memory-factory.js.map
+
+      $ grep -c "reflectionPolicy:" dist/agent-tools/cli-memory-factory.js
+      1   # The exact wire EC-4 sentinel test 9 forbids in agent-tools-memory.ts
+      ```
+    recommended_action: |
+      Add a `prebuild:clean` script to package.json:
+      ```json
+      "prebuild:clean": "node -e \"const{rmSync,existsSync}=require('node:fs');if(existsSync('dist'))rmSync('dist',{recursive:true,force:true})\"",
+      "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:copy-migrations",
+      ```
+      ALSO: extend the EC-4 sentinel (test 9) to grep `dist/agent-tools/agent-tools-memory.js`
+      (post-build) for `reflectionPolicy:` AND assert `dist/agent-tools/cli-memory-factory.js`
+      DOES NOT exist — closing the gap between source review and pack manifest.
+
+  - id: F-dom-cli-4
+    severity: MAJOR
+    file: src/__tests__/cli-locked-names.test.ts
+    line: 44-63
+    plan_ref: Sub-goal 6 / T5.3 (CLAUDE.md § Locked names sentinel)
+    domain_anchor: CLAUDE.md § Locked names (4 verbs + 9 flags)
+    summary: |
+      The Locked-names sentinel is too weak. It greps cli.ts for substring presence of
+      the verb-command literals + flag strings, but a future refactor could MOVE the
+      verb-command literal out of a `.command(...)` call into a comment, an unrelated
+      log message, or a dead-code path while removing the actual `.command()` declaration.
+      Sentinel passes; CLI contract silently broken. The locked-name discipline requires
+      that the literal appears INSIDE an active `.option('--user', ...)` or
+      `.command('remember <text>', ...)` call site. Two false-positive paths:
+      (1) `parseIntInRange('--top-k', 1, 100)` already contains the flag string at the
+      factory-helper level, NOT at the option declaration — the sentinel cannot
+      distinguish factory invocation from option declaration. (2) Comments / JSDoc could
+      retain the strings post-refactor. Sentinel must use AST traversal OR at minimum
+      require the literal to appear within N chars of a `.option(` or `.command(`
+      identifier on the same line cluster.
+    evidence: |
+      ```ts
+      // cli-locked-names.test.ts:46
+      for (const verb of LOCKED_VERBS) {
+        expect(src).toContain(verb);  // substring grep — too weak
+      }
+      // Counter-example: if cli.ts removes `.command('remember <text>')` but keeps
+      // `// 'remember <text>' is the future locked verb` in a comment, sentinel passes.
+      ```
+    recommended_action: |
+      Strengthen the sentinel with ast-grep OR ts-morph for AST-level verification:
+      ```ts
+      // Assert each verb appears in a CallExpression named `.command(...)` with the
+      // verb literal as the first argument.
+      import { parse } from '@typescript-eslint/parser';
+      // ... walk for CallExpression matching `.command(<literal>)`.
+      ```
+      Cheap intermediate: assert each verb literal appears within 30 chars of `.command(`
+      via regex `/\.command\(\s*['"](?:remember <text>|recall <query>|forget <id>|reflect)['"]/`.
+      Similarly for flags: `/\.option\(\s*['"]--(?:user|session|agent|top-k|...)/`. This
+      shrinks the false-positive surface to "literal still inside `.option(`/`.command(`
+      call".
+
+  - id: F-dom-cli-5
+    severity: MAJOR
+    file: README.md
+    line: 86-122
+    plan_ref: Sub-goal 5(a) — T5.1 (README new ## CLI verbs section)
+    domain_anchor: cycle-implement.md anti-pattern #7 (NEVER scope-creep mid-task)
+    summary: |
+      The implementation added a NEW `## Foundational principles` section (lines 86-122)
+      with the 3 principles from `CLAUDE.md § IMPORTANTE — Princípios fundamentais do
+      TheMemory`. This was NOT declared in the plan: T5.1's scope is `## CLI verbs`
+      section only. The added content is in mixed Portuguese (`### Princípio 1 — Nem
+      toda memória tem o mesmo peso.`) followed by English explanation — visually
+      jarring for English-first readme audience. Per cycle-implement.md anti-pattern #7:
+      "NEVER scope-creep mid-task — if you discover an unrelated improvement opportunity,
+      log it in implementations/{slug}-followups.md and continue with the current task."
+      The implementation merged the principles into the same commit as T5.1 without
+      ADR coverage or plan amendment. Per public-copy.md the content is OK in the DEEP
+      DIVE zone (below `## How it works`), but the mixed-language headings + scope-creep
+      pattern are both violations.
+    evidence: |
+      ```md
+      ## How it works              ← line 82
+
+      Below this line, full technical vocabulary is in play. ...
+
+      ## Foundational principles   ← line 86 (NEW, NOT in plan)
+
+      ### Princípio 1 — Nem toda memória tem o mesmo peso.
+
+      Relevance is a continuous score, not a boolean. ...
+      ```
+      `grep "Foundational\|Princí" .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md`
+      → zero matches. Plan T5.1 § Tasks lists ONLY the `## CLI verbs` section additions.
+    recommended_action: |
+      Two paths:
+      (a) **Revert scope-creep** — `git restore` the `## Foundational principles` section,
+          add an entry to followups.md to plan a separate cycle that ports the principles
+          + chooses single-language headings (English to match README audience, or
+          Portuguese-only with English README OUT OF SCOPE).
+      (b) **Honest disclosure** — amend the cycle's `/implement-validate` report's
+          § "Cycle-implement anti-patterns adherence" naming the in-cycle scope expansion
+          + ADR-backfill via a 1-paragraph rationale in CHANGELOG explaining why the
+          Portuguese headings ship now (matches CLAUDE.md verbatim).
+
+  - id: F-dom-cli-6
+    severity: MINOR
+    file: src/agent-tools/cli.ts
+    line: 96-114
+    plan_ref: T2.2 / ADR D4 (exitOverride mapping)
+    domain_anchor: commander v12 exitOverride contract + ADR D4 promised exit 2 on invalid
+    summary: |
+      The exitOverride only maps `commander.invalidArgument` + `commander.invalidOptionArgument`
+      to exit 2. Other commander error codes (`commander.missingArgument`,
+      `commander.missingMandatoryOptionValue`, `commander.unknownCommand`,
+      `commander.unknownOption`) fall through to `process.exit(err.exitCode)` — which
+      for missingArgument is commander's default `1`. The ADR D4 contract advertised
+      "InvalidArgumentError → exit 2" but the broader CLI fail-fast contract
+      (architecture.md § 8) demands ALL boundary input failures exit 2 for shell
+      composability (`themory remember 'fact' && echo OK` should NOT proceed on
+      missing --user). Today: `themory remember` (missing positional) exits 1.
+      `themory unknownVerb` exits 1. Inconsistent with the documented "invalid →
+      exit 2" UX contract.
+    evidence: |
+      ```ts
+      program.exitOverride((err) => {
+        if (
+          err.code === 'commander.invalidArgument' ||
+          err.code === 'commander.invalidOptionArgument'
+        ) {
+          process.exit(2);
+        }
+        process.exit(err.exitCode);   // commander.missingArgument → 1
+      });
+      ```
+    recommended_action: |
+      Extend the mapping to cover all "invalid input from boundary" codes:
+      ```ts
+      const INVALID_INPUT_CODES = new Set([
+        'commander.invalidArgument',
+        'commander.invalidOptionArgument',
+        'commander.missingArgument',
+        'commander.missingMandatoryOptionValue',
+        'commander.unknownCommand',
+        'commander.unknownOption',
+        'commander.excessArguments',
+      ]);
+      program.exitOverride((err) => {
+        if (INVALID_INPUT_CODES.has(err.code)) process.exit(2);
+        process.exit(err.exitCode);  // help (0), version (0) preserved
+      });
+      ```
+      Add 2 RED tests: `themory remember` (no positional) → exit 2;
+      `themory unknownVerb` → exit 2.
+
+  - id: F-dom-cli-7
+    severity: MINOR
+    file: src/agent-tools/cli-preload.ts
+    line: 1-12
+    plan_ref: T3.1b / EC-1 absorption (originally specified .cjs, implemented as .ts)
+    domain_anchor: plan v1.1 § T3.1b Files to edit (`src/agent-tools/cli-preload.cjs (NEW)`)
+    summary: |
+      Plan v1.1 § T3.1b explicitly specified `src/agent-tools/cli-preload.cjs (NEW) — tiny
+      CommonJS preload` because CommonJS executes synchronously before any ESM import
+      resolution — a stronger semantic guarantee than ESM source-order. Implementation
+      shipped `cli-preload.ts` (compiled to `cli-preload.js` — ESM). The plan's task
+      step 2 EXPLICITLY noted: "Note: ESM imports are hoisted; mutation BEFORE imports
+      requires either (a) CommonJS-style require + reorganization (loses ESM benefits),
+      OR (b) accept that the mutation is hoisted to the top of the module body". The
+      commit message claims the .ts variant works via "ESM source-order evaluation".
+      That IS technically correct for the static-import-leaf path, but the deviation
+      from the plan's explicit .cjs decision lacks ADR coverage. The plan declared the
+      decision EXPLICITLY ("intentional .cjs extension so Node loads it synchronously
+      BEFORE the ESM cli.js"). Switching to .ts without an ADR record is implicit
+      authorization that defeats the cycle-implement.md ADR discipline. The empirical
+      test passes, so it works — but the discipline gap should be closed.
+    evidence: |
+      ```
+      Plan T3.1b § Files to edit: src/agent-tools/cli-preload.cjs (NEW)
+      Actual: src/agent-tools/cli-preload.ts (NEW)
+
+      Plan T3.1b § Tasks step 1:
+        "Create src/agent-tools/cli-preload.cjs (intentional .cjs extension
+        so Node loads it synchronously BEFORE the ESM cli.js)"
+      Commit message:
+        "fallback succeeded: new src/agent-tools/cli-preload.ts side-effect
+        module imported FIRST by cli.ts via ESM source-order evaluation"
+      ```
+    recommended_action: |
+      Add a 1-paragraph supplementary note to the cycle's `/implement-validate` report
+      naming the ESM-source-order vs CommonJS-sync deviation + the rationale (avoids the
+      .cjs file extension that violates the `"type": "module"` package config + avoids
+      shipping a separate copy script for non-.ts assets per architecture.md § 10.1).
+      Mark cli-preload.ts as the canonical preload entry. Add an ESLint rule pinning
+      `import './cli-preload.js'` as the FIRST static import in cli.ts (no other static
+      imports before it) — prevents accidental reorder via auto-import sorting plugins.
+
+  - id: F-dom-cli-8
+    severity: MINOR
+    file: package.json
+    line: 13-16
+    plan_ref: out-of-cycle (pre-existing parent-cycle defect surfaced via review)
+    domain_anchor: Node bin entries require shebang per Unix conventions
+    summary: |
+      `package.json#bin.themory` and `package.json#bin.themory-mcp` both map to
+      `./dist/agent-tools/cli.js` — but the compiled cli.js has NO shebang line
+      (`#!/usr/bin/env node`). On Linux/macOS, npm symlinks bin entries to user PATH;
+      without a shebang, the OS does not know to invoke node and falls back to shell,
+      which errors on the ES module syntax. npm's Windows shim wraps with .cmd files
+      explicitly invoking node, but Unix relies on the shebang. This is a PRE-EXISTING
+      defect from the parent verbs-cli cycle (T2.1 introduced the bin entries), NOT
+      introduced by this fix-cycle. Flagged here because it's a CLI-tooling domain
+      defect this reviewer is responsible for. It blocks `npx @usetheo/memory` from
+      working post-install on any Unix host where the user does NOT explicitly invoke
+      `node $(npm bin)/themory`.
+    evidence: |
+      ```sh
+      $ head -1 dist/agent-tools/cli.js
+      // verbs-as-cli-fixes-cycle-1 T3.1b / F-dom-cli-1 absorption: side-effect
+      # No shebang.
+
+      $ head -1 src/agent-tools/cli.ts
+      // verbs-as-cli-fixes-cycle-1 T3.1b / F-dom-cli-1 absorption: side-effect
+      # No shebang.
+
+      $ grep '"bin"' package.json
+      "bin": {
+        "themory": "./dist/agent-tools/cli.js",
+        "themory-mcp": "./dist/agent-tools/cli.js"
+      }
+      ```
+    recommended_action: |
+      Add a `postbuild:add-shebang` script that prepends the shebang AFTER tsc emit:
+      ```json
+      "postbuild:add-shebang": "node -e \"const{readFileSync,writeFileSync,chmodSync}=require('node:fs');const p='dist/agent-tools/cli.js';const src=readFileSync(p,'utf8');if(!src.startsWith('#!'))writeFileSync(p,'#!/usr/bin/env node\\n'+src);chmodSync(p,0o755);\"",
+      "build": "tsc -p tsconfig.build.json && npm run postbuild:copy-migrations && npm run postbuild:add-shebang"
+      ```
+      Verify via a smoke test: `npm pack && cd /tmp/scratch && npm install /path/to/tarball
+      && ./node_modules/.bin/themory --help`. The post-install bin invocation should
+      succeed without explicit `node` prefix.
+
+  - id: F-dom-cli-9
+    severity: MINOR
+    file: src/agent-tools/cli-output.ts
+    line: 41-56
+    plan_ref: T1.2 / ADR D2 (CLI emits raw ReflectionResult; renderer edge cases)
+    domain_anchor: JSON-vs-text output portability for shell pipelines
+    summary: |
+      Two minor renderer edge cases unhandled:
+      (1) `recall` text format interpolates `m.text` raw; if a memory text contains a
+          literal newline, the "one item per line" layout breaks (item 2 appears as
+          continuation of item 1). Same defect for `m.id` though IDs are UUIDs by
+          contract.
+      (2) `remember` text with empty items produces `Wrote 0 memories: ` (trailing space).
+          Cosmetic only.
+      (3) `reflect` text format ignores `result.reason?` field — when reflect short-circuits
+          (e.g., no source memories), the text output is `Reflected 0 → 0 insights` with
+          no hint at WHY. The reason field is part of the contract per `ReflectionResult`
+          (parent ADR D3 carried it forward). JSON output exposes it; text users debugging
+          "why no insights" miss it.
+      None of these are blockers, but the plan ADR D2 § Consequences claimed "text becomes
+      `Reflected ${sourceIds.length} → ${derivedMemoriesCreated} insights`" with no reason-
+      field discussion. Honest gap.
+    evidence: |
+      ```ts
+      case 'recall': {
+        const lines = payload.items.map(m => `  - [${m.score.toFixed(3)}] ${m.id}: ${m.text}`);
+        // m.text with embedded \n → break visual layout.
+        return `Found ${String(payload.items.length)} memories:\n${lines.join('\n')}`;
+      }
+
+      case 'reflect':
+        return `Reflected ${String(payload.result.sourceIds.length)} → ${String(payload.result.derivedMemoriesCreated)} insights`;
+        // result.reason? is discarded.
+      ```
+    recommended_action: |
+      (1) For `recall` text, normalize embedded newlines in `m.text` to ` / ` (or
+          truncate at first \n + " ..." marker) before interpolation. Document the
+          contract: text format is for HUMAN reading; for machine consumption use --json.
+      (2) For `reflect` text when `result.reason !== undefined`, append `(${result.reason})`
+          to the line. Update cli-output.test.ts test 6 to cover the reason path.
+      (3) Add a 2-line invariant comment to the renderer: "text format is best-effort
+          human-readable; pipelines should use --json".
+
+  - id: F-dom-cli-10
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 53-66
+    plan_ref: parent verbs-cli plan (EC-27 themory-mcp backward-compat alias)
+    domain_anchor: regex-based bin detection
+    summary: |
+      The `ALIAS_PATTERN` regex `themory-mcp(?:\.(?:js|mjs|cjs|ts))?$` triggers on
+      `argv[1]` ending in `themory-mcp` plus optional extension. This is correct for
+      npm-installed bin invocation (where argv[1] is the symlink target path). But
+      `applyAliasArgvShim` uses `argv[2] === 'mcp'` as the idempotency guard — which
+      ALSO trips for the valid invocation `themory-mcp mcp --transport stdio` (user
+      explicitly typed the verb). EC-29 noted this and DID skip the splice in that case.
+      Good. But: what if the user invokes `themory-mcp --help`? The detection passes
+      (argv[1] ends with themory-mcp); applyAliasArgvShim splices `mcp` at position 2
+      → argv becomes `[node, themory-mcp, mcp, --help]`; commander dispatches to
+      `mcp` subcommand and prints its help (not the program help). Likely fine, but
+      worth noting that the DEPRECATED stderr warning fires on `themory-mcp --help`
+      too — slightly odd UX. INFO-only because behavior is technically correct +
+      documented as deprecated path.
+    evidence: |
+      ```ts
+      const ALIAS_PATTERN = /themory-mcp(?:\.(?:js|mjs|cjs|ts))?$/;
+      // Tests: themory-mcp (Unix bin), themory-mcp.cmd (Windows), node themory-mcp.js
+      // All correct.
+
+      if (detectMcpAlias(live[1])) {
+        process.stderr.write('DEPRECATED: themory-mcp ...');
+        const shimmed = applyAliasArgvShim(live);
+        // `themory-mcp --help` → splices mcp at position 2 → mcp subcommand help.
+      }
+      ```
+    recommended_action: |
+      Document the help-bypass behavior in the EC-27 JSDoc block: "Invocation
+      `themory-mcp --help` (legacy users discovering the alias) emits the deprecation
+      warning then dispatches to `themory mcp --help` (mcp subcommand help, NOT program
+      help)." No behavior change needed — just documentation.
+
+summary_for_consolidation:
+  total_findings: 10
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 5
+    MINOR: 4
+    INFO: 1
+  recommendation: |
+    The fix-cycle closes the 11 declared MAJORs at varying depth:
+      - Theme 1 (reflect parity): CLOSED at source. ADR D2 honored; 3-way contract
+        parity restored; CliReflectResult dropped; ADR-0005 v1.1 supplementary amendment
+        + EC-2 3-path contract tests shipped.
+      - Theme 2 DRY (env-validation): CLOSED via assertEnvOrExit + 2 EnvSpec constants
+        retrofitted across MCP + REST + CLI. Single source of truth honored.
+      - Theme 2 DRY (parser factories): partially regressed — F-dom-cli-1 introduces a
+        NEW silent-coercion defect that ships across all 5 collapsed sites because the
+        factory uses parseInt/parseFloat (lossy) instead of Number coercion + isInteger
+        guard.
+      - Theme 2 DRY (factory triplication): half-closed — F-dom-cli-2 shows the Memory
+        factory wiring (Pool + runMigrations + createLocalMemory + LocalTransformerEmbedder
+        + OpenAILLM + LOCAL_EMBEDDER_DIM) still duplicated 3 times despite plan ADR D3
+        explicitly mandating retrofit.
+      - Theme 3 dotenv silence: CLOSED via T3.1b conditional fallback (cli-preload.ts
+        side-effect ESM import). Empirically verified by test 4. F-dom-cli-7 notes the
+        plan-vs-implementation .cjs → .ts deviation lacks ADR coverage.
+      - Theme 3 fail-fast ordering: CLOSED via validateScopeOpts boundary helper +
+        reorder in 3 handlers + 3 EC-6 contract tests.
+      - Theme 3 README + CHANGELOG: CLOSED — CLI verbs section, stable flags table,
+        Docker-exec example, cold-start caveat. F-dom-cli-5 notes the in-cycle scope-creep
+        of the unrelated Foundational principles section.
+      - Theme 4 Locked names: CLOSED but sentinel is weak (F-dom-cli-4) and should be
+        AST-strengthened before declaring the v1.0 contract regression-safe.
+      - Theme 4 SEPA bypass ADR: closed at cycle-implement.md v1.7 with sunset 2026-07-04.
+    Build hygiene: F-dom-cli-3 (stale dist artifact) is the most consequential issue —
+    the pack manifest ships dead code that violates the cycle's own EC-4 sentinel
+    contract.
+    Net verdict: NEEDS_FIXES at the domain-cli-tooling lens. The 5 MAJORs should be
+    triaged before declaring READY_TO_MERGE. F-dom-cli-1 (silent numeric coercion) and
+    F-dom-cli-3 (stale dist) are the highest-leverage fixes.

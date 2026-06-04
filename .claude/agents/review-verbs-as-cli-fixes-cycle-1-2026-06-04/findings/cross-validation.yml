@@ -1,0 +1,211 @@
+agent: review-verbs-as-cli-fixes-cycle-1-cross-validation
+review_target: verbs-as-cli-fixes-cycle-1 @ commit b06429e (single fix-cycle commit on develop)
+plan: .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md
+plan_version_at_review: v1.2 (frozen pre-commit per `efe05d3` cycle-plan SHIPPABLE_WITH_CAVEATS @ 82.4)
+implementation_mode: ralph-loop direct (FOURTH consecutive bypass of /implement SKILL.md SEPA spawn — honestly disclosed in implement-validate report § 86 + commit body)
+
+plan_tasks_summary:
+  total_tasks: 12  # T0.1 + T1.1 + T1.2 + T2.1 + T2.2 + T3.1 + T3.1b + T3.2 + T5.1 + T5.2 + T5.3 + T5.4 + T4.1 (validation) = 12 substantive
+  fully_implemented: 11
+  partial: 1   # T2.1 — env-validation retrofitted, but factory-path retrofit NOT done (see F-xval-1)
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total: 8   # T0.1: 8 RED tests authored; verified RED→GREEN transitions across the cycle
+  satisfied: 8
+  unverified: 0
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 5
+  respected: 4
+  diverged_without_new_adr: 1   # ADR D3 (Step 5 + Step 6 of T2.1 § Tasks) — see F-xval-1
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan committed at efe05d3 (one commit before b06429e). No edits between
+    efe05d3 and b06429e — git log confirms the implement commit immediately
+    follows the plan commit. Plan v1.2 is frozen as the ground truth.
+
+dependencies_check:
+  declared_in_plan: zero new deps (Rule 9 verdict)
+  actual_in_commit: zero new deps
+  result: VERIFIED — `git diff main..b06429e -- package.json package-lock.json` returns empty diff
+
+goal_smart_check:
+  metric_1_8_new_assertions: PASS — tests/integration/cli/verbs-cli-fixes.test.ts ships 9 tests (8 plan + 1 EC-4 sentinel)
+  metric_2_parent_19_floor_preserved: PASS — tests/integration/cli/verbs-cli.test.ts retains 19 tests; tests 10+11 updated to assert raw ReflectionResult shape per ADR D2
+  metric_3_pass_count_floor: PARTIAL — plan goal floor "≥ 1073 PASS"; empirical contract suite shows 1069 PASS + 2 SKIP. EC-8 absorption math (1061 baseline + 8 T0.1 + 1 T5.3) reaches 1070, NOT 1073. Implementation_validate reframes as "1069 contract + 7 integration cli = 1076 visible" but the contract-suite-only number is 1069 (below 1073 floor when integration tests are gated by HAS_OPENAI + HAS_PG_URI env vars not set at validation time). See F-xval-2.
+
+ec3_actual_handling:
+  plan_predicted: empirically zero hits (pre-flight grep — "verified zero hits via grep -rE \"THEOMEM_PG_URI required|OPENAI_API_KEY required\" tests/")
+  reality_at_b06429e: 4 hits in tests/integration/p0-audit/{full-public-surface,readme-mcp-section,run-server-stub-removal}.test.ts
+  approach_applied: per-test PRESERVE via byte-identical stderr strings exported from agent-tools-memory.ts as PG_URI_ENV_SPEC + OPENAI_API_KEY_ENV_SPEC constants
+  result: VERIFIED — stderr wording byte-identical to pre-cycle; p0-audit integration tests should pass unchanged (confirmed via 134 test-file PASS in npm test final result). EC-3 absorption honest disclosure in commit body matches the per-test PRESERVE approach. The plan's predicted "zero hits" was empirically wrong but the contingency handling is correct.
+
+ec4_sentinel_check:
+  test_9_at_verbs_cli_fixes: PASS — agent-tools-memory.ts source contains NO `reflectionPolicy:` in executable code (only in JSDoc explaining EC-4 absorption). Sentinel strips block + line comments before regex check.
+
+findings:
+  - id: F-xval-1
+    severity: MAJOR
+    file: src/agent-tools/run-mcp-server.ts:114-119, src/agent-tools/run-server.ts:128-133
+    plan_ref: ADR D3 Decision + T2.1 § Tasks Steps 5+6 ("Replace run-mcp-server.ts createLocalMemory call with createAgentToolsMemory()" + same for run-server.ts) + Sub-goal 2
+    summary: ADR D3 Step 5 + Step 6 NOT IMPLEMENTED — run-mcp-server.ts and run-server.ts retain direct createLocalMemory(...) calls instead of delegating to createAgentToolsMemory()
+    evidence: |
+      Plan says (T2.1 § Tasks):
+        Step 5. Replace `run-mcp-server.ts` createLocalMemory call with `createAgentToolsMemory()`.
+        Step 6. Replace `run-server.ts` createLocalMemory call with `createAgentToolsMemory()`.
+      Plan says (ADR D3 Decision):
+        "MCP + REST handlers retrofit ... their factory paths to call `createAgentToolsMemory()`"
+      Plan says (ADR D3 Consequences):
+        "run-mcp-server.ts line count reduces by ~25 LoC; run-server.ts reduces by ~22 LoC."
+      Actual code (b06429e):
+        - run-mcp-server.ts:27 still imports createLocalMemory from '../local/index.js'
+        - run-mcp-server.ts:114 calls `const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool, ...), embedder: new LocalTransformerEmbedder(), llm: new OpenAILLM(), embeddingDim: LOCAL_EMBEDDER_DIM })` — i.e., the full provider wiring that createAgentToolsMemory() now encapsulates is INLINED here
+        - run-server.ts:33 still imports createLocalMemory; line 128 has the identical inlined provider wiring
+        - run-mcp-server.ts diff: actual reduction ~10 LoC (only env-fail block replaced), NOT the predicted ~25 LoC
+        - run-server.ts diff: actual reduction ~7 LoC (only env-fail block replaced), NOT the predicted ~22 LoC
+      Implementation-validate report § 17 claims "MCP + REST retrofitted" but the SDK retrofit (factory call) was NOT done; only the env-validation boundary was retrofitted. The implement-validate report does NOT honestly disclose this partial implementation.
+      Resulting consequence: the DRY-hardening goal of ADR D3 ("single source of truth ... LocalTransformerEmbedder(), OpenAILLM(), LOCAL_EMBEDDER_DIM constant duplicated across 3 sites") is only HALF achieved. Provider wiring + pool construction + runMigrations + LOCAL_EMBEDDER_DIM=384 constant are STILL duplicated across run-mcp-server.ts + run-server.ts + agent-tools-memory.ts (3 sites, identical shape).
+      ALSO: createAgentToolsMemory() returns `readonly [Memory, () => Promise<void>]` (memory + dispose tuple) which is incompatible with run-server.ts's EC-33 readiness-gate Proxy pattern (line 149 uses `Awaited<ReturnType<typeof createLocalMemory>>` for the memoryShim type). The retrofit may have been intentionally skipped because the dispose pattern doesn't fit either runner's lifecycle, but no ADR documents this divergence.
+    recommended_action: |
+      Either (a) ship the retrofit per the plan: change run-mcp-server.ts + run-server.ts to call `const [memory, dispose] = await createAgentToolsMemory()` and integrate dispose into the SIGTERM/SIGINT shutdown handler; OR (b) add an ADR-D3-supplementary entry to the plan v1.3 documenting that Steps 5+6 were NOT implementable because (i) run-mcp-server.ts has additional pre-memory steps (port resolution, transport selection) that need to fail before any pg connection; (ii) run-server.ts's EC-33 readiness-gate Proxy needs a synchronous memory reference that the tuple shape doesn't deliver; (iii) the EC-4 "single source of truth" gain is partial-by-design (env-fail boundary collapsed; factory-path duplication retained for lifecycle reasons). Update CHANGELOG accordingly. Sub-goal 2 partial-closure status should be honestly disclosed in the implement-validate report § 60 (which currently claims it CLOSED unconditionally).
+
+  - id: F-xval-2
+    severity: MINOR
+    file: .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § Goal SMART + § T4.1 step 2
+    plan_ref: Plan Goal SMART + T4.1 Tasks step 2 ("npm test — expect ≥ 1073 PASS")
+    summary: Goal SMART pass-count floor not met by contract suite alone — 1069 actual vs 1073 declared floor
+    evidence: |
+      Plan Goal SMART:
+        "≥ 8 new assertions in tests/integration/cli/verbs-cli-fixes.test.ts; parent 19/19 floor unchanged; ≥ 1073 total PASS"
+      Plan T4.1 § Tasks Step 2:
+        "npm test — expect ≥ 1073 PASS (1061 baseline + 8 NEW T0.1 + 1 NEW T5.3 sentinel + 3 NEW T1.1 EC-2 + 3 NEW T3.2 EC-6 absorption tests = 1076 expected; ≥ 1073 floor absorbs honest-skip variance per EC-8 absorption honest math)"
+      Plan EC-8 (v1.1 absorption preamble):
+        "T4.1 expected count math: 1061 baseline + 8 T0.1 + 1 T5.3 = 1070, NOT 1069; off-by-one cosmetic absorbed by `≥` operator"
+      Empirical at b06429e:
+        $ npm test  →  1069 PASS + 2 SKIP (1071 total) — contract suite only
+        $ npm test (integration cli/)  →  7 PASS + 21 SKIP — gated by HAS_OPENAI + HAS_PG_URI env vars
+        Visible only-if-env-vars-set sum: 1069 + 7 = 1076 (matches EC-8 best-case projection)
+      Implement-validate report § 39 honestly reports:
+        "1069 PASS + 2 SKIP (1071 total, 0 fail) ... +8 vs pre-cycle baseline 1061"
+      Goal SMART floor (≥ 1073) not met by contract suite alone; only met if integration cli/ tests count toward the total. Plan EC-8 anticipated this via the `≥` operator absorbing honest skip variance, but the plan's own "≥ 1073" floor + "1076 expected" claims do not reconcile to the empirical 1069 contract. The EC-8 self-contradictory math (1061 + 8 + 1 = 1070, then "= 1076 expected") was never resolved.
+      MINOR severity because the GOAL TEST itself (8 new assertions in verbs-cli-fixes.test.ts) is satisfied AND the parent 19/19 floor is preserved — only the aggregate pass-count floor is unmet, and the plan itself anticipated this via the `≥` discipline.
+    recommended_action: |
+      For the next /review re-run, clarify whether the "≥ 1073 PASS" floor is contract-only OR contract + integration. Update Plan Goal SMART or implement-validate to specify which test scope produces which count. No code change required.
+
+  - id: F-xval-3
+    severity: MINOR
+    file: .claude/knowledge-base/reviews/verbs-as-cli-fixes-cycle-1-implement-validate-2026-06-04.md § 17 + § 60
+    plan_ref: Plan T2.1 § Tasks Steps 5+6 + Sub-goal 2 + implement-validate § 17 ("MCP + REST retrofitted")
+    summary: Implement-validate report claims "MCP + REST retrofitted" without disclosing the factory-path retrofit was NOT implemented (only the env-fail boundary was). Honesty gap per Inquebrável Rule 3.
+    evidence: |
+      Implement-validate § 17 says:
+        "T2.1 | cli-memory-factory.ts → agent-tools-memory.ts (git mv); assertEnvOrExit boundary helper + createAgentToolsMemory factory; MCP + REST retrofitted; EC-4 redundant explicit policy wire DROPPED"
+      Implement-validate § 60 says (Sub-goal 2 row):
+        "2 | F-arch-2 + F-wire-1 (Theme 2 env-validation DRY) | CLOSED via T2.1 + ADR D3"
+      Reality at b06429e:
+        Only the env-fail boundary (assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC])) was retrofitted in run-mcp-server.ts:98 + run-server.ts:96. The createAgentToolsMemory() factory call (Plan T2.1 Steps 5+6 + ADR D3 Decision) was NOT done — both runners still inline the full createLocalMemory + PgvectorStore + LocalTransformerEmbedder + OpenAILLM + LOCAL_EMBEDDER_DIM provider wiring.
+      The report does NOT mention the partial implementation. Per Inquebrável Rule 3 (extreme honesty), it should have disclosed: "T2.1 Step 5 + Step 6 (factory-path retrofit) NOT done; only env-fail boundary retrofit shipped. Sub-goal 2 PARTIAL closure pending ADR-D3-supplementary or follow-up commit."
+    recommended_action: |
+      Update implement-validate report § 17 + § 60 to reflect partial implementation. Either (a) ship Steps 5+6 retrofit per plan, OR (b) add ADR-D3-supplementary explaining the deferral and update report accordingly.
+
+  - id: F-xval-4
+    severity: INFO
+    file: implement-validate report § 86 + commit body
+    plan_ref: Plan T5.4 + ADR D5 (cycle-implement.md v1.7 amendment closes F-xval-1 from /review verbs-as-cli)
+    summary: FOURTH consecutive /implement SKILL.md SEPA bypass honestly disclosed; cycle is internally consistent
+    evidence: |
+      Implement-validate § 86:
+        "Anti-pattern #10: violation in spirit — the user invoked ralph-loop:ralph-loop directly instead of /implement {slug}. This is the FOURTH consecutive cycle bypassing /implement SKILL.md SEPA spawn step. The fix-cycle's own T5.4 + ADR D5 + cycle-implement.md v1.7 amendment ABSORBS the F-xval-1 finding by formalizing the precedent with sunset 2026-07-04. The fact that THIS cycle (the absorbing cycle) also bypassed is honestly disclosed inside the ADR-marker body itself (cycle-implement.md v1.7 § Honest disclosure paragraph). Sunset starts from 2026-06-04 regardless."
+      cycle-implement.md v1.7 ADR-marker (committed in b06429e):
+        "**Honest disclosure (Inquebrável Rule 3)**: this ADR-marker itself was authored INSIDE the verbs-as-cli-fixes-cycle-1 cycle which ALSO bypassed SEPA spawn ... This makes the verbs-as-cli-fixes-cycle-1 cycle the FOURTH consecutive bypass — but it is the cycle that ABSORBS the F-xval-1 finding (the THIRD-bypass MAJOR from /review verbs-as-cli) and writes the ADR-marker that closes the procedural gap."
+      Disclosure is consistent across implement-validate report + commit body + cycle-implement.md ADR-marker. Honesty discipline preserved. Sunset 2026-07-04 forces strategic moment.
+    recommended_action: |
+      No action required for this cycle. INFO logged so the /review knowledge base has the precedent recorded. The NEXT /implement cycle MUST honor the sunset clause: either (a) use canonical `/implement {slug}` SKILL.md SEPA-spawn path OR (b) carry NEW ADR amendment formalizing ralph-loop-direct as new canonical.
+
+  - id: F-xval-5
+    severity: INFO
+    file: commit b06429e § Honest disclosures + ADR-0005 supplementary amendment
+    plan_ref: Plan T1.1 § Tasks Step 5 + EC-9 absorption + ADR-0005 v1.1 supplementary amendment
+    summary: ADR-0005 v1.1 amendment authorization is "implicit-by-scope" (project-owner Option A response), not explicit ADR-signing. Honestly disclosed in 3 places.
+    evidence: |
+      Disclosure 1 (commit body):
+        "ADR-0005 v1.1 supplementary amendment authorized via project-owner Option A response to /review NEEDS_FIXES verdict (same session), not via explicit ADR-signing event. Implicit-by-scope: the Option A authorization to close the 11 MAJORs implies the ADR amendment as the means."
+      Disclosure 2 (ADR-0005 supplementary § Authorization):
+        "Authorization: project-owner Option A response to /review verbs-as-cli-themory-remember-recall-forget-reflect NEEDS_FIXES verdict (same session, 2026-06-04). The Option A scope ('Open verbs-as-cli-fixes-cycle-1 to absorb the 11 MAJORs') implicitly authorizes this amendment as the means to close F-arch-1 + F-wire-2 ... at the factory level rather than at each consumer surface. Honest disclosure of the implicit-authorization path is itself part of the amendment per Inquebrável Rule 3."
+      Disclosure 3 (CHANGELOG § Honest disclosures):
+        "(a) the ADR-0005 v1.1 supplementary amendment is authorized via project-owner Option A response to the /review NEEDS_FIXES verdict (not an explicit ADR-signing event)"
+      3-way consistent disclosure satisfies Inquebrável Rule 3. The implicit-by-scope authorization is unusual but explicitly documented at every public-visible surface. Per CLAUDE.md § "When this file is wrong", ADR-0005 amendment requires project-owner sign-off; the Option A response IS the sign-off, just at a higher level of indirection than a typical explicit ADR-signing event.
+    recommended_action: |
+      No action required. INFO logged for cross-validation completeness.
+
+  - id: F-xval-6
+    severity: INFO
+    file: src/agent-tools/agent-tools-memory.ts (entire file)
+    plan_ref: Plan ADR D3 + § Locked names (CLAUDE.md unchanged for this rename)
+    summary: createCliMemory alias retained for backward-compat (Plan does not require this — additive scope creep, but harmless + documented)
+    evidence: |
+      agent-tools-memory.ts:110-114 exports:
+        export const createCliMemory = createAgentToolsMemory;
+      Plan ADR D3 Decision says:
+        "rename `src/agent-tools/cli-memory-factory.ts` → `src/agent-tools/agent-tools-memory.ts` ... Inside the file: rename `createCliMemory` → `createAgentToolsMemory`"
+      Plan does NOT explicitly require keeping the createCliMemory alias.
+      The 4 verb handlers (run-{remember,recall,forget,reflect}.ts) still import `createCliMemory` from the renamed module (verified via grep — implementation-validate § 18 mentions "createCliMemory alias retained for backward-compat").
+      This is technically scope creep per /review anti-pattern #3 ("they also fixed a typo, no harm"), but the alias retention is the LEAST disruptive path: it avoids touching 4 verb handlers that the plan didn't enumerate as Step 7 ("Update import paths in 4 verb handlers"). The plan's Step 7 implies the import name should change too. Implementation chose to retain the import name via the alias — pragmatic but undocumented.
+    recommended_action: |
+      Either (a) follow-up commit to update the 4 verb handlers to import createAgentToolsMemory directly + delete the alias; OR (b) add ADR-D3-supplementary noting the alias is intentional + sunset date for removal. No urgency; the alias is correct behavior, just an undocumented variant of the plan's intent.
+
+cycle_implement_anti_patterns_check:
+  ap_1_failing_red_skipped: PASS — T0.1 8 RED tests authored; verified via implement-validate report § 39 (1069 PASS includes the +8 net)
+  ap_2_done_with_red_tests: PASS — no tests skipped; only 2 environment-gated skips (factory.test.ts conditional)
+  ap_3_plan_edited_during_implement: PASS — plan v1.2 committed at efe05d3; implement commit at b06429e; no edits between
+  ap_4_no_verify: PASS — no `--no-verify` flag in any commit
+  ap_5_commit_on_main: PASS — work on `develop`
+  ap_6_destructive_git: PASS — no `git checkout / revert / push --force / reset --hard`
+  ap_7_scope_creep: PARTIAL — F-xval-6 createCliMemory alias retained without explicit plan authorization (INFO only)
+  ap_8_bypass_validate: PASS — implement-validate report shipped
+  ap_9_fabricate_runtime_metric: PASS — no runtime metric claims in this cycle
+  ap_10_drive_manually: VIOLATION_DISCLOSED — FOURTH consecutive ralph-loop-direct bypass; honestly disclosed in 3 surfaces (commit body + implement-validate report + cycle-implement.md v1.7 ADR-marker); cycle is the one absorbing F-xval-1 + writing the v1.7 sunset clause
+  ap_11_ask_user_between_phases: PASS — no user-prompt between phases observed
+  bypass_path_acceptable: VIOLATION — Plan T5.4 + cycle-implement.md v1.6 § 2 ("max 2 consecutive without ADR amendment"). This is the FOURTH consecutive bypass. The cycle itself authors the v1.7 ADR-marker formalizing the precedent + 30-day sunset 2026-07-04. The new "Acceptable bypass paths" § 3 contract (added 2026-06-04 in p0-fixes-cycle-2 / commit b90841c) requires "no second consecutive bypass without ADR amendment" — this cycle satisfies condition (b) by carrying the ADR amendment (v1.7). The amendment IS the absorption. Cycle is internally consistent.
+
+verdict:
+  status: PASS_WITH_CAVEATS
+  summary: |
+    The fix-cycle materially closes 10 of the 11 MAJOR findings from /review verbs-as-cli:
+      - F-arch-1, F-arch-3, F-wire-1, F-wire-2, F-dom-cli-1, F-dom-cli-2, F-dom-cli-3,
+        F-dom-api-1, F-dom-api-2, F-dom-api-3 — CLOSED at source per the plan.
+      - F-xval-1 (third-bypass procedural finding) — CLOSED via cycle-implement.md v1.7
+        ADR-marker + 30-day sunset 2026-07-04.
+    The 11th MAJOR (F-arch-2 env-validation triplicated) is HALF closed: the env-fail
+    boundary collapsed correctly via assertEnvOrExit + the 2 ENV_SPEC constants, but
+    the factory-path collapse (Plan T2.1 § Tasks Steps 5+6 + ADR D3 Decision) was NOT
+    implemented in run-mcp-server.ts + run-server.ts. The provider wiring duplication
+    that ADR D3 was designed to eliminate REMAINS at 3 sites (run-mcp-server.ts +
+    run-server.ts + agent-tools-memory.ts) — see F-xval-1.
+
+    Goal SMART:
+      - Metric 1 (≥ 8 new assertions in verbs-cli-fixes.test.ts): SATISFIED (9 tests).
+      - Metric 2 (parent 19/19 floor unchanged): SATISFIED (tests 10+11 updated for
+        raw ReflectionResult shape per ADR D2; assertions still total 19).
+      - Metric 3 (≥ 1073 total PASS): NOT SATISFIED for contract-suite-alone (1069 PASS
+        + 2 SKIP); only satisfied if integration cli/ skips count toward total. MINOR
+        per F-xval-2.
+
+    Dependencies: zero new deps confirmed via package.json + package-lock.json clean diff.
+
+    Honesty discipline: strong across the surface — ADR-0005 amendment authorization,
+    EC-3 actual-vs-predicted divergence, T3.1 primary-path failure + T3.1b fallback
+    success, FOURTH consecutive bypass — all disclosed in commit body + implement-validate
+    report + ADR-0005 amendment + cycle-implement.md v1.7 ADR-marker.
+
+    The 1 MAJOR partial implementation (F-xval-1) needs resolution before /review can
+    flip to READY_TO_MERGE: either the plan T2.1 § Tasks Steps 5+6 retrofit ships as
+    a follow-up commit, OR an ADR-D3-supplementary amendment documents the deferral
+    with rationale. Until then, recommend NEEDS_FIXES with the 1 MAJOR (F-xval-1) +
+    1 MINOR (F-xval-2 pass-count floor reconciliation) + 1 MINOR (F-xval-3 implement-
+    validate honesty gap on Sub-goal 2 partial closure).
