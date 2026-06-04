@@ -35,17 +35,14 @@ import { createServer } from '../server/index.js';
 
 import {
   assertEnvOrExit,
+  LOCAL_EMBEDDER_DIM,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
 } from './agent-tools-memory.js';
 
-/**
- * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
- * Mirrors run-mcp-server.ts LOCAL_EMBEDDER_DIM constant (commit e43d801) so the
- * REST + MCP composition roots stay in lockstep per architecture.md § 5.
- */
-const LOCAL_EMBEDDER_DIM = 384;
+// fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
+// (single source of truth — was triplicated across CLI factory + 2 runners).
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
