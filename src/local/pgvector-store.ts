@@ -37,6 +37,8 @@ interface MemoriesRow extends QueryResultRow {
   readonly code_language?: string | null;
   readonly derived_from?: unknown;
   readonly superseded_by?: string | null;
+  /** principles-alignment-hardening T2.1 / ADR D1 — Princípio 1 confirmação factor. */
+  readonly confirmation_count?: number;
   readonly distance?: number;
   readonly rank?: number;
 }
@@ -81,6 +83,12 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   }
   if (row.superseded_by !== undefined && row.superseded_by !== null) {
     payload['superseded_by'] = row.superseded_by;
+  }
+  // principles-alignment-hardening T2.1 / EC-6 — project confirmation_count
+  // into payload when the column is part of the SELECT projection. recall()'s
+  // wrap pipeline hoists this into MemoryItem.confirmationCount.
+  if (row.confirmation_count !== undefined && row.confirmation_count !== null) {
+    payload['confirmation_count'] = row.confirmation_count;
   }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   return score !== undefined
@@ -403,7 +411,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by,
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              embedding <=> $1::vector AS distance
       FROM memories
       WHERE ${temporal.sql}${filter.sql}
@@ -467,7 +475,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by,
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
       WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)
@@ -487,7 +495,7 @@ export class PgvectorStore implements VectorStore {
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
       `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-              kind, code, description, code_language, derived_from, superseded_by
+              kind, code, description, code_language, derived_from, superseded_by, confirmation_count
          FROM memories WHERE id = $1`,
       [vectorId],
     );
@@ -561,7 +569,7 @@ export class PgvectorStore implements VectorStore {
 
     const pageSql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count
       FROM memories
       WHERE 1=1${filter.sql}
       ORDER BY created_at ASC

@@ -87,6 +87,12 @@ function toMemoryItem(id: string, text: string, hash: string, scope: Scope, meta
   // through the payload key BEFORE this conversion.
   const attributedToRaw = metadata['attributed_to'];
   const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+  // principles-alignment-hardening T2.1 / EC-6 — hoist confirmation_count from
+  // the projected payload (pgvector-store search/get/list now SELECT it) to
+  // MemoryItem.confirmationCount. Recall-returned items now surface the
+  // Princípio 1 (CLAUDE.md § IMPORTANTE) confirmação signal.
+  const confirmationCountRaw = metadata['confirmation_count'];
+  const confirmationCount = typeof confirmationCountRaw === 'number' ? confirmationCountRaw : undefined;
   return {
     id,
     text,
@@ -98,6 +104,7 @@ function toMemoryItem(id: string, text: string, hash: string, scope: Scope, meta
     tValid: now,
     tInvalid: null,
     ...(attributedTo !== undefined ? { attributedTo } : {}),
+    ...(confirmationCount !== undefined ? { confirmationCount } : {}),
   };
 }
 
