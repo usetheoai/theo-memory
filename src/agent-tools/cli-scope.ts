@@ -24,12 +24,16 @@ export interface CliScopeOptions {
 }
 
 /**
+ * @internal Shared CLI scope-resolver boundary helper for agent-tools subpath.
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
  * Boundary-only validator. Throws when zero OR more than one scope field is
  * defined. No Memory dependency — invoke at the CLI boundary BEFORE warming
  * the expensive Memory factory (closes F-dom-cli-2: fail-fast ordering must
  * not pay the ~2-5s factory cost just to reject malformed input).
  *
  * Per plan verbs-as-cli-fixes-cycle-1 § T3.2 + EC-6 (3 contract tests).
+ * @internal tag added by fix-cycle-2 hotfix (M1 closure from /review).
  *
  * @throws Error with the same message resolveCliScope used to throw.
  */
@@ -43,12 +47,18 @@ export function validateScopeOpts(opts: CliScopeOptions): void {
 }
 
 /**
+ * @internal Shared CLI scope-resolver for agent-tools subpath.
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
  * Resolve `--user <id>` / `--session <id>` / `--agent <id>` into a
  * `ScopedMemory` by invoking the corresponding `memory.user/session/agent(id)`.
  *
  * Pre-condition: `opts` already passed `validateScopeOpts`. The re-check
  * inside is defense-in-depth; callers should fail-fast BEFORE constructing
  * the Memory.
+ *
+ * @internal tag added by fix-cycle-2 hotfix (M1 closure from /review;
+ * plan T2.3 undercounted by 1 — symmetric to validateScopeOpts boundary helper).
  *
  * @throws Error when zero OR more than one scope field is defined.
  */

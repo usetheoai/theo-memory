@@ -16,7 +16,7 @@
 | 1 | T1.2 | `prebuild:clean` rmSync + `prepack` auto-build added to package.json#scripts. ADR D2 + EC-5 |
 | 2 | T2.1 | `MemoryConfig.reflectionPolicy` JSDoc extended at memory-store.ts with 3 paths + @see ADR-0005 |
 | 2 | T2.2 | Type widened `?: ReflectionPolicy | undefined`; cast dropped at reflect.test.ts. ADR D3 |
-| 2 | T2.3 | 6 exports tagged `@internal` at agent-tools-memory.ts + cli-scope.ts (assertEnvOrExit, PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool, createAgentToolsMemory, validateScopeOpts) |
+| 2 | T2.3 | 5 of 6 exports tagged `@internal` at agent-tools-memory.ts (assertEnvOrExit, PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool, createAgentToolsMemory). **validateScopeOpts at cli-scope.ts MISSED in this commit; closed via fix-cycle-2 hotfix 2026-06-04 alongside symmetric resolveCliScope tag (plan undercounted by 1).** |
 | 2 | T2.4 | ADR-0005 supplementary amendment extended with `### Alternatives considered` (3-row table) + `### Decision` + `### Reversibility` sections |
 | 3 | T3.1 | NEW `wireMemoryFromPool(pool)` helper at agent-tools-memory.ts; createAgentToolsMemory + run-mcp-server.ts + run-server.ts (inside warm Promise) all retrofitted. ADR D4 + EC-3 (2 contract tests at agent-tools-memory.test.ts) |
 | 3 | T3.2 | `createCliMemory` alias DELETED; 4 verb handlers migrated to `createAgentToolsMemory` import via sed. ADR D5 |

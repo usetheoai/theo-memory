@@ -110,7 +110,7 @@ If a caller invokes `reflect()` without configuring a policy, throw `ReflectionN
 - CLI / MCP / REST surfaces all `reflect()` work without explicit wiring; T2.1 of fix-cycle-1 drops the redundant explicit wire from `agent-tools-memory.ts` (EC-4 absorption).
 - ADR-0005 v1.0 status remains `Accepted`; v1.1 is a supplementary widening, not a retraction. Original rationale stays load-bearing for the DIP shape + locked 4 verbs.
 
-### Alternatives considered (M11 absorption from verbs-as-cli-fixes-cycle-2 ADR D6 of plan-confidence-golden-rule.md § "ADR with alternatives" requirement)
+### Alternatives considered (M11 absorption from verbs-as-cli-fixes-cycle-2 ADR D3 + plan-confidence-golden-rule.md § "ADR with alternatives in Rationale" requirement)
 
 | Alternative | Verdict | Rejection rationale |
 |---|---|---|

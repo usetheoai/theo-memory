@@ -26,6 +26,7 @@ import { runMigrations } from '../local/index.js';
 
 import {
   assertEnvOrExit,
+  LOCAL_EMBEDDER_DIM,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
@@ -34,13 +35,9 @@ import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
 
-/**
- * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
- * Aligned with adapters-openrouter-local-embedder ADR D2 — parametric dim
- * pipeline (runMigrations + PgvectorStore + createLocalMemory accept the same
- * value; dim mismatch throws at probe time per EC-1).
- */
-const LOCAL_EMBEDDER_DIM = 384;
+// fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
+// (single source of truth for the Xenova MiniLM 384-dim constant; was
+// triplicated across CLI factory + 2 runners pre-hotfix).
 
 /** Shutdown timeout (ms) — caps how long we wait for server.stop() before force-exit. */
 const SHUTDOWN_TIMEOUT_MS = 5_000;

@@ -31,7 +31,21 @@ import { OpenAILLM } from '../llms/openai.js';
 import { createLocalMemory, runMigrations } from '../local/index.js';
 import { PgvectorStore } from '../local/pgvector-store.js';
 
-const LOCAL_EMBEDDER_DIM = 384;
+/**
+ * @internal Embedding dimension produced by `LocalTransformerEmbedder`
+ * (Xenova `Xenova/all-MiniLM-L6-v2`, 384-dim, L2-normalized). Single source
+ * of truth for the value consumed by:
+ *   - `wireMemoryFromPool` (provider tuple construction)
+ *   - `run-mcp-server.ts::runMcpServer` (pre-wire runMigrations call)
+ *   - `run-server.ts::runServer` (pre-warm-Promise runMigrations call)
+ *
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ *
+ * Exported by fix-cycle-2 hotfix (M2 closure from /review — closes the
+ * 3-site DRY knowledge-duplication that survived ADR D4's tuple-body
+ * extraction).
+ */
+export const LOCAL_EMBEDDER_DIM = 384;
 
 /**
  * @internal Shared boundary helper for agent-tools subpath (CLI/MCP/REST).
