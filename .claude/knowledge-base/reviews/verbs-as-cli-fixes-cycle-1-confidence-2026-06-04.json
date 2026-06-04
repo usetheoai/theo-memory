@@ -1,0 +1,133 @@
+{
+  "plan_slug": "verbs-as-cli-fixes-cycle-1",
+  "plan_path": ".claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md",
+  "plan_version": "1.2",
+  "scored_at": "2026-06-04T19:56:46+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 56.0,
+  "active_dimensions": [
+    "completude",
+    "risco_estrutural"
+  ],
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 82.4,
+  "hard_caps_triggered": [
+    "symbol_fab_unverifiable_typescript"
+  ],
+  "final_score_after_caps": 82.4,
+  "verdict": "SHIPPABLE_WITH_CAVEATS",
+  "motivos": {
+    "completude": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (5/5)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidencia": [],
+    "calibracao": [],
+    "risco_estrutural": [
+      {
+        "sign": "negative",
+        "label": "14 subjective_adjectives hits",
+        "weight": -14.0
+      },
+      {
+        "sign": "negative",
+        "label": "4 weak_imperatives hits",
+        "weight": -4.0
+      },
+      {
+        "sign": "negative",
+        "label": "2 vague_pronouns hits",
+        "weight": -2.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 15,
+      "mapped_gaps": 15,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 5,
+      "with_alternatives": 5,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 20,
+      "by_category": {
+        "subjective_adjectives": 14,
+        "vague_pronouns": 2,
+        "weak_imperatives": 4
+      },
+      "total_penalty": -44
+    },
+    "architecture_compliance": {
+      "compliance_score": 1.0,
+      "project_rules_found_count": 18,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": [
+        "architecture.md",
+        "cycle-implement.md",
+        "cycle-plan.md",
+        "cycle-review.md",
+        "testing.md"
+      ],
+      "principles_cited": [
+        "DIP",
+        "SOLID",
+        "DRY",
+        "KISS",
+        "YAGNI",
+        "TDD"
+      ],
+      "has_dod_quality_signal": true,
+      "has_size_budget_signal": true,
+      "motivos": [
+        "References 5 project rule(s): ['architecture.md', 'cycle-implement.md', 'cycle-plan.md']",
+        "Cites 6 principle(s): ['DIP', 'SOLID', 'DRY']",
+        "Global DoD references quality gates (lint/complexity/size)",
+        "Plan mentions file-size budget"
+      ]
+    }
+  },
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  },
+  "code_quality": {
+    "verdict": "PASS_WITH_CAVEATS",
+    "score_cap": 89,
+    "hard_caps_triggered": [
+      "symbol_fab_unverifiable_typescript"
+    ],
+    "soft_caps_triggered": [],
+    "languages_audited": [
+      "typescript"
+    ]
+  }
+}
