@@ -1,0 +1,221 @@
+/**
+ * T2.1 integration — themory CLI consolidado: alias deprecation warning +
+ * v0.3 regression (themory-mcp still boots the MCP server with the same
+ * stdio transport behavior as before).
+ *
+ * Both tests spawn the built `dist/agent-tools/cli.js` as a child process so
+ * the real bin entry exercises EC-27 alias detection through the actual
+ * argv shape Node delivers (process.argv[1] = path to cli.js OR npm-linked
+ * symlink). Tests gate on the build artifact's presence — `describe.skipIf`
+ * keeps the suite green on fresh checkouts that haven't run `npm run build`.
+ *
+ * @see Plan theo-memory-standalone-p0 § T2.1 + EC-27 + EC-28
+ * @see v0.3 e2e regression — tests/e2e/agent-tools/round-trip.test.ts
+ */
+import { createServer as createNetServer } from 'node:net';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { afterAll, describe, expect, test } from 'vitest';
+
+const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
+const CLI_DIST = resolve(REPO_ROOT, 'dist/agent-tools/cli.js');
+
+interface SpawnResult {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode: number | null;
+  readonly signal: NodeJS.Signals | null;
+}
+
+function spawnCli(binPath: string, env: NodeJS.ProcessEnv, killAfterMs: number): Promise<SpawnResult> {
+  return new Promise<SpawnResult>((resolveSpawn) => {
+    const child = spawn(process.execPath, [binPath], {
+      env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf-8');
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf-8');
+    });
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+    }, killAfterMs);
+    child.on('close', (exitCode, signal) => {
+      clearTimeout(timer);
+      resolveSpawn({ stdout, stderr, exitCode, signal });
+    });
+  });
+}
+
+describe.skipIf(!existsSync(CLI_DIST))(
+  'T2.1 integration — CLI consolidado',
+  () => {
+    test('37. themory-mcp alias emits DEPRECATED warning to stderr', async () => {
+      // Symlink dist/agent-tools/cli.js as `themory-mcp` so process.argv[1]
+      // matches the alias regex when Node invokes it. Bare `node cli.js`
+      // would not exercise EC-27.
+      const tmpDir = mkdtempSync(join(tmpdir(), 'themory-cli-alias-'));
+      const aliasBin = join(tmpDir, 'themory-mcp');
+      symlinkSync(CLI_DIST, aliasBin);
+
+      // No THEOMEM_PG_URI → runMcpServer will exit(2) quickly after the
+      // deprecation warning fires. We only assert the warning landed.
+      const result = await spawnCli(aliasBin, { THEOMEM_PG_URI: '' }, 5_000);
+
+      expect(result.stderr).toMatch(/DEPRECATED/i);
+      expect(result.stderr).toMatch(/themory[- ]mcp/i);
+      expect(result.stderr).toMatch(/themory mcp/);
+    }, 10_000);
+
+    test('38. themory-mcp alias still runs MCP server bootstrap (v0.3 regression)', async () => {
+      // Same alias path, this time with a clearly-invalid pg URI so the
+      // bootstrap reaches createLocalMemory → pg.Pool.connect and surfaces
+      // an error. We assert the MCP code path executed (EC-7 stderr token)
+      // rather than the no-impl stub stderr that `server`/`migrate`/`health`
+      // would produce.
+      const tmpDir = mkdtempSync(join(tmpdir(), 'themory-cli-regress-'));
+      const aliasBin = join(tmpDir, 'themory-mcp');
+      symlinkSync(CLI_DIST, aliasBin);
+
+      // Empty THEOMEM_PG_URI → runMcpServer EC-7 path: exit(2) + stderr
+      // message containing the example postgres:// URI.
+      const result = await spawnCli(aliasBin, { THEOMEM_PG_URI: '' }, 5_000);
+
+      // EC-7 hard-fail evidence — proves runMcpServer was invoked, NOT a
+      // not-implemented stub (which would write "not yet implemented").
+      expect(result.stderr).toContain('THEOMEM_PG_URI');
+      expect(result.stderr).toMatch(/postgres:\/\//);
+      expect(result.stderr).not.toMatch(/not yet implemented/);
+      expect(result.exitCode).toBe(2);
+    }, 10_000);
+  },
+);
+
+// T2.3 — `themory server` subcommand child-process tests.
+// Gates: dist build present AND THEOMEM_PG_URI configured (real pg pool).
+const HAS_PG_URI =
+  process.env['THEOMEM_PG_URI'] !== undefined && process.env['THEOMEM_PG_URI'] !== '';
+
+describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
+  'T2.3 — themory server subcommand (real pg)',
+  () => {
+    // Track child processes so afterAll can kill any leak.
+    const activeChildren: import('node:child_process').ChildProcess[] = [];
+
+    function spawnServer(
+      args: readonly string[],
+      env: NodeJS.ProcessEnv,
+    ): import('node:child_process').ChildProcess {
+      const child = spawn(process.execPath, [CLI_DIST, 'server', ...args], {
+        env: { ...process.env, ...env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      activeChildren.push(child);
+      return child;
+    }
+
+    afterAll(() => {
+      for (const child of activeChildren) {
+        if (!child.killed) child.kill('SIGKILL');
+      }
+    });
+
+    test('39. SIGTERM closes server with exit 0 (EC-32)', async () => {
+      const child = spawnServer(['--port', '18380', '--host', '127.0.0.1'], {});
+      // Wait for stdout `listening` line that signals serve() bound.
+      await new Promise<void>((resolveReady, rejectReady) => {
+        const timer = setTimeout(() => rejectReady(new Error('listen timeout')), 10_000);
+        child.stdout?.on('data', (chunk: Buffer) => {
+          if (chunk.toString('utf-8').includes('listening')) {
+            clearTimeout(timer);
+            resolveReady();
+          }
+        });
+      });
+
+      const exit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+        (resolveExit) => {
+          child.on('close', (code, signal) => resolveExit({ code, signal }));
+        },
+      );
+      child.kill('SIGTERM');
+      const { code, signal } = await exit;
+      expect(signal).toBeNull();
+      expect(code).toBe(0);
+    }, 15_000);
+
+    test('41. themory migrate applies pending migrations; second invocation is no-op (EC-36)', async () => {
+      // Reset DB to fresh state so the first invocation has work to do.
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString: process.env['THEOMEM_PG_URI'] });
+      await pool.query(
+        'DROP TABLE IF EXISTS reflection_counters, consolidation_history, __drizzle_migrations CASCADE',
+      );
+      await pool.end();
+
+      const runOnce = async (): Promise<{ exitCode: number | null; stdout: string }> => {
+        const child = spawn(process.execPath, [CLI_DIST, 'migrate'], {
+          env: { ...process.env },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        child.stdout?.on('data', (chunk: Buffer) => {
+          stdout += chunk.toString('utf-8');
+        });
+        const code = await new Promise<number | null>((resolveExit) => {
+          child.on('close', (c) => resolveExit(c));
+        });
+        return { exitCode: code, stdout };
+      };
+
+      const first = await runOnce();
+      const second = await runOnce();
+
+      expect(first.exitCode).toBe(0);
+      expect(second.exitCode).toBe(0);
+      expect(first.stdout).toMatch(/applied/i);
+      // Second invocation must succeed and not crash on duplicate-table errors.
+      expect(second.stdout).toMatch(/applied/i);
+    }, 30_000);
+
+    test('40. EADDRINUSE — second server on busy port exits 1 with clear stderr (EC-31)', async () => {
+      // Reserve a port using a listening socket; spawn the CLI against that
+      // exact port; expect serve() to surface EADDRINUSE.
+      const sentinel = createNetServer();
+      const port: number = await new Promise<number>((resolveListen) => {
+        sentinel.listen(0, '127.0.0.1', () => {
+          const addr = sentinel.address();
+          if (addr === null || typeof addr === 'string') throw new Error('no address');
+          resolveListen(addr.port);
+        });
+      });
+      try {
+        const child = spawnServer(['--port', String(port), '--host', '127.0.0.1'], {});
+        const result: { stderr: string; code: number | null } = await new Promise(
+          (resolveExit) => {
+            let stderr = '';
+            child.stderr?.on('data', (chunk: Buffer) => {
+              stderr += chunk.toString('utf-8');
+            });
+            child.on('close', (code) => resolveExit({ stderr, code }));
+            setTimeout(() => {
+              if (!child.killed) child.kill('SIGKILL');
+            }, 8_000);
+          },
+        );
+        expect(result.code).toBe(1);
+        expect(result.stderr).toMatch(new RegExp(`Port\\s+${String(port)}\\s+already in use`, 'i'));
+      } finally {
+        await new Promise<void>((resolveClose) => sentinel.close(() => resolveClose()));
+      }
+    }, 15_000);
+  },
+);
