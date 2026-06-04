@@ -3,7 +3,7 @@
  *
  * Pure-JS implementation of the VectorStore DIP. Zero I/O, zero deps.
  * Purpose:
- *  - Unit-test fixture for extraction + retrieval pipelines (REDACTED mockEmbedding pattern)
+ *  - Unit-test fixture for extraction + retrieval pipelines (mockEmbedding fixture-pattern)
  *  - Dev quickstart for consumers experimenting without spinning up Postgres
  *  - Reference implementation that any other adapter is compared against
  *
