@@ -1,0 +1,252 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-wiring
+review_target: main..HEAD for plan p0-api-sdk-mcp-correctness-audit (17 in-cycle commits within 43-commit develop range)
+plan: .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-plan.md
+date: 2026-06-04
+model: haiku
+
+triad_revalidation:
+  total_new_symbols_in_p0_audit_cycle: 4
+  new_symbols_enumerated:
+    - walkStaticImports          # tests/integration/p0-audit/_helpers/static-walk.ts
+    - toRelativePaths            # tests/integration/p0-audit/_helpers/static-walk.ts
+    - spawnMcpAndListTools       # tests/integration/p0-audit/_helpers/mcp-stdio-client.ts
+    - LOCAL_EMBEDDER_DIM         # src/agent-tools/run-server.ts (T3.2 mirror of MCP)
+  pillar_a_honest_pass: 4 / 4    # all four new symbols have functionally necessary callers
+  pillar_b_honest_pass: 4 / 4    # all four exercised in integration tests (not just imported)
+  pillar_c_observed: N/A         # plan ADR D5 + Inquebrável Rule 11 YAGNI declares no runtime metrics for this audit cycle — verified accurate
+  notes: |
+    The plan introduces ZERO new public exports (verified via git diff main..HEAD src/index.ts + src/core/index.ts).
+    Per Inquebrável Rule 11 (YAGNI) + ADR D5: this audit cycle is HARDENING, not feature work.
+    The 4 new symbols are TEST-SCOPED helpers (3) + 1 internal composition-root constant (LOCAL_EMBEDDER_DIM).
+    `+export interface InsertOutcome` / `+export interface MmrCandidate` in the main..HEAD diff predate
+    THIS plan — they belong to principles-alignment-hardening (commit f2978b5) which shipped on develop
+    before p0-api-sdk-mcp-correctness-audit started; verified via `git log main..HEAD --oneline`.
+    These pre-existing exports are USED by 5+ in-project callers and are out of THIS plan's scope.
+
+  per_symbol_audit:
+    - symbol: walkStaticImports
+      pillar_a_callers:
+        - tests/integration/p0-audit/bundle-isolation.test.ts:39
+        - tests/integration/p0-audit/full-public-surface.test.ts:158
+      pillar_b_integration_test: tests/integration/p0-audit/bundle-isolation.test.ts (12/12 GREEN per validation report)
+      verdict: HONEST_WIRED
+      depth_check: walker is recursive (line 51-77 static-walk.ts); test 'walk reaches a deeply-nested core sibling' (bundle-isolation.test.ts:63) asserts transitive reach — exercises functionality, not just import.
+    - symbol: toRelativePaths
+      pillar_a_callers:
+        - tests/integration/p0-audit/bundle-isolation.test.ts:40
+        - tests/integration/p0-audit/full-public-surface.test.ts:159
+      pillar_b_integration_test: same as walkStaticImports
+      verdict: HONEST_WIRED
+    - symbol: spawnMcpAndListTools
+      pillar_a_callers:
+        - tests/integration/p0-audit/mcp-cli-boot.test.ts:56,66
+      pillar_b_integration_test: tests/integration/p0-audit/mcp-cli-boot.test.ts (1 PASS + 2 SKIP per validation report; skipIf when dist/OPENAI_API_KEY/THEOMEM_PG_URI absent)
+      verdict: HONEST_WIRED
+      depth_check: spawns dist/agent-tools/cli.js as child_process, performs MCP initialize handshake + tools/list, parses readline-framed JSON-RPC (EC-9 absorption); assertion exercises tools[].length === 4 + name set membership.
+    - symbol: LOCAL_EMBEDDER_DIM (run-server.ts:43)
+      pillar_a_callers:
+        - src/agent-tools/run-server.ts:115 (runMigrations)
+        - src/agent-tools/run-server.ts:126 (stderr provider banner)
+        - src/agent-tools/run-server.ts:137 (PgvectorStore)
+        - src/agent-tools/run-server.ts:140 (createLocalMemory embeddingDim)
+      pillar_b_integration_test: tests/integration/cli-consolidated.test.ts:140 (test #39 SIGTERM exit 0 spawns dist server end-to-end with this constant inlined)
+      verdict: HONEST_WIRED
+      depth_check: REST run-server.ts is symmetric with run-mcp-server.ts (e43d801); LOCAL_EMBEDDER_DIM = 384 mirrors MCP composition root.
+
+findings:
+  - id: F-wire-1
+    severity: MINOR
+    file: tests/integration/p0-audit/run-server-stub-removal.test.ts
+    line: 28-58
+    plan_ref: T3.2 plan § TDD § RED test_run_server_hard_fails_without_openai_key
+    summary: |
+      T3.2 RED #2 specifies behavioral assertion ("spawn `node dist/agent-tools/cli.js server`
+      without OPENAI_API_KEY; assert exit code 2"). The shipped T3.2 sentinel is grep-shape
+      only (8 readFileSync assertions that match strings in run-server.ts source); does NOT
+      spawn the dist artifact + observe exit code.
+    evidence: |
+      run-server-stub-removal.test.ts has 8 tests, all of the form:
+      `expect(runServer).toMatch(/.../)` or `.not.toMatch(/.../)`
+      No child_process.spawn anywhere in the file.
+
+      Plan TDD spec (line 786-788 of plan):
+        RED: test_run_server_does_not_import_stubs — grep [...] (PRESENT ✓)
+        RED: test_run_server_hard_fails_without_openai_key — spawn `node dist/agent-tools/cli.js server`
+             without OPENAI_API_KEY; assert exit code 2. (ABSENT)
+    mitigation_in_repo: |
+      tests/integration/cli-consolidated.test.ts:140 ("39. SIGTERM closes server with exit 0")
+      DOES spawn `themory server` via dist + sends SIGTERM + asserts exit 0. The hard-fail-without-key
+      path is not asserted behaviorally anywhere; however, run-mcp-server.ts equivalent IS asserted
+      behaviorally (cli-consolidated.test.ts:78-98 'themory-mcp alias still runs MCP server bootstrap').
+    recommended_action: |
+      Add to run-server-stub-removal.test.ts (or cli-consolidated.test.ts § T2.3):
+        test('themory server exits 2 when OPENAI_API_KEY unset (T3.2 RED #2)', async () => {
+          const env = { ...process.env, THEOMEM_PG_URI: 'postgres://...', OPENAI_API_KEY: '' };
+          const result = await spawnCli([CLI_DIST, 'server'], env, 5_000);
+          expect(result.stderr).toMatch(/OPENAI_API_KEY required/);
+          expect(result.exitCode).toBe(2);
+        });
+      Mirrors the symmetric MCP behavioral assertion at cli-consolidated.test.ts:97.
+
+  - id: F-wire-2
+    severity: MINOR
+    file: tests/integration/p0-audit/full-public-surface.test.ts
+    line: N/A
+    plan_ref: T4.1 plan § Deep Dives — 81 assertion budget
+    summary: |
+      THE GOAL TEST shipped with 42 assertions, not the 81 the plan declared. Floor (≥ 30
+      per Goal SMART statement) is met; plan total is 48% short.
+    evidence: |
+      Plan T4.1 Deep Dives lines 944-952:
+        - 13 subpath smoke-import assertions
+        - 9 bundle isolation assertions
+        - 5 paper-name token grep assertions
+        - 4 MCP tools/list verb-presence assertions
+        - 1 npm pack manifest assertion
+        - 49 export-presence assertions
+        Total: 81
+
+      Shipped (per validation report `THE GOAL TEST: 42/42 PASS`):
+        - Sub-goal 1 (exports surface): 6 tests
+        - Sub-goal 2 (subpath smoke): 13 tests
+        - Sub-goal 3 (bundle isolation): 9 tests (numbered 20-28)
+        - Sub-goal 4 (paper-name): 5 tests (numbered 29-33)
+        - Sub-goal 5 (REST + MCP): 5 tests
+        - npm pack hygiene: 4 tests
+        Total: 42
+    mitigation_in_repo: |
+      The "49 export-presence assertions" were collapsed into 2 count-shape assertions
+      (test #1 src/index.ts declares 8 + test #2 src/core/index.ts declares 41) which
+      structurally cover the surface but at lower granularity.
+      Per-export presence is exercised separately by exports-root.test.ts (T1.1: 17/17)
+      and exports-contract.test.ts (T1.2: 3/3), so the GAP doesn't escape the suite.
+    recommended_action: |
+      Either (a) document in the validation report that the 81 → 42 collapse was DELIBERATE
+      with rationale (per-export covered upstream by T1.1/T1.2 sentinels; THE GOAL TEST
+      acts as the aggregator), OR (b) expand THE GOAL TEST to inline the 49 per-export
+      presence assertions for explicit Goal alignment. Option (a) is YAGNI-compliant.
+
+  - id: F-wire-3
+    severity: INFO
+    file: tests/integration/p0-audit/mcp-cli-boot.test.ts
+    line: 73-82
+    plan_ref: T3.3 RED — preconditions sanity test
+    summary: |
+      `test #3` "EC-3 sentinel — skipIf decisions are based on observable env state"
+      is a no-op assertion (`expect(typeof DIST_EXISTS).toBe('boolean')`). It always
+      passes regardless of system state.
+    evidence: |
+      Lines 73-82 of mcp-cli-boot.test.ts:
+        test('3. EC-3 sentinel...', () => {
+          expect(typeof DIST_EXISTS).toBe('boolean');
+          expect(typeof HAS_OPENAI).toBe('boolean');
+          expect(typeof HAS_PG_URI).toBe('boolean');
+        });
+      typeof always returns 'boolean' since the constants are computed as booleans
+      via existsSync / process.env undefined comparison. Tautological assertion.
+    mitigation_in_repo: |
+      Effect on suite correctness is zero — this is documentation-shape, not a gate.
+      The actual skipIf-LOUD discipline is enforced by the 3 console.warn calls at
+      lines 37-44, which DO surface skip causes to CI logs.
+    recommended_action: |
+      Either delete the no-op test or replace its assertion body with a check that
+      the warn messages fired (e.g., spy on console.warn). Low priority.
+
+  - id: F-wire-4
+    severity: INFO
+    file: .claude/knowledge-base/reviews/p0-api-sdk-mcp-correctness-audit-implement-validate-2026-06-04.md
+    line: 1-10
+    plan_ref: cycle-implement.md § anti-pattern #10 (never drive manually outside ralph-loop)
+    summary: |
+      Validation report explicitly discloses (§ "Honest disclosure" + § "Cycle implement
+      anti-patterns adherence" line 88) that the cycle invoked ralph-loop directly,
+      bypassing /implement skill's SEPA agent spawn. Synthetic report consolidated
+      post-facto.
+    evidence: |
+      Line 88: "Anti-pattern #10: violation in spirit — the user invoked ralph-loop:ralph-loop
+                directly instead of /implement {slug} [...] The SEPA agent was NOT spawned
+                for this cycle; this is a known mechanical gap from the raw-loop invocation path."
+    mitigation_in_repo: |
+      The substantive review-style discipline survived through self-discipline + per-iteration
+      honest disclosure. All quality gates (typecheck, lint, contract 1045/2 SKIP, p0-audit
+      127 PASS, /dogfood EVIDENCE_SUFFICIENT preserved) PASS at T5.1 closure.
+      Validation report explicitly cites the gap (Inquebrável Rule 3 honesty).
+      Pre-existing integration failures (3 of them) honestly enumerated as NOT-introduced-by-this-cycle.
+    recommended_action: |
+      For NEXT cycle: invoke `/implement {slug}` to engage the SEPA agent loop properly,
+      OR formalize the "raw ralph-loop bypass" path as a documented escape hatch in
+      cycle-implement.md. The cycle delivered correct code with honest disclosure;
+      no remedial action needed for THIS PR. Surface to /review baseline cross-validation
+      agent for cycle-implement contract hygiene tracking.
+
+integration_with_existing_flows:
+  entry_points_traced:
+    - bin/themory (package.json#bin) → dist/agent-tools/cli.js
+      → subcommand `mcp` → src/agent-tools/run-mcp-server.ts (e43d801 real-providers regime; unchanged this cycle but validated by T3.3 sentinel)
+      → subcommand `server` → src/agent-tools/run-server.ts (T3.2 REST stub-removal landed; verified symmetric with MCP; validated by cli-consolidated.test.ts:140 SIGTERM round-trip)
+      → subcommand `migrate` → wired to runMigrations (validated by cli-consolidated.test.ts:164)
+      → subcommand `health` → present; not modified this cycle
+    - tests/integration/p0-audit/ → new test directory; reachable via vitest.integration.config.ts include glob `tests/integration/**/*.test.ts` (verified per plan ADR D2)
+    - scripts/audit/p0-baseline.sh → invoked by tests/integration/p0-audit/baseline.test.ts:21; output asserted JSON-shape-stable
+    - scripts/audit/public-export-matrix.py → invoked by tests/integration/p0-audit/matrix.test.ts:22; 6 tests exercise script output
+
+  dead_code_check: |
+    PASS — no new orphan modules. Every new file under tests/integration/p0-audit/ has
+    at least one consumer (mostly the GOAL TEST + per-task sentinels). The 2 helpers
+    (_helpers/static-walk.ts + _helpers/mcp-stdio-client.ts) each have ≥2 callers.
+
+boundary_respect_dip:
+  src_core_isolation: VERIFIED — `grep "from '../local\|from '../cloud\|from '../theokit\|from '../agent-tools'" src/core/` returns 0 hits
+  src_local_cloud_separation: VERIFIED — neither imports from the other (0 hits both ways)
+  src_theokit_isolation: VERIFIED — does not import from local or cloud
+  composition_root_discipline: |
+    run-mcp-server.ts + run-server.ts ARE the composition roots per ADR D8.
+    Both import from src/local/ + src/embedders/ + src/llms/ — INTENTIONAL per architecture.md § 3
+    "src/agent-tools/ (when created — v0.3) depends on src/core/ only" is widened by ADR D8
+    to allow composition roots inside src/agent-tools/ to wire local/embedders/llms.
+    This is by design; not a boundary violation.
+
+concurrent_safety:
+  applicable: |
+    T3.2 (REST run-server.ts) writes through pg.Pool — same shape as run-mcp-server.ts.
+    The EC-32 idempotent shutdown guard via `shuttingDown` boolean is correctly implemented
+    (line 192-209 run-server.ts). EC-33 readiness gate via Proxy-shim memoryShim defends
+    against pre-warm verb traffic (line 157-166).
+  notes: |
+    The Memory factory warm-up is deferred behind `warmPromise` (line 135-143). The Proxy
+    shim throws an honest error if a verb fires before `memory` resolves; defense-in-depth
+    for the 503 readiness window. Race-condition risk minimized by the SHUTDOWN_TIMEOUT_MS
+    cap + Promise.race pattern on listener.close.
+
+summary:
+  blocker_count: 0
+  critical_count: 0
+  major_count: 0
+  minor_count: 2
+  info_count: 2
+  total_findings: 4
+
+verdict: HONEST_WIRED_WITH_MINOR_GAPS
+verdict_rationale: |
+  - All wiring triad pillars verified as HONESTLY PASSED per the plan's declarations.
+  - Pillar (c) N/A — plan ADR D5 declares no runtime metrics for this audit cycle; verified accurate.
+  - Zero dead exports introduced by THIS cycle's scope.
+  - Zero boundary violations.
+  - Zero new public-API exports (consistent with hardening-only scope per CLAUDE.md § PRIORITY 0).
+  - All 4 findings are HONESTY/COMPLETENESS observations — none block merge:
+    - F-wire-1 (MINOR) — RED behavioral assertion deferred to cli-consolidated.test.ts; not in T3.2 sentinel
+    - F-wire-2 (MINOR) — GOAL TEST 42 < 81 plan target; floor ≥ 30 met; per-export covered upstream
+    - F-wire-3 (INFO)  — tautological sentinel test in mcp-cli-boot.test.ts (cosmetic)
+    - F-wire-4 (INFO)  — synthetic validation report (already disclosed by author per Inquebrável Rule 3)
+
+honesty_disclosures:
+  - The plan target of 81 assertions in THE GOAL TEST is 48% above what shipped (42).
+    Plan floor (≥ 30 per Goal statement) is met. Validation report celebrates "40% above" the
+    floor; this wiring review notes it's also 48% below the Deep Dive target. Both framings
+    are technically honest; the upstream per-task sentinels close the granularity gap.
+  - The validation report itself was authored POST-FACTO at T5.1 closure (synthetic), per
+    explicit user authorization at the /review pre-condition gate. The substantive gates
+    (typecheck/lint/contract/p0-audit/dogfood) are independently verifiable.
+  - The plan declared 9 subpaths in T2.2 bundle isolation; 2 were pre-existing (./server,
+    ./cache-pg from prior cycles). The 7 NEW subpaths were correctly added, total 9 tests in
+    bundle-isolation.test.ts and 9 in THE GOAL TEST § Sub-goal 3. Matrix complete.

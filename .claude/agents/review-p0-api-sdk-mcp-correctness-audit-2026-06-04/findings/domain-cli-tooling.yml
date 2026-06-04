@@ -1,0 +1,256 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-domain-cli-tooling
+review_target: main..HEAD for plan p0-api-sdk-mcp-correctness-audit
+domain: cli-tooling
+domain_specific_patterns_checked:
+  - "REST + MCP composition root symmetry per ADR D3 (verbatim port of e43d801)"
+  - "OPENAI_API_KEY hard-fail with exit code 2 on both run-server.ts and run-mcp-server.ts"
+  - "LOCAL_EMBEDDER_DIM = 384 constant declared symmetrically and passed to runMigrations + PgvectorStore + createLocalMemory"
+  - "real-providers-wired 1-line stderr disclosure (no stub warning)"
+  - "MCP stdio JSON-RPC client uses readline.createInterface for line-delimited parsing (EC-9)"
+  - "MCP handshake order: initialize → notifications/initialized → tools/list"
+  - "child_process spawn cleanup via SIGKILL in finally block"
+  - "3-tier describe.skipIf with LOUD console.warn (EC-3)"
+  - "T3.4 README MCP setup currency: OPENAI_API_KEY documented, no stub claims, .mcp.json recipe complete"
+  - "Inquebrável Rule 3 — extreme honesty in operator-facing copy"
+findings:
+  - id: F-dom-cli-1
+    severity: MAJOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: 10
+    plan_ref: ADR D3 — verbatim port of e43d801 (REST + MCP symmetry); Inquebrável Rule 3 (honesty)
+    domain_anchor: no-paper-names-in-code.md AND public-copy.md § 6 (pre-release honesty)
+    summary: |
+      JSDoc header at run-mcp-server.ts:9-12 still describes the composition root as wiring
+      "src/local/ (pgvector + stubs)" — a stale narrative pre-dating the e43d801 stub removal.
+      The actual implementation at lines 114-125 now wires LocalTransformerEmbedder + OpenAILLM
+      (real providers); the word "stubs" in the JSDoc is now factually wrong AND undermines the
+      T3.2 disclosure narrative ("MCP no longer uses stubs"). T3.2 explicitly required REST
+      to mirror MCP per e43d801, but the MCP JSDoc itself was not refreshed when e43d801 landed.
+    evidence: |
+      Lines 9-12 of run-mcp-server.ts:
+      ```
+       * Composition root (DIP-allowed): this file wires src/local/ (pgvector +
+       * stubs) into the agent-tools McpServer. Library layer `src/agent-tools/
+       * index.ts` does NOT re-export src/local/ — the bin entry IS the composition
+       * site per ADR D8.
+      ```
+      Actual wiring at lines 120-125:
+      ```ts
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
+        embedder: new LocalTransformerEmbedder(),
+        llm: new OpenAILLM(),
+        embeddingDim: LOCAL_EMBEDDER_DIM,
+      });
+      ```
+      No StubEmbedder / StubLLM in the actual imports. The JSDoc is dishonest copy.
+    recommended_action: |
+      Edit run-mcp-server.ts:9-12 to read e.g. "this file wires src/local/ (pgvector) +
+      src/embedders/local + src/llms/openai into the agent-tools McpServer" — describing
+      what the code does now. Same commit can include the parallel JSDoc tweak on
+      run-server.ts (line 18-21) to maintain symmetry. Sister file's JSDoc is already
+      cleaner ("REST server composition root").
+
+  - id: F-dom-cli-2
+    severity: MAJOR
+    file: README.md
+    line: 191-271 (MCP section), no .mcp.json.example reference anywhere
+    plan_ref: T3.4 Task 3 — "Add cross-reference to the `.mcp.json.example` template file"
+    domain_anchor: T3.4 § Deep Dives — "Include the .mcp.json example block (currently in .mcp.json.example template)"
+    summary: |
+      T3.4 Task 3 explicitly required the README to cross-reference the `.mcp.json.example`
+      template file. The template EXISTS at /home/paulo/Projetos/usetheo/theo-memory/.mcp.json.example
+      (and is gitignored per its own self-description), but the README MCP section does NOT
+      reference it. A third-party reader following the README has no signal that a fill-in
+      template exists in the repo root. The README provides an inline JSON block instead,
+      which forces the user to manually edit absolute paths + secrets every time the install
+      docs are followed. T3.4's `readme-mcp-section.test.ts` does NOT assert on `.mcp.json.example`
+      so the omission slipped past the dedicated sentinel.
+    evidence: |
+      grep result confirms zero hits:
+      $ grep -n "\.mcp\.json\.example" README.md
+      (no output)
+
+      Plan T3.4 task 3 (plan line 895): "Add cross-reference to the `.mcp.json.example` template file."
+
+      Plan T3.4 Deep Dives (plan line 888): "Include the `.mcp.json` example block (currently in
+      `.mcp.json.example` template)."
+    recommended_action: |
+      Add one line to README ~line 205 (just before the inline JSON block):
+      "A pre-filled template lives at `.mcp.json.example` in this repo — copy it to `.mcp.json`
+      and replace the secret. `.mcp.json` is gitignored so the key never reaches a commit."
+      Add a corresponding assertion to readme-mcp-section.test.ts test #7:
+      `expect(section).toMatch(/\.mcp\.json\.example/);`
+
+  - id: F-dom-cli-3
+    severity: MINOR
+    file: README.md
+    line: 197-203 (env-var table)
+    plan_ref: T3.4 § Deep Dives — env-var checklist explicitly enumerates 5 variables
+    domain_anchor: completeness of operator-facing setup documentation
+    summary: |
+      The README env-var table covers 5 rows (THEOMEM_PG_URI, OPENAI_API_KEY, OPENAI_BASE_URL,
+      OPENAI_CHAT_MODEL, THEOMEM_MCP_DEFAULT_USER_ID) — this matches the T3.4 § Deep Dives
+      enumeration. However, the transport-tuning vars (THEOMEM_MCP_TRANSPORT, THEOMEM_MCP_HTTP_PORT,
+      THEOMEM_MCP_HTTP_HOST) consumed by run-mcp-server.ts at lines 58/70/79 are mentioned ONLY
+      inline in the streamable-http example block (lines 249-250). They are missing from the
+      table, so an operator reading the table top-to-bottom does not realize transport+host+port
+      are configurable. This is NOT a hard plan violation (plan's Deep Dives enumerated exactly
+      5 vars) but is a completeness gap for a hardening-mode README — Priority 0 § sub-goal 3
+      asks for "real third-party consumer can install + use without project-internal knowledge".
+    evidence: |
+      run-mcp-server.ts consumes 3 additional env vars NOT in the README table:
+        - THEOMEM_MCP_TRANSPORT (line 58)  — stdio | streamable-http
+        - THEOMEM_MCP_HTTP_PORT (line 70)  — defaults to 8080
+        - THEOMEM_MCP_HTTP_HOST (line 79)  — defaults to 127.0.0.1
+      All three default safely (per resolveTransport / resolvePort / resolveHost), so absence is
+      not a boot-blocking issue — only a documentation completeness gap.
+    recommended_action: |
+      Either:
+      (a) Add 3 rows to the env-var table flagged as transport-tuning ("only relevant when
+          THEOMEM_MCP_TRANSPORT=streamable-http"); OR
+      (b) Add a one-line cross-reference under the table: "For HTTP transport tuning see the
+          streamable-http example below (THEOMEM_MCP_TRANSPORT / THEOMEM_MCP_HTTP_PORT /
+          THEOMEM_MCP_HTTP_HOST)."
+      Option (b) is lighter-touch and matches the plan's intentional 5-row enumeration.
+
+  - id: F-dom-cli-4
+    severity: INFO
+    file: src/agent-tools/run-server.ts vs src/agent-tools/run-mcp-server.ts
+    line: run-server.ts:107 vs run-mcp-server.ts:114
+    plan_ref: ADR D3 — verbatim port of e43d801 (REST + MCP symmetry)
+    domain_anchor: SRP — both composition roots should run migrations identically OR document divergence
+    summary: |
+      Subtle asymmetry between REST and MCP migration paths that does NOT violate the plan but
+      IS worth recording as audit evidence per Inquebrável Rule 3 (honesty over silent diffs).
+      MCP path (run-mcp-server.ts:114) calls `runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })`
+      UNCONDITIONALLY at every boot. REST path (run-server.ts:113-123) gates the same call behind
+      `if (!shouldSkipMigrations())` AND wraps it in try/catch to translate any error into an
+      operator-readable stderr + exit 1. The REST path also supports `THEMEMORY_SKIP_MIGRATIONS`
+      env var for repeat-boot scenarios. ADR D8 (migrate-on-startup) is correctly served by REST;
+      MCP has neither the env-var opt-out NOR the try/catch translation. For T3.2's verbatim-port
+      directive, MCP is the canonical source; REST is the richer of the two paths AND was authored
+      LATER. This is a known divergence (run-server.ts has a richer story per Roadmap Item 16-18
+      composition root duties), but the ADR D3 wording "verbatim port" suggests symmetric behavior.
+    evidence: |
+      run-mcp-server.ts:114: `await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });`
+        (no try/catch; no skip env var; failure throws raw)
+
+      run-server.ts:113-123:
+      ```ts
+      if (!shouldSkipMigrations()) {
+        try {
+          await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
+        } catch (err) {
+          process.stderr.write(
+            `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
+          );
+          process.exit(1);
+          return;
+        }
+      }
+      ```
+    recommended_action: |
+      No blocking action. Surface as INFO: either (a) document the divergence with a
+      JSDoc note on both files explaining MCP intentionally lacks the skip opt-out (and why),
+      OR (b) port the try/catch shape to MCP for symmetry (one-line stderr translation;
+      skip opt-out can stay REST-only since multi-boot scenarios are REST-flavored). Plan
+      does not require either; flagged for documentary honesty per Inquebrável Rule 3.
+
+  - id: F-dom-cli-5
+    severity: INFO
+    file: tests/integration/p0-audit/mcp-cli-boot.test.ts
+    line: 56-62
+    plan_ref: T3.3 § Acceptance Criteria — "Test exists + passes when OPENAI_API_KEY + THEOMEM_PG_URI set"
+    domain_anchor: testing.md § Determinism + Pyramid (integration tier)
+    summary: |
+      Test #1 ("lists 4 verbs") and Test #2 ("registers exactly 4 tools") each spawn an
+      independent MCP child process via spawnMcpAndListTools — meaning two cold boots
+      per test run. With a 60_000 ms timeout each and a 30_000 ms response timeout, two
+      spawns serially can take meaningful wall-clock under contention. The two assertions
+      could be merged into one test calling spawnMcpAndListTools ONCE and asserting both
+      "set contains the 4 names" + "length === 4" — same coverage at half the boot cost.
+      Not a defect per the plan (T3.3 § DoD only requires "Test committed + green"), but
+      is a fairness-to-future-CI signal worth recording. Also matches testing.md § Pyramid
+      guidance — integration tests should reuse setup where possible.
+    evidence: |
+      Two `await spawnMcpAndListTools(CLI_PATH, env, 30_000)` invocations at lines 56 and 66
+      — each performs initialize handshake + tools/list against a fresh child process.
+    recommended_action: |
+      Optional refactor. Either:
+      (a) Merge tests #1 + #2 into one test asserting both invariants on a single spawn; OR
+      (b) Hoist `spawnMcpAndListTools` into a `beforeAll` that caches `result.tools`, and
+          let tests #1 + #2 assert against the shared snapshot.
+      Neither is plan-violating; flagged as low-cost-high-value test hygiene.
+
+  - id: F-dom-cli-6
+    severity: INFO
+    file: tests/integration/p0-audit/_helpers/mcp-stdio-client.ts
+    line: 53-65
+    plan_ref: T3.3 § Deep Dives EC-9 absorption — readline + line-delimited parsing
+    domain_anchor: testing.md § Determinism — no flaky tests; LLM/IO behavior deterministic
+    summary: |
+      `awaitResponse` polls the responses Map every 50 ms inside a busy `while` loop. While
+      semantically correct (the `await new Promise(setTimeout(..., 50))` yields control so
+      the readline 'line' handler can fire), polling with setTimeout is more idiomatic-Node
+      than reactive: an event-driven shape via a Promise resolver registered keyed by id
+      would eliminate the 50 ms latency floor. NOT a defect — this is a smoke gate
+      explicitly scoped per the helper's JSDoc — but is recorded as INFO for honesty since
+      polling can introduce flakiness under heavy-CPU CI (50 ms intervals stretch under
+      load; deadline may fire before a queued line fires).
+    evidence: |
+      Lines 53-65 of mcp-stdio-client.ts:
+      ```ts
+      async function awaitResponse(id: number, label: string): Promise<JsonRpcResponse> {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          const r = responses.get(id);
+          if (r !== undefined) return r;
+          await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error(`MCP ${label} timed out after ${String(timeoutMs)}ms`);
+      }
+      ```
+    recommended_action: |
+      Optional. Replace responses Map with a Map<id, {resolve, reject}> of pending Promises;
+      the rl.on('line', ...) handler resolves the right entry. Eliminates the polling latency
+      floor and is idiomatic Node async. Defer if the test passes reliably under the current
+      shape on CI; revisit if intermittent timeouts appear.
+
+  - id: F-dom-cli-7
+    severity: INFO
+    file: README.md
+    line: 247-252 (HTTP transport example)
+    plan_ref: T3.4 § Deep Dives — install recipes for stdio + HTTP transports
+    domain_anchor: dogfood-golden-rule.md + Inquebrável Rule 3 — operator-facing setup currency
+    summary: |
+      The HTTP transport install example at README lines 247-252 invokes
+      `npx @usetheo/memory/agent-tools` — implying the package is npm-published. Per CLAUDE.md
+      § Locked names, the package is "reserved; not yet published". A third-party operator
+      copy-pasting the recipe will hit npm 404. The MCP stdio recipe at lines 207-223 uses
+      the local-build path (`/absolute/path/to/dist/agent-tools/cli.js`) which is honest for
+      pre-release. The two install recipes diverge in honesty: stdio is correct, HTTP claims a
+      published package. Same issue at line 234 ("Install as a stdio MCP server for other agents")
+      where the `command: "npx"` + `args: ["@usetheo/memory/agent-tools"]` shape implies publish.
+    evidence: |
+      README line 233-234:
+      ```json
+      "command": "npx",
+      "args": ["@usetheo/memory/agent-tools"],
+      ```
+      README line 251:
+      ```bash
+      npx @usetheo/memory/agent-tools
+      ```
+      CLAUDE.md § Locked names: "Canonical install command | `npm install @usetheo/memory` (reserved; not yet published)"
+    recommended_action: |
+      Either:
+      (a) Add a CAVEAT block above the HTTP / non-Claude-Code recipes saying "package not yet
+          published — recipes assume publish landed; until then, invoke via the absolute dist
+          path as shown in the Claude Code recipe above"; OR
+      (b) Replace `npx @usetheo/memory/agent-tools` with `node /abs/path/to/dist/agent-tools/cli.js`
+          in the example blocks, with an inline note that npx will work once the package ships.
+      Option (a) is lower-burden. This is an INFO finding because the affected blocks are
+      forward-looking recipes (consumers checking the README BEFORE the publish has landed
+      are explicitly off-the-happy-path), but Priority 0 sub-goal 3 explicitly demands
+      "third-party install + use without project-internal knowledge" — npx-404 fails that bar.

@@ -1,0 +1,197 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-domain-db-migrations
+review_target: 3c56754..HEAD for plan p0-api-sdk-mcp-correctness-audit
+domain: db-migrations
+detection_status: |
+  PRIMARY domain auto-detected by detect_domain.py — confirmed FALSE POSITIVE.
+  Empirical evidence:
+    - `git log --oneline 3c56754..HEAD -- src/local/migrations/` returns ZERO entries.
+    - `git diff --name-only 3c56754..HEAD` against src/local/migrations/** matches NO files.
+    - The only src/local/schema.ts touch (commit 2b13883, T3.1) is a single JSDoc word
+      change ("Mem0's bivalent" → "the upstream bivalent") with no structural impact.
+    - detect_domain.py keyword matches came from JSDoc "@see ... migration..." comments,
+      run-server.ts ADR D8 comment ("migrate-on-startup"), and schema.ts paper-name
+      remediation prose — NOT from actual migration changes.
+  Verdict: cycle is hardening-only, NOT a feature cycle. Plan correctly does NOT
+  touch migration files. The detection signal is noise from comment text.
+
+domain_specific_patterns_checked:
+  - "embeddingDim parameter flow consistency (LOCAL_EMBEDDER_DIM → runMigrations + PgvectorStore + createLocalMemory)"
+  - "No new migration files added by the 17 cycle commits"
+  - "Drizzle journal (_journal.json) vs .sql file consistency"
+  - "Pre-existing journal-sync.test.ts failure attribution (pre-cycle vs in-cycle)"
+  - "src/local/schema.ts touches in cycle (structural vs cosmetic)"
+
+evidence_collected:
+  cycle_commits: 17
+  migration_file_changes_in_cycle: 0
+  schema_ts_changes_in_cycle: 1  # cosmetic JSDoc word-swap in commit 2b13883 (T3.1 paper-name remediation)
+  migration_files_on_disk: 12  # 0000_*.sql through 0011_*.sql
+  journal_entries: 12  # idx 0..11
+  snapshot_files: 11  # 0000_snapshot.json through 0010_snapshot.json — 0011_snapshot.json MISSING
+  embedding_dim_constant_value: 384  # both run-server.ts:43 and run-mcp-server.ts:37
+  embedding_dim_call_sites_consistent: true
+
+  run_server_ts_wiring:
+    - "src/agent-tools/run-server.ts:43 — const LOCAL_EMBEDDER_DIM = 384"
+    - "src/agent-tools/run-server.ts:115 — runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })"
+    - "src/agent-tools/run-server.ts:137 — new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })"
+    - "src/agent-tools/run-server.ts:140 — createLocalMemory({ embeddingDim: LOCAL_EMBEDDER_DIM, ... })"
+
+  run_mcp_server_ts_wiring:
+    - "src/agent-tools/run-mcp-server.ts:37 — const LOCAL_EMBEDDER_DIM = 384"
+    - "src/agent-tools/run-mcp-server.ts:114 — runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })"
+    - "src/agent-tools/run-mcp-server.ts:121 — new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })"
+    - "src/agent-tools/run-mcp-server.ts:124 — createLocalMemory({ embeddingDim: LOCAL_EMBEDDER_DIM, ... })"
+
+  journal_sync_failure_root_cause: |
+    Commit `5c717aa` (2026-06-04 04:45:48 -0300) "fix(local): T0.1 — migration 0011
+    confirmation_count + composite UNIQUE (ADR D5 + EC-1 + EC-4)" added:
+      - src/local/migrations/0011_confirmation_count_and_composite_unique.sql
+      - src/local/migrations/meta/_journal.json (appended idx=11 entry, tag matches)
+      - src/local/schema.ts
+      - src/local/__tests__/schema.test.ts
+      - tests/integration/migrations/migration-0011.test.ts
+      - CHANGELOG.md
+    But DID NOT add src/local/migrations/meta/0011_snapshot.json — the per-idx
+    Drizzle snapshot companion file. journal-sync.test.ts catches the asymmetry.
+
+  pre_existing_verification: |
+    - Cycle base: 3c56754 (2026-06-04 08:57:05 -0300, plan v1.1 ADR landing)
+    - Migration 0011 commit: 5c717aa (2026-06-04 04:45:48 -0300, T0.1 of principles-alignment-hardening)
+    - `git merge-base --is-ancestor 5c717aa 3c56754` → TRUE (5c717aa IS ancestor)
+    - Conclusion: the missing 0011_snapshot.json predates the p0-api-sdk-mcp-correctness-audit
+      cycle base by ~4 hours and belongs to a DIFFERENT plan (principles-alignment-hardening).
+      The validation report's classification "Pre-existing; out of plan scope" is EMPIRICALLY
+      CORRECT.
+
+findings:
+  - id: F-dom-dbmig-1
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 87
+    plan_ref: N/A — out of plan scope
+    domain_anchor: testing.md § "What to test by area" — Postgres + pgvector adapter integration
+    summary: |
+      No migration files were added, modified, or removed by any of the 17 commits in this
+      cycle (3c56754..HEAD). The cycle is a pure hardening cycle as declared. detect_domain.py
+      flagged this domain as PRIMARY due to keyword matches in JSDoc and prose ("migration",
+      "schema", "INDEX"), but those are FALSE POSITIVE matches against unchanged comment text.
+    evidence: |
+      `git log --oneline 3c56754..HEAD -- src/local/migrations/` → 0 commits
+      `git diff --name-only 3c56754..HEAD -- src/local/migrations/**` → empty set
+      Only src/local/schema.ts touch in cycle: commit 2b13883 changes one JSDoc word
+      ("Mem0's bivalent" → "the upstream bivalent"), purely cosmetic paper-name remediation.
+    recommended_action: |
+      No action. This finding is INFO-level documentation that the domain detection was a
+      false positive and the cycle correctly avoided migration changes per the hardening
+      scope contract (PRIORITY 0 directive, CLAUDE.md).
+
+  - id: F-dom-dbmig-2
+    severity: INFO
+    file: src/agent-tools/run-server.ts
+    line: 43
+    plan_ref: T3.2 — REST server stub removal (mirror of e43d801 MCP fix)
+    domain_anchor: testing.md § "src/local/ — Postgres + pgvector adapter" + CLAUDE.md § Parametric embedding dim
+    summary: |
+      embeddingDim wiring is consistent and correct in both run-server.ts (T3.2) and the
+      reference run-mcp-server.ts (e43d801, pre-cycle). LOCAL_EMBEDDER_DIM = 384 is used
+      at all 3 call sites in BOTH files: runMigrations, new PgvectorStore, createLocalMemory.
+      The Xenova MiniLM model produces 384-dim vectors and the constant matches.
+    evidence: |
+      run-server.ts:  43 (const), 115 (runMigrations), 137 (PgvectorStore), 140 (createLocalMemory) — all use LOCAL_EMBEDDER_DIM
+      run-mcp-server.ts: 37 (const), 114 (runMigrations), 121 (PgvectorStore), 124 (createLocalMemory) — all use LOCAL_EMBEDDER_DIM
+      Both files emit the dim in their "real providers wired" stderr disclosure per
+      Inquebrável Rule 3 honesty.
+    recommended_action: |
+      No action. Wiring is correct and symmetric. This validates that T3.2 fulfilled
+      the plan's "Pass `embeddingDim: LOCAL_EMBEDDER_DIM` to runMigrations, PgvectorStore,
+      createLocalMemory" requirement (plan line 771).
+
+  - id: F-dom-dbmig-3
+    severity: INFO
+    file: tests/integration/migrations/journal-sync.test.ts
+    line: 50
+    plan_ref: N/A — pre-existing out-of-cycle failure
+    domain_anchor: testing.md § Determinism ("A failing test is a bug with maximum priority")
+    summary: |
+      The validation report's classification of journal-sync.test.ts as "Pre-existing;
+      out of plan scope" is EMPIRICALLY CORRECT. The failure root cause is the missing
+      src/local/migrations/meta/0011_snapshot.json companion file, introduced (by omission)
+      in commit 5c717aa "fix(local): T0.1 — migration 0011" at 2026-06-04 04:45:48 -0300,
+      ~4 hours BEFORE the p0-api-sdk-mcp-correctness-audit cycle base 3c56754 (08:57:05).
+      That commit belongs to the principles-alignment-hardening plan, not to this one.
+
+      Test currently fails with 2 of 3 assertions red:
+        - "every .sql migration has a matching meta/{tag}_snapshot.json (count match)": 12 vs 11
+        - "every .sql migration has a matching meta/{idx}_snapshot.json (per-idx presence)": missing ['0011']
+      The "journal.json tag presence" assertion PASSES — _journal.json was updated
+      correctly; only the meta/0011_snapshot.json file is missing.
+
+      F-dom-db-1 BLOCKER context from the test's own docstring: this exact failure mode
+      ("0003 + 0004 .sql files committed without journal sync") was the original v0.4b
+      regression that prompted writing the test. The same shape recurred in 0011 — a
+      regression of the regression, in a DIFFERENT plan.
+
+      Per Inquebrável Rule 3 (extreme honesty) and testing.md § Determinism, this failing
+      test SHOULD be fixed in a follow-up cycle (NOT in this hardening cycle's scope).
+      Leaving it red across cycles is the worst outcome — the determinism rule explicitly
+      forbids tolerating red tests. Recommend a 1-line follow-up cycle:
+        1. Run `npx drizzle-kit generate:pg` to materialize 0011_snapshot.json from schema.ts.
+        2. Commit alongside a regression-of-the-regression note in CHANGELOG.
+    evidence: |
+      `npx vitest run tests/integration/migrations/journal-sync.test.ts` →
+        Test Files: 1 failed
+        Tests: 2 failed | 1 passed (3)
+        Missing snapshot file: src/local/migrations/meta/0011_snapshot.json
+        Present companions: 0000_snapshot.json ... 0010_snapshot.json (11 files)
+        Present sql files: 0000_*.sql ... 0011_*.sql (12 files)
+        Present journal entries: idx 0..11 (12 entries, tag-matched for all)
+
+      `git log -1 --name-only 5c717aa | grep meta/` → only _journal.json, no 0011_snapshot.json
+      `git merge-base --is-ancestor 5c717aa 3c56754` → exit 0 (TRUE; 5c717aa is pre-cycle)
+    recommended_action: |
+      Flag for follow-up cycle (NOT this review's PR). Open a small fix cycle:
+        - Title: "fix(migrations): materialize 0011_snapshot.json — Drizzle journal sync"
+        - Scope: 1 file added (meta/0011_snapshot.json) via `drizzle-kit generate:pg`
+        - Justification: testing.md § Determinism + recurrence of F-dom-db-1 (v0.4b T0.1)
+      This review's PR should merge with this failure documented as pre-existing per the
+      validation report.
+
+  - id: F-dom-dbmig-4
+    severity: INFO
+    file: .claude/agents/review-p0-api-sdk-mcp-correctness-audit-2026-06-04/domain-db-migrations.md
+    line: 22
+    plan_ref: N/A — review meta-finding
+    domain_anchor: cycle-review.md § Domain detection
+    summary: |
+      detect_domain.py auto-classified this domain as PRIMARY based on keyword matches
+      ("migration"/"schema"/"INDEX") that were entirely false positives — the matches
+      hit JSDoc/prose, not structural changes. The user's invocation prompt already
+      acknowledged this ("auto-detected as primary by detect_domain.py — false positive").
+
+      Recommend the detect_domain.py heuristic be tightened in a follow-up:
+        - Filter matches to lines that are NOT inside /* ... */ or // comments, OR
+        - Require git diff hunks against actual .sql or meta/ files for db-migrations classification, OR
+        - Lower confidence weight when matches are concentrated in commit-message text vs source-code AST nodes.
+      Out of scope for this review.
+    evidence: |
+      Cycle touched src/agent-tools/run-server.ts (T3.2) — comments + ADR D8 reference
+      ("migrate-on-startup", "runMigrations runs BEFORE the port binds") match the
+      detector's keyword bag without representing migration work.
+    recommended_action: |
+      No action in this review. Note for future detect_domain.py tuning.
+
+summary: |
+  CLEAN — no db-migrations findings BLOCKER/CRITICAL/MAJOR/MINOR introduced by this cycle.
+  4 INFO findings documenting:
+    1. Detection false positive empirically confirmed (zero migration changes).
+    2. embeddingDim wiring symmetric and correct in T3.2 vs e43d801 reference.
+    3. Pre-existing journal-sync.test.ts failure root-caused to pre-cycle commit 5c717aa
+       (missing meta/0011_snapshot.json) — validation report's classification is correct;
+       follow-up cycle recommended to honor testing.md § Determinism.
+    4. detect_domain.py heuristic gap noted for future tuning.
+
+  This review's PR can merge from the db-migrations perspective. The cycle adhered to
+  the PRIORITY 0 hardening scope contract — no schema or migration changes were
+  introduced, and the parametric dim wiring shipped in T3.2 mirrors the e43d801
+  precedent exactly.

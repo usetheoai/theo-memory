@@ -1,0 +1,258 @@
+agent: review-p0-api-sdk-mcp-correctness-audit-architecture
+review_target: main..HEAD for plan p0-api-sdk-mcp-correctness-audit
+plan: .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-plan.md
+summary: |
+  No architectural blockers found. The 17 cycle commits respect every SOLID
+  guard in `.claude/rules/architecture.md` §§ 3-9: DIP boundary clean
+  (`src/core/` never imports `src/local/`); composition roots in
+  `src/agent-tools/run-server.ts` + `run-mcp-server.ts` correctly own the
+  cross-tier wiring per ADR D8; ES-module + kebab-case + destructured-import
+  hygiene held; zero `any` in public surface; zero `console.log` in
+  production paths. The paper-name baseline (74 → 0) is enforced by a
+  regression sentinel (`tests/integration/p0-audit/no-paper-names.test.ts`
+  via T0.1 baseline script). Public exports in `src/index.ts` (8) and
+  `src/core/index.ts` (41) carry JSDoc + `@see` knowledge-base-coordinate
+  cross-refs.
+
+  Findings below are MINOR / INFO. One MINOR TDD-discipline concern (T3.2
+  ships source + sentinel in a single commit) is procedural, not
+  architectural — included for honesty per Inquebrável Rule 3. One MINOR
+  pragmatism trade-off in the static-walk regex parser is documented as a
+  known limitation, acceptable at the test-helper layer. The remaining
+  findings are INFO surfacing of intentional, documented architectural
+  choices that a future reader might mistake for smells.
+
+findings:
+  - id: F-arch-1
+    severity: MINOR
+    file: src/agent-tools/run-server.ts
+    line: 43
+    plan_ref: T3.2 + ADR D3 of plan v1.1
+    summary: |
+      `LOCAL_EMBEDDER_DIM = 384` is duplicated verbatim between run-server.ts
+      and run-mcp-server.ts (line 37). Intentional symmetry per ADR D3, but
+      represents a small DRY trade-off the next reader will notice.
+    evidence: |
+      ```ts
+      // src/agent-tools/run-server.ts:43
+      const LOCAL_EMBEDDER_DIM = 384;
+
+      // src/agent-tools/run-mcp-server.ts:37
+      const LOCAL_EMBEDDER_DIM = 384;
+      ```
+      Each declaration carries a JSDoc explicitly citing the sibling
+      ("Mirrors run-mcp-server.ts LOCAL_EMBEDDER_DIM constant (commit
+      e43d801)"), so the duplication is documented + load-bearing for the
+      "both composition roots stay in lockstep" claim of ADR D3.
+    recommended_action: |
+      Acceptable as-is — composition roots intentionally own their
+      constants to stay independently auditable. If a third caller appears
+      (cloud composition root v0.5, REST + MCP unified bin entry, etc.),
+      promote the constant into a shared `src/agent-tools/constants.ts`
+      with an ADR documenting the move. Until then, do nothing.
+
+  - id: F-arch-2
+    severity: MINOR
+    file: src/agent-tools/run-server.ts
+    line: 157-166
+    plan_ref: T3.2 (mechanical port of e43d801; no plan-task addition)
+    summary: |
+      The `memoryShim` Proxy pattern is unusual and warrants a brief ADR
+      cross-reference inside the file. Currently the JSDoc at the top of
+      the file mentions EC-33 readiness-gate but does not flag the Proxy
+      pattern as a deliberate design choice — a future reader may mistake
+      it for a smell.
+    evidence: |
+      ```ts
+      const memoryShim = new Proxy({} as Awaited<ReturnType<typeof createLocalMemory>>, {
+        get(_target, prop) {
+          if (memory === undefined) {
+            throw new Error(
+              'Memory not ready: server is still warming up. Poll GET /v1/health until 200 before sending verb traffic.',
+            );
+          }
+          return Reflect.get(memory, prop) as unknown;
+        },
+      });
+      ```
+      The Proxy is a defense-in-depth for the EC-33 async-warm window. It
+      is correct; just under-documented at the call site.
+    recommended_action: |
+      Add a 2-line JSDoc above the `memoryShim` declaration citing the
+      ADR/EC: "Defense-in-depth shim for EC-33 readiness gate: the
+      /v1/health 503-then-200 transition is the primary contract; the
+      Proxy guards against an orchestrator routing traffic before the
+      factory warm Promise resolves. See ADR D8 + EC-33 of the
+      theo-memory-standalone-p0 plan." No behavior change.
+
+  - id: F-arch-3
+    severity: MINOR
+    file: src/agent-tools/run-server.ts
+    line: 164, 177
+    plan_ref: T3.2 (pre-existing casts; not introduced by this cycle)
+    summary: |
+      Two `as unknown` casts at the composition-root boundary. Both are
+      pre-existing (predate T3.2) and architecturally justified per
+      architecture.md § 7 ("If you must escape the type system, use
+      `unknown` with a runtime assertion"). Surfaced for completeness;
+      not a regression of this cycle.
+    evidence: |
+      ```ts
+      // src/agent-tools/run-server.ts:164
+      return Reflect.get(memory, prop) as unknown;
+
+      // src/agent-tools/run-server.ts:177
+      }) as unknown as HttpListener;
+      ```
+      Line 164: `Reflect.get` return type widens to `unknown` per TS spec.
+      Line 177: `@hono/node-server` `serve` returns an opaque type; cast
+      to local `HttpListener` interface for `listener.close(...)` /
+      `listener.on(...)` ergonomics.
+    recommended_action: |
+      Acceptable. The local `HttpListener` interface (lines 77-80) is the
+      runtime assertion architecture.md § 7 requires; the Proxy Reflect.get
+      cast is unavoidable per TS Proxy semantics. No action needed.
+
+  - id: F-arch-4
+    severity: MINOR
+    file: tests/integration/p0-audit/_helpers/static-walk.ts
+    line: 20-22
+    plan_ref: T2.2 / EC-7 (SHOULD TEST absorption)
+    summary: |
+      Regex-based static-import extraction handles `import { ... }`,
+      side-effect `import '...'`, and value `export { ... } from '...'` /
+      `export * from '...'`. It does NOT handle multi-line import clauses
+      where the brace span includes embedded newlines (rare in this
+      codebase, but possible if future contributors format long import
+      lists across lines). Acceptable for a pragmatic test-helper layer
+      but worth knowing.
+    evidence: |
+      ```ts
+      const RE_RUNTIME_IMPORT = /^\s*import(?!\s+type)\s+[^;]+?\s+from\s+['"]([^'"]+)['"]/gm;
+      ```
+      The `[^;]+?` non-greedy quantifier stops at the first newline-or-
+      semicolon. A multi-line import like
+      ```ts
+      import {
+        Foo,
+        Bar,
+      } from './baz.js';
+      ```
+      would NOT match. The fix would be `[\s\S]+?` instead of `[^;]+?`,
+      OR a real TS parser (overkill at this scale).
+    recommended_action: |
+      Accept as a known pragmatic limitation; document the constraint in
+      the helper's top JSDoc ("Regex-based; multi-line import clauses
+      currently not supported — convert to single-line import or extend
+      the regex if encountered."). Promote to a real TS parser only if
+      the codebase starts using multi-line imports systematically.
+
+  - id: F-arch-5
+    severity: MINOR
+    file: src/agent-tools/run-server.ts (T3.2)
+    line: full file change in commit f1e50dc
+    plan_ref: T3.2 TDD discipline (Inquebrável Rule 5)
+    summary: |
+      T3.2 ships source code change + the regression sentinel test
+      (`run-server-stub-removal.test.ts`, 59 LoC, 8 assertions) in the
+      SAME commit `f1e50dc`. Commit message claims "RED: 8 assertions
+      would fail against pre-edit run-server.ts" but the RED phase was
+      not materially demonstrated in a prior commit. Procedural finding,
+      not architectural — the resulting code IS correctly tested and
+      the assertions ARE behavior-shape-correct.
+    evidence: |
+      `git show --stat f1e50dc` shows all 5 files modified together:
+      ```
+      README.md                                              |  4 +-
+      src/agent-tools/run-server.ts                          | 61 +++---
+      tests/integration/cli-consolidated.test.ts             | 11 +++-
+      tests/integration/docker-stack.test.ts                 |  5 ++
+      tests/integration/p0-audit/run-server-stub-removal.test.ts | 59 +++++
+      ```
+      Per `.claude/rules/testing.md § TDD — Red-Green-Refactor`: "Never
+      write production code without a failing test that justifies its
+      existence." A separate RED commit before f1e50dc would have closed
+      this honestly.
+    recommended_action: |
+      Document procedurally (not architecturally) in the cycle's
+      retrospective: when porting a verbatim sibling fix, ship the
+      sentinel test in its own RED commit BEFORE the source-code GREEN
+      commit. No code change required now; the resulting state is
+      correct and locked by a passing test. Inquebrável Rule 3 (extreme
+      honesty) calls for surfacing this even though it's pre-existing /
+      cosmetic.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/index.ts + src/core/index.ts
+    line: full files
+    plan_ref: T1.1 + T1.2
+    summary: |
+      Public-surface JSDoc + @see discipline cleanly aligned with
+      `no-paper-names-in-code.md` rule: every `@see` reference points to
+      a knowledge-base coordinate (ADRs, plans, blueprints) — not a
+      paper name. Zero paper-name leakage into the contract barrel.
+    evidence: |
+      ```ts
+      // src/index.ts:23-25
+      * @see .claude/knowledge-base/adrs/ADR-0001-mem0-shape-architecture.md
+      * @see .claude/knowledge-base/plans/completed/v0-1-local-runtime-plan.md § T7.2
+      * @see .claude/knowledge-base/plans/completed/v0-4b-fixes-cycle-plan.md § ADR D6 (EvictionNotSupported)
+      ```
+      All 49 (8 root + 41 contract) exports follow the same pattern. The
+      `no-paper-names-in-code.md` rule explicitly allows ADR-0001 (which
+      cites "Mem0-shape architecture" inside the ADR title) as a
+      filesystem coordinate, not a paper name in code.
+    recommended_action: None — exemplary discipline. Leave as-is.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/agent-tools/run-server.ts + src/agent-tools/run-mcp-server.ts
+    line: full files
+    plan_ref: ADR D3 + T3.2
+    summary: |
+      DIP composition-root pattern correctly applied: both files import
+      from src/local/, src/embedders/, src/llms/ + src/server/ (REST
+      only) — all "downstream" of src/core/. Neither file is imported BY
+      src/core/. The architecture.md § 3 boundary is respected; the
+      composition roots ARE the legitimate place to wire concrete
+      adapters into the contract.
+    evidence: |
+      ```ts
+      // src/agent-tools/run-server.ts:28-36
+      import { serve } from '@hono/node-server';
+      import { Pool } from 'pg';
+      import { LocalTransformerEmbedder } from '../embedders/local.js';
+      import { OpenAILLM } from '../llms/openai.js';
+      import { createLocalMemory, runMigrations } from '../local/index.js';
+      import { PgvectorStore } from '../local/pgvector-store.js';
+      import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
+      import { createServer } from '../server/index.js';
+      ```
+      `grep -rEn "from '\.\./local/" src/core` returns ZERO hits. DIP
+      direction is sound.
+    recommended_action: None — pattern is canonical. Leave as-is.
+
+  - id: F-arch-8
+    severity: INFO
+    file: tests/integration/p0-audit/full-public-surface.test.ts
+    line: 48
+    plan_ref: T4.1 / EC-10 absorption
+    summary: |
+      THE GOAL TEST organizes 42 assertions across 6 nested `describe`
+      blocks per sub-goal (EC-10 absorption). Failure attribution is
+      first-class: vitest output names the broken sub-goal in line 1
+      instead of forcing a stacktrace grep.
+    evidence: |
+      ```ts
+      describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)', () => {
+        describe('Sub-goal 1: API correctness (public exports surface)', ...);
+        describe('Sub-goal 2: SDK functional / subpath smoke imports (13 subpaths)', ...);
+        describe('Sub-goal 3: Bundle isolation (9 subpath impl files)', ...);
+        describe('Sub-goal 4: Paper-name policy compliance (5 tokens × 0 hits in src/**)', ...);
+        describe('Sub-goal 5: REST stub removal + MCP availability', ...);
+        describe('npm pack manifest hygiene', ...);
+      });
+      ```
+      Plan goal floor was ≥ 30; landed 42 (40% above floor).
+    recommended_action: None — well-structured. Leave as-is.
