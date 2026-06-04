@@ -114,8 +114,17 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       args: readonly string[],
       env: NodeJS.ProcessEnv,
     ): import('node:child_process').ChildProcess {
+      // T3.2 / EC-2 — run-server.ts hard-fails when OPENAI_API_KEY is unset
+      // (mirror of commit e43d801 MCP fix). These boot-shape tests don't
+      // exercise LLM calls, so a fake key is sufficient for the spawn to
+      // reach the listening state.
+      const childEnv: NodeJS.ProcessEnv = {
+        ...process.env,
+        OPENAI_API_KEY: process.env['OPENAI_API_KEY'] ?? 'sk-fake-test-key-for-boot',
+        ...env,
+      };
       const child = spawn(process.execPath, [CLI_DIST, 'server', ...args], {
-        env: { ...process.env, ...env },
+        env: childEnv,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       activeChildren.push(child);
