@@ -7,12 +7,24 @@ import { MEMORY_EVENTS, emitEvent } from '../memory-event.js';
 import type { MemoryEvent } from '../memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 13 values (12 original + extraction_failed per EC-10)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(13);
+  test('has 16 values (15 prior + recall_threshold_filtered per principles-alignment-hardening T4.1)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(16);
   });
 
   test('includes extraction_failed (EC-10 absorption)', () => {
     expect(MEMORY_EVENTS).toContain('extraction_failed');
+  });
+
+  test('includes dedup_collision_confirmed (principles-alignment-hardening T1.1, ADR D2)', () => {
+    expect(MEMORY_EVENTS).toContain('dedup_collision_confirmed');
+  });
+
+  test('includes extraction_zero_facts (principles-alignment-hardening T3.1, ADR D2)', () => {
+    expect(MEMORY_EVENTS).toContain('extraction_zero_facts');
+  });
+
+  test('includes recall_threshold_filtered (principles-alignment-hardening T4.1, ADR D2)', () => {
+    expect(MEMORY_EVENTS).toContain('recall_threshold_filtered');
   });
 
   test('includes the 8 write-phase _completed events', () => {

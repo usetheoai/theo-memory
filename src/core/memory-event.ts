@@ -27,6 +27,24 @@ export const MEMORY_EVENTS = [
   'history_persisted',
   'entity_linked',
   'messages_saved',
+  // principles-alignment-hardening T1.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when PgvectorStore.insert's ON CONFLICT branch UPDATEs an
+  // existing row's confirmation_count instead of inserting a new one.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'dedup_collision_confirmed',
+  // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when runExtractionPipeline's LLM phase returns drafts=[]
+  // (extracted.length === 0). Without this event, remember() returns []
+  // indistinguishably from "no input" — the IGNORE decision was silent.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_zero_facts',
+  // principles-alignment-hardening T4.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when retrieval pipeline's threshold-filter step drops N
+  // sub-threshold candidates. Attributes include filtered_count so consumers
+  // can dashboard the IGNORE volume. NOT emitted when filtered_count = 0
+  // (no-op observability discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_threshold_filtered',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

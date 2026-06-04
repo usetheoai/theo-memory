@@ -1,9 +1,9 @@
 /**
  * 8-phase write pipeline — T4.3 of v0-1-local-runtime plan v1.3.
  *
- * Port of reference TS port's `addToVectorStore`
+ * Port of the upstream `addToVectorStore`
  * (.claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/index.ts:562-994) per blueprint
- * ADR D1 + plan ADR D1.0. Phases are named verbatim from the REDACTED code
+ * ADR D1 + plan ADR D1.0. Phases are named verbatim from the upstream code
  * comments at L588 / L606 / L626 / L695 / L716 / L783 / L851 / L976.
  *
  * Phase 0: context gather (system prompt + custom instructions)
@@ -27,7 +27,7 @@ import { hashFact } from '../dedup.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { HistoryBatchRecord, HistoryManager } from '../dip/history-manager.js';
 import type { LLM } from '../dip/llm.js';
-import type { VectorStore } from '../dip/vector-store.js';
+import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
@@ -87,6 +87,12 @@ function toMemoryItem(id: string, text: string, hash: string, scope: Scope, meta
   // through the payload key BEFORE this conversion.
   const attributedToRaw = metadata['attributed_to'];
   const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+  // principles-alignment-hardening T2.1 / EC-6 — hoist confirmation_count from
+  // the projected payload (pgvector-store search/get/list now SELECT it) to
+  // MemoryItem.confirmationCount. Recall-returned items now surface the
+  // Princípio 1 (CLAUDE.md § IMPORTANTE) confirmação signal.
+  const confirmationCountRaw = metadata['confirmation_count'];
+  const confirmationCount = typeof confirmationCountRaw === 'number' ? confirmationCountRaw : undefined;
   return {
     id,
     text,
@@ -98,11 +104,12 @@ function toMemoryItem(id: string, text: string, hash: string, scope: Scope, meta
     tValid: now,
     tInvalid: null,
     ...(attributedTo !== undefined ? { attributedTo } : {}),
+    ...(confirmationCount !== undefined ? { confirmationCount } : {}),
   };
 }
 
 /**
- * `infer: false` fast-path (REDACTED reference index.ts:568-586).
+ * `infer: false` fast-path (upstream reference index.ts:568-586).
  * Each message becomes one verbatim memory; no LLM call, no entity store.
  */
 async function runInferFalsePath(
@@ -137,9 +144,48 @@ async function runInferFalsePath(
     payloads.push(payload);
   }
   if (vectors.length > 0) {
-    await deps.vectorStore.insert(vectors, ids, payloads);
+    const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
+    return patchItemsWithOutcomes(items, outcomes);
   }
   return items;
+}
+
+/**
+ * principles-alignment-hardening T2.1 — patch MemoryItem instances with
+ * UPSERT outcomes from the vector store. Surfaces Princípio 1 (confirmação)
+ * + Princípio 3 (rejectedAsDuplicate IGNORE auditability) on the DTO.
+ *
+ * Pairing is POSITIONAL by input order: outcomes[i] corresponds to items[i].
+ * This handles the ON CONFLICT DO UPDATE case where PgvectorStore's
+ * RETURNING projects the EXISTING row's id (not the random id we attempted
+ * to INSERT) — positional pairing preserves the consumer's expectation that
+ * "I asked for fact X; here is what the store knows about it (existing id +
+ * post-bump count + dedup flag)".
+ *
+ * When `outcomes.length !== items.length` (e.g., per-row fallback dropped
+ * some rows), items beyond the outcomes length are returned unpatched.
+ */
+function patchItemsWithOutcomes(
+  items: readonly MemoryItem[],
+  outcomes: readonly InsertOutcome[],
+): readonly MemoryItem[] {
+  if (outcomes.length === 0) {
+    return items;
+  }
+  return items.map((item, i) => {
+    const outcome = outcomes[i];
+    if (outcome === undefined) {
+      return item;
+    }
+    return {
+      ...item,
+      // Overwrite id with the store's authoritative value: identical for fresh
+      // inserts, but the EXISTING row's id when ON CONFLICT bumped instead.
+      id: outcome.id,
+      confirmationCount: outcome.confirmationCount,
+      rejectedAsDuplicate: outcome.rejectedAsDuplicate,
+    };
+  });
 }
 
 /** Phase 3: batch embed with per-row fallback on batch failure. */
@@ -167,31 +213,36 @@ async function embedBatchWithFallback(
   }
 }
 
-/** Phase 6: batch persist with per-row fallback. */
+/** Phase 6: batch persist with per-row fallback. Returns per-id outcomes
+ * surfacing UPSERT semantics for principles-alignment-hardening T2.1 wrap. */
 async function persistWithFallback(
   vectorStore: VectorStore,
   vectors: readonly (readonly number[])[],
   ids: readonly string[],
   payloads: readonly Payload[],
   tracer: Tracer | undefined,
-): Promise<void> {
+): Promise<readonly InsertOutcome[]> {
   emitEvent(tracer, 'persist_started', { count: ids.length });
   try {
-    await vectorStore.insert(vectors, ids, payloads);
+    const outcomes = await vectorStore.insert(vectors, ids, payloads);
     emitEvent(tracer, 'persist_completed', { count: ids.length });
+    return outcomes;
   } catch {
     emitEvent(tracer, 'persist_fallback', { count: ids.length });
+    const outcomes: InsertOutcome[] = [];
     for (let i = 0; i < ids.length; i += 1) {
       try {
-        await vectorStore.insert(
+        const single = await vectorStore.insert(
           [vectors[i] as readonly number[]],
           [ids[i] as string],
           [payloads[i] as Payload],
         );
+        outcomes.push(...single);
       } catch {
         // Log + skip; do not poison the batch
       }
     }
+    return outcomes;
   }
 }
 
@@ -251,6 +302,19 @@ export async function runExtractionPipeline(
   }
 
   if (extracted.length === 0) {
+    // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per ADR D2.
+    // LLM returned drafts=[]; before this commit remember() returned []
+    // indistinguishably from "no input". emitEvent surfaces the IGNORE decision
+    // to OTel dashboards. EC-5 absorption: emitEvent is no-op when tracer === undefined.
+    const inputLength = messages.reduce((acc, m) => acc + m.content.length, 0);
+    const scopeTier: string =
+      filters.session_id !== undefined ? 'session' :
+      filters.agent_id !== undefined ? 'agent' :
+      filters.user_id !== undefined ? 'user' : 'none';
+    emitEvent(tracer, 'extraction_zero_facts', {
+      input_length: inputLength,
+      scope_tier: scopeTier,
+    });
     return [];
   }
 
@@ -263,10 +327,15 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 4-5: dedup + payload composition
   // ============================================================
-  const [existingPayloads] = await deps.vectorStore.list(filters, 500);
-  const existingHashes = new Set<string>(
-    existingPayloads.map((r) => String(r.payload['hash'] ?? '')),
-  );
+  // principles-alignment-hardening T1.1 — app-level dedup against DB state
+  // (`existingPayloads` Set) was REMOVED in favor of the DB-level composite
+  // UPSERT (PgvectorStore ON CONFLICT per ADR D5). The DB constraint handles
+  // cross-batch dedup correctly and surfaces the outcome via InsertOutcome
+  // (confirmationCount + rejectedAsDuplicate) so consumers SEE the bump
+  // instead of receiving silent []. The dedup_skipped event still fires for
+  // WITHIN-batch duplicates (the LLM extraction emitting the same fact twice
+  // in one drafts list).
+  const inBatchHashes = new Set<string>();
 
   const scope = scopeFromFilters(filters);
   const metadata = options?.metadata ?? {};
@@ -283,11 +352,12 @@ export async function runExtractionPipeline(
       continue; // embed failed for this row; skip
     }
     const hash = hashFact(text);
-    if (existingHashes.has(hash)) {
+    if (inBatchHashes.has(hash)) {
+      // Within-batch duplicate (same fact emitted twice by the LLM in one call).
       emitEvent(tracer, 'dedup_skipped', { hash });
       continue;
     }
-    existingHashes.add(hash);
+    inBatchHashes.add(hash);
     const id = randomUUID();
     const now = new Date();
     const payload = buildPayload(text, hash, filters, metadata);
@@ -314,13 +384,20 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 6: batch persist (per-row fallback)
   // ============================================================
-  await persistWithFallback(
+  const persistOutcomes = await persistWithFallback(
     deps.vectorStore,
     survivingVectors,
     survivingIds,
     survivingPayloads,
     tracer,
   );
+  // principles-alignment-hardening T2.1 — patch surviving items with UPSERT
+  // outcomes (confirmationCount + rejectedAsDuplicate) per ADR D1 + D4.
+  const patchedItems = patchItemsWithOutcomes(survivingItems, persistOutcomes);
+  // Replace the surviving items array in place so downstream history persist /
+  // entity link / return path see the patched DTOs.
+  survivingItems.length = 0;
+  survivingItems.push(...(patchedItems as MemoryItem[]));
 
   // ============================================================
   // Phase 6.5: batch history persist
@@ -351,7 +428,7 @@ export async function runExtractionPipeline(
       }
       emitEvent(tracer, 'history_persisted', { count: records.length });
     } catch {
-      // Silent swallow per REDACTED pattern at index.ts:805-849 (history failure must not block write)
+      // Silent swallow per the upstream pattern at index.ts:805-849 (history failure must not block write)
     }
   }
 

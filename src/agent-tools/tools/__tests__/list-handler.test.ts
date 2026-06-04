@@ -6,7 +6,7 @@
  * 1. Exactly 4 tools returned
  * 2. Names match locked verbs in declaration order (CLAUDE.md § Locked names)
  * 3. remember.inputSchema.required includes 'content' (F-zod-schema-fixture-test —
- *    proves REDACTED _ToolWithRequired workaround unneeded per ADR D2 + blueprint Q6)
+ *    proves the discover-blueprint _ToolWithRequired workaround unneeded per ADR D2 + blueprint Q6)
  * 4. recall.outputSchema is present + has type 'object'
  * 5. reflect.inputSchema has additionalProperties: false (F-T2.1-3 absorption — proves
  *    ADR D9 jsonSchema7 target translates `.strict()` correctly per EC-11)
@@ -37,7 +37,7 @@ describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
 
   test("remember.inputSchema.required includes 'content' (F-zod-schema-fixture-test absorption)", () => {
     // Per blueprint Q6 + ADR D2: proves zod-to-json-schema emits `required` array
-    // correctly with target='jsonSchema7' — REDACTED's `_ToolWithRequired` workaround
+    // correctly with target='jsonSchema7' — the discover-blueprint `_ToolWithRequired` workaround
     // is unneeded for v0.3.
     const response = buildToolsListResponse();
     const remember = response.tools.find((t) => t.name === 'remember');

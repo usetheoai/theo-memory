@@ -57,7 +57,7 @@ function makeStore(rows: readonly FakeRow[], bm25Mode: 'pass' | 'null' = 'pass')
   });
   return {
     initialize: () => Promise.resolve(),
-    insert: () => Promise.resolve(),
+    insert: () => Promise.resolve([] as const),
     search,
     keywordSearch,
     get: () => Promise.resolve(null),
@@ -135,7 +135,7 @@ describe('runRetrievalPipeline (9-step search)', () => {
     expect(results).toHaveLength(1);
   });
 
-  test('over-fetches with max(topK*4, 60) (REDACTED reference)', async () => {
+  test('over-fetches with max(topK*4, 60) (upstream reference)', async () => {
     const store = makeStore([{ id: 'a', text: 't', semanticScore: 0.9 }]);
     await runRetrievalPipeline(
       'q',
@@ -183,5 +183,60 @@ describe('runRetrievalPipeline (9-step search)', () => {
     const spanNames = new Set(exporter.getFinishedSpans().map((s) => s.name));
     // Plan: at least the formal step events should be observable
     expect(spanNames.size).toBeGreaterThan(0);
+  });
+
+  test('principles-alignment-hardening T4.1 — emits recall_threshold_filtered when sub-threshold rows are dropped (ADR D2 Princípio 3)', async () => {
+    const { tracer, exporter } = setupTracer();
+    // 5 candidates with semantic scores; threshold=0.5 will drop the 3 sub-threshold ones.
+    const store = makeStore([
+      { id: 'a', text: 'kept-1', semanticScore: 0.9 },
+      { id: 'b', text: 'kept-2', semanticScore: 0.7 },
+      { id: 'c', text: 'dropped-1', semanticScore: 0.3 },
+      { id: 'd', text: 'dropped-2', semanticScore: 0.2 },
+      { id: 'e', text: 'dropped-3', semanticScore: 0.1 },
+    ]);
+    await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), tracer },
+      { topK: 10, threshold: 0.5 },
+    );
+    const filteredSpan = exporter.getFinishedSpans().find((s) => s.name === 'recall_threshold_filtered');
+    expect(filteredSpan).toBeDefined();
+    expect(filteredSpan!.attributes['filtered_count']).toBe(3);
+    expect(filteredSpan!.attributes['pre_threshold_count']).toBe(5);
+    expect(filteredSpan!.attributes['post_threshold_count']).toBe(2);
+  });
+
+  test('principles-alignment-hardening T4.1 — NO event emission when filtered_count === 0 (no-op observability discipline)', async () => {
+    const { tracer, exporter } = setupTracer();
+    // All candidates clear the threshold — no sub-threshold rows dropped.
+    const store = makeStore([
+      { id: 'a', text: 'kept-1', semanticScore: 0.9 },
+      { id: 'b', text: 'kept-2', semanticScore: 0.8 },
+    ]);
+    await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), tracer },
+      { topK: 10, threshold: 0.5 },
+    );
+    const filteredSpan = exporter.getFinishedSpans().find((s) => s.name === 'recall_threshold_filtered');
+    expect(filteredSpan).toBeUndefined();
+  });
+
+  test('principles-alignment-hardening T4.1 EC-5 — recall_threshold_filtered no-op when tracer === undefined', async () => {
+    const store = makeStore([
+      { id: 'a', text: 'kept', semanticScore: 0.9 },
+      { id: 'b', text: 'dropped', semanticScore: 0.2 },
+    ]);
+    // No tracer in deps — pipeline must not throw + must return results normally.
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder() },
+      { topK: 10, threshold: 0.5 },
+    );
+    expect(results).toHaveLength(1);
   });
 });

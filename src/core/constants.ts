@@ -10,7 +10,7 @@
  * Locked at 1536 per ADR D1.7 because:
  *  (a) pgvector v0.5.1 (our convergent image) supports HNSW indexes only up to
  *      2000 dimensions for `vector_cosine_ops`.
- *  (b) 1536 matches REDACTED's test-suite mockEmbedding shape verbatim.
+ *  (b) 1536 matches the upstream test-suite mockEmbedding shape verbatim.
  *  (c) Covers OpenAI `text-embedding-3-small` (1536) and `text-embedding-ada-002`
  *      (1536) — the two most common embedders in 2026.
  *

@@ -137,7 +137,7 @@ describe('dispatch handlers — happy paths (T5.1)', () => {
     const scoped = mockScopedMemory();
     const memory = mockMemory(scoped);
     vi.mocked(memory.forget).mockRejectedValue(
-      new MemoryNotFound('memoryId xxx not found (EC-12: divergence from REDACTED)'),
+      new MemoryNotFound('memoryId xxx not found (EC-12: divergence from the upstream)'),
     );
 
     const result = await withScope(ALICE_CTX, () =>

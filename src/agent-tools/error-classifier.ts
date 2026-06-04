@@ -45,7 +45,7 @@ const PG_TRANSIENT_CODES = new Set<string>([
 ]);
 
 /**
- * Catalog of expected domain error classes — REDACTED's `EXPECTED_MCP_TOOL_ERRORS`
+ * Catalog of expected domain error classes — the upstream `EXPECTED_MCP_TOOL_ERRORS`
  * pattern (blueprint Q3) adapted for v0.3. Used by future observability to
  * classify log-level (info vs warning).
  */

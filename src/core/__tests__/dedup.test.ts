@@ -1,11 +1,11 @@
 /**
  * RED-phase tests for src/core/dedup.ts — T1.1 of v0-1-local-runtime plan v1.3.
  *
- * Behavior locked per blueprint D3 + REDACTED reference index.ts:735:
+ * Behavior locked per blueprint D3 + upstream reference index.ts:735:
  * exact-text MD5; NO normalization (lowercase, NFC/NFD, whitespace).
  *
  * EC-6 absorption: NFC vs NFD produce different hashes (documented byte-level
- * dedup, NOT semantic — matches REDACTED's behavior).
+ * dedup, NOT semantic — matches the upstream behavior).
  */
 import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -29,7 +29,7 @@ describe('hashFact', () => {
     expect(hashFact('')).toMatch(/^[a-f0-9]{32}$/);
   });
 
-  test('case-sensitive — does NOT normalize case (matches REDACTED D3)', () => {
+  test('case-sensitive — does NOT normalize case (matches blueprint D3)', () => {
     expect(hashFact('CAT')).not.toBe(hashFact('cat'));
   });
 

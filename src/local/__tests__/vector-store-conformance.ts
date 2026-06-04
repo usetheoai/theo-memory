@@ -189,7 +189,7 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
       expect(page.length).toBe(2);
     });
 
-    test('getUserId works regardless of scope (REDACTED parity; not auth-gating)', async () => {
+    test('getUserId works regardless of scope (upstream-pipeline parity; not auth-gating)', async () => {
       // No-op return; assertion is "does not throw" (ADR-0002: scoping uses Filters)
       const result = await ctx.store.getUserId();
       expect(typeof result).toBe('string');
