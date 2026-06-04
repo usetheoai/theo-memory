@@ -10,7 +10,7 @@
  *   - MemoryConfig      — local + cloud common
  *   - CloudMemoryConfig — cloud extension (apiKey + baseUrl)
  *
- * @see ADR-0001 — vector-based hybrid architecture (adopt the pipeline; diverge on public verbs)
+ * @see ADR-0001 — upstream-shape architecture (adopt the pipeline; diverge on public verbs)
  * @see ADR-0002 — three-tier scope via scoped sub-objects
  * @see ADR-0003 — ADD-only public API (no update method)
  * @see ADR-0004 — API verbs (remember/recall/forget/reflect + parity helpers)
@@ -153,7 +153,7 @@ export interface MemoryConfig {
   /** Default `true`. When `false`, no entity vector store is instantiated; halves storage cost. @see ADR-0007 */
   readonly entityBoost?: boolean;
 
-  /** Optional system-prompt prefix injected into LLM extraction calls. REDACTED parity. */
+  /** Optional system-prompt prefix injected into LLM extraction calls (upstream-pipeline parity). */
   readonly customInstructions?: string;
 }
 

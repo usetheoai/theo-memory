@@ -2,7 +2,7 @@
  * BenchmarkAdapter DIP — 10th interface in the src/core/dip/ family.
  *
  * Owns the contract that every external memory-system adapter
- * (TheMemory / REDACTED v3 / REDACTED / REDACTED) implements for the v0.8 benchmark
+ * (TheMemory + 3 third-party libraries) implements for the v0.8 benchmark
  * runner. Per ADR D5 (Protocol locus) implementations live under
  * src/benchmarks/{adapter}/ and depend on this declaration; src/core/
  * never imports from src/benchmarks/.
@@ -119,7 +119,7 @@ export interface SearchResult {
 
 /**
  * The 10th DIP interface in src/core/dip/. Implemented by 4 adapters in
- * Phases 3 + 6 of v0.8 (TheMemory / REDACTED / REDACTED / REDACTED).
+ * Phases 3 + 6 of v0.8 (TheMemory + 3 third-party libraries).
  *
  * `name` identifies the adapter for run-report filenames + per-vendor
  * pricing lookups. Conventional adapter names: 'themory', 'REDACTED', 'REDACTED',

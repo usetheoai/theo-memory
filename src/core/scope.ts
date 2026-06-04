@@ -2,7 +2,7 @@
  * Three-tier scope discriminated union and the internal Filters shape.
  *
  * @see ADR-0002 — three-tier scope (User / Session / Agent) via scoped sub-objects.
- * @see ADR-0001 — vector-based hybrid architecture (Filters renames REDACTED's `run_id` to `session_id`).
+ * @see ADR-0001 — upstream-shape architecture (Filters renames the upstream `run_id` field to `session_id` per project vocabulary).
  */
 
 export interface UserScope {
@@ -87,8 +87,8 @@ export interface ScopedContext {
 
 /**
  * Internal filter shape passed to the VectorStore + HistoryManager DIPs.
- * Maps 1:1 onto REDACTED's `SearchFilters` shape (snake_case keys);
- * `session_id` is the only rename (REDACTED uses `run_id`).
+ * Maps 1:1 onto the upstream `SearchFilters` shape (snake_case keys);
+ * `session_id` is the only rename (the upstream uses `run_id`).
  *
  * v0.6 adds two skill-aware filter fields (kind + excludeSuperseded) per
  * skill-library plan ADR D3 / T2.2. These are honored by the local
@@ -119,8 +119,8 @@ export interface Filters {
    * (pre-bi-temporal legacy) are treated as `-Infinity` (always-valid).
    *
    * Routed from `RecallOptions.asOf` at the recall boundary. The store layer
-   * composes the SQL WHERE clause; NULL-safe semantics match the REDACTED
-   * (Apache-2.0) prior art referenced in ADR-0011.
+   * composes the SQL WHERE clause; NULL-safe semantics match the
+   * Apache-2.0 prior art referenced in ADR-0011 (see knowledge-base coordinates there).
    *
    * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T3.1
    * @see .claude/knowledge-base/adrs/ADR-0011-bi-temporal-local-runtime-gate-lift.md

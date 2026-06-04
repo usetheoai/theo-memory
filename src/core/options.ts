@@ -35,10 +35,10 @@ export interface RememberOptions {
 }
 
 export interface RecallOptions {
-  /** Default `20` (REDACTED parity). Upper bound on number of memories returned. */
+  /** Default `20` (upstream-pipeline parity). Upper bound on number of memories returned. */
   readonly topK?: number;
 
-  /** Default `0.1` (REDACTED parity). Semantic-similarity gate applied BEFORE BM25 + entity-boost composition. */
+  /** Default `0.1` (upstream-pipeline parity). Semantic-similarity gate applied BEFORE BM25 + entity-boost composition. */
   readonly threshold?: number;
 
   /**
@@ -48,7 +48,7 @@ export interface RecallOptions {
    *
    * Available on the local runtime since v1.1 per ADR-0011 (supersedes
    * ADR-0006 runtime clause). ADR-0006 schema clause (`t_valid`/`t_invalid`
-   * columns since v0.1) is reinforced by REDACTED Apache-2.0 prior art.
+   * columns since v0.1) is reinforced by the Apache-2.0 prior art referenced in ADR-0011.
    *
    * EC-11 absorbed (GDPR caveat): soft-deleted memories (`forget(id)`
    * without `{ hard: true }`) remain recoverable via historical `asOf`
