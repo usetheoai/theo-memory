@@ -214,5 +214,20 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
         expect(packPaths).toContain(`dist/local/migrations/${sqlFile}`);
       }
     });
+
+    test('9. EC-1 hotfix (BLOCKER F-dom-cli-blocker-1) — dist/local/migrations/meta/_journal.json exists in extract', () => {
+      const journalPath = join(extractedPackageDir, 'dist', 'local', 'migrations', 'meta', '_journal.json');
+      expect(existsSync(journalPath), `expected ${journalPath} post-extract — Drizzle migrate() reads meta/_journal.json BEFORE any .sql file (architecture rule § 10.1); without it themory migrate fails Can't find meta/_journal.json`).toBe(true);
+    });
+
+    test('10. EC-1 hotfix — npm pack ships every src/local/migrations/meta/*.json under dist/local/migrations/meta/', () => {
+      const sourceMetaDir = join(REPO_ROOT, 'src', 'local', 'migrations', 'meta');
+      const expectedJson = readdirSync(sourceMetaDir).filter((f) => f.endsWith('.json'));
+      expect(expectedJson.length, 'sanity — meta json files exist in source').toBeGreaterThan(0);
+      const packPaths = packResult!.files.map((f) => f.path);
+      for (const jsonFile of expectedJson) {
+        expect(packPaths).toContain(`dist/local/migrations/meta/${jsonFile}`);
+      }
+    });
   },
 );
