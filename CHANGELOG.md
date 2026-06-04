@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **principles-alignment-hardening T0.1 — v0.1 cross-scope dedup defect** — migration 0011 replaces the v0.1 global UNIQUE on `memories.hash` with a scope-aware composite UNIQUE on `(hash, COALESCE(user_id,''), COALESCE(session_id,''), COALESCE(agent_id,''))` per ADR D5 (EC-1 absorption). Prior behavior: when `user:alice` wrote a fact and later `user:bob` wrote the same text, the global UNIQUE silently rejected bob's INSERT — bob received alice's memoryId, a cross-scope data leak violating the ADR-0002 three-scope contract. Fixed behavior: same-text writes from different scopes produce independent rows; each scope owns its own dedup signal. Backward-compatible at the row level (pre-cycle DBs had at most 1 row per hash by virtue of the v0.1 constraint, so the composite index installs cleanly). Also adds `confirmation_count INTEGER NOT NULL DEFAULT 1` column per ADR D1 — Princípio 1 (CLAUDE.md § IMPORTANTE) confirmação factor surfaces as a queryable signal. Pre-cycle rows backfill to DEFAULT 1 — EC-4 honest floor disclosure: the v0.1 schema did not track confirmations, so 1 is not fabricated history.
+
 ### Changed
 
 - **semantic-recall-cache-v1-5-fixes-cycle-1 T3.1 — Document `repo` scope tier deferral per ADR D10** — `README.md § Semantic recall cache (v1.5)` gains a "Known limitation (v1.5.0)" callout disclosing that `memory.skills(repoId).recall(...)` does NOT consult the recall cache — the cache wrap lives on `LocalScopedMemory.recall()` only. `ScopeTierTtlConfig.repo` field remains REQUIRED in the public DIP because consumer configs that set it forward-port without rewrites; the field's TTL value is dormant until the wiring lands. Skill-scope cache wiring is tracked for v1.5.x. Mirrors the v1.1 EC-9 skill-scope `asOf` honest deferral precedent. Closes F-merge-2 + F-merge-8 from `/review semantic-recall-cache-v1-5` (2026-06-03). @see `.claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § ADR D10 + § T3.1`.
