@@ -83,6 +83,44 @@ Same `remember` / `recall` / `forget` / `reflect` verbs across all three tiers �
 
 Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, and status.
 
+## Foundational principles
+
+Three principles anchor every design decision in TheMemory — schema, API contract, retrieval policy, scoring heuristics. When a technical choice conflicts with a principle, the principle wins.
+
+### Princípio 1 — Nem toda memória tem o mesmo peso.
+
+Relevance is a continuous score, not a boolean. The system composes orthogonal signals:
+
+- **Frequency / confirmation** — `confirmation_count` bumps when the same fact is asserted under the same scope (composite UPSERT per ADR D5; surfaces via `MemoryItem.confirmationCount`).
+- **Recency** — `last_accessed_at` + `created_at` feed exponential decay via `half_life_seconds` (v0.4b forgetting pipeline).
+- **Confidence** — `llm_importance_score` cached by the LLM extraction (v0.4a).
+- **Semantic similarity** — cosine over embeddings (vector-based hybrid 9-step search).
+- **BM25 + entity boost** — lexical and structural signals composed additively.
+
+The system does NOT treat each `remember()` call as an isolated event. When the same fact arrives from different sources or at different moments, the confirmation signal is reinforced and becomes queryable (`WHERE confirmation_count > N`) for filtering, ranking, and audit.
+
+### Princípio 2 — Priorização e diversidade valem mais que volume.
+
+Recalling 5 right and varied memories is worth more than recalling 50 near-paraphrases. The recall pipeline reflects this by design:
+
+- **Semantic threshold** gates BEFORE additive combination (`score = (semantic + bm25 + entity) / max_possible`) — sub-threshold dropped, not weighted.
+- **Top-K cap** bounds the raw result set.
+- **MMR diversify (opt-in)** — `RecallOptions.diversify` applies Maximal Marginal Relevance rerank between score-combine and top-K, reducing redundancy without sacrificing relevance (ADR D3 + EC-3 boundary validation: throws on `lambda ∉ [0, 1]`).
+- **Triadic eviction (v0.4b)** — when capacity saturates, the eviction policy composes Ebbinghaus + LRU + LLM-importance and protects the long-tail (`rare-isolated` survives ≥ 5 LRU passes).
+
+The contract favors information density over raw coverage. Volume without prioritization is noise.
+
+### Princípio 3 — Memória precisa ser auditável.
+
+Every decision to record, ignore, deduplicate, expire, or substitute a memory is OBSERVABLE and TRACEABLE. IGNORE is never silent:
+
+- **`MEMORY_EVENTS` typed union** (16 literals) — each phase of write / recall / reflect emits a typed OTel event via `emitEvent(tracer, ...)`. Includes `extraction_zero_facts` (LLM produced nothing), `dedup_collision_confirmed` (UPSERT bumped `confirmation_count`), `recall_threshold_filtered` (N sub-threshold candidates dropped) — the 3 IGNORE decisions that used to be silent.
+- **`MemoryItem.rejectedAsDuplicate`** — consumer-visible flag: when `remember()` returns the EXISTING row after dedup-collision, the consumer KNOWS.
+- **Audit tables** — `history` records remember/forget; `consolidation_history` records reflect with FK `ON DELETE SET NULL` for GDPR survival; `MemoryItem.derivedFrom` carries provenance for derived memories (v0.4a reflection, v0.7 distillation).
+- **Bi-temporal `t_valid` + `t_invalid`** — `recall({ asOf })` returns the valid state at any historical instant (v1.1 supersedes the ADR-0006 runtime clause).
+
+Traceability is part of the contract, not optional. Every decision to write / ignore / substitute must be justifiable and reviewable.
+
 ## Quickstart (v0.1 local runtime)
 
 > **Pre-release.** Not production-ready. Status: dogfooding via the `/dogfood` gate. The embedding dimension is capped at **1536** at v0.1 (see plan ADR D1.7 in `.claude/knowledge-base/plans/v0-1-local-runtime-plan.md`).

@@ -1,13 +1,44 @@
-IMPORTANTE: 
-*Neim toda memoria tem a mesma importancia*
- - Relevancia pode ser modelaca como score contino que considera fatores como frequencia, recencia, confiança, confirmacao e relevancia.
- 
-*Priorizacao e diversidade é melhor que volume*
- - Recuparar x memorias certas vale mais do ue recuperar 50 parecidas
-  
-*Memoria precisa ser auditavel*
- - Toda decisao de gravar , atualizar ignorar ou subistiguir uma moria deve ser justificada permitndo reastreabilidade revisao e controle de qualidade.
- 
+## IMPORTANTE — Princípios fundamentais do TheMemory
+
+Estes três princípios são a fonte-de-verdade do design. Antecedem qualquer decisão de schema, contrato de API, política de retrieval ou heurística de scoring. Sempre que houver tensão entre um princípio e uma decisão técnica, o princípio vence.
+
+### Princípio 1 — Nem toda memória tem o mesmo peso.
+
+Relevância é um score contínuo, não um booleano. O sistema combina sinais ortogonais:
+
+- **Frequência / confirmação** — `confirmation_count` bumpa quando o mesmo fato é asserido sob o mesmo escopo (composite UPSERT per ADR D5; surfaces via `MemoryItem.confirmationCount`).
+- **Recência** — `last_accessed_at` + `created_at` alimentam decay exponencial via `half_life_seconds` (v0.4b forgetting pipeline).
+- **Confiança** — `llm_importance_score` cacheado pela extração LLM (v0.4a).
+- **Similaridade semântica** — cosine sobre embeddings (vector-based hybrid 9-step search).
+- **BM25 + entity boost** — sinais lexicais e estruturais compostos aditivamente.
+
+O sistema NÃO trata cada chamada `remember()` como evento isolado. Quando o mesmo fato chega de fontes diferentes ou momentos diferentes, o sinal de confirmação é reforçado e fica disponível para filtragem (`WHERE confirmation_count > N`), ranking e auditoria.
+
+### Princípio 2 — Priorização e diversidade valem mais que volume.
+
+Recuperar 5 memórias certas e variadas vale mais do que recuperar 50 paráfrases próximas. O pipeline de recall reflete isso por design:
+
+- **Threshold semântico** gateia ANTES da combinação aditiva (`score = (semantic + bm25 + entity) / max_possible`) — sub-threshold descartado, não ponderado.
+- **Top-K cap** limita o resultado bruto.
+- **MMR diversify (opt-in)** — `RecallOptions.diversify` aplica Maximal Marginal Relevance rerank entre score-combine e top-K para reduzir redundância sem sacrificar relevância (ADR D3, EC-3 validação `lambda ∈ [0, 1]`).
+- **Eviction triádica (v0.4b)** — quando capacidade satura, o eviction policy combina Ebbinghaus + LRU + LLM-importance e protege o long-tail (`rare-isolated` survives ≥ 5 LRU passes).
+
+O contrato favorece densidade informacional sobre cobertura bruta. Volume sem priorização é ruído.
+
+### Princípio 3 — Memória precisa ser auditável.
+
+Toda decisão de gravar, ignorar, deduplicar, expirar ou substituir uma memória é OBSERVÁVEL e RASTREÁVEL. IGNORE nunca é silencioso:
+
+- **`MEMORY_EVENTS` union tipada** (16 literais) — cada fase do write/recall/reflect emite um evento OTel tipado via `emitEvent(tracer, ...)`. Inclui `extraction_zero_facts` (LLM extraiu nada), `dedup_collision_confirmed` (UPSERT bumpou `confirmation_count`), `recall_threshold_filtered` (N candidatos sub-threshold descartados) — os 3 IGNORE-decisions que antes eram silenciosos.
+- **`MemoryItem.rejectedAsDuplicate`** — flag consumer-visible: quando `remember()` retorna a linha EXISTENTE pós-dedup-collision, o consumidor SABE.
+- **Audit tables** — `history` registra remember/forget; `consolidation_history` registra reflect com FK `ON DELETE SET NULL` para survival GDPR; `MemoryItem.derivedFrom` carrega provenance para memórias derivadas (v0.4a reflection, v0.7 distillation).
+- **Bi-temporal `t_valid` + `t_invalid`** — `recall({ asOf })` retorna o estado válido em qualquer instante histórico (v1.1 supersedes ADR-0006 runtime clause).
+
+Rastreabilidade é parte do contrato, não opcional. Cada decisão de gravar/ignorar/substituir tem que ser justificável e revisável.
+
+---
+
+
 # CLAUDE.md — TheMemory
 
 Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [Theo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
