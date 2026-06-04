@@ -73,6 +73,16 @@ export interface ScopeTierTtlConfig {
   readonly user: number;
   readonly agent: number;
   readonly session: number;
+  /**
+   * @deprecated for v1.5.0 — REQUIRED in the DIP shape for consumer-config
+   * forward-compatibility but the value is DORMANT at runtime:
+   * `memory.skills(repoId).recall(...)` does NOT consult the cache (the cache
+   * wrap lives on `LocalScopedMemory.recall()` only). Skill-scope cache wiring
+   * is tracked for v1.5.x. Mirrors the v1.1 EC-9 skill-scope `asOf` honest
+   * deferral precedent: DIP gate REQUIRED, runtime honored only on memory
+   * scopes for now. See CHANGELOG [Unreleased] § Changed entry and
+   * `semantic-recall-cache-v1-5-fixes-cycle-1-plan.md` § ADR D10.
+   */
   readonly repo: number;
 }
 
