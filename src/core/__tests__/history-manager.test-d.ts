@@ -48,7 +48,7 @@ test('close returns void (synchronous)', () => {
   expectTypeOf<HistoryManager['close']>().returns.toEqualTypeOf<void>();
 });
 
-test('HistoryBatchRecord.action is the string-union (D8 — not REDACTED string)', () => {
+test('HistoryBatchRecord.action is the string-union (D8 — not upstream string)', () => {
   expectTypeOf<HistoryBatchRecord['action']>().toEqualTypeOf<'remember' | 'forget' | 'reflect'>();
 });
 

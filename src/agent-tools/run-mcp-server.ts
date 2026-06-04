@@ -7,9 +7,12 @@
  * changed (now invoked via `themory mcp` OR the `themory-mcp` alias).
  *
  * Composition root (DIP-allowed): this file wires src/local/ (pgvector +
- * stubs) into the agent-tools McpServer. Library layer `src/agent-tools/
- * index.ts` does NOT re-export src/local/ — the bin entry IS the composition
- * site per ADR D8.
+ * LocalTransformerEmbedder + OpenAILLM real providers) into the
+ * agent-tools McpServer. Library layer `src/agent-tools/index.ts` does
+ * NOT re-export src/local/ — the bin entry IS the composition site per
+ * ADR D8. The runtime hard-fails on missing OPENAI_API_KEY rather than
+ * silently wiring a deterministic placeholder; see commit e43d801 of the
+ * parent cycle for the placeholder-removal rationale.
  *
  * @see ADR D1 — stdio is the primary transport for local CLI deployment
  * @see ADR D4 — McpServer consumes memoryFactory; T5.1 dispatch resolves scoped memory
@@ -19,12 +22,22 @@
  */
 import { Pool } from 'pg';
 
-import { createLocalMemory, runMigrations, StubEmbedder, StubLLM } from '../local/index.js';
+import { LocalTransformerEmbedder } from '../embedders/local.js';
+import { OpenAILLM } from '../llms/openai.js';
+import { createLocalMemory, runMigrations } from '../local/index.js';
 import { PgvectorStore } from '../local/pgvector-store.js';
 
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
+
+/**
+ * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
+ * Aligned with adapters-openrouter-local-embedder ADR D2 — parametric dim
+ * pipeline (runMigrations + PgvectorStore + createLocalMemory accept the same
+ * value; dim mismatch throws at probe time per EC-1).
+ */
+const LOCAL_EMBEDDER_DIM = 384;
 
 /** Shutdown timeout (ms) — caps how long we wait for server.stop() before force-exit. */
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -79,6 +92,21 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     return; // unreachable but satisfies typecheck
   }
 
+  // PRIORITY 0 hardening + user directive 2026-06-04 ("REMOVA QUALQUER STUB
+  // EM NOSSO AMBIENTE PRODUTIVO"): the MCP server boots ONLY when a real LLM
+  // provider is configured. `OPENAI_API_KEY` is the OpenAI-compatible auth
+  // shape — works for OpenAI proper AND for OpenRouter (set
+  // OPENAI_BASE_URL=https://openrouter.ai/api/v1). Fail-closed with a clear
+  // operator message rather than silently falling back to a stub.
+  const llmApiKey = process.env['OPENAI_API_KEY'];
+  if (llmApiKey === undefined || llmApiKey.length === 0) {
+    process.stderr.write(
+      'Error: OPENAI_API_KEY required. Set it to a key accepted by OPENAI_BASE_URL (defaults to api.openai.com; set OPENAI_BASE_URL=https://openrouter.ai/api/v1 for OpenRouter).\n',
+    );
+    process.exit(2);
+    return; // unreachable but satisfies typecheck
+  }
+
   const transport = resolveTransport(options?.transport);
   // Validate port eagerly so an invalid CLI flag fails BEFORE we touch pg —
   // avoids leaking a connection pool when the operator typo'd the port.
@@ -86,26 +114,17 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   const host = transport === 'streamable-http' ? resolveHost(options?.host) : '';
 
   const pool = new Pool({ connectionString: pgUri });
-  await runMigrations(pool);
+  await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
 
-  // fixes-cycle-1 T2.2 / F-rev-9 absorption: same consumer-honesty warning
-  // as run-server.ts. MCP transport carries the same default-stub baggage.
-  // FOLLOW-UP: gate this warning when run-mcp-server.ts gains real-provider
-  // config (e.g., THEMORY_EMBEDDER=openai|local). Currently unconditional.
   process.stderr.write(
-    'themory mcp: WARNING — Stub embedder + Stub LLM in use (StubEmbedder + StubLLM).\n',
-  );
-  process.stderr.write(
-    'themory mcp: Recall returns shape-correct results but is NOT semantic — only exact-text round-trips work reliably.\n',
-  );
-  process.stderr.write(
-    'themory mcp: For production, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n',
+    `themory mcp: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${LOCAL_EMBEDDER_DIM}) + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
   const memory = await createLocalMemory({
-    vectorStore: new PgvectorStore(pool),
-    embedder: new StubEmbedder(),
-    llm: new StubLLM(),
+    vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
+    embedder: new LocalTransformerEmbedder(),
+    llm: new OpenAILLM(),
+    embeddingDim: LOCAL_EMBEDDER_DIM,
   });
 
   const server = new McpServer({

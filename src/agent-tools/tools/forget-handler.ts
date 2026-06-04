@@ -11,7 +11,7 @@
  * scope for v0.3 agent tools per plan T5.1 § Deep Dives).
  *
  * EC-14 absorbed: `Memory.forget(unknownId)` throws `MemoryNotFound` (v0.1 EC-12
- * divergence from REDACTED). Handler catches → returns idempotent success per agent
+ * divergence from the upstream). Handler catches → returns idempotent success per agent
  * REST DELETE semantics.
  *
  * @see ADR D2 — schema + verb separation

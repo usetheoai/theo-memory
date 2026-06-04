@@ -26,7 +26,7 @@ export const DESCRIPTION =
 export const INPUT_SCHEMA = z.object({
   /** The note to remember. Free-form natural language. Capped at MAX_CONTENT_BYTES (EC-2). */
   content: z.string().min(1).max(MAX_CONTENT_BYTES),
-  /** Optional flat key/value metadata payload (primitives only — REDACTED parity). */
+  /** Optional flat key/value metadata payload (primitives only — upstream-pipeline parity). */
   metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
 });
 

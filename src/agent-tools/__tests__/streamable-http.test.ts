@@ -9,7 +9,7 @@
  * @see ADR D1 — Transport: stdio + streamable-HTTP (skip SSE + fastmcp)
  * @see ADR D3 — scope binding via AsyncLocalStorage
  * @see ADR D6 — error mechanisms
- * @see REDACTED blueprint Q5 — stateless mode pattern (sessionIdGenerator: undefined)
+ * @see .claude/knowledge-base/discoveries/blueprints discover blueprint Q5 — stateless mode pattern (sessionIdGenerator: undefined)
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -49,7 +49,7 @@ describe('connectStreamableHttp (T6.2)', () => {
   it('connects the McpServer to the StreamableHTTPServerTransport (stateless mode)', async () => {
     const server = mockServer();
     const handle = await connectStreamableHttp(server, { port: 0, host: '127.0.0.1' });
-    // server.start called with a transport whose sessionId is undefined (stateless mode per REDACTED Q5)
+    // server.start called with a transport whose sessionId is undefined (stateless mode per discover Q5)
     expect(vi.mocked(server.start)).toHaveBeenCalledTimes(1);
     const transport = vi.mocked(server.start).mock.calls[0]?.[0] as { sessionId?: string };
     expect(transport.sessionId).toBeUndefined();

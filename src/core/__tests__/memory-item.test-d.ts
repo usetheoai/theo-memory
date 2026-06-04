@@ -21,7 +21,26 @@ test('MemoryItem has the locked field shape', () => {
     readonly lastAccessedAt?: Date | null;
     readonly accessCount?: number;
     readonly halfLifeSeconds?: number | null;
+    // principles-alignment-hardening T2.1 — Princípio 1 + Princípio 3 widening (ADR D1 + D4).
+    readonly confirmationCount?: number;
+    readonly rejectedAsDuplicate?: boolean;
   }>();
+});
+
+// principles-alignment-hardening T2.1 narrowing checks per ADR D1 + ADR D4.
+test('MemoryItem.confirmationCount is an optional number per ADR D1 (Princípio 1 confirmação)', () => {
+  expectTypeOf<MemoryItem['confirmationCount']>().toEqualTypeOf<number | undefined>();
+});
+
+test('MemoryItem.rejectedAsDuplicate is an optional boolean per ADR D4 (Princípio 3 IGNORE auditability)', () => {
+  expectTypeOf<MemoryItem['rejectedAsDuplicate']>().toEqualTypeOf<boolean | undefined>();
+});
+
+test('Consumer canonical pattern — rejectedAsDuplicate === true branch narrows correctly', () => {
+  function isRejected(item: MemoryItem): boolean {
+    return item.rejectedAsDuplicate === true;
+  }
+  expectTypeOf(isRejected).toEqualTypeOf<(item: MemoryItem) => boolean>();
 });
 
 test('MemoryItemWithScore extends MemoryItem with readonly score', () => {

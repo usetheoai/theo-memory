@@ -21,10 +21,10 @@ export interface HistoryManager {
   /**
    * Persist a single audit-trail event.
    *
-   * Notes vs REDACTED:
-   *   - action is the string-union (REDACTED uses `string`).
-   *   - isDeleted is boolean (REDACTED uses number).
-   *   - createdAt / updatedAt are Date (REDACTED uses string; parsing happens at the adapter boundary).
+   * Notes vs the upstream contract:
+   *   - action is the string-union (the upstream uses bare `string`).
+   *   - isDeleted is boolean (the upstream uses number).
+   *   - createdAt / updatedAt are Date (the upstream uses string; parsing happens at the adapter boundary).
    */
   addHistory(
     memoryId: string,

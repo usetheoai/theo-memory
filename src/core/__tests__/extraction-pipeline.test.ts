@@ -20,7 +20,7 @@ import {
 import { MAX_EMBEDDING_DIM } from '../constants.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { LLM } from '../dip/llm.js';
-import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
+import type { InsertOutcome, VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import type { Filters } from '../scope.js';
 import { runExtractionPipeline } from '../extraction/pipeline.js';
 
@@ -30,11 +30,15 @@ class StubVectorStore implements VectorStore {
   private rows = new Map<string, { vector: readonly number[]; payload: Payload }>();
 
   initialize(): Promise<void> { return Promise.resolve(); }
-  async insert(vectors: readonly (readonly number[])[], ids: readonly string[], payloads: readonly Payload[]): Promise<void> {
+  async insert(vectors: readonly (readonly number[])[], ids: readonly string[], payloads: readonly Payload[]): Promise<readonly InsertOutcome[]> {
+    const outcomes: InsertOutcome[] = [];
     for (let i = 0; i < ids.length; i += 1) {
-      this.rows.set(ids[i] as string, { vector: vectors[i] as readonly number[], payload: payloads[i] as Payload });
+      const id = ids[i] as string;
+      this.rows.set(id, { vector: vectors[i] as readonly number[], payload: payloads[i] as Payload });
+      outcomes.push({ id, confirmationCount: 1, rejectedAsDuplicate: false });
     }
     await Promise.resolve();
+    return outcomes;
   }
   async search(_q: readonly number[], topK = 10, _filters?: Filters): Promise<readonly VectorStoreResult[]> {
     const out: VectorStoreResult[] = [];
@@ -125,6 +129,35 @@ describe('runExtractionPipeline (8-phase write)', () => {
     expect(insertSpy).not.toHaveBeenCalled();
   });
 
+  test('principles-alignment-hardening T3.1 — emits extraction_zero_facts when LLM returns drafts=[] (ADR D2 Princípio 3)', async () => {
+    const { tracer, exporter } = setupTracer();
+    const store = new StubVectorStore();
+    const llm = makeLlm({ memory: [] });
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'silence' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+    );
+    expect(result).toEqual([]);
+    const spans = exporter.getFinishedSpans();
+    const zeroFactsSpan = spans.find((s) => s.name === 'extraction_zero_facts');
+    expect(zeroFactsSpan).toBeDefined();
+    expect(zeroFactsSpan!.attributes['input_length']).toBe('silence'.length);
+    expect(zeroFactsSpan!.attributes['scope_tier']).toBe('user');
+  });
+
+  test('principles-alignment-hardening T3.1 EC-5 — extraction_zero_facts no-op when tracer === undefined', async () => {
+    const store = new StubVectorStore();
+    const llm = makeLlm({ memory: [] });
+    // No tracer in deps — emitEvent must be a clean no-op.
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'silence' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), llm },
+    );
+    expect(result).toEqual([]);
+  });
+
   test('EC-10: malformed LLM JSON returns [] + emits extraction_failed event', async () => {
     const { tracer, exporter } = setupTracer();
     const store = new StubVectorStore();
@@ -139,21 +172,27 @@ describe('runExtractionPipeline (8-phase write)', () => {
     expect(spanNames).toContain('extraction_failed');
   });
 
-  test('skips dedup hit (hash collision against existing memory)', async () => {
+  test('emits dedup_skipped for WITHIN-batch duplicates (LLM emits same fact twice in one call)', async () => {
+    // principles-alignment-hardening T1.1 contract change: dedup against
+    // existing DB state moved from app-level to DB-level (PgvectorStore composite
+    // UPSERT per ADR D5). The dedup_skipped event still fires for WITHIN-batch
+    // duplicates (the LLM emitting the same fact twice in one extraction call).
+    const { tracer, exporter } = setupTracer();
     const store = new StubVectorStore();
-    const llm1 = makeLlm({ memory: [{ id: '0', text: 'Paulo likes coffee' }] });
-    await runExtractionPipeline(
-      [{ role: 'user', content: 'first time' }],
-      { user_id: 'alice' },
-      { vectorStore: store, embedder: makeEmbedder(), llm: llm1 },
-    );
-    const llm2 = makeLlm({ memory: [{ id: '0', text: 'Paulo likes coffee' }] });
+    const llm = makeLlm({
+      memory: [
+        { id: '0', text: 'Paulo likes coffee' },
+        { id: '1', text: 'Paulo likes coffee' }, // duplicate within the SAME drafts list
+      ],
+    });
     const result = await runExtractionPipeline(
-      [{ role: 'user', content: 'second time' }],
+      [{ role: 'user', content: 'within batch dup' }],
       { user_id: 'alice' },
-      { vectorStore: store, embedder: makeEmbedder(), llm: llm2 },
+      { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
     );
-    expect(result).toEqual([]);
+    expect(result).toHaveLength(1); // second copy dedup-skipped within the batch
+    const spanNames = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spanNames).toContain('dedup_skipped');
   });
 
   test('per-row fallback on embedBatch failure: still persists via single embed', async () => {

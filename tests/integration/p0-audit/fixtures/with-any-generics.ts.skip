@@ -1,0 +1,12 @@
+// EC-5 absorption fixture — synthetic file used by the sibling regression
+// test to verify the regex catches generic-arg occurrences. The .ts.skip
+// suffix keeps it out of every test runner config + tsc include glob (
+// vitest.contract.config.ts globs *.test.ts / *.test-d.ts only).
+//
+// 4 expected hits below across 4 syntactic positions.
+declare const a: Array<any>;
+declare function p(): Promise<any>;
+declare const r: Record<string, any>;
+declare const x: unknown;
+const _y = x as any;
+export {};

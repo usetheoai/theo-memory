@@ -1,7 +1,7 @@
 /**
  * RED-phase tests for src/core/lemmatization.ts — T1.2 of v0-1-local-runtime plan v1.3.
  *
- * Behavior locked per blueprint Recommendation 3 + REDACTED reference
+ * Behavior locked per blueprint Recommendation 3 + upstream reference
  * utils/lemmatization.ts:246-278. Optional `natural` (Porter stemmer) with
  * in-house `simpleStem` fallback when `natural` is not installed.
  *
