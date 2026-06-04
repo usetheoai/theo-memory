@@ -15,6 +15,7 @@
  * @see .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-plan.md § T2.3
  */
 import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,9 +73,13 @@ describe('T2.3 — npm pack --dry-run manifest', () => {
     expect(srcTs.length).toBeGreaterThanOrEqual(100);
   });
 
-  test('4. pack manifest ships >= 1 src/local/migrations/** entry (architecture.md § 10.1)', () => {
-    const migrations = paths.filter((p) => p.startsWith('src/local/migrations/'));
-    expect(migrations.length).toBeGreaterThanOrEqual(1);
+  test('4. fixes-cycle-1 F-dom-api-3 — pack manifest ships EVERY src/local/migrations/*.sql file (behavioral floor)', () => {
+    const migrationsDir = join(REPO_ROOT, 'src', 'local', 'migrations');
+    const expectedSql = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
+    expect(expectedSql.length, 'sanity — at least one .sql file in source migrations dir').toBeGreaterThan(0);
+    for (const sqlFile of expectedSql) {
+      expect(paths).toContain(`src/local/migrations/${sqlFile}`);
+    }
   });
 
   test('5. pack manifest EXCLUDES every __tests__/** path (no test-leak)', () => {
