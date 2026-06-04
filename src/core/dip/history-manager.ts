@@ -21,10 +21,10 @@ export interface HistoryManager {
   /**
    * Persist a single audit-trail event.
    *
-   * Notes vs Mem0:
-   *   - action is the string-union (Mem0 uses `string`).
-   *   - isDeleted is boolean (Mem0 uses number).
-   *   - createdAt / updatedAt are Date (Mem0 uses string; parsing happens at the adapter boundary).
+   * Notes vs the upstream contract:
+   *   - action is the string-union (the upstream uses bare `string`).
+   *   - isDeleted is boolean (the upstream uses number).
+   *   - createdAt / updatedAt are Date (the upstream uses string; parsing happens at the adapter boundary).
    */
   addHistory(
     memoryId: string,

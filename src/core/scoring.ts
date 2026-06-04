@@ -1,8 +1,8 @@
 /**
  * Pure-core scoring primitives for the v0.1 9-step retrieval pipeline.
  *
- * Ported verbatim from Mem0's
- * .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:1-138 per blueprint D2.
+ * Ported verbatim from the upstream additive composition documented in
+ * blueprint D2 — see knowledge-base coordinate below for the prior-art reference.
  *
  * Formula: `combined = min((semantic + bm25 + entity_boost) / max_possible, 1.0)`.
  * Threshold gate happens in Phase 5 (retrieval/pipeline.ts) BEFORE combining —
@@ -12,10 +12,9 @@
  * EC-8: NaN propagates predictably; Phase 5 threshold gate drops NaN-scored results.
  *
  * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § D2
- * @see .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/utils/scoring.ts:87-138
  */
 
-/** ENTITY_BOOST_WEIGHT — Mem0 constant (scoring.ts:14). Hardcoded; surfaceable via config at v1.x only if measurement demands tuning. */
+/** ENTITY_BOOST_WEIGHT — upstream additive constant. Hardcoded; surfaceable via config at v1.x only if measurement demands tuning. */
 export const ENTITY_BOOST_WEIGHT = 0.5;
 
 /** Sigmoid params tuned by query length (scoring.ts:23-42). Short queries (≤3 tokens) center on raw=4; longer center on raw=8. */
