@@ -355,8 +355,9 @@ export { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
 
 /**
  * v0.1 additive scoring primitives — `combineScores` runs the additive
- * Mem0-shape composition; `entityBoost` + `sigmoidBm25` are the per-signal
- * normalizers; `maxPossible` divides for the final ratio.
+ * composition `(semantic + bm25 + entity_boost) / max_possible`;
+ * `entityBoost` + `sigmoidBm25` are the per-signal normalizers;
+ * `maxPossible` divides for the final ratio.
  *
  * @see .claude/knowledge-base/plans/completed/v0-1-local-runtime-plan.md § scoring
  * @see .claude/knowledge-base/adrs/ADR-0001-mem0-shape-architecture.md
