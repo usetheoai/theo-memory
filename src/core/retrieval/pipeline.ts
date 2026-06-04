@@ -207,6 +207,11 @@ export async function runRetrievalPipeline(
     // DTO's optional contract.
     const attributedToRaw = row.payload['attributed_to'];
     const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+    // principles-alignment-hardening T2.1 / EC-6 — hoist confirmation_count
+    // from row payload (search SQL now projects it). recall() results now
+    // surface Princípio 1 confirmação signal.
+    const confirmationCountRaw = row.payload['confirmation_count'];
+    const confirmationCount = typeof confirmationCountRaw === 'number' ? confirmationCountRaw : undefined;
     return {
       id: row.id,
       text: String(row.payload['text'] ?? ''),
@@ -218,6 +223,7 @@ export async function runRetrievalPipeline(
       tValid: now,
       tInvalid: null,
       ...(attributedTo !== undefined ? { attributedTo } : {}),
+      ...(confirmationCount !== undefined ? { confirmationCount } : {}),
       score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,
     };
   });
