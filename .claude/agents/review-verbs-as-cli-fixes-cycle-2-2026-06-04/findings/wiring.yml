@@ -1,0 +1,188 @@
+agent: review-verbs-as-cli-fixes-cycle-2-wiring
+review_target: verbs-as-cli-fixes-cycle-2 @ commit c9ef4b1 (vs c9ef4b1~1)
+plan: .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md
+
+triad_revalidation:
+  total_new_symbols: 1
+  total_modified_symbols: 7  # assertEnvOrExit (+@internal), PG_URI_ENV_SPEC (+@internal), OPENAI_API_KEY_ENV_SPEC (+@internal), createAgentToolsMemory (+@internal), validateScopeOpts (FLAG @internal MISSING), parseIntInRange (refactored body), parseFloatInRange (refactored body)
+  total_deleted_symbols: 1  # createCliMemory alias
+  pillar_a_honest_pass: 1 / 1   # wireMemoryFromPool has 3 honest production callers
+  pillar_b_honest_pass: 1 / 1   # 2-test contract test directly exercises the symbol (unit-tier); integration-tier exercises transitively via CLI spawn through 3 callers
+  pillar_c_observed: 0 / 0      # No runtime metric declared for this cycle (refactor-only; no new metric surface)
+
+  detailed_triad:
+    - symbol: wireMemoryFromPool
+      pillar_a_callers:
+        - src/agent-tools/agent-tools-memory.ts:135 (inside createAgentToolsMemory — full CLI lifecycle owner)
+        - src/agent-tools/run-mcp-server.ts:116 (after env-validation + pool ownership for shutdownHandler)
+        - src/agent-tools/run-server.ts:132 (INSIDE warm Promise — preserves EC-33 readiness gate)
+      pillar_a_status: PASS
+      pillar_b_test_files:
+        - src/agent-tools/__tests__/agent-tools-memory.test.ts (unit-tier contract; 2 tests directly call wireMemoryFromPool — does-not-close-pool invariant + post-wire-pool-usable)
+        - tests/integration/cli/verbs-cli-fixes.test.ts (test 1 — transitive: remember + reflect spawn dist/cli.js → createAgentToolsMemory → wireMemoryFromPool)
+        - tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts (tests 1-4, 7-8 — transitive via CLI spawn)
+      pillar_b_status: PASS  # honest pass via unit-tier contract test + transitive integration via 3 callers; check_wiring.py reports FAIL because it greps tests/integration for the literal symbol name, missing transitive coverage through the helper's 3 callers
+      pillar_b_check_wiring_py_note: "check_wiring.py reports HALT (pillar_b FAIL) because no tests/integration/*.test.ts file contains literal 'wireMemoryFromPool'. The symbol IS exercised at unit-tier directly (agent-tools-memory.test.ts) AND at integration-tier transitively via its 3 callers (verbs-cli-fixes*.test.ts spawn the CLI binary which calls createAgentToolsMemory → wireMemoryFromPool). This matches the pre-existing pattern of internal helpers (e.g., assertEnvOrExit also has zero direct integration-test references). Accept as PASS per the symbol's @internal contract."
+      pillar_c_status: N/A
+    - symbol: createCliMemory (alias)
+      pillar_a_status: PASS (deletion verified)
+      pillar_a_callers: []  # zero remaining grep hits across src/**/*.ts AND tests/**/*.ts
+      pillar_b_status: N/A
+      pillar_c_status: N/A
+
+integration_with_existing_flows:
+  - entry: themory CLI (dist/agent-tools/cli.js)
+    flow: cli.ts buildProgram → remember/recall/forget/reflect verbs → run-{verb}.ts → createAgentToolsMemory → wireMemoryFromPool → createLocalMemory + Pool
+    status: WIRED
+  - entry: themory mcp (run-mcp-server.ts)
+    flow: runMcpServer → assertEnvOrExit → new Pool → runMigrations → wireMemoryFromPool → new McpServer with memoryFactory → shutdownHandler closure
+    status: WIRED (shutdownHandler still owns pool lifecycle; wireMemoryFromPool refactor preserves the closure semantics)
+  - entry: themory server (run-server.ts)
+    flow: runServer → assertEnvOrExit → migrate-on-startup → bind port EAGERLY → warm Promise (memory = await wireMemoryFromPool(pool); isReady=true) → Proxy memoryShim returns 503 until warm completes
+    status: WIRED (EC-33 readiness gate preserved exactly — memory assignment happens at the same await point; isReady flip unchanged)
+
+build_pipeline_check:
+  prebuild_clean_present: true  # package.json: prebuild:clean = node -e "rmSync('dist',{recursive:true,force:true});"
+  build_chain_correct: true  # build = "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:copy-migrations"
+  prepack_triggers_full_rebuild: true  # prepack = "npm run build"
+  regression_sentinel_present: true  # tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts test 5 verifies STALE_DIST_ARTIFACT (dist/agent-tools/cli-memory-factory.js) is absent post-build
+
+regex_sentinels_check:
+  cli_locked_names_test:
+    file: src/__tests__/cli-locked-names.test.ts
+    locked_verbs_count: 4
+    locked_verbs_per_verb_regex: true  # 4 dedicated patterns iterated via LOCKED_VERBS table
+    locked_flags_count: 9
+    locked_flags_per_flag_regex: true  # 9 dedicated patterns iterated via LOCKED_FLAGS table
+    boundary_char_class: '[\s\x27"<]'  # prevents false-positive on --user-name AND factory-arg context
+  verbs_cli_fixes_test_5_6:
+    file: tests/integration/cli/verbs-cli-fixes.test.ts
+    test_5_verbs_pinned: 4  # 4 .toMatch() calls, one per verb
+    test_6_flags_pinned: 9  # FLAGS_WITH_BOUNDARY array iterated; 9 patterns
+  verbs_cli_fixes_cycle_2_test_6:
+    file: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts
+    verbs_pinned: 4
+    flags_pinned: 9
+    boundary_class_present: true
+
+dead_exports_check:
+  new_exports_diff:
+    - wireMemoryFromPool  # @internal — NOT in public barrel; 3 production callers + 2 contract tests
+  dead_export_count: 0
+
+boundary_respect_dip:
+  status: PASS
+  spot_check:
+    - src/agent-tools/agent-tools-memory.ts imports: pg (external), src/core/* (allowed), src/local/* (allowed for agent-tools), src/embedders/* (allowed), src/llms/* (allowed) — no cross-tier violation
+    - src/agent-tools/run-mcp-server.ts + run-server.ts imports: only same-tier (agent-tools/*) + allowed src/local/* + src/core/* — no cross-tier violation
+
+concurrent_safety:
+  status: N/A
+  note: refactor-only cycle; no new shared-resource access patterns introduced; pool lifecycle ownership boundary explicitly pinned by EC-3 contract test (wireMemoryFromPool does NOT close pool)
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/agent-tools/cli-scope.ts
+    line: 36
+    plan_ref: T2.3 / ADR D5 — internal-tag retrofit; implement-validate report § Highlights row 2 claims this was done
+    summary: validateScopeOpts MISSING @internal JSDoc tag despite implement-validate report claiming it was tagged
+    evidence: |
+      $ grep -B 2 'export function validateScopeOpts' src/agent-tools/cli-scope.ts
+       * @throws Error with the same message resolveCliScope used to throw.
+       */
+      export function validateScopeOpts(opts: CliScopeOptions): void {
+
+      implement-validate-2026-06-04.md line 19 claims:
+        "6 exports tagged @internal at agent-tools-memory.ts + cli-scope.ts (..., validateScopeOpts)"
+
+      But the JSDoc block (lines 26-35) describes the function as "Boundary-only validator. Throws when zero OR more than one scope field is defined. No Memory dependency..." with NO @internal tag.
+
+      Confirmed via grep against architecture-review F-arch-1 (already flagged this MAJOR).
+    recommended_action: |
+      Add `* @internal` line to the JSDoc block immediately before `* @throws` line. Brings validateScopeOpts to parity with the 5 other agent-tools-subpath helpers tagged in T2.3 (assertEnvOrExit, PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool, createAgentToolsMemory). Single-line fix; no behavior change.
+
+  - id: F-wire-2
+    severity: MAJOR
+    file: src/agent-tools/{agent-tools-memory.ts:34, run-mcp-server.ts:43, run-server.ts:48}
+    line: multiple
+    plan_ref: T3.1 / ADR D4 — extract single source of truth for provider tuple composition
+    summary: LOCAL_EMBEDDER_DIM = 384 declared in 3 separate const sites despite T3.1 extracting the composition body to wireMemoryFromPool
+    evidence: |
+      $ grep -rn 'const LOCAL_EMBEDDER_DIM = 384' src/agent-tools/
+      src/agent-tools/agent-tools-memory.ts:34:const LOCAL_EMBEDDER_DIM = 384;
+      src/agent-tools/run-mcp-server.ts:43:const LOCAL_EMBEDDER_DIM = 384;
+      src/agent-tools/run-server.ts:48:const LOCAL_EMBEDDER_DIM = 384;
+
+      All three files import wireMemoryFromPool from agent-tools-memory.ts (which already declares LOCAL_EMBEDDER_DIM at module scope), yet run-mcp-server.ts and run-server.ts each re-declare the same magic number for their own `runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })` call.
+
+      Confirmed via grep against architecture-review F-arch-2 (already flagged this MAJOR). The duplication is a Rule 12 violation (DRY — duplicated knowledge: the embedder dimension is a single fact about the local provider tuple).
+    recommended_action: |
+      Promote LOCAL_EMBEDDER_DIM as an additional named export in agent-tools-memory.ts (consider re-using or co-located near wireMemoryFromPool). Update run-mcp-server.ts + run-server.ts to import it instead of re-declaring. Mark the export @internal alongside the others. JSDoc-cross-ref it as "the embedder dimension consumed by both runMigrations (caller-owned) and wireMemoryFromPool (composition helper)." Single source of truth restoration; preserves the runMigrations boundary semantics (each caller still owns its own migration call point per ADR D4 — only the magic number is centralized).
+
+  - id: F-wire-3
+    severity: MINOR
+    file: src/agent-tools/__tests__/agent-tools-memory.test.ts
+    line: 1-74
+    plan_ref: T3.1 / EC-3 — pillar (b) integration coverage
+    summary: wireMemoryFromPool has NO direct integration-test reference (only unit-tier contract test + transitive integration via 3 callers). check_wiring.py reports HALT.
+    evidence: |
+      $ python3 .claude/skills/implement/scripts/check_wiring.py --symbol wireMemoryFromPool
+      "verdict": "HALT"
+      "Failed pillars: ['b_integration_test']"
+      "pillar_b": { "tests_count": 0, "reason": "Symbol 'wireMemoryFromPool' is not exercised in any integration test" }
+
+      The symbol IS exercised:
+      - Direct unit-tier: src/agent-tools/__tests__/agent-tools-memory.test.ts (2 tests calling it directly)
+      - Transitive integration: tests/integration/cli/verbs-cli-fixes.test.ts test 1 (remember+reflect spawn the CLI which calls createAgentToolsMemory → wireMemoryFromPool against real Postgres + pgvector)
+      - Transitive integration: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts tests 1-4,7-8 (transitive via CLI spawn)
+
+      Accept-as-PASS rationale: @internal composition helpers (assertEnvOrExit, PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, createAgentToolsMemory) follow the same pattern — pillar (b) is honored at the CALLER's integration test surface, not at the helper's own surface, because the helpers are not public API.
+    recommended_action: |
+      No code change. Per the cycle-implement.md § Hard gates rule 5, add an ADR-DEFER-WIRING-B marker as a JSDoc comment near the wireMemoryFromPool export:
+        // ADR-DEFER-WIRING-B: pillar (b) exercised transitively via the 3 callers'
+        // integration tests + directly at unit-tier agent-tools-memory.test.ts. The
+        // symbol is @internal; integration coverage lives at the consuming
+        // boundaries (CLI spawn, MCP server boot, REST server warm). See plan
+        // verbs-as-cli-fixes-cycle-2 § T3.1 + ADR D4.
+      This makes the deferral honest and auditable per the cycle-implement Hard Gate (b) clause.
+
+  - id: F-wire-4
+    severity: INFO
+    file: implement-validate-2026-06-04.md
+    line: 19
+    plan_ref: T2.3 — @internal retrofit reporting
+    summary: Implement-validate report's claim that validateScopeOpts was tagged @internal is INACCURATE relative to actual source state
+    evidence: |
+      Report claims 6 exports tagged @internal across agent-tools-memory.ts + cli-scope.ts; source shows 5 actually tagged. validateScopeOpts (the 6th) was missed.
+
+      Per cycle-implement § Hard Gate "fabricated runtime-metric proof" anti-pattern, validation reports that overstate the work done are also a fabrication concern (anti-pattern #9: "NEVER fabricate runtime-metric proof"; analogous to documentation drift).
+    recommended_action: |
+      When F-wire-1 fix lands, amend the implement-validate report's Highlights row 2 to either remove the validateScopeOpts mention OR confirm the fix was applied. Honest disclosure per Inquebrável Rule 3.
+
+summary:
+  bottom_line: |
+    The wiring triad for verbs-as-cli-fixes-cycle-2 is structurally HONEST:
+      - wireMemoryFromPool extraction (T3.1 / ADR D4) preserves all 3 caller contexts exactly (CLI dispose closure / MCP shutdownHandler / REST EC-33 readiness gate).
+      - createCliMemory alias deletion is COMPLETE (zero remaining references).
+      - All 4 verb handlers import createAgentToolsMemory directly.
+      - prebuild:clean + prepack build pipeline is correctly chained.
+      - Locked-names regex sentinels are per-verb / per-flag pinned with boundary-char protection.
+      - Boundary respect (DIP) is honored.
+
+    However, 2 MAJOR findings need closure to bring the surface to /review-passable state:
+      1. F-wire-1 — validateScopeOpts @internal tag missing (1-line fix). REINFORCES the architecture-review F-arch-1 finding.
+      2. F-wire-2 — LOCAL_EMBEDDER_DIM triplicated despite T3.1's centralization intent (3-line refactor). REINFORCES the architecture-review F-arch-2 finding.
+
+    1 MINOR (F-wire-3) recommends honest ADR-DEFER-WIRING-B marker on wireMemoryFromPool since check_wiring.py flags pillar (b) FAIL via grep (the symbol IS exercised, but transitively through the 3 callers).
+
+    1 INFO (F-wire-4) flags implement-validate report inaccuracy that should be amended when F-wire-1 lands.
+
+    Net verdict from wiring perspective: NEEDS_FIXES — closes both architecture-review's F-arch-1 + F-arch-2 in same patches; no new BLOCKER / CRITICAL discovered.
+
+  blocker_count: 0
+  critical_count: 0
+  major_count: 2
+  minor_count: 1
+  info_count: 1
+  recommended_disposition: NEEDS_FIXES (2 MAJORs from architecture-review reinforced)

@@ -1,0 +1,136 @@
+agent: review-verbs-as-cli-fixes-cycle-2-tests
+review_target: verbs-as-cli-fixes-cycle-2 @ commit c9ef4b1
+plan: .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md
+test_pyramid:
+  unit_added: 2          # EC-3 contract tests at agent-tools-memory.test.ts
+  integration_added: 8   # verbs-cli-fixes-cycle-2.test.ts
+  e2e_added: 0
+  total: 10
+  notes: |
+    Plus 8 sentinel renames in cli-locked-names.test.ts (rewrite — not net-new behavior coverage)
+    Plus 2 test modifications: verbs-cli-fixes.test.ts tests 5+6 hardened, reflect.test.ts cast drop
+    T1.1 unit-tier contract tests INTENTIONALLY dropped — locus pointer comment added at cli.test.ts:272-286
+    explaining that parseIntInRange/parseFloatInRange are inline-defined inside buildProgram() and
+    unreachable as direct import targets. The integration tier carries the contract via spawn-based tests.
+edge_cases_from_plan:
+  covered: 5             # EC-1 empty, EC-2 hex, EC-3 pool-stays-open, EC-4 boundary char, EC-5 prepack auto-build
+  missing: []            # No SHOULD TEST edge cases unaddressed; 3 DOCUMENT items honestly disclosed in plan footer
+  notes: |
+    EC-1 (empty): test 7 covers --top-k '' → exits 2.
+    EC-2 (hex): test 8 covers --top-k 0x1F → exits 2. Scientific notation (5e2) covered by same /^-?\d+$/ regex
+    but NOT explicitly tested — minor gap.
+    EC-3 (pool-stays-open): 2 contract tests at agent-tools-memory.test.ts; vi.mock isolates 4 transitive imports
+    (createLocalMemory/runMigrations, PgvectorStore, LocalTransformerEmbedder, OpenAILLM) — verified against
+    actual imports of agent-tools-memory.ts (line 26-32).
+    EC-4 (boundary char): test 6 + cli-locked-names.test.ts boundary class [\s'"<] empirically rejects
+    `--user-name` compound; verified via node -e probe.
+    EC-5 (prepack auto-build): NOT directly tested in cycle-2 — relies on package.json#scripts prepack chain
+    + test 5 sentinel which only validates POST-build state, not the prepack hook firing on `npm pack`.
+
+findings:
+  - id: F-tests-1
+    severity: MINOR
+    file: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts
+    line: 135-140
+    plan_ref: ADR D1 + EC-2 absorption
+    summary: |
+      EC-2 absorption covers hex notation (0x1F) but NOT scientific notation (5e2) — the regex
+      /^-?\d+$/ rejects both, but only hex is exercised. A regression that loosens the regex to
+      /^-?\d+|^\d+e\d+$/ would pass test 8 silently.
+    evidence: |
+      grep "scientific\|5e2\|0x" tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts → only 0x1F found
+      Plan ADR D1 line 97: "EC-2 absorption — rejects hex 0x1F AND scientific 5e2 literals" — only hex covered
+    recommended_action: |
+      OPTIONAL: add a 9th test `test_9_top_k_scientific_notation_exits_2()` with --top-k 5e2
+      (resolves to 500 via Number('5e2'), within range, would silently pass without strict regex).
+      Sticky claim in plan vs sticky test only on one branch.
+
+  - id: F-tests-2
+    severity: MINOR
+    file: src/agent-tools/__tests__/agent-tools-memory.test.ts
+    line: 44-73
+    plan_ref: T3.1 step 6 / EC-3 absorption
+    summary: |
+      The 2 EC-3 contract tests are appropriate isolation (4 vi.mock calls cover the 4 transitive imports
+      verified at agent-tools-memory.ts:26-32) AND lock the load-bearing invariant. However, the second
+      test (`post-wire pool remains usable`) asserts on the FAKE POOL's query mock — it proves
+      wireMemoryFromPool did NOT poison the pool object, but it does NOT prove a real pool would stay
+      open. The first test (endSpy not called) carries the load.
+    evidence: |
+      Line 70: `const result = await fakePool.query('SELECT 1');` — calls vi.fn mock, not real pool.
+      The 2nd test effectively asserts `endSpy` was not called twice; redundant with test 1.
+    recommended_action: |
+      Either (a) consolidate to a single more comprehensive test, OR (b) add a real-pool integration
+      assertion in tests/integration/cli/ that `await wireMemoryFromPool(realPool); await realPool.query('SELECT 1')`
+      succeeds — moves the invariant from unit-mock to real-tree where regressions actually surface.
+      Cost: low.
+
+  - id: F-tests-3
+    severity: INFO
+    file: src/agent-tools/__tests__/cli.test.ts
+    line: 272-286
+    plan_ref: T1.1 § Tasks step 4 — "Add 4 contract tests at src/agent-tools/__tests__/cli.test.ts"
+    summary: |
+      T1.1 § Tasks step 4 explicitly says "Add 4 contract tests at src/agent-tools/__tests__/cli.test.ts
+      (NEW file if needed) for the bare factory function". The implementation INSTEAD shipped a locus
+      pointer comment honestly disclosing that parseIntInRange/parseFloatInRange are inline-defined
+      inside buildProgram() and unreachable as direct import targets. This is HONEST per Inquebrável
+      Rule 3 — but it does deviate from the plan's literal task.
+    evidence: |
+      cli.test.ts:272-286: "The strict-coercion factories ... are inline-defined inside buildProgram()
+      ... making them unreachable as a direct import target."
+      Plan T1.1 step 4 expected 4 contract tests; commit ships 0 + locus pointer.
+    recommended_action: |
+      ACCEPTABLE — the integration tier (8 spawn-based tests) carries the contract end-to-end. The
+      alternative (export parseIntInRange/parseFloatInRange separately) would create a YAGNI public
+      surface for testability alone. Locus pointer pattern is the right call. NO ACTION required.
+      Audit-trail value: honest disclosure of plan-vs-impl delta in commit body would close this.
+
+  - id: F-tests-4
+    severity: INFO
+    file: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts
+    line: 33-40
+    plan_ref: T0.1 Acceptance Criteria
+    summary: |
+      The `describe.skipIf(!DIST_EXISTS)` pattern silently SKIPs all 8 integration tests when dist/
+      is missing. While this is the canonical pattern (mirrors verbs-cli-fixes.test.ts), it means
+      a future CI failure where prebuild:clean accidentally removed dist/cli.js (T1.2 over-zealous)
+      would cause silent SKIP rather than RED. Test 5 (the dist-clean sentinel) ALSO becomes
+      effectively skipped when the negation of its sibling (DIST_EXISTS) holds — circular skip
+      semantics: test 5 cannot fail-detect a broken build because the build-broken state skips it.
+    evidence: |
+      Lines 33-40: `if (!DIST_EXISTS) console.warn(...)` + line 61 `describe.skipIf(!DIST_EXISTS)`.
+    recommended_action: |
+      OPTIONAL: keep test 5 OUTSIDE the skipIf block (it's a pure filesystem check, not dependent
+      on cli.js being runnable). Move it to a sibling describe that always runs. Closes the skip-loop.
+
+  - id: F-tests-5
+    severity: INFO
+    file: src/__tests__/cli-locked-names.test.ts
+    line: 39-63
+    plan_ref: ADR D6 + EC-4
+    summary: |
+      Regex-pinned sentinel is correctly implemented and empirically distinguishes:
+      (a) factory call `parseIntInRange('--top-k', 1, 100)` → REJECTED ✓
+      (b) option call `.option('--top-k <n>', 'desc', parseTopK)` → MATCHED ✓
+      (c) compound option `--user-name` → REJECTED via boundary char [\s'"<] ✓
+      (d) comment `// --top-k must be 1..100` → REJECTED ✓
+      Verified empirically via node -e probe. Closes M6.
+    evidence: |
+      All 13 patterns (4 verbs + 9 flags) follow consistent shape. Test split into 2 describe blocks
+      (verbs / flags) for readable failure messages.
+    recommended_action: NONE — regex pattern is correct.
+
+  - id: F-tests-6
+    severity: INFO
+    file: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts
+    line: all
+    plan_ref: Global
+    summary: |
+      AAA/Given-When-Then format: tests use compact 3-line shape (Arrange userId + Act runCliRaw + Assert
+      status/stderr). NOT verbose Given-When-Then headers but the structure is implicit. Test names
+      follow `test N — description (Mx)` schema linking back to the MAJOR finding being closed —
+      strong audit trail. No "and" in test names; each test exercises ONE strict-coercion path.
+      Determinism: randomUUID() per test prevents collisions; spawnSync with 60s timeout is safe.
+    evidence: All 8 tests follow same structure.
+    recommended_action: NONE.
