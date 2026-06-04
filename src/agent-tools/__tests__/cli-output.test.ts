@@ -76,10 +76,17 @@ describe('T1.2 — renderCliOutput', () => {
     expect(out).toMatch(/Forgot id-1 \(hard=true\)/);
   });
 
-  test('6. text reflect includes source and derived counts', () => {
+  test('6. text reflect includes source and derived counts from raw ReflectionResult', () => {
+    // verbs-as-cli-fixes-cycle-1 T1.2 / ADR D2: payload now carries the
+    // RAW ReflectionResult shape (sourceIds + derivedMemoriesCreated +
+    // higherOrderMemories) — 3-way parity with REST + MCP surfaces.
     const payload: CliRenderableResult = {
       verb: 'reflect',
-      result: { sourceCount: 5, derivedCount: 2, derived: [] },
+      result: {
+        higherOrderMemories: [],
+        sourceIds: ['s1', 's2', 's3', 's4', 's5'],
+        derivedMemoriesCreated: 2,
+      },
     };
     const out = renderCliOutput(payload, 'text');
     expect(out).toMatch(/Reflected 5 → 2 insights/);

@@ -24,18 +24,36 @@ export interface CliScopeOptions {
 }
 
 /**
- * Resolve `--user <id>` / `--session <id>` / `--agent <id>` into a
- * `ScopedMemory` by invoking the corresponding `memory.user/session/agent(id)`.
+ * Boundary-only validator. Throws when zero OR more than one scope field is
+ * defined. No Memory dependency — invoke at the CLI boundary BEFORE warming
+ * the expensive Memory factory (closes F-dom-cli-2: fail-fast ordering must
+ * not pay the ~2-5s factory cost just to reject malformed input).
  *
- * @throws Error when zero OR more than one scope field is defined.
+ * Per plan verbs-as-cli-fixes-cycle-1 § T3.2 + EC-6 (3 contract tests).
+ *
+ * @throws Error with the same message resolveCliScope used to throw.
  */
-export function resolveCliScope(memory: Memory, opts: CliScopeOptions): ScopedMemory {
+export function validateScopeOpts(opts: CliScopeOptions): void {
   const defined = [opts.user, opts.session, opts.agent].filter(
     (v): v is string => v !== undefined,
   );
   if (defined.length !== 1) {
     throw new Error('--user / --session / --agent: exactly one required');
   }
+}
+
+/**
+ * Resolve `--user <id>` / `--session <id>` / `--agent <id>` into a
+ * `ScopedMemory` by invoking the corresponding `memory.user/session/agent(id)`.
+ *
+ * Pre-condition: `opts` already passed `validateScopeOpts`. The re-check
+ * inside is defense-in-depth; callers should fail-fast BEFORE constructing
+ * the Memory.
+ *
+ * @throws Error when zero OR more than one scope field is defined.
+ */
+export function resolveCliScope(memory: Memory, opts: CliScopeOptions): ScopedMemory {
+  validateScopeOpts(opts);
   if (opts.user !== undefined) return memory.user(opts.user);
   if (opts.session !== undefined) return memory.session(opts.session);
   return memory.agent(opts.agent!);

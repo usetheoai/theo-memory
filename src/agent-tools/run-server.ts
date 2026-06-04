@@ -35,6 +35,12 @@ import { PgvectorStore } from '../local/pgvector-store.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
 import { createServer } from '../server/index.js';
 
+import {
+  assertEnvOrExit,
+  OPENAI_API_KEY_ENV_SPEC,
+  PG_URI_ENV_SPEC,
+} from './agent-tools-memory.js';
+
 /**
  * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
  * Mirrors run-mcp-server.ts LOCAL_EMBEDDER_DIM constant (commit e43d801) so the
@@ -80,29 +86,15 @@ interface HttpListener {
 }
 
 export async function runServer(options?: RunServerOptions): Promise<void> {
-  const pgUri = process.env['THEOMEM_PG_URI'];
-  if (pgUri === undefined || pgUri.length === 0) {
-    process.stderr.write(
-      'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).\n',
-    );
-    process.exit(2);
-    return;
-  }
-
-  // PRIORITY 0 hardening + T3.2 (p0-api-sdk-mcp-correctness-audit) — port the
-  // commit e43d801 REST equivalent. The REST server boots ONLY when a real
-  // LLM provider is configured. OPENAI_API_KEY is the OpenAI-compatible
-  // auth shape — works for OpenAI proper AND for OpenRouter (set
-  // OPENAI_BASE_URL=https://openrouter.ai/api/v1). Fail-closed with a clear
-  // operator message rather than silently falling back to a stub.
-  const llmApiKey = process.env['OPENAI_API_KEY'];
-  if (llmApiKey === undefined || llmApiKey.length === 0) {
-    process.stderr.write(
-      'Error: OPENAI_API_KEY required. Set it to a key accepted by OPENAI_BASE_URL (defaults to api.openai.com; set OPENAI_BASE_URL=https://openrouter.ai/api/v1 for OpenRouter).\n',
-    );
-    process.exit(2);
-    return;
-  }
+  // verbs-as-cli-fixes-cycle-1 T2.1 / ADR D3: env-fail boundary now goes
+  // through the shared `assertEnvOrExit` helper at agent-tools-memory.ts.
+  // Single source of truth for `Error: THEOMEM_PG_URI required ...` and
+  // `Error: OPENAI_API_KEY required ...` stderr strings (closes F-arch-2 +
+  // F-wire-1). PRIORITY 0 hardening + T3.2 (p0-api-sdk-mcp-correctness-audit)
+  // rationale preserved at the shared helper — see agent-tools-memory.ts
+  // § OPENAI_API_KEY_ENV_SPEC. Fail-closed; never silent stub fallback.
+  assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
+  const pgUri = process.env['THEOMEM_PG_URI']!;
 
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);

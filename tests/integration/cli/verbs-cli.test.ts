@@ -166,15 +166,23 @@ describe.skipIf(!DIST_EXISTS || !HAS_OPENAI || !HAS_PG_URI)(
       expect(out.hard).toBe(true);
     });
 
-    test('10. reflect outputs JSON with shape { sourceCount, derivedCount, ... }', () => {
+    test('10. reflect outputs JSON with RAW ReflectionResult shape (3-way parity post-fix-cycle-1 T1.2)', () => {
       const userId = randomUUID();
       runCli(['remember', 'I prefer dark mode', '--user', userId]);
       runCli(['remember', 'I always use dark themes', '--user', userId]);
       const result = runCli(['reflect', '--user', userId]);
       expect(result.status, `stderr=${result.stderr}`).toBe(0);
-      const parsed = JSON.parse(result.stdout) as { sourceCount: number; derivedCount: number };
-      expect(typeof parsed.sourceCount).toBe('number');
-      expect(typeof parsed.derivedCount).toBe('number');
+      // verbs-as-cli-fixes-cycle-1 T1.2 / ADR D2: CLI emits the RAW
+      // ReflectionResult shape now (was: projected CliReflectResult). Closes
+      // F-dom-api-1 by restoring parity with MCP + REST POST /v1/reflect.
+      const parsed = JSON.parse(result.stdout) as {
+        higherOrderMemories: readonly unknown[];
+        sourceIds: readonly string[];
+        derivedMemoriesCreated: number;
+      };
+      expect(Array.isArray(parsed.higherOrderMemories)).toBe(true);
+      expect(Array.isArray(parsed.sourceIds)).toBe(true);
+      expect(typeof parsed.derivedMemoriesCreated).toBe('number');
     });
 
     test('11. reflect --text format', () => {
