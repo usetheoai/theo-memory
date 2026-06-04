@@ -6,7 +6,7 @@
  * `(stdin?, stdout?)` is reserved for unit tests.
  *
  * @see ADR D1 — stdio is the primary transport for local CLI deployment
- * @see Letta blueprint Q4 — Template Method pattern (lifecycle owned by server; transport wraps stdin/stdout)
+ * @see .claude/knowledge-base/discoveries/blueprints discover Q4 — Template Method pattern (lifecycle owned by server; transport wraps stdin/stdout)
  */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 

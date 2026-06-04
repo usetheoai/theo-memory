@@ -61,7 +61,7 @@ const DEFAULT_SERVER_VERSION = '0.3.0';
  *
  * `listChanged: false` per ADR D2 — v0.3 ships 4 static tools (`remember`, `recall`,
  * `forget`, `reflect`); the tool set never changes at runtime so no `notifications/tools/list_changed`
- * traffic is emitted (Voyager-style skill library lands v0.6 per CLAUDE.md Roadmap Item 8).
+ * traffic is emitted (the procedural skill library lands v0.6 per CLAUDE.md Roadmap Item 8).
  */
 const STATIC_CAPABILITIES: ServerCapabilities = Object.freeze({
   tools: { listChanged: false },

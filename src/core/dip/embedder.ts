@@ -2,7 +2,7 @@
  * Embedder DIP — adapter contract for embedding providers.
  *
  * @see ADR-0008 — DIP method counts (Embedder: 2 required).
- * @see ADR-0001 — Mem0-shape architecture (auto-detected embedding dim via probe).
+ * @see ADR-0001 — upstream-shape architecture (auto-detected embedding dim via probe).
  */
 
 export interface Embedder {

@@ -1,9 +1,9 @@
 /**
  * 8-phase write pipeline — T4.3 of v0-1-local-runtime plan v1.3.
  *
- * Port of Mem0-ts's `addToVectorStore`
+ * Port of the upstream `addToVectorStore`
  * (.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:562-994) per blueprint
- * ADR D1 + plan ADR D1.0. Phases are named verbatim from the Mem0 code
+ * ADR D1 + plan ADR D1.0. Phases are named verbatim from the upstream code
  * comments at L588 / L606 / L626 / L695 / L716 / L783 / L851 / L976.
  *
  * Phase 0: context gather (system prompt + custom instructions)
@@ -109,7 +109,7 @@ function toMemoryItem(id: string, text: string, hash: string, scope: Scope, meta
 }
 
 /**
- * `infer: false` fast-path (Mem0 reference index.ts:568-586).
+ * `infer: false` fast-path (upstream reference index.ts:568-586).
  * Each message becomes one verbatim memory; no LLM call, no entity store.
  */
 async function runInferFalsePath(
@@ -428,7 +428,7 @@ export async function runExtractionPipeline(
       }
       emitEvent(tracer, 'history_persisted', { count: records.length });
     } catch {
-      // Silent swallow per Mem0 pattern at index.ts:805-849 (history failure must not block write)
+      // Silent swallow per the upstream pattern at index.ts:805-849 (history failure must not block write)
     }
   }
 

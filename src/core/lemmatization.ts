@@ -32,7 +32,7 @@ try {
 }
 
 /**
- * Minimum English stop-word set ported from Mem0's reference. Set lookup is O(1).
+ * Minimum English stop-word set ported from the upstream reference. Set lookup is O(1).
  * Extend at v0.2+ for multilingual support.
  */
 export const STOP_WORDS: ReadonlySet<string> = new Set([

@@ -1,7 +1,7 @@
 /**
  * Persisted memory fact + recall result extension.
  *
- * @see ADR-0001 — Mem0-shape architecture (hash dedup + bi-temporal data model).
+ * @see ADR-0001 — upstream-shape architecture (hash dedup + bi-temporal data model).
  * @see ADR-0006 — bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5.
  */
 import type { Scope } from './scope.js';
@@ -22,7 +22,7 @@ export interface MemoryItem {
   /** Write timestamp from Postgres TIMESTAMPTZ. Parsed to Date at the adapter boundary. */
   readonly createdAt: Date;
 
-  /** For Mem0 parity. ADD-only semantics (ADR-0003) means equal to createdAt for new rows. */
+  /** For upstream-pipeline parity. ADD-only semantics (ADR-0003) means equal to createdAt for new rows. */
   readonly updatedAt: Date;
 
   /**
@@ -122,7 +122,7 @@ export interface MemoryItem {
 
 /**
  * Recall result extension. Returned by `recall()` calls.
- * `score` is the additive Mem0-style composite: `(semantic + bm25 + entity_boost) / max_possible` in [0, 1].
+ * `score` is the additive composite: `(semantic + bm25 + entity_boost) / max_possible` in [0, 1].
  *
  * @see ADR-0001 — additive scoring formula.
  */

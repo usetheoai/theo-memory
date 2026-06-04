@@ -2,7 +2,7 @@
  * VectorStore DIP — adapter contract for vector-storage backends (pgvector, Qdrant, etc).
  *
  * @see ADR-0008 — DIP method counts (VectorStore: 11 required).
- * @see ADR-0001 — Mem0-shape architecture (nine-step search requires keywordSearch BM25 fallback).
+ * @see ADR-0001 — upstream-shape architecture (nine-step search requires keywordSearch BM25 fallback).
  *
  * v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the
  * concrete local stores as duck-typed extensions (matching the v0.4a
@@ -105,7 +105,7 @@ export interface VectorStore {
 
   /**
    * @see ADR-0002 — tenant isolation uses `Filters` on every call, NOT this method.
-   * This pair is preserved for Mem0-port parity (adapter-side observability / single-client telemetry).
+   * This pair is preserved for upstream-port parity (adapter-side observability / single-client telemetry).
    * Adapters SHALL NOT use `setUserId` to encode the active scope; the call MUST work for every tenant.
    */
   getUserId(): Promise<string>;
