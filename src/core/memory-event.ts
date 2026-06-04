@@ -32,6 +32,12 @@ export const MEMORY_EVENTS = [
   // existing row's confirmation_count instead of inserting a new one.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'dedup_collision_confirmed',
+  // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when runExtractionPipeline's LLM phase returns drafts=[]
+  // (extracted.length === 0). Without this event, remember() returns []
+  // indistinguishably from "no input" — the IGNORE decision was silent.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_zero_facts',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
