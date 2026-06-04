@@ -135,7 +135,7 @@ describe('runRetrievalPipeline (9-step search)', () => {
     expect(results).toHaveLength(1);
   });
 
-  test('over-fetches with max(topK*4, 60) (REDACTED reference)', async () => {
+  test('over-fetches with max(topK*4, 60) (upstream reference)', async () => {
     const store = makeStore([{ id: 'a', text: 't', semanticScore: 0.9 }]);
     await runRetrievalPipeline(
       'q',
