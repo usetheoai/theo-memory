@@ -28,11 +28,19 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
-import { DeterministicStubEmbedder } from '../embedders/stub.js';
-import { createLocalMemory, runMigrations, StubLLM } from '../local/index.js';
+import { LocalTransformerEmbedder } from '../embedders/local.js';
+import { OpenAILLM } from '../llms/openai.js';
+import { createLocalMemory, runMigrations } from '../local/index.js';
 import { PgvectorStore } from '../local/pgvector-store.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
 import { createServer } from '../server/index.js';
+
+/**
+ * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
+ * Mirrors run-mcp-server.ts LOCAL_EMBEDDER_DIM constant (commit e43d801) so the
+ * REST + MCP composition roots stay in lockstep per architecture.md § 5.
+ */
+const LOCAL_EMBEDDER_DIM = 384;
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
@@ -81,6 +89,21 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     return;
   }
 
+  // PRIORITY 0 hardening + T3.2 (p0-api-sdk-mcp-correctness-audit) — port the
+  // commit e43d801 REST equivalent. The REST server boots ONLY when a real
+  // LLM provider is configured. OPENAI_API_KEY is the OpenAI-compatible
+  // auth shape — works for OpenAI proper AND for OpenRouter (set
+  // OPENAI_BASE_URL=https://openrouter.ai/api/v1). Fail-closed with a clear
+  // operator message rather than silently falling back to a stub.
+  const llmApiKey = process.env['OPENAI_API_KEY'];
+  if (llmApiKey === undefined || llmApiKey.length === 0) {
+    process.stderr.write(
+      'Error: OPENAI_API_KEY required. Set it to a key accepted by OPENAI_BASE_URL (defaults to api.openai.com; set OPENAI_BASE_URL=https://openrouter.ai/api/v1 for OpenRouter).\n',
+    );
+    process.exit(2);
+    return;
+  }
+
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);
 
@@ -89,7 +112,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // ADR D8 — migrate-on-startup BEFORE port binds.
   if (!shouldSkipMigrations()) {
     try {
-      await runMigrations(pool);
+      await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
     } catch (err) {
       process.stderr.write(
         `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
@@ -99,22 +122,8 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     }
   }
 
-  // fixes-cycle-1 T2.2 / F-rev-9 absorption: loud stderr warning so consumers
-  // booting ghcr.io/usetheo/themory:0.1.0-alpha know that recall is shape-
-  // correct but semantically a smoke test until they wire real providers.
-  // Inquebrável Rule 3 (honesty) at the consumer-facing boundary.
-  // FOLLOW-UP: gate this warning when src/agent-tools/run-server.ts gains
-  // real-provider config (e.g., THEMORY_EMBEDDER=openai|local env or
-  // --embedder flag). Currently unconditional because the default code
-  // path always uses DeterministicStubEmbedder + StubLLM.
   process.stderr.write(
-    'themory server: WARNING — Stub embedder + Stub LLM in use (DeterministicStubEmbedder + StubLLM).\n',
-  );
-  process.stderr.write(
-    'themory server: Recall returns shape-correct results but is NOT semantic — only exact-text round-trips work reliably.\n',
-  );
-  process.stderr.write(
-    'themory server: For production, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n',
+    `themory server: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${String(LOCAL_EMBEDDER_DIM)}) + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
   // EC-33 readiness gate — bind port EAGERLY; warm Memory factory async so
@@ -125,18 +134,10 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   let memory: Awaited<ReturnType<typeof createLocalMemory>> | undefined;
   const warmPromise = (async () => {
     memory = await createLocalMemory({
-      vectorStore: new PgvectorStore(pool),
-      // T3.5 absorption (surfaced by THE GOAL TEST docker-stack round-trip):
-      // `StubEmbedder` from src/local/stubs.ts returns ZERO vectors with a
-      // production warning, which collapses cosine similarity to NaN and
-      // breaks recall semantically. `DeterministicStubEmbedder` is the
-      // debug-grade alternative — pure-function MD5+Lehmer LCG so identical
-      // text round-trips at cosine 1.0 (sufficient for the GOAL TEST shape
-      // round-trip + dev kicking-tires). Real consumers swap this for
-      // `OpenAIEmbedder` / `LocalTransformerEmbedder` via consumer wiring
-      // when they ship to production.
-      embedder: new DeterministicStubEmbedder(),
-      llm: new StubLLM(),
+      vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
+      embedder: new LocalTransformerEmbedder(),
+      llm: new OpenAILLM(),
+      embeddingDim: LOCAL_EMBEDDER_DIM,
     });
     isReady = true;
   })();
