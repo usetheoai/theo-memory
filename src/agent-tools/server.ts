@@ -16,9 +16,39 @@ import {
   type ServerCapabilities,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { withScope } from './scope.js';
 import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
 import type { McpServerOptions } from './types.js';
+
+/**
+ * MCP `_meta` key for per-call user-scope override. Reverse-DNS namespaced
+ * per MCP spec convention. When present on `request.params._meta`, the
+ * server wraps the dispatched handler in `withScope({ kind: 'user', userId }, ...)`.
+ *
+ * Fallback chain (first match wins):
+ *  1. `request.params._meta['io.usetheo.themory/user_id']` (per-call override)
+ *  2. `process.env['THEOMEM_MCP_DEFAULT_USER_ID']` (server-lifetime default)
+ *  3. NO scope wrapper — handlers calling `getScope()` throw `MissingScopeError`,
+ *     surfacing the misconfig loudly per Inquebrável Rule 3.
+ *
+ * Added 2026-06-04 to close the dogfood T2.1 architectural gap (MCP stdio
+ * transport had no scope binding). See
+ * `.claude/knowledge-base/audits/dogfood-anchor-T2.1-mcp-stdio-scope-binding-gap-2026-06-04.md`.
+ */
+const META_USER_ID_KEY = 'io.usetheo.themory/user_id';
+
+function resolveScopedUserId(meta: Record<string, unknown> | undefined): string | undefined {
+  const fromMeta = meta?.[META_USER_ID_KEY];
+  if (typeof fromMeta === 'string' && fromMeta.length > 0) {
+    return fromMeta;
+  }
+  const fromEnv = process.env['THEOMEM_MCP_DEFAULT_USER_ID'];
+  if (typeof fromEnv === 'string' && fromEnv.length > 0) {
+    return fromEnv;
+  }
+  return undefined;
+}
 
 /** Locked default server identity advertised in MCP `initialize` handshake. */
 const DEFAULT_SERVER_NAME = 'themory';
@@ -70,6 +100,12 @@ export class McpServer {
           ],
           isError: true,
         });
+      }
+      const userId = resolveScopedUserId(req.params._meta);
+      if (userId !== undefined) {
+        return withScope({ session: { userId } }, () =>
+          dispatch(req.params.name, req.params.arguments, { memoryFactory }),
+        );
       }
       return dispatch(req.params.name, req.params.arguments, { memoryFactory });
     });

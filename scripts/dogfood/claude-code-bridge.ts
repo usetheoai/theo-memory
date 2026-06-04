@@ -100,7 +100,18 @@ function logDegradation(event: string, body: string): string {
   return path;
 }
 
-async function callMcpTool<T>(toolName: string, args: Record<string, unknown>): Promise<T> {
+/**
+ * MCP `_meta` key for per-call user-scope override. Reverse-DNS namespaced per
+ * MCP spec convention. Mirrors `META_USER_ID_KEY` in `src/agent-tools/server.ts`.
+ * Server reads `request.params._meta[this key]` and wraps dispatch in withScope.
+ */
+const META_USER_ID_KEY = 'io.usetheo.themory/user_id';
+
+async function callMcpTool<T>(
+  toolName: string,
+  args: Record<string, unknown>,
+  userId: string,
+): Promise<T> {
   const cliPath = process.env['THEMORY_BRIDGE_CLI'] ?? DEFAULT_THEMORY_CLI;
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -110,7 +121,11 @@ async function callMcpTool<T>(toolName: string, args: Record<string, unknown>): 
   const client = new Client({ name: 'claude-code-bridge', version: '0.1.0' }, { capabilities: {} });
   try {
     await client.connect(transport);
-    const result = await client.callTool({ name: toolName, arguments: args });
+    const result = await client.callTool({
+      name: toolName,
+      arguments: args,
+      _meta: { [META_USER_ID_KEY]: userId },
+    });
     return result as T;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -135,7 +150,8 @@ export async function bridgeRemember(text: string, ctx: BridgeContext): Promise<
   if (isEmptyContent(text)) {
     return { skipped: true, reason: 'empty_content' };
   }
-  const raw = await callMcpTool<unknown>('remember', { text, user_id: `claude-code-${userId}` });
+  // MCP schema field: `content` (NOT `text`); scope flows via `_meta` per Option C.
+  const raw = await callMcpTool<unknown>('remember', { content: text }, `claude-code-${userId}`);
   return { raw };
 }
 
@@ -149,21 +165,23 @@ export async function bridgeRecall(query: string, ctx: BridgeContext): Promise<B
   if (isEmptyContent(query)) {
     return { skipped: true, reason: 'empty_content' };
   }
-  const raw = await callMcpTool<unknown>('recall', { query, user_id: `claude-code-${userId}` });
+  const raw = await callMcpTool<unknown>('recall', { query }, `claude-code-${userId}`);
   return { raw };
 }
 
 export async function bridgeForget(memoryId: string, ctx: BridgeContext): Promise<{ raw: unknown }> {
-  requireProjectSlug(ctx);
+  const userId = requireProjectSlug(ctx);
   if (isEmptyContent(memoryId)) {
     throw new Error('bridge: memoryId is required for forget()');
   }
-  const raw = await callMcpTool<unknown>('forget', { memory_id: memoryId });
+  // MCP forget schema uses `id` field for memory id selection.
+  const raw = await callMcpTool<unknown>('forget', { id: memoryId }, `claude-code-${userId}`);
   return { raw };
 }
 
 export async function bridgeReflect(ctx: BridgeContext): Promise<{ raw: unknown }> {
   const userId = requireProjectSlug(ctx);
-  const raw = await callMcpTool<unknown>('reflect', { user_id: `claude-code-${userId}` });
+  // MCP reflect schema is strict empty `{}`; scope flows via `_meta`.
+  const raw = await callMcpTool<unknown>('reflect', {}, `claude-code-${userId}`);
   return { raw };
 }
