@@ -25,19 +25,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
 const CHANGELOG_PATH = join(REPO_ROOT, 'CHANGELOG.md');
 
-function extractUnreleased(changelog: string): string {
-  const start = changelog.indexOf('## [Unreleased]');
-  if (start === -1) return '';
-  const after = changelog.slice(start);
-  const nextRel = after.search(/\n## \[\d/);
-  return nextRel === -1 ? after : after.slice(0, nextRel);
-}
-
 describe('T0.3 — CHANGELOG BREAKING marker for REST server stub-removal', () => {
-  test('1. Unreleased section contains `**BREAKING (REST server):**` marker (F-dom-api-2)', () => {
+  test('1. CHANGELOG contains `**BREAKING (REST server):**` marker somewhere (F-dom-api-2)', () => {
+    // Marker may live in [Unreleased] OR in a versioned section once
+    // [Unreleased] has been migrated forward at release-cut time. Scan the
+    // full CHANGELOG so the regression sentinel survives version migrations
+    // per Inquebrável Rule 6 forward-migration discipline.
     const changelog = readFileSync(CHANGELOG_PATH, 'utf8');
-    const unreleased = extractUnreleased(changelog);
-    expect(unreleased.length, 'sanity — [Unreleased] section present').toBeGreaterThan(0);
-    expect(unreleased).toContain('**BREAKING (REST server):**');
+    expect(changelog).toContain('**BREAKING (REST server):**');
   });
 });

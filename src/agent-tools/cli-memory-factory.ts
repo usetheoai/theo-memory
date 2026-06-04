@@ -50,6 +50,14 @@ export async function createCliMemory(): Promise<readonly [Memory, () => Promise
     embedder: new LocalTransformerEmbedder(),
     llm: new OpenAILLM(),
     embeddingDim: LOCAL_EMBEDDER_DIM,
+    // Manual reflection policy — `themory reflect` is explicit-only per
+    // ADR-0005. Without a policy `scoped.reflect()` throws
+    // `ReflectionNotConfigured`. The manual policy permits the CLI verb
+    // invocation to flow through `executeReflection` per v0.4a contract.
+    reflectionPolicy: {
+      kind: 'manual',
+      shouldReflect: () => Promise.resolve(true),
+    },
   });
 
   const dispose = async (): Promise<void> => {
