@@ -22,22 +22,22 @@
  */
 import { Pool } from 'pg';
 
-import { LocalTransformerEmbedder } from '../embedders/local.js';
-import { OpenAILLM } from '../llms/openai.js';
-import { createLocalMemory, runMigrations } from '../local/index.js';
-import { PgvectorStore } from '../local/pgvector-store.js';
+import { runMigrations } from '../local/index.js';
 
+import {
+  assertEnvOrExit,
+  LOCAL_EMBEDDER_DIM,
+  OPENAI_API_KEY_ENV_SPEC,
+  PG_URI_ENV_SPEC,
+  wireMemoryFromPool,
+} from './agent-tools-memory.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
 
-/**
- * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
- * Aligned with adapters-openrouter-local-embedder ADR D2 — parametric dim
- * pipeline (runMigrations + PgvectorStore + createLocalMemory accept the same
- * value; dim mismatch throws at probe time per EC-1).
- */
-const LOCAL_EMBEDDER_DIM = 384;
+// fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
+// (single source of truth for the Xenova MiniLM 384-dim constant; was
+// triplicated across CLI factory + 2 runners pre-hotfix).
 
 /** Shutdown timeout (ms) — caps how long we wait for server.stop() before force-exit. */
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -83,29 +83,15 @@ function resolveHost(opt?: string): string {
 }
 
 export async function runMcpServer(options?: RunMcpServerOptions): Promise<void> {
-  const pgUri = process.env['THEOMEM_PG_URI'];
-  if (pgUri === undefined || pgUri.length === 0) {
-    process.stderr.write(
-      'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).\n',
-    );
-    process.exit(2);
-    return; // unreachable but satisfies typecheck
-  }
-
-  // PRIORITY 0 hardening + user directive 2026-06-04 ("REMOVA QUALQUER STUB
-  // EM NOSSO AMBIENTE PRODUTIVO"): the MCP server boots ONLY when a real LLM
-  // provider is configured. `OPENAI_API_KEY` is the OpenAI-compatible auth
-  // shape — works for OpenAI proper AND for OpenRouter (set
-  // OPENAI_BASE_URL=https://openrouter.ai/api/v1). Fail-closed with a clear
-  // operator message rather than silently falling back to a stub.
-  const llmApiKey = process.env['OPENAI_API_KEY'];
-  if (llmApiKey === undefined || llmApiKey.length === 0) {
-    process.stderr.write(
-      'Error: OPENAI_API_KEY required. Set it to a key accepted by OPENAI_BASE_URL (defaults to api.openai.com; set OPENAI_BASE_URL=https://openrouter.ai/api/v1 for OpenRouter).\n',
-    );
-    process.exit(2);
-    return; // unreachable but satisfies typecheck
-  }
+  // verbs-as-cli-fixes-cycle-1 T2.1 / ADR D3: env-fail boundary now goes
+  // through the shared `assertEnvOrExit` helper at agent-tools-memory.ts.
+  // Single source of truth for `Error: THEOMEM_PG_URI required ...` and
+  // `Error: OPENAI_API_KEY required ...` stderr strings (closes F-arch-2 +
+  // F-wire-1). PRIORITY 0 hardening + user directive 2026-06-04 ("REMOVA
+  // QUALQUER STUB EM NOSSO AMBIENTE PRODUTIVO") preserved at the shared
+  // helper — see agent-tools-memory.ts § OPENAI_API_KEY_ENV_SPEC.
+  assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
+  const pgUri = process.env['THEOMEM_PG_URI']!;
 
   const transport = resolveTransport(options?.transport);
   // Validate port eagerly so an invalid CLI flag fails BEFORE we touch pg —
@@ -120,12 +106,11 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     `themory mcp: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${LOCAL_EMBEDDER_DIM}) + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
-  const memory = await createLocalMemory({
-    vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
-    embedder: new LocalTransformerEmbedder(),
-    llm: new OpenAILLM(),
-    embeddingDim: LOCAL_EMBEDDER_DIM,
-  });
+  // verbs-as-cli-fixes-cycle-2 T3.1 / ADR D4 retrofit (closes M1): provider
+  // tuple composition delegated to shared `wireMemoryFromPool` helper. Single
+  // source of truth for `PgvectorStore` + `LocalTransformerEmbedder` +
+  // `OpenAILLM` wiring across CLI/MCP/REST.
+  const memory = await wireMemoryFromPool(pool);
 
   const server = new McpServer({
     name: 'themory',
