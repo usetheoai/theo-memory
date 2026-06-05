@@ -8,7 +8,7 @@ import {
   ChatThread,
   StatTile,
   Textarea,
-} from "@usetheo/ui";
+} from "@theokit/ui";
 import { Send, Bot, User } from "lucide-react";
 import { MemorySidebar } from "./memory-sidebar";
 

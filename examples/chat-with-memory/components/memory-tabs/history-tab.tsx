@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Input } from "@usetheo/ui";
+import { Card, Input } from "@theokit/ui";
 import { Plus, Minus, GitBranch } from "lucide-react";
 
 import { apiCall, ApiError } from "../../lib/api-client";
