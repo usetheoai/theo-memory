@@ -19,7 +19,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card } from "@theokit/ui";
+import { Badge, Button, Card, Label, RadioGroup, Timestamp } from "@theokit/ui";
 import { Beaker, RefreshCw } from "lucide-react";
 
 import { apiCall, ApiError } from "../../lib/api-client";
@@ -153,22 +153,19 @@ export function DistillationTab({ userId, reloadKey }: Props) {
           <Beaker className="h-3 w-3 text-purple-600" />
           <span className="font-medium">Pick a policy</span>
         </div>
-        <div className="flex flex-col gap-1">
+        <RadioGroup
+          value={policy ?? ""}
+          onValueChange={(v) => setPolicy(v as PolicyName)}
+          disabled={loading}
+          className="flex flex-col gap-1"
+        >
           {POLICY_VALUES.map((p) => (
-            <label key={p} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="distillation-policy"
-                value={p}
-                checked={policy === p}
-                onChange={() => setPolicy(p)}
-                disabled={loading}
-                className="h-3 w-3"
-              />
+            <Label key={p} className="flex cursor-pointer items-center gap-2">
+              <RadioGroup.Item value={p} className="h-3 w-3" />
               <span className="text-[11px]">{POLICY_LABELS[p]}</span>
-            </label>
+            </Label>
           ))}
-        </div>
+        </RadioGroup>
         {/* EC-6: disabled={loading} covers double-click + post-POST refresh */}
         <Button
           type="button"
@@ -224,9 +221,10 @@ export function DistillationTab({ userId, reloadKey }: Props) {
             {audit.rows.map((row) => (
               <li key={row.id} className="border-l-2 border-purple-300 pl-2">
                 <div className="font-medium">
-                  <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-medium text-purple-700">
+                  <Badge variant="accent" className="text-[9px]">
                     {row.policy_name}
-                  </span>
+                  </Badge>
+                  <Timestamp value={row.created_at} format="relative" className="ml-2 text-[10px] text-muted-foreground" />
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground">
                   Kept: <code>{row.kept_memory_text ?? "(orphan)"}</code>
