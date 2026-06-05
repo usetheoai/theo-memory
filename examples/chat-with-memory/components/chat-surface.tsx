@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Avatar,
+  Badge,
   Button,
   ChatComposer,
   ChatMessage,
@@ -241,11 +242,10 @@ export function ChatSurface() {
               TheMemory · chat that remembers
             </h1>
           </div>
-          <span className="ml-auto text-xs text-muted-foreground">
-            user: <code className="font-mono">{userId}</code>
-            {" · "}
-            session: <code className="font-mono">{sessionId}</code>
-          </span>
+          <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className="font-mono">user: {userId}</Badge>
+            <Badge variant="outline" className="font-mono">session: {sessionId}</Badge>
+          </div>
           <Button size="sm" variant="ghost" onClick={newSession}>
             New session
           </Button>
