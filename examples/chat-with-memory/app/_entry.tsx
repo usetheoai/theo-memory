@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Toaster } from "@theokit/ui";
-import { ThemeBootstrap } from "../components/theme-bootstrap";
+import { TheoUIProvider, Toaster } from "@theokit/ui";
 import HomePage from "./page";
 import "./globals.css";
 
@@ -12,10 +11,10 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeBootstrap>
+    <TheoUIProvider>
       <Toaster>
         <HomePage />
       </Toaster>
-    </ThemeBootstrap>
+    </TheoUIProvider>
   </StrictMode>,
 );

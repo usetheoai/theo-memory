@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input } from "@theokit/ui";
+import { Badge, Button, Card, EmptyState, Input, Timestamp } from "@theokit/ui";
 import { History, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 
 import { apiCall } from "../../lib/api-client";
@@ -107,9 +107,12 @@ export function UserTab({ userId, reloadKey, onInspectHistory }: Props) {
       <div className="flex-1 overflow-y-auto pr-1">
         <ul className="flex flex-col gap-2">
           {items.length === 0 && !loading && (
-            <li className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-              No memories yet — the assistant will start remembering as you
-              chat.
+            <li>
+              <EmptyState
+                title="No memories yet"
+                description="The assistant will start remembering as you chat."
+                className="text-xs"
+              />
             </li>
           )}
           {items.map((it) => (
@@ -117,30 +120,32 @@ export function UserTab({ userId, reloadKey, onInspectHistory }: Props) {
               <Card size="sm" className="p-3">
                 <p className="text-xs leading-relaxed">{it.text}</p>
                 <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    {it.score !== undefined
-                      ? `score ${it.score.toFixed(2)}`
-                      : new Date(it.createdAt).toLocaleString()}
-                  </span>
+                  {it.score !== undefined ? (
+                    <Badge variant="outline">score {it.score.toFixed(2)}</Badge>
+                  ) : (
+                    <Timestamp value={it.createdAt} format="relative" />
+                  )}
                   <div className="flex gap-1">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => onInspectHistory(it.id)}
-                      className="rounded p-1 hover:bg-muted"
                       aria-label="Inspect history"
                       title="Inspect history"
                     >
                       <History className="h-3 w-3" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => void handleForget(it.id)}
-                      className="rounded p-1 hover:bg-muted"
                       aria-label="Forget"
                       title="Forget"
                     >
                       <Trash2 className="h-3 w-3" />
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </Card>
