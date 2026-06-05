@@ -28,19 +28,21 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
-import { LocalTransformerEmbedder } from '../embedders/local.js';
-import { OpenAILLM } from '../llms/openai.js';
-import { createLocalMemory, runMigrations } from '../local/index.js';
-import { PgvectorStore } from '../local/pgvector-store.js';
+import type { Memory } from '../core/memory-store.js';
+import { runMigrations } from '../local/index.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
 import { createServer } from '../server/index.js';
 
-/**
- * Embedding dimension produced by LocalTransformerEmbedder (Xenova MiniLM L6 v2).
- * Mirrors run-mcp-server.ts LOCAL_EMBEDDER_DIM constant (commit e43d801) so the
- * REST + MCP composition roots stay in lockstep per architecture.md § 5.
- */
-const LOCAL_EMBEDDER_DIM = 384;
+import {
+  assertEnvOrExit,
+  LOCAL_EMBEDDER_DIM,
+  OPENAI_API_KEY_ENV_SPEC,
+  PG_URI_ENV_SPEC,
+  wireMemoryFromPool,
+} from './agent-tools-memory.js';
+
+// fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
+// (single source of truth — was triplicated across CLI factory + 2 runners).
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
@@ -80,29 +82,15 @@ interface HttpListener {
 }
 
 export async function runServer(options?: RunServerOptions): Promise<void> {
-  const pgUri = process.env['THEOMEM_PG_URI'];
-  if (pgUri === undefined || pgUri.length === 0) {
-    process.stderr.write(
-      'Error: THEOMEM_PG_URI required. Set it to a postgres connection string (e.g., postgres://user:pass@host:5432/dbname).\n',
-    );
-    process.exit(2);
-    return;
-  }
-
-  // PRIORITY 0 hardening + T3.2 (p0-api-sdk-mcp-correctness-audit) — port the
-  // commit e43d801 REST equivalent. The REST server boots ONLY when a real
-  // LLM provider is configured. OPENAI_API_KEY is the OpenAI-compatible
-  // auth shape — works for OpenAI proper AND for OpenRouter (set
-  // OPENAI_BASE_URL=https://openrouter.ai/api/v1). Fail-closed with a clear
-  // operator message rather than silently falling back to a stub.
-  const llmApiKey = process.env['OPENAI_API_KEY'];
-  if (llmApiKey === undefined || llmApiKey.length === 0) {
-    process.stderr.write(
-      'Error: OPENAI_API_KEY required. Set it to a key accepted by OPENAI_BASE_URL (defaults to api.openai.com; set OPENAI_BASE_URL=https://openrouter.ai/api/v1 for OpenRouter).\n',
-    );
-    process.exit(2);
-    return;
-  }
+  // verbs-as-cli-fixes-cycle-1 T2.1 / ADR D3: env-fail boundary now goes
+  // through the shared `assertEnvOrExit` helper at agent-tools-memory.ts.
+  // Single source of truth for `Error: THEOMEM_PG_URI required ...` and
+  // `Error: OPENAI_API_KEY required ...` stderr strings (closes F-arch-2 +
+  // F-wire-1). PRIORITY 0 hardening + T3.2 (p0-api-sdk-mcp-correctness-audit)
+  // rationale preserved at the shared helper — see agent-tools-memory.ts
+  // § OPENAI_API_KEY_ENV_SPEC. Fail-closed; never silent stub fallback.
+  assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
+  const pgUri = process.env['THEOMEM_PG_URI']!;
 
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);
@@ -131,14 +119,14 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // the factory resolves before any HTTP probe could land and the gate
   // would be unobservable.
   let isReady = false;
-  let memory: Awaited<ReturnType<typeof createLocalMemory>> | undefined;
+  let memory: Memory | undefined;
+  // verbs-as-cli-fixes-cycle-2 T3.1 / ADR D4 retrofit (closes M1): provider
+  // tuple composition delegated to shared `wireMemoryFromPool` helper INSIDE
+  // the warm Promise — preserves the EC-33 readiness-Proxy lifecycle exactly
+  // (memory assignment happens at the same `await` point; flag flip
+  // unchanged).
   const warmPromise = (async () => {
-    memory = await createLocalMemory({
-      vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
-      embedder: new LocalTransformerEmbedder(),
-      llm: new OpenAILLM(),
-      embeddingDim: LOCAL_EMBEDDER_DIM,
-    });
+    memory = await wireMemoryFromPool(pool);
     isReady = true;
   })();
 
@@ -154,7 +142,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // a verb handler fires before the factory resolves. The 503-readiness
   // gate at /v1/health should prevent the orchestrator from routing user
   // traffic during that window; this shim is the defense-in-depth.
-  const memoryShim = new Proxy({} as Awaited<ReturnType<typeof createLocalMemory>>, {
+  const memoryShim = new Proxy({} as Memory, {
     get(_target, prop) {
       if (memory === undefined) {
         throw new Error(

@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/memory",
-  "version": "0.0.0-rc.2",
+  "version": "0.0.0-rc.3",
   "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
   "type": "module",
   "license": "MIT",
@@ -78,7 +78,9 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
-    "build": "tsc -p tsconfig.build.json && npm run postbuild:copy-migrations",
+    "prebuild:clean": "node -e \"const{rmSync}=require('node:fs');rmSync('dist',{recursive:true,force:true});\"",
+    "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:copy-migrations",
+    "prepack": "npm run build",
     "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');if(existsSync('src/local/migrations')){mkdirSync('dist/local/migrations',{recursive:true});cpSync('src/local/migrations','dist/local/migrations',{recursive:true});console.log('migrations copied to dist/local/migrations');}\"",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
     "lint": "eslint 'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/*.ts' 'src/__tests__/**/*.ts' 'benchmarks/scripts/**/*.ts' --no-error-on-unmatched-pattern",

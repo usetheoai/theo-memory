@@ -1,3 +1,11 @@
+// verbs-as-cli-fixes-cycle-1 T3.1b / F-dom-cli-1 absorption: side-effect
+// import below silences dotenv@17 banner BEFORE any other module loads. ESM
+// evaluates imports in source order, depth-first. `cli-preload.js` carries
+// zero own imports so it is a leaf — its side-effect runs before commander
+// / run-mcp-server / run-server / verb handlers are evaluated. This MUST
+// be the FIRST `import` line in this module.
+import './cli-preload.js';
+
 /**
  * CLI router for `themory` — consolidated multi-subcommand entry per
  * Roadmap Item 18 + plan T2.1.
@@ -29,12 +37,16 @@
  * @see Plan theo-memory-standalone-p0 § T2.1 + EC-27 + EC-28 + EC-29
  * @see Roadmap Item 18 — CLI consolidado
  */
-import { Command, Option } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
 
+import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
 import { runMcpServer } from './run-mcp-server.js';
 import type { RunMcpServerOptions } from './run-mcp-server.js';
 import { runMigrate } from './run-migrate.js';
+import { runRecall } from './run-recall.js';
+import { runReflect } from './run-reflect.js';
+import { runRemember } from './run-remember.js';
 import { runServer } from './run-server.js';
 import type { RunServerOptions } from './run-server.js';
 
@@ -54,11 +66,70 @@ export function applyAliasArgvShim(argv: string[]): string[] {
 }
 
 export function buildProgram(): Command {
+  // verbs-as-cli-fixes-cycle-2 T1.1 / ADR D1: STRICT-COERCION parser factories.
+  // Replaces fix-cycle-1's lossy Number.parseInt/Number.parseFloat (which
+  // silently truncated `5.7` → 5 and `5abc` → 5). Now uses Number() + regex
+  // pre-check + isInteger/isFinite + range. Closes M4 + EC-1 (empty string)
+  // + EC-2 (hex `0x1F` / scientific `5e2` notation). Pre-regex check rejects
+  // empty strings AND hex/scientific notation BEFORE Number() coercion;
+  // Number() then catches decimal-trailing-garbage via isInteger/isFinite.
+  // The `label` argument MUST include the `--` prefix to preserve parent
+  // verbs-cli.test.ts test 16 stderr regex `/.*?top-k/i`.
+  const INT_REGEX = /^-?\d+$/;
+  const FLOAT_REGEX = /^-?\d+(\.\d+)?$/;
+  const parseIntInRange = (label: string, min: number, max: number) =>
+    (raw: string): number => {
+      // EC-1 + EC-2 absorption: regex pre-check rejects empty string AND hex
+      // (`0x1F`) AND scientific (`5e2`) AND trailing garbage (`5abc`)
+      // BEFORE Number() coercion.
+      if (raw.trim().length === 0 || !INT_REGEX.test(raw)) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be an integer in ${String(min)}..${String(max)}).`,
+        );
+      }
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < min || n > max) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be an integer in ${String(min)}..${String(max)}).`,
+        );
+      }
+      return n;
+    };
+  const parseFloatInRange = (label: string, min: number, max: number) =>
+    (raw: string): number => {
+      if (raw.trim().length === 0 || !FLOAT_REGEX.test(raw)) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be a float in [${String(min)}, ${String(max)}]).`,
+        );
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < min || n > max) {
+        throw new InvalidArgumentError(
+          `Invalid ${label}: ${raw} (must be a float in [${String(min)}, ${String(max)}]).`,
+        );
+      }
+      return n;
+    };
+
   const program = new Command();
   program
     .name('themory')
     .description('@usetheo/memory CLI — managed three-tier memory layer')
     .version('0.1.0-alpha');
+
+  // EC-3 + EC-6 absorption: commander's default exit on invalid-arg /
+  // invalid-option-arg is code 1. Plan ADR D4 + plan T0.1 tests 16-18
+  // promise exit 2. Override globally so the option-parser bounds-validators
+  // (parseTopK / parseThreshold / parseDiversify) hit the contract floor.
+  program.exitOverride((err) => {
+    if (
+      err.code === 'commander.invalidArgument' ||
+      err.code === 'commander.invalidOptionArgument'
+    ) {
+      process.exit(2);
+    }
+    process.exit(err.exitCode);
+  });
 
   program
     .command('mcp')
@@ -66,13 +137,11 @@ export function buildProgram(): Command {
     .addOption(
       new Option('--transport <kind>', 'MCP transport kind').choices(['stdio', 'streamable-http']),
     )
-    .option('--port <number>', 'Port for streamable-http transport (1..65535)', (raw: string) => {
-      const n = Number.parseInt(raw, 10);
-      if (!Number.isInteger(n) || n <= 0 || n > 65_535) {
-        throw new Error(`Invalid --port: ${raw} (must be an integer in 1..65535).`);
-      }
-      return n;
-    })
+    .option(
+      '--port <number>',
+      'Port for streamable-http transport (1..65535)',
+      parseIntInRange('--port', 1, 65_535),
+    )
     .option('--host <address>', 'Bind host for streamable-http transport')
     .action(async (opts: { transport?: 'stdio' | 'streamable-http'; port?: number; host?: string }) => {
       const options: RunMcpServerOptions = {
@@ -86,13 +155,7 @@ export function buildProgram(): Command {
   program
     .command('server')
     .description('Start the REST API server on PORT (default 8080).')
-    .option('--port <number>', 'Port to bind (1..65535)', (raw: string) => {
-      const n = Number.parseInt(raw, 10);
-      if (!Number.isInteger(n) || n <= 0 || n > 65_535) {
-        throw new Error(`Invalid --port: ${raw} (must be an integer in 1..65535).`);
-      }
-      return n;
-    })
+    .option('--port <number>', 'Port to bind (1..65535)', parseIntInRange('--port', 1, 65_535))
     .option('--host <address>', 'Bind host (default 0.0.0.0)')
     .action(async (opts: { port?: number; host?: string }) => {
       const options: RunServerOptions = {
@@ -115,6 +178,138 @@ export function buildProgram(): Command {
       const exitCode = await runHealth({ deep: opts.deep === true });
       process.exit(exitCode);
     });
+
+  // ─── 4-verb subcommands per plan verbs-as-cli v1.1 + ADR D2 ──────────────
+  // remember / recall / reflect: 3-tier mutually-exclusive scope flags.
+  // forget: NO scope flags per EC-1 (memoryId globally unique).
+
+  // T2.2 / ADR D4: replaced 3 byte-similar parsers with parseIntInRange +
+  // parseFloatInRange factory invocations (see top of buildProgram).
+  const parseTopK = parseIntInRange('--top-k', 1, 100);
+  const parseThreshold = parseFloatInRange('--threshold', 0, 1);
+  const parseDiversify = parseFloatInRange('--diversify', 0, 1);
+  const resolveFormat = (opts: { json?: boolean; text?: boolean }): 'json' | 'text' =>
+    opts.text === true ? 'text' : 'json';
+
+  program
+    .command('remember <text>')
+    .description('Write a fact to memory (3-tier scope required).')
+    .option('--user <id>', 'Scope by user id')
+    .option('--session <id>', 'Scope by session id')
+    .option('--agent <id>', 'Scope by agent id')
+    .option('--json', 'Output JSON (default)')
+    .option('--text', 'Output human-readable text instead of JSON')
+    .action(
+      async (
+        text: string,
+        opts: { user?: string; session?: string; agent?: string; json?: boolean; text?: boolean },
+      ) => {
+        try {
+          await runRemember({
+            text,
+            ...(opts.user !== undefined ? { user: opts.user } : {}),
+            ...(opts.session !== undefined ? { session: opts.session } : {}),
+            ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
+            format: resolveFormat(opts),
+          });
+        } catch (err: unknown) {
+          process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+          process.exit(2);
+        }
+      },
+    );
+
+  program
+    .command('recall <query>')
+    .description('Query memory with optional --top-k, --threshold, --diversify.')
+    .option('--user <id>', 'Scope by user id')
+    .option('--session <id>', 'Scope by session id')
+    .option('--agent <id>', 'Scope by agent id')
+    .option('--top-k <n>', 'Max items returned (1..100; defaults to engine default)', parseTopK)
+    .option('--threshold <f>', 'Semantic similarity floor [0, 1]', parseThreshold)
+    .option('--diversify <lambda>', 'MMR diversification lambda [0, 1] (opt-in)', parseDiversify)
+    .option('--json', 'Output JSON (default)')
+    .option('--text', 'Output human-readable text instead of JSON')
+    .action(
+      async (
+        query: string,
+        opts: {
+          user?: string;
+          session?: string;
+          agent?: string;
+          topK?: number;
+          threshold?: number;
+          diversify?: number;
+          json?: boolean;
+          text?: boolean;
+        },
+      ) => {
+        try {
+          await runRecall({
+            query,
+            ...(opts.user !== undefined ? { user: opts.user } : {}),
+            ...(opts.session !== undefined ? { session: opts.session } : {}),
+            ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
+            ...(opts.topK !== undefined ? { topK: opts.topK } : {}),
+            ...(opts.threshold !== undefined ? { threshold: opts.threshold } : {}),
+            ...(opts.diversify !== undefined ? { diversify: opts.diversify } : {}),
+            format: resolveFormat(opts),
+          });
+        } catch (err: unknown) {
+          process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+          process.exit(2);
+        }
+      },
+    );
+
+  program
+    .command('forget <id>')
+    .description('Hard or soft delete a memory by UUID (NO scope flag — memoryId globally unique).')
+    .option('--hard', 'Hard-delete (default: soft via t_invalid)')
+    .option('--json', 'Output JSON (default)')
+    .option('--text', 'Output human-readable text instead of JSON')
+    .action(async (id: string, opts: { hard?: boolean; json?: boolean; text?: boolean }) => {
+      try {
+        await runForget({
+          id,
+          ...(opts.hard !== undefined ? { hard: opts.hard } : {}),
+          format: resolveFormat(opts),
+        });
+      } catch (err: unknown) {
+        process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(2);
+      }
+    });
+
+  program
+    .command('reflect')
+    .description('Trigger reflection pipeline; emits derived insights for the scope.')
+    .option('--user <id>', 'Scope by user id')
+    .option('--session <id>', 'Scope by session id')
+    .option('--agent <id>', 'Scope by agent id')
+    .option('--json', 'Output JSON (default)')
+    .option('--text', 'Output human-readable text instead of JSON')
+    .action(
+      async (opts: {
+        user?: string;
+        session?: string;
+        agent?: string;
+        json?: boolean;
+        text?: boolean;
+      }) => {
+        try {
+          await runReflect({
+            ...(opts.user !== undefined ? { user: opts.user } : {}),
+            ...(opts.session !== undefined ? { session: opts.session } : {}),
+            ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
+            format: resolveFormat(opts),
+          });
+        } catch (err: unknown) {
+          process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+          process.exit(2);
+        }
+      },
+    );
 
   return program;
 }
