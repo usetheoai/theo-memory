@@ -68,6 +68,13 @@ export async function apiCall<TResponse = unknown>(
     init.body = JSON.stringify(options.body);
     headers["Content-Type"] = "application/json";
   }
+  // TheoKit CSRF protection: non-GET/HEAD/OPTIONS methods MUST carry the
+  // X-Theo-Action: 1 header (per theokit/server enforceCsrf). Matches the
+  // canonical theoFetch behavior. Without it, server returns 403 CSRF_INVALID.
+  const upperMethod = (options?.method ?? "GET").toUpperCase();
+  if (upperMethod !== "GET" && upperMethod !== "HEAD" && upperMethod !== "OPTIONS") {
+    headers["X-Theo-Action"] = "1";
+  }
   init.headers = headers;
   const finalUrl = url + buildSearchString(options?.query);
   const resp = await fetch(finalUrl, init);

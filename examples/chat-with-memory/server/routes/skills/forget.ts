@@ -15,13 +15,11 @@ interface ForgetSkillBody {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: ForgetSkillBody;
-    try {
-      body = (await request.json()) as ForgetSkillBody;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    if (rawBody === undefined || rawBody === null) {
       return Response.json({ error: "invalid json" }, { status: 400 });
     }
+    const body = rawBody as ForgetSkillBody;
     const { repoId, skillId } = body;
     if (typeof repoId !== "string" || repoId === "") {
       return Response.json({ error: "repoId required" }, { status: 400 });
