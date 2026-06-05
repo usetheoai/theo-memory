@@ -19,7 +19,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card } from "@usetheo/ui";
+import { Button, Card } from "@theokit/ui";
 import { Beaker, RefreshCw } from "lucide-react";
 
 import { apiCall, ApiError } from "../../lib/api-client";
