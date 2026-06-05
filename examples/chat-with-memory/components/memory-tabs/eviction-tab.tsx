@@ -18,6 +18,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Card } from "@usetheo/ui";
 import { Database, RefreshCw, Snowflake } from "lucide-react";
 
+import { apiCall, ApiError } from "@/lib/api-client";
+
 interface EvictionStatus {
   enabled: boolean;
   trigger: "capacity" | "time" | null;
@@ -43,18 +45,17 @@ export function EvictionTab({ userId, reloadKey }: Props) {
     if (!userId) return;
     setLoading(true);
     try {
-      const url = new URL(
-        "/api/memory/eviction-status",
-        window.location.origin,
-      );
-      url.searchParams.set("userId", userId);
-      const resp = await fetch(url);
-      if (!resp.ok) {
-        setStatus(null);
-        return;
-      }
-      const json = (await resp.json()) as EvictionStatus;
+      const json = await apiCall<EvictionStatus>("/api/memory/eviction-status", {
+        query: { userId },
+      });
       setStatus(json);
+    } catch (err) {
+      // theoFetch throws on non-2xx; keep prior behavior (null status disables UI).
+      if (err instanceof ApiError) {
+        setStatus(null);
+      } else {
+        throw err;
+      }
     } finally {
       setLoading(false);
     }

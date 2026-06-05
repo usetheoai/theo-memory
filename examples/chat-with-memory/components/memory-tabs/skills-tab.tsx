@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Button, Card, Input } from "@usetheo/ui";
 import { GitMerge, Plus, Trash2 } from "lucide-react";
 
+import { apiCall, ApiError } from "@/lib/api-client";
+
 interface SkillRow {
   id: string;
   description: string;
@@ -45,11 +47,9 @@ export function SkillsTab({ defaultRepoId }: Props) {
   const load = async (q = "") => {
     setLoading(true);
     try {
-      const url = new URL("/api/skills", window.location.origin);
-      url.searchParams.set("repoId", repoId);
-      if (q !== "") url.searchParams.set("q", q);
-      const resp = await fetch(url);
-      const json = (await resp.json()) as { items: SkillRow[] };
+      const json = await apiCall<{ items: SkillRow[] }>("/api/skills", {
+        query: { repoId, q: q === "" ? undefined : q },
+      });
       setItems(json.items);
     } finally {
       setLoading(false);
@@ -66,29 +66,27 @@ export function SkillsTab({ defaultRepoId }: Props) {
     setAdding(true);
     setAddError(null);
     try {
-      const resp = await fetch("/api/skills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoId, ...draft }),
-      });
-      const json = (await resp.json()) as { error?: string };
-      if (!resp.ok) {
-        setAddError(json.error ?? `HTTP ${resp.status}`);
-        return;
-      }
+      await apiCall("/api/skills", { method: "POST", body: { repoId, ...draft } });
       setDraft(DEFAULT_NEW_SKILL);
       await load(query);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errBody = err.body as { error?: string } | null;
+        setAddError(
+          (errBody !== null && typeof errBody === "object" && typeof errBody.error === "string"
+            ? errBody.error
+            : null) ?? `HTTP ${err.status}`,
+        );
+      } else {
+        setAddError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setAdding(false);
     }
   };
 
   const handleForget = async (skillId: string) => {
-    await fetch("/api/skills/forget", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repoId, skillId }),
-    });
+    await apiCall("/api/skills/forget", { method: "POST", body: { repoId, skillId } });
     await load(query);
   };
 
@@ -96,28 +94,32 @@ export function SkillsTab({ defaultRepoId }: Props) {
     setConsolidating(true);
     setConsolidateInfo(null);
     try {
-      const resp = await fetch("/api/skills/consolidate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // DEMO showcase tuning per plan ADR D1 (core ConsolidateOptions default is 0.85).
-        body: JSON.stringify({ repoId, clusterThreshold: 0.6 }),
-      });
-      const json = (await resp.json()) as {
+      const json = await apiCall<{
         sourceClustersCount?: number;
         derivedSkillsCount?: number;
         durationMs?: number;
-        error?: string;
-      };
-      if (!resp.ok) {
-        setConsolidateInfo(`Error: ${json.error ?? "unknown"}`);
-        return;
-      }
+      }>("/api/skills/consolidate", {
+        method: "POST",
+        // DEMO showcase tuning per plan ADR D1 (core ConsolidateOptions default is 0.85).
+        body: { repoId, clusterThreshold: 0.6 },
+      });
       setConsolidateInfo(
         `${json.derivedSkillsCount ?? 0} derived skill(s) produced from ${
           json.sourceClustersCount ?? 0
         } source cluster(s) in ${json.durationMs ?? 0}ms.`,
       );
       await load("");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errBody = err.body as { error?: string } | null;
+        const detail =
+          errBody !== null && typeof errBody === "object" && typeof errBody.error === "string"
+            ? errBody.error
+            : `HTTP ${err.status}`;
+        setConsolidateInfo(`Error: ${detail}`);
+      } else {
+        setConsolidateInfo(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
     } finally {
       setConsolidating(false);
     }
