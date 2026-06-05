@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Card, Input } from "@usetheo/ui";
 import { History } from "lucide-react";
 
+import { apiCall } from "@/lib/api-client";
+
 interface MemoryRow {
   id: string;
   text: string;
@@ -25,11 +27,9 @@ export function SessionTab({ sessionId, reloadKey, onInspectHistory }: Props) {
   const load = async (q = "") => {
     setLoading(true);
     try {
-      const url = new URL("/api/memory/session", window.location.origin);
-      url.searchParams.set("sessionId", sessionId);
-      if (q !== "") url.searchParams.set("q", q);
-      const resp = await fetch(url);
-      const json = (await resp.json()) as { items: MemoryRow[] };
+      const json = await apiCall<{ items: MemoryRow[] }>("/api/memory/session", {
+        query: { sessionId, q: q === "" ? undefined : q },
+      });
       setItems(json.items);
     } finally {
       setLoading(false);
