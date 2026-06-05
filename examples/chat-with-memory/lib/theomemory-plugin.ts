@@ -13,7 +13,8 @@
  *      cross-session) AND the Session scope (mid-lived, this conversation).
  *      Triggers `reflect()` in the background after N writes per user.
  */
-import "server-only";
+// (post-T1.1: `import "server-only"` removed — TheoKit separates server/ from
+// client/ by directory convention; the Next.js guard is no longer needed.)
 import type { SystemPromptContext } from "@usetheo/sdk";
 import type { MemoryItemWithScore } from "@usetheo/memory/contract";
 import { getMemory } from "./memory";
