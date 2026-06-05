@@ -4,6 +4,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **verbs-as-cli-fixes-cycle-2** — `wireMemoryFromPool(pool)` shared Memory factory helper at `@usetheo/memory/agent-tools` (M1 closure; consolidates the `PgvectorStore` + `LocalTransformerEmbedder` + `OpenAILLM` tuple across 3 callers).
+- **verbs-as-cli-fixes-cycle-2** — 8 NEW RED tests at `tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts` locking the strict-coercion contract (4) + dist hygiene (1) + regex-pinned sentinel (1) + EC-1 empty-string + EC-2 hex notation (2).
+- **verbs-as-cli-fixes-cycle-2** — `npm run prebuild:clean` script chained before `tsc` in `build` (M5 closure) + `prepack` auto-build (EC-5 absorption).
+
+### Changed
+
+- **verbs-as-cli-fixes-cycle-2 (ADR D1 — M4 closure)** — `parseIntInRange` + `parseFloatInRange` factories at `src/agent-tools/cli.ts` adopt STRICT coercion via `Number(raw)` + regex pre-check (`/^-?\d+$/` for ints, `/^-?\d+(\.\d+)?$/` for floats) + isInteger/isFinite + range. Replaces fix-cycle-1's lossy `Number.parseInt`/`Number.parseFloat`.
+- **verbs-as-cli-fixes-cycle-2 (ADR D3 — M8 closure)** — `MemoryConfig.reflectionPolicy` type widened from `?: ReflectionPolicy` to `?: ReflectionPolicy | undefined` so the ADR-0005 v1.1 explicit-`undefined` opt-in is typed-reachable under `exactOptionalPropertyTypes: true`. Cascades to `CloudMemoryConfig extends MemoryConfig` (cloud pre-release; no runtime impact).
+- **verbs-as-cli-fixes-cycle-2 (T2.1 — M2 closure)** — `MemoryConfig.reflectionPolicy` JSDoc extended with 3-path description (omitted/explicit-undefined/explicit-policy) + `@see ADR-0005 § Supplementary amendment v1.1`.
+- **verbs-as-cli-fixes-cycle-2 (T3.1 — M1 closure)** — `createAgentToolsMemory()` refactored to call `wireMemoryFromPool(pool)`; `run-mcp-server.ts::runMcpServer` and `run-server.ts::runServer` (inside EC-33 warm Promise) likewise delegate to the shared helper. Single source of truth for the provider tuple across CLI/MCP/REST.
+- **verbs-as-cli-fixes-cycle-2 (T3.3 — M6 + EC-4 closure)** — Locked-names sentinels at `src/__tests__/cli-locked-names.test.ts` + `tests/integration/cli/verbs-cli-fixes.test.ts` tests 5+6 now use REGEX-PINNED matches against `.command(...)`/`.option(...)` call sites with boundary char `[\s'"<]` (rejects `--user-name`-style compound options + factory-arg contexts).
+- **verbs-as-cli-fixes-cycle-2 (T5.1 — M10 closure)** — Re-categorized fix-cycle-1 entries below per Keep-a-Changelog discipline (was a single mega-bullet under `### Added`).
+
+### Fixed
+
+- **verbs-as-cli-fixes-cycle-2 (M4)** — silent numeric coercion in `parseIntInRange`/`parseFloatInRange` (`--top-k 5.7` → 5, `--top-k 5abc` → 5, `--threshold 0.5abc` → 0.5) across all 5 collapsed validators (--top-k, --threshold, --diversify, --port×2). Now exits 2 with `Invalid --flag: <raw> (must be ...)` per Inquebrável Rule 8 (fail-fast at boundary).
+- **verbs-as-cli-fixes-cycle-2 (M5)** — stale `dist/agent-tools/cli-memory-factory.js` shipped in `npm pack` manifest after fix-cycle-1 git mv. `prebuild:clean` rmSync now guarantees fresh dist on every build; sentinel test 5 asserts file absent post-build.
+
+### Caveats (consumer-honest disclosure per Inquebrável Rule 3)
+
+- **CLI cold-start cost** — each `themory remember`/`recall`/`forget`/`reflect` invocation pays ~2-5s warm-up (Xenova MiniLM model download cached after first run; then pg connect + journal sync + factory probe). For batch ops > 50 invocations, use the REST server (`themory server`) + `curl` instead.
+
+### Removed
+
+- **verbs-as-cli-fixes-cycle-2 (ADR D5 — M3 closure)** — `createCliMemory` backward-compat alias deleted from `agent-tools-memory.ts`. The 4 verb handlers (`run-{remember,recall,forget,reflect}.ts`) migrated to import `createAgentToolsMemory` directly. The alias had zero external consumers (never in `package.json#exports` barrel); hard delete per Inquebrável Rule 11 (YAGNI).
+
+### Added (fix-cycle-1 re-categorized per Keep-a-Changelog)
+
+- **verbs-as-cli-fixes-cycle-1** — `assertEnvOrExit` + `PG_URI_ENV_SPEC` + `OPENAI_API_KEY_ENV_SPEC` shared boundary helpers in `@usetheo/memory/agent-tools` (T2.1).
+- **verbs-as-cli-fixes-cycle-1** — `validateScopeOpts` boundary validator at `cli-scope.ts` (T3.2).
+- **verbs-as-cli-fixes-cycle-1** — new `## CLI verbs` section in README (T5.1).
+- **verbs-as-cli-fixes-cycle-1** — sentinel test at `src/__tests__/cli-locked-names.test.ts` (T5.3).
+- **verbs-as-cli-fixes-cycle-1** — `cycle-implement.md` v1.6 → v1.7 ADR-marker amendment (T5.4 + ADR D5 + sunset 2026-07-04).
+
+### Changed (fix-cycle-1 re-categorized per Keep-a-Changelog)
+
+- **verbs-as-cli-fixes-cycle-1 (ADR D1)** — `createLocalMemory` now defaults `reflectionPolicy: { kind: 'manual', shouldReflect: () => true }` when consumer OMITS the key (ADR-0005 v1.1 supplementary amendment). Explicit `{ reflectionPolicy: undefined }` preserves the original `ReflectionNotConfigured` throw via the `'in operator'` distinguishing semantics.
+- **verbs-as-cli-fixes-cycle-1 (ADR D2)** — `themory reflect --json` now emits raw `ReflectionResult` shape (`{ higherOrderMemories, sourceIds, derivedMemoriesCreated, reason? }`); restores 3-way contract parity with MCP + REST `POST /v1/reflect`.
+- **verbs-as-cli-fixes-cycle-1 (ADR D3 — first pass)** — `src/agent-tools/cli-memory-factory.ts` renamed (git mv) → `src/agent-tools/agent-tools-memory.ts`. Env-validation collapsed via `assertEnvOrExit`. Factory tuple wiring retrofit completed by fix-cycle-2 T3.1.
+- **verbs-as-cli-fixes-cycle-1 (ADR D4)** — 5 numeric validators in `cli.ts` collapsed via `parseIntInRange` + `parseFloatInRange` factories (lossy coercion fixed by fix-cycle-2 ADR D1).
+
+### Removed (fix-cycle-1 re-categorized per Keep-a-Changelog)
+
+- **verbs-as-cli-fixes-cycle-1 (ADR D2)** — `CliReflectResult` interface from `src/agent-tools/cli-output.ts` (was internal-only; not in `package.json#exports`; the interface's runtime shape projection broke 3-way parity vs REST).
+- **verbs-as-cli-fixes-cycle-1** — `createCliMemory` backward-compat alias deletion deferred to fix-cycle-2 ADR D5 (see ### Removed under fix-cycle-2 entries above).
+
+> Note (M3 hotfix closure 2026-06-04): the prior fix-cycle-1 ~3000-character mega-bullet AND the verbs-as-cli parent-cycle ~2500-character mega-bullet were deleted from this section after `/review verbs-as-cli-fixes-cycle-2` flagged the duplication against the re-categorized entries above (lines 31-49). Content already redistributed across `### Added` / `### Changed` / `### Fixed` / `### Removed` per Keep-a-Changelog discipline. Historical mega-bullets remain visible via `git log -- CHANGELOG.md`.
+
+## [0.0.0-rc.3] - 2026-06-04
+
+First pre-release distribution to npm registry under the `next` dist-tag. Encerra os 3 sub-goals da diretiva PRIORITY 0 (locked 2026-06-04) acumulados desde o cycle `theo-memory-standalone-p0`. Per Inquebrável Rule 3 honest disclosure: A2 ("Bypass uma vez via override") project-owner authorization invoked to temporarily lift the `.claude/hooks/validate-command.sh` + `.claude/settings.json` anti-publish guards FOR THIS PUBLISH ONLY; both policies restored to their locked state immediately post-publish in the same session. The `production-ready` label remains BLOCKED by Roadmap Item 11 (independent benchmark reproduction); this `next`-tagged release does NOT carry a production-ready claim. Empirical verification end-to-end: `npm install @usetheo/memory@0.0.0-rc.3` (via `file:./memory.tgz` from registry CDN) ships 427 entries including the 4 sibling `.js` + 4 `.d.ts` subcommand modules at `dist/agent-tools/{cli,run-mcp-server,run-server,run-migrate,run-health}` (closes F-dom-api-1 + P0 sub-goal 3 third-party install path) AND `dist/local/migrations/meta/_journal.json` + 12 `0NNN_snapshot.json` files (closes EC-1 + the in-cycle hotfix BLOCKER F-dom-cli-blocker-1); `node dist/agent-tools/cli.js --help` dispatches via commander. Pack manifest 427 entries; unpacked size 1.8 MB; tarball SHA512 `5Jwa4a0twzIoJ...To41DQMQDAdIA==`. Bin entries `themory` + `themory-mcp` both functional post-install.
+
 ### Changed
 
 - **p0-api-sdk-mcp-correctness-audit-fixes-cycle-1 T0.1 → T4.1 — close 1 CRITICAL + 5 MAJOR + 1 absorbed MUST FIX from `/review p0-api-sdk-mcp-correctness-audit`** — fix-cycle for the post-cycle review verdict `NEEDS_FIXES`. Plan slug: [`p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md`](.claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md) v1.2. Goal: `npm install @usetheo/memory` followed by `npx @usetheo/memory mcp` AND `npx @usetheo/memory migrate` succeed in a clean install tree. (a) CRITICAL F-dom-api-1 + EC-1 absorption: `package.json#files` extended with 3 new globs (`dist/**/*.js` + `dist/**/*.d.ts` + `dist/**/*.sql`) so the 4 sibling subcommand modules that `dist/agent-tools/cli.js` imports (`run-mcp-server.js` / `run-server.js` / `run-migrate.js` / `run-health.js`) AND their TypeScript types AND the 12 `.sql` migrations populated by `postbuild:copy-migrations` into `dist/local/migrations/` all ship in the pack manifest. Empirically: pack dry-run now ships 415 entries (was 172), 244 under `dist/` (was 1), 12 `.sql` migrations under `dist/local/migrations/` (was 0). Without `dist/**/*.sql` the `themory migrate` post-install path would reproduce the F-T7-1-3 regression registered in `architecture.md § 10.1` (`runMigrations()` at `src/local/index.ts:1452-1456` resolves `migrationsFolder` via `dirname(fileURLToPath(import.meta.url)) + 'migrations'` → `dist/local/migrations/`). (b) MAJOR F-dom-cli-1: `src/agent-tools/run-mcp-server.ts` JSDoc rewritten to name the real-providers wiring (`LocalTransformerEmbedder` + `OpenAILLM`) instead of the stale "pgvector + stubs" reference; avoids the literal "stub" word so the regression sentinel regex `\bstubs?\b` holds even against the explanatory copy. (c) MAJOR F-dom-cli-2: README MCP setup section gains a one-line cross-reference to the committed `.mcp.json.example` template at repo root, template-first ahead of the inline recipe — closes the silently-dropped parent plan task-T3-4 step-3. (d) MAJOR F-dom-api-2: CHANGELOG `[Unreleased] § Changed` gains the `**BREAKING (REST server):**` marker (Keep-a-Changelog 1.1.0 § Types compliant per Inquebrável Rule 6's closed-set discipline; ADR D4 rationale) above the parent plan entry, consumer-greppable disclosure of the post-`e43d801` hard-fail behavior change on missing `OPENAI_API_KEY`. (e) MAJOR F-dom-api-3: `tests/integration/p0-audit/pack-manifest.test.ts` test #4 strengthened from grep-shape `>= 1` floor to behavioral `readdirSync` + `toContain` loop — every `*.sql` file currently in `src/local/migrations/` MUST appear in pack list; silent migration drops now caught loudly. (f) MAJOR F-tests-2 / EC-8: new `src/core/reflection/__tests__/prompt.test.ts` with 3 assertions (paper-name regex + frozen inline snapshot + EC-2 determinism guard — zero ISO-8601 / UUID-v4-non-fixture / unix-timestamp tokens) locks the reflection prompt SHAPE-stability that was silently dropped per F-xval-2 of the parent review. Paper-name regex constructed via string concatenation to honor the no-paper-names-in-code rule's `__tests__/**` clause (the meta-test cannot itself violate the rule it defends). (g) EC-2 + EC-3 + EC-4 + EC-5 + EC-6 absorbed inline. EC-3: T4.1 § Execution prepends `npm run build` before `npm test` so dist-required tests cannot SKIP silently as honest-skip-camouflage in CI. **Test coverage**: contract 1049 PASS + 2 SKIP (+4 from T0.3 + T0.4); integration p0-audit + p0-audit-fixes 136 PASS + 2 SKIP across 13 files (+5 from T0.1-T0.2 + T0.5 strengthening). Typecheck contract.json: 0 errors. Lint: 0 warnings. `npm pack --dry-run` ships 415 entries with 0 `__tests__/**` leaks. Per Inquebrável Rule 3 honest disclosure: ADR D5 of parent plan defers the registry-push step itself — this fix-cycle validates pre-release readiness only, does not publish.

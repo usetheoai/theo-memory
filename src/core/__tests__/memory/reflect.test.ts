@@ -50,11 +50,20 @@ function stubLLM(reflectResponse: string): LLM {
 }
 
 describe('Memory.reflect() (T4.3)', () => {
-  test('throws ReflectionNotConfigured when no policy', async () => {
+  test('throws ReflectionNotConfigured when reflectionPolicy: undefined is EXPLICITLY passed (post-T1.1 default opt-out)', async () => {
+    // verbs-as-cli-fixes-cycle-1 T1.1 / ADR D1 + ADR-0005 v1.1 supplementary
+    // amendment: createLocalMemory now defaults `reflectionPolicy: manual` when
+    // the consumer OMITS the key entirely. Strict no-default behavior is opt-in
+    // via explicit `reflectionPolicy: undefined` per the `'in' operator`
+    // distinguishing semantics. This test locks the opt-in throw path.
+    // verbs-as-cli-fixes-cycle-2 T2.2 / ADR D3: type widened to
+    // `ReflectionPolicy | undefined` so explicit `undefined` is typed-
+    // reachable under `exactOptionalPropertyTypes: true`. No cast needed.
     const memory = await createLocalMemory({
       vectorStore: new InMemoryVectorStore(),
       embedder: stubEmbedder(),
       llm: stubLLM('[]'),
+      reflectionPolicy: undefined,
     });
     await expect(memory.user('alice').reflect()).rejects.toThrow(ReflectionNotConfigured);
   });
