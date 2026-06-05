@@ -31,13 +31,11 @@ function resolveClusterThreshold(input: unknown): number {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: ConsolidateBody;
-    try {
-      body = (await request.json()) as ConsolidateBody;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    if (rawBody === undefined || rawBody === null) {
       return Response.json({ error: "invalid json" }, { status: 400 });
     }
+    const body = rawBody as ConsolidateBody;
     const { repoId } = body;
     if (typeof repoId !== "string" || repoId === "") {
       return Response.json({ error: "repoId required" }, { status: 400 });
