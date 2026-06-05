@@ -26,13 +26,11 @@ function sseFrame(event: string, data: unknown): Uint8Array {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: ChatRequest;
-    try {
-      body = (await request.json()) as ChatRequest;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    if (rawBody === undefined || rawBody === null) {
       return bad("invalid json body");
     }
+    const body = rawBody as ChatRequest;
     if (typeof body.userId !== "string" || body.userId === "") {
       return bad("userId is required");
     }

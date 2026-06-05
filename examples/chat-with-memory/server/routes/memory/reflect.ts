@@ -12,13 +12,11 @@ interface ReflectRequest {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: ReflectRequest;
-    try {
-      body = (await request.json()) as ReflectRequest;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    if (rawBody === undefined || rawBody === null) {
       return Response.json({ error: "invalid json body" }, { status: 400 });
     }
+    const body = rawBody as ReflectRequest;
     if (typeof body.userId !== "string" || body.userId === "") {
       return Response.json({ error: "userId required" }, { status: 400 });
     }

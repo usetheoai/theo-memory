@@ -53,13 +53,11 @@ interface AddSkillBody {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: AddSkillBody;
-    try {
-      body = (await request.json()) as AddSkillBody;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    if (rawBody === undefined || rawBody === null) {
       return Response.json({ error: "invalid json" }, { status: 400 });
     }
+    const body = rawBody as AddSkillBody;
     const { repoId, code, description, codeLanguage } = body;
     if (typeof repoId !== "string" || repoId === "") {
       return Response.json({ error: "repoId required" }, { status: 400 });
