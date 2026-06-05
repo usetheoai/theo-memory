@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Input } from "@theokit/ui";
+import { Badge, Button, Card, EmptyState, Input, Timestamp } from "@theokit/ui";
 import { History } from "lucide-react";
 
 import { apiCall } from "../../lib/api-client";
@@ -64,9 +64,12 @@ export function SessionTab({ sessionId, reloadKey, onInspectHistory }: Props) {
         )}
         <ul className="flex flex-col gap-2">
           {items.length === 0 && !loading && (
-            <li className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-              No session memories yet. Send a message — the agent stores facts
-              into BOTH the User scope AND this Session scope.
+            <li>
+              <EmptyState
+                title="No session memories yet"
+                description="Send a message — the agent stores facts into BOTH the User scope AND this Session scope."
+                className="text-xs"
+              />
             </li>
           )}
           {items.map((it) => (
@@ -74,20 +77,21 @@ export function SessionTab({ sessionId, reloadKey, onInspectHistory }: Props) {
               <Card size="sm" className="p-3">
                 <p className="text-xs leading-relaxed">{it.text}</p>
                 <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    {it.score !== undefined
-                      ? `score ${it.score.toFixed(2)}`
-                      : new Date(it.createdAt).toLocaleString()}
-                  </span>
-                  <button
+                  {it.score !== undefined ? (
+                    <Badge variant="outline">score {it.score.toFixed(2)}</Badge>
+                  ) : (
+                    <Timestamp value={it.createdAt} format="relative" />
+                  )}
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => onInspectHistory(it.id)}
-                    className="rounded p-1 hover:bg-muted"
                     aria-label="Inspect history"
                     title="Inspect history"
                   >
                     <History className="h-3 w-3" />
-                  </button>
+                  </Button>
                 </div>
               </Card>
             </li>
