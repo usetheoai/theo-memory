@@ -1,15 +1,13 @@
-@import "tailwindcss";
-@import "@theokit/ui/fonts.css";
-@import "@theokit/ui/tokens.css";
-@import "@theokit/ui/preset.css";
+/* Canonical entry — bundles tailwindcss + fonts + tokens + tokens-v4 +
+ * @layer base + 107KB of pre-compiled component styles (Tabs, Select,
+ * RadioGroup, Tooltip, etc.). This single import replaces 4 separate
+ * @import lines that previously missed components.css. */
+@import "@theokit/ui/styles.css";
 
-@source "../node_modules/@theokit/ui/dist";
-
+/* Demo-side overrides (kept minimal — let the canonical preset drive). */
 @custom-variant dark (&:where([data-theme-mode="dark"], [data-theme-mode="dark"] *));
 
 html,
 body {
   height: 100%;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
 }
