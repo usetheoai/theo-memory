@@ -5,11 +5,11 @@
  * Empty query path returns scope.getAll(); non-empty path returns scope.recall(q).
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 export const GET = defineRoute({
   handler: async ({ request }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const userId = url.searchParams.get("userId");
     const query = url.searchParams.get("q") ?? "";
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);

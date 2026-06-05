@@ -16,7 +16,7 @@ import {
   getConflictResolutionPolicy,
   getMemory,
   type PolicyName,
-} from "@/lib/memory";
+} from "../../../lib/memory";
 
 const VALID_POLICIES = ["noop", "last-write-wins", "llm-judged-merge"] as const;
 

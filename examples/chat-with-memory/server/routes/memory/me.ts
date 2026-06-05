@@ -18,11 +18,11 @@
  * @see .claude/knowledge-base/plans/examples-theokit-chat-migration-plan.md § T3.1 + ADR D3
  */
 import { defineRoute } from "theokit/server";
-import { getMemory, memoryFromCtx } from "@/lib/memory";
+import { getMemory, memoryFromCtx } from "../../../lib/memory";
 
 export const GET = defineRoute({
   handler: async ({ request, ctx }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const query = url.searchParams.get("q") ?? "";
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
 

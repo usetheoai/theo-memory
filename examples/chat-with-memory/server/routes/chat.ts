@@ -7,8 +7,8 @@
  * app/api/chat/route.ts (T2.1 of examples-theokit-chat-migration).
  */
 import { defineRoute } from "theokit/server";
-import { getAgent } from "@/lib/agent";
-import { buildReplyWithMemoryContext, rememberTurn } from "@/lib/theomemory-plugin";
+import { getAgent } from "../../lib/agent";
+import { buildReplyWithMemoryContext, rememberTurn } from "../../lib/theomemory-plugin";
 
 interface ChatRequest {
   userId: string;

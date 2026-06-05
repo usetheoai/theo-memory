@@ -8,11 +8,11 @@
  * @see ADR-0003 + ADR-0004 history() verb
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 export const GET = defineRoute({
   handler: async ({ request }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const memoryId = url.searchParams.get("memoryId");
 
     if (memoryId === null || memoryId === "") {

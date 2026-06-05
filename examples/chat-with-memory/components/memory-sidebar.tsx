@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Brain } from "lucide-react";
 
-import { apiCall } from "@/lib/api-client";
+import { apiCall } from "../lib/api-client";
 import { UserTab } from "./memory-tabs/user-tab";
 import { SessionTab } from "./memory-tabs/session-tab";
 import { SkillsTab } from "./memory-tabs/skills-tab";

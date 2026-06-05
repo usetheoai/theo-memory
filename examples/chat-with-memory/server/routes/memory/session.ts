@@ -5,11 +5,11 @@
  * app/api/memory/session/route.ts (T2.1 of examples-theokit-chat-migration).
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 export const GET = defineRoute({
   handler: async ({ request }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const sessionId = url.searchParams.get("sessionId");
     const query = url.searchParams.get("q") ?? "";
     const limit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
