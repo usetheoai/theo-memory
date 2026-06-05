@@ -1,6 +1,6 @@
 ---
 name: test-chat-with-memory
-description: End-to-end test runner for the `examples/chat-with-memory` Next.js demo via Chrome DevTools MCP. Spawns the dev server in background, drives the browser through 33 exhaustive scenarios covering User / Session / Skills / History / chat round-trip / edge cases / v0.4b eviction tab against a real pgvector backend, cleans up, and writes a structured PASS/FAIL audit report.
+description: End-to-end test runner for the `examples/chat-with-memory` TheoKit-canonical demo (post examples-theokit-chat-migration v1.1 — `theokit dev` entrypoint, `defineRoute`-based `server/routes/*`, `@usetheo/memory/theokit` subpath) via Chrome DevTools MCP. Spawns the dev server in background, drives the browser through 33 exhaustive scenarios covering User / Session / Skills / History / chat round-trip / edge cases / v0.4b eviction tab / v0.7 distillation tab against a real pgvector backend, cleans up, and writes a structured PASS/FAIL audit report.
 ---
 
 # Test Chat-with-Memory — exhaustive E2E via Chrome DevTools MCP
@@ -17,7 +17,9 @@ Pre-conditions the skill verifies + refuses on failure:
 2. `docker ps` returns at least one container exposing port 5432 (pgvector running).
 3. Port 3000 is free (`lsof -i :3000` returns nothing) — otherwise an orphan dev server is already up.
 4. `examples/chat-with-memory/node_modules/` exists (otherwise asks user to `npm install`).
-5. The 9 Chrome DevTools MCP tools used below are available (loaded via ToolSearch as a pre-flight step).
+5. Node 22.12.0+ is active per `examples/chat-with-memory/.nvmrc` (post examples-theokit-chat-migration v1.1 T1.2 — TheoKit + Vite require modern Node). Verify via `node --version`; suggest `nvm use` from the demo dir on mismatch.
+6. The 9 Chrome DevTools MCP tools used below are available (loaded via ToolSearch as a pre-flight step).
+7. `npm run dev` resolves to `theokit dev` (post-migration script alias). The skill spawns the dev server via this alias; theokit's ready signal is the standard Vite "Local: http://localhost:3000/" line.
 
 If any pre-condition fails, refuse with the specific missing piece.
 
