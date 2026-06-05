@@ -1,6 +1,6 @@
 "use client";
 
-import { ThemeProvider, builtinThemes } from "@usetheo/ui";
+import { ThemeProvider, builtinThemes } from "@theokit/ui";
 import type { ReactNode } from "react";
 
 export function ThemeBootstrap({ children }: { children: ReactNode }) {
