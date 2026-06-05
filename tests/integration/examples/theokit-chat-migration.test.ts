@@ -15,7 +15,6 @@
  * @see .claude/knowledge-base/plans/examples-theokit-chat-migration-plan.md § T0.1
  * @see .claude/knowledge-base/reviews/examples-theokit-chat-migration-edge-cases-2026-06-05.md § EC-5, EC-8
  */
-import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -104,29 +103,36 @@ describe('examples-theokit-chat-migration — post-migration contract sentinels'
     expect(missing, `routes without server/routes sibling: ${missing.join(', ')}`).toHaveLength(0);
   });
 
-  it('sentinel 8 (EC-8): this test file is picked up by vitest.integration.config.ts include glob', () => {
-    // List files vitest would run with the integration config
-    const output = execSync(
-      `npx vitest list --config vitest.integration.config.ts --reporter=json 2>/dev/null`,
-      { cwd: REPO_ROOT, encoding: 'utf-8', timeout: 60_000 },
-    );
-    // vitest list emits JSON to stdout; parse it (best-effort — schema variance across versions)
-    let pickedUp = false;
-    try {
-      const parsed = JSON.parse(output);
-      // testResults | files | testModules — variant keys across vitest versions
-      const candidates: string[] = [];
-      if (Array.isArray(parsed.testResults)) {
-        for (const r of parsed.testResults) if (typeof r?.name === 'string') candidates.push(r.name);
-      }
-      if (Array.isArray(parsed.files)) {
-        for (const f of parsed.files) if (typeof f?.name === 'string') candidates.push(f.name);
-      }
-      pickedUp = candidates.some((p) => p.endsWith(THIS_FILE_BASENAME));
-    } catch {
-      // Fallback: textual search in raw output
-      pickedUp = output.includes(THIS_FILE_BASENAME);
-    }
-    expect(pickedUp, `vitest must enumerate ${THIS_FILE_BASENAME} in its include set`).toBe(true);
+  it('sentinel 8 (EC-8): this test file matches vitest.integration.config.ts include glob', () => {
+    // Read the include patterns directly from the config file. More robust than
+    // shelling out to `vitest list` (whose JSON output is corrupted by parse
+    // errors in unrelated test files in the same suite — Vitest 4.x behavior).
+    const configPath = join(REPO_ROOT, 'vitest.integration.config.ts');
+    expect(existsSync(configPath), 'vitest.integration.config.ts must exist').toBe(true);
+    const configSrc = readFileSync(configPath, 'utf-8');
+    // Heuristic: locate `include: [...]` (or `include:[...]`) and parse the array literal
+    const match = configSrc.match(/include\s*:\s*\[([^\]]+)\]/);
+    expect(match, 'config must declare an include array').not.toBeNull();
+    const includeBody = match![1]!;
+    const patterns = [...includeBody.matchAll(/['"`]([^'"`]+)['"`]/g)].map((m) => m[1]!);
+    expect(patterns.length, 'include array must contain at least one glob').toBeGreaterThan(0);
+    // The integration glob `tests/integration/**\/*.test.ts` must match this file
+    const relPath = `tests/integration/examples/${THIS_FILE_BASENAME}`;
+    // Translate vitest globs (** and *) to a JS regex
+    const matched = patterns.some((p) => {
+      const re = new RegExp(
+        '^' +
+          p
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*\*\//g, '__DOUBLESTAR_SLASH__')
+            .replace(/\*\*/g, '__DOUBLESTAR__')
+            .replace(/\*/g, '[^/]*')
+            .replace(/__DOUBLESTAR_SLASH__/g, '(?:.*/)?')
+            .replace(/__DOUBLESTAR__/g, '.*') +
+          '$',
+      );
+      return re.test(relPath);
+    });
+    expect(matched, `${relPath} must match one of: ${patterns.join(', ')}`).toBe(true);
   });
 });

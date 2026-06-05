@@ -2,19 +2,19 @@
   "name": "@usetheo/memory-demo-chat",
   "version": "0.0.0",
   "private": true,
-  "description": "Professional demo: Next.js chat app powered by @usetheo/sdk Agent + @usetheo/memory (TheMemory) + @usetheo/ui",
+  "description": "Professional demo: TheoKit-canonical chat app powered by @theokit/sdk Agent + @usetheo/memory (TheMemory) + @usetheo/ui",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
+    "dev": "theokit dev",
+    "build": "theokit build",
+    "start": "theokit start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
     "@usetheo/memory": "file:../..",
     "@usetheo/sdk": "1.3.0",
     "@usetheo/ui": "0.12.0",
@@ -30,7 +30,6 @@
     "mermaid": "^11.15.0",
     "micromark-extension-gfm": "^3.0.0",
     "micromark-extension-math": "^3.1.0",
-    "next": "^15.5.18",
     "openai": "^4.77.0",
     "perfect-freehand": "^1.2.3",
     "pg": "^8.13.1",
@@ -38,19 +37,16 @@
     "react-dom": "^19.0.0",
     "roughjs": "^4.6.6",
     "shiki": "^1.29.2",
+    "theokit": "^0.2.4",
     "unist-util-visit": "^5.1.0",
     "unist-util-visit-parents": "^6.0.2",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
-    "eslint": "^9.18.0",
-    "eslint-config-next": "^15.5.18",
-    "postcss": "^8.5.10",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.7.3"
   }
