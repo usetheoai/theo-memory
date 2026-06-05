@@ -30,13 +30,11 @@ function isValidPolicy(value: unknown): value is PolicyName {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: DistillRequest;
-    try {
-      body = (await request.json()) as DistillRequest;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    if (rawBody === undefined || rawBody === null) {
       return Response.json({ error: "invalid json body" }, { status: 400 });
     }
+    const body = rawBody as DistillRequest;
 
     if (typeof body.userId !== "string" || body.userId === "") {
       return Response.json({ error: "userId required" }, { status: 400 });

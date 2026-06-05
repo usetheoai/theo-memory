@@ -17,13 +17,14 @@ interface ForgetRequest {
 }
 
 export const POST = defineRoute({
-  handler: async ({ request }) => {
-    let body: ForgetRequest;
-    try {
-      body = (await request.json()) as ForgetRequest;
-    } catch {
+  handler: async ({ body: rawBody }) => {
+    // TheoKit auto-parses application/json body via parseRequestBody before
+    // invoking the handler — use the `body` arg, NOT request.json() (Node
+    // IncomingMessage has no .json() method; would throw at runtime).
+    if (rawBody === undefined || rawBody === null) {
       return Response.json({ error: "invalid json body" }, { status: 400 });
     }
+    const body = rawBody as ForgetRequest;
     if (typeof body.userId !== "string" || body.userId === "") {
       return Response.json({ error: "userId required" }, { status: 400 });
     }

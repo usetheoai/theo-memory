@@ -103,7 +103,12 @@ export function ChatSurface() {
     try {
       const resp = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // TheoKit CSRF protection requires this header on POST per
+          // theokit/server enforceCsrf. Without it, 403 CSRF_INVALID.
+          "X-Theo-Action": "1",
+        },
         body: JSON.stringify({ userId, sessionId, message: trimmed }),
       });
       if (resp.body === null) throw new Error("no response body");
@@ -233,7 +238,7 @@ export function ChatSurface() {
         <section className="grid grid-cols-4 gap-3 border-b border-border px-6 py-3">
           <StatTile label="Turns" value={String(turnCount)} />
           <StatTile label="Messages" value={String(messages.length)} />
-          <StatTile label="Model" value={process.env.NEXT_PUBLIC_AGENT_MODEL_ID ?? "composer-2"} />
+          <StatTile label="Model" value={import.meta.env?.VITE_AGENT_MODEL_ID ?? "composer-2"} />
           <StatTile
             label="Reflection"
             value={
