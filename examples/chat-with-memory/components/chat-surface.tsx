@@ -2,14 +2,17 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Avatar,
   Button,
+  ChatComposer,
   ChatMessage,
   ChatThread,
+  EmptyState,
   StatTile,
-  Textarea,
+  useToast,
 } from "@theokit/ui";
-import { Send, Bot, User } from "lucide-react";
+import { Bot, Sparkles } from "lucide-react";
 import { MemorySidebar } from "./memory-sidebar";
 
 interface UIMsg {
@@ -72,6 +75,19 @@ export function ChatSurface() {
   const [reflectionStatus, setReflectionStatus] =
     useState<ReflectionEvent | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Surface reflection.fired as a transient toast on top of the persistent
+  // Alert banner — canonical @theokit/ui toast UX via `useToast`.
+  useEffect(() => {
+    if (reflectionStatus?.fired === true) {
+      toast({
+        title: "reflect() fired",
+        description: "Derived facts arriving in the User/Skills tabs.",
+        variant: "info",
+      });
+    }
+  }, [reflectionStatus?.fired, toast]);
 
   // Auto-scroll to bottom when messages change.
   useEffect(() => {
@@ -251,9 +267,17 @@ export function ChatSurface() {
           />
         </section>
         {reflectionStatus !== null && reflectionStatus.fired && (
-          <div className="border-b border-border bg-sky-500/10 px-6 py-2 text-xs text-sky-700">
-            ✨ reflect() fired in the background — derived facts arriving in the
-            Skills/User tabs.
+          <div className="border-b border-border px-6 py-2">
+            <Alert
+              intent="info"
+              title={
+                <span className="inline-flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  reflect() fired
+                </span>
+              }
+              description="Derived facts arriving in the User/Skills tabs."
+            />
           </div>
         )}
 
@@ -262,11 +286,12 @@ export function ChatSurface() {
           className="flex-1 overflow-y-auto px-6 py-6"
         >
           {messages.length === 0 && (
-            <div className="mx-auto max-w-md rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Say hi. Tell the assistant something about you — your name, what
-              you do, what you like. Reload the page and ask again — it will
-              remember.
-            </div>
+            <EmptyState
+              icon={Bot}
+              title="Say hi"
+              description="Tell the assistant something about you — your name, what you do, what you like. Reload the page and ask again — it will remember."
+              className="mx-auto max-w-md"
+            />
           )}
           {messages.map((m) => (
             <ChatMessage
@@ -288,36 +313,29 @@ export function ChatSurface() {
           ))}
         </ChatThread>
 
-        <form
-          onSubmit={handleSubmit}
-          className="border-t border-border px-6 py-4"
-        >
-          <div className="flex items-end gap-3">
-            <Textarea
-              placeholder="Type a message…"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleSubmit(e);
-                }
-              }}
-              disabled={streaming}
-              rows={2}
-              className="flex-1 resize-none"
-            />
-            <Button type="submit" disabled={streaming || input.trim() === ""}>
-              <Send className="mr-2 h-4 w-4" />
-              {streaming ? "Sending…" : "Send"}
-            </Button>
-          </div>
+        <div className="border-t border-border px-6 py-4">
+          <ChatComposer
+            mode="chat"
+            value={input}
+            onValueChange={setInput}
+            onSubmit={(value) => {
+              if (value.trim() === "" || streaming) return;
+              // Reuse the form-submit path; synthesize a FormEvent shim is
+              // unnecessary — handleSubmit reads `input` state directly when
+              // refactored. For minimal churn we set input + invoke the
+              // existing handler.
+              setInput(value);
+              void handleSubmit(new Event("submit") as unknown as FormEvent);
+            }}
+            running={streaming}
+            placeholder="Type a message…"
+          />
           <p className="mt-2 text-xs text-muted-foreground">
             Each turn: recalled facts injected via <code>systemPrompt</code> ·
             user+assistant pair written to TheMemory · auto-reflect every N
             turns.
           </p>
-        </form>
+        </div>
       </main>
 
       <MemorySidebar
