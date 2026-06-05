@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Brain } from "lucide-react";
+
+import { apiCall } from "@/lib/api-client";
 import { UserTab } from "./memory-tabs/user-tab";
 import { SessionTab } from "./memory-tabs/session-tab";
 import { SkillsTab } from "./memory-tabs/skills-tab";
@@ -43,8 +45,7 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const resp = await fetch("/api/info");
-        const json = (await resp.json()) as BackendInfo;
+        const json = await apiCall<BackendInfo>("/api/info");
         setInfo(json);
       } catch {
         // info badge is purely informational; failure is non-fatal

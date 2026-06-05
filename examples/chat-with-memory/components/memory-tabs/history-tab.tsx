@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Card, Input } from "@usetheo/ui";
 import { Plus, Minus, GitBranch } from "lucide-react";
 
+import { apiCall, ApiError } from "@/lib/api-client";
+
 interface HistoryEntry {
   action: "remember" | "forget" | "reflect";
   at: string;
@@ -37,22 +39,25 @@ export function HistoryTab({ inspectedId, onInspectedIdChange }: Props) {
     setError(null);
     (async () => {
       try {
-        const url = new URL("/api/memory/history", window.location.origin);
-        url.searchParams.set("memoryId", inspectedId);
-        const resp = await fetch(url);
-        const json = (await resp.json()) as {
-          entries?: HistoryEntry[];
-          error?: string;
-        };
+        const json = await apiCall<{ entries?: HistoryEntry[] }>(
+          "/api/memory/history",
+          { query: { memoryId: inspectedId } },
+        );
         if (cancelled) return;
-        if (!resp.ok) {
-          setError(json.error ?? `HTTP ${resp.status}`);
+        setEntries(json.entries ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        // theoFetch throws TheoFetchError on non-2xx; surface its body.
+        if (err instanceof ApiError) {
+          const errMsg =
+            err.body && typeof err.body === "object" && "error" in err.body && typeof (err.body as { error?: unknown }).error === "string"
+              ? (err.body as { error: string }).error
+              : `HTTP ${err.status}`;
+          setError(errMsg);
           setEntries([]);
         } else {
-          setEntries(json.entries ?? []);
+          setError(err instanceof Error ? err.message : String(err));
         }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!cancelled) setLoading(false);
       }

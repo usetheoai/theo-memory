@@ -22,6 +22,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Card } from "@usetheo/ui";
 import { Beaker, RefreshCw } from "lucide-react";
 
+import { apiCall, ApiError } from "@/lib/api-client";
+
 type PolicyName = "noop" | "last-write-wins" | "llm-judged-merge";
 
 interface AuditRow {
@@ -88,22 +90,21 @@ export function DistillationTab({ userId, reloadKey }: Props) {
   const loadAudit = useCallback(
     async (signal: AbortSignal): Promise<void> => {
       if (userId === "") return;
-      const url = new URL("/api/memory/consolidation-history", window.location.origin);
-      url.searchParams.set("userId", userId);
-      url.searchParams.set("limit", "50");
       try {
-        const resp = await fetch(url, { signal });
-        if (!resp.ok) {
-          setAudit({ rows: [], total: 0 });
-          return;
-        }
-        const json = (await resp.json()) as AuditResponse;
+        const json = await apiCall<AuditResponse>("/api/memory/consolidation-history", {
+          query: { userId, limit: 50 },
+          signal,
+        });
         setAudit(json);
       } catch (err) {
         // Aborted fetch is expected control-flow (userId changed mid-fetch
-        // OR component unmounted); swallow silently. Re-throw anything else.
+        // OR component unmounted); swallow silently.
         if (signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof ApiError) {
+          setAudit({ rows: [], total: 0 });
+          return;
+        }
         throw err;
       }
     },
@@ -125,20 +126,21 @@ export function DistillationTab({ userId, reloadKey }: Props) {
     setLoading(true);
     setErrorBanner(null);
     try {
-      const resp = await fetch("/api/memory/distill", {
+      const json = await apiCall<DistillResponse>("/api/memory/distill", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, policy }),
+        body: { userId, policy },
       });
-      const json = (await resp.json()) as DistillResponse & DistillError;
-      if (!resp.ok) {
-        setErrorBanner(formatErrorBanner(json));
-        return;
-      }
       setLastInvocation(json.invocationId ?? null);
       // Reload audit list after a successful distill.
       const controller = new AbortController();
       await loadAudit(controller.signal);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errBody = (err.body as DistillError | null) ?? {};
+        setErrorBanner(formatErrorBanner(errBody));
+      } else {
+        setErrorBanner(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoading(false);
     }
