@@ -53,8 +53,10 @@ export interface DemoContext {
 }
 
 interface CreateContextInput {
-  readonly request: Request;
-  /** Optional Node ServerResponse — when present, future calls may set-cookie directly. */
+  // TheoKit runtime invokes createContext with Node IncomingMessage; unit
+  // tests invoke with Fetch Request. readCookieHeader handles both shapes.
+  readonly request: unknown;
+  /** Optional Node ServerResponse — when present, the runtime sets-cookie directly. */
   readonly response?: { setHeader?: (name: string, value: string | string[]) => void };
 }
 
@@ -72,6 +74,27 @@ function parseCookieHeader(header: string | null): Map<string, string> {
 }
 
 /**
+ * Extract the `cookie` header from either a Fetch `Request` (test path) OR
+ * a Node `IncomingMessage` (real TheoKit runtime path). The runtime passes
+ * IncomingMessage whose `.headers` is a plain object, NOT a Fetch Headers
+ * instance — so `.headers.get(...)` is undefined and crashes the request.
+ */
+function readCookieHeader(req: unknown): string | null {
+  if (req === null || typeof req !== "object") return null;
+  const headers = (req as { headers?: unknown }).headers;
+  if (headers === null || headers === undefined) return null;
+  // Fetch Request — `headers` is Headers
+  if (typeof (headers as Headers).get === "function") {
+    return (headers as Headers).get("cookie");
+  }
+  // Node IncomingMessage — `.headers` is a plain object with lowercased keys
+  const cookieVal = (headers as Record<string, unknown>)["cookie"];
+  if (typeof cookieVal === "string") return cookieVal;
+  if (Array.isArray(cookieVal)) return cookieVal.join("; ");
+  return null;
+}
+
+/**
  * Generate a fresh anonymous user id with deterministic prefix so the demo
  * UI can render "anonymous browser" badges without leaking the raw UUID
  * implementation.
@@ -82,12 +105,12 @@ function generateAnonUserId(): string {
 
 /**
  * Pure helper exposed for unit testing — resolves session from a Request
- * WITHOUT side effects on the response. Returns either the cookie value
- * (treated as the userId) OR a freshly-generated userId + signal that a
- * new Set-Cookie is needed.
+ * (Fetch Request OR Node IncomingMessage) WITHOUT side effects on the
+ * response. Returns either the cookie value (treated as the userId) OR a
+ * freshly-generated userId + signal that a new Set-Cookie is needed.
  */
-export function resolveSession(request: Request): { session: AnonymousSession; isNew: boolean } {
-  const cookies = parseCookieHeader(request.headers.get("cookie"));
+export function resolveSession(request: unknown): { session: AnonymousSession; isNew: boolean } {
+  const cookies = parseCookieHeader(readCookieHeader(request));
   const existing = cookies.get(COOKIE_NAME)?.trim();
   if (existing !== undefined && existing !== "") {
     return { session: { userId: existing }, isNew: false };

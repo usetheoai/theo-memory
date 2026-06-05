@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { ThemeBootstrap } from "@/components/theme-bootstrap";
+import { ThemeBootstrap } from "../components/theme-bootstrap";
 import HomePage from "./page";
 import "./globals.css";
 

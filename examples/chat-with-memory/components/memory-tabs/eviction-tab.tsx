@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Card } from "@usetheo/ui";
 import { Database, RefreshCw, Snowflake } from "lucide-react";
 
-import { apiCall, ApiError } from "@/lib/api-client";
+import { apiCall, ApiError } from "../../lib/api-client";
 
 interface EvictionStatus {
   enabled: boolean;

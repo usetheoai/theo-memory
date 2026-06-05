@@ -10,11 +10,11 @@
  * @see .claude/knowledge-base/plans/examples-chat-with-memory-v0-4b-expansion-plan.md § T1.2 + T1.3 § H1
  */
 import { defineRoute } from "theokit/server";
-import { getSingleton } from "@/lib/memory";
+import { getSingleton } from "../../../lib/memory";
 
 export const GET = defineRoute({
   handler: async ({ request }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const userId = url.searchParams.get("userId");
     if (userId === null || userId === "") {
       return Response.json({ error: "userId required" }, { status: 400 });
