@@ -90,17 +90,18 @@ describe('examples-theokit-chat-migration — post-migration contract sentinels'
     expect(withDefineRoute.length, 'at least 1 route file must import defineRoute from theokit').toBeGreaterThan(0);
   });
 
-  it('sentinel 7 (EC-5): every app/api/**/route.ts has a sibling server/routes/<name>.ts (0 missing)', () => {
+  it('sentinel 7 (EC-5): every app/api/**/route.ts has a sibling server/routes/<rel-path>.ts (hierarchy preserved; 0 missing)', () => {
     const apiDir = join(DEMO_DIR, 'app', 'api');
     const routesDir = join(DEMO_DIR, 'server', 'routes');
     const apiRoutes = findFilesRecursive(apiDir, /^route\.ts$/);
-    // For each app/api/<name>/route.ts, expect server/routes/<name>.ts
+    // For each app/api/<sub-path>/route.ts, expect server/routes/<sub-path>.ts
+    // Per TheoKit URL convention (scanServerRoutes): server/routes/<rel-path> → /api/<rel-path>
+    // — hierarchy preserved (e.g., memory/forget vs skills/forget avoid basename collision).
     const missing = apiRoutes.filter((apiPath) => {
-      // app/api/foo/route.ts -> "foo"
-      const routeName = basename(dirname(apiPath));
-      return !existsSync(join(routesDir, `${routeName}.ts`));
+      const relDirFromApi = dirname(apiPath).slice(apiDir.length + 1); // e.g., "memory/forget"
+      return !existsSync(join(routesDir, `${relDirFromApi}.ts`));
     });
-    expect(missing, `routes without server/routes sibling: ${missing.join(', ')}`).toHaveLength(0);
+    expect(missing, `routes without server/routes hierarchy sibling: ${missing.join(', ')}`).toHaveLength(0);
   });
 
   it('sentinel 8 (EC-8): this test file matches vitest.integration.config.ts include glob', () => {
