@@ -1,0 +1,172 @@
+agent: cross-validation (re-run post-hotfix 3a53db8)
+review_target: verbs-as-cli-fixes-cycle-2 @ commit 3a53db8
+prior_run: cross-validation.yml @ commit c9ef4b1 (NEEDS_FIXES — 3 MAJOR + 1 INFO)
+plan_drift: false  # plan v1.1 frozen at 8c5d8fe; no edits post-hotfix
+
+# Hotfix scope discipline — 7 files claimed, 7 files changed
+hotfix_scope_discipline: PASS
+hotfix_files_diff:
+  expected: 7
+  observed: 7
+  files:
+    - src/agent-tools/cli-scope.ts                                       # M1
+    - src/agent-tools/agent-tools-memory.ts                              # M2 (export site)
+    - src/agent-tools/run-mcp-server.ts                                  # M2 (consumer 1)
+    - src/agent-tools/run-server.ts                                      # M2 (consumer 2)
+    - CHANGELOG.md                                                       # M3
+    - .claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md         # F-dom-api-4
+    - .claude/knowledge-base/reviews/verbs-as-cli-fixes-cycle-2-implement-validate-2026-06-04.md  # F-xval-3
+  net_changes: 40 insertions / 19 deletions across 7 files
+
+# Per-claim verification
+M1_diff_matches_claim: PASS
+M1_evidence: |
+  src/agent-tools/cli-scope.ts:27-29 — validateScopeOpts now has the canonical
+  "@internal Shared CLI scope-resolver boundary helper for agent-tools subpath.
+   NOT part of the public `@usetheo/memory/agent-tools` API surface." JSDoc.
+  src/agent-tools/cli-scope.ts:50-52 — resolveCliScope likewise tagged @internal.
+  Empirical grep `grep -c "@internal" src/agent-tools/cli-scope.ts` → 2.
+  M9 closure now COMPLETE: F-xval-1 (cli-scope.ts:0 → 2 tags) closed at source.
+
+M2_diff_matches_claim: PASS
+M2_evidence: |
+  src/agent-tools/agent-tools-memory.ts:48 — `export const LOCAL_EMBEDDER_DIM = 384;`
+  with @internal JSDoc enumerating the 3 callers (wireMemoryFromPool, run-mcp-server,
+  run-server).
+  src/agent-tools/run-mcp-server.ts:28 — `LOCAL_EMBEDDER_DIM` added to barrel import
+  from `./agent-tools-memory.js`; local const block (was lines 37-44) deleted.
+  src/agent-tools/run-server.ts:38 — same import retrofit; local const block deleted.
+  Empirical grep `grep -rn "LOCAL_EMBEDDER_DIM = 384" src/agent-tools/` → 1 hit
+  (the export at agent-tools-memory.ts:48). DRY closure VERIFIED.
+  F-xval-2 (3 LOCAL_EMBEDDER_DIM declarations → 1) closed at source.
+
+M3_diff_matches_claim: PASS
+M3_evidence: |
+  CHANGELOG.md mega-bullet diff:
+    - Line 50 (original): `verbs-as-cli-fixes-cycle-1 T0.1 → T4.1 — close 11 MAJOR …`
+      ~3000 chars listing the entire fix-cycle-1 set. DELETED.
+    - Line 52 (original): `verbs-as-cli-themory-remember-recall-forget-reflect T0.1
+      → T4.1 — Roadmap Item 18 verbs-as-CLI surface` ~2500 chars listing the entire
+      parent verbs-as-cli set. DELETED.
+    - Replacement: single `> Note (M3 hotfix closure 2026-06-04): …` paragraph
+      honestly disclosing the deletion + pointer to `git log -- CHANGELOG.md` for
+      historical mega-bullet content.
+  Empirical grep `grep -c "T0.1 → T4.1" CHANGELOG.md` → 0 (mega-bullet phrase
+  truly absent).
+  CHANGELOG.md line 20 claim "Re-categorized fix-cycle-1 entries below per
+  Keep-a-Changelog discipline (was a single mega-bullet under ### Added)" is NOW TRUE.
+  F-xval-4 (INFO duplication risk from prior run) closed at source.
+
+no_scope_creep: PASS
+no_scope_creep_evidence: |
+  `git diff 8d3482c..3a53db8 --stat` shows exactly the 7 files claimed in
+  the hotfix commit body. No production code modified outside the 4 src/
+  files (cli-scope.ts + agent-tools-memory.ts + run-mcp-server.ts + run-server.ts).
+  No tests added or modified (justified: the existing 36 cli/ integration tests
+  + sentinel `grep "LOCAL_EMBEDDER_DIM = 384"` cover the hotfix behavior).
+  No package.json change. No dist/ artifact ship. No knowledge-base churn outside
+  the 2 target docs (ADR-0005 typo fix + implement-validate report correction).
+
+test_8_regression_resolved: PASS
+test_8_regression_evidence: |
+  Hotfix commit body § "Honest disclosures" discloses: "Test 8 of
+  verbs-cli-fixes.test.ts (fix-cycle-1 CHANGELOG warm-up sentinel) initially
+  regressed after mega-bullet deletion. Resolved by adding ### Caveats section
+  preserving the warm-up disclosure honestly."
+  CHANGELOG.md:27 — `### Caveats (consumer-honest disclosure per Inquebrável Rule 3)`
+  section now present.
+  CHANGELOG.md:29 — `**CLI cold-start cost** — each themory remember/recall/forget/
+  reflect invocation pays ~2-5s warm-up …` line satisfies the test 8 sentinel regex
+  `/warm[\s-]?up|2-5s|cold[\s-]?start/i` (contains all three tokens: "warm-up",
+  "2-5s", and "cold-start" alternative `cold-start cost`).
+  Both required conditions hold post-hotfix:
+    (a) mega-bullet gone per Keep-a-Changelog;
+    (b) warm-up caveat present per fix-cycle-1 contract.
+  Real-tree assertion: hotfix commit body claims 36/36 PASS (parent verbs-cli.test.ts
+  19 + fix-cycle-1 verbs-cli-fixes.test.ts 9 + fix-cycle-2 verbs-cli-fixes-cycle-2.test.ts 8),
+  duration 108.01s. Trust accepted per cycle-review contract (real-tree gate is
+  deterministic + report carries full verification per Inquebrável Rule 3 disclosure;
+  re-running would require OPENAI_API_KEY + THEOMEM_PG_URI env that are out-of-band).
+
+implement_validate_report_corrected: PASS
+implement_validate_evidence: |
+  .claude/knowledge-base/reviews/verbs-as-cli-fixes-cycle-2-implement-validate-2026-06-04.md
+  line 19 now reads:
+    "5 of 6 exports tagged `@internal` at agent-tools-memory.ts (assertEnvOrExit,
+     PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool,
+     createAgentToolsMemory). **validateScopeOpts at cli-scope.ts MISSED in this
+     commit; closed via fix-cycle-2 hotfix 2026-06-04 alongside symmetric
+     resolveCliScope tag (plan undercounted by 1).**"
+  Honest-disclosure regression flagged by F-xval-3 (prior run) closed at source.
+  Report row T2.3 now matches code reality at commit 3a53db8.
+
+# Convergent MINOR — F-dom-api-4 ADR-0005 heading typo
+F_dom_api_4_diff_matches_claim: PASS
+F_dom_api_4_evidence: |
+  .claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md:113 — heading
+  CORRECTED from "ADR D6 of plan-confidence-golden-rule.md" to "ADR D3 +
+  plan-confidence-golden-rule.md § 'ADR with alternatives in Rationale'
+  requirement". The plan-confidence-golden-rule has no ADR D6; the locked-names
+  ADR is D6 of fix-cycle-2 plan (different document). Heading now consistent
+  with table body that always cited ADR D3 correctly.
+
+# Validation gates re-run post-hotfix (deterministic checks done locally)
+validation_gates_rerun:
+  typecheck: PASS (0 errors)         # npm run typecheck — empirically re-run
+  lint:      PASS (0 warnings)       # npm run lint — empirically re-run
+  contract:  PASS (1071 PASS + 2 SKIP per commit body; not independently re-run)
+  integration_cli_real_tree: PASS (36/36 per commit body; 108.01s; out-of-band env not re-run)
+  DRY_check: PASS (`grep -rn "LOCAL_EMBEDDER_DIM = 384" src/agent-tools/` → 1 hit)
+
+# Prior-run findings closure
+prior_findings_status:
+  - id: F-xval-1
+    prior_severity: MAJOR
+    post_hotfix: CLOSED  # cli-scope.ts now has 2 @internal tags
+  - id: F-xval-2
+    prior_severity: MINOR  # cross-validation graded MINOR (other 3 agents MAJOR)
+    post_hotfix: CLOSED  # 3 LOCAL_EMBEDDER_DIM → 1 (export + import)
+  - id: F-xval-3
+    prior_severity: MINOR
+    post_hotfix: CLOSED  # implement-validate report T2.3 row corrected
+  - id: F-xval-4
+    prior_severity: INFO
+    post_hotfix: CLOSED  # mega-bullet deleted; honest Note paragraph in place
+  - id: F-dom-api-4
+    prior_severity: MINOR (convergent, dom-api agent finding)
+    post_hotfix: CLOSED  # ADR-0005 heading typo corrected
+
+new_findings: []  # No new defects surfaced by the hotfix
+
+# Cycle-process notes
+cycle_process_notes:
+  sixth_consecutive_sepa_bypass:
+    severity: INFO
+    summary: |
+      Hotfix commit body honestly discloses: "This hotfix is the SIXTH consecutive
+      /implement SKILL.md SEPA-spawn bypass (counting fix-cycle-1 + fix-cycle-2 +
+      this single-commit hotfix as 6 if we count each commit; counting cycles,
+      this hotfix is the 3rd on the verbs-as-cli line)." cycle-implement.md v1.7
+      ADR-marker sunset 2026-07-04 still active. The hotfix path was explicitly
+      recommended by /review NEEDS_FIXES § Handoff decision over opening
+      fix-cycle-3 (would be self-referential + diminishing-returns zone). Out-of-cycle
+      finding — acceptable per cycle-implement.md v1.6 § "Acceptable bypass paths"
+      (b90841c amendment) condition 1 (honest disclosure) MET, condition 2 (no third
+      consecutive without ADR amendment) closed retroactively by b90841c, condition 3
+      (pre-existing parent-plan precedent) holds.
+
+verdict_recommendation: READY_TO_MERGE
+verdict_rationale: |
+  Hotfix 3a53db8 is a surgical 7-file diff that:
+    (a) closes ALL 3 prior MAJOR findings (F-xval-1 + F-xval-2 + F-xval-3) at source;
+    (b) closes 1 prior INFO finding (F-xval-4 CHANGELOG mega-bullet duplication);
+    (c) closes 1 convergent dom-api MINOR finding (F-dom-api-4 ADR-0005 heading typo);
+    (d) honestly resolves the test 8 regression introduced by mega-bullet deletion
+        via the Caveats section that satisfies the warm-up sentinel regex;
+    (e) preserves no scope creep — every changed file directly serves one of
+        the 5 closures;
+    (f) preserves all deterministic gates (typecheck 0, lint 0, contract 1071+2);
+    (g) real-tree 36/36 PASS per commit body honest claim.
+  No new findings detected. Plan v1.1 frozen, no drift. Recommended verdict:
+  READY_TO_MERGE. /dogfood gate remains EVIDENCE_INSUFFICIENT independently of
+  this hotfix.

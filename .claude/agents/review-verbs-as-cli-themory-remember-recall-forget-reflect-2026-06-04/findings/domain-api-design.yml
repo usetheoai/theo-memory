@@ -1,0 +1,352 @@
+agent: review-verbs-as-cli-themory-remember-recall-forget-reflect-domain-api-design
+review_target: b693361..HEAD for plan verbs-as-cli-themory-remember-recall-forget-reflect v1.1
+domain: api-design
+scope_note: |
+  The CLI is a consumer-facing public API surface — it lives behind the
+  package.json#bin entry and any token user `npm install @usetheo/memory && npx themory ...`
+  binds against. Review treats CLI flag shape, output JSON shape, and parity
+  with sibling surfaces (MCP, REST) as PUBLIC API concerns.
+domain_specific_patterns_checked:
+  - "Verb signature consistency CLI ↔ public 4-verb API (Memory.{remember,recall,forget,reflect})"
+  - "Public output DTO parity across CLI / MCP / REST surfaces"
+  - "Three-tier scope contract (User/Session/Agent) preserved (Architecture rule § 1)"
+  - "ADD-only invariant honored at CLI surface (no themory update)"
+  - "CLI flag bounds-validation conformance vs RecallOptions DIP"
+  - "Reserved-word collision check on flag names (Architecture rule § 6)"
+  - "Public-surface stability marker for CLAUDE.md § Locked names (v1.0 contract freeze)"
+  - "CHANGELOG honesty discipline (Inquebrável Rule 3 + Rule 6)"
+  - "Type-vs-runtime asymmetry in MemoryItemWithScore.embedding strip"
+
+findings:
+  - id: F-dom-api-1
+    severity: MAJOR
+    file: src/agent-tools/run-reflect.ts
+    line: 32-37
+    plan_ref: ADR D3 + T2.4 Deep Dives ("consumer-friendly { sourceCount, derivedCount }")
+    domain_anchor: |
+      CLAUDE.md § Locked names (4 verbs = remember/recall/forget/reflect — same
+      semantics across all three consumer surfaces); Architecture rule § 9
+      (Public API surface: "Adding a new public export requires updating
+      src/index.ts ... and a unit test that imports through the public path").
+    summary: |
+      CLI `reflect` projects `ReflectionResult` into `CliReflectResult` with a
+      RENAMED field (`higherOrderMemories` → `derived`) — diverges from MCP +
+      REST surfaces and breaks 3-way parity. There is NO public ADR justifying
+      the field-name remap; ADR D3 merely says "consumer-friendly counts".
+    evidence: |
+      Three sibling surfaces ship different reflect shapes:
+
+      (a) REST POST /v1/reflect (src/server/handlers/reflect.ts:32-33)
+          returns `c.json(result, 202)` — RAW `ReflectionResult`:
+            { higherOrderMemories: MemoryItem[], sourceIds: string[],
+              derivedMemoriesCreated: number, reason?: ... }
+
+      (b) MCP `mcp__themory__reflect` (src/agent-tools/tools/reflect-handler.ts:30-37)
+          returns text-only summary `"Reflection complete. Produced N
+          higher-order memories."` — neither raw nor projected; no structured
+          payload at all.
+
+      (c) CLI `themory reflect --json` (src/agent-tools/run-reflect.ts:32-38
+          + src/agent-tools/cli-output.ts:27-32) returns PROJECTED
+          `CliReflectResult`:
+            { sourceCount: number, derivedCount: number,
+              derived: MemoryItem[], reason?: ... }
+
+      Consumer that uses `themory reflect --user u --json | jq .higherOrderMemories`
+      gets `null`; the consumer would need `jq .derived` for the CLI surface,
+      `jq .higherOrderMemories` for the REST surface, and the MCP surface
+      cannot be JSON-queried at all. The 4-verb public API is locked under
+      CLAUDE.md § Locked names — its output shape is part of the contract.
+      A renamed projection in ONE surface is a public-API divergence.
+    recommended_action: |
+      Two acceptable resolutions per Inquebrável Rule 3 (extreme honesty):
+      (A) CLI emits RAW `ReflectionResult` JSON (matching REST) — drop the
+          `CliReflectResult` projection entirely. Text-format renderer keeps
+          the `Reflected N → M insights` ergonomic line; JSON-format ships
+          the raw contract. Restores 3-way parity (or at least 2-way; MCP
+          text-only is a separate F-dom-domain issue).
+      (B) Document the divergence loudly: add a `## Public CLI surface
+          stability` note in CHANGELOG `[Unreleased]` calling out that CLI
+          reflect JSON differs from REST and explaining the trade-off, AND
+          add a dedicated ADR D6 to the plan (post-merge follow-up cycle)
+          locking the rename so future contributors do not silently re-shape it.
+
+      Resolution (A) is preferred — keeps the 4-verb contract uniform across
+      surfaces and removes the field-name asymmetry that breaks jq pipelines.
+
+  - id: F-dom-api-2
+    severity: MAJOR
+    file: CHANGELOG.md
+    line: 9
+    plan_ref: T4.1 § Acceptance Criteria — "CHANGELOG [Unreleased] entry added"
+    domain_anchor: |
+      Inquebrável Rule 3 (extreme honesty) + Rule 6 (changelog discipline:
+      "Toda entry DEVE ter referência ao ticket/issue/PR ... Escreva para o
+      consumidor, não para o desenvolvedor"). CLAUDE.md § Roadmap discipline:
+      "Caveat disclosure is non-negotiable. Every shipped feature lists its
+      caveats."
+    summary: |
+      CHANGELOG `[Unreleased]` entry is comprehensive on EC absorptions (1-9)
+      and operational surface but DOES NOT surface 3 consumer-facing caveats
+      that the consumer will hit on day 1.
+    evidence: |
+      Missing caveats in the [Unreleased] entry (grep CHANGELOG.md:9):
+
+      1. **Reflect projection divergence** — `themory reflect --json` emits
+         `{ sourceCount, derivedCount, derived, reason? }` while
+         `POST /v1/reflect` emits the raw `ReflectionResult`
+         `{ higherOrderMemories, sourceIds, derivedMemoriesCreated, reason? }`.
+         Consumer scripts that switch transports (CLI → REST during ops
+         scaling) will break their jq pipelines silently. Not warned.
+
+      2. **`DOTENV_CONFIG_QUIET=true` requirement for jq composability** —
+         tests/integration/cli/verbs-cli.test.ts:73 injects this env to
+         silence a dotenv v17 transitive banner that would otherwise
+         pollute stdout. The CHANGELOG entry mentions it parenthetically
+         ("Pre-existing dotenv v17 transitive auto-load surface noted: ...
+         runtime is dependency-driven, not introduced by this cycle") but
+         does NOT instruct CONSUMERS to set this in their own shell when
+         piping `themory recall ... | jq`. This is consumer-load-bearing
+         disclosure.
+
+      3. **First-invocation warm-up cost (EC-8)** — handler JSDoc documents
+         "~2-5s cold-start" but the CHANGELOG mentions "EC-8 + EC-9
+         documented in handler JSDoc" without surfacing the actual
+         number. Consumers planning batch scripting will not know to
+         switch to REST until they hit the timeout.
+    recommended_action: |
+      Add a "## Consumer caveats" sub-bullet (or inline `**Caveats:**` clause)
+      to the verbs-as-cli [Unreleased] entry covering:
+      (a) reflect-shape divergence (per F-dom-api-1 resolution choice);
+      (b) `DOTENV_CONFIG_QUIET=true` recommended in user shell for shell
+          pipelines (or, better, fix at source: re-evaluate whether the
+          dotenv banner should be silenced unconditionally in the CLI bin
+          entry — but that's a separate change);
+      (c) cold-start ~2-5s; for batch ops > 50 invocations, use REST server +
+          curl per EC-8 documented in run-remember.ts JSDoc.
+
+  - id: F-dom-api-3
+    severity: MAJOR
+    file: CLAUDE.md
+    line: "Locked names table"
+    plan_ref: |
+      Roadmap Item 18 (v1.0 contract freeze blocker per Item 11) + CLAUDE.md
+      § PRIORITY 0 sub-goal 1 ("APIs corretas — every export in src/index.ts
+      ... is documented, typed, narrowable").
+    domain_anchor: |
+      CLAUDE.md § Locked names: "Decisions documented; changing requires a
+      CLAUDE.md update + CHANGELOG entry + strategic review for items marked
+      `strategic`." Roadmap Item 18 acceptance criterion locks the verb
+      surface; the CLI surface is now ALSO a public consumer entry-point.
+    summary: |
+      The 4 CLI verbs + their flag set are NEW public CLI contract reachable
+      from `npm install @usetheo/memory && npx themory ...`. They are NOT
+      enumerated in CLAUDE.md § Locked names. Without explicit locking, a
+      future cycle could silently rename or remove a flag, breaking the v1.0
+      contract-freeze commitment (Roadmap Item 11).
+    evidence: |
+      CLAUDE.md § Locked names currently locks API verbs at the language
+      surface ("API verbs: remember / recall / forget / reflect") but does
+      NOT enumerate CLI subcommands. The Locked names table covers:
+       - npm package name
+       - Marketing name
+       - License
+       - Memory tiers
+       - API verbs (language-only)
+       - Two runtimes
+       - Subpath exports
+
+      The CLI surface introduced by this cycle:
+       - `themory remember <text>` + scope flags + format flags
+       - `themory recall <query>` + scope + tuning + format flags
+       - `themory forget <id>` + --hard + format flags
+       - `themory reflect` + scope flags + format flags
+       - Flag names: --user, --session, --agent, --hard, --top-k,
+         --threshold, --diversify, --json, --text
+       - Output: JSON by default, --text opt-in
+       - Bin entries: `themory` + `themory-mcp` (per ADR D5; package.json
+         confirmed unchanged)
+
+      None of the above is locked at CLAUDE.md strategic-marker level. v1.0
+      contract freeze (Item 11) needs the CLI surface enumerated so that
+      future refactors cannot silently break it.
+    recommended_action: |
+      Follow-up cycle (NOT this merge — would scope-creep this plan past its
+      ~500 LoC budget): add a "Consolidated CLI" row to CLAUDE.md § Locked
+      names enumerating the 4 verbs + the 9 stable flags + the JSON-default
+      output contract. Mark as `strategic`. Add a regression sentinel test
+      `tests/integration/p0-audit/cli-flag-stability.test.ts` that spawns
+      `themory <verb> --help` and asserts the printed flag set against a
+      frozen baseline. This closes the gap between Roadmap Item 18
+      "Consolidated CLI" line and the actual flag inventory.
+
+  - id: F-dom-api-4
+    severity: MINOR
+    file: src/agent-tools/run-recall.ts
+    line: 41-49
+    plan_ref: EC-7 absorption (T0.1 test 19 + T2.2 Deep Dives)
+    domain_anchor: |
+      Architecture rule § 9 (Public API surface — internal helpers stay
+      un-exported); CLAUDE.md § Princípio 3 (memory must be auditable —
+      including what the CLI consumer sees vs what the type system promises).
+    summary: |
+      EC-7 absorption strips `embedding` via runtime `Object.entries.filter`
+      on a value whose TYPE (`MemoryItemWithScore`) does NOT declare
+      `embedding`. The defensive strip is necessary but creates a
+      type-vs-runtime asymmetry that is invisible to readers of the public
+      type — and the asymmetry is not surfaced in JSDoc on
+      `MemoryItemWithScore`.
+    evidence: |
+      MemoryItemWithScore at src/core/memory-item.ts:129-132:
+        export interface MemoryItemWithScore extends MemoryItem {
+          readonly score: number;
+        }
+      MemoryItem (lines 9-121) does NOT declare `embedding`.
+
+      run-recall.ts:46-49 strips a key that the type says cannot be there:
+        const stripped = items.map((item) => {
+          const entries = Object.entries(item).filter(([key]) => key !== 'embedding');
+          return Object.fromEntries(entries) as MemoryItemWithScore;
+        });
+
+      This is the right defensive move (adapters may project the column at
+      runtime even though it is not in the type contract — see comment at
+      line 41-45 explaining the rationale), but the asymmetry is:
+        - Type contract: embedding NEVER present
+        - Runtime reality: embedding MAY be present (adapter-projected)
+        - CLI surface contract: embedding NEVER reaches stdout
+
+      A reader of `MemoryItemWithScore` cannot tell that runtime values may
+      carry undeclared `embedding`. No JSDoc on MemoryItemWithScore warns
+      about this. The strip silently does the right thing without
+      documenting the gap.
+    recommended_action: |
+      Add a single JSDoc paragraph to MemoryItemWithScore (or to the parent
+      MemoryItem) acknowledging:
+       - The public type does NOT declare `embedding`.
+       - Local Postgres / pgvector adapter implementations MAY project the
+         embedding column at runtime (audit trail / debugging convenience).
+       - Consumers serializing recall results to stdout / JSON should strip
+         the field defensively (`themory recall` does this internally;
+         REST `POST /v1/recall` SHOULD verify this — see follow-up).
+      Then verify REST `POST /v1/recall` (out of scope this plan) does the
+      same defensive strip; if it does NOT, the embedding may currently
+      leak through `c.json(result)` at the REST surface — that would be a
+      separate F-arch-style finding on the REST handler.
+
+  - id: F-dom-api-5
+    severity: MINOR
+    file: src/agent-tools/cli.ts
+    line: 71-79
+    plan_ref: ADR D4 (EC-3 absorption — exit 2 via direct process.exit, not throw)
+    domain_anchor: |
+      Architecture rule § 8 (Error handling — Never `catch (e)` and swallow);
+      CLAUDE.md § Princípio 3 (auditability — every decision rastreável).
+    summary: |
+      The global `program.exitOverride` translates BOTH
+      `commander.invalidArgument` AND `commander.invalidOptionArgument` to
+      exit 2 for the new verbs, but it also catches every other commander
+      exit (including --help, --version, unknown-command) and forwards
+      via `process.exit(err.exitCode)`. This is correct for the contract,
+      but the exit-2 contract is now silently load-bearing for the
+      pre-existing `mcp`/`server`/`migrate`/`health` subcommands too —
+      a regression there would be invisible.
+    evidence: |
+      cli.ts:71-79:
+        program.exitOverride((err) => {
+          if (
+            err.code === 'commander.invalidArgument' ||
+            err.code === 'commander.invalidOptionArgument'
+          ) {
+            process.exit(2);
+          }
+          process.exit(err.exitCode);
+        });
+
+      The exit-2 override applies globally to the program (all subcommands).
+      No regression test verifies that, e.g., `themory mcp --port 0` still
+      exits 2 (the pre-existing port validator in cli.ts:87-93 throws a
+      plain Error, NOT InvalidArgumentError — so it currently exits 1 via
+      .catch in main()). The CHANGELOG entry mentions "commander.exitOverride
+      applies globally to the program; pre-existing mcp/server/migrate/health
+      subcommands unaffected" but no test pins this claim.
+    recommended_action: |
+      Add a single-assertion sentinel to tests/integration/p0-audit (or to
+      verbs-cli.test.ts as an addendum) that spawns one of:
+       - `themory mcp --port 0` → expect exit code (current behavior:
+         likely 1 because port validator throws plain Error in .action()
+         body, NOT via parseFn callback that commander wraps in
+         InvalidArgumentError)
+       - `themory server --port 99999` → same
+      Document the actual exit code in the assertion. If the pre-existing
+      subcommands now also exit 2 (because the parseFn callback for `--port`
+      throws), that is actually MORE consistent — but it should be
+      documented either way. Closes the silent-load-bearing concern.
+
+  - id: F-dom-api-6
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 165-283
+    plan_ref: ADR D1 (per-file handler) + ADR D2 (3-tier scope flags)
+    domain_anchor: |
+      CLAUDE.md § Locked names ("API verbs: remember / recall / forget /
+      reflect"). Verb signatures match the public ScopedMemory contract.
+    summary: |
+      Verb signatures consistency check PASSES:
+        - `themory remember <text>` ↔ `ScopedMemory.remember(text, options)`
+          positional matches; scope binding via flags maps to memory.user(id)
+          per resolveCliScope (cli-scope.ts:32-42).
+        - `themory recall <query>` ↔ `ScopedMemory.recall(query, options)`
+          positional + tuning flags (--top-k, --threshold, --diversify) map
+          to RecallOptions; bounds validators (1..100 / 0..1 / 0..1) honor
+          contract floors from principles-alignment-hardening EC-3.
+        - `themory forget <id>` ↔ top-level `Memory.forget(memoryId, options)`
+          per EC-1 absorption; positional + --hard match; NO scope flag per
+          ADR-0002 + memory-store.ts:59-60 ScopedMemory exclusion.
+        - `themory reflect` ↔ `ScopedMemory.reflect(options)` — scope flags
+          only, no positional, matches.
+      Informational: this confirms ADR D1 and ADR D2 are honored in code.
+    evidence: |
+      Cross-checked:
+       - src/agent-tools/cli.ts:166 `.command('remember <text>')` → matches
+       - src/agent-tools/cli.ts:194 `.command('recall <query>')` → matches
+       - src/agent-tools/cli.ts:237 `.command('forget <id>')` (NO scope option) → matches
+       - src/agent-tools/cli.ts:256 `.command('reflect')` (no positional) → matches
+       - src/agent-tools/run-forget.ts:34 `await memory.forget(opts.id, { hard })` → top-level invocation confirmed
+      No defect here; recorded as INFO so the verdict consolidator can
+      surface the positive signal.
+    recommended_action: none
+
+verdict_summary: |
+  Public API surface for the 4 CLI verbs is largely consistent with the
+  language-level public 4-verb API. ADR D1 (per-file handlers), ADR D2
+  (3-tier scope flags + forget bypass), ADR D4 (exit 2 contract via
+  process.exit) honored in code (F-dom-api-6 INFO).
+
+  Two MAJOR concerns are public-surface load-bearing:
+   - F-dom-api-1: CLI reflect JSON shape diverges from REST reflect JSON
+     shape (3-way contract broken between CLI ↔ MCP ↔ REST). Recommended
+     resolution (A): emit raw ReflectionResult to restore parity.
+   - F-dom-api-2: CHANGELOG entry does not surface 3 consumer-facing
+     caveats (reflect divergence, DOTENV_CONFIG_QUIET, ~2-5s warm-up).
+
+  One MAJOR forward-looking concern:
+   - F-dom-api-3: CLI surface (verbs + flags + JSON-default contract)
+     should be enumerated in CLAUDE.md § Locked names ahead of v1.0
+     contract freeze (Roadmap Item 11). Follow-up cycle, not blocking
+     this merge.
+
+  Two MINOR hygiene improvements:
+   - F-dom-api-4: type-vs-runtime asymmetry around embedding strip
+     deserves JSDoc on MemoryItemWithScore.
+   - F-dom-api-5: global exitOverride is silently load-bearing for
+     pre-existing subcommands; pin via a single regression sentinel.
+
+  Honest assessment: the implementation FUNCTIONALLY passes its 19-assertion
+  THE GOAL TEST and honors the EC absorption map. The defects identified
+  are public-API consistency + disclosure gaps that should be closed
+  before the v1.0 contract freeze, but do not block the cycle close.
+
+  Verdict (this agent's perspective): READY_TO_MERGE_WITH_CAVEATS pending
+  F-dom-api-1 resolution choice (A or B) + F-dom-api-2 CHANGELOG amendment.
+  F-dom-api-3 + F-dom-api-4 + F-dom-api-5 are follow-up.

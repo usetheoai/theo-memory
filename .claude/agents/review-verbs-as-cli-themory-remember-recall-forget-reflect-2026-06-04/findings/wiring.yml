@@ -1,0 +1,267 @@
+agent: review-verbs-as-cli-themory-remember-recall-forget-reflect-wiring
+review_target: b693361..HEAD for plan verbs-as-cli-themory-remember-recall-forget-reflect
+plan: .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md
+
+summary: |
+  Wiring triad is HONEST for all 7 new symbols. Pillar (a) static caller — every new
+  symbol exists at a real call site, not gamed; Pillar (b) integration tests — 19/19
+  PASS exercising each verb via real `node dist/agent-tools/cli.js`; Pillar (c) runtime
+  metric — N/A per plan ADR D5 + Inquebrável Rule 11 YAGNI (CLI verbs are end-consumers,
+  not instrumentation surfaces).
+
+  Two MAJORs scoped: (1) F-arch-1/F-arch-2 stand — `cli-memory-factory.ts` created the
+  DRY surface but the duplicates in `run-mcp-server.ts:84-128` and `run-server.ts:130-141`
+  were NOT retrofitted; (2) ReflectionPolicy asymmetry — only `cli-memory-factory.ts`
+  configures `{ kind: 'manual' }`, leaving MCP/REST `reflect` calls hitting
+  `ReflectionNotConfigured`. Both are pre-existing-flavored issues — not introduced by
+  this cycle but adjacent to the DRY extraction it landed; recommend a follow-up cycle.
+
+  Boundary respect: `agent-tools/` continues importing from `local/` + `embedders/` +
+  `llms/` — consistent with pre-existing `run-mcp-server.ts` precedent (composition root
+  pattern). NOT a NEW deviation from architecture.md § 3. Default barrel `dist/index.js`
+  does NOT pull commander, run-* handlers, or cli helpers — bundle isolation preserved.
+  `themory` + `themory-mcp` bin entries both resolve to `dist/agent-tools/cli.js`.
+
+triad_revalidation:
+  total_new_symbols: 7   # runRemember, runRecall, runForget, runReflect, resolveCliScope, renderCliOutput, createCliMemory
+  pillar_a_honest_pass: 7 / 7
+  pillar_b_honest_pass: 7 / 7
+  pillar_c_observed: n/a   # ADR D5 — CLI verbs are end-consumers; no new instrumentation surface
+  details:
+    runRemember:
+      caller_site: src/agent-tools/cli.ts:179 (program.command('remember').action)
+      caller_functional: true
+      integration_test: tests/integration/cli/verbs-cli.test.ts tests 1-4,13-14 (6 assertions exercise the handler)
+      test_exercises_symbol: true
+    runRecall:
+      caller_site: src/agent-tools/cli.ts:219 (program.command('recall').action)
+      caller_functional: true
+      integration_test: tests/integration/cli/verbs-cli.test.ts tests 5-7,16-19 (7 assertions)
+      test_exercises_symbol: true
+    runForget:
+      caller_site: src/agent-tools/cli.ts:244 (program.command('forget').action)
+      caller_functional: true
+      integration_test: tests/integration/cli/verbs-cli.test.ts tests 8-9,12,15 (4 assertions; EC-1 NO scope flag honored)
+      test_exercises_symbol: true
+    runReflect:
+      caller_site: src/agent-tools/cli.ts:272 (program.command('reflect').action)
+      caller_functional: true
+      integration_test: tests/integration/cli/verbs-cli.test.ts tests 10-11 (2 assertions)
+      test_exercises_symbol: true
+    resolveCliScope:
+      caller_sites:
+        - src/agent-tools/run-remember.ts:35
+        - src/agent-tools/run-recall.ts:35
+        - src/agent-tools/run-reflect.ts:28
+      caller_count: 3
+      ec1_honored: true   # NOT consumed by run-forget per EC-1 (memoryId globally unique)
+      unit_test: src/agent-tools/__tests__/cli-scope.test.ts (mutually-exclusive + isolation assertions)
+      integration_coverage: tests 3 + 4 (scope rejection) + tests 1,2,5,6,7,10,11,12 (positive scope binding)
+    renderCliOutput:
+      caller_sites:
+        - src/agent-tools/run-remember.ts:37
+        - src/agent-tools/run-recall.ts:50
+        - src/agent-tools/run-forget.ts:35
+        - src/agent-tools/run-reflect.ts:38
+      caller_count: 4
+      unit_test: src/agent-tools/__tests__/cli-output.test.ts (verb × format matrix)
+      integration_coverage: every spawn-based test parses stdout — implicitly validates renderer output shape
+    createCliMemory:
+      caller_sites:
+        - src/agent-tools/run-remember.ts:33
+        - src/agent-tools/run-recall.ts:33
+        - src/agent-tools/run-forget.ts:31
+        - src/agent-tools/run-reflect.ts:26
+      caller_count: 4
+      integration_coverage: every passing test (1-19) exercises the factory; test 13 covers OPENAI_API_KEY env-fail (exit 2 contract)
+
+dist_artifacts_check:
+  expected: 4 run-*.js + 4 run-*.d.ts + 3 cli-*.js + 3 cli-*.d.ts shipped via pack
+  observed:
+    - dist/agent-tools/cli-memory-factory.{js,d.ts}
+    - dist/agent-tools/cli-output.{js,d.ts}
+    - dist/agent-tools/cli-scope.{js,d.ts}
+    - dist/agent-tools/run-forget.{js,d.ts}
+    - dist/agent-tools/run-recall.{js,d.ts}
+    - dist/agent-tools/run-reflect.{js,d.ts}
+    - dist/agent-tools/run-remember.{js,d.ts}
+  pack_manifest_includes_all: true
+  globs_used: dist/**/*.js + dist/**/*.d.ts (PR #30 globs — no package.json#files change needed)
+  package_files_change_needed: false
+
+reachability:
+  bin_entry: package.json#bin maps `themory` AND `themory-mcp` → ./dist/agent-tools/cli.js
+  cli_to_handlers: buildProgram() registers 4 `.action(...)` callbacks invoking runRemember / runRecall / runForget / runReflect
+  handlers_to_helpers: each handler imports createCliMemory + renderCliOutput + (3/4) resolveCliScope
+  no_orphan_modules: true
+  no_dead_exports: true   # New exports are internal-only; consumed by cli.ts. NOT re-exported via src/index.ts because they are not public API.
+
+boundary_check:
+  rule: architecture.md § 3 — src/agent-tools/ depends on src/core/ only
+  deviation: agent-tools/cli-memory-factory.ts imports from src/local/ + src/embedders/ + src/llms/
+  precedent: same pattern as src/agent-tools/run-mcp-server.ts:84-128 (composition root pattern; agent-tools acts as the assembly point for runtime adapters)
+  classification: PRE-EXISTING pattern, NOT a new violation; the rule allows the composition root carve-out implicitly via the `run-*.ts` files shipped in v0.3 / Roadmap Item 18.
+  recommendation: clarify architecture.md § 3 with an explicit carve-out for the agent-tools composition root, OR formalize a `src/agent-tools/composition/` sub-namespace. Out of scope for this cycle.
+
+bundle_isolation:
+  default_barrel: dist/index.js does NOT import dist/agent-tools/cli.js, run-*.js, cli-*.js, or commander
+  verified_via: grep for "agent-tools|run-remember|run-recall|run-forget|run-reflect|cli-scope|cli-output|cli-memory-factory|commander" in dist/local/index.js + dist/core/index.js → only one comment match (NO import)
+  subpath_isolation_preserved: true   # consumers `import '@usetheo/memory'` do NOT pull cli/commander
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/agent-tools/cli-memory-factory.ts
+    line: 28
+    plan_ref: T2 § Deep Dives (DRY extraction surface) + cycle-implement.md anti-pattern #7 (scope creep)
+    summary: |
+      The cli-memory-factory.ts extraction was the right DRY surface but the duplicates
+      in src/agent-tools/run-mcp-server.ts:84-128 and src/agent-tools/run-server.ts:130-141
+      were NOT retrofitted to consume it. Architecture review flagged this as F-arch-1 + F-arch-2.
+      Currently 3 near-identical implementations of (env-fail validation + pg pool + runMigrations
+      + createLocalMemory wiring) exist side by side.
+    evidence: |
+      grep -n "createCliMemory" run-mcp-server.ts run-server.ts → no matches.
+      grep -n "createLocalMemory" run-mcp-server.ts:123, run-server.ts:136 — both still
+      inline the factory call with the same env-fail block carbon-copied from the original.
+    wiring_impact: |
+      Pillar (a) caller pass is technically honest — createCliMemory IS consumed by 4 CLI
+      handlers. The DRY surface IS wired. BUT the DRY *intent* of T1.3 was to consolidate.
+      MCP + REST factories remain in their pre-cycle duplicated state.
+    recommended_action: |
+      Open a follow-up cycle to retrofit run-mcp-server.ts + run-server.ts to consume
+      createCliMemory (or a renamed createMemoryFromEnv). Acceptance: the env-fail block
+      + Pool() + runMigrations() + createLocalMemory({ ... }) literal appears in only one
+      location. Out of scope for verbs-as-cli cycle (correctly scoped fix); flagged as
+      hardening debt under Priority 0 sub-goal 1.
+
+  - id: F-wire-2
+    severity: MAJOR
+    file: src/agent-tools/cli-memory-factory.ts
+    line: 57
+    plan_ref: T2.4 § ADR D4 + run-reflect.ts (ScopedMemory.reflect → ReflectionPolicy requirement)
+    summary: |
+      ReflectionPolicy asymmetry: createCliMemory wires `reflectionPolicy: { kind: 'manual', shouldReflect: () => Promise.resolve(true) }`
+      to permit `themory reflect`. Same factory pattern in run-mcp-server.ts (line 123) and
+      run-server.ts (line 136) does NOT set reflectionPolicy. Consequently, MCP `reflect` tool
+      (src/agent-tools/tools/reflect-handler.ts:31) and REST POST /v1/reflect handler
+      (src/server/handlers/reflect.ts:32) hit `scoped.reflect()` → throw `ReflectionNotConfigured`
+      (src/local/index.ts:632).
+    evidence: |
+      grep -n "reflectionPolicy" run-mcp-server.ts run-server.ts cli-memory-factory.ts →
+      only cli-memory-factory.ts:57 sets it.
+      src/local/index.ts:631-632: `if (this.reflectionPolicy === undefined) { throw new ReflectionNotConfigured(); }`
+      src/agent-tools/tools/reflect-handler.ts:31: `const result = await scoped.reflect();`
+      src/server/handlers/reflect.ts:32: `const result = await scoped.reflect({ maxIterations });`
+    wiring_impact: |
+      NOT a verbs-as-cli wiring violation — the CLI surface this cycle delivers IS wired
+      correctly. BUT the asymmetry surfaces a pre-existing latent defect in MCP + REST:
+      operators invoking `mcp.reflect` or `POST /v1/reflect` will get an unexpected exception
+      because the createLocalMemory factory does NOT default reflectionPolicy.
+    recommended_action: |
+      Two options for the follow-up cycle: (a) move the manual ReflectionPolicy default
+      into createLocalMemory() — make reflectionPolicy default to { kind: 'manual' } when
+      omitted, so all 3 entry points get the safe default; OR (b) retrofit run-mcp-server.ts +
+      run-server.ts to set the policy explicitly (when bundled with F-wire-1 fix via
+      consuming createCliMemory). Option (a) is preferred per Inquebrável Rule 9 + 10 (KISS).
+
+  - id: F-wire-3
+    severity: MINOR
+    file: src/agent-tools/cli.ts
+    line: 34-43
+    plan_ref: architecture.md § 3 (DIP — agent-tools depends on src/core/ only)
+    summary: |
+      cli-memory-factory.ts (and pre-existing run-mcp-server.ts, run-server.ts) imports from
+      src/local/, src/embedders/, src/llms/ — three sibling tiers — to act as the runtime
+      composition root. architecture.md § 3 line 49 states "src/agent-tools/ (when created
+      — v0.3) depends on src/core/ only". The deviation is PRE-EXISTING (run-mcp-server.ts
+      precedent v0.3 / Roadmap Item 18) but the new file inherits + extends it.
+    evidence: |
+      grep "from '\.\./local\|from '\.\./embedders\|from '\.\./llms'" cli-memory-factory.ts
+      → 4 lines: ../core, ../embedders/local, ../llms/openai, ../local/index, ../local/pgvector-store
+    wiring_impact: |
+      Boundary-check.sh did NOT block these writes — either the hook is permissive for
+      agent-tools composition-root files OR the rule needs clarification. Not a runtime
+      defect; consumers using composition root get the correct wired runtime.
+    recommended_action: |
+      Out of scope for this cycle. Recommend the next architecture review formalize the
+      composition root carve-out in architecture.md § 3 (or add a `src/agent-tools/composition/`
+      sub-namespace allowed to cross tiers). The rule was written before v0.3 / Item 18
+      shipped; the precedent has since established the pattern.
+
+  - id: F-wire-4
+    severity: MINOR
+    file: tests/integration/cli/verbs-cli.test.ts
+    line: 73
+    plan_ref: T0.1 + EC-30 (dotenv v17 banner)
+    summary: |
+      DOTENV_CONFIG_QUIET workaround is documented inline and correct. Cross-validation
+      note: the comment correctly identifies this as a transitive-dep dotenv v17 module-load
+      banner, not a TheMemory-emitted artifact. Follow-up should evaluate whether dotenv
+      should be moved off the public load path (Inquebrável Rule 9 — is dotenv necessary
+      here?) since the CLI surface explicitly fails-fast on missing env vars and does NOT
+      require .env auto-loading at module level.
+    evidence: |
+      Smoke `node -e "require('./dist/agent-tools/cli.js')"` emits 5 dotenv banner lines
+      to stdout BEFORE any cli.js code runs. This contaminates JSON parsing if consumers
+      programmatically pipe `themory ... --json`.
+    wiring_impact: |
+      Integration tests work around it via DOTENV_CONFIG_QUIET=true. End consumers (npm
+      scripts, shell pipelines) need to set this env var explicitly or stdout JSON will
+      have non-JSON leading content.
+    recommended_action: |
+      Investigate the transitive dotenv import chain (likely from a sub-dep) and either
+      (a) ensure it's loaded silently in production paths, OR (b) document
+      DOTENV_CONFIG_QUIET=true as a consumer-facing requirement in README. NOT a wiring
+      violation; affects DX.
+
+  - id: F-wire-5
+    severity: INFO
+    plan_ref: ADR D5 + Inquebrável Rule 11 YAGNI
+    summary: |
+      Pillar (c) runtime metric correctly declared N/A per ADR D5. CLI verbs are end-consumer
+      surfaces; the metric path that would be observed (extraction.fact.count, recall.cache.hit,
+      etc.) was already wired into the underlying Memory implementations in prior cycles
+      (v0.1, v1.5, etc.) and exercised by their own integration suites. CLI handlers
+      transparently invoke those code paths.
+    evidence: |
+      No `.wiring-evidence.json` file in repo for this cycle. Plan Global DoD § Runtime-metric
+      proof explicitly defers to upstream wiring per Rule 11.
+    wiring_impact: none
+    recommended_action: none
+
+  - id: F-wire-6
+    severity: INFO
+    plan_ref: Integration test pattern verification
+    summary: |
+      Unlike the p0-audit cycle (which used a node_modules symlink approach to test
+      consumer-as-installed shape), the verbs-cli integration tests spawn from the in-repo
+      `dist/agent-tools/cli.js` directly + use real env from `process.env` (with explicit
+      DOTENV_CONFIG_QUIET override). This is appropriate because the test target is the
+      CLI surface, not the published-package shape — verb correctness is independent of
+      install location.
+    evidence: |
+      tests/integration/cli/verbs-cli.test.ts:35 — CLI_PATH = join(REPO_ROOT, 'dist', 'agent-tools', 'cli.js')
+      tests/integration/cli/verbs-cli.test.ts:67 — spawnSync('node', [CLI_PATH, ...args])
+      No node_modules symlink setup.
+    wiring_impact: none
+    recommended_action: none. Pattern is correct for the test target.
+
+verdict: READY_TO_MERGE_WITH_CAVEATS
+verdict_rationale: |
+  All 7 new symbols are honestly wired with deep pillar-a + pillar-b verification.
+  Pillar-c correctly N/A per ADR D5. Boundary deviation (cli-memory-factory.ts → local/embedders/llms)
+  is pre-existing pattern carried into the new DRY extraction; not a NEW violation.
+  Bundle isolation preserved (default barrel does not pull commander/handlers).
+  Pack manifest ships all 4 new run-*.js + 4 new run-*.d.ts + 3 cli-*.js + 3 cli-*.d.ts
+  via PR #30 dist/**/*.{js,d.ts} globs — no package.json#files change required.
+
+  Two MAJORs (F-wire-1 + F-wire-2) are PRE-EXISTING-flavored — the DRY extraction
+  surfaced them but did NOT cause them. F-wire-1 (MCP/REST not retrofitted) is honest
+  scope discipline per cycle-implement.md anti-pattern #7; F-wire-2 (ReflectionPolicy
+  asymmetry exposed in MCP/REST) is a pre-existing latent defect.
+
+  Recommend merge with explicit follow-up cycle to retrofit MCP/REST factories AND
+  default reflectionPolicy to { kind: 'manual' } in createLocalMemory. Both fixes are
+  hardening (P0 sub-goal 1) and surface architecture.md § 3 carve-out clarification
+  as a related cleanup.

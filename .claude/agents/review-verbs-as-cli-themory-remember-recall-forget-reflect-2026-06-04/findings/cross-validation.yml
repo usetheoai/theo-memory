@@ -1,0 +1,379 @@
+agent: review-verbs-as-cli-themory-remember-recall-forget-reflect-cross-validation
+review_target: b693361..HEAD for plan verbs-as-cli-themory-remember-recall-forget-reflect
+plan: .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md
+plan_version_reviewed: v1.1
+commits_in_scope:
+  - sha: f9c214a
+    task: T0.1
+    description: RED 19 integration assertions for themory verbs CLI
+  - sha: 64407fd
+    task: T1.1 + T1.2
+    description: cli-scope.ts + cli-output.ts shared helpers + 12 contract tests
+  - sha: df42105
+    task: T2.1 + T2.2 + T2.3 + T2.4
+    description: 4 verb handlers (run-{remember,recall,forget,reflect}.ts) + cli-memory-factory.ts (bonus helper)
+  - sha: e475404
+    task: T3.1 + T4.1
+    description: cli.ts wiring + CHANGELOG + ReflectionPolicy fix + DOTENV_CONFIG_QUIET test injection + changelog-breaking-marker test version-agnostic refactor + implement-validate report
+
+plan_tasks_summary:
+  total_tasks: 9
+  fully_implemented: 9
+  partial: 0
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total_ac_items: 26
+  satisfied: 26
+  unverified: 0
+  false_claims: 0
+  notes: |
+    Sub-goal floor of 19 SMART assertions verified empirically (19/19 PASS at
+    cycle close per implement-validate report). All AC checkboxes (T0.1, T1.1,
+    T1.2, T2.1-T2.4, T3.1, T4.1) materially satisfied. T1.1+T1.2 12/12
+    contract tests re-verified at review time via `npm test --
+    src/agent-tools/__tests__/cli-{scope,output}.test.ts` → PASS.
+    Typecheck 0 errors, lint 0 warnings re-verified.
+
+adr_compliance:
+  total_adrs: 5
+  respected: 5
+  diverged_without_new_adr: 0
+  per_adr:
+    D1_per_verb_file:
+      respected: true
+      evidence: |
+        src/agent-tools/run-remember.ts (42 LoC), run-recall.ts (55), run-forget.ts (43),
+        run-reflect.ts (43) — each per-verb. Matches existing run-mcp-server / run-server /
+        run-migrate / run-health convention. SRP per architecture.md § 7 honored.
+    D2_scope_binding:
+      respected: true
+      evidence: |
+        remember/recall/reflect declare `--user/--session/--agent` 3-way mutually-exclusive
+        (cli.ts:168-170, 196-198, 258-260) + resolveCliScope enforces "exactly one required"
+        throw (cli-scope.ts:36-38). EC-1 forget honored — NO scope flags declared on the
+        `forget` subcommand at cli.ts:237-241 + run-forget.ts invokes top-level
+        `memory.forget(opts.id, { hard })`. EC-2 honored — no `--skills` flag anywhere.
+    D3_output_format:
+      respected: true
+      evidence: |
+        Each verb declares `--json` (default) + `--text` (opt-in) options at cli.ts; resolved
+        by `resolveFormat(opts)` helper (cli.ts:162-163). renderCliOutput at cli-output.ts:44
+        switches on payload.verb + format; text patterns match ADR D3 wording:
+        "Wrote N memories: id1, id2" / "Found N memories:\n  - [score] id: text" /
+        "Forgot id (hard=bool)" / "Reflected S → D insights" — verified vs cli-output.test.ts
+        assertions 2/3/5/6.
+    D4_factory_via_createLocalMemory:
+      respected: true
+      evidence: |
+        cli-memory-factory.ts:28-67 invokes `createLocalMemory({ vectorStore, embedder,
+        llm, embeddingDim, reflectionPolicy })` — same env wiring shape as run-mcp-server.
+        EC-3 absorbed: env-fail uses direct `process.exit(2)` (cli-memory-factory.ts:34, 42)
+        BEFORE any throw path. commander.exitOverride at cli.ts:71-79 maps
+        InvalidArgumentError → exit 2 for bounds-validator failures per EC-3 + EC-6.
+    D5_no_bin_aliases:
+      respected: true
+      evidence: |
+        package.json#bin unchanged — `themory` + `themory-mcp` only. No
+        themory-remember/recall/forget/reflect aliases added. Confirmed via implement-validate
+        report § Quality gates.
+
+coverage_matrix_review:
+  total_rows: 8
+  resolved: 8
+  unresolved: 0
+  notes: |
+    Coverage Matrix 8/8 declared resolved at plan v1.1; implementation honors each row:
+    (1) remember verb + EC-4 + EC-8 → run-remember.ts + tests 1-4+13+14;
+    (2) recall verb + EC-6 + EC-7 + EC-9 → run-recall.ts + tests 5-7+12+16-19;
+    (3) forget verb + EC-1 + EC-5 → run-forget.ts + tests 8-9+12+15;
+    (4) reflect verb → run-reflect.ts + tests 10-11;
+    (5) mutually-exclusive scope → cli-scope.ts + tests 3-4;
+    (6) JSON-vs-text renderer → cli-output.ts;
+    (7) EC-3 exit-code contract → direct process.exit(2) in each handler +
+        commander.exitOverride + InvalidArgumentError + test 13;
+    (8) integration validation → T4.1 chain + CHANGELOG.
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan committed at 4a6906a 2026-06-04T14:23:38-03:00. First impl commit f9c214a
+    2026-06-04T14:25:39-03:00 (2-minute gap). `git log -- .claude/knowledge-base/plans/
+    verbs-as-cli-themory-remember-recall-forget-reflect-plan.md` shows ONLY the single
+    initial 4a6906a commit — plan was NEVER edited after /implement started. Contract
+    integrity preserved. Plan is the valid ground truth for this review.
+
+scope_creep_audit:
+  in_cycle_additions_not_in_plan:
+    - artifact: src/agent-tools/cli-memory-factory.ts (68 LoC, NEW file)
+      justification: |
+        DRY extraction of the env-fail + Pool + runMigrations + createLocalMemory +
+        dispose pattern that would otherwise be duplicated across all 4 handlers.
+        Mirrors run-mcp-server.ts:84-128 verbatim. Aligns with architecture.md § DRY
+        discipline + Inquebrável Rule 12 (DRY). Surfaces in implement-validate report
+        § "Surfaces discovered during implementation (not in plan)" #1.
+      severity_classification: MINOR (process — not in plan but architecturally correct
+        and disclosed honestly)
+    - artifact: reflectionPolicy { kind: 'manual', shouldReflect: () => true } at
+        cli-memory-factory.ts:57-60
+      justification: |
+        Without it `scoped.reflect()` throws `ReflectionNotConfigured` per ADR-0005.
+        Required to make T2.4 + T0.1 tests 10+11 pass. Plan did NOT specify which
+        ReflectionPolicy variant to wire — gap surfaced empirically and addressed
+        in-cycle. Honestly disclosed in implement-validate report § "Surfaces" #2.
+      severity_classification: MINOR (process — plan-completeness gap absorbed
+        in-cycle; respects ADR-0005)
+    - artifact: commander.exitOverride global wrap at cli.ts:71-79 + use of
+        InvalidArgumentError throw in 3 bounds parsers
+      justification: |
+        Plan ADR D4 promised exit 2 on validator failure via `process.exit(2)`. Commander
+        v12's default exit code on validator throw is 1 (NOT 2). The exitOverride
+        mechanism specifically traps `commander.invalidArgument` +
+        `commander.invalidOptionArgument` codes and maps to exit 2. Mechanism not named
+        in plan ADR D4 but follows the spirit of the EC-3 amendment. Disclosed in
+        implement-validate report § "Surfaces" #3.
+      severity_classification: MINOR (process — implements the ADR D4 spirit; the
+        specific mechanism is empirically required by commander v12 behavior, not a
+        contract deviation)
+    - artifact: DOTENV_CONFIG_QUIET=true env injected at verbs-cli.test.ts:73
+      justification: |
+        dotenv v17.4.2 transitive dep auto-emits "◇ injected env (0)" banner to stdout
+        at module load. Without DOTENV_CONFIG_QUIET, JSON.parse(stdout) would fail on
+        the leading banner lines. Runtime is dependency-driven (transitive surface),
+        not introduced by this cycle. Honest disclosure in implement-validate report
+        § "Surfaces" #4 + CHANGELOG [Unreleased] entry.
+      severity_classification: INFO (test infrastructure; transitive surface)
+    - artifact: src/__tests__/changelog-breaking-marker.test.ts version-agnostic refactor
+      justification: |
+        Pre-existing regression sentinel from p0-api-sdk fixes-cycle was scoped to the
+        [Unreleased] section only. The 0.0.0-rc.3 release commit (822a9f3) migrated
+        the BREAKING marker into the versioned [0.0.0-rc.3] section, causing the
+        regression sentinel to FAIL at HEAD even though the marker is preserved per
+        Inquebrável Rule 6 forward-migration discipline. Refactor expands the scan to
+        the full file. Cosmetic correction; not gating the cycle. Disclosed in commit
+        message body. Net-positive — fixes a latent design flaw in the sentinel itself.
+      severity_classification: MINOR (process — fix is correct and the original
+        sentinel design was version-fragile)
+
+honest_disclosure_check:
+  third_consecutive_implement_bypass:
+    confirmed: true
+    evidence: |
+      No SEPA agent dir at .claude/agents/implement-verbs-as-cli-...-2026-06-04/.
+      No implementation contract md at
+      .claude/knowledge-base/implementations/verbs-as-cli-...-implementation.md.
+      No progress JSON at .progress-verbs-as-cli-....json.
+      Implement-validate report § "Implementation mode" line states "ralph-loop halt-loop
+      (raw plugin invocation; bypassed `/implement` skill SEPA spawn — THIRD consecutive
+      bypass per cycle-implement.md v1.6 § Acceptable bypass paths)". The commit message
+      of e475404 reiterates the disclosure ("THIRD consecutive cycle bypassing /implement
+      SKILL.md SEPA spawn step. Per cycle-implement.md v1.6 § Acceptable bypass paths § 2
+      ('no second consecutive bypass without ADR amendment'), the next /implement cycle
+      requires an ADR amendment to the cycle rule itself OR commitment to /implement
+      {slug} canonical path. Surfaced for follow-up review decision.").
+    severity_classification: MAJOR (process — contract violation per cycle-implement.md
+      v1.6 § Acceptable bypass paths § 2; disclosed transparently per Inquebrável Rule 3,
+      so the OBSERVATIONAL severity is reduced but the CONTRACTUAL severity stands).
+
+changelog_audit:
+  unreleased_entry_present: true
+  accurately_reflects_shipped: true
+  notes: |
+    CHANGELOG.md [Unreleased] § Added gains one bullet (CHANGELOG.md:9) naming the
+    plan slug, v1.1, THE GOAL TEST 19/19 PASS, the public CLI surface for all 4 verbs
+    with flag listings, the 4 handler files + 2 shared helpers + 1 factory helper,
+    and inline EC-1 through EC-9 absorption notes. Includes the LoC budgets, test
+    coverage delta (1060 → 1061 contract; 19 PASS new integration), and DOTENV
+    transitive disclosure. Honors Inquebrável Rule 6 categories. The Roadmap Item 18
+    surface is correctly attributed; no over-claim ("production-ready" / "v1.0
+    ready" not used).
+
+implement_validate_report_audit:
+  describes_reality_accurately: true
+  notes: |
+    Implement-validate report (verbs-as-cli-themory-remember-recall-forget-reflect-
+    implement-validate-2026-06-04.md) reports 19/19 GOAL TEST PASS + 1061 contract PASS
+    + typecheck 0 errors + lint 0 warnings. Reviewer re-ran Phase 1 contract tests
+    (12/12 PASS) + npm run typecheck (0 errors) + npm run lint (0 warnings). Reality
+    matches the report. Sub-goal closure table (1-7) and EC absorption verification
+    table accurately reflect what shipped. § "Anti-patterns adherence" honestly
+    surfaces the THIRD consecutive bypass under Anti-pattern #10 — process violation
+    disclosed, not hidden.
+
+findings:
+
+  - id: F-xval-1
+    severity: MAJOR
+    file: cycle-implement.md v1.6 § Acceptable bypass paths § 2 (process — no source file)
+    plan_ref: implement-validate report § "Implementation mode" line 5 + e475404 commit
+      message body
+    summary: |
+      THIRD consecutive `/implement` SKILL.md SEPA spawn bypass without an ADR
+      amendment. Per cycle-implement.md v1.6 § Acceptable bypass paths § 2 ("≤ 2
+      consecutive without ADR amendment"), the cycle technically violates the
+      bypass-path contract. The bypass yielded correct code (19/19 GOAL TEST PASS,
+      zero TS errors, zero lint warnings, no scope creep on the public API), but the
+      contract-shape that asks "is this what the rule says is allowed?" returns NO at
+      iteration 3. Honest disclosure surfaces this in both the implement-validate
+      report and the e475404 commit body; the disclosure tempers the
+      OBSERVATIONAL severity but the CONTRACTUAL severity remains MAJOR.
+    evidence: |
+      - No `.claude/agents/implement-verbs-as-cli-themory-remember-recall-forget-reflect-2026-06-04/` SEPA agent dir
+      - No `.claude/knowledge-base/implementations/verbs-as-cli-themory-remember-recall-forget-reflect-implementation.md` contract file
+      - No `.claude/knowledge-base/implementations/.progress-verbs-as-cli-themory-remember-recall-forget-reflect.json` audit trail
+      - Implement-validate report § line 5: "ralph-loop halt-loop (raw plugin invocation; bypassed `/implement` skill SEPA spawn — THIRD consecutive bypass per cycle-implement.md v1.6 § Acceptable bypass paths)"
+      - e475404 commit body: "this is the THIRD consecutive cycle bypassing /implement SKILL.md SEPA spawn step. Per cycle-implement.md v1.6 § Acceptable bypass paths § 2 ('no second consecutive bypass without ADR amendment'), the next /implement cycle requires an ADR amendment to the cycle rule itself OR commitment to /implement {slug} canonical path."
+    recommended_action: |
+      Before the NEXT /implement cycle: either (a) author an ADR amending
+      cycle-implement.md v1.6 § Acceptable bypass paths § 2 to formalize raw
+      ralph-loop invocation as a valid mode (with stated reasons + boundaries), OR
+      (b) the next cycle commits to invoking `/implement {slug}` canonically. The
+      current cycle's substantive code is shippable; this MAJOR is a PROCESS-level
+      blocker on the NEXT cycle, not on this PR's merge.
+
+  - id: F-xval-2
+    severity: MINOR
+    file: src/agent-tools/cli-memory-factory.ts (NEW file, 68 LoC)
+    plan_ref: Plan § Files to edit (ADR D4 + § T2.1-T2.4 file lists)
+    summary: |
+      `cli-memory-factory.ts` was NOT in the plan v1.1's "Files to edit" lists for any
+      of T2.1/T2.2/T2.3/T2.4 nor in ADR D4 Consequences. Plan ADR D4 declares "each
+      verb-handler invokes the existing `createLocalMemory()` factory" — implying
+      direct invocation, not a shared helper. Implementation extracted the env-fail
+      + Pool + runMigrations + createLocalMemory + dispose pattern into a shared file.
+      The extraction is architecturally CORRECT (DRY per architecture.md § DRY +
+      Inquebrável Rule 12; mirrors run-mcp-server.ts pattern), and honestly disclosed
+      in implement-validate report § "Surfaces" #1. Severity is MINOR because:
+      (a) the extraction respects DIP — depends on createLocalMemory; (b) does not
+      introduce a new public API; (c) the divergence from "Files to edit" is a
+      structural DRY refactor, not a design deviation.
+    evidence: |
+      - `grep cli-memory-factory plan` → 0 matches
+      - File exists at src/agent-tools/cli-memory-factory.ts, 68 LoC
+      - Imported by run-remember.ts:13, run-recall.ts:17, run-forget.ts:13, run-reflect.ts:10
+    recommended_action: |
+      Either (a) accept the extraction as a permitted DRY refactor and update the
+      plan post-merge with a "Files added during implementation" footnote (preferred
+      — the extraction is correct), OR (b) inline the factory back into each handler
+      to literally honor plan "Files to edit" list (rejected per DRY — would violate
+      architecture.md). No action blocking merge.
+
+  - id: F-xval-3
+    severity: MINOR
+    file: src/agent-tools/cli-memory-factory.ts:57-60
+    plan_ref: ADR D4 + ADR-0005 (ReflectionPolicy)
+    summary: |
+      `reflectionPolicy: { kind: 'manual', shouldReflect: () => true }` wired into
+      `createCliMemory()`. Plan v1.1 ADR D4 Decision does NOT mention reflection
+      policy at all; § T2.4 also does not specify. The wiring is REQUIRED to make
+      T0.1 tests 10+11 pass (without it `scoped.reflect()` throws
+      `ReflectionNotConfigured` per ADR-0005). Plan gap was filled in-cycle; honestly
+      disclosed in implement-validate report § "Surfaces" #2. Severity MINOR because
+      the `kind: 'manual'` selection respects ADR-0005 (manual is the most permissive
+      + explicit-only variant, matching CLI's "user explicitly invokes reflect"
+      semantics).
+    evidence: |
+      - `grep -c reflectionPolicy plan` → 0 matches
+      - cli-memory-factory.ts:57-60: `reflectionPolicy: { kind: 'manual', shouldReflect: () => Promise.resolve(true) }`
+      - ADR-0005 lists ManualReflectionPolicy as a valid factory variant
+    recommended_action: |
+      Either (a) accept and amend the plan post-merge with the policy choice
+      documented under ADR D4, OR (b) author a follow-up cycle to add a
+      `--reflection-policy` flag exposing manual/threshold/sleep-time at CLI surface.
+      No action blocking merge.
+
+  - id: F-xval-4
+    severity: MINOR
+    file: src/agent-tools/cli.ts:71-79
+    plan_ref: ADR D4 (EC-3 amendment) + § T3.1 step 5
+    summary: |
+      `program.exitOverride()` global wrap added to map commander
+      `invalidArgument`/`invalidOptionArgument` codes → `process.exit(2)`. Plan ADR
+      D4 promised exit 2 "via direct process.exit(2) call" + T3.1 step 5 says "wraps
+      the handler call in try/catch with `process.exit(2)` fallback per ADR D4 EC-3
+      amendment". Neither names `exitOverride` as the mechanism nor mentions
+      `InvalidArgumentError`. Implementation needed this because commander's default
+      exit on validator throw is 1, not 2 — the `process.exit(2)` in the action's
+      catch block runs only AFTER commander has already exited 1 unless exitOverride
+      traps the parse-stage failure first. Mechanism is correct + necessary; plan
+      under-specified. Honestly disclosed in implement-validate report § "Surfaces"
+      #3.
+    evidence: |
+      - `grep exitOverride plan` → 0 matches
+      - `grep InvalidArgumentError plan` → 0 matches
+      - cli.ts:71-79 contains the global exitOverride mapping
+      - cli.ts:141-161 contains 3 bounds parsers (parseTopK/parseThreshold/parseDiversify) throwing InvalidArgumentError
+    recommended_action: |
+      Amend plan ADR D4 post-merge with the empirically-discovered mechanism naming
+      (`commander.exitOverride + InvalidArgumentError`). No action blocking merge —
+      the spirit of EC-3 is honored, only the mechanism naming is missing.
+
+  - id: F-xval-5
+    severity: INFO
+    file: src/__tests__/changelog-breaking-marker.test.ts
+    plan_ref: Out of scope for this plan (pre-existing sentinel from p0-api-sdk fixes-cycle)
+    summary: |
+      Pre-existing regression sentinel from p0-api-sdk-mcp-correctness-audit-fixes-
+      cycle-1 was scoped to the [Unreleased] section only. The 0.0.0-rc.3 release
+      commit 822a9f3 migrated the BREAKING marker into the versioned [0.0.0-rc.3]
+      section per Inquebrável Rule 6 forward-migration discipline, making the
+      [Unreleased]-scoped sentinel FAIL at HEAD. The verbs-cli cycle refactored the
+      sentinel to scan the full CHANGELOG (commit e475404). The change is
+      NET-POSITIVE — it fixes a latent design flaw (the sentinel was version-fragile)
+      — but it is OUT OF SCOPE for the verbs-cli plan and was bundled into the
+      Phase 4 cycle-close commit. Cleanly disclosed in e475404 body. INFO-level
+      because the fix is correct, blast-radius is one test file, and no scope-creep
+      contract under cycle-plan.md applies (the fix is independent of plan tasks).
+    evidence: |
+      - changelog-breaking-marker.test.ts is unrelated to plan slug verbs-as-cli
+      - e475404 commit body line: "src/__tests__/changelog-breaking-marker.test.ts: version-agnostic full-file scan (regression sentinel must survive [Unreleased] → versioned migrations per Inquebrável Rule 6)"
+    recommended_action: |
+      Accept as part of the cycle-close commit. The sentinel improvement is
+      independently correct and the disclosure is honest. No action blocking merge.
+
+  - id: F-xval-6
+    severity: INFO
+    file: .claude/knowledge-base/implementations/ (absence)
+    plan_ref: cycle-implement.md § Phase contracts (implementation task list at
+      .claude/knowledge-base/implementations/{slug}-implementation.md)
+    summary: |
+      Per cycle-implement.md § "Phase contracts" stage 1 "Pre-condition + parse",
+      `/implement` is supposed to produce an implementation contract markdown at
+      `.claude/knowledge-base/implementations/{slug}-implementation.md` + a progress
+      audit JSON at `.progress-{slug}.json`. Neither artifact exists for this cycle.
+      This is the natural byproduct of F-xval-1 (raw ralph-loop bypass): the
+      ./implement SKILL.md Step 2 + Step 4 never ran. Reviewers cannot inspect the
+      ordered task list or per-iteration progress snapshot. INFO because (a) the
+      cycle's actual task ordering is reconstructible from the 4 commit shapes, (b)
+      this is a consequence of F-xval-1 rather than an independent finding.
+    evidence: |
+      - `ls .claude/knowledge-base/implementations/ | grep verbs` → empty
+      - `ls .claude/knowledge-base/implementations/.progress-verbs-as-cli-themory-remember-recall-forget-reflect.json` → ENOENT
+    recommended_action: |
+      Addressed via the F-xval-1 recommendation. The implementation contract +
+      progress JSON regenerate automatically if the next cycle runs canonically via
+      `/implement {slug}`.
+
+summary_verdict: |
+  Substantive code-level correctness: STRONG. Plan v1.1 was followed task-by-task;
+  19/19 GOAL TEST PASS; 12/12 Phase 1 contract tests PASS; typecheck + lint clean;
+  no fabrication; no false-claim AC checkboxes; no scope creep on the PUBLIC API;
+  ADRs D1-D5 all honored. The 4 in-cycle additions (cli-memory-factory.ts,
+  reflectionPolicy:manual wiring, commander.exitOverride, DOTENV_CONFIG_QUIET) are
+  each architecturally correct, required by empirical mechanism gaps in plan v1.1,
+  and honestly disclosed in the implement-validate report + e475404 commit body.
+  Plan was NOT edited mid-flight (committed 14:23:38, first impl commit 14:25:39).
+
+  Process-level adherence: WEAKER but TRANSPARENT. The cycle bypassed `/implement`
+  SKILL.md SEPA spawn for the THIRD consecutive time without an ADR amendment to
+  cycle-implement.md v1.6 § Acceptable bypass paths § 2. This is a MAJOR process
+  finding (F-xval-1) but the bypass was disclosed up-front in the cycle-close commit
+  body and the implement-validate report. Per Inquebrável Rule 3, transparent
+  process violation > silent compliance theater. The substantive correctness still
+  holds. Next-cycle action item: amend cycle-implement.md OR run /implement canonically.
+
+  Recommended /review verdict for cross-validation axis: READY_TO_MERGE_WITH_CAVEATS
+  (1 MAJOR process F-xval-1 not blocking THIS PR's merge but blocking the next
+  cycle until amended; 3 MINOR plan-completeness gaps F-xval-2/3/4 absorbable as
+  plan post-merge amendments; 2 INFO F-xval-5/6 acceptable as-is).

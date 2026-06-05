@@ -181,6 +181,8 @@ Until BOTH gates close: README Status stays `Pre-release`, no `production-ready`
 | API verbs | `remember` / `recall` / `forget` / `reflect` | strategic |
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
+| themory CLI verbs | `remember <text>` / `recall <query>` / `forget <id>` / `reflect` (closes Roadmap Item 18 verbs-as-CLI; per ADR D2 of verbs-as-cli plan + verbs-as-cli-fixes-cycle-1 T5.3) | strategic |
+| themory CLI flags (stable) | `--user` / `--session` / `--agent` / `--top-k` / `--threshold` / `--diversify` / `--hard` / `--json` / `--text` (sentinel-guarded by `src/__tests__/cli-locked-names.test.ts`) | strategic |
 
 ---
 
@@ -310,6 +312,9 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 | `theo-memory-standalone-p0` chain (Items 16 + 17 + 18) | 2026-06-03 |
 | `p0-api-sdk-mcp-correctness-audit` cycle (14 tasks; THE GOAL TEST 42/42; paper-names 74→0; 12 new p0-audit/ integration files; declared P0 sub-goals 1+2+3 CLOSED from local-build perspective) | 2026-06-04 (`cb63d87`) |
 | `p0-api-sdk-mcp-correctness-audit-fixes-cycle-1` cycle (11 tasks × 6 commits; closes 1 CRITICAL + 5 MAJOR + 1 absorbed MUST FIX EC-1 dist sql migrations; pack manifest 172→415; P0 sub-goal 3 EMPIRICALLY closed for third-party install) | 2026-06-04 (`5b48193`) |
+| `p0-api-sdk-mcp-correctness-audit-fixes-cycle-1 hotfix` (4th glob `dist/local/migrations/meta/**` + tests 9+10; closes /review BLOCKER F-dom-cli-blocker-1 + CRITICAL F-dom-api-fix-1; pack manifest 415→427) | 2026-06-04 (`f0c0448`) |
+| `p0-api-sdk fixes-cycle-2` ADR amendments (no-paper-names meta-test self-defense + cycle-implement Acceptable bypass paths; closes F-xval-1 + F-xval-5 MAJORs from /review fix-cycle-1) | 2026-06-04 (`b90841c`) |
+| **PR #30 — Release `develop` → `main`** (56 commits: p0-api-sdk + fixes-cycle-1 + hotfix + fixes-cycle-2 ADR backfill) | 2026-06-04 (`b693361`) |
 
 ---
 

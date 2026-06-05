@@ -1,0 +1,442 @@
+agent: review-verbs-as-cli-themory-remember-recall-forget-reflect-architecture
+review_target: b693361..HEAD for plan verbs-as-cli-themory-remember-recall-forget-reflect
+plan: .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md
+plan_version: v1.1
+commits_reviewed:
+  - f9c214a (T0.1 RED — 19 integration assertions)
+  - 64407fd (Phase 1 — cli-scope.ts + cli-output.ts)
+  - df42105 (Phase 2 — 4 verb handlers + cli-memory-factory.ts in-cycle bonus)
+  - e475404 (Phase 3+4 — cli.ts wiring + reflectionPolicy fix + CHANGELOG)
+files_changed:
+  - src/agent-tools/cli.ts
+  - src/agent-tools/cli-scope.ts (NEW)
+  - src/agent-tools/cli-output.ts (NEW)
+  - src/agent-tools/cli-memory-factory.ts (NEW — in-cycle, not in plan)
+  - src/agent-tools/run-remember.ts (NEW)
+  - src/agent-tools/run-recall.ts (NEW)
+  - src/agent-tools/run-forget.ts (NEW)
+  - src/agent-tools/run-reflect.ts (NEW)
+  - src/agent-tools/__tests__/cli-scope.test.ts (NEW)
+  - src/agent-tools/__tests__/cli-output.test.ts (NEW)
+  - tests/integration/cli/verbs-cli.test.ts (NEW)
+  - src/__tests__/changelog-breaking-marker.test.ts (updated)
+  - CHANGELOG.md
+findings:
+  - id: F-arch-1
+    severity: MAJOR
+    file: src/agent-tools/cli-memory-factory.ts
+    line: 57-60
+    plan_ref: ADR D4 + in-cycle addition (not in original plan)
+    summary: |
+      ReflectionPolicy `{ kind: 'manual', shouldReflect: () => true }` is wired
+      ONLY in `cli-memory-factory.ts`, NOT in `run-mcp-server.ts` or
+      `run-server.ts`. This creates a behavioral divergence across the three
+      `createLocalMemory()` consumers in `src/agent-tools/`: a CLI invocation
+      `themory reflect --user alice` succeeds, but the same scope reaching
+      Memory.reflect() via MCP tool `mcp__themory__reflect` or REST endpoint
+      `POST /v1/reflect` throws `ReflectionNotConfigured`.
+    evidence: |
+      $ grep -l reflectionPolicy src/agent-tools/run-*.ts src/agent-tools/cli-memory-factory.ts
+      src/agent-tools/cli-memory-factory.ts
+      # (run-mcp-server.ts and run-server.ts do NOT wire reflectionPolicy)
+      # cli-memory-factory.ts:57-60:
+      reflectionPolicy: {
+        kind: 'manual',
+        shouldReflect: () => Promise.resolve(true),
+      },
+    recommended_action: |
+      Either (a) hoist the manual `reflectionPolicy` default into
+      `createLocalMemory()` itself so all three entrypoints (MCP/REST/CLI)
+      share the contract, OR (b) extract the `reflectionPolicy: {...manual}`
+      block into a shared helper `defaultManualReflectionPolicy()` invoked from
+      all three handlers. Document the choice with an ADR amendment, since the
+      plan's ADR D4 says "Reuse existing factory (chosen): zero new wiring"
+      but the in-cycle reality added new wiring asymmetrically. Flagged
+      explicitly in implement-validate as in-cycle delta vs plan.
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/agent-tools/cli-memory-factory.ts
+    line: 28-43
+    plan_ref: ADR D4 + DRY rule (architecture.md § DRY)
+    summary: |
+      Env-validation (`THEOMEM_PG_URI` / `OPENAI_API_KEY` hard-fail with
+      identical stderr strings + identical exit-2 contract) is now triplicated
+      across `run-mcp-server.ts:86-108`, `run-server.ts:83-104`, and
+      `cli-memory-factory.ts:29-43`. The newly extracted `createCliMemory()`
+      was a DRY win for the 4 verb handlers but did not absorb the duplication
+      with the two pre-existing entrypoints — exactly the DRY anti-pattern
+      called out in `/home/paulo/.claude/CLAUDE.md § 12` (knowledge
+      duplication, not code duplication: the same business rule "fail-2 on
+      missing env" lives in three places; changing the rule requires editing
+      three files).
+    evidence: |
+      $ grep -c "THEOMEM_PG_URI required" src/agent-tools/run-mcp-server.ts src/agent-tools/run-server.ts src/agent-tools/cli-memory-factory.ts
+      src/agent-tools/run-mcp-server.ts:1
+      src/agent-tools/run-server.ts:1
+      src/agent-tools/cli-memory-factory.ts:1
+    recommended_action: |
+      Extract a shared `requireEnvOrExit2(name, hint)` helper in
+      `cli-memory-factory.ts` (or a new `agent-tools/env-guards.ts`) and adopt
+      it from `run-mcp-server.ts` + `run-server.ts` in a follow-up commit.
+      The "Regra de 3" trigger (DRY golden rule) is now met (three concrete
+      duplications); extraction is justified. Out-of-cycle hardening since
+      this triplication pre-dates the plan, but the cycle had the chance to
+      collapse it when extracting `cli-memory-factory.ts`.
+  - id: F-arch-3
+    severity: MAJOR
+    file: src/agent-tools/cli.ts
+    line: 71-79, 87-93, 107-113, 141-161
+    plan_ref: architecture.md § DRY + KISS
+    summary: |
+      cli.ts has 5 numeric parser functions with substantial duplication: the
+      two `--port` parsers (lines 87-93 and 107-113) are byte-identical; the
+      three new bound validators (`parseTopK`, `parseThreshold`,
+      `parseDiversify`) share the same structure (parse-cast-bound-throw).
+      `parseThreshold` and `parseDiversify` are functionally identical (both
+      float-0-1 bounds). Total ~50 LoC could be ~20 LoC via a shared
+      `parseIntInRange(name, min, max)` + `parseFloatInRange(name, min, max)`
+      factory. Architecture.md § 7 module hygiene + § 12 DRY.
+    evidence: |
+      src/agent-tools/cli.ts:148-154 (parseThreshold)
+        const n = Number.parseFloat(raw);
+        if (!Number.isFinite(n) || n < 0 || n > 1) {
+          throw new InvalidArgumentError(`Invalid --threshold: ${raw} ...`);
+        }
+        return n;
+      src/agent-tools/cli.ts:155-161 (parseDiversify)
+        const n = Number.parseFloat(raw);
+        if (!Number.isFinite(n) || n < 0 || n > 1) {
+          throw new InvalidArgumentError(`Invalid --diversify: ${raw} ...`);
+        }
+        return n;
+    recommended_action: |
+      Extract a `parseFloatInRange(flagName, min, max)` and
+      `parseIntInRange(flagName, min, max)` factory at the top of
+      `buildProgram()` or in a new `cli-arg-parsers.ts`. Reduces 50 LoC to
+      20 LoC, eliminates byte-identical duplications, and makes future
+      validators trivial.
+  - id: F-arch-4
+    severity: MINOR
+    file: src/agent-tools/run-recall.ts
+    line: 41-49
+    plan_ref: T2.2 EC-7 absorption
+    summary: |
+      The "defensive embedding strip" in `run-recall.ts` is cargo-cult: the
+      public `MemoryItemWithScore` TYPE does NOT declare an `embedding`
+      field. The strip-via-`Object.entries.filter` runs unconditionally on
+      every result and would only matter if a future adapter projection
+      leaked `embedding` through the type system via a structural-typing
+      bypass — at which point typecheck would catch it. The comment honestly
+      labels itself "defensive" but the operation has zero current behavioral
+      effect and adds O(n*k) per recall where k = field-count.
+    evidence: |
+      src/agent-tools/run-recall.ts:46-49:
+        const stripped = items.map((item) => {
+          const entries = Object.entries(item).filter(([key]) => key !== 'embedding');
+          return Object.fromEntries(entries) as MemoryItemWithScore;
+        });
+      $ grep -n "embedding" src/core/memory-item.ts
+      # (no matches — MemoryItem type does NOT include embedding)
+    recommended_action: |
+      Either (a) keep the strip as a runtime sentinel against future adapter
+      regressions but add a single integration assertion that exercises the
+      branch (currently test #19 asserts the absence, but does not exercise
+      a row WITH embedding to prove the strip works), OR (b) delete the
+      strip entirely since type-safety already prevents it. Document the
+      choice with an ADR amendment to EC-7.
+  - id: F-arch-5
+    severity: MINOR
+    file: src/agent-tools/__tests__/cli-scope.test.ts
+    line: 12-34
+    plan_ref: T1.1 contract tests + testing.md § Anti-patterns ("Mocks that exceed 5 lines of setup")
+    summary: |
+      `makeMockMemory()` is a 23-line mock that synthesizes a fake `Memory`
+      with injected `__mockKind` / `__mockId` smuggle fields read back by
+      tests via `as unknown as Record<string, unknown>`. The mock shape uses
+      a non-canonical `reflect()` return shape `{ sourceCount, derivedCount,
+      derived }` that does NOT match `ReflectionResult` (which has
+      `higherOrderMemories` / `sourceIds` / `derivedMemoriesCreated`).
+      Testing.md § Anti-patterns: "Mocks that exceed 5 lines of setup — the
+      design is wrong; revisit SRP and the boundary."
+    evidence: |
+      src/agent-tools/__tests__/cli-scope.test.ts:17:
+        reflect: () => Promise.resolve({ sourceCount: 0, derivedCount: 0, derived: [] }),
+      src/core/reflection-result.ts:8-26:
+        export interface ReflectionResult {
+          readonly higherOrderMemories: readonly MemoryItem[];
+          readonly sourceIds: readonly string[];
+          readonly derivedMemoriesCreated: number;
+          ...
+        }
+    recommended_action: |
+      Replace `makeMockMemory()` with a minimal partial `Memory` typed as
+      `Pick<Memory, 'user' | 'session' | 'agent'>` so the mock surface
+      matches what `resolveCliScope` actually consumes (no need to fake
+      reflect/recall/remember/forget at all). Eliminates ~15 of the 23 mock
+      lines and removes the misleading non-canonical reflect shape.
+  - id: F-arch-6
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 60-79
+    plan_ref: T3.1 + ADR D4 EC-3
+    summary: |
+      The `program.exitOverride` block at lines 71-79 is correctly applied
+      globally on the root `program`. Side-effect: pre-existing commander
+      `commander.invalidArgument` / `commander.invalidOptionArgument` errors
+      from the `mcp` and `server` subcommands' `--port` validators now also
+      exit 2 (where they previously exited 1). This is documented as a
+      side-effect in the CHANGELOG entry but is not called out as a behavior
+      change for downstream consumers. Acceptable per ADR D5 backward-compat
+      (the only way to hit it was passing an invalid port; the exit code
+      semantics tighten, not loosen).
+    evidence: |
+      src/agent-tools/cli.ts:71-79:
+        program.exitOverride((err) => {
+          if (
+            err.code === 'commander.invalidArgument' ||
+            err.code === 'commander.invalidOptionArgument'
+          ) {
+            process.exit(2);
+          }
+          process.exit(err.exitCode);
+        });
+    recommended_action: |
+      No code change required. Add a one-line note to the CHANGELOG entry
+      explicitly flagging "mcp --port 99999" and "server --port 99999"
+      now exit 2 (was 1) — minor behavior tightening.
+  - id: F-arch-7
+    severity: INFO
+    file: src/agent-tools/cli-scope.ts
+    line: 32-42
+    plan_ref: T1.1 + ADR D2
+    summary: |
+      `resolveCliScope` is correctly SRP-shaped (one reason to change: scope
+      flag policy). Pure function, no side effects, throws on contract
+      violation. Returns concrete `ScopedMemory` (not a union with
+      `ScopedSkillMemory`) per EC-2 absorption. Naming + module hygiene
+      conform to architecture.md § 6/7. Clean implementation.
+    evidence: |
+      src/agent-tools/cli-scope.ts:32-42:
+        export function resolveCliScope(memory: Memory, opts: CliScopeOptions): ScopedMemory {
+          const defined = [opts.user, opts.session, opts.agent].filter(
+            (v): v is string => v !== undefined,
+          );
+          if (defined.length !== 1) {
+            throw new Error('--user / --session / --agent: exactly one required');
+          }
+          ...
+        }
+    recommended_action: No issues found.
+  - id: F-arch-8
+    severity: INFO
+    file: src/agent-tools/cli-output.ts
+    line: 27-67
+    plan_ref: T1.2 + ADR D3
+    summary: |
+      `CliReflectResult` correctly projects the public `ReflectionResult` to
+      a CLI-ergonomic shape (`sourceCount` / `derivedCount` / `derived`)
+      instead of leaking the raw API field names. Discriminated-union
+      `CliRenderableResult` is a clean Strategy-pattern fit for the
+      4-verb-shape rendering switch. Naming + module hygiene OK.
+    evidence: |
+      src/agent-tools/cli-output.ts:27-32:
+        export interface CliReflectResult {
+          readonly sourceCount: number;
+          readonly derivedCount: number;
+          readonly derived: readonly MemoryItem[];
+          readonly reason?: 'no-source-memories' | 'no-consolidation';
+        }
+    recommended_action: No issues found.
+  - id: F-arch-9
+    severity: INFO
+    file: src/agent-tools/run-remember.ts
+    line: 26-42
+    plan_ref: T2.1 + ADR D2/D4
+    summary: |
+      Handler is correctly SRP (one reason to change: remember-flow wiring).
+      Correctly invokes EC-4 empty-text rejection BEFORE the costly
+      `createCliMemory()` warm-up (avoiding ~2-5s model download for a
+      guaranteed-fail invocation). Try/finally pattern around
+      `dispose()` honors the pool-lifecycle contract.
+    evidence: |
+      src/agent-tools/run-remember.ts:28-31:
+        if (opts.text.trim().length === 0) {
+          process.stderr.write('Error: remember requires a non-empty text positional argument.\n');
+          process.exit(2);
+        }
+    recommended_action: No issues found.
+  - id: F-arch-10
+    severity: INFO
+    file: src/agent-tools/run-forget.ts
+    line: 22-43
+    plan_ref: T2.3 + EC-1 + EC-5
+    summary: |
+      Cleanest of the four handlers — correctly bypasses scope binding per
+      EC-1 (top-level `memory.forget(opts.id, { hard })` invocation),
+      validates UUID v4 BEFORE Memory factory warm-up per EC-5, synthesizes
+      the JSON output payload from input opts (no contract violation since
+      `memory.forget()` returns void). SRP + KISS conformant.
+    evidence: |
+      src/agent-tools/run-forget.ts:32-34:
+        const hard = opts.hard ?? false;
+        await memory.forget(opts.id, { hard });
+    recommended_action: No issues found.
+  - id: F-arch-11
+    severity: INFO
+    file: src/agent-tools/run-recall.ts
+    line: 32-55
+    plan_ref: T2.2 + ADR D2/D4 + EC-6/EC-7
+    summary: |
+      Handler delegates bounds validation to the cli.ts option parsers
+      (parseTopK/Threshold/Diversify) — single responsibility honored.
+      `recallOpts` is conditionally constructed to avoid passing `undefined`
+      keys to the public API. No SOLID issues.
+    evidence: |
+      src/agent-tools/run-recall.ts:36-39:
+        const recallOpts: { topK?: number; threshold?: number; diversify?: { lambda: number } } = {};
+        if (opts.topK !== undefined) recallOpts.topK = opts.topK;
+        if (opts.threshold !== undefined) recallOpts.threshold = opts.threshold;
+        if (opts.diversify !== undefined) recallOpts.diversify = { lambda: opts.diversify };
+    recommended_action: |
+      Minor follow-up tied to F-arch-4: if the embedding strip is kept,
+      surface a runtime sentinel test (currently only the type-system
+      prevents an embedding from leaking).
+  - id: F-arch-12
+    severity: INFO
+    file: src/agent-tools/run-reflect.ts
+    line: 25-43
+    plan_ref: T2.4 + ADR D3
+    summary: |
+      Cleanly projects `ReflectionResult` to `CliReflectResult` per ADR D3.
+      Conditional spread `...(result.reason !== undefined ? { reason: ... }
+      : {})` honors the optional-field contract (no `reason: undefined` in
+      JSON output). SRP conformant.
+    evidence: |
+      src/agent-tools/run-reflect.ts:32-37:
+        const projected: CliReflectResult = {
+          sourceCount: result.sourceIds.length,
+          derivedCount: result.derivedMemoriesCreated,
+          derived: result.higherOrderMemories,
+          ...(result.reason !== undefined ? { reason: result.reason } : {}),
+        };
+    recommended_action: No issues found.
+  - id: F-arch-13
+    severity: INFO
+    file: tests/integration/cli/verbs-cli.test.ts
+    line: 1-253
+    plan_ref: T0.1
+    summary: |
+      Integration test honors describe.skipIf LOUD-skip pattern, generates
+      unique UUIDs per test (no cross-test pollution), uses spawnSync per
+      the v0.3 T6.1 precedent. All 19 EC-mapped assertions present and
+      cover the absorbed MUST FIX + SHOULD TEST items. The DOTENV_CONFIG_QUIET
+      env injection is honestly disclosed (dotenv v17 transitive surface).
+    evidence: |
+      tests/integration/cli/verbs-cli.test.ts:65-80:
+        function runCli(args: readonly string[], extraEnv: Record<string, string> = {}): SpawnResult {
+          const result = spawnSync('node', [CLI_PATH, ...args], {
+            encoding: 'utf8',
+            timeout: 60_000,
+            env: { ...process.env, DOTENV_CONFIG_QUIET: 'true', ...extraEnv },
+          });
+          ...
+        }
+    recommended_action: No issues found.
+  - id: F-arch-14
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 165-283
+    plan_ref: T3.1 + ADR D2
+    summary: |
+      4 new `.command()` blocks correctly mirror the per-subcommand
+      convention (remember/recall/reflect with 3-tier scope flags; forget
+      without scope flags). Conditional-spread pattern for
+      `opts.X !== undefined ? { X: opts.X } : {}` honored — avoids passing
+      `undefined` flags into handlers. cli.ts LoC budget (architecture.md
+      § 7 500-LoC budget): ~325 LoC, well under cap.
+    evidence: |
+      $ wc -l src/agent-tools/cli.ts
+      325 src/agent-tools/cli.ts
+    recommended_action: No issues found.
+  - id: F-arch-15
+    severity: INFO
+    file: src/agent-tools/cli-memory-factory.ts
+    line: 28-68
+    plan_ref: In-cycle bonus (NOT in plan v1.1)
+    summary: |
+      The extraction of `cli-memory-factory.ts` is honestly disclosed in
+      CHANGELOG as an in-cycle DRY win across the 4 verb handlers. SRP
+      conformant: one reason to change (CLI Memory factory wiring). Pool
+      lifecycle via tuple-return + dispose closure honors the
+      try-finally-dispose pattern. The in-cycle addition is genuine DRY
+      reduction within the 4 new handlers; the broader cross-handler DRY
+      gap (F-arch-2) is a separate concern.
+    evidence: |
+      $ grep -l createCliMemory src/agent-tools/run-*.ts
+      src/agent-tools/run-forget.ts
+      src/agent-tools/run-recall.ts
+      src/agent-tools/run-reflect.ts
+      src/agent-tools/run-remember.ts
+    recommended_action: No issues found within the cycle scope.
+  - id: F-arch-16
+    severity: INFO
+    file: src/agent-tools/__tests__/cli-output.test.ts
+    line: 1-87
+    plan_ref: T1.2
+    summary: |
+      Contract tests follow BDD format (Given-When-Then via test name
+      describing behavior). Each test exercises ONE scenario.
+      `makeItem()` / `makeScored()` factories are minimal (5 lines each).
+      Tests assert actual rendered output (`expect(out).toMatch(/Wrote 2
+      memories: id-1, id-2/)`) — not just structure. Testing.md anti-patterns
+      cleared.
+    evidence: |
+      src/agent-tools/__tests__/cli-output.test.ts:50-51:
+        test('2. text remember matches `Wrote <count> memories:` pattern', () => {
+          ...
+          expect(out).toMatch(/Wrote 2 memories: id-1, id-2/);
+    recommended_action: No issues found.
+summary:
+  blocker_count: 0
+  critical_count: 0
+  major_count: 3
+  minor_count: 2
+  info_count: 11
+  total: 16
+overall_assessment: |
+  Architecture review of the verbs-as-CLI cycle: no BLOCKER, no CRITICAL.
+  Three MAJORs surface real issues that should be addressed before/at
+  v1.0 hardening (NOT blockers for merge of this cycle):
+   - F-arch-1: ReflectionPolicy auto-wiring asymmetry between CLI vs MCP vs
+     REST entrypoints — risks consumer surprise where `themory reflect`
+     works but `mcp__themory__reflect` throws ReflectionNotConfigured.
+   - F-arch-2: Env-validation triplication across run-mcp-server.ts +
+     run-server.ts + cli-memory-factory.ts now meets the DRY golden rule's
+     "Regra de 3" trigger — extraction justified.
+   - F-arch-3: cli.ts parser duplication (parseThreshold ≡ parseDiversify;
+     two byte-identical --port parsers) — quick refactor opportunity.
+  Two MINORs (cargo-cult embedding strip + bloated cli-scope test mock) are
+  cleanup opportunities, not correctness issues.
+  Eleven INFO findings confirm the rest of the implementation is clean: SRP
+  honored across the 4 handlers, DIP/import direction respected (agent-tools
+  → core + local per architecture.md § 3, mirroring the existing run-*.ts
+  precedent), no `any`/`console.log` in production paths, kebab-case file
+  naming + camelCase functions + PascalCase types conform to
+  architecture.md § 6, no circular imports, ES modules only, test pyramid
+  honored (6 contract + 19 integration = 25 new tests with appropriate
+  pyramid placement).
+  Architecture verdict: READY_TO_MERGE_WITH_FOLLOWUPS — the 3 MAJORs are
+  follow-up hardening, not merge blockers. The cycle ships a clean,
+  SOLID-conformant CLI surface that closes Roadmap Item 18.
+process_observations:
+  - id: P-arch-1
+    note: |
+      THIRD consecutive `/implement` SKILL.md bypass via direct
+      ralph-loop:ralph-loop invocation (honestly disclosed in
+      implement-validate report line 73). Per cycle-implement.md v1.6 §
+      Acceptable bypass paths, this exceeds the "≤ 2 consecutive without
+      ADR amendment" clause. Out of scope for architecture review (process
+      concern, not architectural defect) but flagged here for the
+      cross-validation agent. Recommend ADR amendment to cycle-implement.md
+      v1.6 OR /implement SKILL.md spawn for the NEXT cycle before any
+      further bypass.

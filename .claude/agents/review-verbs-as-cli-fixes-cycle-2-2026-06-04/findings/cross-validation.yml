@@ -1,0 +1,393 @@
+agent: review-verbs-as-cli-fixes-cycle-2-cross-validation
+review_target: main..c9ef4b1 for plan verbs-as-cli-fixes-cycle-2
+plan: .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md
+plan_version: v1.1 (SHIPPABLE_WITH_CAVEATS @ 88.4)
+implementing_commit: c9ef4b1 ("feat(verbs-cli-fixes-cycle-2): close 10 MAJOR findings from /review verbs-as-cli-fixes-cycle-1")
+plan_tasks_summary:
+  total_tasks: 13
+  fully_implemented: 11
+  partial: 2
+  missing: 0
+  diverged: 0
+acceptance_criteria_summary:
+  total: 14
+  satisfied: 12
+  unverified: 0
+  false_claims: 2
+adr_compliance:
+  total_adrs: 6
+  respected: 5
+  diverged_without_new_adr: 1  # ADR D4 — see F-xval-2 (intent vs literal divergence)
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan v1.1 dated 2026-06-04 in commit 8c5d8fe; /implement commit c9ef4b1 dated
+    same day (2026-06-04 19:24). No post-implement plan edits detected. Plan was
+    the ground truth for the cycle.
+
+plan_task_status:
+  - task: T0.1
+    status: IMPLEMENTED
+    notes: |
+      tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts created with 8
+      `test()` blocks (26 `expect(` assertions). Plan declared 6 baseline + 2
+      EC absorption = 8 tests; file ships exactly 8. 141 LoC (< 200 cap).
+      Plan SMART Goal "≥ 8 NEW assertions" satisfied at the TEST-COUNT level;
+      EXPECT-COUNT 26 well above 8 floor.
+
+  - task: T1.1
+    status: IMPLEMENTED
+    notes: |
+      src/agent-tools/cli.ts:80-112 — parseIntInRange + parseFloatInRange now
+      use Number(raw) + regex pre-check (/^-?\d+$/ for ints, /^-?\d+(\.\d+)?$/
+      for floats) + isInteger/isFinite + range. Matches ADR D1 verbatim
+      including EC-1 (empty string) + EC-2 (hex/scientific). Honest disclosure
+      in commit body: unit-tier contract tests dropped (commander Option.argParser
+      internal property unstable across versions); integration tests at T0.1
+      carry the load-bearing TDD layer for ADR D1. Acceptable per Inquebrável
+      Rule 3 + plan ADR D1 § Consequences ("4 NEW RED tests in
+      verbs-cli-fixes-cycle-2.test.ts lock the strict-coercion contract").
+
+  - task: T1.2
+    status: IMPLEMENTED
+    notes: |
+      package.json line 81-83 — `prebuild:clean` rmSync + `build` chains it +
+      `prepack: "npm run build"`. Matches ADR D2 verbatim including EC-5
+      absorption (prepack auto-build). Empirically confirmed: dist/agent-tools/
+      cli-memory-factory.js absent (`ls` → NOT FOUND). Test 5 sentinel locks
+      the contract.
+
+  - task: T2.1
+    status: IMPLEMENTED
+    notes: |
+      src/core/memory-store.ts:150-171 — JSDoc replaced with 3-path description
+      (omitted → factory default; explicit undefined → throw; explicit policy →
+      use) + @see ADR-0005 § Supplementary amendment v1.1 + @see
+      src/local/__tests__/factory.test.ts § EC-2 paths a/b/c.
+
+  - task: T2.2
+    status: IMPLEMENTED
+    notes: |
+      src/core/memory-store.ts:172 — `readonly reflectionPolicy?: ReflectionPolicy
+      | undefined;` widening shipped. src/core/__tests__/memory/reflect.test.ts
+      line 66 carries plain object literal (no `as unknown as` cast).
+      src/local/__tests__/factory.test.ts EC-2 path (b) line 287 likewise carries
+      plain literal. Both casts dropped per plan T2.2 § Tasks 2+3.
+
+  - task: T2.3
+    status: PARTIAL
+    notes: |
+      agent-tools-memory.ts: 5 @internal tags applied (assertEnvOrExit,
+      PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool,
+      createAgentToolsMemory). cli-scope.ts: ZERO @internal tags applied —
+      validateScopeOpts (line 36) AND resolveCliScope (line 55) are exported
+      without the JSDoc tag. Plan Sub-goal 5 + T2.3 § Tasks step 1 explicitly
+      listed validateScopeOpts as one of the 6 exports to tag. M9 not fully
+      closed. See F-xval-1.
+
+  - task: T2.4
+    status: IMPLEMENTED
+    notes: |
+      .claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md gains
+      `### Alternatives considered (M11 absorption ...)` (line 113), 3-row
+      table (line 119), `### Decision` (line 121), `### Reversibility` (line
+      130). Matches plan T2.4 § Tasks 1+2+3 exactly.
+
+  - task: T3.1
+    status: IMPLEMENTED
+    notes: |
+      src/agent-tools/agent-tools-memory.ts:102-109 — `wireMemoryFromPool(pool):
+      Promise<Memory>` extracts the createLocalMemory tuple body. Tagged
+      @internal. EC-3 contract tests at agent-tools-memory.test.ts (74 LoC, 2
+      tests: pool.end NOT called + post-wire pool.query still works). The
+      tuple BODY (createLocalMemory call site with PgvectorStore +
+      LocalTransformerEmbedder + OpenAILLM construction) is consolidated;
+      run-mcp-server.ts:116 + run-server.ts:132 + createAgentToolsMemory:135
+      all delegate to wireMemoryFromPool. ADR D4 § Decision literally honored
+      for the tuple call site. SEE F-xval-2 for ADR D4 SPIRIT — the
+      LOCAL_EMBEDDER_DIM constant (384) is still declared 3× across
+      agent-tools-memory.ts:34 + run-mcp-server.ts:43 + run-server.ts:48.
+
+  - task: T3.2
+    status: IMPLEMENTED
+    notes: |
+      `grep createCliMemory agent-tools-memory.ts` → 0 hits (alias deleted).
+      4 verb handlers (run-{remember,recall,forget,reflect}.ts) all import
+      `createAgentToolsMemory` directly. M3 closed at source.
+
+  - task: T3.3
+    status: IMPLEMENTED
+    notes: |
+      src/__tests__/cli-locked-names.test.ts rewritten with LOCKED_VERBS (4
+      regex pinning to `.command()`) + LOCKED_FLAGS (9 regex pinning to
+      `.option()` with `[\s'"<]` boundary char). EC-4 absorption verified
+      against `--user-name` compound option + factory-arg context exclusion.
+      verbs-cli-fixes.test.ts tests 5+6 likewise rewritten with boundary regex.
+      ADR D6 honored.
+
+  - task: T5.1
+    status: IMPLEMENTED
+    notes: |
+      CHANGELOG.md [Unreleased] reordered: fix-cycle-1 mega-bullet split into
+      ### Added (lines 33-37, 5 entries) + ### Changed (lines 41-44, 4 entries)
+      + ### Removed (line 48, 1 entry). Original mega-bullet (line 50) retained
+      below the categorized sub-sections — slight DUPLICATION risk but plan
+      T5.1 § Tasks 1 said "Move the fix-cycle-1 mega-bullet content into
+      properly-categorized sub-bullets" which does not explicitly require
+      DELETION of the source bullet. Acceptable; honest disclosure of
+      reformatting via the section header (line 31): "### Added (fix-cycle-1
+      re-categorized per Keep-a-Changelog)".
+
+  - task: T5.2
+    status: IMPLEMENTED
+    notes: |
+      CHANGELOG.md [Unreleased] lines 9-29 hold the fix-cycle-2 entries
+      properly categorized: ### Added (3 entries — wireMemoryFromPool, 8 RED
+      tests, prebuild:clean script), ### Changed (5 entries — parser
+      strict-coercion, type widening, JSDoc extension, T3.1 retrofit, T3.3
+      regex sentinel, T5.1 re-categorization), ### Fixed (2 entries — M4 + M5),
+      ### Removed (1 entry — createCliMemory alias). Plan T5.2 § Tasks 1+2+3+4
+      satisfied.
+
+  - task: T4.1
+    status: IMPLEMENTED
+    notes: |
+      Implement-validate report at .claude/knowledge-base/reviews/verbs-as-cli-
+      fixes-cycle-2-implement-validate-2026-06-04.md asserts ALL gates PASS:
+      typecheck 0 errors; lint 0 warnings; contract 1071 PASS + 2 SKIP;
+      integration cli/ 36/36 PASS real-tree; dist artifact absent; pack sentinel
+      clean. NOT independently re-validated in this cross-validation pass — gates
+      are deterministic + report carries detailed verification per cycle-review
+      contract; trust accepted with caveat that report itself has 1 false claim
+      (see F-xval-3 — report says T2.3 6 exports tagged at "agent-tools-memory.ts
+      + cli-scope.ts (... validateScopeOpts)" but cli-scope.ts has 0 tags).
+
+# Plan SMART Goal verification
+goal_metric_verification:
+  metric: "≥ 8 NEW assertions in tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts"
+  observed: 8 test() blocks + 26 expect() assertions
+  verdict: SATISFIED at test-count level
+  caveat: |
+    Goal phrasing ambiguous — "8 NEW assertions" could read as test blocks (8) OR
+    expect calls (26). Either reading satisfies; the test-count reading is more
+    consistent with "6 baseline + 2 EC-1/EC-2 absorption tests" from plan T0.1.
+
+  metric_2: "parent floors unchanged"
+  observed: verbs-cli.test.ts 19/19 + verbs-cli-fixes.test.ts 9/9 per implement-validate report
+  verdict: SATISFIED per report (not independently re-run)
+
+  metric_3: "npm pack --dry-run ships ZERO cli-memory-factory.js"
+  observed: empirically dist/agent-tools/cli-memory-factory.js absent; sentinel test 5 locks it
+  verdict: SATISFIED at source artifact + locked by sentinel
+
+  dep_check: ZERO new deps claimed in plan § Dependencies
+  observed: git diff b06429e..c9ef4b1 -- package.json shows ONLY script additions
+            (prebuild:clean + prepack); package-lock.json untouched (no output from diff)
+  verdict: SATISFIED
+
+# Edge case absorption verification
+edge_case_verification:
+  - id: EC-1
+    status: ABSORBED_INLINE_AS_TEST
+    location: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts test 7
+    notes: "--top-k '' exits 2 per ADR D1 regex pre-check on empty trim"
+  - id: EC-2
+    status: ABSORBED_INLINE_AS_TEST
+    location: tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts test 8
+    notes: "--top-k 0x1F exits 2 per ADR D1 regex /^-?\\d+$/ (hex rejected)"
+  - id: EC-3
+    status: ABSORBED_INLINE_AS_TEST
+    location: src/agent-tools/__tests__/agent-tools-memory.test.ts (2 tests)
+    notes: "wireMemoryFromPool does NOT call pool.end() — caller owns lifecycle"
+  - id: EC-4
+    status: ABSORBED_INLINE_AS_TEST
+    location: src/__tests__/cli-locked-names.test.ts + verbs-cli-fixes.test.ts tests 5+6
+    notes: "Boundary char [\\s'\"<] in flag regex rejects --user-name compound option"
+  - id: EC-5
+    status: ABSORBED_INLINE_AS_SCRIPT
+    location: package.json scripts.prepack
+    notes: "prepack auto-build chained via `npm run build` before npm pack"
+  - id: EC-6
+    status: DOCUMENTED
+    location: plan footer § Documented risks
+    notes: "Windows EBUSY constraint; out-of-PRIORITY-0 dev-tier rough edge"
+  - id: EC-7
+    status: DOCUMENTED
+    location: plan footer § Documented risks
+    notes: "Type widening cascades to CloudMemoryConfig (cloud pre-release; zero consumers)"
+  - id: EC-8
+    status: DOCUMENTED
+    location: plan footer § Documented risks
+    notes: "@internal JSDoc advisory without api-extractor; deferred to v1.0 contract-freeze"
+
+findings:
+  - id: F-xval-1
+    severity: MAJOR
+    file: src/agent-tools/cli-scope.ts
+    plan_ref: Sub-goal 5 (M9 closure) + T2.3 § Tasks step 1
+    summary: |
+      `validateScopeOpts` AND `resolveCliScope` are exported without @internal tag.
+      Plan T2.3 explicitly listed `validateScopeOpts` as one of the 6 exports to
+      tag. M9 not fully closed.
+    evidence: |
+      Plan T2.3 § Tasks step 1 says: "Add `@internal Shared boundary helper for
+      agent-tools subpath. NOT part of the public @usetheo/memory/agent-tools
+      API surface.` JSDoc tag to: `assertEnvOrExit`, `PG_URI_ENV_SPEC`,
+      `OPENAI_API_KEY_ENV_SPEC`, `createAgentToolsMemory`, `wireMemoryFromPool`
+      (new from T3.1), `validateScopeOpts`."
+
+      Code at src/agent-tools/cli-scope.ts:36-43 (validateScopeOpts) and
+      src/agent-tools/cli-scope.ts:55-60 (resolveCliScope):
+      ```ts
+      /**
+       * Boundary-only validator. Throws when zero OR more than one scope field is
+       * defined. No Memory dependency — invoke at the CLI boundary BEFORE warming
+       * the expensive Memory factory (closes F-dom-cli-2: fail-fast ordering must
+       * not pay the ~2-5s factory cost just to reject malformed input).
+       * ...
+       */
+      export function validateScopeOpts(opts: CliScopeOptions): void { ... }
+      ```
+      No `@internal` JSDoc tag present.
+
+      Empirical grep: `grep -c "@internal" src/agent-tools/cli-scope.ts` → 0.
+
+      Architecture review agent also surfaced this same defect.
+    recommended_action: |
+      Add the canonical `@internal Shared boundary helper for agent-tools subpath
+      (CLI). NOT part of the public @usetheo/memory/agent-tools API surface.`
+      JSDoc tag to BOTH `validateScopeOpts` AND `resolveCliScope` in
+      src/agent-tools/cli-scope.ts. The plan only enumerated `validateScopeOpts`,
+      but `resolveCliScope` is the same shape and same boundary; tagging it
+      together honors the plan SPIRIT + closes the consistency gap.
+
+  - id: F-xval-2
+    severity: MINOR
+    file: src/agent-tools/run-mcp-server.ts:43, src/agent-tools/run-server.ts:48
+    plan_ref: ADR D4 § Decision + Sub-goal 8 ("Single source of truth for the provider tuple")
+    summary: |
+      ADR D4's "Single source of truth for the provider tuple" was honored
+      literally for the `createLocalMemory(...)` call SITE (extracted to
+      wireMemoryFromPool) but the `LOCAL_EMBEDDER_DIM = 384` constant is
+      triplicated across 3 files (agent-tools-memory.ts:34, run-mcp-server.ts:43,
+      run-server.ts:48). Two of the three sites also use the constant in their
+      own `runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })` call
+      OUTSIDE the helper, so simply moving it to wireMemoryFromPool would not
+      fully consolidate. Architecture agent flagged as MAJOR; cross-validation
+      grades MINOR because ADR D4 § Decision literally targets the
+      `createLocalMemory({ vectorStore + embedder + llm + embeddingDim })` body,
+      not the LOCAL_EMBEDDER_DIM constant. Plan intent vs literal scope gap.
+    evidence: |
+      Plan ADR D4 § Decision: "extract `wireMemoryFromPool(pool: Pool):
+      Promise<Memory>` helper at `agent-tools-memory.ts` that contains the
+      `createLocalMemory({ vectorStore + embedder + llm + embeddingDim })`
+      body... Single source of truth for the provider tuple."
+
+      grep LOCAL_EMBEDDER_DIM src/agent-tools/ (3 file declarations):
+        agent-tools-memory.ts:34: const LOCAL_EMBEDDER_DIM = 384;
+        run-mcp-server.ts:43:    const LOCAL_EMBEDDER_DIM = 384;
+        run-server.ts:48:        const LOCAL_EMBEDDER_DIM = 384;
+
+      run-mcp-server.ts:106 uses LOCAL_EMBEDDER_DIM in runMigrations call
+      (outside wireMemoryFromPool's scope); same in run-server.ts:106.
+    recommended_action: |
+      Two options:
+      (a) Promote LOCAL_EMBEDDER_DIM to an exported `@internal` constant from
+          agent-tools-memory.ts; have run-mcp-server.ts + run-server.ts import
+          it and use it both inside their runMigrations call AND for their
+          stderr log message.
+      (b) Accept as honest known-debt + document in a follow-up plan with
+          rationale (the JSDoc at run-server.ts:43-47 already says "Mirrors
+          run-mcp-server.ts LOCAL_EMBEDDER_DIM constant ... so the REST + MCP
+          composition roots stay in lockstep per architecture.md § 5" — that
+          discipline pattern is acceptable per architecture.md but the JSDoc
+          comment does not enforce the lockstep mechanically).
+
+  - id: F-xval-3
+    severity: MINOR
+    file: .claude/knowledge-base/reviews/verbs-as-cli-fixes-cycle-2-implement-validate-2026-06-04.md
+    plan_ref: T2.3 + Sub-goal 5 (M9 closure)
+    summary: |
+      Implement-validate report falsely claims T2.3 closure: "6 exports tagged
+      @internal at agent-tools-memory.ts + cli-scope.ts (assertEnvOrExit,
+      PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool,
+      createAgentToolsMemory, validateScopeOpts)". Empirical grep shows
+      validateScopeOpts has NO @internal tag (see F-xval-1). The report
+      enumerates a tag that does not exist in the code. Honest-disclosure
+      regression against Inquebrável Rule 3.
+    evidence: |
+      Report § Tasks completed row T2.3: "6 exports tagged `@internal` at
+      agent-tools-memory.ts + cli-scope.ts (assertEnvOrExit, PG_URI_ENV_SPEC,
+      OPENAI_API_KEY_ENV_SPEC, wireMemoryFromPool, createAgentToolsMemory,
+      validateScopeOpts)".
+
+      Actual: grep "@internal" cli-scope.ts → 0 hits; validateScopeOpts is
+      undocumented at cli-scope.ts:36 (only ordinary JSDoc, no @internal tag).
+    recommended_action: |
+      After fixing F-xval-1 (adding the tags), update the implement-validate
+      report row T2.3 to honestly reflect the state — OR roll the missing tag
+      forward as a known-debt explicitly named. Do not let the false-claim
+      survive into /review handoff.
+
+  - id: F-xval-4
+    severity: INFO
+    file: CHANGELOG.md
+    plan_ref: T5.1 (M10 closure)
+    summary: |
+      The fix-cycle-1 mega-bullet (CHANGELOG.md line 50, ~3000 chars) is
+      RETAINED below the re-categorized Added/Changed/Removed sub-sections
+      headed "### Added (fix-cycle-1 re-categorized per Keep-a-Changelog)".
+      Result: each fix-cycle-1 change appears TWICE in CHANGELOG (once in the
+      categorized section + once inside the mega-bullet). Plan T5.1 § Tasks
+      step 1 says "Move the fix-cycle-1 mega-bullet content into
+      properly-categorized sub-bullets" — the literal "move" implies
+      replacement, but the implementation chose ADDITIVE re-categorization to
+      preserve the original audit trail. Mild Keep-a-Changelog tension; not a
+      contract violation since each categorized sub-bullet is ≤ 1 line per
+      § 6.
+    evidence: |
+      CHANGELOG.md lines 31-48: re-categorized Added/Changed/Removed
+      sub-sections (8 sub-bullets total).
+      CHANGELOG.md line 50: original mega-bullet retained verbatim with all
+      11 MAJOR closures recapped.
+
+      Effective behavior: a CHANGELOG reader sees each fix-cycle-1 closure
+      twice. Acceptable but ambiguous.
+    recommended_action: |
+      Optional: delete the original mega-bullet (line 50) post sub-section
+      population so each change appears exactly once. Alternative: add a
+      one-line preamble to the mega-bullet calling out it is a deprecated-
+      format historical mirror.
+
+# Cycle-process notes
+cycle_process_notes:
+  fifth_consecutive_sepa_bypass:
+    severity: INFO
+    summary: |
+      Cycle-implement.md v1.7 ADR-marker sunset 2026-07-04 entered the
+      5th consecutive bypass cycle (parent p0-api-sdk + p0-fix-cycle-1 +
+      verbs-as-cli + verbs-as-cli-fixes-cycle-1 + THIS). The commit body
+      explicitly disclosed: "The cycle's OWN T5.4 ADR-marker said next
+      /implement MUST use canonical OR carry NEW ADR; this cycle did
+      NEITHER. Pure honest disclosure, no excuse." This satisfies the
+      newly-added cycle-implement.md v1.6 § "Acceptable bypass paths"
+      (2026-06-04 amendment via b90841c) — condition 1 (honest disclosure
+      in implement-validate report § "Cycle-implement anti-patterns
+      adherence" + commit body) is MET; condition 2 (no third consecutive
+      bypass without ADR amendment) was FORMALLY closed by b90841c
+      retroactively absorbing parent F-xval-5; condition 3 (pre-existing
+      parent-plan precedent) holds. Out-of-scope for THIS cross-validation
+      (the bypass is acceptable per the new rule). Out-of-scope finding.
+
+absent_or_failed_checks:
+  - check: Independent npm test re-run on c9ef4b1
+    reason: Trust implement-validate report per cycle-review contract;
+            re-running would not surface anything the deterministic gates missed
+  - check: Independent typecheck re-run on c9ef4b1
+    reason: Same as above
+  - check: Real-tree integration re-run (requires OPENAI_API_KEY + THEOMEM_PG_URI)
+    reason: Out-of-band env requirements; trust commit body claim 36/36 PASS
+  - check: Tree-sitter AST audit for additional @internal omissions across
+            subpath-internal exports
+    reason: Out-of-cycle (PRIORITY 0 deferred to api-extractor-internal-stripping
+            follow-up plan per EC-8 documented risk)

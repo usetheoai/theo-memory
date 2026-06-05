@@ -1,0 +1,146 @@
+agent: wiring (re-run post-hotfix 3a53db8)
+review_target: verbs-as-cli-fixes-cycle-2 @ commit 3a53db8
+prior_verdict: NEEDS_FIXES (3 MAJORs at c9ef4b1)
+
+triad_results:
+  - symbol: LOCAL_EMBEDDER_DIM
+    declaration_site: src/agent-tools/agent-tools-memory.ts:48
+    pillar_a_callers:
+      - src/agent-tools/agent-tools-memory.ts:118 (PgvectorStore embeddingDim)
+      - src/agent-tools/agent-tools-memory.ts:121 (createLocalMemory embeddingDim)
+      - src/agent-tools/agent-tools-memory.ts:147 (runMigrations embeddingDim)
+      - src/agent-tools/run-mcp-server.ts:103 (runMigrations embeddingDim)
+      - src/agent-tools/run-mcp-server.ts:106 (stderr disclosure interpolation)
+      - src/agent-tools/run-server.ts:103 (runMigrations embeddingDim)
+      - src/agent-tools/run-server.ts:114 (stderr disclosure interpolation)
+    pillar_a_caller_count: 7 (all functionally necessary; no dead branches)
+    pillar_b_integration_test: |
+      Transitive coverage via:
+        - src/agent-tools/__tests__/agent-tools-memory.test.ts (wireMemoryFromPool lifecycle invariant)
+        - tests/integration/cli/* (36 PASS per hotfix commit body)
+        - tests/integration/agent-tools/* (MCP factory)
+      No new dedicated test needed (constant value, not a behavior).
+    pillar_c_runtime_metric: N/A (constant)
+    dry_grep_check: |
+      `grep -rn "LOCAL_EMBEDDER_DIM = 384" src/` returns EXACTLY 1 hit at agent-tools-memory.ts:48.
+      DRY M2 closure VERIFIED — knowledge-duplication eliminated per Inquebrável Rule 12.
+    status: PASS (at the source-code wiring level)
+
+  - symbol: validateScopeOpts (M1 — @internal tag)
+    declaration_site: src/agent-tools/cli-scope.ts (4 @internal hits in file)
+    pillar_a_callers: pre-existing (verified at fix-cycle-1; no behavior change)
+    pillar_b_integration_test: pre-existing
+    pillar_c_runtime_metric: N/A (no behavior change; documentation-only diff)
+    status: PASS (JSDoc-only addition; semantics unchanged)
+
+  - symbol: resolveCliScope (M1 — @internal tag)
+    declaration_site: src/agent-tools/cli-scope.ts
+    pillar_a_callers: pre-existing
+    pillar_b_integration_test: pre-existing
+    pillar_c_runtime_metric: N/A
+    status: PASS (JSDoc-only addition; semantics unchanged)
+
+changelog_caveats_check:
+  regex: '/warm[\s-]?up|2-5s|cold[\s-]?start/i'
+  match_line: CHANGELOG.md:29
+  match_content: '"CLI cold-start cost" — each `themory remember`/... pays ~2-5s warm-up ...'
+  status: PASS (all 3 phrases — "cold-start", "warm-up", "2-5s" — present on a single line; sentinel test 8 of verbs-cli-fixes.test.ts satisfied)
+
+new_findings:
+  - id: F-wire-rerun-1
+    severity: MAJOR
+    file: tests/integration/p0-audit/run-server-stub-removal.test.ts
+    lines: [37, 41, 49]
+    plan_ref: hotfix commit 3a53db8 § M2 (LOCAL_EMBEDDER_DIM single source of truth)
+    summary: |
+      Hotfix 3a53db8 deletes the LOCAL_EMBEDDER_DIM literal declaration AND the
+      direct LocalTransformerEmbedder + OpenAILLM imports from src/agent-tools/
+      run-server.ts (now imported transitively via agent-tools-memory.ts).
+      Three sentinel tests in tests/integration/p0-audit/run-server-stub-removal
+      .test.ts grep run-server.ts SOURCE TEXT for these patterns:
+        - Test 3 (line 37): /import\b.*\bLocalTransformerEmbedder\b/  → FAIL (no longer imported directly)
+        - Test 4 (line 41): /import\b.*\bOpenAILLM\b/                 → FAIL (no longer imported directly)
+        - Test 6 (line 49): /LOCAL_EMBEDDER_DIM\s*=\s*384/            → FAIL (literal deleted; only import remains)
+      Empirically reproduced: `npx vitest run tests/integration/p0-audit/run-server-stub-removal.test.ts`
+      → 3 failed | 5 passed (8).
+    contradicts_commit_body: |
+      Hotfix commit body claimed:
+        - "Integration cli/ real-tree: 36/36 PASS (108s)"
+      That claim covers ONLY tests/integration/cli/. The validation gate did NOT
+      run tests/integration/p0-audit/ which is also part of the integration
+      config glob (vitest.integration.config.ts: `include: ['tests/integration/**/*.test.ts']`).
+      The 3 broken sentinels were never empirically validated by the hotfix.
+    blast_radius: |
+      Tests 3 + 4 + 6 are p0-audit STUB REMOVAL SENTINELS (T3.2 of
+      p0-api-sdk-mcp-correctness-audit plan). They defend the no-stub-in-production
+      invariant by directly grepping source text. The hotfix's DRY refactor moves
+      the imports up one level (into agent-tools-memory.ts), which is functionally
+      equivalent BUT breaks the textual sentinel.
+      Pillar (a) static-caller wiring REMAINS HONEST (providers still wired into
+      Memory via wireMemoryFromPool transitive chain). The regression is at the
+      ASSERTION layer, not the BEHAVIOR layer.
+    recommended_action: |
+      Two equivalent options — both close the regression without re-opening the
+      DRY decision:
+        Option A (recommended): update the 3 sentinels to grep
+          src/agent-tools/agent-tools-memory.ts INSTEAD of run-server.ts —
+          the providers are now declared at that single source of truth, and
+          the sentinel intent (defend no-stub-in-production) is preserved.
+        Option B: extend sentinel 6 regex to ALSO match
+          `import\b.*\bLOCAL_EMBEDDER_DIM\b.*from.*agent-tools-memory` — covers
+          the transitive import path. Sentinels 3+4 need analogous update OR
+          deletion (transitively covered by agent-tools-memory.ts content).
+      Either option is a single-commit follow-up; verdict-flip viability
+      unaffected (M1 + M2 closure HONEST at code level; assertion layer drift
+      is the only gap).
+    severity_rationale: |
+      MAJOR (not BLOCKER): no production behavior is broken. wireMemoryFromPool
+      still wires LocalTransformerEmbedder + OpenAILLM into the Memory factory;
+      MCP boot + REST boot still emit the canonical stderr-disclosure including
+      the dim=384 token. Pillar (a) production-caller depth is intact.
+      However, the regression contradicts the commit body's
+      "Integration: 36/36 PASS" claim by silent omission — p0-audit/ tests
+      were not part of the validation gate but are part of the same
+      vitest.integration.config.ts glob. Per Inquebrável Rule 3, an honest
+      hotfix-validation gate would have caught this BEFORE landing 3a53db8.
+
+  - id: F-wire-rerun-2
+    severity: MINOR
+    file: src/agent-tools/run-server.ts
+    line: 44
+    plan_ref: hotfix commit 3a53db8 § M2
+    summary: |
+      Comment at line 44 reads "fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM
+      imported from agent-tools-memory.ts (single source of truth — was
+      triplicated across CLI factory + 2 runners)."
+      Honest disclosure of the change vector. Mirror comment exists at
+      run-mcp-server.ts:38. Both comments correctly cite the hotfix +
+      explain the DRY motivation. No action needed.
+    recommended_action: none (documenting good practice for verdict trail)
+
+verdict_recommendation: NEEDS_FIXES
+verdict_rationale: |
+  M1 (@internal tags on validateScopeOpts + resolveCliScope) — HONEST PASS.
+  M2 (LOCAL_EMBEDDER_DIM DRY single source of truth at agent-tools-memory.ts:48
+    consumed by 2 runners + factory) — HONEST PASS at the source-code wiring
+    level (pillar (a) static-caller depth intact; DRY grep returns exactly 1
+    hit; ADR D4 invariant extended).
+  M3 (CHANGELOG mega-bullet deletion + Caveats section) — HONEST PASS (regex
+    sentinel matches at CHANGELOG.md:29).
+  BUT: hotfix introduces a TEST regression in tests/integration/p0-audit/
+    run-server-stub-removal.test.ts (3 failures of 8 — tests 3, 4, 6) because
+    the M2 refactor moved 3 source-text patterns out of run-server.ts. The
+    commit body's "Integration: 36/36 PASS" validation gate ran ONLY
+    tests/integration/cli/, not the full vitest.integration.config.ts glob.
+  Verdict flip from NEEDS_FIXES → READY_TO_MERGE is BLOCKED until the 3
+  sentinel tests are updated to track the new single-source-of-truth file
+  (Option A) OR the regex is broadened (Option B). One follow-up commit
+  closes the gap; both options preserve the M1 + M2 + M3 closures intact.
+
+honesty_disclosure: |
+  This wiring re-run did NOT spot-check the cli/ 36 PASS claim independently
+  (re-running the full integration suite requires Postgres + pgvector). The
+  p0-audit/ regression was discovered by spot-checking ONE sibling integration
+  test that touches the hotfix's diff surface — confirming the empirical gap
+  via `npx vitest run tests/integration/p0-audit/run-server-stub-removal.test.ts`.
+  A broader integration sweep is recommended before claiming READY_TO_MERGE.

@@ -1,0 +1,231 @@
+agent: review-verbs-as-cli-fixes-cycle-1-wiring
+review_target: verbs-as-cli-fixes-cycle-1 @ commit b06429e
+plan: .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md
+triad_revalidation:
+  total_new_symbols: 7
+  pillar_a_honest_pass: 7 / 7   # all new symbols have functionally-necessary production callers
+  pillar_b_honest_pass: 7 / 7   # all behaviorally exercised (semantic > symbol-grep)
+  pillar_c_observed: 1 / 1      # the only declared runtime probe — empirical dotenv silence — verified PASS
+
+triad_results:
+  - symbol: assertEnvOrExit
+    declared_in: src/agent-tools/agent-tools-memory.ts:42
+    pillar_a_callers:
+      - src/agent-tools/agent-tools-memory.ts:88 (createAgentToolsMemory)
+      - src/agent-tools/run-mcp-server.ts:98 (runMcpServer)
+      - src/agent-tools/run-server.ts:96 (runServer)
+    pillar_a_status: PASS (3 functionally necessary callers; no dead branches; no-op-callers absent)
+    pillar_b_integration_test: tests/integration/p0-audit/run-server-stub-removal.test.ts:45 + tests/integration/p0-audit/full-public-surface.test.ts:232-237 (behavioral via stderr-string match `/OPENAI_API_KEY required/` + `/THEOMEM_PG_URI required/`)
+    pillar_b_note: check_wiring.py symbol-grep returns 0 tests, but BLACK-BOX coverage exists via stderr regex assertions on the canonical error messages — semantic exercise present, symbol-grep blind to it.
+    pillar_c_runtime_metric: N/A (no metric declared)
+    status: PASS
+
+  - symbol: PG_URI_ENV_SPEC
+    declared_in: src/agent-tools/agent-tools-memory.ts:64
+    pillar_a_callers:
+      - src/agent-tools/agent-tools-memory.ts:88
+      - src/agent-tools/run-mcp-server.ts:98
+      - src/agent-tools/run-server.ts:96
+    pillar_a_status: PASS (single source of truth for `THEOMEM_PG_URI required` stderr string; consumed by 3 callers, all real)
+    pillar_b_integration_test: p0-audit tests assert byte-identical stderr string (EC-3 preservation guarantee)
+    pillar_c_runtime_metric: N/A
+    status: PASS
+
+  - symbol: OPENAI_API_KEY_ENV_SPEC
+    declared_in: src/agent-tools/agent-tools-memory.ts:70
+    pillar_a_callers: identical to PG_URI_ENV_SPEC (paired const)
+    pillar_a_status: PASS
+    pillar_b_integration_test: same as PG_URI_ENV_SPEC
+    pillar_c_runtime_metric: N/A
+    status: PASS
+
+  - symbol: createAgentToolsMemory
+    declared_in: src/agent-tools/agent-tools-memory.ts:87
+    pillar_a_callers:
+      - src/agent-tools/agent-tools-memory.ts:114 (alias assignment `createCliMemory = createAgentToolsMemory`)
+    pillar_a_status: PASS (the alias is a runtime re-export; calling alias calls function. Verb handlers consume via alias.)
+    pillar_a_caveat: NO non-alias call-site in src/. JSDoc invites future call-sites — currently 0. Honest forward-compat affordance; not dead at runtime because alias IS the function value.
+    pillar_b_integration_test: tests/integration/cli/verbs-cli-fixes.test.ts test 1 (full remember→reflect roundtrip exercises createCliMemory → createAgentToolsMemory)
+    pillar_c_runtime_metric: N/A
+    status: PASS
+
+  - symbol: createCliMemory (backward-compat alias)
+    declared_in: src/agent-tools/agent-tools-memory.ts:114
+    pillar_a_callers:
+      - src/agent-tools/run-remember.ts:38
+      - src/agent-tools/run-recall.ts:37
+      - src/agent-tools/run-forget.ts:31
+      - src/agent-tools/run-reflect.ts:28
+    pillar_a_status: PASS (4 functionally necessary callers — the 4 verb handlers)
+    pillar_b_integration_test: tests/integration/cli/verbs-cli-fixes.test.ts test 1 + test 3 + parent tests/integration/cli/verbs-cli.test.ts (19 PASS floor)
+    pillar_c_runtime_metric: N/A
+    status: PASS
+
+  - symbol: validateScopeOpts
+    declared_in: src/agent-tools/cli-scope.ts:36
+    pillar_a_callers:
+      - src/agent-tools/run-remember.ts:36 (BEFORE createCliMemory:38 — fail-fast contract)
+      - src/agent-tools/run-recall.ts:35 (BEFORE createCliMemory:37 — fail-fast contract)
+      - src/agent-tools/run-reflect.ts:26 (BEFORE createCliMemory:28 — fail-fast contract)
+      - src/agent-tools/cli-scope.ts:56 (re-validation guard inside resolveCliScope per JSDoc pre-condition)
+    pillar_a_status: PASS DEEP — fail-fast ordering verified: validateScopeOpts ALWAYS precedes createCliMemory in remember/recall/reflect.
+    pillar_b_integration_test:
+      - src/agent-tools/__tests__/cli-scope.test.ts:83-97 (3 contract unit tests — zero/exactly-one/multi)
+      - tests/integration/cli/verbs-cli-fixes.test.ts:131-155 (test 3 — END-TO-END empirical fail-fast under 2000ms with exit 2)
+    pillar_b_status: PASS — direct contract tests + empirical timing test.
+    pillar_c_runtime_metric: N/A
+    status: PASS
+
+  - symbol: cli-preload (side-effect module)
+    declared_in: src/agent-tools/cli-preload.ts (entire file is the symbol)
+    pillar_a_callers:
+      - src/agent-tools/cli.ts:7 (`import './cli-preload.js';` as FIRST import statement, before commander/run-*/verb handlers)
+    pillar_a_status: PASS — leaf module (zero own imports verified) guaranteed to evaluate first per ESM source-order. Dist build preserves the import-order (verified at dist/agent-tools/cli.js:7).
+    pillar_b_integration_test: tests/integration/cli/verbs-cli-fixes.test.ts:157-176 (test 4 — empirical dotenv silence; runs CLI with DOTENV_CONFIG_QUIET deleted from env, asserts stdout has 0 banner hits)
+    pillar_c_runtime_metric: PILLAR C EMPIRICAL OBSERVATION — `env -u DOTENV_CONFIG_QUIET node dist/agent-tools/cli.js --help` returns 0 dotenv-banner matches. Live-verified during this review (grep -iE "dotenv|inject|banner|tip|injected" returns nothing on --help stdout).
+    status: PASS
+
+inline_helpers_audit:
+  - symbol: parseIntInRange (NOT exported; inline factory at cli.ts:75)
+    callers:
+      - src/agent-tools/cli.ts:125 (mcp --port)
+      - src/agent-tools/cli.ts:140 (server --port)
+      - src/agent-tools/cli.ts:170 (parseTopK via factory)
+    status: PASS (3 invocations replace 3 byte-similar parsers per ADR D4)
+  - symbol: parseFloatInRange (NOT exported; inline factory at cli.ts:85)
+    callers:
+      - src/agent-tools/cli.ts:171 (parseThreshold)
+      - src/agent-tools/cli.ts:172 (parseDiversify)
+    status: PASS (2 invocations replace 2 byte-similar parsers)
+  - symbol: cli-locked-names.test.ts (sentinel test at src/__tests__/)
+    purpose: reads cli.ts source raw, asserts 4 verb command literals + 9 flag literals remain present
+    status: PASS — locks v1.0 strategic CLAUDE.md § Locked names extension at the contract layer
+
+boundary_dip_audit:
+  files_inspected:
+    - src/agent-tools/agent-tools-memory.ts
+    - src/agent-tools/cli-preload.ts
+    - src/agent-tools/cli-scope.ts
+  imports_observed:
+    - "../core/memory-store.js" (allowed — core contract)
+    - "../local/index.js" (acceptable — agent-tools is the WIRING layer; composes local concrete impls)
+    - "../local/pgvector-store.js" (acceptable — same rationale)
+    - "../embedders/local.js" (acceptable)
+    - "../llms/openai.js" (acceptable)
+    - "pg" (external)
+  cross_tier_violations: 0
+  notes: agent-tools is the composition/binary layer, not a library subpath. It legitimately wires concrete impls. No cloud/theokit cross-imports detected.
+
+integration_with_existing_flows:
+  entry_points_traced:
+    - bin/themory → dist/agent-tools/cli.js (commander)
+        ↳ cli.ts:7 imports cli-preload.js (dotenv silence side-effect)
+        ↳ commander.action() dispatches to runMcpServer / runServer / runRemember / runRecall / runReflect / runForget / runMigrate / runHealth
+        ↳ verb handlers call validateScopeOpts → createCliMemory → memory.scope(id).remember()
+        ↳ createCliMemory → createAgentToolsMemory → assertEnvOrExit → Pool() + runMigrations + createLocalMemory
+  unreachable_modules: 0 (all new code is reachable from a CLI entry point)
+
+dead_exports_audit:
+  diff_exports_screened: 7 (5 NEW + 2 modified-export)
+  dead_exports: 0
+  notes: |
+    None of the 5 new exports (assertEnvOrExit, PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC,
+    createAgentToolsMemory, createCliMemory, validateScopeOpts) is re-exported in
+    src/agent-tools/index.ts — that's INTENTIONAL: the agent-tools/index.ts barrel
+    is for the `@usetheo/memory/agent-tools` MCP SUBPATH consumers, not for CLI
+    bin internals. These symbols are consumed via direct intra-module imports
+    by cli.ts → run-*.ts → agent-tools-memory.ts chain. Not dead at runtime.
+
+concurrent_safety_audit:
+  shared_resources_touched_this_cycle: |
+    - process.env (read-only after cli-preload.ts default-set in EXEC-time)
+    - Postgres pool (existing pattern preserved; no new race surface)
+  races_introduced: 0
+  notes: cli-preload.ts mutates process.env['DOTENV_CONFIG_QUIET'] but uses ??=
+    semantics (`= process.env['...'] ?? 'true'`) so explicit consumer override
+    via env wins. Idempotent across multiple CLI invocations in same process
+    (npx-with-prewarm scenario).
+
+findings:
+  - id: F-wire-fix-1
+    severity: MINOR
+    file: src/agent-tools/agent-tools-memory.ts
+    line: 87-114
+    plan_ref: T2.1 / ADR D3 (DRY env-validation collapse + alias retention)
+    summary: createAgentToolsMemory has 0 direct (non-alias) production callers; all 4 verb handlers consume via createCliMemory alias.
+    evidence: |
+      grep -rn "createAgentToolsMemory" src/  →  5 lines, all inside agent-tools-memory.ts itself
+      grep -rn "createCliMemory" src/  →  4 verb handlers (run-{remember,recall,forget,reflect}.ts)
+      JSDoc at line 14 + 112 invites future call-sites to "prefer createAgentToolsMemory"
+      yet 0 currently do so.
+    technical_impact: NONE at runtime. `createCliMemory = createAgentToolsMemory` is a re-export
+      of the same function value; calling alias = calling function. The dual name is a
+      forward-compat affordance, not a wiring defect.
+    recommended_action: Optional. Either (a) accept as honest forward-compat
+      affordance and document the dual-name policy in a §note in
+      agent-tools-memory.ts (single sentence) OR (b) deprecate the alias on a
+      sunset schedule once consumers migrate (NOT urgent for this fix-cycle).
+    blocking: NO
+
+  - id: F-wire-fix-2
+    severity: INFO
+    file: src/agent-tools/run-server.ts + src/agent-tools/run-mcp-server.ts
+    line: run-server.ts:96-115 / run-mcp-server.ts:98-118
+    plan_ref: T2.1 partial DRY scope
+    summary: T2.1 collapses ONLY the env-validation boundary (assertEnvOrExit + env specs)
+      into the shared helper. The createAgentToolsMemory factory body (Pool + runMigrations +
+      createLocalMemory) is NOT shared — run-mcp-server.ts and run-server.ts duplicate the
+      assembly logic with the same constants (LOCAL_EMBEDDER_DIM = 384, identical wire shape).
+    evidence: |
+      run-mcp-server.ts:108-118 and run-server.ts:102-130 each duplicate:
+        new Pool({ connectionString: pgUri })
+        runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM })
+        createLocalMemory({ vectorStore, embedder, llm, embeddingDim })
+      This is the same shape as createAgentToolsMemory:91-101.
+    technical_impact: pre-existing DRY violation; NOT a regression from this cycle. Plan
+      ADR D3 scoped T2.1 to env-validation only (the symptoms F-arch-2 + F-wire-1 surfaced
+      there). Future cycle could extend the factory to be the universal composition root
+      and have run-mcp-server / run-server consume it, but that's out of scope here.
+    recommended_action: NOT BLOCKING for this fix-cycle. Track as MAJOR for a future
+      DRY hardening cycle if a 4th caller (e.g., REST + MCP + CLI + Worker) emerges and
+      the duplication becomes load-bearing.
+    blocking: NO
+
+  - id: F-wire-fix-3
+    severity: INFO
+    file: src/__tests__/cli-locked-names.test.ts
+    plan_ref: T5.3 / F-dom-api-3 closure
+    summary: Sentinel test reads cli.ts source raw (filesystem-relative __dirname → '../agent-tools/cli.ts').
+      If a future refactor moves cli.ts to a different path or splits the verb command literals
+      into a separate constants module, the sentinel will silently fail to find them.
+    evidence: |
+      const CLI_SRC_PATH = join(__dirname, '..', 'agent-tools', 'cli.ts');
+      const LOCKED_VERBS = ["'remember <text>'", "'recall <query>'", "'forget <id>'", "'reflect'"];
+      readFileSync(CLI_SRC_PATH, 'utf8') — raw substring match.
+    technical_impact: brittle to refactor but currently correct. CLAUDE.md amendment policy
+      should mention this sentinel as the gate that enforces the rename PR.
+    recommended_action: Optional — add a fallback that also greps src/ recursively for the
+      literals if CLI_SRC_PATH read fails. Not urgent.
+    blocking: NO
+
+summary:
+  verdict: PASS (wiring triad honest at all 7 new symbols; 0 BLOCKER, 0 CRITICAL, 0 MAJOR)
+  rationale: |
+    Every new symbol has functionally necessary production callers (no dead branches,
+    no no-op gaming). Every new symbol is behaviorally exercised by either a contract
+    test or an integration test (symbol-grep blind spots compensated by stderr-string
+    sentinels + empirical timing tests). The fail-fast contract for validateScopeOpts
+    is empirically locked at test 3 (< 2000ms exit 2). The dotenv silence side-effect
+    is empirically locked at test 4 (0 banner hits without DOTENV_CONFIG_QUIET env).
+    Integration with existing flows is direct from CLI bin entry through to
+    Memory composition root. No cross-tier DIP violations. No dead exports.
+
+    The 3 MINOR/INFO findings are forward-compat or documentation hygiene, not wiring
+    defects, and explicitly NOT blockers for this fix-cycle's READY_TO_MERGE verdict.
+
+  cycle_implement_anti_patterns_check:
+    "1_caller_no_op": absent (assertEnvOrExit + validateScopeOpts both called WITHIN production execution paths)
+    "2_dead_branch": absent (no `if (false)` or commented call-sites)
+    "3_unreachable_module": absent (cli-preload.ts directly imported by cli.ts)
+    "4_fabricated_metric": N/A (no metric declared except empirical dotenv silence, which was live-verified)
+    "5_dead_export": absent (rationale documented in dead_exports_audit above)
