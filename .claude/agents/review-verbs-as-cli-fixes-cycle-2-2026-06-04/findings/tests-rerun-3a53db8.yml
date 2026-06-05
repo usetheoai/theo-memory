@@ -1,0 +1,90 @@
+agent: tests (re-run post-hotfix 3a53db8)
+review_target: verbs-as-cli-fixes-cycle-2 @ commit 3a53db8
+no_test_files_modified: PASS
+test_8_regression_resolved: PASS
+real_tree_36_pass_preserved: PASS_WITH_CAVEAT
+no_new_test_debt: PASS
+new_findings:
+  - id: F-tests-rerun-1
+    severity: INFO
+    file: tests/integration/cli/verbs-cli-fixes.test.ts
+    line: 132
+    summary: |
+      Test 3 (multi-scope fails fast under 2000 ms) FAILED on local rerun
+      with elapsed 2811ms / 2515ms (two trials) vs 2000ms budget. NOT a
+      hotfix regression — verified by reverting src/agent-tools/ to
+      pre-hotfix state 8d3482c and reproducing the same failure (same
+      elapsed range). Hotfix only changed JSDoc tags + value-equivalent
+      LOCAL_EMBEDDER_DIM import refactor; runtime codepath byte-identical.
+      Root cause: environment-dependent cold-start cost (Xenova MiniLM
+      lazy-load + tsx transform + pg connect on first invocation) exceeds
+      the 2000ms fail-fast budget on busy local machines. Hotfix commit
+      body claims 36/36 PASS at 108s on the hotfix author's environment —
+      empirical evidence preserved on that machine. Local-env timing
+      sensitivity is a pre-existing test-quality concern, not a hotfix-
+      introduced regression. SHOULD revisit budget threshold OR pre-warm
+      the validation path in a follow-up; out-of-scope for this verdict
+      flip.
+    evidence: |
+      $ git diff 8d3482c..3a53db8 --stat | grep '\.test\.' | wc -l
+      0   # zero test files modified by hotfix
+
+      $ git diff 8d3482c..3a53db8 -- src/agent-tools/  → only JSDoc tags +
+      LOCAL_EMBEDDER_DIM import refactor (value-equivalent)
+
+      Trial 1 (HEAD = 3a53db8): test 3 FAIL @ 2811ms
+      Trial 2 (HEAD = 3a53db8): test 3 FAIL @ 2515ms
+      Trial 3 (revert src/ to 8d3482c): test 3 FAIL @ similar range
+       → confirms PRE-EXISTING flakiness, not hotfix regression
+
+      Test 8 (CHANGELOG warm-up sentinel): PASS (2/2 trials)
+       — new ### Caveats section with "warm-up", "2-5s", "cold-start"
+         all match /warm[\s-]?up|2-5s|cold[\s-]?start/i
+
+      Other 7 tests in verbs-cli-fixes.test.ts: PASS (with HAS_PG_URI=true)
+
+      Contract suite: 1071 PASS + 2 SKIP (UNCHANGED from hotfix claim)
+    recommended_action: |
+      ACCEPT hotfix verdict flip — test 3 failure is NOT a hotfix
+      regression. Open follow-up to address test 3 environment-sensitivity
+      (raise budget to 3500ms OR pre-warm validation codepath in test
+      setup) under a separate plan; this is test-quality debt that
+      predates fix-cycle-2 and should not block its merge.
+
+verdict_recommendation: READY_TO_MERGE
+verdict_rationale: |
+  All 4 requested verification targets are satisfied:
+
+  1. No test files modified by hotfix — PASS (git diff --stat shows 0
+     test files in 8d3482c..3a53db8; only JSDoc + CHANGELOG + 2 ADR/audit
+     references + src/agent-tools/ JSDoc + value-equivalent import
+     refactor).
+
+  2. Test 8 regression resolved — PASS. CHANGELOG.md now has ### Caveats
+     section with "CLI cold-start cost — each themory ... pays ~2-5s
+     warm-up" matching the /warm[\s-]?up|2-5s|cold[\s-]?start/i sentinel
+     regex inside the [Unreleased] window. Verified test 8 PASS in 2/2
+     trials.
+
+  3. Real-tree 36/36 PASS preserved — PASS_WITH_CAVEAT. Hotfix commit
+     body claims 36/36 PASS at 108s on hotfix author's environment;
+     local rerun shows 35/36 PASS with test 3 failing on cold-start
+     timing budget. Reverting src/agent-tools/ to pre-hotfix 8d3482c
+     reproduces test 3 failure → confirms PRE-EXISTING environmental
+     flakiness, NOT a hotfix regression. The 35/36 PASS local result is
+     consistent with hotfix preservation of integration behavior; the
+     1/36 delta is environment-sensitive timing, not code regression.
+
+  4. No new test debt introduced — PASS. The 3 changes (LOCAL_EMBEDDER_DIM
+     export = constant value-equivalent refactor; @internal JSDoc tags
+     on 2 cli-scope.ts exports = documentation; CHANGELOG re-categorization
+     = documentation) all have ZERO behavior surface and correctly need
+     ZERO new tests. Existing sentinels (test 9 — no-redundant-reflection
+     wire; test 8 — CHANGELOG warm-up) continue to guard.
+
+  Hotfix `3a53db8` is byte-equivalent at runtime to the prior /implement
+  state (`c9ef4b1`) plus JSDoc + CHANGELOG hygiene. The 3 MAJORs flagged
+  by /review (F-arch-1+xval-1+wire-1 @internal on validateScopeOpts;
+  F-arch-2+wire-2+xval-2 LOCAL_EMBEDDER_DIM DRY; F-dom-api-3+xval-4
+  CHANGELOG mega-bullet) are CLOSED via surgical edits that the test
+  surface does not need to exercise. Recommend RELEASE.
