@@ -1,3 +1,5 @@
+"use client";
+
 import { ChatSurface } from "@/components/chat-surface";
 
 export default function HomePage() {
