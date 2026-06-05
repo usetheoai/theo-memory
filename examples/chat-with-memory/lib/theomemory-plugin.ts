@@ -1,5 +1,5 @@
 /**
- * theo-memory integration glue for the @usetheo/sdk Agent.
+ * theo-memory integration glue for the @theokit/sdk Agent.
  *
  * Two public-API levers wire theo-memory into the agent loop:
  *
@@ -15,7 +15,7 @@
  */
 // (post-T1.1: `import "server-only"` removed — TheoKit separates server/ from
 // client/ by directory convention; the Next.js guard is no longer needed.)
-import type { SystemPromptContext } from "@usetheo/sdk";
+import type { SystemPromptContext } from "@theokit/sdk";
 import type { MemoryItemWithScore } from "@usetheo/memory/contract";
 import { getMemory } from "./memory";
 
@@ -80,7 +80,7 @@ export function createSystemPromptResolver(opts: {
 }
 
 /**
- * E2E gap fix — fallback when the @usetheo/sdk Agent run returns
+ * E2E gap fix — fallback when the @theokit/sdk Agent run returns
  * `status: "error"` (typically: missing/invalid `THEOKIT_API_KEY` —
  * the demo accepts any random string so the constructor doesn't throw,
  * but the real auth flow rejects when the run reaches TheoCloud).

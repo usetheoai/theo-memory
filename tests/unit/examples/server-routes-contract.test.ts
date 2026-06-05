@@ -65,7 +65,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
     expect(body).toEqual({
       ok: true,
       name: "themory-demo-chat",
-      sdk: "@usetheo/sdk@1.3.0",
+      sdk: "@theokit/sdk@^1.5.0",
       memory: "@usetheo/memory (local workspace)",
       ui: "@usetheo/ui@0.12.0",
     });
