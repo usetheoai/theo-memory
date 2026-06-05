@@ -8,7 +8,7 @@
  * @see .claude/knowledge-base/plans/examples-chat-with-memory-v0-4b-expansion-plan.md § T2.1 + ADR D2
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 interface ForgetRequest {
   userId: string;

@@ -7,7 +7,7 @@
  * (T2.1 of examples-theokit-chat-migration).
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 interface DerivedRow {
   id: string;
@@ -37,7 +37,7 @@ function asStringArray(value: unknown): readonly string[] {
 
 export const GET = defineRoute({
   handler: async ({ request }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const userId = url.searchParams.get("userId");
     if (userId === null || userId === "") {
       return Response.json({ error: "userId required" }, { status: 400 });

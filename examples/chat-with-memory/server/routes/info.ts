@@ -9,7 +9,7 @@
  * Migrated from app/api/info/route.ts (T2.1 of examples-theokit-chat-migration).
  */
 import { defineRoute } from "theokit/server";
-import { getSingleton } from "@/lib/memory";
+import { getSingleton } from "../../lib/memory";
 
 export const GET = defineRoute({
   handler: async () => {

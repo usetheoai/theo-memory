@@ -7,7 +7,7 @@
  * app/api/skills/consolidate/route.ts (T2.1 of examples-theokit-chat-migration).
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 const DEMO_DEFAULT_CLUSTER_THRESHOLD = 0.6;
 
