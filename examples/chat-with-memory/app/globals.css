@@ -1,9 +1,9 @@
 @import "tailwindcss";
-@import "@usetheo/ui/fonts.css";
-@import "@usetheo/ui/tokens.css";
-@import "@usetheo/ui/preset.css";
+@import "@theokit/ui/fonts.css";
+@import "@theokit/ui/tokens.css";
+@import "@theokit/ui/preset.css";
 
-@source "../node_modules/@usetheo/ui/dist";
+@source "../node_modules/@theokit/ui/dist";
 
 @custom-variant dark (&:where([data-theme-mode="dark"], [data-theme-mode="dark"] *));
 

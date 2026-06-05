@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input } from "@usetheo/ui";
+import { Button, Card, Input } from "@theokit/ui";
 import { GitMerge, Plus, Trash2 } from "lucide-react";
 
 import { apiCall, ApiError } from "../../lib/api-client";
