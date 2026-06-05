@@ -10,7 +10,7 @@
  * @see .claude/knowledge-base/plans/examples-chat-with-memory-v0-7-distillation-plan.md § T1.2 + ADR D4 + EC-8
  */
 import { defineRoute } from "theokit/server";
-import { getSingleton } from "@/lib/memory";
+import { getSingleton } from "../../../lib/memory";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -33,7 +33,7 @@ interface AuditRow {
 
 export const GET = defineRoute({
   handler: async ({ request }) => {
-    const url = new URL(request.url);
+    const url = new URL(request.url ?? "/", "http://localhost");
     const userId = url.searchParams.get("userId") ?? "";
     if (userId === "") {
       return Response.json({ error: "userId required" }, { status: 400 });

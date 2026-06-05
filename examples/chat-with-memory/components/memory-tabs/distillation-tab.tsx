@@ -22,7 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Card } from "@usetheo/ui";
 import { Beaker, RefreshCw } from "lucide-react";
 
-import { apiCall, ApiError } from "@/lib/api-client";
+import { apiCall, ApiError } from "../../lib/api-client";
 
 type PolicyName = "noop" | "last-write-wins" | "llm-judged-merge";
 

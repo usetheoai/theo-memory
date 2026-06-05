@@ -7,7 +7,7 @@
  * app/api/skills/forget/route.ts (T2.1 of examples-theokit-chat-migration).
  */
 import { defineRoute } from "theokit/server";
-import { getMemory } from "@/lib/memory";
+import { getMemory } from "../../../lib/memory";
 
 interface ForgetSkillBody {
   repoId?: string;

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, Input } from "@usetheo/ui";
 import { History, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 
-import { apiCall } from "@/lib/api-client";
+import { apiCall } from "../../lib/api-client";
 
 interface MemoryRow {
   id: string;
