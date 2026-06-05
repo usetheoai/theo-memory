@@ -5,7 +5,8 @@
  * conversation thread sees its own session-scoped recall while still
  * benefitting from the user's long-lived facts.
  */
-import "server-only";
+// (post-T1.1: `import "server-only"` removed — TheoKit separates server/ from
+// client/ by directory convention; the Next.js guard is no longer needed.)
 import { Agent } from "@usetheo/sdk";
 import type { SDKAgent } from "@usetheo/sdk";
 import { createSystemPromptResolver } from "./theomemory-plugin";
