@@ -1,253 +1,102 @@
----
-cycle: implement
-phases:
-  - implement       (single entry-point; orchestrates internally via ralph-loop halt-loop)
-trigger: when a plan from cycle-plan has verdict ≥ SHIPPABLE_WITH_CAVEATS and is ready to be coded
-output: feature branch with atomic commits per task, validation report, ready for cycle-review
-status: v1.2 ACTIVE — skill `/implement` built 2026-05-21, SEPA augmented 2026-05-22, resume-after-blocker protocol locked 2026-05-23
----
+# Cycle: IMPLEMENT
 
-# Cycle: Implement
-
-> **INQUEBRÁVEL — 95% Confidence Gate**
->
-> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
-> OPÇÕES PARA ELE ESCOLHER.
->
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
-
-Source of truth for the implementation-execution cycle. **Status: v1.2 ACTIVE.** Single skill `/implement` (in `.claude/skills/implement/`) drives the cycle via ralph-loop halt-loop. The original v0.1 PROPOSED design (3 separate skills: to-implement, implement-execute, implement-validate) was consolidated into 1 entry-point at strategic review 2026-05-21 to reduce orchestration complexity.
+Source of Truth for the implementation cycle.
 
 ## Purpose
 
-Convert a validated implementation plan from cycle-plan into working code, with TDD discipline, halt-loop execution, and quality gates before handoff to cycle-review.
+Execute a confidence-approved plan into code, tests, and commits. TDD-disciplined, halt-loop driven.
 
-## Trigger conditions
+## Pre-conditions
 
-Invoke this cycle when:
+- A plan exists at `knowledge-base/plans/{slug}-plan.md` with verdict ≥ SHIPPABLE_WITH_CAVEATS.
+- The repository is on a branch other than `main` (per Unbreakable Rule 4 — work on `develop` or a feature branch).
+- The project bootstrapped its language toolchain (e.g., `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`).
 
-- A plan at `.claude/knowledge-base/plans/{slug}-plan.md` has `/plan-confidence` verdict ≥ SHIPPABLE_WITH_CAVEATS
-- All MUST FIX items from `/edge-case-plan` were absorbed (plan ≥ v1.1)
-- The feature branch is set up (NEVER work directly on `main` per Inquebrável Rule 4)
-- All project tooling is operational (`npm install` done, Postgres up if integration tests need it, etc.)
+If any pre-condition fails, refuse and surface the missing item.
 
-Do NOT invoke when:
+## Chain (per task in the plan)
 
-- Plan verdict is INVALID or NON_SHIPPABLE — loop back to cycle-plan first
-- Plan contains unmapped Coverage Matrix gaps — fix the plan
-- A previous `/implement-execute` for this slug is mid-flight with unmerged commits — finish or abort it first
-
-## Chain (v1.1 — inquebrável; SEPA-augmented)
+Each task runs as a halt-loop iteration:
 
 ```
-/implement {plan-slug}
-  ↓ pre-condition validation (refuse if any fails)
-  ↓   - plan verdict ≥ SHIPPABLE_WITH_CAVEATS
-  ↓   - not on `main`; no uncommitted changes
-  ↓   - tooling present (npm) or package.json absent (pre-code phase SKIP)
-  ↓ parse plan → ordered implementation task list at
-  ↓   .claude/knowledge-base/implementations/{slug}-implementation.md
-  ↓
-  ↓ SPAWN SEPA (Staff Engineer Pair-Program Agent) as Claude Code-conformant agent at
-  ↓   .claude/agents/implement-{slug}-{date}/sepa.md (YAML frontmatter + system prompt body)
-  ↓   — agent `name` field: implement-{slug}-sepa (resolves as subagent_type)
-  ↓   — composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + rules
-  ↓   — initial-brief via Agent(subagent_type='implement-{slug}-sepa', prompt=<question>)
-  ↓   — per-iteration logs persisted to .claude/knowledge-base/implementations/{slug}/sepa-iterations/
-  ↓     (NOT .claude/agents/ — that dir is reserved for agent definitions, not log outputs)
-  ↓   — read-only observer; main session retains commit authority
-  ↓
-  ↓ invoke ralph-loop:ralph-loop with halt-loop prompt:
-  ↓ FOR EACH task in dependency order:
-  ↓   SEPA 1/3      — pre-RED brief: recap plan task + gotchas
-  ↓   RED phase     — write failing test FIRST; confirm it fails
-  ↓   GREEN phase   — minimal code; test passes (max 3 retries per task)
-  ↓   SEPA 2/3      — post-GREEN review: SOLID/Clean Code/DRY violations
-  ↓   REFACTOR phase — apply quality rules + SEPA findings; tests stay green
-  ↓   WIRING phase  — triad check (scripts/check_wiring.py):
-  ↓                   (a) Static caller   — grep production callers ≥ 1
-  ↓                   (b) Integration test — grep tests/integration/ ≥ 1 OR ADR-DEFER
-  ↓                   (c) Runtime metric   — .wiring-evidence.json count > 0 OR n/a
-  ↓                   HALT before commit if any required pillar fails
-  ↓   SEPA 3/3      — pre-COMMIT audit: DoD checkboxes + commit shape
-  ↓   COMMIT phase  — staged-files-only commit, conventional-commits format
-  ↓                   NEVER --no-verify, NEVER on main
-  ↓ emits <promise>IMPLEMENTATION_COMPLETE</promise> when all tasks done OR honest BLOCKED
-  ↓
-  ↓ final validation gate (scripts/run_validation.py):
-  ↓   - npm test (or SKIP if package.json absent)
-  ↓   - npm run typecheck (or tsc --noEmit fallback)
-  ↓   - npm run lint (or SKIP)
-  ↓   - npm run test:coverage (≥ 90% changed files, 100% critical paths)
-  ↓   - wiring triad aggregation
-  ↓ produces validation report at
-  ↓   .claude/knowledge-base/reviews/{slug}-implement-validate-{date}.md
-  ↓
-  ↓ if validation PASS:
-  ↓
-  ↓ /code-quality {plan-slug} (v1.1 — added 2026-05-22 via code-quality-skill plan)
-  ↓   - Detects dead code (D1 — vulture/knip/cargo-udeps/deadcode)
-  ↓   - Detects fabricated symbols (D2 — tree-sitter + registry lookup)
-  ↓   - Writes audit to .claude/knowledge-base/audits/{slug}-code-quality-{date}.md
-  ↓   - If verdict is FAIL_HARD or INVALID: HALT before review handoff
-  ↓
-HANDOFF — cycle-review can begin
+RED      — write the failing test that captures the task's acceptance criterion
+GREEN    — minimal code to pass the test
+REFACTOR — improve structure; tests stay green
+WIRING   — caller + integration test + runtime metric (the "wiring triad")
+COMMIT   — atomic commit referencing the plan slug and task ID
 ```
 
-## Phase contracts (v1.0)
+## Wiring triad
 
-Single phase, but logically broken into 3 stages by the halt-loop:
+A task is **not** complete until all three are present:
 
-| Stage | Input | Output | Success criterion |
-|---|---|---|---|
-| **Pre-condition + parse** | `plans/{slug}-plan.md` (verdict ≥ SHIPPABLE_WITH_CAVEATS) + repo state | `implementations/{slug}-implementation.md` (ordered task list) | All pre-conditions PASS; task list reflects plan exactly |
-| **Halt-loop execute** | Implementation task list + feature branch | Atomic commits per task + `.progress-{slug}.json` | All tasks status=`committed` OR honest BLOCKED report |
-| **Final validation** | Code on feature branch + progress audit | JSON validation report + handoff decision | All validate gates PASS (or SKIP gracefully in pre-code phase) |
+1. **Caller** — production code path that exercises the new behavior end-to-end.
+2. **Integration test** — covers the boundary the unit test mocked.
+3. **Runtime metric** — counter, histogram, or log line that lets ops see the new behavior in production. Without observability, the feature is invisible when it breaks.
 
-## Model routing (teacher/student split — experimental)
+## Hard gates (per iteration)
 
-Source of truth for which model each `/implement` halt-loop phase runs on: [`.claude/rules/implement-model-routing.txt`](./implement-model-routing.txt). Consumed by `.claude/skills/implement/prompts/implementation-prompt.md` (halt-loop driver) when rule file is present.
+- Test suite green before commit.
+- Linter clean (project-specific — see `rules/code-quality-languages.txt`).
+- No new symbols left dangling (every new function/class has a caller or a test exercising it).
+- CHANGELOG `[Unreleased]` updated (Unbreakable Rule 6).
 
-- **RED phase** — judgment-heavy (write failing test). **No entry → session model** (status quo, typically opus).
-- **GREEN phase** — minimal code to pass. Student candidate; **migration deferred** to 2026-08-22 review (per `implement-model-routing.txt` comment).
-- **REFACTOR phase** — SOLID/Clean Code review. **No entry → session model.**
-- **WIRING phase** — Python script (`check_wiring.py`); zero LLM cost, no routing entry needed.
-- **COMMIT phase** — conventional-commits message; highly templated. **Initial migration: `haiku`** (experimental_until=2026-07-22).
-- **Fallback chain:** rule file missing OR phase not listed → session model (no Agent tool nesting; status quo preserved).
-- **Mechanism:** for phases with a routing entry, the halt-loop driver invokes `Agent` tool nested with `model: <resolved>` and a phase-focused sub-prompt. Main session continues coordinating the loop.
-- **Experimental marker:** each non-default entry carries `experimental_until` + `rollback_if`. Rollback is `git rm .claude/rules/implement-model-routing.txt` (single-file revert).
-- **Scope intentionally enxuto:** only COMMIT migrated in v1.1; GREEN migration follows after first-month review.
+## Hard gates (post-halt-loop, before `IMPLEMENTATION_COMPLETE` is honored)
 
-## Hard gates (cannot advance — BLOCK the cycle)
+`scripts/run_validation.py` runs after the promise marker and BEFORE the handoff. It consolidates (per ADR 0002 — `cq-gate-in-validate`) every post-implementation gate into one report:
 
-1. **Pre-condition fail** — plan verdict < SHIPPABLE_WITH_CAVEATS OR working on `main` OR uncommitted changes from prior cycle. Refuse to start.
-2. **TDD RED phase did not fail** — if the test passes BEFORE implementation, the test does not exercise the targeted behavior. Halt and revise the test.
-3. **TDD GREEN phase has test failures** — code does not satisfy the test. Halt; do NOT commit failing tests.
-4. **Wiring triad pillar (a) FAIL** — symbol has zero production callers. NON-NEGOTIABLE. Symbol must be deleted OR a functionally necessary caller added (never a no-op gaming the metric). Halt before commit.
-5. **Wiring triad pillar (b) FAIL without ADR-DEFER** — symbol not exercised in `tests/integration/`. Halt; either add integration test OR add explicit `<!-- ADR-DEFER-WIRING-B: <reason> -->` marker.
-6. **Wiring triad pillar (c) FAIL** — plan declared a runtime metric for this task but `.wiring-evidence.json` doesn't show count > 0. Halt; integration test does not exercise the metric path.
-7. **Final validation FAIL gate** — any of test/typecheck/lint/coverage fail. Halt before handoff to cycle-review.
-8. **Plan task references a file that did not exist when the plan was written AND was not marked `(NEW)`** — fabrication; abort and loop back to cycle-plan.
+- npm test / typecheck / lint / coverage gates (when applicable).
+- Wiring triad summary (caller + integration test + runtime metric).
+- **`/code-quality` verdict ∉ {FAIL_HARD, INVALID}** — invoked internally by the script. FAIL_SOFT and PASS_WITH_CAVEATS surface as WARN in the report but do not block. Override only with `--no-code-quality` (pre-code phase or CQ not installed).
 
-## Soft gates (advance, but require human review)
+Exit codes: `0` = `PASS` or `PARTIAL` (proceed); `1` = `FAIL` (trigger validation halt-loop — see below); `2` = invocation error (escalate to human).
 
-1. **Coverage < 100% on critical path** — Global DoD said 100%; halt-loop reached 95%. Surface to human: accept WITH_CAVEATS or push to 100%.
-2. **Test took > N seconds** (configurable; suggested 30s for integration) — soft warning, not failure.
-3. **REFACTOR phase made non-trivial structural changes** — surface diff to human; ensure no scope creep into the next task.
-4. **Commit message did not follow conventional-commits format** — surface; ask user to amend if cosmetic.
+## Validation halt-loop (mandatory when `run_validation.py` exits 1)
 
-## Stop conditions (cycle aborts honestly — NOT a failure)
+When the post-halt-loop gate returns `FAIL`, the skill re-invokes `ralph-loop:ralph-loop` with the validation-fix driver (`skills/implement/prompts/validation-fix-prompt.md`). This is the **default behavior of `/implement`**, not opt-in — driving validation fixes manually outside ralph-loop is the same contract violation as bypassing the Step 4 TDD halt-loop.
 
-These are the **ONLY** valid reasons for `/implement` to exit before `IMPLEMENTATION_COMPLETE`. Any other reason (running low on context, "feels like a natural break", "should I continue?") is a contract violation.
+Contract:
 
-1. **Task fails to GREEN after 3 implementation attempts** — mark task BLOCKED with reason "implementation strategy not viable"; surface to human. Do NOT skip and continue (poisons the chain).
-2. **Halt-loop max iterations reached** — emit promise with honest "tasks N through M remaining" report.
-3. **External dependency missing** — Postgres down for integration test, npm package not installed. Halt; surface for human to fix the environment.
-4. **Plan task assumes behavior contradicted by reality** — e.g., a borrowed pattern doesn't actually exist in `.claude/knowledge-base/references/` even though plan cited it. Halt; loop back to cycle-discover or cycle-plan.
-5. **Real-tree validation surfaces a HIGH/CRITICAL CVE** on a declared dep (e.g., `npm audit` post-install) — halt; loop back to cycle-plan for ADR + dep bump. After the plan is corrected, **re-invoke ralph-loop per the resume protocol below** — do NOT drive remaining tasks manually.
+- **Completion promise:** `<promise>VALIDATION_GATE_PASSED</promise>` — asserts `run_validation.py {slug}` re-run in the same iteration exited `0`.
+- **Max iterations:** `5` (fix-mode is refinement; bounded smaller than Step 4).
+- **Pre-flight guard:** verify the Step 4 `ralph-loop.local.md` has `active: false` before invoking; concurrent loops on overlapping state are an anti-pattern.
+- **Per-iteration objective:** fix one (or one root-cause-clustered group of) `check.status == FAIL` per iteration; commit atomically (`fix(validation): …`); re-run `run_validation.py`; emit promise on exit 0 or STOP turn for next iteration.
+- **Forbidden:** disabling/weakening failing tests, lowering coverage thresholds, no-op callers to satisfy pillar (a), hand-edited `.wiring-evidence.json`, ADR-defer of `symbol_fabrication_*` / `dead_code_unallowlisted_*` hard caps.
 
-### Resume after recovered blocker (canonical protocol)
+## Stop conditions
 
-Stop conditions 3 + 4 + 5 are RECOVERABLE: the user fixes the environment, the cycle-plan revises the plan, the dep gets bumped. Once the blocker is resolved, the skill MUST re-invoke ralph-loop — driving remaining tasks manually in the foreground session is a contract violation (loses audit trail, restart-on-Stop hook, max-iterations safety, promise-marker termination, and the discipline against ad-hoc scope creep).
+**Step 4 — TDD halt-loop:**
 
-The resume protocol lives in [`.claude/skills/implement/SKILL.md § Step 4 / Resume after recovered blocker`](../skills/implement/SKILL.md). The skill is the source of truth for the 6-step procedure (verify blocker resolved → refresh SEPA brief → reset progress JSON → verify halt-loop driver → re-invoke ralph-loop with SAME flags → fresh iteration picks up). The cycle rule's job is to lock the invariant: **after a recoverable halt, re-invoke ralph-loop; do not continue manually.**
+- Hard gate fails twice on the same task → halt-loop pauses, escalate to human.
+- Plan task list exhausted → emit completion promise (`IMPLEMENTATION_COMPLETE`).
 
-## Anti-patterns (NEVER do these — violates the contract)
+**Step 5.5 — Validation halt-loop:**
 
-1. **NEVER write production code without a failing test** (Inquebrável Rule 5, TDD-first). RED MUST precede GREEN.
-2. **NEVER mark a task `done` if its tests are skipped, commented, or red.** Done means all tests green AND coverage gate passes AND lint green.
-3. **NEVER edit the implementation plan during `/implement-execute`** — if the plan is wrong, halt and loop back to cycle-plan. The plan is the contract.
-4. **NEVER commit with `--no-verify`** to skip pre-commit hooks (Inquebrável Rule via global CLAUDE.md). If a hook fails, fix the underlying issue.
-5. **NEVER commit directly to `main`** (Inquebrável Rule 4). Feature branch only.
-6. **NEVER use `git checkout`, `git revert`, `git push --force`, or `git reset --hard`** (Inquebrável Rule 4). Use `git switch`, `git restore --staged`, `git stash` instead.
-7. **NEVER scope-creep mid-task** — if you discover an unrelated improvement opportunity, log it in `implementations/{slug}-followups.md` and continue with the current task.
-8. **NEVER bypass `/implement-validate`** even if "it's just a tiny change" — validate is the gate; tiny changes silently break things.
-9. **NEVER fabricate runtime-metric proof** — the plan's Global DoD requires observing the metric non-zero. Reading the code that emits the metric is NOT proof; the metric must actually fire in an integration workload.
-10. **NEVER drive implementation tasks manually outside of ralph-loop.** The halt-loop is the ONLY execution mode. Pause in the foreground session = re-invoke ralph-loop per the resume protocol above. The skill's value (audit trail, Stop hook restart, max-iterations safety, promise-marker contract) evaporates the moment manual driving begins. This anti-pattern was added 2026-05-23 after the v0-1-local-runtime session surfaced the gap: ralph-loop was cancelled by a recoverable HIGH CVE blocker, then 22 subsequent tasks were driven manually in the foreground with per-phase user-confirmation prompts — a contract violation despite shipping correct code.
-11. **NEVER ask the user for permission between phases while pending tasks remain.** Once `/implement {slug}` is invoked with a verdict ≥ SHIPPABLE_WITH_CAVEATS plan, the only valid stops are the 5 Stop conditions above. "Should I continue with Phase N+1?" or "Phase N done — continue or stop?" prompts are a contract violation. The promise-marker `<promise>IMPLEMENTATION_COMPLETE</promise>` OR an honest BLOCKED report is the only legitimate way to exit. Token-budget anxiety is not a Stop condition — the halt-loop's Stop hook + restart pattern is designed to span context boundaries, and fresh iterations carry minimal state.
+- Same check FAIL × 3 consecutive iterations with no observable progress → emit `VALIDATION_GATE_PASSED` with BLOCKED report.
+- `iterations_used >= 5` and at least one check still FAIL → emit `VALIDATION_GATE_PASSED` with BLOCKED report.
+- `code_quality INVALID` (contract itself broken) → HALT immediately; surface to human.
+- Unremediatable `FAIL_HARD` (`symbol_fabrication_*` / `dead_code_unallowlisted_*` cannot be fixed without scope-creeping the plan) → emit promise with BLOCKED report; recommend loop back to `cycle-plan`.
 
-## Acceptable bypass paths (added 2026-06-04 — F-xval-5 absorption)
+**Either loop emitting a BLOCKED report blocks downstream:** `/review` and `/release` MUST NOT run until the human resolves the blocker. Honest BLOCKED > false PASS (Unbreakable Rule 3).
 
-The canonical execution path is `/implement {slug}` which auto-spawns SEPA + the paired knowledge skill at Step 2.5 of [`implement/SKILL.md`](../skills/implement/SKILL.md). The skill then invokes `ralph-loop:ralph-loop` internally with a substituted driver prompt and a SEPA-aware halt-loop contract.
+## Anti-patterns
 
-A user MAY invoke `ralph-loop:ralph-loop` directly with the plan as the positional prompt + a completion-promise flag. This bypasses Step 2.5 (no SEPA agent spawned; no paired knowledge skill generated). This is an **acceptable bypass path** ONLY when ALL of:
+- Writing production code before the failing test (skipping RED).
+- Skipping REFACTOR because "tests are green" — the cycle is RED → GREEN → REFACTOR, not RED → GREEN → ship.
+- WIRING done in a separate PR ("I'll wire it later"). Later never comes.
+- Commits that mix multiple tasks. Each commit references one task ID.
+- Editing the plan during implementation. If the plan was wrong, return to `/to-plan`.
 
-1. **Honest disclosure** in the resulting `/implement-validate` report's § "Cycle-implement anti-patterns adherence" naming the bypass + the substituted behavior (e.g., "self-discipline + per-iteration honest commit-message disclosure" replacing SEPA's 3-call-per-iteration audit).
-2. **No second consecutive bypass without an ADR amendment** — if the project owner accepts the bypass twice in a row, the third invocation MUST either (a) ship via the canonical `/implement {slug}` path, OR (b) carry an ADR amendment to this cycle rule formally re-classifying the canonical path or accepting ralph-loop-direct as the new canonical.
-3. **Pre-existing parent-plan precedent** — the parent plan being patched, augmented, or fixed must have used the same execution path, so the cycle-implement audit trail stays internally consistent.
+## Output
 
-The `p0-api-sdk-mcp-correctness-audit` cycle (2026-06-04) introduced the precedent via raw ralph-loop invocation. The `p0-api-sdk-mcp-correctness-audit-fixes-cycle-1` cycle (2026-06-04) followed it. `/review` flagged this as F-xval-5 (process-discipline risk of silent normalization). This § absorbs the finding by formalizing the bypass with the 3-condition contract above. A third consecutive bypass without ADR amendment to this rule is a contract violation per the § 2 clause.
-
-### v1.7 ADR-marker — THIRD consecutive bypass precedent + sunset (2026-06-04)
-
-The `verbs-as-cli-themory-remember-recall-forget-reflect` cycle (2026-06-04, parent plan v1.1) was the THIRD consecutive bypass: project owner invoked `ralph-loop:ralph-loop` directly with the plan path + completion-promise flag instead of `/implement verbs-as-cli-themory-remember-recall-forget-reflect`. The bypass was honestly disclosed in the `/implement-validate` report's § "Cycle-implement anti-patterns adherence" entry. Per the v1.6 contract above § 2 clause, three consecutive bypasses require ADR amendment to this rule. This ADR-marker IS that amendment.
-
-**The amendment**: the 3-condition bypass contract (§ 1-3 above) STAYS. The "max 2 consecutive" wording in § 2 is preserved as the discipline lever but now augmented with the following SUNSET CLAUSE:
-
-> The 3 documented precedents (parent p0-api-sdk + p0-fix-cycle-1 + verbs-as-cli — all 2026-06-04) constitute the maximum tolerated streak. **By 2026-07-04 (30 calendar days from this ADR-marker)**, the next `/implement {slug}` cycle MUST either:
->   - (a) Use the canonical `/implement {slug}` SKILL.md SEPA-spawn path, restoring the in-cycle review safeguard; OR
->   - (b) Carry a NEW ADR amendment to this rule formally re-classifying ralph-loop-direct as the new canonical path (which dilutes the SEPA discipline; high bar of project-owner sign-off + retrospective on the SEPA bypass surface).
-
-After 2026-07-04, every subsequent `/implement` cycle that bypasses SEPA spawn carries a contract violation per § 2 clause regardless of "honest disclosure" or "parent-plan precedent" — those conditions are necessary but no longer sufficient once the sunset passes. The amendment is intentionally calendar-based (not consecutive-count-based) so a paused cycle does not silently extend the bypass window.
-
-**Why this approach (vs alternatives evaluated by verbs-as-cli-fixes-cycle-1 ADR D5)**:
-- **Document precedent + sunset (chosen)**: honest disclosure of the existing pattern without permanently formalizing ralph-loop-direct as the new canonical (which would dilute /implement SKILL.md SEPA spawn discipline that's load-bearing for in-cycle review).
-- **Permanent formalization of ralph-loop-direct (rejected)**: SEPA bypass loses the in-cycle review safeguard; THREE cycles' worth of "honest disclosure" doesn't mean the bypass is good — it means the project owner kept trusting self-discipline; sunset forces a strategic moment.
-- **Force /implement canonical path NEXT cycle (rejected as too rigid)**: doesn't account for transient infrastructure issues that may genuinely block SEPA spawn (e.g., main-session agent registry not refreshed mid-conversation per v1.5 retrospective); calendar sunset is more pragmatic.
-
-**Honest disclosure (Inquebrável Rule 3)**: this ADR-marker itself was authored INSIDE the verbs-as-cli-fixes-cycle-1 cycle which ALSO bypassed SEPA spawn (project owner invoked `ralph-loop:ralph-loop` rather than `/implement verbs-as-cli-fixes-cycle-1`). This makes the verbs-as-cli-fixes-cycle-1 cycle the FOURTH consecutive bypass — but it is the cycle that ABSORBS the F-xval-1 finding (the THIRD-bypass MAJOR from `/review verbs-as-cli`) and writes the ADR-marker that closes the procedural gap. The sunset starts from the ADR-marker date (2026-06-04), not from the verbs-as-cli-fixes-cycle-1 close date. Forward-going from `2026-06-04 + 30 days = 2026-07-04`, all 4 conditions (1-3 above + sunset) are jointly load-bearing.
-
-## Rollback
-
-| Artifact | Rollback procedure |
-|---|---|
-| Implementation task list in `implementations/{slug}-implementation.md` | Delete file; no further state to revert |
-| Commits on feature branch | Standard git workflow: `git reset --soft HEAD~N` (NOT `--hard` per Inquebrável); `git stash` before reset |
-| `.progress-{slug}.json` audit trail | Delete file; halt-loop will re-derive from commits |
-| Validation report | Delete file |
-
-NEVER rollback `main` — work happens on feature branches. If the cycle produced bad code, abandon the branch (or do `git switch main` then delete the feature branch after `git push --delete origin {branch}`).
+- Commits on the working branch.
+- `knowledge-base/implementations/{slug}/` — per-iteration logs.
+- `knowledge-base/implementations/{slug}-implementation.md` — final summary with wiring triad checklist per task.
 
 ## Cross-references
 
-- Phase SKILL.md: [`implement/`](../skills/implement/SKILL.md)
-- Wiring triad script: `.claude/skills/implement/scripts/check_wiring.py`
-- Validation gate script: `.claude/skills/implement/scripts/run_validation.py`
-- Implementation task template: `.claude/skills/implement/templates/implementation-task-template.md`
-- Halt-loop prompt: `.claude/skills/implement/prompts/implementation-prompt.md`
-- Loop engine: `ralph-loop` plugin (must be enabled in `~/.claude/settings.json`)
-- Project rules consumed: `architecture.md` (DIP, naming, module hygiene), `testing.md` (TDD pyramid)
-- Hooks enforced: `.claude/hooks/validate-command.sh` (git safety), `.claude/hooks/boundary-check.sh` (DIP boundaries)
-- Cycle inputs: plan from `cycle-plan.md` (verdict ≥ SHIPPABLE_WITH_CAVEATS)
-- Cycle output: feature branch ready for `cycle-review.md`
-- Patterns skills (registered by `cycle-discover.md`): consumed at task-level when implementing borrowed patterns; `/to-plan` Step 0 already wired this discovery into the plan
-
-## Versioning
-
-This cycle rule is **v1.7 ACTIVE** as of 2026-06-04 (THIRD-bypass ADR-marker + sunset 2026-07-04 from verbs-as-cli-fixes-cycle-1 ADR D5 — see change log entry).
-
-### Change log
-
-| Version | Date | Change | Rationale |
-|---|---|---|---|
-| v1.0 | 2026-05-21 | Initial halt-loop design (single-skill entry, ralph-loop iteration, TDD per task, wiring triad gate). | Strategic review consolidated 3 proposed skills into 1 entry-point. |
-| v1.1 | 2026-05-22 | Added SEPA (Staff Engineer Pair-Program Agent) at `/implement` startup. Runtime-generated specialist agent composed from FULL plan + ADRs + edge-cases + deps audit + plan-confidence + project rules. Consulted 3× per iteration (pre-RED, post-GREEN, pre-COMMIT) as read-only observer. Catches plan deviations + ADR cross-reference misses + SOLID/Clean Code violations + scope creep inline. Cost: ~30-60k tokens extra per cycle. | User directive 2026-05-22 post memory-contract-v0-0 retrospective: serial halt-loop lacked second-eyes safeguard; missed cross-references and required reactive fixes. Mirrors `/review`'s parallel-specialist pattern but inline during /implement instead of post-hoc. |
-| v1.2 | 2026-05-23 | Added § "Resume after recovered blocker" protocol + 5th Stop condition (real-tree HIGH/CRITICAL CVE) + 2 new anti-patterns (#10 never drive manually outside ralph-loop; #11 never ask user for permission between phases while pending tasks remain). Tightened § Stop conditions preamble to "ONLY valid reasons". Skill `/implement` SKILL.md updated in same PR with Step 4 expansion. | User directive 2026-05-23 post v0-1-local-runtime session retrospective: ralph-loop was cancelled by a recoverable HIGH CVE blocker; 22 subsequent tasks driven manually in foreground with per-phase user-confirmation prompts. Correct code shipped but contract violated (lost audit trail, lost Stop-hook restart, lost max-iterations safety). User flagged: "Voce nao deve parar ate o plano estiver completo, deveriamos esta usando o ralph-loop ou o goal para terminar o plano. Isso nao esta clara em nossas skills principalmente na skill implement?" — gap closed by making the resume protocol explicit + lifting "never ask between phases" to an anti-pattern. |
-| v1.3 | 2026-05-25 | SEPA agent file made Claude Code-conformant: YAML frontmatter (`name: implement-{slug}-sepa`, `description`, `tools`, `model: opus`) + system prompt body. File renamed `sepa-staff-engineer.md` → `sepa.md`. Invocation switched from `Agent(subagent_type='general-purpose', prompt=<file content>)` to `Agent(subagent_type='implement-{slug}-sepa', prompt=<iteration question>)` — Claude Code auto-discovers via frontmatter `name` field. Per-iteration logs MOVED from `.claude/agents/implement-{slug}-{date}/iteration-N-*.md` to `.claude/knowledge-base/implementations/{slug}/sepa-iterations/iteration-N-{phase}.md` — `.claude/agents/` is now reserved exclusively for agent DEFINITIONS, not invocation logs (aligns with Claude Code spec + matches /review pattern). | User flagged 2026-05-25: "os agentes autogerado nao esta no padrao do CLAUDE code". `/review` was Claude Code-conformant (YAML frontmatter present); `/implement` SEPA was not (raw markdown brief passed as Agent `prompt`). Refactor closes the inconsistency + makes SEPA invocable as a first-class subagent reusable across cycles. Pre-existing SEPA artifacts under `.claude/agents/implement-{old-slug}-{date}/` remain in place per audit-trail-rotation invariant; only forward-going /implement invocations use the new structure. |
-| v1.4 | 2026-05-25 | Per-plan paired knowledge skill: `/implement` Step 2.5 now generates BOTH the SEPA agent at `.claude/agents/implement-{slug}-{date}/sepa.md` AND a paired knowledge skill at `.claude/skills/implement-{slug}-sepa-knowledge/SKILL.md`. The skill is Claude Code Skills-spec-conformant (frontmatter with name, description "pushy", `allowed-tools: Read Glob Grep WebSearch WebFetch`, model: opus). Body hydrates plan-specific context (Goal, ADR table, edge-case findings absorbed, project rules) + instructs 3 invocation modes: Mode A plan-context recap, Mode B WebSearch community knowledge refresh, Mode C cross-reference grep. SEPA invokes the skill via Skill tool when reasoning needs community knowledge — never cites from training-data recall. Mirrors cycle-review.md v1.1 spawn_reviewers.py change shipped same day. | User flagged 2026-05-25: "Crie conforme especificou Per-plan". Agents auto-generated per plan needed paired knowledge skills (also per plan, also auto-generated). Without paired skills, SEPA findings cite training-data recall — stale + un-citable. With paired skills, SEPA cites WebSearched canonical sources (allowlisted domains) + plan-specific context (frozen ADRs + EC findings). Honors Inquebrável Rule 3 (extreme honesty) + Anti-pattern #10 from cycle-discover.md v1.1. |
-| v1.6 | 2026-06-04 | Added § "Acceptable bypass paths" formalizing ralph-loop-direct invocation as a permitted alternative to `/implement {slug}` SKILL.md spawn under a 3-condition contract (honest disclosure + max 2 consecutive bypasses without ADR amendment + parent-plan precedent). Closes F-xval-5 from `/review p0-api-sdk-mcp-correctness-audit-fixes-cycle-1` — two consecutive cycles bypassed `/implement` SKILL.md SEPA spawn step; cross-validation flagged the silent-normalization risk. Amendment formalizes the existing behavior with discipline guardrails rather than retroactively requiring ADRs for already-shipped cycles. | F-xval-5 absorption from `/review p0-api-sdk-mcp-correctness-audit-fixes-cycle-1` 2026-06-04. The two consecutive bypasses (parent `cb63d87` + fix-cycle `5b48193`) both honestly disclosed the SEPA bypass in their /implement-validate reports + commit bodies. Formalizing as an acceptable path with a "no third without ADR" clause prevents both (a) silent normalization risk identified by cross-validation and (b) retroactive cycle invalidation. |
-| v1.7 | 2026-06-04 | Added `### v1.7 ADR-marker — THIRD consecutive bypass precedent + sunset (2026-06-04)` to § "Acceptable bypass paths" documenting the 3-bypass precedent (parent p0-api-sdk + p0-fix-cycle-1 + verbs-as-cli all on 2026-06-04) + sunset 2026-07-04. The 30-day calendar sunset forces the next `/implement` cycle to either (a) use canonical SKILL.md SEPA-spawn path OR (b) carry NEW ADR amendment formalizing ralph-loop-direct as new canonical. Closes F-xval-1 from `/review verbs-as-cli-themory-remember-recall-forget-reflect` 2026-06-04 (THIRD-bypass MAJOR finding). | F-xval-1 absorption from `/review verbs-as-cli` 2026-06-04. The third consecutive bypass triggered the v1.6 § 2 clause's ADR-amendment requirement. Sunset clause balances honesty about transient infrastructure issues (e.g., SEPA agent registry not refreshed mid-conversation per v1.5 retrospective) with the discipline lever of forcing a strategic moment. Calendar-based (not consecutive-count-based) so paused cycles don't silently extend the bypass window. Note: verbs-as-cli-fixes-cycle-1 itself is the FOURTH consecutive bypass (the cycle that wrote this very amendment), honestly disclosed in the ADR-marker body — sunset starts from 2026-06-04 regardless. |
-| v1.5 | 2026-05-26 | First-execution retrospective (v0-4a T0.1 BLOCKED in iter 1 — plan defect). Five operational fixes absorbed: (1) **SEPA discovery timing** — agent registry loaded at session start; mid-session-written SEPA file requires fallback `subagent_type='general-purpose'` + SEPA file path in prompt (path in `implementation-prompt.md` § SEPA invocation discipline). (2) **Promise marker emission discipline** — backtick or fenced-code wrapping breaks ralph-loop regex; plain-text isolated-line emission rule LOCKED in `loop-engine-convention.md` § Halt-loop driver promise-marker emission rule. (3) **Plan path validation** — `/to-plan` Step 0 now requires validating "Files to edit" + RED test paths against existing test-runner configs (`vitest.contract.config.ts` etc.). Prevents Stop Condition #4 plan defects. (4) **Node version pre-flight** — `/implement` Step 1 Check 6 verifies `node --version` satisfies `package.json#engines.node`; surfaces nvm path guidance when shell default is older Node. (5) **`vitest.contract.config.ts` include extension** — `tests/unit/**/*.test.ts` added (sibling of existing `src/**/__tests__/**`) so plans can use either convention without unreachable-path defect. | User directive 2026-05-26 post v0-4a T0.1 retrospective: "Corrija TODOS OS PROBLEMAS do implement". Surface area: 6 distinct operational gaps caught during the project's FIRST real `/implement` halt-loop execution. Plan-vs-config drift was the immediate blocker; SEPA discovery + promise marker were ergonomic gaps that required multiple iterations. Node version + shell PATH were environment gotchas. v1.5 makes all five learnable surfaces explicit in their respective skills/rules. Stop Condition #4 (plan defect → halt + loop back to cycle-plan) remains the canonical handling path; v1.5 just narrows the pre-flight gate so fewer plan defects reach `/implement` startup. |
-
-### v0.1 → v1.0 resolved decisions
-
-### v0.1 → v1.0 resolved decisions
-
-The 5 open design questions from v0.1 are resolved as follows:
-
-1. **Halt-loop engine?** → `ralph-loop:ralph-loop`. Commit hygiene (one commit per task) is honored by the halt-loop emitting promise ONLY when task's status=`committed`; halt-loop's restart pattern is fine because state lives in `.progress-{slug}.json` and is read at iteration start.
-2. **Implementation task list location?** → `.claude/knowledge-base/implementations/{slug}-implementation.md` (markdown working contract) + `.progress-{slug}.json` (machine-readable state). Both, complementary roles.
-3. **Validation BLOCK on test runtime?** → SOFT warn at task level (>30s integration test surfaces a warning); HARD fail only when the test fails or times out. Speed is a separate concern from correctness.
-4. **Cross-platform Postgres provisioning?** → DEFERRED to cycle-discover output (`letta-pgvector-schema` blueprint). When that blueprint passes confidence, the recommendation will inform our local-dev script.
-5. **`/implement-improve` skill?** → OUT OF SCOPE. Auto-fixing lint/format is what pre-commit hooks and `npm run lint:fix` already do; a dedicated skill would duplicate. The halt-loop's REFACTOR phase covers the semantic improvements.
+- Schema for cycle rules: `rules/cycle-rule-schema.md`
+- Skill: `skills/implement/SKILL.md`
+- Conventions: `rules/architecture.md`, `rules/testing.md`, `rules/loop-engine-convention.md`
+- Upstream: `rules/cycle-plan.md` (plan must reach verdict ≥ SHIPPABLE_WITH_CAVEATS)
+- Downstream: `rules/cycle-code-quality.md` (runs after `IMPLEMENTATION_COMPLETE`)
