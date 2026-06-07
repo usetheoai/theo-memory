@@ -30,6 +30,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { Context } from 'hono';
 
 import type { AuthPool } from '../auth/api-key-verifier.js';
+import { isBootstrapAllowed, markBootstrapConsumedTx } from '../auth/bootstrap-token.js';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
@@ -129,10 +130,24 @@ function rowToView(row: {
 // POST /v1/admin/keys — createKeyHandler
 // ============================================================================
 
+/**
+ * Optional context flag set by upstream middleware (requireScope T2.2 with
+ * bootstrap bypass) to signal "this request authenticated via the bootstrap
+ * token". When TRUE and the new key carries memory:admin scope, T2.2.1
+ * wiring flips admin_config.bootstrap_consumed atomically — EC-3 absorption.
+ *
+ * Tests call createKeyHandler directly without this flag (= false), so
+ * existing T2.1 tests stay backward-compatible.
+ */
+export interface CreateKeyHandlerOptions {
+  readonly viaBootstrapToken?: boolean;
+}
+
 export async function createKeyHandler(
   c: Context,
   pool: AuthPool,
   subject: string,
+  opts: CreateKeyHandlerOptions = {},
 ): Promise<Response> {
   let body: { name?: unknown; scopes?: unknown; expires_at?: unknown };
   try {
@@ -181,15 +196,54 @@ export async function createKeyHandler(
   // EC-7: dedupe scopes via Set before storage
   const dedupedScopes = Array.from(new Set(body.scopes as string[]));
 
+  // EC-3 (T2.2.1) — if request came via bootstrap token AND the new key
+  // carries memory:admin scope, the bootstrap flag MUST be flipped
+  // atomically in the SAME tx as the INSERT. Subsequent bootstrap-token
+  // uses then return 401 BOOTSTRAP_CONSUMED at the requireScope layer.
+  const shouldConsumeBootstrap =
+    opts.viaBootstrapToken === true && dedupedScopes.includes('memory:admin');
+
   const { raw: secret, hash, prefix12 } = generateSecret();
   const id = generateRowId();
 
   try {
-    await pool.query(
-      `INSERT INTO theo_api_keys (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [id, subject, TENANT_SELF, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
-    );
+    if (shouldConsumeBootstrap) {
+      // Atomic-tx path: BEGIN → INSERT → markBootstrapConsumedTx → COMMIT.
+      // Bootstrap MUST still be allowed (not already consumed); rejected upstream
+      // by requireScope but checked here defensively as a race-safety guard.
+      await pool.query('BEGIN', []);
+      try {
+        const allowed = await isBootstrapAllowed(pool);
+        if (!allowed) {
+          await pool.query('ROLLBACK', []);
+          return c.json(
+            { code: 'BOOTSTRAP_CONSUMED', message: 'Bootstrap token has already been used. Use the issued admin key.' },
+            401,
+          );
+        }
+        await pool.query(
+          `INSERT INTO theo_api_keys (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [id, subject, TENANT_SELF, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+        );
+        await markBootstrapConsumedTx(pool);
+        await pool.query('COMMIT', []);
+      } catch (innerErr) {
+        try { await pool.query('ROLLBACK', []); } catch { /* swallow */ }
+        if (isUniqueViolation(innerErr)) {
+          return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
+        }
+        return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
+      }
+    } else {
+      // Non-bootstrap path: simple single-statement INSERT (preserves
+      // backward compatibility with T2.1 tests).
+      await pool.query(
+        `INSERT INTO theo_api_keys (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, subject, TENANT_SELF, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+      );
+    }
   } catch (err: unknown) {
     if (isUniqueViolation(err)) {
       // EC-6: id or hash collision (astronomically unlikely; honest 500)
