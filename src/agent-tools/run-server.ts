@@ -30,7 +30,10 @@ import { Pool } from 'pg';
 
 import type { Memory } from '../core/memory-store.js';
 import { runMigrations } from '../local/index.js';
+import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
+import { createOauth4webapiIntrospect } from '../server/auth/oidc-introspect-oauth4webapi.js';
+import { OidcAuthVerifier } from '../server/auth/oidc-verifier.js';
 import { createServer } from '../server/index.js';
 
 import {
@@ -40,6 +43,8 @@ import {
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
 } from './agent-tools-memory.js';
+import { resolveBootstrapToken, resolveOidcConfig } from './oidc-cli-resolver.js';
+
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
 // (single source of truth — was triplicated across CLI factory + 2 runners).
@@ -49,6 +54,19 @@ const SHUTDOWN_TIMEOUT_MS = 5_000;
 export interface RunServerOptions {
   readonly port?: number;
   readonly host?: string;
+  /**
+   * T3.2 + ADR D2 + EC-5 — OIDC issuer URL (RFC 8414 discovery target).
+   * When supplied (CLI flag OR env `THEMORY_OIDC_ISSUER`), constructs
+   * `OidcAuthVerifier` + propagates `oidcDiscovery` to `createServer`.
+   */
+  readonly issuer?: string;
+  /**
+   * T3.2 + EC-6 — OIDC client_id (registered with the issuer for
+   * client_secret_basic auth on the introspection endpoint). Required when
+   * `issuer` is set. CLI flag OR env `THEMORY_OIDC_CLIENT_ID`. Secret is
+   * env-only per ADR D4 (`THEMORY_OIDC_CLIENT_SECRET`).
+   */
+  readonly clientId?: string;
 }
 
 function resolvePort(opt?: number): number {
@@ -136,7 +154,44 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   };
 
   const apiKey = readApiKey();
-  const authVerifier = apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
+  const envVerifier = apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
+
+  // T3.2 — OIDC verifier construction (when --issuer supplied).
+  // resolveOidcConfig throws synchronously on EC-5 (invalid URL) / EC-6
+  // (clientId without secret); we let those propagate to fail-loud at boot.
+  const oidcCfg = resolveOidcConfig({
+    ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
+    ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
+    host,
+    port,
+  });
+  let authVerifier = envVerifier;
+  let oidcDiscovery: Parameters<typeof createServer>[0]['oidcDiscovery'];
+  if (oidcCfg !== null) {
+    const introspect = await createOauth4webapiIntrospect({
+      issuer: oidcCfg.issuer,
+      clientId: oidcCfg.clientId,
+      clientSecret: oidcCfg.clientSecret,
+    });
+    authVerifier = new OidcAuthVerifier({ introspect });
+    oidcDiscovery = oidcCfg.oidcDiscovery;
+  }
+
+  // T1.1 — admin sub-app composition. Wired when bootstrap token is set
+  // (EC-2 normalize: empty/whitespace → undefined). When neither bootstrap
+  // nor any admin key exists, admin API simply 404s — backward-compat.
+  const bootstrapToken = resolveBootstrapToken();
+  const adminApi = bootstrapToken !== undefined || apiKey !== undefined
+    ? {
+        pool,
+        ...(bootstrapToken !== undefined ? { bootstrapToken } : {}),
+      }
+    : undefined;
+  // Use ApiKeyAuthVerifier instead of the env-secret one when admin path is
+  // active AND no OIDC issuer (lets theo_live_* keys auth via SHA-256 lookup).
+  if (adminApi !== undefined && oidcCfg === null) {
+    authVerifier = new ApiKeyAuthVerifier(pool);
+  }
 
   // Memory is injected via a small shim that surfaces an honest error if
   // a verb handler fires before the factory resolves. The 503-readiness
@@ -156,6 +211,8 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const app = createServer({
     memory: memoryShim,
     ...(authVerifier !== undefined ? { authVerifier } : {}),
+    ...(oidcDiscovery !== undefined ? { oidcDiscovery } : {}),
+    ...(adminApi !== undefined ? { adminApi } : {}),
     dbProbe,
     readinessProbe: () => isReady,
   });

@@ -84,7 +84,12 @@ export function requireScope(opts: RequireScopeOptions): MiddlewareHandler {
     }
 
     // Bootstrap bypass (D7) — exact-match against the env-sourced token.
-    if (opts.bootstrapToken && opts.bootstrapToken.length > 0) {
+    // EC-2 absorption (fixes-cycle-1): post-trim length-check defends against
+    // `export THEMORY_ADMIN_BOOTSTRAP_TOKEN="   "` whitespace-only env. The
+    // CLI resolver normalizes empty/whitespace to undefined; this is defense-
+    // in-depth at the middleware layer (any caller bypassing the CLI resolver
+    // still gets the no-bypass guarantee).
+    if (opts.bootstrapToken && opts.bootstrapToken.trim().length > 0) {
       if (constantTimeEqual(token, opts.bootstrapToken)) {
         await next();
         return;

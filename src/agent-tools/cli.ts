@@ -137,6 +137,16 @@ export function buildProgram(): Command {
     process.exit(err.exitCode);
   });
 
+  // EC-5 absorption — URL parser shared by `themory server` AND `themory mcp` for --issuer.
+  const parseIssuerUrl = (raw: string): string => {
+    try {
+      new URL(raw);
+      return raw;
+    } catch {
+      throw new InvalidArgumentError(`Invalid --issuer URL: ${raw} (must be a valid URL, e.g., https://auth.example.com).`);
+    }
+  };
+
   program
     .command('mcp')
     .description('Start the MCP server (stdio or streamable-http transport).')
@@ -154,22 +164,29 @@ export function buildProgram(): Command {
         '--auth <mode>',
         'Auth mode for streamable-http transport (T4.1 + ADR-0015). ' +
           '`api-keys` activates the Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup); ' +
-          '`none` (default) runs without auth — ONLY safe for localhost dev. ' +
-          'OIDC mode (`oidc` / `both`) is plumbed via the same gate but requires THEMORY_OIDC_ISSUER + a follow-up cycle to wire the oauth4webapi adapter.',
+          '`oidc` activates Camada 3 OidcAuthVerifier (RFC 7662 introspection via oauth4webapi); ' +
+          '`both` enables dual-validation (theo_live_* → apiKey, else → oidc); ' +
+          '`none` (default) runs without auth — ONLY safe for localhost dev.',
       ).choices(['none', 'api-keys', 'oidc', 'both']),
     )
+    .option('--issuer <url>', 'OIDC issuer URL for --auth=oidc/both (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
+    .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
     .action(
       async (opts: {
         transport?: 'stdio' | 'streamable-http';
         port?: number;
         host?: string;
         auth?: 'none' | 'api-keys' | 'oidc' | 'both';
+        issuer?: string;
+        clientId?: string;
       }) => {
         const options: RunMcpServerOptions = {
           ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
           ...(opts.port !== undefined ? { port: opts.port } : {}),
           ...(opts.host !== undefined ? { host: opts.host } : {}),
           ...(opts.auth !== undefined ? { auth: opts.auth } : {}),
+          ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
+          ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
         };
         await runMcpServer(options);
       },
@@ -180,10 +197,14 @@ export function buildProgram(): Command {
     .description('Start the REST API server on PORT (default 8080).')
     .option('--port <number>', 'Port to bind (1..65535)', parseIntInRange('--port', 1, 65_535))
     .option('--host <address>', 'Bind host (default 0.0.0.0)')
-    .action(async (opts: { port?: number; host?: string }) => {
+    .option('--issuer <url>', 'OIDC issuer URL for RFC 7662 introspection (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
+    .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
+    .action(async (opts: { port?: number; host?: string; issuer?: string; clientId?: string }) => {
       const options: RunServerOptions = {
         ...(opts.port !== undefined ? { port: opts.port } : {}),
         ...(opts.host !== undefined ? { host: opts.host } : {}),
+        ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
+        ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
       };
       await runServer(options);
     });
