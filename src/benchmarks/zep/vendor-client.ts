@@ -26,6 +26,7 @@
  */
 
 import { VendorSynthesizeUnsupportedError } from '../../core/errors.js';
+
 import type { ZepVendorClient } from './adapter.js';
 
 interface ZepSdkLike {
@@ -88,8 +89,10 @@ export class ZepOfficialClient implements ZepVendorClient {
     }));
   }
 
-  synthesize(_question: string, _context: readonly string[]): Promise<string> {
+  synthesize(question: string, context: readonly string[]): Promise<string> {
     // EC-2 + ADR D2: typed throw per Inquebrável Rule 8
+    void question;
+    void context;
     throw new VendorSynthesizeUnsupportedError('REDACTED');
   }
 }
