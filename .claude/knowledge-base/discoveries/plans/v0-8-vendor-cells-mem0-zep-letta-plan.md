@@ -1,5 +1,7 @@
 # Discovery Plan: v0-8-vendor-cells-mem0-zep-letta — production VendorClient wirings for benchmark adapters
 
+> **Version 1.1** (2026-06-07) — Absorbs `/discover-edge-cases v0-8-vendor-cells-mem0-zep-letta` (7 edge cases: 1 MUST FIX + 4 SHOULD TEST + 2 DOCUMENT — VERDICT DISCOVERY PLAN PRECISA DE AJUSTE). **1 MUST FIX absorbed**: EC-1 (Q5 method referenced `routers/v1/memory.py` which does NOT exist in Letta clone; Letta's memory APIs live at `routers/v1/archives.py` + `routers/v1/blocks.py` — verified hoje). **4 SHOULD TEST absorbed inline**: EC-2 Q3 mem0-ts package.json#exports disambiguation step added FIRST; EC-3 Q6 extended to cover `letta/.github/workflows/` (verified present); EC-4 Q2 cross-check Mem0's Python `zep_cloud` snapshot version vs current `@getzep/zep-cloud` npm; EC-5 npm view retry policy on rate-limit (3 tries → partial-blocked marker). **2 DOCUMENT absorbed**: EC-6 Q3 1.5h budget tight (acceptable trade-off — multi-package mem0-ts); EC-7 Zep tools-corner not independently verified (acceptable per ADR D3).
+
 > **Version 1.0** (2026-06-07) — Investigates how to wire production `VendorClient` implementations for the 3 third-party benchmark adapters shipped via Drift-T6.x-1 of `v0-8-independent-benchmark-reproduction`. The `Mem0BenchmarkAdapter`, `ZepBenchmarkAdapter`, and `LettaBenchmarkAdapter` at `src/benchmarks/{mem0,zep,letta}/adapter.ts` already implement the `BenchmarkAdapter` DIP and accept a vendor-specific client via DI. What's missing: the concrete `Mem0VendorClient` / `ZepVendorClient` / `LettaVendorClient` classes that compose each vendor's official SDK. This discovery resolves the SDK-shape questions (npm package, auth, API method names, mock strategy) so a follow-up `/to-plan v0-9-vendor-client-impls` can ship the 3 classes with confidence. Closing this unblocks the second half of Roadmap Item 11 (production-ready label) — the `/dogfood` gate cleared on 2026-06-07; independent vendor benchmark cells are the parallel requirement.
 
 **Slug:** `v0-8-vendor-cells-mem0-zep-letta`
@@ -68,6 +70,7 @@ Measurable success criteria:
 - **Decision:** Total 4.5h budget: Mem0=2.5h (4 questions intersect Mem0), Zep=1h (relies on Mem0's eval pattern + npm registry), Letta=1h (lightest — likely REST-only wrap).
 - **Per-question stop condition:** if a single question consumes > 1.5h with no progress, halt that question and mark BLOCKED in the blueprint. Move to next question. The blueprint will surface the BLOCKED items honestly per Inquebrável Rule 3 — partial answers > false confidence.
 - **Rationale:** Mem0 has the most material (cloned TS SDK + cloned Python eval adapters for Zep), so it gets the lion's share. Zep + Letta are "thin" — Zep relies on Mem0's pattern + npm metadata; Letta likely has no TS SDK at all (REST wrap).
+- **EC-6 DOCUMENT (v1.1)**: Q3 (mem0-ts API surface) has ELEVATED risk of hitting the 1.5h budget because mem0-ts has 3-package layout (oss + client + community per the verified `src/{oss,client,community}/package.json`). The disambiguation step added by EC-2 absorption (read `package.json#exports` first) mitigates by avoiding wasted reads of the wrong sub-package. Acceptable trade-off: partial answer about the canonical entry (e.g., `oss/`) is more valuable than 0 answer; halt-loop should not stall the entire blueprint on Q3 alone.
 
 ### D2 — Read-only treatment of `.claude/knowledge-base/references/`
 
@@ -78,6 +81,7 @@ Measurable success criteria:
 
 - **Decision:** The `/discover-execute` halt-loop MAY invoke `npm view <pkg> versions/dependencies/repository.url/main/types` to inspect vendor package metadata when local clones are absent. NEVER `npm install <pkg>` during discovery — only metadata queries.
 - **Rationale:** Inquebrável Rule 9 (Não Reinvente a Roda) requires us to use canonical SDK shapes; without local clones for Zep, the npm registry is the next-best source. `npm view` is a read-only metadata query (no installation, no node_modules touch); the discovery boundary stays clean. Documented as an allowlist exception in the deps-audit chain for this plan only.
+- **EC-7 DOCUMENT (v1.1)**: Zep's CI/dev tooling pattern (Q6 Tools corner) is NOT independently verified by this discovery — only Mem0 + Letta CI workflows are read (both cloned). Zep CI assumption is "convergence with Mem0/Letta vendor SaaS gating pattern" (cron + workflow_dispatch + secrets-injected `ZEP_API_KEY`). Acceptable risk because: (a) all 3 vendors face the same paid-API-quota problem with the same canonical solution (gate behind env var + nightly cron), (b) verifying Zep CI would require cloning Zep (out of scope), (c) the follow-up `/to-plan v0-9-vendor-client-impls` will mirror Mem0/Letta pattern for Zep — if the actual Zep CI is materially different, surface during real Zep integration testing.
 
 ### D4 — Letta likely has no TS SDK; REST-wrap strategy noted upfront
 
@@ -115,6 +119,7 @@ Q1 establishes the package landscape (3 npm packages or 2 + REST-wrap); subseque
   3. `npm view @getzep/zep-cloud version dependencies repository.url main types`
   4. `npm view @letta-ai/letta-client version 2>&1 | head` (might 404 if no TS package)
   5. Cross-reference each `repository.url` with the canonical vendor docs (URLs documented in answer)
+  6. **EC-5 absorption** — npm view rate-limit retry policy: each `npm view` call has 3-attempt backoff (1s, 3s, 9s). On 3 consecutive failures (non-200 or stderr non-empty), mark this Q1 sub-step as `partial-blocked` in `.progress-{slug}.json` with attempt log; do NOT halt the entire loop. Blueprint surfaces honestly which packages weren't verifiable via registry today.
 - **Expected answer shape:** a 3-row table:
   | Vendor | npm package | Latest version | Auth env var | Repository |
   |---|---|---|---|---|
@@ -131,6 +136,7 @@ Q1 establishes the package landscape (3 npm packages or 2 + REST-wrap); subseque
   1. `Read .claude/knowledge-base/references/mem0/evaluation/src/zep/add.py` (entire file)
   2. `Read .claude/knowledge-base/references/mem0/evaluation/src/zep/search.py` (entire file)
   3. `Grep "zep_client\\." .claude/knowledge-base/references/mem0/evaluation/src/zep/` to enumerate every Zep SDK call site
+  4. **EC-4 absorption** — version drift cross-check: `find .claude/knowledge-base/references/mem0/evaluation -maxdepth 3 -name "requirements*.txt" -o -name "pyproject.toml"` to capture the `zep_cloud` Python version Mem0 pinned. Cross-reference with `npm view @getzep/zep-cloud version` from Q1. If major versions differ (e.g., Python `zep_cloud@1.x` vs TS `@getzep/zep-cloud@3.x`), document in blueprint § Recommendations as "API drift risk — manual TS surface validation needed before wiring".
 - **Expected answer shape:** a Python→TS translation table:
   | Mem0 Python call | TS equivalent (`@getzep/zep-cloud`) | Maps to our `ZepVendorClient` method |
   |---|---|---|
@@ -145,10 +151,11 @@ Q1 establishes the package landscape (3 npm packages or 2 + REST-wrap); subseque
 - **Project:** Mem0 (`mem0-ts/src/`)
 - **Why this question NOW:** the `Mem0VendorClient` interface declares `add(userId, text)` + `search(userId, query, topK)` + `synthesize(question, context)`. We need to confirm the mem0-ts SDK exposes equivalents (likely `memory.add()` + `memory.search()` + something for synthesis).
 - **Planned method:**
-  1. `Read .claude/knowledge-base/references/mem0/mem0-ts/src/oss/index.ts` (or `index.ts` at root if different) — entry export
-  2. `Grep -rn "memory\\.add\\|memory\\.search" .claude/knowledge-base/references/mem0/mem0-ts/src/` to find method declarations
-  3. `Read` the file(s) where `add` and `search` are defined to confirm method signatures
-  4. `Grep -rn "synth\\|complet" .claude/knowledge-base/references/mem0/mem0-ts/src/` — confirm if Mem0 ships a built-in `synthesize` OR if we call its `.complete()` / chat method directly
+  1. **EC-2 absorption (v1.1) — FIRST step**: `Read .claude/knowledge-base/references/mem0/mem0-ts/package.json` to enumerate `#exports` entry points. mem0-ts has multi-package layout (verified hoje: `src/oss/`, `src/client/`, `src/community/` — 3 sub-packages each with own `package.json`). Identify which sub-package is the canonical TS SDK consumers use for Mem0 OSS (probably `oss/` based on naming convention; verify via the root package.json `main`/`types`/`exports` fields BEFORE diving deeper).
+  2. `Read .claude/knowledge-base/references/mem0/mem0-ts/src/oss/index.ts` (OR the canonical entry from step 1 if different — common alternatives: `src/oss/src/index.ts` per the verified `mem0-ts/src/oss/src/` subdirectory)
+  3. `Grep -rn "memory\\.add\\|memory\\.search" .claude/knowledge-base/references/mem0/mem0-ts/src/` to find method declarations
+  4. `Read` the file(s) where `add` and `search` are defined to confirm method signatures
+  5. `Grep -rn "synth\\|complet" .claude/knowledge-base/references/mem0/mem0-ts/src/` — confirm if Mem0 ships a built-in `synthesize` OR if we call its `.complete()` / chat method directly
 - **Expected answer shape:** a TS snippet showing how `Mem0OfficialClient implements Mem0VendorClient` composes the SDK, with the canonical SDK call for each of the 3 methods.
 
 ### Q4 — Integration test pattern: how does mem0-ts itself test against real Mem0?
@@ -170,9 +177,10 @@ Q1 establishes the package landscape (3 npm packages or 2 + REST-wrap); subseque
 - **Why this question NOW:** if `@letta-ai/letta-client` exists on npm, we wire it (same pattern as Q3 for Mem0). If it doesn't, we need to write a `fetch`-based REST wrapper, which requires knowing Letta's API endpoints, auth, request/response shapes. Q1's `npm view @letta-ai/letta-client` already gives the first answer; this question deepens it.
 - **Planned method:**
   1. If Q1 found a TS package: `npm view @letta-ai/letta-client repository.url main types` then follow to repo if cloned, OR document the SDK shape from `npm view <pkg> --json | jq` metadata
-  2. If Q1 found NO TS package: `Read .claude/knowledge-base/references/letta/letta/server/rest_api/routers/v1/agents.py` (and `memory.py` if exists) to enumerate the memory-related endpoints
-  3. `Read .claude/knowledge-base/references/letta/tests/test_sdk_client.py` for the canonical Python usage pattern; translate the memory-touching methods to REST calls
-- **Expected answer shape:** EITHER (a) a TS snippet using `@letta-ai/letta-client` (if exists), OR (b) a REST endpoint table `POST /v1/agents/{id}/memory`, `GET /v1/agents/{id}/memory/search?q=...` with request/response zod schemas sketched.
+  2. If Q1 found NO TS package: **EC-1 absorption (v1.1 fix)** — Letta has NO `memory.py` router. Letta's memory APIs live at: `Read .claude/knowledge-base/references/letta/letta/server/rest_api/routers/v1/archives.py` (archival memory — long-term semantic store) + `Read .claude/knowledge-base/references/letta/letta/server/rest_api/routers/v1/blocks.py` (block memory — agent's working-memory chunks) + cross-reference relevant `agents.py` endpoints that mutate memory. Enumerate the memory-touching endpoints from these 3 files; ignore agent-loop / tool-execution routers.
+  3. `Read .claude/knowledge-base/references/letta/tests/test_sdk_client.py` for the canonical Python usage pattern; translate the memory-touching methods to REST calls.
+  4. **EC-6/scope-creep guard:** stop criterion — ONLY memory-touching endpoints (archives + blocks + agent memory mutations). Do NOT enumerate Letta's full REST surface (agent execution, tool calls, run streaming) — out of scope for `LettaVendorClient`.
+- **Expected answer shape:** EITHER (a) a TS snippet using `@letta-ai/letta-client` (if exists), OR (b) a REST endpoint table covering only memory-touching routes (`POST /v1/archives/{id}/passages`, `GET /v1/archives/{id}/search`, `POST/PATCH /v1/blocks/{id}`, agent memory mutation endpoints) with request/response zod schemas sketched.
 
 ### Q6 — CI/dev gating for vendor SaaS — how does Mem0's CI prevent burning paid API quota?
 
@@ -180,10 +188,11 @@ Q1 establishes the package landscape (3 npm packages or 2 + REST-wrap); subseque
 - **Project:** Mem0 (`mem0-ts/` + repo CI config)
 - **Why this question NOW:** if our integration tests against real Mem0/Zep/Letta SaaS run on every PR, we'll burn $$ on API quota for each push. The canonical pattern is "integration tests run nightly on a dedicated CI job with secrets injected; unit tests with mocks run on every PR". We need confirmation Mem0 follows this and how.
 - **Planned method:**
-  1. `find .claude/knowledge-base/references/mem0 -name "*.yml" -path "*workflows*"` — list GitHub Actions workflows
-  2. `Read` the integration workflow file (likely `.github/workflows/integration.yml` or similar)
-  3. `Grep "schedule\\|MEM0_API_KEY\\|workflow_dispatch" .claude/knowledge-base/references/mem0/.github/workflows/` — find the gating pattern (cron schedule vs PR trigger; secrets dispatch pattern)
-- **Expected answer shape:** a 1-paragraph summary: "Mem0 runs integration tests on nightly cron + manual workflow_dispatch + push-to-main, with `MEM0_API_KEY` injected from repo secrets; PR triggers use mocks only". + a snippet of the YAML workflow steps for reference.
+  1. `find .claude/knowledge-base/references/mem0 -name "*.yml" -path "*workflows*"` — list Mem0 GitHub Actions workflows
+  2. **EC-3 absorption (v1.1)** — extend to Letta: `find .claude/knowledge-base/references/letta -name "*.yml" -path "*workflows*"` (verified hoje: Letta has `core-integration-tests.yml`, `alembic-validation.yml`, etc.). Dual-source comparison makes Tools corner genuine instead of Mem0-only.
+  3. `Read` the integration workflow file from Mem0 (likely `.github/workflows/integration.yml` or similar) AND from Letta (`core-integration-tests.yml` likely candidate).
+  4. `Grep "schedule\\|MEM0_API_KEY\\|LETTA_API_KEY\\|workflow_dispatch" .claude/knowledge-base/references/{mem0,letta}/.github/workflows/` — find the gating pattern (cron schedule vs PR trigger; secrets dispatch pattern). Cross-compare Mem0 vs Letta.
+- **Expected answer shape:** a comparison table covering Mem0 + Letta CI gating: `{ vendor, workflow file, trigger (cron/manual/push/PR), secrets used, mock-or-real split, runtime }`. Zep not independently verified per ADR D3 + EC-7 DOCUMENT — recommendation cell for Zep cites "assume convergence with Mem0/Letta pattern".
 
 ---
 
