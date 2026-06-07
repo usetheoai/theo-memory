@@ -77,9 +77,12 @@ export function requireScope(opts: RequireScopeOptions): MiddlewareHandler {
   return async (c, next) => {
     const token = extractBearer(c.req.header('authorization') ?? c.req.header('Authorization'));
     if (!token) {
+      // F-dom-api-2 fix — RFC 6750 § 3 requires WWW-Authenticate on 401.
+      // Headers passed via c.json's 3rd-arg option-bag (Hono signature).
       return c.json(
         { code: 'AUTH_REQUIRED', message: 'Authorization header is required.' },
         401,
+        { 'WWW-Authenticate': 'Bearer' },
       );
     }
 
@@ -101,6 +104,7 @@ export function requireScope(opts: RequireScopeOptions): MiddlewareHandler {
       return c.json(
         { code: 'INVALID_API_KEY', message: 'API key not recognized.' },
         401,
+        { 'WWW-Authenticate': 'Bearer error="invalid_token"' },
       );
     }
     const hash = createHash('sha256').update(token).digest('hex');
@@ -112,6 +116,7 @@ export function requireScope(opts: RequireScopeOptions): MiddlewareHandler {
       return c.json(
         { code: 'INVALID_API_KEY', message: 'API key not recognized.' },
         401,
+        { 'WWW-Authenticate': 'Bearer error="invalid_token"' },
       );
     }
     let scopes: readonly string[] = [];

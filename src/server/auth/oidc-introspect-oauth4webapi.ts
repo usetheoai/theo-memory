@@ -131,11 +131,25 @@ export async function createOauth4webapiIntrospect(
     const introResponse = await introspectionRequest(as, client, clientAuth, token, introOpts);
     const result = await processIntrospectionResponse(as, client, introResponse);
 
+    // F-dom-api-3 fix — map ALL standard RFC 7662 § 2.2 claims that oauth4webapi
+    // surfaces. `aud` is load-bearing for audience validation per RFC 8707 §1
+    // (token-confusion attack mitigation: a token for resource A must not be
+    // accepted by resource B). Consumers MAY enforce aud-check against their
+    // canonical resource URL; the adapter just passes through what the IdP
+    // returned.
     return {
       active: result.active === true,
-      ...(result.sub !== undefined ? { sub: result.sub } : {}),
       ...(result.scope !== undefined ? { scope: result.scope } : {}),
+      ...(result.client_id !== undefined ? { client_id: result.client_id } : {}),
+      ...(result.username !== undefined ? { username: result.username } : {}),
+      ...(result.token_type !== undefined ? { token_type: result.token_type } : {}),
       ...(result.exp !== undefined ? { exp: result.exp } : {}),
+      ...(result.iat !== undefined ? { iat: result.iat } : {}),
+      ...(result.nbf !== undefined ? { nbf: result.nbf } : {}),
+      ...(result.sub !== undefined ? { sub: result.sub } : {}),
+      ...(result.aud !== undefined ? { aud: result.aud } : {}),
+      ...(result.iss !== undefined ? { iss: result.iss } : {}),
+      ...(result.jti !== undefined ? { jti: result.jti } : {}),
     };
   };
 }
