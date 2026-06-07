@@ -1,13 +1,14 @@
 /**
- * Lazy-cached @usetheo/sdk agent per (userId, sessionId) pair.
+ * Lazy-cached @theokit/sdk agent per (userId, sessionId) pair.
  *
  * The systemPromptResolver closure carries BOTH scope ids so each
  * conversation thread sees its own session-scoped recall while still
  * benefitting from the user's long-lived facts.
  */
-import "server-only";
-import { Agent } from "@usetheo/sdk";
-import type { SDKAgent } from "@usetheo/sdk";
+// (post-T1.1: `import "server-only"` removed — TheoKit separates server/ from
+// client/ by directory convention; the Next.js guard is no longer needed.)
+import { Agent } from "@theokit/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import { createSystemPromptResolver } from "./theomemory-plugin";
 
 const agentByKey = new Map<string, Promise<SDKAgent>>();

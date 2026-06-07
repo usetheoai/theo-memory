@@ -15,8 +15,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card } from "@usetheo/ui";
+import { Badge, Button, Card, Progress, StatusDot } from "@theokit/ui";
 import { Database, RefreshCw, Snowflake } from "lucide-react";
+
+import { apiCall, ApiError } from "../../lib/api-client";
 
 interface EvictionStatus {
   enabled: boolean;
@@ -43,18 +45,17 @@ export function EvictionTab({ userId, reloadKey }: Props) {
     if (!userId) return;
     setLoading(true);
     try {
-      const url = new URL(
-        "/api/memory/eviction-status",
-        window.location.origin,
-      );
-      url.searchParams.set("userId", userId);
-      const resp = await fetch(url);
-      if (!resp.ok) {
-        setStatus(null);
-        return;
-      }
-      const json = (await resp.json()) as EvictionStatus;
+      const json = await apiCall<EvictionStatus>("/api/memory/eviction-status", {
+        query: { userId },
+      });
       setStatus(json);
+    } catch (err) {
+      // theoFetch throws on non-2xx; keep prior behavior (null status disables UI).
+      if (err instanceof ApiError) {
+        setStatus(null);
+      } else {
+        throw err;
+      }
     } finally {
       setLoading(false);
     }
@@ -91,7 +92,7 @@ export function EvictionTab({ userId, reloadKey }: Props) {
           <Database className="h-3 w-3 text-emerald-600" />
           <span className="font-medium">pgvector</span>
           <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-            {status.trigger}
+            <Badge variant="success">{status.trigger}</Badge>
           </span>
         </div>
         <Button
@@ -112,20 +113,16 @@ export function EvictionTab({ userId, reloadKey }: Props) {
             {status.activeCount} / {cap}
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full bg-emerald-500/70 transition-all"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+        <Progress value={pct} max={100} className="h-1.5" />
       </Card>
 
       <Card className="flex items-center justify-between p-3 text-xs">
         <div className="flex items-center gap-2">
+          <StatusDot status={status.softDeletedCount > 0 ? "warning" : "idle"} size="sm" />
           <Snowflake className="h-3 w-3 text-blue-600" />
           <span className="text-muted-foreground">Soft-deleted</span>
         </div>
-        <span className="font-mono">{status.softDeletedCount}</span>
+        <Badge variant="outline" className="font-mono">{status.softDeletedCount}</Badge>
       </Card>
 
       <Button

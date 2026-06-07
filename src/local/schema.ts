@@ -49,6 +49,7 @@ import {
   type AnyPgColumn,
   bigint,
   bigserial,
+  boolean,
   check,
   index,
   integer,
@@ -338,3 +339,100 @@ export const recallCache = pgTable(
       .where(sql`${table.expiresAt} IS NOT NULL`),
   ],
 );
+
+/**
+ * theo_api_keys — Camada 2 OSS multi-user lifecycle table per plan
+ * `theo-memory-faang-auth-lifecycle` § T0.2 + ADRs D2 + D5 + D6.
+ *
+ * Mirrors the cloud-repo Stripe-shape impl at
+ * `<HOME>/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go:50-115`
+ * — single unified `theo_live_*` key per ADR D1 of the cloud plan; SHA-256
+ * hash-at-rest per D4; 12-char prefix display per D3; soft-delete via
+ * `revoked_at` per D7; `rotated_from` self-FK powers the lineage recursive
+ * CTE per the same cloud plan.
+ *
+ * Single-tenant OSS variant (D6): `tenant_id` defaults to `'self'` constant;
+ * the column ships in the schema (NOT removed) so the SAME schema is
+ * forward-compatible if/when multi-tenant ships behind a flag.
+ *
+ * **EC-2 absorption (DB CHECK constraint):** the `id != rotated_from`
+ * constraint forbids self-rotation cycles at the row level — defense in
+ * depth on top of the lineage CTE UNION dedupe. A buggy INSERT that sets
+ * `A.rotated_from = A` would otherwise make the recursive CTE loop until
+ * `LIMIT 100` kicks in. Constraint is enforced via the migration
+ * `0012_theo_api_keys.sql` — Drizzle does not yet have a portable `check()`
+ * builder in v0.31 that survives `db:push`; the SQL clause is authoritative.
+ *
+ * **EC-11 absorption (SHA-256 collision):** the `key_hash` UNIQUE constraint
+ * catches the astronomical 1-in-2^128 collision case + returns 500 INTERNAL
+ * via the `isUniqueViolation()` discriminator (port from cloud T2.1).
+ * Documented per ADR D4 of cloud plan; no extra code needed beyond UNIQUE.
+ *
+ * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T0.2
+ * @see .claude/knowledge-base/discoveries/blueprints/theo-memory-faang-auth-lifecycle-blueprint.md § Q1 (Stripe-shape verdict)
+ */
+export const theoApiKeys = pgTable(
+  'theo_api_keys',
+  {
+    // Format: `apk-{16hex}` per cloud `pkg/id` convention (ID validated via
+    // regex BEFORE any DB query at the handler layer per cloud EC-2).
+    id: varchar('id', { length: 20 }).primaryKey(),
+    // Authenticated user subject (any string — JWT `sub` claim in cloud;
+    // bootstrap-token-issued admin keys may use `bootstrap` literal).
+    subject: text('subject').notNull(),
+    // Single-tenant constant per ADR D6 — `'self'` always in OSS.
+    tenantId: text('tenant_id').notNull().default('self'),
+    // Human-friendly label shown in the keys list + audit log. Trimmed
+    // non-empty per cloud EC-4.
+    keyName: varchar('key_name', { length: 64 }).notNull(),
+    // SHA-256 hex (64 chars) of the raw `theo_live_*` secret. UNIQUE catches
+    // hash collisions (astronomically unlikely; EC-11 absorbed).
+    keyHash: varchar('key_hash', { length: 64 }).notNull().unique(),
+    // First 12 chars of the raw secret (`theo_live_Ab`) for masked display
+    // in list/lineage UI — secret itself is shown ONCE post-create.
+    keyPrefix: varchar('key_prefix', { length: 12 }).notNull(),
+    // jsonb array of scope literals from the v0.1 enum (`memory:read` /
+    // `memory:write` / `memory:delete` / `memory:admin`) per blueprint Q2.
+    scopes: jsonb('scopes').$type<readonly string[]>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    // Nullable per cloud ADR D6 — NULL means never-expires.
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // Soft-delete per cloud ADR D7 — hard DELETE forbidden. Lineage CTE
+    // walks regardless of `revoked_at` so historical chain is visible.
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    // Self-FK powering the rotation lineage chain. NULL for unrotated keys.
+    rotatedFrom: varchar('rotated_from', { length: 20 }),
+  },
+  (table) => [
+    // Hot path: SELECT 1 ... WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL.
+    // Partial index excludes revoked rows from the index (smaller + faster).
+    index('idx_theo_api_keys_subject_tenant')
+      .on(table.subject, table.tenantId)
+      .where(sql`${table.revokedAt} IS NULL`),
+  ],
+);
+
+/**
+ * admin_config — single-row config table powering ADR D7 bootstrap
+ * self-revoke (EC-3 absorption of the plan's edge-case review).
+ *
+ * After the first admin key is issued via the env-bootstrap token, the
+ * `bootstrap_consumed` flag flips to TRUE in the SAME transaction as
+ * the INSERT — making the bootstrap-token path single-use. Subsequent
+ * bootstrap-token attempts return 401 `BOOTSTRAP_CONSUMED`. Closes the
+ * EC-3 silent-backdoor exploit (leaked bootstrap token persisting even
+ * after admin key revoke).
+ *
+ * Single-row invariant enforced via `id INT PRIMARY KEY DEFAULT 1
+ * CHECK (id = 1)` in the migration. Migration seeds the row on first
+ * install via `INSERT ... ON CONFLICT DO NOTHING`.
+ *
+ * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2.1
+ * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-3
+ */
+export const adminConfig = pgTable('admin_config', {
+  id: integer('id').primaryKey().default(1),
+  bootstrapConsumed: boolean('bootstrap_consumed').notNull().default(false),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+});
