@@ -94,15 +94,16 @@ export async function createOauth4webapiIntrospect(
   }
 
   const fetchImpl = opts.fetchImpl;
-  // oauth4webapi accepts a `customFetch` symbol-keyed option on its
-  // request functions; we pass it through every call site.
-  const requestOptionsBase: {
-    [customFetch]?: typeof fetch;
-    [allowInsecureRequests]?: boolean;
-  } = {
+  // oauth4webapi accepts `customFetch` + `allowInsecureRequests` symbol-keyed
+  // options on its request functions. Under exactOptionalPropertyTypes the
+  // upstream `?:` types reject `undefined`; we omit keys entirely (no
+  // undefined values land at the boundary) and bridge via `unknown` cast
+  // since the runtime contract is set by oauth4webapi, not our type
+  // (Inquebrável Rule 9 — don't reinvent symbol-keyed types).
+  const requestOptionsBase = {
     ...(fetchImpl !== undefined ? { [customFetch]: fetchImpl } : {}),
     ...(opts.allowInsecure === true ? { [allowInsecureRequests]: true } : {}),
-  };
+  } as unknown as Parameters<typeof discoveryRequest>[1];
 
   // Discovery: ONCE per construction. Result cached in closure.
   const discoveryResponse = await discoveryRequest(issuerUrl, requestOptionsBase);
@@ -123,10 +124,11 @@ export async function createOauth4webapiIntrospect(
   const clientAuth = ClientSecretBasic(opts.clientSecret);
 
   return async (token: string, signal: AbortSignal): Promise<IntrospectionResult> => {
-    const introResponse = await introspectionRequest(as, client, clientAuth, token, {
+    const introOpts = {
       ...requestOptionsBase,
       signal,
-    });
+    } as unknown as Parameters<typeof introspectionRequest>[4];
+    const introResponse = await introspectionRequest(as, client, clientAuth, token, introOpts);
     const result = await processIntrospectionResponse(as, client, introResponse);
 
     return {
