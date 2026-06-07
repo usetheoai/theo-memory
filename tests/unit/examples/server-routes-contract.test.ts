@@ -41,17 +41,38 @@ afterAll(() => {
   }
 });
 
-// Minimal mock ctx for defineRoute handler invocation. The framework normally
-// parses query/body/params from Zod schemas; routes here use manual parsing
-// off `request`, so query/body/params get `{}` no-op values.
-function mockCtx(request: Request): {
+/**
+ * Minimal mock ctx for `defineRoute` handler invocation. Mirrors the framework
+ * behavior: TheoKit auto-parses `application/json` request bodies via
+ * `parseRequestBody` BEFORE invoking the handler — the handler receives the
+ * parsed object via the `body` arg, NOT via `request.json()` (Node
+ * IncomingMessage has no `.json()` method).
+ *
+ * Pre-fix: mock returned `body: {}` regardless of request body — handlers
+ * saw empty object, hit the first required-field validation, and tests
+ * asserting LATER validation branches (hard/policy/codeLanguage type checks)
+ * always failed on "userId required" / "repoId required" instead. Match
+ * framework semantics by parsing the JSON body when content-type indicates.
+ */
+async function mockCtx(request: Request): Promise<{
   request: Request;
   query: unknown;
   body: unknown;
   params: unknown;
   ctx: unknown;
-} {
-  return { request, query: {}, body: {}, params: {}, ctx: {} };
+}> {
+  let body: unknown = {};
+  const ct = request.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) {
+    try {
+      // Clone so the handler can still call request.json() if needed (rare).
+      body = await request.clone().json();
+    } catch {
+      // Invalid JSON → leave body as {} so handler's invalid-body branch fires.
+      body = {};
+    }
+  }
+  return { request, query: {}, body, params: {}, ctx: {} };
 }
 
 describe("server-routes — T2.2 per-route contract parity", () => {
@@ -59,7 +80,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
     const { GET } = await import(
       "../../../examples/chat-with-memory/server/routes/health.ts"
     );
-    const res = (await GET.handler(mockCtx(new Request("http://localhost/api/health")))) as Response;
+    const res = (await GET.handler(await mockCtx(new Request("http://localhost/api/health")))) as Response;
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toEqual({
@@ -75,7 +96,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
     const { GET } = await import(
       "../../../examples/chat-with-memory/server/routes/info.ts"
     );
-    const res = (await GET.handler(mockCtx(new Request("http://localhost/api/info")))) as Response;
+    const res = (await GET.handler(await mockCtx(new Request("http://localhost/api/info")))) as Response;
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toHaveProperty("backend");
@@ -97,7 +118,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: "some-id" }),
     });
-    const res = (await POST.handler(mockCtx(request))) as Response;
+    const res = (await POST.handler(await mockCtx(request))) as Response;
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body["error"]).toMatch(/userId required/i);
@@ -112,7 +133,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: "u1", id: "m1", hard: "yes" }),
     });
-    const res = (await POST.handler(mockCtx(request))) as Response;
+    const res = (await POST.handler(await mockCtx(request))) as Response;
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body["error"]).toMatch(/hard must be boolean/i);
@@ -127,7 +148,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: "u1", policy: "bogus" }),
     });
-    const res = (await POST.handler(mockCtx(request))) as Response;
+    const res = (await POST.handler(await mockCtx(request))) as Response;
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body["error"]).toMatch(/invalid policy/i);
@@ -142,7 +163,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: "x", description: "y", codeLanguage: "typescript" }),
     });
-    const res = (await POST.handler(mockCtx(request))) as Response;
+    const res = (await POST.handler(await mockCtx(request))) as Response;
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body["error"]).toMatch(/repoId required/i);
@@ -157,7 +178,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ repoId: "r1", code: "x", description: "y", codeLanguage: "python" }),
     });
-    const res = (await POST.handler(mockCtx(request))) as Response;
+    const res = (await POST.handler(await mockCtx(request))) as Response;
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body["error"]).toMatch(/codeLanguage must be typescript\|javascript/i);
@@ -168,7 +189,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       "../../../examples/chat-with-memory/server/routes/memory/recall.ts"
     );
     const request = new Request("http://localhost/api/memory/recall");
-    const res = (await GET.handler(mockCtx(request))) as Response;
+    const res = (await GET.handler(await mockCtx(request))) as Response;
     expect(res.status).toBe(400);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body["error"]).toMatch(/userId required/i);
