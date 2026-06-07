@@ -1,6 +1,6 @@
 # TheMemory · Chat that remembers — professional demo
 
-A Next.js 15 chat app that combines all three OSS products of the usetheo
+A Next.js 15 chat app that combines all three OSS products of the Theo
 ecosystem to demonstrate **persistent semantic memory in an agent loop**,
 **code-as-skill procedural memory**, **session vs user scoping**, and the
 **audit-trail invariant** — all live, side-by-side with the agent itself:
