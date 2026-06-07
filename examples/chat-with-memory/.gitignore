@@ -14,3 +14,7 @@ tsconfig.tsbuildinfo
 memory.txt
 # @usetheo/sdk also writes per-fact side-channel files in newer versions:
 *.txt
+
+# Demo runtime user-data captured by the chat (favorite_number, signal_phrase
+# answers entered by the human at runtime). Not source — regenerated per session.
+userdata.json
