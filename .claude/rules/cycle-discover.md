@@ -11,6 +11,7 @@ Investigate **how others solved a problem** before writing code. Outputs a bluep
 - "How does <project X> handle <Y>?"
 - "What does the field do for <problem Z>?"
 - A planning task is blocked because nobody on the team knows the prior art.
+- (Optional macro context) — when running the `cycle-roadmap` super-loop, the active milestone's references in `knowledge-base/references/` (seeded by `/roadmap-init`) are the natural starting set for `/discover-plan`.
 
 Do NOT trigger DISCOVER for:
 - Locating a symbol in your own code (use Grep/Glob).
@@ -95,4 +96,5 @@ mv skills/{name}/ skills/generated/{name}/
 - Schema for cycle rules: `rules/cycle-rule-schema.md`
 - Skills: `skills/discover-plan/SKILL.md`, `skills/discover-edge-cases/SKILL.md`, `skills/discover-plan-confidence/SKILL.md`, `skills/discover-execute/SKILL.md`, `skills/discover-confidence/SKILL.md`, `skills/discover-improve/SKILL.md`, `skills/skill-writer/SKILL.md`, `skills/skill-validator/SKILL.md`, `skills/skill-register/SKILL.md`
 - Allowlist: `rules/discover-web-allowlist.txt`
+- Macro super-loop: `rules/cycle-roadmap.md` — seeds `knowledge-base/references/` at project inception via `/roadmap-init`
 - Downstream: `rules/cycle-plan.md` (consumes blueprints as input to `/to-plan`)

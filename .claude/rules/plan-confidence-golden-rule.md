@@ -1,14 +1,6 @@
-# Plan-Confidence Golden Rule (INQUEBRÁVEL) — TEMPLATE
+# Plan-Confidence Golden Rule (INQUEBRÁVEL) 
 
-> **INQUEBRÁVEL — 95% Confidence Gate**
->
-> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
-> OPÇÕES PARA ELE ESCOLHER.
->
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
-
-> Copy this file to `.claude/rules/plan-confidence-golden-rule.md` in your project.
+> Promoted from skill template; per-project Source of Truth.
 
 **Source of truth for the `/plan-confidence` skill's most important contract.**
 
@@ -17,7 +9,7 @@
 **A plan is INVALID and CANNOT produce a SHIPPABLE verdict when:**
 
 1. Coverage Matrix < 100% (gaps not mapped to tasks)
-2. At least one fabricated citation (file/symbol pointed to in `Evidence:` does not exist in the repo) — *M3, future*
+2. At least one fabricated citation (rule file, blueprint section, intra-plan ADR, or Unbreakable Rule referenced in prose does not resolve) — *M3 v0.1 active (rule files, blueprints, intra-plan ADRs, Unbreakable Rules 1..13). M3 v0.2 (code-file refs `src/foo.py:42`) deferred.*
 
 This is NOT a guideline. It is a constraint enforced by the skill itself.
 The skill SHALL fail-closed when an unbreakable rule is violated.
@@ -43,15 +35,14 @@ The rule closes this gap by forcing minimum structural state PRESENT before the 
 | Rule | Enforcement |
 |---|---|
 | Coverage Matrix present and 100% | M2 — `run_structural.py` via `check_coverage_matrix.py` |
-| Fabricated citation → score ≤ 49 | M3 (future) — SAFE adapted to `ripgrep + tree-sitter + read_file` |
+| Fabricated citation → score ≤ 49 | M3 v0.1 — `check_evidence_citations.py` (regex + `Path.exists` + section grep); covers rule refs, Blueprint refs, intra-plan ADR refs, Unbreakable Rules 1..13. ADR `0001-m3-fabricated-citation-v01`. |
 | ADR without alternatives in Rationale → score ≤ 70 | M2 — `check_adr_completeness.py` |
 | Bug-fix task without TDD RED-GREEN-REFACTOR → score ≤ 70 | M2 — `check_tdd_in_bugfix.py` |
+| Vague Acceptance Criteria → score ≤ 70 (heuristic) | `check_criterion_executability.py` — triggers when `vague_ratio > 0.10` OR `acceptable_ratio < 0.80` across DoD/Acceptance Criteria bullets. Each criterion scored on 3 axes (observable verb, measurable object, oracle). HONESTLY HEURISTIC: linguistic patterns can false-positive; the JSON sub_report lists every vague criterion for human override via `/plan-improve`. Closes the plan-vagueness propagation gap (companion gate in `skills/implement/scripts/check_tdd_shape.py`). |
 | `--skip-checks` flag does not exist and SHALL NOT be added | Constructor invariant in `run_structural.py` |
 | Score capped MUST appear marked in the report | Rendering rule |
 | `hard_caps_triggered` list MUST be non-empty when verdict==INVALID | JSON schema invariant |
 | Renormalization (D8) does NOT bypass hard caps | `final_score_after_caps = min(weighted_avg, smallest_active_cap)` |
-| `/deps-audit` returns FAIL_INSECURE → score ≤ 49 (CVE in declared dep) | v1.1 (2026-05-22) — wired via `run_structural.py` `--invoke-deps-audit` (planned downstream — see `cycle-plan.md` v1.1 § Downstream changes) |
-| `/code-quality` returns FAIL_HARD → score ≤ 49 (unallowlisted dead code OR fabricated symbol) | v1.2 (2026-05-22) — wired via `run_structural.py::_invoke_code_quality()` extension. Stable identifiers: `dead_code_unallowlisted_{python\|typescript\|rust\|go}`, `symbol_fabrication_{python\|typescript\|rust\|go}`, `allowlist_malformed_entry`. |
 
 ## When this rule may change
 
@@ -70,10 +61,3 @@ PRs that **add** new hard caps (e.g., M3 activates "fabricated citation") follow
 - Thresholds: `.claude/rules/plan-confidence-thresholds.txt`
 - Allowlist: `.claude/rules/plan-confidence-allowlist.txt`
 - Defaults (fallback): `.claude/skills/plan-confidence/defaults/`
-- Sibling golden rules consumed at runtime: [`deps-audit-golden-rule.md`](./deps-audit-golden-rule.md), [`code-quality-golden-rule.md`](./code-quality-golden-rule.md)
-
-## Log of changes
-
-| Date | Change | Authorized by |
-|---|---|---|
-| 2026-05-22 | Extension: added `/deps-audit` (v1.1) + `/code-quality` (v1.2) verdict consumption rows to `## Rules that cannot be bent`. Extension (not softening) per the policy in `## When this rule may change`. Sibling golden rules added to `## Related`. | Project owner via explicit approval. |

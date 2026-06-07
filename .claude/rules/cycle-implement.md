@@ -34,12 +34,29 @@ A task is **not** complete until all three are present:
 2. **Integration test** — covers the boundary the unit test mocked.
 3. **Runtime metric** — counter, histogram, or log line that lets ops see the new behavior in production. Without observability, the feature is invisible when it breaks.
 
+## Hard gates (pre-loop, at Step 2)
+
+- **Every plan task has an executable RED-test shape** — verified by `skills/implement/scripts/check_tdd_shape.py`. Tasks whose `#### TDD` body contains only prose (no assertion / GWT / `test_<behavior>` literal) BLOCK the halt-loop from starting. Defense in depth against vague plans that slipped past `/plan-confidence`'s `check_criterion_executability`. Failure path: loop back to `cycle-plan` `/plan-improve`.
+
 ## Hard gates (per iteration)
 
 - Test suite green before commit.
 - Linter clean (project-specific — see `rules/code-quality-languages.txt`).
 - No new symbols left dangling (every new function/class has a caller or a test exercising it).
 - CHANGELOG `[Unreleased]` updated (Unbreakable Rule 6).
+
+## Hard gates (per phase boundary — Step 4.7 mini review)
+
+When a commit closes a `## Phase N` of the plan, `skills/implement/scripts/mini_review.py` MUST run BEFORE the halt-loop accepts the next task. Verdict drives:
+
+| Verdict | Trigger | Action |
+|---|---|---|
+| `PHASE_REVIEW_PASS` | No HIGH or BLOCKER findings | Proceed to next phase |
+| `PHASE_REVIEW_NEEDS_FIX` | ≥ 1 HIGH/BLOCKER finding | Halt-loop emits BLOCKED with report path; surface to human; resume via § Step 4 "Resume after recovered blocker" only after fix |
+
+Aggregated checks: phase completeness, diff cohesion (declared scope vs modified files), wiring summary (pillar a non-negotiable across all phase symbols), delta-scoped code-quality (currently SKIP — full audit still runs at Step 5).
+
+Skipping mini review on phase boundary is a documented anti-pattern: design problems compound across phases, and the cost to fix grows linearly with each skipped boundary. Plans without `## Phase N` headers cause Step 4.7 to SKIP gracefully (no phases → no boundaries).
 
 ## Hard gates (post-halt-loop, before `IMPLEMENTATION_COMPLETE` is honored)
 
@@ -98,5 +115,15 @@ Contract:
 - Schema for cycle rules: `rules/cycle-rule-schema.md`
 - Skill: `skills/implement/SKILL.md`
 - Conventions: `rules/architecture.md`, `rules/testing.md`, `rules/loop-engine-convention.md`
+- Macro super-loop: `rules/cycle-roadmap.md` — one cycle-implement run per milestone in the super-loop
 - Upstream: `rules/cycle-plan.md` (plan must reach verdict ≥ SHIPPABLE_WITH_CAVEATS)
 - Downstream: `rules/cycle-code-quality.md` (runs after `IMPLEMENTATION_COMPLETE`)
+- Companion gates against plan vagueness:
+  - Plan-side (heuristic, linguistic): `skills/plan-confidence/scripts/check_criterion_executability.py`
+  - Implement-side (structural, shape detection): `skills/implement/scripts/check_tdd_shape.py`
+- Phase-boundary mini review (Step 4.7):
+  - Orchestrator: `skills/implement/scripts/mini_review.py`
+  - Phase completeness: `skills/implement/scripts/check_phase_completeness.py`
+  - Diff cohesion: `skills/implement/scripts/check_diff_cohesion.py`
+  - Reports persisted at: `knowledge-base/mini-reviews/{slug}-phase{N}-review-{date}.md`
+  - Companion to `cycle-review.md` (final review): mini review is cheap-fast per-phase; cycle-review is heavyweight at the end. Both must pass for handoff.
