@@ -49,6 +49,7 @@ import {
   type AnyPgColumn,
   bigint,
   bigserial,
+  boolean,
   check,
   index,
   integer,
@@ -411,3 +412,27 @@ export const theoApiKeys = pgTable(
       .where(sql`${table.revokedAt} IS NULL`),
   ],
 );
+
+/**
+ * admin_config — single-row config table powering ADR D7 bootstrap
+ * self-revoke (EC-3 absorption of the plan's edge-case review).
+ *
+ * After the first admin key is issued via the env-bootstrap token, the
+ * `bootstrap_consumed` flag flips to TRUE in the SAME transaction as
+ * the INSERT — making the bootstrap-token path single-use. Subsequent
+ * bootstrap-token attempts return 401 `BOOTSTRAP_CONSUMED`. Closes the
+ * EC-3 silent-backdoor exploit (leaked bootstrap token persisting even
+ * after admin key revoke).
+ *
+ * Single-row invariant enforced via `id INT PRIMARY KEY DEFAULT 1
+ * CHECK (id = 1)` in the migration. Migration seeds the row on first
+ * install via `INSERT ... ON CONFLICT DO NOTHING`.
+ *
+ * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2.1
+ * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-3
+ */
+export const adminConfig = pgTable('admin_config', {
+  id: integer('id').primaryKey().default(1),
+  bootstrapConsumed: boolean('bootstrap_consumed').notNull().default(false),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+});

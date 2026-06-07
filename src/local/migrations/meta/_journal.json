@@ -92,6 +92,13 @@
       "when": 1780841767511,
       "tag": "0012_theo_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780843560551,
+      "tag": "0013_admin_config",
+      "breakpoints": true
     }
   ]
 }
