@@ -8,7 +8,7 @@
  * @see Plan theo-memory-standalone-p0 § ADR D11
  */
 export { createApp as createServer } from './app.js';
-export type { CreateServerOptions } from './app.js';
+export type { AdminApiOptions, CreateServerOptions } from './app.js';
 
 export { BearerAuthVerifier, readApiKey } from './auth/bearer-verifier.js';
 export { bearerAuth } from './auth/middleware.js';
