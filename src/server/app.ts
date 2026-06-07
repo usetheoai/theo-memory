@@ -22,6 +22,10 @@ import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopesHandler } from './handlers/scopes.js';
+import {
+  wellKnownOauthProtectedResourceHandler,
+  type OidcDiscoveryConfig,
+} from './handlers/well-known.js';
 import { otelMiddleware } from './observability/otel-middleware.js';
 import { registerAllPaths } from './openapi-registration.js';
 
@@ -55,10 +59,19 @@ export interface CreateServerOptions {
    * for callers that pre-warm before invoking `createServer`).
    */
   readonly readinessProbe?: () => boolean;
+  /**
+   * T4.2 + ADR-0015 #4 — when supplied, exposes RFC 9728 metadata at
+   * `/.well-known/oauth-protected-resource` so MCP clients can auto-discover
+   * the OIDC issuer + supported scopes WITHOUT manual config. The endpoint
+   * is auth-exempt (mounted BEFORE the bearer middleware) — clients fetch
+   * it before having a token. When omitted, the well-known endpoint returns
+   * 404 `OIDC_DISCOVERY_NOT_CONFIGURED` (honest no-OIDC signal).
+   */
+  readonly oidcDiscovery?: OidcDiscoveryConfig;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery } = options;
   const app = new OpenAPIHono();
 
   // EC-19 absorption — /v1/openapi.json MUST resolve auth-exempt even when
@@ -118,6 +131,16 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // endpoints break Kubernetes / docker-compose `--wait` readiness gates.
   app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
   app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+
+  // T4.2 / ADR-0015 #4 — RFC 9728 discovery endpoint MUST be auth-exempt.
+  // MCP clients fetch it BEFORE having a token. Mount BEFORE bearer
+  // middleware AND outside the `/v1/*` prefix per the RFC 9728 well-known
+  // URI pattern. Returns 404 when no oidcDiscovery configured (handler
+  // owns the 404 envelope — see well-known.ts).
+  app.get(
+    '/.well-known/oauth-protected-resource',
+    wellKnownOauthProtectedResourceHandler(oidcDiscovery),
+  );
 
   app.use('/v1/*', bearerAuth(authVerifier));
 
