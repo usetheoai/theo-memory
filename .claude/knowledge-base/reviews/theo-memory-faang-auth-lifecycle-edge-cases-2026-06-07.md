@@ -1,93 +1,109 @@
-# Discover Edge Case Review — theo-memory-faang-auth-lifecycle
+# Edge Case Review — theo-memory-faang-auth-lifecycle
 
 Data: 2026-06-07
-Discovery plan analisado: `.claude/knowledge-base/discoveries/plans/theo-memory-faang-auth-lifecycle-plan.md` (v1.0)
-Research questions analisadas: 9 (Q1, Q2, Q3, Q4, Q5, Q7, Q8, Q-deps-1, Q-tests-1)
-Edge cases encontrados: **10 (MUST FIX: 5, SHOULD TEST: 3, DOCUMENT: 2)**
+Plano analisado: `.claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md` (v1.0)
+Tasks analisadas: 10 (T0.1, T0.2, T1.1, T1.2, T2.1, T2.2, T2.3, T3.1, T4.1, T4.2, T5.1)
+Edge cases encontrados: **13 (MUST FIX: 5, SHOULD TEST: 5, DOCUMENT: 3)**
 
 ## MUST FIX
 
-### EC-1: Q1 cita `posthog/models/personal_api_key.py` sem verificação prévia do path
-- **Question afetada:** Q1 (token model)
-- **Família:** Citation / Reference
-- **Cenário:** Durante `/discover-execute`, Fase B tenta `WebFetch raw.githubusercontent.com/PostHog/posthog/.../posthog/models/personal_api_key.py` e recebe 404 porque o repo PostHog tem outra organização de pastas (modelo pode estar em `ee/models/`, `frontend/.../personalAPIKey.ts`, ou renomeado). Resultado: question marca BLOCKED por reason errada ("path not found") em vez de seguir uma busca lateral, perdendo a resposta legítima.
-- **Impacto:** Q1 row "PostHog" fica vazio no verdict matrix, derrubando "Cross-cutting comparison table populated" do Objective. Cai em SHIPPABLE_WITH_CAVEATS evitável.
-- **Fix sugerido:** Trocar "Read PostHog source file via github.com `posthog/posthog` `posthog/models/personal_api_key.py`" por "Search github.com `PostHog/posthog` for `personal_api_key` to LOCATE the canonical file, THEN Read". Idem para qualquer hard-coded path não-verificado.
+### EC-1: dual-validation prefix-routing has NO fallthrough policy when `theo_live_*` collides
+- **Task afetada:** T3.1 (dual-validation middleware composition)
+- **Família:** Boundary / Format
+- **Cenário:** OIDC issuer happens to issue access tokens starting with the literal `theo_live_` (unlikely but possible — `theo_live_` is not RFC-protected). The middleware routes them to `apiKey.verify()`; SHA-256 lookup fails (token not in `theo_api_keys` table); the middleware returns false → 401. Legitimate OIDC consumer is BLOCKED. Worse: if a future OIDC issuer is configured AFTER deploy, every existing `theo_live_*`-collision JWT silently 401s with no explanation in logs.
+- **Impacto:** Silent privilege denial for legitimate OIDC consumers. Plan T3.1 pseudocode is `if startsWith('theo_live_') → apiKey.verify → return` — there's no fallthrough.
+- **Fix sugerido:** In `dualValidationAuth`, tighten the prefix check to require `theo_live_` + at least 32 chars AND match the `theo_live_[A-Za-z0-9_-]{43}` regex shape; if shape doesn't match BUT prefix starts, log a `prefix_collision_detected` warning + fall through to `oidc.verify(token)`. Add this as a new edge case in T3.1 Deep Dives + add a RED test `dual_validation_falls_through_to_oidc_when_theo_live_prefix_shape_invalid`.
 
-### EC-2: Q2 não distingue GitHub PAT classic vs fine-grained — dois sistemas com vocabulários diferentes
-- **Question afetada:** Q2 (scope vocabulary)
-- **Família:** Interpretation
-- **Cenário:** GitHub PAT ships hoje em DUAS variantes (classic com scopes legacy `repo`/`gist`/`admin:org` + fine-grained com `contents:read`/`contents:write`/`metadata:read`). Q2 fala genericamente "docs.github.com PAT scopes reference". `/discover-execute` pode citar apenas uma variante e perder a comparação relevante (classic = broad role, fine-grained = resource:verb — exatamente a tensão que estamos investigando).
-- **Impacto:** Resposta Q2 incompleta; conclusão sobre "granularity convention" fica enviesada. Verdict matrix Q2 × GitHub fica simplista.
-- **Fix sugerido:** Adicionar sub-questions explícitas Q2a (classic PAT scope vocabulary) + Q2b (fine-grained PAT permissions vocabulary) com WebFetch separado para cada doc page.
+### EC-2: Recursive CTE in lineage query has NO cycle detection
+- **Task afetada:** T2.1 (lineage handler) + T0.2 (schema FK shape)
+- **Família:** State
+- **Cenário:** A bug (or malicious admin) creates `theo_api_keys` rows where A.rotated_from = B AND B.rotated_from = A (cyclic FK self-reference). The recursive CTE walks A → B → A → B → ... and only stops at the `LIMIT 100` cap — returning a polluted lineage chain that confuses dashboard UI + lineage table query plan.
+- **Impacto:** UI shows nonsense chain; database query plan inflates; in cloud-repo, the same bug would propagate to multi-tenant via the same code path.
+- **Fix sugerido:** In the lineage CTE add `UNION` (not `UNION ALL`) to dedupe rows + add a "cycle detected" sentinel via `WHERE NOT EXISTS (recursive visited check)`. Alternative pragmatic fix: add a DB CHECK constraint `id != rotated_from` at the schema level (T0.2) to forbid self-rotation at the row level. Add test `lineage_handles_cyclic_rotated_from_safely` in T2.1.
 
-### EC-3: Q3 cita 4 source paths hard-coded sem verificação para Supabase/PostHog/Cal.com/Plausible
-- **Question afetada:** Q3 (OSS lifecycle parity)
-- **Família:** Citation / Reference
-- **Cenário:** Mesma classe de EC-1 mas em escala 4×. Paths citados (`supabase/supabase/apps/studio/...`, `PostHog/posthog/frontend/.../personalAPIKeysLogic.ts`, `calcom/cal.com/packages/.../apiKeys.tsx`, `plausible/analytics/lib/plausible_web/api/...`) são placeholders — Supabase apps/studio recentemente foi reestruturada, Cal.com move arquivos a cada release. Probabilidade alta de 1+ path 404 em `/discover-execute`.
-- **Impacto:** Q3 vira 4× tentativa de fetch que falha → time-budget de 10 min consumido só em retries → Q3 row no verdict matrix fica majoritariamente BLOCKED, comprometendo o coração da investigação (lifecycle parity é a thesis central).
-- **Fix sugerido:** Substituir todos os 4 paths por "github.com search per repo (e.g., `repo:supabase/supabase \"personal_access_token\" path:**/api-keys/`) to LOCATE, then Read". Documentar no Fase B column explicitamente "no hard-coded paths — locate first".
+### EC-3: Bootstrap token + revoked admin key — precedence undefined
+- **Task afetada:** T2.2 (scope verifier) + ADR D7
+- **Família:** Permission / State
+- **Cenário:** Operator sets `THEMORY_ADMIN_BOOTSTRAP_TOKEN=<env>`, issues a first admin key via bootstrap, then revokes that admin key (intent: rotate). They forget to UNSET the bootstrap env var. Now the bootstrap token STILL works (gives admin), but the admin key DOESN'T. The bootstrap is now an undocumented backdoor — not invalidatable without server restart.
+- **Impacto:** Bootstrap leak = persistent admin escalation that revoke cannot kill. Inquebrável Rule 8 violation (silent persistence).
+- **Fix sugerido:** ADR D7 must REQUIRE the bootstrap token to be VALIDATED AT EACH USE against a server-side flag `bootstrap_consumed: boolean` stored in a one-row admin-config table OR in `theo_api_keys` as a special sentinel row. Once the first admin key is created, set `bootstrap_consumed = true` + reject subsequent bootstrap-token uses (return 401 + log `bootstrap_already_consumed`). Add this as new sub-task T2.2.1 + sentinel test `bootstrap_token_self_revokes_after_first_admin_key_issuance`.
 
-### EC-4: Q-tests-1 cita `supabase/auth/internal/api/token_test.go` — Supabase renomeou GoTrue → auth recentemente
-- **Question afetada:** Q-tests-1
-- **Família:** Reference / Repo move
-- **Cenário:** Supabase renomeou o repo `supabase/gotrue` → `supabase/auth` em 2024, e a estrutura interna mudou. Path citado `internal/api/token_test.go` é plausível mas não verificado. Se inexistente, Q-tests-1 fica BLOCKED por path errado em vez de captura honesta da rotação-pattern.
-- **Impacto:** Tests corner fica BLOCKED → halt-loop checkpoint "all 4 canonical corners ≥ 1 non-BLOCKED" pode disparar `BLUEPRINT_BLOCKED`, exigindo iteração extra.
-- **Fix sugerido:** Trocar por "Search github.com `supabase/auth` for `*token_test*` OR `*refresh_test*` to LOCATE the rotation test file, then Read". Adicionar fallback explicit "se Supabase auth não tem .go test relevante, fallback para `supabase-community/auth-py` ou Cal.com auth tests".
+### EC-4: OidcAuthVerifier has NO HTTP timeout on introspection call
+- **Task afetada:** T3.1 (OidcAuthVerifier impl)
+- **Família:** Resource / I/O
+- **Cenário:** OIDC issuer (Hydra/Keycloak/Auth0) is slow OR network is partitioned. Default `oauth4webapi` calls use `fetch` with no timeout → request hangs forever. Every memory API call queues behind the hung introspection. Process eventually OOMs from accumulated pending requests.
+- **Impacto:** DoS via slow OIDC issuer. Inquebrável Rule 8 fail-fast violation.
+- **Fix sugerido:** In T3.1 `OidcConfig` add `introspectionTimeoutMs?: number` (default 5000 = 5s). In the impl, wrap the introspection call with `AbortController` + 5s timeout; on timeout return false (treats as failed auth → 401) AND log `introspection_timeout`. Add RED test `oidc_verify_returns_false_on_introspection_timeout`.
 
-### EC-5: Q5 budget de 6 min cobre 4 fontes + 2 compliance frameworks — too tight
-- **Question afetada:** Q5 (audit log + rate-limit combined)
-- **Família:** Time / Scope
-- **Cenário:** Q5 foi resultado da colapsação Q5+Q6 (audit log + rate-limit) mas o budget permaneceu em 6 min (anterior ao merge). 4 fontes (Supabase + PostHog + Stripe + SOC2/GDPR) × 2 verticais (audit, rate-limit) = 8 WebFetches mínimas, em 6 min → 45s cada, abaixo do realista para WebFetch + parsing. Risk alto de BLOCKED por "budget exhausted" deixando Camada 4 documentação incompleta.
-- **Impacto:** Cloud-repo follow-up plan (D4) fica sem reference shape suficiente; FAANG-completeness narrative perde substância.
-- **Fix sugerido:** Bumpar Q5 budget de 6 min → 12 min. Compensar tirando 2 min de Q7 (6→4 — Q7 é mais focado) e 4 min de Q-deps-1 (8 min implícitos ao distribuir os 60 total entre 9 questions — recortar para 4 min porque npmjs.com pages são quick). Re-tally total: ainda ≤ 60 min.
+### EC-5: Concurrent introspection cache miss — thundering herd against OIDC issuer
+- **Task afetada:** T3.1 (OidcAuthVerifier cache)
+- **Família:** Timing / Concurrency
+- **Cenário:** 100 concurrent requests come in for the SAME token; cache is empty (first time OR just expired). All 100 fire introspection HTTP calls in parallel. OIDC issuer is DDoS'd by legitimate traffic spike. If issuer rate-limits us, all 100 fail → all 100 return 401 to legitimate users.
+- **Impacto:** DDoS amplification (1 client request → 100 introspect calls). RFC 7662 § 4 caveat explicitly warns about caching trade-offs but doesn't mandate coalescing.
+- **Fix sugerido:** In T3.1 OidcAuthVerifier impl, add request-coalescing via a `Map<token-hash, Promise<boolean>>` keyed by SHA-256 of the token. When a cache miss happens, the FIRST call creates the Promise + stores it; subsequent calls for the same token-hash AWAIT the same Promise. After the Promise settles, store result in cache + remove from in-flight map. ~10 LoC + 1 test `oidc_verify_coalesces_concurrent_cache_misses_for_same_token`.
 
 ## SHOULD TEST
 
-### EC-6: Halt-loop checkpoint — pre-Fase-B path-existence validation
-- **Question afetada:** Cross-cutting (Q1, Q3, Q4, Q7, Q-tests-1, Q-deps-1)
-- **Halt-loop checkpoint sugerido:** Antes de Fase B de cada question que cita um github.com path, validar que o URL retorna HTTP 200 via `WebFetch HEAD` (ou GET com `--silent --output /dev/null --write-out '%{http_code}'`). Se 404 → caminho lateral declarado (search-then-locate) OU BLOCKED honesto sem padding.
+### EC-6: Concurrent createKey id collision
+- **Task afetada:** T2.1
+- **Teste sugerido:** `create_key_handles_id_collision_via_db_unique_constraint` — fire 100 concurrent createKey calls; assert all 100 succeed AND all return distinct apk-{16hex} ids (validates the apk-id generation entropy + DB UNIQUE PK retry path).
 
-### EC-7: Q7 docs.github.com partner-program pode requerer login (admin-only docs)
-- **Question afetada:** Q7 (secret scanning)
-- **Halt-loop checkpoint sugerido:** Detectar resposta 401/403 OR redirect-to-login na primeira WebFetch a docs.github.com partner-program. Se gated → mark Q7 sub-claim "registration procedure" BLOCKED com reason "docs.github.com partner-program requires login"; fallback para `github.com/github/secret_scanning_partner_demo` README (público) E para o public Partner Program announcement post na GitHub blog (allowlist needs github.blog if not already).
+### EC-7: createKey accepts duplicate scopes in input array
+- **Task afetada:** T2.1
+- **Teste sugerido:** `create_key_dedupes_scopes_array` — POST with `scopes: ["memory:read", "memory:read", "memory:write"]` → DB row's scopes column has `["memory:read", "memory:write"]` (2 entries, not 3). Implementation fix: `scopes: [...new Set(input.scopes)]` before INSERT.
 
-### EC-8: D5-supplement custom corners podem disparar `empty_corner_*` no check_research_coverage.py
-- **Question afetada:** Cross-cutting (Q3 integration_patterns + Q4 protocols)
-- **Halt-loop checkpoint sugerido:** Antes de emitir `<promise>BLUEPRINT_COMPLETE</promise>`, verificar com `check_research_coverage.py --dry-run` que apenas os 4 canônicos (tests/deps/tools/techniques) são contados pelo checker e que cada um tem ≥ 1 question. Custom corners (integration_patterns, protocols) DEVEM ser additivos e NÃO devem subtrair do canonical count. Se o checker exigir Q3 (integration_patterns) OR Q4 (protocols) re-classificados como `techniques`, fazer a re-classificação manualmente sem retoque no Coverage Matrix table (preserva semantic clarity).
+### EC-8: SHA-256 hash with token containing SQL metachars
+- **Task afetada:** T1.2
+- **Teste sugerido:** `verify_handles_token_with_sql_metachars_safely` — pass token `theo_live_abc'; DROP TABLE theo_api_keys; --` and assert the parameterized query runs safely + returns false (no injection); pin the parameterization invariant.
+
+### EC-9: testcontainers + pgvector cold-start timeout
+- **Task afetada:** T5.1
+- **Teste sugerido:** Configure `vitest.integration.config.ts` `testTimeout: 90_000` for tests under `tests/integration/auth/`; document in T5.1 Deep Dive that first pgvector image pull can take 60s+. Add comment in test file: `// First run pulls ankane/pgvector:v0.5.1 image (~250MB); allow 90s timeout`.
+
+### EC-10: WWW-Authenticate header format per RFC 6750 § 3
+- **Task afetada:** T4.1
+- **Teste sugerido:** `mcp_http_401_includes_well_formed_www_authenticate` — assert response has `WWW-Authenticate: Bearer realm="theo-mcp", error="invalid_token", error_description="<reason>", resource_metadata="/.well-known/oauth-protected-resource"` (per RFC 6750 § 3 + MCP spec Q8 finding). Test pin prevents drift.
 
 ## DOCUMENT
 
-### EC-9: SOC2 Type II spec text está em paywall (AICPA) — honest BLOCKED é o caminho certo
-- **Risco aceito:** Q5 sub-claim "SOC2 mandates" será BLOCKED por paywall. A versão pública mais próxima é a SOC2 Common Criteria 6.1 referida em blogs (não-allowlisted). Aceitar: usar **GDPR Article 30** como anchor compliance reference (publicamente disponível via eur-lex; allowlist precisa de eur-lex.europa.eu SE for usar — alternativamente usar paráfrase via aclanthology ou citar RFC equivalents). Camada 4 cloud plan absorve a SOC2 specificity (cloud team tem acesso ao AICPA via vendor). ADR-style: NÃO fabricar citação SOC2; declarar limitation honestamente na blueprint.
+### EC-11: SHA-256 hash collision in 256-bit space
+- **Risco aceito:** Collision probability is ~1 in 2^128 (birthday bound). DB UNIQUE constraint on `key_hash` column catches the astronomical case + returns 500 INTERNAL_ERROR which is honest. Per ADR D4 of cloud-repo plan ("astronomically unlikely but is the one branch we differentiate so we don't lie about it being a generic error") — log line included. No code change needed beyond existing UNIQUE constraint.
 
-### EC-10: Q4 supersession-path (D6) depende de Fase B realmente completar
-- **Risco aceito:** Se Q4 (OIDC bridge) ficar BLOCKED por RFC parse timeout (RFCs 8693 + 7662 + 6749 são longos), a recomendação D6 "may supersede ADR-0009" não pode ser emitida. Caminho ADR-style: nesse caso ADR-0009 fica unchanged + Camada 3 OIDC bridge ships preservando o "OAuth deferred to v1.x" status quo de ADR-0009. Documentar no blueprint que D6 é CONDITIONAL on Q4 completion.
+### EC-12: Cache staleness window on upstream revoke
+- **Risco aceito:** When the OIDC issuer revokes a token upstream, our cache MAY hold it as `active: true` for up to TTL (60-300s default). This is explicitly documented in RFC 7662 § 4 as a known trade-off. Document in ADR-0013 + the `--oidc-cache-ttl-seconds` flag docs that operators concerned about revocation propagation should set TTL=0 (disable cache, 1 introspection per request) for high-sensitivity deployments.
+
+### EC-13: DPoP RFC 9449 is DEFERRED to Camada 4
+- **Risco aceito:** Bearer tokens are bearer-bound (anyone with the token can use it). DPoP would bind the token to a client-side keypair (theft-resistant). Per blueprint Q5: enterprise-tier feature deferred to Camada 4 cloud-repo plan. Document in ADR-0013 as a known gap with the deferral rationale; revisit when enterprise customers ask.
 
 ## Resumo
 
-| Question | Edges | MUST FIX | SHOULD TEST | DOCUMENT |
-|----------|-------|----------|-------------|----------|
-| Q1 | 1 | 1 | 0 | 0 |
-| Q2 | 1 | 1 | 0 | 0 |
-| Q3 | 1 | 1 | 0 | 0 |
-| Q4 | 1 | 0 | 0 | 1 |
-| Q5 | 2 | 1 | 0 | 1 |
-| Q7 | 1 | 0 | 1 | 0 |
-| Q8 | 0 | 0 | 0 | 0 |
-| Q-deps-1 | 0 | 0 | 0 | 0 |
-| Q-tests-1 | 1 | 1 | 0 | 0 |
-| Cross-cutting | 3 | 0 | 2 | 0 |
-| **TOTAL** | **10** | **5** | **3** | **2** |
+| Task | Edges | MUST FIX | SHOULD TEST | DOCUMENT |
+|------|-------|----------|-------------|----------|
+| T0.1 | 0 | 0 | 0 | 0 |
+| T0.2 | 1 | 0 | 0 | 1 (EC-11) |
+| T1.1 | 0 | 0 | 0 | 0 |
+| T1.2 | 1 | 0 | 1 (EC-8) | 0 |
+| T2.1 | 3 | 0 | 2 (EC-6, EC-7) | 0 |
+| T2.2 | 1 | 1 (EC-3) | 0 | 0 |
+| T2.3 | 0 | 0 | 0 | 0 |
+| T3.1 | 4 | 3 (EC-1, EC-4, EC-5) | 0 | 1 (EC-12) |
+| T3.2 | 0 | 0 | 0 | 0 |
+| T4.1 | 1 | 0 | 1 (EC-10) | 0 |
+| T4.2 | 0 | 0 | 0 | 0 |
+| T5.1 | 1 | 0 | 1 (EC-9) | 0 |
+| Cross-cutting (schema cycle, DPoP) | 2 | 1 (EC-2) | 0 | 1 (EC-13) |
+| **TOTAL** | **13** | **5** | **5** | **3** |
 
-**Veredicto: DISCOVERY PLAN PRECISA DE AJUSTE**
+**Veredicto: PLANO PRECISA DE AJUSTE** — 5 MUST FIX precisam de absorção em v1.1 antes de `/plan-confidence`:
 
-5 MUST FIX bloqueiam `/discover-execute` em sua forma atual. Recomendação: bumpar o plano de v1.0 para v1.1 absorvendo:
+1. **EC-1** (dual-validation fallthrough) — extend T3.1 Deep Dive + add RED test
+2. **EC-2** (lineage cycle detection) — extend T0.2 schema (CHECK `id != rotated_from`) + T2.1 CTE adjustment
+3. **EC-3** (bootstrap self-revoke) — extend ADR D7 + new sub-task T2.2.1 + sentinel test
+4. **EC-4** (OIDC introspection timeout) — extend T3.1 Deep Dive (`introspectionTimeoutMs` default 5000) + RED test
+5. **EC-5** (concurrent cache-miss coalescing) — extend T3.1 Deep Dive (in-flight Map<token-hash, Promise>) + RED test
 
-1. **EC-1 + EC-3 + EC-4** (mesma família — paths hard-coded sem verify): converter todos os "Read github.com `repo/path/file.ext`" em "Search github.com `repo` for `<symbol>` to LOCATE, then Read". Pattern único aplicado em ~5 cells da tabela Q×Method.
-2. **EC-2**: split Q2 em Q2a + Q2b para classic-vs-fine-grained PAT.
-3. **EC-5**: re-balancear time-budget (Q5: 6→12 min, Q7: 6→4 min, Q-deps-1: 8→4 min).
-4. SHOULD TEST (EC-6, EC-7, EC-8): adicionar 3 bullets na seção `## Halt-loop checkpoints` do plano.
-5. DOCUMENT (EC-9, EC-10): adicionar 2 entries na seção `## ADRs` como ADR D7 (SOC2 paywall fallback) + ADR D8 (D6 supersession conditional on Q4).
+5 SHOULD TEST become new RED tests added to existing tasks (EC-6 into T2.1, EC-7 into T2.1, EC-8 into T1.2, EC-9 into T5.1, EC-10 into T4.1).
 
-Após v1.1: re-rodar `/discover-plan-confidence` e prosseguir para `/discover-execute` quando verdict ≥ SHIPPABLE_WITH_CAVEATS.
+3 DOCUMENT become explicit notes (EC-11 into T0.2 + ADR D5 consequences; EC-12 into ADR-0013 § Consequences; EC-13 into ADR-0013 § Alternatives row "DPoP DEFERRED").
+
+After v1.1 absorption: re-run `/plan-confidence` and proceed when verdict ≥ SHIPPABLE_WITH_CAVEATS.
