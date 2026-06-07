@@ -30,9 +30,13 @@ function readPackageJson(): PackageJson {
 }
 
 describe('T0.1 — NEW dep version alignment per ADR D14 (sunset 2026-09-01)', () => {
-  test('hono pinned at ^4.6 (dependencies)', () => {
+  test('hono pinned at >=4.11.4 (dependencies; ADR D4 of theo-memory-faang-auth-lifecycle supersedes ADR D14 hono pin per 2026-01-13 CVEs)', () => {
     const pkg = readPackageJson();
-    expect(pkg.dependencies['hono']).toMatch(/^\^4\.[6-9]\.|^\^4\.[1-9][0-9]\./);
+    // Pre-CVE shape `^4.6.x` is FORBIDDEN — the new pin shape is `>=4.11.4`
+    // OR a caret form whose floor is >= 4.11.4 (e.g., `^4.11.4` / `^4.12.0`).
+    // Detailed range parser lives in tests/unit/deps/hono-cve-pin.test.ts;
+    // here a regex suffices since the new ADR D4 only accepts these two shapes.
+    expect(pkg.dependencies['hono']).toMatch(/^(>=4\.(1[1-9]|[2-9][0-9])\.[4-9]|>=4\.(1[1-9]|[2-9][0-9])\.[1-9][0-9]+|>=4\.(1[2-9]|[2-9][0-9])\.|>=[5-9]\.|\^4\.(1[1-9]|[2-9][0-9])\.[4-9]|\^4\.(1[2-9]|[2-9][0-9])\.)/);
   });
 
   test('@hono/node-server pinned at ^1.13 (dependencies; v2 deferred per ADR D14)', () => {
@@ -62,12 +66,15 @@ describe('T0.1 — NEW dep version alignment per ADR D14 (sunset 2026-09-01)', (
 });
 
 describe('EC-18 — hono + @hono adapter major-version compat smoke', () => {
-  test('hono major ^4 + @hono/node-server major ^1 + @hono/zod-openapi major ^0 known-compatible', () => {
+  test('hono major 4 + @hono/node-server major ^1 + @hono/zod-openapi major ^0 known-compatible', () => {
     const pkg = readPackageJson();
-    // Per plan ADR D1: aligned at "hono ^4.6 + @hono/zod-openapi ^0.18 + @hono/node-server ^1.13"
-    // confirmed via vendor docs (see SEPA paired knowledge skill WebSearch on 2026-06-03).
-    // If any of these majors drift, the smoke fails and forces an ADR amendment.
-    expect(pkg.dependencies['hono']?.startsWith('^4.')).toBe(true);
+    // Per plan ADR D1 of standalone-p0 + ADR D4 of theo-memory-faang-auth-lifecycle:
+    // hono pin shape evolved from `^4.6.x` (D14) to `>=4.11.4` (D4 — CVE-driven).
+    // The COMPAT smoke pins the MAJOR to 4 regardless of the pin shape — major drift
+    // (to 5) still requires an ADR amendment.
+    const honoRange = pkg.dependencies['hono'];
+    expect(honoRange).toBeDefined();
+    expect(honoRange?.startsWith('^4.') || honoRange?.startsWith('>=4.')).toBe(true);
     expect(pkg.dependencies['@hono/node-server']?.startsWith('^1.')).toBe(true);
     expect(pkg.dependencies['@hono/zod-openapi']?.startsWith('^0.')).toBe(true);
   });
