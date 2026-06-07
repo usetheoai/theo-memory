@@ -24,9 +24,9 @@ import type {
 import type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 export interface Mem0VendorClient {
-  add(scopeKey: string, text: string): Promise<void>;
+  add(userId: string, text: string): Promise<void>;
   search(
-    scopeKey: string,
+    userId: string,
     query: string,
     topK: number,
   ): Promise<readonly { text: string; score: number }[]>;
