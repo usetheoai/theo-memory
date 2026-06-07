@@ -73,3 +73,7 @@ Resolution order at v0.5 runtime:
 - Roadmap Item 7 (`v0.5 — TheoCloud runtime + bi-temporal premium`) — destination for the cloud auth implementation.
 - T2.5 `CloudMemoryConfig` shape (ships the `apiKey?: string` + `baseUrl?: string` fields).
 - `@usetheo/sdk` documentation — confirms shared `THEOKIT_API_KEY` convention.
+
+## Supersession history
+
+- **2026-06-07** — § Alternatives row 4 ("OAuth / OIDC flow — Deferred to v1.x") is **SUPERSEDED** by [ADR-0013](./ADR-0013-oidc-bridge-via-introspection.md). The Camada 3 OIDC bridge via RFC 7662 dual-validation middleware lands in `@usetheo/memory/server` via the `theo-memory-faang-auth-lifecycle` cycle (Sub-goal 2 + Sub-goal 3 hardening per CLAUDE.md PRIORITY 0). The historical row remains in this ADR unchanged per `architecture.md` history-preservation rule (Inquebrável Rule 4 — git history is the audit trail; ADRs append, do not rewrite). Future cycles MUST cite ADR-0013 as the active OIDC contract; this row is preserved only for archaeological context (it documents the deferral that was honest in 2026-05-22 and is no longer honest in 2026-06-07 after the blueprint-Q4 empirical verification).
