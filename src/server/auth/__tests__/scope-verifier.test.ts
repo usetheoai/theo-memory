@@ -28,21 +28,30 @@ const READ_ONLY_TOKEN = `theo_live_${'b'.repeat(40)}`;
 const BOOTSTRAP_TOKEN = 'bootstrap-test-token-32chars-min!!';
 
 function makePool(rowsByHash: Record<string, { scopes: string[] }>): AuthPool {
+  const queryImpl = <T>(_sql: string, params: readonly unknown[]): Promise<{ rows: T[] }> => {
+    const hash = params[0] as string;
+    const row = rowsByHash[hash];
+    if (!row) return Promise.resolve({ rows: [] as T[] });
+    return Promise.resolve({
+      rows: [{ scopes: JSON.stringify(row.scopes) }] as T[],
+    });
+  };
   return {
-    query: vi.fn(<T>(_sql: string, params: readonly unknown[]) => {
-      const hash = params[0] as string;
-      const row = rowsByHash[hash];
-      if (!row) return Promise.resolve({ rows: [] as T[] });
-      return Promise.resolve({
-        rows: [{ scopes: JSON.stringify(row.scopes) }] as T[],
-      });
-    }),
+    query: vi.fn(queryImpl) as AuthPool['query'],
   };
 }
 
 function buildApp(pool: AuthPool, bootstrapToken?: string): Hono {
   const app = new Hono();
-  app.use('/v1/admin/*', requireScope({ pool, requiredScope: 'memory:admin', bootstrapToken }));
+  app.use(
+    '/v1/admin/*',
+    requireScope({
+      pool,
+      requiredScope: 'memory:admin',
+      // exactOptionalPropertyTypes: omit the key entirely when undefined
+      ...(bootstrapToken !== undefined ? { bootstrapToken } : {}),
+    }),
+  );
   app.get('/v1/admin/test', (c) => c.json({ ok: true }, 200));
   return app;
 }
