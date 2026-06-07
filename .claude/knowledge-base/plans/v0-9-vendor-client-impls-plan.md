@@ -1,5 +1,7 @@
 # Plan: v0-9-vendor-client-impls — concrete `Mem0OfficialClient` + `ZepOfficialClient` + `LettaOfficialClient` for benchmark adapters
 
+> **Version 1.3** (2026-06-07) — T0.1 RED mechanism corrected per /implement halt-loop empirical discovery (iteration 1 BLOCKED, see `.claude/knowledge-base/implementations/.progress-v0-9-vendor-client-impls.json`). Plan v1.2 T0.1 assumed: "TS compile error on each interface mismatch" via stub parameter rename — but TypeScript structural typing IGNORES parameter names (only positional types matter; `userId: string` and `scopeKey: string` are structurally identical). `npm run typecheck` returned exit 0 after stub-name edit. The intended sentinel did NOT work. **v1.3 replaces T0.1 with a grep-based runtime sentinel** — NEW file `src/benchmarks/__tests__/vendor-rename-sentinel.test.ts` that reads `src/benchmarks/{mem0,zep,letta}/adapter.ts` source and asserts `/add\(scopeKey:/` present + `/add\((userId|sessionId|agentId):/` absent. 3 distinct test cases (one per vendor), RED initially because adapter.ts source still has old names; GREEN post-T0.2 rename. Preserves the 3-name-awareness intent (sentinel against single-name grep-replace bug) via a MECHANISM that actually works in TS. Plus: permanent regression guard against any future drift.
+>
 > **Version 1.2** (2026-06-07) — Structural conformance pass: expanded T<V> placeholders into 6 concrete tasks (T1.1/T1.2 Mem0, T2.1/T2.2 Zep, T3.1/T3.2 Letta) + added `#### TDD` sub-section to every task (T0.1-T5.1) per `check_tdd_shape.py` gate convention shared with shipped plans (theo-memory-faang-auth-lifecycle, p0-api-sdk, voyager-skill-library). No semantic change — TDD info already existed in tables/prose; v1.2 formalizes as structured TDD blocks with concrete test fixtures (Given/When/Then with assertion APIs). Plan grows from 6 to 12 tasks total; Dependency Graph + Coverage Matrix updated accordingly. Re-validated via /plan-confidence post-bump.
 >
 > **Version 1.1** (2026-06-07) — Absorbs 14 edge cases from `/edge-case-plan` review at [`.claude/knowledge-base/reviews/v0-9-vendor-client-impls-edge-cases-2026-06-07.md`](../reviews/v0-9-vendor-client-impls-edge-cases-2026-06-07.md) (3 MUST FIX + 8 SHOULD TEST + 3 DOCUMENT). Key absorptions: EC-1 ADR D1 § Decision corrected to acknowledge 3 distinct pre-existing parameter names (`userId` / `sessionId` / `agentId`) → uniform `scopeKey`. EC-2 typed error `VendorSynthesizeUnsupportedError` added to `src/core/errors.ts` (new T0.3 task) — replaces `Error` generic per Inquebrável Rule 8. EC-3 Mem0 v3 response field corrected to `memory` (NOT `text`) — Sub-goal 1 maps `{ text: r.memory, score: r.score }`. EC-7 bundle isolation regression check added to `tests/integration/public-paths.test.ts`. EC-13 CHANGELOG `BREAKING:` prefix for semver bump. Grounded in blueprint [`v0-8-vendor-cells-mem0-zep-letta-blueprint.md`](../discoveries/blueprints/v0-8-vendor-cells-mem0-zep-letta-blueprint.md) (SHIPPABLE_WITH_CAVEATS 70/100; 14 verified citations; 6 actionable recommendations). Closes the second-half blocker of Roadmap Item 11 (production-ready label). The `BenchmarkAdapter` DIP + 3 vendor adapter shells with `VendorClient` interface seams shipped via Drift-T6.x-1 (2026-06-02); this plan ships the concrete `*OfficialClient` impl classes wrapping each vendor's official npm SDK. Per `/dogfood` already cleared on 2026-06-07 (commit `7000147`), this plan is the parallel-half unblock. PRIORITY 0 sub-goal 2 (SDKs functional) hardening per CLAUDE.md — NOT a new feature; closes a documented Drift-T6.x-1 deferral.
@@ -25,7 +27,8 @@
 | `src/benchmarks/zep/vendor-client.ts` | NEW | `ZepOfficialClient implements ZepVendorClient` wrapping `@getzep/zep-cloud` (incl. session lifecycle) |
 | `src/benchmarks/letta/vendor-client.ts` | NEW | `LettaOfficialClient implements LettaVendorClient` wrapping `@letta-ai/letta-client` (agent-scoped) |
 | `src/benchmarks/{mem0,zep,letta}/adapter.ts` | MODIFIED | Each interface adopts `scopeKey: string` rename (ADR D1 — per-vendor pre-existing names `userId`/`sessionId`/`agentId` unified per EC-1) |
-| `src/benchmarks/{mem0,zep,letta}/__tests__/adapter.test.ts` | MODIFIED | Stub clients updated to use renamed param |
+| `src/benchmarks/{mem0,zep,letta}/__tests__/adapter.test.ts` | MODIFIED | Stub clients updated to use renamed param (after T0.2 rename — TS structural typing accepts both pre and post) |
+| `src/benchmarks/__tests__/vendor-rename-sentinel.test.ts` | NEW (v1.3) | Grep-based runtime sentinel per T0.1 — reads adapter.ts source + asserts scopeKey present + old names absent (3 distinct test cases per-vendor; defends EC-1 against future single-name grep-replace drift) |
 | `src/benchmarks/{mem0,zep,letta}/__tests__/vendor-client.test.ts` | NEW | Unit tests for each OfficialClient — mock SDK + assert method delegation + edge tests EC-4/5/6/9/10/11 |
 | `src/core/errors.ts` | MODIFIED | NEW `VendorSynthesizeUnsupportedError` typed class (per ADR D2 + EC-2 — replaces generic `Error` throw) |
 | `tests/integration/benchmarks/_helpers.ts` | NEW | `describeMem0` / `describeZep` / `describeLetta` env-gate helpers per blueprint R4 + EC-8 vitest 4 `describe.skipIf` API verified |
@@ -136,25 +139,47 @@ T0 (interface rename) is foundational; T1-T3 (per-vendor impls) can parallelize 
 
 **Objective:** Rename the 3 distinct vendor parameter names (`userId` Mem0 / `sessionId` Zep / `agentId` Letta — verified empirically at plan-write time) → uniform `scopeKey: string` per ADR D1 across all 3 interfaces + their adapter call sites + tests. Add typed error class for synthesize-unsupported throw per ADR D2.
 
-### T0.1 — RED: sentinel tests for rename (3-name awareness)
+### T0.1 — RED: grep-based rename sentinel (3-name awareness via runtime test) [v1.3]
 
-**Files to edit:** `src/benchmarks/{mem0,zep,letta}/__tests__/adapter.test.ts` (existing).
+**v1.3 amendment context:** Original v1.2 T0.1 used TS-compile-error sentinel via stub parameter rename — empirically discovered NOT to work because TypeScript structural typing ignores parameter names. v1.3 replaces with a grep-based runtime test that actually fires on per-vendor name retention.
+
+**Files to edit:** `src/benchmarks/__tests__/vendor-rename-sentinel.test.ts` (NEW).
 
 #### TDD
 
 ```ts
-// Given a stub Mem0VendorClient with the renamed parameter
-class StubMem0Client implements Mem0VendorClient {
-  add(scopeKey: string, text: string) { /* ... */ }
-  search(scopeKey: string, query: string, topK: number) { /* ... */ }
-  synthesize(question: string, context: string[]) { /* ... */ }
-}
-// When the existing adapter.test.ts contract test imports and runs
-// Then TS compile fails with: "userId is not a property of Mem0VendorClient"
-// (3 distinct failures — Mem0/Zep/Letta — confirming gate detects per-vendor)
+// src/benchmarks/__tests__/vendor-rename-sentinel.test.ts
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+describe('Vendor interface rename sentinel (T0.1 EC-1 guard; permanent regression test)', () => {
+  // Given adapter.ts source files post-T0.2 rename
+  // When grep-asserting parameter names in interface declarations
+  // Then 3 distinct test cases must each PASS (rename happened) — RED initially (pre-T0.2)
+
+  it('Mem0VendorClient uses scopeKey not userId', () => {
+    const src = readFileSync('src/benchmarks/mem0/adapter.ts', 'utf8');
+    expect(src, 'Mem0VendorClient.add() must declare scopeKey').toMatch(/add\(scopeKey: string/);
+    expect(src, 'Mem0VendorClient.add() must NOT retain userId').not.toMatch(/add\(userId: string/);
+  });
+
+  it('ZepVendorClient uses scopeKey not sessionId', () => {
+    const src = readFileSync('src/benchmarks/zep/adapter.ts', 'utf8');
+    expect(src, 'ZepVendorClient.add() must declare scopeKey').toMatch(/add\(scopeKey: string/);
+    expect(src, 'ZepVendorClient.add() must NOT retain sessionId').not.toMatch(/add\(sessionId: string/);
+  });
+
+  it('LettaVendorClient uses scopeKey not agentId', () => {
+    const src = readFileSync('src/benchmarks/letta/adapter.ts', 'utf8');
+    expect(src, 'LettaVendorClient.add() must declare scopeKey').toMatch(/add\(scopeKey: string/);
+    expect(src, 'LettaVendorClient.add() must NOT retain agentId').not.toMatch(/add\(agentId: string/);
+  });
+});
 ```
 
-RED criteria: `npm run typecheck` reports 3 distinct interface-mismatch errors (one per vendor stub). NOT a single grep-replace of `userId`.
+RED criteria: `npx vitest run src/benchmarks/__tests__/vendor-rename-sentinel.test.ts` reports 3 distinct test FAILURES (one per vendor, because adapter.ts source still has old names). GREEN criteria (after T0.2 rename): all 3 tests PASS.
+
+**Why grep-based mechanism:** TypeScript structural typing IGNORES parameter names — the v1.2 TS-error sentinel was empirically invalid (verified: `npm run typecheck` exit 0 after stub-rename). A runtime grep against source is the ONLY mechanism that actually enforces per-vendor name awareness. Bonus: this sentinel becomes a permanent regression guard for future refactors.
 
 ### T0.2 — GREEN: rename across 3 interfaces + 3 adapters
 
@@ -705,3 +730,5 @@ vitest run tests/integration/benchmarks/   # 3 SKIPPED or 3 PASSED
 |---|---|---|---|
 | 1.0 | 2026-06-07 | Initial plan written from blueprint `v0-8-vendor-cells-mem0-zep-letta-blueprint.md` (SHIPPABLE_WITH_CAVEATS 70/100). | Grounds the v0.9 cycle in the blueprint's 6 recommendations. |
 | 1.1 | 2026-06-07 | Absorbed 14 edge cases from `/edge-case-plan` review (`reviews/v0-9-vendor-client-impls-edge-cases-2026-06-07.md`): 3 MUST FIX inline (EC-1 ADR D1 § Decision corrected for 3 distinct pre-existing param names; EC-2 typed error class `VendorSynthesizeUnsupportedError` added via new T0.3 task in `src/core/errors.ts`; EC-3 Mem0 v3 response field `memory` mapped to `text` in Sub-goal 1). 8 SHOULD TEST inline as per-vendor T<V>.1 RED test entries (EC-4 Zep 409 idempotency, EC-5 Letta passage-without-score fallback, EC-6 empty results, EC-7 bundle isolation regression at `public-paths.test.ts`, EC-8 vitest 4 `describe.skipIf` pre-flight, EC-9 Letta 404 propagation, EC-10 uniform DI constructor pattern, EC-11 concurrent add race). 3 DOCUMENT added to new "Accepted Risks" section (EC-12 API quota burn, EC-13 CHANGELOG `BREAKING:` prefix for semver bump, EC-14 fork PR secrets gap). Coverage Matrix expanded 10 → 16 rows. | Closes the 3 MUST FIX bugs-that-would-ship-silently (ADR-vs-reality misdescription, typed-error violation per Inquebrável Rule 8, Mem0 field-name mismatch) before `/deps-audit` + `/plan-confidence`. |
+| 1.2 | 2026-06-07 | Structural conformance pass: expanded T<V> placeholders into 6 concrete tasks (T1.1/T1.2/T2.1/T2.2/T3.1/T3.2) + added `#### TDD` sub-section to every task per `check_tdd_shape.py` convention. 12 tasks total. | Required by /implement Step 2.1 TDD shape gate. Re-validated SHIPPABLE 96.4/100. |
+| 1.3 | 2026-06-07 | T0.1 RED mechanism replaced. Original v1.2 mechanism (TS compile error via stub parameter rename) was empirically contradicted by TypeScript structural typing — parameter names ignored, only positional types matter; `npm run typecheck` exit 0 after stub edit. Replaced with grep-based runtime sentinel test file `src/benchmarks/__tests__/vendor-rename-sentinel.test.ts` (NEW; 3 distinct tests one per vendor; reads adapter.ts via `readFileSync` + asserts `/add\(scopeKey:/` present + `/add\((userId\|sessionId\|agentId):/` absent). Preserves 3-name-awareness intent via mechanism that actually works in TS + becomes permanent regression guard against future single-name grep-replace drift. Discovered during /implement halt-loop iteration 1 (BLOCKED per Stop Condition #4 "plan task assumes behavior contradicted by reality"). | Honest fix per Inquebrável Rule 3 — fabricating a passing TS-error sentinel would be a typed lie. SEPA pre-RED brief (2026-06-07) also hallucinated "TS2416 (incompatible signatures)" from training-data recall — TS2416 fires on return-type/arity mismatch, NOT parameter-name. Both plan author and SEPA had this gap; v1.3 closes it. |
