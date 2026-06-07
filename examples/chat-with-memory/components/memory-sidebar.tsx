@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Badge, Sidebar, Tabs, Tooltip } from "@theokit/ui";
 import { Brain } from "lucide-react";
+
+import { apiCall } from "../lib/api-client";
 import { UserTab } from "./memory-tabs/user-tab";
 import { SessionTab } from "./memory-tabs/session-tab";
 import { SkillsTab } from "./memory-tabs/skills-tab";
@@ -43,8 +46,7 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const resp = await fetch("/api/info");
-        const json = (await resp.json()) as BackendInfo;
+        const json = await apiCall<BackendInfo>("/api/info");
         setInfo(json);
       } catch {
         // info badge is purely informational; failure is non-fatal
@@ -58,85 +60,84 @@ export function MemorySidebar({ userId, sessionId, reloadKey }: Props) {
   };
 
   return (
-    <aside className="flex w-[400px] shrink-0 flex-col gap-3 border-l border-border p-4">
-      <div className="flex items-center gap-2">
+    <Sidebar className="flex w-[400px] shrink-0 flex-col gap-3 border-l border-border p-4">
+      <Sidebar.Header className="flex items-center gap-2 p-0">
         <Brain className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold">TheMemory</h2>
         {info !== null && (
           <div className="ml-auto flex items-center gap-1">
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                info.backend === "pgvector"
-                  ? "bg-emerald-500/20 text-emerald-700"
-                  : "bg-amber-500/20 text-amber-700"
-              }`}
-              title={
+            <Tooltip
+              label={
                 info.backend === "pgvector"
                   ? "Persisting to Postgres + pgvector"
                   : "In-memory only — restarts wipe state"
               }
             >
-              {info.backend}
-            </span>
+              <Badge variant={info.backend === "pgvector" ? "success" : "warning"}>
+                {info.backend}
+              </Badge>
+            </Tooltip>
             {info.adapterSource !== undefined && (
-              <span
-                className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700"
-                title={`Adapter: ${info.adapterSource}${info.embedderDim !== undefined ? ` (${String(info.embedderDim)}-dim embedder)` : ""}`}
+              <Tooltip
+                label={`Adapter: ${info.adapterSource}${info.embedderDim !== undefined ? ` (${String(info.embedderDim)}-dim embedder)` : ""}`}
               >
-                {info.adapterSource}
-                {info.embedderDim !== undefined ? ` (${String(info.embedderDim)})` : ""}
-              </span>
+                <Badge variant="primary">
+                  {info.adapterSource}
+                  {info.embedderDim !== undefined ? ` (${String(info.embedderDim)})` : ""}
+                </Badge>
+              </Tooltip>
             )}
           </div>
         )}
-      </div>
+      </Sidebar.Header>
 
-      <nav className="flex gap-1 rounded-md bg-muted/50 p-1">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setActive(t.key)}
-            className={`flex-1 rounded px-2 py-1 text-xs font-medium transition ${
-              active === t.key
-                ? "bg-background shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <Tabs
+        value={active}
+        onValueChange={(v) => setActive(v as TabKey)}
+        className="flex flex-1 flex-col gap-3 overflow-hidden"
+      >
+        <Tabs.List className="grid w-full grid-cols-6 gap-1 rounded-md bg-muted/50 p-1">
+          {TABS.map((t) => (
+            <Tabs.Trigger
+              key={t.key}
+              value={t.key}
+              className="rounded px-2 py-1 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              {t.label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
 
-      <div className="flex-1 overflow-hidden">
-        {active === "user" && (
+        <Tabs.Content value="user" className="flex-1 overflow-hidden">
           <UserTab
             userId={userId}
             reloadKey={reloadKey}
             onInspectHistory={handleInspect}
           />
-        )}
-        {active === "session" && (
+        </Tabs.Content>
+        <Tabs.Content value="session" className="flex-1 overflow-hidden">
           <SessionTab
             sessionId={sessionId}
             reloadKey={reloadKey}
             onInspectHistory={handleInspect}
           />
-        )}
-        {active === "skills" && <SkillsTab defaultRepoId="repo-demo" />}
-        {active === "history" && (
+        </Tabs.Content>
+        <Tabs.Content value="skills" className="flex-1 overflow-hidden">
+          <SkillsTab defaultRepoId="repo-demo" />
+        </Tabs.Content>
+        <Tabs.Content value="history" className="flex-1 overflow-hidden">
           <HistoryTab
             inspectedId={inspectedId}
             onInspectedIdChange={setInspectedId}
           />
-        )}
-        {active === "eviction" && (
+        </Tabs.Content>
+        <Tabs.Content value="eviction" className="flex-1 overflow-hidden">
           <EvictionTab userId={userId} reloadKey={reloadKey} />
-        )}
-        {active === "distillation" && (
+        </Tabs.Content>
+        <Tabs.Content value="distillation" className="flex-1 overflow-hidden">
           <DistillationTab userId={userId} reloadKey={reloadKey} />
-        )}
-      </div>
-    </aside>
+        </Tabs.Content>
+      </Tabs>
+    </Sidebar>
   );
 }

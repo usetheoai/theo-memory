@@ -25,11 +25,46 @@ import type { AddressInfo } from 'node:net';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
+import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
 import type { McpServer } from '../server.js';
+
+/** Hosts treated as localhost for the non-localhost-without-TLS guard (ADR-0015 #3). */
+const LOCALHOST_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+
+/**
+ * Per ADR-0015 § Decision #3 — `themory mcp --transport streamable-http
+ * --host <non-localhost>` refuses to start without TLS config. We do NOT yet
+ * plumb TLS material (cert/key) into the transport surface; non-localhost +
+ * no TLS = REFUSE. When TLS plumbing lands (follow-up cycle), this guard
+ * accepts the supplied cert/key and skips the throw.
+ */
+function assertNonLocalhostHasTls(host: string, hasTls: boolean): void {
+  if (LOCALHOST_HOSTS.has(host)) return;
+  if (hasTls) return;
+  throw new Error(
+    `connectStreamableHttp: refusing to start on non-localhost host "${host}" without TLS config. ` +
+      `Per ADR-0015 #3 (MCP spec network-hygiene mandate), HTTPS is required for any host that is not 127.0.0.1 / ::1 / localhost. ` +
+      `Either pass tls: { cert, key } in StreamableHttpOptions (when supported) OR bind to localhost.`,
+  );
+}
 
 export interface StreamableHttpOptions {
   readonly port: number;
   readonly host: string;
+  /**
+   * Optional Bearer-auth gate (T4.1, ADR-0015). When supplied, every HTTP
+   * request is checked via `withBearerAuth` BEFORE the MCP transport sees
+   * it. `theo_live_*` keys route to `bearerAuth.apiKey`; everything else
+   * routes to `bearerAuth.oidc`. Omit to leave the transport unauthenticated
+   * (only safe for localhost stdio-equivalent deployments).
+   */
+  readonly bearerAuth?: BearerAuthOptions;
+  /**
+   * TLS config marker — when present, the non-localhost guard accepts the
+   * host. Reserved for the follow-up cycle that plumbs cert/key material;
+   * currently any truthy value satisfies the guard (placeholder shape).
+   */
+  readonly tls?: { readonly cert: string; readonly key: string };
 }
 
 export interface StreamableHttpHandle {
@@ -52,6 +87,11 @@ export async function connectStreamableHttp(
   server: McpServer,
   options: StreamableHttpOptions,
 ): Promise<StreamableHttpHandle> {
+  // ADR-0015 #3 — non-localhost host MUST have TLS config or we refuse to start.
+  // The guard runs BEFORE we touch the SDK transport / open a listener so
+  // misconfigurations fail loudly and immediately (Inquebrável Rule 8 fail-fast).
+  assertNonLocalhostHasTls(options.host, options.tls !== undefined);
+
   // Stateless mode per discover Q5 — no session persistence across requests.
   // SDK accepts `sessionIdGenerator: undefined` at runtime per its docstring example;
   // type def omits undefined under strict exactOptionalPropertyTypes — narrow cast at boundary.
@@ -59,8 +99,27 @@ export async function connectStreamableHttp(
     sessionIdGenerator: undefined,
   } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
 
-  const httpServer: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  // T4.1 — when bearerAuth is supplied, every request is gated through
+  // withBearerAuth BEFORE the MCP transport sees it. When omitted, the
+  // transport runs without auth (legitimate only for localhost dev loops).
+  const baseHandler = (req: IncomingMessage, res: ServerResponse): void => {
     void transport.handleRequest(req, res).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`Internal server error: ${message}\n`);
+      }
+    });
+  };
+
+  const gatedHandler = options.bearerAuth
+    ? withBearerAuth(baseHandler, options.bearerAuth)
+    : baseHandler;
+
+  const httpServer: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    // Wrap the gated handler so any synchronous throw inside auth/transport
+    // surfaces as 500 rather than crashing the listener.
+    Promise.resolve(gatedHandler(req, res)).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });

@@ -28,9 +28,13 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
+import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import type { Memory } from '../core/memory-store.js';
 import { runMigrations } from '../local/index.js';
+import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
 import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
+import { createOauth4webapiIntrospect } from '../server/auth/oidc-introspect-oauth4webapi.js';
+import { OidcAuthVerifier } from '../server/auth/oidc-verifier.js';
 import { createServer } from '../server/index.js';
 
 import {
@@ -40,6 +44,8 @@ import {
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
 } from './agent-tools-memory.js';
+import { resolveBootstrapToken, resolveOidcConfig } from './oidc-cli-resolver.js';
+
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
 // (single source of truth — was triplicated across CLI factory + 2 runners).
@@ -49,6 +55,19 @@ const SHUTDOWN_TIMEOUT_MS = 5_000;
 export interface RunServerOptions {
   readonly port?: number;
   readonly host?: string;
+  /**
+   * T3.2 + ADR D2 + EC-5 — OIDC issuer URL (RFC 8414 discovery target).
+   * When supplied (CLI flag OR env `THEMORY_OIDC_ISSUER`), constructs
+   * `OidcAuthVerifier` + propagates `oidcDiscovery` to `createServer`.
+   */
+  readonly issuer?: string;
+  /**
+   * T3.2 + EC-6 — OIDC client_id (registered with the issuer for
+   * client_secret_basic auth on the introspection endpoint). Required when
+   * `issuer` is set. CLI flag OR env `THEMORY_OIDC_CLIENT_ID`. Secret is
+   * env-only per ADR D4 (`THEMORY_OIDC_CLIENT_SECRET`).
+   */
+  readonly clientId?: string;
 }
 
 function resolvePort(opt?: number): number {
@@ -136,7 +155,53 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   };
 
   const apiKey = readApiKey();
-  const authVerifier = apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
+  const envVerifier: AuthVerifier | undefined =
+    apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
+
+  // F-arch-2 fix — OIDC ONLY resolves when operator explicitly opts in via
+  // `--issuer` flag OR `THEMORY_OIDC_ISSUER` env (the resolver itself reads
+  // env as fallback). Without explicit OIDC intent, skip the resolver entirely
+  // so stale OIDC env vars from prior debug sessions don't crash boot.
+  // Per F-arch-2 (review fixes-cycle-1): resolveOidcConfig fired unconditionally
+  // before, causing `themory server` (no flags) + stale env to throw EC-5/EC-6.
+  const oidcIntent = options?.issuer !== undefined || process.env['THEMORY_OIDC_ISSUER'] !== undefined;
+  const oidcCfg = oidcIntent
+    ? resolveOidcConfig({
+        ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
+        ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
+        host,
+        port,
+      })
+    : null;
+  let authVerifier: AuthVerifier | undefined = envVerifier;
+  let oidcDiscovery: Parameters<typeof createServer>[0]['oidcDiscovery'];
+  if (oidcCfg !== null) {
+    const introspect = await createOauth4webapiIntrospect({
+      issuer: oidcCfg.issuer,
+      clientId: oidcCfg.clientId,
+      clientSecret: oidcCfg.clientSecret,
+    });
+    authVerifier = new OidcAuthVerifier({ introspect });
+    oidcDiscovery = oidcCfg.oidcDiscovery;
+  }
+
+  // F-arch-1 fix — admin sub-app composition is EXPLICIT opt-in per ADR D1.
+  // Mounts ONLY when operator supplied THEMORY_ADMIN_BOOTSTRAP_TOKEN (the
+  // canonical bootstrap path). Pre-fix: also auto-mounted when THEMEMORY_API_KEY
+  // was set, which violated ADR D1's "ONLY when adminApi supplied" contract
+  // and silently flipped behavior for env-secret-only deployments (the
+  // generic /v1/* still answers correctly; /v1/admin/* would previously 404
+  // and now answers 401 SCOPE_INSUFFICIENT — same net rejection but
+  // different envelope, breaks the contract).
+  const bootstrapToken = resolveBootstrapToken();
+  const adminApi = bootstrapToken !== undefined
+    ? { pool, bootstrapToken }
+    : undefined;
+  // When admin path active without OIDC, swap to ApiKeyAuthVerifier so
+  // theo_live_* keys auth via SHA-256 lookup against theo_api_keys.
+  if (adminApi !== undefined && oidcCfg === null) {
+    authVerifier = new ApiKeyAuthVerifier(pool);
+  }
 
   // Memory is injected via a small shim that surfaces an honest error if
   // a verb handler fires before the factory resolves. The 503-readiness
@@ -156,6 +221,8 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const app = createServer({
     memory: memoryShim,
     ...(authVerifier !== undefined ? { authVerifier } : {}),
+    ...(oidcDiscovery !== undefined ? { oidcDiscovery } : {}),
+    ...(adminApi !== undefined ? { adminApi } : {}),
     dbProbe,
     readinessProbe: () => isReady,
   });

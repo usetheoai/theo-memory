@@ -41,6 +41,12 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 
 import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
+import {
+  runKeysCreate,
+  runKeysList,
+  runKeysRevoke,
+  runKeysRotate,
+} from './run-keys.js';
 import { runMcpServer } from './run-mcp-server.js';
 import type { RunMcpServerOptions } from './run-mcp-server.js';
 import { runMigrate } from './run-migrate.js';
@@ -131,6 +137,16 @@ export function buildProgram(): Command {
     process.exit(err.exitCode);
   });
 
+  // EC-5 absorption — URL parser shared by `themory server` AND `themory mcp` for --issuer.
+  const parseIssuerUrl = (raw: string): string => {
+    try {
+      new URL(raw);
+      return raw;
+    } catch {
+      throw new InvalidArgumentError(`Invalid --issuer URL: ${raw} (must be a valid URL, e.g., https://auth.example.com).`);
+    }
+  };
+
   program
     .command('mcp')
     .description('Start the MCP server (stdio or streamable-http transport).')
@@ -143,24 +159,52 @@ export function buildProgram(): Command {
       parseIntInRange('--port', 1, 65_535),
     )
     .option('--host <address>', 'Bind host for streamable-http transport')
-    .action(async (opts: { transport?: 'stdio' | 'streamable-http'; port?: number; host?: string }) => {
-      const options: RunMcpServerOptions = {
-        ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
-        ...(opts.port !== undefined ? { port: opts.port } : {}),
-        ...(opts.host !== undefined ? { host: opts.host } : {}),
-      };
-      await runMcpServer(options);
-    });
+    .addOption(
+      new Option(
+        '--auth <mode>',
+        'Auth mode for streamable-http transport (T4.1 + ADR-0015). ' +
+          '`api-keys` activates the Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup); ' +
+          '`oidc` activates Camada 3 OidcAuthVerifier (RFC 7662 introspection via oauth4webapi); ' +
+          '`both` enables dual-validation (theo_live_* → apiKey, else → oidc); ' +
+          '`none` (default) runs without auth — ONLY safe for localhost dev.',
+      ).choices(['none', 'api-keys', 'oidc', 'both']),
+    )
+    .option('--issuer <url>', 'OIDC issuer URL for --auth=oidc/both (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
+    .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
+    .action(
+      async (opts: {
+        transport?: 'stdio' | 'streamable-http';
+        port?: number;
+        host?: string;
+        auth?: 'none' | 'api-keys' | 'oidc' | 'both';
+        issuer?: string;
+        clientId?: string;
+      }) => {
+        const options: RunMcpServerOptions = {
+          ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
+          ...(opts.port !== undefined ? { port: opts.port } : {}),
+          ...(opts.host !== undefined ? { host: opts.host } : {}),
+          ...(opts.auth !== undefined ? { auth: opts.auth } : {}),
+          ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
+          ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
+        };
+        await runMcpServer(options);
+      },
+    );
 
   program
     .command('server')
     .description('Start the REST API server on PORT (default 8080).')
     .option('--port <number>', 'Port to bind (1..65535)', parseIntInRange('--port', 1, 65_535))
     .option('--host <address>', 'Bind host (default 0.0.0.0)')
-    .action(async (opts: { port?: number; host?: string }) => {
+    .option('--issuer <url>', 'OIDC issuer URL for RFC 7662 introspection (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
+    .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
+    .action(async (opts: { port?: number; host?: string; issuer?: string; clientId?: string }) => {
       const options: RunServerOptions = {
         ...(opts.port !== undefined ? { port: opts.port } : {}),
         ...(opts.host !== undefined ? { host: opts.host } : {}),
+        ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
+        ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
       };
       await runServer(options);
     });
@@ -177,6 +221,63 @@ export function buildProgram(): Command {
     .action(async (opts: { deep?: boolean }) => {
       const exitCode = await runHealth({ deep: opts.deep === true });
       process.exit(exitCode);
+    });
+
+  // ─── Camada 2 admin: `themory keys ...` per plan theo-memory-faang-auth-lifecycle T2.3 ───
+  // Hits the admin REST surface (T2.1) at $THEMORY_BASE_URL (default localhost:3000)
+  // using $THEMEMORY_API_KEY for Bearer auth. Caller's responsibility to point
+  // these at an admin-scoped key OR the env-bootstrap token (ADR D7).
+  const buildKeysCtx = () => ({
+    baseUrl: process.env['THEMORY_BASE_URL'] ?? 'http://localhost:3000',
+    bearerToken: process.env['THEMEMORY_API_KEY'] ?? '',
+  });
+
+  const keys = program
+    .command('keys')
+    .description('Manage theo_live_* API keys (admin scope required).');
+
+  keys
+    .command('create')
+    .description('Create a new API key; secret printed once.')
+    .requiredOption('--name <name>', 'human-friendly label (≤ 64 chars)')
+    .requiredOption('--scope <scope>', 'scope (repeat for multiple)', (val: string, prev: string[] = []) => prev.concat(val), [])
+    .option('--expires <iso>', 'optional ISO-8601 expiration timestamp')
+    .action(async (opts: { name: string; scope: string[]; expires?: string }) => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysCreate(ctx, {
+        name: opts.name,
+        scopes: opts.scope,
+        ...(opts.expires !== undefined ? { expiresAt: opts.expires } : {}),
+      });
+      process.exit(code);
+    });
+
+  keys
+    .command('list')
+    .description('List active API keys (excludes revoked).')
+    .action(async () => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysList(ctx);
+      process.exit(code);
+    });
+
+  keys
+    .command('revoke <id>')
+    .description('Revoke an API key by id (apk-{16hex}).')
+    .action(async (id: string) => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysRevoke(ctx, id);
+      process.exit(code);
+    });
+
+  keys
+    .command('rotate <id>')
+    .description('Rotate an API key; old key keeps working during the grace window.')
+    .option('--grace-hours <n>', 'grace-window hours (1-168; default 24)', (val: string) => parseInt(val, 10))
+    .action(async (id: string, opts: { graceHours?: number }) => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysRotate(ctx, id, opts.graceHours);
+      process.exit(code);
     });
 
   // ─── 4-verb subcommands per plan verbs-as-cli v1.1 + ADR D2 ──────────────
