@@ -28,6 +28,7 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
+import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import type { Memory } from '../core/memory-store.js';
 import { runMigrations } from '../local/index.js';
 import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
@@ -154,7 +155,8 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   };
 
   const apiKey = readApiKey();
-  const envVerifier = apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
+  const envVerifier: AuthVerifier | undefined =
+    apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
 
   // T3.2 — OIDC verifier construction (when --issuer supplied).
   // resolveOidcConfig throws synchronously on EC-5 (invalid URL) / EC-6
@@ -165,7 +167,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     host,
     port,
   });
-  let authVerifier = envVerifier;
+  let authVerifier: AuthVerifier | undefined = envVerifier;
   let oidcDiscovery: Parameters<typeof createServer>[0]['oidcDiscovery'];
   if (oidcCfg !== null) {
     const introspect = await createOauth4webapiIntrospect({
