@@ -15,11 +15,15 @@ function poolReturning(rows: unknown[]): {
   queries: { sql: string }[];
 } {
   const queries: { sql: string }[] = [];
+  const queryImpl = <T>(sql: string): Promise<{ rows: T[] }> => {
+    queries.push({ sql });
+    return Promise.resolve({ rows: rows as T[] });
+  };
+  // queryImpl ignores params (this stub only branches on SQL); cast to AuthPool's
+  // query shape — the runtime contract is satisfied by Pool/PgClient which
+  // accept the params arg even if our stub doesn't use it.
   const pool: AuthPool = {
-    query: vi.fn(<T>(sql: string) => {
-      queries.push({ sql });
-      return Promise.resolve({ rows: rows as T[] });
-    }),
+    query: vi.fn(queryImpl) as unknown as AuthPool['query'],
   };
   return { pool, queries };
 }
