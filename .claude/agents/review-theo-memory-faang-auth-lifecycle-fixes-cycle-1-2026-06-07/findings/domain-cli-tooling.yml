@@ -1,0 +1,459 @@
+agent: review-theo-memory-faang-auth-lifecycle-fixes-cycle-1-domain-cli-tooling
+review_target: develop@9b727f2 vs develop@d722c9b for plan theo-memory-faang-auth-lifecycle-fixes-cycle-1
+domain: cli-tooling
+domain_specific_patterns_checked:
+  - commander_subcommand_option_vs_argument_discipline
+  - commander_argParser_url_validation_at_parse_time
+  - env_var_precedence_cli_flag_gt_env_gt_default
+  - EC-4_no_client_secret_flag_must_not_exist
+  - EC-5_issuer_url_validation_via_InvalidArgumentError
+  - EC-2_security_critical_empty_whitespace_bootstrap_token_normalization
+  - EC-6_client_id_without_client_secret_env_fail_loud_at_boot
+  - EC-9_resource_url_localhost_substitution_for_0_0_0_0
+  - process_exit_promise_rejection_contract_per_cycle_implement_md
+  - backward_compat_themory_server_no_flags_must_boot_identically
+  - help_output_must_explain_new_flags_env_vars_security_policy
+  - ADR_D4_secrets_env_only
+  - locked_cli_names_sentinel_per_CLAUDE_md
+
+findings:
+  # ────────────── EC-4 / ADR D4 — secrets env-only ──────────────
+  - id: F-dom-cli-1
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 173
+    plan_ref: ADR D4 — secrets env-only (EC-4 absorption)
+    domain_anchor: Plan ADR D4 + .claude/rules/no-paper-names-in-code.md adjacent ps-leak hygiene
+    summary: |
+      EC-4 honored — no `--client-secret` flag anywhere in cli.ts, run-server.ts,
+      run-mcp-server.ts, or oidc-cli-resolver.ts. `--client-id <id>` flag IS
+      registered for both `themory server` and `themory mcp` (per ADR D4 second
+      sentence: client_id is NOT a secret per OAuth2 RFC 6749 § 2.3.1).
+      `clientSecret` is sourced exclusively from `process.env['THEMORY_OIDC_CLIENT_SECRET']`
+      via `oidc-cli-resolver.ts:99-100`. The grep
+      `grep -rn 'client-secret' src/ tests/` returns only camelCase property
+      references inside the integration test fixture
+      `tests/integration/auth/fixes-cycle-1-e2e.test.ts:223,258`, never a CLI
+      flag literal. ADR D4 explicit contract honored end-to-end.
+    evidence: |
+      cli.ts:173:    .option('--client-id <id>', 'OIDC client_id (...). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
+      oidc-cli-resolver.ts:99:    const clientSecretRaw = process.env['THEMORY_OIDC_CLIENT_SECRET'];
+    recommended_action: |
+      NONE. Pattern correct. Recommendation for FUTURE locked-names sentinel:
+      add a NEGATIVE-grep assertion to src/__tests__/cli-locked-names.test.ts
+      that fails the suite if `--client-secret` ever appears inside a
+      `.option(` call site — defense-in-depth so a future PR cannot reintroduce
+      it without a strategic review. NOT in scope for this cycle.
+
+  # ────────────── EC-5 — InvalidArgumentError at parse time ──────────────
+  - id: F-dom-cli-2
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 141-148
+    plan_ref: EC-5 — `--issuer` URL validation at commander parse time
+    domain_anchor: Plan T3.2 Deep Dive — InvalidArgumentError with friendly message
+    summary: |
+      EC-5 correctly implemented via commander argParser factory `parseIssuerUrl`,
+      reused across BOTH `themory server` (line 200) and `themory mcp` (line 172).
+      Throws commander's `InvalidArgumentError` with a friendly message naming
+      `--issuer` + example URL. Combined with `program.exitOverride` at line
+      130-138 (which maps `commander.invalidArgument` and
+      `commander.invalidOptionArgument` to exit code 2), the plan's RED-test
+      promise `themory server --issuer not-a-url exits non-zero` is met.
+      `new URL(raw)` is a lenient validator (accepts `ftp://`, `data:`,
+      `javascript:` schemes) — strictness deferred but acceptable for the
+      plan's stated scope (URL-shape validation; deeper provider-validation
+      lives at oauth4webapi discovery time).
+    evidence: |
+      cli.ts:141: const parseIssuerUrl = (raw: string): string => {
+      cli.ts:142:   try {
+      cli.ts:143:     new URL(raw);
+      cli.ts:144:     return raw;
+      cli.ts:145:   } catch {
+      cli.ts:146:     throw new InvalidArgumentError(`Invalid --issuer URL: ${raw} (...)`);
+      cli.ts:147:   }
+      cli.ts:148: };
+      cli.ts:130-138: exitOverride maps invalidArgument → process.exit(2)
+    recommended_action: NONE.
+
+  # ────────────── F-dom-cli-3: implicit OIDC enablement on themory server ──────────────
+  - id: F-dom-cli-3
+    severity: MAJOR
+    file: src/agent-tools/run-server.ts
+    line: 164-180
+    plan_ref: Sub-goal 5 (Backward-compat sentinel) + plan T3.2 Deep Dive
+    domain_anchor: Plan § Objective sub-goal 5 — `themory server` without `--issuer` MUST boot identically to pre-cycle behavior
+    summary: |
+      `runServer` unconditionally calls `resolveOidcConfig({ ..., host, port })`
+      at line 164. The resolver treats env-var-only-set `THEMORY_OIDC_ISSUER`
+      as implicit opt-in (line 78 of oidc-cli-resolver.ts:
+      `const issuer = input.issuer ?? process.env['THEMORY_OIDC_ISSUER']`),
+      then throws on the EC-6 `--client-id requires THEMORY_OIDC_CLIENT_SECRET`
+      guard when secret is missing. Effect: an operator running this build who
+      had ANY value (stale, leftover, sibling-tool) in `THEMORY_OIDC_ISSUER`
+      will see `themory server` BOOT-FAIL where the pre-cycle build silently
+      ignored OIDC entirely. This is a backward-compat regression NOT covered
+      by the sub-goal 5 sentinel.
+
+      Unlike `themory mcp` which has an explicit `--auth=oidc/both/api-keys/none`
+      gate (and the env-only path is unreachable without `--auth`), `themory
+      server` has NO equivalent opt-in flag. The env var IS the opt-in. The
+      plan's intended behavior here is ambiguous: ADR D4 § Consequences says
+      operators set both env vars at install time (implying env-driven
+      enablement is desired), but sub-goal 5 promises backward-compat. Both
+      cannot be simultaneously true for an upgrader who has only `THEMORY_OIDC_ISSUER`
+      set.
+
+      No integration test catches this — the only assertion against
+      `runServer` flow is the resolver's unit tests (which test resolver
+      directly, not the runServer composition). Plan T3.1 listed RED tests at
+      `src/agent-tools/__tests__/run-server-issuer.test.ts` — that file does
+      NOT exist in HEAD; coverage gap below in F-dom-cli-5.
+    evidence: |
+      run-server.ts:164:  const oidcCfg = resolveOidcConfig({
+      run-server.ts:165:    ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
+      run-server.ts:166:    ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
+      ...
+      oidc-cli-resolver.ts:78:  const issuer = input.issuer ?? process.env['THEMORY_OIDC_ISSUER'];
+      oidc-cli-resolver.ts:79:  if (issuer === undefined || issuer.trim().length === 0) {
+      oidc-cli-resolver.ts:80:    return null; // OIDC disabled
+      # ... when issuer is non-empty AND clientSecret is missing → throw EC-6
+    recommended_action: |
+      Pick ONE of two paths and document in CHANGELOG + plan ADR D4 amendment:
+
+      (a) **Strict opt-in path** (mirrors `themory mcp --auth`): add `--oidc`
+          (or `--auth=oidc`) flag to `themory server`; resolveOidcConfig is
+          invoked ONLY when the flag is present OR the user explicitly passes
+          `--issuer`. Bare env-only `THEMORY_OIDC_ISSUER` → silent no-op +
+          one-line stderr warning. Preserves sub-goal 5 backward-compat.
+
+      (b) **Env-driven enablement is intentional**: document in CHANGELOG
+          under `Changed` (NOT `Fixed`): "BREAKING for upgraders who had
+          `THEMORY_OIDC_ISSUER` set without `THEMORY_OIDC_CLIENT_ID` +
+          `THEMORY_OIDC_CLIENT_SECRET`; previous behavior was silent ignore,
+          new behavior fails loud at boot." Add a release-notes section
+          documenting the migration path (unset the env var OR provide all
+          three).
+
+      Recommend (a) for v0.x stability; (b) acceptable post v1.0.
+
+  # ────────────── F-dom-cli-4: themory mcp --auth=api-keys still exercises resolveOidcConfig ──────────────
+  - id: F-dom-cli-4
+    severity: MAJOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: 190-204
+    plan_ref: Plan T3.2 + EC-2/5/6 absorption
+    domain_anchor: Plan § sub-goal 5 backward-compat; cycle-implement.md Inquebrável Rule 8 fail-loud only where intended
+    summary: |
+      `resolveBearerAuth` short-circuits on `mode === 'none' || undefined` at
+      line 195, BUT does NOT short-circuit on `mode === 'api-keys'`. The
+      resolver `resolveOidcConfig(oidcInput)` runs at line 198 regardless.
+      Effect: when an operator runs `themory mcp --auth=api-keys` (deliberate
+      opt-out of OIDC) AND has `THEMORY_OIDC_ISSUER=https://...` lingering in
+      env (sibling tool, stale config), the resolver THROWS at the EC-5/EC-6
+      guard — even though the user explicitly chose api-keys-only.
+
+      The api-keys path does NOT need OIDC config; the resolver call is purely
+      collateral. The guard at line 200-204 (`(mode === 'oidc' || mode ===
+      'both') && oidcCfg === null → throw`) shows the author intended to
+      treat OIDC as opt-in per `mode`; the resolver invocation above it
+      contradicts that intent.
+
+      No test covers `--auth=api-keys` with env `THEMORY_OIDC_ISSUER` set
+      (the existing `oidc-cli-resolver.test.ts` tests the helper standalone;
+      no test wires `resolveBearerAuth(mode='api-keys', { issuer in env })`).
+    evidence: |
+      run-mcp-server.ts:195:  if (mode === undefined || mode === 'none') return undefined;
+      run-mcp-server.ts:198:  const oidcCfg = resolveOidcConfig(oidcInput);
+      run-mcp-server.ts:200:  if ((mode === 'oidc' || mode === 'both') && oidcCfg === null) {
+      # api-keys mode falls through to line 198 with NO guard, will throw if env has issuer + missing secret
+    recommended_action: |
+      Gate the `resolveOidcConfig` call on mode requiring OIDC:
+
+      ```ts
+      const oidcCfg = (mode === 'oidc' || mode === 'both')
+        ? resolveOidcConfig(oidcInput)
+        : null;
+      ```
+
+      Also add a RED test to `src/agent-tools/__tests__/run-mcp-server.test.ts`:
+
+      ```ts
+      it('api-keys mode does NOT trip OIDC env validation', async () => {
+        process.env['THEMORY_OIDC_ISSUER'] = 'https://auth.example.com';
+        // intentionally NO client_id / client_secret
+        await expect(runMcpServer({
+          transport: 'streamable-http', auth: 'api-keys', port: 0
+        })).resolves.not.toThrow();
+      });
+      ```
+
+  # ────────────── F-dom-cli-5: T3.1 RED test files missing ──────────────
+  - id: F-dom-cli-5
+    severity: MAJOR
+    file: src/agent-tools/__tests__/
+    line: N/A
+    plan_ref: Plan T3.1 — RED tests at run-server-issuer.test.ts + run-mcp-server-oidc.test.ts
+    domain_anchor: Plan Acceptance Criteria § Final Phase — "Contract suite: pass count ≥ 1148 + 17 new tests (T1.1×5 + T2.1×5 + T3.1×8) = 1165 pass"
+    summary: |
+      Plan T3.1 § Files to edit explicitly enumerates TWO new RED-test files:
+        - `src/agent-tools/__tests__/run-server-issuer.test.ts`
+        - `src/agent-tools/__tests__/run-mcp-server-oidc.test.ts`
+      with 8 RED tests across both (including EC-2/5/6/9). NEITHER file exists
+      in HEAD. The only T3 test file shipped is
+      `src/agent-tools/__tests__/oidc-cli-resolver.test.ts` — 8 tests against
+      the HELPER, not against the runServer/runMcpServer compositions.
+
+      Coverage gaps (the resolver tests do NOT cover):
+        - `runServer` boot path with `--issuer` flag actually constructing
+          `OidcAuthVerifier` + threading `oidcDiscovery` into `createServer`
+        - `runMcpServer` `--auth=oidc` removing the stderr deferral disclosure
+          when `--issuer` is provided (plan T3.1 RED test 4)
+        - End-to-end: CLI flag → action callback → runServer composition → real
+          adapter wiring (verified only at the helper boundary today)
+
+      Plan Final Phase § Acceptance Criteria promises 1165 contract pass count
+      (1148 + 17 new). With T3.1 tests collapsed to 8 (resolver only), the
+      delta is 8 not 17. The contract suite delta does not match the plan's
+      ledger; this is a transparency gap.
+    evidence: |
+      $ ls src/agent-tools/__tests__/ | grep -E '(issuer|oidc|run-mcp-server-oidc)'
+      oidc-cli-resolver.test.ts        # only T3 file shipped
+    recommended_action: |
+      Either:
+      (a) Ship the missing RED test files as a follow-up commit covering the
+          plan-promised scenarios (runServer issuer flag plumb,
+          runMcpServer auth=oidc deferral removal, EC-2 normalization at
+          CLI seam, EC-5 at commander parse time, EC-9 host=0.0.0.0
+          substitution observed through the runner), OR
+      (b) Update plan T3.1 Files-to-edit + § Final Phase test count to
+          reflect the consolidated helper-only test surface, documenting
+          why the runner-level tests were dropped (e.g., compositional
+          test cost vs helper isolation tradeoff). Updating plan post-hoc
+          violates cycle-plan.md "Editing the plan during implementation
+          is an anti-pattern" — prefer (a).
+
+      Recommend (a) — the missing tests cover the CLI command surface that
+      a third-party operator actually exercises; helper tests do not.
+
+  # ────────────── F-dom-cli-6: EC-6 vs ADR D4 wording divergence ──────────────
+  - id: F-dom-cli-6
+    severity: MINOR
+    file: src/agent-tools/oidc-cli-resolver.ts
+    line: 90-105
+    plan_ref: Plan ADR D4 § EC-6 absorption — "when `--client-id` supplied OR `THEMORY_OIDC_CLIENT_ID` set, `THEMORY_OIDC_CLIENT_SECRET` MUST be present"
+    domain_anchor: Plan EC-6 cross-field validation phrasing
+    summary: |
+      Plan EC-6 wording: "when `--client-id` supplied OR `THEMORY_OIDC_CLIENT_ID`
+      set, `THEMORY_OIDC_CLIENT_SECRET` MUST be present + non-empty post-trim".
+
+      Implementation: the EC-6 client_secret check at lines 99-105 is GATED
+      behind the OIDC enablement path (i.e., issuer must be set first).
+      Consequence: `themory server --client-id foo` (no `--issuer`, no
+      `THEMORY_OIDC_ISSUER`) silently returns null with NO error. The plan's
+      EC-6 wording would suggest this case SHOULD fail loud ("client-id
+      supplied → secret required").
+
+      Operationally, `--client-id` without issuer is meaningless so the
+      lenient behavior is sensible. But the literal plan text contradicts
+      the implementation. Either the plan wording should be amended or the
+      validator should fire on the OR condition as written.
+    evidence: |
+      oidc-cli-resolver.ts:78:  const issuer = input.issuer ?? process.env['THEMORY_OIDC_ISSUER'];
+      oidc-cli-resolver.ts:79:  if (issuer === undefined || issuer.trim().length === 0) {
+      oidc-cli-resolver.ts:80:    return null;  // ← exits early; --client-id check never runs
+      oidc-cli-resolver.ts:90:  const clientId = input.clientId ?? process.env['THEMORY_OIDC_CLIENT_ID'];
+      oidc-cli-resolver.ts:99:  const clientSecretRaw = process.env['THEMORY_OIDC_CLIENT_SECRET'];
+      # EC-6 fires ONLY in the issuer-set branch
+    recommended_action: |
+      Add a guard BEFORE the early-return at line 80:
+      ```ts
+      // EC-6 strict: --client-id without --issuer is meaningless; fail-loud.
+      if ((input.clientId !== undefined || process.env['THEMORY_OIDC_CLIENT_ID'] !== undefined) && (issuer === undefined || issuer.trim().length === 0)) {
+        throw new Error('--client-id supplied without --issuer (or THEMORY_OIDC_ISSUER env) is a misconfiguration; either remove --client-id or set --issuer.');
+      }
+      ```
+      OR amend plan ADR D4 EC-6 wording to: "when `--issuer` is set AND
+      `--client-id` is set, `THEMORY_OIDC_CLIENT_SECRET` MUST be present".
+      Minor — pick the less disruptive path.
+
+  # ────────────── F-dom-cli-7: help text quality for --auth flag ──────────────
+  - id: F-dom-cli-7
+    severity: MINOR
+    file: src/agent-tools/cli.ts
+    line: 162-171
+    plan_ref: Plan T3.2 + plan-level "CLI help output (--help) must explain the new flags + env vars + security policy"
+    domain_anchor: Domain concern #9 from agent contract
+    summary: |
+      The `themory mcp --auth` flag help text describes the four modes
+      accurately. But the `--issuer` and `--client-id` help strings DO NOT
+      mention the security policy (ADR D4 secrets env-only) for the
+      bootstrap-admin path. The `--client-id` help DOES mention "Secret
+      env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)" — good.
+
+      However the BOOTSTRAP token policy (`THEMORY_ADMIN_BOOTSTRAP_TOKEN` env
+      var ONLY, no CLI flag) has NO surfaced help anywhere in the CLI. An
+      operator running `themory server --help` sees no mention of admin
+      bootstrap. They would discover the env var only by reading the README.
+      Plan ADR D4 calls out bootstrap-token policy explicitly; the CLI help
+      surface should mirror it.
+
+      Also: `themory server` lacks an `--auth` flag entirely (OIDC
+      enablement is env+issuer-driven). The help would benefit from a one-
+      line note in `themory server` description: "OIDC enabled when --issuer
+      is supplied; admin REST enabled when THEMORY_ADMIN_BOOTSTRAP_TOKEN env
+      is set (no CLI flag, ADR D4)."
+    evidence: |
+      $ rg "THEMORY_ADMIN_BOOTSTRAP_TOKEN" src/agent-tools/cli.ts
+      # 0 matches — env var not mentioned in any --help text
+      cli.ts:197:    .description('Start the REST API server on PORT (default 8080).')
+      # Description does not mention admin / OIDC enablement gates
+    recommended_action: |
+      Extend the `themory server` `.description()` (line 197) to:
+      ```
+      .description('Start the REST API server on PORT (default 8080). ' +
+                   'OIDC introspection enabled when --issuer is supplied; ' +
+                   'admin REST surface enabled when env THEMORY_ADMIN_BOOTSTRAP_TOKEN is set ' +
+                   '(no CLI flag — secret env-only per ADR D4).')
+      ```
+      Similar extension for `themory mcp` describing the auth-mode + issuer
+      relationship.
+
+  # ────────────── F-dom-cli-8: backward-compat for resolveBootstrapToken return-value semantic ──────────────
+  - id: F-dom-cli-8
+    severity: MINOR
+    file: src/agent-tools/oidc-cli-resolver.ts
+    line: 70-75
+    plan_ref: Plan EC-2 § ADR D4 — "empty-string env values MUST be treated as undefined; trim() applied"
+    domain_anchor: Plan EC-2 SECURITY-CRITICAL bypass prevention
+    summary: |
+      `resolveBootstrapToken` correctly normalizes empty/whitespace to
+      `undefined` (EC-2 absorption — closes the
+      `constantTimeEqual('', '')` bypass). BUT the function returns the
+      ORIGINAL `raw` value when non-empty, NOT the trimmed value:
+      ```ts
+      return trimmed.length === 0 ? undefined : raw;
+      ```
+      Effect: a token like `'  valid-token  '` (with surrounding whitespace
+      from an operator's broken shell heredoc) passes the gate AND is
+      returned WITH the surrounding whitespace, then handed to
+      `constantTimeEqual(bearer, '  valid-token  ')`. The Bearer header
+      comparison MAY still fail (if `bearer = 'valid-token'` no whitespace)
+      OR succeed (if the operator literally pastes the whitespace into a
+      curl `-H` header).
+
+      This is NOT a bypass — non-empty whitespace gates correctly. It IS a
+      determinism concern: the env-source returns raw, the bearer comparison
+      site does (or does not) trim independently. Single source of truth
+      principle suggests returning `trimmed`.
+
+      Tested explicitly in `oidc-cli-resolver.test.ts:84` only with a
+      `'valid-token-' + 'x'.repeat(32)` value (no surrounding whitespace),
+      so the divergence is not exercised.
+    evidence: |
+      oidc-cli-resolver.ts:70: export function resolveBootstrapToken(): string | undefined {
+      oidc-cli-resolver.ts:71:   const raw = process.env['THEMORY_ADMIN_BOOTSTRAP_TOKEN'];
+      oidc-cli-resolver.ts:72:   if (raw === undefined) return undefined;
+      oidc-cli-resolver.ts:73:   const trimmed = raw.trim();
+      oidc-cli-resolver.ts:74:   return trimmed.length === 0 ? undefined : raw;
+      # returns raw, not trimmed
+    recommended_action: |
+      Change line 74 to `return trimmed.length === 0 ? undefined : trimmed;`
+      Then add a RED test in `oidc-cli-resolver.test.ts` asserting
+      `process.env['THEMORY_ADMIN_BOOTSTRAP_TOKEN'] = '  valid-token  '`
+      returns `'valid-token'` (trimmed). Defense-in-depth: also trim in
+      `scope-verifier.ts` at the Bearer-comparison call site (already done
+      per plan T3.2 Deep Dive). Two-layer trim is acceptable; single-source
+      preferred.
+
+  # ────────────── F-dom-cli-9: locked-names sentinel does not cover --auth / --issuer / --client-id ──────────────
+  - id: F-dom-cli-9
+    severity: INFO
+    file: src/__tests__/cli-locked-names.test.ts
+    line: 53-63
+    plan_ref: CLAUDE.md § Locked names → `themory CLI flags (stable)`
+    domain_anchor: Plan does NOT mark --auth / --issuer / --client-id as locked; CLAUDE.md row 185 lists 9 strategic flags
+    summary: |
+      The CLAUDE.md `themory CLI flags (stable)` table (line 185) lists the 9
+      v1.0 strategic flags (--user, --session, --agent, --top-k, --threshold,
+      --diversify, --hard, --json, --text) covered by
+      `cli-locked-names.test.ts`. The NEW flags `--auth`, `--issuer`,
+      `--client-id` are NOT in the locked-names table and NOT in the
+      sentinel test. This is correct (these are post-v1.0 surface evolving
+      across the camada-1/2/3 cycles), but it leaves the door open for a
+      future PR to silently rename or remove them.
+
+      RECOMMENDATION (out of scope for this cycle, log for follow-up): once
+      `theo-memory-faang-auth-lifecycle-fixes-cycle-1` ships and the OIDC
+      flag surface stabilizes, EXTEND the locked-names table + sentinel to
+      cover --auth, --issuer, --client-id. Block silent regression via the
+      same regex pattern.
+    evidence: |
+      CLAUDE.md:185: ... `--text` (sentinel-guarded by `src/__tests__/cli-locked-names.test.ts`)
+      cli-locked-names.test.ts:53-63: 9 LOCKED_FLAGS — no --auth / --issuer / --client-id
+    recommended_action: NONE for this cycle. Track as follow-up for v1.0 surface freeze.
+
+  # ────────────── F-dom-cli-10: process.exit / promise rejection contract honored ──────────────
+  - id: F-dom-cli-10
+    severity: INFO
+    file: src/agent-tools/cli.ts
+    line: 449-454
+    plan_ref: cycle-implement.md § Step 5.5 wiring + Inquebrável Rule 8 fail-loud
+    domain_anchor: Domain concern #7 from agent contract
+    summary: |
+      The top-level `main().catch(...)` at line 450-453 honors the
+      process.exit + Promise rejection contract: any async rejection from
+      `parseAsync` (commander) OR from the `.action()` callbacks (which
+      `await runServer` / `await runMcpServer`) propagates to a single sink
+      that writes a structured error to stderr + `process.exit(1)`.
+
+      Verified flows:
+       1. `themory server --issuer not-a-url` → parseIssuerUrl throws
+          InvalidArgumentError → exitOverride catches → process.exit(2)
+       2. `themory server` with `THEMORY_OIDC_ISSUER=https://x.com` + missing
+          secret → resolveOidcConfig throws → action rejects → parseAsync
+          rejects → main catches → process.exit(1)
+       3. `themory mcp --auth=oidc` (no issuer) → resolveBearerAuth throws
+          → similar path → process.exit(1)
+
+      Difference: case (1) exits 2 (commander invalid arg), cases (2)+(3)
+      exit 1 (generic CLI failure). Plan does NOT specify exit codes for
+      cases (2)+(3); the difference is acceptable. The error MESSAGE is the
+      contract per plan T3.1 RED tests EC-5/EC-6 (regex match).
+    evidence: |
+      cli.ts:449-453:
+        if (isDirectInvocation) {
+          main().catch((err: unknown) => {
+            process.stderr.write(`themory CLI failed: ${...}\n`);
+            process.exit(1);
+          });
+        }
+      cli.ts:130-138: exitOverride → exit(2) for invalidArgument
+    recommended_action: NONE. Contract honored.
+
+domain_health_summary:
+  ec_4_no_client_secret_flag: PASS (F-dom-cli-1)
+  ec_5_invalid_argument_error_at_parse: PASS (F-dom-cli-2)
+  ec_2_empty_bootstrap_token_normalization: PARTIAL — bypass closed but raw-vs-trimmed inconsistency at return-value (F-dom-cli-8)
+  ec_6_client_id_without_secret_fail_loud: PARTIAL — gated behind issuer-presence; plan wording suggests OR-condition (F-dom-cli-6)
+  ec_9_host_0_0_0_0_localhost_substitution: PASS (covered by oidc-cli-resolver.test.ts test 6)
+  process_exit_promise_rejection_contract: PASS (F-dom-cli-10)
+  backward_compat_themory_server_no_flags: REGRESSION RISK — env-only THEMORY_OIDC_ISSUER triggers new boot-fail (F-dom-cli-3)
+  themory_mcp_auth_api_keys_isolation: FAIL — resolveOidcConfig called unconditionally (F-dom-cli-4)
+  help_text_quality: PARTIAL — bootstrap token policy not surfaced; OIDC enablement gates not in description (F-dom-cli-7)
+  T3_1_RED_test_files_delivered: FAIL — 2 of 2 planned test files missing; only resolver helper tested (F-dom-cli-5)
+  adr_d4_secrets_env_only: PASS end-to-end (F-dom-cli-1 + resolver line 99-105)
+
+overall_verdict: |
+  CLI domain is FUNCTIONALLY correct for the happy paths but has TWO MAJOR
+  regressions/gaps (F-dom-cli-3 backward-compat for env-only OIDC issuer on
+  themory server; F-dom-cli-4 api-keys mode tripping OIDC validation) and one
+  MAJOR coverage gap (F-dom-cli-5 missing T3.1 RED test files). EC-4 (no
+  --client-secret) and EC-5 (URL validation at parse time) honored cleanly.
+  EC-2 and EC-6 honored at the resolver but with minor inconsistencies
+  (F-dom-cli-6 + F-dom-cli-8). Help text needs surface polish (F-dom-cli-7).
+
+  Recommend NEEDS_FIXES verdict at the cross-validation tier with F-dom-cli-3
+  + F-dom-cli-4 as MUST-FIX before READY_TO_MERGE. F-dom-cli-5 (missing tests)
+  is MUST-FIX per cycle-implement.md § Step 5.5 wiring discipline ("WIRING done
+  in a separate PR is an anti-pattern").

@@ -74,3 +74,19 @@ docs.llamaindex.ai               # added for semantic-recall-cache Q7 at 2026-06
 redis.io                         # added for semantic-recall-cache Q8 at 2026-06-03 — Redis Search + Vector Similarity Search docs (DIP backend candidate per CLAUDE.md Item 19 description)
 milvus.io                        # added for semantic-recall-cache Q6 at 2026-06-03 — Milvus is the storage backend that GPTCache uses by default; needed to cite GPTCache's threshold defaults
 aclanthology.org              # added for semantic-recall-cache Q6 at 2026-06-03 — canonical GPTCache 2023 paper venue (NLP-OSS workshop); arxiv.org/abs/2310.07831 was WRONG placeholder per EC-1 absorption (different paper)
+
+# theo-memory-faang-auth-lifecycle additions (per discovery plan ADR D2 — 2026-06-07):
+# FAANG-OSS auth/token lifecycle reference projects. The investigation is primarily
+# WebSearch-driven because the candidate projects (Stripe, Supabase, PostHog, Cal.com,
+# Plausible, Ory, Auth0) are NOT clonable in their entirety to references/ — only
+# their public docs + source-on-github are needed. Each entry below carries the
+# Q-number where it is load-bearing.
+
+docs.stripe.com                  # added for theo-memory-faang-auth-lifecycle Q1+Q2+Q6 at 2026-06-07 — canonical API key shape (sk_live_/pk_live_ prefix discipline + show-once UX + scope vocabulary + rate-limit per-key); subdomain of stripe.com per allowlist subdomain rule
+supabase.com                     # added for theo-memory-faang-auth-lifecycle Q1+Q3+Q5 at 2026-06-07 — OSS-parity reference (Postgres-shape, self-host docs include auth lifecycle + audit log schema)
+posthog.com                      # added for theo-memory-faang-auth-lifecycle Q3+Q5 at 2026-06-07 — OSS-parity reference (PostHog self-host has same API-key surface as cloud); root domain
+cal.com                          # added for theo-memory-faang-auth-lifecycle Q3 at 2026-06-07 — Cal.com self-host OSS auth model reference (root domain)
+plausible.io                     # added for theo-memory-faang-auth-lifecycle Q3 at 2026-06-07 — Plausible OSS API token model (root domain; simplest of the FAANG-OSS candidates)
+docs.github.com                  # added for theo-memory-faang-auth-lifecycle Q2+Q7 at 2026-06-07 — GitHub Personal Access Token scope vocabulary + Secret Scanning Partner Program reference docs; subdomain of github.com per allowlist subdomain rule
+www.ory.sh                       # added for theo-memory-faang-auth-lifecycle Q4 at 2026-06-07 — Ory Hydra OAuth2 server docs (already in our infra stack per Plan 1 D8 dispatch; canonical OIDC bridge reference)
+auth0.com                        # added for theo-memory-faang-auth-lifecycle Q4 at 2026-06-07 — Auth0 RBAC + token exchange RFC 8693 reference patterns (root domain)

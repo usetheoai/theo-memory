@@ -1,0 +1,311 @@
+agent: review-theo-memory-faang-auth-lifecycle-fixes-cycle-1-architecture
+review_target: develop@d722c9b..develop@9b727f2 for plan theo-memory-faang-auth-lifecycle-fixes-cycle-1
+plan: .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md
+pre_read:
+  - .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md
+  - .claude/rules/architecture.md
+  - .claude/rules/cycle-implement.md
+  - .claude/knowledge-base/adrs/ADR-0013-oidc-bridge-via-introspection.md
+  - .claude/knowledge-base/adrs/ADR-0014-oss-lifecycle-parity.md
+  - .claude/knowledge-base/adrs/ADR-0015-mcp-streamable-http-auth.md
+  - .claude/rules/no-paper-names-in-code.md
+findings:
+  - id: F-arch-1
+    severity: MAJOR
+    file: src/agent-tools/run-server.ts
+    line: 186
+    plan_ref: Plan T3.2 + ADR D1 (opt-in adminApi)
+    summary: |
+      Admin REST sub-app is auto-mounted whenever THEMEMORY_API_KEY is set (apiKey !== undefined), even when the operator did NOT supply a bootstrap token. This silently changes behavior for pre-cycle deployments running `themory server` with only THEMEMORY_API_KEY set — previously `/v1/admin/keys/*` returned 404; now it answers 401 SCOPE_INSUFFICIENT for the env Bearer because the env key has no `memory:admin` scope row in theo_api_keys. The behavior is not a security defect (401 still rejects) but it violates ADR D1's "opt-in" contract: the plan says admin routes mount "ONLY when the caller passes CreateServerOptions.adminApi". The runner makes that decision implicitly based on `apiKey !== undefined`, which is broader than the plan/ADR D1 contract.
+    evidence: |
+      src/agent-tools/run-server.ts:185-196
+      ```ts
+      const bootstrapToken = resolveBootstrapToken();
+      const adminApi = bootstrapToken !== undefined || apiKey !== undefined
+          ? {
+              pool,
+              ...(bootstrapToken !== undefined ? { bootstrapToken } : {}),
+            }
+          : undefined;
+      // Use ApiKeyAuthVerifier instead of the env-secret one when admin path is
+      // active AND no OIDC issuer (lets theo_live_* keys auth via SHA-256 lookup).
+      if (adminApi !== undefined && oidcCfg === null) {
+        authVerifier = new ApiKeyAuthVerifier(pool);
+      }
+      ```
+      Plan ADR D1 § Decision: "createApp() mounts /v1/admin/keys/* ONLY when the caller passes CreateServerOptions.adminApi: { pool, bootstrapToken? }".
+      The runner couples adminApi auto-opt-in to apiKey-presence — not in the plan. Two side-effects:
+        (a) Existing operators using only THEMEMORY_API_KEY now have /v1/admin/* exposed (401-gated, but reachable).
+        (b) The authVerifier swap from BearerAuthVerifier to ApiKeyAuthVerifier (line 195) is a separate breaking change — pre-cycle, env-secret Bearer worked; post-cycle, only theo_live_* keys auth on the 4 verbs when this branch fires.
+    recommended_action: |
+      Either (a) gate adminApi mounting EXCLUSIVELY on `bootstrapToken !== undefined` per the plan's opt-in contract (current line 186 condition is over-broad), OR (b) add a dedicated `--admin-api` CLI flag / env var to make the opt-in explicit per ADR D1's "Auto-detect (`if pool present in factory`) — implicit; violates KISS" alternative-rejected note. The current branch is exactly the rejected pattern dressed differently.
+
+  - id: F-arch-2
+    severity: MAJOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: 198
+    plan_ref: Plan T3.2 ADR D4 + EC-5/EC-6
+    summary: |
+      `resolveBearerAuth` calls `resolveOidcConfig(oidcInput)` UNCONDITIONALLY for any mode != 'none' / undefined — including `--auth=api-keys`. If the operator runs `themory mcp --auth=api-keys` in an environment that has `THEMORY_OIDC_ISSUER` set (or invalid OIDC env state from a prior debug session), the resolver throws EC-5 (invalid URL) or EC-6 (missing client secret) at boot, even though the operator explicitly chose api-keys only. Fail-loud is correct policy for the OIDC mode but inappropriate when OIDC was not selected.
+    evidence: |
+      src/agent-tools/run-mcp-server.ts:195-205
+      ```ts
+      if (mode === undefined || mode === 'none') return undefined;
+
+      // OIDC resolver throws synchronously on EC-5 / EC-6 — propagate to fail-loud at boot.
+      const oidcCfg = resolveOidcConfig(oidcInput);
+
+      if ((mode === 'oidc' || mode === 'both') && oidcCfg === null) {
+        throw new Error(
+          `themory mcp: --auth=${mode} requires --issuer (or THEMORY_OIDC_ISSUER env)`,
+        );
+      }
+      ```
+      `resolveOidcConfig` reads `process.env['THEMORY_OIDC_ISSUER']` directly (oidc-cli-resolver.ts:78) — so an unrelated env var causes EC-5/EC-6 throws even for `--auth=api-keys`. Same pattern in run-server.ts:164-180 where resolveOidcConfig fires regardless of any auth-mode signal (and there is no mode selector on `themory server` at all — OIDC just "happens" if env vars are set).
+    recommended_action: |
+      Short-circuit when `mode === 'api-keys'`: skip `resolveOidcConfig` entirely. For `run-server.ts`, either (a) introduce an `--auth` flag mirroring `themory mcp` so the operator explicitly picks OIDC, or (b) only call `resolveOidcConfig` when `options.issuer !== undefined || process.env['THEMORY_OIDC_ISSUER'] !== undefined` AND verify the input is non-trivial — never throw EC-6 when the operator didn't select OIDC. Honest fail-loud is correct when OIDC is selected; it's overreach when OIDC was not requested.
+
+  - id: F-arch-3
+    severity: MINOR
+    file: src/agent-tools/run-mcp-server.ts
+    line: 27
+    plan_ref: Plan T3.2 (DRY across runners)
+    summary: |
+      OIDC verifier wiring is duplicated between `run-server.ts:172-180` and `run-mcp-server.ts:207-215`. Both call sites: (1) resolveOidcConfig, (2) createOauth4webapiIntrospect with identical args, (3) new OidcAuthVerifier({ introspect }). The two callers diverge slightly downstream (run-server assigns to authVerifier + propagates oidcDiscovery; run-mcp-server assembles a BearerAuthOptions bag), so a full helper is over-engineering — but the createOauth4webapiIntrospect + OidcAuthVerifier construction tuple is verbatim duplicated.
+    evidence: |
+      run-server.ts:172-180:
+      ```ts
+      if (oidcCfg !== null) {
+        const introspect = await createOauth4webapiIntrospect({
+          issuer: oidcCfg.issuer,
+          clientId: oidcCfg.clientId,
+          clientSecret: oidcCfg.clientSecret,
+        });
+        authVerifier = new OidcAuthVerifier({ introspect });
+        oidcDiscovery = oidcCfg.oidcDiscovery;
+      }
+      ```
+      run-mcp-server.ts:207-215:
+      ```ts
+      let oidc;
+      if (oidcCfg !== null && (mode === 'oidc' || mode === 'both')) {
+        const introspect = await createOauth4webapiIntrospect({
+          issuer: oidcCfg.issuer,
+          clientId: oidcCfg.clientId,
+          clientSecret: oidcCfg.clientSecret,
+        });
+        oidc = new OidcAuthVerifier({ introspect });
+      }
+      ```
+    recommended_action: |
+      Add a `buildOidcVerifier(cfg: ResolvedOidcConfig): Promise<OidcAuthVerifier>` helper to `oidc-cli-resolver.ts` (or a sibling) returning the OidcAuthVerifier. Both runners call the helper. Keeps the wiring single-source per Inquebrável Rule 12 (DRY for true duplication of business logic — the {issuer, clientId, clientSecret} pass-through IS the same logic).
+
+  - id: F-arch-4
+    severity: MINOR
+    file: src/server/auth/oidc-introspect-oauth4webapi.ts
+    line: 106
+    plan_ref: Plan T2.2 + commit 972ff8d (typecheck-fix)
+    summary: |
+      Two `as unknown as Parameters<typeof X>[N]` bridges (lines 106 + 130) escape the type system to compose oauth4webapi's symbol-keyed options literal. The bridge is documented + justified (oauth4webapi types use exactOptionalPropertyTypes-incompatible `?:` on symbol keys) but the comment is misleading: the literal shape `{ [customFetch]: fetchImpl }` IS structurally compatible with `DiscoveryRequestOptions` — the issue is purely the literal-narrow vs `?:` interaction. A typed factory `function makeOpts(fetchImpl?, allowInsecure?): DiscoveryRequestOptions { ... }` whose return type is the upstream type would compile without the `as unknown` escape. Architecture.md § 7 says: "If you must escape the type system, use `unknown` with a runtime assertion." The unknown casts here have NO runtime assertion — they're pure type-system bypass.
+    evidence: |
+      src/server/auth/oidc-introspect-oauth4webapi.ts:99-106
+      ```ts
+      const requestOptionsBase = {
+        ...(fetchImpl !== undefined ? { [customFetch]: fetchImpl } : {}),
+        ...(opts.allowInsecure === true ? { [allowInsecureRequests]: true } : {}),
+      } as unknown as Parameters<typeof discoveryRequest>[1];
+      ```
+      and lines 127-130:
+      ```ts
+      const introOpts = {
+        ...requestOptionsBase,
+        signal,
+      } as unknown as Parameters<typeof introspectionRequest>[4];
+      ```
+    recommended_action: |
+      Wrap the options-build in a typed factory whose return type is the upstream `DiscoveryRequestOptions` / `IntrospectionRequestOptions`. If the upstream types genuinely cannot be satisfied via spread (TS literal-narrow + exactOptionalPropertyTypes), document why a typed cast (`as DiscoveryRequestOptions` without `unknown` bridge) is rejected — the current comment claims runtime contract authority but architecture.md requires a runtime assertion to justify any `unknown` escape.
+
+  - id: F-arch-5
+    severity: MINOR
+    file: src/agent-tools/run-server.ts
+    line: 224
+    plan_ref: Plan T1.1+T3.2 (composition root coupling)
+    summary: |
+      `serve()` return is bridged via `as unknown as HttpListener` — same anti-pattern as F-arch-4. The local `HttpListener` interface (lines 98-102) is a minimal shape declaration; bridging through `unknown` rather than typing the `serve()` import correctly perpetuates type-system bypass. Both bridges are tactical workarounds for upstream type imperfections — not architectural defects on their own, but accumulate as the project ages.
+    evidence: |
+      src/agent-tools/run-server.ts:98-102, 222-224
+      ```ts
+      interface HttpListener {
+        close: (cb?: (err?: Error) => void) => void;
+        on?: (event: string, cb: (err: Error) => void) => void;
+      }
+      ...
+      const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
+        process.stdout.write(`themory server: listening on ${host}:${String(info.port)}\n`);
+      }) as unknown as HttpListener;
+      ```
+    recommended_action: |
+      Either (a) declare `HttpListener` as a structural type derived from `ReturnType<typeof serve>` so the cast becomes a narrowing assertion, or (b) accept the upstream `@hono/node-server` return type directly — the local `HttpListener` shape is exactly what `serve` returns. The `unknown` cast hides a maintenance landmine if `serve`'s signature ever changes.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/server/app.ts
+    line: 247
+    plan_ref: Plan T1.2 (LoC budget per architecture.md § 7)
+    summary: |
+      File grew from 162 → 247 LoC (+85 lines for admin wiring + AdminApiOptions interface + EC-1 pool guard + EC-7 ordering comment). Still well under architecture.md § 7 "≤ 500 LoC per file" budget. T2.1 acceptance criteria: "Adapter file ≤ 200 LoC" — applies only to the OIDC adapter (141 LoC, PASSES).
+    evidence: |
+      $ wc -l src/server/app.ts src/server/auth/oidc-introspect-oauth4webapi.ts src/agent-tools/oidc-cli-resolver.ts src/agent-tools/run-server.ts src/agent-tools/run-mcp-server.ts
+        247 src/server/app.ts
+        141 src/server/auth/oidc-introspect-oauth4webapi.ts
+        121 src/agent-tools/oidc-cli-resolver.ts
+        272 src/agent-tools/run-server.ts
+        221 src/agent-tools/run-mcp-server.ts
+      All files within budget; no SRP red flags from sheer size.
+    recommended_action: |
+      No action required. Re-evaluate at v0.5 if admin sub-app grows additional handlers (5 more would push near 350 LoC and warrant extracting `createAdminApp(adminApi): Hono` helper to keep `createApp` focused on the 4-verb surface).
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/server/auth/scope-verifier.ts
+    line: 92
+    plan_ref: Plan T3.2 EC-2 absorption (defense-in-depth)
+    summary: |
+      EC-2 defense-in-depth change to `scope-verifier.ts:92` correctly extended `opts.bootstrapToken.length > 0` → `opts.bootstrapToken.trim().length > 0`. Defense-in-depth is the intended pattern (CLI resolver normalizes at one layer; the middleware also guards at its layer). Minimal blast radius; correct DRY application (the normalization logic is NOT centralized — both layers honestly trim independently, which is correct for defense-in-depth).
+    evidence: |
+      src/server/auth/scope-verifier.ts:86-97
+      ```ts
+      // Bootstrap bypass (D7) — exact-match against the env-sourced token.
+      // EC-2 absorption (fixes-cycle-1): post-trim length-check defends against
+      // `export THEMORY_ADMIN_BOOTSTRAP_TOKEN="   "` whitespace-only env. The
+      // CLI resolver normalizes empty/whitespace to undefined; this is defense-
+      // in-depth at the middleware layer (any caller bypassing the CLI resolver
+      // still gets the no-bypass guarantee).
+      if (opts.bootstrapToken && opts.bootstrapToken.trim().length > 0) {
+        if (constantTimeEqual(token, opts.bootstrapToken)) {
+          await next();
+          return;
+        }
+      }
+      ```
+    recommended_action: |
+      No action. EC-2 absorbed at two layers per the plan. Sentinel test 5 in oidc-cli-resolver.test.ts asserts the normalization at the resolver; defense-in-depth at the middleware is honest belt-and-suspenders.
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/server/auth/oidc-introspect-oauth4webapi.ts
+    line: 77
+    plan_ref: Plan T4.1 (stub issuer scenario 4)
+    summary: |
+      `allowInsecure` option is correctly gated for integration tests only. JSDoc explicitly warns "Production deployments MUST NEVER set this". The option enables the EC-3-absorbed e2e scenario 4 against the local `node:http` stub. Acceptable design: explicit opt-in test-only flag is preferable to test-mode global state. Comment quality is high.
+    evidence: |
+      src/server/auth/oidc-introspect-oauth4webapi.ts:71-78
+      ```ts
+      readonly fetchImpl?: typeof fetch;
+      /**
+       * INTEGRATION-TEST-ONLY: enable when the issuer URL is `http://` (not
+       * `https://`) — typically a local stub issuer. Production deployments
+       * MUST NEVER set this (oauth4webapi enforces HTTPS-only by RFC 8414 §2).
+       * When true, propagates oauth4webapi's `[allowInsecureRequests]` symbol
+       * to discovery + introspection requests.
+       */
+      readonly allowInsecure?: boolean;
+      ```
+    recommended_action: |
+      No action. Optional: add a runtime warning when `allowInsecure === true` AND `NODE_ENV === 'production'` to harden against accidental flag flips in prod deploys. Not blocking.
+
+  - id: F-arch-9
+    severity: INFO
+    file: src/agent-tools/oidc-cli-resolver.ts
+    line: 121
+    plan_ref: Plan T3.1+T3.2 (helper extraction)
+    summary: |
+      `oidc-cli-resolver.ts` cleanly extracts CLI flag/env normalization into a single 121-LoC helper consumed by both run-server.ts and run-mcp-server.ts. SRP-clean: pure flag-vs-env precedence + EC-2/EC-5/EC-6/EC-9 absorption + no I/O. Tested in isolation via `oidc-cli-resolver.test.ts` (8 scenarios). Good extraction; matches the pattern used by `agent-tools-memory.ts` for env-fail boundary.
+    evidence: |
+      File header JSDoc enumerates each EC absorption with the corresponding test scenario count.
+      No DIP / SOLID red flags. The `LOCALHOST_DERIVATION_HOSTS` and `CANONICAL_SCOPES` constants are correctly UPPER_SNAKE_CASE per architecture.md § 6. ES modules + node: prefix usage clean.
+    recommended_action: |
+      No action. Strong example of SRP-respecting extraction. Future expansion (multi-tenant or per-route scope vocabulary) would naturally fit this module.
+
+  - id: F-arch-10
+    severity: INFO
+    file: tests/integration/auth/fixes-cycle-1-e2e.test.ts
+    line: 77
+    plan_ref: Plan T4.1 (EC-10 cleanup hygiene)
+    summary: |
+      Integration test uses `@ts-expect-error` to call `listener.close()` on `@hono/node-server`'s return. Same upstream typing imperfection as F-arch-5; `@ts-expect-error` is the test-side workaround. INFO-only because test-side type escapes are less load-bearing than production-side ones, but the same recommendation applies: type the `serve()` return correctly at one place and reuse it.
+    evidence: |
+      tests/integration/auth/fixes-cycle-1-e2e.test.ts:70-82 (spawnHonoOnPort)
+      ```ts
+      async function spawnHonoOnPort(app: Hono | ReturnType<typeof createServer>): Promise<HttpHandle> {
+        return new Promise((resolve) => {
+          const listener = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' }, (info: { port: number }) => {
+            resolve({
+              port: info.port,
+              close: () =>
+                new Promise<void>((done) => {
+                  // @ts-expect-error @hono/node-server returns http.Server-like
+                  listener.close(() => done());
+                }),
+            });
+          });
+        });
+      }
+      ```
+    recommended_action: |
+      Bundled with F-arch-5: once `HttpListener` interface is properly typed against `ReturnType<typeof serve>` (or `@hono/node-server` exports a structural close-able type), test-side `@ts-expect-error` becomes unnecessary.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/server/__tests__/admin-wiring.test.ts
+    line: 1
+    plan_ref: Plan T1.1 (5 RED sentinels)
+    summary: |
+      Test file is structurally clean: 5 BDD-style scenarios (`backward-compat`, `auth gate`, `bootstrap path`, `EC-1`, `EC-7`). Each test has a single assert focus. No paper names. Pool stub correctly returns canned scope rows. Test 5 (EC-7 sentinel) explicitly defends against the middleware-ordering regression — exactly the architecturally load-bearing assertion the plan called for.
+    evidence: |
+      `grep -E "\b(Voyager|Mem0|Letta|LangMem|MemGPT|Honcho|Graphiti)\b" src/server/__tests__/admin-wiring.test.ts` → 0 hits. testing.md AAA + BDD patterns satisfied.
+    recommended_action: |
+      No action.
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/server/index.ts
+    line: 11
+    plan_ref: Plan T1.2 (re-export AdminApiOptions)
+    summary: |
+      `src/server/index.ts` correctly re-exports `AdminApiOptions` alongside `CreateServerOptions`. Public API surface change is minimal and additive — backward-compat preserved per ADR D1. No DIP violation: server module owns its own option type; the runner (composition root) imports it through the public surface, not through a private deep path.
+    evidence: |
+      ```ts
+      export { createApp as createServer } from './app.js';
+      export type { AdminApiOptions, CreateServerOptions } from './app.js';
+      ```
+    recommended_action: |
+      No action. Architecture.md § 9 satisfied: "Adding a new public export requires updating: src/index.ts, package.json#exports, the README's 'Planned API contract' section, and a unit test that imports through the public path." — admin-wiring.test.ts imports `{ createServer } from '../index.js'` which exercises the public path. README + package.json#exports check is OUT of architecture-reviewer scope (domain-api-design agent owns this).
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/server/auth/__tests__/oidc-introspect-oauth4webapi.test.ts
+    line: 88
+    plan_ref: Plan T2.1 (5 RED sentinels)
+    summary: |
+      5 RED scenarios cleanly defend the adapter contract: (1) discovery-call-count == 1, (2) active=true mapping, (3) active=false mapping, (4) EC-8 abort signal propagation (≤50ms), (5) EC-3 introspection_endpoint guard. Stub fetch uses the upstream `customFetch` symbol — correctly avoids inventing a parallel test-only seam. Test 4's 5000ms latency would block CI if abort propagation regressed — strong fail-loud sentinel.
+    evidence: |
+      Test 4 asserts elapsed < 50ms (line 161) against an introspection that would otherwise block 5000ms. Strong regression sentinel.
+      Test 5 asserts the EC-3 error message contains either "introspection_endpoint" or "RFC 7662" (line 180) — both required phrases per ADR D2 fail-loud contract.
+    recommended_action: |
+      No action.
+
+summary:
+  - severity_counts:
+      BLOCKER: 0
+      CRITICAL: 0
+      MAJOR: 2
+      MINOR: 3
+      INFO: 8
+  - dip_compliance: PASS — src/server/ does not import from src/local/ or src/cloud/. src/agent-tools/ (composition root, allowed) imports from src/server/ + src/local/ correctly.
+  - solid_compliance: PASS — SRP respected per file; OCP via opt-in adminApi (composition over modification); ISP/LSP not directly stressed by this cycle's changes. F-arch-1 + F-arch-2 are SRP/policy concerns (the runner is doing more than its plan-documented contract).
+  - naming_hygiene: PASS — kebab-case files, PascalCase types, camelCase functions, UPPER_SNAKE_CASE constants. ES-module-only. No `console.log` in production paths. Single justified `as unknown` cluster around oauth4webapi symbol-keyed options (F-arch-4 + F-arch-5).
+  - paper_names_in_code: PASS — 0 hits across all changed src/** + tests/** files per `.claude/rules/no-paper-names-in-code.md`.
+  - file_loc_budget: PASS — all files within architecture.md § 7 ≤ 500 LoC budget; oidc-introspect-oauth4webapi.ts at 141 LoC honors plan T2.1 ≤ 200 LoC limit.
+  - middleware_ordering: PASS — `requireScope('/v1/admin/*')` mounted + admin route handlers registered BEFORE `bearerAuth('/v1/*')` per Hono use-order semantics; EC-7 sentinel test 5 in admin-wiring.test.ts protects this.
+  - verdict: READY_TO_MERGE_WITH_FIXES — 2 MAJOR (F-arch-1 opt-in policy drift + F-arch-2 OIDC resolver overreach for api-keys mode) should be addressed before merge OR explicitly accepted via ADR amendment. The 3 MINOR + 8 INFO can be deferred to a follow-up hygiene cycle.

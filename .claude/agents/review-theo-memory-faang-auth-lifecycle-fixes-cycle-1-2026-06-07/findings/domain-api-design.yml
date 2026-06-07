@@ -1,0 +1,292 @@
+agent: review-theo-memory-faang-auth-lifecycle-fixes-cycle-1-domain-api-design
+review_target: develop@d722c9b..develop@9b727f2 for plan theo-memory-faang-auth-lifecycle-fixes-cycle-1
+domain: api-design
+domain_specific_patterns_checked:
+  - "ADR D1 — opt-in `adminApi: { pool, bootstrapToken? }` (backward-compat preserved)"
+  - "ADR D11 — DIP discipline: src/server/ MUST NOT import pg.Pool (uses AuthPool DIP)"
+  - "ADR D2 — oauth4webapi adapter as separate file (NOT embedded in OidcAuthVerifier)"
+  - "ADR D3 — discovery cached at construction (NOT per-request)"
+  - "ADR D4 — secrets sourced from env (NOT CLI flags)"
+  - "EC-1 — adminApi.pool runtime guard at boot"
+  - "EC-3 — fail-loud at construction when introspection_endpoint missing"
+  - "EC-7 — admin route mounting BEFORE generic /v1/* bearerAuth"
+  - "RFC 7662 — IntrospectionResult shape (active + sub + scope + exp)"
+  - "RFC 8414 — discovery doc shape"
+  - "Error envelope consistency — { code, message } across all 4xx/5xx responses"
+  - "Public API surface — index.ts re-exports policy"
+
+findings:
+  - id: F-dom-api-1
+    severity: MAJOR
+    file: src/server/index.ts
+    line: 1-15
+    plan_ref: "Plan § Phase 2 T2.2 Files-to-edit: `src/server/auth/index.ts (if exists, else src/server/index.ts) — re-export`"
+    domain_anchor: "architecture.md § 9 Public API surface — 'Adding a new public export requires updating: src/index.ts, package.json#exports, the README... and a unit test that imports through the public path.'"
+    summary: |
+      `createOauth4webapiIntrospect`, `OidcAuthVerifier`, `IntrospectFn`, and `IntrospectionResult`
+      are NOT re-exported from `src/server/index.ts`, contradicting T2.2 Files-to-edit and
+      blocking third-party SDK consumers from wiring OIDC without internal subpath imports.
+      The two production callers (`src/agent-tools/run-server.ts:173`, `run-mcp-server.ts:209`)
+      import directly from `../../server/auth/oidc-introspect-oauth4webapi.js` — a private
+      file path that consumers of `@usetheo/memory/server` cannot reach through
+      `package.json#exports`. A self-hosted operator who wants to wire `OidcAuthVerifier`
+      into their own Hono / Express composition (NOT via `themory server`) has no public
+      path to do so.
+    evidence: |
+      ```ts
+      // src/server/index.ts — full file:
+      export { createApp as createServer } from './app.js';
+      export type { AdminApiOptions, CreateServerOptions } from './app.js';
+      export { BearerAuthVerifier, readApiKey } from './auth/bearer-verifier.js';
+      export { bearerAuth } from './auth/middleware.js';
+      // ❌ Missing: OidcAuthVerifier, createOauth4webapiIntrospect, IntrospectFn, IntrospectionResult
+      // ❌ Missing: ApiKeyAuthVerifier, requireScope, AuthPool, RequireScopeOptions
+      ```
+    recommended_action: |
+      Add to `src/server/index.ts`:
+        export { OidcAuthVerifier } from './auth/oidc-verifier.js';
+        export type { IntrospectFn, IntrospectionResult, OidcAuthVerifierOptions } from './auth/oidc-verifier.js';
+        export { createOauth4webapiIntrospect } from './auth/oidc-introspect-oauth4webapi.js';
+        export type { CreateOauth4webapiIntrospectOptions } from './auth/oidc-introspect-oauth4webapi.js';
+        export { ApiKeyAuthVerifier } from './auth/api-key-verifier.js';
+        export type { AuthPool } from './auth/api-key-verifier.js';
+        export { requireScope } from './auth/scope-verifier.js';
+        export type { RequireScopeOptions } from './auth/scope-verifier.js';
+      Plus a contract test under `src/server/__tests__/` importing the named symbols via
+      `@usetheo/memory/server` to lock the surface.
+
+  - id: F-dom-api-2
+    severity: MAJOR
+    file: src/server/auth/middleware.ts
+    line: 41-65
+    plan_ref: "Plan § Sub-goal 1 (Backward-compat preserved); Goal § 6 'Error envelope consistency: { code, message } shape across all error responses'"
+    domain_anchor: "errors.ts § ErrorEnvelope { code, message, field? } — canonical envelope shape"
+    summary: |
+      Inconsistent error envelope `code` vocabulary between admin and generic routes.
+      `bearerAuth` middleware (used by `/v1/{remember,recall,forget,reflect}`) returns
+      `{ code: 'UNAUTHORIZED', message: 'Bearer token required' }` for missing/invalid
+      Bearer, while `requireScope` middleware (used by `/v1/admin/keys/*`) returns
+      `{ code: 'AUTH_REQUIRED', message: 'Authorization header is required.' }`.
+      Same semantic failure (no Bearer header) → two different `code` values.
+      Consumers parsing 401 envelopes uniformly (e.g., a CLI matching on `code` to
+      decide whether to prompt for `THEMEMORY_API_KEY`) cannot match a single token.
+      The admin-wiring test at L82-83 even asserts `body.code === 'AUTH_REQUIRED'`,
+      cementing the divergence as load-bearing in the contract suite.
+    evidence: |
+      ```ts
+      // src/server/auth/middleware.ts L40-44 (generic /v1/*):
+      return c.json(
+        { code: 'UNAUTHORIZED', message: 'Bearer token required' },
+        401,
+        { 'WWW-Authenticate': 'Bearer' },
+      );
+
+      // src/server/auth/scope-verifier.ts L80-83 (/v1/admin/*):
+      return c.json(
+        { code: 'AUTH_REQUIRED', message: 'Authorization header is required.' },
+        401,
+      );
+      ```
+    recommended_action: |
+      Choose ONE canonical code (`AUTH_REQUIRED` is more RFC-aligned with RFC 6750 §3
+      `WWW-Authenticate` semantics; `UNAUTHORIZED` duplicates the HTTP status name in
+      the body, which is anti-pattern per RFC 7807) and standardize both middlewares.
+      Also align `WWW-Authenticate: Bearer` header — admin middleware omits it, which
+      breaks RFC 6750 §3 expectation for 401 on a Bearer-protected resource. Cover with
+      a sentinel test in `src/server/auth/__tests__/error-envelope-consistency.test.ts`
+      asserting both `bearerAuth` and `requireScope` emit identical `{ code, message }`
+      shape + same `WWW-Authenticate` header on missing-bearer 401.
+
+  - id: F-dom-api-3
+    severity: MAJOR
+    file: src/server/auth/oidc-introspect-oauth4webapi.ts
+    line: 134-139
+    plan_ref: "Plan § Sub-goal 2 Production OIDC IntrospectFn adapter; Goal § 7 'RFC 7662 compliance: IntrospectionResult shape (active + sub + scope + exp)'"
+    domain_anchor: "RFC 7662 §2.2 OAuth 2.0 Token Introspection Response — 12 standard claims"
+    summary: |
+      Adapter narrows the introspection response to only 4 fields (`active`, `sub`,
+      `scope`, `exp`), silently discarding 8 other RFC 7662 §2.2 standard claims:
+      `client_id`, `username`, `token_type`, `iat`, `nbf`, `aud`, `iss`, `jti`. The
+      `IntrospectionResult` interface in `oidc-verifier.ts` mirrors this 4-field
+      reduction. The narrowing happens at TWO layers (`IntrospectionResult` interface
+      + adapter mapping), each making the loss permanent. Downstream consumers cannot
+      perform `aud` (audience) validation — a RFC 7662 §4 SECURITY consideration:
+      "the resource server should ... validate that the token is intended for use
+      with this resource server [via `aud` claim]". Without `aud`, the verifier
+      accepts ANY active token issued by the configured issuer, even if it was
+      minted for a different resource (token-confusion attack surface). Same risk
+      with `iss` validation (defense against malicious second issuer impersonating
+      a trusted one).
+    evidence: |
+      ```ts
+      // src/server/auth/oidc-introspect-oauth4webapi.ts L134-139:
+      return {
+        active: result.active === true,
+        ...(result.sub !== undefined ? { sub: result.sub } : {}),
+        ...(result.scope !== undefined ? { scope: result.scope } : {}),
+        ...(result.exp !== undefined ? { exp: result.exp } : {}),
+      };
+      // ❌ Discards: client_id, username, token_type, iat, nbf, aud, iss, jti
+      ```
+    recommended_action: |
+      Either (a) extend `IntrospectionResult` to carry the full RFC 7662 §2.2 surface
+      so future verifiers can validate `aud`/`iss`/`exp`/`nbf` per RFC §4, OR (b)
+      document the deliberate scope restriction with a SECURITY note in JSDoc citing
+      RFC 7662 §4 and explaining the trust assumption ("issuer is single-tenant; aud
+      validation deferred until multi-resource deployments — see follow-up cycle X").
+      Without one of these, the narrowing reads like an oversight rather than a
+      decision. The fail-loud-at-aud-mismatch behavior is industry standard (Auth0,
+      Okta, Hydra SDKs all surface `aud`).
+
+  - id: F-dom-api-4
+    severity: MINOR
+    file: src/server/auth/oidc-introspect-oauth4webapi.ts
+    line: 103-106, 127-130
+    plan_ref: "Plan § T2.2 Acceptance Criteria 'Zero use of `any` in adapter source'"
+    domain_anchor: "architecture.md § 7 Module hygiene — 'TypeScript strict mode. No `any`. If you must escape the type system, use `unknown` with a runtime assertion.'"
+    summary: |
+      Two `as unknown as Parameters<typeof discoveryRequest>[1]` (L106) and
+      `as unknown as Parameters<typeof introspectionRequest>[4]` (L130) cast escapes
+      bridge the `customFetch` / `allowInsecureRequests` symbol-keyed option shape.
+      The cast is a known oauth4webapi-API limitation (symbol-keyed properties under
+      `exactOptionalPropertyTypes` reject `undefined`), and the JSDoc at L100-102
+      acknowledges it ("bridge via `unknown` cast since the runtime contract is set
+      by oauth4webapi, not our type — Inquebrável Rule 9 — don't reinvent symbol-keyed
+      types"). However, the cast SHALL include a runtime assertion per architecture.md
+      §7 ('use `unknown` with a runtime assertion'). Today it's pure type widening
+      with no runtime guard — if oauth4webapi changes the option shape in a future
+      version, the cast silently compiles and the runtime behavior diverges.
+    evidence: |
+      ```ts
+      // L103-106:
+      const requestOptionsBase = {
+        ...(fetchImpl !== undefined ? { [customFetch]: fetchImpl } : {}),
+        ...(opts.allowInsecure === true ? { [allowInsecureRequests]: true } : {}),
+      } as unknown as Parameters<typeof discoveryRequest>[1];
+      ```
+      No runtime check that the option object is well-formed beyond what oauth4webapi
+      will eventually do internally.
+    recommended_action: |
+      Either (a) document the architecture.md §7 deferral with an inline
+      `// eslint-disable-next-line @typescript-eslint/no-explicit-any -- ADR D2 §X`
+      pointing at an ADR row that documents the cast as an intentional bridge, OR
+      (b) wrap the cast in a thin assertion `assertOauth4webapiOptions(obj)` that
+      verifies the option keys are EITHER the two known symbols OR absent. Option
+      (b) is over-engineering for a 2-symbol surface; (a) is the pragmatic path.
+
+  - id: F-dom-api-5
+    severity: MINOR
+    file: src/server/auth/oidc-introspect-oauth4webapi.ts
+    line: 70-77
+    plan_ref: "ADR D2 (security-by-default for production deployments)"
+    domain_anchor: "RFC 8414 §2 — OAuth 2.0 Authorization Server Metadata MUST be served over HTTPS"
+    summary: |
+      `allowInsecure?: boolean` option (L77) is documented "INTEGRATION-TEST-ONLY"
+      but the contract is unenforced. A misconfigured production deployment that
+      passes `allowInsecure: true` (perhaps copied from a test fixture) silently
+      downgrades to HTTP discovery + introspection — RFC 8414 §2 violation. There
+      is no runtime guard that rejects `allowInsecure: true` when `process.env.NODE_ENV
+      === 'production'` OR when `issuer.startsWith('https://')`. The JSDoc warning
+      is the only barrier.
+    evidence: |
+      ```ts
+      // L70-77:
+      readonly allowInsecure?: boolean;
+      ```
+      No `if (opts.allowInsecure === true && process.env.NODE_ENV === 'production')
+      throw new Error(...)` guard.
+    recommended_action: |
+      Add a defense-in-depth guard:
+        if (opts.allowInsecure === true && opts.issuer.startsWith('https://')) {
+          throw new Error('createOauth4webapiIntrospect: allowInsecure has no effect on https:// issuer; remove the option or use http:// issuer (integration-test only).');
+        }
+        if (opts.allowInsecure === true && process.env['NODE_ENV'] === 'production') {
+          throw new Error('createOauth4webapiIntrospect: allowInsecure forbidden in production (NODE_ENV=production).');
+        }
+      Both guards fail-loud at construction. Sentinel test added to the existing
+      `oidc-introspect-oauth4webapi.test.ts` file.
+
+  - id: F-dom-api-6
+    severity: MINOR
+    file: src/server/__tests__/admin-wiring.test.ts
+    line: 65
+    plan_ref: "ADR D4 § EC-12 DOCUMENT (token char policy) — 'env-controlled tokens are opaque bytes... Minimum 32 chars enforced softly via documentation'"
+    domain_anchor: "Plan § EC-12 absorption — `openssl rand -base64 32` recommended"
+    summary: |
+      Test fixture `BOOTSTRAP_TOKEN = 'bootstrap-secret-' + 'x'.repeat(32)` produces
+      a 48-char low-entropy string that does not match the documented operator
+      recommendation (`openssl rand -base64 32` → 43-char `[A-Za-z0-9+/=]` set).
+      For RED-test backward-compat sentinels the value is fine (length-check only
+      enforces non-empty post-trim), but if any future fuzzer test pivots on a
+      production-realistic token shape it'll need to seed off the documented format.
+      Recommend aligning the test fixture with the documented recommendation so the
+      "what a real bootstrap token looks like" pattern lives in one place (the test).
+    evidence: |
+      ```ts
+      // src/server/__tests__/admin-wiring.test.ts L65:
+      const BOOTSTRAP_TOKEN = 'bootstrap-secret-' + 'x'.repeat(32);
+      ```
+    recommended_action: |
+      Replace with a fixture that mirrors the documented recommendation:
+        // Mirrors operator recommendation in README: openssl rand -base64 32
+        const BOOTSTRAP_TOKEN = 'rTbN1zXqW7eY9aP3vKsM4dCf5gH2jL6oQ0uV8iJ7tBnA=';
+      Add a one-line comment citing the ADR D4 source. Strict scope of this change:
+      test fixture only; no production code path changes.
+
+  - id: F-dom-api-7
+    severity: INFO
+    file: src/server/app.ts
+    line: 199-227
+    plan_ref: "ADR D1 — Admin sub-app composition via opt-in"
+    domain_anchor: "RFC 7807 Problem Details for HTTP APIs — endpoint discovery via OpenAPI"
+    summary: |
+      Admin routes are NOT registered into the OpenAPI registry (no
+      `app.openapi(route, handler)` calls; the 5 admin routes use plain
+      `app.post/get/delete` from Hono, bypassing `@hono/zod-openapi`). The
+      OpenAPI spec served at `/v1/openapi.json` therefore does NOT advertise
+      `/v1/admin/keys/*`. Codegen tools (openapi-generator, Postman import,
+      Swagger UI) cannot discover the admin surface from the spec — operators
+      must read source or CLI `--help` instead. This is consistent with the
+      4-verb surface being the canonical OpenAPI-described public API and
+      the admin surface being an operator/CLI tool, but worth documenting
+      explicitly.
+    evidence: |
+      ```ts
+      // L209-226 — admin routes use plain Hono (no app.openapi):
+      app.post('/v1/admin/keys', (c) => createKeyHandler(...));
+      app.get('/v1/admin/keys/list', ...);
+      // vs the 4 verbs at L233-236 still using plain app.post too
+      // and registerAllPaths(app.openAPIRegistry) at L131 covering only the 4 verbs
+      ```
+    recommended_action: |
+      Either (a) extend `registerAllPaths` to register the 5 admin routes with
+      their zod schemas (largest scope; full OpenAPI surface), OR (b) document
+      in `src/server/openapi-registration.ts` JSDoc that admin routes are
+      deliberately undocumented in OpenAPI and reference the CLI as the canonical
+      operator surface (scope: one comment). Option (b) is the pragmatic close
+      for this fix-cycle; option (a) is a follow-up if a Swagger-UI based admin
+      console is ever desired.
+
+summary:
+  total: 7
+  by_severity:
+    BLOCKER: 0
+    CRITICAL: 0
+    MAJOR: 3
+    MINOR: 3
+    INFO: 1
+
+verdict_recommendation: READY_TO_MERGE_WITH_CAVEATS
+
+verdict_rationale: |
+  No BLOCKER or CRITICAL findings. ADR D1 (opt-in adminApi), D2 (separate adapter file),
+  D3 (discovery cached at construction), D4 (env-only secrets), D11 (DIP via AuthPool —
+  no `pg` import in `src/server/`), EC-1 (pool runtime guard), EC-3 (introspection_endpoint
+  fail-loud), and EC-7 (admin BEFORE generic bearerAuth) are all correctly implemented and
+  test-covered. RFC 8414 discovery shape is honored via `oauth4webapi.processDiscoveryResponse`.
+  3 MAJORs are public-surface + envelope consistency + RFC 7662 narrowing — non-blocking
+  but should be addressed before promoting OIDC out of fix-cycle hardening. F-dom-api-1
+  (missing exports) is the highest-leverage fix: contradicts T2.2 Files-to-edit verbatim
+  and blocks third-party SDK consumers. F-dom-api-2 (envelope consistency) and F-dom-api-3
+  (RFC 7662 narrowing — `aud`/`iss` discarded) carry SECURITY undertones (token-confusion
+  attack surface unaddressed) but are inherited from the parent cycle, not introduced here.

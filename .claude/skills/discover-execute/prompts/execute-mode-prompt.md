@@ -34,10 +34,10 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 
    Examples by question shape:
 
-   - "How does Mem0 implement `Memory` class surface?" → Fase A: `ast-grep scan --rule .claude/skills/ast-grep/rules/method-in-class-ts.yml .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/` → 27 methods, each with line range.
-   - "What async pipeline does Letta run?" → Fase A: `ast-grep scan --rule async-function-python.yml .claude/knowledge-base/references/letta/letta/` → list of async entry points.
+   - "How does Project A implement `Memory` class surface?" → Fase A: `ast-grep scan --rule .claude/skills/ast-grep/rules/method-in-class-ts.yml .claude/knowledge-base/references/project-a/project-a-ts/src/oss/src/memory/` → 27 methods, each with line range.
+   - "What async pipeline does Project B run?" → Fase A: `ast-grep scan --rule async-function-python.yml .claude/knowledge-base/references/project-b/project-b/` → list of async entry points.
    - "Where is `.embed()` called?" → Fase A: edit `method-call-ts.yml` rule pattern to `$OBJ.embed($$$)` (default) and scan the target dir.
-   - "Compare class hierarchies between Mem0 and LangMem" → Fase A: run `class-extends-ts.yml` against both, then a Python-equivalent rule against LangMem.
+   - "Compare class hierarchies between Project A and Project C" → Fase A: run `class-extends-ts.yml` against both, then a Python-equivalent rule against Project C.
 
    The Fase A output becomes the input table for the blueprint section under the corresponding research question. Cite the rule used + the dir scanned + match count in the progress file.
 
@@ -52,10 +52,10 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
    Skip ast-grep ONLY when the question is text-shaped, not code-shape:
 
    - "Find the file that contains string 'pgvector'" → straight Grep + Read
-   - "Read the README of Mem0" → straight Read
+   - "Read the README of Project A" → straight Read
    - "What's in `pyproject.toml`?" → straight Read
 
-   For everything else (function shape, class hierarchy, call sites, decorators, async patterns, type definitions, control flow), **Fase A is mandatory** before any Read. Skipping Fase A wastes Read tokens on broad exploration.
+   For everything else (function shape, class hierarchy, call sites, decorators, async patterns, type definitions, control flow), **Fase A is mandatory** before any Read. Skipping Fase A turns Read into broad exploration, which is unfocused and noisy.
 
    ### Halt and skip conditions
 
@@ -104,6 +104,7 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 - NEVER fabricate a citation. If you cannot find a real path that supports a claim, REMOVE the claim or mark it BLOCKED.
 - NEVER skip a corner. All four must be populated before the promise.
 - NEVER emit `<promise>BLUEPRINT_COMPLETE</promise>` while a question is still `pending`. Use `blocked` if you cannot answer it.
+- NEVER spawn a nested ralph-loop inside this iteration. NEVER modify `.claude/ralph-loop.local.md` directly — that is the parent loop's state. If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict (concurrent loops on overlapping state is an anti-pattern in `rules/loop-engine-convention.md`).
 
 ## When the loop should give up
 
@@ -113,4 +114,4 @@ If `iterations_used >= {MAX_ITERATIONS}` OR time budget exhausted OR the same qu
 - Emit `<promise>BLUEPRINT_BLOCKED</promise>` (NOT `BLUEPRINT_COMPLETE`) with the honest blocked-questions report
 - DO NOT pretend the blueprint is complete
 
-`BLUEPRINT_BLOCKED` signals to the ralph-loop wrapper that the loop terminated honestly without satisfying every halt condition. The downstream `/discover-confidence` will catch any structural failure regardless. Honesty over false completion (Inquebrável Rule 3).
+`BLUEPRINT_BLOCKED` signals to the ralph-loop wrapper that the loop terminated honestly without satisfying every halt condition. The downstream `/discover-confidence` will catch any structural failure regardless. Honesty over false completion (Unbreakable Rule 3).

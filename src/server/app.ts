@@ -14,16 +14,51 @@ import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import { ContentTooLargeError } from '../core/errors.js';
 import type { Memory } from '../core/memory-store.js';
 
+import type { AuthPool } from './auth/api-key-verifier.js';
 import { bearerAuth } from './auth/middleware.js';
+import { requireScope } from './auth/scope-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
+import {
+  createKeyHandler,
+  lineageKeyHandler,
+  listKeysHandler,
+  revokeKeyHandler,
+  rotateKeyHandler,
+} from './handlers/admin-keys.js';
 import { forgetHandler } from './handlers/forget.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
 import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopesHandler } from './handlers/scopes.js';
+import {
+  wellKnownOauthProtectedResourceHandler,
+  type OidcDiscoveryConfig,
+} from './handlers/well-known.js';
 import { otelMiddleware } from './observability/otel-middleware.js';
 import { registerAllPaths } from './openapi-registration.js';
+
+/**
+ * T1.1 + ADR D1 — admin REST sub-app configuration. When supplied, mounts
+ * `/v1/admin/keys/*` under `requireScope({ requiredScope: 'memory:admin' })`.
+ * Backward-compat: omit `adminApi` and the sub-app is NOT mounted (every
+ * existing `createServer({ memory })` continues to boot identically).
+ */
+export interface AdminApiOptions {
+  /** pg.Pool-shaped DB access for the 5 admin handlers + scope verifier. */
+  readonly pool: AuthPool;
+  /**
+   * Single-use bootstrap admin token sourced from env per ADR D4 (NEVER a
+   * CLI flag — would leak via `ps`). Bearer matching this exact value
+   * bypasses scope check on first call; EC-3 self-revoke in
+   * `createKeyHandler` atomically flips `admin_config.bootstrap_consumed`
+   * after the first admin key is issued.
+   */
+  readonly bootstrapToken?: string;
+}
+
+/** ADR-0014 D6 — single-tenant OSS variant; subject is the constant `'self'`. */
+const ADMIN_SUBJECT = 'self';
 
 export interface CreateServerOptions {
   readonly memory: Memory;
@@ -55,10 +90,36 @@ export interface CreateServerOptions {
    * for callers that pre-warm before invoking `createServer`).
    */
   readonly readinessProbe?: () => boolean;
+  /**
+   * T4.2 + ADR-0015 #4 — when supplied, exposes RFC 9728 metadata at
+   * `/.well-known/oauth-protected-resource` so MCP clients can auto-discover
+   * the OIDC issuer + supported scopes WITHOUT manual config. The endpoint
+   * is auth-exempt (mounted BEFORE the bearer middleware) — clients fetch
+   * it before having a token. When omitted, the well-known endpoint returns
+   * 404 `OIDC_DISCOVERY_NOT_CONFIGURED` (honest no-OIDC signal).
+   */
+  readonly oidcDiscovery?: OidcDiscoveryConfig;
+  /**
+   * T1.1 + ADR D1 — opt-in admin REST sub-app. When supplied, mounts
+   * `/v1/admin/keys/*` under `requireScope({ requiredScope: 'memory:admin' })`.
+   * When omitted, admin routes return 404 (backward-compat for consumers
+   * who don't need admin lifecycle).
+   */
+  readonly adminApi?: AdminApiOptions;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi } = options;
+
+  // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
+  // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
+  // at boot with a clear error rather than crashing deep in the first admin request.
+  if (adminApi !== undefined && (!adminApi.pool || typeof adminApi.pool.query !== 'function')) {
+    throw new Error(
+      `createServer: adminApi.pool is required when adminApi is supplied; got typeof pool=${typeof adminApi.pool}`,
+    );
+  }
+
   const app = new OpenAPIHono();
 
   // EC-19 absorption — /v1/openapi.json MUST resolve auth-exempt even when
@@ -118,6 +179,52 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // endpoints break Kubernetes / docker-compose `--wait` readiness gates.
   app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
   app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+
+  // T4.2 / ADR-0015 #4 — RFC 9728 discovery endpoint MUST be auth-exempt.
+  // MCP clients fetch it BEFORE having a token. Mount BEFORE bearer
+  // middleware AND outside the `/v1/*` prefix per the RFC 9728 well-known
+  // URI pattern. Returns 404 when no oidcDiscovery configured (handler
+  // owns the 404 envelope — see well-known.ts).
+  app.get(
+    '/.well-known/oauth-protected-resource',
+    wellKnownOauthProtectedResourceHandler(oidcDiscovery),
+  );
+
+  // T1.1 + ADR D1 + EC-7 absorption — admin sub-app MUST mount BEFORE the
+  // generic `/v1/*` bearerAuth middleware. Hono executes middleware along the
+  // matched path; if generic bearer fires first on `/v1/admin/*`, it rejects
+  // theo_live_* admin keys that don't match THEMEMORY_API_KEY env var.
+  // requireScope owns its own Bearer extraction + theo_api_keys SHA-256 lookup,
+  // bypassing the env-secret comparison. EC-7 sentinel test 5 protects this.
+  if (adminApi !== undefined) {
+    const adminBootstrap = adminApi.bootstrapToken;
+    app.use(
+      '/v1/admin/*',
+      requireScope({
+        pool: adminApi.pool,
+        requiredScope: 'memory:admin',
+        ...(adminBootstrap !== undefined ? { bootstrapToken: adminBootstrap } : {}),
+      }),
+    );
+    app.post('/v1/admin/keys', (c) => {
+      // viaBootstrapToken detection mirrors the integration test's `buildAdminApp` pattern —
+      // when the Bearer equals the bootstrap token, createKeyHandler runs the atomic-tx
+      // path (BEGIN → INSERT → markBootstrapConsumedTx → COMMIT) per EC-3 absorption.
+      const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? '';
+      const token = header.replace(/^Bearer\s+/i, '');
+      const viaBootstrap =
+        adminBootstrap !== undefined && adminBootstrap.length > 0 && token === adminBootstrap;
+      return createKeyHandler(c, adminApi.pool, ADMIN_SUBJECT, { viaBootstrapToken: viaBootstrap });
+    });
+    app.get('/v1/admin/keys/list', (c) => listKeysHandler(c, adminApi.pool, ADMIN_SUBJECT));
+    app.delete('/v1/admin/keys/:id', (c) => revokeKeyHandler(c, adminApi.pool, ADMIN_SUBJECT));
+    app.post('/v1/admin/keys/:id/rotate', (c) =>
+      rotateKeyHandler(c, adminApi.pool, ADMIN_SUBJECT),
+    );
+    app.get('/v1/admin/keys/:id/lineage', (c) =>
+      lineageKeyHandler(c, adminApi.pool, ADMIN_SUBJECT),
+    );
+  }
 
   app.use('/v1/*', bearerAuth(authVerifier));
 

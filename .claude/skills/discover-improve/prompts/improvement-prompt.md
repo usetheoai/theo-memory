@@ -12,8 +12,8 @@ You are mid-improvement of a blueprint, iteration {ITERATION}/{MAX_ITERATIONS}. 
 
 Run `python3 .claude/skills/discover-improve/scripts/apply_fixes.py {BLUEPRINT_PATH}`. This:
 
-1. Replaces weak imperatives (should/could/may/might/deveria/poderia) with `must` / `deve` in prose (skips code blocks and citation tables).
-2. Strips loopholes ("if possible", "as appropriate", "se possível", "quando aplicável", ...).
+1. Replaces weak imperatives (should/could/may/might) with `must` in prose (skips code blocks and citation tables).
+2. Strips loopholes ("if possible", "as appropriate", "when applicable", "where feasible").
 3. Detects fabricated citations (paths in `.claude/knowledge-base/references/{...}` that don't exist on disk) and marks them with `<!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->`.
 4. Reports diff to stdout.
 
@@ -27,7 +27,7 @@ If verdict ≥ `{TARGET_VERDICT}`, jump to step "Emit promise".
 
 ### Phase B — LLM-driven fixes (apply only if Phase A insufficient)
 
-For each detractor in the latest `motivos`:
+For each detractor in the latest `reasons`:
 
 1. **Empty coverage corner** — read the discovery plan to find the research question(s) mapped to that corner. If credible answers exist in already-collected blueprint content elsewhere, REFACTOR them into the empty corner. If no credible answer exists, add:
    ```markdown
@@ -39,7 +39,7 @@ For each detractor in the latest `motivos`:
 
 3. **Low citation density** — paragraphs without citations should EITHER receive a real `.claude/knowledge-base/references/{...}` citation OR be rewritten as opinion ("the synthesis suggests...") rather than claim.
 
-4. **Risco_estrutural detractors** — fix specific smells listed in motivos by rewriting the affected sentence.
+4. **Structural_risk detractors** — fix specific smells listed in reasons by rewriting the affected sentence.
 
 Then re-score with `run_blueprint_score.py`.
 
@@ -66,6 +66,8 @@ If `iterations_used >= {MAX_ITERATIONS}` OR no-improvement detected for 2 consec
 - NEVER fabricate a citation. If a path doesn't exist, mark it BLOCKED and move on.
 - NEVER emit the promise while a hard cap is still active. INVALID verdict cannot be auto-improved past 49 without resolving the underlying structural defect (empty corner / fabricated citation).
 - NEVER iterate beyond `{MAX_ITERATIONS}`.
+- NEVER emit `<promise>BLUEPRINT_IMPROVED</promise>` without re-running `run_blueprint_score.py` in this iteration AFTER your last edit. The promise asserts a measurable fact (verdict ≥ `{TARGET_VERDICT}`); emitting it speculatively (without verification) is fabrication.
+- NEVER spawn a nested ralph-loop inside this iteration. NEVER modify `.claude/ralph-loop.local.md` directly. If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict.
 
 ## When to give up honestly
 

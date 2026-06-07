@@ -1,6 +1,6 @@
 ---
 name: test-chat-with-memory
-description: End-to-end test runner for the `examples/chat-with-memory` Next.js demo via Chrome DevTools MCP. Spawns the dev server in background, drives the browser through 33 exhaustive scenarios covering User / Session / Skills / History / chat round-trip / edge cases / v0.4b eviction tab against a real pgvector backend, cleans up, and writes a structured PASS/FAIL audit report.
+description: End-to-end test runner for the `examples/chat-with-memory` TheoKit-canonical demo (post examples-theokit-chat-migration v1.1 — `theokit dev` entrypoint, `defineRoute`-based `server/routes/*`, `@usetheo/memory/theokit` subpath) via Chrome DevTools MCP. Spawns the dev server in background, drives the browser through 33 exhaustive scenarios covering User / Session / Skills / History / chat round-trip / edge cases / v0.4b eviction tab / v0.7 distillation tab against a real pgvector backend, cleans up, and writes a structured PASS/FAIL audit report.
 ---
 
 # Test Chat-with-Memory — exhaustive E2E via Chrome DevTools MCP
@@ -17,7 +17,9 @@ Pre-conditions the skill verifies + refuses on failure:
 2. `docker ps` returns at least one container exposing port 5432 (pgvector running).
 3. Port 3000 is free (`lsof -i :3000` returns nothing) — otherwise an orphan dev server is already up.
 4. `examples/chat-with-memory/node_modules/` exists (otherwise asks user to `npm install`).
-5. The 9 Chrome DevTools MCP tools used below are available (loaded via ToolSearch as a pre-flight step).
+5. Node 22.12.0+ is active per `examples/chat-with-memory/.nvmrc` (post examples-theokit-chat-migration v1.1 T1.2 — TheoKit + Vite require modern Node). Verify via `node --version`; suggest `nvm use` from the demo dir on mismatch.
+6. The 9 Chrome DevTools MCP tools used below are available (loaded via ToolSearch as a pre-flight step).
+7. `npm run dev` resolves to `theokit dev` (post-migration script alias). The skill spawns the dev server via this alias; theokit's ready signal is the standard Vite "Local: http://localhost:3000/" line.
 
 If any pre-condition fails, refuse with the specific missing piece.
 
@@ -194,6 +196,28 @@ Requires `THEOMEM_EVICTION_DEMO=1` exported into the spawned dev server (already
 | H1 | EvictionTab visible when env var set | Fresh page; dev server spawned with `THEOMEM_EVICTION_DEMO=1` | Click the "Eviction" tab (5th tab after History) | `take_snapshot` shows backend badge text `pgvector` AND `capacity` trigger badge AND a stat tile/card matching `/Active rows:?\s*\d+\s*\/\s*10/`; `list_network_requests` shows `GET /api/memory/eviction-status?userId=...` returned 200 with `enabled:true` |
 | H2 | Capacity overflow fires evict | Seed 11 user-scope memories via 11 successive `B1`-shaped sends OR direct POST to `/api/memory/recall` then `/api/chat` sends; observe state via `/api/memory/eviction-status` | After the 11th remember, `evaluate_script` fetches `/api/memory/eviction-status?userId=<scope>` | Response shows `softDeletedCount >= 1` (capacity-trigger fired); EvictionTab snapshot reflects the same counter; `activeCount <= 10` |
 | H3 | `forget(id, { hard: true })` physically deletes | Pick a User-tab fact's id (visible after B1) | `evaluate_script` constructs `await fetch('/api/memory/forget', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId, id, hard: true }) }).then(r => r.json())` | Response `{ ok: true }`; subsequent `GET /api/memory/eviction-status?userId=<scope>` shows that `softDeletedCount` did NOT increment (hard-delete = row gone, not soft-deleted); a follow-up `evaluate_script` confirming `await fetch('/api/memory/recall?userId=<scope>')` does NOT contain the id |
+
+#### T5.2 migration classification (examples-theokit-chat-migration v1.1 — 2026-06-05)
+
+Per plan T5.2 + ADR D6 (floor ≥ 30/33). Each scenario classified vs the TheoKit-canonical demo:
+
+| Group | Scenarios | Status | Rationale |
+|---|---|---|---|
+| A — Infrastructure | A1, A2, A3 | **migrated as-is** | Sidebar badge consumed via apiCall(`/api/info`) post-T4.1; same DOM shape. Backend probe + reflection stat + new-session button preserved verbatim. |
+| B — User scope | B1, B2, B3, B4, B5 | **migrated as-is** | All 5 routes (recall/forget/reflect) survive T2.1 byte-for-byte. URL paths preserved by TheoKit `scanServerRoutes` convention (`server/routes/memory/recall.ts` → `/api/memory/recall`). |
+| C — Session scope | C1, C2, C3, C4 | **migrated as-is** | `server/routes/memory/session.ts` preserves Session-tier semantics + same JSON shape. |
+| D — Skills (RepoScope) | D1, D2, D3, D4, D5, D6 | **migrated as-is** | 4 routes under `server/routes/skills*` preserved; 409-on-duplicate + 404-on-foreign behavior preserved. |
+| E — History | E1, E2, E3 | **migrated as-is** | `server/routes/memory/history.ts` preserved; empty-state UI semantics unchanged. |
+| F — Chat round-trip + reflection | F1, F2, F3, F4 | **migrated with adaptation** | F1 SSE stream now flows through TheoKit Vite dev server vs Next.js Edge runtime — Response headers `text/event-stream` + `no-cache` + `keep-alive` preserved verbatim. F2/F3/F4 verbatim (rely on /api/chat POST + Server-Sent Events). Real-tree validation pending T6.1; if Vite buffers the stream, F1 fallback path is set assistant via lib/theomemory-plugin.buildReplyWithMemoryContext. |
+| G — Edge cases | G1, G2, G3, G4, G5 | **migrated as-is** | G1 client-only disabled-button check (no route). G2-G4 route validation (skills POST 400 + skills/forget 404) preserved. G5 browser refresh test (framework-agnostic). |
+| H — Eviction tab (v0.4b) | H1, H2, H3 | **migrated as-is** | `server/routes/memory/eviction-status.ts` + `server/routes/memory/forget.ts` (with `hard: true`) preserve response shapes. EvictionTab component migrated to apiCall in T4.1 with same conditional-render semantics. |
+
+**Summary:** 33/33 classified — 32 migrated as-is, 1 migrated with adaptation (F1 SSE-stream framework-shift). **ZERO ADR-deferred.** Floor of ≥ 30/33 EXCEEDED at the classification level; empirical pass-rate verification pending T6.1 real-tree run.
+
+Honest caveats (per Inquebrável Rule 3):
+- F1 SSE behavior under Vite dev server is unverified. Vite supports raw Response objects but its proxy/HMR layer may buffer; if reproducible buffering is observed, mitigation is `Cache-Control: no-transform` + chunked encoding probe (already set in server/routes/chat.ts).
+- TheoKit's createContext (T3.0) sets a `Set-Cookie: themory_uid=...` header on first response. Browser tests should ignore extra cookie headers; if a scenario's `list_network_requests` asserts cookie absence, it may flake — flag during T6.1.
+- The new `/api/memory/me` route added in T3.1 is NOT in the 33-scenario catalogue (it's a NEW demonstration surface, not a regression target). Optional follow-up scenario could be added in a future cycle.
 
 ### Step 4 — Cleanup (ALWAYS runs, even on FAIL/abort)
 

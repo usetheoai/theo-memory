@@ -1,8 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Input } from "@usetheo/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CodeBlock,
+  EmptyState,
+  Input,
+  Select,
+  Textarea,
+  Timestamp,
+} from "@theokit/ui";
 import { GitMerge, Plus, Trash2 } from "lucide-react";
+
+import { apiCall, ApiError } from "../../lib/api-client";
 
 interface SkillRow {
   id: string;
@@ -45,11 +57,9 @@ export function SkillsTab({ defaultRepoId }: Props) {
   const load = async (q = "") => {
     setLoading(true);
     try {
-      const url = new URL("/api/skills", window.location.origin);
-      url.searchParams.set("repoId", repoId);
-      if (q !== "") url.searchParams.set("q", q);
-      const resp = await fetch(url);
-      const json = (await resp.json()) as { items: SkillRow[] };
+      const json = await apiCall<{ items: SkillRow[] }>("/api/skills", {
+        query: { repoId, q: q === "" ? undefined : q },
+      });
       setItems(json.items);
     } finally {
       setLoading(false);
@@ -66,29 +76,27 @@ export function SkillsTab({ defaultRepoId }: Props) {
     setAdding(true);
     setAddError(null);
     try {
-      const resp = await fetch("/api/skills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repoId, ...draft }),
-      });
-      const json = (await resp.json()) as { error?: string };
-      if (!resp.ok) {
-        setAddError(json.error ?? `HTTP ${resp.status}`);
-        return;
-      }
+      await apiCall("/api/skills", { method: "POST", body: { repoId, ...draft } });
       setDraft(DEFAULT_NEW_SKILL);
       await load(query);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errBody = err.body as { error?: string } | null;
+        setAddError(
+          (errBody !== null && typeof errBody === "object" && typeof errBody.error === "string"
+            ? errBody.error
+            : null) ?? `HTTP ${err.status}`,
+        );
+      } else {
+        setAddError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setAdding(false);
     }
   };
 
   const handleForget = async (skillId: string) => {
-    await fetch("/api/skills/forget", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repoId, skillId }),
-    });
+    await apiCall("/api/skills/forget", { method: "POST", body: { repoId, skillId } });
     await load(query);
   };
 
@@ -96,28 +104,32 @@ export function SkillsTab({ defaultRepoId }: Props) {
     setConsolidating(true);
     setConsolidateInfo(null);
     try {
-      const resp = await fetch("/api/skills/consolidate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // DEMO showcase tuning per plan ADR D1 (core ConsolidateOptions default is 0.85).
-        body: JSON.stringify({ repoId, clusterThreshold: 0.6 }),
-      });
-      const json = (await resp.json()) as {
+      const json = await apiCall<{
         sourceClustersCount?: number;
         derivedSkillsCount?: number;
         durationMs?: number;
-        error?: string;
-      };
-      if (!resp.ok) {
-        setConsolidateInfo(`Error: ${json.error ?? "unknown"}`);
-        return;
-      }
+      }>("/api/skills/consolidate", {
+        method: "POST",
+        // DEMO showcase tuning per plan ADR D1 (core ConsolidateOptions default is 0.85).
+        body: { repoId, clusterThreshold: 0.6 },
+      });
       setConsolidateInfo(
         `${json.derivedSkillsCount ?? 0} derived skill(s) produced from ${
           json.sourceClustersCount ?? 0
         } source cluster(s) in ${json.durationMs ?? 0}ms.`,
       );
       await load("");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errBody = err.body as { error?: string } | null;
+        const detail =
+          errBody !== null && typeof errBody === "object" && typeof errBody.error === "string"
+            ? errBody.error
+            : `HTTP ${err.status}`;
+        setConsolidateInfo(`Error: ${detail}`);
+      } else {
+        setConsolidateInfo(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
     } finally {
       setConsolidating(false);
     }
@@ -152,27 +164,31 @@ export function SkillsTab({ defaultRepoId }: Props) {
           }
           required
         />
-        <textarea
+        <Textarea
           placeholder="code snippet"
           value={draft.code}
           onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))}
           rows={4}
           required
-          className="rounded-md border border-input bg-background px-2 py-1 font-mono text-[11px]"
+          className="font-mono text-[11px]"
         />
-        <select
+        <Select
           value={draft.codeLanguage}
-          onChange={(e) =>
+          onValueChange={(v) =>
             setDraft((d) => ({
               ...d,
-              codeLanguage: e.target.value as "typescript" | "javascript",
+              codeLanguage: v as "typescript" | "javascript",
             }))
           }
-          className="rounded-md border border-input bg-background px-2 py-1 text-xs"
         >
-          <option value="typescript">typescript</option>
-          <option value="javascript">javascript</option>
-        </select>
+          <Select.Trigger className="text-xs">
+            <Select.Value />
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="typescript">typescript</Select.Item>
+            <Select.Item value="javascript">javascript</Select.Item>
+          </Select.Content>
+        </Select>
         <Button type="submit" size="sm" disabled={adding}>
           <Plus className="mr-1 h-3 w-3" />
           {adding ? "Adding…" : "Add"}
@@ -207,8 +223,12 @@ export function SkillsTab({ defaultRepoId }: Props) {
       <div className="flex-1 overflow-y-auto pr-1">
         <ul className="flex flex-col gap-2">
           {items.length === 0 && !loading && (
-            <li className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-              No skills in this repo yet. Add one above OR change the repoId.
+            <li>
+              <EmptyState
+                title="No skills in this repo yet"
+                description="Add one above OR change the repoId."
+                className="text-xs"
+              />
             </li>
           )}
           {items.map((s) => (
@@ -216,9 +236,11 @@ export function SkillsTab({ defaultRepoId }: Props) {
               <Card size="sm" className="p-3">
                 <p className="text-xs leading-relaxed">{s.description}</p>
                 {s.code !== null && (
-                  <pre className="mt-2 overflow-x-auto rounded bg-muted/50 p-2 text-[10px] leading-snug">
-                    <code>{s.code}</code>
-                  </pre>
+                  <CodeBlock
+                    code={s.code}
+                    language={s.codeLanguage ?? "typescript"}
+                    className="mt-2 text-[10px]"
+                  />
                 )}
                 {s.derivedFrom.length > 0 && (
                   <div className="mt-2 rounded bg-amber-500/10 px-2 py-1 text-[10px]">
@@ -234,27 +256,29 @@ export function SkillsTab({ defaultRepoId }: Props) {
                   </div>
                 )}
                 {s.supersededBy !== null && (
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <Badge variant="warning" className="mt-1 text-[10px]">
                     ⊘ superseded_by {s.supersededBy.slice(0, 8)}…
-                  </p>
+                  </Badge>
                 )}
                 <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    {s.codeLanguage ?? "—"}
-                    {" · "}
-                    {s.score !== undefined
-                      ? `score ${s.score.toFixed(2)}`
-                      : new Date(s.createdAt).toLocaleString()}
+                  <span className="flex items-center gap-2">
+                    <Badge variant="outline">{s.codeLanguage ?? "—"}</Badge>
+                    {s.score !== undefined ? (
+                      <span>score {s.score.toFixed(2)}</span>
+                    ) : (
+                      <Timestamp value={s.createdAt} format="relative" />
+                    )}
                   </span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => void handleForget(s.id)}
-                    className="rounded p-1 hover:bg-muted"
                     aria-label="Forget"
                     title="Forget (scope-isolated)"
                   >
                     <Trash2 className="h-3 w-3" />
-                  </button>
+                  </Button>
                 </div>
               </Card>
             </li>

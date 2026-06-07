@@ -38,7 +38,7 @@ Read the JSON output. Note:
 - `verdict` — current band
 - `final_score_after_caps`
 - `hard_caps_triggered`
-- `motivos` (per dimension, lists top contributors and detractors)
+- `reasons` (per dimension, lists top contributors and detractors)
 - `sub_reports.spec_smells.total_hits` and `by_category`
 - `sub_reports.adr_completeness.missing_alternatives`
 - `sub_reports.tdd_in_bugfix.missing_tdd`
@@ -62,8 +62,8 @@ python3 .claude/skills/plan-improve/scripts/apply_fixes.py "{PLAN_PATH}"
 ```
 
 This applies three SAFE deterministic transformations:
-1. **Weak imperatives** (should/could/may/might/deveria/poderia → must/deve)
-2. **Loopholes removed** (if possible, when applicable, se possível, …)
+1. **Weak imperatives** (should/could/may/might → must)
+2. **Loopholes removed** (if possible, when applicable, …)
 3. **TDD template injected** in any bug-fix task missing a `#### TDD` block
 
 These run only in PROSE (skip fenced code blocks and `### T-id` headers).
@@ -76,7 +76,7 @@ If after Phase A the verdict still does not meet target, address the issues that
 - For each ID in `sub_reports.adr_completeness.missing_alternatives`, OPEN the ADR section.
 - Locate the `### D<N> — Title` block.
 - In the `- **Rationale:**` line, append a sentence in the form:
-  `Alternativa rejeitada: <alternative-X> — descartada porque <reason-Y>.`
+  `Rejected alternative: <alternative-X> — discarded because <reason-Y>.`
 - Use your understanding of the plan's domain to propose a realistic alternative. DO NOT fabricate. If you cannot find a credible alternative, DO NOT add fake text — instead, leave a TODO comment like `<!-- TODO: human review for D<N> alternatives -->` and continue.
 
 **Unmapped Coverage Matrix gaps** (cap 49 INVALID):
@@ -97,7 +97,8 @@ Run the scorer again (Step 1). If improved, continue. If not improved (same or l
 5. **DO NOT modify task headers (`### T<N>.<M>`).** Title content is sacred.
 6. **DO NOT touch other plans.** Only the slug you were given.
 7. **DO NOT touch git history or commit changes.** Edits stay in working tree.
-8. **DO NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.** Only when the target verdict is genuinely met OR you've exhausted all automatic fixes and need human intervention.
+8. **DO NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.** Only when the target verdict is genuinely met (re-run `run_structural.py` AFTER your last edit in this iteration — the promise asserts a measurable fact; emitting it speculatively is fabrication) OR you've exhausted all automatic fixes and need human intervention.
+9. **DO NOT spawn a nested ralph-loop inside this iteration. DO NOT modify `.claude/ralph-loop.local.md` directly.** If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict (concurrent loops on overlapping state is an anti-pattern in `rules/loop-engine-convention.md`).
 
 ## What "EXTREMELY reliable" means in this loop
 
