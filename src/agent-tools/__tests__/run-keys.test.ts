@@ -23,7 +23,9 @@ function makeCtx(opts: {
   const fetchCalls: { url: string; init?: RequestInit }[] = [];
   const fetchImpl = vi.fn((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-    fetchCalls.push({ url, init });
+    // exactOptionalPropertyTypes — omit `init` key entirely when undefined
+    // so the recorded entry matches the optional-only shape `{ url; init? }`.
+    fetchCalls.push(init === undefined ? { url } : { url, init });
     if (opts.fetchThrows) return Promise.reject(opts.fetchThrows);
     const r = opts.fetchResponse ?? { status: 200, body: {} };
     // 204 No Content per RFC 9110 § 15.3.5 MUST NOT have a body — Response
@@ -67,7 +69,7 @@ describe('runKeysCreate', () => {
     expect(code).toBe(0);
     expect(fetchCalls[0]?.url).toBe('http://localhost:3000/v1/admin/keys');
     expect(fetchCalls[0]?.init?.method).toBe('POST');
-    expect((fetchCalls[0]?.init?.headers as Record<string, string>)?.Authorization).toBe('Bearer theo_live_admin_test');
+    expect((fetchCalls[0]?.init?.headers as Record<string, string>)?.['Authorization']).toBe('Bearer theo_live_admin_test');
     // Show-once warning printed
     const joined = stdout.join('');
     expect(joined).toContain('theo_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');

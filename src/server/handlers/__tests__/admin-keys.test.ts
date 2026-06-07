@@ -31,6 +31,16 @@ import {
   rotateKeyHandler,
 } from '../admin-keys.js';
 
+/**
+ * `res.json()` returns `Promise<unknown>` under vitest strict typecheck;
+ * tests only consume a known JSON-envelope shape so we centralize the
+ * cast through this helper. Keeps assertions narrow without polluting
+ * each test with an inline `as { ... }` literal.
+ */
+async function readBody<T = Record<string, unknown>>(res: Response): Promise<T> {
+  return (await res.json()) as T;
+}
+
 /** Test Pool stub — records calls + returns canned rows per call sequence. */
 function makePool(callResults: { rows?: unknown[]; throws?: Error }[]): {
   pool: AuthPool;
@@ -38,13 +48,14 @@ function makePool(callResults: { rows?: unknown[]; throws?: Error }[]): {
 } {
   const queries: { sql: string; params: readonly unknown[] }[] = [];
   let callIdx = 0;
+  const queryImpl = <T>(sql: string, params: readonly unknown[]): Promise<{ rows: T[] }> => {
+    queries.push({ sql, params });
+    const r = callResults[callIdx++] ?? { rows: [] };
+    if (r.throws) return Promise.reject(r.throws);
+    return Promise.resolve({ rows: (r.rows ?? []) as T[] });
+  };
   const pool: AuthPool = {
-    query: vi.fn(<T>(sql: string, params: readonly unknown[]) => {
-      queries.push({ sql, params });
-      const r = callResults[callIdx++] ?? { rows: [] };
-      if (r.throws) return Promise.reject(r.throws);
-      return Promise.resolve({ rows: (r.rows ?? []) as T[] });
-    }),
+    query: vi.fn(queryImpl) as AuthPool['query'],
   };
   return { pool, queries };
 }
@@ -70,7 +81,7 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       body: JSON.stringify({ name: 'prod-agent', scopes: ['memory:read'] }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await readBody<{ id: string; name: string; key_prefix: string; secret: string; scopes: string[] }>(res);
     expect(body.id).toMatch(/^apk-[0-9a-f]{16}$/);
     expect(body.name).toBe('prod-agent');
     expect(body.key_prefix).toMatch(/^theo_live_.{2}$/);
@@ -87,7 +98,7 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       body: JSON.stringify({ name: '   ', scopes: ['memory:read'] }),
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe('EMPTY_NAME');
+    expect((await readBody<{ code: string }>(res)).code).toBe('EMPTY_NAME');
   });
 
   test('3. returns 400 NAME_TOO_LONG for name > 64 chars', async () => {
@@ -99,7 +110,7 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       body: JSON.stringify({ name: 'x'.repeat(65), scopes: ['memory:read'] }),
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe('NAME_TOO_LONG');
+    expect((await readBody<{ code: string }>(res)).code).toBe('NAME_TOO_LONG');
   });
 
   test('4. returns 400 UNKNOWN_SCOPE for invalid scope', async () => {
@@ -111,7 +122,7 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       body: JSON.stringify({ name: 'x', scopes: ['memory:nonexistent'] }),
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe('UNKNOWN_SCOPE');
+    expect((await readBody<{ code: string }>(res)).code).toBe('UNKNOWN_SCOPE');
   });
 
   test('5. returns 400 EXPIRES_IN_PAST for past expires_at', async () => {
@@ -124,7 +135,7 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       body: JSON.stringify({ name: 'x', scopes: ['memory:read'], expires_at: yesterday }),
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe('EXPIRES_IN_PAST');
+    expect((await readBody<{ code: string }>(res)).code).toBe('EXPIRES_IN_PAST');
   });
 
   test('6. EC-7 — dedupes scopes via Set before INSERT', async () => {
@@ -152,7 +163,7 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       body: JSON.stringify({ name: 'x', scopes: ['memory:read'] }),
     });
     expect(res.status).toBe(500);
-    expect((await res.json()).code).toBe('INTERNAL');
+    expect((await readBody<{ code: string }>(res)).code).toBe('INTERNAL');
   });
 });
 
@@ -198,7 +209,7 @@ describe('revokeKeyHandler — DELETE /v1/admin/keys/:id', () => {
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys/not-a-valid-id', { method: 'DELETE' });
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe('INVALID_ID');
+    expect((await readBody<{ code: string }>(res)).code).toBe('INVALID_ID');
     // No DB query made — format check before DB
     expect(queries.length).toBe(0);
   });
@@ -211,7 +222,7 @@ describe('revokeKeyHandler — DELETE /v1/admin/keys/:id', () => {
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys/apk-2222222222222222', { method: 'DELETE' });
     expect(res.status).toBe(404);
-    expect((await res.json()).code).toBe('NOT_FOUND');
+    expect((await readBody<{ code: string }>(res)).code).toBe('NOT_FOUND');
   });
 
   test('12. returns 204 No Content on success', async () => {
@@ -248,7 +259,7 @@ describe('rotateKeyHandler — POST /v1/admin/keys/:id/rotate', () => {
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys/apk-4444444444444444/rotate', { method: 'POST' });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await readBody<{ old_id: string; id: string; secret: string; grace_window_hours: number }>(res);
     expect(body.old_id).toBe('apk-4444444444444444');
     expect(body.id).toMatch(/^apk-[0-9a-f]{16}$/);
     expect(body.secret).toMatch(/^theo_live_/);
@@ -264,7 +275,7 @@ describe('rotateKeyHandler — POST /v1/admin/keys/:id/rotate', () => {
       body: JSON.stringify({ grace_window_hours: 999 }), // > 168 max
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe('INVALID_GRACE_WINDOW');
+    expect((await readBody<{ code: string }>(res)).code).toBe('INVALID_GRACE_WINDOW');
   });
 
   test('15. returns 404 NOT_FOUND when old key already revoked', async () => {
@@ -284,7 +295,7 @@ describe('rotateKeyHandler — POST /v1/admin/keys/:id/rotate', () => {
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys/apk-6666666666666666/rotate', { method: 'POST' });
     expect(res.status).toBe(404);
-    expect((await res.json()).code).toBe('NOT_FOUND');
+    expect((await readBody<{ code: string }>(res)).code).toBe('NOT_FOUND');
   });
 });
 
