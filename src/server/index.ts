@@ -10,5 +10,31 @@
 export { createApp as createServer } from './app.js';
 export type { AdminApiOptions, CreateServerOptions } from './app.js';
 
+// Camada 1 (env-secret) — historical default
 export { BearerAuthVerifier, readApiKey } from './auth/bearer-verifier.js';
 export { bearerAuth } from './auth/middleware.js';
+
+// Camada 2 (OSS multi-user lifecycle per ADR-0014) — F-dom-api-1 fix
+// Re-exports so third-party SDK consumers can compose admin REST OR a
+// custom dual-validation wiring without internal subpath imports.
+export { ApiKeyAuthVerifier } from './auth/api-key-verifier.js';
+export type { AuthPool } from './auth/api-key-verifier.js';
+export { requireScope } from './auth/scope-verifier.js';
+export type { RequireScopeOptions } from './auth/scope-verifier.js';
+export { isBootstrapAllowed, markBootstrapConsumedTx } from './auth/bootstrap-token.js';
+
+// Camada 3 (OIDC bridge per ADR-0013) — F-dom-api-1 fix
+export { OidcAuthVerifier } from './auth/oidc-verifier.js';
+export type {
+  IntrospectFn,
+  IntrospectionResult,
+  OidcAuthVerifierOptions,
+} from './auth/oidc-verifier.js';
+export { dualValidationAuth } from './auth/dual-validation.js';
+export type { DualValidationOptions } from './auth/dual-validation.js';
+export { createOauth4webapiIntrospect } from './auth/oidc-introspect-oauth4webapi.js';
+export type { CreateOauth4webapiIntrospectOptions } from './auth/oidc-introspect-oauth4webapi.js';
+
+// RFC 9728 (well-known oauth-protected-resource per ADR-0015 #4)
+export { wellKnownOauthProtectedResourceHandler } from './handlers/well-known.js';
+export type { OidcDiscoveryConfig } from './handlers/well-known.js';

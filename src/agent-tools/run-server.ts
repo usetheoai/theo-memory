@@ -158,15 +158,21 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const envVerifier: AuthVerifier | undefined =
     apiKey !== undefined ? new BearerAuthVerifier(apiKey) : undefined;
 
-  // T3.2 — OIDC verifier construction (when --issuer supplied).
-  // resolveOidcConfig throws synchronously on EC-5 (invalid URL) / EC-6
-  // (clientId without secret); we let those propagate to fail-loud at boot.
-  const oidcCfg = resolveOidcConfig({
-    ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
-    ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
-    host,
-    port,
-  });
+  // F-arch-2 fix — OIDC ONLY resolves when operator explicitly opts in via
+  // `--issuer` flag OR `THEMORY_OIDC_ISSUER` env (the resolver itself reads
+  // env as fallback). Without explicit OIDC intent, skip the resolver entirely
+  // so stale OIDC env vars from prior debug sessions don't crash boot.
+  // Per F-arch-2 (review fixes-cycle-1): resolveOidcConfig fired unconditionally
+  // before, causing `themory server` (no flags) + stale env to throw EC-5/EC-6.
+  const oidcIntent = options?.issuer !== undefined || process.env['THEMORY_OIDC_ISSUER'] !== undefined;
+  const oidcCfg = oidcIntent
+    ? resolveOidcConfig({
+        ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
+        ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
+        host,
+        port,
+      })
+    : null;
   let authVerifier: AuthVerifier | undefined = envVerifier;
   let oidcDiscovery: Parameters<typeof createServer>[0]['oidcDiscovery'];
   if (oidcCfg !== null) {
@@ -179,18 +185,20 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     oidcDiscovery = oidcCfg.oidcDiscovery;
   }
 
-  // T1.1 — admin sub-app composition. Wired when bootstrap token is set
-  // (EC-2 normalize: empty/whitespace → undefined). When neither bootstrap
-  // nor any admin key exists, admin API simply 404s — backward-compat.
+  // F-arch-1 fix — admin sub-app composition is EXPLICIT opt-in per ADR D1.
+  // Mounts ONLY when operator supplied THEMORY_ADMIN_BOOTSTRAP_TOKEN (the
+  // canonical bootstrap path). Pre-fix: also auto-mounted when THEMEMORY_API_KEY
+  // was set, which violated ADR D1's "ONLY when adminApi supplied" contract
+  // and silently flipped behavior for env-secret-only deployments (the
+  // generic /v1/* still answers correctly; /v1/admin/* would previously 404
+  // and now answers 401 SCOPE_INSUFFICIENT — same net rejection but
+  // different envelope, breaks the contract).
   const bootstrapToken = resolveBootstrapToken();
-  const adminApi = bootstrapToken !== undefined || apiKey !== undefined
-    ? {
-        pool,
-        ...(bootstrapToken !== undefined ? { bootstrapToken } : {}),
-      }
+  const adminApi = bootstrapToken !== undefined
+    ? { pool, bootstrapToken }
     : undefined;
-  // Use ApiKeyAuthVerifier instead of the env-secret one when admin path is
-  // active AND no OIDC issuer (lets theo_live_* keys auth via SHA-256 lookup).
+  // When admin path active without OIDC, swap to ApiKeyAuthVerifier so
+  // theo_live_* keys auth via SHA-256 lookup against theo_api_keys.
   if (adminApi !== undefined && oidcCfg === null) {
     authVerifier = new ApiKeyAuthVerifier(pool);
   }

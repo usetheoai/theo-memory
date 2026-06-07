@@ -194,10 +194,14 @@ async function resolveBearerAuth(
 ): Promise<BearerAuthOptions | undefined> {
   if (mode === undefined || mode === 'none') return undefined;
 
-  // OIDC resolver throws synchronously on EC-5 / EC-6 — propagate to fail-loud at boot.
-  const oidcCfg = resolveOidcConfig(oidcInput);
+  // F-arch-2 fix — only invoke resolveOidcConfig when OIDC mode is actually
+  // selected. Pre-fix: resolveOidcConfig fired for `--auth=api-keys` too,
+  // crashing on stale `THEMORY_OIDC_ISSUER` env vars from prior debug
+  // sessions even though the operator explicitly chose api-keys-only.
+  const wantsOidc = mode === 'oidc' || mode === 'both';
+  const oidcCfg = wantsOidc ? resolveOidcConfig(oidcInput) : null;
 
-  if ((mode === 'oidc' || mode === 'both') && oidcCfg === null) {
+  if (wantsOidc && oidcCfg === null) {
     throw new Error(
       `themory mcp: --auth=${mode} requires --issuer (or THEMORY_OIDC_ISSUER env)`,
     );
@@ -205,7 +209,7 @@ async function resolveBearerAuth(
 
   const apiKey = (mode === 'api-keys' || mode === 'both') ? new ApiKeyAuthVerifier(pool) : undefined;
   let oidc;
-  if (oidcCfg !== null && (mode === 'oidc' || mode === 'both')) {
+  if (oidcCfg !== null) {
     const introspect = await createOauth4webapiIntrospect({
       issuer: oidcCfg.issuer,
       clientId: oidcCfg.clientId,
