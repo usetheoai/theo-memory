@@ -20,9 +20,9 @@ import type {
 import type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 export interface LettaVendorClient {
-  add(scopeKey: string, text: string): Promise<void>;
+  add(agentId: string, text: string): Promise<void>;
   search(
-    scopeKey: string,
+    agentId: string,
     query: string,
     topK: number,
   ): Promise<readonly { text: string; score: number }[]>;

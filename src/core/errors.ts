@@ -356,38 +356,3 @@ export class InvalidSkillError extends Error {
     Object.setPrototypeOf(this, InvalidSkillError.prototype);
   }
 }
-
-/**
- * VendorSynthesizeUnsupportedError — thrown by Mem0/Zep/Letta OfficialClient
- * implementations from their `.synthesize()` method.
- *
- * Per the v0.9 benchmark architecture (plan `v0-9-vendor-client-impls`
- * ADR D2 + EC-2), the 3rd-party vendor SDKs (`mem0ai`, `@getzep/zep-cloud`,
- * `@letta-ai/letta-client`) are memory APIs only — they do NOT expose a
- * native completion primitive that could be used for "synthesize an answer
- * from these retrieved contexts". Each OfficialClient therefore throws this
- * typed error from `.synthesize()`, and the parent benchmark adapter falls
- * back to the shared `LLM` DIP (configured per-benchmark for apples-to-
- * apples comparison across vendors).
- *
- * Using a typed class instead of a generic `new Error("string message")`
- * honors Inquebrável Rule 8 (Error Handling): callers can branch on
- * `e instanceof VendorSynthesizeUnsupportedError` without parsing the
- * error.message string.
- *
- * The `vendor` parameter is a tagged-union scope identifier (NOT a paper
- * citation per `.claude/rules/no-paper-names-in-code.md` — vendor names
- * appear here as STRUCTURAL discriminants for the union, not as references
- * to research papers or marketing positioning).
- */
-export class VendorSynthesizeUnsupportedError extends Error {
-  override readonly name = 'VendorSynthesizeUnsupportedError' as const;
-
-  readonly vendor: 'mem0' | 'zep' | 'letta';
-
-  constructor(vendor: 'mem0' | 'zep' | 'letta', options?: ErrorOptions) {
-    super(`synthesize not supported by ${vendor} SDK; caller must delegate to LLM DIP`, options);
-    this.vendor = vendor;
-    Object.setPrototypeOf(this, VendorSynthesizeUnsupportedError.prototype);
-  }
-}

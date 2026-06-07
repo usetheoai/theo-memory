@@ -68,41 +68,6 @@ describe('@usetheo/memory — main barrel isolation from theokit', () => {
   });
 });
 
-describe('@usetheo/memory — main barrel isolation from vendor OfficialClients (EC-7 v0.9)', () => {
-  // ADR D5 of plan v0-9-vendor-client-impls ships the 3 vendor SDKs as
-  // `dependencies` (not optionalDependencies) for v0.9. The OfficialClient
-  // classes (Mem0/Zep/Letta) live under `src/benchmarks/{vendor}/` and MUST
-  // NOT leak into the default `@usetheo/memory` barrel — otherwise every
-  // consumer of @usetheo/memory pulls ~5-15MB transitive vendor SDKs.
-  //
-  // Mirror of the theokit isolation pattern above. EC-7 absorption.
-
-  test('default barrel does NOT export Mem0OfficialClient', async () => {
-    const mod = await import('@usetheo/memory');
-    expect(Object.keys(mod)).not.toContain('Mem0OfficialClient');
-  });
-
-  test('default barrel does NOT export ZepOfficialClient', async () => {
-    const mod = await import('@usetheo/memory');
-    expect(Object.keys(mod)).not.toContain('ZepOfficialClient');
-  });
-
-  test('default barrel does NOT export LettaOfficialClient', async () => {
-    const mod = await import('@usetheo/memory');
-    expect(Object.keys(mod)).not.toContain('LettaOfficialClient');
-  });
-
-  test('src/index.ts source contains zero vendor-client references (static tripwire)', () => {
-    // Belt-and-braces sentinel for EC-7: if a future refactor adds an
-    // `export * from './benchmarks/.../vendor-client'` to src/index.ts,
-    // this assertion catches the leak before the runtime check fires.
-    const source = readFileSync(join(REPO_ROOT, 'src', 'index.ts'), 'utf-8');
-    expect(source).not.toContain('benchmarks/mem0/vendor-client');
-    expect(source).not.toContain('benchmarks/zep/vendor-client');
-    expect(source).not.toContain('benchmarks/letta/vendor-client');
-  });
-});
-
 describe('@usetheo/memory/theokit — EC-9 modern moduleResolution compatibility', () => {
   // Spawns `tsc --noEmit` against fixture tsconfigs declaring different
   // `moduleResolution` values. The fixture imports memoryFromCtx + ScopedContext
