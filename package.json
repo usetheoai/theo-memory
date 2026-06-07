@@ -102,6 +102,7 @@
   },
   "dependencies": {
     "@dqbd/tiktoken": "^1.0.22",
+    "@REDACTED/memory-service": "^3.23.0",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-openapi": "^0.18.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
