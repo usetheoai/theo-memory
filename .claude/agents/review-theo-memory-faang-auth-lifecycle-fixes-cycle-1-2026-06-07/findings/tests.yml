@@ -1,0 +1,395 @@
+agent: review-theo-memory-faang-auth-lifecycle-fixes-cycle-1-tests
+review_target: develop@d722c9b..develop@9b727f2 for plan theo-memory-faang-auth-lifecycle-fixes-cycle-1
+plan: .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md
+review_date: 2026-06-07
+
+test_pyramid:
+  unit_added: 18  # 5 admin-wiring + 5 oauth4webapi adapter + 8 oidc-cli-resolver
+  integration_added: 6  # T4.1 e2e scenarios
+  e2e_added: 0  # no tests/e2e/* in this cycle
+  total: 24
+  pyramid_shape: HEALTHY  # unit > integration > e2e (18 / 6 / 0); matches testing.md § Pyramid
+
+plan_tdd_coverage:
+  T1_1_admin_wiring:
+    plan_required: 5
+    delivered: 5
+    file: src/server/__tests__/admin-wiring.test.ts
+    breakdown:
+      - "1. backward-compat: no adminApi → 404 (line 68)"
+      - "2. auth gate: with adminApi, no Bearer → 401 (line 74)"
+      - "3. bootstrap path: bootstrap Bearer → 200 (line 86)"
+      - "4. EC-1: pool=undefined throws at boot (line 100)"
+      - "5. EC-7: requireScope fires before generic bearerAuth (line 109)"
+    status: COMPLETE
+  T2_1_oauth4webapi_adapter:
+    plan_required: 5
+    delivered: 5
+    file: src/server/auth/__tests__/oidc-introspect-oauth4webapi.test.ts
+    breakdown:
+      - "1. discovery cached at construction (line 89)"
+      - "2. active=true mapping (line 112)"
+      - "3. active=false mapping (line 129)"
+      - "4. EC-8: AbortSignal propagation ≤ 50ms (line 144)"
+      - "5. EC-3: factory throws when introspection_endpoint missing (line 164)"
+    status: COMPLETE
+  T3_1_cli_resolver:
+    plan_required: 8
+    delivered: 8
+    file: src/agent-tools/__tests__/oidc-cli-resolver.test.ts
+    breakdown:
+      - "1. no issuer → null (line 40)"
+      - "2. EC-5: invalid URL throws (line 45)"
+      - "3. EC-6: clientId without secret throws (line 51)"
+      - "4. EC-2: whitespace client_secret throws (line 63)"
+      - "5. EC-2: empty bootstrap token → undefined (line 75)"
+      - "6. EC-9: host=0.0.0.0 → localhost resource (line 87)"
+      - "7. valid full config (line 107)"
+      - "8. CLI flag > env precedence (line 128)"
+    status: COMPLETE
+    notes_observation: |
+      Plan T3.1 names two file paths (run-server-issuer.test.ts + run-mcp-server-oidc.test.ts)
+      but implementation consolidated into src/agent-tools/__tests__/oidc-cli-resolver.test.ts
+      via the resolveOidcConfig/resolveBootstrapToken extraction (SRP-improving DIP split).
+      Behavior coverage matches the 8 RED scenarios in the plan; only the file shape differs.
+      Acceptable refactor — see F-tests-3.
+  T4_1_e2e:
+    plan_required: 6
+    delivered: 6
+    file: tests/integration/auth/fixes-cycle-1-e2e.test.ts
+    breakdown:
+      - "1. POST /v1/admin/keys with bootstrap → 200 (line 121)"
+      - "2. CLI runKeysCreate → runKeysList round-trip (line 140)"
+      - "3. revoke invalidates verifier path (line 181)"
+      - "4. oauth4webapi adapter validates token against stub issuer (line 213)"
+      - "5. dualValidationAuth routes both shapes (line 236)"
+      - "6. well-known via oidcDiscovery (line 280)"
+    status: COMPLETE
+    sentinel_lifecycle: PRESENT (tests/integration/auth/lifecycle.test.ts exists; not modified; 12/12 sentinel preserved)
+
+edge_cases_from_plan:
+  covered: 9
+  partial: 0
+  missing: 0
+  enumeration:
+    EC-1_pool_undefined: COVERED (admin-wiring.test.ts:100)
+    EC-2_empty_bootstrap_token: COVERED (oidc-cli-resolver.test.ts:75 — bypass-prevention via resolveBootstrapToken; defense-in-depth at scope-verifier covered elsewhere — see F-tests-2)
+    EC-2_empty_client_secret: COVERED (oidc-cli-resolver.test.ts:63)
+    EC-3_missing_introspection_endpoint: COVERED (oidc-introspect-oauth4webapi.test.ts:164)
+    EC-5_invalid_issuer_url: COVERED (oidc-cli-resolver.test.ts:45)
+    EC-6_clientId_without_secret: COVERED (oidc-cli-resolver.test.ts:51)
+    EC-7_route_mounting_order: COVERED (admin-wiring.test.ts:109)
+    EC-8_abort_signal: COVERED (oidc-introspect-oauth4webapi.test.ts:144)
+    EC-9_host_0_0_0_0: COVERED (oidc-cli-resolver.test.ts:87)
+    EC-10_port_cleanup: COVERED (fixes-cycle-1-e2e.test.ts:112 afterEach with Promise.allSettled)
+
+tdd_compliance:
+  ordering_check:
+    methodology: |
+      Inspected `git log --diff-filter=A --name-only` for added test files vs corresponding
+      production sources. The cycle squashed RED + GREEN into combined commits per phase:
+        - 2c901a6: T1.1+T1.2 (admin-wiring.test.ts + app.ts mount logic in same commit)
+        - 78858f6: T2.1+T2.2 (oidc-introspect-oauth4webapi.test.ts + impl in same commit)
+        - f5cfcba: T3.1+T3.2 (oidc-cli-resolver.test.ts + resolver impl in same commit)
+        - f97c08a: T4.1 (e2e test only — no new prod code)
+    verdict: ACCEPTABLE_WITH_NOTE
+    rationale: |
+      Plan explicitly groups task pairs as T1.1 RED + T1.2 GREEN under one phase
+      and the TDD section makes RED a prefix of GREEN within the same scope. The
+      RED → GREEN → REFACTOR cycle is honored within developer-local iteration even
+      if it isn't preserved in commit topology. The test file and prod file appear
+      in the SAME commit, which protects atomicity at the cost of git-archaeological
+      proof of RED-first. NOT flagged as MAJOR because:
+        a) Plan TDD sections describe RED test specs that DO appear verbatim in the
+           shipped tests (every plan-required scenario is present, lines cited above)
+        b) Each test does meaningful assertions (no toBeDefined() / no rubber-stamp)
+        c) Plan v1.1 Acceptance Criteria explicitly tracks T1.1 + T1.2 jointly per phase
+      For STRICTER TDD audit, recommend the project author split RED into its own commit.
+      See F-tests-4 (MINOR).
+
+mock_fixture_hygiene:
+  unit_tests:
+    stubMemory: ACCEPTABLE — duplicated between admin-wiring.test.ts:23 and fixes-cycle-1-e2e.test.ts:44
+                See F-tests-5 (MINOR — DRY opportunity but not load-bearing).
+    stubPoolWithAdminKey: ACCEPTABLE — purposefully narrow; only handles theo_api_keys SHA-256 lookup SQL
+    buildStubFetch (T2.1): EXCELLENT — captures fetch calls for assertion (calls[] inspection);
+                            simulates latency for abort test; respects content-type discovery URLs
+    Env restoration in oidc-cli-resolver.test.ts: GOOD — beforeEach/afterEach backup pattern (line 28-37);
+                                                  no env leakage to sibling tests
+  integration_tests:
+    Postgres reset: GOOD — resetAuthTables(pool) before each test (line 107); TRUNCATE CASCADE pattern
+    Port cleanup: EXCELLENT — Promise.allSettled in afterEach honors EC-10 absorption (line 112-118)
+    Stub issuer: GOOD — _stub-issuer.ts uses port=0 (line 80) for parallel-safe test isolation;
+                 properly resolves issuerUrl post-listen via closure pattern (line 86-88)
+    Hard guard: EXCELLENT — refuses false-green skip in CI per EC-17 (line 36-40)
+
+anti_flake_patterns:
+  abort_test_timeout_assertion: |
+    T2.1 test 4 (line 161): asserts `elapsed < 50ms` against a 5000ms latency stub.
+    The 50ms window is wider than the original plan spec ("≤ 10ms" per plan T2.1 RED test 4).
+    See F-tests-7 (MINOR — spec drift).
+  deterministic_clock: NOT_APPLICABLE (no time-dependent assertions in this cycle beyond the abort test above)
+  random_data: ABSENT (no Math.random / Date.now in test payloads; BOOTSTRAP_TOKEN uses 'x'.repeat constants)
+  shared_state: ABSENT — every test in oidc-cli-resolver.test.ts restores env in afterEach;
+                e2e test uses beforeEach DB reset + per-test handles[] arrays cleared
+
+skipped_or_only:
+  describe_skip_count: 1
+  it_only_count: 0
+  test_only_count: 0
+  details: |
+    Only `.skip` usage is the CONDITIONAL guard at fixes-cycle-1-e2e.test.ts:86 — fires
+    ONLY when PG_URI env is unset AND CI != 'true'. The CI=true path THROWS instead of
+    silently skipping (lines 36-40). This is a defensive `describe.skip` for local dev
+    without pgvector — NOT a true silent-skip violation. Accepted pattern (mirrors
+    lifecycle.test.ts and other integration tests in the codebase).
+
+paper_name_hygiene:
+  rule: .claude/rules/no-paper-names-in-code.md
+  search_result: 0 hits for Voyager / Mem0 / Letta / LangMem / MemGPT / CoALA / ProcMEM / Honcho / Graphiti
+                 in any of the 5 reviewed test files.
+  verdict: COMPLIANT
+
+aaa_format:
+  admin_wiring.test.ts: COMPLIANT (each test: stub setup → app.fetch() → expect — clear AAA)
+  oidc-introspect-oauth4webapi.test.ts: COMPLIANT (buildStubFetch → introspect call → assert)
+  oidc-cli-resolver.test.ts: COMPLIANT (env set → resolve call → assert)
+  fixes-cycle-1-e2e.test.ts: COMPLIANT (spawn → request → assert; test 5 has 3 sub-assertions but each is a sibling Then-clause for the same Given)
+  test_name_anti_pattern_check:
+    - and_in_name_count: 1
+      file: fixes-cycle-1-e2e.test.ts
+      line: 140
+      example: "themory_keys_cli_create_then_list_round_trips_against_running_server"
+      severity: MINOR
+      rationale: |
+        Strict reading of testing.md § Anti-patterns: "Tests with `and` in the name — split
+        into two tests". The `_then_` is functionally `and` (sequential), and test 5 also
+        has `dualValidationAuth_routes_theo_live_to_apikey_and_jwt_to_real_oauth4webapi_path`
+        (line 236). BUT — these are e2e round-trip scenarios from the plan's TDD spec
+        (verbatim from plan T4.1 § Deep Dives lines 301-305), where the round-trip IS the
+        single behavior being tested ("does create-then-list close the loop?"). Splitting
+        would force two tests sharing setup state which is worse for integration tests.
+        See F-tests-6.
+    - vague_name_count: 0
+
+findings:
+  - id: F-tests-1
+    severity: INFO
+    file: src/agent-tools/__tests__/oidc-cli-resolver.test.ts
+    line: 1
+    plan_ref: T3.1 plan § "Files to edit" lines 232-234
+    summary: |
+      Test file shape diverges from plan's literal file list — plan named two separate
+      test files (run-server-issuer.test.ts + run-mcp-server-oidc.test.ts), implementation
+      consolidated into single oidc-cli-resolver.test.ts via DIP extraction.
+    evidence: |
+      Plan lines 232-234:
+        src/agent-tools/__tests__/run-server-issuer.test.ts (NEW) — RED test for run-server.ts --issuer
+        src/agent-tools/__tests__/run-mcp-server-oidc.test.ts (NEW) — RED test for run-mcp-server.ts --auth=oidc
+      Shipped:
+        src/agent-tools/__tests__/oidc-cli-resolver.test.ts (single file, 8 scenarios)
+        src/agent-tools/oidc-cli-resolver.ts (new helper extracted)
+    recommended_action: |
+      INFO only — the refactor IMPROVES the design (SRP — flag/env normalization extracted
+      into a helper testable in isolation, vs scattered across runServer/runMcpServer).
+      The 8 plan-required scenarios are all present. No action required, but consider
+      a one-line note in the plan §13 (Files to edit) to document the consolidation
+      decision for future archaeology.
+
+  - id: F-tests-2
+    severity: MINOR
+    file: src/agent-tools/__tests__/oidc-cli-resolver.test.ts
+    line: 75
+    plan_ref: T3.2 § Deep Dives lines 267 — "Defense-in-depth at src/server/auth/scope-verifier.ts:87"
+    summary: |
+      EC-2 absorption specifies TWO-LAYER defense — (1) CLI normalize via resolveBootstrapToken
+      AND (2) scope-verifier internal `.trim().length > 0` guard. Only the CLI-layer (layer 1)
+      has a unit-test assertion in this cycle. The scope-verifier inner guard is not directly
+      sentinel-tested.
+    evidence: |
+      Plan T3.2 Deep Dive line 267:
+        Defense-in-depth at src/server/auth/scope-verifier.ts:87:
+        change `if (opts.bootstrapToken && opts.bootstrapToken.length > 0)` →
+               `if (opts.bootstrapToken && opts.bootstrapToken.trim().length > 0)`
+      Test coverage: oidc-cli-resolver.test.ts:75 covers resolveBootstrapToken (layer 1).
+      grep -rn "scope-verifier.*trim" src/server/auth/__tests__/ → no direct sentinel for layer 2.
+    recommended_action: |
+      Add a 5-line sentinel test in src/server/auth/__tests__/scope-verifier.test.ts
+      (if it doesn't already cover this) asserting:
+        requireScope({ pool, bootstrapToken: '   ' }) does NOT accept a request with
+        an empty Bearer token. Closes the defense-in-depth coverage gap. Reviewer
+        confidence on layer 2 is currently dependent on code inspection of T3.2 GREEN
+        commit (f5cfcba), not a regression test.
+
+  - id: F-tests-3
+    severity: MINOR
+    file: src/agent-tools/__tests__/oidc-cli-resolver.test.ts
+    line: 1
+    plan_ref: T3.1 plan TDD spec line 242 ("RED: run_server_with_issuer_flag_passes_oidcDiscovery_to_createServer")
+    summary: |
+      Plan's 4 baseline RED scenarios for T3.1 (lines 239-242) target the FULL RUNNER (run-server.ts
+      / run-mcp-server.ts) integration — "passes_oidcDiscovery_to_createServer",
+      "no_longer_emits_stderr_disclosure". The shipped tests pivot to the EXTRACTED helper
+      (resolveOidcConfig) and DO NOT assert against the full runner. This is a meaningful
+      shift in what's covered.
+    evidence: |
+      Plan lines 239-242 (the 4 base RED scenarios):
+        run_server_with_issuer_flag_passes_oidcDiscovery_to_createServer()
+        run_server_with_issuer_constructs_OidcAuthVerifier_and_passes_as_authVerifier()
+        run_mcp_server_with_auth_oidc_constructs_OidcAuthVerifier_passed_in_bearerAuth()
+        run_mcp_server_oidc_no_longer_emits_stderr_disclosure_when_issuer_provided()
+      Shipped tests in oidc-cli-resolver.test.ts: all assert against resolveOidcConfig only;
+      no test verifies that runServer/runMcpServer actually call createServer/connectStreamableHttp
+      with the resolved config. This shifts to e2e (T4.1 scenarios 1+6) for full-runner coverage.
+    recommended_action: |
+      Either (a) add 2 unit tests in src/agent-tools/__tests__/run-server.test.ts asserting
+      that runServer with --issuer constructs OidcAuthVerifier + propagates oidcDiscovery
+      to createServer (mock the createServer call), OR (b) document in the plan T3.1 ADR
+      note that the resolver extraction MOVED these assertions to T4.1 e2e tests
+      (scenarios 1 + 4 + 6 — and test 6 confirms well-known propagation). Reviewer
+      confidence: T4.1 scenarios DO transitively prove the runner path works, so this is
+      not a CRITICAL gap, but the unit-test layer is thinner than the plan implied.
+
+  - id: F-tests-4
+    severity: MINOR
+    file: (all 3 task commits — 2c901a6, 78858f6, f5cfcba)
+    line: N/A
+    plan_ref: cycle-implement.md § Chain "RED — write the failing test that captures the task's acceptance criterion / GREEN — minimal code to pass"
+    summary: |
+      TDD commits combine RED tests + GREEN implementation into ONE commit per phase, defeating
+      git-archaeological proof that the test was committed before the implementation.
+    evidence: |
+      git log --diff-filter=A --name-only:
+        Commit 2c901a6 "feat(server): T1.1+T1.2 wire /v1/admin/keys/*" adds
+          src/server/__tests__/admin-wiring.test.ts AND src/server/app.ts changes in one commit.
+        Commit 78858f6 "feat(server-auth): T2.1+T2.2" adds
+          oidc-introspect-oauth4webapi.test.ts AND oidc-introspect-oauth4webapi.ts together.
+        Commit f5cfcba "feat(agent-tools): T3.1+T3.2" same shape.
+      Each commit subject names the task pair (T1.1+T1.2 etc.) → intentional, not accidental.
+    recommended_action: |
+      MINOR (not MAJOR) because: (a) every test in shipped files actually does meaningful
+      assertions matching the plan's RED scenarios verbatim, (b) plan structure groups the
+      pairs explicitly. For STRICTER halt-loop / cycle-implement audit hygiene, recommend
+      future cycles split RED and GREEN into separate commits even when they ship in the
+      same phase. The benefit is reviewer-side: a reviewer can `git show <red-sha>` and
+      empirically confirm the tests fail before GREEN lands. Currently this requires manual
+      bisect or trust.
+
+  - id: F-tests-5
+    severity: MINOR
+    file: tests/integration/auth/fixes-cycle-1-e2e.test.ts
+    line: 44
+    plan_ref: testing.md § Anti-patterns "Mocks that exceed 5 lines of setup — the design is wrong"
+    summary: |
+      `stubMemory()` factory function (15-line struct) is duplicated VERBATIM between
+      src/server/__tests__/admin-wiring.test.ts:23 and tests/integration/auth/fixes-cycle-1-e2e.test.ts:44.
+      DRY violation across test boundary; future Memory interface changes require touching
+      both files.
+    evidence: |
+      admin-wiring.test.ts:23-42 (20 lines)
+      fixes-cycle-1-e2e.test.ts:44-63 (20 lines) — identical signature + vi.fn structure
+      (the only difference is the explicit `as unknown as Memory` cast in the e2e variant,
+      a TypeScript-only difference)
+    recommended_action: |
+      Promote `stubMemory()` to a shared test fixture under src/core/__tests__/fixtures/
+      or tests/_helpers/stubs.ts. Single import in both test files. Defends against the
+      future-regression scenario where the Memory contract gains a method and only ONE
+      stub gets updated. NOT a BLOCKER because the duplication is small + colocated by
+      pattern (every test ships its own minimal stub today), but the cycle ADDED a second
+      copy and would benefit from a refactor.
+
+  - id: F-tests-6
+    severity: MINOR
+    file: tests/integration/auth/fixes-cycle-1-e2e.test.ts
+    line: 140
+    plan_ref: testing.md § Anti-patterns "Tests with `and` in the name — split into two tests, each testing one thing"
+    summary: |
+      Two e2e test names violate the "no `and`/`then` in test name" anti-pattern:
+        - "themory_keys_cli_create_then_list_round_trips_against_running_server" (line 140)
+        - "dualValidationAuth_routes_theo_live_to_apikey_and_jwt_to_real_oauth4webapi_path" (line 236)
+    evidence: |
+      Strict reading of testing.md: test names should describe a SINGLE behavior. Both names
+      describe COMPOUND scenarios.
+    recommended_action: |
+      ACCEPTABLE AS-IS for integration tests where the round-trip IS the single behavior
+      under test (closing the loop end-to-end). Splitting test 2 into separate create-only
+      + list-only tests would still leave the question "do they round-trip together?"
+      unanswered. Splitting test 5 would force two near-duplicate fixture setups
+      (stub issuer + apikey provision). Document in testing.md § Anti-patterns an
+      explicit carve-out for "integration round-trip names" OR rename to behavior-shape
+      e.g.,
+        "cli_can_create_a_key_and_then_list_it_with_the_returned_secret"
+        → "newly_created_admin_key_is_discoverable_via_subsequent_list_call"
+      The renaming is the SOFT path; the carve-out is the HARD path. Either honors the
+      spirit of the rule.
+
+  - id: F-tests-7
+    severity: MINOR
+    file: src/server/auth/__tests__/oidc-introspect-oauth4webapi.test.ts
+    line: 161
+    plan_ref: plan T2.1 RED test 4 line 190 — "promise rejects in ≤ 10ms"
+    summary: |
+      Plan spec EC-8 line 190 says "controller.abort() after 1ms → promise rejects in ≤ 10ms".
+      Test 4 assertion uses `elapsed < 50` (line 161) — 5× wider than the plan spec.
+    evidence: |
+      Plan T2.1 line 190:
+        RED: EC-8 — abort_signal_propagated_to_underlying_fetch() —
+             controller.abort() after 1ms → promise rejects in ≤ 10ms
+             (NOT waiting for EC-4 5000ms timeout)
+      Test 4 assertion (line 144 + 161):
+        setTimeout(() => ac.abort(), 1);
+        ...
+        expect(elapsed).toBeLessThan(50);  // ← 50ms, not 10ms
+    recommended_action: |
+      Tighten to `expect(elapsed).toBeLessThan(10)` per plan spec, OR amend plan to
+      `≤ 50ms` with a one-line rationale (CI flakiness budget on slow runners). The
+      50ms window is still 100× faster than the 5000ms unaborted latency so the test
+      DOES prove abort works — it just doesn't honor the spec strictly. Recommend
+      doc-amend rather than tighten because slow CI containers occasionally jitter
+      timer resolution above 10ms even for trivial setImmediate paths.
+
+  - id: F-tests-8
+    severity: INFO
+    file: src/server/__tests__/admin-wiring.test.ts
+    line: 119
+    plan_ref: testing.md § Determinism + § Anti-patterns "Integration tests that share state"
+    summary: |
+      Test 5 (EC-7 route ordering) mutates process.env['THEMEMORY_API_KEY'] inside
+      a try/finally block (line 119-135). The finally `delete process.env['THEMEMORY_API_KEY']`
+      resets state, but a test framework crash mid-test (uncaught throw OUTSIDE the try)
+      could leak the env var into sibling tests within the same describe block.
+    evidence: |
+      Line 119: `process.env['THEMEMORY_API_KEY'] = 'sk-unrelated-env-secret';`
+      Line 120-135: `try { ... } finally { delete process.env['THEMEMORY_API_KEY']; }`
+      No top-level beforeEach/afterEach backup-restore pattern (compare with
+      oidc-cli-resolver.test.ts:28-37 which DOES use the canonical backup pattern).
+    recommended_action: |
+      INFO only — try/finally protects the common case. For robustness, prefer the
+      backup-restore beforeEach/afterEach pattern used in oidc-cli-resolver.test.ts.
+      Marginal benefit; not blocking.
+
+summary:
+  verdict: READY_TO_MERGE_WITH_MINOR_CAVEATS
+  blockers_count: 0
+  criticals_count: 0
+  majors_count: 0
+  minors_count: 6
+  info_count: 2
+  rationale: |
+    All 24 plan-required tests (5 + 5 + 8 + 6) are shipped with correct AAA / Given-When-Then
+    shape, deterministic fixtures, proper cleanup hygiene (afterEach Promise.allSettled per
+    EC-10, beforeEach DB reset, env backup-restore pattern). Edge cases EC-1 through EC-10
+    are ALL covered (10/10). Paper-name hygiene compliant (0 banned-token hits). No skipped
+    tests (the one describe.skip is a defensive guard for missing PG_URI, NOT a silent skip
+    — CI mode THROWS instead). Pyramid is healthy (18 unit / 6 integration / 0 e2e for
+    this cycle, e2e covered by lifecycle.test.ts 12-scenario sentinel).
+
+    6 MINOR findings + 2 INFO are improvement opportunities (DRY for stubMemory,
+    layer-2 defense-in-depth sentinel for scope-verifier, tighter abort timing, test-name
+    style, file-shape vs plan ADR documentation). NONE block merge. The cycle materially
+    closes the parent cycle's 2 honest deferrals; T4.1 GOAL TEST 6/6 + lifecycle sentinel
+    12/12 satisfies plan Acceptance Criteria.
+
+    Recommend READY_TO_MERGE. Plan author can address F-tests-2 (layer-2 scope-verifier
+    sentinel) and F-tests-7 (abort timing reconciliation) in a follow-up hardening sweep
+    OR explicit plan amendment; the other findings are stylistic.

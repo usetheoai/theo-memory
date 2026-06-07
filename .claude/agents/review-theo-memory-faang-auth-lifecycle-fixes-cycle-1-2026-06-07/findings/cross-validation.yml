@@ -1,0 +1,395 @@
+agent: review-theo-memory-faang-auth-lifecycle-fixes-cycle-1-cross-validation
+review_target: develop@d722c9b..develop@9b727f2 for plan theo-memory-faang-auth-lifecycle-fixes-cycle-1
+plan: .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md
+implementation_log: .claude/knowledge-base/implementations/theo-memory-faang-auth-lifecycle-fixes-cycle-1-implementation.md
+plan_attested_sha256: 846994da8ffad0fc5d3156d69b228320e922f82581487a37af0689e9a2b663bb
+review_date: 2026-06-07
+
+# ===== SUMMARY =====
+plan_tasks_summary:
+  total_tasks: 7
+  fully_implemented: 7
+  partial: 0
+  missing: 0
+  diverged: 0
+  notes: |
+    All 7 declared tasks (T1.1, T1.2, T2.1, T2.2, T3.1, T3.2, T4.1) implemented
+    with passing tests. One file-decomposition divergence in T3.1 (helper-
+    extraction architectural improvement, NOT a regression — see F-xval-1).
+
+acceptance_criteria_summary:
+  total: 13
+  satisfied: 12
+  unverified: 0
+  false_claims: 0
+  partial: 1
+  notes: |
+    12/13 declared AC satisfied with empirical verification. 1 partial:
+    T2.1 "Zero use of any in adapter source" — adapter uses `as unknown as
+    Parameters<typeof X>[N]` bridges at 2 sites (commit 972ff8d) to widen
+    oauth4webapi symbol-keyed types. NOT literal `any` per Inquebrável
+    Rule 7 (escape via `unknown` is permitted), but spirit of "no escape
+    hatches" is partially compromised.
+
+adr_compliance:
+  total_adrs: 4
+  respected: 4
+  diverged_without_new_adr: 0
+  notes: |
+    ADR D1 (admin opt-in via adminApi option) — respected. createServer
+    extended with optional `adminApi: { pool, bootstrapToken? }` field;
+    omitting it preserves the v0.7 surface (verified via T1.1 test #1).
+    ADR D2 (adapter as separate factory file) — respected. Adapter ships at
+    src/server/auth/oidc-introspect-oauth4webapi.ts as free factory function.
+    ADR D3 (discovery cached at construction) — respected. Stub-fetch test
+    asserts N introspects = 1 discovery + N introspection round-trips.
+    ADR D4 (secrets env-only) — respected. NO --bootstrap-token flag, NO
+    --client-secret flag. CLI defines only --issuer + --client-id. Env vars
+    THEMORY_ADMIN_BOOTSTRAP_TOKEN + THEMORY_OIDC_CLIENT_SECRET are read with
+    .trim() normalization at 2 layers (CLI resolver + scope-verifier
+    defense-in-depth at line 92).
+
+must_fix_ec_absorption:
+  total_must_fix: 6
+  absorbed: 6
+  notes: |
+    EC-1 (adminApi.pool runtime guard) — absorbed at src/server/app.ts:117
+      with typeof reflection. RED test #4 of admin-wiring.test.ts verifies.
+    EC-2 (security-critical empty-string bootstrap bypass) — absorbed in
+      2 layers: resolveBootstrapToken() at oidc-cli-resolver.ts:70-75 (CLI
+      normalization) + scope-verifier.ts:92 (.trim().length > 0 guard).
+      Test #5 of oidc-cli-resolver.test.ts verifies.
+    EC-3 (introspection_endpoint missing from discovery doc) — absorbed
+      in createOauth4webapiIntrospect via fail-loud throw at construction.
+      Test #5 of oidc-introspect-oauth4webapi.test.ts verifies (asserts
+      message matches /introspection_endpoint|RFC 7662/i).
+    EC-4 (client_secret env-only per ADR D4) — absorbed. CLI has NO
+      --client-secret flag; clientSecret read from THEMORY_OIDC_CLIENT_SECRET
+      env at oidc-cli-resolver.ts:99-105.
+    EC-5 (--issuer URL validation) — absorbed at 2 layers: cli.ts:140-147
+      (commander parseIssuerUrl InvalidArgumentError at parse time) +
+      oidc-cli-resolver.ts:84-88 (defense-in-depth via new URL()).
+      Test #2 of oidc-cli-resolver.test.ts verifies.
+    EC-6 (cross-field client-id+secret) — absorbed at oidc-cli-resolver.ts:
+      99-105 (clientSecret empty/missing throws when clientId supplied).
+      Test #3 of oidc-cli-resolver.test.ts verifies.
+
+coverage_matrix_resolution:
+  total_entries: 20
+  fully_resolved: 19
+  partially_resolved: 1
+  unresolved: 0
+  notes: |
+    Entry #17 (EC-9 SHOULD TEST resource URL when host=0.0.0.0):
+      Plan declared "Canonical localhost substitution + stderr warning"
+      via T3.1 RED test 8 + T3.2 Deep Dive. Implementation honors the
+      substitution (host 0.0.0.0 → localhost in oidcDiscovery.resource at
+      oidc-cli-resolver.ts:108) and tests the substitution. The stderr
+      warning portion ("themory server: --host=0.0.0.0 detected; ...")
+      explicitly required by plan T3.2 Deep Dive is NOT implemented and
+      NOT asserted by test #6. See F-xval-2.
+    Other 19 entries verified end-to-end via test pass + grep.
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan file committed exactly once (2eef673) BEFORE implementation began.
+    No edits during /implement halt-loop. Plan attested SHA256 in implementation
+    log matches plan v1.1 frontmatter. Plan is frozen ground truth.
+
+goal_metric:
+  declared: "6 e2e + 12 lifecycle sentinel = 18/18"
+  achieved: "18/18 PASS — verified via `THEOMEM_PG_URI=postgresql://... npx vitest run --config vitest.integration.config.ts tests/integration/auth/` returned 'Test Files 2 passed (2), Tests 18 passed (18)' in 4.29s"
+  satisfied: true
+
+unit_test_tally:
+  declared: "5 (T1.1) + 5 (T2.1) + 8 (T3.1) = 18 new RED tests"
+  achieved: "18 new tests PASS — verified `npx vitest run admin-wiring.test.ts oidc-introspect-oauth4webapi.test.ts oidc-cli-resolver.test.ts` returned 'Tests 18 passed (18)' in 576ms"
+  satisfied: true
+
+quality_gates:
+  typecheck: PASS (zero errors)
+  lint: PASS (clean)
+  npm_test: PASS_WITH_3_PRE_EXISTING_FAILURES_FIXED (commit 2a3a9db reclassified them in-scope per user directive; contract suite now 1169/1171 with 2 skipped, 0 failures)
+
+# ===== FINDINGS =====
+findings:
+  - id: F-xval-1
+    severity: MINOR
+    file: src/agent-tools/__tests__/oidc-cli-resolver.test.ts
+    plan_ref: T3.1 "Files to edit" — declared NEW files src/agent-tools/__tests__/run-server-issuer.test.ts AND src/agent-tools/__tests__/run-mcp-server-oidc.test.ts
+    summary: |
+      T3.1 declared 2 new test files (run-server-issuer.test.ts +
+      run-mcp-server-oidc.test.ts) covering 8 scenarios across both runners.
+      Implementation instead extracted a shared helper module
+      (src/agent-tools/oidc-cli-resolver.ts) + single test file
+      (oidc-cli-resolver.test.ts) covering all 8 scenarios via the helper.
+      This is an ARCHITECTURAL IMPROVEMENT (single source of truth for the
+      CLI flag/env normalization logic, DRY/SRP wins, easier maintenance).
+      Justified in commit f5cfcba: "single source of truth for CLI flag/env
+      normalization shared between runServer + runMcpServer".
+    evidence: |
+      Plan T3.1 § Files to edit:
+        src/agent-tools/__tests__/run-server-issuer.test.ts (NEW)
+        src/agent-tools/__tests__/run-mcp-server-oidc.test.ts (NEW)
+      Actual:
+        Neither file exists.
+        Files created: src/agent-tools/oidc-cli-resolver.ts + oidc-cli-resolver.test.ts
+      8 scenarios all present in oidc-cli-resolver.test.ts; 4 MUST FIX EC
+      (EC-2, EC-5, EC-6, EC-9) all covered. ADR D4 honored.
+    recommended_action: |
+      ACCEPT as positive divergence. Add a one-line ADR backfill (or fold
+      into plan v1.2 retroactively) documenting "T3.1 file decomposition
+      changed from 2 test files to 1 + helper extraction for DRY/SRP".
+      Per Inquebrável Rule 3 honesty — document scope evolutions even when
+      they improve the design. The improvement is real (single source of
+      truth for shared policy across 2 runners), but undocumented divergence
+      from a plan's "Files to edit" list is a process foot-gun for the next
+      cycle's /review.
+    files_changed:
+      created: [src/agent-tools/oidc-cli-resolver.ts, src/agent-tools/__tests__/oidc-cli-resolver.test.ts]
+      not_created_as_declared: [src/agent-tools/__tests__/run-server-issuer.test.ts, src/agent-tools/__tests__/run-mcp-server-oidc.test.ts]
+
+  - id: F-xval-2
+    severity: MAJOR
+    file: src/agent-tools/oidc-cli-resolver.ts
+    plan_ref: T3.2 § Deep Dives EC-9 absorption — "log a one-line warning to stderr: `themory server: --host=0.0.0.0 detected; oidcDiscovery.resource set to http://localhost:<port> (operators behind reverse-proxy should set explicit --oidc-resource <URL> when added in a follow-up cycle)`" AND T3.1 § RED test 5 — "EC-9 — `oidcDiscovery_resource_uses_localhost_when_host_is_0_0_0_0()` — host=0.0.0.0 → oidcDiscovery.resource starts with `http://localhost:` + stderr warning emitted"
+    summary: |
+      EC-9 absorption is PARTIAL. The substitution behavior (host 0.0.0.0 →
+      localhost in oidcDiscovery.resource) is implemented and tested. But the
+      stderr warning that plan T3.2 EXPLICITLY mandates is NOT emitted, and
+      the T3.1 RED test #6 ("EC-9 — host=0.0.0.0 → oidcDiscovery.resource
+      uses localhost canonical (NOT 0.0.0.0)") only asserts the resource
+      URL — it never asserts stderr output.
+      Operator UX impact: a deployer running `themory server --host=0.0.0.0
+      --issuer=...` gets silent localhost substitution. Behind a reverse-
+      proxy, the well-known endpoint advertises `http://localhost:8080`
+      which is wrong for external consumers, and the operator has no signal
+      that the substitution happened.
+    evidence: |
+      Plan T3.2 Deep Dive (lines 270-271 of plan):
+        "EC-9 absorption (resource URL when host=0.0.0.0): when --host === '0.0.0.0',
+        derive oidcDiscovery.resource from 'http://localhost:' + port (canonical
+        localhost) + log a one-line warning to stderr: `themory server: --host=0.0.0.0
+        detected; oidcDiscovery.resource set to http://localhost:<port> (operators
+        behind reverse-proxy should set explicit --oidc-resource <URL> when added in a
+        follow-up cycle)`. T3.1 RED test 5 covers this derivation."
+      Plan T3.1 TDD section:
+        "RED:     EC-9 — oidcDiscovery_resource_uses_localhost_when_host_is_0_0_0_0()
+                  — host=0.0.0.0 → oidcDiscovery.resource starts with `http://localhost:`
+                  + stderr warning emitted"
+      Actual implementation (oidc-cli-resolver.ts lines 107-108):
+        const resourceHost = LOCALHOST_DERIVATION_HOSTS.has(input.host) ? 'localhost' : input.host;
+        // ... no process.stderr.write call
+      Actual test (oidc-cli-resolver.test.ts test #6):
+        expect(cfg!.oidcDiscovery.resource).toBe('http://localhost:8080');
+        // ... no stderr capture/assertion
+      Grep: `grep -rn "host=0.0.0.0\|reverse-proxy\|--oidc-resource" src/agent-tools/ src/server/` returns 0 hits for the warning text.
+    recommended_action: |
+      EITHER (a) add `process.stderr.write(...)` emission in resolveOidcConfig
+      (3-LoC fix + test update to assert warning) per plan as literally written,
+      OR (b) document the silent-substitution behavior change in an ADR amendment
+      explaining why the warning was omitted (e.g., if it was deemed redundant
+      with the README documentation). Option (a) is preferred — the plan's
+      operator-UX rationale is sound and the cost is trivial.
+
+  - id: F-xval-3
+    severity: MAJOR
+    file: CHANGELOG.md
+    plan_ref: Global Definition of Done — "CHANGELOG.md updated under [Unreleased] (Inquebrável Rule 6)"
+    summary: |
+      The Global DoD checkbox "CHANGELOG.md updated under [Unreleased]" is
+      NOT satisfied. CHANGELOG.md contains entries for verbs-as-cli-fixes-cycle-1
+      and -cycle-2 but ZERO entries for theo-memory-faang-auth-lifecycle-fixes-cycle-1.
+      This violates Inquebrável Rule 6 (changelog discipline) and the plan's own
+      Global DoD.
+      Consumer-impact: a downstream consumer reading CHANGELOG won't know that
+      v0.X+1 ships:
+        - `adminApi` opt-in option on createServer
+        - production oauth4webapi IntrospectFn adapter at
+          @usetheo/memory/server/auth/oidc-introspect-oauth4webapi
+        - --issuer / --client-id flags on themory server AND themory mcp
+        - THEMORY_OIDC_ISSUER / THEMORY_OIDC_CLIENT_ID / THEMORY_OIDC_CLIENT_SECRET env vars
+        - removal of OIDC-deferral stderr disclosure from themory mcp
+    evidence: |
+      `grep -in "faang-auth-lifecycle-fixes-cycle-1\|admin REST\|oauth4webapi\|fixes-cycle-1-e2e" CHANGELOG.md` returns 0 hits.
+      Only `verbs-as-cli-fixes-cycle-1` (different cycle) mentioned.
+      `git diff d722c9b..9b727f2 -- CHANGELOG.md` returns empty.
+    recommended_action: |
+      Add CHANGELOG.md entries under `[Unreleased]`:
+        ### Added
+        - `adminApi: { pool, bootstrapToken? }` opt-in option on `createServer`
+          mounts /v1/admin/keys/* with requireScope middleware
+          (theo-memory-faang-auth-lifecycle-fixes-cycle-1 T1.2 + ADR D1)
+        - `createOauth4webapiIntrospect` production adapter at
+          `@usetheo/memory/server` for RFC 7662 OIDC introspection
+          (T2.2 + ADR D2 + ADR D3)
+        - `--issuer` + `--client-id` CLI flags on `themory server` AND
+          `themory mcp` (env equivalents: THEMORY_OIDC_ISSUER /
+          THEMORY_OIDC_CLIENT_ID; secret env-only via
+          THEMORY_OIDC_CLIENT_SECRET per ADR D4) (T3.2)
+        ### Changed
+        - `themory mcp --auth=oidc/both` now constructs the real
+          OidcAuthVerifier (was stderr-deferral-only); removes the parent
+          cycle's deferral disclosure (T3.2 + ADR D4)
+      Inquebrável Rule 6 violation is fixable in seconds; do this BEFORE
+      the next release cut.
+
+  - id: F-xval-4
+    severity: MAJOR
+    file: tests/integration/auth/fixes-cycle-1-e2e.test.ts
+    plan_ref: T4.1 § Deep Dives scenario 6 — "well_known_resolves_when_oidcDiscovery_propagated_via_CLI — boot via `runServer({ issuer })`; fetch well-known → 200 + correct metadata derived from CLI flag"
+    summary: |
+      Scenario 6 was declared to validate end-to-end CLI propagation:
+      `runServer({ issuer })` constructs `oidcDiscovery` via `resolveOidcConfig`
+      and passes it to `createServer`. The implementation instead calls
+      `createServer({ memory, oidcDiscovery: {...} })` directly with a
+      hand-constructed oidcDiscovery object, bypassing the CLI plumb path
+      entirely. The runServer → resolveOidcConfig → createServer integration
+      is exercised only via unit tests of resolveOidcConfig (NOT the runner
+      composition itself).
+      Risk: if a future refactor breaks runServer's oidcDiscovery wiring (e.g.,
+      a typo in `oidcDiscovery: oidcCfg.oidcDiscovery` at run-server.ts:179),
+      the unit test of resolveOidcConfig would still pass and the e2e
+      scenario 6 would still pass — but production `themory server --issuer
+      X` would silently fail to advertise the issuer in well-known.
+    evidence: |
+      Plan T4.1 scenario 6 wording: "boot via `runServer({ issuer })`"
+      Actual test code (fixes-cycle-1-e2e.test.ts:284):
+        const app = createServer({
+          memory: stubMemory(),
+          oidcDiscovery: { issuer: issuer.issuerUrl, resource: 'http://localhost:8080', ... },
+        });
+      No `runServer` invocation anywhere in scenario 6.
+      Grep: `grep -n "runServer" tests/integration/auth/fixes-cycle-1-e2e.test.ts` returns 0 hits.
+    recommended_action: |
+      Rewrite scenario 6 to invoke `runServer({ issuer: issuer.issuerUrl,
+      clientId: 'test-client' })` (with THEMORY_OIDC_CLIENT_SECRET set in
+      env). This requires solving the runServer test-harness challenge (it
+      currently spawns its own pg.Pool — needs a DI seam or env-injection
+      pattern). Alternatively, add a NEW lightweight integration test
+      `run-server-issuer-integration.test.ts` that mocks the pool via env
+      stub and verifies `oidcDiscovery` reaches createServer through the
+      runServer composition path. The current scenario 6 validates the
+      well-known handler but NOT the wiring that makes it useful in
+      production.
+
+  - id: F-xval-5
+    severity: MINOR
+    file: src/server/auth/oidc-introspect-oauth4webapi.ts
+    plan_ref: T2.1 § Acceptance Criteria — "Zero use of `any` in adapter source"
+    summary: |
+      The adapter contains 2 `as unknown as Parameters<typeof X>[N]`
+      type-bridge sites (lines 106 + 130) introduced by commit 972ff8d to
+      satisfy `exactOptionalPropertyTypes: true` when passing symbol-keyed
+      options (`[customFetch]`, `[allowInsecureRequests]`) into oauth4webapi
+      typed signatures. Strictly speaking, the AC ("Zero use of `any`") is
+      SATISFIED — no literal `any` token appears. But the spirit of the AC
+      (no escape hatches) is relaxed via `as unknown as ...` bridges.
+      Per Inquebrável Rule 7 (TypeScript strict — "If you must escape the
+      type system, use unknown with a runtime assertion"), the bridge is
+      ACCEPTABLE because:
+        (a) it uses `unknown` per the rule,
+        (b) the contract is set by an upstream typed library (oauth4webapi),
+        (c) commit 972ff8d justifies the bridge in its message,
+        (d) the alternative (a typed wrapper for symbol-keyed options) would
+            duplicate oauth4webapi's internal types — Rule 9 violation.
+      But the AC text says "Zero use of `any`" and the bridge is functionally
+      `any`-equivalent at the type-system level. Lowering severity to MINOR
+      because the bridge has a documented rationale tied to upstream typing.
+    evidence: |
+      Plan T2.1 AC: "- [ ] Zero use of `any` in adapter source"
+      Implementation (lines 106 + 130):
+        } as unknown as Parameters<typeof discoveryRequest>[1];
+        } as unknown as Parameters<typeof introspectionRequest>[4];
+      Commit 972ff8d rationale: "oauth4webapi's DiscoveryRequestOptions +
+        IntrospectionRequestOptions types use symbol-keyed `?:` properties
+        which exactOptionalPropertyTypes rejects when assigning a literal
+        with matching symbol keys. Fix: build the options literal omitting
+        undefined keys entirely (already the pattern), bridge via
+        `as unknown as Parameters<typeof X>[N]` since the runtime contract
+        is set by oauth4webapi, not our local type (Inquebrável Rule 9 —
+        don't reinvent symbol-keyed types)."
+    recommended_action: |
+      ACCEPT as-is. The bridge is documented in the commit and the upstream
+      type situation justifies it. Optionally, file an upstream issue with
+      oauth4webapi to expose a non-symbol-keyed builder API to eliminate the
+      bridge. Until then, the comment explaining the bridge at each site
+      should be added to the source (currently only in the commit message).
+
+  - id: F-xval-6
+    severity: MINOR
+    file: src/agent-tools/run-server.ts:194-196
+    plan_ref: T3.2 § Deep Dives — "When --auth=both AND issuer supplied: construct BOTH ApiKey + OIDC verifiers, pass both via bearerAuth: { apiKey, oidc } (existing shape)"
+    summary: |
+      `themory server` (no `--auth` flag exists) REPLACES the env-secret
+      BearerAuthVerifier with ApiKeyAuthVerifier when admin path is active
+      AND no OIDC issuer. When OIDC issuer IS supplied, BearerAuthVerifier is
+      replaced by OidcAuthVerifier only (no dual). The plan T3.2 Deep Dive
+      explicitly mentions dual-validation in `--auth=both` mode — applies to
+      `themory mcp`, but `themory server` has no equivalent `--auth=both`
+      composition path. Operators who want both apiKey + oidc on the REST
+      server need to construct it themselves via the lower-level
+      `dualValidationAuth({ apiKey, oidc })` helper (which IS exposed and
+      covered by T4.1 scenario 5).
+    evidence: |
+      `themory server` cli.ts:195-210 has no `--auth` flag.
+      run-server.ts:194-196 replaces authVerifier conditionally:
+        if (adminApi !== undefined && oidcCfg === null) {
+          authVerifier = new ApiKeyAuthVerifier(pool);
+        }
+      No code path constructs dualValidationAuth({ apiKey: ApiKeyAuthVerifier,
+      oidc: OidcAuthVerifier }) inside runServer.
+    recommended_action: |
+      ACCEPT — plan did not explicitly require `themory server` to support
+      a `--auth=both` composition path. T4.1 scenario 5 validates
+      dualValidationAuth works when manually composed. This is a future
+      enhancement (potentially a v0.X+2 cycle) — not a regression against
+      the v1.1 plan.
+
+# ===== POSITIVE OBSERVATIONS =====
+positive_observations:
+  - The 7 commits are atomic, well-titled, and reference plan task IDs
+    (T1.1+T1.2, T2.1+T2.2, T3.1+T3.2, T4.1). Audit trail clear.
+  - Commit 2a3a9db reclassifies 3 pre-existing failures (server-routes-
+    contract.test.ts mockCtx bug) from "out of scope" to in-scope cycle
+    hygiene per user directive — this honors Inquebrável Rule 3 (extreme
+    honesty) over the easier path of leaving them as documented BLOCKED.
+  - Commit 972ff8d (validation typecheck fix) properly contains the
+    typecheck regression to a single commit AFTER /implement promise (per
+    cycle-implement.md Step 5.5 validation halt-loop pattern).
+  - All ADRs (D1, D2, D3, D4) respected by implementation; no silent
+    architectural divergences.
+  - All 6 MUST FIX ECs absorbed (with the caveat in F-xval-2 for EC-9
+    being partial: substitution OK, stderr warning missing).
+  - File-size budget honored (oidc-introspect-oauth4webapi.ts at 141 LoC
+    vs 200 budget). Module hygiene preserved.
+  - 18/18 new unit + 18/18 integration auth tests PASS empirically
+    (verified by re-running during this review).
+  - Typecheck + lint clean (verified by re-running during this review).
+  - Zero plan drift (plan committed once before /implement; never edited).
+  - EC-10 (port cleanup hygiene) absorbed properly via Promise.allSettled
+    pattern at tests/integration/auth/fixes-cycle-1-e2e.test.ts:113-118.
+
+# ===== VERDICT =====
+verdict: READY_TO_MERGE_WITH_CAVEATS
+verdict_rationale: |
+  The implementation closes BOTH deferrals from the parent cycle:
+    (a) Admin REST wired into createApp() via opt-in adminApi option
+    (b) OIDC --auth=oidc plumbed end-to-end via createOauth4webapiIntrospect
+  The 6/6 e2e + 12/12 lifecycle sentinel GOAL TEST passes empirically.
+  All 4 ADRs are respected. All 6 MUST FIX ECs are absorbed (EC-9 with
+  partial caveat per F-xval-2). The Coverage Matrix is 19/20 fully resolved
+  + 1/20 partially resolved (EC-9 stderr warning missing).
+  Caveats requiring fix BEFORE next release cut:
+    - F-xval-3 (CHANGELOG.md MUST be updated for Inquebrável Rule 6
+      compliance — trivial 5-min fix)
+    - F-xval-2 (EC-9 stderr warning OR ADR amendment — 3-LoC fix preferred)
+    - F-xval-4 (scenario 6 should exercise runServer composition, OR a new
+      lightweight integration test for that wiring — non-trivial test infra)
+  F-xval-1 (test file decomposition) is a positive divergence; ADR backfill
+  recommended but not blocking.
+  F-xval-5 (as-unknown-as bridges) acceptable per Rule 7 + 9; in-source
+  comment recommended.
+  F-xval-6 (no --auth=both on themory server) acceptable; not in plan scope.
+  No BLOCKER, no CRITICAL. Implementation faithfully delivers the contract.

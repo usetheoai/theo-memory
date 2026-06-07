@@ -1,0 +1,261 @@
+agent: review-theo-memory-faang-auth-lifecycle-fixes-cycle-1-wiring
+review_target: develop@9b727f2 (HEAD) vs develop@d722c9b for plan theo-memory-faang-auth-lifecycle-fixes-cycle-1
+plan: .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md
+
+triad_revalidation:
+  total_new_symbols: 6
+  symbols_inventoried:
+    - AdminApiOptions (src/server/app.ts:47) — re-exported via src/server/index.ts:11
+    - createOauth4webapiIntrospect (src/server/auth/oidc-introspect-oauth4webapi.ts:84)
+    - resolveOidcConfig (src/agent-tools/oidc-cli-resolver.ts:77)
+    - resolveBootstrapToken (src/agent-tools/oidc-cli-resolver.ts:70)
+    - RunServerOptions.issuer/clientId (src/agent-tools/run-server.ts:55-71)
+    - RunMcpServerOptions.issuer/clientId (src/agent-tools/run-mcp-server.ts:58-82)
+    - startStubIssuer (tests/integration/auth/_stub-issuer.ts:32) — test-only
+  pillar_a_honest_pass: 6 / 6   # every NEW production symbol has ≥ 1 functional caller
+  pillar_b_honest_pass: 5 / 6   # CLI flag end-to-end runner wiring NOT integration-tested (see F-wire-2)
+  pillar_c_observed: n/a / n/a  # plan declared no runtime metrics this cycle
+
+triad_per_symbol:
+  - symbol: AdminApiOptions
+    pillar_a:
+      status: PASS
+      callers:
+        - src/server/app.ts:108 (CreateServerOptions.adminApi typed against this interface)
+        - src/server/app.ts:117 (runtime guard EC-1 reads adminApi.pool)
+        - src/server/app.ts:199-227 (conditional mount of 5 admin routes when adminApi !== undefined)
+        - src/agent-tools/run-server.ts:186-191 (CLI composition root wires adminApi from env-resolved bootstrap)
+      evidence: |
+        Mount block at app.ts:199-227 conditionally registers requireScope middleware + 5 admin route
+        handlers (createKeyHandler, listKeysHandler, revokeKeyHandler, rotateKeyHandler, lineageKeyHandler)
+        BEFORE the generic /v1/* bearerAuth middleware. EC-7 ordering preserved.
+    pillar_b:
+      status: PASS
+      tests:
+        - src/server/__tests__/admin-wiring.test.ts (5 scenarios: backward-compat 404, 401 without Bearer,
+          200 with bootstrap, EC-1 pool guard, EC-7 ordering sentinel)
+        - tests/integration/auth/fixes-cycle-1-e2e.test.ts (scenarios 1-3: real pgvector + real
+          createServer({ adminApi }) round-trip including key create, CLI roundtrip, revoke)
+    public_surface: re-exported via @usetheo/memory/server subpath per package.json#exports."./server"
+
+  - symbol: createOauth4webapiIntrospect
+    pillar_a:
+      status: PASS
+      callers:
+        - src/agent-tools/run-server.ts:173 (production wiring when oidcCfg resolved)
+        - src/agent-tools/run-mcp-server.ts:209 (production wiring inside resolveBearerAuth)
+      evidence: |
+        run-server.ts:172-180 — when resolveOidcConfig returns non-null, the factory is awaited,
+        OidcAuthVerifier({ introspect }) constructed, and authVerifier + oidcDiscovery passed to
+        createServer. Same shape in run-mcp-server.ts:208-215 inside resolveBearerAuth for
+        --auth=oidc/both modes. Both callers fail-loud at boot per Inquebrável Rule 8.
+    pillar_b:
+      status: PASS
+      tests:
+        - src/server/auth/__tests__/oidc-introspect-oauth4webapi.test.ts (5 contract tests: discovery
+          cache, active-true mapping, active-false mapping, EC-8 AbortSignal ≤50ms, EC-3 missing
+          introspection_endpoint throws)
+        - tests/integration/auth/fixes-cycle-1-e2e.test.ts scenarios 4 + 5 (real factory against
+          startStubIssuer; scenario 5 also exercises dualValidationAuth chaining theo_live_ →
+          ApiKeyAuthVerifier vs JWT → real OIDC adapter)
+
+  - symbol: resolveOidcConfig
+    pillar_a:
+      status: PASS
+      callers:
+        - src/agent-tools/run-server.ts:164 (used in REST server composition)
+        - src/agent-tools/run-mcp-server.ts:198 (used in MCP streamable-http composition)
+      evidence: |
+        Single source of truth for CLI flag/env normalization invoked by BOTH runners.
+        run-server.ts wires the resolved oidcDiscovery into createServer({ oidcDiscovery });
+        run-mcp-server.ts uses it INSIDE resolveBearerAuth for the OIDC verifier path.
+        Both pass host + port + opt issuer/clientId (CLI flag precedence > env).
+    pillar_b:
+      status: PASS
+      tests:
+        - src/agent-tools/__tests__/oidc-cli-resolver.test.ts (8 scenarios: null when no issuer,
+          EC-5 invalid URL throws, EC-6 missing client_secret throws, EC-2 whitespace client_secret
+          throws, EC-9 host=0.0.0.0 → localhost resource derivation, valid full config, CLI > env
+          precedence, bootstrap-token sanity)
+
+  - symbol: resolveBootstrapToken
+    pillar_a:
+      status: PASS
+      callers:
+        - src/agent-tools/run-server.ts:185 (REST server admin sub-app composition only)
+      evidence: |
+        Single caller — REST server. MCP transport does NOT mount admin REST routes (admin lives
+        only on /v1/* HTTP surface), so resolveBootstrapToken is correctly absent from
+        run-mcp-server.ts. The function ALSO has its own dedicated test (test 5 in
+        oidc-cli-resolver.test.ts) verifying empty/whitespace/undefined all collapse to undefined
+        (EC-2 security-critical) and non-empty pass through.
+    pillar_b:
+      status: PASS
+      tests:
+        - src/agent-tools/__tests__/oidc-cli-resolver.test.ts test 5 (4 boundary cases for env shape)
+        - tests/integration/auth/fixes-cycle-1-e2e.test.ts scenarios 1-3 (real composition with
+          BOOTSTRAP_TOKEN env)
+
+  - symbol: RunServerOptions.issuer + clientId
+    pillar_a:
+      status: PASS
+      callers:
+        - src/agent-tools/cli.ts:200-207 (themory server --issuer / --client-id flags wired)
+        - src/agent-tools/cli.ts:206-207 (spread into RunServerOptions passed to runServer)
+      evidence: |
+        Commander option block at cli.ts:200-201 registers --issuer + --client-id flags;
+        action callback at line 202-209 propagates both into RunServerOptions and invokes
+        runServer(options). EC-5 commander argParser (parseIssuerUrl at cli.ts:141-148) wraps
+        InvalidArgumentError + commander exitOverride at cli.ts:130-138 maps to exit code 2.
+    pillar_b:
+      status: PARTIAL
+      tests:
+        - src/agent-tools/__tests__/oidc-cli-resolver.test.ts (resolver itself unit-tested)
+      missing: |
+        No test asserts "themory server --issuer X" PROPAGATES to OidcAuthVerifier
+        instantiation + oidcDiscovery propagation to createServer. Plan T3.1 explicitly required
+        src/agent-tools/__tests__/run-server-issuer.test.ts as a NEW file with 4 RED tests
+        (run_server_with_issuer_flag_passes_oidcDiscovery_to_createServer, etc.) — file does NOT
+        exist. See F-wire-2.
+
+  - symbol: RunMcpServerOptions.issuer + clientId
+    pillar_a:
+      status: PASS
+      callers:
+        - src/agent-tools/cli.ts:172-173 (themory mcp --issuer / --client-id flags wired)
+        - src/agent-tools/cli.ts:188-189 (spread into RunMcpServerOptions passed to runMcpServer)
+      evidence: |
+        Same shape as RunServerOptions: parser at cli.ts:141-148 shared; action callback at
+        cli.ts:174-193 propagates flags into RunMcpServerOptions. resolveBearerAuth at
+        run-mcp-server.ts:190-221 produces BearerAuthOptions{ apiKey, oidc } depending on --auth
+        mode and constructs OidcAuthVerifier when mode = oidc | both.
+    pillar_b:
+      status: PARTIAL
+      tests:
+        - src/agent-tools/__tests__/oidc-cli-resolver.test.ts (resolver itself unit-tested)
+      missing: |
+        Plan T3.1 promised src/agent-tools/__tests__/run-mcp-server-oidc.test.ts as NEW file with 4
+        RED tests (incl. "no longer emits stderr disclosure when issuer provided") — file does NOT
+        exist. See F-wire-2.
+
+  - symbol: startStubIssuer (test-only)
+    pillar_a:
+      status: PASS
+      callers:
+        - tests/integration/auth/fixes-cycle-1-e2e.test.ts:215, 239, 281 (3 e2e scenarios use it)
+      evidence: |
+        Test-only helper; correctly NOT exported via any src/ subpath. EC-10 close() lifecycle
+        wired with Promise.allSettled afterEach.
+    pillar_b: n/a (helper IS the test infrastructure)
+
+reachability_analysis:
+  entry_points_traced:
+    - "themory server --issuer URL → cli.ts:200 → runServer(opts) → resolveOidcConfig + createOauth4webapiIntrospect + OidcAuthVerifier → createServer({ authVerifier, oidcDiscovery })"
+    - "themory mcp --auth=oidc --issuer URL → cli.ts:172 → runMcpServer(opts) → resolveBearerAuth → resolveOidcConfig + createOauth4webapiIntrospect + OidcAuthVerifier → connectStreamableHttp"
+    - "themory server (admin) → cli.ts:196 → runServer → resolveBootstrapToken → createServer({ adminApi: { pool, bootstrapToken } }) → app.ts:199-227 mounts requireScope + 5 handlers"
+  no_dead_modules_found: true
+  every_new_symbol_has_reachable_path: true
+
+dip_boundary_check:
+  src_server_imports_no_cross_tier: PASS
+    - "grep verified src/server/auth/oidc-introspect-oauth4webapi.ts + src/server/app.ts have zero imports from src/local|cloud|theokit|agent-tools"
+  src_agent_tools_is_composition_root: PASS
+    - "DIP-allowed per architecture.md § 3 + ADR D8 — run-server.ts imports both src/server/ AND src/local/"
+
+orphan_exports_audit:
+  - AdminApiOptions: exposed via src/server/index.ts (subpath @usetheo/memory/server) — has consumers in run-server.ts + integration tests. NOT orphan.
+  - createOauth4webapiIntrospect: 2 production callers (run-server.ts:173, run-mcp-server.ts:209). NOT orphan.
+  - resolveOidcConfig: 2 production callers. NOT orphan.
+  - resolveBootstrapToken: 1 production caller (REST server). Correctly absent from MCP runner (admin REST does not exist on MCP). NOT orphan.
+  - RunServerOptions.issuer/clientId: spread from cli.ts:202-209. NOT orphan.
+  - RunMcpServerOptions.issuer/clientId: spread from cli.ts:174-193. NOT orphan.
+
+concurrent_safety: n/a (cycle is wiring + composition; no new shared-resource semantics introduced)
+
+findings:
+  - id: F-wire-1
+    severity: MAJOR
+    file: src/agent-tools/__tests__/
+    line: n/a
+    plan_ref: T3.1 Acceptance Criteria — 8 RED tests promised
+    summary: Plan T3.1 required src/agent-tools/__tests__/run-server-issuer.test.ts AND src/agent-tools/__tests__/run-mcp-server-oidc.test.ts as NEW test files with 8 RED tests covering CLI --issuer flag propagation; both files DO NOT exist.
+    evidence: |
+      Plan v1.1 § T3.1 line 232-234 lists the files explicitly.
+      `ls src/agent-tools/__tests__/` shows: agent-tools-memory, cli-output, cli-scope, cli, error-classifier,
+      oidc-cli-resolver, package-deps, run-health, run-keys, run-mcp-server, run-migrate, run-server, scope,
+      server, streamable-http-auth, streamable-http. The two T3.1 test files are absent.
+      The 8 RED tests promised by the plan included:
+        - run_server_with_issuer_flag_passes_oidcDiscovery_to_createServer
+        - run_server_with_issuer_constructs_OidcAuthVerifier_and_passes_as_authVerifier
+        - run_mcp_server_with_auth_oidc_constructs_OidcAuthVerifier_passed_in_bearerAuth
+        - run_mcp_server_oidc_no_longer_emits_stderr_disclosure_when_issuer_provided
+        - EC-2/EC-5/EC-6/EC-9 absorptions
+      Only EC-2/EC-5/EC-6/EC-9 are covered (via oidc-cli-resolver.test.ts which tests the helper in
+      isolation). The 4 runner-integration sentinel tests are missing.
+    impact: |
+      The CLI flag → runner → resolver → adapter → verifier → createServer end-to-end chain has NO
+      regression sentinel. If a future refactor breaks the propagation (e.g., a typo dropping
+      `oidcDiscovery` from the createServer call), no test catches it. Pillar (b) for
+      RunServerOptions.issuer/clientId + RunMcpServerOptions.issuer/clientId is PARTIAL —
+      static traceability confirms wiring exists today, but tests don't lock the contract.
+    recommended_action: |
+      Open follow-up cycle to add src/agent-tools/__tests__/run-server-issuer.test.ts (4 tests) +
+      src/agent-tools/__tests__/run-mcp-server-oidc.test.ts (4 tests) per plan T3.1 spec. Each
+      should mock createServer / connectStreamableHttp + assert the oidcDiscovery + authVerifier
+      args carry the expected shape when --issuer is supplied. Existing run-server.test.ts +
+      run-mcp-server.test.ts already use the same vi.mock pattern — extend them in-place.
+
+  - id: F-wire-2
+    severity: MINOR
+    file: tests/integration/auth/fixes-cycle-1-e2e.test.ts
+    line: 28-29
+    plan_ref: T4.1 scenario 6 — well_known_resolves_when_oidcDiscovery_propagated_via_CLI
+    summary: Plan T4.1 scenario 6 named "well_known_resolves_when_oidcDiscovery_propagated_via_CLI" but the test as-implemented calls createServer({ oidcDiscovery: {...} }) DIRECTLY — does not invoke runServer or exercise the CLI flag chain.
+    evidence: |
+      Plan v1.1 § T4.1 line 305 says scenario 6: "boot via runServer({ issuer }); fetch well-known".
+      Actual test at fixes-cycle-1-e2e.test.ts:280-308 boots via createServer({ memory: stubMemory,
+      oidcDiscovery: {...} }) — bypasses runServer entirely. `grep -n "runServer" tests/integration/auth/fixes-cycle-1-e2e.test.ts`
+      returns 0 matches.
+    impact: |
+      The integration test verifies createServer correctly serves the well-known endpoint when
+      oidcDiscovery is supplied (good). It does NOT verify that the CLI's runServer composition
+      correctly DERIVES + propagates oidcDiscovery from --issuer / --host / --port. Combined with
+      F-wire-1 (missing unit tests for that derivation), the end-to-end CLI → well-known path has
+      ZERO test coverage.
+    recommended_action: |
+      Either rename the scenario to truthfully say "createServer-direct" (honest disclosure of
+      scope) OR extend the scenario to spawn runServer in-process with stubbed env + verify the
+      well-known endpoint returns the issuer URL derived from --issuer flag. Acceptable lower-cost
+      mitigation is the F-wire-1 unit test for runServer that asserts the oidcDiscovery payload
+      shape.
+
+  - id: F-wire-3
+    severity: INFO
+    file: src/agent-tools/run-mcp-server.ts
+    line: 71-72
+    plan_ref: T3.2 Acceptance Criteria — stderr disclosure removed when issuer provided
+    summary: JSDoc on RunMcpServerOptions.auth still says "Currently plumbing-only — the production-grade `oauth4webapi` IntrospectFn adapter ships in a follow-up cycle alongside T5.1. Selecting `oidc` / `both` today emits a stderr warning + falls back to `api-keys` until the adapter lands." This was true in the parent cycle but is now stale post-fixes-cycle-1.
+    evidence: |
+      run-mcp-server.ts:67-77 documents the deferral.
+      Actual behavior (resolveBearerAuth at line 190-221) NOW constructs the real OidcAuthVerifier
+      via createOauth4webapiIntrospect when --auth=oidc or both AND --issuer supplied.
+      There is no fallback-to-api-keys path remaining (line 201-204 hard-fails if --auth=oidc/both
+      without --issuer).
+    impact: |
+      JSDoc misleads future maintainers + IDE users (hover-doc lies). No runtime regression.
+    recommended_action: |
+      Update RunMcpServerOptions.auth JSDoc to reflect fixes-cycle-1 closure. Plan T3.2 explicitly
+      promised "stderr disclosure removed when issuer provided" — the BEHAVIOR is correct; only the
+      docstring is stale.
+
+summary: |
+  6 of 6 NEW symbols have at least one functional caller (pillar a PASS) and no dead exports were
+  found. 5 of 6 have ≥ 1 integration test exercising them (pillar b PASS); the remaining 1
+  symbol pair (RunServerOptions.issuer/clientId + RunMcpServerOptions.issuer/clientId) is PARTIAL
+  because plan T3.1's promised runner-integration tests (run-server-issuer.test.ts +
+  run-mcp-server-oidc.test.ts, 8 RED tests total) were NOT delivered. The helper resolveOidcConfig
+  is well-tested in isolation but the CLI flag → runner end-to-end derivation has no sentinel.
+  DIP boundaries respected; reachability from CLI entrypoints clean. No concurrency hazards or
+  metric-evidence-fabrication concerns (plan declared no new runtime metrics this cycle).
+  Findings: 1 MAJOR (F-wire-1 missing T3.1 sentinel tests), 1 MINOR (F-wire-2 scenario 6 bypasses
+  runServer), 1 INFO (F-wire-3 stale JSDoc deferral language).
