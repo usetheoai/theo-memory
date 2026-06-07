@@ -36,6 +36,7 @@
  * @see https://datatracker.ietf.org/doc/html/rfc7662
  */
 import {
+  allowInsecureRequests,
   ClientSecretBasic,
   customFetch,
   discoveryRequest,
@@ -66,6 +67,14 @@ export interface CreateOauth4webapiIntrospectOptions {
    * default fetch is needed.
    */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * INTEGRATION-TEST-ONLY: enable when the issuer URL is `http://` (not
+   * `https://`) — typically a local stub issuer. Production deployments
+   * MUST NEVER set this (oauth4webapi enforces HTTPS-only by RFC 8414 §2).
+   * When true, propagates oauth4webapi's `[allowInsecureRequests]` symbol
+   * to discovery + introspection requests.
+   */
+  readonly allowInsecure?: boolean;
 }
 
 /**
@@ -87,8 +96,13 @@ export async function createOauth4webapiIntrospect(
   const fetchImpl = opts.fetchImpl;
   // oauth4webapi accepts a `customFetch` symbol-keyed option on its
   // request functions; we pass it through every call site.
-  const requestOptionsBase: { [customFetch]?: typeof fetch } =
-    fetchImpl !== undefined ? { [customFetch]: fetchImpl } : {};
+  const requestOptionsBase: {
+    [customFetch]?: typeof fetch;
+    [allowInsecureRequests]?: boolean;
+  } = {
+    ...(fetchImpl !== undefined ? { [customFetch]: fetchImpl } : {}),
+    ...(opts.allowInsecure === true ? { [allowInsecureRequests]: true } : {}),
+  };
 
   // Discovery: ONCE per construction. Result cached in closure.
   const discoveryResponse = await discoveryRequest(issuerUrl, requestOptionsBase);
