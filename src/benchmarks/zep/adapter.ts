@@ -20,9 +20,9 @@ import type {
 import type { Tokenizer } from '../../core/dip/tokenizer.js';
 
 export interface ZepVendorClient {
-  add(sessionId: string, text: string): Promise<void>;
+  add(scopeKey: string, text: string): Promise<void>;
   search(
-    sessionId: string,
+    scopeKey: string,
     query: string,
     topK: number,
   ): Promise<readonly { text: string; score: number }[]>;
