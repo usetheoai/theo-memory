@@ -23,6 +23,7 @@
 import { Pool } from 'pg';
 
 import { runMigrations } from '../local/index.js';
+import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
 
 import {
   assertEnvOrExit,
@@ -31,6 +32,7 @@ import {
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
 } from './agent-tools-memory.js';
+import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
@@ -54,6 +56,22 @@ export interface RunMcpServerOptions {
   readonly transport?: 'stdio' | 'streamable-http';
   readonly port?: number;
   readonly host?: string;
+  /**
+   * T4.1 + ADR-0015 — auth mode for streamable-http transport.
+   *
+   * - `none` (default): no auth — only safe for localhost dev loops.
+   * - `api-keys`: Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup).
+   * - `oidc`: Camada 3 OidcAuthVerifier (RFC 7662 introspection). Currently
+   *   plumbing-only — the production-grade `oauth4webapi` IntrospectFn
+   *   adapter ships in a follow-up cycle alongside T5.1. Selecting `oidc` /
+   *   `both` today emits a stderr warning + falls back to `api-keys` until
+   *   the adapter lands. Tracked under the same plan §
+   *   `theo-memory-faang-auth-lifecycle` follow-up.
+   * - `both`: dual-validation (theo_live_* → apiKey, else → oidc).
+   *
+   * stdio transport ignores this field per ADR-0015 #1.
+   */
+  readonly auth?: 'none' | 'api-keys' | 'oidc' | 'both';
 }
 
 function resolveTransport(opt?: RunMcpServerOptions['transport']): 'stdio' | 'streamable-http' {
@@ -135,8 +153,40 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   process.on('SIGINT', shutdownHandler);
 
   if (transport === 'streamable-http') {
-    await connectStreamableHttp(server, { port, host });
+    const bearerAuth = resolveBearerAuth(options?.auth, pool);
+    await connectStreamableHttp(server, {
+      port,
+      host,
+      ...(bearerAuth !== undefined ? { bearerAuth } : {}),
+    });
   } else {
     await connectStdio(server);
   }
+}
+
+/**
+ * T4.1 — translate the `--auth` CLI mode into a `BearerAuthOptions` bag
+ * consumed by `connectStreamableHttp`. Returns `undefined` when auth is
+ * `none` OR unset (transport runs without gate). The OIDC adapter is
+ * deferred to a follow-up cycle; selecting `oidc`/`both` today emits a
+ * stderr disclosure and downgrades to api-keys-only per Inquebrável Rule 3
+ * (honest deferral over silent partial wiring).
+ */
+function resolveBearerAuth(
+  mode: RunMcpServerOptions['auth'],
+  pool: Pool,
+): BearerAuthOptions | undefined {
+  if (mode === undefined || mode === 'none') return undefined;
+
+  if (mode === 'oidc' || mode === 'both') {
+    process.stderr.write(
+      `themory mcp: --auth=${mode} requested but the production oauth4webapi adapter is not yet wired; ` +
+        `falling back to api-keys-only for this invocation. ` +
+        `Track via plan theo-memory-faang-auth-lifecycle § follow-up cycle (OIDC integration shipping with T5.1).\n`,
+    );
+  }
+
+  // api-keys (and the api-keys subset of `both`) — the Camada 2 path is GA today.
+  const apiKey = new ApiKeyAuthVerifier(pool);
+  return { apiKey };
 }
