@@ -149,14 +149,31 @@ export function buildProgram(): Command {
       parseIntInRange('--port', 1, 65_535),
     )
     .option('--host <address>', 'Bind host for streamable-http transport')
-    .action(async (opts: { transport?: 'stdio' | 'streamable-http'; port?: number; host?: string }) => {
-      const options: RunMcpServerOptions = {
-        ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
-        ...(opts.port !== undefined ? { port: opts.port } : {}),
-        ...(opts.host !== undefined ? { host: opts.host } : {}),
-      };
-      await runMcpServer(options);
-    });
+    .addOption(
+      new Option(
+        '--auth <mode>',
+        'Auth mode for streamable-http transport (T4.1 + ADR-0015). ' +
+          '`api-keys` activates the Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup); ' +
+          '`none` (default) runs without auth — ONLY safe for localhost dev. ' +
+          'OIDC mode (`oidc` / `both`) is plumbed via the same gate but requires THEMORY_OIDC_ISSUER + a follow-up cycle to wire the oauth4webapi adapter.',
+      ).choices(['none', 'api-keys', 'oidc', 'both']),
+    )
+    .action(
+      async (opts: {
+        transport?: 'stdio' | 'streamable-http';
+        port?: number;
+        host?: string;
+        auth?: 'none' | 'api-keys' | 'oidc' | 'both';
+      }) => {
+        const options: RunMcpServerOptions = {
+          ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
+          ...(opts.port !== undefined ? { port: opts.port } : {}),
+          ...(opts.host !== undefined ? { host: opts.host } : {}),
+          ...(opts.auth !== undefined ? { auth: opts.auth } : {}),
+        };
+        await runMcpServer(options);
+      },
+    );
 
   program
     .command('server')
