@@ -26,6 +26,7 @@
  */
 
 import { VendorSynthesizeUnsupportedError } from '../../core/errors.js';
+
 import type { LettaVendorClient } from './adapter.js';
 
 interface LettaSdkLike {
@@ -71,8 +72,10 @@ export class LettaOfficialClient implements LettaVendorClient {
     }));
   }
 
-  synthesize(_question: string, _context: readonly string[]): Promise<string> {
+  synthesize(question: string, context: readonly string[]): Promise<string> {
     // EC-2 + ADR D2: typed throw per Inquebrável Rule 8
+    void question;
+    void context;
     throw new VendorSynthesizeUnsupportedError('letta');
   }
 }

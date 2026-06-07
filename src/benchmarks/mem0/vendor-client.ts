@@ -23,6 +23,7 @@
  */
 
 import { VendorSynthesizeUnsupportedError } from '../../core/errors.js';
+
 import type { Mem0VendorClient } from './adapter.js';
 
 /**
@@ -63,11 +64,13 @@ export class Mem0OfficialClient implements Mem0VendorClient {
     return raw.map((r) => ({ text: r.memory, score: r.score }));
   }
 
-  synthesize(_question: string, _context: readonly string[]): Promise<string> {
+  synthesize(question: string, context: readonly string[]): Promise<string> {
     // EC-2 + ADR D2: typed error so callers can branch on
     // `instanceof VendorSynthesizeUnsupportedError` without parsing
     // error.message strings (Inquebrável Rule 8). Adapter wraps this in
     // a fallback to the shared LLM DIP per blueprint R3.
+    void question;
+    void context;
     throw new VendorSynthesizeUnsupportedError('mem0');
   }
 }
