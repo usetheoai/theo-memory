@@ -29,23 +29,23 @@ THRESHOLDS = SKILL_ROOT.parent.parent / "rules" / "plan-confidence-thresholds.tx
 # ADR D8 / EC-2 renormalize tests
 
 def test_renormalize_weights_m2_sums_to_one() -> None:
-    weights = renormalize_weights(["completude", "risco_estrutural"])
+    weights = renormalize_weights(["completeness", "structural_risk"])
     assert abs(sum(weights.values()) - 1.0) < 1e-9
 
 
 def test_renormalize_weights_m2_proportions_correct() -> None:
-    weights = renormalize_weights(["completude", "risco_estrutural"])
-    # SOTA: completude=0.30, risco=0.20. Sum 0.50. completude/0.50 = 0.6.
-    assert abs(weights["completude"] - 0.6) < 1e-9
-    assert abs(weights["risco_estrutural"] - 0.4) < 1e-9
+    weights = renormalize_weights(["completeness", "structural_risk"])
+    # SOTA: completeness=0.30, risco=0.20. Sum 0.50. completeness/0.50 = 0.6.
+    assert abs(weights["completeness"] - 0.6) < 1e-9
+    assert abs(weights["structural_risk"] - 0.4) < 1e-9
 
 
 def test_renormalize_weights_m3_proportions_correct() -> None:
-    """When M3 activates evidencia (0.30 SOTA): sum 0.30+0.30+0.20=0.80. Renormalized 3/8, 3/8, 2/8."""
-    weights = renormalize_weights(["completude", "evidencia", "risco_estrutural"])
-    assert abs(weights["completude"] - 0.30 / 0.80) < 1e-9
-    assert abs(weights["evidencia"] - 0.30 / 0.80) < 1e-9
-    assert abs(weights["risco_estrutural"] - 0.20 / 0.80) < 1e-9
+    """When M3 activates evidence (0.30 SOTA): sum 0.30+0.30+0.20=0.80. Renormalized 3/8, 3/8, 2/8."""
+    weights = renormalize_weights(["completeness", "evidence", "structural_risk"])
+    assert abs(weights["completeness"] - 0.30 / 0.80) < 1e-9
+    assert abs(weights["evidence"] - 0.30 / 0.80) < 1e-9
+    assert abs(weights["structural_risk"] - 0.20 / 0.80) < 1e-9
     assert abs(sum(weights.values()) - 1.0) < 1e-9
 
 
@@ -60,7 +60,7 @@ def test_run_structural_good_plan_passes() -> None:
     # In M2 with renormalization, max achievable is 100. We expect at least 70 (SHIPPABLE_WITH_CAVEATS).
     assert report.final_score_after_caps >= 70, (
         f"good-plan got {report.final_score_after_caps}, expected >= 70. "
-        f"completude={report.completude_score}, risco={report.risco_estrutural_score}"
+        f"completeness={report.completude_score}, risco={report.risco_estrutural_score}"
     )
 
 
@@ -87,7 +87,7 @@ def test_run_structural_no_tdd_capped() -> None:
 
 def test_run_structural_weak_imperatives_penalty() -> None:
     report = run_structural(FIXTURES / "weak-imperatives-plan.md", RUBRIC, THRESHOLDS)
-    # Should have risco_estrutural < 100 due to smells, but no hard cap from smells
+    # Should have structural_risk < 100 due to smells, but no hard cap from smells
     assert report.risco_estrutural_score < 100
     assert "coverage_lt_100" not in report.hard_caps_triggered
 
@@ -100,7 +100,7 @@ def test_run_structural_emits_valid_json_compatible_data() -> None:
     # dataclass to dict (no Motivo nesting issue here since list is empty for M2 evidence/calibration)
     from dataclasses import asdict
     d = asdict(report)
-    d["motivos"] = {k: [asdict(m) for m in v] for k, v in report.motivos.items()}
+    d["reasons"] = {k: [asdict(m) for m in v] for k, v in report.reasons.items()}
     # Must round-trip
     s = json.dumps(d, indent=2, ensure_ascii=False)
     parsed = json.loads(s)
@@ -109,17 +109,32 @@ def test_run_structural_emits_valid_json_compatible_data() -> None:
 
 def test_run_structural_motivos_has_4_keys() -> None:
     report = run_structural(FIXTURES / "good-plan.md", RUBRIC, THRESHOLDS)
-    assert set(report.motivos.keys()) == {"completude", "evidencia", "calibracao", "risco_estrutural"}
+    assert set(report.reasons.keys()) == {"completeness", "evidence", "calibration", "structural_risk"}
 
 
-def test_run_structural_evidencia_empty_in_m2() -> None:
+def test_run_structural_evidencia_inactive_in_m2_weights() -> None:
+    """In M2 the `evidence` dimension is NOT in the weighted-score formula
+    (only `completeness` and `structural_risk` are active per M2_ACTIVE_DIMENSIONS).
+
+    But the orchestrator still scans citations and records positive/negative
+    motivos for visibility — they just do not contribute to the score. After the
+    SOTA upgrade the good-plan fixture cites real rule files (Baseline Context,
+    Prior Art, Drawbacks references), so positive evidence motivos may be present
+    even though their weight is zero.
+
+    Pre-upgrade assertion was `report.reasons["evidence"] == []` (the fixture
+    had zero citations). That asserted an artifact of the fixture's poverty,
+    not a contract of the orchestrator — the renamed assertion below pins
+    the actual contract.
+    """
     report = run_structural(FIXTURES / "good-plan.md", RUBRIC, THRESHOLDS)
-    assert report.motivos["evidencia"] == []
+    # Evidence dimension is not part of the M2 weighted formula.
+    assert "evidence" not in (report.active_dimensions or [])
 
 
 def test_run_structural_calibracao_empty_in_m2() -> None:
     report = run_structural(FIXTURES / "good-plan.md", RUBRIC, THRESHOLDS)
-    assert report.motivos["calibracao"] == []
+    assert report.reasons["calibration"] == []
 
 
 def test_run_structural_output_includes_active_dimensions() -> None:
