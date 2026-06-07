@@ -65,9 +65,11 @@ describe('OidcAuthVerifier — cache + EC-5 coalescing', () => {
 
   test('7. EC-5 — concurrent verify() for same token shares ONE introspection', async () => {
     let resolveInner: ((v: { active: boolean }) => void) | undefined;
-    const introspect: IntrospectFn = vi.fn(
-      () => new Promise((r) => { resolveInner = r; }),
-    );
+    const introspectImpl: IntrospectFn = () =>
+      new Promise<{ active: boolean }>((r) => {
+        resolveInner = r;
+      });
+    const introspect = vi.fn(introspectImpl) as IntrospectFn & ReturnType<typeof vi.fn>;
     const v = new OidcAuthVerifier({ introspect, cacheTtlSeconds: 0 });
 
     // Fire 10 concurrent verifies for the same token while introspection is hung.

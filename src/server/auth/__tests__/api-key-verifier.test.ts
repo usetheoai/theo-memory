@@ -29,16 +29,17 @@ function makePool(opts: {
   queries: { sql: string; params: readonly unknown[] }[];
 } {
   const queries: { sql: string; params: readonly unknown[] }[] = [];
+  const queryImpl = <T>(sql: string, params: readonly unknown[]): Promise<{ rows: T[] }> => {
+    queries.push({ sql, params });
+    if (opts.selectThrows) return Promise.reject(opts.selectThrows);
+    // First call = SELECT; second call = UPDATE last_used_at
+    if (queries.length === 1) {
+      return Promise.resolve({ rows: (opts.selectRows ?? []) as T[] });
+    }
+    return Promise.resolve({ rows: [] as T[] });
+  };
   const pool: AuthPool = {
-    query: vi.fn(<T>(sql: string, params: readonly unknown[]) => {
-      queries.push({ sql, params });
-      if (opts.selectThrows) return Promise.reject(opts.selectThrows);
-      // First call = SELECT; second call = UPDATE last_used_at
-      if (queries.length === 1) {
-        return Promise.resolve({ rows: (opts.selectRows ?? []) as T[] });
-      }
-      return Promise.resolve({ rows: [] as T[] });
-    }),
+    query: vi.fn(queryImpl) as AuthPool['query'],
   };
   return { pool, queries };
 }
