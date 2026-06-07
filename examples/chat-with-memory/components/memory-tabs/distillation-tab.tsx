@@ -19,8 +19,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card } from "@usetheo/ui";
+import { Badge, Button, Card, Label, RadioGroup, Timestamp } from "@theokit/ui";
 import { Beaker, RefreshCw } from "lucide-react";
+
+import { apiCall, ApiError } from "../../lib/api-client";
 
 type PolicyName = "noop" | "last-write-wins" | "llm-judged-merge";
 
@@ -88,22 +90,21 @@ export function DistillationTab({ userId, reloadKey }: Props) {
   const loadAudit = useCallback(
     async (signal: AbortSignal): Promise<void> => {
       if (userId === "") return;
-      const url = new URL("/api/memory/consolidation-history", window.location.origin);
-      url.searchParams.set("userId", userId);
-      url.searchParams.set("limit", "50");
       try {
-        const resp = await fetch(url, { signal });
-        if (!resp.ok) {
-          setAudit({ rows: [], total: 0 });
-          return;
-        }
-        const json = (await resp.json()) as AuditResponse;
+        const json = await apiCall<AuditResponse>("/api/memory/consolidation-history", {
+          query: { userId, limit: 50 },
+          signal,
+        });
         setAudit(json);
       } catch (err) {
         // Aborted fetch is expected control-flow (userId changed mid-fetch
-        // OR component unmounted); swallow silently. Re-throw anything else.
+        // OR component unmounted); swallow silently.
         if (signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof ApiError) {
+          setAudit({ rows: [], total: 0 });
+          return;
+        }
         throw err;
       }
     },
@@ -125,20 +126,21 @@ export function DistillationTab({ userId, reloadKey }: Props) {
     setLoading(true);
     setErrorBanner(null);
     try {
-      const resp = await fetch("/api/memory/distill", {
+      const json = await apiCall<DistillResponse>("/api/memory/distill", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, policy }),
+        body: { userId, policy },
       });
-      const json = (await resp.json()) as DistillResponse & DistillError;
-      if (!resp.ok) {
-        setErrorBanner(formatErrorBanner(json));
-        return;
-      }
       setLastInvocation(json.invocationId ?? null);
       // Reload audit list after a successful distill.
       const controller = new AbortController();
       await loadAudit(controller.signal);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errBody = (err.body as DistillError | null) ?? {};
+        setErrorBanner(formatErrorBanner(errBody));
+      } else {
+        setErrorBanner(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -151,22 +153,19 @@ export function DistillationTab({ userId, reloadKey }: Props) {
           <Beaker className="h-3 w-3 text-purple-600" />
           <span className="font-medium">Pick a policy</span>
         </div>
-        <div className="flex flex-col gap-1">
+        <RadioGroup
+          value={policy ?? ""}
+          onValueChange={(v) => setPolicy(v as PolicyName)}
+          disabled={loading}
+          className="flex flex-col gap-1"
+        >
           {POLICY_VALUES.map((p) => (
-            <label key={p} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="distillation-policy"
-                value={p}
-                checked={policy === p}
-                onChange={() => setPolicy(p)}
-                disabled={loading}
-                className="h-3 w-3"
-              />
+            <Label key={p} className="flex cursor-pointer items-center gap-2">
+              <RadioGroup.Item value={p} className="h-3 w-3" />
               <span className="text-[11px]">{POLICY_LABELS[p]}</span>
-            </label>
+            </Label>
           ))}
-        </div>
+        </RadioGroup>
         {/* EC-6: disabled={loading} covers double-click + post-POST refresh */}
         <Button
           type="button"
@@ -222,9 +221,10 @@ export function DistillationTab({ userId, reloadKey }: Props) {
             {audit.rows.map((row) => (
               <li key={row.id} className="border-l-2 border-purple-300 pl-2">
                 <div className="font-medium">
-                  <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-medium text-purple-700">
+                  <Badge variant="accent" className="text-[9px]">
                     {row.policy_name}
-                  </span>
+                  </Badge>
+                  <Timestamp value={row.created_at} format="relative" className="ml-2 text-[10px] text-muted-foreground" />
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground">
                   Kept: <code>{row.kept_memory_text ?? "(orphan)"}</code>

@@ -23,6 +23,9 @@
 import { Pool } from 'pg';
 
 import { runMigrations } from '../local/index.js';
+import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
+import { createOauth4webapiIntrospect } from '../server/auth/oidc-introspect-oauth4webapi.js';
+import { OidcAuthVerifier } from '../server/auth/oidc-verifier.js';
 
 import {
   assertEnvOrExit,
@@ -31,6 +34,8 @@ import {
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
 } from './agent-tools-memory.js';
+import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
+import { resolveOidcConfig } from './oidc-cli-resolver.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
@@ -54,6 +59,26 @@ export interface RunMcpServerOptions {
   readonly transport?: 'stdio' | 'streamable-http';
   readonly port?: number;
   readonly host?: string;
+  /**
+   * T4.1 + ADR-0015 — auth mode for streamable-http transport.
+   *
+   * - `none` (default): no auth — only safe for localhost dev loops.
+   * - `api-keys`: Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup).
+   * - `oidc`: Camada 3 OidcAuthVerifier (RFC 7662 introspection). Currently
+   *   plumbing-only — the production-grade `oauth4webapi` IntrospectFn
+   *   adapter ships in a follow-up cycle alongside T5.1. Selecting `oidc` /
+   *   `both` today emits a stderr warning + falls back to `api-keys` until
+   *   the adapter lands. Tracked under the same plan §
+   *   `theo-memory-faang-auth-lifecycle` follow-up.
+   * - `both`: dual-validation (theo_live_* → apiKey, else → oidc).
+   *
+   * stdio transport ignores this field per ADR-0015 #1.
+   */
+  readonly auth?: 'none' | 'api-keys' | 'oidc' | 'both';
+  /** T3.2 — OIDC issuer URL (CLI flag OR env THEMORY_OIDC_ISSUER); required when auth=oidc. */
+  readonly issuer?: string;
+  /** T3.2 — OIDC client_id; required when auth=oidc. Secret env-only per ADR D4. */
+  readonly clientId?: string;
 }
 
 function resolveTransport(opt?: RunMcpServerOptions['transport']): 'stdio' | 'streamable-http' {
@@ -135,8 +160,66 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   process.on('SIGINT', shutdownHandler);
 
   if (transport === 'streamable-http') {
-    await connectStreamableHttp(server, { port, host });
+    const bearerAuth = await resolveBearerAuth(options?.auth, pool, {
+      ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
+      ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
+      host,
+      port,
+    });
+    await connectStreamableHttp(server, {
+      port,
+      host,
+      ...(bearerAuth !== undefined ? { bearerAuth } : {}),
+    });
   } else {
     await connectStdio(server);
   }
+}
+
+/**
+ * T4.1 + T3.2 (fixes-cycle-1) — translate the `--auth` CLI mode into a
+ * `BearerAuthOptions` bag consumed by `connectStreamableHttp`. Returns
+ * `undefined` when auth is `none` OR unset.
+ *
+ * fixes-cycle-1: OIDC adapter is now plumbed (was stderr-disclosure-only
+ * in parent cycle). When mode = `oidc` OR `both`, constructs the
+ * production `OidcAuthVerifier` via `createOauth4webapiIntrospect` using
+ * the resolved issuer/clientId/clientSecret. Hard-fails when mode = `oidc`
+ * is selected without --issuer (Inquebrável Rule 8 fail-loud).
+ */
+async function resolveBearerAuth(
+  mode: RunMcpServerOptions['auth'],
+  pool: Pool,
+  oidcInput: { issuer?: string; clientId?: string; host: string; port: number },
+): Promise<BearerAuthOptions | undefined> {
+  if (mode === undefined || mode === 'none') return undefined;
+
+  // F-arch-2 fix — only invoke resolveOidcConfig when OIDC mode is actually
+  // selected. Pre-fix: resolveOidcConfig fired for `--auth=api-keys` too,
+  // crashing on stale `THEMORY_OIDC_ISSUER` env vars from prior debug
+  // sessions even though the operator explicitly chose api-keys-only.
+  const wantsOidc = mode === 'oidc' || mode === 'both';
+  const oidcCfg = wantsOidc ? resolveOidcConfig(oidcInput) : null;
+
+  if (wantsOidc && oidcCfg === null) {
+    throw new Error(
+      `themory mcp: --auth=${mode} requires --issuer (or THEMORY_OIDC_ISSUER env)`,
+    );
+  }
+
+  const apiKey = (mode === 'api-keys' || mode === 'both') ? new ApiKeyAuthVerifier(pool) : undefined;
+  let oidc;
+  if (oidcCfg !== null) {
+    const introspect = await createOauth4webapiIntrospect({
+      issuer: oidcCfg.issuer,
+      clientId: oidcCfg.clientId,
+      clientSecret: oidcCfg.clientSecret,
+    });
+    oidc = new OidcAuthVerifier({ introspect });
+  }
+
+  return {
+    ...(apiKey !== undefined ? { apiKey } : {}),
+    ...(oidc !== undefined ? { oidc } : {}),
+  };
 }

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Input } from "@usetheo/ui";
+import { Badge, Card, EmptyState, Input, Timestamp } from "@theokit/ui";
 import { Plus, Minus, GitBranch } from "lucide-react";
+
+import { apiCall, ApiError } from "../../lib/api-client";
 
 interface HistoryEntry {
   action: "remember" | "forget" | "reflect";
@@ -37,22 +39,25 @@ export function HistoryTab({ inspectedId, onInspectedIdChange }: Props) {
     setError(null);
     (async () => {
       try {
-        const url = new URL("/api/memory/history", window.location.origin);
-        url.searchParams.set("memoryId", inspectedId);
-        const resp = await fetch(url);
-        const json = (await resp.json()) as {
-          entries?: HistoryEntry[];
-          error?: string;
-        };
+        const json = await apiCall<{ entries?: HistoryEntry[] }>(
+          "/api/memory/history",
+          { query: { memoryId: inspectedId } },
+        );
         if (cancelled) return;
-        if (!resp.ok) {
-          setError(json.error ?? `HTTP ${resp.status}`);
+        setEntries(json.entries ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        // theoFetch throws TheoFetchError on non-2xx; surface its body.
+        if (err instanceof ApiError) {
+          const errMsg =
+            err.body && typeof err.body === "object" && "error" in err.body && typeof (err.body as { error?: unknown }).error === "string"
+              ? (err.body as { error: string }).error
+              : `HTTP ${err.status}`;
+          setError(errMsg);
           setEntries([]);
         } else {
-          setEntries(json.entries ?? []);
+          setError(err instanceof Error ? err.message : String(err));
         }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -85,11 +90,11 @@ export function HistoryTab({ inspectedId, onInspectedIdChange }: Props) {
             inspect its event chain.
           </p>
         ) : entries.length === 0 && !loading ? (
-          <p className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-            No history entries. The default in-memory demo boots WITHOUT a
-            HistoryManager — wire a DrizzleHistoryManager with the pgvector
-            backend to see real event chains.
-          </p>
+          <EmptyState
+            title="No history entries"
+            description="The default in-memory demo boots WITHOUT a HistoryManager — wire a DrizzleHistoryManager with the pgvector backend to see real event chains."
+            className="text-xs"
+          />
         ) : (
           <ul className="flex flex-col gap-2">
             {entries.map((e, i) => (
@@ -97,12 +102,23 @@ export function HistoryTab({ inspectedId, onInspectedIdChange }: Props) {
                 <Card size="sm" className="p-3">
                   <div className="flex items-center gap-2 text-xs">
                     {ICON[e.action]}
-                    <strong className="uppercase tracking-wide">
+                    <Badge
+                      variant={
+                        e.action === "remember"
+                          ? "success"
+                          : e.action === "forget"
+                            ? "destructive"
+                            : "primary"
+                      }
+                      className="uppercase tracking-wide"
+                    >
                       {e.action}
-                    </strong>
-                    <span className="ml-auto text-[10px] text-muted-foreground">
-                      {new Date(e.at).toLocaleString()}
-                    </span>
+                    </Badge>
+                    <Timestamp
+                      value={e.at}
+                      format="relative"
+                      className="ml-auto text-[10px] text-muted-foreground"
+                    />
                   </div>
                   {e.previousValue !== null && (
                     <p className="mt-2 text-[10px] text-muted-foreground line-through">

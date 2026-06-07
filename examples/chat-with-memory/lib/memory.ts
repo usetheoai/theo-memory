@@ -25,7 +25,6 @@
  * instances (writes via /api/chat must land in the SAME store as reads via
  * /api/memory/recall — standard Next.js pattern).
  */
-import "server-only";
 import {
   createLocalMemory,
   DrizzleHistoryManager,
@@ -39,6 +38,15 @@ import {
   type LocalMemoryConfig,
   type Memory,
 } from "@usetheo/memory";
+// Re-export memoryFromCtx + MissingScopeError from the @usetheo/memory/theokit
+// subpath. T3.1 wires the consumer-canonical pattern: server routes that want
+// browser-scoped memory derive it via memoryFromCtx(ctx, memory) instead of
+// requiring callers to pass userId explicitly. See server/routes/memory/me.ts
+// for a demonstration route. The legacy explicit-userId routes are preserved
+// for the demo's User picker UX (multi-user impersonation) — see § Plan-vs-impl
+// divergence in the route file's JSDoc.
+export { memoryFromCtx, MissingScopeError } from "@usetheo/memory/theokit";
+export type { ScopedContext } from "@usetheo/memory/theokit";
 import type {
   ConflictResolutionPolicy,
   Embedder,
