@@ -7,6 +7,7 @@ import {
   MemoryNotFound,
   MissingScopeError,
   ReflectionNotConfigured,
+  VendorSynthesizeUnsupportedError,
 } from '../errors.js';
 
 describe('EC-2 — every error subclass survives cross-module instanceof checks', () => {
@@ -94,5 +95,37 @@ describe('MissingScopeError — fail-loud per ADR D4 (binding 3-state resolver)'
     const root = new Error('upstream session decode failure');
     const e = new MissingScopeError('session decryption failed', { cause: root });
     expect(e.cause).toBe(root);
+  });
+});
+
+describe('VendorSynthesizeUnsupportedError (T0.3 EC-2; ADR D2 typed-error discipline)', () => {
+  // Given construction with vendor literal — vendor is structurally identified
+  // not paper-cited; vendor names appear in tagged-union scope per ADR D1
+  // and are NOT paper references.
+  // When throwing from an OfficialClient's synthesize() method
+  // Then callers can `catch (e instanceof VendorSynthesizeUnsupportedError)`
+  //      WITHOUT parsing error.message strings (Inquebrável Rule 8 honor).
+
+  test('has correct name and inherits Error for Mem0', () => {
+    const e = new VendorSynthesizeUnsupportedError('mem0');
+    expect(e.name).toBe('VendorSynthesizeUnsupportedError');
+    expect(e instanceof Error).toBe(true);
+    expect(e instanceof VendorSynthesizeUnsupportedError).toBe(true);
+    expect(e.message).toContain('mem0');
+    expect(e.message).toContain('LLM DIP');
+  });
+
+  test('has correct name and inherits Error for Zep', () => {
+    const e = new VendorSynthesizeUnsupportedError('zep');
+    expect(e.name).toBe('VendorSynthesizeUnsupportedError');
+    expect(e instanceof Error).toBe(true);
+    expect(e.message).toContain('zep');
+  });
+
+  test('has correct name and inherits Error for Letta', () => {
+    const e = new VendorSynthesizeUnsupportedError('letta');
+    expect(e.name).toBe('VendorSynthesizeUnsupportedError');
+    expect(e instanceof Error).toBe(true);
+    expect(e.message).toContain('letta');
   });
 });
