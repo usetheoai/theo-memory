@@ -109,10 +109,12 @@
     "commander": "^12.1.0",
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.0",
-    "hono": "^4.6.0",
+    "hono": ">=4.11.4",
     "pg": "^8.13.0",
     "zod": "^3.25.0",
-    "zod-to-json-schema": "^3.24.0"
+    "zod-to-json-schema": "^3.24.0",
+    "jose": "^6.0.0",
+    "oauth4webapi": "^3.8.6"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
