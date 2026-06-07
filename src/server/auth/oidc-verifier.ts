@@ -39,12 +39,49 @@ import { createHash } from 'node:crypto';
 
 import type { AuthVerifier } from '../../core/dip/auth-verifier.js';
 
-/** Result shape returned by an introspection call (RFC 7662 § 2.2). */
+/**
+ * Result shape returned by an introspection call (RFC 7662 § 2.2).
+ *
+ * F-dom-api-3 expansion (fixes-cycle-1 /review): widened from 4 to 12 standard
+ * claims per RFC 7662 § 2.2. Including `aud` is load-bearing for audience
+ * validation (token-confusion attack mitigation — a token issued for resource
+ * A must not be accepted by resource B). Without `aud`, an OIDC token valid
+ * for ANY resource at the issuer would auth this server.
+ *
+ * Adapter impls SHOULD pass through every standard claim present in the
+ * introspection response. Consumers MAY enforce audience validation by
+ * inspecting the `aud` claim against their canonical resource URL.
+ */
 export interface IntrospectionResult {
+  /** RFC 7662 § 2.2 active flag — token is valid + not revoked + not expired. */
   readonly active: boolean;
+  /** Space-separated scopes granted to the token. */
   readonly scope?: string;
-  readonly sub?: string;
+  /** Client identifier the token was issued to. */
+  readonly client_id?: string;
+  /** Human-readable subject (typically email or username). */
+  readonly username?: string;
+  /** Token type (e.g., "Bearer", "N_A"). */
+  readonly token_type?: string;
+  /** Expiration time as Unix timestamp (seconds). */
   readonly exp?: number;
+  /** Issued-at time as Unix timestamp (seconds). */
+  readonly iat?: number;
+  /** Not-before time as Unix timestamp (seconds). */
+  readonly nbf?: number;
+  /** Subject identifier (typically the user's stable ID). */
+  readonly sub?: string;
+  /**
+   * Audience claim(s) — resource(s) the token was intended for.
+   * F-dom-api-3 fix: consumers MUST validate `aud` matches their canonical
+   * resource URL to prevent token-confusion attacks (RFC 8707 § 1).
+   * String form for single-aud; readonly array for multi-aud per RFC 7519 § 4.1.3.
+   */
+  readonly aud?: string | readonly string[];
+  /** Issuer identifier (`iss` claim from RFC 7519 § 4.1.1). */
+  readonly iss?: string;
+  /** JWT ID (`jti` from RFC 7519 § 4.1.7) — unique token identifier. */
+  readonly jti?: string;
 }
 
 /**

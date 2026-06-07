@@ -71,7 +71,11 @@ export function resolveBootstrapToken(): string | undefined {
   const raw = process.env['THEMORY_ADMIN_BOOTSTRAP_TOKEN'];
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
-  return trimmed.length === 0 ? undefined : raw;
+  // F-dom-cli-8 fix — return the TRIMMED value, not the raw. Pre-fix returned
+  // un-trimmed `raw` post-non-empty check, creating a determinism divergence:
+  // env="  abc  " would pass the length check but the bearer comparison used
+  // "  abc  " vs operator-typed "abc" → silent no-match. Trim once at source.
+  return trimmed.length === 0 ? undefined : trimmed;
 }
 
 export function resolveOidcConfig(input: ResolveOidcConfigInput): ResolvedOidcConfig | null {

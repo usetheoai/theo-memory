@@ -79,9 +79,12 @@ describe('T3.1 — resolveOidcConfig (CLI + env normalization)', () => {
     expect(resolveBootstrapToken()).toBeUndefined();
     delete process.env['THEMORY_ADMIN_BOOTSTRAP_TOKEN'];
     expect(resolveBootstrapToken()).toBeUndefined();
-    // Sanity: valid non-empty value passes through
+    // Sanity: valid non-empty value passes through TRIMMED (F-dom-cli-8 fix)
     process.env['THEMORY_ADMIN_BOOTSTRAP_TOKEN'] = 'valid-token-' + 'x'.repeat(32);
     expect(resolveBootstrapToken()).toBe('valid-token-' + 'x'.repeat(32));
+    // F-dom-cli-8: surrounding whitespace MUST be stripped at source
+    process.env['THEMORY_ADMIN_BOOTSTRAP_TOKEN'] = '   actual-secret   ';
+    expect(resolveBootstrapToken()).toBe('actual-secret');
   });
 
   test('6. EC-9 — host=0.0.0.0 → oidcDiscovery.resource uses localhost canonical (NOT 0.0.0.0)', () => {
