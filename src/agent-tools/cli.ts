@@ -41,6 +41,12 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 
 import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
+import {
+  runKeysCreate,
+  runKeysList,
+  runKeysRevoke,
+  runKeysRotate,
+} from './run-keys.js';
 import { runMcpServer } from './run-mcp-server.js';
 import type { RunMcpServerOptions } from './run-mcp-server.js';
 import { runMigrate } from './run-migrate.js';
@@ -177,6 +183,63 @@ export function buildProgram(): Command {
     .action(async (opts: { deep?: boolean }) => {
       const exitCode = await runHealth({ deep: opts.deep === true });
       process.exit(exitCode);
+    });
+
+  // ─── Camada 2 admin: `themory keys ...` per plan theo-memory-faang-auth-lifecycle T2.3 ───
+  // Hits the admin REST surface (T2.1) at $THEMORY_BASE_URL (default localhost:3000)
+  // using $THEMEMORY_API_KEY for Bearer auth. Caller's responsibility to point
+  // these at an admin-scoped key OR the env-bootstrap token (ADR D7).
+  const buildKeysCtx = () => ({
+    baseUrl: process.env['THEMORY_BASE_URL'] ?? 'http://localhost:3000',
+    bearerToken: process.env['THEMEMORY_API_KEY'] ?? '',
+  });
+
+  const keys = program
+    .command('keys')
+    .description('Manage theo_live_* API keys (admin scope required).');
+
+  keys
+    .command('create')
+    .description('Create a new API key; secret printed once.')
+    .requiredOption('--name <name>', 'human-friendly label (≤ 64 chars)')
+    .requiredOption('--scope <scope>', 'scope (repeat for multiple)', (val: string, prev: string[] = []) => prev.concat(val), [])
+    .option('--expires <iso>', 'optional ISO-8601 expiration timestamp')
+    .action(async (opts: { name: string; scope: string[]; expires?: string }) => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysCreate(ctx, {
+        name: opts.name,
+        scopes: opts.scope,
+        ...(opts.expires !== undefined ? { expiresAt: opts.expires } : {}),
+      });
+      process.exit(code);
+    });
+
+  keys
+    .command('list')
+    .description('List active API keys (excludes revoked).')
+    .action(async () => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysList(ctx);
+      process.exit(code);
+    });
+
+  keys
+    .command('revoke <id>')
+    .description('Revoke an API key by id (apk-{16hex}).')
+    .action(async (id: string) => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysRevoke(ctx, id);
+      process.exit(code);
+    });
+
+  keys
+    .command('rotate <id>')
+    .description('Rotate an API key; old key keeps working during the grace window.')
+    .option('--grace-hours <n>', 'grace-window hours (1-168; default 24)', (val: string) => parseInt(val, 10))
+    .action(async (id: string, opts: { graceHours?: number }) => {
+      const ctx = buildKeysCtx();
+      const code = await runKeysRotate(ctx, id, opts.graceHours);
+      process.exit(code);
     });
 
   // ─── 4-verb subcommands per plan verbs-as-cli v1.1 + ADR D2 ──────────────
