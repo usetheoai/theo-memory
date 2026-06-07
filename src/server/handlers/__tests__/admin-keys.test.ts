@@ -20,11 +20,9 @@
  * @see /home/paulo/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go
  */
 import { Hono } from 'hono';
-
 import { describe, expect, test, vi } from 'vitest';
 
 import type { AuthPool } from '../../auth/api-key-verifier.js';
-
 import {
   createKeyHandler,
   listKeysHandler,
@@ -34,18 +32,18 @@ import {
 } from '../admin-keys.js';
 
 /** Test Pool stub — records calls + returns canned rows per call sequence. */
-function makePool(callResults: Array<{ rows?: unknown[]; throws?: Error }>): {
+function makePool(callResults: { rows?: unknown[]; throws?: Error }[]): {
   pool: AuthPool;
-  queries: Array<{ sql: string; params: readonly unknown[] }>;
+  queries: { sql: string; params: readonly unknown[] }[];
 } {
-  const queries: Array<{ sql: string; params: readonly unknown[] }> = [];
+  const queries: { sql: string; params: readonly unknown[] }[] = [];
   let callIdx = 0;
   const pool: AuthPool = {
-    query: vi.fn(async <T>(sql: string, params: readonly unknown[]) => {
+    query: vi.fn(<T>(sql: string, params: readonly unknown[]) => {
       queries.push({ sql, params });
       const r = callResults[callIdx++] ?? { rows: [] };
-      if (r.throws) throw r.throws;
-      return { rows: (r.rows ?? []) as T[] };
+      if (r.throws) return Promise.reject(r.throws);
+      return Promise.resolve({ rows: (r.rows ?? []) as T[] });
     }),
   };
   return { pool, queries };
@@ -178,10 +176,10 @@ describe('listKeysHandler — GET /v1/admin/keys/list', () => {
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys/list');
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { keys: { id: string; scopes: string[] }[] };
     expect(body.keys).toHaveLength(1);
-    expect(body.keys[0].id).toBe('apk-1111111111111111');
-    expect(body.keys[0].scopes).toEqual(['memory:read']);
+    expect(body.keys[0]?.id).toBe('apk-1111111111111111');
+    expect(body.keys[0]?.scopes).toEqual(['memory:read']);
     // SQL contains LIMIT 100 (cap per cloud EC-1)
     expect(queries[0]?.sql).toMatch(/LIMIT\s+100/i);
   });
@@ -312,9 +310,9 @@ describe('lineageKeyHandler — GET /v1/admin/keys/:id/lineage', () => {
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys/apk-aaaaaaaaaaaaaaaa/lineage');
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { lineage: { is_current: boolean }[] };
     expect(body.lineage).toHaveLength(1);
-    expect(body.lineage[0].is_current).toBe(true);
+    expect(body.lineage[0]?.is_current).toBe(true);
     // SQL uses UNION (not UNION ALL) per EC-2 absorption
     expect(queries[0]?.sql).toMatch(/UNION\b(?!\s+ALL)/i);
     // LIMIT 100 defensive cap per cloud D2
