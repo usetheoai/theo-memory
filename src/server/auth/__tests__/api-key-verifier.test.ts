@@ -22,22 +22,22 @@ import { ApiKeyAuthVerifier, type AuthPool } from '../api-key-verifier.js';
 
 /** Test-only Pool stub that records query calls + returns canned rows. */
 function makePool(opts: {
-  selectRows?: Array<{ id: string }>;
+  selectRows?: { id: string }[];
   selectThrows?: Error;
 }): {
   pool: AuthPool;
-  queries: Array<{ sql: string; params: readonly unknown[] }>;
+  queries: { sql: string; params: readonly unknown[] }[];
 } {
-  const queries: Array<{ sql: string; params: readonly unknown[] }> = [];
+  const queries: { sql: string; params: readonly unknown[] }[] = [];
   const pool: AuthPool = {
-    query: vi.fn(async <T>(sql: string, params: readonly unknown[]) => {
+    query: vi.fn(<T>(sql: string, params: readonly unknown[]) => {
       queries.push({ sql, params });
-      if (opts.selectThrows) throw opts.selectThrows;
+      if (opts.selectThrows) return Promise.reject(opts.selectThrows);
       // First call = SELECT; second call = UPDATE last_used_at
       if (queries.length === 1) {
-        return { rows: (opts.selectRows ?? []) as T[] };
+        return Promise.resolve({ rows: (opts.selectRows ?? []) as T[] });
       }
-      return { rows: [] as T[] };
+      return Promise.resolve({ rows: [] as T[] });
     }),
   };
   return { pool, queries };

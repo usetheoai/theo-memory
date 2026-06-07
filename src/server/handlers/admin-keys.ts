@@ -31,7 +31,7 @@ import type { Context } from 'hono';
 
 import type { AuthPool } from '../auth/api-key-verifier.js';
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 // ============================================================================
 // Constants (mirror cloud-repo api_keys.go:63-93 verbatim)
@@ -136,7 +136,7 @@ export async function createKeyHandler(
 ): Promise<Response> {
   let body: { name?: unknown; scopes?: unknown; expires_at?: unknown };
   try {
-    body = (await c.req.json()) as typeof body;
+    body = (await c.req.json());
   } catch {
     return c.json({ code: 'INVALID_REQUEST', message: 'Invalid JSON body.' }, 400);
   }
