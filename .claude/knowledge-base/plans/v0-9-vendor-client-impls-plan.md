@@ -1,5 +1,7 @@
 # Plan: v0-9-vendor-client-impls — concrete `Mem0OfficialClient` + `ZepOfficialClient` + `LettaOfficialClient` for benchmark adapters
 
+> **Version 1.2** (2026-06-07) — Structural conformance pass: expanded T<V> placeholders into 6 concrete tasks (T1.1/T1.2 Mem0, T2.1/T2.2 Zep, T3.1/T3.2 Letta) + added `#### TDD` sub-section to every task (T0.1-T5.1) per `check_tdd_shape.py` gate convention shared with shipped plans (theo-memory-faang-auth-lifecycle, p0-api-sdk, voyager-skill-library). No semantic change — TDD info already existed in tables/prose; v1.2 formalizes as structured TDD blocks with concrete test fixtures (Given/When/Then with assertion APIs). Plan grows from 6 to 12 tasks total; Dependency Graph + Coverage Matrix updated accordingly. Re-validated via /plan-confidence post-bump.
+>
 > **Version 1.1** (2026-06-07) — Absorbs 14 edge cases from `/edge-case-plan` review at [`.claude/knowledge-base/reviews/v0-9-vendor-client-impls-edge-cases-2026-06-07.md`](../reviews/v0-9-vendor-client-impls-edge-cases-2026-06-07.md) (3 MUST FIX + 8 SHOULD TEST + 3 DOCUMENT). Key absorptions: EC-1 ADR D1 § Decision corrected to acknowledge 3 distinct pre-existing parameter names (`userId` / `sessionId` / `agentId`) → uniform `scopeKey`. EC-2 typed error `VendorSynthesizeUnsupportedError` added to `src/core/errors.ts` (new T0.3 task) — replaces `Error` generic per Inquebrável Rule 8. EC-3 Mem0 v3 response field corrected to `memory` (NOT `text`) — Sub-goal 1 maps `{ text: r.memory, score: r.score }`. EC-7 bundle isolation regression check added to `tests/integration/public-paths.test.ts`. EC-13 CHANGELOG `BREAKING:` prefix for semver bump. Grounded in blueprint [`v0-8-vendor-cells-mem0-zep-letta-blueprint.md`](../discoveries/blueprints/v0-8-vendor-cells-mem0-zep-letta-blueprint.md) (SHIPPABLE_WITH_CAVEATS 70/100; 14 verified citations; 6 actionable recommendations). Closes the second-half blocker of Roadmap Item 11 (production-ready label). The `BenchmarkAdapter` DIP + 3 vendor adapter shells with `VendorClient` interface seams shipped via Drift-T6.x-1 (2026-06-02); this plan ships the concrete `*OfficialClient` impl classes wrapping each vendor's official npm SDK. Per `/dogfood` already cleared on 2026-06-07 (commit `7000147`), this plan is the parallel-half unblock. PRIORITY 0 sub-goal 2 (SDKs functional) hardening per CLAUDE.md — NOT a new feature; closes a documented Drift-T6.x-1 deferral.
 
 ## Goal
@@ -134,20 +136,68 @@ T0 (interface rename) is foundational; T1-T3 (per-vendor impls) can parallelize 
 
 **Objective:** Rename the 3 distinct vendor parameter names (`userId` Mem0 / `sessionId` Zep / `agentId` Letta — verified empirically at plan-write time) → uniform `scopeKey: string` per ADR D1 across all 3 interfaces + their adapter call sites + tests. Add typed error class for synthesize-unsupported throw per ADR D2.
 
-#### T0.1 RED — sentinel tests for rename (3-name awareness)
-Files: existing `src/benchmarks/{mem0,zep,letta}/__tests__/adapter.test.ts`. Update existing test mock stub signatures:
-- Mem0 stub: `userId` → `scopeKey` parameter name
-- Zep stub: `sessionId` → `scopeKey`
-- Letta stub: `agentId` → `scopeKey`
+### T0.1 — RED: sentinel tests for rename (3-name awareness)
 
-Confirm tests FAIL pre-rename (TS compile error on each interface mismatch — 3 distinct failure paths, NOT a single grep-replace of `userId`).
+**Files to edit:** `src/benchmarks/{mem0,zep,letta}/__tests__/adapter.test.ts` (existing).
 
-#### T0.2 GREEN — rename across 3 interfaces + 3 adapters
-Edit `src/benchmarks/{mem0,zep,letta}/adapter.ts` interfaces — `userId`/`sessionId`/`agentId` → `scopeKey` — + their internal call sites where adapter forwards the param to `this.client.add(...)` / `this.client.search(...)`. Internal mapping back to vendor-specific name happens at OfficialClient layer (T1.2/T2.2/T3.2). Recompile + tests pass.
+#### TDD
 
-#### T0.3 NEW — typed error class `VendorSynthesizeUnsupportedError` (per ADR D2 EC-2)
-File: `src/core/errors.ts` (modify).
-Add:
+```ts
+// Given a stub Mem0VendorClient with the renamed parameter
+class StubMem0Client implements Mem0VendorClient {
+  add(scopeKey: string, text: string) { /* ... */ }
+  search(scopeKey: string, query: string, topK: number) { /* ... */ }
+  synthesize(question: string, context: string[]) { /* ... */ }
+}
+// When the existing adapter.test.ts contract test imports and runs
+// Then TS compile fails with: "userId is not a property of Mem0VendorClient"
+// (3 distinct failures — Mem0/Zep/Letta — confirming gate detects per-vendor)
+```
+
+RED criteria: `npm run typecheck` reports 3 distinct interface-mismatch errors (one per vendor stub). NOT a single grep-replace of `userId`.
+
+### T0.2 — GREEN: rename across 3 interfaces + 3 adapters
+
+**Files to edit:** `src/benchmarks/{mem0,zep,letta}/adapter.ts` (3 interfaces + internal call sites).
+
+#### TDD
+
+```ts
+// Given the existing call site:
+//   await this.client.add(userId, text);    // Mem0
+//   await this.client.add(sessionId, text); // Zep
+//   await this.client.add(agentId, text);   // Letta
+// When renamed per scopeKey contract:
+test_adapter_forwards_scopeKey_unchanged_to_client_add() {
+  const stub = new StubMem0Client();
+  const adapter = new Mem0BenchmarkAdapter({ client: stub });
+  await adapter.add({ scopeKey: 'user-abc' }, 'text-1');
+  expect(stub.lastAddArgs).toEqual(['user-abc', 'text-1']);  // forwarded unchanged
+}
+```
+
+GREEN criteria: `npm run typecheck` 0 errors; all 3 adapter.test.ts contract tests PASS.
+
+### T0.3 — NEW: typed error class `VendorSynthesizeUnsupportedError` (per ADR D2 EC-2)
+
+**Files to edit:** `src/core/errors.ts` (modify); `src/core/__tests__/errors.test.ts` (modify).
+
+#### TDD
+
+```ts
+test_VendorSynthesizeUnsupportedError_has_correct_name_and_inherits_Error() {
+  // Given construction with vendor literal
+  const err = new VendorSynthesizeUnsupportedError('mem0');
+  // Then
+  expect(err.name).toBe('VendorSynthesizeUnsupportedError');
+  expect(err instanceof Error).toBe(true);
+  expect(err.message).toContain('mem0');
+  expect(err.message).toContain('LLM DIP');
+}
+```
+
+GREEN: implement class per ADR D2:
+
 ```ts
 export class VendorSynthesizeUnsupportedError extends Error {
   constructor(vendor: 'mem0' | 'zep' | 'letta') {
@@ -156,56 +206,412 @@ export class VendorSynthesizeUnsupportedError extends Error {
   }
 }
 ```
-TDD: write failing unit test in `src/core/__tests__/errors.test.ts` asserting `new VendorSynthesizeUnsupportedError('mem0').name === 'VendorSynthesizeUnsupportedError'` AND `instanceof Error === true`. GREEN: implement class. Required by Phase 1-3 throws.
 
-### Phase 1-3: Per-vendor OfficialClient impls
+Required by Phase 1-3 throws (T1.2 + T2.2 + T3.2).
 
-For each vendor V in {mem0, zep, letta}:
+### Phase 1: Mem0 OfficialClient
 
-#### T<V>.1 RED — vendor-client.ts contract tests
-NEW file `src/benchmarks/<V>/__tests__/vendor-client.test.ts`. Tests with mock SDK asserting:
+### T1.1 — RED: Mem0OfficialClient contract + edge tests
 
-**Baseline (3-5 tests each):**
-1. Method delegation — `add()` calls SDK with scopeKey mapped to vendor-specific param name
-2. Scope mapping — verify mapping (Mem0: `{ user_id: scopeKey, ... }`, Zep: session, Letta: agent)
-3. `synthesize()` throws `VendorSynthesizeUnsupportedError(<vendor>)` (typed, NOT generic `Error`) per ADR D2 EC-2
+**Files to edit:** `src/benchmarks/mem0/__tests__/vendor-client.test.ts` (NEW).
 
-**Edge tests (per EC-4 through EC-11 absorbed inline):**
+#### TDD
 
-| EC | Vendor | Test name | Assertion |
-|---|---|---|---|
-| EC-3 | Mem0 | `test_mem0_search_maps_memory_field_to_text` | stub SDK returns `[{ memory: 'hello', score: 0.9 }]` → result `[{ text: 'hello', score: 0.9 }]` |
-| EC-4 | Zep | `test_zep_add_handles_existing_session_409_idempotently` | 2nd `add('s', 'm2')` succeeds when SDK stub throws 409 on `memory.addSession` — try/catch + ignore 409 pattern |
-| EC-5 | Letta | `test_letta_search_handles_passage_without_score_field` | stub returns Passage with no score → result has fallback score (`1.0 / (rank + 1)` OR constant `0.5` — implementer choice, document) |
-| EC-6 | all 3 | `test_<V>_search_returns_empty_array_when_no_matches` | stub SDK returns `[]` → result `[]` (not null, not undefined, not throw) |
-| EC-9 | Letta | `test_letta_add_propagates_404_when_agent_missing` | stub SDK throws 404 → wrapped in error with vendor-identifiable message; caller can distinguish "vendor error" vs "scope-key invalid" |
-| EC-10 | all 3 | `test_<V>_official_client_constructor_di_pattern` | constructor receives pre-constructed SDK (DI pattern — mirror `LocalTransformerEmbedder` precedent), NOT api-key string. Documented in T<V>.2 JSDoc |
-| EC-11 | Zep | `test_zep_concurrent_add_same_session_no_data_loss` | `Promise.all([add('s', 'm1'), add('s', 'm2')])` → both messages persist; race on session lifecycle handled via 409 ignore (EC-4) |
+```ts
+import { Mem0OfficialClient } from '../vendor-client.js';
+import { VendorSynthesizeUnsupportedError } from '../../../core/errors.js';
 
-#### T<V>.2 GREEN — implement OfficialClient
-NEW file `src/benchmarks/<V>/vendor-client.ts`. Class implements `<V>VendorClient` wrapping the official SDK per blueprint § Q3/Q5 recommendations. Constructor pattern: DI of pre-constructed SDK (EC-10), NOT api-key string.
+class StubMem0Sdk {
+  lastAddArgs: unknown[] = [];
+  searchResult: unknown[] = [];
+  add(text: string, opts: { user_id: string; infer: boolean }) {
+    this.lastAddArgs = [text, opts]; return Promise.resolve({ id: 'x' });
+  }
+  search(query: string, opts: { user_id: string; top_k: number }) {
+    return Promise.resolve(this.searchResult);
+  }
+}
 
-Per-vendor specifics:
-- **Mem0**: straightforward 1:1 mapping. `add → client.add(text, { user_id: scopeKey, infer: true })`. **search result mapping `{ text: r.memory, score: r.score }` per EC-3** (mem0-ts v3 field name). ~50 LoC.
-- **Zep**: requires idempotent session lifecycle (user.add + memory.addSession before memory.add). Idempotency via try/catch + ignore 409 (EC-4). ~100 LoC; use `client.graph.search` per blueprint R2.
-- **Letta**: scopeKey is agentId; uses `client.agents.archivalMemory.{insertArchivalMemoryAsync, searchArchivalMemory}`. Passage score fallback per EC-5; 404 propagation per EC-9. ~80 LoC.
+test_mem0_add_delegates_to_sdk_with_user_id_mapping() {
+  // Given Mem0OfficialClient with stub SDK
+  const sdk = new StubMem0Sdk();
+  const client = new Mem0OfficialClient(sdk as unknown as MemoryClient);
+  // When add()
+  await client.add('user-abc', 'I love sushi');
+  // Then SDK received { user_id: 'user-abc', infer: true }
+  expect(sdk.lastAddArgs).toEqual(['I love sushi', { user_id: 'user-abc', infer: true }]);
+}
+
+test_mem0_search_maps_memory_field_to_text_per_EC3() {
+  // Given stub returns mem0-ts v3 shape with `memory` field (NOT `text`)
+  const sdk = new StubMem0Sdk();
+  sdk.searchResult = [{ id: 'm1', memory: 'hello world', score: 0.9 }];
+  const client = new Mem0OfficialClient(sdk as unknown as MemoryClient);
+  // When search()
+  const results = await client.search('greeting', 'hi', 5);
+  // Then result has text (mapped from memory) + score
+  expect(results).toEqual([{ text: 'hello world', score: 0.9 }]);
+}
+
+test_mem0_search_returns_empty_array_when_no_matches_per_EC6() {
+  const sdk = new StubMem0Sdk(); sdk.searchResult = [];
+  const client = new Mem0OfficialClient(sdk as unknown as MemoryClient);
+  expect(await client.search('x', 'y', 5)).toEqual([]);
+}
+
+test_mem0_synthesize_throws_typed_error_per_EC2() {
+  const client = new Mem0OfficialClient(new StubMem0Sdk() as unknown as MemoryClient);
+  expect(() => client.synthesize('q', ['ctx'])).toThrow(VendorSynthesizeUnsupportedError);
+}
+
+test_mem0_constructor_DI_pattern_per_EC10() {
+  // Given pre-constructed SDK
+  const sdk = new StubMem0Sdk();
+  // When constructor accepts SDK (NOT api-key string)
+  const client = new Mem0OfficialClient(sdk as unknown as MemoryClient);
+  // Then no MEM0_API_KEY string passed at construction
+  expect(client).toBeDefined();
+}
+```
+
+RED: all 5 tests fail (module `'../vendor-client.js'` does not exist yet).
+
+### T1.2 — GREEN: implement Mem0OfficialClient
+
+**Files to edit:** `src/benchmarks/mem0/vendor-client.ts` (NEW); `package.json#dependencies` (add `mem0ai@^3.0.6`).
+
+#### TDD
+
+```ts
+import type { MemoryClient } from 'mem0ai';
+import { VendorSynthesizeUnsupportedError } from '../../core/errors.js';
+
+export class Mem0OfficialClient implements Mem0VendorClient {
+  constructor(private readonly sdk: MemoryClient) {}  // DI per EC-10
+
+  async add(scopeKey: string, text: string): Promise<void> {
+    await this.sdk.add(text, { user_id: scopeKey, infer: true });
+  }
+  async search(scopeKey: string, query: string, topK: number) {
+    const raw = await this.sdk.search(query, { user_id: scopeKey, top_k: topK });
+    return raw.map((r) => ({ text: r.memory, score: r.score }));  // EC-3 field mapping
+  }
+  synthesize(): never {
+    throw new VendorSynthesizeUnsupportedError('mem0');
+  }
+}
+```
+
+**Validation:** Given the GREEN impl shipped, when `npx vitest run src/benchmarks/mem0/__tests__/vendor-client.test.ts` runs, then all 5 T1.1 RED tests transition to PASS (assert exit code 0; assertEquals failing_count 0). ~50 LoC; `npm run lint` 0 warnings; `npm run typecheck` 0 errors.
+
+### Phase 2: Zep OfficialClient
+
+### T2.1 — RED: ZepOfficialClient contract + idempotent session + concurrency
+
+**Files to edit:** `src/benchmarks/zep/__tests__/vendor-client.test.ts` (NEW).
+
+#### TDD
+
+```ts
+class StubZepSdk {
+  sessionsCreated = new Set<string>();
+  shouldThrow409 = false;
+  graphSearchResult: unknown[] = [];
+  user = { add: vi.fn().mockResolvedValue({}) };
+  memory = {
+    addSession: vi.fn().mockImplementation((opts: { sessionId: string }) => {
+      if (this.shouldThrow409 && this.sessionsCreated.has(opts.sessionId)) {
+        const err: any = new Error('Conflict'); err.statusCode = 409;
+        return Promise.reject(err);
+      }
+      this.sessionsCreated.add(opts.sessionId);
+      return Promise.resolve({});
+    }),
+    add: vi.fn().mockResolvedValue({}),
+  };
+  graph = { search: vi.fn().mockImplementation(() => Promise.resolve(this.graphSearchResult)) };
+}
+
+test_zep_add_handles_existing_session_409_idempotently_per_EC4() {
+  // Given 2 sequential adds to same scopeKey, 2nd triggers 409
+  const sdk = new StubZepSdk(); sdk.shouldThrow409 = true;
+  const client = new ZepOfficialClient(sdk as unknown as ZepClient);
+  // When
+  await client.add('session-1', 'msg-1');
+  await client.add('session-1', 'msg-2');  // session exists; 409 thrown
+  // Then both messages persist; 2nd add does NOT throw
+  expect(sdk.memory.add).toHaveBeenCalledTimes(2);
+}
+
+test_zep_concurrent_add_same_session_no_data_loss_per_EC11() {
+  const sdk = new StubZepSdk(); sdk.shouldThrow409 = true;
+  const client = new ZepOfficialClient(sdk as unknown as ZepClient);
+  await Promise.all([client.add('s1', 'm1'), client.add('s1', 'm2')]);
+  expect(sdk.memory.add).toHaveBeenCalledTimes(2);
+}
+
+test_zep_search_uses_graph_search_per_blueprint_R2() {
+  const sdk = new StubZepSdk();
+  sdk.graphSearchResult = [{ episode: { content: 'fact-1' }, score: 0.85 }];
+  const client = new ZepOfficialClient(sdk as unknown as ZepClient);
+  const results = await client.search('s1', 'q', 5);
+  expect(sdk.graph.search).toHaveBeenCalled();
+  expect(results[0].text).toBe('fact-1');
+}
+
+test_zep_search_empty_array_per_EC6() {
+  const sdk = new StubZepSdk(); sdk.graphSearchResult = [];
+  const client = new ZepOfficialClient(sdk as unknown as ZepClient);
+  expect(await client.search('s1', 'q', 5)).toEqual([]);
+}
+
+test_zep_synthesize_throws_typed_error_per_EC2() {
+  const client = new ZepOfficialClient(new StubZepSdk() as unknown as ZepClient);
+  expect(() => client.synthesize('q', ['ctx'])).toThrow(VendorSynthesizeUnsupportedError);
+}
+```
+
+RED: all 5 fail (module does not exist).
+
+### T2.2 — GREEN: implement ZepOfficialClient with idempotent session lifecycle
+
+**Files to edit:** `src/benchmarks/zep/vendor-client.ts` (NEW); `package.json#dependencies` (add `@getzep/zep-cloud@^3.23.0`).
+
+#### TDD
+
+```ts
+import type { ZepClient } from '@getzep/zep-cloud';
+import { VendorSynthesizeUnsupportedError } from '../../core/errors.js';
+
+export class ZepOfficialClient implements ZepVendorClient {
+  constructor(private readonly sdk: ZepClient) {}  // DI per EC-10
+
+  async add(scopeKey: string, text: string): Promise<void> {
+    try {
+      await this.sdk.user.add({ userId: scopeKey });
+    } catch (e: unknown) { if ((e as any)?.statusCode !== 409) throw e; }  // EC-4 idempotent
+    try {
+      await this.sdk.memory.addSession({ sessionId: scopeKey, userId: scopeKey });
+    } catch (e: unknown) { if ((e as any)?.statusCode !== 409) throw e; }
+    await this.sdk.memory.add(scopeKey, {
+      messages: [{ role: 'user', roleType: 'user', content: text }],
+    });
+  }
+
+  async search(scopeKey: string, query: string, topK: number) {
+    const raw = await this.sdk.graph.search({ sessionId: scopeKey, query, limit: topK });
+    return raw.map((r: any) => ({ text: r.episode?.content ?? r.fact ?? '', score: r.score ?? 0.5 }));
+  }
+  synthesize(): never { throw new VendorSynthesizeUnsupportedError('zep'); }
+}
+```
+
+**Validation:** Given the GREEN impl shipped, when `npx vitest run src/benchmarks/zep/__tests__/vendor-client.test.ts` runs, then all 5 T2.1 RED tests transition to PASS (assertEquals failing_count 0). ~100 LoC.
+
+### Phase 3: Letta OfficialClient
+
+### T3.1 — RED: LettaOfficialClient contract + passage score fallback + 404
+
+**Files to edit:** `src/benchmarks/letta/__tests__/vendor-client.test.ts` (NEW).
+
+#### TDD
+
+```ts
+class StubLettaSdk {
+  searchResult: unknown[] = [];
+  shouldThrow404 = false;
+  agents = {
+    archivalMemory: {
+      insertArchivalMemoryAsync: vi.fn().mockImplementation((agentId: string) => {
+        if (this.shouldThrow404) {
+          const err: any = new Error('Not Found'); err.statusCode = 404;
+          return Promise.reject(err);
+        }
+        return Promise.resolve({});
+      }),
+      searchArchivalMemory: vi.fn().mockImplementation(() => Promise.resolve(this.searchResult)),
+    },
+  };
+}
+
+test_letta_add_delegates_with_agentId_mapping() {
+  const sdk = new StubLettaSdk();
+  const client = new LettaOfficialClient(sdk as unknown as LettaClient);
+  await client.add('agent-xyz', 'fact-1');
+  expect(sdk.agents.archivalMemory.insertArchivalMemoryAsync)
+    .toHaveBeenCalledWith('agent-xyz', { text: 'fact-1' });
+}
+
+test_letta_add_propagates_404_when_agent_missing_per_EC9() {
+  const sdk = new StubLettaSdk(); sdk.shouldThrow404 = true;
+  const client = new LettaOfficialClient(sdk as unknown as LettaClient);
+  await expect(client.add('nonexistent', 'x'))
+    .rejects.toThrow(/letta/i);  // vendor-identifiable message
+}
+
+test_letta_search_handles_passage_without_score_field_per_EC5() {
+  // Given Passage lacking explicit score
+  const sdk = new StubLettaSdk();
+  sdk.searchResult = [{ text: 'passage-1' }, { text: 'passage-2' }];
+  const client = new LettaOfficialClient(sdk as unknown as LettaClient);
+  // When search
+  const results = await client.search('agent-x', 'q', 5);
+  // Then fallback score 1.0 / (rank + 1) per implementer choice
+  expect(results).toHaveLength(2);
+  expect(results[0].score).toBeGreaterThan(results[1].score);  // rank-based decay
+  expect(results[0].text).toBe('passage-1');
+}
+
+test_letta_search_empty_per_EC6() {
+  const sdk = new StubLettaSdk(); sdk.searchResult = [];
+  const client = new LettaOfficialClient(sdk as unknown as LettaClient);
+  expect(await client.search('a', 'q', 5)).toEqual([]);
+}
+
+test_letta_synthesize_throws_typed_per_EC2() {
+  const client = new LettaOfficialClient(new StubLettaSdk() as unknown as LettaClient);
+  expect(() => client.synthesize('q', ['ctx'])).toThrow(VendorSynthesizeUnsupportedError);
+}
+```
+
+RED: all 5 fail.
+
+### T3.2 — GREEN: implement LettaOfficialClient agent-scoped
+
+**Files to edit:** `src/benchmarks/letta/vendor-client.ts` (NEW); `package.json#dependencies` (add `@letta-ai/letta-client@^1.12.1`).
+
+#### TDD
+
+```ts
+import type { LettaClient } from '@letta-ai/letta-client';
+import { VendorSynthesizeUnsupportedError } from '../../core/errors.js';
+
+export class LettaOfficialClient implements LettaVendorClient {
+  constructor(private readonly sdk: LettaClient) {}  // DI per EC-10
+
+  async add(scopeKey: string, text: string): Promise<void> {
+    try {
+      await this.sdk.agents.archivalMemory.insertArchivalMemoryAsync(scopeKey, { text });
+    } catch (e: unknown) {
+      // EC-9: wrap with vendor-identifiable msg so caller can distinguish
+      const orig = e instanceof Error ? e.message : String(e);
+      throw new Error(`letta add failed for agent ${scopeKey}: ${orig}`);
+    }
+  }
+
+  async search(scopeKey: string, query: string, topK: number) {
+    const raw = await this.sdk.agents.archivalMemory.searchArchivalMemory(scopeKey, { query, limit: topK });
+    return raw.map((p: any, i: number) => ({
+      text: p.text ?? '',
+      score: p.score ?? 1.0 / (i + 1),  // EC-5 rank-based fallback
+    }));
+  }
+  synthesize(): never { throw new VendorSynthesizeUnsupportedError('letta'); }
+}
+```
+
+**Validation:** Given the GREEN impl shipped, when `npx vitest run src/benchmarks/letta/__tests__/vendor-client.test.ts` runs, then all 5 T3.1 RED tests transition to PASS (assertEquals failing_count 0). ~80 LoC.
 
 ### Phase 4: Integration tests
 
-#### T4.1 RED — describe.skipIf helpers + 3 vendor integration test files
-**Pre-flight (EC-8):** verify `describe.skipIf` API available in vitest 4 (`package.json` shows `^4.0.0`; major bump may have changed APIs even though `describe.skipIf` is stable since 0.34). 30s check: `npx vitest --version` + spot-check vitest 4 docs OR write a 3-line smoke test asserting `describe.skipIf(false)` exists. If absent, fall back to `const describeMem0 = process.env.MEM0_API_KEY ? describe : describe.skip` ternary pattern (works in any vitest ≥ 0.x). Either way the test gate semantic is preserved.
+### T4.1 — RED: describe.skipIf helpers + 3 vendor integration test files + bundle isolation
 
-NEW `tests/integration/benchmarks/_helpers.ts` exports `describeMem0/Zep/Letta` per chosen API. NEW 3 test files each calling 1 add + 1 search round-trip.
+**Files to edit:** `tests/integration/benchmarks/_helpers.ts` (NEW); `tests/integration/benchmarks/vendor-{mem0,zep,letta}.test.ts` (3 NEW); `tests/integration/public-paths.test.ts` (MODIFIED for EC-7).
 
-Phase 4 also includes **EC-7 bundle isolation regression**: extend `tests/integration/public-paths.test.ts` with new test asserting `import * as Mem from '@usetheo/memory'` does NOT pull `mem0ai` / `@getzep/zep-cloud` / `@letta-ai/letta-client` (~5-15MB transitive). Mirror the existing `cache-pg` bundle isolation pattern (EC-26 precedent from semantic-recall-cache cycle).
+**Pre-flight (EC-8):** `npx vitest --version` → confirm vitest 4.x; verify `describe.skipIf` API available (stable since 0.34, but vitest 4 had major bump). Fallback: `const describeX = process.env.X_API_KEY ? describe : describe.skip` ternary (works in any vitest ≥ 0.x).
 
-#### T4.2 GREEN — confirm tests skip cleanly without keys + pass with keys
-Run `vitest run tests/integration/benchmarks/` without env: expect `3 SKIPPED`. With env: expect `3 PASSED` (paid quota burn — manual local). Bundle isolation test (added per EC-7): always-run, must PASS.
+#### TDD
+
+```ts
+// _helpers.ts
+export const describeMem0 = process.env.MEM0_API_KEY ? describe : describe.skip;
+export const describeZep = process.env.ZEP_API_KEY ? describe : describe.skip;
+export const describeLetta = process.env.LETTA_API_KEY ? describe : describe.skip;
+
+// vendor-mem0.test.ts
+import { describeMem0 } from './_helpers.js';
+describeMem0('Mem0 vendor round-trip (gated by MEM0_API_KEY)', () => {
+  test_real_mem0_saas_round_trip_add_then_search() {
+    // Given real MemoryClient + Mem0OfficialClient
+    const sdk = new MemoryClient({ apiKey: process.env.MEM0_API_KEY! });
+    const client = new Mem0OfficialClient(sdk);
+    const scopeKey = `theomemory-v0-9-test-${Date.now()}`;
+    // When
+    await client.add(scopeKey, 'I prefer espresso over filter coffee');
+    await sleep(2000);  // Mem0 indexes async
+    const results = await client.search(scopeKey, 'coffee preferences', 5);
+    // Then
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].text).toMatch(/espresso|coffee/i);
+  }
+});
+
+// tests/integration/public-paths.test.ts (modified per EC-7)
+test_default_barrel_does_not_pull_vendor_sdks_per_EC7() {
+  // Given import * from canonical entry point
+  const mod = await import('@usetheo/memory');
+  // Then vendor SDKs are NOT in the module graph
+  // (assert via require.cache inspection OR bundle-analyzer check)
+  expect(Object.keys(mod)).not.toContain('Mem0OfficialClient');
+  expect(Object.keys(mod)).not.toContain('ZepOfficialClient');
+  expect(Object.keys(mod)).not.toContain('LettaOfficialClient');
+}
+```
+
+RED: 3 vendor integration tests + 1 bundle isolation test fail (helpers + clients do not exist yet).
+
+### T4.2 — GREEN: confirm tests skip cleanly without keys + pass with keys
+
+**Files to edit:** none beyond T4.1.
+
+#### TDD
+
+```bash
+# Without env vars (CI fork PR / local-dev without keys)
+$ unset MEM0_API_KEY ZEP_API_KEY LETTA_API_KEY
+$ vitest run tests/integration/benchmarks/
+# Expected: 3 tests SKIPPED, 0 FAILED
+#           Plus bundle isolation test: 1 PASSED (always-run)
+
+# With env vars (manual local OR cron CI on main)
+$ export MEM0_API_KEY=mem0_xxx ZEP_API_KEY=zep_xxx LETTA_API_KEY=letta_xxx
+$ vitest run tests/integration/benchmarks/
+# Expected: 3 tests PASSED (real SaaS round-trips), 0 FAILED
+```
+
+**Validation:** Given env vars unsetted, when `vitest run tests/integration/benchmarks/` runs, then 3 tests SKIPPED + 1 bundle-isolation PASSED (assertEquals failing_count 0). Given env vars set, when same command runs, then 3 PASSED + 1 PASSED (assertEquals failing_count 0).
 
 ### Phase 5: CI workflow
 
-#### T5.1 NEW — vendor-benchmarks.yml
-NEW `.github/workflows/vendor-benchmarks.yml`: `schedule: '0 6 * * *'` + `workflow_dispatch`. Reads `MEM0_API_KEY` + `ZEP_API_KEY` + `LETTA_API_KEY` from repo secrets. Runs `vitest run tests/integration/benchmarks/`.
+### T5.1 — NEW: vendor-benchmarks.yml
+
+**Files to edit:** `.github/workflows/vendor-benchmarks.yml` (NEW).
+
+#### TDD
+
+```yaml
+# .github/workflows/vendor-benchmarks.yml — minimum viable shape
+name: vendor-benchmarks
+on:
+  schedule:
+    - cron: '0 6 * * *'  # daily 06:00 UTC
+  workflow_dispatch:     # manual trigger
+jobs:
+  vendor-roundtrip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: '.nvmrc' }
+      - run: npm ci
+      - run: npx vitest run tests/integration/benchmarks/
+        env:
+          MEM0_API_KEY:  ${{ secrets.MEM0_API_KEY }}
+          ZEP_API_KEY:   ${{ secrets.ZEP_API_KEY }}
+          LETTA_API_KEY: ${{ secrets.LETTA_API_KEY }}
+```
+
+**Validation:** Given the YAML file written, when `yamllint .github/workflows/vendor-benchmarks.yml` runs, then 0 errors (assertEquals errors_count 0). Given the file pushed to develop, when `gh workflow list` runs, then `vendor-benchmarks` appears in active workflows. Given manual trigger from `main` (with secrets set), when `gh workflow run vendor-benchmarks.yml` invoked, then job concludes succeed (assertEquals exit_status 0). NO `pull_request` trigger per EC-14 (fork PRs cannot access secrets by GitHub design — schedule + workflow_dispatch only).
 
 ## Coverage Matrix
 

@@ -1,18 +1,18 @@
 {
   "plan_slug": "v0-9-vendor-client-impls",
   "plan_path": ".claude/knowledge-base/plans/v0-9-vendor-client-impls-plan.md",
-  "plan_version": "1.1",
-  "scored_at": "2026-06-07T20:35:53+00:00",
+  "plan_version": "1.2",
+  "scored_at": "2026-06-07T20:54:58+00:00",
   "completude_score": 100.0,
-  "risco_estrutural_score": 88.0,
+  "risco_estrutural_score": 91.0,
   "active_dimensions": [
     "completeness",
     "structural_risk"
   ],
   "weight_normalization_factor": 2.0,
-  "weighted_avg": 95.2,
+  "weighted_avg": 96.4,
   "hard_caps_triggered": [],
-  "final_score_after_caps": 95.2,
+  "final_score_after_caps": 96.4,
   "verdict": "SHIPPABLE",
   "reasons": {
     "completeness": [
@@ -43,8 +43,8 @@
     "structural_risk": [
       {
         "sign": "negative",
-        "label": "4 weak_imperatives hits",
-        "weight": -4.0
+        "label": "3 weak_imperatives hits",
+        "weight": -3.0
       }
     ]
   },
@@ -70,11 +70,11 @@
       "missing_tdd": []
     },
     "spec_smells": {
-      "total_hits": 4,
+      "total_hits": 3,
       "by_category": {
-        "weak_imperatives": 4
+        "weak_imperatives": 3
       },
-      "total_penalty": -12
+      "total_penalty": -9
     },
     "architecture_compliance": {
       "compliance_score": 1.0,
