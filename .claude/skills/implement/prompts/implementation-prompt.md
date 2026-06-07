@@ -1,10 +1,9 @@
 # Implementation Halt-Loop Driver Prompt
 
-You are mid-implementation, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked `/implement {PLAN_SLUG}` to drive a TDD halt-loop over the implementation plan.
+You are mid-implementation, iteration {ITERATION}. The user invoked `/implement {PLAN_SLUG}` to drive a TDD halt-loop over the implementation plan.
 
 **Plan:** `{PLAN_PATH}`
 **Implementation working contract:** `{IMPLEMENTATION_PATH}`
-**Time budget remaining:** `{TIME_BUDGET}`
 **Progress file:** `.claude/knowledge-base/implementations/.progress-{PLAN_SLUG}.json` (gitignored)
 **SEPA agent file:** `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa.md` (Claude Code agent definition — frontmatter `name: implement-{PLAN_SLUG}-sepa`, body = role contract + verbatim plan/ADRs/edge-cases/audits/rules)
 **SEPA paired knowledge skill:** `.claude/skills/implement-{PLAN_SLUG}-sepa-knowledge/SKILL.md` (Claude Code Skills-conformant; SEPA invokes via `Skill` tool for WebSearch refresh)
@@ -34,7 +33,7 @@ Before writing any test, invoke the SEPA via `Agent` tool:
 - `subagent_type`: `implement-{PLAN_SLUG}-sepa` (Primary) OR `general-purpose` (Fallback — pass SEPA file path in prompt)
 - `prompt`: read `.claude/agents/implement-{PLAN_SLUG}-{DATE}/sepa.md` for the role brief, then advise on task {T-ID} — recap what the plan declares for this task; surface gotchas, ADR-link expectations, files-to-edit verification, and TDD shape concerns. Return ONLY the structured advice format from the brief.
 
-The SEPA's response is markdown advice. Read it BEFORE writing the test. If SEPA flags `[CRITICAL]`, treat as HALT trigger unless you have explicit Inquebrável-Rule-1 (95% confidence) justification to proceed.
+The SEPA's response is markdown advice. Read it BEFORE writing the test. If SEPA flags `[CRITICAL]`, treat as HALT trigger unless you have explicit Unbreakable-Rule-1 (95% confidence) justification to proceed.
 
 Append SEPA's response to `.claude/knowledge-base/implementations/{PLAN_SLUG}/sepa-iterations/iteration-{ITERATION}-pre-red.md` for audit trail (NOT `.claude/agents/` — that dir holds agent definitions only per Claude Code spec; logs go under knowledge-base/implementations/).
 
@@ -135,7 +134,7 @@ Standard commit instructions (apply whether routed or inline):
   Closes: {issue-ref if applicable}
   ```
   Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
-- NEVER `git commit --no-verify` — if pre-commit hook fails, fix the underlying issue (Inquebrável Rule)
+- NEVER `git commit --no-verify` — if pre-commit hook fails, fix the underlying issue (Unbreakable Rule)
 - Capture the commit SHA from `git rev-parse HEAD`
 
 Update progress file: task status → `committed`, log SHA + iteration outcome.
@@ -193,10 +192,11 @@ If conditions NOT met, do NOT emit the promise. STOP your current turn — the S
 
 ## When the loop should give up
 
-If `iterations_used >= {MAX_ITERATIONS}` OR `time_budget` exhausted OR the same task fails GREEN 3 times in a row:
+If the same task fails GREEN 3 times in a row with no observable progress OR an external dependency is missing (DB/service down, library not installed) OR the plan declares behavior contradicted by reality OR real-tree validation surfaces a HIGH/CRITICAL CVE:
 
-- Mark all remaining `pending` tasks as `blocked` with reason "loop exhausted"
-- Emit the promise WITH the honest blocked-tasks report
-- Do NOT pretend the implementation is complete (Inquebrável Rule 3)
+- Mark the affected task as `blocked` with an explicit reason in `.progress-{PLAN_SLUG}.json`
+- HALT this iteration. Do NOT emit `<promise>IMPLEMENTATION_COMPLETE</promise>` — the implementation gate has NOT passed
+- Write an explicit BLOCKED report listing the blocked tasks, the blocker reason for each, and the recommended human action (typically: loop back to `cycle-plan` for revision OR fix the environment OR address the CVE)
+- Surface the BLOCKED report to the user
 
-The downstream validation gate (`run_validation.py`) will catch incomplete work regardless. Honest BLOCKED over false completion.
+The completion promise `<promise>IMPLEMENTATION_COMPLETE</promise>` is emitted EXCLUSIVELY when every task is `committed` OR honestly `blocked` with reason AND every DoD checkbox is true. There is no graceful-exit path that emits the promise on a partial state. The downstream validation gate (`run_validation.py`) would catch incomplete work regardless, but the gate exists so the LLM does not stage a partial implementation as complete. Honest BLOCKED over false completion (Unbreakable Rule 3).

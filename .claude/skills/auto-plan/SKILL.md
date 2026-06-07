@@ -117,7 +117,7 @@ Skill(/discover-improve {topic-slug})       # ralph-loop halt-loop
 Skill(/discover-confidence {topic-slug})    # re-score
 ```
 
-For `light` depth: pass time-budget/question-budget hints in the discover plan (instruct `/discover-plan` to target 2-3 questions, ≤ 60min budget).
+For `light` depth: instruct `/discover-plan` to target 2-3 questions per project (narrower scope), so the discovery loop converges on fewer questions.
 
 For `full` depth: standard `/discover-plan` defaults (5-10 questions per `cycle-discover.md v1.1`).
 

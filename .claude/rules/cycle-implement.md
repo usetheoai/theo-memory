@@ -56,7 +56,7 @@ When a commit closes a `## Phase N` of the plan, `skills/implement/scripts/mini_
 
 Aggregated checks: phase completeness, diff cohesion (declared scope vs modified files), wiring summary (pillar a non-negotiable across all phase symbols), delta-scoped code-quality (currently SKIP — full audit still runs at Step 5).
 
-Skipping mini review on phase boundary is a documented anti-pattern: design problems compound across phases, and the cost to fix grows linearly with each skipped boundary. Plans without `## Phase N` headers cause Step 4.7 to SKIP gracefully (no phases → no boundaries).
+Skipping mini review on phase boundary is a documented anti-pattern: design problems compound across phases, and each skipped boundary lets defects propagate into the next phase where they become harder to localize. Plans without `## Phase N` headers cause Step 4.7 to SKIP gracefully (no phases → no boundaries).
 
 ## Hard gates (post-halt-loop, before `IMPLEMENTATION_COMPLETE` is honored)
 
@@ -74,11 +74,10 @@ When the post-halt-loop gate returns `FAIL`, the skill re-invokes `ralph-loop:ra
 
 Contract:
 
-- **Completion promise:** `<promise>VALIDATION_GATE_PASSED</promise>` — asserts `run_validation.py {slug}` re-run in the same iteration exited `0`.
-- **Max iterations:** `5` (fix-mode is refinement; bounded smaller than Step 4).
+- **Completion promise:** `<promise>VALIDATION_GATE_PASSED</promise>` — asserts `run_validation.py {slug}` re-run in the same iteration exited `0`. The loop runs until validation actually passes; never emit this promise on a partial pass.
 - **Pre-flight guard:** verify the Step 4 `ralph-loop.local.md` has `active: false` before invoking; concurrent loops on overlapping state are an anti-pattern.
 - **Per-iteration objective:** fix one (or one root-cause-clustered group of) `check.status == FAIL` per iteration; commit atomically (`fix(validation): …`); re-run `run_validation.py`; emit promise on exit 0 or STOP turn for next iteration.
-- **Forbidden:** disabling/weakening failing tests, lowering coverage thresholds, no-op callers to satisfy pillar (a), hand-edited `.wiring-evidence.json`, ADR-defer of `symbol_fabrication_*` / `dead_code_unallowlisted_*` hard caps.
+- **Forbidden:** disabling/weakening failing tests, lowering coverage thresholds, no-op callers to satisfy pillar (a), hand-edited `.wiring-evidence.json`, ADR-defer of `symbol_fabrication_*` / `dead_code_unallowlisted_*` hard caps, emitting the promise on a `BLOCKED` exit to satisfy a downstream gate.
 
 ## Stop conditions
 
@@ -89,12 +88,13 @@ Contract:
 
 **Step 5.5 — Validation halt-loop:**
 
-- Same check FAIL × 3 consecutive iterations with no observable progress → emit `VALIDATION_GATE_PASSED` with BLOCKED report.
-- `iterations_used >= 5` and at least one check still FAIL → emit `VALIDATION_GATE_PASSED` with BLOCKED report.
+- Same check FAIL × 3 consecutive iterations with **no observable progress** (identical diagnostic, identical failure shape, no new diff direction) → HALT; surface BLOCKED report to the human. **Do NOT emit `VALIDATION_GATE_PASSED`** — the gate did not pass.
 - `code_quality INVALID` (contract itself broken) → HALT immediately; surface to human.
-- Unremediatable `FAIL_HARD` (`symbol_fabrication_*` / `dead_code_unallowlisted_*` cannot be fixed without scope-creeping the plan) → emit promise with BLOCKED report; recommend loop back to `cycle-plan`.
+- Unremediatable `FAIL_HARD` (`symbol_fabrication_*` / `dead_code_unallowlisted_*` cannot be fixed without scope-creeping the plan) → HALT; surface BLOCKED report; recommend loop back to `cycle-plan`. **Do NOT emit the completion promise** — the validation gate has NOT passed.
 
-**Either loop emitting a BLOCKED report blocks downstream:** `/review` and `/release` MUST NOT run until the human resolves the blocker. Honest BLOCKED > false PASS (Unbreakable Rule 3).
+The promise `VALIDATION_GATE_PASSED` is emitted EXCLUSIVELY when `run_validation.py` exits `0`. There is no graceful-exit path that emits the promise on a partial pass. Honest BLOCKED > false PASS (Unbreakable Rule 3).
+
+**Either loop emitting a BLOCKED report blocks downstream:** `/review` and `/release` MUST NOT run until the human resolves the blocker.
 
 ## Anti-patterns
 
@@ -126,4 +126,4 @@ Contract:
   - Phase completeness: `skills/implement/scripts/check_phase_completeness.py`
   - Diff cohesion: `skills/implement/scripts/check_diff_cohesion.py`
   - Reports persisted at: `knowledge-base/mini-reviews/{slug}-phase{N}-review-{date}.md`
-  - Companion to `cycle-review.md` (final review): mini review is cheap-fast per-phase; cycle-review is heavyweight at the end. Both must pass for handoff.
+  - Companion to `cycle-review.md` (final review): mini review runs per-phase; cycle-review runs once at the end. Both must pass for handoff.

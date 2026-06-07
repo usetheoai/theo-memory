@@ -406,7 +406,7 @@ def run_structural(
                 "principles_cited": list(compliance.principles_cited),
                 "has_dod_quality_signal": compliance.has_dod_quality_signal,
                 "has_size_budget_signal": compliance.has_size_budget_signal,
-                "reasons": list(compliance.motivos),
+                "reasons": list(compliance.reasons),
             },
             "evidence": {
                 "total_citations": evidence.total_citations,
