@@ -123,6 +123,28 @@ Read `knowledge-base/plans/{slug}-plan.md`. Extract:
 - Per-task: Files to edit, TDD section (RED tests), Acceptance Criteria, DoD entries
 - Global DoD entries (test/typecheck/lint/coverage gates + runtime-metric proof targets)
 
+#### 2.1  TDD shape gate (defense in depth — MANDATORY)
+
+Before writing the implementation contract, run:
+
+```bash
+python3 skills/implement/scripts/check_tdd_shape.py --plan knowledge-base/plans/{slug}-plan.md --json
+```
+
+This validates that every task has an executable RED-test shape (assertion API, Given/When/Then, OR `test_<behavior>` literal). Tasks whose `#### TDD` section is missing OR contains only prose cannot drive a TDD RED phase.
+
+Behavior:
+
+| Script exit | Action |
+|---|---|
+| `0` (`all_pass: true`) | Proceed to Step 2.2 (write contract). |
+| `1` (at least one task lacks executable shape) | HALT — do NOT enter the halt-loop. Surface the `blocked_task_ids` to the user with the reason ("no #### TDD section" OR "no executable shape"). Recommend loop back to `cycle-plan` `/plan-improve` to rewrite the affected tasks. |
+| `2` (file not found / parse error) | Surface the script error verbatim. |
+
+This is the **companion gate to `plan-confidence`'s `check_criterion_executability`** (`skills/plan-confidence/scripts/check_criterion_executability.py`). Plan-confidence catches vague Acceptance Criteria at the plan-side; this gate catches vague TDD sections at the implement-side. The two layers exist because the plan-side check is heuristic (linguistic patterns can false-positive); the implement-side check is structural (shape detection from the TDD body). Both must pass for the halt-loop to start.
+
+#### 2.2  Write the implementation contract
+
 Write the ordered task list to `knowledge-base/implementations/{slug}-implementation.md` using `templates/implementation-task-template.md`. This file is the halt-loop's working contract.
 
 ### Step 2.5 — Spawn the SEPA (agent + paired knowledge skill)
@@ -177,8 +199,46 @@ Each iteration executes ONE task's complete TDD cycle:
 4. **WIRING phase:** run `python3 skills/implement/scripts/check_wiring.py {symbol-name}` — HALT if any pillar fails
 5. **COMMIT phase:** atomic commit with conventional-commit format (`feat(scope): description`, `fix(scope): description`, etc.) referencing plan task ID
 6. **PROGRESS:** update `.progress-{slug}.json` audit trail
+7. **PHASE BOUNDARY CHECK** (Step 4.7 — see below): if this commit closed a phase, run mini review BEFORE accepting the next task
 
 If a task fails at any phase, the iteration HALTS (no commit), surfaces the failure honestly, and the loop attempts up to 3 retries with revised approach. After 3 attempts, mark task BLOCKED and continue OR escalate to human per stop conditions in cycle rule.
+
+#### Step 4.7 — Phase-boundary mini review (MANDATORY)
+
+After step 6 (PROGRESS), check whether THIS commit closed a `## Phase N` of the plan (last task of the phase is now `committed`). If yes:
+
+```bash
+python3 skills/implement/scripts/mini_review.py \
+  --slug {PLAN_SLUG} \
+  --plan knowledge-base/plans/{PLAN_SLUG}-plan.md \
+  --progress knowledge-base/implementations/.progress-{PLAN_SLUG}.json \
+  --phase N \
+  --project-root . \
+  --output-dir knowledge-base/mini-reviews \
+  --json
+```
+
+The orchestrator aggregates four checks:
+
+| Check | What it asserts |
+|---|---|
+| `phase_completeness` | Every task of phase N has `status=committed`; phase-level DoD non-empty if declared |
+| `diff_cohesion` | Files modified in phase N appear in each task's `#### Files to edit` declaration |
+| `wiring_summary` | `check_wiring.py` PASS for every symbol resolvable from phase files (pillar a non-negotiable) |
+| `code_quality_delta` | `/code-quality` on the phase's file delta (today: SKIP — delta-scoped CQ not implemented; full audit still runs at Step 5) |
+
+**Verdict (severity-aggregated using `/review` vocabulary):**
+
+| Verdict | Trigger | Halt-loop action |
+|---|---|---|
+| `PHASE_REVIEW_PASS` | Max severity ≤ MEDIUM | Proceed to next task in next phase |
+| `PHASE_REVIEW_NEEDS_FIX` | At least one HIGH or BLOCKER finding | **Halt-loop emits BLOCKED** with mini-review report path. Surface to human; do NOT proceed. Resume per § "Resume after recovered blocker" once findings addressed. |
+
+Plans that do NOT structure tasks with `## Phase N` headers cause Step 4.7 to SKIP gracefully — no phase boundary means no mini review. The Step 5 final validation gate still runs.
+
+The report is persisted at `knowledge-base/mini-reviews/{slug}-phase{N}-review-{date}.md`. Even on PASS, MEDIUM/LOW findings are logged for human awareness (carried forward as TODO context for the next phase).
+
+**Why this exists:** without phase-boundary mini reviews, design problems compound across phases — a wrong abstraction in Phase 1 contaminates Phase 2, Phase 3, etc. By the time `/review` (final) runs at the end, fixing it means re-implementing 3 phases. Mini review catches design drift the moment it crosses a story boundary, where the cost to fix is lowest.
 
 #### Resume after recovered blocker
 
@@ -307,6 +367,8 @@ If EITHER halt-loop emitted a BLOCKED report, Step 6 surfaces BLOCKED at the top
 - **The skill NEVER drives validation fixes manually after Step 5 returns FAIL.** Step 5.5 (validation halt-loop) is the only valid execution mode for fix-mode iteration. Bypassing Step 5.5 to "just patch quickly" reproduces the same anti-pattern the Step 4 loop exists to prevent.
 - **The skill NEVER spawns concurrent ralph-loops on overlapping state.** Step 5.5's pre-flight guard verifies the Step 4 loop's `ralph-loop.local.md` is `active: false` before invocation. Concurrent loops on overlapping state is a documented anti-pattern (`rules/loop-engine-convention.md`).
 - **The skill NEVER emits `VALIDATION_GATE_PASSED` without re-running `run_validation.py` in the same iteration.** The promise asserts a measurable fact (exit code 0); emitting it speculatively (without verification) is fabrication.
+- **The skill NEVER skips Step 4.7 phase-boundary mini review when a phase closes.** If the commit closed a phase, `mini_review.py` MUST run before proceeding to the next phase. Skipping mini review accumulates design debt across phases — the cost-to-fix grows linearly with each skipped boundary.
+- **The skill NEVER emits `PHASE_REVIEW_PASS` without `mini_review.py` having actually run and written the report.** The verdict is a measurable fact; speculating is fabrication.
 
 ## When to give up honestly
 
