@@ -181,3 +181,72 @@ describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
     expect(captured).not.toMatch(/THEMEMORY_API_KEY present/);
   });
 });
+
+describe('T4.1 — resolveMcpModes 14-cell precedence matrix (ADR D1 + ADR D2 + EC-1 + EC-3)', () => {
+  type Transport = 'stdio' | 'streamable-http';
+  type Auth = 'none' | 'api-keys' | 'oidc' | 'both';
+
+  interface MatrixCell {
+    readonly name: string;
+    readonly opt: { transport?: Transport; auth?: Auth };
+    readonly envTransport?: string;
+    readonly envAuth?: string;
+    readonly apiKey?: string;
+    readonly expected: { transport: Transport; auth: Auth };
+  }
+
+  const MATRIX: readonly MatrixCell[] = [
+    // Cell 01 — empty input → defaults
+    { name: '01_empty_input_defaults_to_stdio_none', opt: {}, expected: { transport: 'stdio', auth: 'none' } },
+
+    // Cell 02 — Tier-3 heuristic fires (key present, no flags, no env)
+    { name: '02_only_api_key_env_triggers_http_api_keys', opt: {}, apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
+
+    // Cell 03 — Tier-1 flag beats Tier-3 heuristic (ADR D1)
+    { name: '03_flag_stdio_beats_api_key_env_presence', opt: { transport: 'stdio' }, apiKey: 'theo_live_x', expected: { transport: 'stdio', auth: 'none' } },
+
+    // Cell 04 — Tier-2 env beats Tier-3 heuristic (ADR D1)
+    { name: '04_env_transport_stdio_beats_api_key_env_presence', opt: {}, envTransport: 'stdio', apiKey: 'theo_live_x', expected: { transport: 'stdio', auth: 'none' } },
+
+    // Cell 05 — flag http without key → auth defaults none
+    { name: '05_flag_http_without_api_key_defaults_auth_none', opt: { transport: 'streamable-http' }, expected: { transport: 'streamable-http', auth: 'none' } },
+
+    // Cell 06 — flag http + key → Tier-3 auth-mode heuristic fires
+    { name: '06_flag_http_with_api_key_triggers_auth_api_keys', opt: { transport: 'streamable-http' }, apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
+
+    // Cell 07 — ADR D2 explicit opt-out: flag auth=none MUST win over Tier-3 heuristic
+    { name: '07_flag_auth_none_overrides_env_driven_api_keys_heuristic', opt: { transport: 'streamable-http', auth: 'none' }, apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'none' } },
+
+    // Cell 08 — EC-1 empty-string key treated as absent
+    { name: '08_empty_string_api_key_treated_as_absent', opt: {}, apiKey: '', expected: { transport: 'stdio', auth: 'none' } },
+
+    // Cell 09 — EC-1 whitespace-only key treated as absent
+    { name: '09_whitespace_only_api_key_treated_as_absent_ec1', opt: {}, apiKey: '   ', expected: { transport: 'stdio', auth: 'none' } },
+
+    // Cell 10 — env-transport http without key → auth defaults none
+    { name: '10_env_transport_http_without_key_defaults_auth_none', opt: {}, envTransport: 'streamable-http', expected: { transport: 'streamable-http', auth: 'none' } },
+
+    // Cell 11 — env-transport http + key → both Tier-2 + Tier-3 fire
+    { name: '11_env_transport_http_with_api_key_triggers_auth_api_keys', opt: {}, envTransport: 'streamable-http', apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
+
+    // Cell 12 — ADR D2: env-auth wins over Tier-3 heuristic (Tier-2 strictly above Tier-3)
+    { name: '12_env_auth_oidc_overrides_tier3_api_keys_heuristic', opt: {}, envTransport: 'streamable-http', envAuth: 'oidc', apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'oidc' } },
+
+    // Cell 13 — Tier-1 flag beats Tier-2 env (precedence ladder)
+    { name: '13_flag_stdio_overrides_env_transport_http', opt: { transport: 'stdio' }, envTransport: 'streamable-http', expected: { transport: 'stdio', auth: 'none' } },
+
+    // Cell 14 — EC-3: garbage env transport falls through to Tier-3 (with key set)
+    { name: '14_garbage_env_transport_falls_through_to_tier3', opt: {}, envTransport: 'streamablehttp', apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
+  ];
+
+  it.each(MATRIX)('cell $name', async ({ opt, envTransport, envAuth, apiKey, expected }) => {
+    // Per-cell env stubs (beforeEach defaulted them to '' for isolation)
+    if (envTransport !== undefined) vi.stubEnv('THEOMEM_MCP_TRANSPORT', envTransport);
+    if (envAuth !== undefined) vi.stubEnv('THEOMEM_MCP_AUTH', envAuth);
+    if (apiKey !== undefined) vi.stubEnv('THEMEMORY_API_KEY', apiKey);
+    const { resolveMcpModes } = await import('../run-mcp-server.js');
+    const result = resolveMcpModes(opt);
+    expect(result.transport).toBe(expected.transport);
+    expect(result.auth).toBe(expected.auth);
+  });
+});
