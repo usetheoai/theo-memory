@@ -166,6 +166,22 @@ describe('themory mcp — precedence regression guards (T1.2)', () => {
     expect(mockConnectStdio).toHaveBeenCalledOnce();
     expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
   });
+
+  it('test_explicit_auth_none_overrides_env_driven_api_keys_heuristic', async () => {
+    // ADR D2 explicit-opt-out lock: even with `THEMEMORY_API_KEY` env set (which
+    // would normally auto-flip transport to streamable-http + auth=api-keys),
+    // explicit `auth: 'none'` flag MUST short-circuit the Tier-3 heuristic and
+    // boot HTTP with NO auth. This regression-guard MUST keep passing after T2.2.
+    // Note: passes today because resolveBearerAuth short-circuits on mode='none'.
+    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_overridden_by_auth_none');
+    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    await runMcpServer({ auth: 'none' });
+    // Transport auto-flipped per Tier-3 (env present, no --transport flag), but
+    // auth explicitly opted out.
+    expect(mockConnectStreamableHttp).toHaveBeenCalledOnce();
+    const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, { bearerAuth?: unknown }];
+    expect(callArgs[1]?.bearerAuth).toBeUndefined();
+  });
 });
 
 // Silence unused Pool import warning — Pool is used via vi.mock at module

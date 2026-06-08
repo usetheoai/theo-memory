@@ -101,6 +101,56 @@ function resolveTransport(opt?: RunMcpServerOptions['transport']): 'stdio' | 'st
   return 'stdio';
 }
 
+/**
+ * Resolve MCP auth mode via 3-tier precedence + safe-default fallback. Mirrors
+ * `resolveTransport`'s precedence shape:
+ * (1) `opt` flag (Tier-1, most-specific operator intent)
+ * (2) `THEOMEM_MCP_AUTH` env (Tier-2, explicit config)
+ * (3) `THEMEMORY_API_KEY` env presence heuristic — when `transport === 'streamable-http'`
+ *     AND key non-empty after trim → `'api-keys'` (Tier-3). The transport guard
+ *     prevents stdio sessions from gaining auth=api-keys silently (stdio ignores
+ *     bearer auth per ADR-0015 #1).
+ * Fallback: `'none'` (auth-off; default for stdio + explicit no-key HTTP).
+ *
+ * @see ADR-D2 — env-driven HTTP auto-selects api-keys (NOT none — silent security downgrade rejected)
+ * @see EC-1 — whitespace-only trim discipline (symmetric with resolveTransport)
+ */
+function resolveAuthMode(
+  opt: RunMcpServerOptions['auth'],
+  transport: 'stdio' | 'streamable-http',
+): 'none' | 'api-keys' | 'oidc' | 'both' {
+  if (opt !== undefined) return opt;
+  const envValue = process.env['THEOMEM_MCP_AUTH'];
+  if (envValue === 'none' || envValue === 'api-keys' || envValue === 'oidc' || envValue === 'both') {
+    return envValue;
+  }
+  if (transport === 'streamable-http') {
+    const apiKey = process.env['THEMEMORY_API_KEY'];
+    if (apiKey !== undefined && apiKey.trim() !== '') return 'api-keys';
+  }
+  return 'none';
+}
+
+/**
+ * Single composed-resolution wrapper consumed by `runMcpServer` AND unit tests.
+ * EC-2 absorption: instead of exporting `resolveTransport`/`resolveAuthMode`
+ * individually (which would freeze them as `@internal`-by-convention API and
+ * lock the precedence matrix as quasi-public surface), we export ONE composer
+ * that returns the {transport, auth} pair. Future refactors of the individual
+ * resolvers stay module-private.
+ *
+ * @internal — for unit testing + composition root only; NOT re-exported from
+ * `src/agent-tools/index.ts` (verified at T4.1 step 2).
+ * @see EC-2 — single-export discipline
+ */
+export function resolveMcpModes(
+  opt: Pick<RunMcpServerOptions, 'transport' | 'auth'>,
+): { transport: 'stdio' | 'streamable-http'; auth: 'none' | 'api-keys' | 'oidc' | 'both' } {
+  const transport = resolveTransport(opt.transport);
+  const auth = resolveAuthMode(opt.auth, transport);
+  return { transport, auth };
+}
+
 function resolvePort(opt?: number): number {
   if (opt !== undefined) {
     if (!Number.isInteger(opt) || opt <= 0 || opt > 65_535) {
@@ -131,7 +181,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
   const pgUri = process.env['THEOMEM_PG_URI']!;
 
-  const transport = resolveTransport(options?.transport);
+  const { transport, auth: authMode } = resolveMcpModes(options ?? {});
   // Validate port eagerly so an invalid CLI flag fails BEFORE we touch pg —
   // avoids leaking a connection pool when the operator typo'd the port.
   const port = transport === 'streamable-http' ? resolvePort(options?.port) : 0;
@@ -173,7 +223,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   process.on('SIGINT', shutdownHandler);
 
   if (transport === 'streamable-http') {
-    const bearerAuth = await resolveBearerAuth(options?.auth, pool, {
+    const bearerAuth = await resolveBearerAuth(authMode, pool, {
       ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
       ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
       host,
