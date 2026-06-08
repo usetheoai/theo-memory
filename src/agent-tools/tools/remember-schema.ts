@@ -15,7 +15,7 @@ import { MAX_CONTENT_BYTES } from './constants.js';
 export const TOOL_NAME = 'remember' as const;
 
 export const DESCRIPTION =
-  'Persist a free-form note to scoped memory. The fact will be extracted and stored under the active user/session/agent scope. Use this when the user states a preference, fact, or decision worth recalling later.';
+  'Persist a free-form note to scoped memory. The fact will be extracted and stored under the active user/session/agent scope. Use this when the user states a preference, fact, or decision worth recalling later. Pass `infer:false` to store the content verbatim without LLM extraction.';
 
 /**
  * Input shape for `tools/call remember`.
@@ -28,6 +28,11 @@ export const INPUT_SCHEMA = z.object({
   content: z.string().min(1).max(MAX_CONTENT_BYTES),
   /** Optional flat key/value metadata payload (primitives only — upstream-pipeline parity). */
   metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  /**
+   * When false, skip the LLM extraction pipeline and store the content verbatim.
+   * Default true (Mem0-shape extraction). Mirrors REST `POST /v1/remember` `infer` flag.
+   */
+  infer: z.boolean().optional(),
 });
 
 export type RememberInput = z.infer<typeof INPUT_SCHEMA>;

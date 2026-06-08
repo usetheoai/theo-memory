@@ -53,6 +53,44 @@ describe('dispatch handlers — happy paths (T5.1)', () => {
 
     expect(vi.mocked(scoped.remember)).toHaveBeenCalledWith('Paulo likes coffee', undefined);
     expect(result.isError ?? false).toBe(false);
+    // Honest disclosure: text MUST reflect actual count + ids (NOT silent "Memory persisted.")
+    expect((result.content as { text: string }[])[0]?.text).toMatch(/uuid-1/);
+    expect((result.content as { text: string }[])[0]?.text).toMatch(/1/);
+  });
+
+  it('remember handler returns isError:true when zero facts extracted (data-loss honesty — #1)', async () => {
+    // Reproduces the bug from /tmp/themory-issue.md: LLM fails OR drafts=[] → scoped.remember()
+    // returns []. Previous handler silently returned "Memory persisted." with isError:false,
+    // making data-loss invisible to MCP callers.
+    const scoped = mockScopedMemory();
+    vi.mocked(scoped.remember).mockResolvedValue([]);
+    const memory = mockMemory(scoped);
+
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch('remember', { content: 'Paulo likes coffee' }, { memoryFactory: () => memory }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect((result.content as { text: string }[])[0]?.text).toMatch(/no.*fact|not persisted|not stored/i);
+  });
+
+  it('remember handler passes infer:false through to scoped.remember (#2 MCP/REST parity)', async () => {
+    // Reproduces issue #2: MCP schema lacked `infer` flag, blocking literal-write use case.
+    // With infer:false the LLM extraction pipeline is bypassed; content is stored verbatim.
+    const scoped = mockScopedMemory();
+    const persisted: MemoryItem = {
+      id: 'uuid-literal', text: 'verbatim marker', hash: 'h', scope: { kind: 'user', userId: 'alice' },
+      createdAt: FIXED_DATE, updatedAt: FIXED_DATE, metadata: {}, tValid: FIXED_DATE, tInvalid: null,
+    };
+    vi.mocked(scoped.remember).mockResolvedValue([persisted]);
+    const memory = mockMemory(scoped);
+
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch('remember', { content: 'verbatim marker', infer: false }, { memoryFactory: () => memory }),
+    );
+
+    expect(vi.mocked(scoped.remember)).toHaveBeenCalledWith('verbatim marker', { infer: false });
+    expect(result.isError ?? false).toBe(false);
   });
 
   it('recall handler returns structuredContent with results array', async () => {
