@@ -45,6 +45,46 @@ afterEach(() => {
 });
 
 describe('withBearerAuth — unit-level (node:http handler wrap)', () => {
+  it('0. themory-issue-3 B2 — OPTIONS preflight bypasses Bearer gate and returns 204 with CORS headers', async () => {
+    // CORS preflight is unauthenticated by design. Gating OPTIONS with Bearer
+    // breaks browser-mode MCP clients (Cursor browser, MCP Inspector, future
+    // dashboards). This is purely additive on the existing 401 path: CLI
+    // clients (Claude Code, Cline) don't issue OPTIONS so no regression risk.
+    const delegate = vi.fn();
+    const handler = withBearerAuth(delegate, { apiKey: alwaysTrue(), oidc: alwaysTrue() });
+
+    const req = {
+      method: 'OPTIONS',
+      headers: {
+        'origin': 'https://app.example.com',
+        'access-control-request-headers': 'Authorization, Content-Type',
+      },
+    } as Parameters<typeof handler>[0];
+    let statusCode = 0;
+    const headers = new Map<string, string>();
+    let ended = false;
+    const res = {
+      get statusCode() { return statusCode; },
+      set statusCode(v: number) { statusCode = v; },
+      setHeader: (k: string, v: string) => headers.set(k.toLowerCase(), v),
+      end: () => { ended = true; },
+    } as unknown as Parameters<typeof handler>[1];
+
+    await handler(req, res);
+
+    expect(statusCode).toBe(204);
+    expect(ended).toBe(true);
+    expect(headers.get('access-control-allow-origin')).toBe('https://app.example.com');
+    expect(headers.get('access-control-allow-methods')).toContain('POST');
+    expect(headers.get('access-control-allow-methods')).toContain('OPTIONS');
+    expect(headers.get('access-control-allow-headers')).toContain('Authorization');
+    expect(headers.get('access-control-max-age')).toBe('600');
+    // Critical: delegate (the wrapped transport) MUST NOT receive the preflight
+    expect(delegate).not.toHaveBeenCalled();
+    // Critical: no 401 path — WWW-Authenticate must NOT be set on a preflight
+    expect(headers.get('www-authenticate')).toBeUndefined();
+  });
+
   it('1. returns 401 + WWW-Authenticate when Authorization header is missing', async () => {
     const delegate = vi.fn();
     const handler = withBearerAuth(delegate, { apiKey: alwaysTrue(), oidc: alwaysTrue() });
