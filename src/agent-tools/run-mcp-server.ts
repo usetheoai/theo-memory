@@ -194,6 +194,40 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     `themory mcp: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${LOCAL_EMBEDDER_DIM}) + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
+  // T3.1 — ADR D3 transport+auth disclosure (Princípio 3 auditability).
+  // Suppressed when the operator was EXPLICIT (CLI flag OR scoped env) OR
+  // when THEOMEM_MCP_QUIET=1 (EC-6 embedded-use escape). THEMEMORY_API_KEY
+  // is intentionally EXCLUDED from `wasExplicit` — its presence IS the
+  // Tier-3 heuristic this disclosure exists to announce; including it would
+  // mute the line in exactly the scenario ADR D3 requires disclosed.
+  // EC-6 scope discipline: QUIET gates ONLY this block, NOT the
+  // "real providers wired" line above (FC2-T1.1 sentinel contract).
+  // wasExplicit: CLI flag OR a VALID env value. Empty string is NOT explicit —
+  // it matches the resolveTransport/resolveAuthMode shape (only meaningful
+  // values flow through Tier-2). Test isolation discipline depends on this:
+  // beforeEach stubs THEOMEM_MCP_TRANSPORT='' to neutralize a developer shell
+  // carrying a real value; treating '' as explicit would suppress the
+  // disclosure under test → false-GREEN.
+  const envTransport = process.env['THEOMEM_MCP_TRANSPORT'];
+  const envAuth = process.env['THEOMEM_MCP_AUTH'];
+  const wasExplicit =
+    options?.transport !== undefined ||
+    options?.auth !== undefined ||
+    envTransport === 'stdio' || envTransport === 'streamable-http' ||
+    envAuth === 'none' || envAuth === 'api-keys' || envAuth === 'oidc' || envAuth === 'both';
+  const quiet = process.env['THEOMEM_MCP_QUIET'] === '1';
+  if (!wasExplicit && !quiet) {
+    if (transport === 'streamable-http' && authMode === 'api-keys') {
+      process.stderr.write(
+        'themory mcp: transport=streamable-http + auth=api-keys (THEMEMORY_API_KEY present; pass --transport=stdio to override).\n',
+      );
+    } else if (transport === 'stdio') {
+      process.stderr.write(
+        'themory mcp: transport=stdio (default; set THEMEMORY_API_KEY for HTTP+Bearer mode).\n',
+      );
+    }
+  }
+
   // verbs-as-cli-fixes-cycle-2 T3.1 / ADR D4 retrofit (closes M1): provider
   // tuple composition delegated to shared `wireMemoryFromPool` helper. Single
   // source of truth for `PgvectorStore` + `LocalTransformerEmbedder` +
