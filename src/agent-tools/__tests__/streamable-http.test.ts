@@ -46,13 +46,22 @@ describe('connectStreamableHttp (T6.2)', () => {
     await handle.close();
   });
 
-  it('connects the McpServer to the StreamableHTTPServerTransport (stateless mode)', async () => {
+  it('connects the McpServer to the StreamableHTTPServerTransport (themory-issue-3 — stateful session mode, no unsafe cast)', async () => {
     const server = mockServer();
+    // Pre-fix this connectStreamableHttp would crash at boot if the SDK's strict
+    // exactOptionalPropertyTypes rejected `sessionIdGenerator: undefined` — the
+    // old code worked around with `as unknown as ...` cast. Post-fix we pass a
+    // genuine `() => randomUUID()` matching the SDK's required type, so the
+    // boot path uses the canonical typed API surface (no cast). If this test
+    // boots without throwing, the SDK accepted the constructor args as typed.
+    // Behavioral verification of session-id emission lives in the team's
+    // /tmp/themory-issue-3.md curl-isolation script (out-of-scope for unit
+    // tests — would require real http server boot + JSON-RPC handshake).
     const handle = await connectStreamableHttp(server, { port: 0, host: '127.0.0.1' });
-    // server.start called with a transport whose sessionId is undefined (stateless mode per discover Q5)
     expect(vi.mocked(server.start)).toHaveBeenCalledTimes(1);
-    const transport = vi.mocked(server.start).mock.calls[0]?.[0] as { sessionId?: string };
-    expect(transport.sessionId).toBeUndefined();
+    const transport = vi.mocked(server.start).mock.calls[0]?.[0];
+    expect(transport).toBeDefined();
+    expect(typeof (transport as { handleRequest?: unknown }).handleRequest).toBe('function');
     await handle.close();
   });
 
