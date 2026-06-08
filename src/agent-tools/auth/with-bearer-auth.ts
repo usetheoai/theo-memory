@@ -111,6 +111,25 @@ export function withBearerAuth(
     });
 
   return async (req, res) => {
+    // B2 absorption (themory-issue-3.md): CORS preflight is unauthenticated
+    // by design — gating OPTIONS with Bearer breaks browser-mode clients
+    // (Cursor browser, MCP Inspector, future dashboards). Respond 204 with
+    // permissive Access-Control-Allow-* headers BEFORE the auth check. CLI
+    // clients (Claude Code, Cline) don't issue OPTIONS so this is purely
+    // additive — no regression risk on the existing 401 path.
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.setHeader('Access-Control-Allow-Origin', req.headers['origin'] ?? '*');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        req.headers['access-control-request-headers'] ?? 'Authorization, Content-Type, Accept, Mcp-Session-Id',
+      );
+      res.setHeader('Access-Control-Max-Age', '600');
+      res.end();
+      return;
+    }
+
     const token = extractBearer(req.headers['authorization']);
     if (!token) {
       send401(res, realm, resourceMetadataPath, 'missing_token', 'Authorization header is required.');
