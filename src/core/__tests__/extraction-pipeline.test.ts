@@ -116,6 +116,30 @@ describe('runExtractionPipeline (8-phase write)', () => {
     expect(result[0]?.scope).toEqual({ kind: 'user', userId: 'alice' });
   });
 
+  test('themory-issue-2: coerces linked_memory_ids number[] → string[] before Zod parse (gpt-4o-mini divergence)', async () => {
+    // Pre-fix RED: gpt-4o-mini reads "Use the integer ids in linked_memory_ids"
+    // literally and returns [1, 2] (number[]) when the new content relates to
+    // existing memories. Zod schema requires string[]; parse fails; catch swallows;
+    // extraction silently returns []. Caminho feliz mais comum quebrado.
+    // Post-fix: defensive coercion at pipeline.ts before AdditiveExtractionSchema.parse.
+    const store = new StubVectorStore();
+    const llm = makeLlm({
+      memory: [{
+        id: '6',
+        text: 'O usuário prefere café no estilo aeropress.',
+        attributed_to: 'user',
+        linked_memory_ids: [1, 2],  // ← number[], exact shape gpt-4o-mini emits
+      }],
+    });
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'Eu prefiro café no estilo aeropress.' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), llm },
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]?.text).toBe('O usuário prefere café no estilo aeropress.');
+  });
+
   test('EC-9: empty extraction returns [] without persist call', async () => {
     const store = new StubVectorStore();
     const insertSpy = vi.spyOn(store, 'insert');
