@@ -32,8 +32,10 @@ export function escapeMarkdownHeaders(text: string): string {
 const SYSTEM_PROMPT = [
   'You are a memory extractor for a long-term agent memory system.',
   'Given existing memories (numbered for reference) and new conversation messages,',
-  'output JSON with new facts to persist. Use the integer ids in `linked_memory_ids`',
-  'when a new fact references or relates to an existing memory.',
+  'output JSON with new facts to persist. Use the integer ids — FORMATTED AS JSON STRINGS,',
+  'e.g. "1", "2" (with quotes) — in `linked_memory_ids` when a new fact references or',
+  'relates to an existing memory. NEVER emit `linked_memory_ids` as bare numbers; the',
+  'array MUST contain quoted string elements.',
   '',
   '`attributed_to` is the perspective owner of the fact — the peer ID it belongs to.',
   'Accept ARBITRARY string values: a user id, agent id, "system" for self-statements,',
@@ -41,7 +43,7 @@ const SYSTEM_PROMPT = [
   'vocabulary.',
   '',
   'Output format (strict JSON, no prose):',
-  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["<int-id>"] }] }',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }] }',
 ].join('\n');
 
 function renderExistingMemories(existing: readonly MemoryItem[]): string {
