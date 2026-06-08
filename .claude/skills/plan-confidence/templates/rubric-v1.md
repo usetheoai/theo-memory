@@ -2,11 +2,13 @@
 
 This file is the **source of truth** for the M2 structural rubric. It defines:
 
-1. The 4 DAG nodes (3 completude + 1 risco_estrutural) with weights summing to 1.0 per dimension.
+1. The 4 DAG nodes (3 completeness + 1 structural_risk) with weights summing to 1.0 per dimension.
 2. The spec-smell detection patterns (dictionaries + regexes).
 3. Hard cap values for failure actions.
 
-**v1.1 (2026-05-17):** EC-3 fix — completude weights rebalanced from 0.6+0.15+0.15 (sum 0.9, bug) to 0.6+0.2+0.2 (sum 1.0, correct). EC-13 known limitation documented (English-only smells).
+**v1.1 (2026-05-17):** EC-3 fix — completeness weights rebalanced from 0.6+0.15+0.15 (sum 0.9, bug) to 0.6+0.2+0.2 (sum 1.0, correct). EC-13 known limitation documented (English-only smells).
+
+**v1.1.1 (2026-06-08):** EC-13 partial fix — PT-BR entries added to existing dictionaries (subjective_adjectives, weak_imperatives, vague_pronouns, loopholes, non_verifiable). Per "Reasons NOT to bump" rule above ("Adding more entries to existing smell dictionaries — recall improvement"), this is an in-place change, not a version bump. Both accented and ASCII-fold variants are included so the regex `\b` boundary (ASCII-only) matches authors who omit accents in markdown — the SOTA cost of correctness here is lower than spending an ADR on `re.UNICODE` migration.
 
 ## How to Evolve
 
@@ -32,29 +34,29 @@ updated_at: 2026-05-17
 
 nodes:
   - id: 1
-    dimension: completude
+    dimension: completeness
     description: "Coverage Matrix presente e 100% mapeado (gaps -> tasks)"
     detector: coverage_matrix
     failure_action: hard_cap
     hard_cap_value: 49
     weight: 0.6
   - id: 2
-    dimension: completude
+    dimension: completeness
     description: "Cada ADR tem Decision + Rationale + Consequences (com alternativas no Rationale)"
     detector: adr_completeness
     failure_action: hard_cap
     hard_cap_value: 70
     weight: 0.2
   - id: 3
-    dimension: completude
+    dimension: completeness
     description: "Cada task de bug-fix tem TDD RED-GREEN-REFACTOR explicito"
     detector: tdd_in_bugfix
     failure_action: hard_cap
     hard_cap_value: 70
     weight: 0.2
   - id: 4
-    dimension: risco_estrutural
-    description: "Spec smells abaixo do threshold (subjective adjs, weak imperatives, vague pronouns, loopholes, non-verifiable terms)"
+    dimension: structural_risk
+    description: "Spec smells below the threshold (subjective adjs, weak imperatives, vague pronouns, loopholes, non-verifiable terms)"
     detector: spec_smells
     failure_action: penalty
     penalty_weights:
@@ -69,7 +71,7 @@ smells:
   subjective_adjectives:
     pattern_type: dictionary
     words:
-      # en
+      # EN
       - fast
       - efficient
       - robust
@@ -77,63 +79,68 @@ smells:
       - optimal
       - smart
       - friendly
-      # pt-BR (v1.1+ #3 fix)
+      # PT-BR (both ASCII-fold and accented variants — authors mix both in markdown)
       - rapido
       - rápido
       - eficiente
-      - escalavel
-      - escalável
+      - eficaz
       - otimo
       - ótimo
-      - inteligente
+      - robusto
+      - escalavel
+      - escalável
       - amigavel
       - amigável
   weak_imperatives:
+    # EN: should/could/may/might
+    # PT-BR: deveria/poderia/talvez/deveriam/poderiam (subjunctive forms common in vague specs)
     pattern_type: regex
-    # en: should/could/may/might  ·  pt: deveria/poderia/talvez/possivelmente
-    pattern: '\b(should|could|may|might|deveria|poderia|talvez|possivelmente|deveriam|poderiam)\b'
+    pattern: '\b(should|could|may|might|deveria|deveriam|deveriamos|deveríamos|poderia|poderiam|poderiamos|poderíamos|talvez|provavelmente)\b'
   vague_pronouns:
+    # EN: This/That/These/Those at the start of a sentence.
+    # PT-BR: Isso/Isto/Aquilo/Esses/Estes/Aqueles/Aquele at the start.
     pattern_type: regex
-    # en: sentence-initial This/That/These/Those
-    # pt: sentence-initial Isso/Isto/Aquilo/Esses/Aqueles
-    pattern: '(^|\. )(This|That|These|Those|Isso|Isto|Aquilo|Esses|Aqueles|Essas|Aquelas)\b'
+    pattern: '(^|\. )(This|That|These|Those|Isso|Isto|Aquilo|Aqueles|Aqueles|Esses|Estes|Aquele|Aqueles)\b'
   loopholes:
     pattern_type: dictionary
     phrases:
-      # en
+      # EN
       - "if possible"
       - "as appropriate"
       - "when applicable"
       - "where feasible"
-      # pt-BR (v1.1+ #3 fix)
+      # PT-BR
       - "se possivel"
       - "se possível"
       - "quando aplicavel"
       - "quando aplicável"
-      - "se cabivel"
-      - "se cabível"
       - "conforme apropriado"
-      - "onde viavel"
-      - "onde viável"
+      - "onde aplicavel"
+      - "onde aplicável"
+      - "quando viavel"
+      - "quando viável"
   non_verifiable:
     pattern_type: dictionary
     words:
-      # en
+      # EN
       - user-friendly
       - maintainable
       - scalable
       - robust
-      # pt-BR
+      # PT-BR
       - manutenivel
       - manutenível
       - escalavel
       - escalável
-      - facil-de-usar
-      - fácil-de-usar
+      - robusto
+      - amigavel
+      - amigável
+      - sustentavel
+      - sustentável
 ```
 
 ## Limitations (Known)
 
-- **EC-13 ADDRESSED (v1.1+)** — Smell dictionary now covers en AND pt-BR (deveria/poderia/talvez/se possível/manutenível/etc.). pt-BR recall improved; still won't catch novel patterns until M6 criteria mining.
+- **EC-13** — Smell dictionary covers EN only. Plans authored in other languages will have lower smell recall until M6 criteria mining adds multilingual support.
 - **EC-9** — Smell hits inside `## Anti-patterns` or `## Edge cases` sections of a plan are counted (false positives in metalanguage). Mitigation deferred to M3+; for M2, the Self-Application Test expects SHIPPABLE_WITH_CAVEATS for meta-documentation plans.
-- **Regex `\b` boundaries** — work for ASCII; pt-BR words with accents may fall outside `\b`. Use `re.UNICODE` flag in the implementation.
+- **Regex `\b` boundaries** — work for ASCII. Use `re.UNICODE` flag in the implementation for safety.
