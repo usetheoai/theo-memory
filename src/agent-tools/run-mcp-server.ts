@@ -81,10 +81,23 @@ export interface RunMcpServerOptions {
   readonly clientId?: string;
 }
 
+/**
+ * Resolve MCP transport via 3-tier precedence + stdio fallback:
+ * (1) `opt` flag (most-specific operator intent)
+ * (2) `THEOMEM_MCP_TRANSPORT` env (explicit config)
+ * (3) `THEMEMORY_API_KEY` env presence heuristic — non-empty after trim →
+ *     `streamable-http` (operator has a bearer token; presumes HTTP intent)
+ * Fallback: `'stdio'` (embedded subprocess use case, Claude Code etc.)
+ *
+ * @see ADR-D1 — 3-tier precedence rationale (plan themory-mcp-bearer-by-env-faang)
+ * @see EC-1 — whitespace-only trim discipline (`!== ''` alone would auto-flip on `"   "`)
+ */
 function resolveTransport(opt?: RunMcpServerOptions['transport']): 'stdio' | 'streamable-http' {
   if (opt !== undefined) return opt;
   const envValue = process.env['THEOMEM_MCP_TRANSPORT'];
   if (envValue === 'streamable-http' || envValue === 'stdio') return envValue;
+  const apiKey = process.env['THEMEMORY_API_KEY'];
+  if (apiKey !== undefined && apiKey.trim() !== '') return 'streamable-http';
   return 'stdio';
 }
 
