@@ -80,9 +80,9 @@ class TypescriptDetector(BaseDetector):
         return self._parse_knip_json(data, repo_root)
 
     def _find_self_package_name(self, changed_files: list[Path]) -> str | None:
-        """Patch 2026-05-30 — walk up from any changed file to find the repo's package.json#name.
+        """Walk up from any changed file to find the repo's package.json#name.
 
-        Used to skip self-reference imports (`@usetheo/memory` and its subpaths) when the
+        Used to skip self-reference imports (`@scope/pkg-name` and its subpaths) when the
         codebase is the package being imported — pre-publication code legitimately self-references
         via workspace links (file:..) before the package ships to the npm registry. Cached on
         the detector instance after first lookup.
@@ -102,8 +102,8 @@ class TypescriptDetector(BaseDetector):
                         data = json.loads(pkg_json.read_text(encoding="utf-8"))
                         name = data.get("name")
                         # We want the OUTERMOST (root) name when nested workspaces exist —
-                        # keep walking up after finding a name. Demo subdir name (@usetheo/memory-demo-chat)
-                        # is shadowed by root @usetheo/memory.
+                        # keep walking up after finding a name. A demo subdir's package name
+                        # is shadowed by the root package's name.
                         if isinstance(name, str) and name:
                             self._cached_self_name = name
                     except (json.JSONDecodeError, OSError):

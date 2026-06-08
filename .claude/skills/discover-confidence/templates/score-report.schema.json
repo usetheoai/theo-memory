@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://usetheo.dev/schemas/discover-confidence-score-report.v1.json",
+  "$id": "https://example.invalid/schemas/discover-confidence-score-report.v1.json",
   "title": "Discover-Confidence Score Report",
   "description": "Output schema for /discover-confidence M2 structural scoring of a blueprint.",
   "type": "object",
@@ -30,7 +30,7 @@
     "risco_estrutural_score": {"type": "number", "minimum": 0, "maximum": 100},
     "active_dimensions": {
       "type": "array",
-      "items": {"type": "string", "enum": ["research_coverage", "reference_citations", "blueprint_completeness", "risco_estrutural"]}
+      "items": {"type": "string", "enum": ["research_coverage", "reference_citations", "blueprint_completeness", "structural_risk"]}
     },
     "weight_normalization_factor": {"type": "number", "exclusiveMinimum": 0},
     "weighted_avg": {"type": "number", "minimum": 0, "maximum": 100},
@@ -49,7 +49,7 @@
         "kappa_measured": {"type": "boolean"}
       }
     },
-    "motivos": {
+    "reasons": {
       "type": "object",
       "additionalProperties": {
         "type": "object",

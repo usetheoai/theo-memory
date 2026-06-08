@@ -22,7 +22,7 @@ The `setup.sh` checks for `ast-grep` in PATH; if missing, prints the install com
 | **Homebrew** (macOS) | `brew install ast-grep` | Easiest on Mac |
 | **Pre-built binary** | Download from <https://github.com/ast-grep/ast-grep/releases> | Air-gapped environments |
 
-For the TheMemory project specifically: when `package.json` is created (post-v0.0), add `@ast-grep/cli` to `devDependencies` so the pinned version travels with the project.
+For the OurProject project specifically: when `package.json` is created (post-v0.0), add `@ast-grep/cli` to `devDependencies` so the pinned version travels with the project.
 
 ## Linux naming collision
 
@@ -37,7 +37,7 @@ For the TheMemory project specifically: when `package.json` is created (post-v0.
 | YAML rule files (`rules/*.yml`) | ✅ Fully | Generic — TS / Python patterns work in any codebase |
 | `setup.sh` | ✅ Fully | Auto-detects ast-grep, prints install command if missing |
 | `SKILL.md` two-phase workflow (zoom out → zoom in) | ✅ Fully | Investigation pattern is language-agnostic |
-| References to `.claude/knowledge-base/references/` in examples | ❌ Project-specific | The example commands cite TheMemory's reference clones; adapt to your tree |
+| References to `.claude/knowledge-base/references/` in examples | ❌ Project-specific | The example commands cite OurProject's reference clones; adapt to your tree |
 
 ## Customization
 

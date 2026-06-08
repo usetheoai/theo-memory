@@ -68,7 +68,7 @@ def bad_candidate(isolated_project: Path) -> str:
         "generated-from-blueprint: fake\n"
         "generated-at: 2026-05-21\n"
         "---\n\n"
-        "# Bad\n\n`.claude/knowledge-base/references/mem0/never-exists-anywhere-xyz.py:1`\n",
+        "# Bad\n\n`.claude/knowledge-base/references/project-a/never-exists-anywhere-xyz.py:1`\n",
         encoding="utf-8",
     )
     return "test-bad-patterns"

@@ -45,7 +45,7 @@ def test_memory_layer_keywords(tmp_path: Path) -> None:
     plan = tmp_path / "memory.md"
     plan.write_text(
         "# Plan: Memory\n\n"
-        "Investigate memory store, memory tier, Mem0-shape, TheMemory, "
+        "Investigate memory store, memory tier, Project A-shape, OurProject, "
         "remember and recall operations. User scope, Agent scope.\n",
         encoding="utf-8",
     )

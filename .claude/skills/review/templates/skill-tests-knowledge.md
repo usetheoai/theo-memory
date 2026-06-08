@@ -51,10 +51,10 @@ You are the knowledge layer for the tests-reviewer agent on plan `{SLUG}`. Groun
 
 ## Knowledge refresh protocol
 
-### Mode A — Plan vs actual test parity (cheap, ~500 tokens)
+### Mode A — Plan vs actual test parity (lightweight)
 Agent asks "is the plan's RED test `test_x_emits_y()` actually present in the diff?". Grep `{TEST_FILES_IN_DIFF}` for the test name. Return: present/missing + file:line.
 
-### Mode B — Community TDD/BDD canonical practice (medium, ~3-5k tokens)
+### Mode B — Community TDD/BDD canonical practice
 Agent asks "is this AAA-conformant?" or "is mocking this OK?". Steps:
 
 1. WebSearch: `<topic> TDD best practice <year>` OR `<topic> testing antipattern <year>`.
@@ -62,7 +62,7 @@ Agent asks "is this AAA-conformant?" or "is mocking this OK?". Steps:
 3. Extract canonical guidance.
 4. Return to agent.
 
-### Mode C — Cross-reference fixtures (cheap, ~1k tokens)
+### Mode C — Cross-reference fixtures (lightweight)
 Agent asks "is fixture `foo_user.json` actually used by 3+ tests?". Grep tests dir.
 
 ## Specific knowledge anchors (priming)

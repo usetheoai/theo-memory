@@ -26,14 +26,14 @@ The actual checks depend on what {DOMAIN} is. Below are domain-recipes — apply
 
 ### If {DOMAIN} == "memory-layer"
 
-- Verify the implementation follows the Mem0-shape pipeline (six-phase write, nine-step search) per the CLAUDE.md architectural anchors
+- Verify the implementation follows the Project A-shape pipeline (six-phase write, nine-step search) per the CLAUDE.md architectural anchors
 - Verify the three-tier scope model (User / Session / Agent) is preserved
 - Verify ADD-only invariant — no `update()` on public API
 - Verify additive scoring formula is used (NOT multiplicative Generative Agents — that's deferred to v0.4)
 
 ### If {DOMAIN} == "pgvector-schema"
 
-- Verify schema declarations match patterns in `letta-pgvector-patterns` skill (if registered) OR `letta-pgvector-schema` blueprint
+- Verify schema declarations match patterns in `project-b-pgvector-patterns` skill (if registered) OR `project-b-pgvector-schema` blueprint
 - Verify pgvector index types declared (HNSW vs IVFFlat vs none) are appropriate for the workload
 - Verify embedding dimension is auto-detected via probe OR explicitly pinned in schema migration
 - Check Alembic migration discipline: single head, naming convention, downgrade declared
@@ -85,10 +85,10 @@ domain: {DOMAIN}
 domain_specific_patterns_checked: ["pattern1", "pattern2", ...]
 findings:
   - id: F-dom-1
-    severity: CRITICAL
+    severity: HIGH
     file: src/core/extraction-pipeline.ts
     line: 67
-    plan_ref: ADR D1 — adopt Mem0 multi-phase write pipeline
+    plan_ref: ADR D1 — adopt Project A multi-phase write pipeline
     domain_anchor: CLAUDE.md § Architectural Decisions Locked (six-phase pipeline)
     summary: Phase 4 (batch embed) is missing — implementation goes from extraction (phase 3) directly to persist (phase 6)
     evidence: |
@@ -104,7 +104,7 @@ findings:
 1. Reviewing generically when domain-specific checks would catch more
 2. Citing patterns / blueprints you didn't actually read
 3. Fabricating domain knowledge — if you don't know whether HNSW vs IVFFlat is better for the workload, say so and flag for human
-4. Applying domain conventions from another project (don't impose Letta conventions on a Mem0-derived module unless plan said to)
+4. Applying domain conventions from another project (don't impose Project B conventions on a Project A-derived module unless plan said to)
 5. Dismissing findings because "the plan is the contract" — the plan can have domain mistakes too; flag both
 
 Run your review now. Output the YAML findings file.

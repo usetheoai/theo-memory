@@ -1,6 +1,6 @@
 ---
 name: ast-grep
-description: Structural search and refactor across multi-language codebases via tree-sitter patterns. Use when you need queries Grep can't express — function signatures, class hierarchies, decorator + function, call sites, async patterns, type definitions. Especially useful inside .claude/knowledge-base/references/ during /discover-execute. Composable from any context.
+description: Structural search and refactor across multi-language codebases via tree-sitter patterns. Use when you need queries Grep can't express — function signatures, class hierarchies, decorator + function, call sites, async patterns, type definitions. Especially useful inside knowledge-base/references/ during /discover-execute. Composable from any context.
 user-invocable: true
 allowed-tools: Bash Read Glob
 argument-hint: "{pattern} [--lang LANG] [--path PATH]"
@@ -25,7 +25,7 @@ argument-hint: "{pattern} [--lang LANG] [--path PATH]"
 
 `ast-grep` gives you a structural inventory cheap (line ranges + AST kinds). It lists, it counts, it maps. It does NOT explain — comments, intent, error-handling, edge-cases are below its abstraction.
 
-`Read` gives you semantic depth at one location, but is expensive across many files. Using `Read` to "explore broadly" wastes tokens. Using `Read` after `ast-grep` mapped, say, 8 hotspots is targeted.
+`Read` gives you semantic depth at one location, but is inefficient across many files. Using `Read` to "explore broadly" scatters attention. Using `Read` after `ast-grep` mapped, say, 8 hotspots is targeted.
 
 ### When to skip ast-grep entirely
 
@@ -40,21 +40,21 @@ For everything code-shape (class hierarchies, function signatures, call sites, d
 
 ### Concrete two-step example
 
-Discovery question: "How does Mem0 implement the `Memory` class surface?"
+Discovery question: "How does Project A implement the `Memory` class surface?"
 
 **Step 1 — ast-grep maps the surface (Fase A):**
 
 ```bash
 ast-grep scan --rule .claude/skills/ast-grep/rules/method-in-class-ts.yml \
-  .claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts
-# → 27 methods, each with line range. Cost: 1 query, output in linear tokens.
+  .claude/knowledge-base/references/project-a/project-a-ts/src/oss/src/memory/index.ts
+# → 27 methods, each with line range. One query, compact output.
 ```
 
 Output: a hotspot list of 27 methods + their line ranges in `index.ts`.
 
 **Step 2 — Read at each hotspot (Fase B):**
 
-For each method on the list, `Read index.ts L153-L189` (constructor), `Read L191-L240` (add()), etc. Each Read produces a paragraph for the blueprint + a `.claude/knowledge-base/references/mem0/.../index.ts:N` citation.
+For each method on the list, `Read index.ts L153-L189` (constructor), `Read L191-L240` (add()), etc. Each Read produces a paragraph for the blueprint + a `.claude/knowledge-base/references/project-a/.../index.ts:N` citation.
 
 Result: a blueprint section that BOTH lists the entire surface (from Fase A) AND explains each non-trivial method (from Fase B), with line-exact citations.
 
@@ -67,7 +67,7 @@ Result: a blueprint section that BOTH lists the entire surface (from Fase A) AND
 | "Find call sites of `obj.method(...)`" | `ast-grep scan --rule` | `rules/method-call-ts.yml` |
 | "Find Python decorator + function combos" | `ast-grep scan --rule` | `rules/decorated-function-python.yml` |
 | "List every Python `async def`" | `ast-grep scan --rule` | `rules/async-function-python.yml` |
-| "Compare signatures across Mem0 (TS) and Letta (Python)" | `ast-grep run --pattern --lang` ×2 | inline, one per language |
+| "Compare signatures across Project A (TS) and Project B (Python)" | `ast-grep run --pattern --lang` ×2 | inline, one per language |
 | "Find every `import` of a module" | `ast-grep run --pattern` or `kind: import_statement` | inline |
 
 ## Quick reference — inline patterns (`ast-grep run`)
@@ -75,15 +75,15 @@ Result: a blueprint section that BOTH lists the entire surface (from Fase A) AND
 ```bash
 # Single-pattern search (TS): class with extends
 ast-grep run --pattern 'class $NAME extends $BASE { $$$ }' \
-  --lang typescript .claude/knowledge-base/references/mem0/
+  --lang typescript .claude/knowledge-base/references/project-a/
 
 # Method call by name (TS)
 ast-grep run --pattern '$OBJ.embed($$$)' \
-  --lang typescript .claude/knowledge-base/references/mem0/
+  --lang typescript .claude/knowledge-base/references/project-a/
 
 # Python async functions
 ast-grep run --pattern 'async def $NAME($$$):
-    $$$' --lang python .claude/knowledge-base/references/langmem/
+    $$$' --lang python .claude/knowledge-base/references/project-c/
 ```
 
 Pattern syntax:
@@ -102,11 +102,11 @@ The five YAML rule files shipped here cover the most common queries `/discover-e
 
 | Rule file | Language | What it finds | Example use |
 |---|---|---|---|
-| `rules/class-extends-ts.yml` | TypeScript | Every class that has an `extends` clause | Find error class hierarchies, inheritance chains in Mem0 |
-| `rules/method-in-class-ts.yml` | TypeScript | Every method defined inside any class body | List the surface of a class (Mem0's `Memory`) |
+| `rules/class-extends-ts.yml` | TypeScript | Every class that has an `extends` clause | Find error class hierarchies, inheritance chains in Project A |
+| `rules/method-in-class-ts.yml` | TypeScript | Every method defined inside any class body | List the surface of a class (Project A's `Memory`) |
 | `rules/method-call-ts.yml` | TypeScript | Calls to a named method (`$OBJ.METHOD($$$)`) | Find call sites of `.embed()`, `.add()`, `.search()` |
-| `rules/async-function-python.yml` | Python | Every `async def` function | Map Letta's async surface, LangMem's reflection loop |
-| `rules/decorated-function-python.yml` | Python | Every function with a decorator (any decorator) | Find `@pytest.fixture`, `@runtime_checkable`, dataclass-style decorators in Letta |
+| `rules/async-function-python.yml` | Python | Every `async def` function | Map Project B's async surface, Project C's reflection loop |
+| `rules/decorated-function-python.yml` | Python | Every function with a decorator (any decorator) | Find `@pytest.fixture`, `@runtime_checkable`, dataclass-style decorators in Project B |
 
 Each rule file is a standalone YAML. You can copy + modify (e.g., constrain `$BASE` to a specific class name).
 

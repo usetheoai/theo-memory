@@ -33,9 +33,9 @@ Five deterministic checkers, four dimensions:
 | **research_coverage** | `check_research_coverage.py` | ≤49 if any of the 4 corners (tests/deps/tools/techniques) is empty | 0.30 |
 | **reference_citations** | `check_reference_citations.py` | ≤49 if ANY cited path in `.claude/knowledge-base/references/` is fabricated (file does not exist) | 0.30 |
 | **blueprint_completeness** | `check_blueprint_completeness.py` | ≤70 if any mandatory section is missing or empty | 0.25 |
-| **risco_estrutural** (smells) | `check_spec_smells.py` (adapted from plan-confidence) | penalty only (no hard cap) | 0.15 |
+| **structural_risk** (smells) | `check_spec_smells.py` (adapted from plan-confidence) | penalty only (no hard cap) | 0.15 |
 
-The four weights sum to 1.0. Composite formula: `final = 0.30·research_coverage + 0.30·reference_citations + 0.25·blueprint_completeness + 0.15·risco_estrutural`.
+The four weights sum to 1.0. Composite formula: `final = 0.30·research_coverage + 0.30·reference_citations + 0.25·blueprint_completeness + 0.15·structural_risk`.
 
 When a hard cap fires, `final_score_after_caps = min(weighted_avg, smallest_active_cap)`.
 
@@ -47,7 +47,7 @@ When a hard cap fires, `final_score_after_caps = min(weighted_avg, smallest_acti
 - **M4 (PoLL Jury cross-family)** — Sonnet + GPT-4o-mini + Gemini Flash as judges of blueprint quality.
 - **M5 (Calibration via Semantic Entropy)** — N-sample uncertainty.
 
-In M2, future dimensions return empty `motivos`. The four active dimensions already sum to 1.0 (`0.30 + 0.30 + 0.25 + 0.15`), so no renormalization is currently applied. The renormalization machinery (same approach as `plan-confidence` ADR D8) only kicks in once M3+ dimensions are added without rebalancing the existing weights.
+In M2, future dimensions return empty `reasons`. The four active dimensions already sum to 1.0 (`0.30 + 0.30 + 0.25 + 0.15`), so no renormalization is currently applied. The renormalization machinery (same approach as `plan-confidence` ADR D8) only kicks in once M3+ dimensions are added without rebalancing the existing weights.
 
 ## Hard Caps (mirror discover-blueprint-golden-rule.md)
 
@@ -95,12 +95,12 @@ JSON with these top-level keys:
 
 - `blueprint_slug`, `blueprint_path`, `blueprint_version`
 - `research_coverage_score`, `reference_citations_score`, `blueprint_completeness_score`, `risco_estrutural_score` (0-100 each)
-- `active_dimensions` — `["research_coverage", "reference_citations", "blueprint_completeness", "risco_estrutural"]`
+- `active_dimensions` — `["research_coverage", "reference_citations", "blueprint_completeness", "structural_risk"]`
 - `weight_normalization_factor` — 1.0 in M2 (all four active)
 - `hard_caps_triggered` — list of triggered caps (`["empty_corner_tests"]`, `["fabricated_citation"]`, etc.)
 - `final_score_after_caps` — composite after applying caps
 - `verdict` — SHIPPABLE / SHIPPABLE_WITH_CAVEATS / NON_SHIPPABLE / INVALID
-- `motivos` — dict of dimension → list of top-3 contributors and detractors (with citations)
+- `reasons` — dict of dimension → list of top-3 contributors and detractors (with citations)
 - `sub_reports` — raw output from each checker for auditability
 
 ## Exit Codes

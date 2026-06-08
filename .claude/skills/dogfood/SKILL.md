@@ -1,6 +1,6 @@
 ---
 name: dogfood
-description: Honesty gate that blocks any 'production-ready' / v1.0 / 'production-grade' claim for @usetheo/memory without recorded evidence of sustained internal use. Reads the dogfood manifest at .claude/knowledge-base/dogfood/manifest.md plus evidence files at .claude/knowledge-base/dogfood/evidence/, applies the dogfood golden rule (.claude/rules/dogfood-golden-rule.md), and emits EVIDENCE_SUFFICIENT / EVIDENCE_WITH_CAVEATS / EVIDENCE_INSUFFICIENT. Invoke before any production claim, milestone promotion review targeting v1.0, README/CHANGELOG edit that touches status language, or release decision.
+description: Honesty gate that blocks any 'production-ready' / 'production-grade' / v1.0 claim without recorded evidence of sustained internal use. Reads the project's dogfood manifest at knowledge-base/dogfood/manifest.md plus evidence files at knowledge-base/dogfood/evidence/, applies the project-specific dogfood golden rule (rules/dogfood-golden-rule.md — created per project), and emits EVIDENCE_SUFFICIENT / EVIDENCE_WITH_CAVEATS / EVIDENCE_INSUFFICIENT. Invoke before any production claim, milestone promotion targeting v1.0, README/CHANGELOG edit that touches status language, or release decision.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write Edit
 argument-hint: "[audit|log-evidence|status]"
@@ -8,217 +8,91 @@ argument-hint: "[audit|log-evidence|status]"
 
 # Skill: dogfood
 
-Aplica o **dogfood golden rule** (`.claude/rules/dogfood-golden-rule.md`) ao manifesto em `.claude/knowledge-base/dogfood/manifest.md` e aos arquivos de evidência em `.claude/knowledge-base/dogfood/evidence/`. Emite veredicto sobre se o projeto pode legitimamente afirmar `production-ready` / `production-grade` / `v1.0 ready`.
+Applies the project's **dogfood golden rule** (`rules/dogfood-golden-rule.md`) to the manifest at `knowledge-base/dogfood/manifest.md` and evidence files in `knowledge-base/dogfood/evidence/`. Emits a verdict on whether the project may legitimately claim `production-ready` / `production-grade` / `v1.0 ready`.
 
-**Esta skill NÃO é opcional para o claim de v1.0.** Ler `dogfood-golden-rule.md` antes de invocar.
+**This skill is NOT optional for a v1.0 claim.** Read `rules/dogfood-golden-rule.md` before invoking.
+
+## Pre-conditions (per-project)
+
+This skill assumes the project has defined:
+
+1. **A dogfood golden rule** at `rules/dogfood-golden-rule.md` — declares the project's anchor scenario, the meaning of each `Status` value (e.g., `planned | wired | running | paused | abandoned`), evidence freshness thresholds, and the conditions under which the anchor may change.
+2. **A manifest** at `knowledge-base/dogfood/manifest.md` — declares the project's anchor scenario slug, current `Status`, and target dates.
+3. **An evidence directory** at `knowledge-base/dogfood/evidence/` — append-only log of dogfood runs. Each file carries frontmatter with `scenario:`, `date:`, and a structured summary of what was exercised.
+
+If any of these is missing, the skill emits `EVIDENCE_INSUFFICIENT` with the corresponding flag (`golden_rule_missing`, `manifest_missing`, or `evidence_dir_missing`).
 
 ## Why this skill exists
 
-CLAUDE.md (root): "No production claims until v1.0 with benchmarks reproduced independently."
+Chaos tests and synthetic benchmarks prove the system responds to a workload. **Dogfood proves the system is usable when the team that built it depends on it.** Without a dogfood gate, the temptation to claim `production-ready` at v1.0 — backed only by CI passing on toy clusters — is high. The classic platform failure mode is shipping something that passes CI but breaks the moment internal teams try to use it for anything beyond hello-world.
 
-Benchmarks provam que o sistema responde. **Dogfood prova que o sistema é usável.** Os dois são complementares — não substitutos.
+The skill is the gate that keeps the production claim honest against that temptation.
 
-O failure mode SOTA para sistemas de memória é exatamente esse: scores altos em eval sintético (LongMemEval, MemQA) combinados com DX miserável no mundo real. Um time consegue shipar um clone de Mem0 que passa nos próprios benchmarks enquanto é inutilizável em qualquer agent loop real. Sem um gate de dogfood, a tentação de claim production-ready em v1.0 — backed apenas por benchmarks contra datasets curados — é alta.
+## Arguments
 
-TheMemory entra em pre-release como exceção explícita ao "production-ready" claim do monorepo (lock 2026-05-15). Esta skill é o gate que mantém a exceção honesta.
+- `$ARGUMENTS = audit` (or empty) → runs the full gate and emits a verdict.
+- `$ARGUMENTS = log-evidence` → interactive mode: helps record new evidence for the anchor or a sibling scenario.
+- `$ARGUMENTS = status` → quick summary (Status + evidence count + age of latest); no formal verdict.
 
-## Anchor scenario (locked at day 0)
+## Process — `audit` mode (default)
 
-**S1 — Claude Code auto-memory backed by TheMemory**
+### Step 1 — Verify pre-conditions
 
-O sistema de auto-memória persistente do Claude Code (em `/home/paulo/.claude/projects/<project-slug>/memory/`) é exatamente o problema que TheMemory resolve: memória scoped, persistente, atravessando sessões. Wirar isso a TheMemory é o dogfood mais cru possível — sentimos cada dor de DX, cada gap de API, cada miss de retrieval antes que qualquer usuário externo sinta.
+Check that `rules/dogfood-golden-rule.md`, `knowledge-base/dogfood/manifest.md`, and `knowledge-base/dogfood/evidence/` all exist. Missing any → emit the corresponding flag + verdict `EVIDENCE_INSUFFICIENT`. Stop.
 
-A âncora está **locked**. Não pode ser silenciosamente substituída por uma alternativa "mais fácil de wirar". Mudar a âncora exige strategic review (ver `dogfood-golden-rule.md § When this rule may change`).
+### Step 2 — Locate the anchor section in the manifest
 
-## Argumento
+The manifest declares an anchor scenario by a slug field (`**Slug**`, `Slug:`, or equivalent — defined by the golden rule). Extract:
 
-- `$ARGUMENTS = audit` (ou sem argumento) → roda o gate completo e emite veredicto
-- `$ARGUMENTS = log-evidence` → modo interativo: ajuda a registrar nova evidência da âncora ou outro cenário
-- `$ARGUMENTS = status` → resumo rápido (status field + contagem de evidência + idade da última); sem veredicto formal
+- `Status` — must be one of the values declared in the golden rule
+- The "target date" field (golden rule names it; e.g., `Anchor MUST become running before`)
+- The `Latest evidence` list if present
 
-## Processo — modo `audit` (default)
+Missing anchor section OR missing `Status` field → flag `anchor_missing`.
 
-### Passo 1 — Ler o manifesto
+### Step 3 — Apply hard caps to the anchor
 
-```!
-test -f .claude/knowledge-base/dogfood/manifest.md && cat .claude/knowledge-base/dogfood/manifest.md || echo "MANIFEST MISSING"
-```
+In order:
 
-Se o arquivo não existe → veredicto imediato `EVIDENCE_INSUFFICIENT` com flag `manifest_missing`. Pare e reporte.
-
-### Passo 2 — Localizar a seção da âncora
-
-Procure no manifesto pela seção começando com `### S1 — Claude Code auto-memory backed by TheMemory` (ou com `**Slug:** claude-code-auto-memory`). Extraia:
-
-- Campo `**Status:**` → deve ser um de: `planned | wired | running | paused | abandoned`
-- Campo `**Locked at:**` → data
-- Campo `**Latest evidence:**` → caminho ou `N/A`
-
-Se a seção da âncora não está presente OU o campo `**Status:**` está ausente → flag `anchor_missing` (hard cap 1).
-
-### Passo 3 — Aplicar hard caps na âncora
-
-Em ordem:
-
-| # | Check | Flag emitida |
+| # | Check | Flag on failure |
 |---|---|---|
-| 1 | Seção da âncora presente + `**Status:**` presente | `anchor_missing` (se falha) |
-| 2 | `**Status:**` == `running` (case-insensitive, sem trailing punctuation) | `anchor_not_running` (se falha) |
-| 3 | `glob` em `.claude/knowledge-base/dogfood/evidence/*.md` retorna ≥ 1 arquivo cuja frontmatter `scenario:` casa com a âncora (`claude-code-auto-memory` ou alias declarado no manifesto) | `no_anchor_evidence` (se falha) |
-| 4 | Da lista filtrada do check 3, o arquivo mais recente (por `date:` frontmatter) é ≤ 30 dias da data atual | `anchor_evidence_stale` (se falha) |
+| 1 | Anchor section present + `Status` present | `anchor_missing` |
+| 2 | `Status` matches the golden rule's "running" value (case-insensitive) | `anchor_not_running` |
+| 3 | `glob` of `knowledge-base/dogfood/evidence/*.md` returns ≥ 1 file whose frontmatter `scenario:` matches the anchor slug | `no_anchor_evidence` |
+| 4 | The most recent matching file (by `date:` frontmatter) is within the freshness threshold declared in the golden rule | `anchor_evidence_stale` |
 
-**Qualquer flag emitida → veredicto `EVIDENCE_INSUFFICIENT`.** Sem exceção, sem renormalização.
+**Any flag → verdict `EVIDENCE_INSUFFICIENT`.** No exceptions.
 
-### Passo 4 — Aplicar soft caps (apenas se os 4 hard caps passaram)
+### Step 4 — Apply soft caps (only if all hard caps pass)
 
-Per ADR-0012 (2026-06-04 amendment), only ONE soft cap remains active:
+Soft caps are defined per-project in the golden rule (e.g., minimum evidence count, coverage of sibling scenarios, presence of failure stories). Any soft cap fail → verdict `EVIDENCE_WITH_CAVEATS` and list which caps fired.
 
-| # | Check | Flag emitida |
-|---|---|---|
-| 5 | Ao menos um arquivo de evidência da âncora tem conteúdo não-vazio em `## DX pains encountered` ou `## API gaps surfaced` | `soft_no_pains_logged` (se falha) |
-
-**Qualquer soft cap emitido → veredicto `EVIDENCE_WITH_CAVEATS`** (não bloqueia, mas exige footnote em qualquer claim).
-**Nenhuma flag emitida → veredicto `EVIDENCE_SUFFICIENT`.**
-
-#### Dropped soft caps (per ADR-0012)
-
-These no longer fire and should NOT appear in audit reports:
-
-- ~~`soft_sustained_lt_30d`~~ — first evidence ≥ 30 days old. Dropped because empirical-snapshot path treats day-0 evidence as legitimate.
-- ~~`soft_evidence_density_low`~~ — density per running day. Dropped for the same rationale.
-
-The active soft cap list lives here AND in `dogfood-golden-rule.md § Soft gates`.
-
-### Passo 5 — Vocabulary lock check
-
-```!
-grep -rEn '\b(production-ready|production-grade|v1\.0 ready)\b' README.md docs/ CHANGELOG.md 2>/dev/null | grep -v 'No production claims\|until v1.0\|exception to' | head -10
-```
-
-Se o grep retorna matches **E** o veredicto é `EVIDENCE_INSUFFICIENT` → adicione flag `vocabulary_lock_violated` ao report. Liste os arquivos + linhas. Isso é uma violação da inquebrável que pede correção imediata.
-
-### Passo 6 — Emitir report
-
-Caminho: print no stdout (não salva arquivo). Para audit trail persistente, o usuário pode redirecionar OU este passo pode ser estendido para salvar em `.claude/knowledge-base/reviews/dogfood-audit-{YYYY-MM-DD}.md` (não obrigatório no day 0).
-
-Formato:
+### Step 5 — Emit verdict
 
 ```
-# /dogfood — audit report
-Data: YYYY-MM-DD
-
-## Verdict
-**{EVIDENCE_SUFFICIENT | EVIDENCE_WITH_CAVEATS | EVIDENCE_INSUFFICIENT}**
-
-## Anchor scenario status
-- Name: Claude Code auto-memory backed by TheMemory
-- Status: {planned|wired|running|paused|abandoned}
-- Evidence files (anchor): N
-- Latest evidence: {filename} ({N days ago})
-- First evidence: {filename} ({N days ago})
-
-## Hard caps triggered
-{lista de stable identifiers OR "(none)"}
-
-## Soft caps triggered
-{lista de stable identifiers OR "(none)"}
-
-## Vocabulary lock
-{OK | VIOLATED + lista de arquivos:linhas}
-
-## What to do next
-- If EVIDENCE_INSUFFICIENT: {ações específicas — atualizar status, registrar evidence, etc.}
-- If EVIDENCE_WITH_CAVEATS: {soft caps a fechar para chegar a SUFFICIENT}
-- If EVIDENCE_SUFFICIENT: production claims podem ser feitas. Recheque antes de cada release.
+EVIDENCE_SUFFICIENT     — all hard + soft caps pass
+EVIDENCE_WITH_CAVEATS   — all hard caps pass, ≥ 1 soft cap failed
+EVIDENCE_INSUFFICIENT   — any hard cap failed
 ```
 
-## Processo — modo `log-evidence`
+Verdict goes to stdout in a fenced block; full details (which caps fired, evidence age, etc.) follow.
 
-Modo interativo para criar um novo arquivo em `.claude/knowledge-base/dogfood/evidence/`.
+## Process — `log-evidence` mode
 
-1. Perguntar qual cenário (default: anchor `claude-code-auto-memory`)
-2. Perguntar status atual do cenário (`running` é o esperado pra logar evidência)
-3. Perguntar:
-   - O que você fez na última sessão usando TheMemory como backing store?
-   - Que dores de DX você sentiu? (lista — vazio é permitido mas suspeito)
-   - Que gaps de API você encontrou? (lista)
-   - Qual o objetivo da próxima sessão de dogfood?
-4. Gerar arquivo em `.claude/knowledge-base/dogfood/evidence/{scenario-slug}-{YYYY-MM-DD}.md` com frontmatter:
-   ```yaml
-   ---
-   scenario: claude-code-auto-memory
-   date: YYYY-MM-DD
-   status: running
-   session_focus: "<texto curto>"
-   ---
-   ```
-5. Sugerir atualizar o `**Latest evidence:**` campo no manifesto.
+Interactive: asks for scenario slug, date (defaults to today), and a summary template. Writes `knowledge-base/dogfood/evidence/{scenario}-{YYYY-MM-DD-HHMMSS}.md` with the required frontmatter.
 
-## Processo — modo `status`
+## Process — `status` mode
 
-Resumo rápido sem aplicar caps:
+Reads the manifest's anchor `Status` field, counts evidence files matching the anchor slug, reports the age of the most recent one. Emits a one-line summary. Never emits a verdict.
 
-```
-Anchor: claude-code-auto-memory
-Status field: {value}
-Evidence files (anchor): N
-Latest evidence: {date} ({N days ago})
-```
+## Output
 
-Sem veredicto. Útil para checar rapidamente "preciso logar evidência hoje?".
-
-## Verdict bands
-
-| Veredicto | Significado | O que permite |
-|---|---|---|
-| `EVIDENCE_SUFFICIENT` | Todos os hard + soft caps passaram. | Production claims permitidas. Recheque antes de cada release. |
-| `EVIDENCE_WITH_CAVEATS` | Hard caps passaram, ≥1 soft cap acionou. | Claims com footnote explícito declarando o caveat ("running for 14 days; sustained dogfood evidence still accumulating"). NÃO use `production-ready` puro. |
-| `EVIDENCE_INSUFFICIENT` | ≥1 hard cap acionou. | NENHUM claim `production-ready` / `production-grade` / `v1.0 ready` é permitido. Public copy permanece como pre-release. |
-
-## When to invoke
-
-Inquebrável — invoque ANTES de:
-
-1. **Qualquer claim `production-ready` em README, docs, ou marketing.**
-2. **Promoção para v1.0** (roadmap milestone).
-3. **Edit em CLAUDE.md (root ou projeto) que enfraqueça a honesty discipline.**
-4. **Edit em README.md § Status que mude pre-release status.**
-5. **Release decision** (npm publish de qualquer tag estável).
-
-Opcionalmente — invoque para informação:
-
-- Antes de planning de milestone (saber onde está o anchor scenario)
-- Após cada sessão de dogfood (para lembrar de logar evidence)
+- `audit` and `log-evidence` modes write to `knowledge-base/reviews/dogfood-{YYYY-MM-DD}.md`.
+- `status` mode is stdout-only.
 
 ## Anti-patterns
 
-1. **NUNCA crie um flag `--force` ou `--skip-checks`** — proibido pela golden rule (constructor invariant). Se o gate está bloqueando algo legítimo, o problema é o gate ou o cenário, não a presença do gate.
-2. **NUNCA mude o anchor scenario silenciosamente** — exige strategic review + ADR. Trocar a âncora porque "Claude Code é difícil de wirar" é exatamente o sintoma que o gate existe para pegar.
-3. **NUNCA registre evidence sintética** — "rodei mentalmente o cenário" não conta. Evidence é registro de uso REAL. Sintética é teatro.
-4. **NUNCA marque status `running` se TheMemory não está sendo o backing store ativo** — `running` significa "se TheMemory cair agora, perdi memória de verdade". Senão é `wired` ou `paused`.
-5. **NUNCA esconda DX pains nas evidence files** — gaps de API encontrados em dogfood são o sinal mais valioso do gate. Logar `DX pains: none` em todo arquivo é sinal de que a evidence está sendo escrita após-fato sem detalhe.
-6. **NUNCA invoque este skill como rubber stamp** — se você está procurando o veredicto antes da evidência, está usando errado. O fluxo é: faça o dogfood → registre evidence → INVOQUE o skill para auditar.
-
-## Integração
-
-- **Skill standalone** — não faz parte do `cycle-discover`, `cycle-plan`, `cycle-implement`, ou `cycle-review`. É invocado MANUALMENTE pelo humano antes dos triggers listados em "When to invoke".
-- **Não há cycle-dogfood.md** — single-skill por design (KISS / YAGNI). Se eventualmente surgir necessidade de scenario runner automatizado, scenario generator, etc., aí sim um cycle-* rule é justificado.
-- **Não bloqueia `cycle-review` no fluxo atual** — `cycle-review` é o gate de merge; `/dogfood` é o gate de production claim. Diferentes momentos no tempo.
-- **Estado externo:** manifesto + evidence/ são a única source of truth. Esta skill não grava state em outro lugar.
-
-## Custo aproximado
-
-Modo `audit`: ~3-8k tokens (lê manifest + lista evidence + emite report).
-Modo `log-evidence`: ~5-10k tokens (interativo).
-Modo `status`: ~1-2k tokens.
-
-Bem abaixo dos cycles principais — adicionar ao budget mensal não move a agulha.
-
-## Cross-references
-
-- Rule: [`.claude/rules/dogfood-golden-rule.md`](../../rules/dogfood-golden-rule.md)
-- Manifest: [`.claude/knowledge-base/dogfood/manifest.md`](../../knowledge-base/dogfood/manifest.md)
-- Evidence dir: `.claude/knowledge-base/dogfood/evidence/`
-- Project honesty discipline: `/home/paulo/Projetos/usetheo/theo-memory/CLAUDE.md § Roadmap → Honesty discipline`
-- Root inquebrável (Honestidade Extrema): `/home/paulo/.claude/CLAUDE.md § 3`
-- Token budget: `.claude/rules/token-budget.md` (skill adiciona linha; ver § Auxiliary)
+- Treating `EVIDENCE_WITH_CAVEATS` as `SUFFICIENT`. Caveats are explicit — read them.
+- Logging evidence for a different scenario and claiming it satisfies the anchor.
+- Silently changing the anchor when it becomes inconvenient. The golden rule declares when (and how) the anchor may change.
+- Running dogfood as theater. The point is to actually use the thing.

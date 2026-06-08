@@ -14,9 +14,9 @@ argument-hint: "<topic or description>"
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
 
-**Project rules consumed (TheMemory):** if `.claude/rules/public-copy.md` exists, slides/diagrams derived from this output that may surface in README/PITCH are bound by its voice rules. `.claude/rules/dogfood-golden-rule.md` blocks any "production-ready" diagram label without dogfood evidence. `.claude/rules/token-budget.md` tracks cost (`/excalidraw` adds ~5-15k tokens per diagram via render-view-fix loop).
+**Project rules consumed:** if `.claude/rules/public-copy.md` exists, slides/diagrams derived from this output that may surface in README/PITCH are bound by its voice rules. `.claude/rules/dogfood-golden-rule.md` blocks any "production-ready" diagram label without dogfood evidence.
 
 Generate `.excalidraw` JSON files that **argue visually**, not just display information.
 
@@ -42,7 +42,7 @@ When creating diagrams for Marp presentations (see `/marp-slide` skill), follow 
 - **Always enable "Embed Scene"** — preserves the `.excalidraw` data inside the export for future editing
 
 ### File Organization
-Store files next to the presentation markdown. In TheMemory the default presentation directory is `docs/presentations/` (consistent with `docs/exploration-reports/`); other projects may override:
+Store files next to the presentation markdown. Default presentation directory is `docs/presentations/`; projects may override:
 ```
 <presentation-dir>/  # default: docs/presentations/
   apresentacao-<name>.md

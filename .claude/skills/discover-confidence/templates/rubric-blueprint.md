@@ -50,7 +50,7 @@ nodes:
     hard_cap_value: 70
     weight: 0.25
   - id: 4
-    dimension: risco_estrutural
+    dimension: structural_risk
     description: "Spec smells below threshold (subjective adjs, weak imperatives, vague pronouns, loopholes, non-verifiable terms)"
     detector: spec_smells
     failure_action: penalty
@@ -73,22 +73,12 @@ smells:
       - optimal
       - smart
       - friendly
-      - rapido
-      - rápido
-      - eficiente
-      - escalavel
-      - escalável
-      - otimo
-      - ótimo
-      - inteligente
-      - amigavel
-      - amigável
   weak_imperatives:
     pattern_type: regex
-    pattern: '\b(should|could|may|might|deveria|poderia|talvez|possivelmente|deveriam|poderiam)\b'
+    pattern: '\b(should|could|may|might)\b'
   vague_pronouns:
     pattern_type: regex
-    pattern: '(^|\. )(This|That|These|Those|Isso|Isto|Aquilo|Esses|Aqueles|Essas|Aquelas)\b'
+    pattern: '(^|\. )(This|That|These|Those)\b'
   loopholes:
     pattern_type: dictionary
     phrases:
@@ -96,15 +86,6 @@ smells:
       - "as appropriate"
       - "when applicable"
       - "where feasible"
-      - "se possivel"
-      - "se possível"
-      - "quando aplicavel"
-      - "quando aplicável"
-      - "se cabivel"
-      - "se cabível"
-      - "conforme apropriado"
-      - "onde viavel"
-      - "onde viável"
   non_verifiable:
     pattern_type: dictionary
     words:
@@ -112,12 +93,6 @@ smells:
       - maintainable
       - scalable
       - robust
-      - manutenivel
-      - manutenível
-      - escalavel
-      - escalável
-      - facil-de-usar
-      - fácil-de-usar
 ```
 
 ## Soft caps (conservative bias)
@@ -134,4 +109,4 @@ Soft caps appear in `hard_caps_triggered` with prefix `soft_floor_` but do NOT t
 
 - **M3 future** — citation faithfulness (does the cited path actually contain the claimed behavior?) requires SAFE-adapted semantic check. M2 only verifies path existence.
 - **EC analog** — smells inside `## Anti-patterns` or `## Blocked questions` sections of a blueprint are counted (false positives in metalanguage). Acceptable trade-off for M2.
-- **Regex `\b` boundaries** — ASCII-oriented; pt-BR words with accents may fall outside `\b`. Implementation uses `re.UNICODE`.
+- **Regex `\b` boundaries** — ASCII-oriented. Implementation uses `re.UNICODE` for safety.

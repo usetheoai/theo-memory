@@ -32,7 +32,7 @@ Single candidate skill at:
 └── .source-blueprint    ← marker file pointing to the blueprint that produced it
 ```
 
-Where `{topic}` is derived from the blueprint slug by stripping the `-blueprint` suffix and appending `-patterns`. Example: `letta-pgvector-schema-blueprint.md` → `letta-pgvector-schema-patterns`. The full slug is preserved; do not truncate semantically.
+Where `{topic}` is derived from the blueprint slug by stripping the `-blueprint` suffix and appending `-patterns`. Example: `project-b-pgvector-schema-blueprint.md` → `project-b-pgvector-schema-patterns`. The full slug is preserved; do not truncate semantically.
 
 Generated skills are STAGING. They live under `generated/` until `/skill-validator` approves and `/skill-register` promotes them to `.claude/skills/{topic}-patterns/`.
 

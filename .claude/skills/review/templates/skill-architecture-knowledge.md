@@ -53,10 +53,10 @@ You are loaded as the knowledge layer for the architecture-reviewer agent review
 
 ## Knowledge refresh protocol
 
-### Mode A — Rule lookup (cheap, ~500 tokens)
+### Mode A — Rule lookup (lightweight)
 Agent asks "is this DIP-violation?" or "does this respect architecture.md § 3?". Read the verbatim rule above + return YES/NO + cite the exact rule line. No WebSearch needed.
 
-### Mode B — Community canonical reference (medium, ~3-5k tokens)
+### Mode B — Community canonical reference
 Agent asks for canonical SOLID/Clean-Architecture/Pattern definition. Steps:
 
 1. Verify domain is architecture/SOLID/DDD/patterns (in scope). If not, decline.
@@ -65,7 +65,7 @@ Agent asks for canonical SOLID/Clean-Architecture/Pattern definition. Steps:
 4. WebFetch top result. Extract definition + applicability conditions.
 5. Return to agent: (a) verbatim canonical definition, (b) URL, (c) verdict matching plan's actual code.
 
-### Mode C — Cross-reference (cheap, ~1k tokens)
+### Mode C — Cross-reference (lightweight)
 Agent asks "does file X actually import only from src/core/?" — Read + Grep to verify.
 
 ## Specific knowledge anchors (priming for common requests)

@@ -11,6 +11,10 @@ Exit codes:
   0 — Domain detected with confidence ≥ 0.5 for primary
   1 — No domain detected (no keyword hits) — confidence too low; report as "unknown"
   2 — Error (plan not found, etc.)
+
+The DOMAINS dictionary below is intentionally agnostic across common software
+engineering concerns. Projects may extend it by editing this file (no per-project
+mechanism — the script is consumed by /review which is itself agnostic).
 """
 from __future__ import annotations
 
@@ -23,62 +27,66 @@ from collections import defaultdict
 from pathlib import Path
 
 
-# Domain dictionary — keyword sets per domain
+# Domain dictionary — agnostic keyword sets per domain
 DOMAINS: dict[str, list[str]] = {
-    "memory-layer": [
-        "memory store", "memory tier", "remember", "recall", "forget", "reflect",
-        "User scope", "Session scope", "Agent scope", "fact extraction",
-        "additive scoring", "Mem0-shape", "TheMemory", "@usetheo/memory",
-        "memory-layer", "memory adapter",
-    ],
-    "pgvector-schema": [
-        "pgvector", "HNSW", "IVFFlat", "vector index", "embedding column",
-        "vector type", "vector(", "Alembic", "migration",
-        "pyproject.toml", "psycopg2", "asyncpg", "SQLAlchemy",
-        "tier mapping", "schema", "src/local/",
-    ],
-    "llm-extraction": [
-        "LLM extraction", "extraction prompt", "extract facts", "six-phase",
-        "temperature", "max_tokens", "generateResponse", "completion",
-        "llm.complete", "structured output", "function calling",
-        "src/core/extraction/",
-    ],
-    "retrieval": [
-        "retrieval", "semantic search", "BM25", "hybrid", "embeddings",
-        "topK", "similarity score", "rerank", "entity boost",
-        "nine-step search", "src/core/retrieval/",
-    ],
     "auth": [
-        "authentication", "authorization", "JWT", "OAuth", "session token",
+        "authentication", "authorization", "JWT", "OAuth", "OIDC", "session token",
         "password hash", "argon2", "bcrypt", "CSRF", "login", "logout",
-        "src/auth/", "src/core/auth/",
+        "RBAC", "ACL", "permission",
     ],
     "api-design": [
         "REST", "GraphQL", "OpenAPI", "endpoint", "status code",
         "200", "201", "400", "401", "403", "404", "500",
         "Content-Type", "Accept", "POST /", "GET /",
-        "src/api/", "routes/",
+        "API contract", "request schema", "response schema",
     ],
-    "frontend-react": [
-        "React", "JSX", "TSX", "useState", "useEffect", "hook",
-        "component", "props", "Tailwind", "aria-",
-        "accessibility", "a11y",
-        "src/components/", "app/", "pages/",
+    "frontend": [
+        "React", "Vue", "Svelte", "Angular", "JSX", "TSX",
+        "useState", "useEffect", "hook", "component", "props",
+        "Tailwind", "CSS", "aria-", "accessibility", "a11y",
+        "client-side", "browser",
     ],
-    "db-migrations": [
-        "migration", "Alembic", "down_revision", "schema", "ALTER TABLE",
-        "CREATE TABLE", "DROP TABLE", "INDEX", "FOREIGN KEY",
-        "alembic/versions/", "migrations/",
+    "database": [
+        "schema", "migration", "ALTER TABLE", "CREATE TABLE", "DROP TABLE",
+        "INDEX", "FOREIGN KEY", "transaction", "ACID",
+        "ORM", "query builder", "connection pool",
+        "Alembic", "Flyway", "Liquibase",
     ],
     "cli-tooling": [
-        "argparse", "click", "commander", "CLI", "command-line",
-        "subcommand", "stdin", "stdout", "exit code",
-        "bin/", "src/cli/",
+        "argparse", "click", "commander", "cobra", "CLI", "command-line",
+        "subcommand", "stdin", "stdout", "exit code", "argument parsing",
     ],
     "observability": [
-        "metric", "counter", "tracing", "OpenTelemetry", "Prometheus",
-        "log", "logger", "structured logging", "audit trail",
-        "src/observability/", "monitoring/",
+        "metric", "counter", "histogram", "gauge",
+        "tracing", "span", "OpenTelemetry", "Prometheus", "Grafana",
+        "log", "logger", "structured logging", "audit trail", "alerting",
+    ],
+    "testing": [
+        "unit test", "integration test", "e2e test", "fixture",
+        "mock", "stub", "spy", "fake", "test double",
+        "coverage", "TDD", "BDD", "snapshot test", "property test",
+        "pyramid",
+    ],
+    "infrastructure": [
+        "Docker", "Kubernetes", "Helm", "Terraform", "IaC",
+        "CI/CD", "pipeline", "deployment", "release",
+        "cloud", "AWS", "GCP", "Azure", "container",
+    ],
+    "concurrency": [
+        "goroutine", "async", "await", "Promise", "Future",
+        "thread", "mutex", "lock", "race condition", "deadlock",
+        "channel", "actor", "message passing", "atomic",
+    ],
+    "security": [
+        "vulnerability", "CVE", "exploit", "injection",
+        "XSS", "CSRF", "SQL injection", "SSRF", "IDOR",
+        "secret", "credential", "encryption", "hashing",
+        "TLS", "SSL", "certificate", "OWASP",
+    ],
+    "data-pipeline": [
+        "ETL", "ingestion", "transform", "pipeline",
+        "stream", "batch", "Kafka", "RabbitMQ", "queue",
+        "producer", "consumer", "event sourcing",
     ],
 }
 
@@ -86,7 +94,7 @@ DOMAINS: dict[str, list[str]] = {
 def _find_project_root(start: Path) -> Path:
     current = start.resolve() if not start.is_file() else start.resolve().parent
     for _ in range(20):
-        if (current / ".claude").exists() or (current / ".git").exists():
+        if (current / "rules").exists() or (current / ".git").exists():
             return current
         if current == current.parent:
             break
@@ -116,7 +124,7 @@ def _git_diff_filenames(project_root: Path, diff_base: str) -> list[str]:
 
 
 def _patterns_skills_text(project_root: Path) -> str:
-    skills_dir = project_root / ".claude" / "skills"
+    skills_dir = project_root / "skills"
     if not skills_dir.exists():
         return ""
     blocks: list[str] = []
@@ -171,7 +179,7 @@ def rank_domains(hits: dict[str, dict[str, int | list[str]]]) -> tuple[str | Non
 def main() -> int:
     parser = argparse.ArgumentParser(description="Detect primary + secondary domains from a plan + diff.")
     parser.add_argument("--plan", type=Path, required=True, help="Path to plan markdown")
-    parser.add_argument("--diff-base", default="main", help="Git base ref for diff (default: main)")
+    parser.add_argument("--diff-base", default="develop", help="Git base ref for diff (default: develop)")
     parser.add_argument("--project-root", type=Path, default=None)
     args = parser.parse_args()
 

@@ -14,16 +14,15 @@ argument-hint: "[plan-slug] (optional — bind audit to a plan's Dependencies se
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+> See `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Audit project dependencies for known vulnerabilities AND outdated versions. Multi-ecosystem (npm, Python, Rust, Go) with auto-detection. **Read-only** by design: NEVER edits manifests; produces diff-style bump suggestions for human application.
 
-**Project rules consumed (TheMemory):**
-- `.claude/rules/deps-audit-golden-rule.md` — locked contract; inquebrável hard caps (CRITICAL/HIGH CVE in declared dep = BLOCKER).
-- `.claude/rules/deps-audit-allowlist.txt` — CVE/version allowlist with mandatory rationale + sunset date ≤ 90 days.
-- Inquebrável Rule 9 (`/home/paulo/.claude/CLAUDE.md § 9`) — drives the philosophy: use existing scanners (`osv-scanner`, `npm audit`, `pip-audit`, `cargo audit`, `govulncheck`); never reimplement CVE detection.
-- `.claude/rules/token-budget.md` — 5-20k tokens typical per invocation (scanner runtime is ~zero LLM tokens; cost is in JSON parsing + cross-referencing + report writing).
-- `.claude/rules/cycle-plan.md` — wired between `/edge-case-plan` and `/plan-confidence`.
+**Project rules consumed:**
+- `rules/deps-audit-golden-rule.md` — locked contract; unbreakable hard caps (CRITICAL/HIGH CVE in declared dep = BLOCKER).
+- `rules/deps-audit-allowlist.txt` — CVE/version allowlist with mandatory rationale + sunset date ≤ 90 days.
+- Unbreakable Rule 9 (`/home/paulo/.claude/CLAUDE.md § 9`) — drives the philosophy: use existing scanners (`osv-scanner`, `npm audit`, `pip-audit`, `cargo audit`, `govulncheck`); never reimplement CVE detection.
+- `rules/cycle-plan.md` — wired between `/edge-case-plan` and `/plan-confidence`.
 
 ---
 
@@ -53,7 +52,7 @@ Do NOT invoke when:
 /deps-audit
 ```
 
-Detects all manifests in repo root (excluding `node_modules/`, `.venv/`, `__pycache__/`, `.claude/knowledge-base/references/`, `dist/`, `build/`, `target/`), runs the matching auditors, prints a report to stdout. No plan binding; advisory only.
+Detects all manifests in repo root (excluding `node_modules/`, `.venv/`, `__pycache__/`, `knowledge-base/references/`, `dist/`, `build/`, `target/`), runs the matching auditors, prints a report to stdout. No plan binding; advisory only.
 
 ### Mode 2 — Plan-bound audit (RECOMMENDED for cycle-plan)
 
@@ -61,7 +60,7 @@ Detects all manifests in repo root (excluding `node_modules/`, `.venv/`, `__pyca
 /deps-audit {plan-slug}
 ```
 
-Reads `.claude/knowledge-base/plans/{slug}-plan.md` (or `.claude/knowledge-base/discoveries/plans/{slug}-plan.md`), parses its `## Dependencies` section, cross-references every declared dep against:
+Reads `knowledge-base/plans/{slug}-plan.md` (or `knowledge-base/discoveries/plans/{slug}-plan.md`), parses its `## Dependencies` section, cross-references every declared dep against:
 
 1. The actual manifest state (or marker `(NEW)` if dep is to be added by the plan).
 2. The auditor results (CVE database + outdated versions).
@@ -159,13 +158,13 @@ Parse the plan's `## Dependencies` section. Expected shape (template):
 
 | Package | Version | Ecosystem | Why |
 |---|---|---|---|
-| pgvector | ^0.7.0 | npm | Vector store driver per ADR D2 |
+| `<existing-lib>` | `^X.Y.Z` | npm/python/rust/go | Why this dep exists (cite ADR if applicable) |
 
 ### New — to be introduced
 
 | Package | Version | Ecosystem | Rule 9 rationale (libs evaluated) | Why this one |
 |---|---|---|---|---|
-| bm25 (NEW) | ^2.0.0 | npm | Evaluated: `okapibm25` (no TS types), `wink-bm25-text-search` (heavyweight). | Smallest dep tree; TS-native |
+| `<new-lib>` (NEW) | `^X.Y.Z` | npm/python/rust/go | Evaluated: alt A (reason rejected), alt B (reason rejected) | Decisive reason |
 
 ### Removed
 
@@ -197,7 +196,7 @@ See [`deps-audit-golden-rule.md § Severity rubric`](../../rules/deps-audit-gold
 
 In **Mode 1**: print full report to stdout.
 
-In **Mode 2**: write to `.claude/knowledge-base/audits/{slug}-deps-audit-{date}.md` AND print summary to stdout. The persistent file is the audit trail consumed by `/plan-confidence`.
+In **Mode 2**: write to `knowledge-base/audits/{slug}-deps-audit-{date}.md` AND print summary to stdout. The persistent file is the audit trail consumed by `/plan-confidence`.
 
 ---
 
@@ -241,8 +240,8 @@ In **Mode 2**: write to `.claude/knowledge-base/audits/{slug}-deps-audit-{date}.
 
 | Plan dep | Section | Manifest match | Audit clean? | Rule 9 OK? | Verdict |
 |---|---|---|---|---|---|
-| pgvector | Existing | yes (^0.7.0) | yes | n/a | OK |
-| bm25 | NEW | n/a (to add) | yes (no known CVE at ^2.0.0) | yes | OK |
+| `<existing-lib>` | Existing | yes (^X.Y.Z) | yes | n/a | OK |
+| `<new-lib>` | NEW | n/a (to add) | yes (no known CVE at ^X.Y.Z) | yes | OK |
 
 ## Recommended next steps
 
@@ -280,12 +279,12 @@ Allowlisted findings (within sunset) downgrade by ONE severity level: CRITICAL �
 4. **NEVER fabricate CVE IDs** — every CVE in the report must come verbatim from the auditor's JSON output. No memory-based citations.
 5. **NEVER claim "no vulnerabilities" when an auditor failed** — if `osv-scanner` crashed or `pip-audit` isn't installed, report the gap honestly. Half-audited is worse than not-audited (false sense of safety). The verdict for an unavailable auditor in a stack that has untestable HIGH-severity exposure caps at 70.
 6. **NEVER use `osv-scanner` alone for npm** — its npm dataset can lag GitHub Advisory; pair with `npm audit`. Cross-check both.
-7. **NEVER auto-upgrade** — even if the bump is "obviously safe". Human decides. Per Inquebrável Rule 1 (95% confidence) and Rule 4 (Git safety).
+7. **NEVER auto-upgrade** — even if the bump is "obviously safe". Human decides. Per Unbreakable Rule 1 (95% confidence) and Rule 4 (Git safety).
 8. **NEVER cite a CVE without its fix-version (or explicit "no fix available")** — empty fix data is a fabrication signal; either the tool failed to report it OR we hallucinated.
 9. **NEVER skip Rule 9 column on NEW deps** — see golden rule; this is a hard cap. "Picked X because it's popular" is NOT Rule 9 evaluation. Need rejected alternatives + reasons.
 10. **NEVER allowlist a CRITICAL CVE without sunset ≤ 30 days** — golden rule requires aggressive sunset for high severity; rejecting it via allowlist is a stopgap, not a destination.
 11. **NEVER bypass via `--force` / `--skip-audit` / `--accept-cves` flags** — they do not exist by design (golden rule constructor invariant).
-12. **NEVER use `.claude/knowledge-base/references/` clones as part of the audit surface** — read-only zone; their deps are not OUR responsibility.
+12. **NEVER use `knowledge-base/references/` clones as part of the audit surface** — read-only zone; their deps are not OUR responsibility.
 
 ---
 
@@ -293,20 +292,19 @@ Allowlisted findings (within sunset) downgrade by ONE severity level: CRITICAL �
 
 | Artifact | Rollback procedure |
 |---|---|
-| Report at `.claude/knowledge-base/audits/{slug}-deps-audit-{date}.md` | Delete file; no further state to revert. |
-| Allowlist entry at `.claude/rules/deps-audit-allowlist.txt` | Standard git revert of the line addition. |
+| Report at `knowledge-base/audits/{slug}-deps-audit-{date}.md` | Delete file; no further state to revert. |
+| Allowlist entry at `rules/deps-audit-allowlist.txt` | Standard git revert of the line addition. |
 | (No manifest changes ever — skill is read-only.) | n/a |
 
 ---
 
 ## Cross-references
 
-- Golden rule: [`.claude/rules/deps-audit-golden-rule.md`](../../rules/deps-audit-golden-rule.md)
-- Allowlist: [`.claude/rules/deps-audit-allowlist.txt`](../../rules/deps-audit-allowlist.txt)
-- Wired into: [`.claude/rules/cycle-plan.md`](../../rules/cycle-plan.md) (new phase between `/edge-case-plan` and `/plan-confidence` — v1.1)
-- Token budget: [`.claude/rules/token-budget.md`](../../rules/token-budget.md) § cycle-plan
+- Golden rule: [`rules/deps-audit-golden-rule.md`](../../rules/deps-audit-golden-rule.md)
+- Allowlist: [`rules/deps-audit-allowlist.txt`](../../rules/deps-audit-allowlist.txt)
+- Wired into: [`rules/cycle-plan.md`](../../rules/cycle-plan.md) (new phase between `/edge-case-plan` and `/plan-confidence` — v1.1)
 - Renovate/Dependabot complementary setup: `.github/dependabot.yml` or `renovate.json` — passive GitHub-side infra, out of scope for this skill
-- Inquebrável Rule 9: [`/home/paulo/.claude/CLAUDE.md § 9`](file:///home/paulo/.claude/CLAUDE.md) (Não Reinvente a Roda)
+- Unbreakable Rule 9: [`/home/paulo/.claude/CLAUDE.md § 9`](file:///home/paulo/.claude/CLAUDE.md) (Do Not Reinvent the Wheel)
 - Sibling skills: `/plan-confidence` (consumes this skill's verdict), `/dogfood` (also a hard-cap gate on plans)
 
 ## Downstream wiring required (NOT yet shipped — follow-up)

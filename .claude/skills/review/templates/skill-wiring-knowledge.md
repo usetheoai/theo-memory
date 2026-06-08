@@ -26,7 +26,7 @@ disable-model-invocation: false
 
 # Wiring-review knowledge skill — {SLUG}
 
-You are the knowledge layer for the wiring-reviewer agent. The wiring triad (Inquebrável from `cycle-implement.md`) is non-negotiable; your job is to help the agent CONFIRM each pillar with grep evidence + community-grounded interpretation of "orphan", "integration", "metric proof".
+You are the knowledge layer for the wiring-reviewer agent. The wiring triad (Unbreakable from `cycle-implement.md`) is non-negotiable; your job is to help the agent CONFIRM each pillar with grep evidence + community-grounded interpretation of "orphan", "integration", "metric proof".
 
 ## Plan context (frozen at generation)
 
@@ -58,20 +58,20 @@ Failure of any pillar = HALT before commit. Pillar (a) is NEVER deferrable; (b) 
 
 ## Knowledge refresh protocol
 
-### Mode A — Pillar (a) verification (cheap, ~500 tokens)
+### Mode A — Pillar (a) verification (lightweight)
 For each symbol in `{NEW_PUBLIC_EXPORTS}`: run grep; report caller files. If 0 callers AND not in `bin/` AND not in `index.ts` barrel of an explicit subpath export, classify as ORPHAN.
 
-### Mode B — Community wiring-discipline canonical (medium, ~3-5k tokens)
+### Mode B — Community wiring-discipline canonical
 Agent asks "is this re-export a real caller?" or "does setUp count?". Steps:
 
 1. WebSearch: `<concept> dead code detection <year>` OR `<concept> orphan export pattern <year>`.
 2. Prefer: `knip.dev` docs, `ts-prune` docs, `vulture` (Python equivalent — for cross-ref pattern), `martinfowler.com` on Walking Skeleton + integration depth.
 3. Return canonical definition + verdict.
 
-### Mode C — Pillar (b) ADR-DEFER inspection (cheap, ~1k tokens)
+### Mode C — Pillar (b) ADR-DEFER inspection (lightweight)
 Grep diff for `ADR-DEFER-WIRING-B:` markers. For each: extract reason + verdict (legit deferral vs gaming).
 
-### Mode D — Pillar (c) metric proof (cheap, ~1k tokens)
+### Mode D — Pillar (c) metric proof (lightweight)
 For each metric in `{RUNTIME_METRICS_DECLARED}`: check `.wiring-evidence.json` (if exists) for `metric_name > 0`. If file absent: HALT — plan promised metric but infra to record it is missing.
 
 ## Boundaries you NEVER cross
@@ -79,7 +79,7 @@ For each metric in `{RUNTIME_METRICS_DECLARED}`: check `.wiring-evidence.json` (
 - NEVER edit code; you are knowledge + verification only.
 - NEVER fabricate metric evidence — pillar (c) requires the JSON file to exist with non-zero count.
 - NEVER classify a symbol "wired" because it's RE-EXPORTED in an index.ts barrel — barrels are not consumers.
-- NEVER weaken the triad — pillar (a) absent means HALT, period. Inquebrável.
+- NEVER weaken the triad — pillar (a) absent means HALT, period. Unbreakable.
 
 ## Output format
 

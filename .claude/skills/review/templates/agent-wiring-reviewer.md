@@ -33,7 +33,7 @@ For each new public export in the diff (`git diff {DIFF_BASE}..HEAD -- 'src/**' 
 - **Pillar (b) integration test — DEEP check**: does the test EXERCISE the symbol, not just import it?
   - Run `grep -rn 'symbolName' tests/integration/` to find references
   - Read each test. Is the symbol called in the Act phase, or just imported and ignored?
-  - FLAG as CRITICAL if pillar (b) was claimed PASS but test doesn't actually exercise the symbol
+  - FLAG as HIGH if pillar (b) was claimed PASS but test doesn't actually exercise the symbol
 
 - **Pillar (c) runtime metric — DEEP check**: was the metric observed in a REAL workload?
   - Check `.wiring-evidence.json`. Was it produced by a real integration run, or fabricated?
@@ -46,13 +46,13 @@ Beyond the per-symbol triad, ask: does this branch's NEW code participate in an 
 
 - Identify the top-level entry points (CLI, API routes, server handlers, main.ts)
 - For each new module, trace from entry-point → ... → new module. Does the path exist?
-- FLAG as CRITICAL if a new module has zero reachable path from any entry point — it's dead code dressed up as "internal API"
+- FLAG as HIGH if a new module has zero reachable path from any entry point — it's dead code dressed up as "internal API"
 
 ### 3. Dead exports
 
 Every `export` in the diff: must be either (a) re-exported via `src/index.ts` (public API), or (b) used by at least one in-project caller. Otherwise, dead.
 
-- FLAG as MAJOR for any new `export` that is neither in `src/index.ts` nor used internally
+- FLAG as MEDIUM for any new `export` that is neither in `src/index.ts` nor used internally
 
 ### 4. Boundary respect (DIP)
 
@@ -70,7 +70,7 @@ If this branch touches Postgres / pgvector / shared cache / file system:
 
 - Are operations atomic? Check for read-modify-write races
 - Are transactions used where needed?
-- FLAG as CRITICAL if a race condition is plausible
+- FLAG as HIGH if a race condition is plausible
 
 ## Output (mandatory YAML format)
 

@@ -1,8 +1,8 @@
 ---
 name: review
-description: Most rigorous gate of the ecosystem. Validates quality gates + line-by-line plan vs implementation + 100% integration + integration test depth + edge-case coverage. Before starting, generates specialized review agents for the plan's domain (architecture, tests, wiring, cross-validation, domain-specific) and spawns them in parallel. Single entry-point for cycle-review. Use after /implement passed and feature branch is ready to merge.
+description: Most rigorous gate of the ecosystem. Validates quality gates + line-by-line plan vs implementation + 100% integration + integration test depth + edge-case coverage. Before starting, generates specialized review agents for the plan's domain (architecture, tests, wiring, cross-validation, domain-specific) and spawns them in parallel. Single entry-point for cycle-review. Use after /implement passed on `develop` and recent commits are ready to be audited (typically before a release cut).
 user-invocable: true
-allowed-tools: Read Glob Grep Bash Write Edit Agent
+allowed-tools: Read Glob Grep Bash Write Edit Agent Skill
 argument-hint: "{plan-slug}"
 ---
 
@@ -15,12 +15,12 @@ Single entry-point for [`cycle-review`](../../rules/cycle-review.md). The most r
 3. **Validates quality gates** (test/typecheck/lint/coverage) deterministically
 4. **Cross-validates line-by-line** plan vs implementation via dedicated Agent task (semantic match, not regex)
 5. **Analyzes edge-case coverage** of integration tests against scenarios declared in the plan
-6. **Consolidates findings** into a severity-classified report (BLOCKER/CRITICAL/MAJOR/MINOR/INFO)
+6. **Consolidates findings** into a severity-classified report (BLOCKER/HIGH/MEDIUM/LOW/INFO — aligned with `rules/cycle-review.md`)
 7. **HALTS on any BLOCKER** — merge cannot proceed until resolved
 
 ## Cycle contract
 
-This skill is **the only phase** of [`cycle-review`](../../rules/cycle-review.md). The cycle rule is the **source of truth** for: pre-conditions, hard gates (BLOCKER/CRITICAL never merge; INVALID verdict re-runs), soft gates (NEEDS_DEEPER), stop conditions, anti-patterns (never approve unresolved BLOCKER, never fabricate findings, never auto-merge), rollback (review-report only — never code).
+This skill is **the only phase** of [`cycle-review`](../../rules/cycle-review.md). The cycle rule is the **source of truth** for: pre-conditions, hard gates (BLOCKER never merges; NEEDS_DEEPER returns to /to-plan for re-scoping), soft gates, stop conditions, anti-patterns (never approve unresolved BLOCKER, never fabricate findings, never auto-merge), rollback (review-report only — never code).
 
 **Read `cycle-review.md` before invoking this skill.** This SKILL.md retains phase-specific detail (domain detection, agent generation, consolidation rubric).
 
@@ -28,15 +28,16 @@ This skill is **the only phase** of [`cycle-review`](../../rules/cycle-review.md
 
 User explicitly invokes `/review {plan-slug}` when:
 
-- Feature branch passed `/implement` validation. PASS is the canonical state; PARTIAL with documented SKIPs (e.g., pre-code phase skipping npm gates) is acceptable only when `cycle-review.md § Trigger conditions` explicitly permits it for the current project lifecycle stage
+- Recent commits on `develop` passed `/implement` validation. PASS is the canonical state; PARTIAL with documented SKIPs (e.g., pre-code phase skipping npm gates) is acceptable only when `cycle-review.md § Trigger conditions` explicitly permits it for the current project lifecycle stage
 - All tests are green on the branch
 - The implementation plan at `plans/{slug}-plan.md` is the canonical contract (un-revised since /implement)
 - PR is drafted OR ready to be drafted
 
 Refuse to start when:
 
-- Feature branch has uncommitted changes
+- `develop` has uncommitted changes
 - `/implement` validation FAILed and was not addressed
+- `/code-quality` audit is missing OR its verdict is `FAIL_SOFT` / `FAIL_HARD` / `INVALID` (per `rules/cycle-code-quality.md`)
 - Tests are red
 - Plan has been revised post-implementation (the plan must be the ground truth for review)
 
@@ -50,7 +51,7 @@ Before review begins, `scripts/spawn_reviewers.py` generates N agent definition 
 | **tests** | `tests.md` | Yes (baseline) | Integration test depth, AAA/Given-When-Then format, fixture quality, missing scenarios from plan's TDD section |
 | **wiring** | `wiring.md` | Yes (baseline) | Triad re-validation (caller + integration test + runtime metric) in DEPTH; integration of new code with existing flows; dead exports |
 | **cross-validation** | `cross-validation.md` | Yes (baseline) | Line-by-line plan vs commits: every plan task → which commits implement it → was Acceptance Criteria met → was DoD satisfied |
-| **domain-{X}** | `domain-{X}.md` | 1-3 dynamic | Domain-specific: memory layer patterns (Mem0-shape pipeline integrity), pgvector schema compliance, auth flows, frontend a11y, etc. — depends on `detect_domain.py` output |
+| **domain-{X}** | `domain-{X}.md` | 1-3 dynamic | Domain-specific: memory layer patterns (Project A-shape pipeline integrity), pgvector schema compliance, auth flows, frontend a11y, etc. — depends on `detect_domain.py` output |
 
 Total: 4 baseline + 1-3 domain-specific = 5-7 agents per `/review` invocation.
 
@@ -63,15 +64,20 @@ Total: 4 baseline + 1-3 domain-specific = 5-7 agents per `/review` invocation.
 test -f .claude/knowledge-base/plans/{slug}-plan.md
 # Branch state clean (no uncommitted changes)
 [ -z "$(git status --porcelain)" ]
-# Not on main
-[ "$(git branch --show-current)" != "main" ]
+# On develop (NEVER on main — main is release-only)
+[ "$(git branch --show-current)" = "develop" ]
 # /implement validation passed (or PARTIAL with acceptable SKIPs)
 test -f .claude/knowledge-base/reviews/{slug}-implement-validate-*.md
+# /code-quality audit exists AND verdict ∈ {PASS, PASS_WITH_CAVEATS}
+# (FAIL_SOFT / FAIL_HARD / INVALID block /review per cycle-code-quality.md)
+test -f .claude/knowledge-base/audits/{slug}-code-quality-*.md
+grep -qE '"verdict":[[:space:]]*"(PASS|PASS_WITH_CAVEATS)"' .claude/knowledge-base/audits/{slug}-code-quality-*.md \
+  || (echo "Refuse: /code-quality verdict is not PASS/PASS_WITH_CAVEATS. Loop back to /implement." && exit 1)
 # Tests green on the branch
 npm test  # or skip if pre-code phase
 ```
 
-If any check fails, refuse with the specific missing piece surfaced honestly.
+If any check fails, refuse with the specific missing piece surfaced honestly. The `/code-quality` gate is mandatory — `/review` refuses to start when the audit is missing or its verdict is below `PASS_WITH_CAVEATS`.
 
 ### Step 2 — Domain detection
 
@@ -134,7 +140,7 @@ python3 .claude/skills/review/scripts/consolidate_findings.py \
 The script:
 1. Reads each agent's findings (saved during Step 3)
 2. Deduplicates findings that multiple agents flagged
-3. Classifies severity: BLOCKER / CRITICAL / MAJOR / MINOR / INFO
+3. Classifies severity: BLOCKER / HIGH / MEDIUM / LOW / INFO (per `rules/cycle-review.md`)
 4. Cross-references with plan's Acceptance Criteria and Global DoD
 5. Emits consolidated report
 
@@ -166,12 +172,12 @@ The script:
 
 ### Step 7 — HALT-if-BLOCKER decision
 
-After all findings consolidate, decide:
+After all findings consolidate, decide (per `rules/cycle-review.md § Verdicts`):
 
 - Any BLOCKER → **HALT**. Merge cannot proceed. Loop back to `/implement` to fix.
-- Any CRITICAL → **HALT** unless explicitly dismissed with ADR-style rationale in the report.
-- Any MAJOR → surface to human; accept WITH_CAVEATS in PR description OR fix.
-- MINOR/INFO → log; merge can proceed.
+- More than 2 HIGH → **HALT** unless every HIGH is explicitly dismissed with ADR-style rationale in the report; up to 2 HIGH with documented mitigation MAY emit READY_TO_MERGE.
+- Any MEDIUM → surface to human; accept WITH_CAVEATS in PR description OR fix.
+- LOW/INFO → log; merge can proceed.
 
 ### Step 8 — Final report
 
@@ -188,7 +194,7 @@ Report format (see `consolidate_findings.py`):
 
 **Date:** {date}
 **Reviewers (spawned agents):** 5-7 (list)
-**Findings:** N total (BLOCKER: N, CRITICAL: N, MAJOR: N, MINOR: N, INFO: N)
+**Findings:** N total (BLOCKER: N, HIGH: N, MEDIUM: N, LOW: N, INFO: N)
 **Verdict:** READY_TO_MERGE / NEEDS_FIXES / NEEDS_DEEPER
 
 ## BLOCKER findings (must fix before merge)
@@ -199,7 +205,10 @@ Report format (see `consolidate_findings.py`):
 - Plan reference: T1.2 Acceptance Criteria item 3
 - Recommended action: {specific}
 
-## CRITICAL findings
+## HIGH findings
+...
+
+## MEDIUM findings
 ...
 
 ## Edge-case coverage report
@@ -238,10 +247,10 @@ Every spawned agent MUST return findings in this format:
 
 ```yaml
 agent: architecture
-review_target: feature branch X for plan {slug}
+review_target: commits on `develop` for plan {slug}
 findings:
   - id: F-arch-1
-    severity: CRITICAL  # BLOCKER / CRITICAL / MAJOR / MINOR / INFO
+    severity: HIGH  # BLOCKER / HIGH / MEDIUM / LOW / INFO
     file: src/core/memory-store.ts
     line: 42
     plan_ref: T1.2 Acceptance Criteria item 3
@@ -258,7 +267,7 @@ findings:
 
 ## Inviolable rules
 
-- The skill NEVER modifies code on the feature branch — only writes review reports
+- The skill NEVER modifies code on `develop` — only writes review reports
 - The skill NEVER approves a PR with unresolved BLOCKER findings — even on human override, requires explicit ADR-style dismissal IN THE REPORT
 - The skill NEVER fabricates findings — if a file has no issues, the finding is "INFO: no issues found"
 - The skill SHOULD cover every file in the diff (each baseline agent is briefed to enumerate touched files via the diff base). When a file is genuinely trivial — pure rename, single-line typo — the finding is "INFO: no issues found". Coverage is enforced by agent prompts today; a future `consolidate_findings.py` check may mechanically assert "every changed file appears in ≥1 finding"
@@ -287,6 +296,6 @@ Per `cycle-review.md § Stop conditions`:
 - Final reports: `.claude/knowledge-base/reviews/{slug}-review-{date}.md`
 - Project rules consumed: `architecture.md`, `testing.md`, `public-copy.md`, `discover-blueprint-golden-rule.md` (if review touches docs/blueprints)
 
-## Cost honesty
+## Match to the work
 
-This skill spawns 5-7 agents in parallel. Estimated cost per `/review` invocation: 150-250k tokens. This is intentionally expensive — the gate is "MAIS RIGOROSO de TODAS". Don't run `/review` for trivial changes; for small PRs, the built-in `/review` (Anthropic) may be sufficient and 10× cheaper.
+This skill spawns 5-7 agents in parallel — the gate is "MAIS RIGOROSO de TODAS". Don't run `/review` for trivial changes; for small PRs, the built-in `/review` (Anthropic) is sufficient and far lighter.

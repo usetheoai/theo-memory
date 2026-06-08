@@ -1,115 +1,115 @@
-# Blueprint: Reference Implementations Survey — Memory Layer
+# Blueprint: Reference Implementations Survey — `<topic>`
 
-> **Version 1.0** — A consolidated technical blueprint capturing how Mem0, Letta, and LangMem implement memory primitives. Output of `/discover-execute reference-memory-survey`.
+> **Version 1.0** — A consolidated technical blueprint capturing how `<project-a>`, `<project-b>`, and `<project-c>` implement `<topic>`. Output of `/discover-execute reference-<topic>-survey`.
 
-**Slug:** `reference-memory-survey`
-**Source plan:** `.claude/knowledge-base/discoveries/plans/reference-memory-survey-plan.md`
-**Owner:** TheMemory team
-**Generated:** 2026-05-21 via `/discover-execute`
+**Slug:** `reference-<topic>-survey`
+**Source plan:** `knowledge-base/discoveries/plans/reference-<topic>-survey-plan.md`
+**Owner:** team
+**Generated:** YYYY-MM-DD via `/discover-execute`
 **Confidence verdict:** PROVISIONAL (awaiting `/discover-confidence`)
 
 ## Context
 
-TheMemory enters a market where three open-source players already implement memory primitives at different abstraction levels. This blueprint surveys their integration-test patterns, dependencies, tooling, and core techniques to feed concrete architectural decisions for `@usetheo/memory`. The investigation targets the three repos cloned under `.claude/knowledge-base/references/` (`.claude/knowledge-base/references/mem0/README.md`, `.claude/knowledge-base/references/letta/README.md`, `.claude/knowledge-base/references/langmem/README.md`).
+The project enters a space where three open-source players already implement `<topic>` at different abstraction levels. This blueprint surveys their integration-test patterns, dependencies, tooling, and core techniques to feed concrete architectural decisions for our own implementation. The investigation targets the three repos cloned under `knowledge-base/references/` (`knowledge-base/references/project-a/README.md`, `knowledge-base/references/project-b/README.md`, `knowledge-base/references/project-c/README.md`).
 
 ## Objective
 
-Produce a side-by-side reference that lets TheMemory decide which integration-test pattern, dependency profile, and dev-tooling story to adopt for v0.1 of the contract — informed by what already works in production-shaped projects.
+Produce a side-by-side reference that lets the team decide which integration-test pattern, dependency profile, and dev-tooling story to adopt for v0.1 of the contract — informed by what already works in production-shaped projects.
 
 ## Coverage Corner 1 — Integration Tests
 
-### Mem0
+### Project A
 
-Mem0 ships a multi-package monorepo with the TypeScript surface under `vercel-ai-sdk`. The package metadata sits at `.claude/knowledge-base/references/mem0/vercel-ai-sdk/package.json` and the contributor guide describes the integration setup at `.claude/knowledge-base/references/mem0/CONTRIBUTING.md`. The migration guide at `.claude/knowledge-base/references/mem0/MIGRATION_GUIDE_v1.0.md` documents how integration coverage evolved between v0 and v1.0.
+Project A ships a multi-package monorepo. The primary package metadata sits at `knowledge-base/references/project-a/package.json` and the contributor guide describes the integration setup at `knowledge-base/references/project-a/CONTRIBUTING.md`. The migration guide at `knowledge-base/references/project-a/MIGRATION_GUIDE_v1.0.md` documents how integration coverage evolved between v0 and v1.0.
 
-### Letta
+### Project B
 
-Letta lives as a single Python package. Its integration coverage is anchored at `.claude/knowledge-base/references/letta/test_watchdog_hang.py` (a regression case for a specific concurrency hang) and the contributor guidance at `.claude/knowledge-base/references/letta/CONTRIBUTING.md` is mandatory reading before any blueprint-level decision. Package surface is declared in `.claude/knowledge-base/references/letta/pyproject.toml`.
+Project B lives as a single Python package. Its integration coverage is anchored at `knowledge-base/references/project-b/test_regression_case.py` (a regression case for a specific concurrency hang) and the contributor guidance at `knowledge-base/references/project-b/CONTRIBUTING.md` is mandatory reading before any blueprint-level decision. Package surface is declared in `knowledge-base/references/project-b/pyproject.toml`.
 
-### LangMem
+### Project C
 
-LangMem uses pytest with property-based testing. Its test fixtures live under `.claude/knowledge-base/references/langmem/tests/conftest.py` and at least one docstring-as-test pattern is captured at `.claude/knowledge-base/references/langmem/tests/test_docstring_examples.py`. The project's test entrypoint contract is defined at `.claude/knowledge-base/references/langmem/pytest.ini`.
+Project C uses pytest with property-based testing. Its test fixtures live under `knowledge-base/references/project-c/tests/conftest.py` and at least one docstring-as-test pattern is captured at `knowledge-base/references/project-c/tests/test_docstring_examples.py`. The project's test entrypoint contract is defined at `knowledge-base/references/project-c/pytest.ini`.
 
 ## Coverage Corner 2 — Dependencies
 
-### Mem0
+### Project A
 
-Mem0's TypeScript surface dependencies live in `.claude/knowledge-base/references/mem0/vercel-ai-sdk/package.json`. The Vercel AI SDK integration is the canonical example of how Mem0 wires into a host runtime — captured in the surface documentation at `.claude/knowledge-base/references/mem0/vercel-ai-sdk/README.md`.
+Project A's runtime dependencies live in `knowledge-base/references/project-a/package.json`. The integration with a host runtime is the canonical example of how Project A wires in — captured in the surface documentation at `knowledge-base/references/project-a/README.md`.
 
-### Letta
+### Project B
 
-Letta's runtime dependencies are pinned in `.claude/knowledge-base/references/letta/pyproject.toml`. The lockfile-equivalent and JSON-side metadata appear at `.claude/knowledge-base/references/letta/project.json` and `.claude/knowledge-base/references/letta/package-lock.json` (for the auxiliary Node tooling).
+Project B's runtime dependencies are pinned in `knowledge-base/references/project-b/pyproject.toml`. The lockfile-equivalent and JSON-side metadata appear at `knowledge-base/references/project-b/project.json` and `knowledge-base/references/project-b/package-lock.json` (for the auxiliary Node tooling).
 
-### LangMem
+### Project C
 
-LangMem uses `uv` as the lockfile manager. Runtime dependencies are pinned at `.claude/knowledge-base/references/langmem/pyproject.toml` and the resolved set is locked at `.claude/knowledge-base/references/langmem/uv.lock`. LangGraph integration metadata is at `.claude/knowledge-base/references/langmem/langgraph.json`.
+Project C uses `uv` as the lockfile manager. Runtime dependencies are pinned at `knowledge-base/references/project-c/pyproject.toml` and the resolved set is locked at `knowledge-base/references/project-c/uv.lock`. Framework integration metadata is at `knowledge-base/references/project-c/framework.json`.
 
 ## Coverage Corner 3 — Tools
 
-### Mem0
+### Project A
 
-Local-dev story documented at `.claude/knowledge-base/references/mem0/README.md`. Contributor tooling at `.claude/knowledge-base/references/mem0/CONTRIBUTING.md`. Agent-mode operating notes at `.claude/knowledge-base/references/mem0/AGENTS.md` and `.claude/knowledge-base/references/mem0/LLM.md`.
+Local-dev story documented at `knowledge-base/references/project-a/README.md`. Contributor tooling at `knowledge-base/references/project-a/CONTRIBUTING.md`. Agent-mode operating notes at `knowledge-base/references/project-a/AGENTS.md` and `knowledge-base/references/project-a/LLM.md`.
 
-### Letta
+### Project B
 
-Letta dev-loop instructions at `.claude/knowledge-base/references/letta/README.md`. Security policy at `.claude/knowledge-base/references/letta/SECURITY.md` documents the supported attack surface. License terms at `.claude/knowledge-base/references/letta/TERMS.md` (relevant when choosing what to borrow into a community-auxiliary MIT codebase).
+Project B dev-loop instructions at `knowledge-base/references/project-b/README.md`. Security policy at `knowledge-base/references/project-b/SECURITY.md` documents the supported attack surface. License terms at `knowledge-base/references/project-b/TERMS.md` (relevant when choosing what to borrow into a community-auxiliary MIT codebase).
 
-### LangMem
+### Project C
 
-LangMem uses a `Makefile` for the tool entry points — `.claude/knowledge-base/references/langmem/Makefile` lists every dev command. README onboarding at `.claude/knowledge-base/references/langmem/README.md`.
+Project C uses a `Makefile` for the tool entry points — `knowledge-base/references/project-c/Makefile` lists every dev command. README onboarding at `knowledge-base/references/project-c/README.md`.
 
 ## Coverage Corner 4 — Techniques
 
-### Memory write pipeline
+### Core algorithm
 
-The three projects diverge on how facts get into the store:
+The three projects diverge on how the core algorithm is implemented:
 
-- Mem0 uses a multi-phase LLM-extraction pipeline (documented at high level in `.claude/knowledge-base/references/mem0/README.md`).
-- Letta operates on an agent state-machine model (documented in `.claude/knowledge-base/references/letta/README.md`).
-- LangMem treats procedural memory as graph nodes (documented in `.claude/knowledge-base/references/langmem/README.md`).
+- Project A uses a multi-phase pipeline (documented at high level in `knowledge-base/references/project-a/README.md`).
+- Project B operates on a state-machine model (documented in `knowledge-base/references/project-b/README.md`).
+- Project C treats the same problem as graph nodes (documented in `knowledge-base/references/project-c/README.md`).
 
 ### Test discipline
 
-Each project anchors its test discipline differently. Mem0's CONTRIBUTING (`.claude/knowledge-base/references/mem0/CONTRIBUTING.md`) emphasises end-to-end smoke. Letta's CONTRIBUTING (`.claude/knowledge-base/references/letta/CONTRIBUTING.md`) emphasises regression catches like the watchdog hang at `.claude/knowledge-base/references/letta/test_watchdog_hang.py`. LangMem (`.claude/knowledge-base/references/langmem/tests/test_docstring_examples.py`) leans on docstring-as-test which doubles as documentation.
+Each project anchors its test discipline differently. Project A's CONTRIBUTING (`knowledge-base/references/project-a/CONTRIBUTING.md`) emphasises end-to-end smoke. Project B's CONTRIBUTING (`knowledge-base/references/project-b/CONTRIBUTING.md`) emphasises regression catches like the case at `knowledge-base/references/project-b/test_regression_case.py`. Project C (`knowledge-base/references/project-c/tests/test_docstring_examples.py`) leans on docstring-as-test which doubles as documentation.
 
 ## Cross-cutting Comparison
 
-| Dimension | Mem0 | Letta | LangMem |
+| Dimension | Project A | Project B | Project C |
 |---|---|---|---|
-| Test pyramid anchor | smoke + e2e via `.claude/knowledge-base/references/mem0/CONTRIBUTING.md` | regression-first per `.claude/knowledge-base/references/letta/test_watchdog_hang.py` | property + docstring per `.claude/knowledge-base/references/langmem/tests/conftest.py` |
-| Primary deps file | `.claude/knowledge-base/references/mem0/vercel-ai-sdk/package.json` | `.claude/knowledge-base/references/letta/pyproject.toml` | `.claude/knowledge-base/references/langmem/pyproject.toml` + `.claude/knowledge-base/references/langmem/uv.lock` |
-| Dev tooling entrypoint | npm scripts in `.claude/knowledge-base/references/mem0/vercel-ai-sdk/package.json` | none unified (manual venv) | `.claude/knowledge-base/references/langmem/Makefile` |
-| Signature pattern | LLM-extraction multi-phase | agent-state machine | graph-based procedural memory |
+| Test pyramid anchor | smoke + e2e via `knowledge-base/references/project-a/CONTRIBUTING.md` | regression-first per `knowledge-base/references/project-b/test_regression_case.py` | property + docstring per `knowledge-base/references/project-c/tests/conftest.py` |
+| Primary deps file | `knowledge-base/references/project-a/package.json` | `knowledge-base/references/project-b/pyproject.toml` | `knowledge-base/references/project-c/pyproject.toml` + `knowledge-base/references/project-c/uv.lock` |
+| Dev tooling entrypoint | npm scripts in `knowledge-base/references/project-a/package.json` | none unified (manual venv) | `knowledge-base/references/project-c/Makefile` |
+| Signature pattern | multi-phase pipeline | state machine | graph-based |
 
 ## ADRs
 
-### D1 — Adopt Mem0's multi-phase LLM-extraction shape
+### D1 — Adopt Project A's multi-phase pipeline shape
 
-**Decision:** TheMemory v0.1 adopts Mem0's multi-phase write pipeline (context gathering → existing-memory retrieval → single LLM extraction → batch embed → hash dedup → batch persist) as documented in the exploration report at `.claude/knowledge-base/references/mem0/README.md` and the lock summary in our `CLAUDE.md`.
+**Decision:** Our v0.1 adopts Project A's multi-phase pipeline as documented in the exploration report at `knowledge-base/references/project-a/README.md` and the lock summary in our `CLAUDE.md`.
 
-**Rationale:** Mem0 has the closest shape to TheMemory's contract. Letta's agent-state model and LangMem's graph procedural model would force a re-architecture of `src/core/`. Going with Mem0-shape (not Mem0-clone) lets us absorb their pipeline without inheriting their dependency footprint.
+**Rationale:** Project A has the closest shape to our contract. Project B's state-machine model and Project C's graph model would force a re-architecture. Going with Project-A-shape (not Project-A-clone) lets us absorb their pipeline without inheriting their dependency footprint.
 
-**Alternatives considered:** (a) Letta's state-machine — rejected, too far from our three-tier contract; (b) LangMem's graph model — deferred to v0.4 (reflection).
+**Alternatives considered:** (a) Project B's state-machine — rejected, too far from our contract; (b) Project C's graph model — deferred to v0.4.
 
-**Consequences:** v0.1 implementation can lean on documented patterns; we must port the extraction prompt template into our own LLM provider abstraction.
+**Consequences:** v0.1 implementation can lean on documented patterns; we must port the algorithm into our own abstractions.
 
 ### D2 — Pin pyproject.toml shape for our Python tool surface
 
-**Decision:** The Python tools under `.claude/skills/` track a single `pyproject.toml` per skill, mirroring Letta's `.claude/knowledge-base/references/letta/pyproject.toml` simplicity rather than uv-lock complexity from `.claude/knowledge-base/references/langmem/uv.lock`.
+**Decision:** The Python tools under `skills/` track a single `pyproject.toml` per skill, mirroring Project B's `knowledge-base/references/project-b/pyproject.toml` simplicity rather than uv-lock complexity from `knowledge-base/references/project-c/uv.lock`.
 
-**Rationale:** Our Python surface is small (plan-confidence + discover-confidence + discover-improve). uv.lock is overkill; `pyproject.toml` alone is sufficient and matches what plan-confidence already does.
+**Rationale:** Our Python surface is small. uv.lock is overkill; `pyproject.toml` alone is sufficient.
 
 **Alternatives considered:** (a) full uv.lock per skill — rejected as YAGNI; (b) no pyproject.toml, pip install on-the-fly — rejected, blocks `setup.sh` from doing version checks.
 
 **Consequences:** Skill maintainers pin minimal deps in `pyproject.toml`; CI installs via `pip install -e`.
 
-## Recommendations for TheMemory
+## Recommendations
 
 | # | Recommendation | Linked to | Priority |
 |---|---|---|---|
-| 1 | Implement the Mem0 multi-phase write pipeline in `src/core/extraction/` | Q1, D1, architecture.md § DIP boundaries | HIGH |
-| 2 | Adopt regression-first test discipline borrowed from Letta's pattern | Q5, testing.md § Pyramid | HIGH |
-| 3 | Defer LangMem-style graph procedural memory to v0.4 (reflection) | D1 (alternatives), CLAUDE.md § Roadmap | MEDIUM |
+| 1 | Implement the multi-phase pipeline in `src/core/<topic>/` | Q1, D1, architecture.md § DIP boundaries | HIGH |
+| 2 | Adopt regression-first test discipline borrowed from Project B's pattern | Q5, testing.md § Pyramid | HIGH |
+| 3 | Defer graph-based variant to v0.4 | D1 (alternatives), CLAUDE.md § Roadmap | MEDIUM |
 | 4 | Skip uv.lock complexity; stay on plain pyproject.toml for skill Python surface | D2 | LOW |
 
 ## Blocked questions
@@ -126,6 +126,6 @@ None — every question in the source plan was answerable from the cloned repos.
 
 ## Related
 
-- Discovery plan: `.claude/knowledge-base/discoveries/plans/reference-memory-survey-plan.md`
-- Confidence report: `.claude/knowledge-base/reviews/reference-memory-survey-confidence-2026-05-21.md`
-- Linked TheMemory rules: `.claude/rules/architecture.md`, `.claude/rules/testing.md`, `.claude/rules/public-copy.md`
+- Discovery plan: `knowledge-base/discoveries/plans/reference-<topic>-survey-plan.md`
+- Confidence report: `knowledge-base/reviews/reference-<topic>-survey-confidence-YYYY-MM-DD.md`
+- Linked rules: `rules/architecture.md`, `rules/testing.md`, `rules/public-copy.md`

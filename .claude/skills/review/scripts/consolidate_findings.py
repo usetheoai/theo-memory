@@ -9,17 +9,17 @@ Output:
   - Markdown report with severity-grouped findings + dedup + cross-agent cross-references
   - JSON summary printed to stdout
 
-Severity classification (canonical):
+Severity classification (canonical — aligned with rules/cycle-review.md):
   - BLOCKER: cannot merge under any circumstance
-  - CRITICAL: cannot merge without ADR-style dismissal
-  - MAJOR: surface to human; consider WITH_CAVEATS in PR
-  - MINOR: log; merge can proceed
-  - INFO: informational, no action
+  - HIGH:    cannot merge without ADR-style dismissal
+  - MEDIUM:  surface to human; consider WITH_CAVEATS in PR
+  - LOW:     log; merge can proceed
+  - INFO:    informational, no action
 
 Verdict bands:
-  - READY_TO_MERGE: zero BLOCKER, zero CRITICAL (or all CRITICAL dismissed)
-  - NEEDS_FIXES: ≥1 BLOCKER OR ≥1 undismissed CRITICAL
-  - NEEDS_DEEPER: coverage of edge cases < 80% (declared via --edge-case-coverage-ratio)
+  - READY_TO_MERGE: zero BLOCKER, ≤ 2 HIGH findings with documented mitigation
+  - NEEDS_FIXES:    ≥ 1 BLOCKER OR > 2 HIGH findings
+  - NEEDS_DEEPER:   coverage of edge cases < 80% (declared via --edge-case-coverage-ratio) OR systemic issues exceeding targeted fixes
 
 Exit codes:
   0 — READY_TO_MERGE
@@ -38,7 +38,13 @@ from typing import Any
 import yaml
 
 
-SEVERITY_ORDER = ["BLOCKER", "CRITICAL", "MAJOR", "MINOR", "INFO"]
+SEVERITY_ORDER = ["BLOCKER", "HIGH", "MEDIUM", "LOW", "INFO"]
+# Back-compat alias map for findings emitted by agents using legacy tokens.
+SEVERITY_ALIASES = {
+    "CRITICAL": "HIGH",
+    "MAJOR": "MEDIUM",
+    "MINOR": "LOW",
+}
 
 
 def _read_findings_file(path: Path) -> dict[str, Any]:
@@ -71,6 +77,7 @@ def _read_findings_file(path: Path) -> dict[str, Any]:
 def _normalize_finding(f: dict[str, Any], agent_role: str) -> dict[str, Any]:
     """Coerce a finding to canonical shape; provide defaults."""
     severity = str(f.get("severity", "INFO")).upper()
+    severity = SEVERITY_ALIASES.get(severity, severity)
     if severity not in SEVERITY_ORDER:
         severity = "INFO"
 
@@ -110,9 +117,9 @@ def _dedupe_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _classify_verdict(findings: list[dict[str, Any]], coverage_ratio: float | None) -> str:
     """Determine final verdict from findings + coverage."""
     blocker_count = sum(1 for f in findings if f["severity"] == "BLOCKER")
-    critical_count = sum(1 for f in findings if f["severity"] == "CRITICAL")
+    high_count = sum(1 for f in findings if f["severity"] == "HIGH")
 
-    if blocker_count > 0 or critical_count > 0:
+    if blocker_count > 0 or high_count > 2:
         return "NEEDS_FIXES"
     if coverage_ratio is not None and coverage_ratio < 0.80:
         return "NEEDS_DEEPER"
@@ -182,7 +189,7 @@ def _render_markdown(
     if verdict == "READY_TO_MERGE":
         md.append("Implementation passes all gates. Ready for merge.")
     elif verdict == "NEEDS_FIXES":
-        md.append("Implementation has BLOCKER and/or CRITICAL findings. Loop back to `/implement` to address.")
+        md.append("Implementation has BLOCKER and/or > 2 HIGH findings. Loop back to `/implement` to address.")
     else:
         md.append("Edge-case coverage below 80%. Re-run `/review` with broader scope or add missing tests.")
     md.append("")

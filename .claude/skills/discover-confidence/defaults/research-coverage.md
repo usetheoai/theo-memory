@@ -32,9 +32,9 @@ A corner is "populated" when:
 
 ## Mandatory subsections per corner
 
-Each corner SHOULD have one subsection per in-scope reference project (declared in the source discovery plan). If the discovery plan declared 3 projects (Mem0, Letta, LangMem), each corner SHOULD have 3 subsections.
+Each corner SHOULD have one subsection per in-scope reference project (declared in the source discovery plan). If the discovery plan declared 3 projects (Project A, Project B, Project C), each corner SHOULD have 3 subsections.
 
-If a project's subsection is intentionally empty (e.g., the discovery plan deferred Q5 for Letta), an explicit `<!-- DEFERRED: see ADR Dx -->` comment MUST be present. The completeness checker recognizes this as not-empty.
+If a project's subsection is intentionally empty (e.g., the discovery plan deferred Q5 for Project B), an explicit `<!-- DEFERRED: see ADR Dx -->` comment MUST be present. The completeness checker recognizes this as not-empty.
 
 ## Mandatory cross-cutting sections
 
@@ -42,7 +42,7 @@ Beyond the 4 corners, every blueprint MUST contain:
 
 - `## Cross-cutting Comparison` — consolidated side-by-side table
 - `## ADRs` — at least one ADR with alternatives
-- `## Recommendations for TheMemory` (or whatever the consuming project is) — at least one concrete recommendation
+- `## Recommendations for OurProject` (or whatever the consuming project is) — at least one concrete recommendation
 
 These are checked by `check_blueprint_completeness.py` and trigger a soft cap (≤70) when missing.
 

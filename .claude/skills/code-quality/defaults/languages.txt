@@ -1,7 +1,7 @@
 # Code-quality languages enablement — commit-tracked declarative config
 #
-# Authoritative source: .claude/rules/code-quality-golden-rule.md § Allowlist mechanism
-#                       .claude/skills/code-quality/SKILL.md § Workflow Step 1
+# Authoritative source: rules/code-quality-golden-rule.md § Allowlist mechanism
+#                       skills/code-quality/SKILL.md § Workflow Step 1
 #
 # Format (one entry per line):
 #   LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
@@ -12,7 +12,7 @@
 #   STATUS          ∈ { ENABLED, DISABLED, DEFER }
 #                     - ENABLED:  detector runs when manifest present
 #                     - DISABLED: detector SKIPPED with INFO Finding
-#                     - DEFER:    detector emits INFO "scheduled for vN" (e.g., Skylos defer to v0.2)
+#                     - DEFER:    detector emits INFO "scheduled for vN"
 #   NOTES           — free-form rationale (recommended; not enforced by parser)
 #
 # Behavior:
@@ -25,8 +25,13 @@
 # Adding/modifying entries:
 #   - Adding requires PR + rationale in commit message.
 #   - Changing STATUS (e.g., DISABLED -> ENABLED) requires test coverage of the new path.
+#
+# Defaults below ship all detectors as ENABLED. Each project may flip to DISABLED
+# for languages it does not use. The detector emits a NOOP Finding when the
+# manifest marker is absent — turning DISABLED is only useful to silence the
+# INFO trail entirely.
 
-python     | pyproject.toml   | ENABLED  | In use heavily across .claude/skills/scripts/; first-class detector.
-typescript | package.json     | ENABLED  | @usetheo/memory primary package; src/ pending; detector works against fixtures pre-code.
-rust       | Cargo.toml       | ENABLED  | Future core / performance-critical modules; pre-code today.
-go         | go.mod           | ENABLED  | Future server / runtime modules; pre-code today.
+python     | pyproject.toml   | ENABLED  | First-class detector.
+typescript | package.json     | ENABLED  | First-class detector.
+rust       | Cargo.toml       | ENABLED  | First-class detector.
+go         | go.mod           | ENABLED  | First-class detector.
