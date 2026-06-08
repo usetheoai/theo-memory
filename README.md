@@ -271,6 +271,39 @@ THEOMEM_PG_URI=postgres://... \
 
 **TLS:** v0.3 ships HTTP plaintext by design; production deployments expect to run behind a reverse proxy (nginx/caddy/Cloudflare) for TLS termination. TheoCloud handles this at the platform layer; do not expose port 8080 directly to public internet without TLS.
 
+### Uniform Bearer auth across REST + MCP HTTP (FAANG-DX)
+
+When `THEMEMORY_API_KEY` env is present and neither `--transport` flag nor `THEOMEM_MCP_TRANSPORT` env was set explicitly, `themory mcp` **auto-selects `--transport=streamable-http --auth=api-keys`** so the same `theo_live_*` bearer token authenticates REST (`@usetheo/memory/server` Item 16) AND MCP HTTP without the operator remembering which surface accepts which credential. Matches industry-standard SDK auth convention (env presence shifts behavior gracefully; explicit flags always win).
+
+**`.mcp.json` template for the uniform-auth path:**
+
+```json
+{
+  "mcpServers": {
+    "themory": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer ${THEMEMORY_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+**Precedence table (`@see ADR D1` of `themory-mcp-bearer-by-env-faang-plan.md`):**
+
+| Tier | Source | Effect |
+|------|--------|--------|
+| 1 | `--transport` / `--auth` CLI flag | Always wins — most-specific operator intent |
+| 2 | `THEOMEM_MCP_TRANSPORT` / `THEOMEM_MCP_AUTH` env (valid value) | Explicit env config |
+| 3 | `THEMEMORY_API_KEY` env presence (non-empty after trim) | Heuristic → `streamable-http` + `auth=api-keys` |
+| Fallback | (none of above) | `stdio` + `auth=none` (embedded subprocess use) |
+
+Operator-observability: when the Tier-3 heuristic fires (or stdio default), `themory mcp` emits a one-line stderr disclosure announcing the selected pair. Set `THEOMEM_MCP_QUIET=1` to suppress the disclosure in embedded scenarios where the host captures stderr.
+
+**WARNING — R4 mitigation:** If you use TheMemory ONLY via REST and `.mcp.json` is not pointing at TheMemory's MCP, do NOT add `THEMEMORY_API_KEY` to the `.mcp.json` env block of your MCP servers — a subprocess `themory mcp` invocation that inherits the env would AUTO-FLIP to HTTP and try to bind port 8080. To opt out explicitly when intentional, pass `--transport=stdio` or `--auth=none` on the CLI (both win Tier-1).
+
 
 
 ## REST API server (`@usetheo/memory/server`)
