@@ -91,6 +91,14 @@ beforeEach(() => {
   // env carries THEOMEM_MCP_TRANSPORT=streamable-http.
   vi.stubEnv('THEOMEM_PG_URI', 'postgres://themem:themem@localhost:5432/themem');
   vi.stubEnv('THEOMEM_MCP_TRANSPORT', '');
+  // T3.1 — invariant #9 + SEPA Pre-RED MAJOR: stub BOTH env vars to keep the
+  // disclosure tests deterministic against a developer shell that may carry
+  // THEMEMORY_API_KEY=… or THEOMEM_MCP_QUIET=1 from a prior session. Without
+  // these stubs the false-GREEN risk is real (e.g., QUIET=1 in shell would
+  // silently mute the disclosure under test).
+  vi.stubEnv('THEMEMORY_API_KEY', '');
+  vi.stubEnv('THEOMEM_MCP_AUTH', '');
+  vi.stubEnv('THEOMEM_MCP_QUIET', '');
   // e43d801 alignment — run-mcp-server.ts hard-fails on missing OPENAI_API_KEY.
   vi.stubEnv('OPENAI_API_KEY', 'sk-fake-test-key-for-boot');
   stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -113,5 +121,63 @@ describe('T1.1 — runMcpServer startup banner (post-e43d801 real-providers regi
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
     expect(captured).toMatch(/real providers wired/i);
     expect(captured).toMatch(/themory mcp/i);
+  });
+});
+
+describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
+  it('test_stderr_discloses_env_driven_http_path_when_no_explicit_flag', async () => {
+    // Given: THEMEMORY_API_KEY env present, no --transport/--auth flag, no env override
+    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_for_disclosure_test');
+    // When: runMcpServer invoked with empty opts (Tier-3 heuristic fires)
+    const { runMcpServer } = await import('../run-mcp-server.js');
+    await runMcpServer();
+    // Then: disclosure line announces auto-selected HTTP + api-keys + override hint
+    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
+    expect(captured).toMatch(/transport=streamable-http/);
+    expect(captured).toMatch(/auth=api-keys/);
+    expect(captured).toMatch(/THEMEMORY_API_KEY present/);
+    expect(captured).toMatch(/--transport=stdio.*override/);
+  });
+
+  it('test_stderr_discloses_stdio_default_with_hint', async () => {
+    // Given: no env (beforeEach stubbed THEMEMORY_API_KEY='') — stdio default fires
+    // When: runMcpServer invoked
+    const { runMcpServer } = await import('../run-mcp-server.js');
+    await runMcpServer();
+    // Then: disclosure line hints at HTTP+Bearer mode via env
+    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
+    expect(captured).toMatch(/transport=stdio/);
+    expect(captured).toMatch(/default/);
+    expect(captured).toMatch(/set THEMEMORY_API_KEY for HTTP\+Bearer mode/);
+  });
+
+  it('test_stderr_explicit_flag_suppresses_disclosure', async () => {
+    // ADR D3 invariant: explicit operator intent (CLI flag OR scoped env)
+    // suppresses the disclosure — no need to announce what was explicit.
+    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_silent_under_explicit_flag');
+    const { runMcpServer } = await import('../run-mcp-server.js');
+    await runMcpServer({ transport: 'stdio' });
+    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
+    // FC2-T1.1 "real providers wired" line stays unconditional (NOT suppressed)
+    expect(captured).toMatch(/real providers wired/);
+    // But the NEW T3.1 transport+auth disclosure block is suppressed
+    expect(captured).not.toMatch(/transport=stdio \(default;/);
+    expect(captured).not.toMatch(/transport=streamable-http \+ auth=api-keys/);
+  });
+
+  it('test_stderr_quiet_env_suppresses_disclosure_under_env_driven_http', async () => {
+    // EC-6 escape: THEOMEM_MCP_QUIET=1 suppresses the new disclosure block
+    // (embedded use case where stderr is captured by the consumer). MUST NOT
+    // suppress the pre-existing "real providers wired" line (FC2-T1.1 contract).
+    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_under_quiet_env');
+    vi.stubEnv('THEOMEM_MCP_QUIET', '1');
+    const { runMcpServer } = await import('../run-mcp-server.js');
+    await runMcpServer();
+    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
+    // FC2-T1.1 line still fires (scope discipline)
+    expect(captured).toMatch(/real providers wired/);
+    // EC-6 disclosure block suppressed even though env-driven HTTP path activated
+    expect(captured).not.toMatch(/transport=streamable-http \+ auth=api-keys/);
+    expect(captured).not.toMatch(/THEMEMORY_API_KEY present/);
   });
 });
