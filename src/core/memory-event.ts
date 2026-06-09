@@ -45,6 +45,16 @@ export const MEMORY_EVENTS = [
   // (no-op observability discipline).
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'recall_threshold_filtered',
+  // dashboard-memories-tab-standardization T2.2 — Princípio 3 auditability per
+  // ADR D2: fires when LocalScopedMemory.getAll consumed N rows whose
+  // VectorStoreResult.createdAt was undefined (stale-impl adapter that did
+  // NOT project the column). Attributes carry `count: N` per EC-7 per-request
+  // aggregation discipline — emit ONCE per getAll call with aggregated count,
+  // NOT per-row (a 10k-row legacy scope would explode logs otherwise).
+  // NOT emitted when count = 0 (no-op observability mirror of
+  // recall_threshold_filtered).
+  // @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D2 + EC-7
+  'getall_temporal_fallback',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
