@@ -26,15 +26,15 @@ One clear sentence: what should the produced blueprint enable us to decide? Then
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `.claude/knowledge-base/references/mem0/` | e.g., `mem0-ts/src/memory/`, `mem0-ts/tests/` | Mem0-shape architecture is locked; we need the integration-test pattern |
-| `.claude/knowledge-base/references/letta/` | e.g., `letta/services/`, `letta/orm/` | Pgvector schema reference |
-| `.claude/knowledge-base/references/langmem/` | e.g., `langmem/procedural/` | Procedural memory pattern — out-of-scope for v0.1 contract, but useful for v0.4 |
+| `.claude/knowledge-base/references/project-a/` | e.g., `project-a-ts/src/memory/`, `project-a-ts/tests/` | Project A-shape architecture is locked; we need the integration-test pattern |
+| `.claude/knowledge-base/references/project-b/` | e.g., `project-b/services/`, `project-b/orm/` | Pgvector schema reference |
+| `.claude/knowledge-base/references/project-c/` | e.g., `project-c/procedural/` | Procedural memory pattern — out-of-scope for v0.1 contract, but useful for v0.4 |
 
 ### Out-of-Scope (explicit)
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `.claude/knowledge-base/references/mem0/docs/` | Marketing docs, not source of truth |
+| `.claude/knowledge-base/references/project-a/docs/` | Marketing docs, not source of truth |
 | `.claude/knowledge-base/references/*/build/`, `dist/`, `.venv/` | Build artifacts |
 | Any project NOT cloned into `.claude/knowledge-base/references/` | Cross-Project Rule: never claim a project feature without reading its source |
 
@@ -48,17 +48,17 @@ Decisions about HOW to investigate. Each gets:
 
 ### D1 — Time budget + stop conditions
 
-**Decision:** Mem0: Xh, Letta: Yh, LangMem: Zh.
+**Decision:** Project A: Xh, Project B: Yh, Project C: Zh.
 
-**Rationale:** {evidence-based — e.g., Mem0 is the closest analog so deepest dive; LangMem is informational for v0.4 deferred work}.
+**Rationale:** {evidence-based — e.g., Project A is the closest analog so deepest dive; Project C is informational for v0.4 deferred work}.
 
 **Alternatives considered:** equal split, single project deep-dive, no time budget.
 
 **Stop condition — per question (mandatory):** When a question's Fase A returns empty matches after 3 consecutive retries with different query variants (e.g., pattern → kind-based → alternate path → broader scope), mark the question BLOCKED with reason "Fase A exhausted — no hotspots found" and continue to the next. Do NOT pad with unrelated hotspots from a different question's scope.
 
-**Stop condition — per project (mandatory):** When a project's time budget is exhausted with N questions still pending, mark all remaining questions for that project as BLOCKED with reason "budget exhausted" and continue with the next project (or, if last, emit the promise with the honest blocked-questions report).
+**Stop condition — per project (mandatory):** When a project's time budget is exhausted with N questions still pending, mark all remaining questions for that project as BLOCKED with reason "budget exhausted" and continue with the next project. If every remaining project is in the same state (every question either `done` or honestly `blocked`), emit `<promise>BLUEPRINT_BLOCKED</promise>` (NOT `BLUEPRINT_COMPLETE`) with the honest blocked-questions report — the BLOCKED promise is the canonical signal that the loop terminated honestly without satisfying every halt condition. Never emit `BLUEPRINT_COMPLETE` from a state with blocked questions.
 
-**Anti-pattern:** NEVER fabricate Fase B answers to close a question whose Fase A was exhausted. Honest BLOCKED with reason is required (Inquebrável Rule 3).
+**Anti-pattern:** NEVER fabricate Fase B answers to close a question whose Fase A was exhausted. Honest BLOCKED with reason is required (Unbreakable Rule 3).
 
 **Consequences:** the halt-loop will stop iterating on a project when its budget is exhausted, even if some questions remain blocked. The blueprint will surface blocked questions explicitly in the `## Blocked questions (if any)` section — they become next-discovery seed.
 
@@ -79,11 +79,11 @@ Numbered list. Each question maps to a Coverage Corner (tests / deps / tools / t
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | How does Mem0 test the LLM-extraction pipeline against a real Postgres? | tests | `.claude/knowledge-base/references/mem0/mem0-ts/` | `ast-grep scan --rule rules/decorated-function-python.yml .claude/knowledge-base/references/mem0/` to list test fixtures; OR `ast-grep run --pattern 'describe($$$, ($$$) => { $$$ })' --lang typescript` for TS test blocks | Read each test fixture + its setup block; capture which Postgres / pgvector container is wired | Table: test name → fixture used → assertion type, with `.claude/knowledge-base/references/.../path:line` per row |
-| Q2 | What pg-vector versions does Letta support? | deps | `.claude/knowledge-base/references/letta/` | `ast-grep run --pattern 'pgvector $$$' --lang python` OR Grep for `pgvector` in `pyproject.toml` / `requirements*.txt` (text-shape — Fase A may be skipped) | Read each match in context to capture version range + index type | Version range + supported index types + citations |
-| Q3 | What's Mem0's local-dev story? Docker? Just Postgres? | tools | `.claude/knowledge-base/references/mem0/` | SKIP Fase A — text-shape question. Glob for `docker-compose*.yml`, `Makefile`, `README*.md` | Read each file fully | Step-by-step instructions + dependency list |
-| Q4 | Does LangMem implement procedural memory as prompt-rewriting or as a structured memory class? | techniques | `.claude/knowledge-base/references/langmem/` | `ast-grep run --pattern 'class $NAME($$$): $$$' --lang python .claude/knowledge-base/references/langmem/src/langmem/prompts/` to list candidate classes | Read each candidate class to determine architecture pattern | Architecture description + class diagram + key citations |
-| Q5 | Compare how Mem0 (TS) and Letta (Python) define the `add()` operation | techniques | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/` | `ast-grep run -p 'async add($$$) { $$$ }' --lang typescript ref/mem0/` AND `ast-grep run -p 'def add($$$): $$$' --lang python ref/letta/` — TWO Fase A queries, one per language | Read both candidate methods side-by-side to compare signatures + bodies | Side-by-side table with TS and Python signatures + citations |
+| Q1 | How does Project A test the LLM-extraction pipeline against a real Postgres? | tests | `.claude/knowledge-base/references/project-a/project-a-ts/` | `ast-grep scan --rule rules/decorated-function-python.yml .claude/knowledge-base/references/project-a/` to list test fixtures; OR `ast-grep run --pattern 'describe($$$, ($$$) => { $$$ })' --lang typescript` for TS test blocks | Read each test fixture + its setup block; capture which Postgres / pgvector container is wired | Table: test name → fixture used → assertion type, with `.claude/knowledge-base/references/.../path:line` per row |
+| Q2 | What pg-vector versions does Project B support? | deps | `.claude/knowledge-base/references/project-b/` | `ast-grep run --pattern 'pgvector $$$' --lang python` OR Grep for `pgvector` in `pyproject.toml` / `requirements*.txt` (text-shape — Fase A may be skipped) | Read each match in context to capture version range + index type | Version range + supported index types + citations |
+| Q3 | What's Project A's local-dev story? Docker? Just Postgres? | tools | `.claude/knowledge-base/references/project-a/` | SKIP Fase A — text-shape question. Glob for `docker-compose*.yml`, `Makefile`, `README*.md` | Read each file fully | Step-by-step instructions + dependency list |
+| Q4 | Does Project C implement procedural memory as prompt-rewriting or as a structured memory class? | techniques | `.claude/knowledge-base/references/project-c/` | `ast-grep run --pattern 'class $NAME($$$): $$$' --lang python .claude/knowledge-base/references/project-c/src/project-c/prompts/` to list candidate classes | Read each candidate class to determine architecture pattern | Architecture description + class diagram + key citations |
+| Q5 | Compare how Project A (TS) and Project B (Python) define the `add()` operation | techniques | `.claude/knowledge-base/references/project-a/`, `.claude/knowledge-base/references/project-b/` | `ast-grep run -p 'async add($$$) { $$$ }' --lang typescript ref/project-a/` AND `ast-grep run -p 'def add($$$): $$$' --lang python ref/project-b/` — TWO Fase A queries, one per language | Read both candidate methods side-by-side to compare signatures + bodies | Side-by-side table with TS and Python signatures + citations |
 
 ## Coverage Matrix
 

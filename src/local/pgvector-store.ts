@@ -39,6 +39,15 @@ interface MemoriesRow extends QueryResultRow {
   readonly superseded_by?: string | null;
   /** principles-alignment-hardening T2.1 / ADR D1 — Princípio 1 confirmação factor. */
   readonly confirmation_count?: number;
+  /**
+   * dashboard-memories-tab-standardization T2.1: project DB wall-clock so
+   * `VectorStoreResult.createdAt` flows through to consumers. Nullable to
+   * absorb EC-1 (NULL legacy rows defensive-in-depth — schema currently
+   * declares created_at .notNull(), so reachability requires manual psql
+   * INSERT after constraint drop OR pg_restore). `pg` returns timestamptz
+   * as JS `Date` natively; no manual parse.
+   */
+  readonly created_at?: Date | null;
   readonly distance?: number;
   readonly rank?: number;
 }
@@ -91,9 +100,18 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
     payload['confirmation_count'] = row.confirmation_count;
   }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
-  return score !== undefined
-    ? { id: row.id, payload, score }
-    : { id: row.id, payload };
+  // dashboard-memories-tab-standardization T2.1 — null-safe createdAt projection.
+  // EC-1: NULL → undefined (NOT new Date(0) which would silently lie 1970-01-01).
+  // Forward-compat against (a) manual psql INSERT bypassing DEFAULT, (b) future
+  // schema relaxation, (c) pg_restore. Schema currently declares created_at .notNull().
+  const createdAt = row.created_at != null ? row.created_at : undefined;
+  // Compose progressively to honor exactOptionalPropertyTypes (omit undefined fields).
+  const base: VectorStoreResult = { id: row.id, payload };
+  return {
+    ...base,
+    ...(score !== undefined ? { score } : {}),
+    ...(createdAt !== undefined ? { createdAt } : {}),
+  };
 }
 
 interface FilterClause {
@@ -567,12 +585,18 @@ export class PgvectorStore implements VectorStore {
     const countResult = await this.pool.query<{ total: number }>(countSql, [...filter.params]);
     const total = countResult.rows[0]?.total ?? 0;
 
+    // dashboard-memories-tab-standardization T2.1:
+    //   - SELECT projection extended with `created_at` so VectorStoreResult.createdAt flows.
+    //   - ORDER BY flipped to `created_at DESC, id ASC` per EC-2 absorption:
+    //     newest-first primary + deterministic id tiebreak for identical timestamps.
+    //     Dashboard pagination consumes this contract (same query → same order across refreshes).
     const pageSql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
-             kind, code, description, code_language, derived_from, superseded_by, confirmation_count
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             created_at
       FROM memories
       WHERE 1=1${filter.sql}
-      ORDER BY created_at ASC
+      ORDER BY created_at DESC, id ASC
       LIMIT $${filter.nextParamIndex}
     `;
     const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK]);

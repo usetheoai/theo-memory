@@ -15,7 +15,7 @@
 # Customize cutoffs to your project's calibration. Defaults (90/70/50/0) are
 # SOTA-equivalent from plan-confidence — adjust after your holdout calibration.
 #
-# Sunset = revisão trimestral. Update sunset + ADR ref when you recalibrate.
+# Sunset = quarterly review. Update sunset + ADR ref when you recalibrate.
 #
 SHIPPABLE|90|2027-01-31|YOUR_ADR_REF
 SHIPPABLE_WITH_CAVEATS|70|2027-01-31|YOUR_ADR_REF

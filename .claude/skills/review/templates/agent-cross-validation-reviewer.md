@@ -41,8 +41,8 @@ git show <commit-sha> --name-only
 For each declared file:
 
 - File exists in the diff: GOOD
-- File missing from diff: FLAG as MAJOR (declared but not edited; the task is partial OR the plan was wrong)
-- Files NOT declared but changed by this commit: FLAG as MAJOR (scope creep — implementation touched things plan didn't authorize)
+- File missing from diff: FLAG as MEDIUM (declared but not edited; the task is partial OR the plan was wrong)
+- Files NOT declared but changed by this commit: FLAG as MEDIUM (scope creep — implementation touched things plan didn't authorize)
 
 ### Step C — Verify Acceptance Criteria checkboxes
 
@@ -68,7 +68,7 @@ For every gap in the plan's Coverage Matrix:
 
 - Find the task(s) declared to resolve it
 - Verify the task is implemented (Steps A-D)
-- If the gap maps to a missing/divergent task: FLAG as CRITICAL (coverage incomplete)
+- If the gap maps to a missing/divergent task: FLAG as HIGH (coverage incomplete)
 
 ### Step F — Detect divergence from ADRs
 
@@ -76,7 +76,7 @@ The plan's ADRs declare HOW to do things. Check if the implementation respects e
 
 - For each ADR (D1, D2, ...), read the Decision + Rationale + Consequences
 - Search the implementation for the canonical pattern declared in the ADR
-- If the implementation uses a DIFFERENT approach: FLAG as CRITICAL (silent divergence; must have its own ADR in the implementation OR be reverted)
+- If the implementation uses a DIFFERENT approach: FLAG as HIGH (silent divergence; must have its own ADR in the implementation OR be reverted)
 
 ### Step G — Detect drift between plan and what was actually built
 

@@ -9,6 +9,6 @@ message: |
 
   Useful for: locating @pytest.fixture / @runtime_checkable / @dataclass /
   custom framework decorators. Map test-fixture conventions across
-  Letta / LangMem / any Python ref project.
+  Project B / Project C / any Python ref project.
 rule:
   kind: decorated_definition

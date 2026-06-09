@@ -48,7 +48,7 @@ def test_placeholder_section_not_populated(tmp_path: Path) -> None:
     bp.write_text(
         "# Blueprint: Test\n\n"
         "## Coverage Corner 1 — Integration Tests\n\n"
-        "### Mem0\n\n<!-- TBD: Q1 -->\n\n"
+        "### Project A\n\n<!-- TBD: Q1 -->\n\n"
         f"## Coverage Corner 2 — Dependencies\n\n### X\n\n{long_content}\n\n"
         f"## Coverage Corner 3 — Tools\n\n### X\n\n{long_content}\n\n"
         f"## Coverage Corner 4 — Techniques\n\n### X\n\n{long_content}\n",
@@ -67,7 +67,7 @@ def test_deferred_marker_counts_as_populated(tmp_path: Path) -> None:
     bp.write_text(
         "# Blueprint: Test\n\n"
         "## Coverage Corner 1 — Integration Tests\n\n"
-        "### Mem0\n\n<!-- DEFERRED: tests deferred to v0.4 -->\n\n"
+        "### Project A\n\n<!-- DEFERRED: tests deferred to v0.4 -->\n\n"
         f"## Coverage Corner 2 — Dependencies\n\n### X\n\n{long_content}\n\n"
         f"## Coverage Corner 3 — Tools\n\n### X\n\n{long_content}\n\n"
         f"## Coverage Corner 4 — Techniques\n\n### X\n\n{long_content}\n",

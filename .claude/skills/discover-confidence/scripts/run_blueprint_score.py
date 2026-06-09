@@ -3,7 +3,7 @@
 
 Sibling of plan-confidence/scripts/run_structural.py — same architecture,
 different rubric and checkers (research_coverage / reference_citations /
-blueprint_completeness / risco_estrutural).
+blueprint_completeness / structural_risk).
 """
 from __future__ import annotations
 
@@ -132,13 +132,13 @@ def main() -> int:
         "research_coverage": 0.30,
         "reference_citations": 0.30,
         "blueprint_completeness": 0.25,
-        "risco_estrutural": 0.15,
+        "structural_risk": 0.15,
     }
     weighted = (
         weights["research_coverage"] * rc_score
         + weights["reference_citations"] * rcit_score
         + weights["blueprint_completeness"] * bc_score
-        + weights["risco_estrutural"] * re_score
+        + weights["structural_risk"] * re_score
     )
 
     # Hard caps
@@ -174,8 +174,8 @@ def main() -> int:
     final_score = min(weighted, cap_value)
     verdict = _verdict_for(final_score, bands)
 
-    # Build motivos
-    motivos = {
+    # Build reasons
+    reasons = {
         "research_coverage": {
             "contributors": coverage["contributors"],
             "detractors": coverage["detractors"],
@@ -188,7 +188,7 @@ def main() -> int:
             "contributors": completeness["contributors"],
             "detractors": completeness["detractors"],
         },
-        "risco_estrutural": {
+        "structural_risk": {
             "contributors": [f"{smells.total_hits} smell hits across categories"]
             if smells.total_hits == 0
             else [],
@@ -203,7 +203,7 @@ def main() -> int:
         "research_coverage": coverage,
         "reference_citations": citations,
         "blueprint_completeness": completeness,
-        "risco_estrutural": {
+        "structural_risk": {
             "total_hits": smells.total_hits,
             "by_category": smells.by_category,
             "total_penalty": smells.total_penalty,
@@ -225,7 +225,7 @@ def main() -> int:
             "research_coverage",
             "reference_citations",
             "blueprint_completeness",
-            "risco_estrutural",
+            "structural_risk",
         ],
         "weight_normalization_factor": 1.0,
         "weighted_avg": round(weighted, 1),
@@ -238,7 +238,7 @@ def main() -> int:
             "holdout_target": 30,
             "kappa_measured": False,
         },
-        "motivos": motivos,
+        "reasons": reasons,
         "sub_reports": sub_reports,
     }
 

@@ -43,7 +43,7 @@ def sample_plan(tmp_path: Path) -> Path:
         "# Plan: Sample for testing\n\n"
         "## Context\n\nPgvector schema investigation, src/local/ adapter design.\n\n"
         "## Objective\n\nProduce pgvector-shaped blueprint.\n\n"
-        "## ADRs\n\n### D1 — Adopt pgvector schema patterns\n\nLetta uses pgvector.\n\n"
+        "## ADRs\n\n### D1 — Adopt pgvector schema patterns\n\nProject B uses pgvector.\n\n"
         "## Phase 1\n\n### T1.1 — Schema design\n\n"
         "#### Deep Dives\n\n"
         "- Edge case: empty embedding vector\n"

@@ -1,10 +1,10 @@
 [project]
 name = "code-quality-skill"
 version = "0.1.0"
-description = "Multi-language wiring + dead-code + symbol-fabrication gate for TheoMemory (Claude skill)"
+description = "Multi-language wiring + dead-code + symbol-fabrication gate (Claude skill)"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Theo" }]
+authors = [{ name = "planning-ecosystem" }]
 
 dependencies = [
     "tree-sitter>=0.25,<0.26",

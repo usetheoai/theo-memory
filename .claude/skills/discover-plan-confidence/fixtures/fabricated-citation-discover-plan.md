@@ -1,6 +1,6 @@
 # Discovery Plan: Fabricated-Citation Negative Fixture
 
-> **Version 1.0** — Negative fixture for `/discover-plan-confidence`. Contains exactly 2 citations: one verified (`.claude/knowledge-base/references/mem0/README.md` exists) and one fabricated (`.claude/knowledge-base/references/mem0/this-path-does-not-exist-2026.md` does NOT exist). MUST trigger `fabricated_citation` hard cap.
+> **Version 1.0** — Negative fixture for `/discover-plan-confidence`. Contains exactly 2 citations: one verified (`.claude/knowledge-base/references/project-a/README.md` exists) and one fabricated (`.claude/knowledge-base/references/project-a/this-path-does-not-exist-2026.md` does NOT exist). MUST trigger `fabricated_citation` hard cap.
 
 **Slug:** `fabricated-citation-fixture`
 **Owner:** test-author
@@ -23,7 +23,7 @@ Cause `check_reference_citations` to report `fabricated >= 1` and include the fa
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `.claude/knowledge-base/references/mem0/README.md` | top-level README (real, verified) | Reference for fabrication test |
+| `.claude/knowledge-base/references/project-a/README.md` | top-level README (real, verified) | Reference for fabrication test |
 
 ### Out-of-Scope
 
@@ -57,11 +57,11 @@ Cause `check_reference_citations` to report `fabricated >= 1` and include the fa
 
 | # | Question | Corner | Reference project(s) | Fase A | Fase B | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | What does Mem0 README say? | tests | `.claude/knowledge-base/references/mem0/README.md` | SKIP | Read README | summary |
-| Q2 | What does this nonexistent path contain? | deps | `.claude/knowledge-base/references/mem0/this-path-does-not-exist-2026.md` | SKIP | Read fake path | (will fail) |
-| Q3 | What does Letta document about deferred topic X? | tools | `.claude/knowledge-base/references/letta/intentionally-missing-2026.md` <!-- BLOCKED: removed --> | SKIP | Read | (blocked) |
-| Q4 | LangMem prompts module structure | techniques | `.claude/knowledge-base/references/langmem/src/langmem/prompts/` | ast-grep | Read each file | architecture map |
-| Q5 | Mem0 quickstart steps | techniques | `.claude/knowledge-base/references/mem0/README.md` | SKIP | Read README | step-by-step |
+| Q1 | What does Project A README say? | tests | `.claude/knowledge-base/references/project-a/README.md` | SKIP | Read README | summary |
+| Q2 | What does this nonexistent path contain? | deps | `.claude/knowledge-base/references/project-a/this-path-does-not-exist-2026.md` | SKIP | Read fake path | (will fail) |
+| Q3 | What does Project B document about deferred topic X? | tools | `.claude/knowledge-base/references/project-b/intentionally-missing-2026.md` <!-- BLOCKED: removed --> | SKIP | Read | (blocked) |
+| Q4 | Project C prompts module structure | techniques | `.claude/knowledge-base/references/project-c/src/project-c/prompts/` | ast-grep | Read each file | architecture map |
+| Q5 | Project A quickstart steps | techniques | `.claude/knowledge-base/references/project-a/README.md` | SKIP | Read README | step-by-step |
 
 ## Coverage Matrix
 

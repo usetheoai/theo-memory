@@ -21,7 +21,7 @@ Cause `check_plan_completeness` to report `budget_violations` containing a "too_
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `.claude/knowledge-base/references/mem0/` | top-level | Reference |
+| `.claude/knowledge-base/references/project-a/` | top-level | Reference |
 
 ### Out-of-Scope
 
@@ -55,10 +55,10 @@ Cause `check_plan_completeness` to report `budget_violations` containing a "too_
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | Mem0 tests | tests | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |
-| Q2 | Mem0 deps | deps | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |
-| Q3 | Mem0 tools | tools | `.claude/knowledge-base/references/mem0/` | SKIP | Read | text |
-| Q4 | Mem0 techniques | techniques | `.claude/knowledge-base/references/mem0/` | ast-grep | Read | text |
+| Q1 | Project A tests | tests | `.claude/knowledge-base/references/project-a/` | SKIP | Read | text |
+| Q2 | Project A deps | deps | `.claude/knowledge-base/references/project-a/` | SKIP | Read | text |
+| Q3 | Project A tools | tools | `.claude/knowledge-base/references/project-a/` | SKIP | Read | text |
+| Q4 | Project A techniques | techniques | `.claude/knowledge-base/references/project-a/` | ast-grep | Read | text |
 
 ## Coverage Matrix
 

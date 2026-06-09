@@ -21,9 +21,9 @@ Cause `check_research_coverage` to report `corners_populated = 3` and `empty_cor
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `.claude/knowledge-base/references/mem0/` | mem0-ts source | Mem0-shape reference |
-| `.claude/knowledge-base/references/letta/` | services layer | Pgvector reference |
-| `.claude/knowledge-base/references/langmem/` | prompts module | Procedural memory pattern |
+| `.claude/knowledge-base/references/project-a/` | project-a-ts source | Project A-shape reference |
+| `.claude/knowledge-base/references/project-b/` | services layer | Pgvector reference |
+| `.claude/knowledge-base/references/project-c/` | prompts module | Procedural memory pattern |
 
 ### Out-of-Scope
 
@@ -57,11 +57,11 @@ Cause `check_research_coverage` to report `corners_populated = 3` and `empty_cor
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | What pgvector versions does Letta support? | deps | `.claude/knowledge-base/references/letta/` | SKIP — text-shape | Read pyproject.toml | Version range |
-| Q2 | What is Mem0's local-dev story? | tools | `.claude/knowledge-base/references/mem0/` | SKIP — text-shape | Read docker-compose + README | Steps + deps |
-| Q3 | LangMem procedural memory pattern | techniques | `.claude/knowledge-base/references/langmem/` | ast-grep classes in prompts/ | Read each class | Architecture description |
-| Q4 | Compare add() across Mem0 and Letta | techniques | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/` | ast-grep both languages | Read both methods | Side-by-side table |
-| Q5 | How does Letta document pgvector indexing strategy? | techniques | `.claude/knowledge-base/references/letta/` | Glob docs/ | Read each doc | Index strategy summary |
+| Q1 | What pgvector versions does Project B support? | deps | `.claude/knowledge-base/references/project-b/` | SKIP — text-shape | Read pyproject.toml | Version range |
+| Q2 | What is Project A's local-dev story? | tools | `.claude/knowledge-base/references/project-a/` | SKIP — text-shape | Read docker-compose + README | Steps + deps |
+| Q3 | Project C procedural memory pattern | techniques | `.claude/knowledge-base/references/project-c/` | ast-grep classes in prompts/ | Read each class | Architecture description |
+| Q4 | Compare add() across Project A and Project B | techniques | `.claude/knowledge-base/references/project-a/`, `.claude/knowledge-base/references/project-b/` | ast-grep both languages | Read both methods | Side-by-side table |
+| Q5 | How does Project B document pgvector indexing strategy? | techniques | `.claude/knowledge-base/references/project-b/` | Glob docs/ | Read each doc | Index strategy summary |
 
 ## Coverage Matrix
 

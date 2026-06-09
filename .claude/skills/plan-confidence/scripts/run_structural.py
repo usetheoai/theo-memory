@@ -28,7 +28,13 @@ from typing import Any
 from _rubric_loader import load_rubric
 from check_adr_completeness import ADRReport, check_adr_completeness
 from check_architecture_compliance import check_architecture_compliance
+from check_baseline_context import BaselineContextReport, check_baseline_context
+from check_concurrency_tests import ConcurrencyReport, check_concurrency_tests
 from check_coverage_matrix import CoverageReport, check_coverage_matrix
+from check_criterion_executability import ExecutabilityReport, check_criterion_executability
+from check_drawbacks_section import DrawbacksReport, check_drawbacks_section
+from check_evidence_citations import EvidenceReport, check_evidence_citations
+from check_failure_scenarios import FailureScenariosReport, check_failure_scenarios
 from check_spec_smells import SmellReport, check_spec_smells
 from check_tdd_in_bugfix import TDDReport, check_tdd_in_bugfix
 
@@ -93,12 +99,12 @@ HOLDOUT_TARGET = 30  # M1 milestone: N>=30 for Cohen's kappa to make sense
 
 # SOTA composite weights (ADR D8 — renormalize for active dimensions in each milestone)
 SOTA_WEIGHTS = {
-    "completude": 0.30,
-    "evidencia": 0.30,
-    "calibracao": 0.20,
-    "risco_estrutural": 0.20,
+    "completeness": 0.30,
+    "evidence": 0.30,
+    "calibration": 0.20,
+    "structural_risk": 0.20,
 }
-M2_ACTIVE_DIMENSIONS = ["completude", "risco_estrutural"]
+M2_ACTIVE_DIMENSIONS = ["completeness", "structural_risk"]
 
 
 @dataclass
@@ -122,7 +128,7 @@ class StructuralScoreReport:
     hard_caps_triggered: list[str]
     final_score_after_caps: float
     verdict: str
-    motivos: dict[str, list[Motivo]]
+    reasons: dict[str, list[Motivo]]
     sub_reports: dict[str, Any] = field(default_factory=dict)
 
 
@@ -185,31 +191,35 @@ def _compute_completude(cov: CoverageReport, adr: ADRReport, tdd: TDDReport) -> 
     coverage_score = 60.0 * coverage_int  # weight 0.6 * 100
     adr_score = 20.0 * adr.completeness_ratio
     tdd_score = 20.0 * tdd.coverage_ratio
-    completude = coverage_score + adr_score + tdd_score
+    completeness = coverage_score + adr_score + tdd_score
 
-    motivos: list[Motivo] = []
+    reasons: list[Motivo] = []
     sign_cov = "positive" if cov.is_complete else "negative"
-    motivos.append(Motivo(sign=sign_cov, label=f"Coverage Matrix {'100%' if cov.is_complete else f'{cov.coverage_ratio:.0%}'}", weight=coverage_score))
+    reasons.append(Motivo(sign=sign_cov, label=f"Coverage Matrix {'100%' if cov.is_complete else f'{cov.coverage_ratio:.0%}'}", weight=coverage_score))
     sign_adr = "positive" if adr.completeness_ratio >= 1.0 else "negative"
-    motivos.append(Motivo(sign=sign_adr, label=f"ADR alternatives ({adr.with_alternatives}/{adr.total_adrs})", weight=adr_score))
+    reasons.append(Motivo(sign=sign_adr, label=f"ADR alternatives ({adr.with_alternatives}/{adr.total_adrs})", weight=adr_score))
     sign_tdd = "positive" if tdd.coverage_ratio >= 1.0 else "negative"
-    motivos.append(Motivo(sign=sign_tdd, label=f"TDD in bug-fix ({tdd.with_tdd}/{tdd.total_bugfix_tasks})", weight=tdd_score))
+    reasons.append(Motivo(sign=sign_tdd, label=f"TDD in bug-fix ({tdd.with_tdd}/{tdd.total_bugfix_tasks})", weight=tdd_score))
 
-    return completude, motivos
+    return completeness, reasons
 
 
 def _compute_risco(smells: SmellReport) -> tuple[float, list[Motivo]]:
     risco = max(0.0, 100.0 + smells.total_penalty)
     # Top 3 categories by hit count
     sorted_cats = sorted(smells.by_category.items(), key=lambda x: x[1], reverse=True)
-    motivos: list[Motivo] = []
+    reasons: list[Motivo] = []
     for cat, count in sorted_cats[:3]:
-        motivos.append(Motivo(sign="negative" if count > 0 else "neutral", label=f"{count} {cat} hits", weight=-float(count)))
-    return risco, motivos
+        reasons.append(Motivo(sign="negative" if count > 0 else "neutral", label=f"{count} {cat} hits", weight=-float(count)))
+    return risco, reasons
 
 
 def _detect_hard_caps(
-    cov: CoverageReport, adr: ADRReport, tdd: TDDReport
+    cov: CoverageReport,
+    adr: ADRReport,
+    tdd: TDDReport,
+    evidence: EvidenceReport | None = None,
+    executability: ExecutabilityReport | None = None,
 ) -> list[tuple[str, int]]:
     """Return list of (cap_id, cap_value) for triggered caps.
 
@@ -223,6 +233,12 @@ def _detect_hard_caps(
         triggered.append(("adr_without_alternatives", 70))
     if tdd.total_bugfix_tasks > 0 and tdd.coverage_ratio < 1.0:
         triggered.append(("bugfix_without_tdd", 70))
+    if evidence is not None and evidence.unresolved_citations:
+        triggered.append(("fabricated_citation", 49))
+    if executability is not None and executability.soft_cap_triggered:
+        # Heuristic-grade soft cap — Acceptance Criteria not executable enough.
+        # See check_criterion_executability.py for the gate thresholds.
+        triggered.append(("vague_acceptance_criteria", 70))
     return triggered
 
 
@@ -277,9 +293,15 @@ def run_structural(
     tdd = check_tdd_in_bugfix(plan_path)
     smells = check_spec_smells(plan_path, rubric_path)
     compliance = check_architecture_compliance(plan_path)
+    evidence = check_evidence_citations(plan_path, _find_repo_root_from_plan(plan_path))
+    executability = check_criterion_executability(plan_path)
+    baseline_ctx = check_baseline_context(plan_path)
+    drawbacks = check_drawbacks_section(plan_path)
+    concurrency = check_concurrency_tests(plan_path)
+    failure_scenarios = check_failure_scenarios(plan_path)
 
     # Compute per-dimension scores
-    completude, completude_motivos = _compute_completude(cov, adr, tdd)
+    completeness, completude_motivos = _compute_completude(cov, adr, tdd)
     risco, risco_motivos = _compute_risco(smells)
 
     # ADR D8 — renormalize for active dimensions
@@ -288,12 +310,12 @@ def run_structural(
     norm_factor = sum(SOTA_WEIGHTS[d] for d in active)  # e.g., M2: 0.30+0.20=0.50
 
     weighted_avg = (
-        normalized_weights["completude"] * completude
-        + normalized_weights["risco_estrutural"] * risco
+        normalized_weights["completeness"] * completeness
+        + normalized_weights["structural_risk"] * risco
     )
 
     # Hard caps (strict, fail-closed)
-    triggered = _detect_hard_caps(cov, adr, tdd)
+    triggered = _detect_hard_caps(cov, adr, tdd, evidence, executability)
     hard_cap_ids = [t[0] for t in triggered]
     if triggered:
         smallest_cap = min(t[1] for t in triggered)
@@ -316,16 +338,63 @@ def run_structural(
         final_score = 89.0
         hard_cap_ids.append("soft_floor_low_architecture_compliance")
 
+    # SOTA-upgrade soft caps (sunset 2026-09-07 — after which these promote to hard caps at 70).
+    # These verify the new mandatory sections introduced by the SOTA plan-template upgrade:
+    #   - Baseline Context (deep review of current state) — file table + callers + glossary
+    #   - Drawbacks & Risks — ≥ 2 entries with severity + mitigation + owner
+    #   - Unresolved Questions — entries OR explicit "(none — every decision is resolved)"
+    # Soft cap at 89 means legacy plans keep working as SHIPPABLE_WITH_CAVEATS until
+    # authors migrate them. See `rules/plan-confidence-golden-rule.md § SOTA upgrade`.
+    # Every violation is appended independently (not gated by current final_score)
+    # so authors see the full migration backlog in the hard_caps_triggered list.
+    if not baseline_ctx.is_complete:
+        hard_cap_ids.append("soft_floor_baseline_context_incomplete")
+        final_score = min(final_score, 89.0)
+    if not drawbacks.drawbacks_is_complete:
+        hard_cap_ids.append("soft_floor_drawbacks_section_insufficient")
+        final_score = min(final_score, 89.0)
+    if not drawbacks.unresolved_is_complete:
+        hard_cap_ids.append("soft_floor_unresolved_questions_section_missing")
+        final_score = min(final_score, 89.0)
+    # Concurrency tests check is CONDITIONAL — only triggers when concurrency
+    # signals are detected in the plan (mutex/goroutine/async/atomic/channel).
+    # Plans with no concurrency signals are skipped.
+    if concurrency.signals_detected and not concurrency.is_complete:
+        hard_cap_ids.append("soft_floor_concurrency_tests_missing")
+        final_score = min(final_score, 89.0)
+    # Failure scenarios check is CONDITIONAL — only triggers when external-I/O
+    # signals are detected (HTTP/DB/queue/gRPC/object-store). Plans without
+    # external I/O are skipped.
+    if failure_scenarios.external_io_detected and not failure_scenarios.is_complete:
+        hard_cap_ids.append("soft_floor_failure_scenarios_missing")
+        final_score = min(final_score, 89.0)
+
     verdict = _lookup_verdict(final_score, bands)
-    # Hard cap "coverage_lt_100" forces INVALID regardless of bands.
-    if "coverage_lt_100" in hard_cap_ids:
+    # Hard caps "coverage_lt_100" and "fabricated_citation" force INVALID regardless of bands.
+    if "coverage_lt_100" in hard_cap_ids or "fabricated_citation" in hard_cap_ids:
         verdict = "INVALID"
 
+    evidence_motivos: list[Motivo] = []
+    if evidence.total_citations > 0:
+        resolved_count = evidence.total_citations - len(evidence.unresolved_citations)
+        if resolved_count > 0:
+            evidence_motivos.append(
+                Motivo(sign="positive", label=f"{resolved_count} citations resolved", weight=float(resolved_count))
+            )
+        if evidence.unresolved_citations:
+            evidence_motivos.append(
+                Motivo(
+                    sign="negative",
+                    label=f"{len(evidence.unresolved_citations)} fabricated citation(s)",
+                    weight=-float(len(evidence.unresolved_citations)),
+                )
+            )
+
     motivos_map: dict[str, list[Motivo]] = {
-        "completude": completude_motivos,
-        "evidencia": [],  # M3 future
-        "calibracao": [],  # M5 future
-        "risco_estrutural": risco_motivos,
+        "completeness": completude_motivos,
+        "evidence": evidence_motivos,
+        "calibration": [],  # M5 future
+        "structural_risk": risco_motivos,
     }
 
     return StructuralScoreReport(
@@ -333,7 +402,7 @@ def run_structural(
         plan_path=str(plan_path),
         plan_version=plan_version,
         scored_at=datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
-        completude_score=round(completude, 2),
+        completude_score=round(completeness, 2),
         risco_estrutural_score=round(risco, 2),
         active_dimensions=active,
         weight_normalization_factor=round(1.0 / norm_factor, 4),
@@ -341,7 +410,7 @@ def run_structural(
         hard_caps_triggered=hard_cap_ids,
         final_score_after_caps=round(final_score, 2),
         verdict=verdict,
-        motivos=motivos_map,
+        reasons=motivos_map,
         sub_reports={
             "coverage_matrix": {
                 "total_gaps": cov.total_gaps,
@@ -376,7 +445,73 @@ def run_structural(
                 "principles_cited": list(compliance.principles_cited),
                 "has_dod_quality_signal": compliance.has_dod_quality_signal,
                 "has_size_budget_signal": compliance.has_size_budget_signal,
-                "motivos": list(compliance.motivos),
+                "reasons": list(compliance.motivos),
+            },
+            "evidence": {
+                "total_citations": evidence.total_citations,
+                "unresolved_citations": [
+                    {
+                        "kind": c.kind,
+                        "raw_text": c.raw_text,
+                        "location_line": c.location_line,
+                        "reason": c.reason,
+                    }
+                    for c in evidence.unresolved_citations
+                ],
+            },
+            "criterion_executability": {
+                "total_criteria": executability.total_criteria,
+                "vague_count": executability.vague_count,
+                "weak_count": executability.weak_count,
+                "acceptable_count": executability.acceptable_count,
+                "executable_count": executability.executable_count,
+                "vague_ratio": round(executability.vague_ratio, 3),
+                "acceptable_ratio": round(executability.acceptable_ratio, 3),
+                "executable_ratio": round(executability.executable_ratio, 3),
+                "soft_cap_triggered": executability.soft_cap_triggered,
+                "vague_criteria_sample": [
+                    c.text for c in executability.criteria if c.score == 0
+                ][:5],
+            },
+            "baseline_context": {
+                "section_present": baseline_ctx.section_present,
+                "is_complete": baseline_ctx.is_complete,
+                "missing_subsections": list(baseline_ctx.missing_subsections),
+                "file_table_rows": baseline_ctx.file_table_rows,
+                "file_table_placeholder_hits": baseline_ctx.file_table_placeholder_hits,
+                "glossary_entries": baseline_ctx.glossary_entries,
+                "glossary_placeholder_hits": baseline_ctx.glossary_placeholder_hits,
+                "reasons": list(baseline_ctx.reasons),
+            },
+            "drawbacks_and_unresolved": {
+                "drawbacks_section_present": drawbacks.drawbacks_section_present,
+                "drawbacks_entries": drawbacks.drawbacks_entries,
+                "drawbacks_placeholder_hits": drawbacks.drawbacks_placeholder_hits,
+                "drawbacks_is_complete": drawbacks.drawbacks_is_complete,
+                "drawbacks_reasons": list(drawbacks.drawbacks_reasons),
+                "unresolved_section_present": drawbacks.unresolved_section_present,
+                "unresolved_entries": drawbacks.unresolved_entries,
+                "unresolved_explicit_none": drawbacks.unresolved_explicit_none,
+                "unresolved_is_complete": drawbacks.unresolved_is_complete,
+                "unresolved_reasons": list(drawbacks.unresolved_reasons),
+            },
+            "concurrency_tests": {
+                "signals_detected": concurrency.signals_detected,
+                "signals_sample": list(concurrency.signals_sample),
+                "tasks_with_concurrency_subsection": concurrency.tasks_with_concurrency_subsection,
+                "tasks_with_acceptable_test_or_escape": concurrency.tasks_with_acceptable_test_or_escape,
+                "tasks_failing": list(concurrency.tasks_failing),
+                "is_complete": concurrency.is_complete,
+                "reasons": list(concurrency.reasons),
+            },
+            "failure_scenarios": {
+                "external_io_detected": failure_scenarios.external_io_detected,
+                "signals_sample": list(failure_scenarios.signals_sample),
+                "section_present": failure_scenarios.section_present,
+                "explicit_none": failure_scenarios.explicit_none,
+                "scenarios_count": failure_scenarios.scenarios_count,
+                "is_complete": failure_scenarios.is_complete,
+                "reasons": list(failure_scenarios.reasons),
             },
         },
     )
@@ -425,14 +560,24 @@ def _emit_calibration_warning() -> None:
 
 
 def _find_repo_root_from_plan(plan_path: Path) -> Path:
-    """Walk up from the plan path looking for `.git` or `.claude` marker."""
+    """Walk up from the plan path looking for a project-root marker.
+
+    Recognizes (in order of preference):
+      - `.git/`
+      - `.claude/` (when the plan is NOT inside a `.claude/` subtree)
+      - `plugin.json` (Claude Code plugin manifest — the canonical `plan` repo signature)
+      - `rules/` directory paired with `skills/` (the planning ecosystem layout)
+    """
     cur = plan_path.resolve().parent
     for _ in range(20):
-        if (cur / ".git").exists() or (cur / ".claude").exists():
-            # Only accept if .claude is at this level AND we're not already inside it
-            if (cur / ".claude").exists() and ".claude" not in cur.parts:
+        if ".claude" not in cur.parts:
+            if (cur / ".git").exists():
                 return cur
-            if (cur / ".git").exists() and ".claude" not in cur.parts:
+            if (cur / ".claude").exists():
+                return cur
+            if (cur / "plugin.json").exists():
+                return cur
+            if (cur / "rules").is_dir() and (cur / "skills").is_dir():
                 return cur
         if cur == cur.parent:
             break
@@ -440,82 +585,45 @@ def _find_repo_root_from_plan(plan_path: Path) -> Path:
     return plan_path.resolve().parent
 
 
+# T2.1 (R4.x / harden-fab-and-cq-gate) — code-quality subprocess + merge logic
+# extracted to `skills/code-quality/scripts/cq_invoke.py` as the shared helper
+# consumed by both this orchestrator and `skills/implement/scripts/run_validation.py`.
+# Keeps wiring triad pillar (a) honest: cq_invoke.merge_verdict_into_plan_confidence
+# has a real production caller below (previously this file kept private copies that
+# starved the public helper of a caller — captured by judge-codex implementation stage
+# on 2026-06-04 as wiring_triad_missing_caller_cq_merge_helper).
+_CQ_INVOKE_DIRS = [
+    Path(__file__).resolve().parent.parent.parent / "code-quality" / "scripts",
+    Path(__file__).resolve().parent.parent.parent.parent / "skills" / "code-quality" / "scripts",
+]
+for _cq_dir in _CQ_INVOKE_DIRS:
+    if _cq_dir.exists():
+        sys.path.insert(0, str(_cq_dir))
+        break
+
+try:
+    import cq_invoke  # type: ignore[import-not-found]
+except ImportError:
+    cq_invoke = None  # type: ignore[assignment]
+
+
 def _merge_code_quality_verdict(out: dict, cq_summary: dict) -> None:
-    """Merge code-quality verdict into plan-confidence output (smallest cap wins).
-
-    Severity tier mapping (consults cq_summary["score_cap"] AND ["verdict"], NOT just
-    presence of stable identifiers in hard_caps_triggered — see 2026-05-23 bug fix):
-
-      cq_verdict       → cq_score_cap → plan-confidence cap action
-      PASS             → 100          → no change
-      PASS_WITH_CAVEATS → 89          → cap at 89; if plan was SHIPPABLE, downgrade to SHIPPABLE_WITH_CAVEATS
-      FAIL_SOFT        → 70           → cap at 70; if plan was SHIPPABLE*, downgrade to NON_SHIPPABLE
-      FAIL_HARD / INVALID → 49        → force INVALID; cap at 49
-
-    Stable identifiers from cq_summary["hard_caps_triggered"] are ALWAYS appended to the plan's
-    hard_caps_triggered list for audit-trail visibility, regardless of severity tier.
-    The cap APPLIED to the score depends on tier, not on list presence — respecting allowlist
-    downgrades documented in code-quality-golden-rule.md § Allowlist mechanism.
+    """Thin wrapper around `cq_invoke.merge_verdict_into_plan_confidence` for
+    backward compatibility with existing call sites + the test suite that
+    imports this symbol via `from run_structural import _merge_code_quality_verdict`.
     """
-    cq_caps = list(cq_summary.get("hard_caps_triggered", []))
-    if cq_caps:
-        existing = list(out.get("hard_caps_triggered", []))
-        for cap in cq_caps:
-            if cap not in existing:
-                existing.append(cap)
-        out["hard_caps_triggered"] = existing
-
-    cq_score_cap = cq_summary.get("score_cap", 100)
-    cq_verdict = cq_summary.get("verdict", "UNKNOWN")
-    if cq_score_cap >= 100:
+    if cq_invoke is None:
         return
-
-    out["final_score_after_caps"] = min(out.get("final_score_after_caps", 100), cq_score_cap)
-    current = out.get("verdict", "SHIPPABLE")
-    if cq_verdict in ("FAIL_HARD", "INVALID"):
-        out["verdict"] = "INVALID"
-    elif cq_verdict == "FAIL_SOFT":
-        if current in ("SHIPPABLE", "SHIPPABLE_WITH_CAVEATS"):
-            out["verdict"] = "NON_SHIPPABLE"
-    elif cq_verdict == "PASS_WITH_CAVEATS":
-        if current == "SHIPPABLE":
-            out["verdict"] = "SHIPPABLE_WITH_CAVEATS"
+    cq_invoke.merge_verdict_into_plan_confidence(out, cq_summary)
 
 
 def _invoke_code_quality(plan_slug: str, repo_root: Path, timeout_s: int = 600) -> dict | None:
-    """T6.5 / EC-29 Opção A — invoke /code-quality as subprocess and parse JSON verdict.
-
-    Returns the parsed JSON dict on success, or None on failure (gracefully
-    degraded). When integration fails, plan-confidence does NOT crash; it
-    just doesn't merge code-quality caps. The orchestrator's own --no-network
-    flag is forwarded when this skill's env has CODE_QUALITY_NO_NETWORK set.
+    """Thin wrapper around `cq_invoke.invoke`. Kept for backward compatibility
+    with the test suite (`test_run_structural.py` imports the symbol).
     """
-    import os
-    import subprocess
-
-    script = repo_root / ".claude" / "skills" / "code-quality" / "scripts" / "run_code_quality.py"
-    if not script.exists():
+    if cq_invoke is None:
         return None
-    cmd = ["python3", str(script), plan_slug, "--no-audit-write", "--json-out", "-"]
-    if os.environ.get("CODE_QUALITY_NO_NETWORK"):
-        cmd.append("--no-network")
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            cwd=str(repo_root),
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.SubprocessError, OSError):
-        return None
-    if result.returncode not in (0, 1):
-        return None
-    try:
-        return json.loads(result.stdout)
-    except (json.JSONDecodeError, ValueError):
-        return None
+    return cq_invoke.invoke(plan_slug, repo_root, timeout_s=timeout_s)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -547,8 +655,8 @@ def main(argv: list[str] | None = None) -> int:
         _emit_calibration_warning()
 
     out = asdict(report)
-    out["motivos"] = {
-        k: [asdict(m) for m in v] for k, v in report.motivos.items()
+    out["reasons"] = {
+        k: [asdict(m) for m in v] for k, v in report.reasons.items()
     }
     # Embed calibration status in the JSON output for auditability.
     cal_status, cal_count, cal_target = _calibration_status()

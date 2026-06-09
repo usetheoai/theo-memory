@@ -17,7 +17,7 @@
     "hard_caps_triggered",
     "final_score_after_caps",
     "verdict",
-    "motivos",
+    "reasons",
     "sub_reports"
   ],
   "additionalProperties": true,
@@ -32,7 +32,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["completude", "evidencia", "calibracao", "risco_estrutural"]
+        "enum": ["completeness", "evidence", "calibration", "structural_risk"]
       },
       "minItems": 1,
       "uniqueItems": true
@@ -47,7 +47,17 @@
           "coverage_lt_100",
           "adr_without_alternatives",
           "bugfix_without_tdd",
-          "citation_fabricated"
+          "citation_fabricated",
+          "fabricated_citation",
+          "vague_acceptance_criteria",
+          "soft_floor_smell_density_high",
+          "soft_floor_high_deferred_ratio",
+          "soft_floor_low_architecture_compliance",
+          "soft_floor_baseline_context_incomplete",
+          "soft_floor_drawbacks_section_insufficient",
+          "soft_floor_unresolved_questions_section_missing",
+          "soft_floor_concurrency_tests_missing",
+          "soft_floor_failure_scenarios_missing"
         ]
       },
       "uniqueItems": true
@@ -57,15 +67,15 @@
       "type": "string",
       "enum": ["SHIPPABLE", "SHIPPABLE_WITH_CAVEATS", "NON_SHIPPABLE", "INVALID"]
     },
-    "motivos": {
+    "reasons": {
       "type": "object",
-      "required": ["completude", "evidencia", "calibracao", "risco_estrutural"],
+      "required": ["completeness", "evidence", "calibration", "structural_risk"],
       "additionalProperties": false,
       "properties": {
-        "completude": { "$ref": "#/$defs/motivos_list" },
-        "evidencia": { "$ref": "#/$defs/motivos_list" },
-        "calibracao": { "$ref": "#/$defs/motivos_list" },
-        "risco_estrutural": { "$ref": "#/$defs/motivos_list" }
+        "completeness": { "$ref": "#/$defs/motivos_list" },
+        "evidence": { "$ref": "#/$defs/motivos_list" },
+        "calibration": { "$ref": "#/$defs/motivos_list" },
+        "structural_risk": { "$ref": "#/$defs/motivos_list" }
       }
     },
     "sub_reports": {
@@ -99,7 +109,7 @@
             "principles_cited": { "type": "array", "items": { "type": "string" } },
             "has_dod_quality_signal": { "type": "boolean" },
             "has_size_budget_signal": { "type": "boolean" },
-            "motivos": { "type": "array", "items": { "type": "string" } }
+            "reasons": { "type": "array", "items": { "type": "string" } }
           }
         }
       }

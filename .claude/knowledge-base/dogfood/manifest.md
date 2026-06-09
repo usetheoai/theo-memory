@@ -27,8 +27,9 @@ This manifest declares the dogfood scenarios required before any `production-rea
 **Status transitioned:** `planned` → `wired` → `running` on 2026-06-04 (see Decision log entries of same date; the `wired` → `running` transition uses the empirical-snapshot path introduced by [ADR-0012](../../knowledge-base/adrs/ADR-0012-dogfood-gate-empirical-snapshot-amendment.md), satisfied by evidence file `2026-06-04-anchor-claude-code-real-providers-wired.md`)
 **Required by:** v1.0
 **Owner:** project owner (`usetheodev@gmail.com`)
-**Latest evidence:** `2026-06-04-anchor-claude-code-real-providers-wired.md` (Claude Code session post-restart wrote via `mcp__themory__remember` → 4 facts extracted by real OpenRouter LLM → 384-dim Xenova MiniLM embeddings → recall returned semantically-correct top-1 with cosine score 0.657 + 3 concrete DX pains logged + configuration reproducible via documented commits e43d801 / 1319f35 / 45d21f7)
-**First evidence:** `2026-06-04-anchor-claude-code-first-wiring.md` (pre-real-provider isolation verification; kept as truth-of-work-done audit trail)
+**Latest evidence:** `2026-06-07-anchor-claude-code-post-pr32-relaunch.md` (post PR #32 merge `fca24a7` re-validation — 3 facts extracted from this session into pgvector at `kind=extracted` + recall cosine 0.5126 > 0.5 on query "OAuth token introspection standard claims" with limited lexical overlap + 5 concrete DX pains logged including 0-extraction silent drop + empty history-table on MCP path + cross-language recall degradation + dogfood-anchor data didn't survive cycle-dev schema reset + admin-keys post-fixes-cycle-1 contract change docs gap + configuration reproducible via PR #32 chain). Status `running` continuity maintained across Item 20 + fixes-cycle-1 + /review-fixes release.
+**Prior evidence:** `2026-06-04-anchor-claude-code-real-providers-wired.md` (original `wired → running` empirical-snapshot via ADR-0012; cosine 0.657 + 3 DX pains; commits e43d801 / 1319f35 / 45d21f7).
+**First evidence:** `2026-06-04-anchor-claude-code-first-wiring.md` (pre-real-provider isolation verification; kept as truth-of-work-done audit trail).
 
 #### Description
 

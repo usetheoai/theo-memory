@@ -28,6 +28,13 @@ type Payload = Record<string, string | number | boolean | null>;
 interface StoredRow {
   readonly vector: readonly number[];
   readonly payload: Payload;
+  /**
+   * dashboard-memories-tab-standardization T2.2 — wall-clock when the row was
+   * stamped at `insert()` time. Projected through `VectorStoreResult.createdAt`
+   * on `list()` so consumers (e.g., LocalScopedMemory.getAll) honor real
+   * row-temporal truth instead of synthesizing `new Date()` per call.
+   */
+  readonly createdAt: Date;
 }
 
 function cosineSim(a: readonly number[], b: readonly number[]): number {
@@ -101,7 +108,7 @@ export class InMemoryVectorStore implements VectorStore {
       const id = ids[i] as string;
       const vector = vectors[i] as readonly number[];
       const payload = payloads[i] as Payload;
-      this.rows.set(id, { vector, payload });
+      this.rows.set(id, { vector, payload, createdAt: new Date() });
       // principles-alignment-hardening T2.1 — InMemoryVectorStore has no
       // UPSERT semantics (Map.set overwrites silently). Each row is treated
       // as a fresh insert: confirmationCount=1, rejectedAsDuplicate=false.
@@ -170,7 +177,12 @@ export class InMemoryVectorStore implements VectorStore {
   }
 
   async update(vectorId: string, vector: readonly number[], payload: Payload): Promise<void> {
-    this.rows.set(vectorId, { vector, payload });
+    // Preserve the original createdAt across updates (mutation does NOT change
+    // first-persisted timestamp per ADR-0003 ADD-only contract); fall back to
+    // `new Date()` when the id was not seen before (callers may use update()
+    // as an upsert-when-row-missing — rare but legal).
+    const existingCreatedAt = this.rows.get(vectorId)?.createdAt ?? new Date();
+    this.rows.set(vectorId, { vector, payload, createdAt: existingCreatedAt });
     await Promise.resolve();
   }
 
@@ -193,8 +205,21 @@ export class InMemoryVectorStore implements VectorStore {
       if (!matchesFilters(row.payload, filters)) {
         continue;
       }
-      matching.push({ id, payload: row.payload });
+      // dashboard-memories-tab-standardization T2.2 — project createdAt so
+      // consumers (LocalScopedMemory.getAll) honor real row-temporal truth.
+      matching.push({ id, payload: row.payload, createdAt: row.createdAt });
     }
+    // EC-6 — deterministic pagination order: sort by createdAt DESC, id ASC
+    // (matches PgvectorStore.list T2.1 ORDER BY contract). Without this, Map
+    // insertion order is V8-impl-defined and produces flickering Dashboard
+    // pagination when two rows share the same millisecond timestamp.
+    matching.sort((a, b) => {
+      const dt = (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0);
+      if (dt !== 0) {
+        return dt;
+      }
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
     await Promise.resolve();
     return [matching.slice(0, topK), matching.length];
   }
@@ -268,7 +293,7 @@ export class InMemoryVectorStore implements VectorStore {
     if (args.scope.agentId !== undefined && args.scope.agentId !== null) {
       payload['agent_id'] = args.scope.agentId;
     }
-    this.rows.set(id, { vector: args.embedding, payload });
+    this.rows.set(id, { vector: args.embedding, payload, createdAt: new Date() });
     await Promise.resolve();
     return id;
   }
@@ -286,6 +311,7 @@ export class InMemoryVectorStore implements VectorStore {
     this.rows.set(id, {
       vector: args.embedding,
       payload: skillPayload(args, null),
+      createdAt: new Date(),
     });
     await Promise.resolve();
     return id;
@@ -307,6 +333,7 @@ export class InMemoryVectorStore implements VectorStore {
     this.rows.set(id, {
       vector: args.embedding,
       payload: skillPayload(args, args.derivedFrom),
+      createdAt: new Date(),
     });
     await Promise.resolve();
     return id;

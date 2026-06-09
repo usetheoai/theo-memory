@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""End-to-end smoke test for the .claude/ ecosystem.
+"""End-to-end smoke test for the planning ecosystem.
+
+Supports dual-mode layouts:
+  - Standalone — the ecosystem repo itself (skills/+rules/+hooks/ directly).
+  - User config — <home>/.claude/.
+  - Plugin install — <root>/.claude/plugins/plan/.
 
 Validates:
   1. All Python scripts have valid syntax (py_compile)
@@ -10,13 +15,14 @@ Validates:
   6. Each first-class skill has a valid SKILL.md frontmatter
   7. Smoke chain: detect_domain → spawn_reviewers → consolidate_findings works in sequence
 
-Run from project root:
-    python3 .claude/scripts/test_e2e_smoke.py
+Run from any directory inside the layout:
+    python3 scripts/test_e2e_smoke.py                # standalone
+    python3 .claude/scripts/test_e2e_smoke.py        # plugin install
 
 Exit codes:
   0 — All checks passed
   1 — At least one check failed
-  2 — Error (project root not found, etc.)
+  2 — Error (ecosystem dir not found, etc.)
 """
 from __future__ import annotations
 
@@ -28,18 +34,34 @@ import tempfile
 from pathlib import Path
 
 
-def _find_project_root() -> Path:
+def _is_ecosystem_layout(d: Path) -> bool:
+    return (d / "skills").is_dir() and (d / "rules").is_dir() and (d / "hooks").is_dir()
+
+
+def _find_ecosystem_dir() -> Path:
+    """Locate ecosystem directory across the three supported layouts."""
     current = Path.cwd().resolve()
-    while current != current.parent:
-        if (current / ".claude").is_dir() or (current / ".git").exists():
+    for _ in range(20):
+        if _is_ecosystem_layout(current):
             return current
+        claude_sub = current / ".claude"
+        if _is_ecosystem_layout(claude_sub):
+            return claude_sub
+        plugin_sub = current / ".claude" / "plugins" / "plan"
+        if _is_ecosystem_layout(plugin_sub):
+            return plugin_sub
+        if current == current.parent:
+            break
         current = current.parent
-    raise FileNotFoundError("Project root not found")
+    raise FileNotFoundError(
+        "Ecosystem directory not found. Expected one of: <cwd>/{skills,rules,hooks}, "
+        "<cwd>/.claude/{skills,rules,hooks}, or <cwd>/.claude/plugins/plan/{skills,rules,hooks}."
+    )
 
 
-def check_python_syntax(project_root: Path) -> tuple[bool, list[str]]:
+def check_python_syntax(ecosystem_dir: Path) -> tuple[bool, list[str]]:
     issues: list[str] = []
-    py_files = list((project_root / ".claude").rglob("*.py"))
+    py_files = list(ecosystem_dir.rglob("*.py"))
     # Filter caches
     py_files = [
         p for p in py_files
@@ -49,14 +71,15 @@ def check_python_syntax(project_root: Path) -> tuple[bool, list[str]]:
         try:
             py_compile.compile(str(py), doraise=True)
         except py_compile.PyCompileError as exc:
-            issues.append(f"  syntax error in {py.relative_to(project_root)}: {exc}")
+            issues.append(f"  syntax error in {py.relative_to(ecosystem_dir)}: {exc}")
     return len(issues) == 0, issues
 
 
-def check_shell_syntax(project_root: Path) -> tuple[bool, list[str]]:
+def check_shell_syntax(ecosystem_dir: Path) -> tuple[bool, list[str]]:
     issues: list[str] = []
-    sh_files = list((project_root / ".claude" / "hooks").glob("*.sh"))
-    sh_files.extend((project_root / ".claude" / "skills").rglob("*.sh"))
+    sh_files = list((ecosystem_dir / "hooks").glob("*.sh"))
+    sh_files.extend((ecosystem_dir / "skills").rglob("*.sh"))
+    sh_files.extend((ecosystem_dir / "scripts").glob("*.sh"))
     for sh in sh_files:
         result = subprocess.run(
             ["bash", "-n", str(sh)],
@@ -64,14 +87,14 @@ def check_shell_syntax(project_root: Path) -> tuple[bool, list[str]]:
             text=True,
         )
         if result.returncode != 0:
-            issues.append(f"  shell syntax error in {sh.relative_to(project_root)}: {result.stderr.strip()}")
+            issues.append(f"  shell syntax error in {sh.relative_to(ecosystem_dir)}: {result.stderr.strip()}")
     return len(issues) == 0, issues
 
 
-def check_settings_json(project_root: Path) -> tuple[bool, list[str]]:
+def check_settings_json(ecosystem_dir: Path) -> tuple[bool, list[str]]:
     issues: list[str] = []
-    for json_file in [".claude/settings.json", ".claude/settings.local.json.example"]:
-        path = project_root / json_file
+    for json_file in ("settings.json", "settings.local.json", "settings.local.json.example"):
+        path = ecosystem_dir / json_file
         if not path.exists():
             continue
         try:
@@ -81,26 +104,25 @@ def check_settings_json(project_root: Path) -> tuple[bool, list[str]]:
     return len(issues) == 0, issues
 
 
-def check_xrefs(project_root: Path) -> tuple[bool, list[str]]:
-    validator = project_root / ".claude" / "scripts" / "check_xrefs.py"
+def check_xrefs(ecosystem_dir: Path) -> tuple[bool, list[str]]:
+    validator = ecosystem_dir / "scripts" / "check_xrefs.py"
     if not validator.exists():
         return True, ["  check_xrefs.py not installed — skipping"]
     result = subprocess.run(
-        [sys.executable, str(validator)],
+        [sys.executable, str(validator), "--ecosystem-dir", str(ecosystem_dir)],
         capture_output=True,
         text=True,
-        cwd=str(project_root),
     )
     if result.returncode != 0:
         return False, [f"  check_xrefs.py returned {result.returncode}", "  " + result.stdout[-200:]]
     return True, []
 
 
-def check_cycle_rules(project_root: Path) -> tuple[bool, list[str]]:
+def check_cycle_rules(ecosystem_dir: Path) -> tuple[bool, list[str]]:
     issues: list[str] = []
-    required_sections = ("## Purpose", "## Chain", "## Hard gates", "## Anti-patterns", "## Cross-references")
-    for cycle_name in ("discover", "plan", "implement", "review"):
-        rule = project_root / ".claude" / "rules" / f"cycle-{cycle_name}.md"
+    required_sections = ("## Purpose", "## Chain", "## Anti-patterns")
+    for cycle_name in ("discover", "plan", "implement", "review", "code-quality", "auto-plan"):
+        rule = ecosystem_dir / "rules" / f"cycle-{cycle_name}.md"
         if not rule.exists():
             issues.append(f"  missing cycle rule: cycle-{cycle_name}.md")
             continue
@@ -111,10 +133,24 @@ def check_cycle_rules(project_root: Path) -> tuple[bool, list[str]]:
     return len(issues) == 0, issues
 
 
-def check_skill_frontmatter(project_root: Path) -> tuple[bool, list[str]]:
+def check_skill_frontmatter(ecosystem_dir: Path) -> tuple[bool, list[str]]:
+    """Validate every SKILL.md has a parseable YAML frontmatter with required fields.
+
+    The earlier substring check (`"name:" in fm`) silently passed `roadmap-feature/SKILL.md`
+    when the description contained an unquoted colon that made YAML parsing fail —
+    Claude Code aborts skill discovery for an entire tree on a single invalid frontmatter,
+    so the gap caused 'skills do not load on consumers'. This function now validates the
+    YAML structurally with PyYAML and requires the canonical fields.
+    """
     issues: list[str] = []
-    required_fields = ("name:", "description:")
-    for skill_dir in (project_root / ".claude" / "skills").iterdir():
+    required_fields = ("name", "description")
+    try:
+        import yaml  # PyYAML — listed as a setup pre-condition in README
+    except ImportError:
+        issues.append("  PyYAML not available — install via `pip install pyyaml`")
+        return False, issues
+
+    for skill_dir in (ecosystem_dir / "skills").iterdir():
         if not skill_dir.is_dir() or skill_dir.name == "generated":
             continue
         skill_md = skill_dir / "SKILL.md"
@@ -125,22 +161,35 @@ def check_skill_frontmatter(project_root: Path) -> tuple[bool, list[str]]:
         if not content.startswith("---\n"):
             issues.append(f"  {skill_dir.name}/SKILL.md missing opening frontmatter")
             continue
-        # Find closing ---
         end = content.find("\n---\n", 4)
         if end == -1:
             issues.append(f"  {skill_dir.name}/SKILL.md missing closing frontmatter")
             continue
-        fm = content[4:end]
+        fm_raw = content[4:end]
+        try:
+            fm = yaml.safe_load(fm_raw)
+        except yaml.YAMLError as e:
+            # Compact the YAML error to a single line so the report stays readable.
+            err = str(e).splitlines()[0] if str(e) else "unknown YAML error"
+            issues.append(
+                f"  {skill_dir.name}/SKILL.md YAML frontmatter is invalid: {err}"
+            )
+            continue
+        if not isinstance(fm, dict):
+            issues.append(
+                f"  {skill_dir.name}/SKILL.md frontmatter is not a YAML mapping"
+            )
+            continue
         for field in required_fields:
-            if field not in fm:
+            if not fm.get(field):
                 issues.append(f"  {skill_dir.name}/SKILL.md missing field `{field}`")
     return len(issues) == 0, issues
 
 
-def check_smoke_chain(project_root: Path) -> tuple[bool, list[str]]:
+def check_smoke_chain(ecosystem_dir: Path) -> tuple[bool, list[str]]:
     """Exercise detect_domain → spawn_reviewers → consolidate_findings in sequence."""
     issues: list[str] = []
-    review_skill = project_root / ".claude" / "skills" / "review"
+    review_skill = ecosystem_dir / "skills" / "review"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -166,7 +215,13 @@ def check_smoke_chain(project_root: Path) -> tuple[bool, list[str]]:
         primary = domain_data.get("primary_domain", "unknown")
 
         # 3. spawn_reviewers
+        # NOTE: pass --skills-dir <tmp_skills> isolated from the real .claude/skills/.
+        # Without this override, spawn_reviewers writes the paired knowledge skills
+        # into the real registry and pollutes the project's skill autocomplete with
+        # `review-smoke-*-knowledge` entries (regression observed pre-2026-05-30).
         agents_out = tmp / "agents"
+        tmp_skills = tmp / "skills"
+        tmp_skills.mkdir(parents=True, exist_ok=True)
         spawn = review_skill / "scripts" / "spawn_reviewers.py"
         r2 = subprocess.run(
             [sys.executable, str(spawn),
@@ -174,7 +229,8 @@ def check_smoke_chain(project_root: Path) -> tuple[bool, list[str]]:
              "--slug", "smoke",
              "--primary-domain", primary if primary != "unknown" else "memory-layer",
              "--output-dir", str(agents_out),
-             "--skill-dir", str(review_skill)],
+             "--skill-dir", str(review_skill),
+             "--skills-dir", str(tmp_skills)],
             capture_output=True, text=True,
         )
         if r2.returncode != 0:
@@ -212,7 +268,7 @@ def check_smoke_chain(project_root: Path) -> tuple[bool, list[str]]:
 
 def main() -> int:
     try:
-        project_root = _find_project_root()
+        ecosystem_dir = _find_ecosystem_dir()
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -227,12 +283,12 @@ def main() -> int:
         ("Smoke chain (detect_domain → spawn_reviewers → consolidate)", check_smoke_chain),
     ]
 
-    print(f"=== E2E smoke test — project: {project_root} ===\n")
+    print(f"=== E2E smoke test — ecosystem: {ecosystem_dir} ===\n")
 
     all_pass = True
     for name, check in checks:
         try:
-            ok, issues = check(project_root)
+            ok, issues = check(ecosystem_dir)
         except Exception as exc:
             ok, issues = False, [f"  exception: {exc}"]
         if ok:

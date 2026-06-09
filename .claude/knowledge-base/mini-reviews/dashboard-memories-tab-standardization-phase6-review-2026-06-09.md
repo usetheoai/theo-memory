@@ -1,0 +1,66 @@
+# Mini review — dashboard-memories-tab-standardization — Phase 6
+
+**Date:** 2026-06-09
+**Verdict:** `PHASE_REVIEW_PASS`
+**Max severity:** `MEDIUM`
+
+This is the **Step 4.7 phase-boundary mini review** — runs at the end of every
+phase, before the next phase begins (cycle-implement.md § Hard gates). Companion
+to `/review` (which runs once at the end of all phases).
+
+## Findings summary
+
+| Severity | Count |
+|---|---|
+| BLOCKER | 0 |
+| HIGH | 0 |
+| MEDIUM | 1 |
+| LOW | 0 |
+| INFO | 2 |
+
+## Findings
+
+### [MEDIUM] no_declared_scope
+
+Phase 6 tasks did not declare `#### Files to edit` sections. Cannot compare against declared scope; scope-drift detection skipped.
+
+### [INFO] phase_dod_absent
+
+Plan does not declare a `### Phase 6 — Definition of Done` section (optional).
+
+### [INFO] cross_layer_check_skipped
+
+Cross-layer cohesion detection requires per-project layer config in rules/architecture.md. Skipped — implement when project declares its layers.
+
+## Check details
+
+### 1. Phase completeness
+
+- total_tasks_in_phase: 1
+- committed: 1
+- blocked: 0
+- pending: 0
+- phase_dod_present: False
+
+### 2. Diff cohesion
+
+- declared_files: 0
+- modified_files: 2
+- drift_files: 0
+- diff_source: `git`
+
+### 3. Wiring summary
+
+- status: `N/A`
+- symbols_checked: 2
+- pillar_a_fails: 0
+- reason: no symbols from phase tasks could be resolved against source tree (filename-stem heuristic produced no real matches)
+
+### 4. Code-quality delta
+
+- status: `SKIP`
+- reason: cq_invoke.py not available
+
+## Recommendation
+
+Phase passes mini review. Halt-loop may proceed to next phase.

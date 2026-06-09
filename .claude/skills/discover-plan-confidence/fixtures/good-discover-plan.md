@@ -5,7 +5,7 @@
 **Slug:** `good-discover-plan-fixture`
 **Owner:** test-author
 **Created:** 2026-05-22
-**Time budget:** 6h (Mem0: 3h, Letta: 2h, LangMem: 1h)
+**Time budget:** 6h (Project A: 3h, Project B: 2h, Project C: 1h)
 
 ## Context
 
@@ -25,24 +25,24 @@ Validate that the four deterministic checkers (`check_research_coverage`, `check
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `.claude/knowledge-base/references/mem0/` | mem0-ts source | Mem0-shape architecture is locked for v0.1 |
-| `.claude/knowledge-base/references/letta/` | services + orm layers | Pgvector schema reference |
-| `.claude/knowledge-base/references/langmem/` | procedural memory module | v0.4 reference shape |
+| `.claude/knowledge-base/references/project-a/` | project-a-ts source | Project A-shape architecture is locked for v0.1 |
+| `.claude/knowledge-base/references/project-b/` | services + orm layers | Pgvector schema reference |
+| `.claude/knowledge-base/references/project-c/` | procedural memory module | v0.4 reference shape |
 
 ### Out-of-Scope (explicit)
 
 | Project / Subdir | Why excluded |
 |---|---|
-| `.claude/knowledge-base/references/mem0/` build artifacts | Generated outputs are not source of truth |
+| `.claude/knowledge-base/references/project-a/` build artifacts | Generated outputs are not source of truth |
 | Any project NOT cloned into `.claude/knowledge-base/references/` | Cross-Project Rule — never claim a feature without reading source |
 
 ## ADRs
 
 ### D1 — Time budget + stop conditions
 
-**Decision:** Mem0 gets 3h, Letta 2h, LangMem 1h.
+**Decision:** Project A gets 3h, Project B 2h, Project C 1h.
 
-**Rationale:** Mem0 is the deepest analog; Letta's pgvector layout is targeted; LangMem is reference for v0.4 procedural memory.
+**Rationale:** Project A is the deepest analog; Project B's pgvector layout is targeted; Project C is reference for v0.4 procedural memory.
 
 **Alternatives considered:** equal split, single-project deep dive.
 
@@ -60,18 +60,18 @@ Validate that the four deterministic checkers (`check_research_coverage`, `check
 
 **Alternatives considered:** grep-only summary, fast skim.
 
-**Consequences:** higher token cost per question, but lower fabrication risk.
+**Consequences:** slower investigation per question, but lower fabrication risk.
 
 ## Research Questions
 
 | # | Question | Corner | Reference project(s) | Fase A (broad — ast-grep map) | Fase B (deep — Read at each hotspot) | Expected answer shape |
 |---|---|---|---|---|---|---|
-| Q1 | How does Mem0 test the LLM-extraction pipeline against Postgres? | tests | `.claude/knowledge-base/references/mem0/` | ast-grep run --pattern describe blocks --lang typescript | Read each test fixture + setup block | Table: test name → fixture used → assertion type |
-| Q2 | What pgvector versions does Letta support? | deps | `.claude/knowledge-base/references/letta/` | SKIP — text-shape; Glob pyproject.toml | Read each match in context | Version range + supported index types |
-| Q3 | What is Mem0's local-dev story? | tools | `.claude/knowledge-base/references/mem0/` | SKIP — text-shape; Glob docker-compose + Makefile | Read each file fully | Step-by-step instructions + dependency list |
-| Q4 | LangMem procedural memory: prompt rewriting or structured class? | techniques | `.claude/knowledge-base/references/langmem/` | ast-grep run --pattern class definitions --lang python .claude/knowledge-base/references/langmem/src/langmem/prompts/ | Read each candidate class | Architecture description + key citations |
-| Q5 | Compare add() operation across Mem0 TS and Letta Python | techniques | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/` | ast-grep TS add() + ast-grep Python add() | Read both methods side-by-side | Side-by-side signature table |
-| Q6 | How does Letta seed integration tests with pgvector data? | tests | `.claude/knowledge-base/references/letta/` | ast-grep run --pattern pytest fixture --lang python | Read each fixture body | Setup pattern catalog |
+| Q1 | How does Project A test the LLM-extraction pipeline against Postgres? | tests | `.claude/knowledge-base/references/project-a/` | ast-grep run --pattern describe blocks --lang typescript | Read each test fixture + setup block | Table: test name → fixture used → assertion type |
+| Q2 | What pgvector versions does Project B support? | deps | `.claude/knowledge-base/references/project-b/` | SKIP — text-shape; Glob pyproject.toml | Read each match in context | Version range + supported index types |
+| Q3 | What is Project A's local-dev story? | tools | `.claude/knowledge-base/references/project-a/` | SKIP — text-shape; Glob docker-compose + Makefile | Read each file fully | Step-by-step instructions + dependency list |
+| Q4 | Project C procedural memory: prompt rewriting or structured class? | techniques | `.claude/knowledge-base/references/project-c/` | ast-grep run --pattern class definitions --lang python .claude/knowledge-base/references/project-c/src/project-c/prompts/ | Read each candidate class | Architecture description + key citations |
+| Q5 | Compare add() operation across Project A TS and Project B Python | techniques | `.claude/knowledge-base/references/project-a/`, `.claude/knowledge-base/references/project-b/` | ast-grep TS add() + ast-grep Python add() | Read both methods side-by-side | Side-by-side signature table |
+| Q6 | How does Project B seed integration tests with pgvector data? | tests | `.claude/knowledge-base/references/project-b/` | ast-grep run --pattern pytest fixture --lang python | Read each fixture body | Setup pattern catalog |
 
 ## Coverage Matrix
 

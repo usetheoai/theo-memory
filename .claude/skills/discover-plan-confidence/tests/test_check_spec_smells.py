@@ -23,7 +23,7 @@ version: 1
 artifact_type: discovery_plan
 nodes:
   - id: 1
-    dimension: risco_estrutural
+    dimension: structural_risk
     detector: spec_smells
     failure_action: penalty
     penalty_weights:

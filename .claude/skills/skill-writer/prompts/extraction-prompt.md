@@ -55,7 +55,7 @@ Patterns for <domain> distilled from <source>. Use when planning <specific area 
 Concrete example (good):
 
 ```
-Patterns for pgvector schema design distilled from Letta's production-shaped implementation. Use when planning src/local/ adapter for TheMemory, when designing the schema of vector-bearing tables, when choosing pgvector index type (HNSW vs IVFFlat), or when wiring Alembic migrations for embedding-dimension changes. Anchored on .claude/knowledge-base/references/letta/letta/orm/ and the Letta exploration ADRs.
+Patterns for pgvector schema design distilled from Project B's production-shaped implementation. Use when planning src/local/ adapter for OurProject, when designing the schema of vector-bearing tables, when choosing pgvector index type (HNSW vs IVFFlat), or when wiring Alembic migrations for embedding-dimension changes. Anchored on .claude/knowledge-base/references/project-b/project-b/orm/ and the Project B exploration ADRs.
 ```
 
 Concrete example (bad — vague):

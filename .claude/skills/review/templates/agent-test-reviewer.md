@@ -34,7 +34,7 @@ For every task in the plan with a TDD section:
 
 - Find the test file modified in this branch matching the task
 - Verify the test was committed BEFORE the implementation (check `git log --follow` order)
-- If commit order shows implementation first, FLAG as MAJOR (TDD broken)
+- If commit order shows implementation first, FLAG as MEDIUM (TDD broken)
 
 ### 3. AAA / Given-When-Then format
 
@@ -44,14 +44,14 @@ Per `testing.md § BDD`:
 - Test names describe BEHAVIOR, not method (`test_transfer_fails_when_balance_insufficient`, NOT `test_transfer_1`)
 - No "and" in test names (split into multiple tests)
 
-FLAG violations as MINOR per test.
+FLAG violations as LOW per test.
 
 ### 4. Edge case coverage from plan
 
 For every Edge Case mentioned in the plan's Deep Dives or Acceptance Criteria sections:
 
 - Search tests/ for an assertion that exercises that edge case
-- If not found, FLAG as CRITICAL with the specific edge case missing
+- If not found, FLAG as HIGH with the specific edge case missing
 - Common patterns to search for: empty inputs, null/undefined, maximum size, malformed format, timeout, concurrent access, idempotency
 
 ### 5. Mock / fixture hygiene
@@ -62,8 +62,8 @@ For every Edge Case mentioned in the plan's Deep Dives or Acceptance Criteria se
 
 ### 6. Skipped / commented tests
 
-- ANY `xit`, `xtest`, `.skip`, `@skip`, `it.only`, `test.only` = FLAG as BLOCKER (per Inquebrável Rule 7: no skipped tests, no `.only` leaks)
-- Commented-out test blocks = FLAG as CRITICAL (dead code in tests is worse than dead code in src)
+- ANY `xit`, `xtest`, `.skip`, `@skip`, `it.only`, `test.only` = FLAG as BLOCKER (per Unbreakable Rule 7: no skipped tests, no `.only` leaks)
+- Commented-out test blocks = FLAG as HIGH (dead code in tests is worse than dead code in src)
 
 ### 7. Test runtime sanity
 
@@ -88,7 +88,7 @@ edge_cases_from_plan:
   missing: ["edge case 1 description", "edge case 2 description"]
 findings:
   - id: F-tests-1
-    severity: CRITICAL
+    severity: HIGH
     file: tests/integration/memory-store.test.ts
     line: 42
     plan_ref: T2.1 Deep Dives — "empty input"

@@ -14,24 +14,23 @@ argument-hint: "<topic, audience, or file>"
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+> See `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Orchestrates `/marp-slide` and `/excalidraw` into a single end-to-end workflow. One command produces a complete presentation with diagrams, slides, and rendered outputs.
 
 **This skill does NOT duplicate the rules of `/marp-slide` or `/excalidraw`.** It reads their SKILL.md files at runtime and follows them. This file defines only the orchestration — what to do, in what order, and how the two skills connect.
 
-**Project rules consumed (TheMemory):**
+**Project rules consumed:**
 - `.claude/rules/public-copy.md` — voice rules apply to any deck that may surface in README/PITCH or marketing material.
-- `.claude/rules/dogfood-golden-rule.md` — NEVER produce a deck claiming "production-ready" / "v1.0" / "production-grade" for `@usetheo/memory` without recorded dogfood evidence. Invoke `/dogfood` BEFORE generating any status-claim deck.
-- `.claude/rules/token-budget.md` — full `/deck` invocation costs roughly `/excalidraw × N_diagrams + /marp-slide` (typically 60-150k tokens).
+- `.claude/rules/dogfood-golden-rule.md` — NEVER produce a deck claiming "production-ready" / "v1.0" / "production-grade" for the project without recorded dogfood evidence. Invoke `/dogfood` BEFORE generating any status-claim deck.
 
 ---
 
 ## When to Trigger
 
-- User asks for a "presentation with diagrams", "deck completo", "apresentação visual"
+- User asks for a "presentation with diagrams", "complete deck", "visual presentation"
 - User wants slides AND diagrams created together
-- User says "crie uma apresentação sobre X" and the topic clearly benefits from visual diagrams
+- User says "create a presentation about X" and the topic clearly benefits from visual diagrams
 - User explicitly invokes `/deck`
 
 **When NOT to use:** If the user only wants slides (no diagrams) → use `/marp-slide`. If the user only wants a diagram → use `/excalidraw`.
@@ -113,7 +112,7 @@ Report to the user:
 
 ## File Structure Produced
 
-Default presentation directory in TheMemory is `docs/presentations/` (consistent with `docs/exploration-reports/`). Other projects may override.
+Default presentation directory is `docs/presentations/`. Projects may override.
 
 ```
 docs/presentations/                   ← default; can be overridden
@@ -161,7 +160,7 @@ Deck has ONE set of orchestration checks. Slide-quality and diagram-quality chec
 | 5 | All diagrams use 1280x720 frame |
 | 6 | All diagrams were rendered and visually validated per `/excalidraw` Render & Validate loop |
 | 7 | Color palette is consistent across all diagrams (from `/excalidraw` `references/color-palette.md`) |
-| 8 | If the deck mentions status of `@usetheo/memory`, `/dogfood` was invoked and returned `EVIDENCE_SUFFICIENT` or `EVIDENCE_WITH_CAVEATS` |
+| 8 | If the deck mentions production status of the project, `/dogfood` was invoked and returned `EVIDENCE_SUFFICIENT` or `EVIDENCE_WITH_CAVEATS` |
 
 ### Downstream checks (delegated)
 - **Slides:** run the full Quality Checklist of `/marp-slide` (19 items).

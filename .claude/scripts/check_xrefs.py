@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Cross-reference validator for the .claude/ ecosystem.
+"""Cross-reference validator for the planning ecosystem.
+
+Supports dual-mode layouts:
+  - Standalone — running from inside the ecosystem repo itself (the directory
+    contains skills/ + rules/ + hooks/ directly, no .claude/ wrapper).
+  - User config — installed as <home>/.claude/.
+  - Plugin install — installed as <root>/.claude/plugins/plan/.
 
 Validates that:
   1. Each cycle-*.md references SKILL.md files that exist
@@ -8,15 +14,19 @@ Validates that:
   4. No orphan skills (skills not in any cycle, except documented auxiliary)
   5. No orphan cycle phases (cycle rule mentions a skill that doesn't exist)
   6. Each cycle rule template-cited script exists at the cited path
+  7. SKILL.md bodies and Python scripts do not reference rules/*.md|*.txt that do not exist
+     (catches fabricated rule references — the gap that hid code-quality-golden-rule
+     before this check existed). The match pattern is `[.claude/]rules/<name>.(md|txt)`.
 
 Usage:
-    python3 .claude/scripts/check_xrefs.py
-    python3 .claude/scripts/check_xrefs.py --strict      # exit 1 on warnings too
+    python3 scripts/check_xrefs.py                  # standalone
+    python3 .claude/scripts/check_xrefs.py          # plugin install
+    python3 scripts/check_xrefs.py --strict         # exit 1 on warnings too
 
 Exit codes:
   0 — All cross-references valid
   1 — At least one broken reference (or warning in --strict)
-  2 — Error (.claude/ not found, etc.)
+  2 — Error (ecosystem directory not found, etc.)
 """
 from __future__ import annotations
 
@@ -30,28 +40,67 @@ from typing import Any
 
 
 # Skills documented as "auxiliary" (not bound to any cycle)
-AUXILIARY_SKILLS = {"ast-grep"}
+# - ast-grep: structural search utility
+# - deck, marp-slide, excalidraw: presentation skills, project-agnostic
+# - dogfood: honesty gate consumed transversally (README/CHANGELOG edits, release decisions)
+# - roadmap-init: single-shot bootstrap at project inception; intentionally isolated
+#   (its ARTIFACTS — ROADMAP.md + knowledge-base/references/ — are consumed by cycle-roadmap
+#   and cycle-discover; the SKILL itself is never invoked mid-cycle)
+# - roadmap-feature: sister of roadmap-init for adding one milestone to an existing roadmap
+#   (same isolation contract; opposite pre-condition — refuses if ROADMAP.md is missing)
+AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "roadmap-init", "roadmap-feature"}
 
 # Patterns to detect file references in markdown
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 BACKTICK_PATH_RE = re.compile(r"`(\.?[a-zA-Z0-9_./\-]+\.(?:md|py|sh|json|txt|yml|yaml))`")
 CYCLE_REF_RE = re.compile(r"`?cycle-([a-z]+)`?")
-SKILL_REF_RE = re.compile(r"`?\.claude/skills/([a-z0-9\-]+)/SKILL\.md`?")
+SKILL_REF_RE = re.compile(r"`?(?:\.claude/)?skills/([a-z0-9\-]+)/SKILL\.md`?")
+# Detect rules references in SKILL bodies and Python scripts.
+# Examples matched:
+#   `rules/code-quality-golden-rule.md`
+#   `.claude/rules/code-quality-thresholds.txt`
+#   "rules/discover-web-allowlist.txt"
+# Examples NOT matched (intentionally):
+#   knowledge-base/rules/...  (different directory tree)
+#   project-rules/...         (different prefix)
+RULES_REF_RE = re.compile(
+    r"(?<![A-Za-z0-9_/-])(?:\.claude/)?rules/([A-Za-z0-9._-]+\.(?:md|txt))"
+)
 
 
-def _find_project_root(start: Path) -> Path:
+def _is_ecosystem_layout(d: Path) -> bool:
+    """A directory is an ecosystem layout if it has skills/ + rules/ + hooks/ directly."""
+    return (d / "skills").is_dir() and (d / "rules").is_dir() and (d / "hooks").is_dir()
+
+
+def _find_ecosystem_dir(start: Path) -> Path | None:
+    """Locate the ecosystem directory in any of the three supported layouts.
+
+    Order of probing at each level (CWD upward):
+      1. Standalone — `current/` itself is the ecosystem (this is the plan/ repo).
+      2. User config — `current/.claude/` is the ecosystem.
+      3. Plugin install — `current/.claude/plugins/plan/` is the ecosystem.
+
+    Returns the matching directory or None if no layout resolves.
+    """
     current = start.resolve() if not start.is_file() else start.resolve().parent
     for _ in range(20):
-        if (current / ".claude").exists() or (current / ".git").exists():
+        if _is_ecosystem_layout(current):
             return current
+        claude_sub = current / ".claude"
+        if _is_ecosystem_layout(claude_sub):
+            return claude_sub
+        plugin_sub = current / ".claude" / "plugins" / "plan"
+        if _is_ecosystem_layout(plugin_sub):
+            return plugin_sub
         if current == current.parent:
             break
         current = current.parent
-    return start.resolve()
+    return None
 
 
-def _list_existing_skills(claude_dir: Path) -> set[str]:
-    skills_dir = claude_dir / "skills"
+def _list_existing_skills(ecosystem_dir: Path) -> set[str]:
+    skills_dir = ecosystem_dir / "skills"
     if not skills_dir.exists():
         return set()
     return {
@@ -61,13 +110,15 @@ def _list_existing_skills(claude_dir: Path) -> set[str]:
     }
 
 
-def _list_cycle_rules(claude_dir: Path) -> dict[str, Path]:
-    rules_dir = claude_dir / "rules"
+def _list_cycle_rules(ecosystem_dir: Path) -> dict[str, Path]:
+    rules_dir = ecosystem_dir / "rules"
     if not rules_dir.exists():
         return {}
+    # `cycle-rule-schema.md` is meta-documentation about cycle rules, not a cycle itself.
     return {
         p.stem: p
         for p in rules_dir.glob("cycle-*.md")
+        if p.stem != "cycle-rule-schema"
     }
 
 
@@ -110,8 +161,10 @@ def _extract_cycle_phases(cycle_rule_content: str) -> set[str]:
     chain_match = re.search(r"## Chain.*?\n```(.*?)```", cycle_rule_content, re.DOTALL)
     if chain_match:
         chain = chain_match.group(1)
-        # Match /skill-name where name is ≥2 chars and contains at least one '-' OR matches known prefixes
-        for m in re.finditer(r"/([a-z][a-z0-9]+(?:-[a-z0-9]+)+|to-plan|implement|review)\s", chain):
+        # Match /skill-name in the chain. Accept either:
+        #   - kebab-case skills (e.g. /to-plan, /edge-case-plan)
+        #   - single-word skills explicitly listed (release, implement, review)
+        for m in re.finditer(r"/([a-z][a-z0-9]+(?:-[a-z0-9]+)+|to-plan|implement|review|release)[\s{]", chain):
             skills.add(m.group(1))
 
     return skills
@@ -125,12 +178,20 @@ def _extract_cycle_contract_ref(skill_md_content: str) -> str | None:
     return cycle_match.group(1) if cycle_match else None
 
 
-def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
-    project_root = claude_dir.parent
-    existing_skills = _list_existing_skills(claude_dir)
-    cycle_rules = _list_cycle_rules(claude_dir)
+def validate_xrefs(ecosystem_dir: Path, strict: bool = False) -> dict[str, Any]:
+    # In standalone layout, the "project root" IS the ecosystem dir; in plugin
+    # layout it is the parent. Use ecosystem_dir for path display so the report
+    # is unambiguous regardless of layout.
+    existing_skills = _list_existing_skills(ecosystem_dir)
+    cycle_rules = _list_cycle_rules(ecosystem_dir)
 
     findings: list[dict[str, Any]] = []
+
+    def _rel(p: Path) -> str:
+        try:
+            return str(p.relative_to(ecosystem_dir))
+        except ValueError:
+            return str(p)
 
     # Check 1: each cycle rule references skills that exist
     cycle_to_skills: dict[str, set[str]] = {}
@@ -146,13 +207,13 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
                     "check": "cycle_rule_references_existing_skill",
                     "cycle": cycle_name,
                     "missing_skill": skill,
-                    "message": f"{cycle_path.relative_to(project_root)} references skill `{skill}` which does not exist at .claude/skills/{skill}/",
+                    "message": f"{_rel(cycle_path)} references skill `{skill}` which does not exist at skills/{skill}/",
                 })
 
     # Check 2: each SKILL.md points to an existing cycle
     skill_to_cycle: dict[str, str | None] = {}
     for skill in existing_skills:
-        skill_md = claude_dir / "skills" / skill / "SKILL.md"
+        skill_md = ecosystem_dir / "skills" / skill / "SKILL.md"
         content = skill_md.read_text(encoding="utf-8-sig")
         cycle_ref = _extract_cycle_contract_ref(content)
         skill_to_cycle[skill] = cycle_ref
@@ -162,7 +223,7 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
                 "severity": "WARN",
                 "check": "skill_has_cycle_contract",
                 "skill": skill,
-                "message": f".claude/skills/{skill}/SKILL.md has no `Cycle contract` section pointing to a cycle-*.md",
+                "message": f"skills/{skill}/SKILL.md has no `Cycle contract` section pointing to a cycle-*.md",
             })
         elif cycle_ref is not None:
             expected_cycle = f"cycle-{cycle_ref}"
@@ -172,7 +233,7 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
                     "check": "skill_cycle_contract_resolves",
                     "skill": skill,
                     "cycle_referenced": expected_cycle,
-                    "message": f".claude/skills/{skill}/SKILL.md references cycle-{cycle_ref}.md but it does not exist",
+                    "message": f"skills/{skill}/SKILL.md references cycle-{cycle_ref}.md but it does not exist",
                 })
 
     # Check 3: cycle rule cross-references point to existing files
@@ -185,7 +246,7 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
                 "severity": "WARN",
                 "check": "cycle_has_xref_section",
                 "cycle": cycle_name,
-                "message": f"{cycle_path.relative_to(project_root)} has no `Cross-references` section",
+                "message": f"{_rel(cycle_path)} has no `Cross-references` section",
             })
             continue
 
@@ -200,19 +261,19 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
             # Skip bare filenames without path separators — these are nominal mentions in prose
             if "/" not in ref and not ref.startswith("."):
                 continue
-            # Try resolution against multiple search roots
+            # Try resolution against multiple search roots — accept both standalone
+            # (skills/...) and plugin-style (.claude/skills/...) reference paths.
             candidates_to_try: list[Path] = []
             if Path(ref).is_absolute():
                 candidates_to_try.append(Path(ref))
             else:
-                candidates_to_try.append(project_root / ref)
-                # If path starts with a skill name (e.g., plan-confidence/templates/...), try .claude/skills/
-                first_segment = ref.split("/", 1)[0]
-                if (claude_dir / "skills" / first_segment).exists():
-                    candidates_to_try.append(claude_dir / "skills" / ref)
-                # If path starts with .claude/, it's already root-relative
-                if ref.startswith(".claude/"):
-                    candidates_to_try.append(project_root / ref)
+                # Strip a leading .claude/ if present (plugin-style citation)
+                normalized = ref[len(".claude/"):] if ref.startswith(".claude/") else ref
+                candidates_to_try.append(ecosystem_dir / normalized)
+                # If path starts with a skill name (e.g., plan-confidence/templates/...), try skills/
+                first_segment = normalized.split("/", 1)[0]
+                if (ecosystem_dir / "skills" / first_segment).exists():
+                    candidates_to_try.append(ecosystem_dir / "skills" / normalized)
 
             if not any(c.exists() for c in candidates_to_try):
                 findings.append({
@@ -220,8 +281,39 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
                     "check": "cycle_xref_file_exists",
                     "cycle": cycle_name,
                     "broken_ref": ref,
-                    "message": f"{cycle_path.relative_to(project_root)} references `{ref}` which does not exist",
+                    "message": f"{_rel(cycle_path)} references `{ref}` which does not exist",
                 })
+
+    # Check 7: rules referenced from SKILL.md bodies + scripts must exist on disk.
+    rules_dir = ecosystem_dir / "rules"
+    existing_rule_files: set[str] = {p.name for p in rules_dir.glob("*")} if rules_dir.exists() else set()
+
+    def _scan_for_rule_refs(path: Path) -> None:
+        try:
+            content = path.read_text(encoding="utf-8-sig")
+        except (OSError, UnicodeDecodeError):
+            return
+        for m in RULES_REF_RE.finditer(content):
+            rule_name = m.group(1)
+            if rule_name in existing_rule_files:
+                continue
+            findings.append({
+                "severity": "FAIL",
+                "check": "rules_reference_resolves",
+                "source": _rel(path),
+                "missing_rule": rule_name,
+                "message": f"{_rel(path)} references `rules/{rule_name}` which does not exist",
+            })
+
+    for skill_md in (ecosystem_dir / "skills").rglob("SKILL.md"):
+        if skill_md.is_file():
+            _scan_for_rule_refs(skill_md)
+    for py in (ecosystem_dir / "skills").rglob("*.py"):
+        if py.is_file() and "__pycache__" not in py.parts:
+            _scan_for_rule_refs(py)
+    for py in (ecosystem_dir / "scripts").rglob("*.py"):
+        if py.is_file() and "__pycache__" not in py.parts:
+            _scan_for_rule_refs(py)
 
     # Check 4: orphan skills (not in any cycle, not auxiliary)
     skills_in_cycles: set[str] = set()
@@ -249,7 +341,7 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
         overall = "FAIL"
 
     return {
-        "claude_dir": str(claude_dir),
+        "ecosystem_dir": str(ecosystem_dir),
         "skills_total": len(existing_skills),
         "skills_auxiliary": sorted(AUXILIARY_SKILLS & existing_skills),
         "skills_orphan": sorted(orphan_skills),
@@ -264,7 +356,7 @@ def validate_xrefs(claude_dir: Path, strict: bool = False) -> dict[str, Any]:
 def _render_summary(result: dict[str, Any]) -> str:
     lines = [
         f"=== Cross-reference validator ===",
-        f"Claude dir: {result['claude_dir']}",
+        f"Ecosystem dir: {result['ecosystem_dir']}",
         f"Skills total: {result['skills_total']}",
         f"Cycle rules: {result['cycle_rules']}",
         f"Skills auxiliary: {result['skills_auxiliary']}",
@@ -281,23 +373,27 @@ def _render_summary(result: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate cross-references in the .claude/ ecosystem.")
+    parser = argparse.ArgumentParser(description="Validate cross-references in the planning ecosystem.")
     parser.add_argument("--strict", action="store_true", help="Exit 1 on WARN too (default: exit 1 only on FAIL)")
     parser.add_argument("--json", action="store_true", help="Output JSON instead of human-readable summary")
-    parser.add_argument("--claude-dir", type=Path, default=None, help="Override .claude/ path detection")
+    parser.add_argument("--ecosystem-dir", type=Path, default=None, help="Override ecosystem directory detection")
+    parser.add_argument("--claude-dir", type=Path, default=None, help="(deprecated alias for --ecosystem-dir)")
     args = parser.parse_args()
 
-    if args.claude_dir:
-        claude_dir = args.claude_dir
+    override = args.ecosystem_dir or args.claude_dir
+    if override:
+        ecosystem_dir = override.resolve()
     else:
-        project_root = _find_project_root(Path.cwd())
-        claude_dir = project_root / ".claude"
+        ecosystem_dir = _find_ecosystem_dir(Path.cwd())
 
-    if not claude_dir.exists():
-        print(json.dumps({"error": f".claude/ not found at {claude_dir}"}), file=sys.stderr)
+    if ecosystem_dir is None or not ecosystem_dir.exists():
+        print(json.dumps({
+            "error": "ecosystem directory not found",
+            "hint": "expected one of: <cwd>/{skills,rules,hooks}, <cwd>/.claude/{skills,rules,hooks}, or <cwd>/.claude/plugins/plan/{skills,rules,hooks}",
+        }), file=sys.stderr)
         return 2
 
-    result = validate_xrefs(claude_dir, strict=args.strict)
+    result = validate_xrefs(ecosystem_dir, strict=args.strict)
 
     if args.json:
         print(json.dumps(result, indent=2, default=str))

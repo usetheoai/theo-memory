@@ -36,7 +36,7 @@ def _find_project_root(start: Path) -> Path:
 
 
 def _strip_line_suffix(citation: str) -> str:
-    """Remove :line:col suffix (e.g., '.claude/knowledge-base/references/mem0/x.py:42' -> '.claude/knowledge-base/references/mem0/x.py')."""
+    """Remove :line:col suffix (e.g., '.claude/knowledge-base/references/project-a/x.py:42' -> '.claude/knowledge-base/references/project-a/x.py')."""
     return LINE_SUFFIX_RE.sub("", citation)
 
 

@@ -55,24 +55,24 @@ You are the knowledge layer for the domain-{DOMAIN}-reviewer agent. Your domain 
 
 ## Knowledge refresh protocol
 
-### Mode A — Plan/blueprint/patterns cross-ref (cheap, ~1k tokens)
+### Mode A — Plan/blueprint/patterns cross-ref (lightweight)
 Agent asks "does the implementation honor the {DOMAIN} blueprint?". Read `{REFERENCIA_BLUEPRINTS}` files (if present) + cross-ref with diff. If `{PATTERNS_SKILL_NAME}` is registered, instruct agent to consult that skill before WebSearching.
 
-### Mode B — Vendor canonical refresh (medium, ~3-8k tokens)
+### Mode B — Vendor canonical refresh
 Agent asks "is this MCP-spec-conformant?" or "does this match Postgres recommended pgvector schema?". Steps:
 
 1. Identify vendor/spec source. Allowlisted by domain:
    - `mcp-protocol` → `spec.modelcontextprotocol.io`, `modelcontextprotocol.io`, `docs.anthropic.com`
    - `pgvector-schema` → `github.com/pgvector/pgvector` (README + docs)
-   - `memory-layer` → `mem0.ai`, `letta.com`, `arxiv.org` (Generative Agents, MemGPT)
+   - `memory-layer` → `project-a.ai`, `project-b.com`, `arxiv.org` (Generative Agents, MemGPT)
    - `llm-extraction` → `platform.openai.com`, `docs.anthropic.com`
    - generic → use discover-web-allowlist.txt
 2. WebSearch: `<domain-concept> spec <year>` OR `<vendor> canonical <year>`.
 3. WebFetch top result. Extract spec section relevant to agent's question.
 4. Compare to diff's implementation. Return: matches / diverges / partial.
 
-### Mode C — Referencia/ clone consultation (cheap, ~2k tokens)
-For domains with .claude/knowledge-base/references/ clones (mem0, letta, langmem):
+### Mode C — Referencia/ clone consultation (lightweight)
+For domains with .claude/knowledge-base/references/ clones (project-a, project-b, project-c):
 
 1. Read relevant file in `.claude/knowledge-base/references/{project}/{path}`. NEVER modify.
 2. Compare patterns vs diff.
@@ -100,5 +100,5 @@ For domains with .claude/knowledge-base/references/ clones (mem0, letta, langmem
 - (verdict: matches / diverges / partial — with path:line evidence)
 
 ## Confidence
-- [HIGH | MEDIUM | LOW] — explicit per Inquebrável Rule 1
+- [HIGH | MEDIUM | LOW] — explicit per Unbreakable Rule 1
 ```

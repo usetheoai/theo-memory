@@ -39,7 +39,7 @@ def test_blueprint_with_fabricated_citation_invalid(tmp_path: Path, good_bluepri
     corrupted_dir.mkdir(parents=True, exist_ok=True)
     corrupted = corrupted_dir / "test-fabricated-blueprint.md"
     content = good_blueprint.read_text(encoding="utf-8-sig")
-    content += "\n\nBogus citation: .claude/knowledge-base/references/mem0/fake-file-xyz.py:99\n"
+    content += "\n\nBogus citation: .claude/knowledge-base/references/project-a/fake-file-xyz.py:99\n"
     corrupted.write_text(content, encoding="utf-8")
 
     try:

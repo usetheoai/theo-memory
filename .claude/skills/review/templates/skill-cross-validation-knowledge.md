@@ -55,25 +55,25 @@ For EACH plan task in `{PLAN_TASKS_LIST}`:
 
 ## Knowledge refresh protocol
 
-### Mode A — Plan → commit mapping (cheap, ~1k tokens)
+### Mode A — Plan → commit mapping (lightweight)
 For each task, run `git log --grep="TN.M" main..HEAD --oneline`. Return: mapped commit SHA OR "no commit found" (= MISSING).
 
-### Mode B — Commit-message convention canonical (medium, ~3k tokens)
+### Mode B — Commit-message convention canonical
 Agent asks "is this commit message conventional-commits-conformant?" Steps:
 
 1. WebSearch: `conventional commits specification <year>`.
 2. Prefer: `conventionalcommits.org` (canonical spec), `semver.org` for version-impact rules.
 3. Return spec verbatim + verdict on commit subject + body.
 
-### Mode C — Acceptance Criteria probe (cheap, ~1k tokens per task)
+### Mode C — Acceptance Criteria probe (lightweight, per task)
 For each AC checkbox, locate the verification evidence in the diff: either a test assertion, a config line, a file existence, a metric. Report: covered / partial / missing.
 
-### Mode D — Scope-creep detection (cheap, ~1k tokens)
+### Mode D — Scope-creep detection (lightweight)
 Compare `git diff main..HEAD --name-only` against union of plan's `Files to edit` lists. Files outside the union = scope-creep candidates. Report list + classify per-file (legitimate side-effect e.g. CHANGELOG, OR creep).
 
 ## Boundaries you NEVER cross
 
-- NEVER mark a task COMPLETE if any AC checkbox is unverified — Inquebrável Rule 5 (TDD) + Rule 3 (honesty).
+- NEVER mark a task COMPLETE if any AC checkbox is unverified — Unbreakable Rule 5 (TDD) + Rule 3 (honesty).
 - NEVER ignore scope-creep silently — even minor creep gets flagged for human review.
 - NEVER cite from training-data for conventional-commits spec — always WebSearch the current spec (it evolved through 2024-2026).
 

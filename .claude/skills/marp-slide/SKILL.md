@@ -14,7 +14,7 @@ argument-hint: "<topic or file>"
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Generate Marp presentations with embedded CSS themes. No external files needed — each output is a self-contained `.md` ready for Marp CLI or VS Code.
 
@@ -23,10 +23,9 @@ Generate Marp presentations with embedded CSS themes. No external files needed �
 2. If `docs/presentations/PADRAO-APRESENTACOES.md` OR `materiais/apresentacoes/PADRAO-APRESENTACOES.md` exists, read it for layout/typography conventions.
 3. Otherwise, infer theme/typography/colors from audience + content.
 
-**Project rules consumed (TheMemory):**
+**Project rules consumed:**
 - `.claude/rules/public-copy.md` — voice for slides that surface in README/PITCH.
-- `.claude/rules/dogfood-golden-rule.md` — NEVER produce slides claiming "production-ready" / "v1.0" / "production-grade" for `@usetheo/memory` without recorded dogfood evidence. Apply the gate before generating any status-claim slide.
-- `.claude/rules/token-budget.md` — Marp render is ~zero LLM tokens; slide drafting itself costs 10-30k tokens (depending on slide count + audience research depth).
+- `.claude/rules/dogfood-golden-rule.md` — NEVER produce slides claiming "production-ready" / "v1.0" / "production-grade" for the project without recorded dogfood evidence. Apply the gate before generating any status-claim slide.
 
 ---
 
@@ -34,7 +33,7 @@ Generate Marp presentations with embedded CSS themes. No external files needed �
 
 - User asks to create slides, a presentation, or a deck
 - User mentions Marp explicitly
-- User says "make slides about X", "apresentação sobre X", "create a presentation"
+- User says "make slides about X", "presentation about X", "create a presentation"
 
 ---
 

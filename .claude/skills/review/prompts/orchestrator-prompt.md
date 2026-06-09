@@ -81,9 +81,9 @@ Capture covered / partial / missing.
 Inspect the consolidated report:
 
 - Any `severity: BLOCKER` → final verdict NEEDS_FIXES; HALT merge
-- Any `severity: CRITICAL` not marked dismissed-with-ADR → final verdict NEEDS_FIXES; HALT merge
-- All MAJOR + MINOR + INFO with no BLOCKER and CRITICAL dismissed → READY_TO_MERGE
-- Coverage of edge cases < 80% → final verdict NEEDS_DEEPER
+- More than 2 `severity: HIGH` not all dismissed-with-ADR → final verdict NEEDS_FIXES; HALT merge
+- ≤ 2 HIGH with documented mitigation + MEDIUM/LOW/INFO + no BLOCKER → READY_TO_MERGE
+- Coverage of edge cases < 80% OR systemic issues exceeding targeted fixes → final verdict NEEDS_DEEPER
 
 ### Step 8 — Report and recommend next step
 
@@ -96,7 +96,7 @@ Print summary to stdout:
 Plan: {SLUG}
 Branch: {feature-branch}
 Agents spawned: N (list)
-Findings: N total (BLOCKER: N, CRITICAL: N, MAJOR: N, MINOR: N, INFO: N)
+Findings: N total (BLOCKER: N, HIGH: N, MEDIUM: N, LOW: N, INFO: N)
 Edge-case coverage: N/M covered
 Verdict: READY_TO_MERGE / NEEDS_FIXES / NEEDS_DEEPER
 
@@ -105,14 +105,14 @@ Audit trail: .claude/agents/review-{SLUG}-{date}/
 
 Next: 
   - READY_TO_MERGE: open PR with gh pr create OR copy report into existing PR
-  - NEEDS_FIXES: loop back to /implement {SLUG} to address BLOCKER + CRITICAL
+  - NEEDS_FIXES: loop back to /implement {SLUG} to address BLOCKER + HIGH
   - NEEDS_DEEPER: re-run /review with broader scope (more agents or domain refinement)
 ```
 
 ## Inviolable rules during orchestration
 
-- NEVER modify code on the feature branch — only writes review artifacts (YAML findings + markdown report + agent audit trail)
-- NEVER skip Step 3 (parallel agents) to save tokens — the rigor IS the agents
+- NEVER modify code on `develop` — only writes review artifacts (YAML findings + markdown report + agent audit trail)
+- NEVER skip Step 3 (parallel agents) to move faster — the rigor IS the agents
 - NEVER approve with unresolved BLOCKER findings
 - NEVER fabricate findings or fill in default findings to "look thorough"
 - NEVER auto-merge — final merge is human decision after consuming the report
