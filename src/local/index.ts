@@ -203,7 +203,13 @@ export const PROBE_TEXT = '__themem_probe__';
  */
 function applySkillFilters(
   baseFilters: Filters,
-  options?: { onlySkills?: boolean; includeSuperseded?: boolean; attributedTo?: string; asOf?: Date },
+  options?: {
+    onlySkills?: boolean;
+    includeSuperseded?: boolean;
+    attributedTo?: string;
+    asOf?: Date;
+    category?: string;
+  },
 ): Filters {
   if (options === undefined) {
     return baseFilters;
@@ -218,6 +224,14 @@ function applySkillFilters(
   }
   if (options.asOf !== undefined) {
     base = { ...base, asOf: options.asOf };
+  }
+  // themory-category-filter-server-side T4.1 / EC-3 — route GetAllOptions.category
+  // into Filters.category for server-side filter at the pgvector + in-memory
+  // adapters. Empty string normalizes to no-filter at this boundary (defense-
+  // in-depth alongside REST zod min(1) validation); direct SDK callers passing
+  // {category: ''} get the same result as omitting the option entirely.
+  if (options.category !== undefined && options.category !== '') {
+    base = { ...base, category: options.category };
   }
   if (options.onlySkills === true) {
     return {
