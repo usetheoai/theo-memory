@@ -31,6 +31,9 @@ interface MemoriesRow extends QueryResultRow {
   readonly agent_id: string | null;
   /** v1.1 T2.1: first-class promoted column for multi-peer attribution (NULL on pre-v1.1 rows). */
   readonly attributed_to?: string | null;
+  /** themory-category-filter-server-side T3.2 — first-class promoted column for operator
+   *  category tag (NULL on pre-2026-06-09 rows per ADR D1 honest no-backfill). */
+  readonly category?: string | null;
   readonly kind?: string | null;
   readonly code?: string | null;
   readonly description?: string | null;
@@ -72,6 +75,13 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   if (row.attributed_to !== undefined && row.attributed_to !== null) {
     payload['attributed_to'] = row.attributed_to;
   }
+  // themory-category-filter-server-side T3.2 / EC-12 dual-pathway — project the
+  // category column into BOTH the top-level VectorStoreResult.category field
+  // AND payload['category'] so consumers reading via either path keep working.
+  // NULL rows leave both absent.
+  if (row.category !== undefined && row.category !== null) {
+    payload['category'] = row.category;
+  }
   // v0.6 — project skill columns into payload when present (kind/code/description/code_language)
   // + provenance + supersession. Mirrors how user_id/session_id/agent_id are projected above.
   if (row.kind !== undefined && row.kind !== null) {
@@ -107,10 +117,16 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
   const createdAt = row.created_at != null ? row.created_at : undefined;
   // Compose progressively to honor exactOptionalPropertyTypes (omit undefined fields).
   const base: VectorStoreResult = { id: row.id, payload };
+  // themory-category-filter-server-side T3.2 / EC-12 — top-level category projection
+  // ALONGSIDE the payload projection above. Both pathways surface the same value;
+  // redundancy is intentional architectural symmetry (mirrors v1.1 attributed_to).
+  const categoryProj =
+    row.category !== undefined && row.category !== null ? row.category : undefined;
   return {
     ...base,
     ...(score !== undefined ? { score } : {}),
     ...(createdAt !== undefined ? { createdAt } : {}),
+    ...(categoryProj !== undefined ? { category: categoryProj } : {}),
   };
 }
 
@@ -174,6 +190,21 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
   if (filters.attributed_to !== undefined) {
     parts.push(`attributed_to = $${idx}`);
     params.push(filters.attributed_to);
+    idx += 1;
+  }
+  // themory-category-filter-server-side T3.2 / EC-3 — empty-string filter
+  // normalizes to no-filter at the store boundary so pgvector + in-memory +
+  // LocalScopedMemory.getAll share identical semantic. Postgres `=` treats
+  // empty string and NULL distinctly (`'' = ''` true; `NULL = ''` returns
+  // NULL/no-match), so passing category='' WOULD filter for the empty-string
+  // category — NOT the intended ADR D5 behavior. Defense-in-depth alongside
+  // REST zod min(1) validation: direct SDK callers bypass zod.
+  // EC-6: parameterized binding via $${idx}; the params array protects against
+  // SQL injection regardless of the literal value (`' OR 1=1 --` is bound as a
+  // string and never re-parsed as SQL).
+  if (filters.category !== undefined && filters.category !== '') {
+    parts.push(`category = $${idx}`);
+    params.push(filters.category);
     idx += 1;
   }
   // v0.6: kind discriminator and supersession filter per voyager-skill-library T2.2.
@@ -331,6 +362,12 @@ export class PgvectorStore implements VectorStore {
       // extracted[i].attributed_to into payload) AND the verbatim infer:false
       // path (pipeline writes options.attributedTo into payload).
       const attributedTo = (payload['attributed_to'] as string | undefined) ?? null;
+      // themory-category-filter-server-side T3.2 — same hoist pattern for the
+      // operator-supplied category tag. Pipeline writes options.category into
+      // payload['category'] at T3.3; this hoist promotes it to the top-level
+      // column. Delete from cleanedPayload so it lives in ONE canonical place
+      // (the projection back into payload on SELECT happens at rowToResult).
+      const category = (payload['category'] as string | undefined) ?? null;
       const cleanedPayload: Payload = { ...payload };
       delete cleanedPayload['text'];
       delete cleanedPayload['hash'];
@@ -338,8 +375,9 @@ export class PgvectorStore implements VectorStore {
       delete cleanedPayload['session_id'];
       delete cleanedPayload['agent_id'];
       delete cleanedPayload['attributed_to'];
+      delete cleanedPayload['category'];
       values.push(
-        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++})`,
+        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`,
       );
       params.push(
         id,
@@ -351,6 +389,7 @@ export class PgvectorStore implements VectorStore {
         sessionId,
         agentId,
         attributedTo,
+        category,
       );
     }
     // principles-alignment-hardening T1.1 — composite ON CONFLICT per ADR D5.
@@ -359,8 +398,16 @@ export class PgvectorStore implements VectorStore {
     // On collision, bump confirmation_count by 1 (Princípio 1 — confirmação factor per ADR D1).
     // RETURNING (xmax = 0) AS inserted is the canonical PG tell-tale for INSERT-vs-UPDATE:
     // xmax = 0 on fresh inserts, non-zero on updates. confirmation_count is RETURNed post-bump.
+    //
+    // themory-category-filter-server-side T3.2 / ADR D6 (EC-1 absorbed):
+    // category is INTENTIONALLY OMITTED from the DO UPDATE SET list. First-write
+    // wins per ADR-0003 ADD-only spirit — once a row has a category, it is
+    // immutable via remember(). Operators wanting to change category use the
+    // canonical mutation path: `forget(id) + remember(newText, {category: 'B'})`.
+    // Including category in the SET list would silently mutate operator-supplied
+    // content on every re-remember (surprise + ADD-only violation).
     const sql = `
-      INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to)
+      INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to, category)
       VALUES ${values.join(', ')}
       ON CONFLICT (hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
       DO UPDATE SET confirmation_count = memories.confirmation_count + 1
@@ -428,7 +475,7 @@ export class PgvectorStore implements VectorStore {
     const temporal = composeTemporalWhere(filters?.asOf, 2);
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              embedding <=> $1::vector AS distance
       FROM memories
@@ -492,7 +539,7 @@ export class PgvectorStore implements VectorStore {
     const temporal = composeTemporalWhere(filters?.asOf, 2);
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
@@ -512,7 +559,7 @@ export class PgvectorStore implements VectorStore {
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
-      `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
+      `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
               kind, code, description, code_language, derived_from, superseded_by, confirmation_count
          FROM memories WHERE id = $1`,
       [vectorId],
@@ -591,7 +638,7 @@ export class PgvectorStore implements VectorStore {
     //     newest-first primary + deterministic id tiebreak for identical timestamps.
     //     Dashboard pagination consumes this contract (same query → same order across refreshes).
     const pageSql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to,
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              created_at
       FROM memories
