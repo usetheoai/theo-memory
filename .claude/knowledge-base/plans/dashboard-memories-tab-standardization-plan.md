@@ -7,6 +7,10 @@ goal: Standardize Dashboard Memories tab to match entities.tsx canonical pattern
 
 # Plan: Dashboard Memories tab standardization + temporal fidelity fix (REST list path)
 
+> **Version 1.4** (2026-06-09) — `/implement` halt-loop iteration 6 BLOCKED report absorption: dropped T3.0 + EC-4 entirely. Empirical evidence (`grep "@usetheo/memory" theo-cloud/theo/cloud/dashboard/{package.json,src/}` = 0 hits) proves the Dashboard does NOT import `@usetheo/memory` as an npm dep; data flows via BFF Go (`theo-cloud/theo/cloud/internal/themory/client.go`) + REST. The npm-dep cross-repo merge-order risk EC-4 modeled doesn't exist in the actual architecture. T3.2/T3.3 reframed as "Dashboard REST-consumer standardization" — runtime JSON contract, no SHA pin needed. T4.1/T4.2 contracts unchanged. Coverage Matrix 11→10 (row "EC-4 cross-repo merge-order" dropped). Halt-loop audit at `.claude/knowledge-base/implementations/dashboard-memories-tab-standardization/sepa-iterations/iteration-6-halt-blocked.md`. Backend hardening already shipped (T1.1/T2.1/T2.2/T6.1/T3.1 = 5 commits a79a7bf → 1b52721). Cross-repo path: theo-cloud repo at `/home/paulo/Projetos/usetheo/theo-cloud/theo` (corrected from plan's `theo-cloud/...` abbreviation).
+>
+> **Version 1.3** (2026-06-08) — fixed concurrency-tests canonical literal, removed two stale orphan task identifiers, unified the Coverage Matrix to 11/11 (closes `coverage_lt_100` hard cap, lifted verdict from INVALID 44 → SHIPPABLE_WITH_CAVEATS 70).
+>
 > **Version 1.2** (2026-06-08) — `/deps-audit` Path C absorption: added `## Dependencies` section (closes `plan_dependencies_section_missing` hard cap; zero new npm pkgs introduced) AND adjusted T3.1 EC-3 pseudo-code to compose Memory directly with `DeterministicStubEmbedder` instead of `wireMemoryFromPool(pool)`. Rationale: `wireMemoryFromPool` hard-wires `LocalTransformerEmbedder` which pulls `@xenova/transformers` → `onnxruntime-web` → `protobufjs <7.5.5` (CRITICAL CVSS 9.8 RCE — pre-existing repo-wide chain, fix requires semver-major v2 upgrade tracked as separate cycle `deps-upgrade-xenova-transformers-v2-protobufjs-cve`). The fidelity test does NOT depend on embedder behavior; canonical write-path (`scoped.remember(text, {infer: false})` + 8-phase pipeline + INSERT honoring schema) is preserved by `createLocalMemory({ vectorStore: new PgvectorStore(pool, ...), embedder: new DeterministicStubEmbedder(...), llm: stubLLM })`. Audit re-run expected: PASS (no vulnerable chain in test runtime).
 >
 > **Version 1.1** (2026-06-08) — absorbed 5 MUST FIX from `/edge-case-plan` review (`.claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md`): EC-1 NULL `created_at` defensive null-check in T2.1, EC-2 deterministic `ORDER BY created_at DESC, id ASC` in T2.1, EC-3 T3.1 INSERT shape via canonical write-path + UPDATE for temporal manipulation, EC-4 NEW T3.0 pinning `@usetheo/memory` to exact commit SHA before frontend lands (cross-repo merge-order enforcement), EC-5 NEW T6.1 creating follow-up DRAFT plan file for the 5 deferred `createdAt` instances. Also absorbed 5 SHOULD TEST items (EC-6..EC-10) into existing tasks' TDD blocks and 3 DOCUMENT items (EC-11..EC-13) inline in ADRs.
@@ -40,7 +44,7 @@ Combined: the Dashboard surface for `/memory/memories` cannot show correct data 
 | `src/local/__tests__/index.getAll-temporal-fidelity.test.ts` (NEW) | 0 | — | New unit test against `LocalScopedMemory.getAll` proving the fix | — |
 | `cloud/dashboard/src/pages/memory/memories.tsx` (theo-cloud) | 236 | `faae88e9` (2026-06-06) | Dashboard Memories tab; misses scope tabs + correct columns matching Entities pattern | Existing trash + ConfirmDialog choreography preserved; ADD scope tabs + standardize columns |
 | `cloud/dashboard/src/pages/memory/memories.test.tsx` (theo-cloud) | 88 | `faae88e9` (2026-06-06) | Unit-level component test for Memories tab | Extend to cover new tabs + columns |
-| `cloud/internal/themory/client.go` (theo-cloud, BFF) | (existing) | (recent) | Go proxy that calls TheMemory REST `/v1/scopes/...` and projects response shape to Dashboard | Verify it passes through `created_at` from upstream without overwrite |
+| `theo-cloud/theo/cloud/internal/themory/client.go` (theo-cloud, BFF) | (existing) | (recent) | Go proxy that calls TheMemory REST `/v1/scopes/...` and projects response shape to Dashboard | Verify it passes through `created_at` from upstream without overwrite |
 
 ### Current callers / dependents
 
@@ -135,7 +139,7 @@ Per `rules/architecture.md § 3 (Dependency direction — DIP)`:
 
 ### D4 — BFF Go proxy: verify pass-through, do NOT modify unless smoke fails
 
-- **Decision** — Add a smoke test asserting BFF returns the same `created_at` it received from upstream. If smoke passes, the BFF is correctly transparent; if smoke fails, a sub-task creates a fix in `cloud/internal/themory/client.go`.
+- **Decision** — Add a smoke test asserting BFF returns the same `created_at` it received from upstream. If smoke passes, the BFF is correctly transparent; if smoke fails, a sub-task creates a fix in `theo-cloud/theo/cloud/internal/themory/client.go`.
 - **Rationale** — YAGNI: don't speculate about BFF bugs that may not exist. The PG-direct query showed real timestamps; if upstream REST now returns real timestamps (post sub-goal 4), the BFF should propagate cleanly unless it has its own time-stamping.
 - **Alternatives considered**:
   - (B) Read the BFF code carefully now to confirm — REJECTED: smoke test gives the same answer with less guessing.
@@ -162,7 +166,7 @@ Per `rules/architecture.md § 3 (Dependency direction — DIP)`:
 |---|---|---|---|
 | **R1 — Fix masks the bigger arquitetural problem** | MEDIUM | Sub-goal 7 explicitly creates a follow-up plan AND blocks `production-ready` claims until temporal fidelity is fully restored across recall+reflection+consolidation. Documented in CHANGELOG entry. | Implementer + Roadmap Item 11 gate |
 | **R2 — In-memory test fixtures don't set createdAt → fallback fires constantly in tests** | LOW | OTel event `getall_temporal_fallback` SHOULD fire only in test contexts after the fix; production adapter (pgvector) populates real value. Tests can suppress event-emit via tracer=undefined (EC-5 absorption precedent from principles-alignment-hardening). | Implementer |
-| **R3 — Cross-repo coordination: theo-memory commit must merge BEFORE theo-cloud dashboard commit, OR Dashboard breaks during the window** | HIGH | Cycle order MANDATES backend phases (1+2) commit FIRST, frontend phase (3) commits LAST. CI on theo-cloud should consume theo-memory `develop` SHA via `package.json` git-ref OR a published `@usetheo/memory` version. Smoke test (T4.2) validates the chain end-to-end before declaring done. | Implementer |
+| **R3 — Cross-repo coordination: backend REST contract must ship BEFORE frontend Memories tab consumer expects `created_at` per row** | LOW (downgraded v1.4) | v1.4 empirical evidence: Dashboard has ZERO npm dep on `@usetheo/memory`; data flows via BFF Go + REST JSON. The "version-skew window" risk doesn't exist — runtime JSON has no compile-time type binding to drift. Backend Phase 2 ships first (already shipped: `cea60b9`); frontend Phase 3 consumes the JSON contract whenever it lands. T4.1 BFF smoke + T4.2 chain validation provide the post-merge safety net. | Implementer |
 | **R4 — `PgvectorStore.list` SELECT projection added — small query plan change** | LOW | New column add to existing SELECT; pgvector v0.5.1 handles this trivially. Run EXPLAIN ANALYZE pre/post to confirm no plan regression. | Implementer |
 | **R5 — Dashboard Memories tab in-place edit may regress the trash + ConfirmDialog flow team validated this morning** | MEDIUM | Pre-RED unit test (T3.1) captures EXISTING trash flow as regression-guard BEFORE adding scope tabs. Then scope-tabs RED test (T3.2) — additive, not replacement. SEPA pre-COMMIT verifies diff is additive on the trash path. | Implementer + SEPA |
 | **R6 — BFF Go proxy may have its own time-stamping (D4 unknown)** | LOW | Smoke test in T4.1 reveals it; if true, ship a follow-up commit inside the cycle (no separate task — handled inline). | Implementer |
@@ -185,7 +189,7 @@ Per `rules/deps-audit-golden-rule.md` — plan declares deps it uses; no new pac
 | `pgvector` (PG extension v0.5.1) | `0.5.1` | postgres-extension | DB-side schema column read; not an npm dep. Existing since v0.1 per `ankane/pgvector:v0.5.1` Docker tag. |
 | `vitest` | `^x.y` (resolved current) | npm | Test runner for new T1.1/T2.1/T2.2/T3.1 tests. Existing dev dep. |
 | `@usetheo/ui` (theo-cloud repo) | resolved current | npm (sibling repo) | DataTable + Tabs + Badge + Timestamp primitives in T3.2/T3.3. Existing in theo-cloud dashboard; audited in that repo's `package.json`. |
-| `@usetheo/memory` (consumer side, T3.0 SHA pin) | T2.2 commit SHA (TBD at implementation time) | npm github-ref | The plan IS `@usetheo/memory` from producer side; T3.0 PINS the consumer side (theo-cloud dashboard) to the exact T2.2 SHA per EC-4 cross-repo merge-order safety. Not a new dep — version pin of existing. |
+| `@usetheo/memory` (DROPPED in v1.4) | N/A | n/a | v1.4 empirical evidence: Dashboard does NOT import `@usetheo/memory` as npm dep. `grep "@usetheo/memory" theo-cloud/theo/cloud/dashboard/{package.json,src/}` = 0 hits. Memory data flows via BFF Go + REST JSON. T3.0 dropped. |
 | `DeterministicStubEmbedder` (from `@usetheo/memory/embedders/stub` — internal subpath) | this repo | internal | Used by T3.1 integration test setup (v1.2 absorption) to avoid pulling `@xenova/transformers` transitive chain. Existing internal export. |
 
 ### New — to be introduced
@@ -207,18 +211,16 @@ Per `/deps-audit dashboard-memories-tab-standardization` (2026-06-08), the resol
 ```
 Phase 1 (DIP shape extension) ──▶ Phase 2 (PgvectorStore + getAll fix)
                                               │
-                                              ├──▶ T3.0 (cross-repo SHA pin in theo-cloud — EC-4 absorption)
-                                              │              │
                                               ├──▶ Phase 3.1 (REST integration test)
                                               │
-                                              ├──▶ Phase 3.2 + 3.3 (Dashboard standardization — BLOCKED by T3.0 landing)
+                                              ├──▶ Phase 3.2 + 3.3 (Dashboard REST-consumer standardization — runtime JSON, no SHA pin per v1.4)
                                               │
                                               ├──▶ Phase 4 (BFF smoke + cross-repo integration validation)
                                               │
                                               └──▶ Phase 6 (T6.1 — follow-up DRAFT plan file — EC-5 absorption)
 ```
 
-Phase 1 must complete first (DIP contract). Phase 2 commits to theo-memory `develop`. T3.0 (NEW v1.1) pins theo-cloud Dashboard dep to T2.2 SHA BEFORE T3.2/T3.3 land — closes EC-4 cross-repo merge-order window. Phase 4 final gate. T6.1 (NEW v1.1) closes EC-5 orphan; runs anytime after Phase 1 (no dep on other tasks).
+Phase 1 must complete first (DIP contract). Phase 2 commits to theo-memory `develop` — these supply real `created_at` via REST JSON. T3.2/T3.3 consume the REST JSON contract (no npm import binding; v1.4 dropped T3.0 per empirical evidence). Phase 4 final gate (T4.1 BFF passthrough smoke + T4.2 full-chain validation). T6.1 closes EC-5 orphan; runs anytime after Phase 1 (no dep on other tasks).
 
 ---
 
@@ -471,60 +473,12 @@ VERIFY: npm test -- in-memory-store-temporal scoped-memory-getall-temporal
 
 ## Phase 3: REST + Dashboard standardization
 
-### T3.0 — Cross-repo SHA pin: theo-cloud dashboard package.json pinned to backend T2.2 commit (EC-4 absorption)
+### T3.0 — DROPPED in v1.4 (EC-4 premise empirically invalid)
 
-#### Objective
-Pin `@usetheo/memory` dep in `theo-cloud/cloud/dashboard/package.json` to the EXACT commit SHA of the T2.2 commit (the backend phase that ships PgvectorStore + getAll fix). This eliminates the cross-repo merge-order window during which Dashboard pulls a stale `@usetheo/memory` from npm/git-ref and the new scope-tabs reference fields the older lib doesn't expose.
-
-#### Why this step (ReAct discipline)
-**What this step does** — In the theo-cloud repo, edit `cloud/dashboard/package.json` to set `"@usetheo/memory": "github:usetheo/theo-memory#<sha-of-T2.2-commit>"` (or, if `@usetheo/memory` is consumed transitively, pin the published version once T2.2 is published).
-
-**Why it is necessary now** — Per R3 + EC-4 absorption: backend commit lands in theo-memory `develop`; Dashboard pulls `@usetheo/memory` from npm registry OR git-ref. If pinned to `develop` HEAD, OK. If pinned to a published version, Dashboard MUST wait for `npm publish` + version bump. Window of 1-24h during which Dashboard scope tabs reference fields that npm version doesn't expose → runtime crash on tab render in production for any consumer in the window.
-
-#### Evidence
-- `theo-cloud/cloud/dashboard/package.json` — current `@usetheo/memory` dep entry (verify if direct or transitive).
-- ADR D5 + R3 of THIS plan.
-
-#### Files to edit
-```
-theo-cloud/cloud/dashboard/package.json — pin @usetheo/memory to exact T2.2 SHA
-theo-cloud/cloud/dashboard/package-lock.json — regenerate after pin (npm install)
-```
-
-#### Deep file dependency analysis
-- `package.json` — single-line edit; semver-locked to commit SHA. After T2.2 commits AND its SHA is known, this task RUNS — sequencing is critical.
-- `package-lock.json` — regenerate via `npm install` (no manual edit); CI on theo-cloud pulls the pinned SHA.
-
-#### Pseudo-code
-```json
-// theo-cloud/cloud/dashboard/package.json (dependencies block):
-{
-  "dependencies": {
-    "@usetheo/memory": "github:usetheo/theo-memory#<T2.2-COMMIT-SHA>",
-    ...
-  }
-}
-```
-
-Alternative (if `@usetheo/memory` is consumed transitively via `@usetheo/sdk` or BFF Go module): emit a documentation-only PR description block stating the explicit dependency: "Dashboard PR #X requires @usetheo/memory ≥ <T2.2-SHA>; CI gate enforces the install resolves to a commit no older than this SHA."
-
-#### TDD
-```
-RED:    test_dashboard_install_resolves_to_pinned_themory_sha (EC-4) — CI step: cd theo-cloud/cloud/dashboard && npm install && grep <T2.2-SHA> node_modules/@usetheo/memory/package.json (or equivalent provenance check)
-GREEN:  Edit package.json + npm install + commit lockfile in theo-cloud
-VERIFY: theo-cloud CI on the Dashboard PR pulls the pinned SHA
-```
+> **Status:** DROPPED per plan v1.4 after `/implement` halt-loop iteration 6 empirical evidence: `grep "@usetheo/memory" theo-cloud/theo/cloud/dashboard/{package.json,src/}` = 0 hits. The Dashboard consumes memory data via BFF Go (`theo-cloud/theo/cloud/internal/themory/client.go`) + REST, NOT via direct npm import. The npm-dep cross-repo merge-order risk EC-4 modeled doesn't exist in the actual architecture; no SHA pin needed. T3.2/T3.3 reframed as REST-consumer standardization. The original T3.0 contract is preserved here as part of the audit trail; the task itself is REMOVED from execution scope.
 
 #### Concurrency tests
 (none — single-threaded)
-
-#### Acceptance Criteria
-- [ ] `theo-cloud/cloud/dashboard/package.json` pins `@usetheo/memory` to T2.2 SHA (OR equivalent CI gate documented in PR body when dep is transitive).
-- [ ] EC-4 — theo-cloud Dashboard PR description CITES the backend T2.2 SHA explicitly.
-- [ ] theo-cloud CI install resolves to the pinned SHA (regenerated lockfile committed).
-
-#### DoD
-- [ ] Commit (in theo-cloud repo): `chore(dashboard): pin @usetheo/memory to T2.2 SHA for memories-tab scope-tabs landing (T3.0)`.
 
 ---
 
@@ -636,7 +590,7 @@ RED:    test_memories_tab_default_scope_is_user_matching_entities_pattern — in
 RED:    test_memories_tab_invalid_scope_param_defaults_to_user (EC-8) — mount component with useSearchParams: {scope: 'invalid_garbage'}; assert active tab is 'user' (matches entities.tsx:55 SCOPES.includes(scopeParam as Scope) defensive coerce pattern)
 GREEN:  Implement Tabs section + URL-state + defensive scope coerce
 REFACTOR: None
-VERIFY: cd theo-cloud/cloud/dashboard && npm test -- memories.test
+VERIFY: cd theo-cloud/theo/cloud/dashboard && npm test -- memories.test
 ```
 
 #### Concurrency tests
@@ -670,7 +624,7 @@ RED:    test_memories_tab_datatable_columns_match_entities_pattern — render; a
 RED:    test_memories_tab_created_at_column_uses_Timestamp_component — assert Timestamp primitive rendered (not raw date string)
 RED:    test_memories_tab_renders_scope_type_badge_per_row (EC-9) — assert each DataTable row has a Badge with the scope_type value. May reveal that the BFF projection omits `scope` per-row OR that T3.3 needs to derive it client-side from the URL `?scope=` filter (entities-pattern derivation: all rows in the table share the active scope).
 GREEN:  Refactor DataTable.columns array + scope_type derivation strategy
-VERIFY: cd theo-cloud/cloud/dashboard && npm test -- memories.test
+VERIFY: cd theo-cloud/theo/cloud/dashboard && npm test -- memories.test
 ```
 
 #### Concurrency tests
@@ -695,8 +649,8 @@ Smoke test: `curl -H "Auth: Bearer ..." http://localhost:13002/v1/memory/list` r
 
 #### Files to edit
 ```
-cloud/internal/themory/client_test.go (extend OR NEW)
-infra/scripts/local/smoke-dashboard-memory-bff-temporal.sh (NEW)
+theo-cloud/theo/cloud/internal/themory/client_test.go (extend OR NEW)
+theo-cloud/theo/infra/scripts/local/smoke-dashboard-memory-bff-temporal.sh (NEW)
 ```
 
 #### TDD
@@ -821,7 +775,7 @@ VERIFY: ls knowledge-base/plans/themory-temporal-fidelity-full-fix-DRAFT.md
 | 2 | EC-1 — NULL `created_at` legacy rows must map to undefined (not epoch) | T2.1 | Null-safe coerce in PgvectorStore.list mapping |
 | 3 | EC-2 — Dashboard pagination determinism | T2.1 | Explicit `ORDER BY created_at DESC, id ASC` |
 | 4 | EC-3 — T3.1 integration test fixture honors NOT NULL constraints | T3.1 | Canonical write-path + UPDATE for temporal-only manipulation |
-| 5 | EC-4 — Cross-repo merge-order safety (Dashboard window of incompatible @usetheo/memory) | T3.0 | NEW pre-T3.2 SHA pin task |
+| 5 | EC-4 — DROPPED in v1.4 (premise empirically invalid; Dashboard has zero npm dep on `@usetheo/memory`) | — | n/a; T3.0 dropped |
 | 6 | EC-5 — Sub-goal 7 follow-up DRAFT file MUST exist (orphan closed) | T6.1 | NEW task creating the DRAFT plan stub |
 | 7 | Memories tab missing scope tabs (Entities pattern) | T3.2 | Add 4 tabs with URL state + EC-8 defensive coerce |
 | 8 | Memories tab columns don't match Entities | T3.3 | Standardize columns + EC-9 scope_type per-row badge |
@@ -845,7 +799,7 @@ VERIFY: ls knowledge-base/plans/themory-temporal-fidelity-full-fix-DRAFT.md
   - [ ] 4 scope tabs render + clickable + URL-state preserved
   - [ ] BFF smoke pass-through PASS
 - [ ] **Follow-up file** `knowledge-base/plans/themory-temporal-fidelity-full-fix-DRAFT.md` created via T6.1 (EC-5 absorption) with stub for the 5 OTHER createdAt instances per ADR D5.
-- [ ] **Cross-repo SHA pin** (T3.0 — EC-4 absorption) — `theo-cloud/cloud/dashboard/package.json` pins `@usetheo/memory` to T2.2 SHA before T3.2/T3.3 land.
+- [ ] ~~**Cross-repo SHA pin** (T3.0)~~ — DROPPED in v1.4 (premise invalid; Dashboard has zero npm dep on `@usetheo/memory`).
 - [ ] Plan archived after `/review` returns `READY_TO_MERGE` AND PR merged.
 
 ## Failure scenarios
