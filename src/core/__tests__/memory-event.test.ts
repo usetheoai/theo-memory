@@ -7,8 +7,12 @@ import { MEMORY_EVENTS, emitEvent } from '../memory-event.js';
 import type { MemoryEvent } from '../memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 16 values (15 prior + recall_threshold_filtered per principles-alignment-hardening T4.1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(16);
+  test('has 17 values (16 prior + getall_temporal_fallback per dashboard-memories-tab-standardization T2.2)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(17);
+  });
+
+  test('includes getall_temporal_fallback (dashboard-memories-tab-standardization T2.2, ADR D2 + EC-7)', () => {
+    expect(MEMORY_EVENTS).toContain('getall_temporal_fallback');
   });
 
   test('includes extraction_failed (EC-10 absorption)', () => {

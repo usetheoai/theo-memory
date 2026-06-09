@@ -54,6 +54,7 @@ import {
 } from '../core/errors.js';
 import { runExtractionPipeline } from '../core/extraction/pipeline.js';
 import type { HistoryEntry } from '../core/history-entry.js';
+import { emitEvent } from '../core/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../core/memory-item.js';
 import type {
   Memory,
@@ -799,17 +800,39 @@ class LocalScopedMemory implements ScopedMemory {
       applySkillFilters(this.filters, options),
       limit,
     );
-    return results.map((r) => ({
-      id: r.id,
-      text: String(r.payload['text'] ?? ''),
-      hash: String(r.payload['hash'] ?? r.id),
-      scope: this.scope,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      metadata: { ...r.payload },
-      tValid: new Date(),
-      tInvalid: null,
-    }));
+    // dashboard-memories-tab-standardization T2.2 + ADR D2 + EC-7:
+    // Consume VectorStoreResult.createdAt when projected by the adapter; fall back
+    // to new Date() ONLY when undefined. Per EC-7 aggregation, count fallback rows
+    // in one pass and emit ONE `getall_temporal_fallback` event AFTER the map with
+    // `{ count: N }` metadata — NEVER per-row (a 10k-row legacy scope would
+    // explode logs otherwise). NOT emitted when count = 0 (mirrors
+    // `recall_threshold_filtered` no-op observability discipline).
+    let fallbackCount = 0;
+    const items: MemoryItem[] = results.map((r) => {
+      let createdAt = r.createdAt;
+      if (createdAt === undefined) {
+        fallbackCount += 1;
+        createdAt = new Date();
+      }
+      // updatedAt + tValid mirror createdAt: under ADR-0003 ADD-only there is no
+      // separate mutation timestamp; under D2 fallback, mirroring avoids a SECOND
+      // synthesizer that would bypass the OTel audit.
+      return {
+        id: r.id,
+        text: String(r.payload['text'] ?? ''),
+        hash: String(r.payload['hash'] ?? r.id),
+        scope: this.scope,
+        createdAt,
+        updatedAt: createdAt,
+        metadata: { ...r.payload },
+        tValid: createdAt,
+        tInvalid: null,
+      };
+    });
+    if (fallbackCount > 0) {
+      emitEvent(this.config.tracer, 'getall_temporal_fallback', { count: fallbackCount });
+    }
+    return items;
   }
 }
 

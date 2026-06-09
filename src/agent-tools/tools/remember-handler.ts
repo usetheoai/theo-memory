@@ -13,6 +13,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { Memory } from '../../core/memory-store.js';
+import type { RememberOptions } from '../../core/options.js';
 import { memoryFromCtx } from '../../theokit/index.js';
 import { getScope } from '../scope.js';
 
@@ -20,15 +21,48 @@ import { INPUT_SCHEMA, TOOL_NAME } from './remember-schema.js';
 
 export { TOOL_NAME };
 
+function buildRememberOptions(
+  metadata: Record<string, string | number | boolean | null> | undefined,
+  infer: boolean | undefined,
+): RememberOptions | undefined {
+  if (metadata !== undefined && infer !== undefined) return { metadata, infer };
+  if (metadata !== undefined) return { metadata };
+  if (infer !== undefined) return { infer };
+  return undefined;
+}
+
 export async function rememberHandler(
   args: unknown,
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
   const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
-  await scoped.remember(parsed.content, parsed.metadata ? { metadata: parsed.metadata } : undefined);
+
+  const finalOptions = buildRememberOptions(parsed.metadata, parsed.infer);
+
+  const items = await scoped.remember(parsed.content, finalOptions);
+
+  // Honest disclosure (Inquebrável Rule 3): propagate actual result instead of returning
+  // silent "Memory persisted." regardless of outcome. items=[] happens when the LLM
+  // extraction pipeline returns drafts=[] OR fails (catch in pipeline.ts swallows provider
+  // errors — see extraction_failed / extraction_zero_facts OTel events for distinction).
+  // Without this, data-loss is invisible to MCP callers (issue #1 in /tmp/themory-issue.md).
+  if (items.length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: 'No facts were extracted from the content; nothing was persisted. The LLM extractor returned an empty result (drafts=[]) or the provider call failed. Check OTel events `extraction_failed` and `extraction_zero_facts` to distinguish.',
+      }],
+      isError: true,
+    };
+  }
+
+  const ids = items.map((i) => i.id).join(', ');
   return {
-    content: [{ type: 'text', text: 'Memory persisted.' }],
+    content: [{
+      type: 'text',
+      text: `Persisted ${items.length} memory item${items.length === 1 ? '' : 's'}: ${ids}`,
+    }],
     isError: false,
   };
 }
