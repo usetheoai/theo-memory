@@ -97,7 +97,7 @@ This directive does NOT change the README Status (`Pre-release`), the locked nam
 
 `@usetheo/memory` (TheMemory) is the **managed three-tier memory layer** of the [Theo](https://usetheo.dev) ecosystem. **vector-based hybrid architecture** (vector + LLM fact extraction + hybrid retrieval), with three scope tiers (**User / Session / Agent**), shipping in two runtimes (**local** Postgres + pgvector for dev/CI, **TheoCloud-managed** for production). **Apache-2.0-licensed.** Native to [TheoKit](../theokit) by design.
 
-Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../theokit-sdk) and [`@usetheo/ui`](../theo-ui). **Pre-release** (contract being locked; no package published yet) — single exception to the monorepo's "every product is production-ready" claim (2026-05-15 lock).
+Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../theokit-sdk) and [`@theokit/ui`](../theo-ui). **Pre-release** (contract being locked; no package published yet) — single exception to the monorepo's "every product is production-ready" claim (2026-05-15 lock).
 
 **Strategic positioning:** the managed memory line item on the TheoCloud invoice. Analog: Vercel KV ↔ Vercel. Lock-in to TheoKit + TheoCloud is a deliberate feature, not an accident — see `## Architectural Decisions Locked` below.
 
@@ -330,7 +330,7 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 | Apex (runtime) | [TheoCloud](../theo) | Cloud runtime depends on Theo PaaS GA. No code today. v0.5 milestone. |
 | Framework | [TheoKit](../theokit) | `@usetheo/memory/theokit` subpath ships v0.2 PR-A (PR #11). `memoryFromCtx(ctx, memory)` auto-scopes via structural typing (zero peer-dep, ADR D1). T4.1-T4.4 + T5.1 in sibling `theokit` repo PR-B pending. |
 | Harness | [`@usetheo/sdk`](../theokit-sdk) | `@usetheo/memory/agent-tools` exposes 4 verbs as MCP tools consumable by any MCP-aware agent loop. `@usetheo/sdk` already ships its own `MemoryAdapter` interface + 3 adapter packages (2026-05-20) — different surface; TheMemory is the runtime, not the adapter. Future: `@usetheo/sdk` may accept TheMemory as a `MemoryAdapter` target. |
-| UI | [`@usetheo/ui`](../theo-ui) | `MemoryEditor` primitive already exists in `@usetheo/ui` (one of 81 primitives). Natural consumer of TheMemory's API. No wiring today. |
+| UI | [`@theokit/ui`](../theo-ui) | `MemoryEditor` primitive already exists in `@theokit/ui` (one of 81 primitives). Natural consumer of TheMemory's API. No wiring today. |
 | Coding assistant | [`theo-code`](../theo-code) | TheoCode has its own memory subsystem (`crates/theo-infra-memory/`). Different domain — no shared code planned. |
 
 > "Do not invent integration that does not exist yet." (Root `CLAUDE.md` Cross-Project Rule 2.) Verify the actual import / dependency before claiming wiring exists in copy.
