@@ -174,6 +174,37 @@ Per `rules/architecture.md`:
   - **A2 (rejected)** — `category = COALESCE(EXCLUDED.category, memories.category)` (only set when previously NULL). Why rejected: a half-step toward the same problem — operator who adds a category on a second write expects A1 semantics but gets A2 surprise; first-write-wins is the SIMPLER honest contract.
 - **Consequences**: Once a row has a category, that category is immutable via remember(). Operators are guided toward the forget+remember canonical mutation. Integration test pins this: `test_pgvector_upsert_does_not_overwrite_category`.
 
+## Dependencies
+
+Per `rules/deps-audit-golden-rule.md` mandatory section. This plan introduces **ZERO** new dependencies across all ecosystems (npm, Python, Rust, Go).
+
+### Existing — use as-is
+
+| Package | Version | Ecosystem | Why |
+|---|---|---|---|
+| `drizzle-orm` | `^0.36` (current package.json) | npm | Schema declaration for new `category` column (mirrors existing `attributedTo` column declaration pattern) |
+| `drizzle-kit` | `^0.31.0` | npm (devDep) | Migration generation (`npm run db:generate`) and journal updating for `0014_add_category_column` |
+| `pg` | `^8.x` | npm | Postgres driver — unchanged; new column reaches PG via same query path |
+| `zod` | `^3.x` | npm | REST `QuerySchema` validation — extended with `category: z.string().min(1).max(64).optional()` (per ADR D3) |
+| `hono` | `^4.x` | npm | REST handler framework — `scopesHandler` extended; no Hono API surface change |
+| `ankane/pgvector:v0.5.1` | Docker image | infra | Integration test target — UNCHANGED; new column is plain `text` (no pgvector-specific extension needed) |
+
+### New — to be introduced
+
+| Package | Version | Ecosystem | Rule 9 rationale | Why |
+|---|---|---|---|---|
+| (none) | — | — | — | This plan reuses every existing dep verbatim. The `category` column reuses Drizzle's `text()` declaration; the filter predicate reuses `pg`'s parameterized query; the boundary check reuses `zod` + the existing `InvalidScope` error class. Inquebrável Rule 9 (Não Reinvente) satisfied trivially by zero-net-new-dep posture. |
+
+### Removed
+
+| Package | Last version | Why removed |
+|---|---|---|
+| (none) | — | — |
+
+### Pre-existing vulnerabilities (informational; NOT introduced by this plan)
+
+Per `deps-audit-allowlist.txt` (verified 2026-06-09): 8 npm vulnerabilities are active in the dep tree (1 CRITICAL + 3 HIGH + 4 MODERATE) but **all are allowlisted within sunset dates** (2026-07-01 to 2026-08-29) and chained through `@xenova/transformers` + `drizzle-kit` + `next` — none of which this plan touches. Per the deps-audit golden rule, allowlisted findings downgrade by one severity level: effective post-downgrade severity is MEDIUM at most. The CRITICAL chain (`protobufjs` → `@xenova/transformers` → `onnxruntime-web`) is tracked separately in task #87 (`deps-upgrade-xenova-transformers-v2-protobufjs-cve`). This plan's Phase 6 hygiene step (rebuild + restart) does NOT mutate the dep tree.
+
 ## Drawbacks & Risks
 
 | Drawback / Risk | Severity | Mitigation | Owner |
