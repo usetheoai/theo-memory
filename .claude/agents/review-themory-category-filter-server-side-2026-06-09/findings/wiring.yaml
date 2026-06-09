@@ -1,0 +1,183 @@
+agent: review-themory-category-filter-server-side-wiring
+review_target: 50a67cf~1..HEAD (8 in-tree commits T1.1..T4.2) for plan themory-category-filter-server-side
+plan: .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md
+cross_repo_scope_note: |
+  T5.1 (theo-cloud 627f4ef9 Client.List forwards Category) and T5.2 (theo-cloud
+  1cdc6005 dashboard test) live in /home/paulo/Projetos/usetheo/theo-cloud, which is
+  NOT a git repo from theo-memory's perspective and outside the in-tree diff
+  surface. Their wiring belongs to the theo-cloud review. Recorded here as
+  out-of-scope for this agent; in-tree wiring (T4.1 + T4.2 REST handlers) IS the
+  contractual interface that T5.x consumes. Compliance of T5.x is delegated to
+  theo-cloud's own review pipeline.
+
+triad_revalidation:
+  total_new_symbols: 13   # 4 type fields (T1.1) + 1 column + 1 index (T2.1) + 1 projection (T3.1) + 3 pgvector branches (T3.2) + 1 pipeline boundary (T3.3) + 1 REST query + 1 SDK threading (T4.1) + 1 REST body field (T4.2)
+  pillar_a_honest_pass: 13 / 13
+  pillar_b_honest_pass: 13 / 13
+  pillar_c_observed: n/a / n/a   # Plan explicitly declared NO new metrics across all 9 tasks; pillar (c) intentionally n/a per cycle-implement § Wiring triad ADR carve-out
+  notes: |
+    All new symbols are ADDITIVE optional properties (`readonly category?: string`)
+    on EXISTING exported interfaces (RememberOptions, MemoryItem, Filters,
+    GetAllOptions, VectorStoreResult). No new top-level symbols introduced —
+    so dead-export checks against src/index.ts naturally PASS (the parent
+    interfaces were already re-exported pre-T1.1). Pillar (a) traces from
+    REST handler (top-level entry) → SDK threading → pipeline routing → adapter
+    hoist → SELECT projection, all functional production code paths. Pillar (b)
+    has 4 dedicated test files exercising each layer + 1 end-to-end smoke
+    crossing all layers.
+
+findings: []   # Zero BLOCKER, zero HIGH, zero MEDIUM findings. See pillar-by-pillar evidence below.
+
+pillar_a_evidence:
+  T1_1_RememberOptions_category:
+    file: src/core/options.ts:65
+    caller: src/core/extraction/pipeline.ts:146,273,425 (verbatim path + EC-2 boundary + LLM path) + src/server/handlers/remember.ts:31,35 (REST → SDK)
+    verdict: PASS — functional, not no-op
+  T1_1_MemoryItem_category:
+    file: src/core/memory-item.ts:136
+    caller: src/local/index.ts:228-234 (LocalScopedMemory.getAll threads to Filters) + downstream MemoryItem projection from VectorStoreResult in adapter mapping
+    verdict: PASS — populated by pgvector + in-memory adapters
+  T1_1_Filters_category:
+    file: src/core/scope.ts:159
+    caller: src/local/in-memory-store.ts:79 (filter branch) + src/local/pgvector-store.ts:205 (WHERE composition)
+    verdict: PASS — functional
+  T1_1_GetAllOptions_category:
+    file: src/core/options.ts:229
+    caller: src/local/index.ts:228-234 + src/server/handlers/scopes.ts:142 (REST → SDK)
+    verdict: PASS — functional
+  T2_1_schema_memories_category_column:
+    file: src/local/schema.ts:95
+    caller: src/local/pgvector-store.ts:392,410,478,542,562,641 (INSERT + 4 SELECTs) + src/local/migrations/0014_add_category_column.sql
+    verdict: PASS — DDL applied + DML uses column
+  T2_1_memories_category_idx_index:
+    file: src/local/schema.ts:158
+    caller: Postgres planner uses it whenever WHERE category=$N is composed in pgvector-store.ts:206; EXPLAIN test at tests/integration/pgvector-store-category.test.ts:127-160 verifies planner uses the named index
+    verdict: PASS — planner-observed
+  T3_1_InMemoryVectorStore_category_projection:
+    file: src/local/in-memory-store.ts:220-226
+    caller: VectorStoreResult.category readers — LocalScopedMemory.getAll (MemoryItem mapping)
+    verdict: PASS — projection wired
+  T3_2_PgvectorStore_composeFilters_category:
+    file: src/local/pgvector-store.ts:205-208
+    caller: PgvectorStore.list/search internal call sites
+    verdict: PASS — functional
+  T3_2_PgvectorStore_INSERT_hoist:
+    file: src/local/pgvector-store.ts:365-410
+    caller: PgvectorStore.insert (sole adapter INSERT path)
+    verdict: PASS — hoist + DO UPDATE excludes category (ADR D6 immutable)
+  T3_2_PgvectorStore_SELECT_projection:
+    file: src/local/pgvector-store.ts:78-130 (rowToResult helper)
+    caller: PgvectorStore.list/search/get (all SELECT paths flow through rowToResult)
+    verdict: PASS — dual-pathway (top-level + payload['category'])
+  T3_3_pipeline_EC2_boundary_throw:
+    file: src/core/extraction/pipeline.ts:268-280
+    caller: runExtractionPipeline (verbatim + LLM both call this once at entry)
+    verdict: PASS — InvalidScope thrown at length 0 or > 64
+  T3_3_pipeline_payload_propagation_both_branches:
+    file: src/core/extraction/pipeline.ts:146,425
+    caller: runExtractionPipeline (verbatim path L146 + LLM-extraction loop L425)
+    verdict: PASS — both write paths route category → payload['category'] → pgvector hoist
+  T4_1_REST_QuerySchema_category:
+    file: src/server/handlers/scopes.ts:45
+    caller: scopesHandler (sole route consumer at line 113,124,142)
+    verdict: PASS — functional
+  T4_1_LocalScopedMemory_getAll_category_threading:
+    file: src/local/index.ts:228-234
+    caller: LocalScopedMemory.getAll (sole getAll impl in local runtime)
+    verdict: PASS — functional
+  T4_2_RememberBody_category:
+    file: src/server/schemas.ts:60
+    caller: rememberHandler at src/server/handlers/remember.ts:31,35
+    verdict: PASS — functional
+
+pillar_b_evidence:
+  T1_1_type_fields:
+    tests:
+      - src/core/__tests__/options.test.ts (RememberOptions + GetAllOptions narrowing)
+      - src/core/__tests__/memory-item.test-d.ts (type-level MemoryItem.category)
+      - src/core/__tests__/vector-store.test-d.ts (VectorStoreResult.category)
+    verdict: PASS — type-level + behavioral
+  T2_1_migration_0014:
+    tests:
+      - tests/integration/migrations/migration-0014.test.ts (5 cases — column + idx + idempotency + NULL legacy survival)
+    verdict: PASS — real pgvector boundary (env-gated skipIf ROOT_PG_URI === '')
+  T3_1_in_memory_store_category:
+    tests:
+      - src/local/__tests__/in-memory-store-category.test.ts (filter persist + NULL exclusion + projection + EC-3 empty)
+    verdict: PASS — exercises filter + projection
+  T3_2_pgvector_store_category:
+    tests:
+      - tests/integration/pgvector-store-category.test.ts (10 scenarios — persist + filter + NULL exclusion + EXPLAIN idx + EC-1 immutability + EC-3 empty + EC-6 SQL-injection)
+    verdict: PASS — real Postgres + named index assertion
+  T3_3_pipeline_category:
+    tests:
+      - src/core/__tests__/extraction-pipeline-category.test.ts (6 tests — verbatim + LLM propagation + EC-2 0-len/65-len/64-len boundary)
+    verdict: PASS — exercises BOTH write paths + boundary
+  T4_1_scopes_list_category:
+    tests:
+      - tests/integration/server/scopes-list-category-filter.test.ts (8 scenarios — filter + 64-cap + empty-422 + no-match + no-filter + pagination + EC-7 cursor-changed-filter + EC-3 SDK-boundary)
+    verdict: PASS — REST end-to-end against real pgvector
+  T4_2_remember_category:
+    tests:
+      - tests/integration/server/category-filter-public-api-smoke.test.ts (2 scenarios — POST→GET round-trip with category + no-category)
+    verdict: PASS — REST end-to-end smoke crosses ALL 4 layers (POST handler → SDK → pipeline → pgvector → SELECT projection → GET handler)
+
+dead_or_orphan_exports:
+  count: 0
+  notes: |
+    No new top-level exports introduced by these 8 commits. Every change is
+    an additive optional property on a pre-existing exported interface
+    (RememberOptions / MemoryItem / Filters / GetAllOptions / VectorStoreResult)
+    that was already re-exported via src/core/index.ts pre-T1.1. The
+    migration 0014 SQL file is consumed by runMigrations() (existing
+    re-exported barrel symbol). PgvectorRow.category is an internal type
+    addition (not exported). No paper-name violations introduced.
+
+reachability_from_entry_points:
+  REST_POST_/v1/remember:
+    path: rememberHandler → scoped.remember → LocalScopedMemory.remember
+          → runExtractionPipeline → PgvectorStore.insert (INSERT hoists
+          payload.category → memories.category column)
+    verdict: REACHABLE end-to-end via tests/integration/server/category-filter-public-api-smoke.test.ts
+  REST_GET_/v1/scopes/:type/:id/memories?category=X:
+    path: scopesHandler → QuerySchema parse → LocalScopedMemory.getAll
+          ({category}) → PgvectorStore.list ({filters.category}) → composeFilters
+          adds `category = $N` → rowToResult projects category → MemoryItem
+    verdict: REACHABLE end-to-end via tests/integration/server/scopes-list-category-filter.test.ts
+  SDK_direct_remember:
+    path: memory.user(id).remember(text, {category}) → same pipeline path as above
+    verdict: REACHABLE via src/core/__tests__/extraction-pipeline-category.test.ts
+  SDK_direct_getAll:
+    path: memory.user(id).getAll({category}) → LocalScopedMemory.getAll →
+          PgvectorStore.list
+    verdict: REACHABLE via tests/integration/pgvector-store-category.test.ts (driven through PgvectorStore directly; SDK wrapper tested via T4.1 REST suite which calls scoped.getAll under the hood)
+
+boundary_dip_respect:
+  src_core_imports_local_or_cloud_or_theokit_or_agent_tools: NONE FOUND
+  src_local_imports_cloud: NONE FOUND
+  src_theokit_imports_outside_core: N/A (theokit not touched)
+  verdict: PASS — boundary-check.sh contract held; no cross-tier violations.
+
+concurrency_review:
+  shared_resources_touched:
+    - Postgres `memories` table (existing) — extended with new `category` column + named index
+  atomicity:
+    - INSERT … ON CONFLICT DO UPDATE excludes `category` from SET list (ADR D6
+      immutability — first-write wins). No read-modify-write race because
+      category is set on INSERT only and never mutated.
+    - composeFilters parameterizes via $N + params.push() — no SQL injection
+      (proven by EC-6 test in pgvector-store-category.test.ts).
+    - btree index creation in migration is idempotent (CREATE INDEX IF NOT
+      EXISTS … via Drizzle journal — verified by EC-11 test).
+  verdict: PASS — no race condition plausible.
+
+overall_verdict: WIRING_TRIAD_HONEST_PASS
+overall_verdict_rationale: |
+  Every new symbol has (a) functional production caller — not no-op, not dead
+  branch — and (b) integration test exercising it against real boundary
+  (pgvector via ankane/pgvector:v0.5.1 or in-memory adapter where applicable).
+  Pillar (c) is n/a by plan declaration — Global DoD § Runtime-metric proof
+  explicitly states no new metrics. End-to-end reachability verified from
+  POST /v1/remember through SDK → pipeline → pgvector hoist → SELECT
+  projection → GET /v1/scopes/.../memories?category=X. Cross-repo T5.x is
+  delegated to theo-cloud's own review. Zero BLOCKER, HIGH, or MEDIUM findings.

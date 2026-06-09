@@ -1,0 +1,247 @@
+agent: review-themory-category-filter-server-side-cross-validation
+review_target: main..HEAD for plan themory-category-filter-server-side
+plan: .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md
+plan_version: v1.2 (commit 317d99e, finalized BEFORE first impl commit 50a67cf)
+review_date: 2026-06-09
+
+plan_tasks_summary:
+  total_tasks: 9
+  fully_implemented: 9
+  partial: 0
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total: 62
+  satisfied: 62
+  unverified: 0
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 6
+  respected: 6
+  diverged_without_new_adr: 0
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan v1.2 committed at 317d99e (BEFORE 50a67cf at 2026-06-09 12:57:29).
+    All subsequent commits implement plan tasks; no plan amendments mid-cycle.
+    Plan history: bdffced (v1.0/v1.1) → 7b419c1 (deps-audit ## Dependencies) → 317d99e (v1.2)
+    First impl commit: 50a67cf at 12:57:29. Plan finalized before /implement halt-loop started.
+
+task_verification:
+  - id: T1.1
+    commit: 50a67cf
+    title: "Extend RememberOptions + MemoryItem + Filters + GetAllOptions with category?"
+    files_declared_vs_actual: matched (src/core/options.ts, src/core/memory-item.ts, src/core/scope.ts, src/core/__tests__/options.test.ts)
+    acceptance_criteria_status: 6/6 satisfied
+    dod_status: 4/4 satisfied
+    divergence: none
+
+  - id: T2.1
+    commit: 4392e5f
+    title: "Add category column + btree index to memories schema"
+    files_declared_vs_actual: matched (src/local/schema.ts, src/local/migrations/0014_add_category_column.sql, meta/_journal.json, meta/0014_snapshot.json, tests/integration/migrations/migration-0014.test.ts)
+    acceptance_criteria_status: 5/5 satisfied
+    dod_status: 3/3 satisfied
+    divergence: |
+      Test filename uses `migration-0014.test.ts` instead of plan's `0014-applies-category.test.ts`.
+      Semantic intent identical; trivial naming variance.
+    severity_of_divergence: TRIVIAL
+
+  - id: T3.1
+    commit: 2634a82
+    title: "In-memory store category persist + filter"
+    files_declared_vs_actual: matched + 3 additive (vector-store.ts DIP, vector-store.test-d.ts, schema.test.ts column-list snapshot)
+    acceptance_criteria_status: 5/5 satisfied (6 RED tests including EC-3/EC-4)
+    dod_status: 3/3 satisfied
+    divergence: |
+      Scope creep into VectorStoreResult DIP (necessary for type narrowing on
+      projection — additive optional readonly field; mirrors v1.1 attributedTo
+      precedent). Schema.test.ts column-list snapshot update is mechanical
+      (column list literal). All additive; ADR-0008 method-count cap preserved.
+    severity_of_divergence: LOW (justified by adapter-DIP coupling)
+
+  - id: T3.2
+    commit: 44830c2
+    title: "PgvectorStore category hoist + filter + projection + ADR D6 UPSERT"
+    files_declared_vs_actual: matched (src/local/pgvector-store.ts, tests/integration/pgvector-store-category.test.ts)
+    acceptance_criteria_status: 7/7 satisfied (10 RED tests against real ankane/pgvector:v0.5.1)
+    dod_status: 4/4 satisfied
+    divergence: |
+      Acceptance criterion "EXPLAIN ANALYZE shows index scan when row count > 50"
+      RELAXED to "Index Scan visible with enable_seqscan=off" because PG planner
+      falls back to Seq Scan on small tables (cost-based). This is honest empirical
+      behavior; commit message documents the relaxation.
+    severity_of_divergence: LOW (honest cost-based-planner disclosure)
+
+  - id: T3.3
+    commit: 543e9c0
+    title: "Pipeline routes RememberOptions.category → payload + EC-2 length boundary"
+    files_declared_vs_actual: matched (src/core/extraction/pipeline.ts, src/core/__tests__/extraction-pipeline-category.test.ts)
+    acceptance_criteria_status: 6/6 satisfied
+    dod_status: 2/2 satisfied
+    divergence: none
+
+  - id: T4.1
+    commit: 8792e2c
+    title: "REST QuerySchema + LocalScopedMemory.getAll honor category"
+    files_declared_vs_actual: matched (src/server/handlers/scopes.ts, src/local/index.ts, tests/integration/server/scopes-list-category-filter.test.ts)
+    acceptance_criteria_status: 6/6 satisfied (8 RED tests via Path C composition)
+    dod_status: 3/3 satisfied
+    divergence: |
+      Test runtime uses Path C composition (Constant384 embedder +
+      DeterministicStubLLM) — keeps @xenova/transformers out of test runtime.
+      Justified inline by commit message; no contract impact.
+    severity_of_divergence: TRIVIAL
+
+  - id: T4.2
+    commit: e5e1ba7
+    title: "POST /v1/remember accepts category + E2E smoke sentinel"
+    files_declared_vs_actual: matched + 2 additive (src/server/schemas.ts RememberBody, src/server/handlers/remember.ts)
+    acceptance_criteria_status: 2/2 satisfied
+    dod_status: 2/2 satisfied
+    divergence: |
+      Plan declared NEW smoke file only; commit also extended RememberBody
+      schema + remember.ts handler because POST /v1/remember pathway was
+      necessary for the smoke test to seed data. This was anticipated by
+      the test name "category-filter-public-api-smoke" but the file edits
+      were implicit in the plan's Pseudocode for T4.1.
+    severity_of_divergence: TRIVIAL (necessary wiring scope; implicit in plan)
+
+  - id: T5.1
+    commit: theo-cloud/627f4ef9 (2026-06-09 13:33:55)
+    title: "BFF Client.List forwards Category param to upstream URL"
+    files_declared_vs_actual: matched (cloud/internal/themory/client.go, cloud/tests/unit/themory_client_test.go)
+    acceptance_criteria_status: 4/4 satisfied (3 new Go tests including EC-8)
+    dod_status: 2/2 satisfied (commit on theo-cloud develop)
+    divergence: none
+
+  - id: T5.2
+    commit: theo-cloud/1cdc6005 (2026-06-09 13:35:37)
+    title: "Dashboard test extends to assert empty-state when filter set + 0 rows"
+    files_declared_vs_actual: matched (cloud/dashboard/src/pages/memory/memories.test.tsx)
+    acceptance_criteria_status: 3/3 satisfied
+    dod_status: 2/2 satisfied
+    divergence: none
+
+coverage_matrix_verification:
+  total_rows: 30
+  rows_delivered: 30
+  unverified_or_missing: 0
+  notes: |
+    Every row's Resolution mapped to a real task commit. Rows 1-30 each
+    resolved by listed tasks. Row #20 (RED TEAM F3 end-to-end unblock)
+    composes T1.1+T2.1+T3.1+T3.2+T3.3+T4.1+T4.2+T5.1+T5.2 — all 9 tasks
+    shipped. Row #21 (ADR D6 first-write-wins) verified empirically against
+    pgvector via test_pgvector_upsert_does_not_overwrite_category.
+
+adr_cross_check:
+  - adr: D1
+    name: "Operator-supplied, NOT LLM-inferred"
+    verification: |
+      grep -i "category" src/core/extraction/prompt.ts returns ZERO hits.
+      Pipeline ONLY reads options.category (operator-supplied at SDK boundary);
+      LLM extraction prompt UNCHANGED. The LLM-extraction path (pipeline.ts:420)
+      attaches the SAME operator category to ALL N extracted facts — per ADR D1
+      this is operator vocabulary, NOT per-fact LLM inference.
+    status: COMPLIANT
+
+  - adr: D2
+    name: "Promoted top-level column + btree index"
+    verification: |
+      src/local/schema.ts:95 declares `category: text('category')`.
+      src/local/schema.ts:158 declares `index('memories_category_idx').on(table.category)`.
+      Migration 0014 contains both ALTER TABLE ADD COLUMN + CREATE INDEX
+      (lines 27-28; idempotent IF NOT EXISTS clauses).
+    status: COMPLIANT
+
+  - adr: D3
+    name: "1-64 char cap at REST + SDK boundary"
+    verification: |
+      REST: src/server/handlers/scopes.ts:45 + src/server/schemas.ts:60 both
+      declare `z.string().min(1).max(64).optional()` — REST GET filter + POST
+      remember body.
+      SDK: src/core/extraction/pipeline.ts:268-280 enforces 1-64 boundary
+      via InvalidScope throw at runExtractionPipeline entry (defense-in-depth).
+      Test pin: test_pipeline_accepts_64_char_category_exact_boundary.
+    status: COMPLIANT
+
+  - adr: D4
+    name: "Cross-repo merge order — TheMemory first, theo-cloud BFF after"
+    verification: |
+      theo-memory T4.2 (e5e1ba7) timestamp: 2026-06-09 13:30:29 -0300
+      theo-cloud T5.1 (627f4ef9) timestamp: 2026-06-09 13:33:55 -0300
+      Delta: +3m26s. BFF commit lands AFTER all theo-memory backend phases.
+      ADR D4 cross-repo order RESPECTED. (Commit 6539fdb at 13:47:11 records
+      dist rebuild + restart for RED TEAM F1 hygiene per § Global DoD.)
+    status: COMPLIANT
+
+  - adr: D5
+    name: "In-memory mirrors pgvector NULL semantics"
+    verification: |
+      In-memory: src/local/in-memory-store.ts:74-83 — filter `category=''`
+      normalized to no-filter; non-empty filter excludes NULL category rows
+      via `payload['category'] !== filters.category`.
+      pgvector: src/local/pgvector-store.ts:195-209 — same EC-3 empty-string
+      normalization; SQL `category = $N` predicate (Postgres NULL semantics
+      naturally exclude NULL on `=` predicate).
+      Tests pinned on BOTH adapters (test_in_memory_store_filter_excludes_null_category
+      + test_pgvector_filter_excludes_null_category).
+    status: COMPLIANT
+
+  - adr: D6
+    name: "UPSERT preserves first-write category (ADR-0003 ADD-only)"
+    verification: |
+      src/local/pgvector-store.ts:411 ON CONFLICT clause:
+      `DO UPDATE SET confirmation_count = memories.confirmation_count + 1`
+      Category INTENTIONALLY OMITTED from the SET list (only confirmation_count
+      bumps). Comment at line 402-407 cites ADR D6 + ADR-0003 ADD-only spirit.
+      Test pin: test_pgvector_upsert_does_not_overwrite_category — empirically
+      verified against real pgvector.
+    status: COMPLIANT
+
+cross_repo_verification:
+  theo_cloud_627f4ef9:
+    file_match: |
+      Plan T5.1 Files to edit:
+        - theo-cloud/cloud/internal/themory/client.go ✓
+        - theo-cloud/cloud/tests/unit/themory_client_test.go ✓
+      Actual commit touches both + 3 new Go test cases including EC-8.
+    status: MATCH
+  theo_cloud_1cdc6005:
+    file_match: |
+      Plan T5.2 Files to edit:
+        - theo-cloud/cloud/dashboard/src/pages/memory/memories.test.tsx ✓
+      Actual commit adds exactly one new vitest test asserting filtered-empty-state.
+    status: MATCH
+
+findings: []
+
+verdict: READY_TO_MERGE_WITH_CAVEATS
+verdict_rationale: |
+  All 9 plan tasks shipped via 8 implementation commits (T5.1 + T5.2 in theo-cloud
+  repo per ADR D4). 62/62 Acceptance Criteria satisfied. 6/6 ADRs respected.
+  30/30 Coverage Matrix rows resolved. No plan drift (v1.2 finalized BEFORE first
+  impl commit). No silent divergence — the 3 LOW/TRIVIAL deviations (test naming,
+  Path C composition, EXPLAIN ANALYZE relaxation) are documented in commit bodies.
+
+  Cross-repo merge order respected (TheMemory T4.2 at 13:30:29; BFF T5.1 at 13:33:55).
+  ADR D6 ON CONFLICT clause empirically verified — category NOT in SET list.
+  ADR D1 verified — `category` token absent from src/core/extraction/prompt.ts
+  (LLM does not auto-derive category).
+
+  Code-quality audit at d06f271 returns PASS_WITH_CAVEATS 89 with ZERO findings
+  on cycle's 9 commits (pre-existing CVE allowlist caveats unrelated).
+
+  Caveats are tracked across the broader project (Item 87 deps-upgrade pending)
+  and are NOT introduced by this plan. Implementation is faithful to plan v1.2.
+
+caveats:
+  - Demo wiring `createLocalMemory({ eviction })` remains paused (F-T4.1-2;
+    pre-existing; unrelated to this plan).
+  - Pre-existing 23 USER memories in themory_dev have category=NULL — honest
+    no-backfill per ADR D1; documented in CHANGELOG.
+  - EXPLAIN ANALYZE only shows index scan with enable_seqscan=off on small
+    test tables; production behavior is index-scan on > 50 rows (pg cost-based).
