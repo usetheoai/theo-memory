@@ -18,6 +18,7 @@
  * @see ADR D1 — Transport: stdio + streamable-HTTP (skip SSE + fastmcp)
  * @see .claude/knowledge-base/discoveries/blueprints discover Q5 — stateless mode pattern
  */
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -92,12 +93,30 @@ export async function connectStreamableHttp(
   // misconfigurations fail loudly and immediately (Inquebrável Rule 8 fail-fast).
   assertNonLocalhostHasTls(options.host, options.tls !== undefined);
 
-  // Stateless mode per discover Q5 — no session persistence across requests.
-  // SDK accepts `sessionIdGenerator: undefined` at runtime per its docstring example;
-  // type def omits undefined under strict exactOptionalPropertyTypes — narrow cast at boundary.
+  // STATEFUL session mode — singleton transport + UUID-per-session session id.
+  //
+  // Historical note (themory-issue-3.md, team report 2026-06-08): T6.2 originally
+  // set `sessionIdGenerator: undefined` claiming "stateless mode per discover
+  // blueprint Q5". The SDK contract is incompatible with that choice when paired
+  // with a singleton transport: with `undefined`, the `initialize` response omits
+  // `Mcp-Session-Id`, and every subsequent request (`tools/list`, `tools/call`)
+  // hits 500 from the SDK internals because the singleton's session-tracking
+  // state has nothing to correlate against. Net effect: 100% of standard MCP
+  // clients (Claude Code, Cursor, Cline, MCP Inspector) failed silently — only
+  // `initialize` succeeded; tools were unreachable.
+  //
+  // Fix: emit a UUID session id per `initialize`, which is the SDK-canonical
+  // stateful pattern. Compatible with singleton transport AND with standard
+  // clients. Real stateless mode would require a per-request transport + per-
+  // request McpServer clone (Option B in the report) — non-trivial cost
+  // (~10x CPU from clone overhead) and out-of-scope for v0.3.
+  //
+  // Multi-instance deployments (load-balanced, no sticky session) are NOT
+  // affected by v0.3 (single-instance). When that scenario lands, the session
+  // state needs an external store (Redis-class); tracked as follow-up.
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
+    sessionIdGenerator: () => randomUUID(),
+  });
 
   // T4.1 — when bearerAuth is supplied, every request is gated through
   // withBearerAuth BEFORE the MCP transport sees it. When omitted, the

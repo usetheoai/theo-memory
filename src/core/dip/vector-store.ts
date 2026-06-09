@@ -19,6 +19,23 @@ export interface VectorStoreResult {
   readonly id: string;
   readonly payload: Readonly<Record<string, string | number | boolean | null>>;
   readonly score?: number;
+  /**
+   * Wall-clock when the row was first persisted, projected from the adapter's
+   * underlying store (e.g., PgvectorStore SELECTs `created_at` column;
+   * InMemoryVectorStore stamps `new Date()` at insert).
+   *
+   * When `undefined`, the consumer falls back to `new Date()` AND emits the OTel
+   * `getall_temporal_fallback{count}` event per request — surfaces stale-impl
+   * adapter usage (rows without temporal projection) instead of silently lying
+   * about freshness.
+   *
+   * Additive optional field (backward-compatible for all 6+ existing callsites
+   * in `src/local/index.ts` and the 2 in-tree impls).
+   *
+   * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D1 — additive shape extension
+   * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D2 — getAll fallback + OTel event
+   */
+  readonly createdAt?: Date;
 }
 
 /**

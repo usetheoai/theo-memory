@@ -20,11 +20,14 @@ test('VectorStore has exactly 11 required methods (D8 lock)', () => {
   >();
 });
 
-test('VectorStoreResult shape: id + payload + optional score', () => {
+test('VectorStoreResult shape: id + payload + optional score + optional createdAt (T1.1)', () => {
+  // T1.1 extended the shape with additive optional createdAt?: Date per ADR D1
+  // of dashboard-memories-tab-standardization-plan.md (backward-compatible).
   expectTypeOf<VectorStoreResult>().toEqualTypeOf<{
     readonly id: string;
     readonly payload: Readonly<Record<string, string | number | boolean | null>>;
     readonly score?: number;
+    readonly createdAt?: Date;
   }>();
 });
 
