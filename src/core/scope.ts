@@ -139,4 +139,22 @@ export interface Filters {
    * ("which rows to skip") instead of carrying the consumer's double-negative.
    */
   readonly excludeSuperseded?: boolean;
+  /**
+   * themory-category-filter-server-side T1.1: server-side category filter.
+   * When set (non-empty), list/recall return ONLY rows where `category = :category`
+   * (exact byte equality; case-sensitive; NULL rows do NOT match — SQL three-valued
+   * logic — per ADR D5 + EC-9).
+   *
+   * Single-token field name (`category`, NOT snake_case `category_` etc.) — the
+   * column itself is already a single token at the SQL level, so no rename is
+   * needed at the Filters boundary.
+   *
+   * **EC-3 normalization invariant**: the pipeline boundary (`LocalScopedMemory.getAll`)
+   * AND adapter `composeFilters` BOTH normalize empty string to undefined before
+   * composing the predicate, so `filters.category=''` is equivalent to omitting
+   * the filter. Defense-in-depth alongside REST zod `min(1)` validation.
+   *
+   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D5 + EC-3 + EC-9
+   */
+  readonly category?: string;
 }
