@@ -94,6 +94,26 @@ Close all 6 RED TEAM findings with minimal surface change. Unblock 8 blocked sce
 
 **Consequences (EC-2 absorption)**: When `THEMORY_CORS_ORIGIN` is `*`, the server MUST NOT set `Access-Control-Allow-Credentials: true` — per the Fetch spec, `*` is incompatible with `credentials: include` (browsers silently reject the response). `hono/cors` handles this correctly by default (`credentials: false` when `origin: '*'`). Consumers needing credentialed cross-origin access MUST set `THEMORY_CORS_ORIGIN` to their explicit origin. Document in README.
 
+## Dependencies
+
+### Existing — use as-is
+
+| Package | Version | Ecosystem | Why |
+|---|---|---|---|
+| `hono` | `^4.x` (current package.json) | npm | CORS middleware (`hono/cors`) is built-in to Hono — zero new dep; verified at `node_modules/hono/dist/middleware/cors/index.js` |
+
+### New — to be introduced
+
+| Package | Version | Ecosystem | Rule 9 rationale | Why |
+|---|---|---|---|---|
+| (none) | — | — | — | This plan introduces ZERO new npm packages. Rate limiter (T2.1) is hand-rolled (~50 LoC) because `hono-rate-limiter` has < 500 weekly downloads and adds unnecessary dep for single-process use case (ADR D2). CORS (T2.2) uses built-in `hono/cors`. |
+
+### Removed
+
+| Package | Last version | Why removed |
+|---|---|---|
+| (none) | — | — |
+
 ## Drawbacks & Risks
 
 1. **In-memory rate limiter resets on restart.** A process crash or deployment clears all counters. An attacker could theoretically burst during the restart window. Mitigation: this is acceptable for a single-process OSS server; Redis-backed store is a documented future path. The risk window is seconds, not minutes.
