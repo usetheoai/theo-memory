@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.1.0] - 2026-06-09
+
+### Added
+
+- **themory-category-filter-server-side** — operator-supplied `category` field shipped end-to-end across the public write/list contract (RED TEAM F3 unblock from 2026-06-09 `theo-cloud/theo` commit `a3538930`). New optional `RememberOptions.category` (1-64 chars per ADR D3) routes through the extraction pipeline into `payload['category']` (T3.3) and is hoisted to a first-class top-level `category` column on the `memories` table (migration `0014_add_category_column.sql` + btree index `memories_category_idx` per ADR D2). New optional `GetAllOptions.category` filter at `LocalScopedMemory.getAll`; REST `GET /v1/scopes/{type}/{id}/memories?category=X` zod-validates the param (T4.1) and threads it through `applySkillFilters` → `Filters.category` → `composeFilters` predicate `category = $N`. New optional `MemoryItem.category` on the public DTO (EC-12 dual-pathway projection: ALSO available as `metadata.category` for upstream-shape parity, mirroring v1.1 attributed_to symmetry). New REST `RememberBody.category` mirrors the SDK. **ADR D1 honest disclosure**: category is operator-supplied — the LLM extraction pipeline does NOT auto-derive it; pre-2026-06-09 rows have `category=NULL` permanently and are NOT findable via the filter (per ADR D1 no-backfill + EC-9 NULL-findability JSDoc). **ADR D6 immutability**: UPSERT does NOT overwrite category — first-write wins per ADR-0003 ADD-only spirit; mutation requires `forget(id) + remember(newText, { category: 'B' })`. **EC-2 SDK boundary**: `runExtractionPipeline` throws `InvalidScope` at entry when `category.length === 0` OR `> 64` (defense-in-depth alongside REST zod min(1).max(64)). **EC-3 empty-string normalization**: 3-layer normalization (in-memory store, pgvector `composeFilters`, `LocalScopedMemory.getAll`) treats `filters.category === ''` as no-filter. **EC-4 / EC-5**: byte-equality case-sensitive + no Unicode normalization (NFC ≠ NFD). **EC-6**: parameterized binding rejects SQL-injection probes. Cross-repo BFF Go forwarding shipped at `theo-cloud/theo` commit `627f4ef9`; Dashboard test pin shipped at `theo-cloud/theo` commit `1cdc6005`. THE GOAL TEST: 8 RED→GREEN integration tests at `tests/integration/server/scopes-list-category-filter.test.ts` + 2 smoke gate at `tests/integration/server/category-filter-public-api-smoke.test.ts` + 10 RED→GREEN pgvector adapter at `tests/integration/pgvector-store-category.test.ts` + 4 migration idempotency tests + 6 unit tests at in-memory store + 5 unit tests at pipeline boundary, all against real `ankane/pgvector:v0.5.1`. PRIORITY 0 hardening of sub-goal 2 (SDK functional) per CLAUDE.md — dashboard category input was wired client-side since v1.5 but the SDK contract was missing.
 - **theo-memory-faang-auth-lifecycle** (FAANG-grade auth lifecycle hardening per CLAUDE.md PRIORITY 0 sub-goals 2+3) — 3 layers shipped for `@usetheo/memory/server`: Camada 2 (OSS multi-user lifecycle: `theo_api_keys` migration `0012` + `ApiKeyAuthVerifier` 12th DIP impl + 5 admin REST handlers + `requireScope` middleware + bootstrap self-revoke + `themory keys {create,list,rotate,revoke}` CLI), Camada 3 (OIDC bridge: `OidcAuthVerifier` RFC 7662 introspection with EC-4/EC-5/EC-12 absorptions + `dualValidationAuth` Hono middleware with EC-1 fallthrough), MCP HTTP sub-goal 3 (`withBearerAuth` node:http wrapper + `connectStreamableHttp({bearerAuth})` + ADR-0015 #3 non-localhost TLS guard + `themory mcp --auth=<mode>` flag), RFC 9728 well-known endpoint, and 3 new ADRs (ADR-0013/0014/0015 + ADR-0009 supersession footer). THE GOAL TEST: 12/12 integration scenarios GREEN against real `ankane/pgvector:v0.5.1`.
 - **theo-memory-faang-auth-lifecycle-fixes-cycle-1** — closes 2 honest deferrals from parent cycle: (a) admin REST `/v1/admin/keys/*` now mountable via opt-in `createServer({ adminApi: { pool, bootstrapToken? } })` per ADR D1; (b) production `oauth4webapi`-backed `IntrospectFn` adapter at `src/server/auth/oidc-introspect-oauth4webapi.ts` exposing `createOauth4webapiIntrospect({ issuer, clientId, clientSecret })` (ADR D2+D3 — discovery cached at construction per RFC 8414). New CLI flags `--issuer <URL>` + `--client-id <id>` on BOTH `themory server` AND `themory mcp` (env equivalents: `THEMORY_OIDC_ISSUER`, `THEMORY_OIDC_CLIENT_ID`). Secrets env-only per ADR D4: `THEMORY_OIDC_CLIENT_SECRET` (NO `--client-secret` flag — `ps` leak risk). THE GOAL TEST: 6/6 e2e scenarios + 12/12 lifecycle sentinel GREEN.
 - **theo-memory-faang-auth-lifecycle-fixes-cycle-1** — public surface re-exports from `@usetheo/memory/server` (F-dom-api-1 absorption from `/review`): `ApiKeyAuthVerifier`, `AuthPool`, `requireScope`, `RequireScopeOptions`, `isBootstrapAllowed`, `markBootstrapConsumedTx`, `OidcAuthVerifier`, `IntrospectFn`, `IntrospectionResult`, `OidcAuthVerifierOptions`, `dualValidationAuth`, `DualValidationOptions`, `createOauth4webapiIntrospect`, `CreateOauth4webapiIntrospectOptions`, `wellKnownOauthProtectedResourceHandler`, `OidcDiscoveryConfig`. Third-party consumers can now compose admin REST + OIDC + dual-validation without internal subpath imports.
@@ -14,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **verbs-as-cli-fixes-cycle-2** — 8 NEW RED tests at `tests/integration/cli/verbs-cli-fixes-cycle-2.test.ts` locking the strict-coercion contract (4) + dist hygiene (1) + regex-pinned sentinel (1) + EC-1 empty-string + EC-2 hex notation (2).
 - **verbs-as-cli-fixes-cycle-2** — `npm run prebuild:clean` script chained before `tsc` in `build` (M5 closure) + `prepack` auto-build (EC-5 absorption).
 - **MCP `remember` schema gains optional `infer?: boolean` flag (issue /tmp/themory-issue.md #2)** — `src/agent-tools/tools/remember-schema.ts` `INPUT_SCHEMA` now exposes `infer` (default `true` — preserves existing extraction behavior). When `false`, the handler passes through to `ScopedMemory.remember(..., { infer: false })` and the content is stored verbatim, mirroring `POST /v1/remember`'s `infer` flag. Closes the REST↔MCP asymmetry that blocked literal-write use cases (caller-supplied facts, already-formatted tool outputs) over MCP.
+
 
 ### Changed
 
@@ -25,9 +41,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **verbs-as-cli-fixes-cycle-2 (T5.1 — M10 closure)** — Re-categorized fix-cycle-1 entries below per Keep-a-Changelog discipline (was a single mega-bullet under `### Added`).
 - **themory-mcp-bearer-by-env-faang — env-driven MCP transport default (T2.1 + T2.2 + T3.1 + T4.1)** — `themory mcp` auto-selects `--transport=streamable-http --auth=api-keys` when `THEMEMORY_API_KEY` env is present AND no `--transport`/`--auth` flag (nor `THEOMEM_MCP_TRANSPORT`/`THEOMEM_MCP_AUTH` env) was explicit. 3-tier precedence (per ADR D1): CLI flag > scoped env > `THEMEMORY_API_KEY` presence (non-empty after `.trim()` per EC-1) > stdio fallback. Auth mode mirrors the same precedence; Tier-3 auto-selects `api-keys` ONLY when transport is `streamable-http` (ADR D2 — no silent security downgrade). New `@internal` `resolveMcpModes` composer (EC-2 single-export discipline; individual resolvers stay module-private; barrel `src/agent-tools/index.ts` unchanged). New stderr disclosure announces the auto-selected pair on startup (ADR D3 Princípio 3 auditability); suppressible via `THEOMEM_MCP_QUIET=1` (EC-6 embedded-use escape). 14-cell precedence matrix locked at `src/agent-tools/__tests__/run-mcp-server.test.ts`. Consumer DX: one `theo_live_*` bearer token now authenticates uniformly across REST (`@usetheo/memory/server` Item 16) + MCP HTTP (no consumer needs to remember which surface accepts which credential). Backward compat: `RunMcpServerOptions` shape unchanged; stdio default preserved when env absent; explicit flags always win (Tier-1). PRIORITY 0 hardening of sub-goal 3 (MCP available + reliable) per CLAUDE.md § PRIORITY 0 — uses Item 20 `ApiKeyAuthVerifier` shipped 2026-06-07 as-is; zero new deps; zero public API surface added. README § Agent loops via MCP gains "Uniform Bearer auth across REST + MCP HTTP (FAANG-DX)" subsection documenting the path + R4 warning against unintentional `.mcp.json` auto-flip.
 
-### Maintenance
 
-- **Plans audit + lifecycle hygiene (2026-06-08)** — moved 15 shipped plans from `.claude/knowledge-base/plans/` to `.claude/knowledge-base/plans/completed/` per `rules/audit-trail-rotation.md § KEEP forever (lifecycle move active → completed post-merge)`. Audited plans cross-referenced with `CLAUDE.md § Feature Status § Shipped`, `CHANGELOG.md`, and `git log`. Moved: `adapters-openrouter-local-embedder`, `examples-chat-with-memory-v0-7-distillation`, `examples-theokit-chat-migration`, `principles-alignment-hardening`, `semantic-recall-cache-v1-5` + `-fixes-cycle-1`, `theo-memory-standalone-p0` + `-fixes-cycle-1` + `-fixes-cycle-2`, `v0-7-distillation-pipeline`, `v0-8-fixes-cycle-1`, `v0-8-independent-benchmark-reproduction`, `verbs-as-cli-fixes-cycle-1` + `-cycle-2`, `verbs-as-cli-themory-remember-recall-forget-reflect`. **Kept active:** `themory-mcp-bearer-by-env-faang-plan.md` (current FAANG-DX cycle in flight), `cycle-design-patterns-v0-1-plan.md` (plan only — implementation not started; no skill at `.claude/skills/cycle-design-patterns/`), `discover-web-v0-1-plan.md` (plan only — 5 promised SKILL.md files + 3 checkers absent), `v0-9-vendor-client-impls-plan.md` (explicitly ABANDONED 2026-06-07 in plan header; preserved as audit trail per `audit-trail-rotation.md § KEEP forever § Reason to keep`), 2 trail docs + 1 roadmap doc (not `-plan` suffix; out of rotation scope).
+### Removed
+
+- **verbs-as-cli-fixes-cycle-2 (ADR D5 — M3 closure)** — `createCliMemory` backward-compat alias deleted from `agent-tools-memory.ts`. The 4 verb handlers (`run-{remember,recall,forget,reflect}.ts`) migrated to import `createAgentToolsMemory` directly. The alias had zero external consumers (never in `package.json#exports` barrel); hard delete per Inquebrável Rule 11 (YAGNI).
+
 
 ### Fixed
 
@@ -40,13 +58,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **verbs-as-cli-fixes-cycle-2 (M4)** — silent numeric coercion in `parseIntInRange`/`parseFloatInRange` (`--top-k 5.7` → 5, `--top-k 5abc` → 5, `--threshold 0.5abc` → 0.5) across all 5 collapsed validators (--top-k, --threshold, --diversify, --port×2). Now exits 2 with `Invalid --flag: <raw> (must be ...)` per Inquebrável Rule 8 (fail-fast at boundary).
 - **verbs-as-cli-fixes-cycle-2 (M5)** — stale `dist/agent-tools/cli-memory-factory.js` shipped in `npm pack` manifest after fix-cycle-1 git mv. `prebuild:clean` rmSync now guarantees fresh dist on every build; sentinel test 5 asserts file absent post-build.
 
+
+### Maintenance
+
+- **Plans audit + lifecycle hygiene (2026-06-08)** — moved 15 shipped plans from `.claude/knowledge-base/plans/` to `.claude/knowledge-base/plans/completed/` per `rules/audit-trail-rotation.md § KEEP forever (lifecycle move active → completed post-merge)`. Audited plans cross-referenced with `CLAUDE.md § Feature Status § Shipped`, `CHANGELOG.md`, and `git log`. Moved: `adapters-openrouter-local-embedder`, `examples-chat-with-memory-v0-7-distillation`, `examples-theokit-chat-migration`, `principles-alignment-hardening`, `semantic-recall-cache-v1-5` + `-fixes-cycle-1`, `theo-memory-standalone-p0` + `-fixes-cycle-1` + `-fixes-cycle-2`, `v0-7-distillation-pipeline`, `v0-8-fixes-cycle-1`, `v0-8-independent-benchmark-reproduction`, `verbs-as-cli-fixes-cycle-1` + `-cycle-2`, `verbs-as-cli-themory-remember-recall-forget-reflect`. **Kept active:** `themory-mcp-bearer-by-env-faang-plan.md` (current FAANG-DX cycle in flight), `cycle-design-patterns-v0-1-plan.md` (plan only — implementation not started; no skill at `.claude/skills/cycle-design-patterns/`), `discover-web-v0-1-plan.md` (plan only — 5 promised SKILL.md files + 3 checkers absent), `v0-9-vendor-client-impls-plan.md` (explicitly ABANDONED 2026-06-07 in plan header; preserved as audit trail per `audit-trail-rotation.md § KEEP forever § Reason to keep`), 2 trail docs + 1 roadmap doc (not `-plan` suffix; out of rotation scope).
+
+
 ### Caveats (consumer-honest disclosure per Inquebrável Rule 3)
 
 - **CLI cold-start cost** — each `themory remember`/`recall`/`forget`/`reflect` invocation pays ~2-5s warm-up (Xenova MiniLM model download cached after first run; then pg connect + journal sync + factory probe). For batch ops > 50 invocations, use the REST server (`themory server`) + `curl` instead.
 
-### Removed
-
-- **verbs-as-cli-fixes-cycle-2 (ADR D5 — M3 closure)** — `createCliMemory` backward-compat alias deleted from `agent-tools-memory.ts`. The 4 verb handlers (`run-{remember,recall,forget,reflect}.ts`) migrated to import `createAgentToolsMemory` directly. The alias had zero external consumers (never in `package.json#exports` barrel); hard delete per Inquebrável Rule 11 (YAGNI).
 
 ### Added (fix-cycle-1 re-categorized per Keep-a-Changelog)
 
@@ -56,12 +77,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **verbs-as-cli-fixes-cycle-1** — sentinel test at `src/__tests__/cli-locked-names.test.ts` (T5.3).
 - **verbs-as-cli-fixes-cycle-1** — `cycle-implement.md` v1.6 → v1.7 ADR-marker amendment (T5.4 + ADR D5 + sunset 2026-07-04).
 
+
 ### Changed (fix-cycle-1 re-categorized per Keep-a-Changelog)
 
 - **verbs-as-cli-fixes-cycle-1 (ADR D1)** — `createLocalMemory` now defaults `reflectionPolicy: { kind: 'manual', shouldReflect: () => true }` when consumer OMITS the key (ADR-0005 v1.1 supplementary amendment). Explicit `{ reflectionPolicy: undefined }` preserves the original `ReflectionNotConfigured` throw via the `'in operator'` distinguishing semantics.
 - **verbs-as-cli-fixes-cycle-1 (ADR D2)** — `themory reflect --json` now emits raw `ReflectionResult` shape (`{ higherOrderMemories, sourceIds, derivedMemoriesCreated, reason? }`); restores 3-way contract parity with MCP + REST `POST /v1/reflect`.
 - **verbs-as-cli-fixes-cycle-1 (ADR D3 — first pass)** — `src/agent-tools/cli-memory-factory.ts` renamed (git mv) → `src/agent-tools/agent-tools-memory.ts`. Env-validation collapsed via `assertEnvOrExit`. Factory tuple wiring retrofit completed by fix-cycle-2 T3.1.
 - **verbs-as-cli-fixes-cycle-1 (ADR D4)** — 5 numeric validators in `cli.ts` collapsed via `parseIntInRange` + `parseFloatInRange` factories (lossy coercion fixed by fix-cycle-2 ADR D1).
+
 
 ### Removed (fix-cycle-1 re-categorized per Keep-a-Changelog)
 

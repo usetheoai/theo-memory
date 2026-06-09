@@ -28,8 +28,10 @@ export async function rememberHandler(c: Context, memory: Memory): Promise<Respo
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
-  const { text, infer, attributedTo, metadata } = parsed.data;
+  const { text, infer, attributedTo, metadata, category } = parsed.data;
   const scoped = resolveScope(memory, parsed.data);
-  const items = await scoped.remember(text, { infer, attributedTo, metadata });
+  // themory-category-filter-server-side T4.2 — pass category through the SDK
+  // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
+  const items = await scoped.remember(text, { infer, attributedTo, metadata, category });
   return c.json({ items }, 201);
 }

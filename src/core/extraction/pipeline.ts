@@ -28,6 +28,7 @@ import type { Embedder } from '../dip/embedder.js';
 import type { HistoryBatchRecord, HistoryManager } from '../dip/history-manager.js';
 import type { LLM } from '../dip/llm.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
+import { InvalidScope } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
@@ -137,6 +138,13 @@ async function runInferFalsePath(
     // routes through the payload to the column hoist in pgvector-store.
     if (options?.attributedTo !== undefined) {
       payload['attributed_to'] = options.attributedTo;
+    }
+    // themory-category-filter-server-side T3.3 — verbatim path category.
+    // EC-2 length check ran at pipeline entry; here we just propagate. Routes
+    // to payload['category'] so the pgvector-store hoist promotes it to the
+    // top-level `category` column on INSERT.
+    if (options?.category !== undefined) {
+      payload['category'] = options.category;
     }
     items.push(toMemoryItem(id, msg.content, hash, scope, payload, now));
     vectors.push(vector);
@@ -256,6 +264,20 @@ export async function runExtractionPipeline(
   options?: RememberOptions,
 ): Promise<readonly MemoryItem[]> {
   const tracer = deps.tracer;
+
+  // themory-category-filter-server-side T3.3 / EC-2 — SDK-layer boundary check
+  // BEFORE branch dispatch. Mirrors the v1.1 asOf NaN check at src/local/index.ts:580
+  // per architecture.md § 8 (validate at boundaries). REST already enforces 1-64
+  // chars via zod min(1).max(64); this is defense-in-depth for direct SDK callers
+  // (TheoKit agent loops, tests, migration scripts) who don't transit REST.
+  if (options?.category !== undefined) {
+    const cat = options.category;
+    if (cat.length === 0 || cat.length > 64) {
+      throw new InvalidScope(
+        `category must be 1-64 chars (got ${String(cat.length)})`,
+      );
+    }
+  }
 
   // infer:false fast-path
   if (options?.infer === false) {
@@ -394,6 +416,14 @@ export async function runExtractionPipeline(
     const llmAttributedTo = extracted[i]?.attributed_to;
     if (llmAttributedTo !== undefined) {
       payload['attributed_to'] = llmAttributedTo;
+    }
+    // themory-category-filter-server-side T3.3 / ADR D1 — operator-supplied
+    // category attaches to EVERY extracted fact in the write batch. NOT
+    // per-fact LLM-inferred (ADR D1 — category is operator vocabulary, not
+    // model-derived). EC-2 length check ran at pipeline entry; here we just
+    // propagate the validated value.
+    if (options?.category !== undefined) {
+      payload['category'] = options.category;
     }
     survivingIds.push(id);
     survivingVectors.push(vector);

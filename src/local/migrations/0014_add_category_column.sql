@@ -1,0 +1,27 @@
+-- T2.1 / ADR D2 + EC-11 + ADR D1 — themory-category-filter-server-side:
+-- promote `category` to a first-class top-level column on the memories table
+-- with a btree index for O(log n) server-side filter queries via the T4.1
+-- REST handler (`GET /v1/scopes/{type}/{id}/memories?category=X`).
+--
+-- ADR D2 chooses a top-level promoted column (mirrors v1.1 attributed_to
+-- precedent at migration 0008) over a `payload->>'category'` JSONB path
+-- predicate. Reasons: cheap btree maintenance on UPSERT; psql-auditable; same
+-- shape as attributed_to so the adapter code reads identically.
+--
+-- ADR D1 honest no-backfill — NO `UPDATE memories SET category = ...`
+-- statement here. Pre-2026-06-09 rows carry `category=NULL` permanently;
+-- consumers treat as "uncategorized". The public `?category=` REST filter
+-- rejects empty string via zod min(1), so there is NO syntax to find NULL
+-- rows via the filter — they are visible only via the no-filter call
+-- (EC-9 documented in JSDoc).
+--
+-- EC-11 + architecture.md § 10.2 — `ADD COLUMN IF NOT EXISTS` +
+-- `CREATE INDEX IF NOT EXISTS` make the migration idempotent. Re-running
+-- runMigrations(pool) is a no-op once the schema has converged. Safe on
+-- a DB previously synced by `drizzle-kit push` (column-only migration; no
+-- trigger/function, so no psql side-channel needed per § 10.3).
+--
+-- @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T2.1 + ADR D2
+-- @see .claude/knowledge-base/reviews/themory-category-filter-server-side-edge-cases-2026-06-09.md § EC-11
+ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "category" text;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "memories_category_idx" ON "memories" ("category");
