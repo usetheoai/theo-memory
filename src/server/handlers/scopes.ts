@@ -35,6 +35,14 @@ const CursorSchema = z.object({
 const QuerySchema = z.object({
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  /**
+   * themory-category-filter-server-side T4.1 / ADR D3 — operator-supplied
+   * category filter (1-64 chars). Empty string is rejected at the boundary
+   * (zod min(1)) per ADR D3; lengths > 64 are rejected per the same ADR.
+   * The underlying `LocalScopedMemory.getAll` ALSO normalizes empty-string
+   * to undefined (EC-3 defense-in-depth for direct SDK callers).
+   */
+  category: z.string().min(1).max(64).optional(),
 });
 
 function pathParamsToScoped(memory: Memory, type: Exclude<ScopeType, 'skill'>, id: string): ScopedMemory {
@@ -102,6 +110,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   const queryParse = QuerySchema.safeParse({
     cursor: c.req.query('cursor'),
     limit: c.req.query('limit'),
+    category: c.req.query('category'),
   });
   if (!queryParse.success) {
     return c.json(
@@ -112,7 +121,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
       422,
     );
   }
-  const { cursor: rawCursor, limit } = queryParse.data;
+  const { cursor: rawCursor, limit, category } = queryParse.data;
 
   let cursor: z.infer<typeof CursorSchema> | null = null;
   if (rawCursor !== undefined) {
@@ -126,7 +135,11 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   }
 
   const scoped = pathParamsToScoped(memory, typeParse.data, id);
-  const all = await scoped.getAll();
+  // themory-category-filter-server-side T4.1 — thread category into getAll
+  // when supplied. zod min(1) already rejected empty string; LocalScopedMemory.getAll
+  // performs EC-3 defense-in-depth normalization for direct SDK callers.
+  const all =
+    category !== undefined ? await scoped.getAll({ category }) : await scoped.getAll();
   let filtered: readonly MemoryItem[] = all;
   if (cursor !== null) {
     const cutoff = new Date(cursor.lastCreatedAt).getTime();
