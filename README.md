@@ -8,9 +8,9 @@
 
 A managed memory layer for AI agents — **three tiers (User, Session, Agent)**, vector-based hybridd retrieval, **native to [TheoKit](../theokit), managed by [TheoCloud](../theo)**. The persistent-state verb of **Chat. Build. Deploy.**
 
-*Vector + hybrid retrieval + LLM fact extraction. Local mode for dev. Cloud runtime for production. MIT.*
+*Vector + hybrid retrieval + LLM fact extraction. Local mode for dev. Cloud runtime for production. Apache-2.0.*
 
-[![License](https://img.shields.io/badge/license-MIT-7C3AED?style=flat-square)](./LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-7C3AED?style=flat-square)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Status](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#status)
 [![Runtime](https://img.shields.io/badge/runtime-local%20%2B%20TheoCloud-7C3AED?style=flat-square)](#two-runtimes-one-api)
@@ -29,7 +29,7 @@ It does not greet returning customers as strangers. It does not re-ask the dieta
 
 And the place that **deploys** the agent is the same place that **remembers** for it. One account. One dashboard. One platform.
 
-`@usetheo/memory` is the managed memory layer for the [TheoKit](../theokit) + [TheoCloud](../theo) agent stack — three tiers, vector-based hybrid architecture, MIT-licensed SDK, with a local mode for development and a managed runtime in TheoCloud for production.
+`@usetheo/memory` is the managed memory layer for the [TheoKit](../theokit) + [TheoCloud](../theo) agent stack — three tiers, vector-based hybrid architecture, Apache-2.0-licensed SDK, with a local mode for development and a managed runtime in TheoCloud for production.
 
 ## Why `@usetheo/memory`
 
@@ -49,7 +49,7 @@ If [Vercel KV](https://vercel.com/storage/kv) is "the key-value store that ships
 | Local runtime (dev / CI) | ✓ Postgres + pgvector | ✓ self-host | ✓ Postgres + pgvector | Self-host a graph database etc. | REDACTED `BaseStore` |
 | Managed runtime | **TheoCloud — single platform for deploy + memory** | REDACTED Cloud (separate account) | REDACTED Cloud (separate account) | REDACTED Cloud (separate account) | REDACTED Platform |
 | Framework coupling | **Native to TheoKit by design** | Framework-agnostic | High (REDACTED owns the agent loop) | Framework-agnostic | High (REDACTED) |
-| License | **MIT** | Apache-2.0 | Apache-2.0 | Apache-2.0 (REDACTED) | MIT |
+| License | **Apache-2.0** | Apache-2.0 | Apache-2.0 | Apache-2.0 (REDACTED) | MIT |
 | Single-vendor consolidation | **Yes** — same dashboard as your deploy | No (REDACTED Cloud is separate) | No | No | No |
 
 REDACTED won drop-in. REDACTED won the self-editing agent. REDACTED won bi-temporal auditing. **`@usetheo/memory` is the option you reach for when you have already chosen TheoKit + TheoCloud** — and you want memory on the same invoice, same dashboard, same access control, same support contract.
@@ -440,7 +440,7 @@ docker exec themory \
 > - **Long-tail forgetting not built yet.** v0.4b (roadmap Item 6) is the open problem: triadic signal (Ebbinghaus decay + LRU/LFU + LLM-judged importance) with explicit anti-long-tail guardrail. Required before v0.8 benchmark reproduction.
 > - **Episodic→Semantic distillation pipeline not built yet.** v0.7 (roadmap Item 9). Required before v1.0 contract freeze.
 > - **TheoKit binding PR-B still pending.** Default-on memory in scaffolded `create-theo` templates per ADR D7 lives in the sibling `theokit` repo — pending; until then consumers wire the singleton manually per the binding example above.
-> - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). Maximum permissiveness for proprietary embeds.
+> - **Apache-2.0 aligned with the monorepo standard** (re-aligned 2026-06-09). Explicit patent grant + trademark protection for embeds in proprietary systems.
 >
 > If you are evaluating *today* and need something running in production *today*, mature alternatives exist ([REDACTED](https://REDACTED.ai), [REDACTED](https://www.REDACTED.com), [REDACTED](https://www.REDACTED.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud OR you want a vector-based hybrid memory primitive without the framework lock-in.
 
@@ -731,7 +731,7 @@ Honest claims only — v0.0 + v0.1 + v0.2 PR-A + v0.3 + v0.4a + v0.6 shipped to 
 | Funnel (OSS) | [TheoKit](../theokit) | Apache-2.0 | Next.js framework for full-stack AI agents. |
 | Community auxiliary | [`@usetheo/sdk`](../theokit-sdk) | Apache-2.0 | Build-your-own-agent SDK. |
 | Community auxiliary | [`@usetheo/ui`](../theo-ui) | Apache-2.0 | React components for AI agent surfaces. |
-| **Community auxiliary** | **`@usetheo/memory`** *(this)* | **MIT** | **Three-tier managed memory layer. Native to TheoKit; runs in TheoCloud.** |
+| **Community auxiliary** | **`@usetheo/memory`** *(this)* | **Apache-2.0** | **Three-tier managed memory layer. Native to TheoKit; runs in TheoCloud.** |
 
 The local runtime is open and works without TheoCloud. The **managed runtime is the strategic focus** — that is where the single-platform consolidation happens (deploy + memory + agent SDK + UI all on one TheoCloud account).
 
@@ -754,9 +754,9 @@ Contributions are welcome once the 0.0 contract lands. Until then, the value-add
 
 ## License
 
-[MIT](./LICENSE) © [usetheo.dev](https://usetheo.dev)
+[Apache-2.0](./LICENSE) © [usetheo.dev](https://usetheo.dev)
 
-> MIT differs from the monorepo's Apache-2.0 standard (locked 2026-05-14). The choice is deliberate — maximum permissiveness for memory primitives that consumers embed deeply into proprietary systems. The rest of the OSS ecosystem stays Apache-2.0.
+> Aligned with the monorepo's Apache-2.0 standard as of 2026-06-09. The prior MIT exception (locked 2026-05-14) was reverted: explicit patent grant and trademark protection in Apache-2.0 are net-positive for embeds in proprietary systems, matching the licensing of all direct competitors (REDACTED, REDACTED, REDACTED/REDACTED).
 
 ## Community
 
