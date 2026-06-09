@@ -293,10 +293,34 @@ export async function runExtractionPipeline(
       ],
       { type: 'json' },
     );
-    const parsed = AdditiveExtractionSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw);
+    const obj: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    // Defensive coercion: even though the system prompt asks for string ids,
+    // gpt-4o-mini (and likely others) sometimes returns `linked_memory_ids:
+    // [1, 2]` (number[]) — Zod then rejects with "Expected string, received
+    // number" and the whole extraction silently returns []. Normalize before
+    // parse so the schema stays strict but the most common LLM divergence is
+    // self-healing. See /tmp/themory-issue-2.md (team report 2026-06-08) for
+    // empirical isolation script + 4-model evidence.
+    if (obj !== null && typeof obj === 'object' && Array.isArray((obj as { memory?: unknown }).memory)) {
+      for (const item of (obj as { memory: unknown[] }).memory) {
+        if (item !== null && typeof item === 'object' && Array.isArray((item as { linked_memory_ids?: unknown }).linked_memory_ids)) {
+          (item as { linked_memory_ids: unknown[] }).linked_memory_ids =
+            (item as { linked_memory_ids: unknown[] }).linked_memory_ids.map(String);
+        }
+      }
+    }
+    const parsed = AdditiveExtractionSchema.parse(obj);
     extracted = parsed.memory;
     emitEvent(tracer, 'extraction_completed', { facts: extracted.length });
-  } catch {
+  } catch (err) {
+    // Honest stderr disclosure (bonus from /tmp/themory-issue-2.md): without
+    // logging the real error, operators waste time investigating LLM/key when
+    // the actual cause is often a schema mismatch on a niche field. OTel
+    // event `extraction_failed` stays; the stderr line adds the WHY when no
+    // OTel exporter is wired (common in dev). Inquebrável Rule 3.
+    process.stderr.write(
+      `[themory] extraction_failed: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     emitEvent(tracer, 'extraction_failed');
     return [];
   }
