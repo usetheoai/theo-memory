@@ -777,37 +777,20 @@ knowledge-base/plans/themory-temporal-fidelity-full-fix-DRAFT.md (NEW)
 - `themory-temporal-fidelity-full-fix-DRAFT.md` — single new doc; no code impact. Format follows `templates/plan-template.md` shape but is a DRAFT (will be promoted via `/to-plan` in a future cycle).
 
 #### Pseudo-code
-```markdown
----
-slug: themory-temporal-fidelity-full-fix
-status: DRAFT — follow-up of dashboard-memories-tab-standardization (cycle shipped 2026-06-08)
-created_at: 2026-06-08
-goal: Restore temporal fidelity across the 5 remaining getAll-adjacent paths AND empirically validate v1.1 bi-temporal asOf against real PG
----
+The DRAFT file content (illustrative — final shape per next `/to-plan` invocation):
 
-# Plan (DRAFT): TheMemory temporal fidelity full fix
-
-> This is a DRAFT inherited from `dashboard-memories-tab-standardization-plan.md § ADR D5`. The next `/to-plan` invocation against this slug SHALL build on this Context + Baseline; do NOT start from scratch.
-
-## Context
-After `dashboard-memories-tab-standardization` (shipped 2026-06-08) closed the createdAt fidelity bug on the LIST path, 5 OTHER paths still construct `MemoryItem.createdAt` via `new Date()` losing DB fidelity. They were deferred per ADR D5 to avoid scope creep on the list-path cycle AND to allow empirical validation of v1.1 bi-temporal `asOf` separately.
-
-## Deferred work (5 instances + 1 validation gap)
-
-| # | File:line | Path | Why deferred from list-path cycle |
-|---|-----------|------|------------------------------------|
-| 1 | `src/local/index.ts:643` | recall path | recall has its own VectorStoreResult mapping; touching it risks v1.1 bi-temporal asOf semantics |
-| 2 | `src/local/index.ts:756` | reflection path 1 | reflection consumes createdAt for provenance — needs fixture surgery |
-| 3 | `src/local/index.ts:957` | consolidation path | consolidation_history table has its own temporal columns; cross-cuts v0.7 distillation invariants |
-| 4 | `src/local/scoped-skill-memory.ts:104` | skill scope getAll | skill scope deferred per Roadmap Item 19 v1.5.x semantic cache |
-| 5 | `src/local/skills/payload.ts:78` | skill payload | tied to Voyager-pattern skill identity — careful |
-| 6 | (validation gap) | `recall({ asOf })` empirical | v1.1 declared SHIPPED 2026-06-03 but recall path's createdAt construction makes asOf semantics untested against real PG row temporal-truth |
-
-## Coverage Matrix (to be filled by next /to-plan)
-| # | Gap / Requirement | Task(s) | Resolution |
-|---|---|---|---|
-| (TBD) | (TBD by next /to-plan) | (TBD) | (TBD) |
-```
+- **Frontmatter** — `slug: themory-temporal-fidelity-full-fix`, `status: DRAFT — follow-up of dashboard-memories-tab-standardization (cycle shipped 2026-06-08)`, `created_at: 2026-06-08`, `goal: Restore temporal fidelity across the 5 remaining getAll-adjacent paths AND empirically validate v1.1 bi-temporal asOf against real PG`.
+- **Title** — `Plan (DRAFT): TheMemory temporal fidelity full fix`.
+- **Inheritance note** — DRAFT inherited from `dashboard-memories-tab-standardization-plan.md § ADR D5`; next `/to-plan` SHALL build on this Context, NOT start from scratch.
+- **Context section** — references the prior cycle (list-path fix) and explains the 5 OTHER paths still constructing `MemoryItem.createdAt` via `new Date()` losing DB fidelity; deferred per ADR D5.
+- **Deferred work table** — 5 instances + 1 validation gap:
+  - Row 1: `src/local/index.ts:643` (recall path) — own VectorStoreResult mapping; risks v1.1 bi-temporal asOf semantics
+  - Row 2: `src/local/index.ts:756` (reflection path 1) — consumes createdAt for provenance; needs fixture surgery
+  - Row 3: `src/local/index.ts:957` (consolidation path) — consolidation_history table own temporal cols; cross-cuts v0.7 distillation invariants
+  - Row 4: `src/local/scoped-skill-memory.ts:104` (skill scope getAll) — deferred per Roadmap Item 19 v1.5.x semantic cache
+  - Row 5: `src/local/skills/payload.ts:78` (skill payload) — tied to Voyager-pattern skill identity; careful
+  - Row 6 (validation gap): `recall({ asOf })` empirical — v1.1 declared SHIPPED 2026-06-03 but recall createdAt construction makes asOf semantics untested against real PG row temporal-truth
+- **Coverage Matrix placeholder** — TBD by next `/to-plan`.
 
 #### TDD
 ```
