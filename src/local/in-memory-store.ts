@@ -71,13 +71,23 @@ function matchesFilters(payload: Payload, filters: Filters | undefined): boolean
   if (filters.kind !== undefined && payload['kind'] !== filters.kind) {
     return false;
   }
+  // themory-category-filter-server-side T3.1 / EC-3 — empty-string filter
+  // normalizes to no-filter at the store boundary so in-memory + pgvector +
+  // LocalScopedMemory all share identical semantic. The generic loop below
+  // would otherwise treat filters.category='' as "filter for rows where
+  // payload.category === ''" which is NOT the intended ADR D5 behavior.
+  if (filters.category !== undefined && filters.category !== '') {
+    if (payload['category'] !== filters.category) {
+      return false;
+    }
+  }
   // Generic equality loop for the scope keys (user_id / session_id / agent_id). Skip the
-  // v0.6 fields handled above so they don't get mis-evaluated as payload-equality checks.
+  // v0.6 + category fields handled above so they don't get mis-evaluated as payload-equality checks.
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined) {
       continue;
     }
-    if (key === 'kind' || key === 'excludeSuperseded') {
+    if (key === 'kind' || key === 'excludeSuperseded' || key === 'category') {
       continue;
     }
     if (payload[key] !== value) {
@@ -207,7 +217,15 @@ export class InMemoryVectorStore implements VectorStore {
       }
       // dashboard-memories-tab-standardization T2.2 — project createdAt so
       // consumers (LocalScopedMemory.getAll) honor real row-temporal truth.
-      matching.push({ id, payload: row.payload, createdAt: row.createdAt });
+      // themory-category-filter-server-side T3.1 — project category from payload
+      // so consumers reading VectorStoreResult.category (top-level) get the same
+      // value as those reading payload.category (EC-12 dual-pathway symmetry).
+      const rawCategory = row.payload['category'];
+      const projected: VectorStoreResult & { category?: string } =
+        typeof rawCategory === 'string' && rawCategory.length > 0
+          ? { id, payload: row.payload, createdAt: row.createdAt, category: rawCategory }
+          : { id, payload: row.payload, createdAt: row.createdAt };
+      matching.push(projected);
     }
     // EC-6 — deterministic pagination order: sort by createdAt DESC, id ASC
     // (matches PgvectorStore.list T2.1 ORDER BY contract). Without this, Map

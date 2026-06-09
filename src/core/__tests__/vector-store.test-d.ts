@@ -20,14 +20,16 @@ test('VectorStore has exactly 11 required methods (D8 lock)', () => {
   >();
 });
 
-test('VectorStoreResult shape: id + payload + optional score + optional createdAt (T1.1)', () => {
-  // T1.1 extended the shape with additive optional createdAt?: Date per ADR D1
-  // of dashboard-memories-tab-standardization-plan.md (backward-compatible).
+test('VectorStoreResult shape: id + payload + optional score + optional createdAt (T1.1) + optional category (themory-category-filter T3.1)', () => {
+  // T1.1 of dashboard-memories added optional createdAt?: Date.
+  // T3.1 of themory-category-filter-server-side added optional category?: string
+  // (additive per ADR D2 + EC-12 dual-pathway).
   expectTypeOf<VectorStoreResult>().toEqualTypeOf<{
     readonly id: string;
     readonly payload: Readonly<Record<string, string | number | boolean | null>>;
     readonly score?: number;
     readonly createdAt?: Date;
+    readonly category?: string;
   }>();
 });
 
