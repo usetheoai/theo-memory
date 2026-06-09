@@ -9,6 +9,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Tracer } from '@opentelemetry/api';
 import { bodyLimit } from 'hono/body-limit';
+import { cors } from 'hono/cors';
 
 import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import { ContentTooLargeError } from '../core/errors.js';
@@ -18,6 +19,7 @@ import type { AuthPool } from './auth/api-key-verifier.js';
 import { bearerAuth } from './auth/middleware.js';
 import { requireScope } from './auth/scope-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
+import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import {
   createKeyHandler,
   lineageKeyHandler,
@@ -168,6 +170,35 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
       },
     }),
   );
+
+  // red-team-full-system-fixes-cycle-1 T2.2 / ADR D3 — CORS middleware.
+  // Mounted BEFORE bearer so OPTIONS preflight succeeds without auth.
+  // EC-2: when origin='*', hono/cors does NOT set credentials:true (Fetch spec).
+  // EC-5: maxAge=86400 (24h) so browsers cache preflight.
+  const corsOrigin = process.env['THEMORY_CORS_ORIGIN'] ?? '*';
+  if (corsOrigin === '*' && process.env['NODE_ENV'] === 'production') {
+    process.stderr.write(
+      '[themory] WARN: THEMORY_CORS_ORIGIN is unset in production — defaulting to * (permissive). Set explicitly for security.\n',
+    );
+  }
+  app.use(
+    '/v1/*',
+    cors({
+      origin: corsOrigin,
+      allowHeaders: ['Authorization', 'Content-Type'],
+      allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+      maxAge: 86400,
+    }),
+  );
+
+  // red-team-full-system-fixes-cycle-1 T2.1 / ADR D2 — rate-limit middleware.
+  // Write endpoints share one limiter (default 30/min); read endpoints share
+  // another (default 100/min). Health is exempt (mounted before this).
+  app.post('/v1/remember', rateLimitMiddleware('write'));
+  app.post('/v1/forget', rateLimitMiddleware('write'));
+  app.post('/v1/reflect', rateLimitMiddleware('write'));
+  app.post('/v1/recall', rateLimitMiddleware('read'));
+  app.get('/v1/scopes/*', rateLimitMiddleware('read'));
 
   // Health endpoints (T3.5 absorption — surfaced by the docker-compose
   // healthcheck round-trip): orchestrator liveness/readiness probes do not
