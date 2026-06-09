@@ -52,6 +52,12 @@ export const RememberBody = z
     infer: z.boolean().optional(),
     attributedTo: z.string().optional(),
     metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+    /**
+     * themory-category-filter-server-side T4.2 / ADR D3 — operator-supplied
+     * category tag (1-64 chars). REST mirror of the SDK RememberOptions.category.
+     * Empty string rejected at the boundary; > 64 chars rejected.
+     */
+    category: z.string().min(1).max(64).optional(),
   })
   .strict()
   .superRefine(SingleScopeRefine);
