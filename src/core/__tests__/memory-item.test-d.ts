@@ -24,6 +24,8 @@ test('MemoryItem has the locked field shape', () => {
     // principles-alignment-hardening T2.1 — Princípio 1 + Princípio 3 widening (ADR D1 + D4).
     readonly confirmationCount?: number;
     readonly rejectedAsDuplicate?: boolean;
+    // themory-category-filter-server-side T1.1 — operator-supplied category projection (ADR D6 + EC-12).
+    readonly category?: string;
   }>();
 });
 
