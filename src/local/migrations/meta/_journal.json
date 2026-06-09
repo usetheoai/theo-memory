@@ -99,6 +99,13 @@
       "when": 1780843560551,
       "tag": "0013_admin_config",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781001600000,
+      "tag": "0014_add_category_column",
+      "breakpoints": true
     }
   ]
 }
