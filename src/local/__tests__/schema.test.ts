@@ -50,6 +50,8 @@ describe('memories table', () => {
         'attributed_to',
         // principles-alignment-hardening T0.1 (ADR D1 — Princípio 1 confirmação factor)
         'confirmation_count',
+        // themory-category-filter-server-side T2.1 (ADR D2 + ADR D6 — operator category filter)
+        'category',
       ].sort(),
     );
   });
