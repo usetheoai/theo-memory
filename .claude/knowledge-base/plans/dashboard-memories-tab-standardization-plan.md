@@ -7,6 +7,8 @@ goal: Standardize Dashboard Memories tab to match entities.tsx canonical pattern
 
 # Plan: Dashboard Memories tab standardization + temporal fidelity fix (REST list path)
 
+> **Version 1.2** (2026-06-08) — `/deps-audit` Path C absorption: added `## Dependencies` section (closes `plan_dependencies_section_missing` hard cap; zero new npm pkgs introduced) AND adjusted T3.1 EC-3 pseudo-code to compose Memory directly with `DeterministicStubEmbedder` instead of `wireMemoryFromPool(pool)`. Rationale: `wireMemoryFromPool` hard-wires `LocalTransformerEmbedder` which pulls `@xenova/transformers` → `onnxruntime-web` → `protobufjs <7.5.5` (CRITICAL CVSS 9.8 RCE — pre-existing repo-wide chain, fix requires semver-major v2 upgrade tracked as separate cycle `deps-upgrade-xenova-transformers-v2-protobufjs-cve`). The fidelity test does NOT depend on embedder behavior; canonical write-path (`scoped.remember(text, {infer: false})` + 8-phase pipeline + INSERT honoring schema) is preserved by `createLocalMemory({ vectorStore: new PgvectorStore(pool, ...), embedder: new DeterministicStubEmbedder(...), llm: stubLLM })`. Audit re-run expected: PASS (no vulnerable chain in test runtime).
+>
 > **Version 1.1** (2026-06-08) — absorbed 5 MUST FIX from `/edge-case-plan` review (`.claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md`): EC-1 NULL `created_at` defensive null-check in T2.1, EC-2 deterministic `ORDER BY created_at DESC, id ASC` in T2.1, EC-3 T3.1 INSERT shape via canonical write-path + UPDATE for temporal manipulation, EC-4 NEW T3.0 pinning `@usetheo/memory` to exact commit SHA before frontend lands (cross-repo merge-order enforcement), EC-5 NEW T6.1 creating follow-up DRAFT plan file for the 5 deferred `createdAt` instances. Also absorbed 5 SHOULD TEST items (EC-6..EC-10) into existing tasks' TDD blocks and 3 DOCUMENT items (EC-11..EC-13) inline in ADRs.
 >
 > **Version 1.0** — Cross-repo cycle: backend bug (TheMemory `LocalScopedMemory.getAll` returns `createdAt: new Date()` losing DB fidelity) + frontend standardization (Memories tab does not match the 4-scope-tab canonical pattern shipped by Entities tab and is missing key DataTable columns/actions). Both surfaced during E2E testing 2026-06-08 of the Dashboard → BFF → TheMemory chain. Scope EXCLUDES the same `createdAt: new Date()` bug present in 5 OTHER paths (recall + 2 reflection + 2 consolidation in `src/local/index.ts`) — those require a deeper VectorStoreResult extension and risk validating v1.1 bi-temporal asOf; a separate cycle (`themory-temporal-fidelity-full-fix`) is recommended after this one ships.
@@ -170,6 +172,35 @@ Per `rules/architecture.md § 3 (Dependency direction — DIP)`:
 - Q1 — Should the scope tabs at Memories tab default to `user` (matching Entities default) OR remember the operator's last selection via localStorage? Out of scope for this cycle; resolved as: match Entities default (URL-state via `useSearchParams`; defaults to `user` per `entities.tsx:54`).
 - Q2 — Should the page show `confirmation_count` column matching the bi-temporal Phase-2 push? Out of scope; sub-goal 7 follow-up cycle covers this.
 - Q3 — Should the v1.1 bi-temporal `asOf` parameter be exposed in the URL as a date-picker on the Memories tab? Out of scope; covered by sub-goal 7 follow-up after asOf is empirically validated.
+
+## Dependencies
+
+Per `rules/deps-audit-golden-rule.md` — plan declares deps it uses; no new packages introduced.
+
+### Existing — use as-is
+
+| Package | Version | Ecosystem | Why |
+|---|---|---|---|
+| `pg` | `^8.x` (resolved current) | npm | Postgres driver — backend SELECT projection extension in T2.1. Existing prod dep since v0.1. |
+| `pgvector` (PG extension v0.5.1) | `0.5.1` | postgres-extension | DB-side schema column read; not an npm dep. Existing since v0.1 per `ankane/pgvector:v0.5.1` Docker tag. |
+| `vitest` | `^x.y` (resolved current) | npm | Test runner for new T1.1/T2.1/T2.2/T3.1 tests. Existing dev dep. |
+| `@usetheo/ui` (theo-cloud repo) | resolved current | npm (sibling repo) | DataTable + Tabs + Badge + Timestamp primitives in T3.2/T3.3. Existing in theo-cloud dashboard; audited in that repo's `package.json`. |
+| `@usetheo/memory` (consumer side, T3.0 SHA pin) | T2.2 commit SHA (TBD at implementation time) | npm github-ref | The plan IS `@usetheo/memory` from producer side; T3.0 PINS the consumer side (theo-cloud dashboard) to the exact T2.2 SHA per EC-4 cross-repo merge-order safety. Not a new dep — version pin of existing. |
+| `DeterministicStubEmbedder` (from `@usetheo/memory/embedders/stub` — internal subpath) | this repo | internal | Used by T3.1 integration test setup (v1.2 absorption) to avoid pulling `@xenova/transformers` transitive chain. Existing internal export. |
+
+### New — to be introduced
+
+(none — zero `npm install` of new packages in this cycle)
+
+### Removed
+
+| Package | Last version | Why removed |
+|---|---|---|
+| (none) | | |
+
+### Pre-existing vulnerabilities surfaced by audit (NOT introduced by this plan)
+
+Per `/deps-audit dashboard-memories-tab-standardization` (2026-06-08), the resolved npm tree contains a pre-existing CRITICAL chain `@xenova/transformers → onnxruntime-web → onnx-proto → protobufjs <7.5.5` (CVSS 9.8 RCE). The plan v1.2 explicitly avoids pulling this chain into the test runtime by composing Memory with `DeterministicStubEmbedder` instead of `wireMemoryFromPool` (which hard-wires `LocalTransformerEmbedder`). The CVE chain remains in the repo-wide production tree pending the separate dependency-upgrade cycle `deps-upgrade-xenova-transformers-v2-protobufjs-cve` (semver-major migration; tracked separately to keep this cycle's scope tight on Dashboard + temporal fidelity).
 
 ## Dependency Graph
 
@@ -528,8 +559,21 @@ tests/integration/server/scopes-list-temporal-fidelity.test.ts (NEW)
 // value via direct SQL ONLY for what the test is exercising. This way the
 // fixture goes through the same schema-validating path the consumer hits.
 test('themory-issue-4 — REST list returns real DB created_at per row', async () => {
-  // Given: 2 memories inserted via canonical write path
-  const memory = wireMemoryFromPool(pool);
+  // Given: 2 memories inserted via canonical write path.
+  // v1.2 NOTE: compose Memory directly with DeterministicStubEmbedder rather
+  // than wireMemoryFromPool(pool) to avoid pulling @xenova/transformers
+  // transitive chain (CRITICAL CVE on protobufjs <7.5.5 — pre-existing
+  // repo-wide, fix in separate cycle deps-upgrade-xenova-transformers-v2).
+  // Canonical write-path semantics preserved: scoped.remember(text, {infer:false})
+  // still drives the 8-phase pipeline + INSERT honoring all schema constraints
+  // (NOT NULL embedding vector(384), payload jsonb, hash UNIQUE per scope).
+  // The fidelity assertion is on created_at — independent of embedder values.
+  const memory = await createLocalMemory({
+    vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
+    embedder: new DeterministicStubEmbedder({ dim: 384 }),
+    llm: stubLLM([]),  // infer:false bypasses LLM anyway
+    embeddingDim: 384,
+  });
   const scoped = memory.user('alice');
   const r1 = await scoped.remember('hello', { infer: false });
   const r2 = await scoped.remember('world', { infer: false });
@@ -560,6 +604,7 @@ VERIFY: npm run test:integration -- scopes-list-temporal-fidelity
 #### Acceptance Criteria
 - [ ] Test PASS against real PG.
 - [ ] EC-3 — test fixture uses canonical write path (`scoped.remember(text, {infer: false})`) NOT raw INSERT INTO memories. Direct SQL is used ONLY for temporal manipulation (UPDATE created_at) — never for row creation. This ensures the fixture exercises the same schema constraints production hits.
+- [ ] v1.2 — Memory composed via `createLocalMemory({ vectorStore: PgvectorStore, embedder: DeterministicStubEmbedder, llm: stubLLM })` (NOT `wireMemoryFromPool` which pulls vulnerable `@xenova/transformers` chain). Canonical write-path semantics preserved.
 - [ ] Test exposes the bug — verified to FAIL against pre-fix HEAD.
 
 #### DoD
