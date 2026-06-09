@@ -58,7 +58,7 @@ For every public symbol modified:
 
 - **Symbol:** `PgvectorStore.list`
 - **Callers (production):** `src/local/index.ts:798` (only via getAll); `src/local/index.ts:643` (recall path — out of scope per honest scoping above)
-- **Callers (tests):** `src/local/__tests__/pgvector-store.test.ts` (exists; extending in T1.2)
+- **Callers (tests):** `src/local/__tests__/pgvector-store.test.ts` (exists; new sibling `pgvector-store-list-temporal.test.ts` added in T2.1)
 - **External:** none
 
 - **Symbol:** Dashboard Memories page (frontend)
@@ -165,7 +165,7 @@ Per `rules/architecture.md § 3 (Dependency direction — DIP)`:
 | **R3 — Cross-repo coordination: theo-memory commit must merge BEFORE theo-cloud dashboard commit, OR Dashboard breaks during the window** | HIGH | Cycle order MANDATES backend phases (1+2) commit FIRST, frontend phase (3) commits LAST. CI on theo-cloud should consume theo-memory `develop` SHA via `package.json` git-ref OR a published `@usetheo/memory` version. Smoke test (T4.2) validates the chain end-to-end before declaring done. | Implementer |
 | **R4 — `PgvectorStore.list` SELECT projection added — small query plan change** | LOW | New column add to existing SELECT; pgvector v0.5.1 handles this trivially. Run EXPLAIN ANALYZE pre/post to confirm no plan regression. | Implementer |
 | **R5 — Dashboard Memories tab in-place edit may regress the trash + ConfirmDialog flow team validated this morning** | MEDIUM | Pre-RED unit test (T3.1) captures EXISTING trash flow as regression-guard BEFORE adding scope tabs. Then scope-tabs RED test (T3.2) — additive, not replacement. SEPA pre-COMMIT verifies diff is additive on the trash path. | Implementer + SEPA |
-| **R6 — BFF Go proxy may have its own time-stamping (D4 unknown)** | LOW | Smoke test (T4.2) reveals it; if true, add T4.3 conditional fix-task. | Implementer |
+| **R6 — BFF Go proxy may have its own time-stamping (D4 unknown)** | LOW | Smoke test in T4.1 reveals it; if true, ship a follow-up commit inside the cycle (no separate task — handled inline). | Implementer |
 
 ## Unresolved Questions
 
@@ -516,7 +516,7 @@ VERIFY: theo-cloud CI on the Dashboard PR pulls the pinned SHA
 ```
 
 #### Concurrency tests
-(none — build-time pin)
+(none — single-threaded)
 
 #### Acceptance Criteria
 - [ ] `theo-cloud/cloud/dashboard/package.json` pins `@usetheo/memory` to T2.2 SHA (OR equivalent CI gate documented in PR body when dep is transitive).
@@ -640,7 +640,7 @@ VERIFY: cd theo-cloud/cloud/dashboard && npm test -- memories.test
 ```
 
 #### Concurrency tests
-(none — single-threaded React render)
+(none — single-threaded)
 
 #### Acceptance Criteria
 - [ ] 4 tabs rendered: USER / SESSION / AGENT / REPO.
@@ -703,12 +703,12 @@ infra/scripts/local/smoke-dashboard-memory-bff-temporal.sh (NEW)
 ```
 RED:    test_bff_pass_through_created_at_unchanged_from_upstream_themory — direct themory call OK; BFF call OK; assert ISO strings match
 RED:    test_bff_pass_through_against_real_themory_server (EC-10) — smoke MUST boot REAL themory server (no mock) + REAL BFF + REAL curl chain. Mock-based smoke would mask any BFF-side time-stamping if present (the entire point of D4 verification is that we don't know if BFF mutates the timestamp).
-GREEN:  Most likely no code change (BFF is already pass-through); if smoke fails, T4.3 conditional fix-task
+GREEN:  Most likely no code change (BFF is already pass-through); if smoke fails, ship inline follow-up commit removing the BFF-side time-stamping
 VERIFY: bash infra/scripts/local/smoke-dashboard-memory-bff-temporal.sh
 ```
 
 #### Concurrency tests
-(none — single-threaded smoke)
+(none — single-threaded)
 
 #### Acceptance Criteria
 - [ ] BFF returns identical created_at to upstream.
@@ -737,7 +737,7 @@ VERIFY: 7-gate validation (suite + typecheck + lint + build + 3 chain smokes A/B
 ```
 
 #### Concurrency tests
-(none — single-threaded chain)
+(none — single-threaded)
 
 #### Acceptance Criteria
 - [ ] All 7 gates PASS.
@@ -817,7 +817,7 @@ VERIFY: ls knowledge-base/plans/themory-temporal-fidelity-full-fix-DRAFT.md
 ```
 
 #### Concurrency tests
-(none — single-doc creation)
+(none — single-threaded)
 
 #### Acceptance Criteria
 - [ ] DRAFT file exists at canonical path.
