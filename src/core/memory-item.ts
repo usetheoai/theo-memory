@@ -118,6 +118,22 @@ export interface MemoryItem {
    * @see CLAUDE.md § IMPORTANTE Princípio 3
    */
   readonly rejectedAsDuplicate?: boolean;
+
+  /**
+   * themory-category-filter-server-side T1.1: operator-supplied category tag
+   * projected from the top-level `category` column. NULL on pre-2026-06-09 rows
+   * AND on rows written without `RememberOptions.category` (per ADR D1 no
+   * implicit default — honest NULL).
+   *
+   * **Dual-pathway projection (EC-12)**: this field is ALSO projected into
+   * `metadata.category` by the pgvector adapter (SELECT-side `payload['category']
+   * = row.category`). Mirrors the v1.1 `attributedTo` precedent — redundancy is
+   * intentional architectural symmetry, so consumers reading via either pathway
+   * (top-level OR JSONB) continue to work.
+   *
+   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D6 + EC-12
+   */
+  readonly category?: string;
 }
 
 /**
