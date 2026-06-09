@@ -60,7 +60,12 @@ export interface RememberOptions {
    *
    * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
    *
+   * **XSS storage contract (RED TEAM F4)**: stored verbatim — NO input sanitization.
+   * Consumers rendering category in HTML MUST escape per OWASP output-encoding.
+   * React auto-escapes; raw HTML renderers need DOMPurify or equivalent.
+   *
    * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D1 + D3 + D6
+   * @see .claude/knowledge-base/plans/red-team-full-system-fixes-cycle-1-plan.md § T3.1 (XSS contract)
    */
   readonly category?: string;
 }
