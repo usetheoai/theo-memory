@@ -6,6 +6,8 @@ goal: "Ship fixes for all 6 RED TEAM findings (F1 REST auth activation + F2 rate
 
 # Implementation Plan: red-team-full-system-fixes-cycle-1
 
+> **Version 1.1** (2026-06-09) — absorbs 2 MUST FIX + 4 SHOULD TEST from `/edge-case-plan` at `.claude/knowledge-base/reviews/red-team-full-system-fixes-cycle-1-edge-cases-2026-06-09.md`: EC-1 (rate limiter IPv6 key normalization → T2.1 TDD + AC), EC-2 (CORS wildcard + credentials conflict → ADR D3 Consequences + T2.2 AC), EC-3 (per-token rate-limit isolation → T2.1 TDD), EC-4 (env var clamping 0/negative/non-numeric → T2.1 TDD), EC-5 (CORS preflight Max-Age → T2.2 TDD), EC-6 (same-day date range valid → T4.1 TDD). 2 DOCUMENT items (EC-7 rate-limit state loss, EC-8 F6 dev-only scope) already in plan Drawbacks/Unresolved — no new prose needed.
+
 ## Goal
 
 Ship fixes for all 6 RED TEAM findings (F1 REST auth activation + F2 rate limiting + F3 CORS + F4 XSS contract + F5 date range validation + F6 Kratos CSP) and unblock the 8 blocked scenarios, measured by a RED TEAM re-run returning 0 CRITICAL + 0 HIGH + 0 unmitigated MEDIUM across 58/58 scenarios.
@@ -89,6 +91,8 @@ Close all 6 RED TEAM findings with minimal surface change. Unblock 8 blocked sce
 **Rationale**: `hono/cors` is built-in to Hono (zero dependency per Rule 9). Default `*` matches the alpha-mode philosophy (open for dev). Production consumers set the origin to their domain. Mounting before bearer ensures preflight OPTIONS requests succeed without auth.
 
 **Rejected alternative**: Hand-roll CORS headers in `app.ts`. Rejected because: `hono/cors` already exists, is battle-tested, handles preflight correctly, and is 3 lines to wire. Hand-rolling violates Rule 9 (don't reinvent the wheel).
+
+**Consequences (EC-2 absorption)**: When `THEMORY_CORS_ORIGIN` is `*`, the server MUST NOT set `Access-Control-Allow-Credentials: true` — per the Fetch spec, `*` is incompatible with `credentials: include` (browsers silently reject the response). `hono/cors` handles this correctly by default (`credentials: false` when `origin: '*'`). Consumers needing credentialed cross-origin access MUST set `THEMORY_CORS_ORIGIN` to their explicit origin. Document in README.
 
 ## Drawbacks & Risks
 
@@ -180,7 +184,12 @@ RED:   test('returns 429 after exceeding write rate limit on /v1/remember')
        test('does not rate-limit /v1/health endpoints')
        test('respects THEMORY_RATE_LIMIT_WRITES env override')
        test('resets window after the time window elapses')
-GREEN: Implement SlidingWindowRateLimiter class + Hono middleware factory
+       test('EC-1: IPv4-mapped-IPv6 ::ffff:127.0.0.1 and raw 127.0.0.1 map to same bucket')
+       test('EC-3: per-token isolation — token A at limit does not block token B')
+       test('EC-4: THEMORY_RATE_LIMIT_WRITES=0 falls back to default 30')
+       test('EC-4: THEMORY_RATE_LIMIT_WRITES=-5 falls back to default 30')
+       test('EC-4: THEMORY_RATE_LIMIT_WRITES=abc falls back to default 30 with WARN')
+GREEN: Implement SlidingWindowRateLimiter class + Hono middleware factory + IPv6 normalization
 REFACTOR: Extract rate-limiter logic from middleware wiring
 ```
 
@@ -204,8 +213,11 @@ REFACTOR: Extract rate-limiter logic from middleware wiring
 - [ ] `THEMORY_RATE_LIMIT_WRITES` and `THEMORY_RATE_LIMIT_READS` env vars override defaults
 - [ ] 429 response includes `Retry-After` header (seconds until window reset)
 - [ ] Rate-limit key is IP-based for unauthenticated, Bearer-token-based for authenticated
-- [ ] Unit tests: SlidingWindowRateLimiter tracks, rejects, and resets correctly
-- [ ] Integration tests: 429 returned after limit exceeded; 200 within limit
+- [ ] EC-1: IPv6 key normalization — `::ffff:127.0.0.1` stripped to `127.0.0.1` so same client gets one bucket
+- [ ] EC-3: per-token isolation — token A at limit does NOT block token B (separate buckets)
+- [ ] EC-4: env var clamping — `0`, negative, and non-numeric values fall back to defaults with WARN
+- [ ] Unit tests: SlidingWindowRateLimiter tracks, rejects, resets, normalizes IPv6, clamps env
+- [ ] Integration tests: 429 returned after limit exceeded; 200 within limit; per-token isolation
 
 #### DoD
 
@@ -226,7 +238,9 @@ RED:   test('OPTIONS preflight returns Access-Control-Allow-Origin header')
        test('CORS origin defaults to * when THEMORY_CORS_ORIGIN is unset')
        test('CORS origin respects THEMORY_CORS_ORIGIN env override')
        test('preflight succeeds without Bearer token')
-GREEN: Mount hono/cors in app.ts before bearer middleware
+       test('EC-5: preflight includes Access-Control-Max-Age header for cache')
+       test('EC-2: credentials header NOT set when origin is * (Fetch spec compliance)')
+GREEN: Mount hono/cors in app.ts before bearer middleware with maxAge config
 REFACTOR: Ensure CORS middleware position is documented in the ordering comment block
 ```
 
@@ -247,6 +261,8 @@ REFACTOR: Ensure CORS middleware position is documented in the ordering comment 
 - [ ] Default origin is `*` when `THEMORY_CORS_ORIGIN` is unset
 - [ ] Setting `THEMORY_CORS_ORIGIN=https://example.com` restricts the header value
 - [ ] Preflight does not require Bearer token (OPTIONS is auth-exempt)
+- [ ] EC-5: `Access-Control-Max-Age` header present on preflight response (default 86400 / 24h)
+- [ ] EC-2: `Access-Control-Allow-Credentials` NOT set when origin is `*` (Fetch spec compliance)
 - [ ] `themory server` emits WARN on startup when `NODE_ENV=production` and `THEMORY_CORS_ORIGIN` is unset
 
 #### DoD
@@ -311,7 +327,8 @@ RED:   test('returns 422 when from > to in memory list endpoint')
        test('returns 200 when from < to')
        test('returns 200 when only from is set')
        test('returns 200 when only to is set')
-GREEN: Add validation check in the handler: if both non-empty and from > to, return 422
+       test('EC-6: returns 200 when from == to (same-day is valid single-day window)')
+GREEN: Add validation check in the handler: if both non-empty and from > to (strict >), return 422
 REFACTOR: Extract date validation into a helper if the pattern repeats
 ```
 
@@ -330,7 +347,8 @@ REFACTOR: Extract date validation into a helper if the pattern repeats
 - [ ] `GET /api/memories?from=2026-06-01&to=2026-06-10` returns 200
 - [ ] `GET /api/memories?from=2026-06-01` (no `to`) returns 200
 - [ ] `GET /api/memories?to=2026-06-10` (no `from`) returns 200
-- [ ] Go unit test covers all 4 cases
+- [ ] EC-6: `GET /api/memories?from=2026-06-09&to=2026-06-09` returns 200 (same-day valid; check is strict `>`, NOT `>=`)
+- [ ] Go unit test covers all 5 cases
 
 #### DoD
 
@@ -429,6 +447,12 @@ REFACTOR: Document any residual LOW findings as accepted risk
 | Health endpoints remain auth-exempt | T1.1 | `env-activation.test.ts` (health returns 200 regardless of auth) |
 | Rate-limit exempt on health | T2.1 | `rate-limit.test.ts` (health not rate-limited) |
 | CORS preflight auth-exempt | T2.2 | `cors.test.ts` (OPTIONS without Bearer returns 204) |
+| EC-1 IPv6 key normalization | T2.1 | `rate-limit.test.ts` (::ffff:127.0.0.1 and 127.0.0.1 → same bucket) |
+| EC-2 CORS wildcard+credentials conflict | T2.2 + ADR D3 | `cors.test.ts` (credentials NOT set when origin=*) + README docs |
+| EC-3 per-token rate-limit isolation | T2.1 | `rate-limit.test.ts` (token A at limit does not block token B) |
+| EC-4 env var clamping (0/negative/non-numeric) | T2.1 | `rate-limit.test.ts` (falls back to default 30 with WARN) |
+| EC-5 CORS preflight Max-Age | T2.2 | `cors.test.ts` (Access-Control-Max-Age header present) |
+| EC-6 same-day date range valid | T4.1 | `memory_test.go` (from=to returns 200, NOT 422) |
 
 ## Failure Scenarios
 
