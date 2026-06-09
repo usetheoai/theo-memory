@@ -1,0 +1,228 @@
+agent: review-themory-category-filter-server-side-tests
+review_target: main..HEAD for plan themory-category-filter-server-side
+plan: .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md
+generated_at: 2026-06-09
+test_pyramid:
+  unit_added: 15   # extraction-pipeline-category (5) + in-memory-store-category (6) + options.test (+4) — pure/in-process
+  integration_added: 24  # migration-0014 (4) + pgvector-store-category (10) + scopes-list-category-filter (8) + smoke (2)
+  e2e_added: 0     # smoke gate lives under tests/integration/ (HTTP via app.fetch, not external client); no tests/e2e/ files touched
+  total: 39        # 34 new + 4 type-shape additions + 1 schema column-list assertion update
+  shape_lock_updates: 2  # memory-item.test-d, vector-store.test-d (column lock refresh, not new behavior)
+edge_cases_from_plan:
+  covered:
+    - EC-1 UPSERT first-write-wins → pgvector-store-category.test.ts L180-209 (verifies category='A' preserved + confirmation_count==2)
+    - EC-2 length boundary 1-64 → extraction-pipeline-category.test.ts L152-191 (empty, 65-char, exact-64 boundary)
+    - EC-3 empty-string normalisation 3 layers → in-memory L100-118 + pgvector L166-178 + REST/SDK L195-210
+    - EC-4 case-sensitive → in-memory L120-132 + pgvector L211-222
+    - EC-5 Unicode NFC vs NFD → pgvector-store-category.test.ts L224-243
+    - EC-6 SQL injection probe → pgvector-store-category.test.ts L245-262
+    - EC-7 cursor + changed category graceful → scopes-list-category-filter.test.ts L163-193
+    - EC-9 NULL findability honest → smoke L101-131 + pgvector L102-113
+    - EC-12 dual-pathway projection → MemoryItem.category shape-lock + pgvector-store-category L78-87 (column hoist) + REST smoke roundtrip
+  missing:
+    - EC-8 BFF dual-pathway read — covered in Go side (T5.1 plan TDD) per Coverage Matrix row 28; OUT OF SCOPE for TS test review here (cross-repo)
+    - EC-13/EC-14/EC-15 (scope enum + limit cap + cursor) — pre-existing baseline of scopes handler; plan declares UNCHANGED (no regression test added — acceptable for additive change)
+findings:
+  - id: F-tests-1
+    severity: LOW
+    file: tests/integration/server/scopes-list-category-filter.test.ts
+    line: 163-193
+    plan_ref: T4.1 TDD — test_cursor_continuation_with_different_category_does_not_throw (EC-7)
+    summary: EC-7 test is conditionally executed — assertion path skipped silently when `nextCursor === undefined`.
+    evidence: |
+      L179-192: `if (cursor !== undefined) { ... }` — when the first page returns no cursor
+      (e.g., dataset reordering, embedder seed change), the test passes WITHOUT exercising
+      the EC-7 contract. No `expect(cursor).toBeDefined()` precondition to fail loudly when
+      the test setup degrades. Same shape as `nextCursor` optionality precedent but EC-7 is
+      load-bearing for honest cursor+filter behavior pinning.
+    recommended_action: |
+      Add `expect(body1.nextCursor).toBeDefined()` before the conditional. If the seed
+      cannot produce a cursor, the test setup is wrong — fail visibly rather than silently
+      no-op past the EC-7 invariant.
+
+  - id: F-tests-2
+    severity: LOW
+    file: tests/integration/pgvector-store-category.test.ts
+    line: 127-164
+    plan_ref: T3.2 TDD — test_pgvector_filter_uses_btree_index (ADR D2 architectural promise)
+    summary: Index-usage test forces `enable_seqscan = off`. JSDoc comment documents
+      the rationale exhaustively, but the assertion proves the index is QUERYABLE, not
+      that the planner CHOOSES it under realistic workload. Acceptable per the comment;
+      no follow-up large-table benchmark exists.
+    evidence: |
+      L138-148: comment acknowledges Seq Scan dominates on small tables; force-disables it.
+      L158: matches /Index Scan|Bitmap Index Scan|Bitmap Heap Scan/. Honest documentation;
+      ADR D2 promises O(log n) WHEN the planner needs it — this satisfies the architectural
+      invariant, not real-world hot-path validation.
+    recommended_action: |
+      Document in plan v1.3 (or follow-up cycle) that benchmark-shaped validation
+      is deferred. No code change required — the test is honest about what it asserts.
+
+  - id: F-tests-3
+    severity: LOW
+    file: tests/integration/server/scopes-list-category-filter.test.ts
+    line: 48-49, 76-80, 195-210
+    plan_ref: T4.1 — overall test file
+    summary: Heavy `// eslint-disable-next-line @typescript-eslint/no-unsafe-*` density
+      around `memory.user('alice').remember(...)` and `.getAll(...)` calls because the
+      test types `memory` as `any`. Reduces type safety of the test surface itself.
+    evidence: |
+      L49: `let memory: any;` — chosen to bypass return-type variance of `createLocalMemory`.
+      L78-79, L195-210: 6 inline eslint-disables. Pre-existing precedent exists in
+      sibling `scopes-list-temporal-fidelity.test.ts` per the JSDoc header, so this is
+      not a regression — but inherits the same smell.
+    recommended_action: |
+      Tighten typing in a follow-up cycle (extract a typed `MemoryRoot` test helper).
+      Not blocking — convention follows project precedent.
+
+  - id: F-tests-4
+    severity: LOW
+    file: src/core/__tests__/options.test.ts
+    line: 65-119
+    plan_ref: T1.1 TDD — type-shape lock for category? on 4 interfaces
+    summary: Type-narrowing assertions use both `expectTypeOf` AND source-text regex.
+      The comment at L67-71 explicitly acknowledges `expectTypeOf().toHaveProperty()`
+      is a runtime no-op, so the regex pattern is the load-bearing check. Honest, but
+      duplicates the assertion surface — refactor target eventually.
+    evidence: |
+      L67-71: comment acknowledges the double-check; L93-94, L100-101, L109-110, L117-118
+      each pair regex + expectTypeOf. Self-defense pattern (mirrors source-text recognisers
+      elsewhere in test corpus).
+    recommended_action: |
+      No action required for this review cycle — pattern is documented and serves a
+      defensive role against tsc API drift.
+
+  - id: F-tests-5
+    severity: LOW
+    file: tests/integration/server/scopes-list-category-filter.test.ts
+    line: 65-67
+    plan_ref: testing.md § Determinism + § Pyramid — Integration tests must reset DB state between tests
+    summary: TRUNCATE uses `beforeEach` (CORRECT — every test gets clean slate).
+      However migration-0014.test.ts uses `beforeAll`-only DB creation + a single
+      manual `TRUNCATE memories CASCADE` inside one test (L118). Tests within
+      migration-0014 share state via the same DB; if test order changes (vitest
+      parallelism), the idempotency test could observe rows from the legacy-NULL test.
+    evidence: |
+      tests/integration/migrations/migration-0014.test.ts L43-87: 3 tests in sequence
+      query schema metadata (read-only — order-safe). L115-136 (legacy-row test) inserts
+      data without a beforeEach truncate. Test ordering accidentally insulates them
+      because the legacy-NULL test runs LAST and TRUNCATEs at its own start.
+    recommended_action: |
+      Add explicit `beforeEach(async () => { await pool.query('TRUNCATE memories CASCADE') })`
+      INSIDE the migration-0014 describe block to make per-test isolation explicit (defensive
+      against vitest reordering). Honest LOW — current order is stable but fragile.
+
+  - id: F-tests-6
+    severity: LOW
+    file: tests/integration/server/category-filter-public-api-smoke.test.ts
+    line: 70-99
+    plan_ref: T4.2 TDD — smoke gate (POST + GET roundtrip with category)
+    summary: Smoke test asserts `postBody.items[0]?.id` equals `getBody.items[0]?.id`
+      — strong end-to-end fidelity. Optional chaining masks a `undefined === undefined`
+      false positive if BOTH sides break and return empty arrays.
+    evidence: |
+      L88-89: `const insertedId = postBody.items[0]?.id; expect(insertedId).toBeDefined();`
+      mitigates the POST side. L97-98: `expect(getBody.items).toHaveLength(1)` mitigates
+      the GET side. Defensive — the failure-mode is already covered. Documented for
+      completeness, no action required.
+    recommended_action: |
+      None. The two `.toHaveLength(1)` + `.toBeDefined()` assertions on either side
+      already prevent the double-undefined-passes-equals failure mode.
+
+  - id: F-tests-7
+    severity: INFO
+    file: ALL 6 NEW TEST FILES
+    line: N/A
+    plan_ref: no-paper-names-in-code.md + cycle-review.md anti-patterns
+    summary: Zero paper names (Voyager / Mem0 / Letta / LangMem / MemGPT / etc.) in any
+      test descriptor, comment, fixture, or variable name. Clean.
+    evidence: |
+      grep -rEni "voyager|mem0|letta|langmem|memgpt|generative.agents|coala|procmem|graphiti|honcho"
+        on all 6 new test files → 0 matches.
+    recommended_action: |
+      None. Honest compliance with the project rule.
+
+  - id: F-tests-8
+    severity: INFO
+    file: ALL 6 NEW TEST FILES
+    line: N/A
+    plan_ref: cycle-review.md anti-pattern — no .only / .skip leaks
+    summary: Zero `.only` / `xit` / `xtest` markers. Two acceptable `describe.skipIf`
+      env-driven skips (THEOMEM_PG_URI unset → skip integration suite) which is the
+      project pattern for pgvector container availability.
+    evidence: |
+      grep on test files → only `describe.skipIf(PG_URI === '')` and `describe.skipIf(ROOT_PG_URI === '')`.
+      No focus markers, no commented-out tests.
+    recommended_action: |
+      None.
+
+  - id: F-tests-9
+    severity: INFO
+    file: tests/integration/pgvector-store-category.test.ts + scopes-list-category-filter.test.ts + category-filter-public-api-smoke.test.ts + migration-0014.test.ts
+    line: N/A
+    plan_ref: testing.md § Pyramid — real Postgres + pgvector for integration
+    summary: Integration tests use a REAL pgvector container via `THEOMEM_PG_URI`
+      (no mock pool). TRUNCATE-between-tests discipline observed on scopes + pgvector
+      + smoke. Migration test creates a fresh dedicated database per the file
+      (`themem_t2_1_migration_0014`) and drops it in afterAll — clean isolation.
+    evidence: |
+      pgvector-store-category L43-56: `new pg.Pool({ connectionString: PG_URI, max: 4 })`
+      + `afterEach(TRUNCATE)`. migration-0014 L30-41: per-file dedicated DB lifecycle.
+      No silent mocking of the database layer.
+    recommended_action: |
+      None — gold-standard integration test setup.
+
+  - id: F-tests-10
+    severity: INFO
+    file: src/core/__tests__/extraction-pipeline-category.test.ts
+    line: 152-191
+    plan_ref: T3.3 TDD — EC-2 boundary tests (3 tests: length 0, length 65, length exactly 64)
+    summary: Boundary tests cover the THREE relevant points (below, exact, above)
+      per testing.md "boundary values" discipline. AAA structure clear in every
+      test. Test names describe BEHAVIOR ("throws InvalidScope when category.length === 0").
+    evidence: |
+      L152, L166, L180: three boundary tests with descriptive names. Each follows
+      Arrange (stub store) → Act (`runExtractionPipeline(...)`) → Assert (rejects toThrow
+      AND `inserted.length === 0`). No "and" in names.
+    recommended_action: |
+      None — exemplary boundary testing.
+
+  - id: F-tests-11
+    severity: INFO
+    file: ALL 34 NEW TESTS
+    line: N/A
+    plan_ref: testing.md § BDD — behavior-driven names, no "and", AAA format
+    summary: Test descriptors describe BEHAVIOR throughout. Examples:
+      "EC-3 — empty-string filter normalizes to undefined (returns all rows including NULL category)",
+      "filter excludes rows where category is NULL (undefined in payload)",
+      "POST /v1/remember with category → GET ?category=X returns the row".
+      Zero "test_1" / "works correctly" style names.
+    evidence: |
+      All `test()` and `it()` blocks read end-to-end as plain English behavioural
+      assertions. AAA structure follows naturally from the shape (insert via seed →
+      list with filter → assert). No "and"-conjoined names found.
+    recommended_action: |
+      None.
+
+summary:
+  overall_verdict: PASS_WITH_LOW_RECOMMENDATIONS
+  blocker_count: 0
+  high_count: 0
+  medium_count: 0
+  low_count: 6
+  info_count: 5
+  notes: |
+    Test quality across the 34 new tests is strong: real pgvector integration with
+    deterministic primitives (Constant384 embedder + DeterministicStubLLM) avoids
+    @xenova/transformers in CI; TRUNCATE-between-tests on the high-risk surfaces;
+    explicit boundary coverage of EC-2; honest SQL-injection + Unicode NFC/NFD pinning;
+    no paper names; no .only/.skip leaks; behavior-driven descriptors throughout.
+
+    The 6 LOW findings are stylistic / defensive (cursor precondition, eslint-disable
+    density, migration test order-fragility) — none block merge. The 5 INFO findings
+    document positive properties for the audit trail. EC-1 through EC-7 + EC-9 + EC-12
+    each have a load-bearing assertion. EC-8 is cross-repo (Go BFF) and out of scope
+    for this TypeScript test review.
+
+    Recommendation: ACCEPT the test suite as shipped; defer the 6 LOW items to a
+    follow-up cycle or absorb opportunistically per the audit-trail rotation policy.

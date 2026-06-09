@@ -1,0 +1,270 @@
+agent: review-themory-category-filter-server-side-domain-pgvector-schema
+review_target: develop branch for plan themory-category-filter-server-side v1.2 (T2.1 + T3.2 + ADR D2 + ADR D6)
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - "Migration idempotency (ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS) per architecture.md § 10.2"
+  - "Drizzle schema declaration mirrors v1.1 attributed_to precedent (text() shape)"
+  - "_journal.json append-only discipline (idx 14 after 0013_admin_config)"
+  - "Composite UNIQUE memories_hash_scope_unique_idx (ADR D5 of principles-alignment-hardening) untouched"
+  - "ON CONFLICT target preserves composite-unique expression list AND category NOT in DO UPDATE SET (ADR D6 first-write-wins)"
+  - "SELECT projection extended in search/keywordSearch/get/list — HNSW interaction"
+  - "btree memories_category_idx cardinality appropriateness (vs hash/gin)"
+  - "INSERT/SELECT parameterized binding (EC-6 SQL injection safety)"
+  - "Live container schema verification via information_schema.columns + pg_indexes"
+  - "architecture.md § 10.1 dist/ asset shipping for the new .sql migration"
+  - "architecture.md § 10.3 trigger psql side-channel applicability (N/A — column-only)"
+
+summary_verdict: PASS — pgvector + Postgres schema work for the category-filter cycle is well-formed, ADR-aligned, and load-bearing invariants of prior cycles (composite UNIQUE, HNSW, v1.1 attributed_to precedent) are preserved. Two MINOR latent inconsistencies surfaced (update() path category gap; missing snapshot file follows historic hand-authored pattern) and one LOW documentation-vs-implementation alignment note. No HIGH/BLOCKER schema findings.
+
+findings:
+  - id: F-dom-pg-1
+    severity: MINOR
+    file: src/local/pgvector-store.ts
+    line: 573-616
+    plan_ref: ADR D6 (UPSERT first-write-wins) + v1.1 T2.1 attributed_to precedent
+    domain_anchor: architecture.md § 4 ADD-only / ADR-0003
+    summary: |
+      PgvectorStore.update() does NOT mirror the INSERT path's category hoist
+      while it DOES mirror attributedTo (line 584: `attributedTo = payload['attributed_to'] ?? null`).
+      Specifically: (a) no top-level `const category = payload['category'] ?? null`,
+      (b) no `delete cleanedPayload['category']`, and (c) no `category = $N` in the
+      UPDATE SET list. If update() is ever wired in production (currently
+      tested only via conformance harness — no `store.update()` call site under
+      `src/` outside __tests__), a re-upsert with a category-bearing payload would
+      duplicate `category` into the JSONB payload while the top-level column
+      stays at the first INSERT value — a half-mirror of the v1.1 attributedTo
+      treatment (which DID add the same line 583-584 fix preemptively).
+    evidence: |
+      Lines 583-591:
+        const attributedTo = (payload['attributed_to'] as string | undefined) ?? null;
+        const cleanedPayload: Payload = { ...payload };
+        delete cleanedPayload['text'];
+        delete cleanedPayload['hash'];
+        delete cleanedPayload['user_id'];
+        delete cleanedPayload['session_id'];
+        delete cleanedPayload['agent_id'];
+        delete cleanedPayload['attributed_to'];   ← attributed_to present; category missing
+      Lines 593-603 UPDATE statement: category column absent from SET list.
+    recommended_action: |
+      Either (a) add the same 3 deltas to update() to keep top-level + JSONB in lockstep
+      (`const category = payload['category'] ?? null; delete cleanedPayload['category'];`
+      no SET clause is correct per ADR D6 first-write-wins immutability), OR
+      (b) annotate update() with JSDoc explicitly stating "category column omitted by
+      design per ADR D6 — update() is internal-only and does not write category".
+      Option (a) is preferred for symmetry with the v1.1 attributedTo precedent;
+      option (b) is acceptable because update() has no production caller today
+      (verified via grep — only `src/local/__tests__/vector-store-conformance.ts:168`
+      invokes it).
+    blocking: false
+    rationale_for_minor: |
+      No live production caller; update() is reachable only via the conformance test
+      harness (which does not exercise category-bearing payloads in this cycle).
+      The latent gap will only matter if a future cycle wires update() into a
+      production path. Documented as MINOR to record the asymmetry vs the v1.1
+      precedent that did fix this preemptively.
+
+  - id: F-dom-pg-2
+    severity: LOW
+    file: src/local/migrations/meta/_journal.json
+    line: end of entries array
+    plan_ref: T2.1 task step 5 — "Hand-author 0014_snapshot.json (or regenerate via npm run db:generate)"
+    domain_anchor: architecture.md § 10.2
+    summary: |
+      No `0014_snapshot.json` exists under `src/local/migrations/meta/`. The plan's
+      T2.1 task list step 5 (line 431 of plan) names this artifact as part of the
+      atomic commit. The journal entry IS present (idx 14, tag
+      "0014_add_category_column", verified). However, the project ALSO lacks
+      `0011_snapshot.json` and `0013_snapshot.json` for the two prior hand-authored
+      migrations (verified via `ls src/local/migrations/meta/`). This is a
+      pre-existing project pattern (hand-authored migrations skip snapshot
+      regeneration), not a regression introduced by 0014.
+    evidence: |
+      `ls src/local/migrations/meta/*.json` shows: 0000..0010 + 0012 + _journal.json
+      Missing: 0011, 0013, 0014. The 0014 omission follows the pre-existing pattern.
+      `git log --oneline src/local/migrations/meta/` confirms 0011 and 0013 never
+      shipped snapshot files either.
+    recommended_action: |
+      Either (a) regenerate ALL three missing snapshots (0011, 0013, 0014) in a
+      separate housekeeping cycle so `drizzle-kit push` introspection stays
+      authoritative against the schema-as-declared, OR (b) document in
+      architecture.md § 10.2 that hand-authored migrations under this project
+      legitimately ship without a snapshot file because the snapshot is only
+      consumed by `db:generate` (regeneration step), not by `runMigrations()`
+      (the runtime path that actually applies migrations to a fresh DB). The
+      current empirical behavior — runMigrations applies 0014 correctly to a
+      fresh DB — confirms snapshot absence does not block migration execution.
+    blocking: false
+    rationale_for_low: |
+      Snapshot files are inputs to `drizzle-kit generate` (re-derive next migration
+      from the current schema) and to drizzle-kit introspection tooling. They are
+      NOT consumed by `runMigrations(pool)` (which reads only `_journal.json` +
+      the `.sql` files in `_journal.json` order). Production migration path works;
+      developer-tooling future regeneration may need backfill.
+
+  - id: F-dom-pg-3
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 478, 542, 562, 641
+    plan_ref: T3.2 step 4 — SELECT projection extension
+    domain_anchor: architecture.md § 4 Mem0-shape 9-step search
+    summary: |
+      Category column is projected in all 4 SELECT statements (search line 478,
+      keywordSearch 542, get 562, list 641). The projection is one extra column
+      in the result set; for a `text` column with ≤ 64 chars (REST boundary) and
+      btree index, the wire-cost is negligible (≤ ~64 bytes per row). HNSW index
+      on `embedding` is untouched and remains the dominant cost in semantic
+      `search`. No regression in recall performance is expected; the column is
+      additive to the projection list and does NOT participate in the ORDER BY
+      `distance ASC` clause, the HNSW operator (`<=>`), the `to_tsvector` BM25
+      path, or the LIMIT semantics. The btree `memories_category_idx` is only
+      relevant when `filters.category !== undefined` (then composeFilters appends
+      `category = $N`, which the planner can use). When the filter is absent,
+      the index is unused and incurs no read cost.
+    evidence: |
+      Lines 478-485 (search): SELECT ... category, ... embedding <=> $1::vector
+      Lines 542-549 (keywordSearch): SELECT ... category, ... ts_rank(...)
+      Line 562 (get): SELECT ... category, ... WHERE id = $1
+      Line 641 (list, via reading 626-650 elsewhere): SELECT ... category, ...
+      composeFilters branch at line 205 only fires when filters.category set.
+    recommended_action: None — additive projection is correct shape.
+    blocking: false
+
+  - id: F-dom-pg-4
+    severity: INFO
+    file: src/local/migrations/0014_add_category_column.sql
+    line: 26-27
+    plan_ref: T2.1 + ADR D2 + EC-11
+    domain_anchor: architecture.md § 10.2 db:push vs runMigrations collision
+    summary: |
+      Migration is correctly idempotent: `ADD COLUMN IF NOT EXISTS` + `CREATE
+      INDEX IF NOT EXISTS` are PG 14+ noops on re-application. No CREATE TRIGGER
+      / CREATE FUNCTION clauses — architecture.md § 10.3 psql side-channel
+      requirement does NOT apply (confirmed by comment line 22). The migration
+      properly omits any back-fill `UPDATE memories SET category = ...`
+      statement, honoring ADR D1 honest no-backfill. The composite UNIQUE
+      `memories_hash_scope_unique_idx` (from migration 0011) is NOT touched —
+      verified by reading 0014.sql which only ADDs a column and an index. EC-9
+      (legacy rows with category=NULL are not findable via the filter) is
+      correctly absorbed into the migration prose (lines 11-16) and the JSDoc
+      on RememberOptions.category (per plan T1.1).
+    evidence: |
+      Line 26: ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "category" text;
+      Line 27: CREATE INDEX IF NOT EXISTS "memories_category_idx" ON "memories" ("category");
+      No DEFAULT clause (verified — test asserts is_nullable=YES, column_default=NULL).
+      Migration test at tests/integration/migrations/migration-0014.test.ts § 3
+      explicitly verifies the column has no DEFAULT (per ADR D1).
+    recommended_action: None — migration is correct.
+    blocking: false
+
+  - id: F-dom-pg-5
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 395-414
+    plan_ref: ADR D6 (first-write-wins UPSERT) + ADR D5 of principles-alignment-hardening
+    domain_anchor: architecture.md § 4 ADD-only
+    summary: |
+      ON CONFLICT clause is correctly constructed: target matches the migration
+      0011 composite UNIQUE expression list exactly (hash, COALESCE(user_id,''),
+      COALESCE(session_id,''), COALESCE(agent_id,'')). DO UPDATE SET contains
+      only `confirmation_count = memories.confirmation_count + 1` — category is
+      INTENTIONALLY OMITTED per ADR D6, with a 7-line comment block (lines
+      402-408) documenting the rationale and the documented mutation path
+      (`forget(id) + remember(newText, {category: 'B'})`). Empirically pinned
+      by integration test `tests/integration/pgvector-store-category.test.ts § 7`
+      which asserts first-write category='A' is preserved after second remember
+      with category='B', AND confirmation_count bumps to 2.
+    evidence: |
+      Lines 409-415: SQL string with ON CONFLICT (hash, COALESCE(user_id,''),
+        COALESCE(session_id,''), COALESCE(agent_id,'')) DO UPDATE SET
+        confirmation_count = memories.confirmation_count + 1.
+      Test § 7 (lines 180-209): asserts row.category === 'A' AND
+        confirmation_count === 2 after two inserts with different categories on
+        same (hash, user_id).
+    recommended_action: None — first-write-wins semantics are pinned by both
+      code and integration test.
+    blocking: false
+
+  - id: F-dom-pg-6
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 205-209
+    plan_ref: EC-6 SQL-injection probe + EC-3 empty-string normalization
+    domain_anchor: architecture.md § 8 — validate at boundaries
+    summary: |
+      composeFilters category branch correctly uses parameterized binding
+      (`parts.push(\`category = $${idx}\`); params.push(filters.category)`) —
+      the literal value never reaches the SQL parser. Integration test § 10
+      (lines 245-262) empirically validates against probe `' OR 1=1 --` —
+      asserts exactly 1 row returned (the row whose literal category equals
+      the probe), NOT all rows (which would indicate parameterization break).
+      EC-3 empty-string normalization is applied at the store boundary
+      (`filters.category !== undefined && filters.category !== ''`) as
+      defense-in-depth alongside REST zod `min(1)` — direct SDK callers
+      bypass zod and would otherwise filter for empty-string-category rows,
+      a documented surprise.
+    evidence: |
+      Line 205: `if (filters.category !== undefined && filters.category !== '')`
+      Line 206-207: `parts.push(\`category = $${idx}\`); params.push(filters.category);`
+      Test § 10 (line 248): `const probe = "' OR 1=1 --";` then asserts total=1.
+    recommended_action: None — boundary validation + parameterized binding stack
+      is the canonical defense.
+    blocking: false
+
+  - id: F-dom-pg-7
+    severity: INFO
+    file: src/local/schema.ts
+    line: 89-95, 158
+    plan_ref: T2.1 schema diff
+    domain_anchor: v1.1 attributed_to precedent (line 89: attributedTo)
+    summary: |
+      Schema declaration is correctly placed AFTER `attributedTo` (line 89) and
+      BEFORE other v0.6+ columns — exactly as plan T2.1 step 1 prescribed for
+      clean git diff. `text('category')` (line 95) mirrors `text('attributed_to')`
+      (line 89) shape verbatim. Index `memories_category_idx` (line 158) is
+      placed AFTER scope-tier indexes (user_id/session_id/agent_id) and BEFORE
+      HNSW + eviction partial indexes — preserving the existing index ordering
+      narrative (basic-column indexes → vector index → eviction-specific
+      partial indexes). HNSW index (line 159) is UNTOUCHED.
+    evidence: |
+      Line 89: attributedTo: text('attributed_to'),
+      Line 95: category: text('category'),
+      Line 158: index('memories_category_idx').on(table.category),
+      Line 159: index('memories_embedding_hnsw_idx').using('hnsw', ...)
+    recommended_action: None — schema diff is minimal and well-placed.
+    blocking: false
+
+cross_check_architecture_md:
+  - section: "§ 10.1 Non-.ts assets"
+    status: SATISFIED
+    note: |
+      The new 0014_add_category_column.sql migration is under src/local/migrations/
+      which is already covered by the `postbuild:copy-migrations` script. The
+      p0-api-sdk-mcp-correctness-audit-fixes-cycle-1 hotfix at commit f0c0448
+      extended package.json#files with `dist/local/migrations/**/*.sql` AND
+      `dist/local/migrations/meta/**`. No new postbuild wiring needed for this
+      cycle.
+  - section: "§ 10.2 db:push vs runMigrations collision"
+    status: SATISFIED
+    note: |
+      Migration is idempotent (ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT
+      EXISTS). Re-applying after `drizzle-kit push` already created the column
+      via schema introspection is a noop. Schema declaration in schema.ts
+      keeps push-flow developers landing the same index per the v1.1
+      attributed_to precedent (line 158 declares the btree index that the
+      migration also creates).
+  - section: "§ 10.3 Trigger psql side-channel"
+    status: NOT_APPLICABLE
+    note: |
+      No CREATE TRIGGER / CREATE OR REPLACE FUNCTION in 0014. Column-only
+      migration. apply-trigger-migrations.mjs has nothing to apply for this
+      migration. Verified by reading 0014.sql.
+
+overall_recommendation: |
+  Domain pgvector + Postgres schema work for the themory-category-filter-server-side
+  cycle is well-formed and ADR-aligned. The single MINOR finding (F-dom-pg-1 — update()
+  category gap) is non-blocking because update() has no production caller; recommend
+  addressing it in a follow-up housekeeping cycle alongside F-dom-pg-2 (backfill the 3
+  missing snapshot files). No HIGH/BLOCKER schema findings. The composite UNIQUE invariant
+  from principles-alignment-hardening (ADR D5 + EC-1) is preserved; HNSW index is
+  untouched; the additive btree on `category` is appropriately shaped for free-form text
+  cardinality. /review verdict for the pgvector-schema domain: READY_TO_MERGE.

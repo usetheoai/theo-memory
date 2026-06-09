@@ -1,0 +1,125 @@
+agent: review-themory-category-filter-server-side-domain-db-migrations
+review_target: main..HEAD for plan themory-category-filter-server-side v1.2 § T2.1
+domain: db-migrations
+domain_specific_patterns_checked:
+  - "Drizzle migration SQL file shape (--> statement-breakpoint separator)"
+  - "ADD COLUMN IF NOT EXISTS idempotency (architecture.md § 10.2)"
+  - "CREATE INDEX IF NOT EXISTS idempotency"
+  - "No psql side-channel needed (architecture.md § 10.3 — column-only, no trigger/function)"
+  - "_journal.json entry shape parity with sibling entries (idx ascending, valid tag, when timestamp ascending, breakpoints: true)"
+  - "Drizzle schema.ts column declaration matches SQL type (text ↔ text)"
+  - "Btree index declared via index('memories_category_idx').on(table.category) — default index method"
+  - "No UPDATE ... SET category = ... backfill statement (ADR D1 honest no-backfill)"
+  - "Snapshot file absence precedent (0011 + 0013 also lack snapshots)"
+  - "Live DB verification — column + index actually applied against ankane/pgvector:v0.5.1"
+
+evidence_collected:
+  files_inspected:
+    - "src/local/migrations/0014_add_category_column.sql (27 lines)"
+    - "src/local/migrations/meta/_journal.json (15 entries — idx 0..14 monotonic ascending)"
+    - "src/local/migrations/meta/ — no 0014_snapshot.json (also no 0011, no 0013 — precedent)"
+    - "src/local/schema.ts:89-95 (attributedTo + category declarations side-by-side)"
+    - "src/local/schema.ts:158 (memories_category_idx btree index declaration)"
+    - "src/local/migrations/0008_attributed_to.sql (cited precedent)"
+    - "src/local/migrations/0013_admin_config.sql (precedent of absent snapshot)"
+    - "tests/integration/migrations/migration-0014.test.ts (4 tests, all PASS)"
+  live_db_verification:
+    container: "themem_pgvector (ankane/pgvector based PG 15.4)"
+    column_exists: |
+      psql -c "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name='memories' AND column_name='category';"
+       column_name | data_type | is_nullable
+      -------------+-----------+-------------
+       category    | text      | YES
+    index_exists: |
+      psql -c "SELECT indexname, indexdef FROM pg_indexes WHERE indexname='memories_category_idx';"
+       indexname             | indexdef
+      -----------------------+----------------------------------------------------------------
+       memories_category_idx | CREATE INDEX memories_category_idx ON public.memories USING btree (category)
+    journal_persisted: "drizzle.__drizzle_migrations id=15 hash=c304c30f... when=1781001600000 — migration applied AND recorded in journal"
+    idempotency_test: "tests/integration/migrations/migration-0014.test.ts — all 4 scenarios GREEN in 2.68s (apply + index + idempotent re-run + legacy NULL preservation)"
+
+findings: []
+
+passes:
+  - id: P-dom-db-1
+    severity: INFO
+    file: src/local/migrations/0014_add_category_column.sql
+    line: 26-27
+    plan_ref: T2.1 + ADR D2 + EC-11
+    summary: |
+      Migration SQL is correctly idempotent. Both statements use IF NOT EXISTS:
+        ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "category" text;
+        CREATE INDEX IF NOT EXISTS "memories_category_idx" ON "memories" ("category");
+      The statement-breakpoint comment (--> statement-breakpoint) separates them per Drizzle convention.
+      The migration is column-only (no trigger, no function), so the `db:push` ↔ `runMigrations()` reconciliation per architecture.md § 10.3 is not required.
+    evidence_ref: "Live test re-run idempotency PASS in 74ms (zero-throw on second runMigrations)"
+  - id: P-dom-db-2
+    severity: INFO
+    file: src/local/migrations/meta/_journal.json
+    line: 103-109
+    plan_ref: T2.1 (Phase 2)
+    summary: |
+      Journal entry for idx=14 is well-formed:
+        - idx: 14 (monotonic, follows idx 13)
+        - tag: "0014_add_category_column" (matches SQL filename precisely)
+        - version: "7" (consistent with all prior entries)
+        - when: 1781001600000 (timestamp strictly ascending; 1780843560551 < 1781001600000)
+        - breakpoints: true (matches every prior entry)
+      The DB-side drizzle.__drizzle_migrations table corroborates: row id=15 (1-based vs 0-based idx) hash=c304c30f... when=1781001600000.
+    evidence_ref: "_journal.json + drizzle.__drizzle_migrations psql query"
+  - id: P-dom-db-3
+    severity: INFO
+    file: src/local/schema.ts
+    line: 89-95, 158
+    plan_ref: T2.1 + ADR D2
+    summary: |
+      Drizzle schema declarations are syntactically valid and aligned with the SQL.
+        Column (line 95):    category: text('category')
+        Index  (line 158):   index('memories_category_idx').on(table.category)
+      The `text` Drizzle DSL type compiles to the `text` PG type in the SQL — exact match. JSDoc at lines 90-94 documents ADR D1 (honest no-backfill) + ADR D6 (immutable via UPSERT) inline. The `index().on()` shape defaults to btree, matching the SQL CREATE INDEX (no explicit USING clause = btree per PG default). Existing `attributedTo` column at line 89 is the cited precedent.
+    evidence_ref: "schema.ts vs SQL byte-by-byte type alignment + npm test PASS"
+  - id: P-dom-db-4
+    severity: INFO
+    file: src/local/migrations/0014_add_category_column.sql
+    line: "(absence)"
+    plan_ref: ADR D1 honest no-backfill
+    summary: |
+      Honors ADR D1 honest no-backfill — the migration contains ZERO `UPDATE memories SET category = ...` statements. Pre-2026-06-09 rows stay `category=NULL` permanently. Integration test scenario (d) explicitly pins this contract: insert a row without category → SELECT shows NULL. Mirrors v1.1 attributed_to precedent. The column also has NO DEFAULT clause (column_default IS NULL confirmed by information_schema query) so new INSERTs that omit category receive NULL rather than a silent default value.
+    evidence_ref: "tests/integration/migrations/migration-0014.test.ts:115-136"
+  - id: P-dom-db-5
+    severity: INFO
+    file: src/local/migrations/meta/0014_snapshot.json
+    line: "(file absent)"
+    plan_ref: T2.1 (mentioned in plan but precedent overrides)
+    summary: |
+      The `0014_snapshot.json` file is INTENTIONALLY ABSENT, consistent with the existing precedent in this repository: `0011_snapshot.json` and `0013_snapshot.json` are also absent. The repo currently ships snapshots for 0000..0010 + 0012 only. The migration applies cleanly via `runMigrations(pool)` (drizzle-orm's `migrate()` reads `_journal.json` for the migration order, not the snapshot file — snapshots are used by `drizzle-kit generate` for diffing). The plan's Files-touched table line 38 anticipated creating `0014_snapshot.json` but the implementation followed the documented precedent of hand-authored migrations (per architecture.md § 10.2 "drizzle-kit push vs runMigrations() conflict" — hand-authored migrations are first-class). Honest disclosure per Inquebrável Rule 3: this is a plan-vs-implementation precedent deviation, but it MATCHES established repo precedent for 0011 + 0013 and the runtime path is verified GREEN. No new defect introduced.
+    evidence_ref: "ls src/local/migrations/meta/ shows 0011 + 0013 also missing; migration-0014.test.ts PASS"
+  - id: P-dom-db-6
+    severity: INFO
+    file: tests/integration/migrations/migration-0014.test.ts
+    line: 1-138
+    plan_ref: T2.1 acceptance criteria (sub-goal 2 + EC-11)
+    summary: |
+      Integration test suite covers all 5 sub-goals declared in the file's docblock (a..e):
+        (a) column applied as nullable text + NO column_default (ADR D1) — 2021ms PASS
+        (b) memories_category_idx btree index present — 47ms PASS
+        (c) idempotent re-run (column + index counts each = 1) — 74ms PASS
+        (d) legacy row inserted without category survives as NULL — 79ms PASS
+      Total: 4 tests, 2.68s against ankane/pgvector:v0.5.1. EC-11 (db:push ↔ runMigrations parity) is implicitly satisfied because the migration is column-only (no trigger/function — no psql side-channel needed per architecture.md § 10.3). The test creates + drops an isolated DB per run (themem_t2_1_migration_0014) so it does NOT contaminate themem_dev.
+    evidence_ref: "Test run output 2026-06-09 13:50:30 — 4/4 PASS"
+
+verdict: PASS
+verdict_rationale: |
+  Migration 0014 is fully compliant with Drizzle migration discipline per architecture.md § 10.1-10.3 and ADR D1 + D2 + D6 of the themory-category-filter-server-side plan. Zero defects found.
+
+  Single observation worth flagging in the consolidated review (NOT a finding because precedent supports it): the plan's Files-touched row anticipated creating `src/local/migrations/meta/0014_snapshot.json`, but the implementation omitted it consistent with the 0011 + 0013 precedent (also missing snapshot files). The runtime path is verified GREEN via the integration test suite, so this is a precedent-tracking observation rather than a regression. If the project decides to backfill snapshots project-wide in a future cycle, 0011 + 0013 + 0014 should be done together.
+
+  All hard acceptance criteria for T2.1 are met:
+   - column exists as nullable text in DB
+   - index exists as btree in DB
+   - migration is idempotent (verified via test scenario c)
+   - no backfill statement (verified via test scenario d)
+   - journal entry well-formed and applied in drizzle.__drizzle_migrations
+   - compatible with both drizzle-kit push AND runMigrations() per § 10.2 (no trigger → no § 10.3 helper required)
+
+  Severity rubric: zero HIGH/MEDIUM/LOW findings. 6 passes documented for audit trail.

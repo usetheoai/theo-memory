@@ -36,6 +36,22 @@ export interface VectorStoreResult {
    * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D2 — getAll fallback + OTel event
    */
   readonly createdAt?: Date;
+  /**
+   * themory-category-filter-server-side T3.1 — operator-supplied category tag
+   * projected from the adapter's underlying store (PgvectorStore SELECTs `category`
+   * column; InMemoryVectorStore reads `payload['category']`). NULL on rows
+   * persisted without a category (per ADR D1 honest no-backfill).
+   *
+   * EC-12 dual-pathway: when this field is non-NULL, the adapter ALSO surfaces
+   * `payload['category']` with the same value — consumers reading via either
+   * pathway (top-level OR payload JSONB) continue to work. Mirrors the v1.1
+   * `attributed_to` precedent (architectural symmetry; redundancy is intentional).
+   *
+   * Additive optional field — backward-compatible.
+   *
+   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T3.1 + ADR D2 + EC-12
+   */
+  readonly category?: string;
 }
 
 /**

@@ -1,0 +1,333 @@
+agent: review-themory-category-filter-server-side-architecture
+review_target: main..HEAD for plan themory-category-filter-server-side (8 commits 50a67cf..3181a67)
+plan: .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md
+review_date: 2026-06-09
+verdict: PASS — no architectural defects requiring HALT
+summary: |
+  Reviewed all 8 commits against the architecture rubric (SOLID, DIP boundaries,
+  ADR-0008 method-count cap, ADR D6 UPSERT discipline, ADR D2 column promotion,
+  naming conventions per architecture.md, paper-name policy, file LoC budgets).
+  Every architectural invariant declared by the plan v1.2 holds in the shipped code.
+  Implementation is a textbook additive-field-only mirror of the v1.1 attributed_to
+  precedent — both at the type surface and at the pgvector adapter pattern. Zero
+  introduced anti-patterns; zero DIP violations; zero new methods on DIP interfaces;
+  zero paper-name introductions; zero SQL-injection vectors (parameterized binding
+  audited at line 206 of pgvector-store.ts).
+
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: src/core/options.ts
+    line: 36-67, 209-227
+    plan_ref: T1.1 § Pseudo-code
+    summary: RememberOptions.category + GetAllOptions.category added as readonly optional fields — additive surface change preserves ADR-0008 method-count cap.
+    evidence: |
+      ```ts
+      readonly category?: string;
+      ```
+      Both fields are documented in JSDoc with cross-refs to ADR D1/D3/D5/D6 and EC-3/EC-9/EC-12. Zero new methods.
+    recommended_action: None. Idiomatic v1.1 attributed_to precedent applied verbatim.
+
+  - id: F-arch-2
+    severity: INFO
+    file: src/core/memory-item.ts
+    line: 122-134
+    plan_ref: T1.1 § Pseudo-code
+    summary: MemoryItem.category projection field added; ADR-0003 ADD-only spirit preserved (no setter).
+    evidence: |
+      Optional `readonly category?: string` documented for EC-12 dual-pathway projection.
+    recommended_action: None.
+
+  - id: F-arch-3
+    severity: INFO
+    file: src/core/scope.ts
+    line: 142-160
+    plan_ref: T1.1 § Pseudo-code; architecture.md § 1 + § 6
+    summary: |
+      Filters.category uses single-token name `category` rather than snake_case `attributed_to`-shape transform.
+      JSDoc explicitly documents why (column already single-token at SQL level — no rename needed). This matches
+      the Mem0-shape parity of Filters at architecture.md § 1.
+    evidence: |
+      ```ts
+      // Single-token field name (`category`, NOT snake_case `category_` etc.) — the
+      // column itself is already a single token at the SQL level, so no rename is
+      // needed at the Filters boundary.
+      readonly category?: string;
+      ```
+    recommended_action: None. Honest disclosure in JSDoc is sufficient.
+
+  - id: F-arch-4
+    severity: INFO
+    file: src/core/dip/vector-store.ts
+    line: 39-54
+    plan_ref: T3.1 (re-confirmed) + ADR-0008 method-count cap
+    summary: VectorStoreResult.category? added as additive optional field. NO new methods on the VectorStore DIP interface itself. ADR-0008 cap preserved.
+    evidence: |
+      Diff adds only `readonly category?: string` to the result DTO. The VectorStore interface signature is untouched.
+    recommended_action: None.
+
+  - id: F-arch-5
+    severity: INFO
+    file: src/local/migrations/0014_add_category_column.sql
+    line: 26-27
+    plan_ref: T2.1 ADR D2 + ADR D1 + EC-11
+    summary: Migration is column-only (no trigger/function), uses `ADD COLUMN IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` — idempotent per architecture.md § 10.2. Honest no-backfill (no UPDATE statement).
+    evidence: |
+      ```sql
+      ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "category" text;
+      CREATE INDEX IF NOT EXISTS "memories_category_idx" ON "memories" ("category");
+      ```
+    recommended_action: None.
+
+  - id: F-arch-6
+    severity: INFO
+    file: src/local/schema.ts
+    line: 90-92, 155-157
+    plan_ref: T2.1 § Pseudo-code; ADR D2
+    summary: Drizzle declaration `text('category')` + `index('memories_category_idx').on(table.category)` mirrors `attributedTo` precedent line-by-line. Camel-case (TS) ↔ snake-case (SQL) naming convention preserved.
+    evidence: |
+      ```ts
+      attributedTo: text('attributed_to'),
+      category: text('category'),
+      ```
+    recommended_action: None.
+
+  - id: F-arch-7
+    severity: INFO
+    file: src/local/in-memory-store.ts
+    line: 71-91, 217-228
+    plan_ref: T3.1 § Deep Dives + ADR D5
+    summary: |
+      matchesFilters dedicated category branch handles EC-3 empty-string normalization BEFORE the generic loop.
+      Skip-list extended with `category` so the generic loop does not double-evaluate. Mirrors pgvector NULL
+      exclusion semantic per ADR D5.
+    evidence: |
+      Branch placed before the generic Object.entries loop; the skip-list correctly enumerates `kind`, `excludeSuperseded`, `category`.
+    recommended_action: None.
+
+  - id: F-arch-8
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 402-414
+    plan_ref: T3.2 ADR D6 (EC-1)
+    summary: |
+      CRITICAL ADR D6 INVARIANT VERIFIED — the ON CONFLICT DO UPDATE clause SET list contains ONLY
+      `confirmation_count = memories.confirmation_count + 1`. `category` is intentionally OMITTED from the
+      SET list. First-write-wins semantic enforced at SQL boundary per ADR-0003 ADD-only spirit.
+    evidence: |
+      ```sql
+      INSERT INTO memories (..., attributed_to, category)
+      VALUES ${values.join(', ')}
+      ON CONFLICT (hash, COALESCE(user_id,''), COALESCE(session_id,''), COALESCE(agent_id,''))
+      DO UPDATE SET confirmation_count = memories.confirmation_count + 1
+      RETURNING id, confirmation_count, user_id, session_id, agent_id, (xmax = 0) AS inserted
+      ```
+      Code-level comment explicitly cites ADR D6 + EC-1 absorption.
+    recommended_action: None. Implementation is the canonical ADD-only contract.
+
+  - id: F-arch-9
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 192-209
+    plan_ref: T3.2 ADR D2 + EC-3 + EC-6
+    summary: |
+      composeFilters category branch uses parameterized `category = $${idx}` binding — SQL injection resistant
+      by construction per EC-6. EC-3 empty-string normalization at the store boundary.
+    evidence: |
+      ```ts
+      if (filters.category !== undefined && filters.category !== '') {
+        parts.push(`category = $${idx}`);
+        params.push(filters.category);
+        idx += 1;
+      }
+      ```
+    recommended_action: None.
+
+  - id: F-arch-10
+    severity: INFO
+    file: src/core/extraction/pipeline.ts
+    line: 268-278, 142-148, 419-426
+    plan_ref: T3.3 EC-2 + ADR D1 + ADR D3
+    summary: |
+      EC-2 boundary check at runExtractionPipeline entry (BEFORE branch dispatch) throws InvalidScope
+      when length is 0 OR > 64. Defense-in-depth alongside REST zod min(1).max(64). Per-fact propagation
+      in BOTH the verbatim (infer:false) AND LLM-extraction paths. ADR D1 honored — extraction prompt is
+      UNCHANGED (LLM does not derive category).
+    evidence: |
+      InvalidScope class imported from `../errors.js` at line 31; check fires before branch dispatch at line 268-278.
+      LLM-extraction path at line 419-426 re-uses the validated value from options.
+    recommended_action: None.
+
+  - id: F-arch-11
+    severity: INFO
+    file: src/server/handlers/scopes.ts
+    line: 35-46, 113-141
+    plan_ref: T4.1 ADR D3 + EC-3 + EC-7
+    summary: |
+      QuerySchema extended with `category: z.string().min(1).max(64).optional()`. Threading into
+      scoped.getAll() uses optional-spread pattern (avoids passing `{category: undefined}` and confusing
+      consumers).
+    evidence: |
+      ```ts
+      const all = category !== undefined
+        ? await scoped.getAll({ category })
+        : await scoped.getAll();
+      ```
+    recommended_action: None.
+
+  - id: F-arch-12
+    severity: INFO
+    file: src/server/handlers/remember.ts + src/server/schemas.ts
+    line: remember.ts:31-37; schemas.ts:55-60
+    plan_ref: T4.2 ADR D3
+    summary: |
+      RememberBody.category zod field min(1).max(64).optional() mirrors GET handler validation. Handler
+      destructures + forwards to `scoped.remember(text, {..., category})` — EC-2 SDK boundary is the
+      second gate.
+    evidence: |
+      Two-layer validation: REST zod first; pipeline EC-2 second.
+    recommended_action: None.
+
+  - id: F-arch-13
+    severity: INFO
+    file: src/local/index.ts
+    line: 203-238
+    plan_ref: T4.1 + EC-3 + ADR D5
+    summary: |
+      applySkillFilters function-signature extended with `category?: string` — defense-in-depth EC-3
+      empty-string normalization at SDK boundary. Mirrors the EC-3 enforcement at composeFilters AND
+      in-memory matchesFilters — 3-layer normalization as plan v1.2 documents.
+    evidence: |
+      ```ts
+      if (options.category !== undefined && options.category !== '') {
+        base = { ...base, category: options.category };
+      }
+      ```
+    recommended_action: None.
+
+  - id: F-arch-14
+    severity: INFO
+    file: cross-cutting
+    line: n/a
+    plan_ref: architecture.md § 3 (DIP boundary)
+    summary: |
+      Verified — src/core/ does NOT import from src/local/, src/cloud/, or src/server/. Confirmed via
+      grep on the 4 modified core files (options.ts, memory-item.ts, scope.ts, dip/vector-store.ts).
+      The only new import added by the slice is `InvalidScope` from `../errors.js` in pipeline.ts — a
+      same-package intra-core import — which is allowed.
+    evidence: |
+      ```
+      $ grep -n "from\s*['\"]" src/core/options.ts src/core/memory-item.ts src/core/scope.ts src/core/dip/vector-store.ts | grep -E "local/|cloud/|server/"
+      (no output)
+      ```
+    recommended_action: None. DIP boundary clean.
+
+  - id: F-arch-15
+    severity: INFO
+    file: cross-cutting
+    line: n/a
+    plan_ref: no-paper-names-in-code.md
+    summary: |
+      Zero paper-name introductions across the 8-commit slice. `git diff 50a67cf~1..3181a67 -- src/` filtered
+      for added lines (`^+`) matching the canonical banned tokens (Voyager/Mem0/Letta/LangMem/MemGPT/Graphiti/
+      Honcho/CoALA/ProcMEM) returned zero hits. Pre-existing JSDoc references in untouched code stay
+      stable (Voyager in vector-store.ts:73, scope.ts:118; Letta in schema.ts:46; etc.) per the
+      "opportunistic cleanup when next touched" policy at no-paper-names-in-code.md.
+    evidence: |
+      ```
+      $ git diff 50a67cf~1..3181a67 -- src/ | grep -E '^\+.*\b(Voyager|Mem0|Letta|LangMem|MemGPT|Graphiti|Honcho|CoALA|ProcMEM)\b'
+      (no output)
+      ```
+    recommended_action: None.
+
+  - id: F-arch-16
+    severity: INFO
+    file: cross-cutting
+    line: n/a
+    plan_ref: ADR-0008 method-count cap
+    summary: |
+      Verified — zero new methods on any DIP interface. `git diff 50a67cf~1..3181a67 -- src/core/dip/`
+      filtered for added method signatures (`readonly (get|set|insert|recall|forget|reflect|list)`)
+      returned zero hits. Only VectorStoreResult DTO gained an optional `category?: string` field — DTO
+      is not a method.
+    evidence: |
+      ADR-0008 cap is preserved EXACTLY as plan v1.2 § T1.1 Deep Dives required.
+    recommended_action: None.
+
+  - id: F-arch-17
+    severity: LOW
+    file: src/core/extraction/pipeline.ts
+    line: 497
+    plan_ref: T3.3 Acceptance Criteria (`≤ 500 LoC`)
+    summary: |
+      pipeline.ts LoC is 497 — within the plan's ≤ 500 LoC acceptance criterion but with only 3 LoC of
+      slack. Future EC absorptions on this file (e.g., a v1.6 attributed-to length cap) will exceed the
+      cap and force a split. Not a defect for this slice; observation only.
+    evidence: |
+      ```
+      $ wc -l src/core/extraction/pipeline.ts
+      497 src/core/extraction/pipeline.ts
+      ```
+    recommended_action: None for this slice. Pre-emptive refactor (split helper module) can be scheduled
+      OUTSIDE this cycle if the next EC budget on this file is foreseeable.
+
+  - id: F-arch-18
+    severity: INFO
+    file: src/local/index.ts
+    line: 1519
+    plan_ref: T4.1 Acceptance Criteria (`≤ 1600 LoC`)
+    summary: |
+      LocalScopedMemory.index.ts is 1519 LoC after T4.1 — within the plan's ≤ 1600 LoC budget. The plan
+      anticipated 1505 → +8 (= 1513); actual delta is +14 to 1519, still well within budget. Not a defect.
+    evidence: |
+      ```
+      $ wc -l src/local/index.ts
+      1519 src/local/index.ts
+      ```
+    recommended_action: None.
+
+  - id: F-arch-19
+    severity: INFO
+    file: cross-cutting
+    line: n/a
+    plan_ref: ADR D2 (top-level promoted column NOT JSONB path)
+    summary: |
+      ADR D2 invariant VERIFIED — every read path (rowToResult, search, keywordSearch, get, list) projects
+      the `category` SQL column directly via the SELECT list `category` token; every write path (insertBatch)
+      hoists `payload['category']` into the column AND deletes it from cleanedPayload (so it lives in ONE
+      canonical place at the DB layer). EC-12 dual-pathway re-projection back into payload on SELECT is
+      INTENTIONAL architectural symmetry per plan v1.2.
+    evidence: |
+      All 4 SELECT statements modified to include `, category` in the projection (pgvector-store.ts lines
+      478, 542, 562, 641). INSERT statement modified to include `, category` and the matching VALUES placeholder.
+    recommended_action: None.
+
+  - id: F-arch-20
+    severity: INFO
+    file: cross-cutting
+    line: n/a
+    plan_ref: Wiring triad (pillar a + b)
+    summary: |
+      Pillar (a) caller: scopesHandler is mounted by Hono; rememberHandler is mounted by Hono; both
+      transitively callable from the dashboard via BFF. Pillar (b) integration: 10 RED→GREEN against real
+      pgvector at tests/integration/pgvector-store-category.test.ts; 8 RED→GREEN at scopes-list-category-filter
+      .test.ts; 2 smoke at category-filter-public-api-smoke.test.ts; 4 migration idempotency tests. All
+      pillars present per cycle-implement.md wiring triad contract.
+    evidence: |
+      Plan v1.2 § Phase 3-5 acceptance criteria recorded as passing in each commit message.
+    recommended_action: None.
+
+verdict_summary:
+  blockers: 0
+  high: 0
+  medium: 0
+  low: 1
+  info: 19
+  total: 20
+
+verdict_label: PASS_NO_BLOCKERS
+recommended_next: |
+  Proceed to /review consolidation. Architecture surface is clean — the implementation is a textbook
+  application of the v1.1 attributed_to precedent at every layer (option types, schema column promotion,
+  pgvector hoist/projection, in-memory mirror, REST query schema, pipeline propagation, ADR D6 UPSERT
+  discipline). No HALT recommended.

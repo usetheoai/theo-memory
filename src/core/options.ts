@@ -32,6 +32,37 @@ export interface RememberOptions {
    * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § ADR D2
    */
   readonly attributedTo?: string;
+
+  /**
+   * themory-category-filter-server-side T1.1: operator-supplied category tag
+   * for downstream server-side filtering via `GET /v1/scopes/.../memories?category=X`.
+   *
+   * **Length contract**: MUST be 1-64 chars when supplied (ADR D3). The pipeline
+   * boundary at `runExtractionPipeline` entry throws `InvalidScope` when the
+   * value is empty OR > 64 chars (EC-2 absorption — defense-in-depth alongside
+   * REST zod validation). Mirrors the v1.1 `asOf` NaN check precedent.
+   *
+   * **Immutability contract (ADR D6 / EC-1)**: once persisted, category is
+   * IMMUTABLE via remember(). The `ON CONFLICT DO UPDATE` clause does NOT
+   * overwrite the column — `confirmation_count` bumps, but the first-write
+   * category wins. Operators wanting to change category use `forget(id) +
+   * remember(newText, { category: 'B' })` — the canonical ADR-0003 ADD-only
+   * mutation path.
+   *
+   * **Inference contract (ADR D1)**: category is OPERATOR-supplied; the LLM
+   * extraction pipeline does NOT auto-derive a category from free-form text.
+   *
+   * **NULL findability (EC-9)**: pre-2026-06-09 rows have `category=NULL`
+   * permanently. There is NO syntax to filter for NULL rows via the public
+   * `?category=` REST query (zod min(1) rejects empty; literal "null"
+   * filters for the string "null"). Uncategorized memories are returned only
+   * by the no-filter call.
+   *
+   * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
+   *
+   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D1 + D3 + D6
+   */
+  readonly category?: string;
 }
 
 export interface RecallOptions {
@@ -174,4 +205,26 @@ export interface GetAllOptions {
    * v0.6 (EC-3 absorption): mirrors `RecallOptions.includeSuperseded`.
    */
   readonly includeSuperseded?: boolean;
+
+  /**
+   * themory-category-filter-server-side T1.1: server-side filter — return ONLY
+   * rows whose `category` column EXACTLY equals this value.
+   *
+   * **Byte-equality contract (EC-4 + EC-5)**: case-sensitive; NO Unicode
+   * normalization (NFC vs NFD treated as distinct strings). Deliberate per
+   * ADR D1 — operator-supplied vocabulary is preserved verbatim.
+   *
+   * **NULL semantic (ADR D5)**: rows where `category IS NULL` do NOT match
+   * any filter value (SQL three-valued logic). Empty string normalizes to
+   * undefined (no-filter) at the store boundary per EC-3 — `LocalScopedMemory.getAll`
+   * and adapter `composeFilters` both treat `''` as `undefined` to keep
+   * in-memory + pgvector + REST adapter semantics aligned.
+   *
+   * **NULL findability (EC-9)**: pre-2026-06-09 legacy rows are NOT findable
+   * via this filter. The no-filter call (omit the option entirely) is the only
+   * way to see uncategorized memories alongside categorized ones.
+   *
+   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D5 + EC-3 + EC-9
+   */
+  readonly category?: string;
 }

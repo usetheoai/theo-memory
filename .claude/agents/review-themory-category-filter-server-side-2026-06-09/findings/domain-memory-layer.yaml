@@ -1,0 +1,301 @@
+agent: review-themory-category-filter-server-side-domain-memory-layer
+review_target: main..HEAD for plan themory-category-filter-server-side (v1.2)
+domain: memory-layer
+date: 2026-06-09
+verdict: PASS_WITH_CAVEATS
+
+domain_specific_patterns_checked:
+  - Mem0-shape eight-phase write pipeline (extraction prompt unchanged)
+  - Nine-step search retrieval contract (no recall-path changes)
+  - ADD-only contract (ADR-0003) honored via UPSERT first-write-wins (ADR D6)
+  - Three-tier scope (User/Session/Agent) orthogonal to category (no scope coupling)
+  - RepoScope 4th tier (ADR-0010) — skill verbs untouched (category does not bleed into skill DIPs)
+  - Filters interface snake_case parity at pipeline→store boundary
+  - ADR-0008 method-count cap (zero new DIP methods; four optional fields added)
+  - MemoryItem projection parity across in-memory ↔ pgvector adapters (ADR D5)
+  - EC-12 dual-pathway projection (top-level column + payload key coexist)
+  - LLM extraction prompt unchanged (ADR D1 — category is operator-supplied)
+  - Princípio 1 confirmation_count interaction (ADR D6 preserves first-write category while bumping confirmation_count)
+  - Princípio 2 priority/diversity (server-side filter enables priority, no MMR interaction)
+  - Princípio 3 auditability (EC-9 NULL findability honest disclosure)
+
+findings:
+
+  - id: F-dom-mem-1
+    severity: MEDIUM
+    file: src/local/index.ts
+    line: 825-845
+    plan_ref: Plan v1.2 § T1.1 (MemoryItem.category top-level field) + EC-12 dual-pathway projection
+    domain_anchor: CLAUDE.md § Princípio 3 (auditability — top-level surface is consumer contract)
+    summary: |
+      LocalScopedMemory.getAll does NOT project the top-level MemoryItem.category field;
+      consumers reading `item.category` (the documented JSDoc surface on MemoryItem)
+      receive `undefined` even when the row has a category. The category IS reachable
+      via `item.metadata.category` (because metadata spreads the whole payload), so the
+      dashboard BFF (which reads payload['category']) works in practice. But the
+      JSDoc contract on MemoryItem.category (memory-item.ts:123-136) advertises a
+      top-level field which is not honored at this code path.
+    evidence: |
+      src/local/index.ts:825-845 — return shape lacks `category: r.payload['category']`:
+        return {
+          id: r.id,
+          text: String(r.payload['text'] ?? ''),
+          hash: String(r.payload['hash'] ?? r.id),
+          scope: this.scope,
+          createdAt,
+          updatedAt: createdAt,
+          metadata: { ...r.payload },     // <-- payload spread; category lives HERE
+          tValid: createdAt,
+          tInvalid: null,
+        };                                  // <-- no top-level `category` projection
+      For symmetry, `attributedTo` ALSO has the same gap (it lives only in metadata.attributed_to
+      via the spread; no top-level `attributedTo: ...` field is set). This means the new code
+      is CONSISTENT with the existing precedent — the gap is pre-existing, not newly introduced.
+    recommended_action: |
+      Either (a) lift the top-level projection at this site (low LoC; mirrors the JSDoc claim
+      and the pgvector-store's `VectorStoreResult.category` projection at rowToResult); or
+      (b) DOCUMENT explicitly in MemoryItem.category JSDoc that `getAll` populates the field
+      via `metadata.category` only — a follow-up CHANGELOG note clarifying the asymmetry
+      between the recall path (top-level + metadata) and the getAll path (metadata-only). Path (a)
+      is cleaner; path (b) is honest disclosure.
+    classification_for_plan: pre-existing-debt absorbed alongside this cycle; NOT a regression
+    introduced by this plan
+    blocker: false
+
+  - id: F-dom-mem-2
+    severity: LOW
+    file: src/local/in-memory-store.ts
+    line: 220-227
+    plan_ref: Plan v1.2 § T3.1 (in-memory adapter mirrors pgvector EC-12 dual-pathway)
+    domain_anchor: ADR D5 — in-memory store mirrors pgvector filter semantics
+    summary: |
+      In-memory adapter projects category by reading payload['category'], which differs
+      from pgvector (which reads row.category — a top-level row field). Both arrive at the
+      same VectorStoreResult.category, so the behavior is identical for the consumer. But
+      the storage model diverges: pgvector hoists payload['category'] OUT of payload at INSERT
+      and into a top-level column (then deletes payload['category']); in-memory stores it
+      INSIDE payload only (no top-level row.category). This means in-memory's
+      payload['category'] is always present (when set), while pgvector's payload['category']
+      is reconstructed at read time from the column. Functionally equivalent; conceptually
+      asymmetric. ADR D5's claim that "in-memory mirrors pgvector filter semantics" is honored;
+      the storage model asymmetry is invisible to consumers.
+    evidence: |
+      in-memory-store.ts:121 — `this.rows.set(id, { vector, payload, createdAt: new Date() })`
+        — no top-level row.category extraction; payload retains category key.
+      in-memory-store.ts:80 — filter reads `payload['category']`, not a row-level field.
+      pgvector-store.ts:378 — INSERT-side: `delete cleanedPayload['category']` hoists out.
+      pgvector-store.ts:82 — SELECT-side: `payload['category'] = row.category` projects back.
+    recommended_action: |
+      ACCEPT as known asymmetry — filter results are byte-identical across adapters which is
+      what ADR D5 promises. Optional follow-up: align in-memory to also hoist out of payload
+      at insert time (cosmetic; no behavior change).
+    blocker: false
+
+  - id: F-dom-mem-3
+    severity: INFO
+    file: src/core/extraction/pipeline.ts
+    line: 268-282, 420-427
+    plan_ref: Plan v1.2 § ADR D1 — operator-supplied, NOT LLM-inferred
+    domain_anchor: ADR D1 (category bypass of LLM extraction); Mem0-shape eight-phase write pipeline
+    summary: |
+      VERIFIED: ADR D1 is honored. The LLM extraction prompt itself (sourced from
+      `generateAdditiveExtractionPrompt` at prompt.ts) is UNCHANGED — no `category` token
+      added to the system prompt; LLM does NOT auto-derive category from free-form text.
+      The pipeline attaches the operator-supplied `options.category` to EVERY extracted
+      fact in the write batch (per-fact propagation at line 420-427), making the category
+      operator-batch-level vocabulary rather than per-fact LLM vocabulary. This is the
+      correct interpretation of ADR D1.
+    evidence: |
+      pipeline.ts:308 — prompt is loaded verbatim from generateAdditiveExtractionPrompt; no
+      category-token injection.
+      pipeline.ts:420-427 — `if (options?.category !== undefined) payload['category'] = options.category`
+      inside the per-extracted-fact loop. Operator vocabulary is broadcast, not LLM-derived.
+    recommended_action: |
+      None; design is correct. Pin this with a regression test asserting the system prompt
+      does not contain the substring "category" — a sentinel test that would fail if a future
+      cycle accidentally extends the LLM prompt to extract categories (which would silently
+      violate ADR D1).
+    blocker: false
+
+  - id: F-dom-mem-4
+    severity: INFO
+    file: src/local/pgvector-store.ts
+    line: 402-413
+    plan_ref: Plan v1.2 § ADR D6 — UPSERT preserves first-write category (ADR-0003 ADD-only spirit)
+    domain_anchor: |
+      CLAUDE.md § Princípio 1 — UPSERT bumps confirmation_count to reinforce frequency signal;
+      ADR-0003 — ADD-only contract forbids silent mutation of existing rows
+    summary: |
+      VERIFIED: ADR D6 is honored both empirically (commit 44830c2 shows category INTENTIONALLY
+      omitted from ON CONFLICT DO UPDATE SET list) and semantically (the SET list contains
+      ONLY `confirmation_count = memories.confirmation_count + 1`). First-write-wins category
+      is preserved; subsequent remember() calls with different `options.category` against the
+      same (hash, scope) bump confirmation_count but leave category at its first-write value.
+      This correctly honors:
+        - Princípio 1 (confirmation_count bumps on dedup-collision per `dedup_collision_confirmed`
+          event emission at line 425-437)
+        - Princípio 3 (auditability — operators see confirmation_count change but NOT category
+          change; observable contract matches documented behavior)
+        - ADR-0003 (no silent mutation of category content; canonical mutation is
+          forget+remember per JSDoc on RememberOptions.category line 36-65)
+    evidence: |
+      pgvector-store.ts:410-413:
+        INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to, category)
+        VALUES (...)
+        ON CONFLICT (hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
+        DO UPDATE SET confirmation_count = memories.confirmation_count + 1
+                      -- category INTENTIONALLY OMITTED (ADR D6)
+    recommended_action: |
+      None; design correct. Integration test `test_pgvector_upsert_does_not_overwrite_category`
+      (T3.2 RED test) pins the contract empirically.
+    blocker: false
+
+  - id: F-dom-mem-5
+    severity: INFO
+    file: src/core/scope.ts, src/core/options.ts
+    line: 211 (GetAllOptions.category), Filters.category
+    plan_ref: Plan v1.2 § T1.1 + architecture.md § 6 (naming conventions)
+    domain_anchor: |
+      Mem0-shape parity — Filters uses snake_case at pipeline→store boundary mirroring Mem0's
+      filter shape; public Options uses camelCase TypeScript convention
+    summary: |
+      VERIFIED: naming convention parity is honored. `RememberOptions.category` +
+      `GetAllOptions.category` + `MemoryItem.category` use lowercase (single-token "category"
+      — no compound to convert), and `Filters.category` also uses lowercase. The
+      "single-token, no rename" placement is correct: there is no camelCase ↔ snake_case
+      asymmetry like `attributedTo` ↔ `attributed_to` because "category" is one word.
+      This is the simplest correct placement and matches `architecture.md § 6` conventions.
+    evidence: |
+      options.ts:65 — `readonly category?: string` on RememberOptions
+      options.ts:229 — `readonly category?: string` on GetAllOptions
+      memory-item.ts:136 — `readonly category?: string` on MemoryItem
+      scope.ts — `category?: string` on Filters
+      pgvector column name: `category` (snake_case-trivial: single token)
+    recommended_action: None.
+    blocker: false
+
+  - id: F-dom-mem-6
+    severity: INFO
+    file: src/core/dip/vector-store.ts (VectorStoreResult), src/core/dip/*.ts (all 13 DIPs)
+    line: VectorStoreResult.category? added (+1 optional field)
+    plan_ref: Plan v1.2 § Risks "ADR-0008 method-count cap risk"
+    domain_anchor: ADR-0008 — DIP interfaces capped at declared method count
+    summary: |
+      VERIFIED: zero new methods added on any DIP interface. VectorStoreResult gained one
+      optional field (`category?`); RememberOptions, GetAllOptions, MemoryItem, Filters each
+      gained one optional field. No DIP method count changes. The plan's Phase 6 acceptance
+      criterion #4 (method count byte-identical) is structurally satisfied because the
+      plan never touched DIP methods — only the shape of result/option types.
+    evidence: |
+      Commit 2634a82 (T3.1) shows VectorStoreResult.category added as additive optional field;
+      no method signature change.
+      Commit 50a67cf (T1.1) shows 4 option/item/filter type fields added; no method signature
+      change.
+    recommended_action: |
+      Plan's acceptance criterion is satisfied by construction; no extra verification needed
+      beyond what's already in T1.1 acceptance.
+    blocker: false
+
+  - id: F-dom-mem-7
+    severity: INFO
+    file: src/core/options.ts:55-59 + JSDoc on GetAllOptions.category
+    line: 55-59, 222-226
+    plan_ref: Plan v1.2 § ADR D1 + § ADR D5 + EC-9 NULL findability disclosure
+    domain_anchor: CLAUDE.md § Princípio 3 — auditability, honest empty-state disclosure
+    summary: |
+      VERIFIED: EC-9 honest NULL findability is documented inline (JSDoc on
+      RememberOptions.category line 55-59 AND GetAllOptions.category line 222-226). Per
+      Princípio 3 (auditability), operators querying `?category=<X>` against legacy rows with
+      `category=NULL` receive an empty set — and they know WHY from the JSDoc + CHANGELOG +
+      Drawbacks table. This is the correct honest-empty-state pattern: rather than back-filling
+      a synthetic 'general' or 'legacy' value (which would violate ADR D1's "no implicit
+      default" rule), the system honestly reports zero matches and documents the rationale.
+    evidence: |
+      options.ts:55-59 — "**NULL findability (EC-9)**: pre-2026-06-09 rows have category=NULL
+      permanently. There is NO syntax to filter for NULL rows via the public ?category= REST
+      query (zod min(1) rejects empty; literal 'null' filters for the string 'null'). Uncategorized
+      memories are returned only by the no-filter call."
+      options.ts:222-226 — analogous disclosure on GetAllOptions.category JSDoc.
+    recommended_action: None.
+    blocker: false
+
+  - id: F-dom-mem-8
+    severity: INFO
+    file: src/local/index.ts:233-234 (LocalScopedMemory filter wiring)
+    line: 233-234
+    plan_ref: Plan v1.2 § T4.1 (REST + SDK path EC-3 empty-string normalization)
+    domain_anchor: ADR D5 — in-memory + pgvector + SDK boundary share identical empty-string semantics
+    summary: |
+      VERIFIED: EC-3 empty-string normalization is applied at THREE consistent layers
+      (defense-in-depth): (1) REST QuerySchema zod min(1) rejects empty; (2) pgvector-store
+      composeFilters treats `filters.category === ''` as no-filter; (3) in-memory-store
+      matchesFilters does the same; (4) LocalScopedMemory.getAll filter wiring at line 233-234
+      normalizes empty string to undefined BEFORE composing the Filters object. The four-layer
+      consistency ensures direct SDK callers (bypassing REST), in-memory unit tests, and
+      pgvector integration tests all see byte-identical filter behavior.
+    evidence: |
+      index.ts:233-234: `if (options.category !== undefined && options.category !== '') {
+      base = { ...base, category: options.category }; }`
+      in-memory-store.ts:79: `if (filters.category !== undefined && filters.category !== '')`
+      pgvector-store.ts:205: `if (filters.category !== undefined && filters.category !== '')`
+    recommended_action: None.
+    blocker: false
+
+cross_check_principios:
+  princípio_1_frequency_recency_confidence:
+    status: HONORED
+    notes: |
+      ADR D6 preserves first-write category through UPSERT collisions while still bumping
+      `confirmation_count` (Princípio 1 frequency signal). Category and confirmation_count
+      are orthogonal — one is operator-supplied vocabulary that should NOT mutate; the
+      other is a derived signal that MUST bump on dedup-collision. The pgvector ON CONFLICT
+      DO UPDATE clause correctly separates these concerns by listing ONLY confirmation_count
+      in the SET clause.
+  princípio_2_priority_over_volume:
+    status: ENABLED
+    notes: |
+      Category enables BETTER filtering — operators can narrow recall/getAll results to a
+      specific vocabulary tag, which is exactly the "priority over volume" pattern at the
+      query layer. The filter operates on a btree-indexed column (T2.1) so the cost of
+      filtering is O(log n) at the row level. No interaction with MMR/diversify (orthogonal
+      pipeline concerns).
+  princípio_3_auditability:
+    status: HONORED
+    notes: |
+      EC-9 NULL findability is disclosed honestly in JSDoc on BOTH RememberOptions.category
+      AND GetAllOptions.category. Operators know that legacy rows with `category=NULL` are
+      NOT findable via any filter, and the canonical empty-state behavior is the no-filter
+      call. ADR D1 explicitly forbids back-filling a synthetic default ('general' was the
+      rejected alternative A2). This is the correct honest empty-state disclosure pattern.
+
+summary: |
+  All 8 domain-memory-layer concerns checked. The plan's memory-layer claims are
+  empirically honored:
+
+  - Mem0-shape eight-phase write pipeline preserved (extraction prompt UNCHANGED).
+  - Nine-step search retrieval contract untouched (recall path NOT modified by this plan).
+  - ADD-only contract (ADR-0003) preserved via ADR D6 first-write-wins UPSERT discipline.
+  - Three-tier scope is orthogonal to category (no scope-tier coupling introduced).
+  - Filters interface naming parity correct (single-token `category` needs no rename).
+  - ADR-0008 method-count cap honored (zero new DIP methods).
+  - MemoryItem projection consistency: in-memory ↔ pgvector return byte-identical
+    VectorStoreResult shapes via EC-12 dual-pathway. ONE PRE-EXISTING GAP at
+    LocalScopedMemory.getAll surfaces (F-dom-mem-1) — top-level MemoryItem.category not
+    populated at getAll path; only metadata.category via payload spread is populated. The
+    same gap exists for the v1.1 `attributedTo` precedent, so this is CONSISTENT with the
+    existing pattern and NOT a regression.
+  - LLM extraction prompt unchanged — verified by inspection of pipeline.ts:308 (the prompt
+    is loaded verbatim from generateAdditiveExtractionPrompt with NO category-related
+    customization). ADR D1 honored.
+  - All three Princípios (frequency/priority/auditability) cross-checked and honored.
+
+  Verdict: PASS_WITH_CAVEATS. The one MEDIUM finding (F-dom-mem-1) is pre-existing technical
+  debt that should be addressed in a focused follow-up (either lift the projection at the
+  getAll path, or amend the MemoryItem.category JSDoc to explicitly document the
+  metadata-only surface). It does NOT block this plan's merge.
+
+blocker_count: 0
+high_count: 0
+medium_count: 1
+low_count: 1
+info_count: 6
