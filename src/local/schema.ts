@@ -87,6 +87,12 @@ export const memories = pgTable(
      *  (any peer ID accepted; not restricted to the upstream bivalent "user"/"assistant" vocabulary).
      *  @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2. */
     attributedTo: text('attributed_to'),
+    /** themory-category-filter-server-side T2.1: operator-supplied category tag promoted to top-level
+     *  column per ADR D2 (mirrors v1.1 attributed_to precedent). NULL on pre-2026-06-09 rows and on
+     *  remember() calls without RememberOptions.category. ADR D1 honest no-backfill; ADR D6 immutable
+     *  via UPSERT (first-write wins; mutation = forget + remember).
+     *  @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T2.1 + ADR D2 + ADR D6. */
+    category: text('category'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
     /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
      *  v0.6: also accepts 'skill' (code-as-skill) per plan ADR D3. */
@@ -146,6 +152,10 @@ export const memories = pgTable(
     index('memories_user_id_idx').on(table.userId),
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),
+    /** themory-category-filter-server-side T2.1 / ADR D2 — btree on category enables O(log n)
+     *  server-side filter via `GET /v1/scopes/.../memories?category=X`. Aligns with v1.1
+     *  attributed_to precedent index shape (memories_*_idx naming). */
+    index('memories_category_idx').on(table.category),
     index('memories_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
     // v0.4b: partial index on active (non-invalidated) rows keyed on the
     // scope-tier column. Supports CapacityBasedTrigger COUNT(*) + loadCandidates
