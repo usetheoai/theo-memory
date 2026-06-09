@@ -431,7 +431,7 @@ docker exec themory \
 > - **v0.6 voyager-skill-library**: `memory.skills(repoId)` returns `ScopedSkillMemory` exposing `add(SkillDraft)` / `recall(query, options)` / `consolidate(options)` / `forget(skillId)`. Reuses the v0.4a chain via `executeReflection` + `validateProvenance`. `clusterThreshold` (default 0.85) opt-in per consumer. Identity is `hashFact(description)` — same-description-different-code collides on `UNIQUE(hash)` per v0.6.1 T1.2 contract. Forget is scope-isolated: cross-repo deletion attempts return the same `MemoryNotFound` shape as non-existent ids (information-leak prevention per v0.6.1 T4.1 EC-2).
 > - **`@usetheo/memory/agent-tools`** subpath: 4 MCP tools (`remember`/`recall`/`forget`/`reflect`) over stdio + streamable-HTTP transports for `@usetheo/sdk` agents; AsyncLocalStorage scope binding via `memoryFromCtx`.
 > - **`@usetheo/memory/theokit`** subpath: `memoryFromCtx(ctx, memory)` auto-scopes `user_id` from `ctx.session.userId` via structural typing (zero peer-dep, ADR D1).
-> - **`examples/chat-with-memory/`**: Next.js 15 demo combining `@usetheo/memory` + `@usetheo/sdk` + `@usetheo/ui` to demonstrate every Scope tier + skills + history + reflection through a tabbed UI. Backend auto-detect (pgvector if `THEOMEM_PG_URI` set, in-memory otherwise). Validated end-to-end by the `/test-chat-with-memory` skill — 30/30 PASS on 2026-05-30 (verdict `READY`).
+> - **`examples/chat-with-memory/`**: Next.js 15 demo combining `@usetheo/memory` + `@usetheo/sdk` + `@theokit/ui` to demonstrate every Scope tier + skills + history + reflection through a tabbed UI. Backend auto-detect (pgvector if `THEOMEM_PG_URI` set, in-memory otherwise). Validated end-to-end by the `/test-chat-with-memory` skill — 30/30 PASS on 2026-05-30 (verdict `READY`).
 > - **Test coverage**: 490 contract tests (unit + type) + 67 integration tests against real pgvector (THE GOAL TEST for v0.6 + scope-isolation for v0.6.1 T4.1). Zero CRITICAL/HIGH CVE (6 MODERATE: 4 dev-only `esbuild` chain via drizzle-kit allowlisted to 2026-08-23; 2 demo-side `next`+`postcss` transitive not introduced by current plans).
 >
 > What is still honest:
@@ -730,7 +730,7 @@ Honest claims only — v0.0 + v0.1 + v0.2 PR-A + v0.3 + v0.4a + v0.6 shipped to 
 | Funnel (OSS) | [TheoCreate](../theo-stacks) | Apache-2.0 | Scaffolding for Node/Go/Python/Rust/Java/Ruby/PHP/Next.js. |
 | Funnel (OSS) | [TheoKit](../theokit) | Apache-2.0 | Next.js framework for full-stack AI agents. |
 | Community auxiliary | [`@usetheo/sdk`](../theokit-sdk) | Apache-2.0 | Build-your-own-agent SDK. |
-| Community auxiliary | [`@usetheo/ui`](../theo-ui) | Apache-2.0 | React components for AI agent surfaces. |
+| Community auxiliary | [`@theokit/ui`](../theo-ui) | Apache-2.0 | React components for AI agent surfaces. |
 | **Community auxiliary** | **`@usetheo/memory`** *(this)* | **Apache-2.0** | **Three-tier managed memory layer. Native to TheoKit; runs in TheoCloud.** |
 
 The local runtime is open and works without TheoCloud. The **managed runtime is the strategic focus** — that is where the single-platform consolidation happens (deploy + memory + agent SDK + UI all on one TheoCloud account).

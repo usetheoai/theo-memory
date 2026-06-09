@@ -40,7 +40,7 @@ Dependency: T0.1 → (T1.1 + T1.2) → T2.1 → T2.2 → T3.1 → T4.1. T1.1 + T
 - [ ] `npm run test:integration -- tests/integration/examples/` PASS (or honest BLOCKED via EC-2 skipIf)
 - [ ] CHANGELOG `[Unreleased] § Added` entry
 - [ ] Zero vocab-lock / paper-name violations
-- [ ] DIP boundary preserved (examples/ imports only @usetheo/memory + @usetheo/ui + existing deps)
+- [ ] DIP boundary preserved (examples/ imports only @usetheo/memory + @theokit/ui + existing deps)
 - [ ] Pushed to `origin/develop`
 
 ## Validation report

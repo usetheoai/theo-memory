@@ -215,7 +215,7 @@ Four sources interrogated:
 
 3. **`applyBareTransform` deletion pattern** (`../theokit/packages/create-theo/src/bare-transform.ts:41-97`):
    ```ts
-   delete pkg.dependencies['@usetheo/ui']
+   delete pkg.dependencies['@theokit/ui']
    delete pkg.dependencies['@usetheo/sdk']     // operator-deferred npm publish
    delete pkg.dependencies['lucide-react']
    ...
@@ -227,7 +227,7 @@ Four sources interrogated:
    ```json
    "dependencies": {
      "theokit": "^0.1.0-alpha.5",
-     "@usetheo/ui": "^0.6.2-next.0",
+     "@theokit/ui": "^0.6.2-next.0",
      "react": "^19.0.0",
      "react-dom": "^19.0.0",
      "react-router": "^7.0.0",
