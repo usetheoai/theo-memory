@@ -9,7 +9,7 @@
 
 **Findings aggregate:** 0 BLOCKER · 0 HIGH · 1 MEDIUM (pre-existing debt) · ~8 LOW · ~50 INFO
 
-**Verdict: READY_TO_MERGE_WITH_CAVEATS**
+**Verdict:** READY_TO_MERGE_WITH_CAVEATS
 
 (Manual consolidation — `consolidate_findings.py` returned 0 due to YAML-schema mismatch between agent output shape and parser expectation; raw YAMLs at `.claude/agents/review-themory-category-filter-server-side-2026-06-09/findings/*.yaml` remain the source of truth. Each agent's verbatim verdict + inline summary was preserved below.)
 
