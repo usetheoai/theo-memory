@@ -37,7 +37,7 @@ Per RED TEAM report F3 (`theo-cloud/theo/.claude/knowledge-base/reviews/red-team
 | `src/local/migrations/meta/_journal.json` | 14 entries | (multiple) | Drizzle migration journal — `migrate()` reads this to apply pending migrations. | `0013` entry stays untouched; new entry appended via `db:generate` OR hand-authored per `architecture.md § 10.2` |
 | `src/local/migrations/meta/0014_snapshot.json` (NEW) | 0 | — | (file to be created — Drizzle snapshot for the new migration) | — |
 | `src/local/pgvector-store.ts` | ~600 (verified inline at line 70, 329, 363) | (multiple) | The pgvector adapter. Hoists `attributed_to` from payload to column on INSERT; projects column back to payload on SELECT; composes `attributed_to = $N` predicate in WHERE. | UPSERT semantics (ON CONFLICT DO UPDATE) for composite unique; HNSW index; cursor-based pagination; v0.4b half-life trigger |
-| `src/local/in-memory-store.ts` | ~340 | `cea60b9` (2026-06-09) | In-memory adapter used by unit tests + integration smoke. Houses createdAt projection (T2.2 of dashboard-memories cycle). | Filter semantics MUST mirror pgvector (so tests pass on both); deterministic ORDER BY createdAt DESC, id ASC |
+| `src/local/in-memory-store.ts` | ~340 | `cea60b9` (2026-06-09) | In-memory adapter used by unit tests + integration smoke. Houses createdAt projection (the dashboard-memories cycle's createdAt-projection task (commit `cea60b9`) cycle). | Filter semantics MUST mirror pgvector (so tests pass on both); deterministic ORDER BY createdAt DESC, id ASC |
 | `src/local/index.ts` | 1505 | `cea60b9` (2026-06-09) | `LocalMemory` + `LocalScopedMemory` + `LocalScopedSkillMemory`. Owns `remember`/`recall`/`forget`/`reflect`/`getAll` wiring + scope→Filters mapping. | ADD-only contract; ADR-0008 method-count cap; existing `attributedTo` wiring at recall path preserves byte-identical fast-path |
 | `src/core/extraction/pipeline.ts` | 467 | (multiple) | Two-stage write pipeline. `runInferFalsePath` is the verbatim branch (line 115-151); `runExtraction*` is the LLM branch. Writes `payload['attributed_to']` from `options.attributedTo`. | `infer:false` byte-identical fast path; LLM extraction prompt shape unchanged (category is operator-supplied per ADR D1 below, NOT LLM-inferred) |
 | `src/server/handlers/scopes.ts` | 144 | `6e3b4ee` (2026-06-03) | REST `GET /v1/scopes/{type}/{id}/memories` handler. Validates path param + query param via zod; calls `scoped.getAll()`; in-memory cursor predicate. | EC-13 case-sensitive scope enum; EC-14 limit cap 100; EC-15 cursor two-layer validation; skill scope returns 501 |
@@ -341,7 +341,9 @@ VERIFY:  npm run typecheck && npm test src/core/__tests__/options.test.ts
 ```
 
 #### Concurrency tests
-(none — single-threaded type system change)
+(none — single-threaded)
+
+Rationale: pure type system change; no runtime behavior.
 
 #### Acceptance Criteria
 - [ ] `tsc --noEmit -p tsconfig.contract.json` zero errors
@@ -440,7 +442,9 @@ VERIFY:  npm test tests/integration/migrations/0014-applies-category.test.ts
 ```
 
 #### Concurrency tests
-(none — schema migration is single-threaded by PG migration lock)
+(none — single-threaded)
+
+Rationale: schema migration serialized by PG migration lock.
 
 #### Acceptance Criteria
 - [ ] `npm test tests/integration/migrations/0014-applies-category.test.ts` green against real `ankane/pgvector:v0.5.1`
@@ -472,7 +476,7 @@ Update `src/local/in-memory-store.ts` to persist `payload['category']` (mirrorin
 **Why it is necessary now**: TheMemory's unit-test pyramid uses the in-memory store. If we ship the type change in Phase 1 without the in-memory filter, unit tests in Phase 4 (REST handler) fail. Adapter wiring must precede REST so the integration shape is testable end-to-end.
 
 #### Evidence
-- `src/local/in-memory-store.ts:33-37` (createdAt projection precedent shipped T2.2 of dashboard-memories)
+- `src/local/in-memory-store.ts:33-37` (createdAt projection precedent shipped the dashboard-memories cycle's createdAt-projection task (commit `cea60b9`))
 - `src/local/in-memory-store.ts:208-217` (current matching loop with deterministic ORDER BY)
 - `src/local/pgvector-store.ts:174-176` (attributed_to filter predicate precedent)
 
@@ -543,7 +547,9 @@ VERIFY:  npm test src/local/__tests__/in-memory-store-category.test.ts
 ```
 
 #### Concurrency tests
-(none — single-threaded in-memory Map operations)
+(none — single-threaded)
+
+Rationale: in-memory Map operations are single-threaded by JS event loop.
 
 #### Acceptance Criteria
 - [ ] 6 RED tests pass after GREEN (includes EC-3 empty-string normalization + EC-4 case-sensitivity pin)
@@ -654,7 +660,9 @@ VERIFY:  npm test tests/integration/local/pgvector-store-category.test.ts (real 
 ```
 
 #### Concurrency tests
-(none — INSERT/SELECT are PG transaction-isolated; no shared state in adapter)
+(none — single-threaded)
+
+Rationale: INSERT/SELECT are PG transaction-isolated; no shared state in adapter.
 
 #### Acceptance Criteria
 - [ ] 10 RED integration tests pass after GREEN against real `ankane/pgvector:v0.5.1` (originais 5 + EC-1/EC-3/EC-4/EC-5/EC-6)
@@ -749,7 +757,9 @@ VERIFY:  npm test src/core/__tests__/extraction-pipeline-category.test.ts
 ```
 
 #### Concurrency tests
-(none — pure pipeline transformation)
+(none — single-threaded)
+
+Rationale: pure pipeline transformation; no shared mutable state.
 
 #### Acceptance Criteria
 - [ ] 5 RED tests pass after GREEN (2 propagation + 3 EC-2 boundary)
@@ -859,7 +869,9 @@ VERIFY:  npm test tests/integration/server/scopes-list-category-filter.test.ts
 ```
 
 #### Concurrency tests
-(none — single-threaded request handling per request lifecycle)
+(none — single-threaded)
+
+Rationale: request lifecycle is single-threaded per Hono handler invocation.
 
 #### Acceptance Criteria
 - [ ] 8 RED integration tests pass against real `ankane/pgvector:v0.5.1` (6 originais + EC-3 SDK boundary + EC-7 cursor+filter)
@@ -908,7 +920,9 @@ VERIFY:  npm test tests/integration/server/category-filter-public-api-smoke.test
 ```
 
 #### Concurrency tests
-(none — single-request flow)
+(none — single-threaded)
+
+Rationale: single-request smoke flow; no concurrent test execution.
 
 #### Acceptance Criteria
 - [ ] 2 RED smoke tests green against real pgvector + Hono server
@@ -982,7 +996,9 @@ VERIFY:  go test ./cloud/tests/unit/ -run TestTheMemoryClient_List
 ```
 
 #### Concurrency tests
-(none — single-request URL composition; Go's net/url is thread-safe)
+(none — single-threaded)
+
+Rationale: single-request URL composition; Go's net/url is thread-safe.
 
 #### Acceptance Criteria
 - [ ] 3 RED Go tests pass after GREEN (2 forwarding + EC-8 dual-pathway projection)
@@ -1025,7 +1041,9 @@ VERIFY:  npm test src/pages/memory/memories.test.tsx
 ```
 
 #### Concurrency tests
-(none — single-render test)
+(none — single-threaded)
+
+Rationale: single-render React test; vitest serial mode within file.
 
 #### Acceptance Criteria
 - [ ] 1 new test passes
@@ -1117,12 +1135,12 @@ open 'http://localhost:5173/memory/memories?scope=user&category=preferences'
 | 12 | BFF Client.List forwards category to upstream URL | T5.1 | One forwarding clause; existing MemoryRow.Category projection preserved |
 | 13 | BFF unit test asserts URL contains category= | T5.1 | Go test added |
 | 14 | Dashboard test asserts empty-state when filter+0 rows | T5.2 | One vitest test added |
-| 15 | Cross-repo merge ordering | ADR D4 + Phase 5 ordering | Backend phases land first; BFF Phase 5 explicit dependency |
-| 16 | Pre-existing legacy rows stay `category=NULL` | ADR D1 + ADR D2 | No backfill; honest empty-state for any filter on legacy data |
+| 15 | Cross-repo merge ordering | T5.1 (BFF dep on TheMemory ship) + ADR D4 | Backend phases land first; T5.1 acceptance explicitly waits for TheMemory deploy |
+| 16 | Pre-existing legacy rows stay `category=NULL` | T2.1 (no UPDATE backfill) + T3.2 (NULL filter excludes) | Migration ADD COLUMN only; honest empty-state for any filter on legacy data |
 | 17 | Migration idempotency | T2.1 | `ADD COLUMN IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` |
 | 18 | Filter index usage at scale | T3.2 acceptance | EXPLAIN ANALYZE confirms btree index scan |
 | 19 | Category length bounded at boundary (≤ 64) | T4.1 + ADR D3 | zod max(64) at REST; documented in JSDoc for SDK |
-| 20 | RED TEAM F3 unblock (dashboard shows filtered subset OR empty-state) | Phases 1-5 | End-to-end fix verified by Phase 6 smoke |
+| 20 | RED TEAM F3 unblock (dashboard shows filtered subset OR empty-state) | T1.1 + T2.1 + T3.1 + T3.2 + T3.3 + T4.1 + T4.2 + T5.1 + T5.2 | End-to-end fix verified by Phase 6 smoke + T4.2 sentinel |
 | 21 | EC-1 UPSERT collision: category NOT overwritten on conflict | T3.2 + ADR D6 | First-write-wins semantics pinned via integration test `test_pgvector_upsert_does_not_overwrite_category` |
 | 22 | EC-2 SDK-layer length cap (1-64 chars) | T3.3 + EC-2 boundary check | InvalidScope throw at pipeline entry; defense-in-depth alongside REST zod validation; 3 RED tests pin boundaries |
 | 23 | EC-3 empty-string filter normalization | T3.1 + T3.2 + T4.1 SDK boundary | Normalized to undefined at store layer; in-memory + pgvector + LocalScopedMemory consistent; tests in T3.1 + T3.2 + T4.1 |
