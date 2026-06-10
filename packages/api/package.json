@@ -1,0 +1,35 @@
+{
+  "name": "@usetheo/memory-api",
+  "version": "0.2.0",
+  "private": true,
+  "description": "REST API server for @usetheo/memory (Hono + OpenAPI 3.1)",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./src/server/index.ts",
+      "default": "./src/server/index.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "lint": "eslint 'src/**/*.ts' --no-error-on-unmatched-pattern"
+  },
+  "dependencies": {
+    "@usetheo/memory": "workspace:*",
+    "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@hono/node-server": "^1.14.4",
+    "@hono/zod-openapi": "^0.19.6",
+    "@opentelemetry/api": "^1.9.0",
+    "hono": "^4.7.18",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.0"
+  }
+}

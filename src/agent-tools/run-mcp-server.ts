@@ -23,9 +23,9 @@
 import { Pool } from 'pg';
 
 import { runMigrations } from '../local/index.js';
-import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
-import { createOauth4webapiIntrospect } from '../server/auth/oidc-introspect-oauth4webapi.js';
-import { OidcAuthVerifier } from '../server/auth/oidc-verifier.js';
+import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
+import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
+import { OidcAuthVerifier } from '@usetheo/memory-api';
 
 import {
   assertEnvOrExit,

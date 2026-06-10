@@ -49,10 +49,6 @@
       "types": "./src/llms/openai.ts",
       "default": "./src/llms/openai.ts"
     },
-    "./server": {
-      "types": "./src/server/index.ts",
-      "default": "./src/server/index.ts"
-    },
     "./cache-pg": {
       "types": "./src/local/recall-cache/index.ts",
       "default": "./src/local/recall-cache/index.ts"
@@ -115,7 +111,8 @@
     "oauth4webapi": "^3.8.6",
     "pg": "^8.13.0",
     "zod": "^3.25.0",
-    "zod-to-json-schema": "^3.24.0"
+    "zod-to-json-schema": "^3.24.0",
+    "@usetheo/memory-api": "workspace:*"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

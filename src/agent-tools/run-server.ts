@@ -31,11 +31,11 @@ import { Pool } from 'pg';
 import type { AuthVerifier } from '../core/dip/auth-verifier.js';
 import type { Memory } from '../core/memory-store.js';
 import { runMigrations } from '../local/index.js';
-import { ApiKeyAuthVerifier } from '../server/auth/api-key-verifier.js';
-import { BearerAuthVerifier, readApiKey } from '../server/auth/bearer-verifier.js';
-import { createOauth4webapiIntrospect } from '../server/auth/oidc-introspect-oauth4webapi.js';
-import { OidcAuthVerifier } from '../server/auth/oidc-verifier.js';
-import { createServer } from '../server/index.js';
+import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
+import { BearerAuthVerifier, readApiKey } from '@usetheo/memory-api';
+import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
+import { OidcAuthVerifier } from '@usetheo/memory-api';
+import { createServer } from '@usetheo/memory-api';
 
 import {
   assertEnvOrExit,

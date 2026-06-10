@@ -116,7 +116,11 @@ export {
   InvalidEmbeddingDim,
   InvalidScope,
   InvalidSkillError,
+  ContentTooLargeError,
+  EmbedderError,
+  EmptyScopeError,
   MemoryNotFound,
+  MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
 } from './errors.js';
