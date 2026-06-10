@@ -41,9 +41,6 @@ vi.mock('@usetheo/memory', () => ({
   runMigrations: vi.fn().mockResolvedValue(undefined),
   StubEmbedder: class MockStubEmbedder {},
   StubLLM: class MockStubLLM {},
-}));
-
-vi.mock('../../local/pgvector-store.js', () => ({
   PgvectorStore: class MockPgvectorStore {},
 }));
 
