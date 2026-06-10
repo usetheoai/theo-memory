@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/memory",
-  "version": "0.0.0-rc.4",
+  "version": "0.2.0",
   "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
   "type": "module",
   "license": "Apache-2.0",
