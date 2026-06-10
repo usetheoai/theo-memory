@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockPoolEnd = vi.fn();
 const mockRunMigrations = vi.fn();
 
-vi.mock('../../local/index.js', () => ({
+vi.mock('@usetheo/memory', () => ({
   runMigrations: mockRunMigrations,
 }));
 
