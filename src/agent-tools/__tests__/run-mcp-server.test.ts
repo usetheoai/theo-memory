@@ -34,14 +34,14 @@ const mockMcpServerStop = vi.fn();
 const mockConnectStdio = vi.fn();
 const mockConnectStreamableHttp = vi.fn();
 
-vi.mock('../../local/index.js', () => ({
+vi.mock('@usetheo/memory', () => ({
   createLocalMemory: mockCreateLocalMemory,
   runMigrations: mockRunMigrations,
   StubEmbedder: class MockStubEmbedder {},
   StubLLM: class MockStubLLM {},
 }));
 
-vi.mock('../../local/pgvector-store.js', () => ({
+vi.mock('@usetheo/memory', () => ({
   PgvectorStore: class MockPgvectorStore {},
 }));
 
