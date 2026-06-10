@@ -182,7 +182,7 @@ describe('runExtractionPipeline (8-phase write)', () => {
     expect(result).toEqual([]);
   });
 
-  test('EC-10: malformed LLM JSON returns [] + emits extraction_failed event', async () => {
+  test('EC-10: malformed LLM JSON returns [] + emits extraction_parse_failure event (T2.1)', async () => {
     const { tracer, exporter } = setupTracer();
     const store = new StubVectorStore();
     const llm = makeLlm('not json at all');
@@ -193,7 +193,23 @@ describe('runExtractionPipeline (8-phase write)', () => {
     );
     expect(result).toEqual([]);
     const spanNames = exporter.getFinishedSpans().map((s) => s.name);
-    expect(spanNames).toContain('extraction_failed');
+    expect(spanNames).toContain('extraction_parse_failure');
+  });
+
+  test('T2.1: LLM network error propagates instead of returning []', async () => {
+    const { tracer } = setupTracer();
+    const store = new StubVectorStore();
+    const llm: LLM = {
+      generateResponse: () => Promise.reject(new Error('ECONNREFUSED')),
+      generateChat: () => Promise.reject(new Error('ECONNREFUSED')),
+    };
+    await expect(
+      runExtractionPipeline(
+        [{ role: 'user', content: 'x' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+      ),
+    ).rejects.toThrow('ECONNREFUSED');
   });
 
   test('emits dedup_skipped for WITHIN-batch duplicates (LLM emits same fact twice in one call)', async () => {

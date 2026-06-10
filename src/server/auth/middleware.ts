@@ -28,9 +28,13 @@ const BEARER_SCHEME_RE = /^bearer\s+(.+)$/i;
  *   When omitted, a {@link BearerAuthVerifier} is constructed from the env.
  */
 export function bearerAuth(verifier?: AuthVerifier): MiddlewareHandler {
+  // T4.2 — hoist verifier construction to middleware creation time (not per-request).
+  const apiKey = readApiKey();
+  const hoistedVerifier = verifier ?? (apiKey !== undefined ? new BearerAuthVerifier(apiKey) : null);
+
   return async (c, next) => {
-    const apiKey = readApiKey();
-    if (apiKey === undefined) {
+    if (hoistedVerifier === null) {
+      // apiKey was undefined at construction time — auth disabled (alpha mode).
       await next();
       return;
     }
@@ -54,8 +58,7 @@ export function bearerAuth(verifier?: AuthVerifier): MiddlewareHandler {
     }
     const token = match[1] ?? '';
 
-    const v = verifier ?? new BearerAuthVerifier(apiKey);
-    const ok = await v.verify(token);
+    const ok = await hoistedVerifier.verify(token);
     if (!ok) {
       return c.json(
         { code: 'UNAUTHORIZED', message: 'Invalid bearer token' },

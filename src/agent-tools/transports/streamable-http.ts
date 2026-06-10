@@ -123,10 +123,13 @@ export async function connectStreamableHttp(
   // transport runs without auth (legitimate only for localhost dev loops).
   const baseHandler = (req: IncomingMessage, res: ServerResponse): void => {
     void transport.handleRequest(req, res).catch((err: unknown) => {
+      // T1.5 — sanitize error response (CWE-209 information disclosure).
+      // Log the real error for debugging; respond with a generic message.
       const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[themory-mcp] transport error: ${message}\n`);
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end(`Internal server error: ${message}\n`);
+        res.end('Internal Server Error\n');
       }
     });
   };
