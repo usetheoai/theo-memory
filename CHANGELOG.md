@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **theocloud-release-and-docker-rebuild** T2.2 — CI workflow dual-publishes Docker images to Docker Hub (`usetheo/themory`) and GHCR (`ghcr.io/usetheo/themory`) on tag push. Stable tags (x.y.z + x.y + latest) go to both registries; `edge` tag goes to GHCR only per ADR D2. Single combined push step ensures both registries receive the exact image digest Trivy scanned (EC-2).
+- **theocloud-release-and-docker-rebuild** T3.1 — API key rotation procedure documented in README: zero-downtime create-then-revoke pattern + atomic `themory keys rotate <id>`.
+
 ### Changed
+
+- **theocloud-release-and-docker-rebuild** T2.1 — `docker-compose.prod.yaml` default image updated from `ghcr.io/usetheo/themory:0.1.0-alpha` to `usetheo/themory:0.2.0` (Docker Hub primary per ADR D1 + EC-3 alignment).
+- **theocloud-release-and-docker-rebuild** T3.2 — README Docker section leads with Docker Hub (`docker pull usetheo/themory:0.2.0`); GHCR noted as alternative. All `0.1.0-alpha` references removed from README and Dockerfile.
 
 ### Deprecated
 
