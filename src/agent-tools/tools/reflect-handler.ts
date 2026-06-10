@@ -14,8 +14,8 @@
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { Memory } from '../../core/memory-store.js';
-import { memoryFromCtx } from '../../theokit/index.js';
+import type { Memory } from '@usetheo/memory/contract';
+import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '../scope.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './reflect-schema.js';

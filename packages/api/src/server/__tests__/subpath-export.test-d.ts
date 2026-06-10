@@ -8,8 +8,8 @@
  *
  * @see Plan theo-memory-standalone-p0 § T1.7 + EC-25
  */
-import { createServer } from '@usetheo/memory/server';
-import type { CreateServerOptions } from '@usetheo/memory/server';
+import { createServer } from '@usetheo/memory-api';
+import type { CreateServerOptions } from '@usetheo/memory-api';
 import { expectTypeOf, test } from 'vitest';
 
 test('25. @usetheo/memory/server exports createServer factory', () => {

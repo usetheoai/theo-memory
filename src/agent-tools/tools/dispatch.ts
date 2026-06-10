@@ -11,7 +11,7 @@
  */
 import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { Memory } from '../../core/memory-store.js';
+import type { Memory } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '../error-classifier.js';
 
 import { forgetHandler, TOOL_NAME as FORGET } from './forget-handler.js';

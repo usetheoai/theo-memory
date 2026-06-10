@@ -25,11 +25,11 @@
  */
 import { Pool } from 'pg';
 
-import type { Memory } from '../core/memory-store.js';
-import { LocalTransformerEmbedder } from '../embedders/local.js';
-import { OpenAILLM } from '../llms/openai.js';
-import { createLocalMemory, runMigrations } from '../local/index.js';
-import { PgvectorStore } from '../local/pgvector-store.js';
+import type { Memory } from '@usetheo/memory/contract';
+import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
+import { OpenAILLM } from '@usetheo/memory/llms/openai';
+import { createLocalMemory, runMigrations } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
 
 /**
  * @internal Embedding dimension produced by `LocalTransformerEmbedder`

@@ -12,7 +12,7 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T1.1 + ADR D2
  */
-import type { Memory, ScopedMemory } from '../core/memory-store.js';
+import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 
 /**
  * Options shape: exactly one of `user` / `session` / `agent` MUST be defined.

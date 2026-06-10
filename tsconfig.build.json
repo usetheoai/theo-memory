@@ -7,14 +7,13 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts", "src/embedders/**/*.ts", "src/llms/**/*.ts"],
+  "include": ["packages/core/src/**/*.ts", "src/agent-tools/**/*.ts"],
   "exclude": [
     "node_modules",
-    "referencia",
     "dist",
     ".claude",
-    "src/**/__tests__/**",
-    "src/**/*.test.ts",
-    "src/**/*.test-d.ts"
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test-d.ts"
   ]
 }

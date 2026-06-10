@@ -28,9 +28,9 @@
 import { serve } from '@hono/node-server';
 import { Pool } from 'pg';
 
-import type { AuthVerifier } from '../core/dip/auth-verifier.js';
-import type { Memory } from '../core/memory-store.js';
-import { runMigrations } from '../local/index.js';
+import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { Memory } from '@usetheo/memory/contract';
+import { runMigrations } from '@usetheo/memory';
 import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { BearerAuthVerifier, readApiKey } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
