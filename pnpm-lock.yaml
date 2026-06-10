@@ -23,6 +23,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
+      '@usetheo/memory-api':
+        specifier: workspace:*
+        version: link:packages/api
       commander:
         specifier: ^12.1.0
         version: 12.1.0
@@ -106,6 +109,37 @@ importers:
       openai:
         specifier: ^4.77.0
         version: 4.104.0(zod@3.25.76)
+
+  packages/api:
+    dependencies:
+      '@asteasolutions/zod-to-openapi':
+        specifier: ^7.3.4
+        version: 7.3.4(zod@3.25.76)
+      '@hono/node-server':
+        specifier: ^1.14.4
+        version: 1.19.14(hono@4.12.25)
+      '@hono/zod-openapi':
+        specifier: ^0.19.6
+        version: 0.19.10(hono@4.12.25)(zod@3.25.76)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.1
+      '@usetheo/memory':
+        specifier: workspace:*
+        version: link:../..
+      hono:
+        specifier: ^4.7.18
+        version: 4.12.25
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
 packages:
 
@@ -648,11 +682,24 @@ packages:
       hono: '>=4.3.6'
       zod: 3.*
 
+  '@hono/zod-openapi@0.19.10':
+    resolution: {integrity: sha512-dpoS6DenvoJyvxtQ7Kd633FRZ/Qf74+4+o9s+zZI8pEqnbjdF/DtxIib08WDpCaWabMEJOL5TXpMgNEZvb7hpA==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      hono: '>=4.3.6'
+      zod: '>=3.0.0'
+
   '@hono/zod-validator@0.4.3':
     resolution: {integrity: sha512-xIgMYXDyJ4Hj6ekm9T9Y27s080Nl9NXHcJkOvkXPhubOLj8hZkOL8pDnnXfvCf5xEE8Q4oMFenQUZZREUY2gqQ==}
     peerDependencies:
       hono: '>=3.9.0'
       zod: ^3.19.1
+
+  '@hono/zod-validator@0.7.6':
+    resolution: {integrity: sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==}
+    peerDependencies:
+      hono: '>=3.9.0'
+      zod: ^3.25.0 || ^4.0.0
 
   '@huggingface/jinja@0.2.2':
     resolution: {integrity: sha512-/KPde26khDUIPkTGU82jdtTW9UAuvUTumCAbFs/7giR0SxsvZC4hru51PBvpijH6BVkHcROcvZM/lpy5h1jRRA==}
@@ -3347,7 +3394,20 @@ snapshots:
       hono: 4.12.25
       zod: 3.25.76
 
+  '@hono/zod-openapi@0.19.10(hono@4.12.25)(zod@3.25.76)':
+    dependencies:
+      '@asteasolutions/zod-to-openapi': 7.3.4(zod@3.25.76)
+      '@hono/zod-validator': 0.7.6(hono@4.12.25)(zod@3.25.76)
+      hono: 4.12.25
+      openapi3-ts: 4.6.0
+      zod: 3.25.76
+
   '@hono/zod-validator@0.4.3(hono@4.12.25)(zod@3.25.76)':
+    dependencies:
+      hono: 4.12.25
+      zod: 3.25.76
+
+  '@hono/zod-validator@0.7.6(hono@4.12.25)(zod@3.25.76)':
     dependencies:
       hono: 4.12.25
       zod: 3.25.76
