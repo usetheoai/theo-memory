@@ -24,7 +24,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { AuthVerifier } from '../../core/dip/auth-verifier.js';
+import type { AuthVerifier } from '@usetheo/memory/contract';
 
 /** EC-1 — shape regex: prefix + at least 40 base64url chars (theo_live_* canonical 43). */
 const THEO_LIVE_SHAPE = /^theo_live_[A-Za-z0-9_-]{40,}$/;

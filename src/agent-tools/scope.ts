@@ -17,8 +17,8 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import { MissingScopeError } from '../core/errors.js';
-import type { ScopedContext } from '../core/scope.js';
+import { MissingScopeError } from '@usetheo/memory/contract';
+import type { ScopedContext } from '@usetheo/memory/contract';
 
 const SCOPE_STORE = new AsyncLocalStorage<ScopedContext>();
 
