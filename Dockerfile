@@ -34,10 +34,11 @@ FROM node:${NODE_VERSION}-bookworm-slim AS builder
 WORKDIR /build
 
 # Copy manifests first so layer cache survives source-only edits.
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 
-# Full install (incl. dev deps for typecheck + build).
-RUN npm ci --no-audit --no-fund
+# Enable corepack for pnpm, then install all deps (incl. dev for typecheck + build).
+RUN corepack enable && corepack prepare pnpm@10.34.1 --activate && \
+    pnpm install --frozen-lockfile
 
 # Copy ONLY the surface needed to run the build. Tests, docs, examples,
 # .claude/ are excluded via .dockerignore — keeps the build context small.
@@ -46,7 +47,7 @@ COPY src/ ./src/
 
 # EC-40 — tsc emits dist/ + postbuild copies migrations. Failure aborts
 # the entire image build (no escape hatch by design).
-RUN npm run build
+RUN pnpm build
 
 ###############################################################################
 # Stage 2 — production-deps: prune dev deps for the runtime image
@@ -55,22 +56,18 @@ FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
 
 WORKDIR /build
 
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+
+# Enable corepack for pnpm.
+RUN corepack enable && corepack prepare pnpm@10.34.1 --activate
 
 # Production-only install (omit dev + optional) — yields a lean node_modules
 # tree suitable for copying into distroless.
-#
-# EC-39 absorption: the optional deps `@xenova/transformers`, `natural`, and
-# `openai` are excluded by default to keep the image under the 200MB target.
-# Consumers needing the Local embedder (`@usetheo/memory/embedders/local`)
-# or the OpenAI providers add the dep at consumer-image build time, OR build
-# this image with `--build-arg INCLUDE_OPTIONAL=true` (omit-optional flag is
-# removed in that case).
 ARG INCLUDE_OPTIONAL=false
 RUN if [ "$INCLUDE_OPTIONAL" = "true" ]; then \
-      npm ci --omit=dev --no-audit --no-fund; \
+      pnpm install --prod --frozen-lockfile; \
     else \
-      npm ci --omit=dev --omit=optional --no-audit --no-fund; \
+      pnpm install --prod --frozen-lockfile --no-optional; \
     fi
 
 ###############################################################################

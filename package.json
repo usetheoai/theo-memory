@@ -62,6 +62,7 @@
     "themory": "./dist/agent-tools/cli.js",
     "themory-mcp": "./dist/agent-tools/cli.js"
   },
+  "packageManager": "pnpm@10.34.1",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -118,6 +119,8 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
+    "@asteasolutions/zod-to-openapi": "7.3.4",
+    "@opentelemetry/core": "^2.7.1",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.0",
@@ -143,5 +146,12 @@
   "bugs": {
     "url": "https://github.com/usetheodev/theo-memory/issues"
   },
-  "homepage": "https://usetheo.dev"
+  "homepage": "https://usetheo.dev",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "protobufjs"
+    ]
+  }
 }
