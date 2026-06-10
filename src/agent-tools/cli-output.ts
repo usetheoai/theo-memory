@@ -8,8 +8,8 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2 + ADR D2
  */
-import type { MemoryItem, MemoryItemWithScore } from '../core/memory-item.js';
-import type { ReflectionResult } from '../core/reflection-result.js';
+import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
+import type { ReflectionResult } from '@usetheo/memory/contract';
 
 export type CliFormat = 'json' | 'text';
 

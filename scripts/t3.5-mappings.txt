@@ -1,0 +1,8 @@
+# T3.5 directory mappings: old -> new
+src/core -> packages/core/src/domain
+src/local -> packages/core/src/infrastructure/db
+src/embedders -> packages/core/src/infrastructure/embedders
+src/llms -> packages/core/src/infrastructure/llms
+src/theokit -> packages/core/src/infrastructure/theokit
+src/benchmarks -> packages/core/src/domain/benchmarks
+src/__tests__ -> packages/core/src/__tests__

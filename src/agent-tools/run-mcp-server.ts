@@ -22,7 +22,7 @@
  */
 import { Pool } from 'pg';
 
-import { runMigrations } from '../local/index.js';
+import { runMigrations } from '@usetheo/memory';
 import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
 import { OidcAuthVerifier } from '@usetheo/memory-api';

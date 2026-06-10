@@ -12,7 +12,7 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.2
  */
-import type { MemoryItemWithScore } from '../core/memory-item.js';
+import type { MemoryItemWithScore } from '@usetheo/memory/contract';
 
 import { createAgentToolsMemory } from './agent-tools-memory.js';
 import { renderCliOutput, type CliFormat } from './cli-output.js';

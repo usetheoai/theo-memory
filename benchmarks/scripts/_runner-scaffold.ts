@@ -21,21 +21,21 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 
-import type { JudgeLabel } from '../../src/benchmarks/llm-judge/json-extractor.js';
-import { LlmJudgePanel } from '../../src/benchmarks/llm-judge/judge-panel.js';
+import type { JudgeLabel } from '../../packages/core/src/domain/benchmarks/llm-judge/json-extractor.js';
+import { LlmJudgePanel } from '../../packages/core/src/domain/benchmarks/llm-judge/judge-panel.js';
 import {
   BenchmarkRunner,
   type RunReport,
-} from '../../src/benchmarks/runner/benchmark-runner.js';
-import { CostTracker } from '../../src/benchmarks/runner/cost-tracker.js';
-import { TiktokenTokenizer } from '../../src/benchmarks/runner/tiktoken-tokenizer.js';
-import { TheMemoryBenchmarkAdapter } from '../../src/benchmarks/themory/adapter.js';
+} from '../../packages/core/src/domain/benchmarks/runner/benchmark-runner.js';
+import { CostTracker } from '../../packages/core/src/domain/benchmarks/runner/cost-tracker.js';
+import { TiktokenTokenizer } from '../../packages/core/src/domain/benchmarks/runner/tiktoken-tokenizer.js';
+import { TheMemoryBenchmarkAdapter } from '../../packages/core/src/domain/benchmarks/themory/adapter.js';
 import type {
   BenchmarkCorpus,
   BenchmarkQuery,
-} from '../../src/core/dip/benchmark-adapter.js';
-import type { LLM, LLMResponse, Message } from '../../src/core/dip/llm.js';
-import { createLocalMemory, InMemoryVectorStore, StubEmbedder } from '../../src/local/index.js';
+} from '../../packages/core/src/domain/dip/benchmark-adapter.js';
+import type { LLM, LLMResponse, Message } from '../../packages/core/src/domain/dip/llm.js';
+import { createLocalMemory, InMemoryVectorStore, StubEmbedder } from '../../packages/core/src/infrastructure/db/index.js';
 
 /**
  * Minimal verbatim-extracting LLM for smoke runs without real keys.

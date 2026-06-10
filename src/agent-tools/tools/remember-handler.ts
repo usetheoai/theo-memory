@@ -12,9 +12,9 @@
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { Memory } from '../../core/memory-store.js';
-import type { RememberOptions } from '../../core/options.js';
-import { memoryFromCtx } from '../../theokit/index.js';
+import type { Memory } from '@usetheo/memory/contract';
+import type { RememberOptions } from '@usetheo/memory/contract';
+import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '../scope.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './remember-schema.js';
