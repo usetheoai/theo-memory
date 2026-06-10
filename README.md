@@ -20,6 +20,8 @@ Drop-in TypeScript SDK. Postgres + pgvector. Works with any LLM.
 
 [Quickstart](#quickstart) · [Features](#features) · [API](#api) · [REST](#rest-api) · [MCP](#mcp-server) · [Docker](#docker) · [CLI](#cli) · [Architecture](#architecture) · [Contributing](#contributing)
 
+**Part of [Theo](https://usetheo.dev) — the open platform for AI agents.** [Learn more →](https://usetheo.dev)
+
 </div>
 
 ---
