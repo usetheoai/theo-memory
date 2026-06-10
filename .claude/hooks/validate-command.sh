@@ -85,9 +85,10 @@ if echo "$COMMAND" | grep -qE 'git[[:space:]]+commit' && echo "$COMMAND" | grep 
   exit 2
 fi
 
-# --- npm publish guard (project is pre-release, not published yet) ---
+# --- npm publish guard (re-enabled after v0.2.0 first publish 2026-06-09) ---
+# Future publishes require explicit user authorization per session.
 if echo "$COMMAND" | grep -qE 'npm[[:space:]]+(publish|unpublish)'; then
-  echo "BLOCKED: '@usetheo/memory' is pre-release and not yet published to npm. Publishing requires explicit human authorization plus a v1.0 milestone with reproduced benchmarks (CLAUDE.md § Pre-release status)." >&2
+  echo "BLOCKED: npm publish requires explicit user authorization. Use '!' prefix to run manually." >&2
   exit 2
 fi
 
