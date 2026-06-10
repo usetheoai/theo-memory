@@ -177,13 +177,15 @@ Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor,
 ## Docker
 
 ```bash
-docker pull ghcr.io/usetheo/themory:0.1.0-alpha
+docker pull usetheo/themory:0.2.0
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
-  ghcr.io/usetheo/themory:0.1.0-alpha
+  usetheo/themory:0.2.0
 ```
+
+Also available from GHCR: `docker pull ghcr.io/usetheo/themory:0.2.0`
 
 Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in.
 
