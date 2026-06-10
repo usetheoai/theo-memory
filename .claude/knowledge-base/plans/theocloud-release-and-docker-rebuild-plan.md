@@ -1,6 +1,8 @@
 # Plan: TheoCloud Release PR + Docker Dual-Publish + API Key Rotation Docs
 
-> **Version 1.0** — Ship the 10+ pending theo-cloud commits via a develop-to-main release PR, rebuild the Docker image to v0.2.0 with dual-publish to Docker Hub and GHCR, and document the API key rotation procedure. Operational plan — minimal production code, heavy CI config and documentation.
+> **Version 1.1** — Ship the 10+ pending theo-cloud commits via a develop-to-main release PR, rebuild the Docker image to v0.2.0 with dual-publish to Docker Hub and GHCR, and document the API key rotation procedure. Operational plan — minimal production code, heavy CI config and documentation.
+>
+> v1.1 absorbs 3 MUST FIX from edge-case review (2026-06-10): EC-1 secrets guard, EC-2 single-build-multi-push, EC-3 compose registry alignment.
 
 ## Goal
 
@@ -42,7 +44,7 @@ theo-cloud's `develop` branch has 10+ commits ahead of `main` including BFF cate
 
 ## Prior Art & Related Work
 
-- **Internal**: Plan `theo-memory-standalone-p0` T3.3 established the GHCR workflow pattern now being extended
+- **Internal**: Plan `theo-memory-standalone-p0` (task 3.3) established the GHCR workflow pattern now being extended
 - **Internal**: Plan `theo-memory-faang-auth-lifecycle` shipped the `ApiKeyAuthVerifier` + `themory keys {create,list,rotate,revoke}` CLI that the rotation docs will reference
 - **External**: Docker's multi-registry publish pattern — `docker/login-action` supports multiple registry logins in sequence; standard pattern used by Grafana, Prometheus, Caddy
 
@@ -148,15 +150,14 @@ VERIFY:  `gh pr list --base main --head develop --state open` returns exactly 1 
 ```
 
 #### Concurrency tests
-```
+
 (none — single-threaded)
-```
 
 #### Acceptance Criteria
-- [ ] PR opened in theo-cloud targeting main from develop
-- [ ] PR body summarizes all pending commits grouped by category
-- [ ] PR is NOT auto-merged — awaiting human approval
-- [ ] PR passes any existing CI checks on theo-cloud
+- [ ] `gh pr list --base main --head develop --state open` returns exactly 1 PR in theo-cloud
+- [ ] PR body contains 4 category headers (BFF, Dashboard, Security, Docs) verified by `grep -c '###' <pr-body>`
+- [ ] PR mergeable state is NOT "merged" — `gh pr view --json state -q .state` returns "OPEN"
+- [ ] `gh pr checks` shows no failing required checks (or no required checks configured)
 
 #### DoD
 - [ ] PR URL recorded in implementation log
@@ -175,16 +176,17 @@ Bump the default VERSION from `0.1.0-alpha` to `0.2.0` so operators pulling with
 
 #### Why this step (action + reasoning)
 
-1. **What this step does** — edits the `${VERSION:-0.1.0-alpha}` default in `docker-compose.prod.yaml` line 36 to `${VERSION:-0.2.0}`.
-2. **Why it is necessary now** — the v0.2.0 tag is already pushed to git. The compose file's default must track the latest stable tag so `docker compose up` without `VERSION=` env pulls the right image. Per Baseline Context, EC-42 established the fail-safe-default pattern.
+1. **What this step does** — edits the `${VERSION:-0.1.0-alpha}` default in `docker-compose.prod.yaml` line 36 to `${VERSION:-0.2.0}` AND changes the registry prefix from `ghcr.io/usetheo/themory` to `docker.io/usetheo/themory` to align with D1 (Docker Hub as primary).
+2. **Why it is necessary now** — the v0.2.0 tag is already pushed to git. The compose file's default must track the latest stable tag so `docker compose up` without `VERSION=` env pulls the right image. Per Baseline Context, EC-42 established the fail-safe-default pattern. **EC-3 absorption (edge-case review):** the compose default registry MUST match README's primary registry (Docker Hub per D1) to avoid operator confusion.
 
 #### Evidence
 - `docker-compose.prod.yaml` line 36: `image: ${THEMORY_IMAGE:-ghcr.io/usetheo/themory:${VERSION:-0.1.0-alpha}}`
 - v0.2.0 tag exists: `git tag -l 'v0.2*'`
+- EC-3: compose default registry must align with README primary (Docker Hub per D1)
 
 #### Files to edit
 ```
-docker-compose.prod.yaml — update VERSION default from 0.1.0-alpha to 0.2.0
+docker-compose.prod.yaml — update VERSION default from 0.1.0-alpha to 0.2.0 AND registry prefix from ghcr.io to docker.io (EC-3)
 ```
 
 #### Deep file dependency analysis
@@ -196,21 +198,21 @@ docker-compose.prod.yaml — update VERSION default from 0.1.0-alpha to 0.2.0
 
 #### TDD
 ```
-RED:     grep '0.1.0-alpha' docker-compose.prod.yaml returns a match (current state)
-GREEN:   Edit the file; grep '0.2.0' docker-compose.prod.yaml returns a match
+RED:     grep '0.1.0-alpha' docker-compose.prod.yaml returns a match (current state); grep 'ghcr.io' docker-compose.prod.yaml returns a match on line 36
+GREEN:   Edit the file; grep '0.2.0' docker-compose.prod.yaml returns a match; grep 'docker.io/usetheo/themory' docker-compose.prod.yaml returns a match (EC-3)
 REFACTOR: None expected
 VERIFY:  docker compose -f docker-compose.prod.yaml config (validates YAML syntax)
 ```
 
 #### Concurrency tests
-```
+
 (none — single-threaded)
-```
 
 #### Acceptance Criteria
-- [ ] `docker-compose.prod.yaml` default VERSION is `0.2.0`
-- [ ] `docker compose -f docker-compose.prod.yaml config` parses without error
-- [ ] `THEMORY_IMAGE` override pattern preserved
+- [ ] `grep '0.2.0' docker-compose.prod.yaml` returns a match on the image line
+- [ ] `grep 'docker.io/usetheo/themory' docker-compose.prod.yaml` returns a match (EC-3 alignment with D1)
+- [ ] `docker compose -f docker-compose.prod.yaml config` exits 0 (YAML valid)
+- [ ] `grep 'THEMORY_IMAGE' docker-compose.prod.yaml` returns a match (override pattern preserved)
 
 #### DoD
 - [ ] Commit on develop: `chore(docker): bump compose default VERSION to 0.2.0`
@@ -241,26 +243,27 @@ Extend `.github/workflows/docker-publish.yml` to publish to Docker Hub (`usetheo
 - **`.github/workflows/docker-publish.yml`** (101 LoC) — the only CI workflow for Docker image publishing. Adding Docker Hub login requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` as repository secrets. The Trivy scan step is unchanged — it scans the locally-built image before any push. The existing GHCR push step is preserved; a second metadata-action + push step targets Docker Hub.
 
 #### Deep Dives
-- **Secrets prerequisite:** `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` must be added to GitHub repo settings before the workflow runs. The workflow should use `if: secrets.DOCKERHUB_TOKEN != ''` to gracefully skip Docker Hub publish when secrets are not configured (fail-open for GHCR-only environments).
+- **Secrets prerequisite:** `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` must be added to GitHub repo settings before the workflow runs. **EC-1 absorption:** The `if` guard MUST use `secrets.DOCKERHUB_TOKEN != ''` (NOT `env.DOCKERHUB_TOKEN` — GitHub Actions secrets are NOT auto-exposed as env vars; using `env.` would silently skip Docker Hub publish even with correct secrets).
 - **Tag matrix per D2:**
   - Tag push (`v*`): Docker Hub gets `x.y.z` + `x.y` + `latest`; GHCR gets `x.y.z` + `x.y` + `sha-<short>`
   - Main push: GHCR gets `edge` + `sha-<short>`; Docker Hub skipped
-- **Trivy gate unchanged** — scan happens on the locally-built image before either push
+- **EC-2 absorption — single build, multi-push:** Build the image ONCE with `load: true` (existing step), scan with Trivy (existing step), then push the SAME image to both registries using a single `docker/build-push-action` with combined tags from both metadata steps. This ensures the image pushed to Docker Hub is the EXACT same digest that Trivy scanned. A second `build-push-action` would rebuild from scratch, producing a potentially different image that bypasses the Trivy gate.
+- **Trivy gate unchanged** — scan happens on the locally-built image before any push. EC-2 guarantees both registries receive the scanned image.
 
 #### Pseudo-code / Signatures
 
 ```yaml
-# New step after GHCR login:
+# EC-1: use secrets.DOCKERHUB_TOKEN (NOT env.) for the if guard
 - name: Log in to Docker Hub
-  if: env.DOCKERHUB_TOKEN != ''
+  if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
   uses: docker/login-action@v3
   with:
     username: ${{ secrets.DOCKERHUB_USERNAME }}
     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-# New metadata step for Docker Hub tags:
+# Docker Hub metadata (stable tags only per D2):
 - name: Extract Docker Hub metadata
-  if: env.DOCKERHUB_TOKEN != ''
+  if: ${{ secrets.DOCKERHUB_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') }}
   id: meta-dockerhub
   uses: docker/metadata-action@v5
   with:
@@ -268,17 +271,23 @@ Extend `.github/workflows/docker-publish.yml` to publish to Docker Hub (`usetheo
     tags: |
       type=semver,pattern={{version}}
       type=semver,pattern={{major}}.{{minor}}
-      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      type=raw,value=latest
 
-# New push step for Docker Hub:
-- name: Push image to Docker Hub
-  if: env.DOCKERHUB_TOKEN != '' && steps.meta-dockerhub.outputs.tags != ''
+# EC-2: SINGLE push step with combined tags from BOTH metadata steps.
+# Replaces the existing GHCR-only push step. Uses the same build cache
+# so the pushed image is the EXACT digest Trivy scanned.
+- name: Push image to registries
   uses: docker/build-push-action@v6
   with:
     context: .
+    file: ./Dockerfile
     push: true
-    tags: ${{ steps.meta-dockerhub.outputs.tags }}
+    tags: |
+      ${{ steps.meta.outputs.tags }}
+      ${{ steps.meta-dockerhub.outputs.tags }}
+    labels: ${{ steps.meta.outputs.labels }}
     cache-from: type=gha
+    cache-to: type=gha,mode=max
 ```
 
 #### TDD
@@ -290,18 +299,16 @@ VERIFY:  YAML syntax valid; workflow_dispatch manual trigger can be tested
 ```
 
 #### Concurrency tests
-```
+
 (none — single-threaded)
-```
 
 #### Acceptance Criteria
-- [ ] Workflow contains Docker Hub login step with `if` guard on `DOCKERHUB_TOKEN`
-- [ ] Workflow contains Docker Hub metadata step producing `x.y.z` + `x.y` + `latest` tags
-- [ ] Workflow contains Docker Hub push step
-- [ ] GHCR publish path unchanged (existing steps unmodified)
-- [ ] Trivy gate position unchanged (before any push)
-- [ ] `edge` tag only goes to GHCR, not Docker Hub (per D2)
-- [ ] Pass: YAML syntax validation
+- [ ] `grep 'secrets.DOCKERHUB_TOKEN' .github/workflows/docker-publish.yml` returns >=1 match (EC-1 guard)
+- [ ] `grep 'docker.io/usetheo/themory' .github/workflows/docker-publish.yml` returns >=1 match (Docker Hub metadata)
+- [ ] `grep -c 'build-push-action' .github/workflows/docker-publish.yml` returns exactly 2 (scan-build + single combined push per EC-2)
+- [ ] `grep 'trivy' .github/workflows/docker-publish.yml` appears BEFORE the push step (Trivy gate position preserved)
+- [ ] `grep 'edge' .github/workflows/docker-publish.yml` appears only in GHCR metadata block, NOT in Docker Hub metadata (D2)
+- [ ] YAML syntax valid: `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/docker-publish.yml'))"` exits 0
 
 #### DoD
 - [ ] Commit on develop: `feat(ci): T2.2 dual-publish Docker Hub + GHCR (D1)`
@@ -349,15 +356,14 @@ VERIFY:  Manual review of README rendering
 ```
 
 #### Concurrency tests
-```
+
 (none — single-threaded)
-```
 
 #### Acceptance Criteria
-- [ ] README contains API key rotation subsection
-- [ ] Subsection documents create-then-revoke zero-downtime pattern
-- [ ] `themory keys rotate` command referenced
-- [ ] Voice rules respected (technical-direct in DEEP DIVE)
+- [ ] `grep -c 'rotation' README.md` returns >=1 (rotation subsection exists)
+- [ ] `grep 'create.*revoke\|revoke.*create' README.md` returns a match (zero-downtime pattern documented)
+- [ ] `grep 'themory keys' README.md` returns >=2 matches (CLI commands referenced)
+- [ ] Rotation section placed BELOW `## How it works` boundary (DEEP DIVE zone per `public-copy.md`)
 
 #### DoD
 - [ ] Commit on develop: `docs(readme): T3.1 API key rotation procedure`
@@ -400,16 +406,15 @@ VERIFY:  Manual review of README rendering
 ```
 
 #### Concurrency tests
-```
+
 (none — single-threaded)
-```
 
 #### Acceptance Criteria
-- [ ] README Docker section leads with `docker pull usetheo/themory:0.2.0`
-- [ ] GHCR alternative documented
-- [ ] Version references updated from `0.1.0-alpha` to `0.2.0`
-- [ ] Feature bullets preserved (distroless, Trivy, healthcheck)
-- [ ] Dockerfile comment updated for consistency
+- [ ] `grep 'docker pull usetheo/themory:0.2.0' README.md` returns >=1 match (Docker Hub primary)
+- [ ] `grep 'ghcr.io' README.md` returns >=1 match in Docker section (GHCR alternative documented)
+- [ ] `grep -c '0.1.0-alpha' README.md` returns 0 (all stale references removed)
+- [ ] `grep 'distroless\|Trivy\|healthcheck' README.md` returns >=2 matches (feature bullets preserved)
+- [ ] `grep '0.1.0-alpha' Dockerfile` returns 0 matches (Dockerfile comment updated)
 
 #### DoD
 - [ ] Commit on develop: `docs(readme): T3.2 dual registry Docker section + v0.2.0`
@@ -471,13 +476,14 @@ gh pr list --repo usetheo/theo-cloud --base main --head develop --state open
 
 ## Global Definition of Done
 
-- [ ] All phases completed
-- [ ] `docker compose -f docker-compose.prod.yaml config` passes
-- [ ] CI workflow YAML valid
-- [ ] README updated with dual registry + key rotation
-- [ ] CHANGELOG.md updated under `[Unreleased]`
-- [ ] theo-cloud PR opened and URL recorded
-- [ ] No `0.1.0-alpha` stale references in modified files
+- [ ] All phases completed (T1.1 + T2.1 + T2.2 + T3.1 + T3.2 + Phase 4 validation)
+- [ ] `docker compose -f docker-compose.prod.yaml config` exits 0
+- [ ] `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/docker-publish.yml'))"` exits 0 (CI YAML lint)
+- [ ] `grep -c '0.1.0-alpha' README.md docker-compose.prod.yaml` returns 0 for both files (no stale version refs)
+- [ ] README contains `rotation` + `usetheo/themory:0.2.0` + `ghcr.io` references
+- [ ] CHANGELOG.md `[Unreleased]` contains entries for T2.1, T2.2, T3.1, T3.2
+- [ ] theo-cloud PR URL recorded in implementation log; PR state is OPEN
+- [ ] File size budget: docker-publish.yml stays < 200 LoC (currently 101; adding ~30 lines)
 - [ ] Plan archived — after `/review` returns `READY_TO_MERGE` AND the PR has been merged, move to `knowledge-base/plans/completed/`
 
 ## Failure scenarios (when I/O external)
