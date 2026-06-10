@@ -33,8 +33,16 @@ import type { AuthVerifier } from '../../core/dip/auth-verifier.js';
  * concern; `src/core/` stays free of pg-flavoured types per
  * `architecture.md § 3`.
  */
+/** Minimal pool contract for auth operations. T3.1 adds `connect()` for transaction safety. */
+export interface AuthPoolClient {
+  query<T>(sql: string, params: readonly unknown[]): Promise<{ rows: T[] }>;
+  release(): void;
+}
+
 export interface AuthPool {
   query<T>(sql: string, params: readonly unknown[]): Promise<{ rows: T[] }>;
+  /** Pin a single connection for transactional operations (T3.1, ADR D1). */
+  connect?(): Promise<AuthPoolClient>;
 }
 
 const PREFIX = 'theo_live_';
@@ -75,8 +83,11 @@ export class ApiKeyAuthVerifier implements AuthVerifier {
 
     // Fire-and-forget last_used_at touch — never blocks the auth path.
     // Caller's observability layer logs the catch.
-    void this.#pool.query(UPDATE_LAST_USED_SQL, [hash]).catch(() => {
-      // intentional swallow — observability is the layer that should log
+    // T1.6 — surface last_used_at failures instead of silently swallowing.
+    void this.#pool.query(UPDATE_LAST_USED_SQL, [hash]).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.warn(`[themory] last_used_at update failed: ${msg}`);
     });
 
     return true;
