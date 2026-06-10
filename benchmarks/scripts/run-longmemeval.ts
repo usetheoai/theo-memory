@@ -25,12 +25,12 @@ import { fileURLToPath } from 'node:url';
 import {
   loadLongMemEvalFixture,
   type LongMemEvalItem,
-} from '../../src/benchmarks/fixtures/index.js';
-import type { RunReport } from '../../src/benchmarks/runner/benchmark-runner.js';
+} from '../../packages/core/src/domain/benchmarks/fixtures/index.js';
+import type { RunReport } from '../../packages/core/src/domain/benchmarks/runner/benchmark-runner.js';
 import type {
   BenchmarkCorpus,
   BenchmarkQuery,
-} from '../../src/core/dip/benchmark-adapter.js';
+} from '../../packages/core/src/domain/dip/benchmark-adapter.js';
 
 import { runBenchmark } from './_runner-scaffold.js';
 

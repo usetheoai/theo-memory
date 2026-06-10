@@ -11,9 +11,9 @@
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { MemoryItemWithScore } from '../../core/memory-item.js';
-import type { Memory } from '../../core/memory-store.js';
-import { memoryFromCtx } from '../../theokit/index.js';
+import type { MemoryItemWithScore } from '@usetheo/memory/contract';
+import type { Memory } from '@usetheo/memory/contract';
+import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '../scope.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './recall-schema.js';

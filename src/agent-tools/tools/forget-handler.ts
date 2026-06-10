@@ -21,8 +21,8 @@
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import { MemoryNotFound } from '../../core/errors.js';
-import type { Memory } from '../../core/memory-store.js';
+import { MemoryNotFound } from '@usetheo/memory/contract';
+import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '../scope.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './forget-schema.js';

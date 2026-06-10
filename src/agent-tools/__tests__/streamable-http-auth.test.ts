@@ -17,7 +17,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AuthVerifier } from '../../core/dip/auth-verifier.js';
+import type { AuthVerifier } from '@usetheo/memory/contract';
 import { withBearerAuth } from '../auth/with-bearer-auth.js';
 import { connectStdio } from '../transports/stdio.js';
 import { connectStreamableHttp } from '../transports/streamable-http.js';

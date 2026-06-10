@@ -36,7 +36,7 @@ vi.mock('../server.js', () => {
   return { McpServer: MockMcpServer };
 });
 
-vi.mock('../../local/index.js', () => ({
+vi.mock('@usetheo/memory', () => ({
   createLocalMemory: vi.fn().mockResolvedValue({ /* fake Memory */ }),
   runMigrations: vi.fn().mockResolvedValue(undefined),
   StubEmbedder: class MockStubEmbedder {},
@@ -79,7 +79,7 @@ describe('runMcpServer bootstrap (post-T2.1 extraction)', () => {
   });
 
   it('uses THEOMEM_PG_URI for memory factory (calls createLocalMemory with parsed pool)', async () => {
-    const { createLocalMemory } = await import('../../local/index.js');
+    const { createLocalMemory } = await import('@usetheo/memory');
     await runMcpServer();
     expect(vi.mocked(createLocalMemory)).toHaveBeenCalledTimes(1);
   });

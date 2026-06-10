@@ -18,9 +18,9 @@ import { McpError } from '@modelcontextprotocol/sdk/types.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import { MemoryNotFound, MemoryStoreError, MissingScopeError } from '../../../core/errors.js';
-import type { Memory, ScopedMemory } from '../../../core/memory-store.js';
-import type { MemoryItem, MemoryItemWithScore } from '../../../core/memory-item.js';
+import { MemoryNotFound, MemoryStoreError, MissingScopeError } from '@usetheo/memory/contract';
+import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
+import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
 import { withScope } from '../../scope.js';
 import { dispatch } from '../dispatch.js';
 
