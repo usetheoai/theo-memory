@@ -106,7 +106,7 @@ For EACH sub-plan, the chain is:
 
 | Plan | /to-plan | /edge-case | /deps-audit | /plan-confidence | /implement | /review | /release | Status |
 |---|---|---|---|---|---|---|---|---|
-| A | - | - | - | - | - | - | - | NOT_STARTED |
+| A | done (f6af16f) | - | - | - | - | - | - | /to-plan DONE; next: /edge-case-plan |
 | B | - | - | - | - | - | - | - | NOT_STARTED |
 | C | - | - | - | - | - | - | - | NOT_STARTED |
 
