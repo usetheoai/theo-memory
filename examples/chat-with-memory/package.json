@@ -2,7 +2,7 @@
   "name": "@usetheo/memory-demo-chat",
   "version": "0.0.0",
   "private": true,
-  "description": "Professional demo: TheoKit-canonical chat app powered by @theokit/sdk Agent + @usetheo/memory (TheMemory) + @usetheo/ui",
+  "description": "Professional demo: TheoKit-canonical chat app powered by @theokit/sdk Agent + @usetheo/memory (TheMemory) + @theokit/ui",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -16,7 +16,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "@theokit/sdk": "^1.5.0",
-    "@theokit/ui": "^0.13.0",
+    "@theokit/ui": "^0.14.2",
     "@usetheo/memory": "file:../..",
     "better-sqlite3": "^12.10.0",
     "hast-util-from-html": "^2.0.3",
