@@ -106,7 +106,7 @@ For EACH sub-plan, the chain is:
 
 | Plan | /to-plan | /edge-case | /deps-audit | /plan-confidence | /implement | /review | /release | Status |
 |---|---|---|---|---|---|---|---|---|
-| A | done (f6af16f) | done (3 MUST FIX absorbed → v1.1) | done (PASS — 0 new deps) | done (89 SHIPPABLE_WITH_CAVEATS) | - | - | - | /plan-confidence DONE; next: /implement |
+| A | done (f6af16f) | done (3 MUST FIX absorbed → v1.1) | done (PASS — 0 new deps) | done (89 SHIPPABLE_WITH_CAVEATS) | done (5/5 tasks; T1.1 PR merged) | - | - | COMPLETE |
 | B | - | - | - | - | - | - | - | NOT_STARTED |
 | C | - | - | - | - | - | - | - | NOT_STARTED |
 
