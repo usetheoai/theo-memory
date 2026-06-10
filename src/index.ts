@@ -76,6 +76,22 @@ export { entities, history, memories } from './local/index.js';
 export { StubEmbedder, StubLLM } from './local/index.js';
 
 /**
+ * v0.4a reflection policies — T4.1 of code-review-fixes-v0-2-1.
+ *
+ * `ThresholdReflectionPolicy` triggers reflection after N remember() calls
+ * per scope. `SleepTimeReflectionPolicy` reflects on a time-based schedule.
+ * Both require `PgvectorStore` (local runtime).
+ *
+ * @see .claude/knowledge-base/plans/completed/v0-4a-reflection-pipeline-plan.md
+ */
+export {
+  ThresholdReflectionPolicy,
+  type ThresholdReflectionPolicyConfig,
+  SleepTimeReflectionPolicy,
+  type SleepTimeReflectionPolicyConfig,
+} from './local/reflection/index.js';
+
+/**
  * v0.4b forgetting pipeline surface — exported so consumers can construct
  * the triadic-scoring eviction pipeline manually OR consume the types for
  * builder helpers.

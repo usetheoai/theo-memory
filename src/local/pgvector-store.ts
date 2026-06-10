@@ -864,46 +864,24 @@ export class PgvectorStore implements VectorStore {
     const sessionId = scope.sessionId ?? null;
     const agentId = scope.agentId ?? null;
 
-    // Find existing row using IS NOT DISTINCT FROM (treats NULL = NULL)
-    const findSql = `
-      SELECT id, count FROM reflection_counters
-      WHERE scope_user_id IS NOT DISTINCT FROM $1
-        AND scope_session_id IS NOT DISTINCT FROM $2
-        AND scope_agent_id IS NOT DISTINCT FROM $3
-      LIMIT 1
-    `;
-    const found = await this.pool.query<{ id: string; count: string }>(findSql, [userId, sessionId, agentId]);
-
-    if (found.rows.length > 0) {
-      const row = found.rows[0];
-      if (row === undefined) {
-        throw new Error('unreachable: rows.length > 0 but row undefined');
-      }
-      const updateSql = `
-        UPDATE reflection_counters
-        SET count = count + 1, updated_at = NOW()
-        WHERE id = $1
-        RETURNING count
-      `;
-      const updateResult = await this.pool.query<{ count: string }>(updateSql, [row.id]);
-      const updatedRow = updateResult.rows[0];
-      if (updatedRow === undefined) {
-        throw new Error('reflection_counters UPDATE returned no rows');
-      }
-      return Number(updatedRow.count);
-    }
-
-    // No existing row — insert with count=1 (CHECK upstream blocks all-NULL)
-    const insertSql = `
+    // T3.3 — atomic upsert eliminates the SELECT-then-INSERT/UPDATE race (ADR D5).
+    // reflection_counters has a UNIQUE constraint on (scope_user_id, scope_session_id, scope_agent_id).
+    // IS NOT DISTINCT FROM handles NULL = NULL in the conflict target.
+    const upsertSql = `
       INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
       VALUES ($1, $2, $3, 1)
+      ON CONFLICT (scope_user_id, scope_session_id, scope_agent_id)
+        WHERE scope_user_id IS NOT DISTINCT FROM $1
+          AND scope_session_id IS NOT DISTINCT FROM $2
+          AND scope_agent_id IS NOT DISTINCT FROM $3
+      DO UPDATE SET count = reflection_counters.count + 1, updated_at = NOW()
       RETURNING count
     `;
-    const insertResult = await this.pool.query<{ count: string }>(insertSql, [userId, sessionId, agentId]);
-    const insertedRow = insertResult.rows[0];
-    if (insertedRow === undefined) {
-      throw new Error('reflection_counters INSERT returned no rows');
+    const result = await this.pool.query<{ count: string }>(upsertSql, [userId, sessionId, agentId]);
+    const row = result.rows[0];
+    if (row === undefined) {
+      throw new Error('reflection_counters UPSERT returned no rows');
     }
-    return Number(insertedRow.count);
+    return Number(row.count);
   }
 }

@@ -1273,6 +1273,13 @@ export { createLocalMemory as createMemory };
  * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 atomic tx + C2 atttypmod empirical correction)
  */
 async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
+  // T1.1 — defense-in-depth guard (CWE-89). validateEmbeddingDim() validates
+  // upstream, but multiple call layers separate it from the DDL interpolation
+  // below. Re-validate at the function boundary per architecture.md § 8.
+  if (!Number.isInteger(targetDim) || targetDim <= 0 || targetDim > 2000) {
+    throw new Error(`applyDimChange: invalid dimension ${targetDim}`);
+  }
+
   // /review F-Mi8 — defensive extversion probe. The identity decoder
   // (atttypmod stores N directly) was verified empirically against
   // pgvector v0.5.1. If a future pgvector release changes the encoding

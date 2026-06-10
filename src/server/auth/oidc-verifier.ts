@@ -102,6 +102,8 @@ export interface OidcAuthVerifierOptions {
 
 const DEFAULT_CACHE_TTL_SECONDS = 60;
 const DEFAULT_TIMEOUT_MS = 5_000;
+/** T3.2 — cap to prevent unbounded cache growth under diverse-token traffic. */
+const MAX_CACHE_ENTRIES = 10_000;
 
 interface CacheEntry {
   readonly active: boolean;
@@ -128,8 +130,10 @@ export class OidcAuthVerifier implements AuthVerifier {
 
     // Cache hit — short-circuit (TTL=0 means cache disabled; entries never written)
     const cached = this.#cache.get(tokenHash);
-    if (cached !== undefined && cached.expiresAtMs > Date.now()) {
-      return cached.active;
+    if (cached !== undefined) {
+      if (cached.expiresAtMs > Date.now()) return cached.active;
+      // T3.2 — delete expired entry on read (was checked but never deleted)
+      this.#cache.delete(tokenHash);
     }
 
     // EC-5 coalescing — if another verify() is already introspecting the
@@ -151,6 +155,16 @@ export class OidcAuthVerifier implements AuthVerifier {
       const result = await this.#introspect(token, ac.signal);
       const active = result.active === true;
       if (this.#ttlMs > 0) {
+        // T3.2 — evict oldest 10% when cache exceeds cap
+        if (this.#cache.size >= MAX_CACHE_ENTRIES) {
+          const evictCount = Math.ceil(MAX_CACHE_ENTRIES * 0.1);
+          let evicted = 0;
+          for (const k of this.#cache.keys()) {
+            if (evicted >= evictCount) break;
+            this.#cache.delete(k);
+            evicted++;
+          }
+        }
         this.#cache.set(tokenHash, { active, expiresAtMs: Date.now() + this.#ttlMs });
       }
       return active;

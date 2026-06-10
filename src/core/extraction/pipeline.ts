@@ -212,7 +212,14 @@ async function embedBatchWithFallback(
     const out: (readonly number[])[] = [];
     for (const text of texts) {
       try {
-        out.push(await embedder.embed(text));
+        const vec = await embedder.embed(text);
+        // T2.2 — reject zero-dim vectors from corrupting the vector store.
+        if (vec.length === 0) {
+          emitEvent(tracer, 'embed_zero_dim_skipped');
+          out.push([]);
+        } else {
+          out.push(vec);
+        }
       } catch {
         out.push([]);
       }
@@ -335,15 +342,20 @@ export async function runExtractionPipeline(
     extracted = parsed.memory;
     emitEvent(tracer, 'extraction_completed', { facts: extracted.length });
   } catch (err) {
-    // Honest stderr disclosure (bonus from /tmp/themory-issue-2.md): without
-    // logging the real error, operators waste time investigating LLM/key when
-    // the actual cause is often a schema mismatch on a niche field. OTel
-    // event `extraction_failed` stays; the stderr line adds the WHY when no
-    // OTel exporter is wired (common in dev). Inquebrável Rule 3.
+    // T2.1 — differentiate LLM network errors (propagate) from parse/validation
+    // errors (return [] with OTel event). Per ADR D3 + EC-6: classify by error
+    // TYPE (instanceof), NOT by message content.
+    const isParse = err instanceof SyntaxError                    // JSON.parse failure
+      || (err !== null && typeof err === 'object' && 'issues' in err);  // ZodError shape
     process.stderr.write(
-      `[themory] extraction_failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      `[themory] extraction_failed (${isParse ? 'parse' : 'network'}): ${err instanceof Error ? err.message : String(err)}\n`,
     );
-    emitEvent(tracer, 'extraction_failed');
+    if (!isParse) {
+      // Network / LLM provider errors propagate — caller decides retry policy.
+      emitEvent(tracer, 'extraction_failed');
+      throw err;
+    }
+    emitEvent(tracer, 'extraction_parse_failure');
     return [];
   }
 
@@ -481,8 +493,14 @@ export async function runExtractionPipeline(
         }
       }
       emitEvent(tracer, 'history_persisted', { count: records.length });
-    } catch {
-      // Silent swallow per the upstream pattern at index.ts:805-849 (history failure must not block write)
+    } catch (err: unknown) {
+      // T2.3 — surface history persist failure instead of silently swallowing.
+      // Still non-fatal per the upstream pattern (history failure must not block write),
+      // but now observable via OTel + stderr.
+      const msg = err instanceof Error ? err.message : String(err);
+      emitEvent(tracer, 'history_persist_failed', { error: msg });
+      // eslint-disable-next-line no-console
+      console.warn(`[themory] history persist failed: ${msg}`);
     }
   }
 

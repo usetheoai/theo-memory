@@ -208,32 +208,35 @@ export async function createKeyHandler(
 
   try {
     if (shouldConsumeBootstrap) {
-      // Atomic-tx path: BEGIN → INSERT → markBootstrapConsumedTx → COMMIT.
-      // Bootstrap MUST still be allowed (not already consumed); rejected upstream
-      // by requireScope but checked here defensively as a race-safety guard.
-      await pool.query('BEGIN', []);
+      // T3.1 — Atomic-tx via pool.connect() to pin a single connection (ADR D1, EC-3).
+      // pool.query('BEGIN') may use different connections under pg.Pool.
+      const client = pool.connect ? await pool.connect() : null;
+      const q = client ?? pool;
       try {
-        const allowed = await isBootstrapAllowed(pool);
+        await q.query('BEGIN', []);
+        const allowed = await isBootstrapAllowed(q);
         if (!allowed) {
-          await pool.query('ROLLBACK', []);
+          await q.query('ROLLBACK', []);
           return c.json(
             { code: 'BOOTSTRAP_CONSUMED', message: 'Bootstrap token has already been used. Use the issued admin key.' },
             401,
           );
         }
-        await pool.query(
+        await q.query(
           `INSERT INTO theo_api_keys (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [id, subject, TENANT_SELF, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
         );
-        await markBootstrapConsumedTx(pool);
-        await pool.query('COMMIT', []);
+        await markBootstrapConsumedTx(q);
+        await q.query('COMMIT', []);
       } catch (innerErr) {
-        try { await pool.query('ROLLBACK', []); } catch { /* swallow */ }
+        try { await q.query('ROLLBACK', []); } catch { /* swallow double-rollback */ }
         if (isUniqueViolation(innerErr)) {
           return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
         }
         return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
+      } finally {
+        client?.release();
       }
     } else {
       // Non-bootstrap path: simple single-statement INSERT (preserves
@@ -351,10 +354,12 @@ export async function rotateKeyHandler(
   }
   const graceMs = graceHours * 3_600_000;
 
-  // Atomic single-tx: BEGIN → SELECT FOR UPDATE → INSERT new → UPDATE old → COMMIT
+  // T3.1 — Atomic single-tx via pool.connect() to pin a single connection (ADR D1, EC-3).
+  const client = pool.connect ? await pool.connect() : null;
+  const q = client ?? pool;
   try {
-    await pool.query('BEGIN', []);
-    const sel = await pool.query<{
+    await q.query('BEGIN', []);
+    const sel = await q.query<{
       key_name: string;
       scopes: unknown;
       revoked_at: Date | null;
@@ -367,22 +372,21 @@ export async function rotateKeyHandler(
       [oldId, subject, TENANT_SELF],
     );
     if (sel.rows.length === 0) {
-      await pool.query('ROLLBACK', []);
+      await q.query('ROLLBACK', []);
       return c.json({ code: 'NOT_FOUND', message: 'API key not found.' }, 404);
     }
     const old = sel.rows[0]!;
     if (old.revoked_at !== null || (old.expires_at && old.expires_at.getTime() < Date.now())) {
-      await pool.query('ROLLBACK', []);
+      await q.query('ROLLBACK', []);
       return c.json({ code: 'NOT_FOUND', message: 'API key not found.' }, 404);
     }
 
     const { raw: newSecret, hash: newHash, prefix12: newPrefix } = generateSecret();
     const newId = generateRowId();
     const newName = `${old.key_name} (rotated ${new Date().toISOString().slice(0, 10)})`.slice(0, KEY_NAME_MAX_LENGTH);
-    // Preserve scopes verbatim from old row
     const scopesRaw = typeof old.scopes === 'string' ? old.scopes : JSON.stringify(old.scopes);
 
-    await pool.query(
+    await q.query(
       `INSERT INTO theo_api_keys
          (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at, rotated_from)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -390,11 +394,11 @@ export async function rotateKeyHandler(
     );
 
     const newExpires = new Date(Date.now() + graceMs);
-    await pool.query(
+    await q.query(
       `UPDATE theo_api_keys SET expires_at = $1 WHERE id = $2`,
       [newExpires, oldId],
     );
-    await pool.query('COMMIT', []);
+    await q.query('COMMIT', []);
 
     return c.json(
       {
@@ -409,8 +413,10 @@ export async function rotateKeyHandler(
       200,
     );
   } catch {
-    try { await pool.query('ROLLBACK', []); } catch { /* ignore double-rollback */ }
+    try { await q.query('ROLLBACK', []); } catch { /* ignore double-rollback */ }
     return c.json({ code: 'INTERNAL', message: 'Could not rotate API key. Try again.' }, 500);
+  } finally {
+    client?.release();
   }
 }
 
