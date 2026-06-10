@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..', '..');
 const PACKAGE_JSON = resolve(REPO_ROOT, 'package.json');
-const BARREL = resolve(REPO_ROOT, 'src', 'core', 'index.ts');
+const BARREL = resolve(REPO_ROOT, 'src', 'domain', 'index.ts');
 
 interface PackageJsonShape {
   readonly exports?: Record<string, { readonly types?: string; readonly default?: string | null }>;
@@ -43,7 +43,7 @@ describe('EC-3 — package.json#exports./contract.default is NOT null', () => {
     const pkg = readPackageJson();
     const contractEntry = pkg.exports?.['./contract'];
     expect(contractEntry).toBeDefined();
-    expect(contractEntry?.default).toBe('./src/core/index.ts');
+    expect(contractEntry?.default).toBe('./src/domain/index.ts');
   });
 
   test('package.json has "." entry in exports (T7.2 of v0-1-local-runtime landed it)', () => {
