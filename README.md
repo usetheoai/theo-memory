@@ -65,12 +65,12 @@ const facts = await memory.user('alice').recall('UI preferences');
 ## Quickstart
 
 ```bash
-# 1. Clone and install
-git clone https://github.com/usetheodev/theo-memory.git && cd theo-memory
-npm install
+# 1. Install
+npm install @usetheo/memory
 
 # 2. Start Postgres + pgvector
-docker compose up -d pgvector
+docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
+  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
 
 # 3. Configure
 cp .env.example .env
