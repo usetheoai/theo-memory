@@ -9,7 +9,7 @@ ecosystem to demonstrate **persistent semantic memory in an agent loop**,
 - **`@usetheo/memory`** — four Scope tiers (`User` / `Session` / `Agent` /
   `Repo` for skills) + reflection (v0.4a) + code-as-skill procedural memory
   (v0.6 / v0.6.1) + ADD-only semantics + bi-runtime (in-memory + pgvector)
-- **`@usetheo/ui`** — `ChatThread`, `ChatMessage`, `Card`, `Button`, theme
+- **`@theokit/ui`** — `ChatThread`, `ChatMessage`, `Card`, `Button`, theme
   system, tabbed sidebar primitives
 
 The chat surface lets you talk to an agent that **remembers facts across

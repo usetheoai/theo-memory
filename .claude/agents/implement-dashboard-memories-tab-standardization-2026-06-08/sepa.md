@@ -180,7 +180,7 @@ For every public symbol modified:
 - **`VectorStoreResult`** — DIP shape returned by `VectorStore.list/search/get`; currently `{id, payload, score?}`. Extension adds optional `createdAt/updatedAt/tValid/tInvalid/confirmationCount`.
 - **Scope tab pattern** — Entities tab convention: 4 toggles (user/session/agent/repo) at top of DataTable that filter rows by `scope_type` column. URL-state via `useSearchParams('scope')`.
 - **Cascade-delete with concurrency cap** — Entities tab pattern for bulk forget: N parallel `cloudFetch('/v1/memory/forget/...')` capped at `FORGET_CONCURRENCY=5`.
-- **`@usetheo/ui` primitives** — shared component library: `PageShell`, `DataTable`, `EmptyState`, `ConfirmDialog`, `Timestamp`, `Alert`, `Card`. Used uniformly across all 4 memory tabs.
+- **`@theokit/ui` primitives** — shared component library: `PageShell`, `DataTable`, `EmptyState`, `ConfirmDialog`, `Timestamp`, `Alert`, `Card`. Used uniformly across all 4 memory tabs.
 
 ### Architecture boundaries affected
 
@@ -235,7 +235,7 @@ Per `rules/architecture.md § 3 (Dependency direction — DIP)`:
 ### D3 — Frontend: extend Memories tab in place, do NOT rewrite from scratch
 
 - **Decision** — Modify `cloud/dashboard/src/pages/memory/memories.tsx` (236 LoC) in place adding scope tabs + standardized columns. Preserve existing trash + ConfirmDialog choreography + URL-state via useSearchParams.
-- **Rationale** — KISS + DRY: 80% of the existing file is already aligned with the pattern (uses `@usetheo/ui` primitives, useQuery, useMutation, useSearchParams). Only scope-tabs section is missing AND columns need re-shape. Rewriting risks regression on the trash flow that team already validated.
+- **Rationale** — KISS + DRY: 80% of the existing file is already aligned with the pattern (uses `@theokit/ui` primitives, useQuery, useMutation, useSearchParams). Only scope-tabs section is missing AND columns need re-shape. Rewriting risks regression on the trash flow that team already validated.
 - **Alternatives considered**:
   - (B) Rewrite from scratch using `entities.tsx` as template — REJECTED: regression risk + lost work.
   - (C) Extract scope-tabs component into shared `cloud/dashboard/src/components/scope-tabs.tsx` and consume from both Memories+Entities — DEFERRED: DRY refactor candidate for a separate cycle; not blocking this fix.
@@ -292,7 +292,7 @@ Per `rules/deps-audit-golden-rule.md` — plan declares deps it uses; no new pac
 | `pg` | `^8.x` (resolved current) | npm | Postgres driver — backend SELECT projection extension in T2.1. Existing prod dep since v0.1. |
 | `pgvector` (PG extension v0.5.1) | `0.5.1` | postgres-extension | DB-side schema column read; not an npm dep. Existing since v0.1 per `ankane/pgvector:v0.5.1` Docker tag. |
 | `vitest` | `^x.y` (resolved current) | npm | Test runner for new T1.1/T2.1/T2.2/T3.1 tests. Existing dev dep. |
-| `@usetheo/ui` (theo-cloud repo) | resolved current | npm (sibling repo) | DataTable + Tabs + Badge + Timestamp primitives in T3.2/T3.3. Existing in theo-cloud dashboard; audited in that repo's `package.json`. |
+| `@theokit/ui` (theo-cloud repo) | resolved current | npm (sibling repo) | DataTable + Tabs + Badge + Timestamp primitives in T3.2/T3.3. Existing in theo-cloud dashboard; audited in that repo's `package.json`. |
 | `@usetheo/memory` (consumer side, T3.0 SHA pin) | T2.2 commit SHA (TBD at implementation time) | npm github-ref | The plan IS `@usetheo/memory` from producer side; T3.0 PINS the consumer side (theo-cloud dashboard) to the exact T2.2 SHA per EC-4 cross-repo merge-order safety. Not a new dep — version pin of existing. |
 | `DeterministicStubEmbedder` (from `@usetheo/memory/embedders/stub` — internal subpath) | this repo | internal | Used by T3.1 integration test setup (v1.2 absorption) to avoid pulling `@xenova/transformers` transitive chain. Existing internal export. |
 
@@ -726,7 +726,7 @@ VERIFY: npm run test:integration -- scopes-list-temporal-fidelity
 Add scope tabs UI (USER/SESSION/AGENT/REPO) to `memories.tsx` matching `entities.tsx:54+` structure. URL-state via `useSearchParams('scope')`. Tabs filter the DataTable rows by their scope.
 
 #### Why this step
-**What this step does** — Adds `<Tabs>` component (from `@usetheo/ui`) at top of Memories page. Each tab corresponds to a scope_type. URL changes when tab clicked. List API call passes scope to BFF.
+**What this step does** — Adds `<Tabs>` component (from `@theokit/ui`) at top of Memories page. Each tab corresponds to a scope_type. URL changes when tab clicked. List API call passes scope to BFF.
 
 **Why it is necessary now** — Sub-goal 5. Without this, Memories tab diverges from the 3 sibling tabs that all standardize on scope tabs.
 
@@ -1128,7 +1128,7 @@ Recommendation: human absorbs MUST FIX items into plan v1.1 (per skill conventio
 - `pg` (Postgres driver) — backend SELECT projection extension in T2.1
 - `pgvector` extension — schema-level `created_at` column read
 - `vitest` — test runner for new T1.1/T2.1/T2.2/T3.1 tests
-- `@usetheo/ui` (theo-cloud repo) — DataTable + Tabs + Badge + Timestamp primitives in T3.2/T3.3
+- `@theokit/ui` (theo-cloud repo) — DataTable + Tabs + Badge + Timestamp primitives in T3.2/T3.3
 - `@usetheo/memory` (theo-cloud repo) — SHA-pinned consumer side per NEW T3.0
 
 **No new packages introduced. Zero `npm install` of new pkgs.**
@@ -1180,7 +1180,7 @@ All MAJOR bumps OMITTED from diff suggestion per skill anti-pattern #7 (NEVER au
 | `pg` | NOT DECLARED | `^8.x` resolved | YES | n/a (existing) | NEEDS DECLARATION |
 | `pgvector` (PG extension) | NOT DECLARED | DB-side schema | n/a | n/a | NEEDS DECLARATION (informational — DB extension, not npm) |
 | `vitest` | NOT DECLARED | `^x.y` resolved | YES | n/a (existing) | NEEDS DECLARATION |
-| `@usetheo/ui` (cross-repo) | NOT DECLARED | resolved in theo-cloud sibling | YES (theo-cloud audit) | n/a (existing) | NEEDS DECLARATION |
+| `@theokit/ui` (cross-repo) | NOT DECLARED | resolved in theo-cloud sibling | YES (theo-cloud audit) | n/a (existing) | NEEDS DECLARATION |
 | `@usetheo/memory` (consumer side, T3.0 SHA pin) | NOT DECLARED in plan; T3.0 pins SHA in theo-cloud | n/a (the plan IS `@usetheo/memory` from producer side) | YES | n/a | NEEDS DECLARATION |
 
 ## Recommended next steps

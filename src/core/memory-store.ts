@@ -44,6 +44,15 @@ import type { ScopedSkillMemory } from './skill.js';
  * derive scope from the sub-object form and forward to this surface.
  */
 export interface MemoryStore {
+  /**
+   * @param text — free-form natural language. **Storage is verbatim** — NO input
+   *   sanitization or HTML escaping is applied. Consumers rendering memory text in
+   *   HTML MUST escape on render per OWASP output-encoding discipline. React
+   *   auto-escapes JSX by default; raw HTML renderers require explicit sanitization
+   *   (e.g., DOMPurify). This is a deliberate design: input sanitization would
+   *   corrupt legitimate content containing HTML-like strings in code memories.
+   *   @see RED TEAM F4 (red-team-full-system-fixes-cycle-1 T3.1)
+   */
   remember(text: string, scope: Scope, options?: RememberOptions): Promise<readonly MemoryItem[]>;
   recall(query: string, scope: Scope, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
   forget(memoryId: string, options?: ForgetOptions): Promise<void>;
@@ -62,6 +71,11 @@ export interface MemoryStore {
  * and `update` (ADR-0003 ADD-only).
  */
 export interface ScopedMemory {
+  /**
+   * @param text — free-form natural language. **Storage is verbatim** — see
+   *   MemoryStore.remember JSDoc for the full XSS-safety contract (consumers
+   *   MUST escape on render; no input sanitization applied).
+   */
   remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]>;
   recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
   reflect(options?: ReflectOptions): Promise<ReflectionResult>;

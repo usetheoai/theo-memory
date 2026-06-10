@@ -20,7 +20,7 @@ You are NOT the implementer. The main session executes TDD task-by-task. You are
 - EC-2 dev-server bootstrap — wrong choice creates flaky CI
 - EC-3 invalid policy → 500 not 400 — masks 4xx bugs in 5xx logs
 - ADR D3 honest 422 — NO silent fallback to LWW (would lie about which policy ran)
-- ADR D1 DIP boundary — examples/ imports ONLY from @usetheo/memory + @usetheo/ui (no reach-into src/local/)
+- ADR D1 DIP boundary — examples/ imports ONLY from @usetheo/memory + @theokit/ui (no reach-into src/local/)
 - ADR D6 TDD discipline at HTTP boundary (UI BLOCKED via Chrome MCP per EC-A)
 
 ## Your authority
@@ -94,7 +94,7 @@ Honors `architecture.md § 3 DIP` — examples/ code imports only from `@usetheo
 | Package | Version | Ecosystem | Why |
 |---|---|---|---|
 | `@usetheo/memory` | (workspace; just shipped 7dc06f9) | npm | Imports `ConflictResolutionPolicy`, `NoopConflictPolicy`, `LastWriteWinsConflictPolicy`, `LlmJudgedMergeConflictPolicy`, `ConflictResolutionResult`, `OpenAILLM` (already used in demo for llm) |
-| `@usetheo/ui` | existing pin | npm | Card, Button (used by EvictionTab precedent) |
+| `@theokit/ui` | existing pin | npm | Card, Button (used by EvictionTab precedent) |
 | `lucide-react` | existing pin | npm | Icons (used by EvictionTab precedent) |
 | `next` | existing pin | npm | App Router routes |
 | `react` | existing pin | npm | useState / useEffect / useCallback |
@@ -190,7 +190,7 @@ Honors `architecture.md § 3 DIP` — examples/ code imports only from `@usetheo
 
 ### D6 — TDD discipline for examples/ code: HTTP-integration first, UI deferred per Chrome MCP lock
 
-**Decision:** RED tests for examples/ code live at `tests/integration/examples/chat-with-memory-distillation.test.ts` (the project-level `tests/integration/` matches `vitest.integration.config.ts` include). The UI component itself ships without component-level Vitest tests (`@usetheo/ui` testing pattern uses Chrome DevTools MCP for end-to-end); honest BLOCKED disclosure per EC-A.
+**Decision:** RED tests for examples/ code live at `tests/integration/examples/chat-with-memory-distillation.test.ts` (the project-level `tests/integration/` matches `vitest.integration.config.ts` include). The UI component itself ships without component-level Vitest tests (`@theokit/ui` testing pattern uses Chrome DevTools MCP for end-to-end); honest BLOCKED disclosure per EC-A.
 
 **Alternatives considered:**
 - (A) Skip TDD for examples/ ("it's just a demo") — REJECTED: violates Inquebrável Rule 5; demo regressions hide real SDK regressions.
@@ -327,8 +327,8 @@ T1.1 + T1.2 parallelizable (independent routes). T2.1 + T2.2 sequential (compone
 - `examples/chat-with-memory/components/memory-tabs/distillation-tab.tsx` (NEW; ≤ 200 LoC)
 
 **Deep file dependency analysis:**
-- Mirrors `eviction-tab.tsx` shape (150 LoC): Props {userId, reloadKey}; useState + useCallback + useEffect; Card + Button from `@usetheo/ui`; lucide icons.
-- 3 radio buttons via plain `<input type="radio">` (no new UI dep). Could use `@usetheo/ui` RadioGroup if available; checks ui surface at impl time.
+- Mirrors `eviction-tab.tsx` shape (150 LoC): Props {userId, reloadKey}; useState + useCallback + useEffect; Card + Button from `@theokit/ui`; lucide icons.
+- 3 radio buttons via plain `<input type="radio">` (no new UI dep). Could use `@theokit/ui` RadioGroup if available; checks ui surface at impl time.
 - 422 from POST surfaced as a Card with red border + the error code. Component distinguishes `OPENAI_API_KEY_MISSING` (suggests setting env var) vs `STUB_LLM_NOT_USABLE_FOR_LJM` (suggests unsetting `THEOMEM_USE_STUB_ADAPTERS`) — explicit user guidance per EC-1.
 - **EC-5 absorbed**: `useEffect` cleanup pattern + `AbortController` per useCallback fetch — when `userId` (dep) changes, the inflight fetch is aborted so stale results never overwrite the current state. Pattern: `const controller = new AbortController(); fetch(url, { signal: controller.signal }); return () => controller.abort()`.
 - **EC-6 absorbed**: "Distill now" button is `disabled={loading}` — both during the POST inflight AND while reloading the audit list after. Prevents double-POST from rapid clicks.
@@ -475,7 +475,7 @@ T1.1 + T1.2 parallelizable (independent routes). T2.1 + T2.2 sequential (compone
 - [ ] CHANGELOG `[Unreleased] § Added` entry mentions v0.7 distillation demo wiring + plan slug + commit refs
 - [ ] No vocab-lock violations (`production-ready` / `production-grade` / `v1.0 ready`)
 - [ ] No paper names in `examples/` + `tests/integration/examples/` (`Voyager` / `Mem0` / `Letta` / etc.)
-- [ ] DIP boundaries preserved (`examples/` imports ONLY from `@usetheo/memory` + `@usetheo/ui` + existing demo deps)
+- [ ] DIP boundaries preserved (`examples/` imports ONLY from `@usetheo/memory` + `@theokit/ui` + existing demo deps)
 - [ ] File-size budgets: `memory.ts` ≤ 250 LoC; `distill/route.ts` ≤ 80; `consolidation-history/route.ts` ≤ 100; `distillation-tab.tsx` ≤ 200; `memory-sidebar.tsx` < 140
 - [ ] All 3 policies exercised by integration test (Noop happy path; LWW happy path with consolidation_history row; LJM 422 path)
 - [ ] Honest BLOCKED disclosure documented for Chrome MCP UI scenarios per F-T4.1-1
@@ -599,7 +599,7 @@ EC-1 cuts across T0.1 + T1.1; counted once.
 ## Summary
 
 - **Ecosystems detected:** npm (root SDK + `examples/chat-with-memory/` workspace) — no Python/Rust/Go
-- **Plan dep delta: 0 NEW + 5 EXISTING reused** — `@usetheo/memory` (workspace), `@usetheo/ui`, `lucide-react`, `next`, `react`
+- **Plan dep delta: 0 NEW + 5 EXISTING reused** — `@usetheo/memory` (workspace), `@theokit/ui`, `lucide-react`, `next`, `react`
 - **Vulnerabilities found:**
   - Root SDK: 0 CRITICAL, 0 HIGH, 4 MODERATE (pre-existing — drizzle-kit esbuild chain; allowlisted sunset 2026-08-23), 0 LOW
   - Demo workspace: 0 CRITICAL, 0 HIGH, 2 MODERATE (pre-existing — next/postcss XSS chain; allowlisted sunset 2026-08-29), 0 LOW
@@ -616,7 +616,7 @@ EC-1 cuts across T0.1 + T1.1; counted once.
 | Plan dep | Pin (manifest) | Manifest match | CVE at pin? | Allowlist hit | Verdict |
 |---|---|---|---|---|---|
 | `@usetheo/memory` | workspace `0.0.0-rc.2` (root `package.json:name+version`) | yes | NONE on the workspace package itself | n/a | OK |
-| `@usetheo/ui` | `0.12.0` (`examples/chat-with-memory/package.json`) | yes | NONE | n/a | OK |
+| `@theokit/ui` | `0.12.0` (`examples/chat-with-memory/package.json`) | yes | NONE | n/a | OK |
 | `lucide-react` | `^0.469.0` (`examples/chat-with-memory/package.json`) | yes | NONE | n/a | OK |
 | `next` | `^15.5.18` (`examples/chat-with-memory/package.json`) | yes | GHSA-qx2v-qp2m-jg93 (postcss XSS via transitive) | YES (sunset 2026-08-29; downgrades MODERATE → LOW per golden rule) | OK |
 | `react` | `^19.0.0` (`examples/chat-with-memory/package.json`) | yes | NONE | n/a | OK |
@@ -658,7 +658,7 @@ Identical to v0.7 SDK audit + voyager-skill-library + F-T4.1-2 + Cycle 2 + adapt
 | Plan dep | Section | Manifest match | Audit clean? | Rule 9 OK? | Verdict |
 |---|---|---|---|---|---|
 | `@usetheo/memory` | Existing | yes (workspace `0.0.0-rc.2`; just shipped commit `7dc06f9`) | yes | n/a | OK |
-| `@usetheo/ui` | Existing | yes (`0.12.0`) | yes | n/a | OK |
+| `@theokit/ui` | Existing | yes (`0.12.0`) | yes | n/a | OK |
 | `lucide-react` | Existing | yes (`^0.469.0`) | yes | n/a | OK |
 | `next` | Existing | yes (`^15.5.18`) | allowlisted MODERATE → LOW | n/a | OK (carry-forward) |
 | `react` | Existing | yes (`^19.0.0`) | yes | n/a | OK |
