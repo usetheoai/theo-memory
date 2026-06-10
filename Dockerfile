@@ -93,7 +93,7 @@ EXPOSE 8080
 # the Node binary directly (no shell layer); `themory server` owns the
 # migrate-on-startup + SIGTERM graceful shutdown discipline (T2.3 + EC-32).
 # Operator override pattern for migrate/health (T3.4):
-#   docker run --entrypoint /nodejs/bin/node ghcr.io/usetheo/themory:0.1.0-alpha \
+#   docker run --entrypoint /nodejs/bin/node usetheo/themory:0.2.0 \
 #     /app/dist/agent-tools/cli.js migrate
 ENTRYPOINT ["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]
 CMD []
