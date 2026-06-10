@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **standardize-project-structure** T3.1 — Package manager migrated from npm to pnpm 10.34.1. `pnpm-workspace.yaml` created, `packageManager` field added to package.json, Dockerfile updated to use `corepack enable && pnpm install --frozen-lockfile`.
+- **standardize-project-structure** T3.2 — REST API server extracted from `src/server/` to `packages/api/` as `@usetheo/memory-api` workspace package. Server-specific deps (Hono, @hono/zod-openapi) scoped to api package. Subpath export `./server` removed; consumers import from `@usetheo/memory-api`.
 - **code-review-fixes-v0-2-1** T1.2 — BREAKING: `createApp()` throws when `NODE_ENV=production` and `THEMORY_CORS_ORIGIN` is unset. Previously defaulted to wildcard `*` with a stderr warning. Development/test mode unchanged (OWASP A01:2021, ADR D2, EC-2).
 - **theocloud-release-and-docker-rebuild** T2.1 — `docker-compose.prod.yaml` default image updated from `ghcr.io/usetheo/themory:0.1.0-alpha` to `usetheo/themory:0.2.0` (Docker Hub primary per ADR D1 + EC-3 alignment).
 - **theocloud-release-and-docker-rebuild** T3.2 — README Docker section leads with Docker Hub (`docker pull usetheo/themory:0.2.0`); GHCR noted as alternative. All `0.1.0-alpha` references removed from README and Dockerfile.
