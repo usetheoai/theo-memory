@@ -38,9 +38,6 @@ vi.mock('@usetheo/memory', () => ({
     generateChat = mockGenerateChat;
     generateResponse = vi.fn();
   },
-}));
-
-vi.mock('@usetheo/memory', () => ({
   PgvectorStore: class MockPgvectorStore {},
 }));
 

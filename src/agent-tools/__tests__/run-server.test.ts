@@ -38,6 +38,7 @@ vi.mock('@usetheo/memory', () => ({
   runMigrations: mockRunMigrations,
   StubEmbedder: class MockStubEmbedder {},
   StubLLM: class MockStubLLM {},
+  PgvectorStore: class MockPgvectorStore {},
 }));
 
 vi.mock('@usetheo/memory/embedders/stub', () => ({
@@ -49,10 +50,6 @@ vi.mock('@usetheo/memory/embedders/stub', () => ({
       return texts.map(() => [0.1, 0.2, 0.3]);
     }
   },
-}));
-
-vi.mock('@usetheo/memory', () => ({
-  PgvectorStore: class MockPgvectorStore {},
 }));
 
 vi.mock('pg', () => ({

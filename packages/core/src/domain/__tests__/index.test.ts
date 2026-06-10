@@ -30,7 +30,7 @@ describe('EC-3 — package.json#exports./contract.default is NOT null', () => {
     expect(contractEntry).toBeDefined();
     expect(contractEntry?.default).not.toBeNull();
     expect(typeof contractEntry?.default).toBe('string');
-    expect(contractEntry?.default).toMatch(/^\.\/src\/core\/index\.ts$/);
+    expect(contractEntry?.default).toMatch(/^\.\/src\/domain\/index\.ts$/);
   });
 
   test('package.json#exports./contract.types matches default (same TS file)', () => {

@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@dqbd/tiktoken':
-        specifier: ^1.0.22
-        version: 1.0.22
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.25)
@@ -23,6 +20,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
+      '@usetheo/memory':
+        specifier: workspace:*
+        version: link:packages/core
       '@usetheo/memory-api':
         specifier: workspace:*
         version: link:packages/api
@@ -100,15 +100,9 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0(typescript@5.9.3)(vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)))
     optionalDependencies:
-      '@xenova/transformers':
-        specifier: ^2.17.2
-        version: 2.17.2
       natural:
         specifier: ^8.1.0
         version: 8.1.1(@opentelemetry/api@1.9.1)
-      openai:
-        specifier: ^4.77.0
-        version: 4.104.0(zod@3.25.76)
 
   packages/api:
     dependencies:
@@ -126,7 +120,7 @@ importers:
         version: 1.9.1
       '@usetheo/memory':
         specifier: workspace:*
-        version: link:../..
+        version: link:../core
       hono:
         specifier: ^4.7.18
         version: 4.12.25
@@ -140,6 +134,53 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/core:
+    dependencies:
+      '@dqbd/tiktoken':
+        specifier: ^1.0.22
+        version: 1.0.22
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.1
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+      zod-to-json-schema:
+        specifier: ^3.24.0
+        version: 3.25.2(zod@3.25.76)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.43
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest-mock-extended:
+        specifier: ^4.0.0
+        version: 4.0.0(typescript@5.9.3)(vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)))
+    optionalDependencies:
+      '@xenova/transformers':
+        specifier: ^2.17.2
+        version: 2.17.2
+      natural:
+        specifier: ^8.1.0
+        version: 8.1.1(@opentelemetry/api@1.9.1)
+      openai:
+        specifier: ^4.77.0
+        version: 4.104.0(zod@3.25.76)
 
 packages:
 

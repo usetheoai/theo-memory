@@ -39,9 +39,6 @@ vi.mock('@usetheo/memory', () => ({
   runMigrations: mockRunMigrations,
   StubEmbedder: class MockStubEmbedder {},
   StubLLM: class MockStubLLM {},
-}));
-
-vi.mock('@usetheo/memory', () => ({
   PgvectorStore: class MockPgvectorStore {},
 }));
 
