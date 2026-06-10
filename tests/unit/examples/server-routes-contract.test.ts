@@ -88,7 +88,7 @@ describe("server-routes — T2.2 per-route contract parity", () => {
       name: "themory-demo-chat",
       sdk: "@theokit/sdk@^1.5.0",
       memory: "@usetheo/memory (local workspace)",
-      ui: "@usetheo/ui@0.12.0",
+      ui: "@theokit/ui@0.12.0",
     });
   });
 
