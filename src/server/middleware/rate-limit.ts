@@ -9,6 +9,7 @@
  * EC-1: IPv6 key normalization — strips `::ffff:` prefix so
  * `::ffff:127.0.0.1` and `127.0.0.1` map to the same bucket.
  */
+import { createHash } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
 
 const DEFAULT_WRITES = 30;
@@ -38,6 +39,9 @@ interface BucketEntry {
   timestamps: number[];
 }
 
+// T3.4 — cap to prevent unbounded Map growth under high cardinality traffic.
+const MAX_BUCKETS = 100_000;
+
 export class SlidingWindowRateLimiter {
   private readonly buckets = new Map<string, BucketEntry>();
   private readonly limit: number;
@@ -52,6 +56,15 @@ export class SlidingWindowRateLimiter {
   check(key: string): { allowed: boolean; retryAfterSec: number } {
     const now = Date.now();
     const cutoff = now - this.windowMs;
+
+    // T3.4 — evict stale buckets when Map exceeds cap
+    if (this.buckets.size >= MAX_BUCKETS) {
+      for (const [k, v] of this.buckets) {
+        if (v.timestamps.every((t) => t <= cutoff)) this.buckets.delete(k);
+        if (this.buckets.size < MAX_BUCKETS * 0.9) break;
+      }
+    }
+
     let entry = this.buckets.get(key);
     if (entry === undefined) {
       entry = { timestamps: [] };
@@ -71,9 +84,11 @@ export class SlidingWindowRateLimiter {
 
 function extractKey(c: { req: { header: (name: string) => string | undefined; raw: Request } }): string {
   // EC-3: per-token isolation when auth is active
+  // T1.3 — hash the token before storing as bucket key (CWE-200, ADR D4).
   const authHeader = c.req.header('authorization');
   if (authHeader !== undefined && authHeader.length > 0) {
-    return `bearer:${authHeader}`;
+    const hash = createHash('sha256').update(authHeader).digest('hex');
+    return `bearer:${hash}`;
   }
   // Fallback to IP
   const forwarded = c.req.header('x-real-ip');

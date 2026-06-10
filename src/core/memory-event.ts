@@ -55,6 +55,13 @@ export const MEMORY_EVENTS = [
   // recall_threshold_filtered).
   // @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D2 + EC-7
   'getall_temporal_fallback',
+  // code-review-fixes-v0-2-1 T2.1 — LLM parse/validation error (SyntaxError or ZodError)
+  // distinct from network error (which propagates). Princípio 3 observability.
+  'extraction_parse_failure',
+  // code-review-fixes-v0-2-1 T2.2 — embedder returned zero-dim vector in per-row fallback.
+  'embed_zero_dim_skipped',
+  // code-review-fixes-v0-2-1 T2.3 — history persist failed (non-fatal; surfaces silently swallowed error).
+  'history_persist_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

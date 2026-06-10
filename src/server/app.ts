@@ -177,8 +177,11 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // EC-5: maxAge=86400 (24h) so browsers cache preflight.
   const corsOrigin = process.env['THEMORY_CORS_ORIGIN'] ?? '*';
   if (corsOrigin === '*' && process.env['NODE_ENV'] === 'production') {
-    process.stderr.write(
-      '[themory] WARN: THEMORY_CORS_ORIGIN is unset in production — defaulting to * (permissive). Set explicitly for security.\n',
+    // T1.2 — fail-fast in production per OWASP A01:2021 (ADR D2, EC-2).
+    // Guard fires ONLY when NODE_ENV === 'production'; test/dev/undefined are permissive.
+    throw new Error(
+      'THEMORY_CORS_ORIGIN must be set when NODE_ENV=production. ' +
+        'Wildcard CORS in production is a security misconfiguration (OWASP A01:2021).',
     );
   }
   app.use(

@@ -7,8 +7,8 @@ import { MEMORY_EVENTS, emitEvent } from '../memory-event.js';
 import type { MemoryEvent } from '../memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 17 values (16 prior + getall_temporal_fallback per dashboard-memories-tab-standardization T2.2)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(17);
+  test('has 20 values (17 prior + 3 from code-review-fixes-v0-2-1: extraction_parse_failure, embed_zero_dim_skipped, history_persist_failed)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(20);
   });
 
   test('includes getall_temporal_fallback (dashboard-memories-tab-standardization T2.2, ADR D2 + EC-7)', () => {
