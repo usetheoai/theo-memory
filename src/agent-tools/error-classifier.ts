@@ -29,7 +29,7 @@ import {
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
-} from '../core/errors.js';
+} from '@usetheo/memory/contract';
 
 /**
  * Pg driver transient codes (EC-5 absorbed). Errors carrying these codes are

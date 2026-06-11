@@ -19,7 +19,7 @@
  */
 import { Pool } from 'pg';
 
-import { runMigrations } from '../local/index.js';
+import { runMigrations } from '@usetheo/memory';
 
 export async function runMigrate(): Promise<void> {
   const pgUri = process.env['THEOMEM_PG_URI'];

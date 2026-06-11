@@ -1,0 +1,76 @@
+{
+  "name": "@usetheo/memory",
+  "version": "0.2.0",
+  "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./contract": {
+      "types": "./src/domain/index.ts",
+      "default": "./src/domain/index.ts"
+    },
+    "./theokit": {
+      "types": "./src/infrastructure/theokit/index.ts",
+      "default": "./src/infrastructure/theokit/index.ts"
+    },
+    "./embedders": {
+      "types": "./src/infrastructure/embedders/index.ts",
+      "default": "./src/infrastructure/embedders/index.ts"
+    },
+    "./embedders/stub": {
+      "types": "./src/infrastructure/embedders/stub.ts",
+      "default": "./src/infrastructure/embedders/stub.ts"
+    },
+    "./embedders/openai": {
+      "types": "./src/infrastructure/embedders/openai.ts",
+      "default": "./src/infrastructure/embedders/openai.ts"
+    },
+    "./embedders/local": {
+      "types": "./src/infrastructure/embedders/local.ts",
+      "default": "./src/infrastructure/embedders/local.ts"
+    },
+    "./llms": {
+      "types": "./src/infrastructure/llms/index.ts",
+      "default": "./src/infrastructure/llms/index.ts"
+    },
+    "./llms/stub": {
+      "types": "./src/infrastructure/llms/stub.ts",
+      "default": "./src/infrastructure/llms/stub.ts"
+    },
+    "./llms/openai": {
+      "types": "./src/infrastructure/llms/openai.ts",
+      "default": "./src/infrastructure/llms/openai.ts"
+    },
+    "./cache-pg": {
+      "types": "./src/infrastructure/db/recall-cache/index.ts",
+      "default": "./src/infrastructure/db/recall-cache/index.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@dqbd/tiktoken": "^1.0.22",
+    "@opentelemetry/api": "^1.9.0",
+    "drizzle-orm": "^0.45.0",
+    "pg": "^8.13.0",
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.0"
+  },
+  "optionalDependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "natural": "^8.1.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.0",
+    "vitest-mock-extended": "^4.0.0"
+  }
+}

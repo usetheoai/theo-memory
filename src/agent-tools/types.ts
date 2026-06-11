@@ -4,7 +4,7 @@
  * @see ADR D1 — Transport selection: stdio (primary) + streamable-HTTP (secondary)
  * @see ADR D8 — Package surface (subpath + bin + bundle isolation)
  */
-import type { Memory } from '../core/memory-store.js';
+import type { Memory } from '@usetheo/memory/contract';
 
 /**
  * Transport flavor for the MCP server.

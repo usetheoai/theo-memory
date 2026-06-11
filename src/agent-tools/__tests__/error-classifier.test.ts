@@ -17,7 +17,7 @@ import {
   EmbedderError,
   MemoryStoreError,
   MissingScopeError,
-} from '../../core/errors.js';
+} from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '../error-classifier.js';
 
 describe('classifyError — Tool Execution Error mappings (ADR D6)', () => {
