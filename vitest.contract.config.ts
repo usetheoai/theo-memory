@@ -21,6 +21,7 @@ export default defineConfig({
     include: [
       'packages/core/src/**/__tests__/**/*.test.ts',
       'packages/core/src/**/*.test.ts',
+      'packages/mcp/src/**/*.test.ts',
       'src/agent-tools/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
       'benchmarks/scripts/__tests__/**/*.test.ts',

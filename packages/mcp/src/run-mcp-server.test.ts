@@ -49,17 +49,17 @@ vi.mock('pg', () => ({
   },
 }));
 
-vi.mock('../server.js', () => ({
+vi.mock('./server.js', () => ({
   McpServer: class MockMcpServer {
     stop = mockMcpServerStop;
   },
 }));
 
-vi.mock('../transports/stdio.js', () => ({
+vi.mock('./transports/stdio.js', () => ({
   connectStdio: mockConnectStdio,
 }));
 
-vi.mock('../transports/streamable-http.js', () => ({
+vi.mock('./transports/streamable-http.js', () => ({
   connectStreamableHttp: mockConnectStreamableHttp,
 }));
 
@@ -113,7 +113,7 @@ describe('T1.1 — runMcpServer startup banner (post-e43d801 real-providers regi
     // Post-e43d801: stub-embedder warning is REMOVED. The replacement banner
     // announces real providers (LocalTransformerEmbedder + OpenAILLM).
     process.env['OPENAI_API_KEY'] = 'sk-fake-test-key-for-boot';
-    const { runMcpServer } = await import('../run-mcp-server.js');
+    const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
     expect(captured).toMatch(/real providers wired/i);
@@ -126,7 +126,7 @@ describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
     // Given: THEMEMORY_API_KEY env present, no --transport/--auth flag, no env override
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_for_disclosure_test');
     // When: runMcpServer invoked with empty opts (Tier-3 heuristic fires)
-    const { runMcpServer } = await import('../run-mcp-server.js');
+    const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
     // Then: disclosure line announces auto-selected HTTP + api-keys + override hint
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
@@ -139,7 +139,7 @@ describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
   it('test_stderr_discloses_stdio_default_with_hint', async () => {
     // Given: no env (beforeEach stubbed THEMEMORY_API_KEY='') — stdio default fires
     // When: runMcpServer invoked
-    const { runMcpServer } = await import('../run-mcp-server.js');
+    const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
     // Then: disclosure line hints at HTTP+Bearer mode via env
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
@@ -152,7 +152,7 @@ describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
     // ADR D3 invariant: explicit operator intent (CLI flag OR scoped env)
     // suppresses the disclosure — no need to announce what was explicit.
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_silent_under_explicit_flag');
-    const { runMcpServer } = await import('../run-mcp-server.js');
+    const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer({ transport: 'stdio' });
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
     // FC2-T1.1 "real providers wired" line stays unconditional (NOT suppressed)
@@ -168,7 +168,7 @@ describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
     // suppress the pre-existing "real providers wired" line (FC2-T1.1 contract).
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_under_quiet_env');
     vi.stubEnv('THEOMEM_MCP_QUIET', '1');
-    const { runMcpServer } = await import('../run-mcp-server.js');
+    const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
     // FC2-T1.1 line still fires (scope discipline)
@@ -241,7 +241,7 @@ describe('T4.1 — resolveMcpModes 14-cell precedence matrix (ADR D1 + ADR D2 + 
     if (envTransport !== undefined) vi.stubEnv('THEOMEM_MCP_TRANSPORT', envTransport);
     if (envAuth !== undefined) vi.stubEnv('THEOMEM_MCP_AUTH', envAuth);
     if (apiKey !== undefined) vi.stubEnv('THEMEMORY_API_KEY', apiKey);
-    const { resolveMcpModes } = await import('../run-mcp-server.js');
+    const { resolveMcpModes } = await import('./run-mcp-server.js');
     const result = resolveMcpModes(opt);
     expect(result.transport).toBe(expected.transport);
     expect(result.auth).toBe(expected.auth);
