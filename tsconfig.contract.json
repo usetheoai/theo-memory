@@ -24,9 +24,10 @@
       "@usetheo/memory/contract": ["./packages/core/src/domain/index.ts"],
       "@usetheo/memory/embedders/*": ["./packages/core/src/infrastructure/embedders/*"],
       "@usetheo/memory/llms/*": ["./packages/core/src/infrastructure/llms/*"],
-      "@usetheo/memory-api": ["./packages/api/src/server/index.ts"]
+      "@usetheo/memory-api": ["./packages/api/src/server/index.ts"],
+      "@usetheo/memory-mcp": ["./packages/mcp/src/index.ts"]
     }
   },
-  "include": ["packages/core/src/**/*.ts", "packages/api/src/**/*.ts", "src/agent-tools/**/*.ts", "benchmarks/scripts/**/*.ts"],
+  "include": ["packages/core/src/**/*.ts", "packages/api/src/**/*.ts", "packages/mcp/src/**/*.ts", "src/agent-tools/**/*.ts", "benchmarks/scripts/**/*.ts"],
   "exclude": ["node_modules", "referencia", "dist", ".claude"]
 }

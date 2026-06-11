@@ -15,7 +15,7 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { McpServer } from '../server.js';
+import { McpServer } from './server.js';
 
 describe('McpServer — construction (T1.1)', () => {
   test('declares tools.listChanged: false in capabilities when constructed', () => {

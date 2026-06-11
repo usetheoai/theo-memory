@@ -17,7 +17,7 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { buildToolsListResponse } from '../list-handler.js';
+import { buildToolsListResponse } from './list-handler.js';
 
 describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
   test('returns exactly 4 tools (no pagination at v0.3 per ADR D2 listChanged:false)', () => {
