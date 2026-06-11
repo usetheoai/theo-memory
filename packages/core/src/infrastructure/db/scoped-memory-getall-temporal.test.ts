@@ -35,10 +35,10 @@ const makeEmbedder = (): Embedder => ({
   embedBatch: vi.fn(async (texts: readonly string[]) => texts.map(() => validVector())),
 });
 
-const makeLlm = (): LLM => ({
+const makeLlm = () => ({
   extract: vi.fn(async () => ({ memory: [] })),
   generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-});
+}) as unknown as LLM;
 
 /** Tracer mock — captures `startActiveSpan` invocations + attribute sets. */
 function makeTracerMock(): { tracer: Tracer; events: { name: string; attrs: Record<string, unknown> }[] } {
