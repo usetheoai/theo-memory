@@ -22,7 +22,7 @@ import { describe, test, expect } from 'vitest';
 import { theoApiKeys } from './schema.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = resolve(HERE, '..', 'migrations');
+const MIGRATIONS_DIR = resolve(HERE, 'migrations');
 
 describe('T0.2 — theo_api_keys schema shape', () => {
   test('Drizzle table exports the 12 mandated columns with expected types', () => {

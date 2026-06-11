@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(__dirname, '..', '..', '..', '..');
+const REPO_ROOT = join(__dirname, '..', '..', '..');
 const CHANGELOG_PATH = join(REPO_ROOT, 'CHANGELOG.md');
 
 describe('T0.3 — CHANGELOG BREAKING marker for REST server stub-removal', () => {

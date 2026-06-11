@@ -9,7 +9,7 @@ import type { MemoryItem } from './memory-item.js';
 import type { Filters } from './scope.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OPTIONS_TS = resolve(HERE, '..', 'options.ts');
+const OPTIONS_TS = resolve(HERE, 'options.ts');
 
 describe('T3.1 + ADR-0011 — asOf JSDoc reflects local-runtime lift', () => {
   test('options.ts does NOT advertise @throws BiTemporalNotSupportedLocally above asOf', () => {
@@ -70,8 +70,8 @@ describe('themory-category-filter-server-side T1.1 — category? widening across
   // test reads the file and matches a `readonly category?: string` line in
   // the relevant exported interface body.
   const OPTIONS_SRC = readFileSync(OPTIONS_TS, 'utf8');
-  const MEMORY_ITEM_TS = resolve(HERE, '..', 'memory-item.ts');
-  const SCOPE_TS = resolve(HERE, '..', 'scope.ts');
+  const MEMORY_ITEM_TS = resolve(HERE, 'memory-item.ts');
+  const SCOPE_TS = resolve(HERE, 'scope.ts');
 
   function interfaceBody(source: string, ifaceName: string): string {
     const start = source.indexOf(`export interface ${ifaceName} {`);
