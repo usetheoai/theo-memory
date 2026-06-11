@@ -33,14 +33,15 @@ vi.mock('@hono/node-server', () => ({
   },
 }));
 
-vi.mock('../../local/index.js', () => ({
+vi.mock('@usetheo/memory', () => ({
   createLocalMemory: mockCreateLocalMemory,
   runMigrations: mockRunMigrations,
   StubEmbedder: class MockStubEmbedder {},
   StubLLM: class MockStubLLM {},
+  PgvectorStore: class MockPgvectorStore {},
 }));
 
-vi.mock('../../embedders/stub.js', () => ({
+vi.mock('@usetheo/memory/embedders/stub', () => ({
   DeterministicStubEmbedder: class MockDeterministicStubEmbedder {
     async embed(): Promise<readonly number[]> {
       return [0.1, 0.2, 0.3];
@@ -49,10 +50,6 @@ vi.mock('../../embedders/stub.js', () => ({
       return texts.map(() => [0.1, 0.2, 0.3]);
     }
   },
-}));
-
-vi.mock('../../local/pgvector-store.js', () => ({
-  PgvectorStore: class MockPgvectorStore {},
 }));
 
 vi.mock('pg', () => ({

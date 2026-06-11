@@ -28,7 +28,7 @@ const mockCreateLocalMemory = vi.fn();
 const mockEmbed = vi.fn();
 const mockGenerateChat = vi.fn();
 
-vi.mock('../../local/index.js', () => ({
+vi.mock('@usetheo/memory', () => ({
   createLocalMemory: mockCreateLocalMemory,
   StubEmbedder: class MockStubEmbedder {
     embed = mockEmbed;
@@ -38,9 +38,6 @@ vi.mock('../../local/index.js', () => ({
     generateChat = mockGenerateChat;
     generateResponse = vi.fn();
   },
-}));
-
-vi.mock('../../local/pgvector-store.js', () => ({
   PgvectorStore: class MockPgvectorStore {},
 }));
 

@@ -47,8 +47,8 @@ import {
   runKeysRevoke,
   runKeysRotate,
 } from './run-keys.js';
-import { runMcpServer } from './run-mcp-server.js';
-import type { RunMcpServerOptions } from './run-mcp-server.js';
+import { runMcpServer } from '@usetheo/memory-mcp';
+import type { RunMcpServerOptions } from '@usetheo/memory-mcp';
 import { runMigrate } from './run-migrate.js';
 import { runRecall } from './run-recall.js';
 import { runReflect } from './run-reflect.js';
