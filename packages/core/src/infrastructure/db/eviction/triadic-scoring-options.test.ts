@@ -35,7 +35,7 @@ describe('TriadicScoringPolicy constructor', () => {
   };
 
   const stubNeighborProvider: NearestNeighborProvider = {
-    async distance(_id: string, _scope: string): Promise<number> {
+    async distance(_id: string, _scope: import('../../../domain/scope.js').Scope): Promise<number> {
       return 0.5;
     },
   };

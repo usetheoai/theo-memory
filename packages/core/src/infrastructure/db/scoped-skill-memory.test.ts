@@ -9,7 +9,8 @@
 import { describe, expect, test } from 'vitest';
 
 import { hashFact } from '../../domain/dedup.js';
-import type { HistoryBatchRecord, HistoryEntry, HistoryManager } from '../../domain/dip/history-manager.js';
+import type { HistoryBatchRecord, HistoryManager } from '../../domain/dip/history-manager.js';
+import type { HistoryEntry } from '../../domain/history-entry.js';
 import type { Message } from '../../domain/dip/llm.js';
 import { InvalidScope, InvalidSkillError, MemoryNotFound } from '../../domain/errors.js';
 import { createLocalMemory, StubEmbedder, StubLLM } from './index.js';

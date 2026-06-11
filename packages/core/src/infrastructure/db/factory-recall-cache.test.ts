@@ -95,7 +95,7 @@ describe('T2.1 — createLocalMemory({ recallCache })', () => {
   });
 
   test('T2.1-RED-4 — second recall() with same query short-circuits on cache HIT', async () => {
-    const seeded: MemoryItemWithScore[] = [
+    const seeded = [
       {
         id: '00000000-0000-0000-0000-000000000001',
         text: 'cached fact',
@@ -104,7 +104,7 @@ describe('T2.1 — createLocalMemory({ recallCache })', () => {
         updatedAt: new Date(),
         score: 0.99,
       },
-    ];
+    ] as unknown as MemoryItemWithScore[];
     const cache = makeFakeCache({ results: seeded, cachedAt: new Date(), similarity: 0.99 });
     const memory = await createLocalMemory(baseConfig(cache));
     const result = await memory.user('alice').recall('coffee');
