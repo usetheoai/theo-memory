@@ -83,8 +83,8 @@ if (PG_URI === undefined || PG_URI === '') {
     const TRIGGER: ReflectionTrigger = { kind: 'threshold' };
 
     beforeAll(async () => {
-      pool = new pg.Pool({ connectionString: PG_URI });
-      store = new PgvectorStore({ connectionString: PG_URI });
+      pool = new pg.Pool({ connectionString: PG_URI } as pg.PoolConfig);
+      store = new PgvectorStore({ connectionString: PG_URI } as never);
       await store.initialize();
     });
 

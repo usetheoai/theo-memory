@@ -31,7 +31,7 @@ function buildStore(): {
     } as unknown as PoolClient;
     return fn(client);
   });
-  const store = new PgvectorSkillStore(pool, withTransactionFn);
+  const store = new PgvectorSkillStore(pool, withTransactionFn as never);
   return { store, poolQuery, withTransactionFn };
 }
 

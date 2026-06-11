@@ -36,7 +36,7 @@ function buildPool(queryHandler: (sql: string, params?: unknown[]) => { rows?: u
 
 const ALICE: Scope = { kind: 'user', userId: 'alice' };
 const BOB: Scope = { kind: 'user', userId: 'bob' };
-const SAMPLE_RESULTS: MemoryItemWithScore[] = [
+const SAMPLE_RESULTS = [
   {
     id: '00000000-0000-0000-0000-000000000001',
     text: 'sample fact',
@@ -45,7 +45,7 @@ const SAMPLE_RESULTS: MemoryItemWithScore[] = [
     updatedAt: new Date('2026-06-03T00:00:00Z'),
     score: 0.95,
   },
-];
+] as unknown as MemoryItemWithScore[];
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -109,7 +109,7 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
   it('T1.1 (mock) — set() opens SERIALIZABLE transaction, COUNTs scope, INSERTs', async () => {
     const sequence: { sql: string; params?: unknown[] }[] = [];
     const queryHandler = (sql: string, params?: unknown[]) => {
-      sequence.push({ sql, params });
+      sequence.push(params !== undefined ? { sql, params } : { sql });
       if (sql.includes('COUNT(*)')) return { rows: [{ count: 0 }] };
       return { rows: [], rowCount: 1 };
     };
