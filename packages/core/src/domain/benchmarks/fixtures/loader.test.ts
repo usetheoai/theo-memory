@@ -18,7 +18,7 @@ import {
   normalizeLongMemEvalAnswer,
 } from './index.js';
 
-const SAMPLES_DIR = resolve(import.meta.dirname, '../../../../../../../tests/fixtures/benchmarks');
+const SAMPLES_DIR = resolve(import.meta.dirname, '../../../../../../tests/fixtures/benchmarks');
 
 describe('normalizeLongMemEvalAnswer (EC-1)', () => {
   it('passes through a string answer', () => {

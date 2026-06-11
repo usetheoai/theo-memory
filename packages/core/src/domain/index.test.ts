@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, '..', '..', '..');
+const REPO_ROOT = resolve(HERE, '..', '..');
 const PACKAGE_JSON = resolve(REPO_ROOT, 'package.json');
 const BARREL = resolve(REPO_ROOT, 'src', 'domain', 'index.ts');
 
