@@ -1,0 +1,482 @@
+/**
+ * v0.6 — 4-phase code-as-skill consolidation orchestrator.
+ *
+ * Wraps the v0.4a `executeReflection + validateProvenance + insertDerivedSkill`
+ * chain (per plan ADR D1 — REUSE, no sibling chain) with skill-aware Orient /
+ * Gather / Consolidate / Report phases producing `kind='skill'` derived rows.
+ *
+ * Pipeline:
+ *  1. **Orient**  — fetch all current skills under the scope filter
+ *                   (`onlySkills:true, includeSuperseded:false` per EC-3).
+ *  2. **Gather**  — greedy union-find clustering on embedding cosine similarity
+ *                   above `clusterThreshold` (default 0.85). Clusters of size < 2
+ *                   are dropped (single-skill clusters have nothing to consolidate).
+ *  3. **Consolidate** — for each cluster, call `executeReflection` with the source
+ *                   skills (text projection: `description + "\n\nCode:\n" + code`).
+ *                   Validate provenance + assert `draft.derivedFrom.length >= 2`.
+ *                   Embed the merged description, then call
+ *                   `insertDerivedSkillAtomic(insertArgs, sourceIds)` which on
+ *                   pgvector wraps INSERT + UPDATE in BEGIN/COMMIT (EC-2). On
+ *                   InMemoryVectorStore the combo runs sequentially as
+ *                   best-effort — documented accepted-risk for tests/dev only.
+ *  4. **Report**  — return `ConsolidationResult { sourceClusters, derivedSkills,
+ *                   supersededIds, durationMs }`.
+ *
+ * Invariants:
+ *  - Every `derivedSkills[i].derivedFrom.length >= 2` (enforced post-LLM).
+ *  - Every id in `supersededIds` was an input to some `sourceClusters[j].sourceIds`.
+ *  - Source rows are NEVER deleted (Inquebrável Rule 3 — supersession via column).
+ *  - When LLM returns 0 drafts for a cluster, the cluster is skipped entirely;
+ *    no partial consolidation (no `markSuperseded` without an `insertDerivedSkill`).
+ *
+ * Architecture:
+ *  - Lives under `src/local/skills/` per plan ADR D4 (NOT inside LocalScopedSkillMemory).
+ *  - DIP-compliant: depends on the store via runtime-branded `VectorStoreWithSkillInsert`,
+ *    NOT on the pg `PoolClient` directly. The atomicity guarantee is honored
+ *    inside `insertDerivedSkillAtomic` (pgvector wraps; in-memory best-effort).
+ *
+ * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T3.1 + EC-2 + EC-3
+ * @see .claude/knowledge-base/discoveries/blueprints/voyager-skill-library-blueprint.md § ADR D4
+ */
+import { context as otelContext, trace as otelTrace, SpanStatusCode, type Span, type Tracer } from '@opentelemetry/api';
+
+import { hashFact } from '../../../domain/dedup.js';
+import type { Embedder } from '../../../domain/dip/embedder.js';
+import type { LLM } from '../../../domain/dip/llm.js';
+import type { VectorStore } from '../../../domain/dip/vector-store.js';
+import type { MemoryItem } from '../../../domain/memory-item.js';
+import { executeReflection } from '../../../domain/reflection/execute.js';
+import { validateProvenance } from '../../../domain/reflection/provenance.js';
+import type { Filters, Scope } from '../../../domain/scope.js';
+import type {
+  ConsolidateOptions,
+  ConsolidationResult,
+  Skill,
+  SourceCluster,
+} from '../../../domain/skill.js';
+import type {
+  InsertDerivedSkillArgs,
+  VectorStoreWithSkillInsert,
+} from '../skill-store-args.js';
+
+import { decodeSkillPayload } from './payload.js';
+
+/** Default embedding-cosine threshold for cluster membership (KISS — calibrate at v0.6.1+). */
+const DEFAULT_CLUSTER_THRESHOLD = 0.85;
+
+/** Maximum number of skills the Orient phase scans in one consolidate() call. */
+const ORIENT_PAGE_SIZE = 500;
+
+/** Dependencies required by the orchestrator. */
+export interface ConsolidateDeps {
+  /** Local store with skill-insertion + supersession capabilities. */
+  readonly vectorStore: VectorStore & VectorStoreWithSkillInsert;
+  /** LLM used by the v0.4a `executeReflection` primitive. */
+  readonly llm: LLM;
+  /** Embedder used to embed the LLM-produced merged description. */
+  readonly embedder: Embedder;
+  /** Scope object passed to `executeReflection` (LLM prompt formatting). */
+  readonly scope: Scope;
+  /** Store-layer filter (already projected from scope by the caller). */
+  readonly filters: Filters;
+  /**
+   * Optional OTel tracer. When present, emits parent span `skills.consolidate`
+   * with child spans `skills.consolidate.orient` / `skills.consolidate.gather` /
+   * `skills.consolidate.consolidate` / `skills.consolidate.report` per plan
+   * acceptance criterion + architecture.md § Telemetry. When absent, no spans
+   * are emitted (no fabricated telemetry).
+   */
+  readonly tracer?: Tracer;
+}
+
+/**
+ * Run a function inside an OTel span when `tracer` is present; otherwise just
+ * invoke the function directly. Records exceptions + sets ERROR status on throw.
+ */
+async function withSpan<T>(
+  tracer: Tracer | undefined,
+  name: string,
+  fn: (span?: Span) => Promise<T>,
+): Promise<T> {
+  if (tracer === undefined) {
+    return fn();
+  }
+  const span = tracer.startSpan(name);
+  return otelContext.with(otelTrace.setSpan(otelContext.active(), span), async () => {
+    try {
+      const result = await fn(span);
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      if (err instanceof Error) {
+        span.recordException(err);
+      }
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+
+/**
+ * Project a stored skill row (read back from `vectorStore.list`) into the
+ * `MemoryItem` shape the v0.4a `executeReflection` primitive expects.
+ *
+ * The `text` field carries `description + "\n\nCode:\n" + code` so the LLM
+ * extraction sees BOTH the semantic (description) and the executable
+ * (code) signals when proposing a merged skill.
+ *
+ * @internal exported for unit-test introspection only.
+ */
+export function projectSkillToMemoryItem(skill: Skill): MemoryItem {
+  // T0.2: skill.code may be NULL on derived skills. Fall back to
+  // description-only text so the LLM extraction (`executeReflection`) still
+  // sees a meaningful source signal.
+  const text =
+    skill.code == null || skill.code.length === 0
+      ? skill.description
+      : `${skill.description}\n\nCode:\n${skill.code}`;
+  return {
+    id: skill.id,
+    text,
+    hash: skill.hash,
+    scope: skill.scope,
+    createdAt: skill.createdAt,
+    updatedAt: skill.updatedAt,
+    metadata: skill.metadata,
+    tValid: skill.tValid,
+    tInvalid: skill.tInvalid,
+  };
+}
+
+/** Cosine similarity in [-1, 1]. Returns 0 for length-mismatch or zero-magnitude. */
+function cosineSim(a: readonly number[], b: readonly number[]): number {
+  if (a.length !== b.length) {
+    return 0;
+  }
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    const ai = a[i] ?? 0;
+    const bi = b[i] ?? 0;
+    dot += ai * bi;
+    magA += ai * ai;
+    magB += bi * bi;
+  }
+  if (magA === 0 || magB === 0) {
+    return 0;
+  }
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+/**
+ * Greedy union-find clustering on a list of (skill, embedding) pairs:
+ *   - Each skill starts in its own cluster (parent[i] = i).
+ *   - For every pair (i, j) with cosine ≥ threshold, union(i, j).
+ *   - Transitive closure: A~B + B~C produces a single cluster {A,B,C}.
+ *
+ * Returns a list of clusters, each as the index list of its members.
+ */
+function clusterByEmbedding(
+  embeddings: readonly (readonly number[])[],
+  threshold: number,
+): readonly (readonly number[])[] {
+  const n = embeddings.length;
+  const parent = new Array<number>(n);
+  for (let i = 0; i < n; i += 1) {
+    parent[i] = i;
+  }
+  const find = (x: number): number => {
+    let cur = x;
+    while ((parent[cur] ?? cur) !== cur) {
+      cur = parent[cur] ?? cur;
+    }
+    let walk = x;
+    while ((parent[walk] ?? walk) !== cur) {
+      const next = parent[walk] ?? walk;
+      parent[walk] = cur;
+      walk = next;
+    }
+    return cur;
+  };
+  const union = (x: number, y: number): void => {
+    const rx = find(x);
+    const ry = find(y);
+    if (rx !== ry) {
+      parent[rx] = ry;
+    }
+  };
+  for (let i = 0; i < n; i += 1) {
+    const ei = embeddings[i];
+    if (ei === undefined) {
+      continue;
+    }
+    for (let j = i + 1; j < n; j += 1) {
+      const ej = embeddings[j];
+      if (ej === undefined) {
+        continue;
+      }
+      if (cosineSim(ei, ej) >= threshold) {
+        union(i, j);
+      }
+    }
+  }
+  const clusters = new Map<number, number[]>();
+  for (let i = 0; i < n; i += 1) {
+    const root = find(i);
+    const existing = clusters.get(root);
+    if (existing !== undefined) {
+      existing.push(i);
+    } else {
+      clusters.set(root, [i]);
+    }
+  }
+  return [...clusters.values()];
+}
+
+// T3.3: rowToSkill extraction — delegates to src/local/skills/payload.ts:decodeSkillPayload.
+
+/**
+ * Run the 4-phase consolidation orchestrator.
+ *
+ * Returns a `ConsolidationResult` summarizing what was clustered, what got
+ * consolidated, and which source ids were marked superseded. An empty Map of
+ * results is a valid outcome — when no clusters meet the threshold OR when the
+ * LLM returns no drafts, `consolidate()` reports zero derivedSkills without
+ * mutating any rows.
+ */
+export async function consolidate(
+  deps: ConsolidateDeps,
+  options?: ConsolidateOptions,
+): Promise<ConsolidationResult> {
+  return withSpan(deps.tracer, 'skills.consolidate', async (parentSpan) => {
+    const startedAt = Date.now();
+    const threshold = options?.clusterThreshold ?? DEFAULT_CLUSTER_THRESHOLD;
+    parentSpan?.setAttribute('skills.consolidate.cluster_threshold', threshold);
+
+    // --- Phase 1 (Orient) --------------------------------------------------
+    const skillsWithEmbedding = await withSpan(
+      deps.tracer,
+      'skills.consolidate.orient',
+      async (span) => {
+        const orientFilters: Filters = {
+          ...deps.filters,
+          kind: 'skill',
+          excludeSuperseded: true,
+        };
+        const [rawRows] = await deps.vectorStore.list(orientFilters, ORIENT_PAGE_SIZE);
+        // T2.1 / F4: decode all skill rows; collect descriptions to embed in
+        // a single batch call. The conformance contract does not expose direct
+        // vector access, so we re-embed from the description as the
+        // deterministic source for clustering.
+        const decoded: Skill[] = [];
+        const descriptions: string[] = [];
+        for (const row of rawRows) {
+          const skill = decodeSkillPayload(row.id, row.payload, deps.scope);
+          if (skill === null) {
+            continue;
+          }
+          decoded.push(skill);
+          descriptions.push(skill.description);
+        }
+        if (descriptions.length === 0) {
+          span?.setAttribute('skills.consolidate.orient.skills_found', 0);
+          return [];
+        }
+        // Prefer embedBatch (single round-trip); fall back to per-row embed
+        // when the batch endpoint fails — matches the v0.1 runExtractionPipeline
+        // resilience pattern.
+        let embeddings: readonly (readonly number[])[];
+        try {
+          embeddings = await deps.embedder.embedBatch(descriptions);
+        } catch (err) {
+          span?.addEvent('skills.consolidate.orient.embed_batch_failed_fallback', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          embeddings = await Promise.all(
+            descriptions.map((d) => deps.embedder.embed(d)),
+          );
+        }
+        const acc: { skill: Skill; embedding: readonly number[] }[] = [];
+        for (let i = 0; i < decoded.length; i += 1) {
+          const skill = decoded[i];
+          const embedding = embeddings[i];
+          if (skill === undefined || embedding === undefined) {
+            continue;
+          }
+          acc.push({ skill, embedding });
+        }
+        span?.setAttribute('skills.consolidate.orient.skills_found', acc.length);
+        return acc;
+      },
+    );
+
+    if (skillsWithEmbedding.length < 2) {
+      parentSpan?.setAttribute('skills.consolidate.derived_skills', 0);
+      return {
+        sourceClusters: [],
+        derivedSkills: [],
+        supersededIds: [],
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    // --- Phase 2 (Gather) --------------------------------------------------
+    const sourceClusters = await withSpan(
+      deps.tracer,
+      'skills.consolidate.gather',
+      (span) => {
+        const allEmbeddings = skillsWithEmbedding.map((s) => s.embedding);
+        const clusterIndices = clusterByEmbedding(allEmbeddings, threshold).filter(
+          (c) => c.length >= 2,
+        );
+        const result: SourceCluster[] = clusterIndices.map((idxs) => {
+          const members = idxs
+            .map((i) => skillsWithEmbedding[i]?.skill)
+            .filter((s): s is Skill => s !== undefined);
+          return { sourceIds: members.map((s) => s.id), skills: members };
+        });
+        span?.setAttribute('skills.consolidate.gather.cluster_count', result.length);
+        return Promise.resolve(result);
+      },
+    );
+
+    if (sourceClusters.length === 0) {
+      parentSpan?.setAttribute('skills.consolidate.derived_skills', 0);
+      return {
+        sourceClusters: [],
+        derivedSkills: [],
+        supersededIds: [],
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    // --- Phase 3 (Consolidate) --------------------------------------------
+    const { derivedSkills, supersededIds } = await withSpan(
+      deps.tracer,
+      'skills.consolidate.consolidate',
+      async (span) => {
+        const derived: Skill[] = [];
+        const superseded: string[] = [];
+        for (const cluster of sourceClusters) {
+          const sourceMemories: MemoryItem[] = cluster.skills.map(projectSkillToMemoryItem);
+          const drafts = await executeReflection({
+            llm: deps.llm,
+            sourceMemories,
+            scope: deps.scope,
+          });
+          if (drafts.length === 0) {
+            // No-consolidation outcome: skip cluster entirely; do NOT mark superseded.
+            continue;
+          }
+          // T2.2 / F5: validateProvenance is fail-fast across ALL drafts
+          // (matches v0.4a reflect contract); a hallucinated id in any draft
+          // throws ReflectionProvenanceMissingError and aborts the cluster.
+          validateProvenance(drafts, cluster.sourceIds);
+          // T2.2 / F5: iterate ALL drafts (parity with v0.4a reflect chain).
+          // Each draft passing the length≥2 invariant produces its own derived
+          // skill row. Degenerate-provenance drafts (length<2) are skipped
+          // silently; UNIQUE collisions are skipped via the catch below.
+          let clusterProducedDerived = false;
+          for (const draft of drafts) {
+            if (draft.derivedFrom.length < 2) {
+              // Skip degenerate provenance (single-source derived skill is not
+              // a valid consolidation outcome per plan invariant).
+              continue;
+            }
+            const description = draft.text;
+            const embedding = await deps.embedder.embed(description);
+            // T1.1 / F6: content-derived hash per architecture.md § 4.
+            const hash = hashFact(description);
+            // RepoScope maps repoId → agent_id at the store layer per the EC-4
+            // absorption in `filtersFromScope` (src/local/index.ts).
+            const scopeForArgs = {
+              userId: 'userId' in deps.scope ? deps.scope.userId : null,
+              sessionId: 'sessionId' in deps.scope ? deps.scope.sessionId : null,
+              agentId:
+                deps.scope.kind === 'agent'
+                  ? deps.scope.agentId
+                  : deps.scope.kind === 'repo'
+                    ? deps.scope.repoId
+                    : null,
+            };
+            const insertArgs: InsertDerivedSkillArgs = {
+              embedding,
+              hash,
+              // T0.2 / F1: derived skills carry NULL code + codeLanguage.
+              code: null,
+              description,
+              codeLanguage: null,
+              derivedFrom: draft.derivedFrom,
+              scope: scopeForArgs,
+            };
+            // T1.1 / F6: graceful skip on UNIQUE(hash) collision (2 drafts that
+            // happen to produce identical text — within or across clusters).
+            let derivedId: string;
+            try {
+              derivedId = await deps.vectorStore.insertDerivedSkillAtomic(
+                insertArgs,
+                clusterProducedDerived ? [] : cluster.sourceIds,
+              );
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              if (
+                message.includes('memories_hash_unique_idx')
+                || message.includes('duplicate key')
+              ) {
+                parentSpan?.addEvent('skills.consolidate.consolidate.hash_collision_skipped', {
+                  description,
+                  cluster_source_count: cluster.sourceIds.length,
+                });
+                continue;
+              }
+              throw err;
+            }
+            derived.push({
+              id: derivedId,
+              text: description,
+              hash,
+              scope: deps.scope,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              metadata: { kind: 'skill' },
+              tValid: new Date(),
+              tInvalid: null,
+              kind: 'skill',
+              code: null,
+              description,
+              codeLanguage: null,
+              supersededBy: null,
+              derivedFrom: draft.derivedFrom,
+            });
+            // Mark sources superseded only ONCE per cluster (the first
+            // successful derived row owns the supersession edge).
+            if (!clusterProducedDerived) {
+              superseded.push(...cluster.sourceIds);
+              clusterProducedDerived = true;
+            }
+          }
+        }
+        span?.setAttribute('skills.consolidate.consolidate.derived_count', derived.length);
+        span?.setAttribute('skills.consolidate.consolidate.superseded_count', superseded.length);
+        return { derivedSkills: derived, supersededIds: superseded };
+      },
+    );
+
+    // --- Phase 4 (Report) --------------------------------------------------
+    return withSpan(deps.tracer, 'skills.consolidate.report', () => {
+      parentSpan?.setAttribute('skills.consolidate.derived_skills', derivedSkills.length);
+      return Promise.resolve({
+        sourceClusters,
+        derivedSkills,
+        supersededIds,
+        durationMs: Date.now() - startedAt,
+      });
+    });
+  });
+}

@@ -16,8 +16,8 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import type { ScopedContext } from '../../core/scope.js';
-import { MissingScopeError } from '../../core/errors.js';
+import type { ScopedContext } from '@usetheo/memory/contract';
+import { MissingScopeError } from '@usetheo/memory/contract';
 import { getScope, withScope } from '../scope.js';
 
 describe('AsyncLocalStorage scope binding (T3.1)', () => {

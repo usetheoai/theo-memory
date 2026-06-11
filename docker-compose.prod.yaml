@@ -19,7 +19,7 @@
 # `--wait-timeout` expires. 60s default covers cold-start of pgvector +
 # migrate-on-startup of the themory container on a typical dev machine.
 #
-# EC-42 absorption: `${VERSION:-0.1.0-alpha}` lets `docker compose config`
+# EC-42 absorption: `${VERSION:-0.2.0}` lets `docker compose config`
 # validate WITHOUT exporting `VERSION` first; CI sets `VERSION=$TAG` per
 # release. `${POSTGRES_*:-default}` follow the same fail-safe-default
 # pattern so the file parses standalone.
@@ -32,8 +32,8 @@ services:
     # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
     # running the compose against a locally-built image) can point at
     # `themory:dev` without forking this file. Default keeps the public
-    # GHCR coordinate.
-    image: ${THEMORY_IMAGE:-ghcr.io/usetheo/themory:${VERSION:-0.1.0-alpha}}
+    # Docker Hub coordinate (also available at ghcr.io/usetheo/themory).
+    image: ${THEMORY_IMAGE:-usetheo/themory:${VERSION:-0.2.0}}
     container_name: themory_app
     restart: unless-stopped
     depends_on:

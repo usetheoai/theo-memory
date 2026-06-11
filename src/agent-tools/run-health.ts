@@ -28,8 +28,8 @@
  */
 import { Pool } from 'pg';
 
-import { createLocalMemory, StubEmbedder, StubLLM } from '../local/index.js';
-import { PgvectorStore } from '../local/pgvector-store.js';
+import { createLocalMemory, StubEmbedder, StubLLM } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
 
 const DB_PROBE_TIMEOUT_MS = 2_000;
 
