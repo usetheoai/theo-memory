@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const LLM_TS = resolve(HERE, '..', 'dip', 'llm.ts');
+const LLM_TS = resolve(HERE, 'dip', 'llm.ts');
 
 describe('EC-10 — LLM.tools forward-compat JSDoc above the tools parameter', () => {
   test('llm.ts has @see ADR-0008 reference near the tools declaration', () => {

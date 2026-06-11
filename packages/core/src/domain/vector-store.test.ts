@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VECTOR_STORE_TS = resolve(HERE, '..', 'dip', 'vector-store.ts');
+const VECTOR_STORE_TS = resolve(HERE, 'dip', 'vector-store.ts');
 
 describe('EC-6 — getUserId/setUserId JSDoc clarifies session-metadata vs tenant-isolation', () => {
   test('vector-store.ts JSDoc states tenant isolation uses Filters (not setUserId)', () => {
