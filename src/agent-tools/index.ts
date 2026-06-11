@@ -10,15 +10,15 @@
  *   (bundle isolation verified by `tests/integration/agent-tools/public-paths.test.ts`).
  */
 
-import { McpServer } from './server.js';
+import { McpServer } from '@usetheo/memory-mcp';
 import type { McpServerOptions } from './types.js';
 
 export type { TransportKind, McpServerOptions } from './types.js';
-export { McpServer } from './server.js';
+export { McpServer } from '@usetheo/memory-mcp';
 export { withScope, getScope } from './scope.js';
-export { connectStdio } from './transports/stdio.js';
-export { connectStreamableHttp } from './transports/streamable-http.js';
-export type { StreamableHttpOptions, StreamableHttpHandle } from './transports/streamable-http.js';
+export { connectStdio } from '@usetheo/memory-mcp';
+export { connectStreamableHttp } from '@usetheo/memory-mcp';
+export type { StreamableHttpOptions, StreamableHttpHandle } from '@usetheo/memory-mcp';
 
 /**
  * Constructs an MCP server bound to a TheMemory runtime.

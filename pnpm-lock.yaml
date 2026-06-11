@@ -26,6 +26,9 @@ importers:
       '@usetheo/memory-api':
         specifier: workspace:*
         version: link:packages/api
+      '@usetheo/memory-mcp':
+        specifier: workspace:*
+        version: link:packages/mcp
       commander:
         specifier: ^12.1.0
         version: 12.1.0
@@ -181,6 +184,40 @@ importers:
       openai:
         specifier: ^4.77.0
         version: 4.104.0(zod@3.25.76)
+
+  packages/mcp:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      '@usetheo/memory':
+        specifier: workspace:*
+        version: link:../core
+      '@usetheo/memory-api':
+        specifier: workspace:*
+        version: link:../api
+      jose:
+        specifier: ^6.0.0
+        version: 6.2.3
+      oauth4webapi:
+        specifier: ^3.8.6
+        version: 3.8.6
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+      zod-to-json-schema:
+        specifier: ^3.24.0
+        version: 3.25.2(zod@3.25.76)
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
 packages:
 

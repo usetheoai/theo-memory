@@ -42,7 +42,6 @@
     "@usetheo/memory-api": "workspace:*",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-openapi": "^0.18.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/api": "^1.9.0",
     "commander": "^12.1.0",
     "croner": "^10.0.1",
@@ -52,7 +51,9 @@
     "pg": "^8.13.0",
     "zod": "^3.25.0",
     "zod-to-json-schema": "^3.24.0",
-    "drizzle-orm": "^0.45.0"
+    "drizzle-orm": "^0.45.0",
+    "@usetheo/memory-mcp": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
