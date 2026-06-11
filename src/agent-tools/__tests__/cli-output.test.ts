@@ -8,7 +8,7 @@ import { describe, expect, test } from 'vitest';
 import { renderCliOutput } from '../cli-output.js';
 import type { CliRenderableResult } from '../cli-output.js';
 
-import type { MemoryItem, MemoryItemWithScore } from '../../core/memory-item.js';
+import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
 
 const FROZEN = new Date('2026-01-01T00:00:00.000Z');
 

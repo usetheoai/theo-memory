@@ -19,11 +19,11 @@ export default defineConfig({
   },
   test: {
     include: [
-      'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/__tests__/**/*.test.ts',
-      'src/__tests__/**/*.test.ts',
+      'packages/core/src/**/__tests__/**/*.test.ts',
+      'packages/core/src/**/*.test.ts',
+      'packages/mcp/src/**/*.test.ts',
+      'src/agent-tools/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
-      // v0-8-fixes-cycle-1 T1.3 + T1.2: benchmarks/scripts/__tests__/ at repo
-      // root — runner-scaffold tests + future downloader RED tests live here.
       'benchmarks/scripts/__tests__/**/*.test.ts',
     ],
     passWithNoTests: true,
@@ -39,7 +39,7 @@ export default defineConfig({
       enabled: true,
       // T1.7 (EC-25): `server` added so subpath-export.test-d.ts asserts
       // `@usetheo/memory/server` resolves to createServer at typecheck time.
-      include: ['src/{core,theokit,server}/**/__tests__/**/*.test-d.ts'],
+      include: ['packages/core/src/**/__tests__/**/*.test-d.ts', 'packages/api/src/**/*.test-d.ts'],
       tsconfig: './tsconfig.contract.json',
     },
     coverage: {

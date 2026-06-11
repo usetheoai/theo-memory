@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest';
 
 import { resolveCliScope, validateScopeOpts } from '../cli-scope.js';
 
-import type { Memory, ScopedMemory } from '../../core/memory-store.js';
+import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 
 function makeMockMemory(): Memory {
   const make = (kind: 'user' | 'session' | 'agent', id: string): ScopedMemory =>

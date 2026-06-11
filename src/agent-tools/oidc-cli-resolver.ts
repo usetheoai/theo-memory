@@ -29,7 +29,7 @@
  *
  * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T3.2
  */
-import type { OidcDiscoveryConfig } from '../server/handlers/well-known.js';
+import type { OidcDiscoveryConfig } from '@usetheo/memory-api';
 
 /** Localhost hosts substituted with `localhost` for the EC-9 resource URL derivation. */
 const LOCALHOST_DERIVATION_HOSTS = new Set(['0.0.0.0', '::', '*']);

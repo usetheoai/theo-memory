@@ -17,8 +17,8 @@ import { defineConfig } from 'drizzle-kit';
  * @see ADR D1.10 — forced bump to drizzle-kit ^0.31.0 for security
  */
 export default defineConfig({
-  schema: './src/local/schema.ts',
-  out: './src/local/migrations',
+  schema: './packages/core/src/infrastructure/db/schema.ts',
+  out: './packages/core/src/infrastructure/db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
     url: process.env['THEOMEM_PG_URI'] ?? 'postgresql://themem:themem@localhost:5432/themem',

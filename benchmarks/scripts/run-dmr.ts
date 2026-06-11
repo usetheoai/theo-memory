@@ -17,9 +17,9 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadDmrFixture, type DmrItem } from '../../src/benchmarks/fixtures/index.js';
-import type { RunReport } from '../../src/benchmarks/runner/benchmark-runner.js';
-import type { BenchmarkCorpus, BenchmarkQuery } from '../../src/core/dip/benchmark-adapter.js';
+import { loadDmrFixture, type DmrItem } from '../../packages/core/src/domain/benchmarks/fixtures/index.js';
+import type { RunReport } from '../../packages/core/src/domain/benchmarks/runner/benchmark-runner.js';
+import type { BenchmarkCorpus, BenchmarkQuery } from '../../packages/core/src/domain/dip/benchmark-adapter.js';
 
 import { runBenchmark } from './_runner-scaffold.js';
 

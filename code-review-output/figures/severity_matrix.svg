@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 320" font-family="system-ui,sans-serif" font-size="12">
+  <title>Findings by Severity x Category</title>
+  <style>
+    .header{font-weight:bold;fill:#333;font-size:11px}
+    .cell{stroke:#e0e0e0;stroke-width:1}
+    .high{fill:#dc3545}
+    .medium{fill:#fd7e14}
+    .low{fill:#ffc107}
+    .info{fill:#17a2b8}
+    .label{fill:#555;font-size:11px}
+    .count{fill:#fff;font-size:13px;font-weight:bold;text-anchor:middle;dominant-baseline:central}
+    .count-dark{fill:#333;font-size:13px;font-weight:bold;text-anchor:middle;dominant-baseline:central}
+  </style>
+  <!-- Title -->
+  <text x="350" y="20" text-anchor="middle" font-size="15" font-weight="bold" fill="#222">Findings by Severity x Category (93 total)</text>
+  <!-- Column headers -->
+  <text x="200" y="50" class="header" text-anchor="middle">High (17)</text>
+  <text x="330" y="50" class="header" text-anchor="middle">Medium (46)</text>
+  <text x="460" y="50" class="header" text-anchor="middle">Low (25)</text>
+  <text x="590" y="50" class="header" text-anchor="middle">Info (5)</text>
+  <!-- Row: complexity -->
+  <text x="80" y="80" class="label" text-anchor="end">complexity</text>
+  <rect x="155" y="63" width="90" height="26" rx="4" class="cell high"/><text x="200" y="76" class="count">8</text>
+  <rect x="285" y="63" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="76" class="count">19</text>
+  <rect x="415" y="63" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="460" y="76" class="count-dark">0</text>
+  <rect x="545" y="63" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="76" class="count-dark">0</text>
+  <!-- Row: test -->
+  <text x="80" y="112" class="label" text-anchor="end">test</text>
+  <rect x="155" y="95" width="90" height="26" rx="4" class="cell high"/><text x="200" y="108" class="count">4</text>
+  <rect x="285" y="95" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="108" class="count">8</text>
+  <rect x="415" y="95" width="90" height="26" rx="4" class="cell low"/><text x="460" y="108" class="count-dark">1</text>
+  <rect x="545" y="95" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="108" class="count-dark">0</text>
+  <!-- Row: security -->
+  <text x="80" y="144" class="label" text-anchor="end">security</text>
+  <rect x="155" y="127" width="90" height="26" rx="4" class="cell high"/><text x="200" y="140" class="count">2</text>
+  <rect x="285" y="127" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="140" class="count">3</text>
+  <rect x="415" y="127" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="460" y="140" class="count-dark">0</text>
+  <rect x="545" y="127" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="140" class="count-dark">0</text>
+  <!-- Row: concurrency -->
+  <text x="80" y="176" class="label" text-anchor="end">concurrency</text>
+  <rect x="155" y="159" width="90" height="26" rx="4" class="cell high"/><text x="200" y="172" class="count">1</text>
+  <rect x="285" y="159" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="172" class="count">3</text>
+  <rect x="415" y="159" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="460" y="172" class="count-dark">0</text>
+  <rect x="545" y="159" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="172" class="count-dark">0</text>
+  <!-- Row: error_handling -->
+  <text x="80" y="208" class="label" text-anchor="end">error_handling</text>
+  <rect x="155" y="191" width="90" height="26" rx="4" class="cell high"/><text x="200" y="204" class="count">1</text>
+  <rect x="285" y="191" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="204" class="count">3</text>
+  <rect x="415" y="191" width="90" height="26" rx="4" class="cell low"/><text x="460" y="204" class="count-dark">2</text>
+  <rect x="545" y="191" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="204" class="count-dark">0</text>
+  <!-- Row: completeness -->
+  <text x="80" y="240" class="label" text-anchor="end">completeness</text>
+  <rect x="155" y="223" width="90" height="26" rx="4" class="cell high"/><text x="200" y="236" class="count">1</text>
+  <rect x="285" y="223" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="236" class="count">2</text>
+  <rect x="415" y="223" width="90" height="26" rx="4" class="cell low"/><text x="460" y="236" class="count-dark">2</text>
+  <rect x="545" y="223" width="90" height="26" rx="4" class="cell info"/><text x="590" y="236" class="count">5</text>
+  <!-- Row: design/contract/maturity/other -->
+  <text x="80" y="272" class="label" text-anchor="end">design+contract</text>
+  <rect x="155" y="255" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="200" y="268" class="count-dark">0</text>
+  <rect x="285" y="255" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="268" class="count">5</text>
+  <rect x="415" y="255" width="90" height="26" rx="4" class="cell low"/><text x="460" y="268" class="count-dark">3</text>
+  <rect x="545" y="255" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="268" class="count-dark">0</text>
+  <!-- Row: maturity -->
+  <text x="80" y="304" class="label" text-anchor="end">maturity</text>
+  <rect x="155" y="287" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="200" y="300" class="count-dark">0</text>
+  <rect x="285" y="287" width="90" height="26" rx="4" class="cell medium"/><text x="330" y="300" class="count">2</text>
+  <rect x="415" y="287" width="90" height="26" rx="4" class="cell low"/><text x="460" y="300" class="count-dark">16</text>
+  <rect x="545" y="287" width="90" height="26" rx="4" class="cell" fill="#eee"/><text x="590" y="300" class="count-dark">0</text>
+</svg>

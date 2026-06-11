@@ -177,13 +177,15 @@ Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor,
 ## Docker
 
 ```bash
-docker pull ghcr.io/usetheo/themory:0.1.0-alpha
+docker pull usetheo/themory:0.2.0
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
-  ghcr.io/usetheo/themory:0.1.0-alpha
+  usetheo/themory:0.2.0
 ```
+
+Also available from GHCR: `docker pull ghcr.io/usetheo/themory:0.2.0`
 
 Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in.
 
@@ -203,7 +205,25 @@ themory reflect --user alice
 themory keys create --name app --scope memory:read,memory:write
 themory keys list
 themory keys revoke <id>
+themory keys rotate <id>
 ```
+
+### API Key Rotation
+
+Zero-downtime key rotation in 3 steps:
+
+```bash
+# 1. Create a new key (old key still works)
+themory keys create --name app-v2 --scope memory:read,memory:write
+
+# 2. Update your consumer to use the new key
+#    (set THEMEMORY_API_KEY in your app's environment)
+
+# 3. Revoke the old key once consumers are migrated
+themory keys revoke <old-key-id>
+```
+
+Both keys are valid simultaneously between steps 1 and 3 — no downtime window. For atomic rotation (create + revoke in one call), use `themory keys rotate <id>`.
 
 ## Architecture
 
