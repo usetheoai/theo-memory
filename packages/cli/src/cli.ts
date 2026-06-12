@@ -37,6 +37,8 @@ import './cli-preload.js';
  * @see Plan theo-memory-standalone-p0 § T2.1 + EC-27 + EC-28 + EC-29
  * @see Roadmap Item 18 — CLI consolidado
  */
+import { runMcpServer } from '@usetheo/memory-mcp';
+import type { RunMcpServerOptions } from '@usetheo/memory-mcp';
 import { Command, InvalidArgumentError, Option } from 'commander';
 
 import { runForget } from './run-forget.js';
@@ -47,8 +49,6 @@ import {
   runKeysRevoke,
   runKeysRotate,
 } from './run-keys.js';
-import { runMcpServer } from '@usetheo/memory-mcp';
-import type { RunMcpServerOptions } from '@usetheo/memory-mcp';
 import { runMigrate } from './run-migrate.js';
 import { runRecall } from './run-recall.js';
 import { runReflect } from './run-reflect.js';

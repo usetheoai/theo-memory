@@ -16,7 +16,9 @@ import {
   InvalidEmbeddingDim,
   InvalidScope,
 } from '../../domain/errors.js';
+
 import { InMemoryVectorStore } from './in-memory-store.js';
+
 import { createLocalMemory } from './index.js';
 
 const validVector = (): readonly number[] => new Array<number>(MAX_EMBEDDING_DIM).fill(0).map((_, i) => (i === 0 ? 0.1 : 0));

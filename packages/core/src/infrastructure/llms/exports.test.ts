@@ -7,24 +7,25 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import * as barrel from './index.js';
 import { OpenAILLM as FromOpenAI } from './openai.js';
 import { DeterministicStubLLM as FromStub } from './stub.js';
 
+import { DeterministicStubLLM, OpenAILLM } from './index.js';
+
 describe('@usetheo/memory/llms subpath', () => {
   it('barrel re-exports DeterministicStubLLM', () => {
-    expect(barrel.DeterministicStubLLM).toBeDefined();
+    expect(DeterministicStubLLM).toBeDefined();
   });
 
   it('barrel export equals direct stub import', () => {
-    expect(barrel.DeterministicStubLLM).toBe(FromStub);
+    expect(DeterministicStubLLM).toBe(FromStub);
   });
 
   it('barrel re-exports OpenAILLM (adapters-openai-cycle-2 § T2.1)', () => {
-    expect(barrel.OpenAILLM).toBeDefined();
+    expect(OpenAILLM).toBeDefined();
   });
 
   it('OpenAILLM barrel export equals direct openai import', () => {
-    expect(barrel.OpenAILLM).toBe(FromOpenAI);
+    expect(OpenAILLM).toBe(FromOpenAI);
   });
 });

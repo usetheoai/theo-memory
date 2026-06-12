@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { rowToMemoryItem, type ScopeCandidateRow } from './scope-candidate.js';
 
 /**

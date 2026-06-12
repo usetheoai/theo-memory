@@ -11,6 +11,7 @@
 import { describe, expect, test } from 'vitest';
 
 import type { Scope } from '../../../domain/scope.js';
+
 import { decodeSkillPayload } from './payload.js';
 
 const SCOPE: Scope = { kind: 'repo', repoId: 'repo-x' };

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getNeighborScopeId } from './triadic-scoring-policy.js';
+
 import type { Scope } from '../../../domain/scope.js';
+
+import { getNeighborScopeId } from './triadic-scoring-policy.js';
 
 /**
  * EC-5 absorption (plan v1.1 edge-case review): `getNeighborScopeId` dispatches

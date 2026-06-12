@@ -8,7 +8,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
+
 import { InMemoryVectorStore } from './in-memory-store.js';
+
 import { createLocalMemory, PROBE_TEXT, StubEmbedder, StubLLM } from './index.js';
 
 let warnSpy: MockInstance<(typeof console)['warn']>;

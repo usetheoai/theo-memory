@@ -20,8 +20,8 @@
  * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1
  * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § ADR D13
  */
-import { describe, expect, test } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { describe, expect, test } from 'vitest';
 
 import { memories } from './schema.js';
 

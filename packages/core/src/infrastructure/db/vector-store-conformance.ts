@@ -21,9 +21,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { VectorStore } from '../../domain/dip/vector-store.js';
 import { InvalidSkillError } from '../../domain/errors.js';
 import type { Filters } from '../../domain/scope.js';
-import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 
 import { VEC_A, VEC_B, VEC_C } from './fixtures/deterministic-vectors.js';
+import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
+
 
 /** UUID v4 generator — matches the production schema (memories.id is uuid). */
 function uuid(): string {

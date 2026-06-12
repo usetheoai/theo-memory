@@ -24,13 +24,13 @@ import type { ScopedSkillMemory } from '../../domain/skill.js';
 import type { LocalMemoryConfig } from './config.js';
 import { PgEvictor } from './eviction/index.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
-import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import {
   assertScopeIsNonEmpty,
   deriveScopeFromPayload,
   filtersFromScope,
   LocalScopedMemory,
 } from './scoped-memory.js';
+import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
 
 /**

@@ -18,7 +18,7 @@ export default defineConfig({
       // T2.1 (architecture-review-fixes): MCP package imports shared symbols
       // from src/agent-tools/ via this subpath. tsconfig paths handle tsc;
       // this alias handles vitest runtime resolution.
-      '@usetheo/memory/agent-tools': new URL('./src/agent-tools/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/agent-tools': new URL('./packages/cli/src/index.ts', import.meta.url).pathname,
     },
   },
   test: {
@@ -26,7 +26,7 @@ export default defineConfig({
       'packages/core/src/**/__tests__/**/*.test.ts',
       'packages/core/src/**/*.test.ts',
       'packages/mcp/src/**/*.test.ts',
-      'src/agent-tools/**/__tests__/**/*.test.ts',
+      'packages/cli/src/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
       'benchmarks/scripts/__tests__/**/*.test.ts',
     ],
