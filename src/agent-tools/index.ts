@@ -20,6 +20,34 @@ export { connectStdio } from '@usetheo/memory-mcp';
 export { connectStreamableHttp } from '@usetheo/memory-mcp';
 export type { StreamableHttpOptions, StreamableHttpHandle } from '@usetheo/memory-mcp';
 
+// --- Shared agent-tools symbols consumed by @usetheo/memory-mcp (T2.1 dedup) ---
+export {
+  assertEnvOrExit,
+  createAgentToolsMemory,
+  LOCAL_EMBEDDER_DIM,
+  OPENAI_API_KEY_ENV_SPEC,
+  PG_URI_ENV_SPEC,
+  wireMemoryFromPool,
+} from './agent-tools-memory.js';
+export {
+  classifyError,
+  EXPECTED_DOMAIN_ERRORS,
+  UnknownToolError,
+} from './error-classifier.js';
+export type {
+  ClassifiedError,
+  ProtocolErrorPayload,
+  ToolExecutionErrorPayload,
+} from './error-classifier.js';
+export {
+  resolveBootstrapToken,
+  resolveOidcConfig,
+} from './oidc-cli-resolver.js';
+export type {
+  ResolveOidcConfigInput,
+  ResolvedOidcConfig,
+} from './oidc-cli-resolver.js';
+
 /**
  * Constructs an MCP server bound to a TheMemory runtime.
  *
