@@ -190,7 +190,7 @@ describe('T2.1 — commander router + alias detection', () => {
   });
 
   it('36. package.json bin lists BOTH themory and themory-mcp entries (EC-28)', () => {
-    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
     const pkg = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf-8')) as {
       bin: Record<string, string>;
     };
