@@ -17,10 +17,11 @@
  *
  * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.2
  */
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
 import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

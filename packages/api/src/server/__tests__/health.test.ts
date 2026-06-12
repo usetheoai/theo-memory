@@ -9,9 +9,9 @@
  *
  * @see Plan theo-memory-standalone-p0 § T1.3
  */
+import type { Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { createServer } from '../index.js';
 
 function noopMemory(): Memory {

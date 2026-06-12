@@ -14,9 +14,9 @@
  *
  * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T1.1
  */
+import type { Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '@usetheo/memory/contract';
 import type { AuthPool } from '../auth/api-key-verifier.js';
 import { createServer } from '../index.js';
 

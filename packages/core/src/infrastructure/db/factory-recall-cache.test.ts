@@ -17,7 +17,9 @@ import type { CachedResult, RecallCacheStore } from '../../domain/dip/recall-cac
 import { InvalidCacheConfig } from '../../domain/errors.js';
 import type { MemoryItemWithScore } from '../../domain/memory-item.js';
 import type { Scope } from '../../domain/scope.js';
+
 import { InMemoryVectorStore } from './in-memory-store.js';
+
 import { createLocalMemory } from './index.js';
 
 const validVector = (): readonly number[] =>

@@ -5,9 +5,9 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { CannedResponseLlm, FailingLlm } from './_test-llm.js';
 import { LlmJudgePanel } from './judge-panel.js';
 
-import { CannedResponseLlm, FailingLlm } from './_test-llm.js';
 
 const SAMPLE_QUERY = {
   questionText: 'What color is the sky?',

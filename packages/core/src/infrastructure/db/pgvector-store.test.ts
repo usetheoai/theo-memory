@@ -30,6 +30,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
 import { EmbeddingMismatch } from '../../domain/errors.js';
+
 import { PgvectorStore } from './pgvector-store.js';
 
 function buildPool(): { pool: Pool; poolQuery: ReturnType<typeof vi.fn> } {

@@ -18,9 +18,9 @@
  * @see .claude/knowledge-base/adrs/ADR-0015-mcp-streamable-http-auth.md § Decision #4
  * @see https://datatracker.ietf.org/doc/html/rfc9728
  */
+import type { Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { createServer } from '../../index.js';
 
 function stubMemory(): Memory {
