@@ -33,9 +33,9 @@ import {
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
-} from './agent-tools-memory.js';
+  resolveOidcConfig,
+} from '@usetheo/memory/agent-tools';
 import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
-import { resolveOidcConfig } from './oidc-cli-resolver.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
