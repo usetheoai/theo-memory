@@ -53,7 +53,7 @@ src/core/        ← contracts, types, pure logic, LLM extraction pipeline (no I
 - `src/core/` MUST NOT import from `src/local/` or `src/cloud/`. Ever.
 - `src/local/` and `src/cloud/` MUST NOT import from each other. They are siblings; share via `src/core/`.
 - `src/theokit/` MUST NOT import from `src/local/` or `src/cloud/`. The binding is runtime-agnostic.
-- `src/agent-tools/` (when created — v0.3) depends on `src/core/` only.
+- `packages/cli/` (formerly `src/agent-tools/`, extracted T3.4) depends on `packages/core/` only.
 
 ## 4. Mem0-shape architecture, not Mem0-clone
 
