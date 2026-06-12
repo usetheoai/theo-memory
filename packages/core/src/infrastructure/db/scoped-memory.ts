@@ -4,9 +4,9 @@
  * Extracted from index.ts (T1.1 of architecture-review-fixes plan).
  * Contains the LocalScopedMemory class and helper functions it depends on.
  */
+import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
-import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import {
   InvalidScope,
   ReflectionNotConfigured,
@@ -28,7 +28,7 @@ import type { ReflectionResult } from '../../domain/reflection-result.js';
 import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
 import type { Filters, Scope } from '../../domain/scope.js';
 
-import { isRecallCacheStoreInstance, resolveCacheTtl } from './cache-helpers.js';
+import { resolveCacheTtl } from './cache-helpers.js';
 import type { LocalMemoryConfig } from './config.js';
 
 /**
