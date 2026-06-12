@@ -8,9 +8,11 @@
  * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.2
  */
 import { describe, it, expect } from 'vitest';
-import { DeterministicStubLLM } from './stub.js';
+
 import { AdditiveExtractionSchema } from '../../domain/extraction/prompt.js';
 import type { Message } from '../../domain/message.js';
+
+import { DeterministicStubLLM } from './stub.js';
 
 const userMsg = (content: string): Message => ({ role: 'user', content });
 const sysMsg = (content: string): Message => ({ role: 'system', content });

@@ -23,13 +23,13 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T3.1 + ADRs D3 + D4
  */
-import { Pool } from 'pg';
 
+import { createLocalMemory, runMigrations } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
 import type { Memory } from '@usetheo/memory/contract';
 import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
-import { createLocalMemory, runMigrations } from '@usetheo/memory';
-import { PgvectorStore } from '@usetheo/memory';
+import { Pool } from 'pg';
 
 /**
  * @internal Embedding dimension produced by `LocalTransformerEmbedder`

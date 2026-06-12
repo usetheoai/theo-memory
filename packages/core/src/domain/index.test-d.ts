@@ -1,4 +1,3 @@
-import { expectTypeOf, test } from 'vitest';
 
 // Import via the package preview path (resolves through tsconfig paths map)
 import type {
@@ -34,7 +33,6 @@ import type {
   VectorStore,
   VectorStoreResult,
 } from '@usetheo/memory/contract';
-
 import type {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
@@ -42,6 +40,7 @@ import type {
   MemoryNotFound,
   ReflectionNotConfigured,
 } from '@usetheo/memory/contract';
+import { expectTypeOf, test } from 'vitest';
 
 test('barrel re-exports every Phase 2/3 type via @usetheo/memory/contract', () => {
   // Scope module

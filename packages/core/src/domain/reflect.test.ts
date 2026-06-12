@@ -8,16 +8,16 @@
  */
 import { describe, expect, test } from 'vitest';
 
+import { InMemoryVectorStore } from './../infrastructure/db/in-memory-store.js';
+import { createLocalMemory } from './../infrastructure/db/index.js';
+import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { Embedder } from './dip/embedder.js';
 import type { LLM } from './dip/llm.js';
-import type { LLMResponse, Message } from './message.js';
 import {
   ReflectionNotConfigured,
   ReflectionProvenanceMissingError,
 } from './errors.js';
-import { MAX_EMBEDDING_DIM } from './constants.js';
-import { createLocalMemory } from './../infrastructure/db/index.js';
-import { InMemoryVectorStore } from './../infrastructure/db/in-memory-store.js';
+import type { LLMResponse, Message } from './message.js';
 
 function stubEmbedder(): Embedder {
   const probeVec = Array.from({ length: MAX_EMBEDDING_DIM }, () => 0.1);

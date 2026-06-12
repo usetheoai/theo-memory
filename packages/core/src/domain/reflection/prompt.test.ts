@@ -18,6 +18,7 @@ import { describe, expect, test } from 'vitest';
 
 import type { MemoryItem } from '../memory-item.js';
 import type { UserScope } from '../scope.js';
+
 import { buildReflectionPrompt } from './prompt.js';
 
 // Paper-name regex built via string concatenation so this test file itself

@@ -26,16 +26,15 @@
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
 import { serve } from '@hono/node-server';
-import { Pool } from 'pg';
-
+import { runMigrations } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
-import { runMigrations } from '@usetheo/memory';
 import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { BearerAuthVerifier, readApiKey } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
 import { OidcAuthVerifier } from '@usetheo/memory-api';
 import { createServer } from '@usetheo/memory-api';
+import { Pool } from 'pg';
 
 import {
   assertEnvOrExit,

@@ -18,6 +18,7 @@
  * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-3
  */
 import { describe, it, expect } from 'vitest';
+
 import * as root from './index.js';
 
 describe('@usetheo/memory root barrel — ADR D4 enforcement', () => {

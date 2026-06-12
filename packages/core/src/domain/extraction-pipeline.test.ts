@@ -9,20 +9,20 @@
  *
  * Pattern per blueprint Recommendation 11.
  */
-import { describe, expect, test, vi } from 'vitest';
 import { trace } from '@opentelemetry/api';
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
+import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { Embedder } from './dip/embedder.js';
 import type { LLM } from './dip/llm.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
-import type { Filters } from './scope.js';
 import { runExtractionPipeline } from './extraction/pipeline.js';
+import type { Filters } from './scope.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 

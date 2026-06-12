@@ -5,12 +5,12 @@
  *
  * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T2.1
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 
+import type { ReflectionTrigger } from './../../domain/dip/reflection-policy.js';
 import { EmptyScopeError } from './../../domain/errors.js';
 import type { Scope } from './../../domain/scope.js';
-import type { ReflectionTrigger } from './../../domain/dip/reflection-policy.js';
 import { PgvectorStore } from './pgvector-store.js';
 import { ThresholdReflectionPolicy } from './reflection/threshold-reflection-policy.js';
 
@@ -83,7 +83,7 @@ if (PG_URI === undefined || PG_URI === '') {
     const TRIGGER: ReflectionTrigger = { kind: 'threshold' };
 
     beforeAll(async () => {
-      pool = new pg.Pool({ connectionString: PG_URI } as pg.PoolConfig);
+      pool = new pg.Pool({ connectionString: PG_URI });
       store = new PgvectorStore({ connectionString: PG_URI } as never);
       await store.initialize();
     });

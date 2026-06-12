@@ -7,8 +7,10 @@
  * EC-6 absorption: NFC vs NFD produce different hashes (documented byte-level
  * dedup, NOT semantic — matches the upstream behavior).
  */
-import { describe, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
+
+import { describe, expect, test } from 'vitest';
+
 import { hashFact } from './dedup.js';
 
 describe('hashFact', () => {

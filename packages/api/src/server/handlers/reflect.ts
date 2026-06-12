@@ -5,9 +5,9 @@
  * potentially-long-running (LLM consolidation) — async/queued semantics per
  * ADR D2.
  */
+import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { ReflectBody, resolveScope } from '../schemas.js';
 
 import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';
