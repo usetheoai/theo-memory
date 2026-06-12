@@ -7,7 +7,7 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["packages/core/src/**/*.ts", "src/agent-tools/**/*.ts"],
+  "include": ["packages/core/src/**/*.ts", "packages/cli/src/**/*.ts"],
   "exclude": [
     "node_modules",
     "dist",
