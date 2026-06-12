@@ -15,6 +15,10 @@ export default defineConfig({
       // the alias must be re-declared here so `import { ... } from "@/lib/memory"`
       // resolves to the actual file.
       '@/lib/memory': new URL('./examples/chat-with-memory/lib/memory.ts', import.meta.url).pathname,
+      // T2.1 (architecture-review-fixes): MCP package imports shared symbols
+      // from src/agent-tools/ via this subpath. tsconfig paths handle tsc;
+      // this alias handles vitest runtime resolution.
+      '@usetheo/memory/agent-tools': new URL('./src/agent-tools/index.ts', import.meta.url).pathname,
     },
   },
   test: {

@@ -12,7 +12,7 @@
 import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { Memory } from '@usetheo/memory/contract';
-import { classifyError, UnknownToolError } from '../error-classifier.js';
+import { classifyError, UnknownToolError } from '@usetheo/memory/agent-tools';
 
 import { forgetHandler, TOOL_NAME as FORGET } from './forget-handler.js';
 import { recallHandler, TOOL_NAME as RECALL } from './recall-handler.js';
