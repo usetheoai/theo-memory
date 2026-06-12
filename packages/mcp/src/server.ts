@@ -16,10 +16,10 @@ import {
   type ServerCapabilities,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { withScope } from './scope.js';
+import { withScope } from '@usetheo/memory/agent-tools';
+import type { McpServerOptions } from '@usetheo/memory/agent-tools';
 import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
-import type { McpServerOptions } from './types.js';
 
 /**
  * MCP `_meta` key for per-call user-scope override. Reverse-DNS namespaced

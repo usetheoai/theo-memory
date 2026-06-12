@@ -3,7 +3,7 @@
  * Exports the MCP server class + transport connectors + bootstrap function.
  */
 export { McpServer } from './server.js';
-export type { McpServerOptions } from './types.js';
+export type { McpServerOptions } from '@usetheo/memory/agent-tools';
 export { runMcpServer } from './run-mcp-server.js';
 export type { RunMcpServerOptions } from './run-mcp-server.js';
 export { connectStdio } from './transports/stdio.js';

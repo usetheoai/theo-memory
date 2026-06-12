@@ -200,17 +200,6 @@ export type {
 } from './dip/reflection-policy.js';
 
 /**
- * `SkillRepresentationStrategy` DIP — pluggable skill body serialization
- * (TypeScript text, JSON descriptor, etc.) for the v0.6 skill library.
- *
- * @see .claude/knowledge-base/plans/completed/skill-library-plan.md
- */
-export type {
-  SkillRepresentation,
-  SkillRepresentationStrategy,
-} from './dip/skill-representation-strategy.js';
-
-/**
  * `EvictionPolicy` DIP + supporting types — v0.4b triadic-scoring
  * forgetting pipeline contract. Implementations live in `src/local/eviction/`.
  *
@@ -340,6 +329,19 @@ export type {
  * @see .claude/knowledge-base/plans/theo-memory-standalone-p0-plan.md § T0.1 / ADR D3
  */
 export type { AuthVerifier } from './dip/auth-verifier.js';
+
+/**
+ * OIDC authentication contracts — domain-level type definitions for the
+ * OAuth2/OIDC bridge (Camada 3). Consumed by `@usetheo/memory-api` and
+ * `@usetheo/memory-mcp` via `@usetheo/memory/contract`.
+ *
+ * @see .claude/knowledge-base/adrs/ADR-0013-oidc-bridge.md
+ */
+export type {
+  IntrospectFn,
+  IntrospectionResult,
+  OidcDiscoveryConfig,
+} from './dip/oidc-contracts.js';
 
 /**
  * `hashFact(text)` — MD5 dedup hash over normalized text. Pure function;
