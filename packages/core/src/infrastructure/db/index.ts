@@ -25,13 +25,11 @@
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Tracer } from '@opentelemetry/api';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { Pool } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
-import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { Embedder } from '../../domain/dip/embedder.js';
 import {
   type RecallCacheStore,
@@ -48,32 +46,18 @@ import {
   EmbeddingMismatch,
   InvalidCacheConfig,
   InvalidEmbeddingDim,
-  InvalidScope,
   MemoryNotFound,
-  ReflectionNotConfigured,
 } from '../../domain/errors.js';
-import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
-import { emitEvent } from '../../domain/memory-event.js';
-import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
+import type { MemoryItem } from '../../domain/memory-item.js';
 import type {
   Memory,
-  MemoryConfig,
   ScopedMemory,
 } from '../../domain/memory-store.js';
-import type { Message } from '../../domain/message.js';
 import type {
   ForgetOptions,
-  GetAllOptions,
-  RecallOptions,
-  ReflectOptions,
-  RememberOptions,
 } from '../../domain/options.js';
-import { executeReflection } from '../../domain/reflection/execute.js';
-import { validateProvenance } from '../../domain/reflection/provenance.js';
-import type { ReflectionResult } from '../../domain/reflection-result.js';
-import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
-import type { Filters, Scope } from '../../domain/scope.js';
+import type { Scope } from '../../domain/scope.js';
 import type { ScopedSkillMemory } from '../../domain/skill.js';
 
 import {
@@ -84,7 +68,6 @@ import {
   TimeBasedTrigger,
   TriadicScoringPolicy,
 } from './eviction/index.js';
-import type { LocalEvictionConfig } from './eviction/index.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
@@ -107,185 +90,27 @@ export {
   LlmJudgedMergeConflictPolicy,
 } from '../../domain/index.js';
 export * from './eviction/index.js';
+// T1.1: re-export config types extracted to config.ts
+export { type LocalMemoryConfig, EvictionNotSupported, PROBE_TEXT } from './config.js';
+// T1.1: re-export scoped-memory helpers + class
+export {
+  applySkillFilters,
+  filtersFromScope,
+  assertScopeIsNonEmpty,
+  deriveScopeFromPayload,
+  scopeToCounterTuple,
+  LocalScopedMemory,
+} from './scoped-memory.js';
 
-/** Extended MemoryConfig with the OTel tracer slot from ADR D1.3. */
-export interface LocalMemoryConfig extends MemoryConfig {
-  readonly tracer?: Tracer;
-  /**
-   * v0.4b-fixes T4.1 — opt-in eviction pipeline. Requires `vectorStore` to
-   * be a `PgvectorStore` instance (advisory locks + pgvector cosine distance
-   * are PG-only). `createLocalMemory` throws `EvictionNotSupported` when this
-   * field is set with an `InMemoryVectorStore`.
-   *
-   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 + ADR D6
-   */
-  readonly eviction?: LocalEvictionConfig;
-  /**
-   * @internal v0.4b-fixes T4.1 — async hook fired by `LocalScopedMemory.remember()`
-   * post-pipeline. Used by the factory to wire `CapacityBasedTrigger.fire()`
-   * when `eviction.trigger === 'capacity'`. NOT a public field; consumers
-   * configure eviction via the `eviction` option above.
-   */
-  readonly postRememberHook?: (scope: Scope) => Promise<void>;
-  /**
-   * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
-   * declared embedding dimension produced by the embedder. Defaults to
-   * `MAX_EMBEDDING_DIM` (1536) to preserve backward compatibility with
-   * every existing caller. When set to a smaller value (e.g., 384 for
-   * Xenova/all-MiniLM-L6-v2), the probe asserts against this configured
-   * dim instead of the constant, and `PgvectorStore` / `runMigrations`
-   * accept the matching dim for the `vector(N)` schema column.
-   *
-   * Pre-flight validation rejects (with `InvalidScope`) any value that is
-   * NOT a positive integer ≤ `MAX_EMBEDDING_DIM`. The guard uses
-   * `Number.isInteger` to catch NaN / float / Infinity values that bare
-   * arithmetic comparisons miss silently. The error message includes the
-   * literal received value via `String(received)` for operator
-   * diagnosability.
-   *
-   * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.1 + ADR D2
-   * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
-   */
-  readonly embeddingDim?: number;
-  /**
-   * semantic-recall-cache-v1-5 T2.1 — opt-in semantic recall cache.
-   *
-   * Dual-shape (Blueprint D5):
-   *   - `RecallCacheStoreConfig` (POJO): factory constructs a default
-   *     `PgvectorRecallCacheStore` against the same Pool that backs the
-   *     vector store. Config is validated at factory time per
-   *     `architecture.md § 8` fail-fast; `InvalidCacheConfig` thrown
-   *     before any side effect.
-   *   - `RecallCacheStore` (DIP instance): used verbatim — caller has
-   *     already constructed an impl (e.g., Redis-backed in v1.5.x, or
-   *     a test double).
-   *
-   * Cache opt-in requires the vector store to be a `PgvectorStore`
-   * (cache backing table lives in Postgres; in-memory adapter has no
-   * matching surface). The factory throws `InvalidCacheConfig` when
-   * config shape is provided without a Postgres vector store.
-   *
-   * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.1
-   * @see src/core/dip/recall-cache-store.ts (13th DIP)
-   */
-  readonly recallCache?: RecallCacheStoreConfig | RecallCacheStore;
-}
-
-/**
- * Thrown when `createLocalMemory({ eviction: {...} })` is called with a
- * non-PgvectorStore vector store. Advisory locks + pgvector cosine distance
- * are PG-only; eviction is not implemented for `InMemoryVectorStore`.
- *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 (SEPA iter 5 pre-RED CRITICAL #3)
- */
-export class EvictionNotSupported extends Error {
-  override readonly name = 'EvictionNotSupported' as const;
-
-  constructor(storeKind: string, options?: ErrorOptions) {
-    super(
-      `Eviction config requires a PgvectorStore (got ${storeKind}). ` +
-        'Advisory locks + pgvector cosine distance are PostgreSQL-only.',
-      options,
-    );
-    Object.setPrototypeOf(this, EvictionNotSupported.prototype);
-  }
-}
-
-export const PROBE_TEXT = '__themem_probe__';
-
-/**
- * v0.6 (T2.2): translate skill-aware RecallOptions / GetAllOptions flags into
- * `Filters.kind` + `Filters.excludeSuperseded` before the store call.
- *
- * `includeSuperseded` defaults to `false` (recall returns only tip-of-chain),
- * so when the caller omits the option we still emit `excludeSuperseded=true`
- * — BUT only when `onlySkills` is also set, so v0.4a callers see no change.
- */
-function applySkillFilters(
-  baseFilters: Filters,
-  options?: {
-    onlySkills?: boolean;
-    includeSuperseded?: boolean;
-    attributedTo?: string;
-    asOf?: Date;
-    category?: string;
-  },
-): Filters {
-  if (options === undefined) {
-    return baseFilters;
-  }
-  // v1.1 T2.2: route RecallOptions.attributedTo into Filters.attributed_to so
-  // composeFilters in pgvector-store appends the WHERE clause.
-  // v1.1 T3.1 + ADR-0011: route RecallOptions.asOf into Filters.asOf so the
-  // store composes the null-safe bi-temporal predicate.
-  let base: Filters = { ...baseFilters };
-  if (options.attributedTo !== undefined) {
-    base = { ...base, attributed_to: options.attributedTo };
-  }
-  if (options.asOf !== undefined) {
-    base = { ...base, asOf: options.asOf };
-  }
-  // themory-category-filter-server-side T4.1 / EC-3 — route GetAllOptions.category
-  // into Filters.category for server-side filter at the pgvector + in-memory
-  // adapters. Empty string normalizes to no-filter at this boundary (defense-
-  // in-depth alongside REST zod min(1) validation); direct SDK callers passing
-  // {category: ''} get the same result as omitting the option entirely.
-  if (options.category !== undefined && options.category !== '') {
-    base = { ...base, category: options.category };
-  }
-  if (options.onlySkills === true) {
-    return {
-      ...base,
-      kind: 'skill',
-      // Default for skill recall: exclude superseded unless the caller explicitly opts in.
-      excludeSuperseded: options.includeSuperseded === true ? false : true,
-    };
-  }
-  if (options.includeSuperseded === false) {
-    return { ...base, excludeSuperseded: true };
-  }
-  return base;
-}
-
-function filtersFromScope(scope: Scope): Filters {
-  switch (scope.kind) {
-    case 'user':
-      return { user_id: scope.userId };
-    case 'session':
-      return scope.userId !== undefined
-        ? { user_id: scope.userId, session_id: scope.sessionId }
-        : { session_id: scope.sessionId };
-    case 'agent':
-      return scope.userId !== undefined
-        ? { user_id: scope.userId, agent_id: scope.agentId }
-        : { agent_id: scope.agentId };
-    case 'repo':
-      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column. The
-      // `kind='skill'` discriminator (added by Skill-specific recall/getAll paths)
-      // disambiguates skill rows from regular agent memories under the same id.
-      return { agent_id: scope.repoId };
-  }
-}
-
-function assertScopeIsNonEmpty(scope: Scope): void {
-  // Type-safe runtime guard — rejects {} or any malformed input lacking a valid kind.
-  const kind = (scope as { kind?: string }).kind;
-  if (kind !== 'user' && kind !== 'session' && kind !== 'agent' && kind !== 'repo') {
-    throw new InvalidScope('reset requires a Scope with kind user/session/agent/repo (EC-13)');
-  }
-  if (scope.kind === 'user' && scope.userId === '') {
-    throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
-  }
-  if (scope.kind === 'session' && scope.sessionId === '') {
-    throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
-  }
-  if (scope.kind === 'agent' && scope.agentId === '') {
-    throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
-  }
-  if (scope.kind === 'repo' && scope.repoId === '') {
-    throw new InvalidScope('reset requires a non-empty scope key (EC-13)');
-  }
-}
+// --- imports used by code still in this file ---
+import type { LocalMemoryConfig } from './config.js';
+import { EvictionNotSupported } from './config.js';
+import {
+  assertScopeIsNonEmpty,
+  deriveScopeFromPayload,
+  filtersFromScope,
+  LocalScopedMemory,
+} from './scoped-memory.js';
 
 /**
  * semantic-recall-cache-v1-5 T2.1 — discriminator between the dual-shape config.
@@ -314,65 +139,18 @@ function isRecallCacheStoreInstance(value: unknown): value is RecallCacheStore {
  * Returns `null` when the table does not yet exist (pre-migration state) so
  * the factory can defer the check until the consumer runs `runMigrations()`.
  */
-/**
- * semantic-recall-cache-v1-5 T2.2 — EC-10 absorption: derive the scope of a
- * memory row from its persisted payload so `LocalMemory.forget()` can issue
- * a targeted `invalidateScope` instead of an all-scope sweep. The payload
- * carries `user_id` / `session_id` / `agent_id` columns (the same shape
- * `runExtractionPipeline` persisted at write time).
- *
- * Returns `undefined` when payload has no recognizable scope tier;
- * `LocalMemory.forget()` SKIPS cache invalidation in that case (no
- * `invalidateAll()` fallback per ADR D9 of `semantic-recall-cache-v1-5-fixes-cycle-1`).
- * Cache continues serving until TTL — bounded staleness.
- *
- * The `undefined` branch is DEFENSIVE: every v0.1+ row carries a scope column
- * populated by `runExtractionPipeline`. The branch only fires for (a) hypothetical
- * pre-v0.1 rows (none in production) OR (b) consumer-side manual INSERTs bypassing
- * the extraction pipeline.
- *
- * Repo-tier scope is NOT exercised here yet (per ADR D10 of `semantic-recall-cache-v1-5-fixes-cycle-1`):
- * `LocalScopedSkillMemory.recall()` does not consult the cache at v1.5.0, so the
- * derivation function returns the most specific memory-scope tier without checking
- * for a `repo_id` column. Skill-scope cache wiring lands in v1.5.x.
- *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § ADR D9 + § ADR D10
- */
-function deriveScopeFromPayload(payload: Readonly<Record<string, unknown>>): Scope | undefined {
-  const userId = payload['user_id'];
-  const sessionId = payload['session_id'];
-  const agentId = payload['agent_id'];
-  // session is the most specific tier; prefer it when present.
-  if (typeof sessionId === 'string' && sessionId.length > 0) {
-    return { kind: 'session', sessionId };
-  }
-  if (typeof agentId === 'string' && agentId.length > 0) {
-    return { kind: 'agent', agentId };
-  }
-  if (typeof userId === 'string' && userId.length > 0) {
-    return { kind: 'user', userId };
-  }
-  return undefined;
-}
-
-/**
- * semantic-recall-cache-v1-5 T2.1 — resolve TTL per scope tier from the config.
- * Honors per-tier override → default 4-tier table fallback. Mirrors
- * `RecallCacheStore` default behavior so wraps without an explicit config
- * receive the same values as the impl's internal default.
- */
-function resolveCacheTtl(
-  scope: Scope,
-  cacheConfig: RecallCacheStoreConfig | RecallCacheStore | undefined,
-): number {
-  // Default fallback table (mirror DEFAULT_TTL_SECONDS_BY_SCOPE_TIER without
-  // importing the constant — keeps the wiring module readable).
-  const defaults = { user: 86_400, agent: 3_600, session: 600, repo: 3_600 } as const;
-  if (cacheConfig !== undefined && !isRecallCacheStoreInstance(cacheConfig)) {
-    const override = cacheConfig.ttlSecondsByScopeTier?.[scope.kind];
-    if (override !== undefined) return override;
-  }
-  return defaults[scope.kind];
+async function probeCacheTableDim(pool: Pool): Promise<number | null> {
+  const { rows } = await pool.query<{ atttypmod: number }>(
+    `SELECT a.atttypmod
+       FROM pg_attribute a
+       JOIN pg_class c ON c.oid = a.attrelid
+      WHERE c.relname = 'recall_cache'
+        AND a.attname = 'query_embedding'
+        AND a.attisdropped = false`,
+  );
+  const row = rows[0];
+  if (row === undefined) return null;
+  return row.atttypmod;
 }
 
 /**
@@ -405,20 +183,6 @@ function emitStubEmbedderCacheWarning(detectedClassName: string): void {
   process.stderr.write(
     `${STUB_EMBEDDER_CACHE_WARNING_PREFIX} For production semantic caching, wire OpenAIEmbedder or LocalTransformerEmbedder. See README § Wiring real providers.\n`,
   );
-}
-
-async function probeCacheTableDim(pool: Pool): Promise<number | null> {
-  const { rows } = await pool.query<{ atttypmod: number }>(
-    `SELECT a.atttypmod
-       FROM pg_attribute a
-       JOIN pg_class c ON c.oid = a.attrelid
-      WHERE c.relname = 'recall_cache'
-        AND a.attname = 'query_embedding'
-        AND a.attisdropped = false`,
-  );
-  const row = rows[0];
-  if (row === undefined) return null;
-  return row.atttypmod;
 }
 
 /**
@@ -472,382 +236,6 @@ async function resolveRecallCacheStore(
   return new PgvectorRecallCacheStore(pool, optIn, {
     embedderKind: config.embedder.constructor.name,
   });
-}
-
-interface VectorStoreWithDerivedInsert {
-  insertDerivedMemory(args: {
-    text: string;
-    hash: string;
-    embedding: readonly number[];
-    derivedFrom: readonly string[];
-    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
-  }): Promise<string>;
-}
-
-interface VectorStoreWithConsolidation {
-  recallConsolidationCandidates?: (
-    filters: Filters,
-  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date }[]>;
-  persistConsolidations?: (
-    results: readonly ConflictResolutionResult[],
-  ) => Promise<void>;
-}
-
-function scopeToCounterTuple(scope: Scope): {
-  userId: string | null;
-  sessionId: string | null;
-  agentId: string | null;
-} {
-  switch (scope.kind) {
-    case 'user':
-      return { userId: scope.userId, sessionId: null, agentId: null };
-    case 'session':
-      return { userId: scope.userId ?? null, sessionId: scope.sessionId, agentId: null };
-    case 'agent':
-      return { userId: scope.userId ?? null, sessionId: null, agentId: scope.agentId };
-    case 'repo':
-      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column at the
-      // store layer (see filtersFromScope). Counter rows mirror that mapping.
-      return { userId: null, sessionId: null, agentId: scope.repoId };
-  }
-}
-
-class LocalScopedMemory implements ScopedMemory {
-  constructor(
-    private readonly scope: Scope,
-    private readonly filters: Filters,
-    private readonly config: LocalMemoryConfig,
-    private readonly reflectionPolicy: ReflectionPolicy | undefined,
-    /** v0.4a EC-7: shared pending-reflections set owned by LocalMemory. */
-    private readonly pendingReflections: Set<Promise<unknown>> = new Set(),
-    /** semantic-recall-cache-v1-5 T2.1 — opt-in cache wrap; undefined = unchanged behavior. */
-    private readonly recallCacheStore: RecallCacheStore | undefined = undefined,
-  ) {}
-
-  async remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]> {
-    const messages: readonly Message[] = [{ role: 'user', content: text }];
-    const result = await runExtractionPipeline(messages, this.filters, {
-      vectorStore: this.config.vectorStore,
-      embedder: this.config.embedder,
-      llm: this.config.llm,
-      ...(this.config.historyManager !== undefined ? { historyManager: this.config.historyManager } : {}),
-      ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
-      ...(this.config.customInstructions !== undefined ? { customInstructions: this.config.customInstructions } : {}),
-    }, options);
-
-    // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline
-    // wired by `createLocalMemory({ eviction: { trigger: 'capacity', ... } })`.
-    // Awaited inline so consumers' next remember() sees the post-evict state.
-    // Errors do NOT block remember() result — surface via OTel span on the
-    // PgEvictor counter (T10.1 will lazy-init the meter).
-    if (this.config.postRememberHook !== undefined) {
-      try {
-        await this.config.postRememberHook(this.scope);
-      } catch {
-        // Eviction failures are observability-only; do not poison remember().
-      }
-    }
-
-    // semantic-recall-cache-v1-5 T2.2 — Item 19 AC#3: write-trigger cache
-    // invalidation post-success. EC-11 absorption: AWAITED sequentially so
-    // the consumer's next recall() in the same scope sees the fresh post-write
-    // state without races. Failures are logged loudly but do NOT poison
-    // remember() — cache failure is a degraded path (callers fall through to
-    // the 9-step pipeline on the next recall).
-    if (this.recallCacheStore !== undefined) {
-      try {
-        await this.recallCacheStore.invalidateScope(this.scope);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[themory] recall-cache invalidateScope (remember) failed:', err);
-      }
-    }
-
-    // v0.4a: after successful write, check ReflectionPolicy. If it says fire,
-    // launch reflect() as fire-and-forget tracked via pendingReflections (EC-7).
-    if (this.reflectionPolicy !== undefined && this.reflectionPolicy.kind !== 'manual') {
-      try {
-        const trigger = { kind: this.reflectionPolicy.kind } as const;
-        const fire = await this.reflectionPolicy.shouldReflect(this.scope, trigger);
-        if (fire) {
-          const promise = this.reflect()
-            .catch(() => {
-              // EC-12: failed reflection does NOT roll back the counter; orchestrator surfaces via onReflectionEnd.
-            })
-            .finally(() => {
-              this.pendingReflections.delete(promise);
-            });
-          this.pendingReflections.add(promise);
-        }
-      } catch {
-        // Policy decision failures must not block remember(); surface via flushReflections settled-but-rejected.
-      }
-    }
-
-    return result;
-  }
-
-  async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
-    // v1.1 T3.1 + EC-3 + ADR-0011: BiTemporalNotSupportedLocally throw lifted.
-    // Boundary validation rejects invalid Date input per architecture.md § 8
-    // (validate at boundaries; inside src/core/ trust the contract).
-    if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
-      throw new InvalidScope('asOf must be a valid Date');
-    }
-
-    // semantic-recall-cache-v1-5 T2.1 — cache applicability boundary (ADR D8).
-    // EC-4 + EC-5 absorption: v1.5.0 cache key is (scope_key, query_embedding)
-    // per Blueprint D4 — it does NOT include `asOf` (bi-temporal) OR
-    // `attributedTo` (multi-peer). Serving cached current/unfiltered results
-    // when the consumer asked for a historical OR peer-filtered slice would be
-    // a correctness bug (Inquebrável Rule 3). BYPASS path: when EITHER option
-    // is set, skip the cache entirely (no get, no set).
-    const cache = this.recallCacheStore;
-    const cacheApplicable =
-      cache !== undefined && options?.asOf === undefined && options?.attributedTo === undefined;
-
-    if (!cacheApplicable || cache === undefined) {
-      return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
-        vectorStore: this.config.vectorStore,
-        embedder: this.config.embedder,
-        ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
-      }, options);
-    }
-
-    // Cache-aware path: embed once, consult cache, populate on miss.
-    const queryEmbedding = await this.config.embedder.embed(query);
-    const cached = await cache.get(queryEmbedding, this.scope);
-    if (cached !== undefined) {
-      return [...cached.results];
-    }
-    // T3.1 — wall-clock latency for the MISS path (cache.get returned undefined →
-    // full 9-step retrieval + cache populate). Counter is not bumped on miss;
-    // hit-rate is `count(hit_counter) / (count(hit_counter) + count(miss_histo))`.
-    // Dynamic import keeps the metrics module OUT of the default barrel's
-    // static graph (T4.1 bundle isolation) — paid only on cache-wired paths.
-    const missStart = performance.now();
-    const results = await runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
-      vectorStore: this.config.vectorStore,
-      embedder: this.config.embedder,
-      ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
-    }, options);
-    const ttlSeconds = resolveCacheTtl(this.scope, this.config.recallCache);
-    await cache.set(queryEmbedding, this.scope, results, ttlSeconds);
-    const { getRecallCacheMissDurationHistogram } = await import('./recall-cache/recall-cache-metrics.js');
-    getRecallCacheMissDurationHistogram().record(performance.now() - missStart, {
-      scope_tier: this.scope.kind,
-      embedder_kind: this.config.embedder.constructor.name,
-    });
-    return results;
-  }
-
-  async reflect(options?: ReflectOptions): Promise<ReflectionResult> {
-    void options;
-    if (this.reflectionPolicy === undefined) {
-      throw new ReflectionNotConfigured();
-    }
-
-    // Fetch source memories
-    const [results] = await this.config.vectorStore.list(this.filters, 100);
-    const sourceMemories: MemoryItem[] = results.map((r) => ({
-      id: r.id,
-      text: String(r.payload['text'] ?? ''),
-      hash: String(r.payload['hash'] ?? r.id),
-      scope: this.scope,
-      metadata: { ...r.payload },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      tValid: new Date(),
-      tInvalid: null,
-    }));
-
-    // EC-5: empty-source short-circuit
-    if (sourceMemories.length === 0) {
-      const result: ReflectionResult = {
-        higherOrderMemories: [],
-        sourceIds: [],
-        derivedMemoriesCreated: 0,
-        reason: 'no-source-memories',
-      };
-      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-        await this.reflectionPolicy.onReflectionEnd(this.scope, result);
-      }
-      return result;
-    }
-
-    // Run policy hook
-    if (this.reflectionPolicy.onReflectionStart !== undefined) {
-      await this.reflectionPolicy.onReflectionStart(this.scope, options ?? {});
-    }
-
-    try {
-      // v0.7 T2.1: pre-derivation conflict-resolution phase.
-      // EC-7 absorbed: empty scope already short-circuited at line 354
-      // ("EC-5: empty-source short-circuit"); here we additionally guard on
-      // sourceMemories.length < 2 (nothing to consolidate with a singleton).
-      // EC-8 absorbed: persistConsolidations
-      // wraps t_invalid UPDATE + insertConsolidationHistory INSERT in a
-      // single withTransaction (rollback on any error). Runs BEFORE
-      // executeReflection so LLM-extraction failure paths don't mask the
-      // consolidation's own failure modes.
-      const conflictPolicy = options?.conflictResolution;
-      if (conflictPolicy !== undefined && sourceMemories.length >= 2) {
-        const storeWithConsolidate = this.config.vectorStore as unknown as VectorStoreWithConsolidation;
-        if (
-          typeof storeWithConsolidate.recallConsolidationCandidates !== 'function' ||
-          typeof storeWithConsolidate.persistConsolidations !== 'function'
-        ) {
-          throw new Error(
-            'reflect: conflictResolution requires a vector store with ' +
-              'recallConsolidationCandidates() + persistConsolidations() — ' +
-              'use PgvectorStore from @usetheo/memory/local.',
-          );
-        }
-        const candidates = await storeWithConsolidate.recallConsolidationCandidates(
-          this.filters,
-        );
-        const consolidationResults = await conflictPolicy.consolidate(
-          candidates,
-          { scope: this.scope, observationDate: new Date() },
-        );
-        if (consolidationResults.length > 0) {
-          await storeWithConsolidate.persistConsolidations(consolidationResults);
-        }
-      }
-
-      // Execute reflection LLM call
-      const drafts = await executeReflection({
-        llm: this.config.llm,
-        sourceMemories,
-        scope: this.scope,
-      });
-
-      const sourceIds = sourceMemories.map((m) => m.id);
-
-      // EC-13: LLM returned empty array (no consolidation)
-      if (drafts.length === 0) {
-        const result: ReflectionResult = {
-          higherOrderMemories: [],
-          sourceIds,
-          derivedMemoriesCreated: 0,
-          reason: 'no-consolidation',
-        };
-        if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-          await this.reflectionPolicy.onReflectionEnd(this.scope, result);
-        }
-        return result;
-      }
-
-      // Provenance validation (throws ReflectionProvenanceMissingError on fail)
-      validateProvenance(drafts, sourceIds);
-
-      // Embed + persist drafts. Store extension provides insertDerivedMemory.
-      const storeWithDerived = this.config.vectorStore as unknown as VectorStoreWithDerivedInsert;
-      if (typeof storeWithDerived.insertDerivedMemory !== 'function') {
-        throw new Error(
-          'reflect: configured vector store does not implement insertDerivedMemory; ' +
-            'pass a PgvectorStore or InMemoryVectorStore from @usetheo/memory/local.',
-        );
-      }
-
-      const counterTuple = scopeToCounterTuple(this.scope);
-      const persisted: MemoryItem[] = [];
-      for (const draft of drafts) {
-        const embedding = await this.config.embedder.embed(draft.text);
-        const hash = `derived-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
-        const id = await storeWithDerived.insertDerivedMemory({
-          text: draft.text,
-          hash,
-          embedding,
-          derivedFrom: draft.derivedFrom,
-          scope: counterTuple,
-        });
-        persisted.push({
-          id,
-          text: draft.text,
-          hash,
-          scope: this.scope,
-          metadata: { kind: 'derived' },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          tValid: new Date(),
-          tInvalid: null,
-        });
-      }
-
-      const result: ReflectionResult = {
-        higherOrderMemories: persisted,
-        sourceIds,
-        derivedMemoriesCreated: persisted.length,
-      };
-      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-        await this.reflectionPolicy.onReflectionEnd(this.scope, result);
-      }
-      // semantic-recall-cache-v1-5 T2.2 — EC-6 absorption: reflect() produces
-      // derived memories (v0.4a) + distillation rows (v0.7). Without scope
-      // invalidation, the cache serves stale results post-reflect for the
-      // same scope. Same correctness gate as remember/forget per Item 19 AC#3.
-      // Awaited sequentially (EC-11). Failures logged but do NOT poison reflect().
-      if (this.recallCacheStore !== undefined && persisted.length > 0) {
-        try {
-          await this.recallCacheStore.invalidateScope(this.scope);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[themory] recall-cache invalidateScope (reflect) failed:', err);
-        }
-      }
-      return result;
-    } catch (err) {
-      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-        await this.reflectionPolicy.onReflectionEnd(
-          this.scope,
-          err instanceof Error ? err : new Error(String(err)),
-        );
-      }
-      throw err;
-    }
-  }
-
-  async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
-    const limit = options?.topK ?? 100;
-    const [results] = await this.config.vectorStore.list(
-      applySkillFilters(this.filters, options),
-      limit,
-    );
-    // dashboard-memories-tab-standardization T2.2 + ADR D2 + EC-7:
-    // Consume VectorStoreResult.createdAt when projected by the adapter; fall back
-    // to new Date() ONLY when undefined. Per EC-7 aggregation, count fallback rows
-    // in one pass and emit ONE `getall_temporal_fallback` event AFTER the map with
-    // `{ count: N }` metadata — NEVER per-row (a 10k-row legacy scope would
-    // explode logs otherwise). NOT emitted when count = 0 (mirrors
-    // `recall_threshold_filtered` no-op observability discipline).
-    let fallbackCount = 0;
-    const items: MemoryItem[] = results.map((r) => {
-      let createdAt = r.createdAt;
-      if (createdAt === undefined) {
-        fallbackCount += 1;
-        createdAt = new Date();
-      }
-      // updatedAt + tValid mirror createdAt: under ADR-0003 ADD-only there is no
-      // separate mutation timestamp; under D2 fallback, mirroring avoids a SECOND
-      // synthesizer that would bypass the OTel audit.
-      return {
-        id: r.id,
-        text: String(r.payload['text'] ?? ''),
-        hash: String(r.payload['hash'] ?? r.id),
-        scope: this.scope,
-        createdAt,
-        updatedAt: createdAt,
-        metadata: { ...r.payload },
-        tValid: createdAt,
-        tInvalid: null,
-      };
-    });
-    if (fallbackCount > 0) {
-      emitEvent(this.config.tracer, 'getall_temporal_fallback', { count: fallbackCount });
-    }
-    return items;
-  }
 }
 
 class LocalMemory implements Memory {
@@ -1093,6 +481,8 @@ function validateEmbeddingDim(received: number | undefined): number {
  * runtime is not affected.
  */
 export type DisposableMemory = Memory & { dispose(): Promise<void> };
+
+import { PROBE_TEXT } from './config.js';
 
 /**
  * Public factory. Probes embedder dimension first; throws EmbeddingMismatch
@@ -1417,7 +807,7 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     // the query simply returns 0-2 rows depending on which tables exist,
     // and the loop verifies each present row. Symmetric with the `DO $$ IF EXISTS`
     // guards on the recall_cache cascade ALTER block above.
-    const verify = await client.query<{ rel: string; col: string; dim: number }>(
+    const verify = await pool.query<{ rel: string; col: string; dim: number }>(
       `SELECT c.relname AS rel, a.attname AS col, a.atttypmod AS dim
          FROM pg_attribute a
          JOIN pg_class c ON c.oid = a.attrelid
