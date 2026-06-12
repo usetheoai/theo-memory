@@ -37,7 +37,7 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { AuthVerifier, IntrospectFn, IntrospectionResult } from '@usetheo/memory/contract';
+import type { AuthVerifier, IntrospectFn } from '@usetheo/memory/contract';
 
 // Re-export for backward compatibility — consumers importing from
 // `@usetheo/memory-api` continue to resolve these types.

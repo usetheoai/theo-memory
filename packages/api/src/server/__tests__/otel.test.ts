@@ -23,9 +23,9 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 import type { SpanExporter, ReadableSpan } from '@opentelemetry/sdk-trace-base';
+import type { Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { createServer } from '../index.js';
 
 function stubMemory(): Memory {
@@ -111,7 +111,6 @@ describe('T1.5 — OTel span middleware', () => {
 
   test('18. handler returns 201 even when OTel exporter throws (EC-22 fail-quiet)', async () => {
     class FailingExporter implements SpanExporter {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- SpanExporter signature requires both params; we throw before consuming either
       export(_spans: readonly ReadableSpan[], _cb: (_r: ExportResult) => void): void {
         throw new Error('xport down');
       }

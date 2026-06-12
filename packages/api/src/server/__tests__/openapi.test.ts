@@ -8,9 +8,9 @@
  *      (@hono/zod-openapi pinned at ^0.18.0)
  */
 import SwaggerParser from '@apidevtools/swagger-parser';
+import type { Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { createServer } from '../index.js';
 
 function stubMemory(): Memory {

@@ -13,6 +13,7 @@
  * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-2
  */
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+
 import { OpenAILLM, resolveChatModel } from './openai.js';
 
 describe('OpenAILLM', () => {

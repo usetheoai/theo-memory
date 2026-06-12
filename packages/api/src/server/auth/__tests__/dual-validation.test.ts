@@ -3,11 +3,10 @@
  *
  * Plan: `theo-memory-faang-auth-lifecycle` § T3.1 + ADR D1 + EC-1.
  */
-/* eslint-disable @typescript-eslint/unbound-method -- vi.fn() spies are closures; passing them to expect.toHaveBeenCalledWith is the canonical vitest pattern */
+import type { AuthVerifier } from '@usetheo/memory/contract';
 import { Hono } from 'hono';
 import { describe, expect, test, vi } from 'vitest';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
 import { dualValidationAuth } from '../dual-validation.js';
 
 const VALID_THEO_LIVE = `theo_live_${'a'.repeat(40)}`;

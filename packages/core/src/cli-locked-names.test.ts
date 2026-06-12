@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI_SRC_PATH = join(__dirname, '..', '..', '..', 'src', 'agent-tools', 'cli.ts');
+const CLI_SRC_PATH = join(__dirname, '..', '..', '..', 'packages', 'cli', 'src', 'cli.ts');
 
 interface VerbExpectation {
   readonly name: string;

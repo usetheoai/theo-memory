@@ -21,9 +21,10 @@ import type {
   BenchmarkQuery,
   SearchResult,
 } from '../../dip/benchmark-adapter.js';
-import { LlmJudgePanel } from '../llm-judge/judge-panel.js';
-import { CannedResponseLlm } from '../llm-judge/_test-llm.js';
 import type { Tokenizer } from '../../dip/tokenizer.js';
+import { CannedResponseLlm } from '../llm-judge/_test-llm.js';
+import { LlmJudgePanel } from '../llm-judge/judge-panel.js';
+
 import { BenchmarkRunner } from './benchmark-runner.js';
 import { CostTracker } from './cost-tracker.js';
 import { PricingTableMiss } from './pricing-table-miss.js';

@@ -4,8 +4,10 @@
  * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.1 + EC-1
  */
 import { describe, it, expect } from 'vitest';
-import { DeterministicStubEmbedder } from './stub.js';
+
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
+
+import { DeterministicStubEmbedder } from './stub.js';
 
 describe('DeterministicStubEmbedder.embed', () => {
   it('returns same vector for repeated calls with same text', async () => {

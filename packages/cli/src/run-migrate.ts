@@ -17,9 +17,9 @@
  *
  * @see Plan theo-memory-standalone-p0 § T2.4 + EC-35 + EC-36
  */
+import { runMigrations } from '@usetheo/memory';
 import { Pool } from 'pg';
 
-import { runMigrations } from '@usetheo/memory';
 
 export async function runMigrate(): Promise<void> {
   const pgUri = process.env['THEOMEM_PG_URI'];

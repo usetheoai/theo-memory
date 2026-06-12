@@ -11,7 +11,9 @@ import type { Embedder } from '../../domain/dip/embedder.js';
 import type { LLM } from '../../domain/dip/llm.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { Scope } from '../../domain/scope.js';
+
 import { InMemoryVectorStore } from './in-memory-store.js';
+
 import { createLocalMemory } from './index.js';
 
 const validVector = (): readonly number[] =>

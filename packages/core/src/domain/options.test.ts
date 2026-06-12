@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, expectTypeOf, test } from 'vitest';
 
-import type { GetAllOptions, RecallOptions, RememberOptions } from './options.js';
 import type { MemoryItem } from './memory-item.js';
+import type { GetAllOptions, RecallOptions, RememberOptions } from './options.js';
 import type { Filters } from './scope.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

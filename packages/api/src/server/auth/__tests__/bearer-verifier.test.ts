@@ -12,10 +12,10 @@
  * @see SEPA pre-RED iter 2 — RED test #4 spies on `crypto.timingSafeEqual`;
  *      RED test #12 asserts downstream handler reached + auth header unread.
  */
+import type { AuthVerifier } from '@usetheo/memory/contract';
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
 import { BearerAuthVerifier, readApiKey } from '../bearer-verifier.js';
 import { bearerAuth } from '../middleware.js';
 

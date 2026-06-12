@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+
+import type { EvictionResult } from '../../../domain/dip/eviction-policy.js';
+import type { Scope } from '../../../domain/scope.js';
+
+import type { Evictor } from './pg-evictor.js';
 import {
   DEFAULT_TRIADIC_CONSTANTS,
   DEFAULT_TRIADIC_WEIGHTS,
@@ -6,8 +11,6 @@ import {
   type HalfLifePersister,
   type NearestNeighborProvider,
 } from './triadic-scoring-policy.js';
-import type { EvictionResult } from '../../../domain/dip/eviction-policy.js';
-import type { Evictor } from './pg-evictor.js';
 
 /**
  * Constructor overload tests for T1.1 (closes F-arch-1 CRITICAL).
@@ -35,7 +38,7 @@ describe('TriadicScoringPolicy constructor', () => {
   };
 
   const stubNeighborProvider: NearestNeighborProvider = {
-    async distance(_id: string, _scope: import('../../../domain/scope.js').Scope): Promise<number> {
+    async distance(_id: string, _scope: Scope): Promise<number> {
       return 0.5;
     },
   };

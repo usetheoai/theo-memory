@@ -10,7 +10,9 @@
  * @see EC-3 absorption — `repo` tier (skill scope per ADR-0010) is 4th tier
  */
 import { describe, expect, it } from 'vitest';
+
 import { InvalidCacheConfig } from '../errors.js';
+
 import {
   validateRecallCacheStoreConfig,
   type RecallCacheStoreConfig,

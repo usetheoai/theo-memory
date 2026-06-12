@@ -3,9 +3,9 @@
  *
  * Empty results return 200 with `{ results: [] }`, NOT 404 (EC-11 absorption).
  */
+import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { RecallBody, resolveScope } from '../schemas.js';
 
 import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';

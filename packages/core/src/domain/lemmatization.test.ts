@@ -9,6 +9,7 @@
  * through unaltered; multilingual deferred to v0.2+).
  */
 import { describe, expect, test } from 'vitest';
+
 import { STOP_WORDS, lemmatizeForBm25, simpleStem } from './lemmatization.js';
 
 describe('STOP_WORDS', () => {

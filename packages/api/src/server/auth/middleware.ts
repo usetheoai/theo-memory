@@ -10,9 +10,9 @@
  *      this middleware accepts an optional `AuthVerifier` override for
  *      future OAuth/JWT swap without surface change.
  */
+import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { MiddlewareHandler } from 'hono';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
 
 import { BearerAuthVerifier, readApiKey } from './bearer-verifier.js';
 

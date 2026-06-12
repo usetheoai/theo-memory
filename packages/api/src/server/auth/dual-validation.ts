@@ -17,9 +17,9 @@
  * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T3.1
  * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-1
  */
+import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { MiddlewareHandler } from 'hono';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
 
 /** EC-1 — shape regex: prefix + at least 40 base64url chars (theo_live_* canonical 43). */
 const THEO_LIVE_SHAPE = /^theo_live_[A-Za-z0-9_-]{40,}$/;

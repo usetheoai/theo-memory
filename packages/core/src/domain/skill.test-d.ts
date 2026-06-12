@@ -10,8 +10,8 @@
  */
 import { expectTypeOf, test } from 'vitest';
 
-import type { Memory } from './memory-store.js';
 import type { MemoryItem } from './memory-item.js';
+import type { Memory } from './memory-store.js';
 import type {
   ConsolidateOptions,
   ConsolidationResult,
