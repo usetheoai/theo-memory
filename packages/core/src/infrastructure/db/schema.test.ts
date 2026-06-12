@@ -9,8 +9,9 @@
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1
  * @see .claude/knowledge-base/references/REDACTED/REDACTED/orm/passage.py:1-105 (REDACTED dual-backend reference)
  */
-import { describe, expect, test } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { describe, expect, test } from 'vitest';
+
 import { entities, history, memories } from './schema.js';
 
 describe('memories table', () => {

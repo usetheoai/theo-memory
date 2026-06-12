@@ -5,8 +5,8 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { ImportanceScoringError } from './errors.js';
 import type { LLM } from './dip/llm.js';
+import { ImportanceScoringError } from './errors.js';
 import type { LLMResponse, Message } from './message.js';
 import { scoreImportance, IMPORTANCE_PROMPT_VERSION } from './reflection/importance.js';
 

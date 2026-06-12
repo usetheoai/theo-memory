@@ -10,6 +10,7 @@
  * `::ffff:127.0.0.1` and `127.0.0.1` map to the same bucket.
  */
 import { createHash } from 'node:crypto';
+
 import type { MiddlewareHandler } from 'hono';
 
 const DEFAULT_WRITES = 30;

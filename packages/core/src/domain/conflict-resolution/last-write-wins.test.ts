@@ -14,8 +14,9 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { LastWriteWinsConflictPolicy } from './last-write-wins.js';
 import type { ConsolidationCandidate, ConsolidationContext } from '../dip/conflict-resolution-policy.js';
+
+import { LastWriteWinsConflictPolicy } from './last-write-wins.js';
 
 const ctx: ConsolidationContext = {
   scope: { kind: 'user', userId: 'alice' },
