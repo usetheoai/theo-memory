@@ -43,7 +43,7 @@ RUN corepack enable && corepack prepare pnpm@10.34.1 --activate && \
 # Copy ONLY the surface needed to run the build. Tests, docs, examples,
 # .claude/ are excluded via .dockerignore — keeps the build context small.
 COPY tsconfig.json tsconfig.build.json tsconfig.contract.json ./
-COPY src/ ./src/
+COPY packages/cli/ ./packages/cli/
 
 # EC-40 — tsc emits dist/ + postbuild copies migrations. Failure aborts
 # the entire image build (no escape hatch by design).
