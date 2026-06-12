@@ -3,6 +3,7 @@
  * 13-value enum (12 original + extraction_failed per EC-10 absorption).
  */
 import { describe, expect, test, vi } from 'vitest';
+
 import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 

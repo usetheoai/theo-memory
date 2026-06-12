@@ -16,6 +16,7 @@
 import { describe, expect, test } from 'vitest';
 
 import type { Filters } from '../../domain/scope.js';
+
 import { InMemoryVectorStore } from './in-memory-store.js';
 
 const DIM = 8;

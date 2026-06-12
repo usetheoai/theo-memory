@@ -5,6 +5,7 @@
  * escapeMarkdownHeaders (EC-4 prompt-injection defense).
  */
 import { describe, expect, test } from 'vitest';
+
 import {
   AdditiveExtractionSchema,
   escapeMarkdownHeaders,

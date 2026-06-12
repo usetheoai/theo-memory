@@ -26,10 +26,10 @@
  *
  * @see Plan theo-memory-standalone-p0 § T2.5 + EC-37 + EC-17 + EC-7
  */
-import { Pool } from 'pg';
 
 import { createLocalMemory, StubEmbedder, StubLLM } from '@usetheo/memory';
 import { PgvectorStore } from '@usetheo/memory';
+import { Pool } from 'pg';
 
 const DB_PROBE_TIMEOUT_MS = 2_000;
 

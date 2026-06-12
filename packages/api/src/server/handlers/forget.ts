@@ -4,9 +4,9 @@
  * `Memory.forget(memoryId, options?)` is TOP-LEVEL on Memory (no scope) per
  * v0.4b T7.1 PUBLIC API. Body shape: `{ memoryId, hard? }`.
  */
+import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { ForgetBody } from '../schemas.js';
 
 import { EMPTY_BODY, MALFORMED_BODY, safeJson } from './_body-parsing.js';

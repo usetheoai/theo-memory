@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { InvalidScope } from '../errors.js';
+
 import { mmrRerank, type MmrCandidate } from './mmr.js';
 
 function makeCandidate(id: string, score: number, embedding: readonly number[]): MmrCandidate {

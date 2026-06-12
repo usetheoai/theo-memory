@@ -25,6 +25,7 @@ import type { Embedder } from '../../domain/dip/embedder.js';
 import type { LLM } from '../../domain/dip/llm.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from '../../domain/dip/vector-store.js';
 import type { Filters } from '../../domain/scope.js';
+
 import { createLocalMemory } from './index.js';
 
 const validVector = (): readonly number[] =>

@@ -18,8 +18,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { LLM, LLMResponse, Message } from '../dip/llm.js';
 import type { ConsolidationCandidate, ConsolidationContext } from '../dip/conflict-resolution-policy.js';
+import type { LLM, LLMResponse, Message } from '../dip/llm.js';
 
 const ctx: ConsolidationContext = {
   scope: { kind: 'user', userId: 'alice' },
