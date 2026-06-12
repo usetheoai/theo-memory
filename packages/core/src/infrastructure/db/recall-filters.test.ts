@@ -15,9 +15,9 @@
  */
 import { describe, expect, test } from 'vitest';
 
+import { VEC_A, VEC_B } from './fixtures/deterministic-vectors.js';
 import { InMemoryVectorStore } from './in-memory-store.js';
 
-import { VEC_A, VEC_B } from './fixtures/deterministic-vectors.js';
 
 interface SeedRow {
   readonly id: string;

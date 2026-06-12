@@ -21,8 +21,6 @@
  * @see EC-5 (plan v1.1) — PG_TRANSIENT_CODES
  * @see EC-13 (plan v1.1) — Error.cause + Error.stack not leaked in -32603 data
  */
-import { ZodError } from 'zod';
-
 import {
   ContentTooLargeError,
   EmbedderError,
@@ -30,6 +28,8 @@ import {
   MissingScopeError,
   ReflectionNotConfigured,
 } from '@usetheo/memory/contract';
+import { ZodError } from 'zod';
+
 
 /**
  * Pg driver transient codes (EC-5 absorbed). Errors carrying these codes are

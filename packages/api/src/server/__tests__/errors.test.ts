@@ -15,13 +15,13 @@
  *
  * @see Plan theo-memory-standalone-p0 § T1.6 + EC-23 + EC-24
  */
-import { describe, expect, test, vi } from 'vitest';
-
 import {
   ContentTooLargeError,
   InvalidScope,
   MemoryNotFound,
 } from '@usetheo/memory/contract';
+import { describe, expect, test, vi } from 'vitest';
+
 import { mapDomainErrorToResponse } from '../errors.js';
 
 describe('T1.6 — mapDomainErrorToResponse', () => {

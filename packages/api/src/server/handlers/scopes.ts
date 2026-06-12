@@ -16,11 +16,11 @@
  */
 import { Buffer } from 'node:buffer';
 
+import type { MemoryItem } from '@usetheo/memory/contract';
+import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import type { MemoryItem } from '@usetheo/memory/contract';
-import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 
 const SCOPE_TYPES = ['user', 'session', 'agent', 'skill'] as const;
 type ScopeType = (typeof SCOPE_TYPES)[number];

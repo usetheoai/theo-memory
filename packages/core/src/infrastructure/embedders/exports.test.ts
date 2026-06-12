@@ -7,24 +7,25 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import * as barrel from './index.js';
 import { OpenAIEmbedder as FromOpenAI } from './openai.js';
 import { DeterministicStubEmbedder as FromStub } from './stub.js';
 
+import { DeterministicStubEmbedder, OpenAIEmbedder } from './index.js';
+
 describe('@usetheo/memory/embedders subpath', () => {
   it('barrel re-exports DeterministicStubEmbedder', () => {
-    expect(barrel.DeterministicStubEmbedder).toBeDefined();
+    expect(DeterministicStubEmbedder).toBeDefined();
   });
 
   it('barrel export equals direct stub import', () => {
-    expect(barrel.DeterministicStubEmbedder).toBe(FromStub);
+    expect(DeterministicStubEmbedder).toBe(FromStub);
   });
 
   it('barrel re-exports OpenAIEmbedder (adapters-openai-cycle-2 § T2.1)', () => {
-    expect(barrel.OpenAIEmbedder).toBeDefined();
+    expect(OpenAIEmbedder).toBeDefined();
   });
 
   it('OpenAIEmbedder barrel export equals direct openai import', () => {
-    expect(barrel.OpenAIEmbedder).toBe(FromOpenAI);
+    expect(OpenAIEmbedder).toBe(FromOpenAI);
   });
 });

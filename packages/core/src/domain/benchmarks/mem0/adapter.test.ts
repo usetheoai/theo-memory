@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Tokenizer } from '../../dip/tokenizer.js';
+
 import { Mem0BenchmarkAdapter, type Mem0VendorClient } from './adapter.js';
 
 const tokenizer: Tokenizer = {

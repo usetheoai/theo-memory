@@ -15,8 +15,8 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { InvalidScoringWeightsError } from './errors.js';
 import type { ScoreInput } from './dip/scoring-strategy.js';
+import { InvalidScoringWeightsError } from './errors.js';
 import {
   AdditiveWeightedScoring,
   GENERATIVE_AGENTS_WEIGHTS,

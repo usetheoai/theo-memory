@@ -5,13 +5,13 @@
  * BM25 -> sigmoid normalization -> entity boost -> combined score -> threshold ->
  * format.
  */
-import { describe, expect, test, vi } from 'vitest';
 import { trace } from '@opentelemetry/api';
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
+import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { Embedder } from './dip/embedder.js';

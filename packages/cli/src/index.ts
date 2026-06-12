@@ -11,6 +11,7 @@
  */
 
 import { McpServer } from '@usetheo/memory-mcp';
+
 import type { McpServerOptions } from './types.js';
 
 export type { TransportKind, McpServerOptions } from './types.js';

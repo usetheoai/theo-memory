@@ -5,10 +5,10 @@
  */
 import { describe, expect, test, vi } from 'vitest';
 
-import { ReflectionLLMResponseError } from './errors.js';
 import type { LLM } from './dip/llm.js';
-import type { LLMResponse, Message } from './message.js';
+import { ReflectionLLMResponseError } from './errors.js';
 import type { MemoryItem } from './memory-item.js';
+import type { LLMResponse, Message } from './message.js';
 import { executeReflection } from './reflection/execute.js';
 import type { Scope } from './scope.js';
 

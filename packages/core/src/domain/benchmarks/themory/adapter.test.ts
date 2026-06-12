@@ -13,9 +13,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { LLM, LLMResponse, Message } from '../../dip/llm.js';
 import { createLocalMemory, InMemoryVectorStore, StubEmbedder } from '../../../infrastructure/db/index.js';
+import type { LLM, LLMResponse, Message } from '../../dip/llm.js';
 import type { Tokenizer } from '../../dip/tokenizer.js';
+
 import { TheMemoryBenchmarkAdapter } from './adapter.js';
 
 /**
