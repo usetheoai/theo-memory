@@ -18,9 +18,12 @@
  * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.2
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import pg from 'pg';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
@@ -44,18 +47,16 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     test('backfills kind=extracted for v0.1 rows without CHECK violation', async () => {
-      // Step 1: drop all tables (simulate fresh container)
-      await pool.query(`
-        DROP TABLE IF EXISTS history CASCADE;
-        DROP TABLE IF EXISTS reflection_counters CASCADE;
-        DROP TABLE IF EXISTS memories CASCADE;
-        DROP TABLE IF EXISTS entities CASCADE;
-        DROP TABLE IF EXISTS drizzle.__drizzle_migrations CASCADE;
-      `);
+      // Use an isolated schema to avoid interfering with other tests that
+      // share the same database (e.g., threshold-policy integration tests).
+      const schema = 'test_0001_ordering';
+      await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await pool.query(`CREATE SCHEMA ${schema}`);
+      await pool.query(`SET search_path TO ${schema}, public`);
 
-      // Step 2: apply 0000 only
+      // Step 2: apply 0000 only (creates tables in the test schema)
       const v01Sql = readFileSync(
-        resolve(process.cwd(), 'src/local/migrations/0000_crazy_mimic.sql'),
+        resolve(__dirname, 'migrations/0000_crazy_mimic.sql'),
         'utf8',
       );
       // Split on Drizzle's statement-breakpoint comment; apply each statement.
@@ -75,7 +76,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
       // Step 4: apply 0001_reflection_columns.sql
       const v04aSql = readFileSync(
-        resolve(process.cwd(), 'src/local/migrations/0001_reflection_columns.sql'),
+        resolve(__dirname, 'migrations/0001_reflection_columns.sql'),
         'utf8',
       );
       const v04aStatements = v04aSql.split('--> statement-breakpoint').map((s) => s.trim()).filter(Boolean);
@@ -90,6 +91,10 @@ if (PG_URI === undefined || PG_URI === '') {
       );
       expect(countResult.rows[0]?.total).toBe('100');
       expect(countResult.rows[0]?.extracted).toBe('100');
+
+      // Cleanup: drop the isolated schema and restore search_path.
+      await pool.query(`SET search_path TO public`);
+      await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
     });
   });
 }

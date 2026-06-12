@@ -84,7 +84,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: PG_URI });
-      store = new PgvectorStore({ connectionString: PG_URI } as never);
+      store = new PgvectorStore(pool);
       await store.initialize();
     });
 
