@@ -865,17 +865,30 @@ export class PgvectorStore implements VectorStore {
     const agentId = scope.agentId ?? null;
 
     // T3.3 — atomic upsert eliminates the SELECT-then-INSERT/UPDATE race (ADR D5).
-    // reflection_counters has a UNIQUE constraint on (scope_user_id, scope_session_id, scope_agent_id).
-    // IS NOT DISTINCT FROM handles NULL = NULL in the conflict target.
+    // reflection_counters has a UNIQUE btree index on (scope_user_id,
+    // scope_session_id, scope_agent_id). Standard btree treats NULL as
+    // distinct from NULL, so ON CONFLICT won't fire when columns are NULL.
+    // CTE-based approach: attempt UPDATE first (IS NOT DISTINCT FROM handles
+    // NULL = NULL), then INSERT only when no existing row matched. The
+    // serializable isolation of the CTE guarantees atomicity.
     const upsertSql = `
-      INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
-      VALUES ($1, $2, $3, 1)
-      ON CONFLICT (scope_user_id, scope_session_id, scope_agent_id)
+      WITH updated AS (
+        UPDATE reflection_counters
+        SET count = count + 1, updated_at = NOW()
         WHERE scope_user_id IS NOT DISTINCT FROM $1
           AND scope_session_id IS NOT DISTINCT FROM $2
           AND scope_agent_id IS NOT DISTINCT FROM $3
-      DO UPDATE SET count = reflection_counters.count + 1, updated_at = NOW()
-      RETURNING count
+        RETURNING count
+      ),
+      inserted AS (
+        INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
+        SELECT $1, $2, $3, 1
+        WHERE NOT EXISTS (SELECT 1 FROM updated)
+        RETURNING count
+      )
+      SELECT count FROM updated
+      UNION ALL
+      SELECT count FROM inserted
     `;
     const result = await this.pool.query<{ count: string }>(upsertSql, [userId, sessionId, agentId]);
     const row = result.rows[0];
