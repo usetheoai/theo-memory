@@ -14,10 +14,11 @@
  * @see SEPA pre-RED iter 3 — superRefine over flat schema; StubMemory inline
  *      with `as unknown as Memory` cast; 4-branch scope dispatch.
  */
-import { describe, expect, test, vi } from 'vitest';
 
 import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
+import { describe, expect, test, vi } from 'vitest';
+
 import { createServer } from '../index.js';
 
 const MEMORY_ITEM: MemoryItem = {
@@ -206,7 +207,6 @@ describe('T1.2 — POST /v1/forget', () => {
       }),
     );
     expect(res.status).toBe(204);
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- jest/vitest mock-call assertion idiom; no `this`-binding hazard.
     const forgetMock = memory.forget;
     expect(forgetMock).toHaveBeenCalledWith(
       '00000000-0000-4000-a000-000000000001',

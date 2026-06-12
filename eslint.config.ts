@@ -45,7 +45,20 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/{core,local,theokit,embedders,llms,benchmarks}/**/__tests__/**/*.ts', 'src/__tests__/**/*.test*.ts', 'packages/cli/src/**/__tests__/**/*.ts'],
+    files: [
+      'src/{core,local,theokit,embedders,llms,benchmarks}/**/__tests__/**/*.ts',
+      'src/__tests__/**/*.test*.ts',
+      'packages/core/src/**/__tests__/**/*.ts',
+      'packages/core/src/**/*.test.ts',
+      'packages/core/src/**/*.test-d.ts',
+      'packages/core/src/**/_test-*.ts',
+      'packages/api/src/**/__tests__/**/*.ts',
+      'packages/api/src/**/*.test.ts',
+      'packages/api/src/**/*.test-d.ts',
+      'packages/cli/src/**/__tests__/**/*.ts',
+      'packages/cli/src/**/*.test.ts',
+      'packages/cli/src/**/*.test-d.ts',
+    ],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',
