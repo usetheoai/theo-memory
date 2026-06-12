@@ -23,8 +23,6 @@ import {
   type SkillDraft,
   type SkillLanguage,
   type SkillRecallOptions,
-  type SkillRepresentation,
-  type SkillRepresentationStrategy,
   type SkillWithScore,
   type SourceCluster,
 } from './index.js';
@@ -39,11 +37,6 @@ test('Skill contract types are exported from @usetheo/memory/contract', () => {
   expectTypeOf<ScopedSkillMemory>().not.toBeNever();
   expectTypeOf<SkillLanguage>().not.toBeNever();
   expectTypeOf<SourceCluster>().not.toBeNever();
-});
-
-test('SkillRepresentation DIP slot types are exported (T1.2)', () => {
-  expectTypeOf<SkillRepresentation>().not.toBeNever();
-  expectTypeOf<SkillRepresentationStrategy>().not.toBeNever();
 });
 
 test('RepoScope is exported via the Scope union (T4.1)', () => {
