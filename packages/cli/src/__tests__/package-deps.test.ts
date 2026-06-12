@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 const PACKAGE_JSON = JSON.parse(
-  readFileSync(resolve(__dirname, '..', '..', '..', 'package.json'), 'utf-8'),
+  readFileSync(resolve(__dirname, '..', '..', '..', '..', 'package.json'), 'utf-8'),
 ) as { dependencies?: Record<string, string> };
 
 describe('@usetheo/memory v0.3 — package.json runtime deps (T0.1)', () => {

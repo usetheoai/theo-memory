@@ -5,9 +5,9 @@
  */
 import { describe, expect, test } from 'vitest';
 
+import type { MemoryItem } from './memory-item.js';
 import { buildReflectionPrompt } from './reflection/prompt.js';
 import { PROMPT_VERSION } from './reflection/types.js';
-import type { MemoryItem } from './memory-item.js';
 import type { Scope } from './scope.js';
 
 function mockMemory(id: string, text: string, scope: Scope): MemoryItem {

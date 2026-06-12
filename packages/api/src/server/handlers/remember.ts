@@ -6,9 +6,9 @@
  * @see Plan theo-memory-standalone-p0-fixes-cycle-1 § T1.2 (shared body-parsing
  *      utilities extracted to ./_body-parsing.js per SRP discipline)
  */
+import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
-import type { Memory } from '@usetheo/memory/contract';
 import { RememberBody, resolveScope } from '../schemas.js';
 
 import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';

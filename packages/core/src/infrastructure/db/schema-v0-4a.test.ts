@@ -12,8 +12,9 @@
  * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.2
  * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D10 + D11
  */
-import { describe, expect, test } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { describe, expect, test } from 'vitest';
+
 import { memories, reflectionCounters } from './schema.js';
 
 describe('memories v0.4a additions (T0.2)', () => {

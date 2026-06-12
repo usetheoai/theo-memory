@@ -15,8 +15,9 @@
  * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T0.1
  * @see .claude/knowledge-base/discoveries/blueprints/voyager-skill-library-blueprint.md § ADR D3
  */
-import { describe, expect, test } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import { describe, expect, test } from 'vitest';
+
 import { memories } from './schema.js';
 
 describe('memories v0.6 additions (T0.1)', () => {

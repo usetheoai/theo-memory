@@ -8,6 +8,7 @@
  * EC-8 absorbed: NaN propagates predictably; Phase 5 threshold gate drops NaN-scored results.
  */
 import { describe, expect, test } from 'vitest';
+
 import {
   ENTITY_BOOST_WEIGHT,
   combineScores,

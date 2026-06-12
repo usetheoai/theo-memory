@@ -7,8 +7,9 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import { NoopConflictPolicy } from './noop.js';
 import type { ConsolidationCandidate, ConsolidationContext } from '../dip/conflict-resolution-policy.js';
+
+import { NoopConflictPolicy } from './noop.js';
 
 const ctx: ConsolidationContext = {
   scope: { kind: 'user', userId: 'alice' },

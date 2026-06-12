@@ -26,9 +26,9 @@
       "@usetheo/memory/llms/*": ["./packages/core/src/infrastructure/llms/*"],
       "@usetheo/memory-api": ["./packages/api/src/server/index.ts"],
       "@usetheo/memory-mcp": ["./packages/mcp/src/index.ts"],
-      "@usetheo/memory/agent-tools": ["./src/agent-tools/index.ts"]
+      "@usetheo/memory/agent-tools": ["./packages/cli/src/index.ts"]
     }
   },
-  "include": ["packages/core/src/**/*.ts", "packages/api/src/**/*.ts", "packages/mcp/src/**/*.ts", "src/agent-tools/**/*.ts", "benchmarks/scripts/**/*.ts"],
+  "include": ["packages/core/src/**/*.ts", "packages/api/src/**/*.ts", "packages/mcp/src/**/*.ts", "packages/cli/src/**/*.ts", "benchmarks/scripts/**/*.ts"],
   "exclude": ["node_modules", "referencia", "dist", ".claude"]
 }

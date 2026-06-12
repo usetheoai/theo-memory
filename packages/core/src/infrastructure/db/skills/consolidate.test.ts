@@ -21,10 +21,11 @@ import type { Embedder } from '../../../domain/dip/embedder.js';
 import type { LLM } from '../../../domain/dip/llm.js';
 import type { LLMResponse, Message } from '../../../domain/message.js';
 import type { Filters, Scope } from '../../../domain/scope.js';
+import type { Skill } from '../../../domain/skill.js';
 import { InMemoryVectorStore } from '../in-memory-store.js';
+
 import { consolidate, projectSkillToMemoryItem } from './consolidate.js';
 
-import type { Skill } from '../../../domain/skill.js';
 
 const DIM = 1536;
 const SCOPE: Scope = { kind: 'user', userId: 'alice' };

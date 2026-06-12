@@ -8,18 +8,16 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Tracer } from '@opentelemetry/api';
+import { ContentTooLargeError } from '@usetheo/memory/contract';
+import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { Memory } from '@usetheo/memory/contract';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
-
-import type { AuthVerifier } from '@usetheo/memory/contract';
-import { ContentTooLargeError } from '@usetheo/memory/contract';
-import type { Memory } from '@usetheo/memory/contract';
 
 import type { AuthPool } from './auth/api-key-verifier.js';
 import { bearerAuth } from './auth/middleware.js';
 import { requireScope } from './auth/scope-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
-import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import {
   createKeyHandler,
   lineageKeyHandler,
@@ -37,6 +35,7 @@ import {
   wellKnownOauthProtectedResourceHandler,
   type OidcDiscoveryConfig,
 } from './handlers/well-known.js';
+import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { otelMiddleware } from './observability/otel-middleware.js';
 import { registerAllPaths } from './openapi-registration.js';
 

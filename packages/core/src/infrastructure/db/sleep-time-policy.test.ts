@@ -7,9 +7,9 @@
  */
 import { afterEach, describe, expect, test } from 'vitest';
 
+import type { ReflectionTrigger } from './../../domain/dip/reflection-policy.js';
 import { InvalidCronExpressionError } from './../../domain/errors.js';
 import type { Scope } from './../../domain/scope.js';
-import type { ReflectionTrigger } from './../../domain/dip/reflection-policy.js';
 import { SleepTimeReflectionPolicy } from './reflection/sleep-time-reflection-policy.js';
 
 const TRIGGER: ReflectionTrigger = { kind: 'sleep-time' };

@@ -16,6 +16,7 @@ import {
 } from '../../../domain/dip/recall-cache-store.js';
 import type { MemoryItemWithScore } from '../../../domain/memory-item.js';
 import type { Scope } from '../../../domain/scope.js';
+
 import { PgvectorRecallCacheStore } from './pgvector-recall-cache-store.js';
 import { deriveScopeKey } from './scope-key.js';
 

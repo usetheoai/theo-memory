@@ -10,8 +10,10 @@ import { mock } from 'vitest-mock-extended';
 
 import { MissingScopeError } from '../../domain/errors.js';
 import type { Memory, ScopedMemory } from '../../domain/memory-store.js';
-import { memoryFromCtx } from './index.js';
+
 import type { ScopedContext } from './types.js';
+
+import { memoryFromCtx } from './index.js';
 
 function makeMemoryMock(): {
   memory: Memory;

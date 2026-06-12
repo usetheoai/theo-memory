@@ -14,10 +14,11 @@
  */
 import { Buffer } from 'node:buffer';
 
-import { describe, expect, test, vi } from 'vitest';
 
 import type { MemoryItem } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
+import { describe, expect, test, vi } from 'vitest';
+
 import { createServer } from '../index.js';
 
 function makeItem(id: string, createdAt: string): MemoryItem {
@@ -79,7 +80,6 @@ describe('T1.3 — GET /v1/scopes/:type/:id/memories', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { items: MemoryItem[]; nextCursor?: string };
     expect(body.items).toHaveLength(3);
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vitest mock-call assertion idiom
     const userMock = memory.user;
     expect(userMock).toHaveBeenCalledWith('alice');
   });
@@ -192,7 +192,6 @@ describe('T1.3 — GET /v1/scopes/:type/:id/memories', () => {
       new Request('http://localhost/v1/scopes/skill/repo-alpha/memories'),
     );
     expect(res.status).toBe(501);
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vitest mock-call assertion idiom
     const skillsMock = memory.skills;
     expect(skillsMock).not.toHaveBeenCalled();
   });
