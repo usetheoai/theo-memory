@@ -19,35 +19,11 @@
  * @see https://datatracker.ietf.org/doc/html/rfc9728
  */
 import type { Context } from 'hono';
+import type { OidcDiscoveryConfig } from '@usetheo/memory/contract';
 
-/**
- * OIDC discovery configuration consumed by `createServer({ oidcDiscovery })`.
- * Per RFC 9728 § 2, `resource` + `authorization_servers` + `scopes_supported`
- * are the load-bearing fields for client discovery; the rest are
- * recommended-but-not-required.
- */
-export interface OidcDiscoveryConfig {
-  /**
-   * OIDC issuer URL (the `iss` claim recipient identifies). MUST be HTTPS
-   * in production per RFC 8414 § 2.
-   */
-  readonly issuer: string;
-  /**
-   * Canonical URL of this protected resource (the MCP/REST server itself).
-   * Becomes the `resource` field in the metadata response. RFC 9728 § 2.1.
-   */
-  readonly resource: string;
-  /**
-   * Human-friendly resource label shown in client UIs (e.g., "TheMemory MCP").
-   * RFC 9728 § 2.4 (recommended).
-   */
-  readonly resourceName?: string;
-  /**
-   * Scopes the OIDC issuer may grant for this resource (e.g.,
-   * `memory:read`, `memory:write`). RFC 9728 § 2.5 — informational.
-   */
-  readonly scopesSupported?: readonly string[];
-}
+// Re-export for backward compatibility — consumers importing from
+// `@usetheo/memory-api` continue to resolve this type.
+export type { OidcDiscoveryConfig } from '@usetheo/memory/contract';
 
 /**
  * RFC 9728 response shape. `bearer_methods_supported` is locked to
