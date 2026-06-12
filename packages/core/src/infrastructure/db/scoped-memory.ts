@@ -4,7 +4,7 @@
  * Extracted from index.ts (T1.1 of architecture-review-fixes plan).
  * Contains the LocalScopedMemory class and helper functions it depends on.
  */
-import type { RecallCacheStore, RecallCacheStoreConfig } from '../../domain/dip/recall-cache-store.js';
+import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import {
@@ -28,6 +28,7 @@ import type { ReflectionResult } from '../../domain/reflection-result.js';
 import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
 import type { Filters, Scope } from '../../domain/scope.js';
 
+import { isRecallCacheStoreInstance, resolveCacheTtl } from './cache-helpers.js';
 import type { LocalMemoryConfig } from './config.js';
 
 /**
@@ -184,40 +185,7 @@ export function scopeToCounterTuple(scope: Scope): {
   }
 }
 
-/**
- * semantic-recall-cache-v1-5 T2.1 — resolve TTL per scope tier from the config.
- * Honors per-tier override → default 4-tier table fallback. Mirrors
- * `RecallCacheStore` default behavior so wraps without an explicit config
- * receive the same values as the impl's internal default.
- */
-function resolveCacheTtl(
-  scope: Scope,
-  cacheConfig: RecallCacheStoreConfig | RecallCacheStore | undefined,
-): number {
-  // Default fallback table (mirror DEFAULT_TTL_SECONDS_BY_SCOPE_TIER without
-  // importing the constant — keeps the wiring module readable).
-  const defaults = { user: 86_400, agent: 3_600, session: 600, repo: 3_600 } as const;
-  if (cacheConfig !== undefined && !isRecallCacheStoreInstance(cacheConfig)) {
-    const override = cacheConfig.ttlSecondsByScopeTier?.[scope.kind];
-    if (override !== undefined) return override;
-  }
-  return defaults[scope.kind];
-}
-
-/**
- * semantic-recall-cache-v1-5 T2.1 — discriminator between the dual-shape config.
- * A pre-constructed DIP impl has the 4 method names; a POJO config does not.
- */
-function isRecallCacheStoreInstance(value: unknown): value is RecallCacheStore {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as RecallCacheStore).get === 'function' &&
-    typeof (value as RecallCacheStore).set === 'function' &&
-    typeof (value as RecallCacheStore).invalidateScope === 'function' &&
-    typeof (value as RecallCacheStore).clearExpired === 'function'
-  );
-}
+// resolveCacheTtl + isRecallCacheStoreInstance extracted to cache-helpers.ts (T1.5)
 
 interface VectorStoreWithDerivedInsert {
   insertDerivedMemory(args: {
