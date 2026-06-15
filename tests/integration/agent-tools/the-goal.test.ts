@@ -21,7 +21,7 @@ import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { dispatch } from '../../../packages/mcp/src/tools/dispatch.js';
-import { withScope } from '../../../packages/cli/src/scope.js';
+import { withScope } from '../../../packages/agent-core/src/scope.js';
 import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
 import type { Embedder } from '@usetheo/memory';
 import type { LLM } from '@usetheo/memory';
