@@ -4,13 +4,9 @@
  * Extracted from index.ts (T1.1 of architecture-review-fixes plan).
  * Contains the LocalScopedMemory class and helper functions it depends on.
  */
-import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
-import {
-  InvalidScope,
-  ReflectionNotConfigured,
-} from '../../domain/errors.js';
+import { InvalidScope } from '../../domain/errors.js';
 import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
@@ -22,14 +18,13 @@ import type {
   ReflectOptions,
   RememberOptions,
 } from '../../domain/options.js';
-import { executeReflection } from '../../domain/reflection/execute.js';
-import { validateProvenance } from '../../domain/reflection/provenance.js';
 import type { ReflectionResult } from '../../domain/reflection-result.js';
 import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
 import type { Filters, Scope } from '../../domain/scope.js';
 
 import { resolveCacheTtl } from './cache-helpers.js';
 import type { LocalMemoryConfig } from './config.js';
+import { runReflection } from './reflect-orchestrator.js';
 
 /**
  * v0.6 (T2.2): translate skill-aware RecallOptions / GetAllOptions flags into
@@ -166,45 +161,10 @@ export function deriveScopeFromPayload(payload: Readonly<Record<string, unknown>
   return undefined;
 }
 
-export function scopeToCounterTuple(scope: Scope): {
-  userId: string | null;
-  sessionId: string | null;
-  agentId: string | null;
-} {
-  switch (scope.kind) {
-    case 'user':
-      return { userId: scope.userId, sessionId: null, agentId: null };
-    case 'session':
-      return { userId: scope.userId ?? null, sessionId: scope.sessionId, agentId: null };
-    case 'agent':
-      return { userId: scope.userId ?? null, sessionId: null, agentId: scope.agentId };
-    case 'repo':
-      // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column at the
-      // store layer (see filtersFromScope). Counter rows mirror that mapping.
-      return { userId: null, sessionId: null, agentId: scope.repoId };
-  }
-}
-
+// scopeToCounterTuple + the two structural store-extension interfaces
+// (derived-insert + consolidation) moved to reflect-orchestrator.ts alongside
+// their single consumer, runReflection.
 // resolveCacheTtl + isRecallCacheStoreInstance extracted to cache-helpers.ts (T1.5)
-
-interface VectorStoreWithDerivedInsert {
-  insertDerivedMemory(args: {
-    text: string;
-    hash: string;
-    embedding: readonly number[];
-    derivedFrom: readonly string[];
-    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
-  }): Promise<string>;
-}
-
-interface VectorStoreWithConsolidation {
-  recallConsolidationCandidates?: (
-    filters: Filters,
-  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date }[]>;
-  persistConsolidations?: (
-    results: readonly ConflictResolutionResult[],
-  ) => Promise<void>;
-}
 
 export class LocalScopedMemory implements ScopedMemory {
   constructor(
@@ -336,170 +296,17 @@ export class LocalScopedMemory implements ScopedMemory {
   }
 
   async reflect(options?: ReflectOptions): Promise<ReflectionResult> {
-    void options;
-    if (this.reflectionPolicy === undefined) {
-      throw new ReflectionNotConfigured();
-    }
-
-    // Fetch source memories
-    const [results] = await this.config.vectorStore.list(this.filters, 100);
-    const sourceMemories: MemoryItem[] = results.map((r) => ({
-      id: r.id,
-      text: String(r.payload['text'] ?? ''),
-      hash: String(r.payload['hash'] ?? r.id),
-      scope: this.scope,
-      metadata: { ...r.payload },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      tValid: new Date(),
-      tInvalid: null,
-    }));
-
-    // EC-5: empty-source short-circuit
-    if (sourceMemories.length === 0) {
-      const result: ReflectionResult = {
-        higherOrderMemories: [],
-        sourceIds: [],
-        derivedMemoriesCreated: 0,
-        reason: 'no-source-memories',
-      };
-      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-        await this.reflectionPolicy.onReflectionEnd(this.scope, result);
-      }
-      return result;
-    }
-
-    // Run policy hook
-    if (this.reflectionPolicy.onReflectionStart !== undefined) {
-      await this.reflectionPolicy.onReflectionStart(this.scope, options ?? {});
-    }
-
-    try {
-      // v0.7 T2.1: pre-derivation conflict-resolution phase.
-      // EC-7 absorbed: empty scope already short-circuited at line 354
-      // ("EC-5: empty-source short-circuit"); here we additionally guard on
-      // sourceMemories.length < 2 (nothing to consolidate with a singleton).
-      // EC-8 absorbed: persistConsolidations
-      // wraps t_invalid UPDATE + insertConsolidationHistory INSERT in a
-      // single withTransaction (rollback on any error). Runs BEFORE
-      // executeReflection so LLM-extraction failure paths don't mask the
-      // consolidation's own failure modes.
-      const conflictPolicy = options?.conflictResolution;
-      if (conflictPolicy !== undefined && sourceMemories.length >= 2) {
-        const storeWithConsolidate = this.config.vectorStore as unknown as VectorStoreWithConsolidation;
-        if (
-          typeof storeWithConsolidate.recallConsolidationCandidates !== 'function' ||
-          typeof storeWithConsolidate.persistConsolidations !== 'function'
-        ) {
-          throw new Error(
-            'reflect: conflictResolution requires a vector store with ' +
-              'recallConsolidationCandidates() + persistConsolidations() — ' +
-              'use PgvectorStore from @usetheo/memory/local.',
-          );
-        }
-        const candidates = await storeWithConsolidate.recallConsolidationCandidates(
-          this.filters,
-        );
-        const consolidationResults = await conflictPolicy.consolidate(
-          candidates,
-          { scope: this.scope, observationDate: new Date() },
-        );
-        if (consolidationResults.length > 0) {
-          await storeWithConsolidate.persistConsolidations(consolidationResults);
-        }
-      }
-
-      // Execute reflection LLM call
-      const drafts = await executeReflection({
-        llm: this.config.llm,
-        sourceMemories,
+    // Orchestration extracted to reflect-orchestrator.ts (this-free, unit-testable).
+    return runReflection(
+      {
+        reflectionPolicy: this.reflectionPolicy,
+        config: this.config,
+        filters: this.filters,
         scope: this.scope,
-      });
-
-      const sourceIds = sourceMemories.map((m) => m.id);
-
-      // EC-13: LLM returned empty array (no consolidation)
-      if (drafts.length === 0) {
-        const result: ReflectionResult = {
-          higherOrderMemories: [],
-          sourceIds,
-          derivedMemoriesCreated: 0,
-          reason: 'no-consolidation',
-        };
-        if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-          await this.reflectionPolicy.onReflectionEnd(this.scope, result);
-        }
-        return result;
-      }
-
-      // Provenance validation (throws ReflectionProvenanceMissingError on fail)
-      validateProvenance(drafts, sourceIds);
-
-      // Embed + persist drafts. Store extension provides insertDerivedMemory.
-      const storeWithDerived = this.config.vectorStore as unknown as VectorStoreWithDerivedInsert;
-      if (typeof storeWithDerived.insertDerivedMemory !== 'function') {
-        throw new Error(
-          'reflect: configured vector store does not implement insertDerivedMemory; ' +
-            'pass a PgvectorStore or InMemoryVectorStore from @usetheo/memory/local.',
-        );
-      }
-
-      const counterTuple = scopeToCounterTuple(this.scope);
-      const persisted: MemoryItem[] = [];
-      for (const draft of drafts) {
-        const embedding = await this.config.embedder.embed(draft.text);
-        const hash = `derived-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
-        const id = await storeWithDerived.insertDerivedMemory({
-          text: draft.text,
-          hash,
-          embedding,
-          derivedFrom: draft.derivedFrom,
-          scope: counterTuple,
-        });
-        persisted.push({
-          id,
-          text: draft.text,
-          hash,
-          scope: this.scope,
-          metadata: { kind: 'derived' },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          tValid: new Date(),
-          tInvalid: null,
-        });
-      }
-
-      const result: ReflectionResult = {
-        higherOrderMemories: persisted,
-        sourceIds,
-        derivedMemoriesCreated: persisted.length,
-      };
-      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-        await this.reflectionPolicy.onReflectionEnd(this.scope, result);
-      }
-      // semantic-recall-cache-v1-5 T2.2 — EC-6 absorption: reflect() produces
-      // derived memories (v0.4a) + distillation rows (v0.7). Without scope
-      // invalidation, the cache serves stale results post-reflect for the
-      // same scope. Same correctness gate as remember/forget per Item 19 AC#3.
-      // Awaited sequentially (EC-11). Failures logged but do NOT poison reflect().
-      if (this.recallCacheStore !== undefined && persisted.length > 0) {
-        try {
-          await this.recallCacheStore.invalidateScope(this.scope);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[themory] recall-cache invalidateScope (reflect) failed:', err);
-        }
-      }
-      return result;
-    } catch (err) {
-      if (this.reflectionPolicy.onReflectionEnd !== undefined) {
-        await this.reflectionPolicy.onReflectionEnd(
-          this.scope,
-          err instanceof Error ? err : new Error(String(err)),
-        );
-      }
-      throw err;
-    }
+        recallCacheStore: this.recallCacheStore,
+      },
+      options,
+    );
   }
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
