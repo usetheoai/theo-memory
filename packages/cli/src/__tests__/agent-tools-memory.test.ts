@@ -18,24 +18,26 @@ import type { Pool } from 'pg';
 
 import { wireMemoryFromPool } from '../agent-tools-memory.js';
 
-vi.mock('../../local/index.js', () => ({
+// Mock the ACTUAL specifiers wireMemoryFromPool imports (post extract-cli move +
+// lazy optional-dep refactor): `@usetheo/memory` (createLocalMemory / runMigrations
+// / PgvectorStore) statically, and `@usetheo/memory/embedders/local` +
+// `@usetheo/memory/llms/openai` dynamically. Mocking these keeps the test hermetic —
+// it must NOT pull the real @xenova/transformers + openai optional deps.
+vi.mock('@usetheo/memory', () => ({
   createLocalMemory: vi.fn(async () => ({})),
   runMigrations: vi.fn(async () => undefined),
-}));
-
-vi.mock('../../local/pgvector-store.js', () => ({
   PgvectorStore: class {
     constructor() {}
   },
 }));
 
-vi.mock('../../embedders/local.js', () => ({
+vi.mock('@usetheo/memory/embedders/local', () => ({
   LocalTransformerEmbedder: class {
     constructor() {}
   },
 }));
 
-vi.mock('../../llms/openai.js', () => ({
+vi.mock('@usetheo/memory/llms/openai', () => ({
   OpenAILLM: class {
     constructor() {}
   },
