@@ -80,15 +80,16 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     const rootContent = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'), 'utf8');
     const contractContent = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'domain', 'index.ts'), 'utf8');
 
-    // SKIP (pre-existing, surfaced 2026-06-15 when complete-workspace-publish-topology
-    // fixed the describe-level npm-pack throw that had masked this whole suite). The root
-    // barrel ships 9 export statements today, not the T0.1 baseline of 8 — pre-existing
-    // API-surface drift, NOT touched this session (no index.ts commit in f000f84..HEAD).
-    // Needs an API-owner decision (is the 9th export intended → refresh baseline to 9, or
-    // is it accidental → remove). Tracked in complete-workspace-publish-topology plan.
-    test.skip('1. src/index.ts declares 8 export statements (T0.1 baseline) [PENDING API decision]', () => {
+    // Baseline refreshed 8 → 9 (2026-06-15). The barrel was regrouped from 8 to 9 export
+    // STATEMENTS by the intentional `standardize-project-structure` reorg (commit ab62443,
+    // T3.5: reorganize into domain/ + infrastructure/) — a shipped, intentional change, NOT
+    // an accidental new export. Verified the 9 statements are all legitimate public API
+    // (factory createMemory/createLocalMemory/runMigrations, config types, stores, schema,
+    // stubs, + `export * from ./domain`). This is a brittle line-count proxy; the real
+    // API-correctness checks (no `any`, paper-names, subpath smoke) live in the sibling tests.
+    test('1. src/index.ts declares 9 export statements (post-reorg barrel baseline)', () => {
       const lines = rootContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(8);
+      expect(lines.length).toBe(9);
     });
 
     test('2. src/core/index.ts declares 41 export statements (T0.1 baseline)', () => {
