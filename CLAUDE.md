@@ -282,6 +282,27 @@ Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → 
 | 14 | **v1.3 — Optional graph backend** | `@usetheo/memory/graph` adapter for KG-style queries. Backend: Postgres + Apache AGE OR Neo4j. | **(b) FROZEN under P0** |
 | 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical / legal / code / support) layered over LLM extraction. | **(b) FROZEN under P0** |
 
+### Cross-validation-derived backlog (post-P0)
+
+> Source: `/loop-cross-validation` against `zilliztech/memsearch` (2026-06-15). Full report at `cross-validation-output/final_report.md`. Overall score 4.05/5 — target excels on engineering rigor (observability, typed errors, DIP, auth, bi-temporal); these are the actionable gaps where the reference is stronger. **All are NEW features → FROZEN under P0 (Inquebrável Rule 10); no plans/PRs until P0 closes.** Watcher daemon was evaluated and DISCARDED (cargo-cult of a different product shape). Listed here so the findings are not lost.
+
+| Nº | Name | Acceptance + dependency | P0 classification |
+|---|---|---|---|
+| 21 | **Agentic tool-use + injection/command sandbox** | LLM-driven tool-use surface for the memory layer. **Security-by-design companion (non-negotiable, same plan):** reject shell metacharacters + `shlex`-style split + command whitelist + path-confinement to allowed roots + subprocess timeout/output-cap + per-task tool-call cap; new `ToolInvocationDeniedError` + OTel auditability event per denied call (Princípio 3). Reference: `memsearch/maintenance.py:452-514`. **HIGH priority once unfrozen** — sandbox MUST ship WITH tool-use, never after. See session memory `themory-agentic-tool-use-planned`. | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 22 | **Layered config + `themory config` subcommand** | Config resolution: defaults → global file → project file → env (`env:VAR` refs) → CLI flags via deep-merge, plus `themory config init/set/get/list`. Closes the lowest cross-validation dimension (Configuration 2.5/5). Reference: `memsearch/config.py:357`. Highest operator-ergonomics ROI. | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 23 | **Optional cross-encoder reranker (`Reranker` DIP)** | New `Reranker` DIP + default cross-encoder impl wired as a post-threshold stage in the recall pipeline; backend auto-detection (ONNX/torch). Lifts precision@k. Reference: `memsearch/reranker.py:236`. CAVEAT: heavy optional dep (onnxruntime/@xenova). | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 24 | **Embedder registry + more providers** | String-keyed embedder registry with lazy dynamic-import + install-hint errors; ship 1-3 more first-party adapters (e.g. Google/Voyage/Ollama) to narrow the 3-vs-8 provider gap. Reference: `memsearch/embeddings/__init__.py:58`. | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 25 | **Ingest robustness (opt-in)** | (a) per-item graceful-degradation / poison-record skip on bulk `remember()` with an OTel event per skip (keep fail-fast default); (b) deterministic chunker fallback for the no-LLM / very-long-input path; (c) offline-first model resolution for the local embedder (air-gapped CI). References: `memsearch/core.py:103`, `chunker.py:80`, `embeddings/onnx.py:64`. LOW priority. | **(b) FROZEN under P0** — new features; plan post-P0 |
+
+### Hardening candidates surfaced by cross-validation (IN-SCOPE under P0)
+
+These are NOT features — they qualify as P0 hardening and may proceed now:
+
+| Item | P0 sub-goal | Note |
+|---|---|---|
+| `packages/mcp` build broken (`packages/mcp/src/server.js` missing — `ERR_MODULE_NOT_FOUND`) | 3 (MCP available + reliable) | Surfaced 2026-06-15 while the `dogfood-mirror.sh` hook failed on every Write. Likely a side-effect of the in-flight `extract-cli-to-packages` refactor. Fix before next commit. |
+| Inverted test pyramid (95 integration : 10 unit) + dead-error reachability of the 18 error classes | 1 (APIs correct) | Rebalance with fast unit tests (scoring/mmr/extraction); run `/code-quality` to confirm no `dead_public_export` among the 18 error classes. |
+
 ### Items cut / deferred (audit trail)
 
 | Item | Status | Rationale |
