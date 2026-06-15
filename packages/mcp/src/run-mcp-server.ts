@@ -1,6 +1,6 @@
 /**
  * MCP server composition root — extracted from cli.ts at T2.1 so the CLI
- * router (commander) can keep src/agent-tools/cli.ts thin (≤200 LoC budget
+ * router (commander) can keep packages/cli/src/cli.ts thin (≤200 LoC budget
  * per plan T2.1 + SRP). Pre-T2.1, this body lived inline in `cli.ts::main()`;
  * the existing v0.3 EC-7 behavior (env-var hard-fail + dual SIGINT/SIGTERM
  * handlers + 5s shutdown timeout) is preserved verbatim. Only the call site
@@ -8,7 +8,7 @@
  *
  * Composition root (DIP-allowed): this file wires src/local/ (pgvector +
  * LocalTransformerEmbedder + OpenAILLM real providers) into the
- * agent-tools McpServer. Library layer `src/agent-tools/index.ts` does
+ * agent-tools McpServer. Library layer `packages/cli/src/index.ts` does
  * NOT re-export src/local/ — the bin entry IS the composition site per
  * ADR D8. The runtime hard-fails on missing OPENAI_API_KEY rather than
  * silently wiring a deterministic placeholder; see commit e43d801 of the
@@ -140,7 +140,7 @@ function resolveAuthMode(
  * resolvers stay module-private.
  *
  * @internal — for unit testing + composition root only; NOT re-exported from
- * `src/agent-tools/index.ts` (verified at T4.1 step 2).
+ * `packages/cli/src/index.ts` (verified at T4.1 step 2).
  * @see EC-2 — single-export discipline
  */
 export function resolveMcpModes(
