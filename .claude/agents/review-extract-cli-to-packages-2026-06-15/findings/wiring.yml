@@ -1,0 +1,104 @@
+agent: review-extract-cli-to-packages-wiring
+review_target: 93d8034..HEAD for plan extract-cli-to-packages (focus: build-fix slice 57880fb + 8e93f4a)
+plan: .claude/knowledge-base/plans/extract-cli-to-packages-plan.md
+triad_revalidation:
+  total_new_symbols: 2          # scripts/rewrite-dist-aliases.mjs (build step) + lazy-import refactor in wireMemoryFromPool
+  pillar_a_honest_pass: 2 / 2   # rewrite-aliases wired into package.json#build; lazy import reached by all 6 runtime entry points
+  pillar_b_honest_pass: 2 / 2   # cli-dist-boot-envfree.test.ts exercises built artifact end-to-end (4/4 pass against real dist)
+  pillar_c_observed: 1 / 1      # rewrite-dist-aliases emits success log + fail-loud (exit 1 + stderr) on unresolved specifier — empirically verified
+findings:
+  - id: F-wiring-1
+    severity: INFO
+    file: scripts/rewrite-dist-aliases.mjs
+    line: 18
+    plan_ref: Global DoD — "themory --help funcional apos pnpm build" / D2 dist path stability
+    summary: PILLAR (a) CALLER honest PASS — rewrite-dist-aliases is genuinely wired into the build chain
+    evidence: |
+      package.json:18 build = "... && npm run postbuild:move-cli && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases"
+      package.json:19 postbuild:rewrite-aliases = "node scripts/rewrite-dist-aliases.mjs"
+      Chained with && so a non-zero exit aborts the build. Not an orphan script.
+    recommended_action: None — wiring is correct.
+
+  - id: F-wiring-2
+    severity: INFO
+    file: packages/cli/src/agent-tools-memory.ts
+    line: 125
+    plan_ref: build-fix 57880fb — lazy optional-dep load so `themory --help` needs no @xenova/transformers + openai
+    summary: PILLAR (a) CALLER honest PASS — lazy import is reached by every runtime path
+    evidence: |
+      wireMemoryFromPool() dynamic-imports @usetheo/memory/embedders/local + /llms/openai.
+      Callers traced: run-remember/recall/reflect/forget.ts -> createAgentToolsMemory() -> wireMemoryFromPool();
+      packages/mcp/src/run-mcp-server.ts:235 and packages/cli/src/run-server.ts:147 call wireMemoryFromPool directly.
+      All 6 runtime entry points (verbs + mcp + server) reach the lazy site. No dead branch / no-op.
+    recommended_action: None.
+
+  - id: F-wiring-3
+    severity: INFO
+    file: tests/integration/p0-audit/cli-dist-boot-envfree.test.ts
+    line: 56
+    plan_ref: Final Phase — `node dist/agent-tools/cli.js --help` funcional / regression guard for both build defects
+    summary: PILLAR (b) INTEGRATION TEST honest PASS — exercises the built artifact end-to-end, env-free, reachable by runner
+    evidence: |
+      Test execFileSync's the real dist/agent-tools/cli.js with env stripped to {PATH,HOME} (no OPENAI_API_KEY / THEOMEM_PG_URI).
+      Asserts --help exit 0 + lists 8 subcommands, --version exit 0, mcp --help exit 0, and NO bare `@usetheo/*` import specifier remains in cli.js.
+      Reachable: matched by vitest.integration.config.ts include ['tests/integration/**/*.test.ts'].
+      Ran it: 4/4 PASS against the real dist in 3.06s. Skips gracefully (describe.skipIf) only when dist absent.
+      Independently confirmed: `grep -rhoE "(from|import\()\s*['"]@usetheo/" dist --include='*.js'` returns ZERO — rewrite fully applied; `node dist/agent-tools/cli.js --help` exits 0.
+    recommended_action: None.
+
+  - id: F-wiring-4
+    severity: INFO
+    file: scripts/rewrite-dist-aliases.mjs
+    line: 96
+    plan_ref: Error handling — fail-loud on unresolved specifier (Inquebravel Rule 8)
+    summary: PILLAR (c) RUNTIME OBSERVABILITY honest PASS — emits log + fails loud on unresolved specifiers
+    evidence: |
+      Success path: console.error("rewrite-dist-aliases: rewrote N specifier(s) across M file(s).").
+      Fail path (line 91-95): on any unresolved @usetheo/* specifier -> console.error UNRESOLVED ... + "failing build (fail-loud)" + process.exit(1).
+      Empirically verified: seeded a dist/x/f.js with `from '@usetheo/memory/DOESNOTEXIST_SUBPATH_ZZZ'` -> script printed UNRESOLVED + exited 1.
+      EXACT map covers the 6 known specifiers; PREFIX map covers embedders/ + llms/ (the two dynamic-import targets). Any uncovered specifier (e.g. /cache-pg, /server, /cloud) would HALT the build rather than silently ship a broken dist.
+    recommended_action: None — fail-loud contract is real, not cosmetic.
+
+  - id: F-wiring-5
+    severity: INFO
+    file: .claude/skills/code-quality/scripts/detectors/typescript.py
+    line: 277
+    plan_ref: code-quality D2 ADR-0016 — recognize pnpm workspace packages as local (8e93f4a)
+    summary: Detector fix has a reachable, genuine regression test — verified by running it
+    evidence: |
+      detect_symbol_fabrication now uses _find_workspace_package_names (walks to workspace root, reads pnpm-workspace.yaml/package.json#workspaces globs + node_modules symlinks) and skips local refs via _is_local_reference.
+      Test test_typescript_symbol_fab_skips_pnpm_workspace_packages (tests/test_symbol_fab.py:123) builds a real pnpm workspace fixture, imports a sibling @scope/pkg-b, and asserts package_exists_on_npm is NEVER called (mock.call_count == 0) AND no HARD findings.
+      Ran it: 1 passed in 0.22s. The test is in the configured pytest suite (tests/test_symbol_fab.py), reachable by the standard runner.
+    recommended_action: None.
+
+  - id: F-wiring-6
+    severity: MEDIUM
+    file: packages/cli/src/__tests__/agent-tools-memory.test.ts
+    line: 21
+    plan_ref: build-fix 57880fb — lazy-import refactor of wireMemoryFromPool
+    summary: Stale/inert vi.mock targets after the move+lazy-import refactor — the lifecycle test no longer isolates the optional-dep adapters
+    evidence: |
+      Production code (post-refactor) imports BARE subpaths: '@usetheo/memory', '@usetheo/memory/embedders/local', '@usetheo/memory/llms/openai'.
+      But the test still vi.mock()s RELATIVE paths: '../../local/index.js', '../../local/pgvector-store.js', '../../embedders/local.js', '../../llms/openai.js'.
+      From packages/cli/src/__tests__/, '../../local', '../../embedders', '../../llms' do not exist (those modules live in packages/core, reached via bare subpaths). `ls packages/cli/src/local` -> not found.
+      vitest.contract.config.ts aliases ONLY '@usetheo/memory/agent-tools' — it does NOT alias '@usetheo/memory', '/embedders/local', or '/llms/openai'. So the bare specifiers resolve to REAL source and the 4 vi.mock() calls intercept NOTHING (dead code).
+      The test still PASSES (2/2) and still validates the EC-3 invariant (endSpy not called) because it drives wireMemoryFromPool with a fake pool — but it now loads the real LocalTransformerEmbedder (@xenova/transformers) + OpenAILLM (openai) instead of stubs, so it is no longer hermetic and silently depends on the optional deps being installed in the test env.
+    recommended_action: |
+      Update the vi.mock() module IDs to match the actual bare-subpath specifiers the production code now imports
+      ('@usetheo/memory', '@usetheo/memory/embedders/local', '@usetheo/memory/llms/openai') OR delete the 4 dead mocks if the
+      test is intentionally an integration-tier assertion against real adapters. Either way, remove the misleading inert mocks so the
+      test honestly reflects what it isolates.
+
+  - id: F-wiring-7
+    severity: INFO
+    file: packages/cli/src/agent-tools-memory.ts
+    line: 51
+    plan_ref: Dead-export scan across the slice
+    summary: No orphan/dead exports introduced — all new public-ish exports have external references
+    evidence: |
+      Exports checked: LOCAL_EMBEDDER_DIM (9 refs), wireMemoryFromPool (14), assertEnvOrExit (7), createAgentToolsMemory (15),
+      PG_URI_ENV_SPEC (5), OPENAI_API_KEY_ENV_SPEC (7) — all referenced outside the defining file and re-exported via packages/cli/src/index.ts.
+      The build-fix commit 57880fb touches only: agent-tools-memory.ts (lazy import), scripts/rewrite-dist-aliases.mjs (new, wired),
+      packages/mcp/package.json (removed stale themory-mcp bin pointing at non-existent ./dist/run-mcp-server.js — correct cleanup),
+      and the regression test. No dead module dressed as internal API.
+    recommended_action: None.
