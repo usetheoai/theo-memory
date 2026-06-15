@@ -2,8 +2,15 @@
 slug: complete-workspace-publish-topology
 created_at: 2026-06-15
 goal: Restore a correct, test-gated publish topology for @usetheo/memory after the workspace reorg
-status: DRAFT — blocked on owner ADR decisions (D1/D2)
+status: IN PROGRESS — D1 resolved (src-only); T1+T2 done; remaining blocked on ADR D2 (bin)
 ---
+
+## Progress (2026-06-15)
+
+- **ADR D1 RESOLVED → D1-a (src-only)** by owner decision. Applied: `packages/core/package.json#files` = src-only allow-list + `publish:check` script (commit `7cc6897`).
+- **T1 + T2 DONE** — `tests/integration/publish-readiness.test.ts` retargeted to `packages/core` (the only publishable package), `npm pack` cwd=packages/core (clean JSON), EXACT files assertions restored (closes F-tests-1 BLOCKER + F-tests-2 HIGH). **7/7 GREEN.**
+- **REMAINING (blocked on ADR D2 — bin location):** 3 sibling pack tests still pack `REPO_ROOT` (the private `theo-memory-workspace`) and assert `@usetheo/memory` shape + bin resolution — pre-existing reorg debt of the SAME class, surfaced during T1: `tests/integration/p0-audit/pack-manifest.test.ts` (asserts bin, line ~103), `full-public-surface.test.ts`, `subpath-smoke-import.test.ts`. They need the same retarget to `packages/core` AND the D2 bin decision (pack-manifest asserts `npx @usetheo/memory` resolves the `themory` bin — with src-only, does the published package carry a bin, or is the CLI a Docker-only concern?).
+- **T4 (D3 phantom subpath) — NOT started.**
 
 # Plan: Complete Workspace Publish Topology
 
