@@ -33,7 +33,16 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = resolve(__dirname, '..', 'src', 'local', 'migrations');
+const MIGRATIONS_DIR = resolve(
+  __dirname,
+  '..',
+  'packages',
+  'core',
+  'src',
+  'infrastructure',
+  'db',
+  'migrations',
+);
 
 const RUNBOOK_REF = 'docs/runbook-v0-4b-rollback.md § 4';
 
