@@ -118,10 +118,147 @@ class TypescriptDetector(BaseDetector):
             return False
         return module == self_name or module.startswith(self_name + "/")
 
-    def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
-        """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30)."""
-        findings: list[Finding] = []
+    @staticmethod
+    def _is_local_reference(module: str, local_names: set[str]) -> bool:
+        """True when `module` is one of the repo's local (workspace) package names or a subpath of one."""
+        return any(module == n or module.startswith(n + "/") for n in local_names)
+
+    def _find_workspace_package_names(self, changed_files: list[Path]) -> set[str]:
+        """Collect ALL local (unpublished) package names in a pnpm/npm monorepo.
+
+        The original `_find_self_package_name` only recognized ONE self name (the
+        outermost root package.json#name), so sibling workspace packages — e.g.
+        `@scope/pkg-a` importing `@scope/pkg-b` — were queried against the npm
+        registry and flagged HARD 'fabricated'. This walks to the workspace root
+        and enumerates every workspace package via (a) the workspace globs declared
+        in `pnpm-workspace.yaml` / `package.json#workspaces`, and (b) node_modules
+        symlinks that resolve back inside the repo (the authoritative record of
+        what pnpm linked). Cached on the instance.
+        """
+        if hasattr(self, "_cached_ws_names"):
+            return self._cached_ws_names
+        names: set[str] = set()
         self_name = self._find_self_package_name(changed_files)
+        if self_name:
+            names.add(self_name)
+        repo_root = self._find_repo_root(changed_files)
+        if repo_root is not None:
+            self._collect_pkg_name(repo_root / "package.json", names)
+            for pkg_dir in self._iter_workspace_pkg_dirs(repo_root):
+                self._collect_pkg_name(pkg_dir / "package.json", names)
+            self._collect_symlinked_local_names(repo_root, names)
+        self._cached_ws_names = names
+        return names
+
+    def _find_repo_root(self, changed_files: list[Path]) -> Path | None:
+        """Walk up to the workspace root (dir with pnpm-workspace.yaml OR package.json#workspaces)."""
+        starts: list[Path] = []
+        for src_file in changed_files:
+            try:
+                starts.append(src_file.resolve().parent if src_file.exists() else Path.cwd())
+            except OSError:
+                continue
+        if not starts:
+            starts.append(Path.cwd())
+        for start in starts:
+            for parent in [start, *start.parents]:
+                if (parent / "pnpm-workspace.yaml").is_file():
+                    return parent
+                pkg = parent / "package.json"
+                if pkg.is_file():
+                    try:
+                        if json.loads(pkg.read_text(encoding="utf-8")).get("workspaces"):
+                            return parent
+                    except (json.JSONDecodeError, OSError):
+                        pass
+        return None
+
+    @staticmethod
+    def _collect_pkg_name(pkg_json: Path, names: set[str]) -> None:
+        if pkg_json.is_file():
+            try:
+                name = json.loads(pkg_json.read_text(encoding="utf-8")).get("name")
+                if isinstance(name, str) and name:
+                    names.add(name)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    def _iter_workspace_pkg_dirs(self, repo_root: Path):
+        for pattern in self._read_workspace_globs(repo_root):
+            pat = pattern.rstrip("/")
+            try:
+                for match in repo_root.glob(pat):
+                    if match.is_dir():
+                        yield match
+            except (OSError, ValueError):
+                continue
+
+    @staticmethod
+    def _read_workspace_globs(repo_root: Path) -> list[str]:
+        globs: list[str] = []
+        pkg = repo_root / "package.json"
+        if pkg.is_file():
+            try:
+                ws = json.loads(pkg.read_text(encoding="utf-8")).get("workspaces")
+                if isinstance(ws, list):
+                    globs.extend(g for g in ws if isinstance(g, str))
+                elif isinstance(ws, dict) and isinstance(ws.get("packages"), list):
+                    globs.extend(g for g in ws["packages"] if isinstance(g, str))
+            except (json.JSONDecodeError, OSError):
+                pass
+        pnpm = repo_root / "pnpm-workspace.yaml"
+        if pnpm.is_file():
+            try:
+                in_packages = False
+                for raw in pnpm.read_text(encoding="utf-8").splitlines():
+                    line = raw.rstrip()
+                    if not line or line.lstrip().startswith("#"):
+                        continue
+                    if not line.startswith((" ", "\t", "-")):
+                        in_packages = line.strip().rstrip(":") == "packages"
+                        continue
+                    stripped = line.strip()
+                    if in_packages and stripped.startswith("-"):
+                        val = stripped[1:].strip().strip("'\"")
+                        if val:
+                            globs.append(val)
+            except OSError:
+                pass
+        return globs
+
+    @staticmethod
+    def _collect_symlinked_local_names(repo_root: Path, names: set[str]) -> None:
+        nm = repo_root / "node_modules"
+        if not nm.is_dir():
+            return
+        try:
+            entries = list(nm.iterdir())
+        except OSError:
+            return
+        root_resolved = repo_root.resolve()
+        for entry in entries:
+            candidates = []
+            try:
+                if entry.name.startswith("@") and entry.is_dir() and not entry.is_symlink():
+                    candidates = list(entry.iterdir())
+                else:
+                    candidates = [entry]
+            except OSError:
+                continue
+            for cand in candidates:
+                try:
+                    if not cand.is_symlink():
+                        continue
+                    target = cand.resolve()
+                    if target == root_resolved or root_resolved in target.parents:
+                        TypescriptDetector._collect_pkg_name(target / "package.json", names)
+                except OSError:
+                    continue
+
+    def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
+        """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30) + sibling workspace packages (patch 2026-06-15)."""
+        findings: list[Finding] = []
+        local_names = self._find_workspace_package_names(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -141,8 +278,9 @@ class TypescriptDetector(BaseDetector):
                 top = module.split("/")[0] if not module.startswith("@") else "/".join(module.split("/")[:2])
                 if top in _TS_NODE_BUILTINS:
                     continue
-                # Patch 2026-05-30 — Self-reference (the workspace IS the package being imported)
-                if self._is_self_reference(module, self_name):
+                # Patch 2026-05-30 + 2026-06-15 — Local workspace package (self OR a
+                # sibling pnpm/npm workspace package; unpublished, not on the registry).
+                if self._is_local_reference(module, local_names):
                     continue
                 # Package name for npm lookup
                 pkg = module if module.startswith("@") else module.split("/")[0]

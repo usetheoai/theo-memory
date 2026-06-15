@@ -120,6 +120,35 @@ def test_typescript_symbol_fab_flags_fabricated_package(tmp_path: Path) -> None:
     assert hard[0].language == "typescript"
 
 
+def test_typescript_symbol_fab_skips_pnpm_workspace_packages(tmp_path: Path) -> None:
+    """Workspace-aware D2: in a pnpm/npm monorepo, imports of SIBLING workspace
+    packages (`@scope/pkg-b` from `@scope/pkg-a`) are local, unpublished packages —
+    they MUST NOT be queried against the npm registry nor flagged as fabricated.
+    Regression guard for the extract-cli-to-packages reorg, where the hyphenated
+    workspace package names (@usetheo/memory-api, @usetheo/memory-mcp) were flagged
+    HARD 'fabricated' because the detector only recognized ONE self package name."""
+    (tmp_path / "pnpm-workspace.yaml").write_text("packages:\n  - 'packages/*'\n")
+    (tmp_path / "package.json").write_text('{"name": "ws-root", "private": true}\n')
+    for pkg, name in (("a", "@scope/pkg-a"), ("b", "@scope/pkg-b")):
+        d = tmp_path / "packages" / pkg
+        d.mkdir(parents=True)
+        (d / "package.json").write_text(f'{{"name": "{name}"}}\n')
+    src = tmp_path / "packages" / "a" / "src" / "x.ts"
+    src.parent.mkdir(parents=True)
+    src.write_text(
+        "import { B } from '@scope/pkg-b';\n"
+        "import { Sub } from '@scope/pkg-b/sub';\n"
+    )
+    det = TypescriptDetector()
+    with patch(
+        "scripts._registry.package_exists_on_npm",
+        side_effect=AssertionError("must NOT query registry for local workspace packages"),
+    ) as mock:
+        findings = det.detect_symbol_fabrication([src])
+    assert mock.call_count == 0
+    assert [f for f in findings if f.severity == "HARD"] == []
+
+
 def test_typescript_symbol_fab_skips_relative_imports(tmp_path: Path) -> None:
     """EC-16 (relative + node builtins)"""
     src = tmp_path / "x.ts"
