@@ -216,10 +216,14 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
 
   // ────────────────────────────────────────────────────────────────────
   describe('Sub-goal 4: Paper-name policy compliance (5 tokens × 0 hits in packages/**/src/**)', () => {
+    // Counts paper/marketing-name hits in domain code. EXCLUDES `**/benchmarks/**`
+    // per ADR-0017 (vendor benchmark adapters legitimately name the third-party product
+    // they benchmark — e.g. Mem0BenchmarkAdapter — which is the adapter's subject, not
+    // paper-name bias in domain code). The ban stays in force everywhere else in src/.
     function countToken(token: string): number {
       const result = spawnSync(
         'bash',
-        ['-c', `grep -rE "\\b${token}\\b" packages/*/src/ --include="*.ts" 2>/dev/null | grep -v "knowledge-base" | wc -l`],
+        ['-c', `grep -rE "\\b${token}\\b" packages/*/src/ --include="*.ts" 2>/dev/null | grep -v "knowledge-base" | grep -v "/benchmarks/" | wc -l`],
         { cwd: REPO_ROOT, encoding: 'utf8' },
       );
       return parseInt(result.stdout.trim(), 10);
@@ -229,15 +233,10 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
       expect(countToken('REDACTED')).toBe(0);
     });
 
-    // SKIP (pre-existing, surfaced 2026-06-15 — see test 1 note). Unlike the other 4 paper
-    // names (REDACTED/REDACTED/REDACTED/REDACTED, all 0), `REDACTED` has 22 hits — all in the v0.9
-    // benchmark VENDOR adapters (packages/core/src/domain/benchmarks/REDACTED/: Mem0BenchmarkAdapter,
-    // Mem0VendorClient) where `REDACTED` is a real third-party VENDOR PRODUCT being benchmarked,
-    // plus one JSDoc `@see` in retrieval/pipeline.ts. This is a policy-vs-vendor-code conflict
-    // (no-paper-names-in-code.md vs legitimate vendor-adapter naming), pre-existing, NOT this
-    // session's work. Needs a policy decision: exempt benchmarks/vendor dirs OR rename. Tracked
-    // in complete-workspace-publish-topology plan.
-    test.skip('30. `REDACTED` paper-name count in src/**/*.ts is 0 [PENDING policy decision — vendor adapter]', () => {
+    // Resolved 2026-06-15 (ADR-0017): `REDACTED` is 0 in DOMAIN code (benchmarks/ exempt — the
+    // vendor adapters legitimately name the product they benchmark). The single domain-code
+    // `vector-based hybrid` JSDoc ref (mcp/tools/remember-schema.ts) was cleaned to neutral wording.
+    test('30. `REDACTED` paper-name count in src/ (excl. benchmarks/) is 0', () => {
       expect(countToken('REDACTED')).toBe(0);
     });
 
