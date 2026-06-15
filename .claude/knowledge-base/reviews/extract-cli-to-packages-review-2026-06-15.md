@@ -4,7 +4,18 @@
 **Reviewers (spawned agents):** 6 — architecture, wiring, cross-validation, tests, domain-cli-tooling, domain-database
 **Diff base:** `93d8034..HEAD` (extract-cli plan commit → tip)
 **Findings:** 25 total (BLOCKER: 1, HIGH/MAJOR: 2, MEDIUM: 2, LOW: 5, INFO: 15)
-**Verdict:** NEEDS_FIXES
+**Verdict:** READY_TO_MERGE (build-fix slice) — with 3 findings CARVED OUT to follow-up `complete-workspace-publish-topology`.
+
+## Scoping decision (owner, 2026-06-15)
+
+The BLOCKER (F-tests-1) + 2 HIGH/MAJOR (F-tests-2, F-dom-cli-1) are **pre-existing `standardize-project-structure` reorg debt**, NOT introduced by this session's build-fix slice — verified: `publish-readiness.test.ts` was already red at `f000f84` (pre-session tip: root `package.json` had no `files`/`exports` then either). Per owner decision (Option B), they are carved out to a dedicated follow-up plan `complete-workspace-publish-topology` (CLAUDE.md § Hardening candidates), and the **build-fix slice itself is READY_TO_MERGE**.
+
+In-scope `/review` findings (this slice's blast radius) were FIXED in commit `be70669`:
+- F-wiring-6 (MEDIUM) — stale `vi.mock` targets in `agent-tools-memory.test.ts` retargeted to real specifiers (hermetic again, 2/2 GREEN).
+- `architecture.md § 3` — corrected the stale "cli depends on core only" claim (cli is composition root; documented cli↔mcp cycle).
+- LOW — refreshed stale `src/agent-tools/` JSDoc coordinates in the touched file.
+
+Carved-out (follow-up `complete-workspace-publish-topology`): F-tests-1 (publish-readiness), F-tests-2 (weakened files assertion), F-dom-cli-1 (phantom subpath + cli↔mcp cycle).
 
 ## Summary
 
