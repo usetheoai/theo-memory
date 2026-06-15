@@ -295,7 +295,14 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     // the query simply returns 0-2 rows depending on which tables exist,
     // and the loop verifies each present row. Symmetric with the `DO $$ IF EXISTS`
     // guards on the recall_cache cascade ALTER block above.
-    const verify = await pool.query<{ rel: string; col: string; dim: number }>(
+    //
+    // MUST run on `client` (the BEGIN/COMMIT connection), NOT `pool.query`:
+    // the ALTERs above are uncommitted at this point, so a query on any other
+    // pooled connection reads the pre-ALTER catalog (READ COMMITTED isolation)
+    // and the canary false-fails with `atttypmod=<old dim>`. The canary is
+    // explicitly an IN-TRANSACTION verification — it only means anything when
+    // it observes the same uncommitted state the COMMIT below is about to seal.
+    const verify = await client.query<{ rel: string; col: string; dim: number }>(
       `SELECT c.relname AS rel, a.attname AS col, a.atttypmod AS dim
          FROM pg_attribute a
          JOIN pg_class c ON c.oid = a.attrelid
