@@ -79,3 +79,4 @@ htmlcov/
 benchmarks/data/
 benchmarks/results/
 
+cross-validation-output/

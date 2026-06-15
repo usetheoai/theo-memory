@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **code-review-fixes-v0-2-1** T1.2 — BREAKING: `createApp()` throws when `NODE_ENV=production` and `THEMORY_CORS_ORIGIN` is unset. Previously defaulted to wildcard `*` with a stderr warning. Development/test mode unchanged (OWASP A01:2021, ADR D2, EC-2).
 - **theocloud-release-and-docker-rebuild** T2.1 — `docker-compose.prod.yaml` default image updated from `ghcr.io/usetheo/themory:0.1.0-alpha` to `usetheo/themory:0.2.0` (Docker Hub primary per ADR D1 + EC-3 alignment).
 - **theocloud-release-and-docker-rebuild** T3.2 — README Docker section leads with Docker Hub (`docker pull usetheo/themory:0.2.0`); GHCR noted as alternative. All `0.1.0-alpha` references removed from README and Dockerfile.
+- **cross-validation-roadmap** — Roadmap (README + CLAUDE.md) extended with 5 post-P0 backlog items derived from the `/loop-cross-validation` run against `the reference project` (2026-06-15): agentic tool-use + injection sandbox, layered config + `themory config`, optional cross-encoder reranker DIP, embedder registry + more providers, ingest robustness. All FROZEN under PRIORITY 0 (Inquebrável Rule 10) — documented for traceability, not active work. Two in-scope hardening candidates also flagged (`packages/mcp` build breakage; test-pyramid + dead-error audit). Watcher daemon explicitly discarded.
 
 ### Deprecated
 

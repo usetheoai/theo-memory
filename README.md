@@ -292,6 +292,10 @@ npm run lint                # Zero warnings
 | v1.1 | Multi-peer + bi-temporal | **Shipped** |
 | v1.5 | Semantic recall cache | **Shipped** |
 | v1.0 | Contract stable / production-ready | In progress |
+| — | Agentic tool-use + injection/command safety sandbox | Planned (post-P0) |
+| — | Layered config + `themory config` subcommand | Planned (post-P0) |
+| — | Optional cross-encoder reranker (`Reranker` DIP) | Planned (post-P0) |
+| — | Embedder registry + additional providers | Planned (post-P0) |
 | v2.0 | Adaptive retrieval + graph backend | Planned |
 
 ## Status
