@@ -1,8 +1,8 @@
 /**
  * EvictionPolicy DIP — strategy for triadic-scored automated forgetting with
  * long-tail preservation. The 8th DIP per plan v0-4b-forgetting-pipeline ADR D12
- * (v1.2 — count corrected from 7 to 8 after v0.6 introduced
- * `skill-representation-strategy.ts`).
+ * (v1.2 — count corrected from 7 to 8 after v0.6 introduced a since-removed
+ * skill-representation DIP, since deleted as YAGNI per ADR-0017-era cleanup).
  *
  * INDEPENDENT of ADR-0008's locked 5 DIPs — adding a NEW DIP does not change
  * the locked method counts of the original five. Method count of this NEW DIP:
