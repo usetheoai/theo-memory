@@ -21,7 +21,7 @@ import { mock } from 'vitest-mock-extended';
 import { MemoryNotFound, MemoryStoreError, MissingScopeError } from '@usetheo/memory/contract';
 import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
-import { withScope } from '@usetheo/memory/agent-tools';
+import { withScope } from '@usetheo/memory-agent-core';
 import { dispatch } from './dispatch.js';
 
 const FIXED_DATE = new Date('2026-05-24T12:00:00.000Z');

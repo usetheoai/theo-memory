@@ -9,7 +9,8 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2
  */
-import { createAgentToolsMemory } from './agent-tools-memory.js';
+import { createAgentToolsMemory } from '@usetheo/memory-agent-core';
+
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 import { resolveCliScope, validateScopeOpts } from './cli-scope.js';
 
