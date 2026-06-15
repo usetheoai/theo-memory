@@ -107,6 +107,18 @@ importers:
         specifier: ^8.1.0
         version: 8.1.1(@opentelemetry/api@1.9.1)
 
+  packages/agent-core:
+    dependencies:
+      '@usetheo/memory':
+        specifier: workspace:*
+        version: link:../core
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+
   packages/api:
     dependencies:
       '@asteasolutions/zod-to-openapi':
@@ -138,7 +150,11 @@ importers:
         specifier: ^4.0.0
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/cli: {}
+  packages/cli:
+    dependencies:
+      '@usetheo/memory-agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
 
   packages/core:
     dependencies:
@@ -195,6 +211,9 @@ importers:
       '@usetheo/memory':
         specifier: workspace:*
         version: link:../core
+      '@usetheo/memory-agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
       '@usetheo/memory-api':
         specifier: workspace:*
         version: link:../api

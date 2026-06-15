@@ -17,7 +17,7 @@ export default tseslint.config(
     // v0-8-fixes-cycle-1 T3.2 + EC-4: benchmarks/scripts/ at repo root
     // (NOT under src/) — extracted runner scaffold + 3 CLI runners now
     // gain lint enforcement (previously escaped via src/{...} pattern).
-    files: ['packages/core/src/**/*.ts', 'packages/api/src/**/*.ts', 'packages/cli/src/**/*.ts', 'benchmarks/scripts/**/*.ts'],
+    files: ['packages/core/src/**/*.ts', 'packages/api/src/**/*.ts', 'packages/cli/src/**/*.ts', 'packages/agent-core/src/**/*.ts', 'benchmarks/scripts/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
@@ -56,6 +56,8 @@ export default tseslint.config(
       'packages/api/src/**/*.test.ts',
       'packages/api/src/**/*.test-d.ts',
       'packages/cli/src/**/__tests__/**/*.ts',
+      'packages/agent-core/src/**/__tests__/**/*.ts',
+      'packages/agent-core/src/**/*.test.ts',
       'packages/cli/src/**/*.test.ts',
       'packages/cli/src/**/*.test-d.ts',
     ],

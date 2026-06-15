@@ -4,6 +4,16 @@
   "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
   "type": "module",
   "license": "Apache-2.0",
+  "files": [
+    "src/**/*.ts",
+    "!src/**/__tests__/**",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "src/infrastructure/db/migrations/**"
+  ],
+  "scripts": {
+    "publish:check": "npm pack --dry-run"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
