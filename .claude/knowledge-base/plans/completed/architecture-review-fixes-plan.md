@@ -1,5 +1,30 @@
 # Plan: Architecture Review Fixes — Split God Module, Deduplicate MCP/CLI, Extract Auth Contracts
 
+> **CLOSURE (2026-06-15) — ARCHIVED.** All 10 findings of this 2026-06-11 (pre-reorg) plan were
+> resolved by the subsequent `standardize-project-structure` reorg + this session's
+> `extract-cli-to-packages` (PR #41) + `complete-workspace-publish-topology` (PR #42) work,
+> verified against current state:
+> - **HIGH #1/#4/#6/#7 (god module `db/index.ts` 1,526 LoC):** RESOLVED — `index.ts` is now 49 LoC;
+>   decomposed into `scoped-memory.ts` (545), `local-memory.ts` (242), `factory.ts` (249),
+>   `migrations-runner.ts` (331), `cache-helpers.ts` (106).
+> - **HIGH #2 (5 duplicated mcp↔agent-tools files):** RESOLVED — the shared helpers were extracted to
+>   the `@usetheo/memory-agent-core` leaf (PR #42 T4/ADR-D3); mcp imports the leaf, no duplicates.
+> - **HIGH #3 (auth contracts → domain/dip):** RESOLVED — `domain/dip/oidc-contracts.ts` exists.
+> - **#5 (SkillRepresentationStrategy YAGNI):** RESOLVED — the file was removed.
+> - **Stale JSDoc coordinates:** cleaned (commit `2ec2593`).
+>
+> **Accepted LoC-budget exceptions (the plan's "no file >500 LoC in changed scope" metric).** Three
+> files remain >500 LoC; on inspection they are JUSTIFIED soft-guideline exceptions (CLAUDE.md states
+> the LoC budget is "guia (não regra rígida)"; the owner deferred F-arch-6/7):
+> - `pgvector-store.ts` (900) — its skill seam is ALREADY extracted to `PgvectorSkillStore`; the rest
+>   is a cohesive `VectorStore` adapter.
+> - `scoped-memory.ts` (545, in changed scope, 45 over) — extracting `reflect()` entangles the shared
+>   `scopeToCounterTuple` (3 importers) + 2 interfaces; not worth the cycle risk for a soft guideline.
+> - `extraction/pipeline.ts` (515) — cohesive 8-phase pipeline, 15 over.
+>
+> A dedicated follow-up cycle WITH `OPENAI_API_KEY` (to verify the LLM-gated reflect/extraction paths)
+> may revisit `scoped-memory.ts` reflect extraction + `pipeline.ts`. Not started — owner-prioritized next.
+
 > **Version 1.1** — Corrige os 10 achados da revisao arquitetural de 2026-06-11 (3 HIGH, 5 MEDIUM, 2 LOW). Foco principal: decomposicao do god file `infrastructure/db/index.ts` (1,526 LoC, LCOM4=3), deduplicacao de 536 LoC entre `packages/mcp/` e `src/agent-tools/`, e extracao de contratos auth para `domain/dip/`. Refactor puro — zero mudanca de API publica, zero feature nova. Qualifica como P0 hardening (higiene interna sem impacto externo).
 >
 > **v1.1 changes (edge-case absorption):** EC-1 MCP dedup via subpath import instead of relative path; EC-2 cache-helpers extraction as T1.5; EC-3 circular dep pre-flight in T1.3; EC-4 shared helper import test in T1.2; EC-5 skill-barrel.test.ts audit in T3.2.
