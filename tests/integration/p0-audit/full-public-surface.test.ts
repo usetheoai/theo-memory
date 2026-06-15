@@ -26,6 +26,11 @@ import { walkStaticImports, toRelativePaths } from './_helpers/static-walk.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
+// Publishable package = @usetheo/memory (packages/core), the only non-private workspace
+// package. npm pack runs HERE (clean JSON; root would emit build stdout noise).
+const PACKAGE_DIR = join(REPO_ROOT, 'packages', 'core');
+const NPM_BIN_PATH = '/home/paulo/.nvm/versions/node/v20.19.2/bin/npm';
+const NPM = existsSync(NPM_BIN_PATH) ? NPM_BIN_PATH : 'npm';
 const require_ = createRequire(import.meta.url);
 
 function isInstalled(pkg: string): boolean {
@@ -75,9 +80,16 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     const rootContent = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'), 'utf8');
     const contractContent = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'domain', 'index.ts'), 'utf8');
 
-    test('1. src/index.ts declares 8 export statements (T0.1 baseline)', () => {
+    // Baseline refreshed 8 → 9 (2026-06-15). The barrel was regrouped from 8 to 9 export
+    // STATEMENTS by the intentional `standardize-project-structure` reorg (commit ab62443,
+    // T3.5: reorganize into domain/ + infrastructure/) — a shipped, intentional change, NOT
+    // an accidental new export. Verified the 9 statements are all legitimate public API
+    // (factory createMemory/createLocalMemory/runMigrations, config types, stores, schema,
+    // stubs, + `export * from ./domain`). This is a brittle line-count proxy; the real
+    // API-correctness checks (no `any`, paper-names, subpath smoke) live in the sibling tests.
+    test('1. src/index.ts declares 9 export statements (post-reorg barrel baseline)', () => {
       const lines = rootContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(8);
+      expect(lines.length).toBe(9);
     });
 
     test('2. src/core/index.ts declares 41 export statements (T0.1 baseline)', () => {
@@ -204,10 +216,14 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
 
   // ────────────────────────────────────────────────────────────────────
   describe('Sub-goal 4: Paper-name policy compliance (5 tokens × 0 hits in packages/**/src/**)', () => {
+    // Counts paper/marketing-name hits in domain code. EXCLUDES `**/benchmarks/**`
+    // per ADR-0017 (vendor benchmark adapters legitimately name the third-party product
+    // they benchmark — e.g. REDACTEDBenchmarkAdapter — which is the adapter's subject, not
+    // paper-name bias in domain code). The ban stays in force everywhere else in src/.
     function countToken(token: string): number {
       const result = spawnSync(
         'bash',
-        ['-c', `grep -rE "\\b${token}\\b" packages/*/src/ --include="*.ts" 2>/dev/null | grep -v "knowledge-base" | wc -l`],
+        ['-c', `grep -rE "\\b${token}\\b" packages/*/src/ --include="*.ts" 2>/dev/null | grep -v "knowledge-base" | grep -v "/benchmarks/" | wc -l`],
         { cwd: REPO_ROOT, encoding: 'utf8' },
       );
       return parseInt(result.stdout.trim(), 10);
@@ -217,7 +233,10 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
       expect(countToken('REDACTED')).toBe(0);
     });
 
-    test('30. `REDACTED` paper-name count in src/**/*.ts is 0', () => {
+    // Resolved 2026-06-15 (ADR-0017): `REDACTED` is 0 in DOMAIN code (benchmarks/ exempt — the
+    // vendor adapters legitimately name the product they benchmark). The single domain-code
+    // `vector-based hybrid` JSDoc ref (mcp/tools/remember-schema.ts) was cleaned to neutral wording.
+    test('30. `REDACTED` paper-name count in src/ (excl. benchmarks/) is 0', () => {
       expect(countToken('REDACTED')).toBe(0);
     });
 
@@ -267,9 +286,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
   });
 
   // ────────────────────────────────────────────────────────────────────
-  describe('npm pack manifest hygiene', () => {
-    const result = spawnSync('npm', ['pack', '--dry-run', '--json'], {
-      cwd: REPO_ROOT,
+  describe('npm pack manifest hygiene (packages/core, src-only)', () => {
+    // ADR D1-a (src-only) + D2-a (no npm bin; CLI via Docker), owner decision 2026-06-15:
+    // pack the publishable @usetheo/memory (packages/core); paths are package-relative.
+    const result = spawnSync(NPM, ['pack', '--dry-run', '--json'], {
+      cwd: PACKAGE_DIR,
       encoding: 'utf8',
       timeout: 60_000,
     });
@@ -290,8 +311,10 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
       expect(leaks).toHaveLength(0);
     });
 
-    test('41. npm pack ships dist/agent-tools/cli.js (bin entry — T3.3 dependency)', () => {
-      expect(paths).toContain('dist/agent-tools/cli.js');
+    test('41. npm pack ships the src barrel + migrations (src-only publish shape)', () => {
+      expect(paths).toContain('src/index.ts');
+      const sql = paths.filter((p) => p.endsWith('.sql'));
+      expect(sql.length).toBeGreaterThan(0);
     });
 
     test('42. npm pack name is @usetheo/memory (publishing identity)', () => {

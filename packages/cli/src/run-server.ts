@@ -29,6 +29,14 @@ import { serve } from '@hono/node-server';
 import { runMigrations } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
+import {
+  assertEnvOrExit,
+  LOCAL_EMBEDDER_DIM,
+  OPENAI_API_KEY_ENV_SPEC,
+  PG_URI_ENV_SPEC,
+  wireMemoryFromPool,
+} from '@usetheo/memory-agent-core';
+import { resolveBootstrapToken, resolveOidcConfig } from '@usetheo/memory-agent-core';
 import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { BearerAuthVerifier, readApiKey } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
@@ -36,14 +44,6 @@ import { OidcAuthVerifier } from '@usetheo/memory-api';
 import { createServer } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
-import {
-  assertEnvOrExit,
-  LOCAL_EMBEDDER_DIM,
-  OPENAI_API_KEY_ENV_SPEC,
-  PG_URI_ENV_SPEC,
-  wireMemoryFromPool,
-} from './agent-tools-memory.js';
-import { resolveBootstrapToken, resolveOidcConfig } from './oidc-cli-resolver.js';
 
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts

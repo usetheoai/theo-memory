@@ -22,7 +22,8 @@
     "zod-to-json-schema": "^3.24.0",
     "jose": "^6.0.0",
     "oauth4webapi": "^3.8.6",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "@usetheo/memory-agent-core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

@@ -30,7 +30,7 @@ export const INPUT_SCHEMA = z.object({
   metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
   /**
    * When false, skip the LLM extraction pipeline and store the content verbatim.
-   * Default true (vector-based hybrid extraction). Mirrors REST `POST /v1/remember` `infer` flag.
+   * Default true (LLM fact-extraction mode). Mirrors REST `POST /v1/remember` `infer` flag.
    */
   infer: z.boolean().optional(),
 });
