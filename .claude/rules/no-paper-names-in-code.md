@@ -24,6 +24,7 @@ These references ARE allowed and expected in:
 - `.claude/knowledge-base/adrs/**` — ADRs cite the papers that motivated a decision.
 - `.claude/knowledge-base/reviews/**` — review reports cite the source they reviewed against.
 - `README.md`, `CHANGELOG.md`, public-facing copy — when consciously citing prior art for the consumer's benefit.
+- **`**/benchmarks/**` under `src/`** (vendor benchmark adapters) — per [ADR-0017](../knowledge-base/adrs/ADR-0017-paper-names-benchmark-vendor-exemption.md). A third-party VENDOR PRODUCT name is the legitimate SUBJECT of a benchmark adapter (`Mem0BenchmarkAdapter`, `Mem0VendorClient`, the `mem0ai` SDK import, the `benchmarks/mem0/` dir) — categorically different from a paper-name biasing memory-domain code. The ban remains in full force everywhere else in `src/**`, including the `Mem0-shape` architectural descriptor (allowed in docs, cleaned to neutral wording in domain code).
 
 ## Why
 
@@ -103,3 +104,4 @@ Only via explicit ADR signed by the project owner. Any PR that softens enforceme
 |---|---|---|
 | 2026-05-30 | Rule promoted from session memory to first-class project rule. Original session memory stays as user-personal cache. | v0.6.1 T5.2 / F-arch-10 absorption: review found that the policy was load-bearing during /implement but lived only in session-memory, making it invisible to ADRs and code reviewers without session context. Promotion makes it citable. |
 | 2026-06-04 | Added § Meta-test self-defense pattern + 5th anti-pattern. | F-xval-1 absorption from `/review p0-api-sdk-mcp-correctness-audit-fixes-cycle-1`: the hotfix commit `b1acbba` discovered the meta-test self-defense pattern in-cycle but documented it only in the commit body. This amendment formalizes the canonical pattern + lifts the original inline-regex anti-pattern to a 5th explicit anti-pattern, closing the ADR-backfill gap. |
+| 2026-06-15 | Exempted `**/benchmarks/**` under `src/` (vendor benchmark adapters) from the ban. [ADR-0017](../knowledge-base/adrs/ADR-0017-paper-names-benchmark-vendor-exemption.md), project-owner signed. | `complete-workspace-publish-topology` unmasked decision #2: the v0.9 benchmark vendor adapters (`Mem0BenchmarkAdapter` etc.) legitimately name the third-party product they benchmark — the vendor name is the adapter's subject, not paper-name bias in domain code. Scoped to `benchmarks/` only; the ban stays everywhere else. The single domain-code `Mem0-shape` JSDoc ref was cleaned (not exempted). |
