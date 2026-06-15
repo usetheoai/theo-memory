@@ -3,7 +3,7 @@
  *
  * Mirrors the REST-side `FC1-T2.2-RED` pattern in `run-server.test.ts`
  * (lines 202-208). Pins the 3-line stderr warning emitted at
- * `src/agent-tools/run-mcp-server.ts:91-103` (Stub embedder + Stub LLM
+ * `packages/mcp/src/run-mcp-server.ts:91-103` (Stub embedder + Stub LLM
  * disclosure, per Inquebrável Rule 3 honesty discipline at the consumer
  * boundary). Without this test, a future refactor could silently drop
  * the warning lines and the CI gate would NOT catch it.
