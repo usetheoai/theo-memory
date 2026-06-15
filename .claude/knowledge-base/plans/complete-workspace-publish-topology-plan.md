@@ -10,7 +10,12 @@ status: IN PROGRESS — D1 resolved (src-only); T1+T2 done; remaining blocked on
 - **ADR D1 RESOLVED → D1-a (src-only)** by owner decision. Applied: `packages/core/package.json#files` = src-only allow-list + `publish:check` script (commit `7cc6897`).
 - **T1 + T2 DONE** — `tests/integration/publish-readiness.test.ts` retargeted to `packages/core` (the only publishable package), `npm pack` cwd=packages/core (clean JSON), EXACT files assertions restored (closes F-tests-1 BLOCKER + F-tests-2 HIGH). **7/7 GREEN.**
 - **REMAINING (blocked on ADR D2 — bin location):** 3 sibling pack tests still pack `REPO_ROOT` (the private `theo-memory-workspace`) and assert `@usetheo/memory` shape + bin resolution — pre-existing reorg debt of the SAME class, surfaced during T1: `tests/integration/p0-audit/pack-manifest.test.ts` (asserts bin, line ~103), `full-public-surface.test.ts`, `subpath-smoke-import.test.ts`. They need the same retarget to `packages/core` AND the D2 bin decision (pack-manifest asserts `npx @usetheo/memory` resolves the `themory` bin — with src-only, does the published package carry a bin, or is the CLI a Docker-only concern?).
-- **T4 (D3 phantom subpath) — NOT started.**
+- **ADR D2 RESOLVED → D2-a (no npm bin; CLI via Docker)** by owner. Applied: bin assertions removed from the pack tests.
+- **T1 fully DONE** — all 3 npm-pack tests retargeted to `packages/core` (cwd), package-relative paths, bin assertions removed: `publish-readiness` (7/7), `pack-manifest` (8/8, commit `0d9cdf4`), `full-public-surface` pack block (commit `0d9cdf4`). `subpath-smoke-import` was already correct (static analysis, no root pack).
+- **NEWLY-SURFACED pre-existing debt** (unmasked when T1 fixed full-public-surface's describe-level pack throw — these never ran before; both OUT of publish-topology scope, `test.skip`'d with rationale, need OWNER decisions):
+  - **API-surface drift:** root barrel `packages/core/src/index.ts` ships 9 export statements; the T0.1 baseline test asserts 8. Decision: is the 9th export intended (refresh baseline → 9) or accidental (remove)?
+  - **Paper-name policy vs vendor adapters:** `Mem0` has 22 hits in `src/`, all legitimate v0.9 benchmark VENDOR adapters (`benchmarks/mem0/`: `Mem0BenchmarkAdapter`, `Mem0VendorClient`) + 1 JSDoc `@see`. The other 4 paper-names (Voyager/Letta/LangMem/Graphiti) are 0. Decision: exempt `benchmarks/`/vendor dirs from `no-paper-names-in-code.md`, OR rename.
+- **T4 (D3 phantom subpath) — NOT started** (migrate 11 mcp importers to `@usetheo/memory-cli` + break cli↔mcp cycle).
 
 # Plan: Complete Workspace Publish Topology
 
