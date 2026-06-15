@@ -18,21 +18,21 @@ import { walkStaticImports, toRelativePaths } from './_helpers/static-walk.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
-const ENTRY = join(REPO_ROOT, 'src', 'index.ts');
+const ENTRY = join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts');
 
 const NINE_IMPL_FILES = [
   // 1-2 — already covered by tests/integration/subpath-isolation.test.ts;
   //       re-asserted here for matrix completeness.
-  'src/local/recall-cache/pgvector-recall-cache-store.ts', // ./cache-pg
-  'src/server/index.ts',                                    // ./server
+  'packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.ts', // ./cache-pg
+  'packages/api/src/server/index.ts',                                    // ./server
   // 3-9 — NEW coverage for the remaining 7 subpath impls
-  'src/agent-tools/index.ts',                               // ./agent-tools
-  'src/embedders/index.ts',                                 // ./embedders
-  'src/embedders/local.ts',                                 // ./embedders/local (heavy @xenova dep)
-  'src/embedders/openai.ts',                                // ./embedders/openai (heavy openai dep)
-  'src/llms/index.ts',                                      // ./llms
-  'src/llms/openai.ts',                                     // ./llms/openai (heavy openai dep)
-  'src/theokit/index.ts',                                   // ./theokit
+  'packages/cli/src/index.ts',                               // ./agent-tools
+  'packages/core/src/infrastructure/embedders/index.ts',     // ./embedders
+  'packages/core/src/infrastructure/embedders/local.ts',     // ./embedders/local (heavy @xenova dep)
+  'packages/core/src/infrastructure/embedders/openai.ts',    // ./embedders/openai (heavy openai dep)
+  'packages/core/src/infrastructure/llms/index.ts',          // ./llms
+  'packages/core/src/infrastructure/llms/openai.ts',         // ./llms/openai (heavy openai dep)
+  'packages/core/src/infrastructure/theokit/index.ts',       // ./theokit
 ];
 
 describe('T2.2 — Default-barrel bundle isolation (9 subpath impl files)', () => {
@@ -57,7 +57,7 @@ describe('T2.2 — Default-barrel bundle isolation (9 subpath impl files)', () =
     // in src/index.ts; if the walker were depth-1 only, this would still
     // pass (depth-1 catches direct re-exports), but if the walker missed
     // re-exports entirely, it would fail.
-    expect(reachable.has('src/core/index.ts')).toBe(true);
+    expect(reachable.has('packages/core/src/domain/index.ts')).toBe(true);
   });
 
   test('4. walk reaches a deeply-nested core sibling via VALUE re-export (confirms transitive recursion)', () => {
@@ -66,6 +66,6 @@ describe('T2.2 — Default-barrel bundle isolation (9 subpath impl files)', () =
     // DOES include (unlike `export type { ... }`). Reaching this file
     // confirms the walker recursed through src/index.ts -> src/core/index.ts
     // -> src/core/errors.ts.
-    expect(reachable.has('src/core/errors.ts')).toBe(true);
+    expect(reachable.has('packages/core/src/domain/errors.ts')).toBe(true);
   });
 });

@@ -23,9 +23,18 @@ export default defineConfig({
       // to import `examples/chat-with-memory/lib/memory.ts` (which uses the
       // guard). Alias to a noop so the import succeeds in test environment.
       'server-only': new URL('./tests/integration/examples/server-only-shim.ts', import.meta.url).pathname,
+      // Post-workspace-restructure: the @usetheo/memory/agent-tools subpath
+      // was extracted to @usetheo/memory-cli. The MCP package still imports
+      // from the old subpath; this alias bridges the gap at test time.
+      '@usetheo/memory/agent-tools': new URL('./packages/cli/src/index.ts', import.meta.url).pathname,
+      // MCP package barrel — vitest uses node ESM resolution which does NOT
+      // auto-map .js → .ts. This alias lets `import('@usetheo/memory-mcp')`
+      // and transitive imports from packages/mcp/ resolve correctly.
+      '@usetheo/memory-mcp': new URL('./packages/mcp/src/index.ts', import.meta.url).pathname,
     },
   },
   test: {
+    globalSetup: ['tests/integration/global-setup.ts'],
     include: ['tests/integration/**/*.test.ts'],
     passWithNoTests: true,
     testTimeout: 30_000,

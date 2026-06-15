@@ -30,9 +30,9 @@ import {
   createLocalMemory,
   PgvectorStore,
   runMigrations,
-} from '../../../src/local/index.js';
-import { DeterministicStubEmbedder } from '../../../src/embedders/stub.js';
-import { DeterministicStubLLM } from '../../../src/llms/stub.js';
+} from '@usetheo/memory';
+import { DeterministicStubEmbedder } from '@usetheo/memory/embedders/stub';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TRIALS = 20;

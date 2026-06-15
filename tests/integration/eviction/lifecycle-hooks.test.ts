@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { CapacityBasedTrigger } from '../../../src/local/eviction/capacity-based-trigger.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
+import { CapacityBasedTrigger } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
 import type {
   EvictionPolicy,
   EvictionResult,
   ScoreContext,
-} from '../../../src/core/dip/eviction-policy.js';
-import type { MemoryItem } from '../../../src/core/memory-item.js';
-import type { Scope } from '../../../src/core/scope.js';
+} from '@usetheo/memory';
+import type { MemoryItem } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
 
 /**
  * T12.1 (F-xval-2): triggers invoke the EvictionPolicy `onEvictionStart` +

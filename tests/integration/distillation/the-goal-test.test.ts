@@ -50,8 +50,8 @@ import {
   PgvectorStore,
   StubEmbedder,
   LastWriteWinsConflictPolicy,
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 import { loadGoldSet } from '../../fixtures/distillation/loader.js';
 import {
   conflictResolutionAccuracy,
