@@ -37,9 +37,10 @@ SCHEMA_VERSION = "0.1.0"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+# Post-workspace-reorg: the public barrels live under packages/core/src.
 ENTRY_FILES = [
-    REPO_ROOT / "src" / "index.ts",
-    REPO_ROOT / "src" / "core" / "index.ts",
+    REPO_ROOT / "packages" / "core" / "src" / "index.ts",
+    REPO_ROOT / "packages" / "core" / "src" / "core" / "index.ts",
 ]
 
 # Regex patterns for export extraction (sufficient for barrel files).

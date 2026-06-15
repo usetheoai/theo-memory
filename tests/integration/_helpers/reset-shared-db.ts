@@ -43,7 +43,13 @@ if (uri !== undefined && uri !== '') {
          WHERE datname = $1 AND pid <> pg_backend_pid()`,
       [dbName],
     );
-    await admin.query(`DROP DATABASE IF EXISTS ${dbName}`);
+    // DROP ... WITH (FORCE) (PG 13+) atomically disconnects any session that
+    // raced in between the terminate above and the drop, then drops. Without
+    // FORCE, a slow-closing prior-file pool could reconnect in that window and
+    // block the DROP, leaving the shared DB in the prior file's (possibly
+    // dim-polluted) state — observed as an intermittent recall@10 collapse in
+    // the heavy forgetting/eviction GOAL tests.
+    await admin.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
     await admin.query(`CREATE DATABASE ${dbName} TEMPLATE ${TEMPLATE_DB}`);
   } finally {
     await admin.end();
