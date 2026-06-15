@@ -1,140 +1,119 @@
 /**
- * Publish-readiness gate — T2.3 of plan v0-2-theokit-binding (v1.1).
+ * Publish-readiness gate for the publishable package `@usetheo/memory`.
  *
- * Per ADR D8: removing `"private": true` from package.json is gated by a
- * tarball-shape + dry-run check that runs both locally and from any future CI.
- * The script lives at `package.json#scripts.publish:check` (no `.github/workflows/`
- * yet — KISS, see iteration-6 SEPA brief).
+ * After the workspace reorg (`standardize-project-structure` + `extract-cli-to-packages`)
+ * the publishable surface is `packages/core` (`@usetheo/memory`) — the ONLY non-private
+ * workspace package. The root `theo-memory-workspace` is a PRIVATE workspace root and is
+ * NOT the publish target. This gate therefore targets `packages/core/package.json` and runs
+ * `npm pack` with `cwd = packages/core` (tarball paths are package-relative).
  *
- * 3 tests:
- * 1. package.json is publishable shape (no `private` key; `files` allow-list intact)
- * 2. `npm run publish:check` exits 0 (the script body runs npm pack/publish in dry-run)
- * 3. Packed tarball excludes test artifacts (regression guard for the `files` exclusions)
+ * Publish model (ADR D1 of `complete-workspace-publish-topology`, owner decision 2026-06-15):
+ * **src-only** for the pre-release stage — the package ships its TypeScript source under
+ * `src/` + SQL migrations, excludes test artifacts; exports resolve to the `src/` tree.
+ *
+ * 7 assertions:
+ *   1. publishable package is NOT `private`.
+ *   2. `files` allow-list is EXACTLY the src-only set (exact-match, not loose `.some(includes)` —
+ *      restores the rigor lost in the test migration, review F-tests-2).
+ *   3. declares a `publish:check` script (the gate).
+ *   4. `npm run publish:check` (in packages/core) exits 0.
+ *   5. packed tarball EXCLUDES __tests__ / *.test.ts / *.test-d.ts.
+ *   6. packed tarball POSITIVELY INCLUDES the embedders/llms stub source by name.
+ *   7. packed tarball POSITIVELY INCLUDES every source file backing a declared `exports` entry.
+ *
+ * @see .claude/knowledge-base/plans/complete-workspace-publish-topology-plan.md § ADR D1 + T1
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
+const PACKAGE_DIR = resolve(REPO_ROOT, 'packages', 'core');
 const NPM_BIN = '<HOME>/.nvm/versions/node/v20.19.2/bin/npm';
+const HAS_NPM = existsSync(NPM_BIN);
 
 interface PackageJsonShape {
   private?: boolean;
   files?: string[];
   scripts?: Record<string, string>;
+  exports?: Record<string, { default?: string; types?: string }>;
 }
 
 function readPackageJson(): PackageJsonShape {
-  const raw = readFileSync(resolve(REPO_ROOT, 'package.json'), 'utf-8');
-  return JSON.parse(raw) as PackageJsonShape;
+  return JSON.parse(readFileSync(resolve(PACKAGE_DIR, 'package.json'), 'utf-8')) as PackageJsonShape;
 }
 
-describe('package.json — publishable shape (ADR D8)', () => {
-  test('does NOT declare "private": true (publish gate removed)', () => {
+/** Run `npm pack --dry-run --json` in the publishable package and return the packed file paths. */
+function packedPaths(): Set<string> {
+  const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
+    cwd: PACKAGE_DIR,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>;
+  return new Set(parsed.flatMap((entry) => entry.files.map((f) => f.path)));
+}
+
+describe('package.json — publishable shape (@usetheo/memory = packages/core)', () => {
+  test('the publishable package is NOT marked private', () => {
     const pkg = readPackageJson();
-    // private absent OR explicitly false; both are publishable per npm spec
     expect(pkg.private === undefined || pkg.private === false).toBe(true);
   });
 
-  test('files allow-list includes packages/**/*.ts + migrations AND excludes test artifacts', () => {
+  test('files allow-list is EXACTLY the src-only set (ADR D1-a)', () => {
     const pkg = readPackageJson();
-    expect(pkg.files).toBeDefined();
-    const files = pkg.files ?? [];
-    // Either old src/ or new packages/ layout accepted
-    const hasSrcGlob = files.some((f: string) => f.includes('**/*.ts'));
-    expect(hasSrcGlob).toBe(true);
-    // Migration files present (either old or new path)
-    const hasMigrations = files.some((f: string) => f.includes('migrations'));
-    expect(hasMigrations).toBe(true);
-    // Negation patterns guarantee tests are NOT packed
-    const hasTestExclusions = files.some((f: string) => f.includes('__tests__'));
-    expect(hasTestExclusions).toBe(true);
+    expect(pkg.files).toEqual([
+      'src/**/*.ts',
+      '!src/**/__tests__/**',
+      '!src/**/*.test.ts',
+      '!src/**/*.test-d.ts',
+      'src/infrastructure/db/migrations/**',
+    ]);
   });
 
   test('declares a publish:check script (the gate)', () => {
     const pkg = readPackageJson();
-    expect(pkg.scripts).toBeDefined();
     expect(pkg.scripts?.['publish:check']).toBeDefined();
     expect(pkg.scripts?.['publish:check']).toMatch(/--dry-run/);
   });
 });
 
-describe('publish-readiness — gate executable', () => {
-  test('npm run publish:check exits 0 (tarball shape valid for registry)', () => {
-    // The script body runs the registry-dry-run check. We don't capture output
-    // — exit 0 is the contract. execFileSync throws on non-zero exit.
+describe('publish-readiness — gate executable (cwd = packages/core)', () => {
+  test.skipIf(!HAS_NPM)('npm run publish:check exits 0 (tarball shape valid for registry)', () => {
     const result = execFileSync(NPM_BIN, ['run', 'publish:check'], {
-      cwd: REPO_ROOT,
+      cwd: PACKAGE_DIR,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     expect(result).toBeDefined();
   }, 30_000);
 
-  test('packed tarball excludes __tests__, *.test.ts, *.test-d.ts artifacts', () => {
-    // `npm pack --dry-run --json` returns array of would-be-packed file entries.
-    const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>;
-    expect(parsed).toBeDefined();
-    expect(parsed.length).toBeGreaterThanOrEqual(1);
-    const allPaths = parsed.flatMap((entry) => entry.files.map((f) => f.path));
-    const forbidden = allPaths.filter(
-      (p) => p.includes('__tests__') || /\.test(-d)?\.ts$/.test(p),
-    );
+  test.skipIf(!HAS_NPM)('packed tarball EXCLUDES __tests__, *.test.ts, *.test-d.ts artifacts', () => {
+    const allPaths = [...packedPaths()];
+    const forbidden = allPaths.filter((p) => p.includes('__tests__') || /\.test(-d)?\.ts$/.test(p));
     expect(forbidden).toEqual([]);
   }, 30_000);
 
-  test('EC-5 (F-tests-1): tarball POSITIVELY INCLUDES src/embedders/{stub,index}.ts + src/llms/{stub,index}.ts by name', () => {
-    // F-tests-1 absorption + EC-5 explicit regression guard for the
-    // 52-adapter portfolio per
-    // .claude/knowledge-base/plans/adapters-portfolio-roadmap.md. The F1
-    // followup test below iterates pkg.exports generically; this block
-    // makes the 4 cycle-1 subpath files explicitly auditable so a future
-    // package.json edit accidentally omitting any of them fails THIS test
-    // with a named-file assertion, not just an implicit loop miss.
-    const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>;
-    const allPaths = new Set(parsed.flatMap((entry) => entry.files.map((f) => f.path)));
-
-    expect(allPaths.has('packages/core/src/infrastructure/embedders/stub.ts')).toBe(true);
-    expect(allPaths.has('packages/core/src/infrastructure/embedders/index.ts')).toBe(true);
-    expect(allPaths.has('packages/core/src/infrastructure/llms/stub.ts')).toBe(true);
-    expect(allPaths.has('packages/core/src/infrastructure/llms/index.ts')).toBe(true);
+  test.skipIf(!HAS_NPM)('tarball POSITIVELY INCLUDES embedders/llms stub + index source by name', () => {
+    const paths = packedPaths();
+    // package-relative paths (npm pack runs in packages/core)
+    expect(paths.has('src/infrastructure/embedders/stub.ts')).toBe(true);
+    expect(paths.has('src/infrastructure/embedders/index.ts')).toBe(true);
+    expect(paths.has('src/infrastructure/llms/stub.ts')).toBe(true);
+    expect(paths.has('src/infrastructure/llms/index.ts')).toBe(true);
   }, 30_000);
 
-  test('F1 followup: tarball POSITIVELY INCLUDES every source file backing a declared package.json#exports entry', () => {
-    // Prevents the silent "published package missing the stub the consumer imports"
-    // failure mode flagged by SEPA during T2.3. Logged at
-    // .claude/knowledge-base/implementations/v0-2-theokit-binding-followups.md F1
-    // and absorbed into T4.5 because stubs introduce new public surface.
-    const pkg = readPackageJson() as PackageJsonShape & {
-      exports?: Record<string, { default?: string }>;
-    };
+  test.skipIf(!HAS_NPM)('tarball POSITIVELY INCLUDES every source file backing a declared exports entry', () => {
+    const pkg = readPackageJson();
     expect(pkg.exports).toBeDefined();
-    const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const parsed = JSON.parse(output) as Array<{ files: Array<{ path: string }> }>;
-    const allPaths = new Set(parsed.flatMap((entry) => entry.files.map((f) => f.path)));
-
+    const paths = packedPaths();
     for (const [subpath, conditions] of Object.entries(pkg.exports ?? {})) {
       const target = conditions.default;
       if (target === undefined) continue;
-      // Conditions reference paths like './src/theokit/index.ts'; strip leading './'.
       const normalized = target.replace(/^\.\//, '');
-      expect(allPaths.has(normalized)).toBe(
+      expect(paths.has(normalized)).toBe(
         true,
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         `Exports entry ${subpath} → ${target}: backing source not present in npm pack output`,
