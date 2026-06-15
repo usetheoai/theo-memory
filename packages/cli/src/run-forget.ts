@@ -10,7 +10,8 @@
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.3
  */
-import { createAgentToolsMemory } from './agent-tools-memory.js';
+import { createAgentToolsMemory } from '@usetheo/memory-agent-core';
+
 import { renderCliOutput, type CliFormat } from './cli-output.js';
 
 export interface RunForgetOptions {
