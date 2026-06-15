@@ -19,6 +19,25 @@ export default defineConfig({
       // from src/agent-tools/ via this subpath. tsconfig paths handle tsc;
       // this alias handles vitest runtime resolution.
       '@usetheo/memory-agent-core': new URL('./packages/agent-core/src/index.ts', import.meta.url).pathname,
+      // Consumer-DX fix: packages/core#exports now point at the built dist JS so
+      // Node-SSR consumers (TheoKit/Next/Vite-SSR) can load the published
+      // package (a src-only package is unresolvable when the bundler
+      // externalizes it — Node cannot run raw .ts). For the test suites we want
+      // the LIVE src, not a stale dist, so map every @usetheo/memory subpath
+      // back to its src entry. Subpaths are listed BEFORE the base specifier so
+      // the exact subpath match wins over the base prefix match (rollup-alias
+      // matches the first entry whose find equals or prefixes the importee).
+      '@usetheo/memory/contract': new URL('./packages/core/src/domain/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/theokit': new URL('./packages/core/src/infrastructure/theokit/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/stub': new URL('./packages/core/src/infrastructure/embedders/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/openai': new URL('./packages/core/src/infrastructure/embedders/openai.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/local': new URL('./packages/core/src/infrastructure/embedders/local.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders': new URL('./packages/core/src/infrastructure/embedders/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms/stub': new URL('./packages/core/src/infrastructure/llms/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms/openai': new URL('./packages/core/src/infrastructure/llms/openai.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms': new URL('./packages/core/src/infrastructure/llms/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/cache-pg': new URL('./packages/core/src/infrastructure/db/recall-cache/index.ts', import.meta.url).pathname,
+      '@usetheo/memory': new URL('./packages/core/src/index.ts', import.meta.url).pathname,
     },
   },
   test: {
