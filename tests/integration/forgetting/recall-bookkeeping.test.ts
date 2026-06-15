@@ -26,8 +26,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import { PgvectorStore } from '../../../src/local/pgvector-store.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

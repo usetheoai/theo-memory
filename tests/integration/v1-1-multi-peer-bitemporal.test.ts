@@ -18,9 +18,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../src/local/index.js';
-import { DeterministicStubLLM } from '../../src/llms/stub.js';
-import type { Embedder } from '../../src/core/dip/embedder.js';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
+import type { Embedder } from '@usetheo/memory';
 
 /**
  * Test embedder returning a CONSTANT unit vector regardless of input. This makes
@@ -185,7 +185,7 @@ describe.skipIf(PG_URI === '')(
       }, 30_000);
 
       test('EC-3: recall({asOf: invalid Date}) throws InvalidScope at the boundary (not at SQL)', async () => {
-        const { InvalidScope } = await import('../../src/core/errors.js');
+        const { InvalidScope } = await import('@usetheo/memory');
         await expect(
           memory.user(ALICE).recall('q', { asOf: new Date('not-a-date') }),
         ).rejects.toBeInstanceOf(InvalidScope);

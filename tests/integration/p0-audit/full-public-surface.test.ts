@@ -37,8 +37,32 @@ function isInstalled(pkg: string): boolean {
   }
 }
 
+/**
+ * Map old src/-relative paths to their new packages/ locations.
+ * The importFromSource helper resolves subpath entry points to the
+ * correct package directory after the workspace restructure.
+ */
+const SOURCE_PATH_MAP: Record<string, string[]> = {
+  'index.ts': ['packages', 'core', 'src', 'index.ts'],
+  'core/index.ts': ['packages', 'core', 'src', 'domain', 'index.ts'],
+  'agent-tools/index.ts': ['packages', 'cli', 'src', 'index.ts'],
+  'local/recall-cache/index.ts': ['packages', 'core', 'src', 'infrastructure', 'db', 'recall-cache', 'index.ts'],
+  'embedders/index.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'index.ts'],
+  'embedders/local.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'local.ts'],
+  'embedders/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'openai.ts'],
+  'embedders/stub.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'stub.ts'],
+  'llms/index.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'index.ts'],
+  'llms/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'openai.ts'],
+  'llms/stub.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'stub.ts'],
+  'server/index.ts': ['packages', 'api', 'src', 'server', 'index.ts'],
+  'theokit/index.ts': ['packages', 'core', 'src', 'infrastructure', 'theokit', 'index.ts'],
+};
+
 async function importFromSource(relPath: string): Promise<Record<string, unknown>> {
-  const absPath = join(REPO_ROOT, 'src', ...relPath.split('/'));
+  const mapped = SOURCE_PATH_MAP[relPath];
+  const absPath = mapped
+    ? join(REPO_ROOT, ...mapped)
+    : join(REPO_ROOT, 'packages', 'core', 'src', ...relPath.split('/'));
   return (await import(absPath)) as Record<string, unknown>;
 }
 
@@ -48,8 +72,8 @@ const OPENAI_OK = isInstalled('openai');
 describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)', () => {
   // ────────────────────────────────────────────────────────────────────
   describe('Sub-goal 1: API correctness (public exports surface)', () => {
-    const rootContent = readFileSync(join(REPO_ROOT, 'src', 'index.ts'), 'utf8');
-    const contractContent = readFileSync(join(REPO_ROOT, 'src', 'core', 'index.ts'), 'utf8');
+    const rootContent = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'), 'utf8');
+    const contractContent = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'domain', 'index.ts'), 'utf8');
 
     test('1. src/index.ts declares 8 export statements (T0.1 baseline)', () => {
       const lines = rootContent.split('\n').filter((l) => l.startsWith('export '));
@@ -155,19 +179,19 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
 
   // ────────────────────────────────────────────────────────────────────
   describe('Sub-goal 3: Bundle isolation (9 subpath impl files)', () => {
-    const visited = walkStaticImports(join(REPO_ROOT, 'src', 'index.ts'), REPO_ROOT);
+    const visited = walkStaticImports(join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'), REPO_ROOT);
     const reachable = new Set(toRelativePaths(visited, REPO_ROOT));
 
     const NINE_IMPL_FILES = [
-      'src/local/recall-cache/pgvector-recall-cache-store.ts',
-      'src/server/index.ts',
-      'src/agent-tools/index.ts',
-      'src/embedders/index.ts',
-      'src/embedders/local.ts',
-      'src/embedders/openai.ts',
-      'src/llms/index.ts',
-      'src/llms/openai.ts',
-      'src/theokit/index.ts',
+      'packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.ts',
+      'packages/api/src/server/index.ts',
+      'packages/cli/src/index.ts',
+      'packages/core/src/infrastructure/embedders/index.ts',
+      'packages/core/src/infrastructure/embedders/local.ts',
+      'packages/core/src/infrastructure/embedders/openai.ts',
+      'packages/core/src/infrastructure/llms/index.ts',
+      'packages/core/src/infrastructure/llms/openai.ts',
+      'packages/core/src/infrastructure/theokit/index.ts',
     ];
 
     for (let i = 0; i < NINE_IMPL_FILES.length; i++) {
@@ -179,11 +203,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
   });
 
   // ────────────────────────────────────────────────────────────────────
-  describe('Sub-goal 4: Paper-name policy compliance (5 tokens × 0 hits in src/**)', () => {
+  describe('Sub-goal 4: Paper-name policy compliance (5 tokens × 0 hits in packages/**/src/**)', () => {
     function countToken(token: string): number {
       const result = spawnSync(
         'bash',
-        ['-c', `grep -rE "\\b${token}\\b" src/ --include="*.ts" 2>/dev/null | grep -v "knowledge-base" | wc -l`],
+        ['-c', `grep -rE "\\b${token}\\b" packages/*/src/ --include="*.ts" 2>/dev/null | grep -v "knowledge-base" | wc -l`],
         { cwd: REPO_ROOT, encoding: 'utf8' },
       );
       return parseInt(result.stdout.trim(), 10);
@@ -213,11 +237,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
   // ────────────────────────────────────────────────────────────────────
   describe('Sub-goal 5: REST stub removal + MCP availability', () => {
     const runServerContent = readFileSync(
-      join(REPO_ROOT, 'src', 'agent-tools', 'run-server.ts'),
+      join(REPO_ROOT, 'packages', 'cli', 'src', 'run-server.ts'),
       'utf8',
     );
     const runMcpContent = readFileSync(
-      join(REPO_ROOT, 'src', 'agent-tools', 'run-mcp-server.ts'),
+      join(REPO_ROOT, 'packages', 'mcp', 'src', 'run-mcp-server.ts'),
       'utf8',
     );
 

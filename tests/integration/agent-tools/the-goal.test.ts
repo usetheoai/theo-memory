@@ -20,12 +20,12 @@
 import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { dispatch } from '../../../src/agent-tools/tools/dispatch.js';
-import { withScope } from '../../../src/agent-tools/scope.js';
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import type { LLM } from '../../../src/core/dip/llm.js';
-import { createLocalMemory, PgvectorStore } from '../../../src/index.js';
+import { dispatch } from '../../../packages/mcp/src/tools/dispatch.js';
+import { withScope } from '../../../packages/cli/src/scope.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { createLocalMemory, PgvectorStore } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

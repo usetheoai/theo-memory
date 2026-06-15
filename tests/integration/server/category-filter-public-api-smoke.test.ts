@@ -19,15 +19,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import { DeterministicStubLLM } from '../../../src/llms/stub.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/local/index.js';
-import { createServer } from '../../../src/server/index.js';
+import type { Embedder } from '@usetheo/memory';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory-api';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
-const EMBEDDING_DIM = 384;
+const EMBEDDING_DIM = 1536;
 
-const Constant384Embedder: Embedder = {
+const ConstantEmbedder: Embedder = {
   embed: async () => {
     const v = new Array<number>(EMBEDDING_DIM).fill(0);
     v[0] = 1;
@@ -48,13 +48,12 @@ describe.skipIf(PG_URI === '')('T4.2 — category filter public-API smoke gate',
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
     await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
-    await runMigrations(pool, { embeddingDim: EMBEDDING_DIM });
-    const vectorStore = new PgvectorStore(pool, { embeddingDim: EMBEDDING_DIM });
+    await runMigrations(pool);
+    const vectorStore = new PgvectorStore(pool);
     const memory = await createLocalMemory({
       vectorStore,
-      embedder: Constant384Embedder,
+      embedder: ConstantEmbedder,
       llm: new DeterministicStubLLM(),
-      embeddingDim: EMBEDDING_DIM,
     });
     app = createServer({ memory });
   }, 30_000);

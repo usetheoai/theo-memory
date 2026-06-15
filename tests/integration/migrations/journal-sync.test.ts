@@ -25,7 +25,7 @@ import { join } from 'node:path';
  * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-db-1
  */
 describe('Drizzle journal sync', () => {
-  const migrationsDir = join(__dirname, '..', '..', '..', 'src', 'local', 'migrations');
+  const migrationsDir = join(__dirname, '..', '..', '..', 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
   const metaDir = join(migrationsDir, 'meta');
 
   const sqlFiles = readdirSync(migrationsDir)

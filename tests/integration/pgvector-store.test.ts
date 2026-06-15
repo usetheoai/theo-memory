@@ -18,8 +18,8 @@
 import { afterAll, describe, test } from 'vitest';
 import pg from 'pg';
 
-import { PgvectorStore } from '../../src/local/pgvector-store.js';
-import { runVectorStoreConformance } from '../../src/local/__tests__/vector-store-conformance.js';
+import { PgvectorStore } from '@usetheo/memory';
+import { runVectorStoreConformance } from '../../packages/core/src/infrastructure/db/vector-store-conformance.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
