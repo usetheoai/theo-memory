@@ -19,7 +19,7 @@
  *
  * EC-3 absorption (verbs-as-cli-fixes-cycle-2 plan T3.1 step 6): the helper
  * does NOT close the pool — caller owns the pool lifecycle. A contract test
- * pins this invariant at `src/agent-tools/__tests__/agent-tools-memory.test.ts`.
+ * pins this invariant at `packages/cli/src/__tests__/agent-tools-memory.test.ts`.
  *
  * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T3.1 + ADRs D3 + D4
  */
@@ -27,8 +27,12 @@
 import { createLocalMemory, runMigrations } from '@usetheo/memory';
 import { PgvectorStore } from '@usetheo/memory';
 import type { Memory } from '@usetheo/memory/contract';
-import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
-import { OpenAILLM } from '@usetheo/memory/llms/openai';
+// NOTE: `LocalTransformerEmbedder` (@xenova/transformers) and `OpenAILLM` (openai)
+// are backed by OPTIONAL dependencies. They are dynamically imported inside
+// `wireMemoryFromPool` (the single construction site) so that merely importing
+// this module — e.g. when `themory --help` loads the CLI router — does NOT pull
+// the heavy optional-dep graph. The deps load only when a Memory is actually
+// built (mcp / server / verb handlers at runtime).
 import { Pool } from 'pg';
 
 /**
@@ -109,11 +113,18 @@ export const OPENAI_API_KEY_ENV_SPEC = {
  * EC-3 contract: the helper DOES NOT close the pool. Caller owns the pool
  * lifecycle (close it on dispose / shutdown). Pinned by
  * `test_wireMemoryFromPool_does_not_close_pool` at
- * `src/agent-tools/__tests__/agent-tools-memory.test.ts`.
+ * `packages/cli/src/__tests__/agent-tools-memory.test.ts`.
  *
  * @see plan verbs-as-cli-fixes-cycle-2 § ADR D4 — extract rationale
  */
 export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
+  // Lazy-load the optional-dependency-backed adapters at the single construction
+  // site (see import-section note). Keeps CLI module-load (and `--help`) free of
+  // the @xenova/transformers + openai graph.
+  const [{ LocalTransformerEmbedder }, { OpenAILLM }] = await Promise.all([
+    import('@usetheo/memory/embedders/local'),
+    import('@usetheo/memory/llms/openai'),
+  ]);
   return createLocalMemory({
     vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
     embedder: new LocalTransformerEmbedder(),

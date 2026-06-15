@@ -22,10 +22,10 @@
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import type { LLM } from '../../../src/core/dip/llm.js';
-import { createLocalMemory, PgvectorStore } from '../../../src/index.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { createLocalMemory, PgvectorStore } from '@usetheo/memory';
 
 import { SKILL_AXIOS, SKILL_FETCH } from './fixtures/two-similar-skills.js';
 

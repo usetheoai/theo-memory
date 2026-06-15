@@ -29,7 +29,7 @@
  */
 import type { Pool } from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../../src/core/constants.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
 
 export const CLUSTER_COUNT = 5;
 export const MEMBERS_PER_CLUSTER = 190;

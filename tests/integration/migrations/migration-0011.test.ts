@@ -46,7 +46,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('runMigrations() applies migration 0011: confirmation_count + composite UNIQUE', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       try {
-        const m = await import('../../../src/local/index.js');
+        const m = await import('@usetheo/memory');
 
         // (a) Fresh DB → all migrations including 0011 land.
         await m.runMigrations(pool);
@@ -96,7 +96,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('runMigrations() is idempotent — re-running 0011 is a no-op', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       try {
-        const m = await import('../../../src/local/index.js');
+        const m = await import('@usetheo/memory');
         await expect(m.runMigrations(pool)).resolves.toBeUndefined();
 
         // confirmation_count still exists; composite UNIQUE still present.

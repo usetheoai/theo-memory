@@ -28,10 +28,10 @@ import {
   type MeterProvider,
 } from '@opentelemetry/api';
 
-import { LocalTransformerEmbedder } from '../../../src/embedders/local.js';
-import { DeterministicStubLLM } from '../../../src/llms/stub.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/index.js';
-import { __resetRecallCacheMetricsForTesting } from '../../../src/local/recall-cache/recall-cache-metrics.js';
+import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { __resetRecallCacheMetricsForTesting } from '../../../packages/core/src/infrastructure/db/recall-cache/recall-cache-metrics.js';
 import { NEAR_DUPLICATE_QUERY_PAIRS } from '../../fixtures/cache/near-duplicate-query-pairs.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

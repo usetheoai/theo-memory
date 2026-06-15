@@ -8,8 +8,8 @@ import {
   StubLLM,
   LlmJudgedMergeConflictPolicy,
 
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 
 /**
  * T2.1 / EC-7 — `reflect({ conflictResolution })` with empty scope

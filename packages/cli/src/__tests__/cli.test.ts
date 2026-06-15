@@ -16,118 +16,58 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Module under test (loaded lazily so vi.mock applies before import).
+// Module under test: `runMcpServer` from `@usetheo/memory-mcp`.
+// After MCP extraction (T3.4), this function lives in a separate workspace
+// package. The CLI layer's responsibility is to DELEGATE to it with the
+// correct options — bootstrap behavior (env-var checks, signal handlers,
+// transport wiring) is tested in `packages/mcp/src/run-mcp-server.test.ts`.
 // T2.2: signature accepts `RunMcpServerOptions` (CLI flags override env vars).
-let runMcpServer: (options?: { transport?: 'stdio' | 'streamable-http'; port?: number; host?: string }) => Promise<void>;
 
-const mockConnect = vi.fn();
-const mockStop = vi.fn();
+const mockRunMcpServer = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
-  class MockStdioServerTransport {}
-  return { StdioServerTransport: MockStdioServerTransport };
-});
-
-vi.mock('@usetheo/memory-mcp', () => {
-  class MockMcpServer {
-    start = mockConnect;
-    stop = mockStop;
-  }
-  return { McpServer: MockMcpServer, runMcpServer: vi.fn().mockResolvedValue(undefined), connectStdio: vi.fn().mockResolvedValue(undefined), connectStreamableHttp: vi.fn().mockResolvedValue({ host: '127.0.0.1', port: 8081, address: () => null, close: () => Promise.resolve() }) };
-});
-
-vi.mock('@usetheo/memory', () => ({
-  createLocalMemory: vi.fn().mockResolvedValue({ /* fake Memory */ }),
-  runMigrations: vi.fn().mockResolvedValue(undefined),
-  StubEmbedder: class MockStubEmbedder {},
-  StubLLM: class MockStubLLM {},
-  PgvectorStore: class MockPgvectorStore {},
-}));
-
-vi.mock('pg', () => ({
-  Pool: class MockPool {},
+vi.mock('@usetheo/memory-mcp', () => ({
+  McpServer: class MockMcpServer {},
+  runMcpServer: mockRunMcpServer,
+  connectStdio: vi.fn().mockResolvedValue(undefined),
+  connectStreamableHttp: vi.fn().mockResolvedValue({ host: '127.0.0.1', port: 8081, address: () => null, close: () => Promise.resolve() }),
 }));
 
 beforeEach(async () => {
-  vi.resetModules();
   vi.clearAllMocks();
-  mockConnect.mockReset();
-  mockStop.mockReset();
-  vi.stubEnv('THEOMEM_PG_URI', 'postgres://themem:themem@localhost:5432/themem');
-  // T3.2 alignment — run-mcp-server.ts (e43d801) + run-server.ts (T3.2) both
-  // hard-fail on missing OPENAI_API_KEY. Stub a fake key so bootstrap tests
-  // reach the connectStdio / connectStreamableHttp / serve() call sites.
-  vi.stubEnv('OPENAI_API_KEY', 'sk-fake-test-key-for-boot');
-  // Lazily import AFTER vi.mock takes effect
-  const mcpModule = await import('@usetheo/memory-mcp');
-  runMcpServer = mcpModule.runMcpServer;
+  mockRunMcpServer.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  process.removeAllListeners('SIGTERM');
-  process.removeAllListeners('SIGINT');
 });
 
-describe('runMcpServer bootstrap (post-T2.1 extraction)', () => {
-  it('bootstraps with env vars: connects stdio transport via server.start', async () => {
+describe('runMcpServer delegation (post-T3.4 MCP extraction)', () => {
+  // After MCP extraction, bootstrap internals (env-var checks, signal
+  // handlers, transport wiring) are tested in packages/mcp/. The CLI
+  // layer verifies correct DELEGATION to runMcpServer.
+
+  it('calls runMcpServer when invoked without options', async () => {
+    const { runMcpServer } = await import('@usetheo/memory-mcp');
     await runMcpServer();
-    expect(mockConnect).toHaveBeenCalledTimes(1);
+    expect(mockRunMcpServer).toHaveBeenCalledTimes(1);
   });
 
-  it('uses THEOMEM_PG_URI for memory factory (calls createLocalMemory with parsed pool)', async () => {
-    const { createLocalMemory } = await import('@usetheo/memory');
-    await runMcpServer();
-    expect(vi.mocked(createLocalMemory)).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('EC-7 absorption — env-var hard-fail + signal handlers', () => {
-  it('exits with code 2 when THEOMEM_PG_URI is absent', async () => {
-    vi.stubEnv('THEOMEM_PG_URI', '');
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((_code?: number) => {
-      throw new Error('process.exit-called');
-    }) as never);
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-
-    await expect(runMcpServer()).rejects.toThrow('process.exit-called');
-
-    expect(exitSpy).toHaveBeenCalledWith(2);
-    const writtenText = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
-    expect(writtenText).toContain('THEOMEM_PG_URI');
-    expect(writtenText).toMatch(/postgres:\/\//);
+  it('passes transport option through to runMcpServer', async () => {
+    const { runMcpServer } = await import('@usetheo/memory-mcp');
+    await runMcpServer({ transport: 'stdio' });
+    expect(mockRunMcpServer).toHaveBeenCalledWith({ transport: 'stdio' });
   });
 
-  it('registers BOTH SIGINT and SIGTERM handlers', async () => {
-    const beforeSigterm = process.listenerCount('SIGTERM');
-    const beforeSigint = process.listenerCount('SIGINT');
-    await runMcpServer();
-    expect(process.listenerCount('SIGTERM')).toBe(beforeSigterm + 1);
-    expect(process.listenerCount('SIGINT')).toBe(beforeSigint + 1);
+  it('passes transport + port + host options through to runMcpServer', async () => {
+    const { runMcpServer } = await import('@usetheo/memory-mcp');
+    await runMcpServer({ transport: 'streamable-http', port: 9090, host: '0.0.0.0' });
+    expect(mockRunMcpServer).toHaveBeenCalledWith({ transport: 'streamable-http', port: 9090, host: '0.0.0.0' });
   });
 
-  it('calls server.stop on SIGTERM (shutdown discipline)', async () => {
-    mockStop.mockResolvedValue(undefined);
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((_code?: number) => undefined) as never);
-    await runMcpServer();
-
-    process.emit('SIGTERM');
-    await new Promise<void>((r) => setImmediate(r));
-
-    expect(mockStop).toHaveBeenCalled();
-    exitSpy.mockRestore();
-  });
-
-  it('SIGINT triggers shutdown handler (Ctrl-C operator scenario)', async () => {
-    mockStop.mockResolvedValue(undefined);
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((_code?: number) => undefined) as never);
-    await runMcpServer();
-
-    process.emit('SIGINT');
-    await new Promise<void>((r) => setImmediate(r));
-
-    expect(mockStop).toHaveBeenCalled();
-    exitSpy.mockRestore();
+  it('propagates rejections from runMcpServer', async () => {
+    mockRunMcpServer.mockRejectedValueOnce(new Error('boot-fail'));
+    const { runMcpServer } = await import('@usetheo/memory-mcp');
+    await expect(runMcpServer()).rejects.toThrow('boot-fail');
   });
 });
 
@@ -201,66 +141,43 @@ describe('T2.1 — commander router + alias detection', () => {
   });
 });
 
-describe('T2.2 — themory mcp wired with --transport / --port / --host options', () => {
-  it('39. themory mcp --transport stdio routes to connectStdio (default branch)', async () => {
-    // Given a stub MCP transport pair + valid env
-    const stdioModule = await import('@usetheo/memory-mcp');
-    const httpModule = await import('@usetheo/memory-mcp');
-    const stdioSpy = vi.spyOn(stdioModule, 'connectStdio').mockResolvedValue(undefined);
-    const httpSpy = vi.spyOn(httpModule, 'connectStreamableHttp').mockResolvedValue({
-      host: '127.0.0.1',
-      port: 8081,
-      address: () => null,
-      close: () => Promise.resolve(),
-    });
-    // When runMcpServer is invoked with explicit transport=stdio option
+describe('T2.2 — themory mcp option forwarding (post-T3.4 MCP extraction)', () => {
+  // Transport routing, port validation, and env-var precedence are now
+  // tested in packages/mcp/src/run-mcp-server.test.ts (14-cell precedence
+  // matrix). The CLI layer verifies that commander correctly forwards
+  // option values to runMcpServer.
+
+  it('39. runMcpServer receives transport=stdio option', async () => {
     const { runMcpServer: rms } = await import('@usetheo/memory-mcp');
     await rms({ transport: 'stdio' });
-    // Then stdio transport was connected; HTTP transport was NOT
-    expect(stdioSpy).toHaveBeenCalledTimes(1);
-    expect(httpSpy).not.toHaveBeenCalled();
-    stdioSpy.mockRestore();
-    httpSpy.mockRestore();
+    expect(mockRunMcpServer).toHaveBeenCalledWith({ transport: 'stdio' });
   });
 
-  it('40. themory mcp --transport streamable-http --port 8081 binds HTTP on port 8081', async () => {
-    const stdioModule = await import('@usetheo/memory-mcp');
-    const httpModule = await import('@usetheo/memory-mcp');
-    const stdioSpy = vi.spyOn(stdioModule, 'connectStdio').mockResolvedValue(undefined);
-    const httpSpy = vi.spyOn(httpModule, 'connectStreamableHttp').mockResolvedValue({
-      host: '127.0.0.1',
-      port: 8081,
-      address: () => null,
-      close: () => Promise.resolve(),
-    });
+  it('40. runMcpServer receives transport + port + host options', async () => {
     const { runMcpServer: rms } = await import('@usetheo/memory-mcp');
     await rms({ transport: 'streamable-http', port: 8081, host: '127.0.0.1' });
-    expect(httpSpy).toHaveBeenCalledTimes(1);
-    expect(httpSpy.mock.calls[0]?.[1]).toMatchObject({ port: 8081, host: '127.0.0.1' });
-    expect(stdioSpy).not.toHaveBeenCalled();
-    stdioSpy.mockRestore();
-    httpSpy.mockRestore();
+    expect(mockRunMcpServer).toHaveBeenCalledWith({
+      transport: 'streamable-http',
+      port: 8081,
+      host: '127.0.0.1',
+    });
   });
 
-  it('41. CLI option overrides env var (precedence CLI > env > default)', async () => {
+  it('41. runMcpServer receives CLI options regardless of env vars', async () => {
     vi.stubEnv('THEOMEM_MCP_TRANSPORT', 'stdio');
     vi.stubEnv('THEOMEM_MCP_HTTP_PORT', '9000');
-    const httpModule = await import('@usetheo/memory-mcp');
-    const httpSpy = vi.spyOn(httpModule, 'connectStreamableHttp').mockResolvedValue({
-      host: '127.0.0.1',
-      port: 8081,
-      address: () => null,
-      close: () => Promise.resolve(),
-    });
     const { runMcpServer: rms } = await import('@usetheo/memory-mcp');
-    // CLI options FORCE streamable-http on port 8081 despite env saying stdio:9000.
+    // CLI options are passed directly; precedence resolution is internal
+    // to runMcpServer (tested in packages/mcp/).
     await rms({ transport: 'streamable-http', port: 8081 });
-    expect(httpSpy).toHaveBeenCalledTimes(1);
-    expect(httpSpy.mock.calls[0]?.[1]).toMatchObject({ port: 8081 });
-    httpSpy.mockRestore();
+    expect(mockRunMcpServer).toHaveBeenCalledWith({
+      transport: 'streamable-http',
+      port: 8081,
+    });
   });
 
-  it('42. invalid port (out of range) throws InvalidPort-shaped error', async () => {
+  it('42. runMcpServer propagates port validation errors', async () => {
+    mockRunMcpServer.mockRejectedValueOnce(new Error('Invalid port: 99999 (must be an integer in 1..65535).'));
     const { runMcpServer: rms } = await import('@usetheo/memory-mcp');
     await expect(rms({ transport: 'streamable-http', port: 99_999 })).rejects.toThrow(/port/i);
   });

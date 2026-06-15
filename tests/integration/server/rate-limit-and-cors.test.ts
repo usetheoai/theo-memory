@@ -5,16 +5,16 @@
  */
 import { describe, expect, test, vi, beforeAll, afterAll } from 'vitest';
 
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import { DeterministicStubLLM } from '../../../src/llms/stub.js';
-import { createLocalMemory } from '../../../src/local/index.js';
-import { InMemoryVectorStore } from '../../../src/local/in-memory-store.js';
-import { createServer } from '../../../src/server/index.js';
-import { SlidingWindowRateLimiter, normalizeIp, parseEnvLimit } from '../../../src/server/middleware/rate-limit.js';
+import type { Embedder } from '@usetheo/memory';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
+import { createLocalMemory } from '@usetheo/memory';
+import { InMemoryVectorStore } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory-api';
+import { SlidingWindowRateLimiter, normalizeIp, parseEnvLimit } from '../../../packages/api/src/server/middleware/rate-limit.js';
 
-const Constant384Embedder: Embedder = {
-  embed: async () => { const v = new Array<number>(384).fill(0); v[0] = 1; return v; },
-  embedBatch: async (texts) => texts.map(() => { const v = new Array<number>(384).fill(0); v[0] = 1; return v; }),
+const StubEmbedder: Embedder = {
+  embed: async () => { const v = new Array<number>(1536).fill(0); v[0] = 1; return v; },
+  embedBatch: async (texts) => texts.map(() => { const v = new Array<number>(1536).fill(0); v[0] = 1; return v; }),
 };
 
 describe('T2.1 — SlidingWindowRateLimiter unit tests', () => {
@@ -78,9 +78,8 @@ describe('T2.1 + T2.2 — integration: rate-limit + CORS on Hono app', () => {
     const store = new InMemoryVectorStore();
     const memory = await createLocalMemory({
       vectorStore: store,
-      embedder: Constant384Embedder,
+      embedder: StubEmbedder,
       llm: new DeterministicStubLLM(),
-      embeddingDim: 384,
     });
     app = createServer({ memory });
   });

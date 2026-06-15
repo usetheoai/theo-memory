@@ -1,0 +1,173 @@
+agent: review-extract-cli-to-packages-tests
+review_target: 93d8034..HEAD for plan extract-cli-to-packages
+plan: .claude/knowledge-base/plans/extract-cli-to-packages-plan.md
+test_pyramid:
+  unit_added: 1            # test_typescript_symbol_fab_skips_pnpm_workspace_packages (code-quality pytest)
+  integration_added: 1     # tests/integration/p0-audit/cli-dist-boot-envfree.test.ts (4 assertions)
+  e2e_added: 0
+  total: 2
+  migrated_path_only: 79   # import-path migration; behavior preserved in the vast majority
+edge_cases_from_plan:
+  covered: 4
+  # EC-1 (dist path stable) guarded by cli-dist-boot-envfree; EC-2 (auth/ subdir) moved with git mv;
+  # ADR-0016/D2 workspace-awareness guarded by new pytest; alias-rewrite invariant asserted.
+  missing: []
+findings:
+  - id: F-tests-1
+    severity: BLOCKER
+    file: tests/integration/publish-readiness.test.ts
+    line: 41
+    plan_ref: Global DoD "All tests passing — pnpm test green" + final commit 82df876 "all gates GREEN"
+    summary: >
+      publish-readiness.test.ts has 5 of 7 tests FAILING on the branch, yet the slice's
+      final commit claims "all gates GREEN". The validation tail ran only the CONTRACT
+      vitest config (which does not include tests/integration/**); the integration suite
+      containing this file was never executed as a gate.
+    evidence: |
+      $ npx vitest run tests/integration/publish-readiness.test.ts -c vitest.integration.config.ts
+        Tests  5 failed | 2 passed (7)
+      Root causes:
+        - Root package.json no longer declares `files` NOR `exports` (moved to packages/core/package.json
+          during the reorg), but this test still reads REPO_ROOT/package.json:
+            expect(pkg.files).toBeDefined()   -> undefined  (line ~41)
+            expect(pkg.exports).toBeDefined() -> undefined  (line 123)
+        - `npm pack --dry-run --json` now emits a non-JSON postbuild log line ("migrations...") on
+          stdout, so JSON.parse(output) throws SyntaxError (lines 83, 106).
+      The validation report (commit 82df876) states: "Contract tests `pnpm test` (vitest contract)
+      PASS — 122 files, 930 tests" — that is vitest.contract.config.ts, whose include[] is
+      packages/**/__tests__ + tests/unit/** only. tests/integration/** (the 79 migrated files +
+      this broken file) was NOT run. The GREEN claim is false for the integration suite.
+    recommended_action: >
+      Run the FULL integration suite (vitest.integration.config.ts) against real pgvector before
+      declaring GREEN. Then fix publish-readiness.test.ts to read the publishable package
+      (packages/core/package.json) for files/exports, assert the NEW exact paths, and make the
+      `npm pack --dry-run --json` parse robust to stdout log noise (e.g., `--silent` or parse last
+      JSON line). Re-run as a hard gate.
+
+  - id: F-tests-2
+    severity: HIGH
+    file: tests/integration/publish-readiness.test.ts
+    line: 41
+    plan_ref: T (test migration, commit f354a57) — declared "Pure path migration; no behavior change"
+    summary: >
+      The `files allow-list` test was WEAKENED during migration: 5 exact-match assertions were
+      replaced with loose substring `.some(f => f.includes(...))` checks. The plan is a path
+      migration — the correct fix is to assert the NEW exact paths, not to relax the contract.
+    evidence: |
+      Before (exact, regression-tight):
+        expect(files).toContain('src/**/*.ts')
+        expect(files).toContain('src/local/migrations/**')
+        expect(files).toContain('!src/**/__tests__/**')
+        expect(files).toContain('!src/**/*.test.ts')
+        expect(files).toContain('!src/**/*.test-d.ts')
+      After (substring, blind to specifics):
+        const hasSrcGlob = files.some((f) => f.includes('**/*.ts'))
+        const hasMigrations = files.some((f) => f.includes('migrations'))
+        const hasTestExclusions = files.some((f) => f.includes('__tests__'))
+      Consequences: (a) the `!*.test-d.ts` exclusion is now entirely UNASSERTED; (b) `hasTestExclusions`
+      passes if ANY entry mentions `__tests__` even if it is NOT a negation pattern — so a regression
+      that PACKS test files would no longer be caught. This defeats the very purpose of the test
+      (proving test artifacts are excluded from the tarball).
+    recommended_action: >
+      Restore exact-match assertions against the new layout's negation patterns
+      (e.g., `!packages/**/__tests__/**`, `!packages/**/*.test.ts`, `!packages/**/*.test-d.ts`)
+      on whichever package.json actually carries the publish `files` allow-list.
+
+  - id: F-tests-3
+    severity: MEDIUM
+    file: tests/integration/p0-audit/cli-dist-boot-envfree.test.ts
+    line: 62
+    plan_ref: Goal — "themory --help funcional apos build" (the slice's headline regression guard)
+    summary: >
+      The dist-boot regression guard silently no-ops when dist/ is absent
+      (`describe.skipIf(!DIST_EXISTS)`). In CI / `pnpm test` runs that do NOT pre-run `pnpm build`,
+      all 4 assertions skip, so the guard for the plan's headline defect provides ZERO protection
+      and the skip is easy to miss (warn-only console line).
+    evidence: |
+      Line 39-43:
+        const DIST_EXISTS = existsSync(CLI_PATH);
+        if (!DIST_EXISTS) { console.warn('cli-dist-boot-envfree SKIP ...'); }
+      Line 62: describe.skipIf(!DIST_EXISTS)(...)
+      No CI wiring observed that guarantees `pnpm build` precedes the suite running this file.
+      A green test run with dist absent gives false confidence that the env-free boot still works.
+    recommended_action: >
+      Gate this file behind an explicit build step in CI (build-then-integration job) OR fail loudly
+      (not skip) when running in CI=true with dist missing, so the guard cannot silently disappear.
+
+  - id: F-tests-4
+    severity: LOW
+    file: tests/integration/server/scopes-list-temporal-fidelity.test.ts
+    line: 1
+    plan_ref: commit f354a57 — declared "Pure path migration; no behavior change"
+    summary: >
+      Behavior change smuggled into a "path-only" migration: embedding dimension switched 384 -> 1536
+      and the inline `Constant384Embedder` renamed to `ConstantEmbedder` to fit the new shared
+      global-setup DB. The assertions still hold, but this is a fixture-semantics change beyond the
+      declared scope; the migration commit message claims no behavior change.
+    evidence: |
+      -const EMBEDDING_DIM = 384;  // matches live ankane/pgvector:v0.5.1 container vector(384)
+      +const EMBEDDING_DIM = 1536; // Default 1536-dim for shared DB
+      -const Constant384Embedder: Embedder = { ... }
+      +const ConstantEmbedder: Embedder = { ... }
+      -await runMigrations(pool, { embeddingDim: EMBEDDING_DIM });
+      +await runMigrations(pool);
+      (Note: tests/integration/migrations/dim-change.test.ts was NOT weakened — its 384-dim
+      assertions are intact; this finding is scoped to the temporal-fidelity file only.)
+    recommended_action: >
+      Acknowledge the fixture change in the commit/CHANGELOG rather than labeling it "no behavior
+      change", or isolate temporal-fidelity into its own DB to keep 384-dim fidelity to the real
+      container. Low severity — assertions remain valid.
+
+  - id: F-tests-5
+    severity: LOW
+    file: tests/integration/global-setup.ts
+    line: 44
+    plan_ref: testing.md § Determinism + § Integration (reset DB state)
+    summary: >
+      New shared global-setup applies all migrations to a single shared DB and swallows errors by
+      string-matching on 'already exists' / 'duplicate key' / 'multiple primary keys'. This can mask
+      genuine schema-drift or migration-ordering defects (a real "duplicate key" data error and an
+      idempotent "already exists" are treated identically), and the shared-DB model removes per-file
+      isolation that testing.md § Integration requires ("each test resets the DB").
+    evidence: |
+      tests/integration/global-setup.ts:44-58 — catch block continues on any message containing
+      the three substrings; otherwise rethrows. Migrations applied once to the shared THEOMEM_PG_URI;
+      tests needing a different dim "MUST create their own isolated database" (header comment) — an
+      easily-violated convention rather than an enforced boundary.
+    recommended_action: >
+      Narrow the swallow to idempotent DDL only (prefer Postgres `IF NOT EXISTS` / SQLSTATE codes
+      over substring matching), and document/enforce per-suite DB isolation so a shared-state leak
+      cannot produce order-dependent flakiness.
+
+  - id: F-tests-6
+    severity: INFO
+    file: .claude/skills/code-quality/tests/test_symbol_fab.py
+    line: 123
+    plan_ref: ADR-0016 (D2 workspace-awareness) — commit 8e93f4a
+    summary: >
+      New regression test test_typescript_symbol_fab_skips_pnpm_workspace_packages is high quality:
+      AAA-structured, deterministic (no network — patches package_exists_on_npm with side_effect that
+      ASSERTS it is never called), guards both the defect (no HARD finding for sibling workspace pkgs)
+      AND the mechanism (mock.call_count == 0), and covers the subpath import case (@scope/pkg-b/sub).
+      No issues found.
+    evidence: |
+      assert mock.call_count == 0
+      assert [f for f in findings if f.severity == "HARD"] == []
+      side_effect=AssertionError("must NOT query registry for local workspace packages")
+    recommended_action: None — exemplary regression guard.
+
+  - id: F-tests-7
+    severity: INFO
+    file: tests/integration/p0-audit/full-public-surface.test.ts
+    line: 40
+    plan_ref: D3 (subpath preserved) + Sub-goal 1/3/4 of p0-audit GOAL TEST
+    summary: >
+      The bulk of the ~79 migrated integration tests are genuine path-only changes with assertions
+      preserved (SOURCE_PATH_MAP helper centralizes old->new mapping; 8-export count, 9-impl-file
+      bundle-isolation list, and paper-name grep all updated to packages/**/src/ without relaxing the
+      assertion). No silent .skip / .only leaks were introduced (only env-gated describe.skipIf).
+    evidence: |
+      git diff 93d8034..HEAD | grep -E '^\+.*\.only' -> (empty)
+      Added skips are exclusively describe.skipIf(<env missing>) — legitimate per testing.md determinism.
+      full-public-surface.test.ts: NINE_IMPL_FILES + export-count + paper-name grep all preserved.
+    recommended_action: None — migration quality is good outside the publish-readiness regressions above.

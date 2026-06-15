@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '../../../src/local/index.js';
+import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '@usetheo/memory';
 
 /**
  * T0.1 + EC-3: `consolidation_history.kept_memory_id` declares

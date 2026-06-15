@@ -32,24 +32,24 @@ const mockWireMemoryFromPool = vi.fn();
 const mockMcpServerStop = vi.fn();
 const mockPoolEnd = vi.fn();
 
-vi.mock('../../../src/agent-tools/transports/stdio.js', () => ({
+vi.mock('../../../packages/mcp/src/transports/stdio.js', () => ({
   connectStdio: mockConnectStdio,
 }));
 
-vi.mock('../../../src/agent-tools/transports/streamable-http.js', () => ({
+vi.mock('../../../packages/mcp/src/transports/streamable-http.js', () => ({
   connectStreamableHttp: mockConnectStreamableHttp,
 }));
 
-vi.mock('../../../src/local/index.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/local/index.js')>(
-    '../../../src/local/index.js',
+vi.mock('@usetheo/memory', async () => {
+  const actual = await vi.importActual<typeof import('@usetheo/memory')>(
+    '@usetheo/memory',
   );
   return { ...actual, runMigrations: mockRunMigrations };
 });
 
-vi.mock('../../../src/agent-tools/agent-tools-memory.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/agent-tools/agent-tools-memory.js')>(
-    '../../../src/agent-tools/agent-tools-memory.js',
+vi.mock('../../../packages/cli/src/agent-tools-memory.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../packages/cli/src/agent-tools-memory.js')>(
+    '../../../packages/cli/src/agent-tools-memory.js',
   );
   return { ...actual, wireMemoryFromPool: mockWireMemoryFromPool };
 });
@@ -61,7 +61,7 @@ vi.mock('pg', () => ({
   },
 }));
 
-vi.mock('../../../src/agent-tools/server.js', () => ({
+vi.mock('../../../packages/mcp/src/server.js', () => ({
   McpServer: class MockMcpServer {
     stop = mockMcpServerStop;
   },
@@ -96,7 +96,7 @@ describe('themory mcp — env-driven transport selection (T1.1)', () => {
     // Given: THEMEMORY_API_KEY env present + no --transport/--auth flags
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummytoken_for_red_assertion');
     // When: runMcpServer invoked with empty options bag
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
     // Then: streamable-http transport selected; stdio NOT called
     expect(mockConnectStreamableHttp).toHaveBeenCalledOnce();
@@ -110,7 +110,7 @@ describe('themory mcp — env-driven transport selection (T1.1)', () => {
   it('test_themory_api_key_absent_preserves_stdio_default', async () => {
     // Given: no env (beforeEach stubbed THEMEMORY_API_KEY='')
     // When: runMcpServer invoked
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
     // Then: stdio default preserved; streamable-http NOT called
     expect(mockConnectStdio).toHaveBeenCalledOnce();
@@ -121,7 +121,7 @@ describe('themory mcp — env-driven transport selection (T1.1)', () => {
     // Given: env present but empty string (operator typo / partial paste)
     vi.stubEnv('THEMEMORY_API_KEY', '');
     // When: runMcpServer invoked
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
     // Then: treated as absent → stdio default
     expect(mockConnectStdio).toHaveBeenCalledOnce();
@@ -133,7 +133,7 @@ describe('themory mcp — env-driven transport selection (T1.1)', () => {
     // Without `.trim() !== ''`, `!== ''` would let "   " auto-flip transport
     // → operator confusion + token-less Bearer requests + 401 storm.
     vi.stubEnv('THEMEMORY_API_KEY', '   ');
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
     expect(mockConnectStdio).toHaveBeenCalledOnce();
     expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe('themory mcp — env-driven transport selection (T1.1)', () => {
     // HTTP activates. Falling back to 'none' would be a silent security
     // downgrade: token present in env but ignored by server.
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_for_auth_assertion');
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
     expect(mockConnectStreamableHttp).toHaveBeenCalledOnce();
     const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, { bearerAuth?: { apiKey?: unknown; oidc?: unknown } }];
@@ -161,7 +161,7 @@ describe('themory mcp — precedence regression guards (T1.2)', () => {
     // guard) and MUST keep passing after T2.1+T2.2 GREEN.
     // Reference: src/agent-tools/run-mcp-server.ts:84-89 current resolveTransport.
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_ignored_by_flag');
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer({ transport: 'stdio' });
     expect(mockConnectStdio).toHaveBeenCalledOnce();
     expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
@@ -174,7 +174,7 @@ describe('themory mcp — precedence regression guards (T1.2)', () => {
     // boot HTTP with NO auth. This regression-guard MUST keep passing after T2.2.
     // Note: passes today because resolveBearerAuth short-circuits on mode='none'.
     vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_overridden_by_auth_none');
-    const { runMcpServer } = await import('../../../src/agent-tools/run-mcp-server.js');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer({ auth: 'none' });
     // Transport auto-flipped per Tier-3 (env present, no --transport flag), but
     // auth explicitly opted out.

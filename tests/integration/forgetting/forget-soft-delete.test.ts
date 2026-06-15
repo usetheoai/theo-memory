@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '../../../src/local/index.js';
-import { MemoryNotFound } from '../../../src/core/errors.js';
+import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '@usetheo/memory';
+import { MemoryNotFound } from '@usetheo/memory';
 
 /**
  * T7.1: `Memory.forget(id)` soft-deletes via t_invalid through the PgEvictor
