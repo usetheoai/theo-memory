@@ -87,8 +87,10 @@ describe('T1.1 — src/index.ts barrel JSDoc + @see', () => {
   const content = readFileSync(INDEX_PATH, 'utf8');
   const blocks = findExportBlocks(content);
 
-  test('1. src/index.ts contains exactly 8 export statements (T0.1 baseline)', () => {
-    expect(blocks.length).toBe(8);
+  test('1. src/index.ts contains exactly 9 export statements (post-reorg baseline)', () => {
+    // 9 (not the T0.1 baseline of 8): the workspace reorg added one root export
+    // (API-owner-accepted; mirrors the full-public-surface.test.ts 9-export baseline).
+    expect(blocks.length).toBe(9);
   });
 
   for (let i = 0; i < 8; i++) {
