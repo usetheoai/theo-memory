@@ -62,9 +62,19 @@ describe('package.json — publishable shape (@usetheo/memory = packages/core)',
     expect(pkg.private === undefined || pkg.private === false).toBe(true);
   });
 
-  test('files allow-list is EXACTLY the src-only set (ADR D1-a)', () => {
+  test('files allow-list is EXACTLY the dist+src shipping set (supersedes ADR D1-a src-only)', () => {
+    // Consumer-DX fix: ADR D1-a's src-only allow-list made the published
+    // package unresolvable by Node-SSR consumers (TheoKit/Next/Vite-SSR) — the
+    // bundler externalizes the dep and Node cannot execute raw .ts. The package
+    // now ships the built dist (JS + .d.ts + sourcemaps) as the runtime entry
+    // (exports point at dist) AND keeps src (+ migrations) for sourcemap
+    // navigation and tooling. Exact-match (not loose .some(includes)) so an
+    // accidental files-array edit is caught.
     const pkg = readPackageJson();
     expect(pkg.files).toEqual([
+      'dist/**/*.js',
+      'dist/**/*.d.ts',
+      'dist/**/*.map',
       'src/**/*.ts',
       '!src/**/__tests__/**',
       '!src/**/*.test.ts',
