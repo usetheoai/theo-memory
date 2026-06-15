@@ -22,7 +22,7 @@ import { describe, expect, test } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
-const INDEX_PATH = join(REPO_ROOT, 'src', 'index.ts');
+const INDEX_PATH = join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts');
 
 interface ExportBlock {
   readonly startLine: number;

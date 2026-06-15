@@ -11,11 +11,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import type { LLM } from '../../../src/core/dip/llm.js';
-import { InvalidCacheConfig } from '../../../src/core/errors.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/index.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { InvalidCacheConfig } from '@usetheo/memory';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t2_1_factory_wiring';

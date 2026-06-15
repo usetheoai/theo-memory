@@ -24,8 +24,8 @@ import { describe, expect, test } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
 const PUBLIC_SURFACE_FILES = [
-  join(REPO_ROOT, 'src', 'index.ts'),
-  join(REPO_ROOT, 'src', 'core', 'index.ts'),
+  join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'),
+  join(REPO_ROOT, 'packages', 'core', 'src', 'domain', 'index.ts'),
 ];
 const FIXTURE_PATH = join(__dirname, 'fixtures', 'with-any-generics.ts.skip');
 

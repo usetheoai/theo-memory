@@ -17,15 +17,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { ManualReflectionPolicy, createLocalMemory } from '../../src/index.js';
-import { LocalTransformerEmbedder } from '../../src/embedders/local.js';
-import { OpenAILLM } from '../../src/llms/openai.js';
-import { PgvectorStore } from '../../src/local/pgvector-store.js';
-import { runMigrations } from '../../src/local/index.js';
+import { ManualReflectionPolicy, createLocalMemory } from '@usetheo/memory';
+import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
+import { OpenAILLM } from '@usetheo/memory/llms/openai';
+import { PgvectorStore } from '@usetheo/memory';
+import { runMigrations } from '@usetheo/memory';
 
-const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
+const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const OPENROUTER_KEY =
   process.env['OPENROUTER_KEY'] ?? process.env['OPENROUTER_API_KEY'] ?? '';
+const ISOLATED_DB = 'themem_adapters_e2e_smoke';
+const PG_URI = ROOT_PG_URI.replace(/\/[^/]*$/, `/${ISOLATED_DB}`);
 
 // Demo env-shift mirror: promote OpenRouter key to OPENAI_API_KEY +
 // default OPENAI_BASE_URL + OPENAI_CHAT_MODEL.
@@ -39,20 +41,29 @@ if ((process.env['OPENAI_CHAT_MODEL'] ?? '') === '') {
   process.env['OPENAI_CHAT_MODEL'] = 'openai/gpt-4o-mini';
 }
 
-describe.skipIf(PG_URI === '' || OPENROUTER_KEY === '')(
+describe.skipIf(ROOT_PG_URI === '' || OPENROUTER_KEY === '')(
   'adapters-openrouter-local-embedder — full E2E composition smoke',
   () => {
     const TEST_USER = `e2e-smoke-${Date.now()}`;
     let pool: pg.Pool;
 
     beforeAll(async () => {
+      // Isolated DB to avoid dim-change conflicts with the main 1536 schema.
+      const adminUri = ROOT_PG_URI.replace(/\/[^/]*$/, '/postgres');
+      const adminPool = new pg.Pool({ connectionString: adminUri });
+      await adminPool.query(`DROP DATABASE IF EXISTS ${ISOLATED_DB}`);
+      await adminPool.query(`CREATE DATABASE ${ISOLATED_DB}`);
+      await adminPool.end();
       pool = new pg.Pool({ connectionString: PG_URI });
       await runMigrations(pool, { embeddingDim: 384 });
     }, 120_000);
 
     afterAll(async () => {
-      await pool.query(`DELETE FROM memories WHERE user_id = $1`, [TEST_USER]);
-      await pool.end();
+      await pool?.end();
+      const adminUri = ROOT_PG_URI.replace(/\/[^/]*$/, '/postgres');
+      const adminPool = new pg.Pool({ connectionString: adminUri });
+      await adminPool.query(`DROP DATABASE IF EXISTS ${ISOLATED_DB}`);
+      await adminPool.end();
     });
 
     it('LocalTransformerEmbedder + OpenAILLM (via OpenRouter) + PgvectorStore(384) write + recall round-trip', async () => {

@@ -29,11 +29,11 @@ function readPackageJson(): PackageJsonShape {
   return JSON.parse(readFileSync(resolve(REPO_ROOT, 'package.json'), 'utf-8')) as PackageJsonShape;
 }
 
-describe('@usetheo/memory/agent-tools — subpath resolution (T0.2)', () => {
-  test('subpath resolves and exposes createMcpServer as a function', async () => {
-    // Given: package.json declares ./agent-tools subpath + src/agent-tools/index.ts exports createMcpServer
-    // When: a consumer imports the subpath
-    const mod = await import('@usetheo/memory/agent-tools');
+describe('@usetheo/memory-cli — agent-tools package resolution (T0.2)', () => {
+  test('CLI package resolves and exposes createMcpServer as a function', async () => {
+    // Post-workspace-restructure: agent-tools moved from @usetheo/memory/agent-tools
+    // subpath to the standalone @usetheo/memory-cli package.
+    const mod = await import('../../../packages/cli/src/index.js');
     // Then: createMcpServer is callable (stub at T0.2; real impl at T1.1)
     expect(typeof (mod as { createMcpServer?: unknown }).createMcpServer).toBe('function');
   });
@@ -43,7 +43,7 @@ describe('@usetheo/memory — main barrel isolation from agent-tools (ADR D8 tri
   test('src/index.ts source contains zero agent-tools imports (regex-tightened tripwire)', () => {
     // Per SEPA pre-RED advice: naive .toContain('agent-tools') is too aggressive
     // (would reject JSDoc comments mentioning the subpath). Tighten to actual import shape.
-    const source = readFileSync(resolve(REPO_ROOT, 'src', 'index.ts'), 'utf-8');
+    const source = readFileSync(resolve(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'), 'utf-8');
     expect(source).not.toMatch(/from\s+['"]\.\/agent-tools/);
     expect(source).not.toMatch(/from\s+['"]@usetheo\/memory\/agent-tools/);
   });

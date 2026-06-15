@@ -19,7 +19,7 @@
  */
 import { vi } from 'vitest';
 
-import type { IntrospectFn, IntrospectionResult } from '../../../src/server/auth/oidc-verifier.js';
+import type { IntrospectFn, IntrospectionResult } from '../../../packages/api/src/server/auth/oidc-verifier.js';
 
 /**
  * Build a vi.fn() spy that returns canned `IntrospectionResult` payloads

@@ -15,13 +15,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import type { LLM } from '../../../src/core/dip/llm.js';
-import type { LLMResponse, Message } from '../../../src/core/message.js';
-import { createLocalMemory } from '../../../src/local/index.js';
-import { PgvectorStore } from '../../../src/local/pgvector-store.js';
-import { ThresholdReflectionPolicy } from '../../../src/local/reflection/threshold-reflection-policy.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import type { LLMResponse, Message } from '@usetheo/memory';
+import { createLocalMemory } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
+import { ThresholdReflectionPolicy } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

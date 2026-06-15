@@ -32,8 +32,8 @@ const REPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_PATH = join(REPO_ROOT, 'dist', 'agent-tools', 'cli.js');
 const README_PATH = join(REPO_ROOT, 'README.md');
 const CHANGELOG_PATH = join(REPO_ROOT, 'CHANGELOG.md');
-const CLI_SRC_PATH = join(REPO_ROOT, 'src', 'agent-tools', 'cli.ts');
-const AGENT_TOOLS_MEMORY_PATH = join(REPO_ROOT, 'src', 'agent-tools', 'agent-tools-memory.ts');
+const CLI_SRC_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'cli.ts');
+const AGENT_TOOLS_MEMORY_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'agent-tools-memory.ts');
 
 const DIST_EXISTS = existsSync(CLI_PATH);
 const HAS_OPENAI =
@@ -114,10 +114,10 @@ describe.skipIf(!DIST_EXISTS)('verbs-as-CLI fix-cycle integration', () => {
   );
 
   test('test 2 — cli-output module does NOT export CliReflectResult (F-dom-api-1 regression sentinel)', async () => {
-    const cliOutput = await import('../../../src/agent-tools/cli-output.js');
+    const cliOutput = await import('../../../packages/cli/src/cli-output.js');
     // CliReflectResult was a TYPE, not a runtime value — assert by grepping
     // the SOURCE file, which is the only honest signal for a TS interface drop.
-    const cliOutputSrcPath = join(REPO_ROOT, 'src', 'agent-tools', 'cli-output.ts');
+    const cliOutputSrcPath = join(REPO_ROOT, 'packages', 'cli', 'src', 'cli-output.ts');
     const src = readFileSync(cliOutputSrcPath, 'utf8');
     expect(src, 'CliReflectResult interface MUST be removed from cli-output.ts').not.toMatch(
       /\bCliReflectResult\b/,

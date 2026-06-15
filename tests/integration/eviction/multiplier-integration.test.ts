@@ -31,12 +31,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { NearestNeighborProvider } from '../../../src/core/dip/eviction-policy.js';
-import type { Scope } from '../../../src/core/scope.js';
-import { PgNearestNeighborProvider } from '../../../src/local/eviction/pg-nearest-neighbor-provider.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
-import type { MemoryItem } from '../../../src/core/memory-item.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { NearestNeighborProvider } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
+import { PgNearestNeighborProvider } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
+import type { MemoryItem } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

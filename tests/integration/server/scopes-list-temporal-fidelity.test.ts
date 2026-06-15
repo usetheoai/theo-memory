@@ -33,18 +33,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import { DeterministicStubLLM } from '../../../src/llms/stub.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/local/index.js';
-import { createServer } from '../../../src/server/index.js';
+import type { Embedder } from '@usetheo/memory';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory-api';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 
-/** Schema-aligned dim — live `ankane/pgvector:v0.5.1` container is `vector(384)`. */
-const EMBEDDING_DIM = 384;
+/** Default 1536-dim for shared DB — avoids dim-change conflicts in parallel. */
+const EMBEDDING_DIM = 1536;
 
-/** Inline 384-dim Constant embedder (CRIT-1: DeterministicStubEmbedder produces 1536). */
-const Constant384Embedder: Embedder = {
+/** Inline 1536-dim Constant embedder for shared DB compatibility. */
+const ConstantEmbedder: Embedder = {
   embed: async () => {
     const v = new Array<number>(EMBEDDING_DIM).fill(0);
     v[0] = 1;
@@ -65,13 +65,12 @@ describe.skipIf(PG_URI === '')('T3.1 — REST list temporal fidelity end-to-end'
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
     await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
-    await runMigrations(pool, { embeddingDim: EMBEDDING_DIM });
-    const vectorStore = new PgvectorStore(pool, { embeddingDim: EMBEDDING_DIM });
+    await runMigrations(pool);
+    const vectorStore = new PgvectorStore(pool);
     const memory = await createLocalMemory({
       vectorStore,
-      embedder: Constant384Embedder,
+      embedder: ConstantEmbedder,
       llm: new DeterministicStubLLM(),
-      embeddingDim: EMBEDDING_DIM,
     });
     app = createServer({ memory });
   }, 30_000);
@@ -134,12 +133,11 @@ describe.skipIf(PG_URI === '')('T3.1 — REST list temporal fidelity end-to-end'
    * order-of-test coupling per testing.md § Determinism.
    */
   async function createLocalMemoryForTest() {
-    const vectorStore = new PgvectorStore(pool, { embeddingDim: EMBEDDING_DIM });
+    const vectorStore = new PgvectorStore(pool);
     return createLocalMemory({
       vectorStore,
-      embedder: Constant384Embedder,
+      embedder: ConstantEmbedder,
       llm: new DeterministicStubLLM(),
-      embeddingDim: EMBEDDING_DIM,
     });
   }
 });
