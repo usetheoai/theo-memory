@@ -94,12 +94,16 @@ export async function setup(): Promise<void> {
     await templatePool.end();
   }
 
-  // 2. Legacy: migrate the shared DB named in THEOMEM_PG_URI for test files
-  //    that have not yet moved onto per-file isolation.
-  const sharedPool = new pg.Pool({ connectionString: uri, max: 2 });
-  try {
-    await applyMigrations(sharedPool);
-  } finally {
-    await sharedPool.end();
-  }
+  // The shared DB named in THEOMEM_PG_URI is NOT migrated here. It is reset to
+  // a clean clone of the template BEFORE EACH test file by the per-file setup
+  // (`_helpers/reset-shared-db.ts`, wired via vitest `setupFiles`). That makes
+  // every file start from an identical 1536-dim + full-schema shared DB,
+  // immune to a prior file having mutated it (e.g. a CLI boot that migrates the
+  // dim to 384, or a destructive test that drops tables).
+}
+
+/** Extract the database name (last path segment, sans query string) from a URI. */
+export function sharedDbName(uri: string): string {
+  const last = uri.split('/').pop() ?? 'themem';
+  return last.split('?')[0] ?? 'themem';
 }

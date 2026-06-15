@@ -33,7 +33,7 @@ const CLI_PATH = join(REPO_ROOT, 'dist', 'agent-tools', 'cli.js');
 const README_PATH = join(REPO_ROOT, 'README.md');
 const CHANGELOG_PATH = join(REPO_ROOT, 'CHANGELOG.md');
 const CLI_SRC_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'cli.ts');
-const AGENT_TOOLS_MEMORY_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'agent-tools-memory.ts');
+const AGENT_TOOLS_MEMORY_PATH = join(REPO_ROOT, 'packages', 'agent-core', 'src', 'agent-tools-memory.ts');
 
 const DIST_EXISTS = existsSync(CLI_PATH);
 const HAS_OPENAI =
