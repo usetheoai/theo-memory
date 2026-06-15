@@ -10,8 +10,8 @@ import { afterAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
-import { DrizzleHistoryManager } from '../../src/local/history-manager.js';
-import { memories } from '../../src/local/schema.js';
+import { DrizzleHistoryManager } from '@usetheo/memory';
+import { memories } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

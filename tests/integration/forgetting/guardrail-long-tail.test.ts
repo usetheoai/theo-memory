@@ -27,11 +27,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import { CapacityBasedTrigger } from '../../../src/local/eviction/capacity-based-trigger.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
-import { PgNearestNeighborProvider } from '../../../src/local/eviction/pg-nearest-neighbor-provider.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import { CapacityBasedTrigger } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
+import { PgNearestNeighborProvider } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

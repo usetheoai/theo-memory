@@ -27,7 +27,7 @@ import { describe, expect, test } from 'vitest';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_PATH = join(REPO_ROOT, 'dist', 'agent-tools', 'cli.js');
-const CLI_SRC_PATH = join(REPO_ROOT, 'src', 'agent-tools', 'cli.ts');
+const CLI_SRC_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'cli.ts');
 const STALE_DIST_ARTIFACT = join(REPO_ROOT, 'dist', 'agent-tools', 'cli-memory-factory.js');
 
 const DIST_EXISTS = existsSync(CLI_PATH);

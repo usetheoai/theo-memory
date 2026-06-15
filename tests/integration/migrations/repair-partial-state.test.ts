@@ -66,7 +66,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // 0004 via psql-shape (simulates the workaround consumers may have
       // used). To keep the test self-contained, we manually create the
       // memories table + apply v0.4b SQL files directly.
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       // At this point all migrations applied + journal aligned. Simulate
       // the partial-state by REMOVING all post-0002 journal rows so the
@@ -143,7 +143,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('reports aligned state when journal already matches schema', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       const report = await repair.reportRepairState(pool);
       expect(report.diagnosis).toMatch(/aligned/);

@@ -19,14 +19,14 @@ import { serve } from '@hono/node-server';
 import pg from 'pg';
 import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '../../../src/core/memory-store.js';
-import { runMigrations } from '../../../src/local/index.js';
-import { ApiKeyAuthVerifier } from '../../../src/server/auth/api-key-verifier.js';
-import { dualValidationAuth } from '../../../src/server/auth/dual-validation.js';
-import { createOauth4webapiIntrospect } from '../../../src/server/auth/oidc-introspect-oauth4webapi.js';
-import { OidcAuthVerifier } from '../../../src/server/auth/oidc-verifier.js';
-import { createServer } from '../../../src/server/index.js';
-import { runKeysCreate, runKeysList } from '../../../src/agent-tools/run-keys.js';
+import type { Memory } from '@usetheo/memory';
+import { runMigrations } from '@usetheo/memory';
+import { ApiKeyAuthVerifier } from '../../../packages/api/src/server/auth/api-key-verifier.js';
+import { dualValidationAuth } from '../../../packages/api/src/server/auth/dual-validation.js';
+import { createOauth4webapiIntrospect } from '../../../packages/api/src/server/auth/oidc-introspect-oauth4webapi.js';
+import { OidcAuthVerifier } from '../../../packages/api/src/server/auth/oidc-verifier.js';
+import { createServer } from '@usetheo/memory-api';
+import { runKeysCreate, runKeysList } from '../../../packages/cli/src/run-keys.js';
 
 import { resetAuthTables } from './_helpers.js';
 import { startStubIssuer, type StubIssuerHandle } from './_stub-issuer.js';
@@ -88,7 +88,7 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 } else {
   const pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
-  const migrationReady = runMigrations(pool, { embeddingDim: 384 });
+  const migrationReady = runMigrations(pool);
 
   // EC-10 — collect handles spawned in each test for guaranteed cleanup
   const handles: { httpHandles: HttpHandle[]; stubIssuers: StubIssuerHandle[] } = {

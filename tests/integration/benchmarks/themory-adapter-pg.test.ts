@@ -15,11 +15,17 @@
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { mockEmbedding } from '../../../src/__tests__/_helpers/mock-embedding.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
-import { createLocalMemory, PgvectorStore } from '../../../src/local/index.js';
-import type { Tokenizer } from '../../../src/core/dip/tokenizer.js';
-import { TheMemoryBenchmarkAdapter } from '../../../src/benchmarks/themory/adapter.js';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
+import { createLocalMemory, MAX_EMBEDDING_DIM, PgvectorStore } from '@usetheo/memory';
+import type { Tokenizer } from '@usetheo/memory';
+
+/** Deterministic embedding stub: returns a zero vector with a small value at index 0. */
+function mockEmbedding(_text: string): readonly number[] {
+  const v = new Array<number>(MAX_EMBEDDING_DIM).fill(0);
+  v[0] = 0.1;
+  return v;
+}
+import { TheMemoryBenchmarkAdapter } from '../../../packages/core/src/domain/benchmarks/themory/adapter.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 

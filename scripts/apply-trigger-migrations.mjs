@@ -33,7 +33,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = resolve(__dirname, '..', 'src', 'local', 'migrations');
+const MIGRATIONS_DIR = resolve(__dirname, '..', 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
 
 const PREREQ_ANCHOR_MSG =
   'psql binary not found on PATH. The db:push script applies trigger-bearing migrations (e.g. 0004) via psql because Drizzle does not model triggers. Install PostgreSQL client tools (psql 14+) — see README § Quickstart › Prerequisites for instructions.';

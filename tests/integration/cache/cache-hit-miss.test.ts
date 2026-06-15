@@ -10,9 +10,9 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import type { MemoryItemWithScore } from '../../../src/core/memory-item.js';
-import type { Scope } from '../../../src/core/scope.js';
-import { PgvectorRecallCacheStore } from '../../../src/local/recall-cache/pgvector-recall-cache-store.js';
+import type { MemoryItemWithScore } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
+import { PgvectorRecallCacheStore } from '../../../packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t1_1_cache_hit_miss';
@@ -61,7 +61,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await adminPool.end();
 
       pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       store = new PgvectorRecallCacheStore(pool);
     }, 60_000);

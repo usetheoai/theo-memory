@@ -25,8 +25,8 @@ import {
   LastWriteWinsConflictPolicy,
   PgvectorStore,
   StubEmbedder,
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 

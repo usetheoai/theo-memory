@@ -8,7 +8,7 @@ import {
   StubLLM,
   LastWriteWinsConflictPolicy,
 
-} from '../../../src/local/index.js';
+} from '@usetheo/memory';
 
 /**
  * T2.1 / EC-8 — atomic transaction rollback when a mid-batch

@@ -58,9 +58,9 @@ import {
   PgvectorStore,
   StubEmbedder,
   LlmJudgedMergeConflictPolicy,
-} from '../../../src/local/index.js';
-import { OpenAILLM } from '../../../src/llms/openai.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import { OpenAILLM } from '@usetheo/memory/llms/openai';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 import { loadGoldSet } from '../../fixtures/distillation/loader.js';
 import {
   conflictResolutionAccuracy,
