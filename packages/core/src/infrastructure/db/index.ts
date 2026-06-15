@@ -38,9 +38,10 @@ export {
   filtersFromScope,
   assertScopeIsNonEmpty,
   deriveScopeFromPayload,
-  scopeToCounterTuple,
   LocalScopedMemory,
 } from './scoped-memory.js';
+// scopeToCounterTuple relocated to reflect-orchestrator.ts (alongside runReflection).
+export { scopeToCounterTuple, runReflection, type ReflectDeps } from './reflect-orchestrator.js';
 // T1.2: LocalMemory + DisposableMemory
 export { LocalMemory, type DisposableMemory } from './local-memory.js';
 // T1.3: factory + cache/embed helpers
