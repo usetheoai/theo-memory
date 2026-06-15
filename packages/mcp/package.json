@@ -11,9 +11,6 @@
       "default": "./src/index.ts"
     }
   },
-  "bin": {
-    "themory-mcp": "./dist/run-mcp-server.js"
-  },
   "engines": {
     "node": ">=20.0.0"
   },
