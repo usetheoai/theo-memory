@@ -34,7 +34,7 @@ import {
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
   resolveOidcConfig,
-} from '@usetheo/memory/agent-tools';
+} from '@usetheo/memory-agent-core';
 import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
