@@ -6,7 +6,7 @@
  *
  * @see ADR D2 — Tool schema: 4 separate tools, capabilities.tools.listChanged: false (4 tools static)
  * @see ADR D4 — SDK integration via SDK's existing MCP client (no SDK changes)
- * @see ADR D8 — Package surface: exported via `@usetheo/memory/agent-tools` subpath only
+ * @see ADR D8 — Package surface: exported via `@usetheo/memory-agent-core` subpath only
  */
 import { Server as SdkServer } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -16,8 +16,8 @@ import {
   type ServerCapabilities,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { withScope } from '@usetheo/memory/agent-tools';
-import type { McpServerOptions } from '@usetheo/memory/agent-tools';
+import { withScope } from '@usetheo/memory-agent-core';
+import type { McpServerOptions } from '@usetheo/memory-agent-core';
 import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
 

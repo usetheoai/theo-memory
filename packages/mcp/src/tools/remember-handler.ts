@@ -15,7 +15,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Memory } from '@usetheo/memory/contract';
 import type { RememberOptions } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
-import { getScope } from '@usetheo/memory/agent-tools';
+import { getScope } from '@usetheo/memory-agent-core';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './remember-schema.js';
 

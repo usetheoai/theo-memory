@@ -10,13 +10,13 @@
  *   (bundle isolation verified by `tests/integration/agent-tools/public-paths.test.ts`).
  */
 
+import type { McpServerOptions } from '@usetheo/memory-agent-core';
 import { McpServer } from '@usetheo/memory-mcp';
 
-import type { McpServerOptions } from './types.js';
 
-export type { TransportKind, McpServerOptions } from './types.js';
+export type { TransportKind, McpServerOptions } from '@usetheo/memory-agent-core';
 export { McpServer } from '@usetheo/memory-mcp';
-export { withScope, getScope } from './scope.js';
+export { withScope, getScope } from '@usetheo/memory-agent-core';
 export { connectStdio } from '@usetheo/memory-mcp';
 export { connectStreamableHttp } from '@usetheo/memory-mcp';
 export type { StreamableHttpOptions, StreamableHttpHandle } from '@usetheo/memory-mcp';
@@ -29,25 +29,25 @@ export {
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
-} from './agent-tools-memory.js';
+} from '@usetheo/memory-agent-core';
 export {
   classifyError,
   EXPECTED_DOMAIN_ERRORS,
   UnknownToolError,
-} from './error-classifier.js';
+} from '@usetheo/memory-agent-core';
 export type {
   ClassifiedError,
   ProtocolErrorPayload,
   ToolExecutionErrorPayload,
-} from './error-classifier.js';
+} from '@usetheo/memory-agent-core';
 export {
   resolveBootstrapToken,
   resolveOidcConfig,
-} from './oidc-cli-resolver.js';
+} from '@usetheo/memory-agent-core';
 export type {
   ResolveOidcConfigInput,
   ResolvedOidcConfig,
-} from './oidc-cli-resolver.js';
+} from '@usetheo/memory-agent-core';
 
 /**
  * Constructs an MCP server bound to a TheMemory runtime.

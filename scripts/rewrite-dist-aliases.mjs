@@ -34,7 +34,8 @@ const EXACT = {
   '@usetheo/memory': 'core/src/index.js',
   '@usetheo/memory/contract': 'core/src/domain/index.js',
   '@usetheo/memory/theokit': 'core/src/infrastructure/theokit/index.js',
-  '@usetheo/memory/agent-tools': 'agent-tools/index.js',
+  '@usetheo/memory-cli': 'agent-tools/index.js',
+  '@usetheo/memory-agent-core': 'agent-core/src/index.js',
   '@usetheo/memory-api': 'api/src/server/index.js',
   '@usetheo/memory-mcp': 'mcp/src/index.js',
 };
