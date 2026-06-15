@@ -282,6 +282,28 @@ Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → 
 | 14 | **v1.3 — Optional graph backend** | `@usetheo/memory/graph` adapter for KG-style queries. Backend: Postgres + Apache AGE OR a graph database. | **(b) FROZEN under P0** |
 | 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical / legal / code / support) layered over LLM extraction. | **(b) FROZEN under P0** |
 
+### Cross-validation-derived backlog (post-P0)
+
+> Source: `/loop-cross-validation` against `the reference project` (2026-06-15). Full report at `cross-validation-output/final_report.md`. Overall score 4.05/5 — target excels on engineering rigor (observability, typed errors, DIP, auth, bi-temporal); these are the actionable gaps where the reference is stronger. **All are NEW features → FROZEN under P0 (Inquebrável Rule 10); no plans/PRs until P0 closes.** Watcher daemon was evaluated and DISCARDED (cargo-cult of a different product shape). Listed here so the findings are not lost.
+
+| Nº | Name | Acceptance + dependency | P0 classification |
+|---|---|---|---|
+| 21 | **Agentic tool-use + injection/command sandbox** | LLM-driven tool-use surface for the memory layer. **Security-by-design companion (non-negotiable, same plan):** reject shell metacharacters + `shlex`-style split + command whitelist + path-confinement to allowed roots + subprocess timeout/output-cap + per-task tool-call cap; new `ToolInvocationDeniedError` + OTel auditability event per denied call (Princípio 3). Reference: `the reference project/maintenance.py:452-514`. **HIGH priority once unfrozen** — sandbox MUST ship WITH tool-use, never after. See session memory `themory-agentic-tool-use-planned`. | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 22 | **Layered config + `themory config` subcommand** | Config resolution: defaults → global file → project file → env (`env:VAR` refs) → CLI flags via deep-merge, plus `themory config init/set/get/list`. Closes the lowest cross-validation dimension (Configuration 2.5/5). Reference: `the reference project/config.py:357`. Highest operator-ergonomics ROI. | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 23 | **Optional cross-encoder reranker (`Reranker` DIP)** | New `Reranker` DIP + default cross-encoder impl wired as a post-threshold stage in the recall pipeline; backend auto-detection (ONNX/torch). Lifts precision@k. Reference: `the reference project/reranker.py:236`. CAVEAT: heavy optional dep (onnxruntime/@xenova). | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 24 | **Embedder registry + more providers** | String-keyed embedder registry with lazy dynamic-import + install-hint errors; ship 1-3 more first-party adapters (e.g. Google/Voyage/Ollama) to narrow the 3-vs-8 provider gap. Reference: `the reference project/embeddings/__init__.py:58`. | **(b) FROZEN under P0** — new feature; plan post-P0 |
+| 25 | **Ingest robustness (opt-in)** | (a) per-item graceful-degradation / poison-record skip on bulk `remember()` with an OTel event per skip (keep fail-fast default); (b) deterministic chunker fallback for the no-LLM / very-long-input path; (c) offline-first model resolution for the local embedder (air-gapped CI). References: `the reference project/core.py:103`, `chunker.py:80`, `embeddings/onnx.py:64`. LOW priority. | **(b) FROZEN under P0** — new features; plan post-P0 |
+
+### Hardening candidates surfaced by cross-validation (IN-SCOPE under P0)
+
+These are NOT features — they qualify as P0 hardening and may proceed now:
+
+| Item | P0 sub-goal | Note |
+|---|---|---|
+| `packages/mcp` build broken (`packages/mcp/src/server.js` missing — `ERR_MODULE_NOT_FOUND`) | 3 (MCP available + reliable) | **CLOSED 2026-06-15** by `extract-cli-to-packages` build-fix (commit `57880fb`): root cause was dist `@usetheo/*` bare specifiers resolving to TS source; fixed via `postbuild:rewrite-aliases` + lazy optional-dep load. `themory --help` now boots env-free; regression guard `tests/integration/p0-audit/cli-dist-boot-envfree.test.ts`. |
+| **`complete-workspace-publish-topology`** (NEW — reorg debt, follow-up plan) | 2 (SDK functional) | Surfaced by `/review extract-cli-to-packages` (2026-06-15, report `.claude/knowledge-base/reviews/extract-cli-to-packages-review-2026-06-15.md`). The `standardize-project-structure` reorg left the publishable package `@usetheo/memory` (`packages/core`) WITHOUT a `files` allow-list, and the `exports` point to `./src/*.ts` while the prior `p0-api-sdk` work shipped `dist/**`. Three carved-out findings: (a) `publish-readiness.test.ts` 5/7 failing — test still targets the private workspace root + npm-pack JSON parse breaks on stdout log noise [BLOCKER, pre-existing — red since before 2026-06-15]; (b) the `files` allow-list assertion was weakened (exact→loose) during the test migration [HIGH]; (c) `@usetheo/memory/agent-tools` is a phantom subpath resolving only via 3 shims (vitest alias + tsconfig + dist rewrite), not Node `exports` — migrate the 11 `packages/mcp` importers to `@usetheo/memory-cli` (+ add the workspace dep) OR add an `./agent-tools` export to core; also breaks the `cli↔mcp` cycle [MAJOR, not runtime-blocking]. **Decision needed from owner:** does `@usetheo/memory` ship `src` (pre-release TS) or `dist` (compiled)? That choice drives `packages/core#files` + `#exports` alignment. |
+| Inverted test pyramid (95 integration : 10 unit) + dead-error reachability of the 18 error classes | 1 (APIs correct) | Rebalance with fast unit tests (scoring/mmr/extraction); run `/code-quality` to confirm no `dead_public_export` among the 18 error classes. |
+
 ### Items cut / deferred (audit trail)
 
 | Item | Status | Rationale |

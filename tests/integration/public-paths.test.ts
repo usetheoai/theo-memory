@@ -63,7 +63,7 @@ describe('@usetheo/memory — main barrel isolation from theokit', () => {
     // Belt-and-braces: if a future refactor accidentally adds an
     // `export * from './theokit/...'` to src/index.ts, this assertion catches
     // it BEFORE the runtime check fires (and BEFORE bundlers pick it up).
-    const source = readFileSync(join(REPO_ROOT, 'src', 'index.ts'), 'utf-8');
+    const source = readFileSync(join(REPO_ROOT, 'packages', 'core', 'src', 'index.ts'), 'utf-8');
     expect(source).not.toContain('theokit');
   });
 });
@@ -115,8 +115,8 @@ void ctx;
             esModuleInterop: true,
             verbatimModuleSyntax: true,
             paths: {
-              '@usetheo/memory/theokit': [join(REPO_ROOT, 'src', 'theokit', 'index.ts')],
-              '@usetheo/memory/contract': [join(REPO_ROOT, 'src', 'core', 'index.ts')],
+              '@usetheo/memory/theokit': [join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'theokit', 'index.ts')],
+              '@usetheo/memory/contract': [join(REPO_ROOT, 'packages', 'core', 'src', 'domain', 'index.ts')],
             },
             baseUrl: '.',
           },

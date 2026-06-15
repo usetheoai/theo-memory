@@ -6,8 +6,8 @@ import {
   PgvectorStore,
   StubEmbedder,
   LastWriteWinsConflictPolicy,
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 
 const emptyJsonLlm: LLM = {
   async generateResponse(_messages: readonly Message[]): Promise<unknown> {

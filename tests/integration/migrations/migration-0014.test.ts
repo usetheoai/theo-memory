@@ -43,7 +43,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('runMigrations() applies migration 0014: category column added as nullable text', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       try {
-        const m = await import('../../../src/local/index.js');
+        const m = await import('@usetheo/memory');
 
         // (a) Fresh DB → all migrations including 0014 land.
         await m.runMigrations(pool);
@@ -89,7 +89,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('runMigrations() is idempotent — re-running 0014 is a no-op', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       try {
-        const m = await import('../../../src/local/index.js');
+        const m = await import('@usetheo/memory');
         await expect(m.runMigrations(pool)).resolves.toBeUndefined();
 
         // category column still exists exactly once.

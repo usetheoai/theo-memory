@@ -53,7 +53,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await testPool.query('CREATE EXTENSION IF NOT EXISTS vector');
       // Apply column-bearing migrations via the journal-tracked runMigrations
       // path so the `memories` table exists for the trigger to attach to.
-      const { runMigrations } = await import('../../../src/local/index.js');
+      const { runMigrations } = await import('@usetheo/memory');
       await runMigrations(testPool);
       await testPool.end();
 

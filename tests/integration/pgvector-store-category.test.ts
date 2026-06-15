@@ -23,11 +23,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
 
-import { PgvectorStore } from '../../src/local/pgvector-store.js';
-import { vectorLiteral } from '../../src/local/pgvector-vector-literal.js';
+import { PgvectorStore } from '@usetheo/memory';
+import { vectorLiteral } from '../../packages/core/src/infrastructure/db/pgvector-vector-literal.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
-const EMBEDDING_DIM = 384;
+const EMBEDDING_DIM = 1536;
 
 function makeVec(seed = 0.1): readonly number[] {
   const v = new Array<number>(EMBEDDING_DIM).fill(0);

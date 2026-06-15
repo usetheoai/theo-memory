@@ -181,7 +181,7 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
     });
 
     test('5. run-mcp-server.ts JSDoc has zero stubs tokens', () => {
-      const src = readFileSync(join(REPO_ROOT, 'src', 'agent-tools', 'run-mcp-server.ts'), 'utf8');
+      const src = readFileSync(join(REPO_ROOT, 'packages', 'mcp', 'src', 'run-mcp-server.ts'), 'utf8');
       const jsdocMatch = src.match(/^\/\*\*[\s\S]*?\*\//);
       expect(jsdocMatch, 'expected JSDoc block at start of file').not.toBeNull();
       const jsdoc = jsdocMatch![0];
@@ -189,7 +189,7 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
     });
 
     test('6. run-mcp-server.ts JSDoc names the real-providers wiring', () => {
-      const src = readFileSync(join(REPO_ROOT, 'src', 'agent-tools', 'run-mcp-server.ts'), 'utf8');
+      const src = readFileSync(join(REPO_ROOT, 'packages', 'mcp', 'src', 'run-mcp-server.ts'), 'utf8');
       const jsdocMatch = src.match(/^\/\*\*[\s\S]*?\*\//);
       expect(jsdocMatch).not.toBeNull();
       const jsdoc = jsdocMatch![0];
@@ -197,7 +197,7 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
     });
 
     test('7. EC-1 — dist/local/migrations/*.sql files exist in extracted tarball', () => {
-      const sourceMigrationsDir = join(REPO_ROOT, 'src', 'local', 'migrations');
+      const sourceMigrationsDir = join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
       const expectedSql = readdirSync(sourceMigrationsDir).filter((f) => f.endsWith('.sql'));
       expect(expectedSql.length, 'sanity — at least one .sql in source dir').toBeGreaterThan(0);
       for (const sqlFile of expectedSql) {
@@ -207,7 +207,7 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
     });
 
     test('8. EC-1 — npm pack file list contains every dist/local/migrations/*.sql', () => {
-      const sourceMigrationsDir = join(REPO_ROOT, 'src', 'local', 'migrations');
+      const sourceMigrationsDir = join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
       const expectedSql = readdirSync(sourceMigrationsDir).filter((f) => f.endsWith('.sql'));
       const packPaths = packResult!.files.map((f) => f.path);
       for (const sqlFile of expectedSql) {
@@ -221,7 +221,7 @@ describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
     });
 
     test('10. EC-1 hotfix — npm pack ships every src/local/migrations/meta/*.json under dist/local/migrations/meta/', () => {
-      const sourceMetaDir = join(REPO_ROOT, 'src', 'local', 'migrations', 'meta');
+      const sourceMetaDir = join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations', 'meta');
       const expectedJson = readdirSync(sourceMetaDir).filter((f) => f.endsWith('.json'));
       expect(expectedJson.length, 'sanity — meta json files exist in source').toBeGreaterThan(0);
       const packPaths = packResult!.files.map((f) => f.path);

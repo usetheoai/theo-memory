@@ -83,7 +83,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('backward compat: runMigrations(pool) without options produces vector(1536) schema', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       await m.runMigrations(pool);
 
@@ -97,7 +97,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('parametric: runMigrations(pool, { embeddingDim: 384 }) alters both columns to vector(384)', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       await m.runMigrations(pool, { embeddingDim: 384 });
 
@@ -109,7 +109,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('EC-4: runMigrations parametric recreates HNSW indexes after ALTER', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       await m.runMigrations(pool, { embeddingDim: 384 });
 
@@ -125,7 +125,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('idempotent: 2nd call with same dim short-circuits via atttypmod probe', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       await m.runMigrations(pool, { embeddingDim: 384 });
 
@@ -151,7 +151,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('no-op: runMigrations(pool, { embeddingDim: 1536 }) does not run the ALTER sequence (matches default)', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       // Run once with default to establish baseline.
       await m.runMigrations(pool);
@@ -177,7 +177,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     // entire EC-3 contract is verified only by code review.
     it('EC-3 atomic rollback: mid-sequence failure preserves pre-change schema state', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       try {
         // Bring DB to vector(1536) baseline first.
         await m.runMigrations(pool);
@@ -214,7 +214,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     // FK cascade behavior would have shipped silently.
     it('destructive cascade: seeded rows wiped + FK cascades fire as documented (F-C1)', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       try {
       await m.runMigrations(pool);
 
@@ -316,7 +316,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     // a dim mismatch.
     it('post-ALTER canary: both memories AND entities columns verified at target dim inside the transaction', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       try {
         await m.runMigrations(pool, { embeddingDim: 384 });
         // Canary's positive path: COMMIT only happens if both tables match
@@ -337,7 +337,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     // NOW also covers recall_cache.query_embedding's atttypmod.
     it('fixes-cycle-1 T1.1: canary covers recall_cache.query_embedding post-ALTER', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       try {
         // Bootstrap at 1536 (default); recall_cache table is created by migration 0010.
         await m.runMigrations(pool);
@@ -371,7 +371,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     // The canary's WHERE clause tolerates absent rows by returning fewer rows.
     it('fixes-cycle-1 T1.1 EC-5: pre-v1.5 DB without recall_cache table — applyDimChange succeeds', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       try {
         await m.runMigrations(pool);
         // Drop recall_cache to simulate pre-v1.5 schema state.
@@ -405,7 +405,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     // gate (Inquebrável Rule 5).
     it('push-flow: orphan-schema branch still applies parametric dim change', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       try {
         // Simulate the push-flow footgun: schema present but journal missing.
         // Bootstrap a real schema first (runMigrations writes the journal),

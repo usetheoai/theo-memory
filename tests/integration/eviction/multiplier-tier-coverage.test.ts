@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { CapacityBasedTrigger } from '../../../src/local/eviction/capacity-based-trigger.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
-import { PgNearestNeighborProvider } from '../../../src/local/eviction/pg-nearest-neighbor-provider.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
-import type { Scope } from '../../../src/core/scope.js';
+import { CapacityBasedTrigger } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
+import { PgNearestNeighborProvider } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
 
 /**
  * T7.2 — long-tail multiplier honors User + Session scope tiers (closes

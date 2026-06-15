@@ -22,27 +22,27 @@ import { Hono } from 'hono';
 import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '../../../src/core/memory-store.js';
-import { runMigrations } from '../../../src/local/index.js';
-import { withBearerAuth } from '../../../src/agent-tools/auth/with-bearer-auth.js';
-import { connectStdio } from '../../../src/agent-tools/transports/stdio.js';
-import { connectStreamableHttp } from '../../../src/agent-tools/transports/streamable-http.js';
+import type { Memory } from '@usetheo/memory';
+import { runMigrations } from '@usetheo/memory';
+import { withBearerAuth } from '../../../packages/mcp/src/auth/with-bearer-auth.js';
+import { connectStdio } from '../../../packages/mcp/src/transports/stdio.js';
+import { connectStreamableHttp } from '../../../packages/mcp/src/transports/streamable-http.js';
 import {
   ApiKeyAuthVerifier,
   type AuthPool,
-} from '../../../src/server/auth/api-key-verifier.js';
-import { dualValidationAuth } from '../../../src/server/auth/dual-validation.js';
-import { OidcAuthVerifier } from '../../../src/server/auth/oidc-verifier.js';
-import { requireScope } from '../../../src/server/auth/scope-verifier.js';
+} from '../../../packages/api/src/server/auth/api-key-verifier.js';
+import { dualValidationAuth } from '../../../packages/api/src/server/auth/dual-validation.js';
+import { OidcAuthVerifier } from '../../../packages/api/src/server/auth/oidc-verifier.js';
+import { requireScope } from '../../../packages/api/src/server/auth/scope-verifier.js';
 import {
   createKeyHandler,
   listKeysHandler,
   revokeKeyHandler,
   rotateKeyHandler,
   lineageKeyHandler,
-} from '../../../src/server/handlers/admin-keys.js';
-import { createServer } from '../../../src/server/index.js';
-import type { McpServer } from '../../../src/agent-tools/server.js';
+} from '../../../packages/api/src/server/handlers/admin-keys.js';
+import { createServer } from '@usetheo/memory-api';
+import type { McpServer } from '../../../packages/mcp/src/server.js';
 
 import { buildStubIntrospect, resetAuthTables } from './_helpers.js';
 
@@ -149,11 +149,10 @@ if (PG_URI === undefined || PG_URI === '') {
 
   // Apply migrations once before the suite (idempotent; runMigrations handles
   // the orphan-schema detection per src/local/index.ts § runMigrations).
-  // The 384-dim embedder is irrelevant here — auth tables don't carry vectors —
-  // but runMigrations requires the param to seed the memories table dim.
+  // Auth tables don't carry vectors — default 1536 dim is fine here.
   // beforeAll equivalent via top-level await would be cleaner but vitest does
   // not support it; using a sentinel promise instead.
-  const migrationReady = runMigrations(pool, { embeddingDim: 384 });
+  const migrationReady = runMigrations(pool);
 
   afterAll(async () => {
     await migrationReady;

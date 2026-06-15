@@ -18,10 +18,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
-import { PgvectorStore } from '../../../src/local/pgvector-store.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

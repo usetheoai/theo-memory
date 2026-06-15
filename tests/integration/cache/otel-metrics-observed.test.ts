@@ -19,11 +19,11 @@ import {
   type MeterProvider,
 } from '@opentelemetry/api';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import type { LLM } from '../../../src/core/dip/llm.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/index.js';
-import { __resetRecallCacheMetricsForTesting } from '../../../src/local/recall-cache/recall-cache-metrics.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { __resetRecallCacheMetricsForTesting } from '../../../packages/core/src/infrastructure/db/recall-cache/recall-cache-metrics.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t3_1_otel_metrics';

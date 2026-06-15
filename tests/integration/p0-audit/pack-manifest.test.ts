@@ -68,17 +68,17 @@ describe('T2.3 — npm pack --dry-run manifest', () => {
     expect(paths).toContain('README.md');
   });
 
-  test('3. pack manifest ships >= 100 src/**/*.ts entries', () => {
-    const srcTs = paths.filter((p) => p.startsWith('src/') && p.endsWith('.ts'));
+  test('3. pack manifest ships >= 100 packages/**/*.ts entries', () => {
+    const srcTs = paths.filter((p) => p.startsWith('packages/') && p.endsWith('.ts'));
     expect(srcTs.length).toBeGreaterThanOrEqual(100);
   });
 
   test('4. fixes-cycle-1 F-dom-api-3 — pack manifest ships EVERY src/local/migrations/*.sql file (behavioral floor)', () => {
-    const migrationsDir = join(REPO_ROOT, 'src', 'local', 'migrations');
+    const migrationsDir = join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
     const expectedSql = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
     expect(expectedSql.length, 'sanity — at least one .sql file in source migrations dir').toBeGreaterThan(0);
     for (const sqlFile of expectedSql) {
-      expect(paths).toContain(`src/local/migrations/${sqlFile}`);
+      expect(paths).toContain(`packages/core/src/infrastructure/db/migrations/${sqlFile}`);
     }
   });
 

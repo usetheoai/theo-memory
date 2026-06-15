@@ -5,7 +5,7 @@ import {
   PgEvictor,
   TimeBasedTrigger,
   TriadicScoringPolicy,
-} from '../../../src/local/eviction/index.js';
+} from '@usetheo/memory';
 import {
   createLocalMemory,
   EvictionNotSupported,
@@ -13,8 +13,8 @@ import {
   PgvectorStore,
   StubEmbedder,
   StubLLM,
-} from '../../../src/local/index.js';
-import type { Scope } from '../../../src/core/scope.js';
+} from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
 
 /**
  * T4.1 RED tests #3-#6 + sentinel: `createLocalMemory({ eviction: {...} })`

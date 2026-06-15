@@ -37,8 +37,30 @@ function isInstalled(pkg: string): boolean {
 const xenovaInstalled = isInstalled('@xenova/transformers');
 const openaiInstalled = isInstalled('openai');
 
+/**
+ * Map old src/-relative paths to their new packages/ locations.
+ */
+const SOURCE_PATH_MAP: Record<string, string[]> = {
+  'index.ts': ['packages', 'core', 'src', 'index.ts'],
+  'core/index.ts': ['packages', 'core', 'src', 'domain', 'index.ts'],
+  'agent-tools/index.ts': ['packages', 'cli', 'src', 'index.ts'],
+  'local/recall-cache/index.ts': ['packages', 'core', 'src', 'infrastructure', 'db', 'recall-cache', 'index.ts'],
+  'embedders/index.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'index.ts'],
+  'embedders/local.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'local.ts'],
+  'embedders/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'openai.ts'],
+  'embedders/stub.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'stub.ts'],
+  'llms/index.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'index.ts'],
+  'llms/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'openai.ts'],
+  'llms/stub.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'stub.ts'],
+  'server/index.ts': ['packages', 'api', 'src', 'server', 'index.ts'],
+  'theokit/index.ts': ['packages', 'core', 'src', 'infrastructure', 'theokit', 'index.ts'],
+};
+
 async function importFromSource(relPath: string): Promise<Record<string, unknown>> {
-  const absPath = join(REPO_ROOT, 'src', ...relPath.split('/'));
+  const mapped = SOURCE_PATH_MAP[relPath];
+  const absPath = mapped
+    ? join(REPO_ROOT, ...mapped)
+    : join(REPO_ROOT, 'packages', 'core', 'src', ...relPath.split('/'));
   const mod = (await import(absPath)) as Record<string, unknown>;
   return mod;
 }

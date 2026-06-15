@@ -28,11 +28,12 @@ import { describe, expect, test } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
-const RUN_SERVER_PATH = join(REPO_ROOT, 'src', 'agent-tools', 'run-server.ts');
+const RUN_SERVER_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'run-server.ts');
 const AGENT_TOOLS_MEMORY_PATH = join(
   REPO_ROOT,
+  'packages',
+  'cli',
   'src',
-  'agent-tools',
   'agent-tools-memory.ts',
 );
 const README_PATH = join(REPO_ROOT, 'README.md');

@@ -19,7 +19,7 @@ import { describe, expect, test } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
-const CONTRACT_PATH = join(REPO_ROOT, 'src', 'core', 'index.ts');
+const CONTRACT_PATH = join(REPO_ROOT, 'packages', 'core', 'src', 'domain', 'index.ts');
 
 interface ExportBlock {
   readonly startLine: number;
