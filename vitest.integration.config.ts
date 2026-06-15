@@ -26,7 +26,7 @@ export default defineConfig({
       // Post-workspace-restructure: the @usetheo/memory/agent-tools subpath
       // was extracted to @usetheo/memory-cli. The MCP package still imports
       // from the old subpath; this alias bridges the gap at test time.
-      '@usetheo/memory/agent-tools': new URL('./packages/cli/src/index.ts', import.meta.url).pathname,
+      '@usetheo/memory-agent-core': new URL('./packages/agent-core/src/index.ts', import.meta.url).pathname,
       // MCP package barrel — vitest uses node ESM resolution which does NOT
       // auto-map .js → .ts. This alias lets `import('@usetheo/memory-mcp')`
       // and transitive imports from packages/mcp/ resolve correctly.
