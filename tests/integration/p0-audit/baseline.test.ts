@@ -69,10 +69,10 @@ describe('T0.1 — Baseline audit script', () => {
       timeout: 30_000,
     });
     const data = JSON.parse(result.stdout) as { exports: Record<string, number> };
-    expect(data.exports).toHaveProperty('src/index.ts');
-    expect(data.exports).toHaveProperty('src/core/index.ts');
-    expect(data.exports['src/index.ts']).toBeGreaterThan(0);
-    expect(data.exports['src/core/index.ts']).toBeGreaterThan(0);
+    expect(data.exports).toHaveProperty('packages/core/src/index.ts');
+    expect(data.exports).toHaveProperty('packages/core/src/domain/index.ts');
+    expect(data.exports['packages/core/src/index.ts']).toBeGreaterThan(0);
+    expect(data.exports['packages/core/src/domain/index.ts']).toBeGreaterThan(0);
   });
 
   test('6. dependencies_section_present is true (EC-1 absorption sentinel)', () => {

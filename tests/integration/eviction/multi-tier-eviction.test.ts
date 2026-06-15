@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { CapacityBasedTrigger } from '../../../src/local/eviction/capacity-based-trigger.js';
-import { TimeBasedTrigger } from '../../../src/local/eviction/time-based-trigger.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
-import { PgNearestNeighborProvider } from '../../../src/local/eviction/pg-nearest-neighbor-provider.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
-import type { Scope } from '../../../src/core/scope.js';
+import { CapacityBasedTrigger } from '@usetheo/memory';
+import { TimeBasedTrigger } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
+import { PgNearestNeighborProvider } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
 
 /**
  * T3.1 multi-tier eviction integration test (closes F-dom-1 + F-dom-pg-3
