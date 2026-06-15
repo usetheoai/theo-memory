@@ -36,7 +36,7 @@ describe.skipIf(ROOT_PG_URI === '' || !existsSync(CLI_PATH))(
       await adminPool.query(`CREATE DATABASE ${TEST_DB}`);
       await adminPool.end();
       pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       // Point the bridge subprocess at this test DB.
       process.env['THEOMEM_PG_URI'] = testUri;

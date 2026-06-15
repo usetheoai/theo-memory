@@ -2,7 +2,7 @@
  * /review v0-7-distillation-pipeline F-C3 sentinel: schema.ts ↔ migrations/meta
  * parity. Closes the failure mode where a table is added to a Drizzle SQL
  * migration + snapshot but never declared as a `pgTable` export in
- * `src/local/schema.ts`. `drizzle-kit push` (the documented `npm run db:push`
+ * `packages/core/src/infrastructure/db/schema.ts`. `drizzle-kit push` (the documented `npm run db:push`
  * dev workflow) would otherwise compute a destructive DROP TABLE diff against
  * a v0.7-migrated DB and silently delete all audit rows.
  *
@@ -20,11 +20,11 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import * as schema from '../../src/local/schema.js';
+import * as schema from '@usetheo/memory';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..');
-const META_DIR = join(REPO_ROOT, 'src', 'local', 'migrations', 'meta');
+const META_DIR = join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations', 'meta');
 
 /**
  * Enumerate every table named in any meta/*_snapshot.json. Drizzle stores
@@ -65,17 +65,17 @@ function collectSchemaTables(): Set<string> {
 }
 
 describe('schema.ts ↔ migrations/meta snapshot parity (F-C3 sentinel)', () => {
-  it('every table in any *_snapshot.json is declared in src/local/schema.ts', () => {
+  it('every table in any *_snapshot.json is declared in packages/core/src/infrastructure/db/schema.ts', () => {
     const snapshotTables = collectSnapshotTables();
     const schemaTables = collectSchemaTables();
     const missing = [...snapshotTables].filter((t) => !schemaTables.has(t));
-    expect(missing, `Tables in migrations/meta/*_snapshot.json missing from src/local/schema.ts: ${missing.join(', ')}. drizzle-kit push would compute a destructive DROP TABLE diff for each.`).toEqual([]);
+    expect(missing, `Tables in migrations/meta/*_snapshot.json missing from packages/core/src/infrastructure/db/schema.ts: ${missing.join(', ')}. drizzle-kit push would compute a destructive DROP TABLE diff for each.`).toEqual([]);
   });
 
-  it('every pgTable in src/local/schema.ts appears in at least one snapshot', () => {
+  it('every pgTable in packages/core/src/infrastructure/db/schema.ts appears in at least one snapshot', () => {
     const snapshotTables = collectSnapshotTables();
     const schemaTables = collectSchemaTables();
     const unmigrated = [...schemaTables].filter((t) => !snapshotTables.has(t));
-    expect(unmigrated, `Tables declared in src/local/schema.ts without a corresponding migration snapshot: ${unmigrated.join(', ')}. Run \`npm run db:generate\` to materialize the migration.`).toEqual([]);
+    expect(unmigrated, `Tables declared in packages/core/src/infrastructure/db/schema.ts without a corresponding migration snapshot: ${unmigrated.join(', ')}. Run \`npm run db:generate\` to materialize the migration.`).toEqual([]);
   });
 });

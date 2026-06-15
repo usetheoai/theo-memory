@@ -68,14 +68,14 @@ function walkImports(entry: string): Set<string> {
 }
 
 describe('T1.7 — subpath isolation + pack manifest', () => {
-  test('27. default @usetheo/memory barrel does NOT reach src/server/** (EC-26)', () => {
-    const entry = resolve(REPO_ROOT, 'src/index.ts');
+  test('27. default @usetheo/memory barrel does NOT reach packages/api/src/server/** (EC-26)', () => {
+    const entry = resolve(REPO_ROOT, 'packages/core/src/index.ts');
     const reachable = walkImports(entry);
-    const leaks = Array.from(reachable).filter((p) => p.includes('/src/server/'));
+    const leaks = Array.from(reachable).filter((p) => p.includes('/packages/api/'));
     expect(leaks).toEqual([]);
   });
 
-  describe('EC-52 — npm pack manifest ships src/server/**', () => {
+  describe('EC-52 — npm pack manifest ships packages/api/src/server/**', () => {
     let packedFiles: readonly string[] = [];
 
     beforeAll(() => {
@@ -89,19 +89,19 @@ describe('T1.7 — subpath isolation + pack manifest', () => {
       packedFiles = (parsed[0]?.files ?? []).map((f) => f.path);
     }, 30_000);
 
-    test('28. pack contains src/server/index.ts', () => {
-      expect(packedFiles).toContain('src/server/index.ts');
+    test('28. pack contains packages/api/src/server/index.ts', () => {
+      expect(packedFiles).toContain('packages/api/src/server/index.ts');
     });
 
-    test('29. pack contains src/server/handlers/remember.ts', () => {
-      expect(packedFiles).toContain('src/server/handlers/remember.ts');
+    test('29. pack contains packages/api/src/server/handlers/remember.ts', () => {
+      expect(packedFiles).toContain('packages/api/src/server/handlers/remember.ts');
     });
 
-    test('30. pack contains src/server/auth/bearer-verifier.ts', () => {
-      expect(packedFiles).toContain('src/server/auth/bearer-verifier.ts');
+    test('30. pack contains packages/api/src/server/auth/bearer-verifier.ts', () => {
+      expect(packedFiles).toContain('packages/api/src/server/auth/bearer-verifier.ts');
     });
 
-    test('31. pack EXCLUDES src/server/__tests__/**', () => {
+    test('31. pack EXCLUDES packages/api/src/server/__tests__/**', () => {
       const testFiles = packedFiles.filter((p) => p.includes('__tests__'));
       expect(testFiles).toEqual([]);
     });
@@ -122,17 +122,17 @@ describe('T1.7 — subpath isolation + pack manifest', () => {
  * Postgres-backed IMPL only.
  */
 describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
-  test('default @usetheo/memory barrel does NOT reach src/local/recall-cache/pgvector-recall-cache-store.ts', () => {
-    const entry = resolve(REPO_ROOT, 'src/index.ts');
+  test('default @usetheo/memory barrel does NOT reach packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.ts', () => {
+    const entry = resolve(REPO_ROOT, 'packages/core/src/index.ts');
     const reachable = walkImports(entry);
     const implLeaks = Array.from(reachable).filter((p) =>
-      p.endsWith('src/local/recall-cache/pgvector-recall-cache-store.ts'),
+      p.endsWith('recall-cache/pgvector-recall-cache-store.ts'),
     );
     expect(implLeaks).toEqual([]);
   });
 
   test('cache-pg subpath barrel re-exports PgvectorRecallCacheStore (smoke import)', async () => {
-    const mod = await import('../../src/local/recall-cache/index.js');
+    const mod = await import('../../packages/core/src/infrastructure/db/recall-cache/index.js');
     expect(typeof mod.PgvectorRecallCacheStore).toBe('function');
     expect(typeof mod.getRecallCacheHitCounter).toBe('function');
     expect(typeof mod.getRecallCacheHitDurationHistogram).toBe('function');
@@ -141,7 +141,7 @@ describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
     expect(mod.DEFAULT_THRESHOLD).toBe(0.8);
   });
 
-  describe('npm pack manifest ships src/local/recall-cache/**', () => {
+  describe('npm pack manifest ships packages/core/src/infrastructure/db/recall-cache/**', () => {
     let packedFiles: readonly string[] = [];
 
     beforeAll(() => {
@@ -155,21 +155,21 @@ describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
       packedFiles = (parsed[0]?.files ?? []).map((f) => f.path);
     }, 30_000);
 
-    test('pack contains src/local/recall-cache/index.ts', () => {
-      expect(packedFiles).toContain('src/local/recall-cache/index.ts');
+    test('pack contains packages/core/src/infrastructure/db/recall-cache/index.ts', () => {
+      expect(packedFiles).toContain('packages/core/src/infrastructure/db/recall-cache/index.ts');
     });
 
-    test('pack contains src/local/recall-cache/pgvector-recall-cache-store.ts', () => {
-      expect(packedFiles).toContain('src/local/recall-cache/pgvector-recall-cache-store.ts');
+    test('pack contains packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.ts', () => {
+      expect(packedFiles).toContain('packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.ts');
     });
 
-    test('pack contains src/local/recall-cache/recall-cache-metrics.ts', () => {
-      expect(packedFiles).toContain('src/local/recall-cache/recall-cache-metrics.ts');
+    test('pack contains packages/core/src/infrastructure/db/recall-cache/recall-cache-metrics.ts', () => {
+      expect(packedFiles).toContain('packages/core/src/infrastructure/db/recall-cache/recall-cache-metrics.ts');
     });
 
-    test('pack EXCLUDES src/local/recall-cache/__tests__/**', () => {
+    test('pack EXCLUDES packages/core/src/infrastructure/db/recall-cache/__tests__/**', () => {
       const testFiles = packedFiles.filter(
-        (p) => p.startsWith('src/local/recall-cache/__tests__/'),
+        (p) => p.startsWith('packages/core/src/infrastructure/db/recall-cache/__tests__/'),
       );
       expect(testFiles).toEqual([]);
     });

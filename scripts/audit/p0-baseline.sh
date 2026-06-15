@@ -22,10 +22,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
-# Paper-name grep — strict scope src/**/*.ts; exclude knowledge-base citations (rule-allowed).
+# Paper-name grep — strict scope packages/*/src/**/*.ts; exclude knowledge-base citations (rule-allowed).
 count_paper_name() {
   local token="$1"
-  grep -rE "\\b$token\\b" src/ --include="*.ts" 2>/dev/null \
+  grep -rE "\\b$token\\b" packages/*/src/ --include="*.ts" 2>/dev/null \
     | grep -v "knowledge-base" \
     | grep -v "\.claude/knowledge-base" \
     | wc -l
@@ -38,8 +38,8 @@ REDACTED=$(count_paper_name "REDACTED")
 REDACTED=$(count_paper_name "REDACTED")
 
 # Export counts (literal `^export ` lines).
-SRC_INDEX_EXPORTS=$(grep -cE '^export ' src/index.ts 2>/dev/null || echo 0)
-SRC_CORE_INDEX_EXPORTS=$(grep -cE '^export ' src/core/index.ts 2>/dev/null || echo 0)
+SRC_INDEX_EXPORTS=$(grep -cE '^export ' packages/core/src/index.ts 2>/dev/null || echo 0)
+SRC_CORE_INDEX_EXPORTS=$(grep -cE '^export ' packages/core/src/domain/index.ts 2>/dev/null || echo 0)
 
 # Subpath count from package.json#exports keys.
 SUBPATHS=$(python3 -c "
@@ -50,7 +50,7 @@ print(len(pkg.get('exports', {})))
 " 2>/dev/null || echo 0)
 
 # `any` in public surface (\bany\b — widened per EC-5 absorption to catch Array<any>, Promise<any>, etc.).
-ANY_IN_PUBLIC=$(grep -cE '\bany\b' src/index.ts src/core/index.ts 2>/dev/null | awk -F: '{s+=$2} END {print s}')
+ANY_IN_PUBLIC=$(grep -cE '\bany\b' packages/core/src/index.ts packages/core/src/domain/index.ts 2>/dev/null | awk -F: '{s+=$2} END {print s}')
 if [ -z "$ANY_IN_PUBLIC" ]; then ANY_IN_PUBLIC=0; fi
 
 # dist/agent-tools/cli.js existence (Python-truthy literal).
@@ -80,8 +80,8 @@ print(json.dumps({
         'REDACTED': $REDACTED,
     },
     'exports': {
-        'src/index.ts': $SRC_INDEX_EXPORTS,
-        'src/core/index.ts': $SRC_CORE_INDEX_EXPORTS,
+        'packages/core/src/index.ts': $SRC_INDEX_EXPORTS,
+        'packages/core/src/domain/index.ts': $SRC_CORE_INDEX_EXPORTS,
     },
     'subpaths': $SUBPATHS,
     'any_in_public': $ANY_IN_PUBLIC,
