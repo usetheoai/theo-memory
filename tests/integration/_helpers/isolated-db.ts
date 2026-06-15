@@ -20,8 +20,10 @@ import { runMigrations } from '@usetheo/memory';
 import { TEMPLATE_DB, siblingUri } from '../global-setup.js';
 
 export interface IsolatedDb {
-  /** Connection pool bound to the freshly-cloned, fully-migrated database. */
+  /** Connection pool bound to the isolated database. */
   readonly pool: pg.Pool;
+  /** Connection string of the isolated database (e.g. to pass to a spawned CLI via `THEOMEM_PG_URI`). */
+  readonly uri: string;
   /** Close the pool and DROP the cloned database. Call in `afterAll`. */
   readonly dropDb: () => Promise<void>;
 }
@@ -36,27 +38,35 @@ function uniqueDbName(): string {
 }
 
 /**
- * Create an isolated database cloned from the migrated template and return a
- * pool bound to it plus a teardown closure.
+ * Create an isolated database and return a pool bound to it plus a teardown
+ * closure. By default the database is cloned from the migrated template
+ * (`themem_template`). Pass `fresh: true` for an EMPTY database (cloned from
+ * `template0`) — useful for tests that exercise `runMigrations`/`themory migrate`
+ * from a blank slate.
  */
-export async function createIsolatedDb(opts?: { embeddingDim?: number }): Promise<IsolatedDb> {
+export async function createIsolatedDb(opts?: {
+  embeddingDim?: number;
+  fresh?: boolean;
+}): Promise<IsolatedDb> {
   const rootUri = process.env['THEOMEM_PG_URI'];
   if (rootUri === undefined || rootUri === '') {
     throw new Error('createIsolatedDb: THEOMEM_PG_URI is not set');
   }
   const adminUri = siblingUri(rootUri, 'postgres');
   const dbName = uniqueDbName();
+  const sourceTemplate = opts?.fresh === true ? 'template0' : TEMPLATE_DB;
 
-  // Clone the migrated template (ms-level byte clone). The template MUST have
+  // Clone the source template (ms-level byte clone). themem_template MUST have
   // no open connections — global-setup closes its builder pool before tests run.
   const adminPool = new pg.Pool({ connectionString: adminUri, max: 1 });
   try {
-    await adminPool.query(`CREATE DATABASE ${dbName} TEMPLATE ${TEMPLATE_DB}`);
+    await adminPool.query(`CREATE DATABASE ${dbName} TEMPLATE ${sourceTemplate}`);
   } finally {
     await adminPool.end();
   }
 
-  const pool = new pg.Pool({ connectionString: siblingUri(rootUri, dbName) });
+  const uri = siblingUri(rootUri, dbName);
+  const pool = new pg.Pool({ connectionString: uri });
 
   if (opts?.embeddingDim !== undefined) {
     await runMigrations(pool, { embeddingDim: opts.embeddingDim });
@@ -72,5 +82,5 @@ export async function createIsolatedDb(opts?: { embeddingDim?: number }): Promis
     }
   };
 
-  return { pool, dropDb };
+  return { pool, uri, dropDb };
 }

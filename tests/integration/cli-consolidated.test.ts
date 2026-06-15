@@ -19,7 +19,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+
+import { createIsolatedDb } from './_helpers/isolated-db.js';
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
 const CLI_DIST = resolve(REPO_ROOT, 'dist/agent-tools/cli.js');
@@ -110,6 +112,19 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
     // Track child processes so afterAll can kill any leak.
     const activeChildren: import('node:child_process').ChildProcess[] = [];
 
+    // Isolated DB: `themory server` boot runs runMigrations({ embeddingDim: 384 })
+    // (run-server.ts), which would migrate the SHARED db to 384 and break every
+    // 1536-dim test that runs later. Point the spawned server at its own DB.
+    let isoUri = '';
+    let dropIso: (() => Promise<void>) | undefined;
+    beforeAll(async () => {
+      const iso = await createIsolatedDb();
+      isoUri = iso.uri;
+      dropIso = iso.dropDb;
+      // Note: do NOT end iso.pool here — dropIso() (dropDb) ends it exactly once
+      // before DROP DATABASE. The spawned server uses isoUri via its own pool.
+    });
+
     function spawnServer(
       args: readonly string[],
       env: NodeJS.ProcessEnv,
@@ -121,6 +136,7 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       const childEnv: NodeJS.ProcessEnv = {
         ...process.env,
         OPENAI_API_KEY: process.env['OPENAI_API_KEY'] ?? 'sk-fake-test-key-for-boot',
+        THEOMEM_PG_URI: isoUri,
         ...env,
       };
       const child = spawn(process.execPath, [CLI_DIST, 'server', ...args], {
@@ -131,10 +147,11 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       return child;
     }
 
-    afterAll(() => {
+    afterAll(async () => {
       for (const child of activeChildren) {
         if (!child.killed) child.kill('SIGKILL');
       }
+      if (dropIso) await dropIso();
     });
 
     test('39. SIGTERM closes server with exit 0 (EC-32)', async () => {
@@ -162,37 +179,40 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
     }, 15_000);
 
     test('41. themory migrate applies pending migrations; second invocation is no-op (EC-36)', async () => {
-      // Reset DB to fresh state so the first invocation has work to do.
-      const { Pool } = await import('pg');
-      const pool = new Pool({ connectionString: process.env['THEOMEM_PG_URI'] });
-      await pool.query(
-        'DROP TABLE IF EXISTS reflection_counters, consolidation_history, __drizzle_migrations CASCADE',
-      );
-      await pool.end();
+      // Fresh isolated DB so the first invocation has work to do AND the
+      // DROP/migrate never touches the shared DB. This test was the suite's
+      // root schema-state polluter (it dropped consolidation_history +
+      // reflection_counters + __drizzle_migrations on the SHARED db, breaking
+      // every later test that assumed the schema) — integration-suite-stabilization.
+      const { createIsolatedDb } = await import('./_helpers/isolated-db.js');
+      const { uri, dropDb } = await createIsolatedDb({ fresh: true });
+      try {
+        const runOnce = async (): Promise<{ exitCode: number | null; stdout: string }> => {
+          const child = spawn(process.execPath, [CLI_DIST, 'migrate'], {
+            env: { ...process.env, THEOMEM_PG_URI: uri },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          let stdout = '';
+          child.stdout?.on('data', (chunk: Buffer) => {
+            stdout += chunk.toString('utf-8');
+          });
+          const code = await new Promise<number | null>((resolveExit) => {
+            child.on('close', (c) => resolveExit(c));
+          });
+          return { exitCode: code, stdout };
+        };
 
-      const runOnce = async (): Promise<{ exitCode: number | null; stdout: string }> => {
-        const child = spawn(process.execPath, [CLI_DIST, 'migrate'], {
-          env: { ...process.env },
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        child.stdout?.on('data', (chunk: Buffer) => {
-          stdout += chunk.toString('utf-8');
-        });
-        const code = await new Promise<number | null>((resolveExit) => {
-          child.on('close', (c) => resolveExit(c));
-        });
-        return { exitCode: code, stdout };
-      };
+        const first = await runOnce();
+        const second = await runOnce();
 
-      const first = await runOnce();
-      const second = await runOnce();
-
-      expect(first.exitCode).toBe(0);
-      expect(second.exitCode).toBe(0);
-      expect(first.stdout).toMatch(/applied/i);
-      // Second invocation must succeed and not crash on duplicate-table errors.
-      expect(second.stdout).toMatch(/applied/i);
+        expect(first.exitCode).toBe(0);
+        expect(second.exitCode).toBe(0);
+        expect(first.stdout).toMatch(/applied/i);
+        // Second invocation must succeed and not crash on duplicate-table errors.
+        expect(second.stdout).toMatch(/applied/i);
+      } finally {
+        await dropDb();
+      }
     }, 30_000);
 
     test('40. EADDRINUSE — second server on busy port exits 1 with clear stderr (EC-31)', async () => {

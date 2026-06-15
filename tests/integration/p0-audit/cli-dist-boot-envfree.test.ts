@@ -23,7 +23,7 @@
  * commands must get. It only skips when the dist artifact is absent.
  *
  * @see scripts/rewrite-dist-aliases.mjs
- * @see packages/cli/src/agent-tools-memory.ts (lazy optional-dep load)
+ * @see packages/agent-core/src/agent-tools-memory.ts (lazy optional-dep load)
  * @see .claude/knowledge-base/plans/extract-cli-to-packages-plan.md (themory --help após build)
  */
 import { execFileSync } from 'node:child_process';
