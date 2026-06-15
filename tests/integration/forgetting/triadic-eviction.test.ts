@@ -23,6 +23,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
+import { createIsolatedDb } from '../_helpers/isolated-db.js';
+
 import { CapacityBasedTrigger } from '@usetheo/memory';
 import { PgEvictor } from '@usetheo/memory';
 import { PgNearestNeighborProvider } from '@usetheo/memory';
@@ -52,12 +54,19 @@ if (PG_URI === undefined || PG_URI === '') {
 } else {
   describe('THE GOAL TEST T7.1 — 1000 memories, 30% triadic eviction, recall@10 ≥ 0.70', () => {
     let pool: pg.Pool;
+    let dropDb: () => Promise<void>;
     let store: PgvectorStore;
     let policy: TriadicScoringPolicy;
     let trigger: CapacityBasedTrigger;
 
     beforeAll(async () => {
-      pool = new pg.Pool({ connectionString: PG_URI });
+      // Own isolated DB (not the shared one): this 1000-memory recall@10 GOAL
+      // TEST is heavy + sensitive to residual state, and the per-file shared-DB
+      // reset can race with a slow-closing prior-file pool. A dedicated clone
+      // makes the recall metric deterministic in the full suite.
+      const iso = await createIsolatedDb();
+      pool = iso.pool;
+      dropDb = iso.dropDb;
       store = new PgvectorStore(pool);
       const neighborProvider = new PgNearestNeighborProvider(pool);
       const evictor = new PgEvictor(pool);
@@ -66,7 +75,7 @@ if (PG_URI === undefined || PG_URI === '') {
     }, 30_000);
 
     afterAll(async () => {
-      await pool.end();
+      await dropDb();
     });
 
     beforeEach(async () => {
