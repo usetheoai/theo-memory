@@ -35,6 +35,10 @@ export default defineConfig({
   },
   test: {
     globalSetup: ['tests/integration/global-setup.ts'],
+    // Resets the shared THEOMEM_PG_URI database to a clean template clone before
+    // EACH test file, so a CLI boot that migrates the dim to 384 (or a
+    // destructive test) cannot leak state into the next file.
+    setupFiles: ['tests/integration/_helpers/reset-shared-db.ts'],
     include: ['tests/integration/**/*.test.ts'],
     passWithNoTests: true,
     testTimeout: 30_000,

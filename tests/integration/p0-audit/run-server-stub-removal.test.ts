@@ -32,7 +32,7 @@ const RUN_SERVER_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'run-server.ts
 const AGENT_TOOLS_MEMORY_PATH = join(
   REPO_ROOT,
   'packages',
-  'cli',
+  'agent-core',
   'src',
   'agent-tools-memory.ts',
 );

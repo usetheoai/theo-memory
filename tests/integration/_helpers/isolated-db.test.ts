@@ -53,18 +53,20 @@ describe.skipIf(PG_URI === '')('createIsolatedDb (T0.1)', () => {
     }
   });
 
-  it('dropDb() removes the cloned database (no themem_it_* leak)', async () => {
-    const { dropDb } = await createIsolatedDb();
+  it('dropDb() removes the specific cloned database', async () => {
+    const { uri, dropDb } = await createIsolatedDb();
+    const dbName = (uri.split('/').pop() ?? '').split('?')[0] ?? '';
+    expect(dbName).toMatch(/^themem_it_/);
     await dropDb();
 
     const admin = new pg.Pool({ connectionString: siblingUri(PG_URI, 'postgres'), max: 1 });
     pools.push(admin);
     const { rows } = await admin.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM pg_database WHERE datname LIKE 'themem_it_%'`,
+      `SELECT COUNT(*)::text AS count FROM pg_database WHERE datname = $1`,
+      [dbName],
     );
-    // The two databases created by the prior tests are dropped in their own
-    // finally blocks; this test's DB is dropped above. Allow for at most the
-    // currently-running test's own (already-dropped) DB → expect 0.
+    // Assert THIS test's specific DB is gone (not a global themem_it_* count,
+    // which would be polluted by other files' in-flight isolated DBs).
     expect(Number(rows[0]?.count ?? '0')).toBe(0);
   });
 });
