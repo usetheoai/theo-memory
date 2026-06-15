@@ -15,7 +15,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
     "prebuild:clean": "node -e \"const{rmSync}=require('node:fs');rmSync('dist',{recursive:true,force:true});\"",
-    "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases",
+    "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases && npm run build:core",
+    "build:core": "node -e \"require('node:fs').rmSync('packages/core/dist',{recursive:true,force:true})\" && tsc -p packages/core/tsconfig.build.json && node -e \"const{cpSync,existsSync}=require('node:fs');const s='packages/core/src/infrastructure/db/migrations',d='packages/core/dist/infrastructure/db/migrations';if(existsSync(s)){cpSync(s,d,{recursive:true});console.error('[core] migrations copied to '+d);}\"",
     "postbuild:rewrite-aliases": "node scripts/rewrite-dist-aliases.mjs",
     "postbuild:move-cli": "node -e \"const{renameSync,rmSync,existsSync}=require('node:fs');const s='dist/cli/src',d='dist/agent-tools';if(existsSync(s)){if(existsSync(d))rmSync(d,{recursive:true});renameSync(s,d);try{require('node:fs').rmdirSync('dist/cli')}catch{};console.error('CLI moved to dist/agent-tools/')}\"",
     "prepack": "npm run build",
