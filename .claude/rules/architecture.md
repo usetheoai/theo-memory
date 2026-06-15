@@ -53,7 +53,7 @@ src/core/        ← contracts, types, pure logic, LLM extraction pipeline (no I
 - `src/core/` MUST NOT import from `src/local/` or `src/cloud/`. Ever.
 - `src/local/` and `src/cloud/` MUST NOT import from each other. They are siblings; share via `src/core/`.
 - `src/theokit/` MUST NOT import from `src/local/` or `src/cloud/`. The binding is runtime-agnostic.
-- `packages/cli/` (formerly `src/agent-tools/`, extracted T3.4) depends on `packages/core/` only.
+- `packages/cli/` (formerly `src/agent-tools/`, extracted T3.4) is the CLI **composition root** (`themory` entrypoint): it depends on `packages/core/`, `packages/api/` (REST server boot via `themory server`), and `packages/mcp/` (`themory mcp`). NOTE: a `packages/cli ↔ packages/mcp` import cycle exists today — `mcp` imports shared helpers via the `@usetheo/memory/agent-tools` subpath, which resolves into `packages/cli`. Breaking that cycle (extract shared helpers to a leaf package) is tracked as reorg follow-up debt (see `complete-workspace-publish-topology`), not by the extract-cli slice.
 
 ## 4. Mem0-shape architecture, not Mem0-clone
 
