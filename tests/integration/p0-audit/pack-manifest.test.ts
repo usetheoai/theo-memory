@@ -1,21 +1,27 @@
 /**
- * T2.3 — `npm pack --dry-run --json` manifest verification.
+ * `npm pack --dry-run --json` manifest verification for the publishable package
+ * `@usetheo/memory` (= `packages/core`, the only non-private workspace package).
  *
- * Asserts the published artifact shape matches what `package.json#files`
- * declares: every src/**\/*.ts entry ships, every migrations/** ships,
- * package.json + README ship, AND zero __tests__/** or *.test.ts entries
- * leak.
+ * Asserts the published artifact shape matches `packages/core/package.json#files`
+ * (ADR D1-a src-only, owner decision 2026-06-15): every `src` `.ts` entry ships,
+ * every migrations `.sql` ships, package.json ships, AND zero `__tests__` /
+ * `*.test.ts` / `*.test-d.ts` entries leak.
  *
- * EC-12 absorption (DOCUMENT): test uses tolerant `toBeGreaterThan(N)`
- * assertions instead of exact counts so npm version drift across
- * machines does not false-fail. The exact npm version present at audit
- * time is captured in the artifact via `process.versions.node` +
- * `npm --version` recorded by `scripts/audit/p0-baseline.sh`.
+ * Bin note (ADR D2-a, owner decision 2026-06-15): the published `@usetheo/memory`
+ * is a LIBRARY and ships NO standalone bin in the pre-release src-only stage — the
+ * `themory` CLI is delivered via the Docker image (which carries the built dist),
+ * not via `npx @usetheo/memory`. So there is no bin-entry assertion here (revisit at
+ * v1.0 if compiled artifacts + an npm bin are shipped).
  *
- * @see .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-plan.md § T2.3
+ * Runs `npm pack` with `cwd = packages/core`, so tarball paths are package-relative.
+ *
+ * EC-12: tolerant `toBeGreaterThanOrEqual(N)` assertions so npm version drift does
+ * not false-fail.
+ *
+ * @see .claude/knowledge-base/plans/complete-workspace-publish-topology-plan.md § T1 + ADR D1/D2
  */
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +29,9 @@ import { describe, expect, test } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..', '..');
+const PACKAGE_DIR = join(REPO_ROOT, 'packages', 'core');
+const NPM_BIN = '<HOME>/.nvm/versions/node/v20.19.2/bin/npm';
+const NPM = existsSync(NPM_BIN) ? NPM_BIN : 'npm';
 
 interface PackFileEntry {
   readonly path: string;
@@ -39,8 +48,8 @@ interface PackResult {
 }
 
 function runPackDryRun(): PackResult {
-  const result = spawnSync('npm', ['pack', '--dry-run', '--json'], {
-    cwd: REPO_ROOT,
+  const result = spawnSync(NPM, ['pack', '--dry-run', '--json'], {
+    cwd: PACKAGE_DIR,
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -54,7 +63,7 @@ function runPackDryRun(): PackResult {
   return parsed[0]!;
 }
 
-describe('T2.3 — npm pack --dry-run manifest', () => {
+describe('npm pack --dry-run manifest (@usetheo/memory = packages/core, src-only)', () => {
   const pack = runPackDryRun();
   const paths = pack.files.map((f) => f.path);
 
@@ -63,22 +72,21 @@ describe('T2.3 — npm pack --dry-run manifest', () => {
     expect(pack.files.length).toBeGreaterThanOrEqual(100);
   });
 
-  test('2. pack manifest ships package.json + README.md (publish hygiene)', () => {
+  test('2. pack manifest ships package.json (publish hygiene)', () => {
     expect(paths).toContain('package.json');
-    expect(paths).toContain('README.md');
   });
 
-  test('3. pack manifest ships >= 100 packages/**/*.ts entries', () => {
-    const srcTs = paths.filter((p) => p.startsWith('packages/') && p.endsWith('.ts'));
+  test('3. pack manifest ships >= 100 src/**/*.ts entries (package-relative)', () => {
+    const srcTs = paths.filter((p) => p.startsWith('src/') && p.endsWith('.ts'));
     expect(srcTs.length).toBeGreaterThanOrEqual(100);
   });
 
-  test('4. fixes-cycle-1 F-dom-api-3 — pack manifest ships EVERY src/local/migrations/*.sql file (behavioral floor)', () => {
-    const migrationsDir = join(REPO_ROOT, 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
+  test('4. pack manifest ships EVERY migrations *.sql file (behavioral floor)', () => {
+    const migrationsDir = join(PACKAGE_DIR, 'src', 'infrastructure', 'db', 'migrations');
     const expectedSql = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
     expect(expectedSql.length, 'sanity — at least one .sql file in source migrations dir').toBeGreaterThan(0);
     for (const sqlFile of expectedSql) {
-      expect(paths).toContain(`packages/core/src/infrastructure/db/migrations/${sqlFile}`);
+      expect(paths).toContain(`src/infrastructure/db/migrations/${sqlFile}`);
     }
   });
 
@@ -97,14 +105,7 @@ describe('T2.3 — npm pack --dry-run manifest', () => {
     expect(typeTestLeaks, `Type-test leaks: ${typeTestLeaks.join(', ')}`).toHaveLength(0);
   });
 
-  test('8. pack manifest ships dist/agent-tools/cli.js (bin entry)', () => {
-    // package.json#bin points themory + themory-mcp at dist/agent-tools/cli.js;
-    // the file MUST ship in the published artifact (T3.3 MCP boot test depends
-    // on this — fresh npm install MUST resolve the bin).
-    expect(paths).toContain('dist/agent-tools/cli.js');
-  });
-
-  test('9. pack name + version are well-formed (publishing sanity)', () => {
+  test('8. pack name is the publishable package + version well-formed', () => {
     expect(pack.name).toBe('@usetheo/memory');
     expect(typeof pack.version).toBe('string');
     expect(pack.version.length).toBeGreaterThan(0);
