@@ -152,9 +152,11 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 **Security** — Bearer auth (`THEMEMORY_API_KEY`), rate limiting (30 writes/min, 100 reads/min), CORS, 1 MB body cap, OIDC bridge for multi-tenant.
 
-## MCP Server
+## Agent loops via MCP
 
-Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor, and any [MCP](https://modelcontextprotocol.io)-compatible agent.
+Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor, and any [MCP](https://modelcontextprotocol.io)-compatible agent. The MCP server wires the **real** providers (`LocalTransformerEmbedder` + `OpenAILLM`) — there are **no stubs in production path**, so `OPENAI_API_KEY` is required at boot.
+
+Add `themory` to your project-local `.mcp.json` (Claude Code reads this file from the repo root — see [`.mcp.json.example`](./.mcp.json.example)):
 
 ```json
 {
@@ -170,6 +172,8 @@ Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor,
   }
 }
 ```
+
+`OPENAI_BASE_URL` is honored for OpenAI-compatible gateways — e.g. point at OpenRouter with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to use the free local-embedder + an OpenRouter chat model.
 
 **Tools:** `remember` · `recall` · `forget` · `reflect`
 **Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEMEMORY_API_KEY` is set)
@@ -187,7 +191,14 @@ docker run -p 8080:8080 \
 
 Also available from GHCR: `docker pull ghcr.io/usetheo/themory:0.2.0`
 
-Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in.
+Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
+
+```bash
+# Apply migrations (or `health`) against the distroless image
+docker run --rm --entrypoint /nodejs/bin/node \
+  -e THEOMEM_PG_URI=postgres://... \
+  usetheo/themory:0.2.0 /app/dist/agent-tools/cli.js migrate
+```
 
 ## CLI
 
@@ -197,15 +208,21 @@ themory mcp                         # Start MCP server
 themory migrate                     # Apply pending migrations
 themory health --deep               # Probe embedder + LLM + DB
 
-themory remember 'Likes espresso' --user alice
-themory recall 'coffee' --user alice --top-k 5
-themory forget <id> --hard
-themory reflect --user alice
-
 themory keys create --name app --scope memory:read,memory:write
 themory keys list
 themory keys revoke <id>
 themory keys rotate <id>
+```
+
+## CLI verbs
+
+The four memory verbs are first-class subcommands — `remember`, `recall`, `forget`, `reflect`:
+
+```bash
+themory remember 'Likes espresso' --user alice
+themory recall 'coffee' --user alice --top-k 5
+themory forget <id> --hard
+themory reflect --user alice
 ```
 
 ### API Key Rotation

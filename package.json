@@ -15,11 +15,12 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
     "prebuild:clean": "node -e \"const{rmSync}=require('node:fs');rmSync('dist',{recursive:true,force:true});\"",
-    "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases",
+    "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases && npm run build:core",
+    "build:core": "node -e \"require('node:fs').rmSync('packages/core/dist',{recursive:true,force:true})\" && tsc -p packages/core/tsconfig.build.json && node -e \"const{cpSync,existsSync}=require('node:fs');const s='packages/core/src/infrastructure/db/migrations',d='packages/core/dist/infrastructure/db/migrations';if(existsSync(s)){cpSync(s,d,{recursive:true});console.error('[core] migrations copied to '+d);}\"",
     "postbuild:rewrite-aliases": "node scripts/rewrite-dist-aliases.mjs",
     "postbuild:move-cli": "node -e \"const{renameSync,rmSync,existsSync}=require('node:fs');const s='dist/cli/src',d='dist/agent-tools';if(existsSync(s)){if(existsSync(d))rmSync(d,{recursive:true});renameSync(s,d);try{require('node:fs').rmdirSync('dist/cli')}catch{};console.error('CLI moved to dist/agent-tools/')}\"",
     "prepack": "npm run build",
-    "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');if(existsSync('packages/core/src/infrastructure/db/migrations')){mkdirSync('dist/infrastructure/db/migrations',{recursive:true});cpSync('packages/core/src/infrastructure/db/migrations','dist/infrastructure/db/migrations',{recursive:true});console.log('migrations copied to dist/infrastructure/db/migrations');}\"",
+    "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const dest='dist/core/src/infrastructure/db/migrations';if(existsSync('packages/core/src/infrastructure/db/migrations')){mkdirSync(dest,{recursive:true});cpSync('packages/core/src/infrastructure/db/migrations',dest,{recursive:true});console.error('migrations copied to '+dest);}\"",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
     "lint": "eslint 'packages/core/src/**/*.ts' 'packages/api/src/**/*.ts' 'packages/cli/src/**/*.ts' 'packages/agent-core/src/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
@@ -42,6 +43,8 @@
   "dependencies": {
     "@usetheo/memory": "workspace:*",
     "@usetheo/memory-api": "workspace:*",
+    "@xenova/transformers": "^2.17.2",
+    "openai": "^4.77.0",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-openapi": "^0.18.0",
     "@opentelemetry/api": "^1.9.0",

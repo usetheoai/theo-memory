@@ -55,7 +55,9 @@ describe.skipIf(!hasDockerCompose() || !existsSync(COMPOSE_FILE))(
       });
       expect(result.status).toBe(0);
       // Default version interpolation must surface in resolved output.
-      expect(result.stdout).toMatch(/ghcr\.io\/usetheo\/themory:\S+/);
+      // Docker Hub is now the primary registry (THEMORY_IMAGE default
+      // `usetheo/themory:<version>`); GHCR is the documented alternative.
+      expect(result.stdout).toMatch(/usetheo\/themory:\S+/);
     }, 15_000);
 
     test('44. compose declares pgvector + themory services with healthchecks', () => {
