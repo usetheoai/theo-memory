@@ -12,7 +12,7 @@ const BARREL = resolve(REPO_ROOT, 'src', 'domain', 'index.ts');
 interface PackageJsonShape {
   readonly exports?: Record<
     string,
-    { readonly types?: string; readonly development?: string; readonly default?: string | null }
+    { readonly types?: string; readonly default?: string | null }
   >;
 }
 
@@ -34,8 +34,9 @@ describe('EC-3 — package.json#exports./contract.default is NOT null', () => {
     expect(contractEntry?.default).not.toBeNull();
     expect(typeof contractEntry?.default).toBe('string');
     // Dual-build (consumer-DX fix): runtime `default` resolves to the built dist
-    // JS so Node-SSR consumers (TheoKit/Next) can load it; `development` keeps
-    // the live src for vitest/dev. `types` is the emitted .d.ts.
+    // JS so Node-SSR consumers (TheoKit/Next) can load it; `types` is the
+    // emitted .d.ts. The test suites still exercise live src via the vitest
+    // `resolve.alias` blocks (NOT a package.json `development` export condition).
     expect(contractEntry?.default).toMatch(/^\.\/dist\/domain\/index\.js$/);
   });
 

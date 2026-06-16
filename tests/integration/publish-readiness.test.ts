@@ -7,21 +7,27 @@
  * NOT the publish target. This gate therefore targets `packages/core/package.json` and runs
  * `npm pack` with `cwd = packages/core` (tarball paths are package-relative).
  *
- * Publish model (ADR D1 of `complete-workspace-publish-topology`, owner decision 2026-06-15):
- * **src-only** for the pre-release stage — the package ships its TypeScript source under
- * `src/` + SQL migrations, excludes test artifacts; exports resolve to the `src/` tree.
+ * Publish model (owner decision 2026-06-15 "Shipar dist JS", SUPERSEDES ADR D1-a src-only of
+ * `complete-workspace-publish-topology`): the package ships the BUILT `dist/**` (JS + .d.ts +
+ * sourcemaps + the copied drizzle migrations) as the runtime entry — `exports`/`types` resolve
+ * to `dist`, so Node-SSR consumers (TheoKit/Next/Vite-SSR) can load it (raw .ts is unresolvable
+ * once a bundler externalizes the dep). It ALSO keeps `src/**` (+ src migrations) for sourcemap
+ * navigation. Test artifacts are excluded.
  *
- * 7 assertions:
+ * 8 assertions:
  *   1. publishable package is NOT `private`.
- *   2. `files` allow-list is EXACTLY the src-only set (exact-match, not loose `.some(includes)` —
- *      restores the rigor lost in the test migration, review F-tests-2).
+ *   2. `files` allow-list is EXACTLY the dist+src shipping set (exact-match, not loose
+ *      `.some(includes)` — restores the rigor lost in the test migration, review F-tests-2).
  *   3. declares a `publish:check` script (the gate).
  *   4. `npm run publish:check` (in packages/core) exits 0.
  *   5. packed tarball EXCLUDES __tests__ / *.test.ts / *.test-d.ts.
  *   6. packed tarball POSITIVELY INCLUDES the embedders/llms stub source by name.
- *   7. packed tarball POSITIVELY INCLUDES every source file backing a declared `exports` entry.
+ *   7. packed tarball POSITIVELY INCLUDES every dist file backing a declared `exports` entry.
+ *   8. packed tarball ships the dist drizzle migrations (meta/_journal.json + >=1 *.sql) so
+ *      `runMigrations()` resolves the journal from the published dist (the dist runner reads
+ *      `migrations/` next to itself, NOT the src tree). Regression guard for the consumer-DX fix.
  *
- * @see .claude/knowledge-base/plans/complete-workspace-publish-topology-plan.md § ADR D1 + T1
+ * @see .claude/knowledge-base/plans/completed/complete-workspace-publish-topology-plan.md § ADR D1 (SUPERSEDED)
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -75,6 +81,8 @@ describe('package.json — publishable shape (@usetheo/memory = packages/core)',
       'dist/**/*.js',
       'dist/**/*.d.ts',
       'dist/**/*.map',
+      'dist/**/*.sql',
+      'dist/infrastructure/db/migrations/meta/**',
       'src/**/*.ts',
       '!src/**/__tests__/**',
       '!src/**/*.test.ts',
@@ -130,4 +138,21 @@ describe('publish-readiness — gate executable (cwd = packages/core)', () => {
       );
     }
   }, 30_000);
+
+  test.skipIf(!HAS_NPM)(
+    'tarball ships the dist drizzle migrations (journal + >=1 *.sql) so runMigrations resolves at runtime',
+    () => {
+      // The dist migrations-runner resolves `migrations/` next to itself
+      // (dirname(import.meta.url)/migrations) — i.e. dist/infrastructure/db/
+      // migrations/, NOT the src tree. If the journal + SQL are not in the
+      // tarball, a published consumer's runMigrations() throws "Can't find
+      // meta/_journal.json". Regression guard for the consumer-DX dist-shipping
+      // fix (the build copies them; the files allow-list must ship them).
+      const paths = [...packedPaths()];
+      expect(paths).toContain('dist/infrastructure/db/migrations/meta/_journal.json');
+      const distSql = paths.filter((p) => /^dist\/.*\.sql$/.test(p));
+      expect(distSql.length).toBeGreaterThanOrEqual(1);
+    },
+    60_000,
+  );
 });

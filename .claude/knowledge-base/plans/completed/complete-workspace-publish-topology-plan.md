@@ -70,6 +70,8 @@ The pre-reorg package shipped **src + dist** from a single root package. After t
 
 Recommendation: **D1-a (src-only)** for the pre-release stage (lowest risk, matches `exports`), revisiting D1-b at v1.0 when compiled artifacts matter. Owner confirms.
 
+> **SUPERSEDED 2026-06-15 by owner decision "Shipar dist JS" → effectively D1-b (per-package build).** D1-a (src-only) made the published `@usetheo/memory` UNRESOLVABLE by Node-SSR consumers (TheoKit/Next/Vite-SSR): a bundler externalizes the dep and Node cannot execute raw `.ts`, so `import "@usetheo/memory"` failed with `Failed to resolve entry for package`. The package now ships built `dist/**` (per-package `tsconfig.build.json` + `build:core` chained into the root build + a `packages/core` `prepack`); `exports`/`types` point at `dist`; the drizzle migrations are copied into `dist` and shipped so `runMigrations()` resolves the journal at runtime; vitest aliases map every subpath back to `src` so the suites still exercise live source. See commit `e1ed41d` + its `/review` (NEEDS_FIXES → fixed: dist migrations now in `files`) + CHANGELOG § Fixed "unresolvable by Node-SSR consumers".
+
 ### ADR D2 — Where the `themory` bin lives in the published package (OWNER DECISION REQUIRED, depends on D1)
 
 The `themory` bin currently points at `./dist/agent-tools/cli.js` from the PRIVATE root. The published `@usetheo/memory` has no bin. Options: (D2-a) move the bin to `packages/core/package.json#bin` pointing at the cli entry shipped within core; (D2-b) publish `@usetheo/memory-cli` as a second public package carrying the bin; (D2-c) src-only + a `bin` shim that runs the TS entry via a thin JS loader. Coupled to D1.
