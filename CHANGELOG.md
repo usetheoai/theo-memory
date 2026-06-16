@@ -6,8 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.3.0] - 2026-06-16
+
+### Added
+
 - **theocloud-release-and-docker-rebuild** T2.2 — CI workflow dual-publishes Docker images to Docker Hub (`usetheo/themory`) and GHCR (`ghcr.io/usetheo/themory`) on tag push. Stable tags (x.y.z + x.y + latest) go to both registries; `edge` tag goes to GHCR only per ADR D2. Single combined push step ensures both registries receive the exact image digest Trivy scanned (EC-2).
 - **theocloud-release-and-docker-rebuild** T3.1 — API key rotation procedure documented in README: zero-downtime create-then-revoke pattern + atomic `themory keys rotate <id>`.
+
 
 ### Changed
 
@@ -23,9 +38,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **theocloud-release-and-docker-rebuild** T3.2 — README Docker section leads with Docker Hub (`docker pull usetheo/themory:0.2.0`); GHCR noted as alternative. All `0.1.0-alpha` references removed from README and Dockerfile.
 - **cross-validation-roadmap** — Roadmap (README + CLAUDE.md) extended with 5 post-P0 backlog items derived from the `/loop-cross-validation` run against `the reference project` (2026-06-15): agentic tool-use + injection sandbox, layered config + `themory config`, optional cross-encoder reranker DIP, embedder registry + more providers, ingest robustness. All FROZEN under PRIORITY 0 (Inquebrável Rule 10) — documented for traceability, not active work. Two in-scope hardening candidates also flagged (`packages/mcp` build breakage; test-pyramid + dead-error audit). Watcher daemon explicitly discarded.
 
-### Deprecated
-
-### Removed
 
 ### Fixed
 
@@ -37,8 +49,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **extract-cli-to-packages** — `themory` CLI now boots under plain Node after build (closes the plan's `themory --help após build` goal criterion, broken by the workspace reorg). Two defects: (1) `tsc`-emitted bare `@usetheo/*` specifiers in `dist/**` resolved through the workspace symlink back to TypeScript source (`ERR_MODULE_NOT_FOUND: packages/mcp/src/server.js`) — fixed by a `postbuild:rewrite-aliases` step (`scripts/rewrite-dist-aliases.mjs`) rewriting them to relative dist paths; (2) the CLI router statically imported the optional-dependency-backed `LocalTransformerEmbedder` (@xenova/transformers) + `OpenAILLM` (openai), so `themory --help` required those optional deps installed — fixed by lazy-importing them at the single construction site (`wireMemoryFromPool`). Also removed the vestigial broken `themory-mcp` bin from the private `@usetheo/memory-mcp` package (root package already provides it). Regression guard: `tests/integration/p0-audit/cli-dist-boot-envfree.test.ts`.
 - **code-quality D2 workspace-awareness** ([ADR-0016](.claude/knowledge-base/adrs/ADR-0016-code-quality-d2-workspace-awareness.md)) — the `/code-quality` symbol-fabrication detector now recognizes all local pnpm/npm workspace package names as first-party, so sibling workspace imports (`@usetheo/memory-api`, `@usetheo/memory-mcp`, `@usetheo/memory/*` subpaths) are no longer false-flagged as fabricated npm packages. Closes a `FAIL_HARD` false positive (provably wrong: green typecheck + 930 passing tests import them) that blocked `/review` of the workspace reorg. Stable identifier unchanged; no enforcement softened. Regression guard: `test_typescript_symbol_fab_skips_pnpm_workspace_packages`.
 - **code-review-fixes-v0-2-1** — 15 fixes from FAANG-style code review: defense-in-depth guard on `applyDimChange` DDL (CWE-89), rate limiter SHA-256 token hashing (CWE-200), streamable HTTP error sanitization (CWE-209), LLM network vs parse error differentiation in extraction pipeline, zero-dim vector OTel event, history persist failure logging, admin-keys `pool.connect()` transaction safety (ADR D1/EC-3), OIDC cache LRU eviction, atomic `bumpReflectionCounter` upsert (ADR D5), rate limiter bucket eviction, reflection policies re-exported from root barrel, bearer auth verifier hoisted to construction time, 3 new OTel events (`extraction_parse_failure`, `embed_zero_dim_skipped`, `history_persist_failed`)
-
-### Security
 
 ## [0.1.0] - 2026-06-09
 
