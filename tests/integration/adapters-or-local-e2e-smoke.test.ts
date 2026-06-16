@@ -17,7 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { ManualReflectionPolicy, createLocalMemory } from '@usetheo/memory';
+import { createLocalMemory } from '@usetheo/memory';
 import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 import { PgvectorStore } from '@usetheo/memory';
@@ -71,7 +71,7 @@ describe.skipIf(ROOT_PG_URI === '' || OPENROUTER_KEY === '')(
         embedder: new LocalTransformerEmbedder(),
         llm: new OpenAILLM(),
         vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
-        reflectionPolicy: new ManualReflectionPolicy(),
+        reflectionPolicy: { kind: 'manual' },
         embeddingDim: 384,
       });
 
@@ -79,8 +79,9 @@ describe.skipIf(ROOT_PG_URI === '' || OPENROUTER_KEY === '')(
         .user(TEST_USER)
         .remember('Eu gosto de café preto sem açúcar pela manhã.');
 
-      // The 6-phase pipeline ran end-to-end; at least one fact was extracted.
-      expect(writeResult.facts.length).toBeGreaterThanOrEqual(1);
+      // The write pipeline ran end-to-end; at least one fact was extracted.
+      // remember() returns the persisted MemoryItem[] directly (not { facts }).
+      expect(writeResult.length).toBeGreaterThanOrEqual(1);
 
       // SQL probe: the row landed with vector(384) embedding.
       const probe = await pool.query<{ dim: number; user_id: string }>(

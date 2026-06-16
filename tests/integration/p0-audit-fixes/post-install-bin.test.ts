@@ -103,7 +103,15 @@ let extractDir = '';
 let packResult: PackResult | undefined;
 let extractedPackageDir = '';
 
-describe.skipIf(!DIST_EXISTS || !NPM_AVAILABLE || !TAR_AVAILABLE)(
+// SKIP (integration-suite-stabilization): this sentinel asserts the pre-reorg
+// single-package model where the published npm tarball shipped the dist CLI +
+// `dist/local/migrations/**`. Post-reorg the published package is `packages/core`
+// (src-only `files` allow-list, no dist) and the CLI ships via Docker, NOT npm
+// (complete-workspace-publish-topology ADR D1-a src-only + D2-a no-npm-bin). The
+// dist-in-tarball assertions are obsolete; tracked with that publish-topology
+// follow-up. (Production migrate path is covered by dim-change.test.ts + the
+// `themory migrate` dist-boot fix.)
+describe.skip(
   'T0.1 — post-install bin contract sentinel',
   () => {
     beforeAll(() => {

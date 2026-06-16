@@ -194,8 +194,12 @@ export const memories = pgTable(
       // EC-1 absorption (plan v1.1): name verbatim, cited by
       // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
       'memories_kind_derived_from_check',
+      // NOTE: the `derived` branch requires `derived_from IS NOT NULL` explicitly.
+      // Without it, `jsonb_array_length(NULL) >= 1` evaluates to NULL, the whole
+      // CHECK evaluates to NULL, and Postgres ADMITS the row (CHECK only rejects
+      // on FALSE) — so `kind='derived'` with `derived_from=NULL` slipped through.
       sql`(${table.kind} = 'extracted' AND ${table.derivedFrom} IS NULL)
-       OR (${table.kind} = 'derived' AND jsonb_array_length(${table.derivedFrom}) >= 1)
+       OR (${table.kind} = 'derived' AND ${table.derivedFrom} IS NOT NULL AND jsonb_array_length(${table.derivedFrom}) >= 1)
        OR (${table.kind} = 'skill' AND (${table.derivedFrom} IS NULL OR jsonb_array_length(${table.derivedFrom}) >= 1))`,
     ),
   ],

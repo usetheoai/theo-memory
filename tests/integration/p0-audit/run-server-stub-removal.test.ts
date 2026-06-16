@@ -32,7 +32,7 @@ const RUN_SERVER_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'run-server.ts
 const AGENT_TOOLS_MEMORY_PATH = join(
   REPO_ROOT,
   'packages',
-  'cli',
+  'agent-core',
   'src',
   'agent-tools-memory.ts',
 );
@@ -58,12 +58,15 @@ describe('T3.2 — REST server stub removal (post-fix-cycle-2 ADR D4 locus updat
   //    verbs-as-cli-fixes-cycle-2. The 3 callers (CLI factory + MCP + REST)
   //    delegate to that single helper. Sentinels updated accordingly.
 
-  test('3. agent-tools-memory.ts imports LocalTransformerEmbedder (single source of truth)', () => {
-    expect(agentToolsMemory).toMatch(/import\b.*\bLocalTransformerEmbedder\b/);
+  test('3. agent-tools-memory.ts references LocalTransformerEmbedder (single source of truth)', () => {
+    // The import is now a LAZY dynamic import (`const [{ LocalTransformerEmbedder }]
+    // = await Promise.all([import('@usetheo/memory/embedders/local')])`) so the
+    // symbol and the `import(` keyword land on different lines — match the symbol.
+    expect(agentToolsMemory).toMatch(/\bLocalTransformerEmbedder\b/);
   });
 
-  test('4. agent-tools-memory.ts imports OpenAILLM (single source of truth)', () => {
-    expect(agentToolsMemory).toMatch(/import\b.*\bOpenAILLM\b/);
+  test('4. agent-tools-memory.ts references OpenAILLM (single source of truth)', () => {
+    expect(agentToolsMemory).toMatch(/\bOpenAILLM\b/);
   });
 
   test('5. run-server.ts hard-fails on missing OPENAI_API_KEY (via assertEnvOrExit boundary)', () => {

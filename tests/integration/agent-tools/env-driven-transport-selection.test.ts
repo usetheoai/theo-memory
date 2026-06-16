@@ -47,9 +47,9 @@ vi.mock('@usetheo/memory', async () => {
   return { ...actual, runMigrations: mockRunMigrations };
 });
 
-vi.mock('../../../packages/cli/src/agent-tools-memory.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../packages/cli/src/agent-tools-memory.js')>(
-    '../../../packages/cli/src/agent-tools-memory.js',
+vi.mock('../../../packages/agent-core/src/agent-tools-memory.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../packages/agent-core/src/agent-tools-memory.js')>(
+    '../../../packages/agent-core/src/agent-tools-memory.js',
   );
   return { ...actual, wireMemoryFromPool: mockWireMemoryFromPool };
 });
