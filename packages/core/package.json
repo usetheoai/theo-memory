@@ -5,6 +5,11 @@
   "type": "module",
   "license": "Apache-2.0",
   "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.map",
+    "dist/**/*.sql",
+    "dist/infrastructure/db/migrations/meta/**",
     "src/**/*.ts",
     "!src/**/__tests__/**",
     "!src/**/*.test.ts",
@@ -12,52 +17,54 @@
     "src/infrastructure/db/migrations/**"
   ],
   "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node -e \"const{cpSync,existsSync}=require('node:fs');const s='src/infrastructure/db/migrations',d='dist/infrastructure/db/migrations';if(existsSync(s)){cpSync(s,d,{recursive:true});console.error('[core] migrations copied to '+d);}\"",
+    "prepack": "npm run build",
     "publish:check": "npm pack --dry-run"
   },
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./contract": {
-      "types": "./src/domain/index.ts",
-      "default": "./src/domain/index.ts"
+      "types": "./dist/domain/index.d.ts",
+      "default": "./dist/domain/index.js"
     },
     "./theokit": {
-      "types": "./src/infrastructure/theokit/index.ts",
-      "default": "./src/infrastructure/theokit/index.ts"
+      "types": "./dist/infrastructure/theokit/index.d.ts",
+      "default": "./dist/infrastructure/theokit/index.js"
     },
     "./embedders": {
-      "types": "./src/infrastructure/embedders/index.ts",
-      "default": "./src/infrastructure/embedders/index.ts"
+      "types": "./dist/infrastructure/embedders/index.d.ts",
+      "default": "./dist/infrastructure/embedders/index.js"
     },
     "./embedders/stub": {
-      "types": "./src/infrastructure/embedders/stub.ts",
-      "default": "./src/infrastructure/embedders/stub.ts"
+      "types": "./dist/infrastructure/embedders/stub.d.ts",
+      "default": "./dist/infrastructure/embedders/stub.js"
     },
     "./embedders/openai": {
-      "types": "./src/infrastructure/embedders/openai.ts",
-      "default": "./src/infrastructure/embedders/openai.ts"
+      "types": "./dist/infrastructure/embedders/openai.d.ts",
+      "default": "./dist/infrastructure/embedders/openai.js"
     },
     "./embedders/local": {
-      "types": "./src/infrastructure/embedders/local.ts",
-      "default": "./src/infrastructure/embedders/local.ts"
+      "types": "./dist/infrastructure/embedders/local.d.ts",
+      "default": "./dist/infrastructure/embedders/local.js"
     },
     "./llms": {
-      "types": "./src/infrastructure/llms/index.ts",
-      "default": "./src/infrastructure/llms/index.ts"
+      "types": "./dist/infrastructure/llms/index.d.ts",
+      "default": "./dist/infrastructure/llms/index.js"
     },
     "./llms/stub": {
-      "types": "./src/infrastructure/llms/stub.ts",
-      "default": "./src/infrastructure/llms/stub.ts"
+      "types": "./dist/infrastructure/llms/stub.d.ts",
+      "default": "./dist/infrastructure/llms/stub.js"
     },
     "./llms/openai": {
-      "types": "./src/infrastructure/llms/openai.ts",
-      "default": "./src/infrastructure/llms/openai.ts"
+      "types": "./dist/infrastructure/llms/openai.d.ts",
+      "default": "./dist/infrastructure/llms/openai.js"
     },
     "./cache-pg": {
-      "types": "./src/infrastructure/db/recall-cache/index.ts",
-      "default": "./src/infrastructure/db/recall-cache/index.ts"
+      "types": "./dist/infrastructure/db/recall-cache/index.d.ts",
+      "default": "./dist/infrastructure/db/recall-cache/index.js"
     }
   },
   "engines": {

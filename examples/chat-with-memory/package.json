@@ -17,7 +17,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "@theokit/sdk": "^1.5.0",
     "@theokit/ui": "^0.14.2",
-    "@usetheo/memory": "file:../..",
+    "@usetheo/memory": "file:../../packages/core",
     "better-sqlite3": "^12.10.0",
     "hast-util-from-html": "^2.0.3",
     "hast-util-sanitize": "^5.0.2",

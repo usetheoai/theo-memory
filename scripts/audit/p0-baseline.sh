@@ -61,7 +61,12 @@ else
 fi
 
 # EC-1 absorption sentinel: plan file contains ## Dependencies header (Python-truthy literal).
+# The plan moves to plans/completed/ once its PR merges (audit-trail-rotation policy),
+# so check both the active and the completed locations.
 PLAN_FILE=".claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-plan.md"
+if [ ! -f "$PLAN_FILE" ]; then
+  PLAN_FILE=".claude/knowledge-base/plans/completed/p0-api-sdk-mcp-correctness-audit-plan.md"
+fi
 if [ -f "$PLAN_FILE" ] && grep -qE '^## Dependencies$' "$PLAN_FILE"; then
   DEPENDENCIES_SECTION_PRESENT="True"
 else

@@ -20,7 +20,11 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import * as schema from '@usetheo/memory';
+// Import schema.ts DIRECTLY (not the public `@usetheo/memory` barrel, which
+// intentionally re-exports only a subset of tables — memories/entities/history).
+// This sentinel verifies every pgTable DECLARED in schema.ts has a snapshot and
+// vice-versa, so it must see the full declaration module.
+import * as schema from '../../packages/core/src/infrastructure/db/schema.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..');

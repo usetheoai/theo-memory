@@ -10,7 +10,10 @@ const PACKAGE_JSON = resolve(REPO_ROOT, 'package.json');
 const BARREL = resolve(REPO_ROOT, 'src', 'domain', 'index.ts');
 
 interface PackageJsonShape {
-  readonly exports?: Record<string, { readonly types?: string; readonly default?: string | null }>;
+  readonly exports?: Record<
+    string,
+    { readonly types?: string; readonly default?: string | null }
+  >;
 }
 
 function readPackageJson(): PackageJsonShape {
@@ -30,27 +33,32 @@ describe('EC-3 — package.json#exports./contract.default is NOT null', () => {
     expect(contractEntry).toBeDefined();
     expect(contractEntry?.default).not.toBeNull();
     expect(typeof contractEntry?.default).toBe('string');
-    expect(contractEntry?.default).toMatch(/^\.\/src\/domain\/index\.ts$/);
+    // Dual-build (consumer-DX fix): runtime `default` resolves to the built dist
+    // JS so Node-SSR consumers (TheoKit/Next) can load it; `types` is the
+    // emitted .d.ts. The test suites still exercise live src via the vitest
+    // `resolve.alias` blocks (NOT a package.json `development` export condition).
+    expect(contractEntry?.default).toMatch(/^\.\/dist\/domain\/index\.js$/);
   });
 
-  test('package.json#exports./contract.types matches default (same TS file)', () => {
+  test('package.json#exports./contract types is the .d.ts and default is the dist .js', () => {
     const pkg = readPackageJson();
     const contractEntry = pkg.exports?.['./contract'];
-    expect(contractEntry?.types).toBe(contractEntry?.default);
+    expect(contractEntry?.types).toMatch(/^\.\/dist\/domain\/index\.d\.ts$/);
+    expect(contractEntry?.default).toMatch(/^\.\/dist\/domain\/index\.js$/);
   });
 
   test('package.json#exports./contract still resolves at v0.1 (backward-compat with v0.0 contract preview)', () => {
     const pkg = readPackageJson();
     const contractEntry = pkg.exports?.['./contract'];
     expect(contractEntry).toBeDefined();
-    expect(contractEntry?.default).toBe('./src/domain/index.ts');
+    expect(contractEntry?.default).toBe('./dist/domain/index.js');
   });
 
   test('package.json has "." entry in exports (T7.2 of v0-1-local-runtime landed it)', () => {
     const pkg = readPackageJson();
     expect(pkg.exports).toBeDefined();
     expect(Object.keys(pkg.exports ?? {})).toContain('.');
-    expect(pkg.exports?.['.']?.default).toBe('./src/index.ts');
+    expect(pkg.exports?.['.']?.default).toBe('./dist/index.js');
   });
 });
 
