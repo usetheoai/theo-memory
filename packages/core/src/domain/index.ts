@@ -135,6 +135,14 @@ export {
  * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.1
  */
 export type { Principal, Workspace } from './principal.js';
+
+/**
+ * `DEFAULT_WORKSPACE_ID` is the stable id of the workspace every legacy /
+ * no-credential request collapses to (ADR D7); `makeVerifyShim` builds the
+ * backward-compatible boolean `verify` from `resolvePrincipal` (ADR D2).
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.1 + ADR D2/D7
+ */
 export { DEFAULT_WORKSPACE_ID, makeVerifyShim } from './principal.js';
 
 /**
