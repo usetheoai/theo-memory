@@ -168,7 +168,11 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
   const parts: string[] = [];
   const params: (string | number | boolean | null)[] = [];
   let idx = startParamIndex;
-  for (const col of ['user_id', 'session_id', 'agent_id'] as const) {
+  // multi-tenant-workspace-isolation T1.1 (ADR D1/D4): workspace_id is the OUTER
+  // tenant anchor — composed FIRST so the (workspace_id, <scope>) hot-path index
+  // (migration 0016) is usable. Filters when present; the REST path always
+  // supplies it via ScopedFilters, so a scoped query is never workspace-unscoped.
+  for (const col of ['workspace_id', 'user_id', 'session_id', 'agent_id'] as const) {
     const value = filters[col];
     if (value === undefined) {
       continue;
@@ -354,6 +358,11 @@ export class PgvectorStore implements VectorStore {
       const payload = payloads[i] as Payload;
       const text = String(payload['text'] ?? '');
       const hash = String(payload['hash'] ?? id);
+      // multi-tenant-workspace-isolation T1.1: hoist workspace_id from payload to
+      // column, same pattern as user_id. Defaults to 'default' (the no-credential
+      // collapse target, ADR D7) so SDK/unit callers that don't bind a workspace
+      // land in the default tenant rather than a NULL violation.
+      const workspaceId = (payload['workspace_id'] as string | undefined) ?? 'default';
       const userId = (payload['user_id'] as string | undefined) ?? null;
       const sessionId = (payload['session_id'] as string | undefined) ?? null;
       const agentId = (payload['agent_id'] as string | undefined) ?? null;
@@ -371,13 +380,14 @@ export class PgvectorStore implements VectorStore {
       const cleanedPayload: Payload = { ...payload };
       delete cleanedPayload['text'];
       delete cleanedPayload['hash'];
+      delete cleanedPayload['workspace_id'];
       delete cleanedPayload['user_id'];
       delete cleanedPayload['session_id'];
       delete cleanedPayload['agent_id'];
       delete cleanedPayload['attributed_to'];
       delete cleanedPayload['category'];
       values.push(
-        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`,
+        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`,
       );
       params.push(
         id,
@@ -385,6 +395,7 @@ export class PgvectorStore implements VectorStore {
         hash,
         vectorLiteral(vec),
         JSON.stringify(cleanedPayload),
+        workspaceId,
         userId,
         sessionId,
         agentId,
@@ -407,9 +418,9 @@ export class PgvectorStore implements VectorStore {
     // Including category in the SET list would silently mutate operator-supplied
     // content on every re-remember (surprise + ADD-only violation).
     const sql = `
-      INSERT INTO memories (id, text, hash, embedding, payload, user_id, session_id, agent_id, attributed_to, category)
+      INSERT INTO memories (id, text, hash, embedding, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category)
       VALUES ${values.join(', ')}
-      ON CONFLICT (hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
+      ON CONFLICT (workspace_id, hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
       DO UPDATE SET confirmation_count = memories.confirmation_count + 1
       RETURNING id, confirmation_count, user_id, session_id, agent_id, (xmax = 0) AS inserted
     `;
@@ -670,20 +681,27 @@ export class PgvectorStore implements VectorStore {
     hash: string;
     embedding: readonly number[];
     derivedFrom: readonly string[];
-    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+    scope: {
+      workspaceId?: string | null;
+      userId?: string | null;
+      sessionId?: string | null;
+      agentId?: string | null;
+    };
   }): Promise<string> {
     // /review F-M15: dim guard symmetry — derived-memory write path also
     // routes through the same EmbeddingMismatch contract.
     this.assertEmbeddingDim(args.embedding, 'insertDerivedMemory');
+    // multi-tenant-workspace-isolation T1.1: a reflection-derived memory stays
+    // in its source workspace; default to 'default' (ADR D7) when unbound.
     const sql = `
       INSERT INTO memories (
         text, hash, embedding, payload,
-        user_id, session_id, agent_id,
+        workspace_id, user_id, session_id, agent_id,
         kind, derived_from
       ) VALUES (
         $1, $2, $3::vector, '{}'::jsonb,
-        $4, $5, $6,
-        'derived', $7::jsonb
+        $4, $5, $6, $7,
+        'derived', $8::jsonb
       )
       RETURNING id
     `;
@@ -691,6 +709,7 @@ export class PgvectorStore implements VectorStore {
       args.text,
       args.hash,
       vectorLiteral(args.embedding),
+      args.scope.workspaceId ?? 'default',
       args.scope.userId ?? null,
       args.scope.sessionId ?? null,
       args.scope.agentId ?? null,

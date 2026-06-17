@@ -157,4 +157,26 @@ export interface Filters {
    * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D5 + EC-3 + EC-9
    */
   readonly category?: string;
+  /**
+   * multi-tenant-workspace-isolation T1.1: the OUTER tenant anchor (ADR D1).
+   * When set, every store query filters by `workspace_id = :workspace_id` so a
+   * Principal only sees its own workspace's rows. Resolved from the credential's
+   * Principal (ADR D3), never the request body. The store insert hoists this
+   * into the `workspace_id` column (defaulting to `'default'` when omitted, the
+   * no-credential collapse target per ADR D7). The REST path carries it as a
+   * REQUIRED field via {@link ScopedFilters} (ADR D4 compile-time guard).
+   *
+   * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T1.1 + ADR D1/D3/D4
+   */
+  readonly workspace_id?: string;
 }
+
+/**
+ * multi-tenant-workspace-isolation T1.1 / ADR D4 — the REST/server-facing
+ * scoping contract. Identical to {@link Filters} but with `workspace_id`
+ * PROMOTED TO REQUIRED, so a handler that forgets to inject the Principal's
+ * workspace is a TypeScript COMPILE ERROR, not a silent unscoped query
+ * (closes the `composeFilters(undefined)` leak hole). The SDK-internal store
+ * path keeps the optional {@link Filters} for unit/in-memory use.
+ */
+export type ScopedFilters = Filters & { readonly workspace_id: string };

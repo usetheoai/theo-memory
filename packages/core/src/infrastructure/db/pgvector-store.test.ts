@@ -216,8 +216,10 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
 
     const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
     expect(insertCall).toBeDefined();
-    // Composite ON CONFLICT — 4-key tuple matching migration 0011 index expression.
-    expect(insertCall!.sql).toMatch(/ON CONFLICT \(hash, COALESCE\(user_id, ''\), COALESCE\(session_id, ''\), COALESCE\(agent_id, ''\)\)/);
+    // Composite ON CONFLICT — 5-key tuple matching migration 0016's index
+    // expression (multi-tenant-workspace-isolation EC-12: workspace_id leads so
+    // the same fact in two workspaces is two rows, not a cross-workspace bump).
+    expect(insertCall!.sql).toMatch(/ON CONFLICT \(workspace_id, hash, COALESCE\(user_id, ''\), COALESCE\(session_id, ''\), COALESCE\(agent_id, ''\)\)/);
     expect(insertCall!.sql).toMatch(/DO UPDATE SET confirmation_count = memories\.confirmation_count \+ 1/);
     // RETURNING projects (xmax = 0) AS inserted so the wrap site can branch.
     expect(insertCall!.sql).toMatch(/RETURNING.*\(xmax = 0\) AS inserted/);
