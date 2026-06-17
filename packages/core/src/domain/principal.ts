@@ -29,14 +29,48 @@ export interface Workspace {
 }
 
 /**
+ * A user's privilege WITHIN a workspace (the `workspace_users.role` enum).
+ * Orthogonal to {@link Principal.scopes} (the key's capability): `role` gates
+ * MEMBERSHIP management (who can add/remove members, mint keys), `scopes` gates
+ * data CAPABILITY (read/write/delete/admin). Resolved by LEFT JOINing
+ * `workspace_users`; a credential with no membership row resolves to the
+ * least-privileged `'member'` (default-deny).
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T0.1 + ADR D1
+ */
+export type WorkspaceRole = 'owner' | 'admin' | 'member';
+
+/**
+ * Ordinal privilege ranking — higher is more privileged. Used by
+ * {@link roleSatisfies} to answer "is this role at least as privileged as the
+ * minimum the route requires?".
+ */
+const ROLE_RANK: Record<WorkspaceRole, number> = { member: 0, admin: 1, owner: 2 };
+
+/**
+ * True when `role` is at least as privileged as `min`. `owner` satisfies every
+ * minimum; `member` satisfies only `member`. The gate that `requireRole(min)`
+ * and the key-mint anti-escalation guard both consult.
+ */
+export function roleSatisfies(role: WorkspaceRole, min: WorkspaceRole): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK[min];
+}
+
+/**
  * Resolved from a credential by {@link AuthVerifier.resolvePrincipal}. Carries
- * the tenant (`workspaceId`) and the capability set (`scopes`, mirroring the
- * `theo_api_keys.scopes` JSONB shape). `workspaceId` is injected server-side
- * into every scoped query and MUST NOT be taken from the request body (ADR D3).
+ * the tenant (`workspaceId`), the member the key acts as (`userId`, null for
+ * legacy keys), that member's workspace `role`, and the key's capability set
+ * (`scopes`, mirroring the `theo_api_keys.scopes` JSONB shape). `workspaceId`
+ * is injected server-side into every scoped query and MUST NOT be taken from
+ * the request body (ADR D3).
  */
 export interface Principal {
   /** The tenant the credential belongs to. */
   readonly workspaceId: string;
+  /** The member the credential acts as; `null` for a legacy key with no member. */
+  readonly userId: string | null;
+  /** The member's role in this workspace (default-deny resolves to `'member'`). */
+  readonly role: WorkspaceRole;
   /** Granted capability scopes (e.g. `memory:read`, `memory:write`, `memory:admin`). */
   readonly scopes: readonly string[];
 }
@@ -48,6 +82,13 @@ export interface Principal {
  * idempotent across re-runs (EC-6 / EC-7).
  */
 export const DEFAULT_WORKSPACE_ID = 'default';
+
+/**
+ * Stable id of the seeded user every legacy / no-credential request acts as —
+ * the owner of the {@link DEFAULT_WORKSPACE_ID} workspace (seeded by migration
+ * `0017`). A FIXED literal so the env-key bridge resolves it without a lookup.
+ */
+export const DEFAULT_OWNER_USER_ID = 'default-owner';
 
 /**
  * Build the backward-compatible boolean `verify(token)` from a verifier that
