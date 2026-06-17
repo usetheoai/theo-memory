@@ -10,9 +10,9 @@
  *      this middleware accepts an optional `AuthVerifier` override for
  *      future OAuth/JWT swap without surface change.
  */
-import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
-import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
-import type { MiddlewareHandler } from 'hono';
+import type { AuthVerifier, Principal, WorkspaceRole } from '@usetheo/memory/contract';
+import { DEFAULT_OWNER_USER_ID, DEFAULT_WORKSPACE_ID, roleSatisfies } from '@usetheo/memory/contract';
+import type { Context, MiddlewareHandler } from 'hono';
 
 
 import { BearerAuthVerifier, readApiKey } from './bearer-verifier.js';
@@ -20,14 +20,48 @@ import { BearerAuthVerifier, readApiKey } from './bearer-verifier.js';
 const BEARER_SCHEME_RE = /^bearer\s+(.+)$/i;
 
 /**
- * multi-tenant-workspace-isolation T2.1: the `default`-workspace Principal used
- * when no credential is configured (ADR D7 — single-tenant dev / no-key
- * deployments collapse to one workspace, which has no cross-tenant IDOR).
+ * multi-tenant-workspace-isolation T2.1 + RBAC T1.1: the `default`-workspace
+ * Principal used when no credential is configured (ADR D7 — single-tenant dev /
+ * no-key deployments collapse to one workspace, which has no cross-tenant IDOR).
+ * Acts as the seeded `default-owner` member with the `owner` role so management
+ * routes keep working in single-tenant mode.
  */
 const DEFAULT_PRINCIPAL: Principal = {
   workspaceId: DEFAULT_WORKSPACE_ID,
+  userId: DEFAULT_OWNER_USER_ID,
+  role: 'owner',
   scopes: ['memory:read', 'memory:write', 'memory:delete'],
 };
+
+/**
+ * Read the Principal injected by {@link bearerAuth}. Falls back to the
+ * `default`-workspace owner when no Principal is present (auth middleware not
+ * mounted, e.g. a unit test hitting a handler directly).
+ */
+export function getPrincipal(c: Context): Principal {
+  return (c.get('principal') as Principal | undefined) ?? DEFAULT_PRINCIPAL;
+}
+
+/**
+ * RBAC T2.1: gate a route on a minimum workspace role. Mounted AFTER
+ * {@link bearerAuth} so 401 (bad credential) always precedes 403 (insufficient
+ * role). A member hitting a management route gets 403 `INSUFFICIENT_ROLE`.
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1
+ */
+export function requireRole(min: WorkspaceRole): MiddlewareHandler {
+  return async (c, next) => {
+    const { role } = getPrincipal(c);
+    if (!roleSatisfies(role, min)) {
+      return c.json(
+        { code: 'INSUFFICIENT_ROLE', message: `Required role "${min}" not held by this credential.`, required: min, actual: role },
+        403,
+      );
+    }
+    await next();
+    return;
+  };
+}
 
 /**
  * Resolve a Principal from a verifier. Prefers {@link AuthVerifier.resolvePrincipal}
@@ -92,7 +126,19 @@ export function bearerAuth(verifier?: AuthVerifier): MiddlewareHandler {
 
     // multi-tenant-workspace-isolation T2.1: resolve "whose key?" and inject the
     // Principal so handlers scope every query by `principal.workspaceId` (ADR D3).
-    const principal = await resolvePrincipalFrom(hoistedVerifier, token);
+    // RBAC T1.1 / ADR D5 — FAIL CLOSED: the role resolution now hits the DB
+    // (LEFT JOIN workspace_users). If the auth backend is down, return an
+    // explicit 503; NEVER fall through to a privileged default Principal. The
+    // Principal is set ONLY on a successful, non-null resolution.
+    let principal: Principal | null;
+    try {
+      principal = await resolvePrincipalFrom(hoistedVerifier, token);
+    } catch {
+      return c.json(
+        { code: 'SERVICE_UNAVAILABLE', message: 'Authentication backend unavailable' },
+        503,
+      );
+    }
     if (principal === null) {
       return c.json(
         { code: 'UNAUTHORIZED', message: 'Invalid bearer token' },
