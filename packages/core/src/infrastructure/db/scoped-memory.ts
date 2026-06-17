@@ -80,23 +80,28 @@ export function applySkillFilters(
   return base;
 }
 
-export function filtersFromScope(scope: Scope): Filters {
+export function filtersFromScope(scope: Scope, workspaceId?: string): Filters {
+  // multi-tenant-workspace-isolation T3.1: when the memory is workspace-bound
+  // (LocalMemory.withWorkspace), the workspace_id is merged into every scoped
+  // query + insert payload. When unbound (SDK/unit callers), it is omitted and
+  // the store column default ('default') applies (ADR D7).
+  const ws: Pick<Filters, 'workspace_id'> = workspaceId !== undefined ? { workspace_id: workspaceId } : {};
   switch (scope.kind) {
     case 'user':
-      return { user_id: scope.userId };
+      return { ...ws, user_id: scope.userId };
     case 'session':
       return scope.userId !== undefined
-        ? { user_id: scope.userId, session_id: scope.sessionId }
-        : { session_id: scope.sessionId };
+        ? { ...ws, user_id: scope.userId, session_id: scope.sessionId }
+        : { ...ws, session_id: scope.sessionId };
     case 'agent':
       return scope.userId !== undefined
-        ? { user_id: scope.userId, agent_id: scope.agentId }
-        : { agent_id: scope.agentId };
+        ? { ...ws, user_id: scope.userId, agent_id: scope.agentId }
+        : { ...ws, agent_id: scope.agentId };
     case 'repo':
       // v0.6 (EC-4): RepoScope persists `repoId` in the `agent_id` column. The
       // `kind='skill'` discriminator (added by Skill-specific recall/getAll paths)
       // disambiguates skill rows from regular agent memories under the same id.
-      return { agent_id: scope.repoId };
+      return { ...ws, agent_id: scope.repoId };
   }
 }
 

@@ -54,13 +54,30 @@ export class LocalMemory implements Memory {
     private readonly reflectionPolicy: ReflectionPolicy | undefined,
     /** semantic-recall-cache-v1-5 T2.1 — undefined when cache disabled. */
     private readonly recallCacheStore: RecallCacheStore | undefined = undefined,
+    /**
+     * multi-tenant-workspace-isolation T3.1: the bound workspace (ADR D1/D3).
+     * `undefined` = unbound (SDK/unit path → store column default 'default');
+     * set via {@link withWorkspace} on the REST/server path from the Principal.
+     */
+    private readonly workspaceId: string | undefined = undefined,
   ) {}
+
+  /**
+   * multi-tenant-workspace-isolation T3.1 (ADR D3): return a view of this memory
+   * bound to `workspaceId`, so every subsequent `.user()/.session()/.agent()`
+   * scopes its queries + inserts by that workspace. The REST handler calls this
+   * with the authenticated Principal's workspace; the workspace NEVER comes from
+   * the request body.
+   */
+  withWorkspace(workspaceId: string): Memory {
+    return new LocalMemory(this.config, this.reflectionPolicy, this.recallCacheStore, workspaceId);
+  }
 
   user(userId: string): ScopedMemory {
     const scope: Scope = { kind: 'user', userId };
     return new LocalScopedMemory(
       scope,
-      filtersFromScope(scope),
+      filtersFromScope(scope, this.workspaceId),
       this.config,
       this.reflectionPolicy,
       this.pendingReflections,
@@ -72,7 +89,7 @@ export class LocalMemory implements Memory {
     const scope: Scope = { kind: 'session', sessionId };
     return new LocalScopedMemory(
       scope,
-      filtersFromScope(scope),
+      filtersFromScope(scope, this.workspaceId),
       this.config,
       this.reflectionPolicy,
       this.pendingReflections,
@@ -84,7 +101,7 @@ export class LocalMemory implements Memory {
     const scope: Scope = { kind: 'agent', agentId };
     return new LocalScopedMemory(
       scope,
-      filtersFromScope(scope),
+      filtersFromScope(scope, this.workspaceId),
       this.config,
       this.reflectionPolicy,
       this.pendingReflections,
@@ -130,6 +147,18 @@ export class LocalMemory implements Memory {
     const existing = await this.config.vectorStore.get(memoryId);
     if (existing === null) {
       throw new MemoryNotFound(`memoryId ${memoryId} not found (EC-12: strict-mode forget throws on missing id)`);
+    }
+    // multi-tenant-workspace-isolation T3.1 / EC-5: when this memory is bound to
+    // a workspace, a forget targeting a row in ANOTHER workspace is treated as
+    // not-found (→ 404), and the other workspace's row is NEVER soft-deleted
+    // (no destructive cross-workspace IDOR). Unbound (SDK) callers skip the check.
+    if (this.workspaceId !== undefined) {
+      const rowWorkspace = (existing.payload['workspace_id'] as string | undefined) ?? 'default';
+      if (rowWorkspace !== this.workspaceId) {
+        throw new MemoryNotFound(
+          `memoryId ${memoryId} not found in workspace ${this.workspaceId} (cross-workspace forget → 404, EC-5)`,
+        );
+      }
     }
     // semantic-recall-cache-v1-5 T2.2 — EC-10 absorption: derive the memory's
     // scope BEFORE the delete so we can issue a targeted `invalidateScope`
