@@ -26,6 +26,8 @@ interface MemoriesRow extends QueryResultRow {
   readonly text: string;
   readonly hash: string;
   readonly payload: Payload;
+  /** multi-tenant-workspace-isolation T3.1 — projected so forget() can compare. */
+  readonly workspace_id?: string | null;
   readonly user_id: string | null;
   readonly session_id: string | null;
   readonly agent_id: string | null;
@@ -61,6 +63,11 @@ function rowToResult(row: MemoriesRow): VectorStoreResult {
     text: row.text,
     hash: row.hash,
   };
+  // multi-tenant-workspace-isolation T3.1: project workspace_id so consumers
+  // (LocalMemory.forget's cross-workspace 404 check) can read it.
+  if (row.workspace_id !== undefined && row.workspace_id !== null) {
+    payload['workspace_id'] = row.workspace_id;
+  }
   if (row.user_id !== null) {
     payload['user_id'] = row.user_id;
   }
@@ -570,7 +577,7 @@ export class PgvectorStore implements VectorStore {
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
     const result = await this.pool.query<MemoriesRow>(
-      `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
+      `SELECT id, text, hash, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category,
               kind, code, description, code_language, derived_from, superseded_by, confirmation_count
          FROM memories WHERE id = $1`,
       [vectorId],
