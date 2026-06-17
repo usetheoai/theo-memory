@@ -15,7 +15,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 
 import type { AuthPool } from './auth/api-key-verifier.js';
-import { bearerAuth } from './auth/middleware.js';
+import { bearerAuth, requireRole } from './auth/middleware.js';
 import { requireScope } from './auth/scope-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
 import {
@@ -27,6 +27,12 @@ import {
 } from './handlers/admin-keys.js';
 import { forgetHandler } from './handlers/forget.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
+import {
+  addMemberHandler,
+  listMembersHandler,
+  removeMemberHandler,
+  setMemberRoleHandler,
+} from './handlers/members.js';
 import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
@@ -38,6 +44,8 @@ import {
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { otelMiddleware } from './observability/otel-middleware.js';
 import { registerAllPaths } from './openapi-registration.js';
+import { createPostgresMembersRepository } from './store/members-store-pg.js';
+import type { MembersRepository } from './store/members-store.js';
 
 /**
  * T1.1 + ADR D1 — admin REST sub-app configuration. When supplied, mounts
@@ -107,6 +115,14 @@ export interface CreateServerOptions {
    * who don't need admin lifecycle).
    */
   readonly adminApi?: AdminApiOptions;
+  /**
+   * multi-tenant-rbac-and-slice1-completion T2.1 — DIP override for the
+   * membership store powering `/v1/members/*`. When omitted, a pg-backed repo
+   * is derived from `adminApi.pool` (so member routes mount whenever admin
+   * lifecycle is enabled). Contract tests inject an in-memory repo here to
+   * exercise the role×route matrix without a DB.
+   */
+  readonly membersRepository?: MembersRepository;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
@@ -260,6 +276,20 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   }
 
   app.use('/v1/*', bearerAuth(authVerifier));
+
+  // RBAC T2.1 — `/v1/members/*` membership management, gated by requireRole.
+  // Mounted AFTER bearerAuth so the Principal (with role) is injected; the
+  // handlers derive the workspace from the Principal (never the body). The repo
+  // is the injected override OR a pg repo derived from the admin pool.
+  const membersRepo: MembersRepository | undefined =
+    options.membersRepository ??
+    (adminApi !== undefined ? createPostgresMembersRepository(adminApi.pool) : undefined);
+  if (membersRepo !== undefined) {
+    app.get('/v1/members', requireRole('admin'), (c) => listMembersHandler(c, membersRepo));
+    app.post('/v1/members', requireRole('admin'), (c) => addMemberHandler(c, membersRepo));
+    app.patch('/v1/members/:userId', requireRole('admin'), (c) => setMemberRoleHandler(c, membersRepo));
+    app.delete('/v1/members/:userId', requireRole('admin'), (c) => removeMemberHandler(c, membersRepo));
+  }
 
   app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
 

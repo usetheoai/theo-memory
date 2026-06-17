@@ -149,7 +149,8 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
     // INSERT param 7 (0-indexed 6) is the scopes JSON — assert deduped.
     const insertSql = queries.find((q) => /INSERT INTO theo_api_keys/i.test(q.sql));
     expect(insertSql).toBeDefined();
-    const scopesParam = insertSql!.params[6];
+    // user_id was added at param index 3 by RBAC T2.1, shifting scopes 6 → 7.
+    const scopesParam = insertSql!.params[7];
     expect(JSON.parse(scopesParam as string)).toEqual(['memory:read', 'memory:write']);
   });
 
