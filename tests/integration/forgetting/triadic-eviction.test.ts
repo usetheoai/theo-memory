@@ -67,6 +67,27 @@ if (PG_URI === undefined || PG_URI === '') {
       const iso = await createIsolatedDb();
       pool = iso.pool;
       dropDb = iso.dropDb;
+
+      // Drop the HNSW index on this isolated DB so recall@10 is measured by an
+      // EXACT sequential cosine scan instead of pgvector's APPROXIMATE index.
+      //
+      // Why: this fixture seeds a deliberately pathological topology — one-hot
+      // ORTHOGONAL vectors with maximum isolation (see fixtures/rare-target-seed
+      // .ts), so the long-tail multiplier is the sole eviction discriminator.
+      // pgvector's HNSW greedy graph walk enters from the dense clusters and
+      // never reaches the orthogonal rare targets, collapsing recall@10 to
+      // ~0.02-0.1 even though each surviving target's exact cosine distance to
+      // its query is 0. That is HNSW approximation error on a synthetic
+      // worst-case, NOT a product defect: real embedders (Xenova MiniLM /
+      // OpenAI) produce dense vectors where HNSW recall is high, and the
+      // production HNSW search path is exercised by the v0.1 + distillation
+      // GOAL tests. Dropping the index here removes the approximation confound
+      // (and its load-dependent flakiness) so the metric measures what THIS
+      // GOAL TEST is about — triadic eviction PRESERVING the rare long-tail
+      // (test 2 confirms the eviction SELECTION independently). 700 surviving
+      // rows make the exact seq scan trivially fast.
+      await pool.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
+
       store = new PgvectorStore(pool);
       const neighborProvider = new PgNearestNeighborProvider(pool);
       const evictor = new PgEvictor(pool);

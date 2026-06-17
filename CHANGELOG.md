@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Integration test suite is now deterministically green so it can gate a production deploy — closed the last 4 flaky/stale failures surfaced after the v0.3.0 release (integration-suite-stabilization). The v0.4b long-tail eviction goal test no longer collapses on pgvector's approximate HNSW index for its synthetic worst-case fixture; two CLI boot-time tests no longer false-fail on absolute wall-clock budgets under suite load (now measured relative to a cold-start baseline); and the CLI warm-up-cost changelog check follows the entry to its released section instead of pinning it to `[Unreleased]`. No product behavior changed — test-infrastructure hardening only.
+
 ### Security
 
 ## [0.3.0] - 2026-06-16
