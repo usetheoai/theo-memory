@@ -92,9 +92,12 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
       expect(lines.length).toBe(9);
     });
 
-    test('2. src/core/index.ts declares 41 export statements (T0.1 baseline)', () => {
+    test('2. src/core/index.ts declares 43 export statements (T0.1 baseline + 2 workspace exports)', () => {
+      // multi-tenant-workspace-isolation T0.1 added 2 export statements to the
+      // contract barrel (Principal/Workspace types + DEFAULT_WORKSPACE_ID/
+      // makeVerifyShim values) — conscious public-surface growth per architecture.md § 9.
       const lines = contractContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(41);
+      expect(lines.length).toBe(43);
     });
 
     test('3. src/index.ts contains zero `any` occurrences (public-surface floor)', () => {
