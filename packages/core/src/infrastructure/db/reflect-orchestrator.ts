@@ -56,7 +56,12 @@ interface VectorStoreWithDerivedInsert {
     hash: string;
     embedding: readonly number[];
     derivedFrom: readonly string[];
-    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+    scope: {
+      workspaceId?: string | null;
+      userId?: string | null;
+      sessionId?: string | null;
+      agentId?: string | null;
+    };
   }): Promise<string>;
 }
 
@@ -210,7 +215,10 @@ export async function runReflection(
         hash,
         embedding,
         derivedFrom: draft.derivedFrom,
-        scope: counterTuple,
+        // multi-tenant-workspace-isolation /review F-dom-api-2: the reflection-
+        // derived row stays in the SAME workspace as its sources (the bound
+        // workspace flows in via filters.workspace_id), not the 'default' tenant.
+        scope: { ...counterTuple, workspaceId: filters.workspace_id ?? null },
       });
       persisted.push({
         id,
