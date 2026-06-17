@@ -83,11 +83,17 @@ describe('T1.7 — subpath isolation + pack manifest', () => {
         cwd: REPO_ROOT,
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'ignore'],
+        // integration-suite-stabilization (flaky-timeout fix): `npm pack` walks
+        // the workspace tree and under full-suite IO/CPU load can exceed the
+        // former 30s vitest hook budget (observed "Hook timed out in 30000ms").
+        // Defensive process-level timeout below the raised hook budget.
+        timeout: 110_000,
+        maxBuffer: 32 * 1024 * 1024,
       });
       interface PackEntry { files?: readonly { path: string }[] }
       const parsed = JSON.parse(output) as readonly PackEntry[];
       packedFiles = (parsed[0]?.files ?? []).map((f) => f.path);
-    }, 30_000);
+    }, 120_000);
 
     test('28. pack contains packages/api/src/server/index.ts', () => {
       expect(packedFiles).toContain('packages/api/src/server/index.ts');
@@ -156,11 +162,17 @@ describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
         cwd: REPO_ROOT,
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'ignore'],
+        // integration-suite-stabilization (flaky-timeout fix): `npm pack` walks
+        // the workspace tree and under full-suite IO/CPU load can exceed the
+        // former 30s vitest hook budget (observed "Hook timed out in 30000ms").
+        // Defensive process-level timeout below the raised hook budget.
+        timeout: 110_000,
+        maxBuffer: 32 * 1024 * 1024,
       });
       interface PackEntry { files?: readonly { path: string }[] }
       const parsed = JSON.parse(output) as readonly PackEntry[];
       packedFiles = (parsed[0]?.files ?? []).map((f) => f.path);
-    }, 30_000);
+    }, 120_000);
 
     test('pack contains packages/core/src/infrastructure/db/recall-cache/index.ts', () => {
       expect(packedFiles).toContain('packages/core/src/infrastructure/db/recall-cache/index.ts');
