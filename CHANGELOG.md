@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- PRIORITY 0 scope amendment (project-owner sign-off 2026-06-17): multi-tenant-flat workspace isolation — a `workspaces` tenant boundary resolved from the API-key credential, with `AuthVerifier` evolving from a boolean check to resolving a `Principal { workspaceId }` and every query scoped by the Principal's workspace — is re-classified as IN-SCOPE under P0 as CORE to the system (foundation of the v0.5 TheoCloud runtime). The three memory tiers (User/Session/Agent) remain as within-workspace partitions; `workspace_id` is the new outer anchor. Implementation tracked under slug `multi-tenant-workspace-isolation`. See CLAUDE.md § PRIORITY 0 Amendment 2026-06-17.
+
 ### Deprecated
 
 ### Removed
