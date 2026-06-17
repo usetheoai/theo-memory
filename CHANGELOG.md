@@ -18,7 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Known limitation (workspace isolation follow-up)
 
-- The opt-in recall-cache, skill, and eviction surfaces carry the `workspace_id` column but their per-workspace cache-key / scope-WHERE threading is DEFERRED to a follow-up cycle (`multi-tenant-workspace-isolation-secondary-stores`). They are safe single-workspace; do NOT enable them in a multi-workspace deployment until the follow-up lands. The default 4-verb path (remember/recall/forget on `memories`) IS fully workspace-isolated.
+- The opt-in recall-cache, skill, and eviction surfaces carry the `workspace_id` column but their per-workspace cache-key / scope-WHERE threading is DEFERRED to a follow-up cycle (`multi-tenant-workspace-isolation-secondary-stores`). They are safe single-workspace; do NOT enable them in a multi-workspace deployment until the follow-up lands. The default 4-verb path (remember/recall/forget/reflect on `memories`) IS fully workspace-isolated.
+- Admin key management (`/v1/admin/keys/*`, `memory:admin` scope) is deployment-level in this slice — it manages every key in the deployment, not per-workspace. Per-workspace admin delegation belongs to the deferred membership layer; treat `memory:admin` as a deployment-operator privilege.
+- The `AuthVerifier` compile-time `ScopedFilters` guard (ADR D4) is a forward-looking type, not yet wired into the store signatures — isolation is runtime-enforced via the `withWorkspace` binding + the `workspace_id NOT NULL` column (proven by the IDOR goal test). Tightening the store signatures to the compile-time guard is part of the same follow-up.
 
 ### Changed
 
