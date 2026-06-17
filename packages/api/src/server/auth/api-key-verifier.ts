@@ -23,7 +23,7 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
 
 /**
  * Minimal Pool surface — DIP-clean. Production wires `pg.Pool` (which
@@ -50,6 +50,20 @@ const PREFIX = 'theo_live_';
 /** SELECT 1 SQL — parameterized + scope-isolated per D6. */
 const SELECT_ACTIVE_BY_HASH_SQL = `\
 SELECT id FROM theo_api_keys
+ WHERE key_hash = $1
+   AND revoked_at IS NULL
+   AND (expires_at IS NULL OR expires_at > NOW())
+   AND tenant_id = 'self'
+ LIMIT 1`;
+
+/**
+ * multi-tenant-workspace-isolation T2.1: resolve the credential's workspace +
+ * scopes. The WHERE predicate is VERBATIM the active-key predicate above
+ * (revoked_at IS NULL AND expires_at NULL-or-future) so a revoked / expired key
+ * resolves to no row → null Principal → 401 (EC-2). Only the SELECT list grows.
+ */
+const SELECT_PRINCIPAL_BY_HASH_SQL = `\
+SELECT workspace_id, scopes FROM theo_api_keys
  WHERE key_hash = $1
    AND revoked_at IS NULL
    AND (expires_at IS NULL OR expires_at > NOW())
@@ -91,5 +105,38 @@ export class ApiKeyAuthVerifier implements AuthVerifier {
     });
 
     return true;
+  }
+
+  /**
+   * multi-tenant-workspace-isolation T2.1 (ADR D2): resolve "whose key?" —
+   * the credential's `workspaceId` + granted `scopes` — or `null` when the key
+   * is unknown / revoked / expired (EC-2). The boolean {@link verify} above is
+   * retained for the migration window; this is the canonical path.
+   */
+  async resolvePrincipal(token: string): Promise<Principal | null> {
+    if (token.length <= PREFIX.length) return null;
+    if (!token.startsWith(PREFIX)) return null;
+
+    const hash = createHash('sha256').update(token).digest('hex');
+
+    const { rows } = await this.#pool.query<{ workspace_id: string; scopes: unknown }>(
+      SELECT_PRINCIPAL_BY_HASH_SQL,
+      [hash],
+    );
+    const row = rows[0];
+    if (row === undefined) return null;
+
+    // scopes is a jsonb array; pg may surface it as a parsed array OR a string.
+    let scopes: readonly string[] = [];
+    const raw: unknown = typeof row.scopes === 'string' ? JSON.parse(row.scopes) : row.scopes;
+    if (Array.isArray(raw)) scopes = raw.filter((s): s is string => typeof s === 'string');
+
+    void this.#pool.query(UPDATE_LAST_USED_SQL, [hash]).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.warn(`[themory] last_used_at update failed: ${msg}`);
+    });
+
+    return { workspaceId: row.workspace_id, scopes };
   }
 }
