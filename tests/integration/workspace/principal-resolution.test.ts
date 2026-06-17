@@ -24,19 +24,44 @@ function hashOf(token: string): string {
 
 async function seedKey(
   pool: pg.Pool,
-  opts: { token: string; workspaceId: string; scopes: readonly string[]; revoked?: boolean; expired?: boolean },
+  opts: {
+    token: string;
+    workspaceId: string;
+    scopes: readonly string[];
+    revoked?: boolean;
+    expired?: boolean;
+    // RBAC T1.1: optionally bind the key to a member with a role so the
+    // resolvePrincipal LEFT JOIN to workspace_users can be exercised.
+    userId?: string;
+    role?: 'owner' | 'admin' | 'member';
+  },
 ): Promise<void> {
   // Ensure the workspace exists (FK).
   await pool.query(`INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`, [
     opts.workspaceId,
   ]);
+  // RBAC T1.1: optionally seed the member + membership (role) the key acts as.
+  if (opts.userId !== undefined) {
+    await pool.query(`INSERT INTO users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`, [
+      opts.userId,
+      `${opts.userId}@x.local`,
+    ]);
+    if (opts.role !== undefined) {
+      await pool.query(
+        `INSERT INTO workspace_users (workspace_id, user_id, role) VALUES ($1, $2, $3)
+         ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+        [opts.workspaceId, opts.userId, opts.role],
+      );
+    }
+  }
   await pool.query(
     `INSERT INTO theo_api_keys
-       (id, subject, tenant_id, workspace_id, key_name, key_hash, key_prefix, scopes, revoked_at, expires_at)
-     VALUES ($1, 'test-subject', 'self', $2, $3, $4, $5, $6::jsonb, $7, $8)`,
+       (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, revoked_at, expires_at)
+     VALUES ($1, 'test-subject', 'self', $2, $3, $4, $5, $6, $7::jsonb, $8, $9)`,
     [
       `apk-${randomUUID().slice(0, 16)}`,
       opts.workspaceId,
+      opts.userId ?? null,
       'test-key',
       hashOf(opts.token),
       opts.token.slice(0, 12),
@@ -80,6 +105,42 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(principal?.scopes).toEqual(['memory:read', 'memory:write']);
     });
 
+    test('a key bound to an admin member resolves role admin (role-join)', async () => {
+      const token = `theo_live_${randomUUID()}`;
+      await seedKey(pool, {
+        token,
+        workspaceId: 'ws-acme',
+        scopes: ['memory:read'],
+        userId: `u-admin-${randomUUID().slice(0, 8)}`,
+        role: 'admin',
+      });
+      const principal = await verifier.resolvePrincipal(token);
+      expect(principal?.role).toBe('admin');
+      expect(principal?.userId).not.toBeNull();
+    });
+
+    test('a key whose user has NO membership resolves role member (default-deny)', async () => {
+      const token = `theo_live_${randomUUID()}`;
+      // user exists but is NOT a member of the workspace (no workspace_users row).
+      await seedKey(pool, {
+        token,
+        workspaceId: 'ws-acme',
+        scopes: ['memory:read'],
+        userId: `u-stranger-${randomUUID().slice(0, 8)}`,
+        // role omitted → no membership row → LEFT JOIN yields NULL → default-deny.
+      });
+      const principal = await verifier.resolvePrincipal(token);
+      expect(principal?.role).toBe('member');
+    });
+
+    test('a legacy key with NULL user_id resolves role member (default-deny)', async () => {
+      const token = `theo_live_${randomUUID()}`;
+      await seedKey(pool, { token, workspaceId: 'ws-acme', scopes: ['memory:read'] });
+      const principal = await verifier.resolvePrincipal(token);
+      expect(principal?.role).toBe('member');
+      expect(principal?.userId).toBeNull();
+    });
+
     test('a revoked key resolves to null (EC-2)', async () => {
       const token = `theo_live_${randomUUID()}`;
       await seedKey(pool, { token, workspaceId: 'ws-acme', scopes: ['memory:read'], revoked: true });
@@ -100,6 +161,9 @@ if (PG_URI === undefined || PG_URI === '') {
       const bearer = new BearerAuthVerifier('env-secret-token');
       const principal = await bearer.resolvePrincipal('env-secret-token');
       expect(principal?.workspaceId).toBe('default');
+      // RBAC T1.1: the env bridge acts as the seeded default-owner with role owner.
+      expect(principal?.userId).toBe('default-owner');
+      expect(principal?.role).toBe('owner');
       await expect(bearer.resolvePrincipal('wrong')).resolves.toBeNull();
     });
   });
