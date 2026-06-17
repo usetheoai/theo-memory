@@ -806,6 +806,16 @@ export class PgvectorStore implements VectorStore {
       '(t_valid IS NULL OR t_valid <= NOW())',
     ];
     const params: unknown[] = [];
+    // multi-tenant-workspace-isolation /review F-dom-api-1 (CRITICAL): reflect()
+    // is a PRIMARY verb, NOT a deferred secondary surface. Without this clause a
+    // ws-A reflect would pull ws-B's extracted rows into the LLM merge prompt AND
+    // could soft-delete a ws-B row as "rejected" — a cross-workspace read +
+    // DESTRUCTIVE IDOR. The workspace_id flows in via the workspace-bound
+    // memory's filters (filtersFromScope(scope, workspaceId)).
+    if (filters.workspace_id !== undefined) {
+      params.push(filters.workspace_id);
+      where.push(`workspace_id = $${String(params.length)}`);
+    }
     if (filters.user_id !== undefined) {
       params.push(filters.user_id);
       where.push(`user_id = $${String(params.length)}`);
