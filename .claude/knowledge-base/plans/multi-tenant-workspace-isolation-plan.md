@@ -6,6 +6,8 @@ goal: Bind every request to a workspace resolved from its credential and scope e
 
 # Plan: Multi-Tenant Workspace Isolation (Principal-resolved-from-credential)
 
+> **Version 1.1** (edge-case absorption 2026-06-17: EC-1 D-LEAF every-table-denormalized; EC-2 revoked/expired RED; EC-3 single atomic transaction; EC-4 `.strict()` 400; EC-5 forget workspace-scoped + ws-A untouched; EC-6/EC-7 stable `default` id + idempotent seed; EC-8 cache no-cross-hit; EC-9 in-memory parity. Full report: `.claude/knowledge-base/reviews/multi-tenant-workspace-isolation-edge-cases-2026-06-17.md`).
+>
 > **Version 1.0** — Today TheMemory is single-tenant-per-deployment: the three memory tiers (`user_id`/`session_id`/`agent_id`) are caller-supplied partitions read from the request **body**, and `AuthVerifier.verify(token): boolean` only answers "is this key valid?". Any valid key can address any scope. This plan adds a **`workspaces`** tenant boundary resolved **from the credential**: `AuthVerifier` evolves to resolve a `Principal { workspaceId, scopes }`, `workspace_id` is denormalized on the 6 scope-bearing tables, every query is scoped by the Principal's workspace (never the body), and cross-workspace access returns 404. The three tiers LAYER UNDER the workspace (not replaced). A non-destructive `0016` migration backfills a `default` workspace so the legacy `THEMEMORY_API_KEY` deployment keeps working. Project-owner-authorized in-scope under P0 (CLAUDE.md § PRIORITY 0 Amendment 2026-06-17).
 
 ## Goal
@@ -111,12 +113,19 @@ Strategic-review note: the three-tier scope is a LOCKED name (`architecture.md �
 - **Alternatives considered:** *Runtime assertion that workspaceId is present* — rejected: weaker than a compile error; the type system already pays for itself here. *Postgres RLS as the guard* — rejected (D9): app-level first.
 - **Consequences:** A new `ScopedFilters` type wraps `Filters` with a required `workspaceId`; the store insert/search/list signatures on the REST path require it; in-memory/unit paths use a `default`-workspace constant.
 
-### D5 — Non-destructive `0016` migration (add-nullable → backfill `default` → NOT NULL → bind keys → enforce)
+### D5 — Non-destructive `0016` migration (single atomic transaction: add-nullable → backfill `default` → NOT NULL → bind keys → enforce)
 
-- **Decision:** One migration `0016_workspaces.sql`: (1) `CREATE TABLE workspaces (id, name, created_at)`; (2) `INSERT` the `default` workspace; (3) `ADD COLUMN workspace_id` NULLABLE on the 6 data tables; (4) backfill all existing rows → `default`; (5) `ALTER COLUMN workspace_id SET NOT NULL` + create `(workspace_id, <existing scope cols>)` indexes; (6) bind `theo_api_keys` to a workspace (reuse `tenant_id`, backfill `'self'`→`default`'s id, OR add `workspace_id` FK). No data is dropped.
-- **Rationale:** `architecture.md § 10` + the owner's migration recipe. Backfill BEFORE `SET NOT NULL` is mandatory (else the ALTER fails on existing rows). Indexes `(workspace_id, ...)` keep listing queries fast (R2R precedent).
-- **Alternatives considered:** *Two migrations (schema then backfill)* — rejected: a single transactional migration is atomic + simpler for the drizzle journal. *Drop + recreate tables* — rejected: destroys data, violates non-destructive requirement.
+- **Decision:** One migration `0016_workspaces.sql`, **wrapped in a single `BEGIN/COMMIT`** (EC-3 absorption): (1) `CREATE TABLE workspaces (id, name, created_at)`; (2) `INSERT` the `default` workspace with a **FIXED, stable id** (literal `'default'`, NOT `gen_random_uuid()`) via `ON CONFLICT DO NOTHING` so re-running is idempotent (EC-6 + EC-7 absorption); (3) `ADD COLUMN workspace_id` NULLABLE on the 6 data tables; (4) backfill **unconditionally** `UPDATE <table> SET workspace_id = 'default' WHERE workspace_id IS NULL` for ALL 6 data tables + `theo_api_keys` in the same transaction; (5) `ALTER COLUMN workspace_id SET NOT NULL` on all of them + create `(workspace_id, <existing scope cols>)` indexes; (6) bind `theo_api_keys` via an explicit `workspace_id` FK → `workspaces(id)` (keep `tenant_id` for backward-compat read per Q1), backfilled to `'default'`. No data is dropped.
+- **Rationale:** `architecture.md § 10` + the owner's migration recipe. Backfill BEFORE `SET NOT NULL` is mandatory (else the ALTER fails on existing rows). The single transaction (EC-3) means a partial failure rolls back cleanly — no orphan-journal brick (`architecture.md § 10.2`). The stable `'default'` id (EC-6) lets the env-key bridge + no-credential collapse resolve the workspace without a lookup race; `ON CONFLICT DO NOTHING` (EC-7) makes the seed idempotent against a re-run. Indexes `(workspace_id, ...)` keep listing queries fast (R2R precedent).
+- **Alternatives considered:** *Two migrations (schema then backfill)* — rejected: a single transactional migration is atomic + simpler for the drizzle journal. *Drop + recreate tables* — rejected: destroys data, violates non-destructive requirement. *`gen_random_uuid()` default workspace id* — rejected (EC-6): a random id forces a lookup at every no-credential request and is non-idempotent across re-seeds.
 - **Consequences:** Migration count 16→17; drizzle `schema.ts` + meta snapshots must stay in parity (`schema-snapshot-parity.test.ts`); the just-stabilized integration template-clone picks up `0016` automatically.
+
+### D-LEAF — EVERY directly-queried table carries a denormalized `workspace_id`; NO table is join-inherited (EC-1 absorption)
+
+- **Decision:** The 6 data tables (`memories`, `entities`, `history`, `consolidation_history`, `reflection_counters`, `recall_cache`) ALL carry their own `workspace_id` column and ALL filter by it. NO table relies on "inherit the workspace via a join to its parent". The blueprint's "leaf inherits via join" wording is SUPERSEDED — `entities` and `recall_cache` are directly queried (a cache lookup hits `recall_cache` by query-embedding cosine BEFORE any join to `memories`), so a missing column there is a real leak.
+- **Rationale:** Closes EC-1: a query that reads a leaf table by a non-workspace key (e.g. cache cosine lookup) would surface a cross-workspace row if the column were absent and isolation depended on a downstream join. Denormalization (R2R `owner_id` precedent) makes every table self-isolating.
+- **Alternatives considered:** *Join-inherit workspace for leaf tables* — rejected (EC-1): the cache + entity lookup paths read the leaf BEFORE the join, so the join cannot gate them.
+- **Consequences:** All 6 tables in the `0016` migration get the column (already the plan's set); the recall-cache scope key includes `workspace_id` (EC-8).
 
 ### D6 — Cross-workspace access returns 404, never 403
 
@@ -352,6 +361,7 @@ VERIFY: THEOMEM_PG_URI=... pnpm vitest run tests/integration/workspace/store-iso
 - [ ] `store-isolation.test.ts` exits 0: a ws-A recall never returns a ws-B row.
 - [ ] composeFilters unit test: `ScopedFilters` always yields a `workspace_id = $` clause.
 - [ ] typecheck: a REST-path call without `workspaceId` is a compile error.
+- [ ] `in-memory-store.ts` (unit/contract path) applies the SAME `workspace_id` filter so contract tests cannot pass while integration leaks; if it defaults every row to the `default` workspace, that is asserted explicitly (EC-9).
 - [ ] lint 0; pgvector-store.ts ≤ 500 LoC after any extraction OR the extraction lands.
 
 #### DoD
@@ -390,7 +400,7 @@ VERIFY: THEOMEM_PG_URI=... pnpm vitest run tests/integration/workspace/cache-ski
 (none — single-threaded)
 
 #### Acceptance Criteria
-- [ ] Cross-workspace cache hit is impossible (test asserts MISS).
+- [ ] Cross-workspace cache hit is impossible: ws-A and ws-B issue a BYTE-IDENTICAL query string; ws-B gets a cache MISS (its own compute), proving `workspace_id` is part of the cache scope key, not just the embedding cosine (EC-8).
 - [ ] Skill + eviction isolation tests exit 0.
 - [ ] typecheck + lint clean.
 
@@ -425,7 +435,13 @@ tests/integration/workspace/principal-resolution.test.ts (NEW)
 
 #### TDD
 ```
-RED:   api-key-verifier.test.ts: a seeded key in ws-A resolves to { workspaceId: ws-A, scopes }; a revoked key → null; the env key → default workspace.
+RED:   api-key-verifier.test.ts: a seeded key in ws-A resolves to { workspaceId: ws-A, scopes };
+       a REVOKED key (revoked_at in the past) → null → 401 (EC-2);
+       an EXPIRED key (expires_at in the past) → null → 401 (EC-2);
+       the env key → default workspace.
+       The resolvePrincipal SQL keeps the verbatim predicate from api-key-verifier.ts:51-57
+       (revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())) — only the SELECT
+       list gains workspace_id; the WHERE is unchanged (EC-2 guard).
 GREEN: implement resolvePrincipal + bridge + middleware inject.
 VERIFY: THEOMEM_PG_URI=... pnpm vitest run tests/integration/workspace/principal-resolution.test.ts --config vitest.integration.config.ts
 ```
@@ -472,7 +488,15 @@ tests/integration/auth/workspace-isolation.test.ts (NEW) — THE GOAL TEST (IDOR
 
 #### TDD
 ```
-RED:   workspace-isolation.test.ts (the goal test): ws-A remembers; ws-B recall → empty; ws-B forget(ws-A id) → 404; create derives workspace from principal (body workspaceId ignored); ws-B admin cannot list ws-A keys.
+RED:   workspace-isolation.test.ts (the goal test):
+       - ws-A remembers; ws-B recall → empty (200 []);
+       - ws-B forget(ws-A id) → 404 AND ws-A's row stays valid (t_invalid IS NULL) —
+         the soft-delete UPDATE carries `AND workspace_id = $principal`; 0 rows → 404,
+         never touching ws-B's (here ws-A's) row (EC-5 destructive-IDOR guard);
+       - create derives workspace from principal; a body `workspaceId` field → 400
+         `unrecognized_keys` via the existing `.strict()` schema (EC-4), proving the
+         field is REJECTED (explicit), not silently dropped;
+       - ws-B admin cannot list ws-A keys (admin scoped to principal workspace).
 GREEN: wire handlers.
 VERIFY: THEOMEM_PG_URI=... pnpm vitest run tests/integration/auth/workspace-isolation.test.ts --config vitest.integration.config.ts
 ```
@@ -557,8 +581,16 @@ VERIFY: THEOMEM_PG_URI=... pnpm vitest run tests/integration/auth/default-worksp
 | 18 | drizzle schema/meta parity with 0016 | T0.2 | parity test |
 | 19 | IDOR test matrix vs real pgvector | T3.1 + Final | goal test |
 | 20 | PUBLIC BREAKING documented (README + CHANGELOG) | T4.1 | docs |
+| 21 | EC-1 every-table-denormalized (no join-inherit leak) | T1.1 + T1.2 | D-LEAF |
+| 22 | EC-2 revoked/expired key → null → 401 | T2.1 | verbatim predicate + RED |
+| 23 | EC-3 single atomic migration transaction | T0.2 | D5 BEGIN/COMMIT |
+| 24 | EC-4 body workspaceId → 400 (rejected, not dropped) | T3.1 | `.strict()` |
+| 25 | EC-5 forget workspace-scoped (no destructive cross-IDOR) | T3.1 | scoped soft-delete |
+| 26 | EC-6/EC-7 stable `default` id + idempotent seed | T0.2 | fixed id + ON CONFLICT |
+| 27 | EC-8 cache no cross-workspace hit | T1.2 | workspace in cache key |
+| 28 | EC-9 in-memory store parity | T1.1 | same workspace filter |
 
-**Coverage: 20/20 gaps covered (100%)**
+**Coverage: 28/28 gaps covered (100%)** (20 original + 8 edge-case absorptions)
 
 ## Global Definition of Done
 
