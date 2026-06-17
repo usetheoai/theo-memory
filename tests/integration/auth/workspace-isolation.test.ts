@@ -12,7 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-import { createLocalMemory, MemoryNotFound, PgvectorStore } from '@usetheo/memory';
+import { createLocalMemory, LastWriteWinsConflictPolicy, MemoryNotFound, PgvectorStore } from '@usetheo/memory';
 import { DeterministicStubEmbedder } from '@usetheo/memory/embedders/stub';
 import type { LLM, LLMResponse, Memory, Message } from '@usetheo/memory';
 
@@ -20,14 +20,16 @@ import { createIsolatedDb } from '../_helpers/isolated-db.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
-// Extraction LLM that returns no facts — irrelevant here because we write
-// verbatim via { infer: false }.
+// Stub LLM: extraction is bypassed by { infer: false }; the reflection path
+// expects a JSON ARRAY of drafts — return an empty array (0 drafts) so the
+// consolidation pipeline still runs (the LWW policy operates on the workspace-
+// filtered candidate set) without inventing derived rows.
 const emptyJsonLlm: LLM = {
   async generateResponse(): Promise<string> {
-    return Promise.resolve('unused');
+    return Promise.resolve('[]');
   },
   async generateChat(_messages: readonly Message[]): Promise<LLMResponse> {
-    return Promise.resolve({ content: '{"facts": []}', role: 'assistant' });
+    return Promise.resolve({ content: '[]', role: 'assistant' });
   },
 };
 
@@ -121,6 +123,45 @@ if (PG_URI === undefined || PG_URI === '') {
       );
       const id = rows[0]?.id;
       await expect(wsA.forget(id as string)).resolves.toBeUndefined();
+    });
+
+    test('reflect() in ws-A never reads or soft-deletes ws-B rows (/review F-dom-api-1/2 CRITICAL)', async () => {
+      const userId = `dave-${randomUUID()}`;
+      const wsA = base.withWorkspace!('ws-a');
+      const wsB = base.withWorkspace!('ws-b');
+
+      // Both workspaces seed an extracted memory under the same user/tier.
+      await wsA.user(userId).remember('ws-a coffee preference', { infer: false });
+      await wsB.user(userId).remember('ws-b coffee preference', { infer: false });
+
+      const wsBIdRow = await pool.query<{ id: string }>(
+        `SELECT id FROM memories WHERE user_id = $1 AND workspace_id = 'ws-b'`,
+        [userId],
+      );
+      const wsBId = wsBIdRow.rows[0]?.id;
+      expect(wsBId).toBeDefined();
+
+      // ws-A reflects with a LWW consolidation policy. If the consolidation
+      // candidate query leaked across workspaces, ws-B's row would enter the
+      // merge and could be soft-deleted as "rejected".
+      await wsA.user(userId).reflect({ conflictResolution: new LastWriteWinsConflictPolicy() });
+
+      // ws-B's row is UNTOUCHED — never read into ws-A's consolidation, never
+      // soft-deleted (cross-workspace read + destructive IDOR closed).
+      const wsBAfter = await pool.query<{ alive: boolean }>(
+        `SELECT t_invalid IS NULL AS alive FROM memories WHERE id = $1`,
+        [wsBId],
+      );
+      expect(wsBAfter.rows[0]?.alive).toBe(true);
+
+      // Any reflect-derived row stays in ws-A (not mis-tenanted to 'default').
+      const derived = await pool.query<{ workspace_id: string }>(
+        `SELECT workspace_id FROM memories WHERE user_id = $1 AND kind = 'derived'`,
+        [userId],
+      );
+      for (const row of derived.rows) {
+        expect(row.workspace_id).toBe('ws-a');
+      }
     });
   });
 }
