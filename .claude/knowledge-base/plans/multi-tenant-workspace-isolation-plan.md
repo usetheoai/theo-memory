@@ -106,12 +106,14 @@ Strategic-review note: the three-tier scope is a LOCKED name (`architecture.md �
 - **Alternatives considered:** *Accept `workspaceId` from the body when the key has an `admin` scope* — rejected for this slice: cross-workspace admin is a separate (membership) feature, out of scope; keep the invariant absolute here.
 - **Consequences:** Handlers gain a `principal` dependency from context; body schemas reject a `workspaceId` field.
 
-### D4 — Compile-time-required `workspaceId` on the server scoping path
+### D4 — RUNTIME-enforced workspace binding (compile-time guard NOT yet realized — honest downgrade per /review)
 
-- **Decision:** The server-facing scoping contract (the `Filters`/scope object the handlers build) carries a NON-OPTIONAL `workspaceId: string`. `composeFilters` always emits `workspace_id = $`. The SDK-internal `store.search(query, k, filters?)` keeps `filters` optional ONLY for unit/in-memory use, but the REST path constructs a typed `ScopedFilters` where `workspaceId` is required.
-- **Rationale:** `composeFilters(undefined)` today returns an UNSCOPED query — the silent-leak hole. A non-optional field turns "forgot the workspace" into a TypeScript compile error (`architecture.md § 8` fail-fast; the "compiler guarantee" trick from the owner's anti-leak decision).
-- **Alternatives considered:** *Runtime assertion that workspaceId is present* — rejected: weaker than a compile error; the type system already pays for itself here. *Postgres RLS as the guard* — rejected (D9): app-level first.
-- **Consequences:** A new `ScopedFilters` type wraps `Filters` with a required `workspaceId`; the store insert/search/list signatures on the REST path require it; in-memory/unit paths use a `default`-workspace constant.
+> **AMENDED 2026-06-17 (/review F-arch-1 / F-dom-api-3 / F-wire-2).** The original D4 claimed a COMPILE-TIME guarantee. The shipped code does NOT deliver it — see the honest decision below.
+
+- **Decision (as shipped):** Workspace isolation is enforced at RUNTIME via the `Memory.withWorkspace(workspaceId)` binding: the bound memory threads `workspace_id` into `filtersFromScope(scope, workspaceId)` → every search filter AND insert payload. The `ScopedFilters` type (`Filters & { workspace_id: string }`) is declared as the FORWARD-LOOKING contract for when the store signatures are tightened, but is NOT yet wired into any signature — so "forgot the workspace" is currently caught by the runtime `workspaceBoundMemory` binding + the `workspace_id NOT NULL DEFAULT 'default'` column, NOT by the compiler.
+- **Rationale:** The runtime binding + the column default + the IDOR goal test deliver the isolation property TODAY (no reachable unscoped-query leak on the primary path: every REST/MCP entry routes through `workspaceBoundMemory`, which always binds a workspace). Tightening the store signatures to consume `ScopedFilters` (the true compile-time guard) is a larger refactor of the VectorStore DIP touching every adapter — deferred to the same follow-up as T1.2. Per Inquebrável Rule 3, the plan must not claim a compile-time guarantee the code does not deliver.
+- **Alternatives considered:** *Wire `ScopedFilters` into the VectorStore DIP now* — deferred: ripples through the DIP + in-memory + pgvector + skill adapters; out of proportion for this slice given runtime enforcement already holds. *Remove `ScopedFilters` as dead code* — rejected: it is the documented target type for the follow-up; kept with a JSDoc marking it forward-looking.
+- **Consequences:** Isolation is runtime-enforced (proven by the IDOR goal test), not compile-enforced. `ScopedFilters` is a forward-looking type, honestly documented as not-yet-load-bearing. The compile-time guard is a tracked follow-up.
 
 ### D5 — Non-destructive `0016` migration (single atomic transaction: add-nullable → backfill `default` → NOT NULL → bind keys → enforce)
 
@@ -592,7 +594,12 @@ VERIFY: THEOMEM_PG_URI=... pnpm vitest run tests/integration/auth/default-worksp
 | 27 | EC-8 cache no cross-workspace hit | T1.2 | workspace in cache key |
 | 28 | EC-9 in-memory store parity | T1.1 | same workspace filter |
 
-**Coverage: 28/28 gaps covered (100%)** (20 original + 8 edge-case absorptions)
+**Coverage: 24/28 shipped + 4 deferred (disclosed) — NOT 100%** (honest restatement per /review F-xval-1).
+
+- **Shipped + tested (24):** gaps 1-7, 10-26, 28 minus the deferred/partial rows below — the primary 4-verb path (remember/recall/forget/reflect) is fully workspace-isolated incl. the reflect cross-workspace leak fix (/review F-dom-api-1/2).
+- **Deferred to follow-up `multi-tenant-workspace-isolation-secondary-stores` (disclosed, opt-in surfaces):** gap 8 (skill/eviction threading), gap 9 + 27 (recall-cache no-cross-hit / EC-8), and the runtime-filter compile-time half of gap 6 (ADR D4 `ScopedFilters` wiring).
+- **Partial:** gap 16 (admin keys per-workspace) — see /review F-arch-2 resolution in T3.1; gap 19 IDOR matrix covers recall/forget/reflect/create but the REST-over-HTTP + body-`workspaceId`→400 (EC-4) assertions land via the added REST e2e test (T3.1 amendment).
+- **EC-9 (gap 28) in-memory parity:** the in-memory store isolates via its generic equality loop; explicit parity assertion added with the REST e2e fixes.
 
 ## Global Definition of Done
 
