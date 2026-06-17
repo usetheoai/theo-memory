@@ -27,6 +27,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 
+import { roleSatisfies, type WorkspaceRole } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
 import type { AuthPool } from '../auth/api-key-verifier.js';
@@ -149,7 +150,7 @@ export async function createKeyHandler(
   subject: string,
   opts: CreateKeyHandlerOptions = {},
 ): Promise<Response> {
-  let body: { name?: unknown; scopes?: unknown; expires_at?: unknown };
+  let body: { name?: unknown; scopes?: unknown; expires_at?: unknown; user_id?: unknown };
   try {
     body = (await c.req.json());
   } catch {
@@ -196,6 +197,66 @@ export async function createKeyHandler(
   // EC-7: dedupe scopes via Set before storage
   const dedupedScopes = Array.from(new Set(body.scopes as string[]));
 
+  // ── RBAC anti-escalation guard (multi-tenant-rbac-and-slice1-completion T2.1
+  //    / ADR D4) ────────────────────────────────────────────────────────────
+  // A key may be bound to a member (`user_id`) so the role-join resolves that
+  // member's role for the new key. WITHOUT a guard, an admin could mint a key
+  // bound to an OWNER member → the key resolves as owner → self-escalation.
+  // Guard: the target must be a member of the caller's workspace (else 422) AND
+  // must NOT outrank the caller (else 403). Omitting `user_id` mints an
+  // unbound (role=member via default-deny) key, unchanged from Item 20.
+  let boundUserId: string | null = null;
+  if (body.user_id !== undefined && body.user_id !== null) {
+    if (typeof body.user_id !== 'string' || body.user_id.trim() === '') {
+      return c.json({ code: 'INVALID_USER_ID', message: 'user_id must be a non-empty string.' }, 400);
+    }
+    const requestedUserId = body.user_id;
+    // Resolve the caller's role + workspace. The bootstrap-token path is the
+    // implicit owner bootstrapping the first admin key.
+    let callerRole: WorkspaceRole = 'owner';
+    let callerWorkspace = 'default';
+    if (opts.viaBootstrapToken !== true) {
+      const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? '';
+      const callerToken = header.replace(/^Bearer\s+/i, '');
+      const callerHash = createHash('sha256').update(callerToken).digest('hex');
+      const callerRow = await pool.query<{ workspace_id: string; role: string | null }>(
+        `SELECT k.workspace_id, m.role
+           FROM theo_api_keys k
+           LEFT JOIN workspace_users m
+             ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
+          WHERE k.key_hash = $1 AND k.revoked_at IS NULL AND k.tenant_id = 'self'
+          LIMIT 1`,
+        [callerHash],
+      );
+      const cr = callerRow.rows[0];
+      if (cr !== undefined) {
+        callerWorkspace = cr.workspace_id;
+        callerRole =
+          cr.role === 'owner' || cr.role === 'admin' || cr.role === 'member' ? cr.role : 'member';
+      }
+    }
+    const targetRow = await pool.query<{ role: string }>(
+      `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [callerWorkspace, requestedUserId],
+    );
+    const targetRole = targetRow.rows[0]?.role;
+    if (targetRole === undefined) {
+      return c.json(
+        { code: 'USER_NOT_MEMBER', message: `user_id "${requestedUserId}" is not a member of this workspace.` },
+        422,
+      );
+    }
+    const tr: WorkspaceRole =
+      targetRole === 'owner' || targetRole === 'admin' || targetRole === 'member' ? targetRole : 'member';
+    if (!roleSatisfies(callerRole, tr)) {
+      return c.json(
+        { code: 'INSUFFICIENT_ROLE', message: 'Cannot mint an api key for a member that outranks you.' },
+        403,
+      );
+    }
+    boundUserId = requestedUserId;
+  }
+
   // EC-3 (T2.2.1) — if request came via bootstrap token AND the new key
   // carries memory:admin scope, the bootstrap flag MUST be flipped
   // atomically in the SAME tx as the INSERT. Subsequent bootstrap-token
@@ -223,9 +284,9 @@ export async function createKeyHandler(
           );
         }
         await q.query(
-          `INSERT INTO theo_api_keys (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [id, subject, TENANT_SELF, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+          `INSERT INTO theo_api_keys (id, subject, tenant_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [id, subject, TENANT_SELF, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
         );
         await markBootstrapConsumedTx(q);
         await q.query('COMMIT', []);
@@ -242,9 +303,9 @@ export async function createKeyHandler(
       // Non-bootstrap path: simple single-statement INSERT (preserves
       // backward compatibility with T2.1 tests).
       await pool.query(
-        `INSERT INTO theo_api_keys (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [id, subject, TENANT_SELF, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+        `INSERT INTO theo_api_keys (id, subject, tenant_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [id, subject, TENANT_SELF, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
       );
     }
   } catch (err: unknown) {
