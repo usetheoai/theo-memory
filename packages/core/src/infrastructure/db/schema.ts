@@ -67,6 +67,24 @@ import {
 
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
 
+/**
+ * multi-tenant-workspace-isolation T0.2 — the tenant boundary (ADR D1).
+ *
+ * Every datum belongs to exactly one workspace; a credential (`theo_api_keys`)
+ * resolves to exactly one workspace via its `workspace_id` FK. The seeded
+ * `'default'` workspace is the collapse target for legacy / no-credential
+ * deployments (ADR D7) and the backfill value for pre-0016 rows (ADR D5). Its
+ * id is a STABLE literal (`'default'`, not a random UUID) so the env-key bridge
+ * resolves it without a lookup race and the seed is idempotent (EC-6 / EC-7).
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.2 + ADR D1/D5/D7
+ */
+export const workspaces = pgTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 /** Primary memory store — every remember/recall/forget operation touches this. */
 export const memories = pgTable(
   'memories',
@@ -76,6 +94,11 @@ export const memories = pgTable(
     hash: text('hash').notNull(),
     embedding: vector('embedding', { dimensions: MAX_EMBEDDING_DIM }).notNull(),
     payload: jsonb('payload').$type<Record<string, string | number | boolean | null>>().notNull(),
+    /** multi-tenant-workspace-isolation T0.2: OUTER tenant anchor (ADR D1). Denormalized
+     *  on every directly-queried table (D-LEAF / EC-1). Resolved from the credential's
+     *  Principal, never the request body (ADR D3). Backfilled to 'default' for pre-0016
+     *  rows by the non-destructive migration (ADR D5). */
+    workspaceId: text('workspace_id').notNull().default('default'),
     userId: text('user_id'),
     sessionId: text('session_id'),
     agentId: text('agent_id'),
@@ -223,6 +246,8 @@ export const reflectionCounters = pgTable(
   'reflection_counters',
   {
     id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    /** multi-tenant-workspace-isolation T0.2 (D-LEAF / EC-1). */
+    workspaceId: text('workspace_id').notNull().default('default'),
     scopeUserId: text('scope_user_id'),
     scopeSessionId: text('scope_session_id'),
     scopeAgentId: text('scope_agent_id'),
@@ -248,6 +273,9 @@ export const entities = pgTable(
   'entities',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    /** multi-tenant-workspace-isolation T0.2 (D-LEAF / EC-1 — entities are queried
+     *  by name/embedding BEFORE any join, so they MUST carry their own column). */
+    workspaceId: text('workspace_id').notNull().default('default'),
     name: text('name').notNull(),
     embedding: vector('embedding', { dimensions: MAX_EMBEDDING_DIM }).notNull(),
     payload: jsonb('payload').$type<Record<string, string | number | boolean | null>>().notNull(),
@@ -264,6 +292,8 @@ export const history = pgTable(
   'history',
   {
     id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    /** multi-tenant-workspace-isolation T0.2 (D-LEAF / EC-1). */
+    workspaceId: text('workspace_id').notNull().default('default'),
     memoryId: uuid('memory_id').notNull().references(() => memories.id, { onDelete: 'cascade' }),
     event: text('event').notNull(), // 'ADD' | 'FORGET' | 'REFLECT_MERGE' | 'REFLECT_SPLIT'
     prevText: text('prev_text'),
@@ -294,6 +324,8 @@ export const consolidationHistory = pgTable(
   'consolidation_history',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    /** multi-tenant-workspace-isolation T0.2 (D-LEAF / EC-1). */
+    workspaceId: text('workspace_id').notNull().default('default'),
     keptMemoryId: uuid('kept_memory_id').references(() => memories.id, { onDelete: 'set null' }),
     rejectedMemoryIds: jsonb('rejected_memory_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     reason: text('reason').notNull(),
@@ -332,6 +364,10 @@ export const recallCache = pgTable(
   'recall_cache',
   {
     id: serial('id').primaryKey(),
+    /** multi-tenant-workspace-isolation T0.2 (D-LEAF / EC-1 + EC-8 — the cache is
+     *  looked up by (scope_key, query_embedding) cosine BEFORE any join, so the
+     *  workspace MUST be part of the row to prevent a cross-workspace cache hit). */
+    workspaceId: text('workspace_id').notNull().default('default'),
     scopeKey: text('scope_key').notNull(),
     queryEmbedding: vector('query_embedding', { dimensions: MAX_EMBEDDING_DIM }).notNull(),
     resultSet: jsonb('result_set').notNull(),
@@ -394,8 +430,13 @@ export const theoApiKeys = pgTable(
     // Authenticated user subject (any string — JWT `sub` claim in cloud;
     // bootstrap-token-issued admin keys may use `bootstrap` literal).
     subject: text('subject').notNull(),
-    // Single-tenant constant per ADR D6 — `'self'` always in OSS.
+    // Single-tenant constant per ADR D6 — `'self'` always in OSS. RETAINED for
+    // backward-compat read after multi-tenant-workspace-isolation (Q1).
     tenantId: text('tenant_id').notNull().default('self'),
+    // multi-tenant-workspace-isolation T0.2: the credential→workspace binding.
+    // resolvePrincipal joins on key_hash and returns this workspace_id (ADR D2).
+    // Backfilled to 'default' for pre-0016 keys (ADR D5).
+    workspaceId: text('workspace_id').notNull().default('default').references(() => workspaces.id),
     // Human-friendly label shown in the keys list + audit log. Trimmed
     // non-empty per cloud EC-4.
     keyName: varchar('key_name', { length: 64 }).notNull(),
