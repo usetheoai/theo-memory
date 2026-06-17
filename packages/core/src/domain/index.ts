@@ -134,7 +134,7 @@ export {
  *
  * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.1
  */
-export type { Principal, Workspace } from './principal.js';
+export type { Principal, Workspace, WorkspaceRole } from './principal.js';
 
 /**
  * `DEFAULT_WORKSPACE_ID` is the stable id of the workspace every legacy /
@@ -143,7 +143,7 @@ export type { Principal, Workspace } from './principal.js';
  *
  * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.1 + ADR D2/D7
  */
-export { DEFAULT_WORKSPACE_ID, makeVerifyShim } from './principal.js';
+export { DEFAULT_WORKSPACE_ID, DEFAULT_OWNER_USER_ID, makeVerifyShim, roleSatisfies } from './principal.js';
 
 /**
  * Chat-message shape shared across the LLM DIP + v3 history persistence.
