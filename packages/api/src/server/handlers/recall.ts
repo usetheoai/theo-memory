@@ -8,7 +8,13 @@ import type { Context } from 'hono';
 
 import { RecallBody, resolveScope } from '../schemas.js';
 
-import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';
+import {
+  EMPTY_BODY,
+  MALFORMED_BODY,
+  safeJson,
+  scopeOrValidationError,
+  workspaceBoundMemory,
+} from './_body-parsing.js';
 
 export async function recallHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await safeJson(c);
@@ -26,7 +32,8 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
     return scopeOrValidationError(parsed.error, c);
   }
   const { query, topK, threshold, attributedTo, asOf } = parsed.data;
-  const scoped = resolveScope(memory, parsed.data);
+  // multi-tenant-workspace-isolation T3.1: scope recall by the Principal's workspace (ADR D3).
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
   const results = await scoped.recall(query, {
     topK,
     threshold,

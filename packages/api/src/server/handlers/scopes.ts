@@ -21,6 +21,8 @@ import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
+import { workspaceBoundMemory } from './_body-parsing.js';
+
 
 const SCOPE_TYPES = ['user', 'session', 'agent', 'skill'] as const;
 type ScopeType = (typeof SCOPE_TYPES)[number];
@@ -134,7 +136,8 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     }
   }
 
-  const scoped = pathParamsToScoped(memory, typeParse.data, id);
+  // multi-tenant-workspace-isolation T3.1: list ONLY the Principal's workspace (ADR D3).
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
   // themory-category-filter-server-side T4.1 — thread category into getAll
   // when supplied. zod min(1) already rejected empty string; LocalScopedMemory.getAll
   // performs EC-3 defense-in-depth normalization for direct SDK callers.

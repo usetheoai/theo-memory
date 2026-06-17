@@ -94,6 +94,21 @@ export interface Memory {
   agent(agentId: string): ScopedMemory;
 
   /**
+   * multi-tenant-workspace-isolation T3.1 (ADR D1/D3): return a view of this
+   * memory bound to a `workspaceId`, so every subsequent `.user()/.session()/
+   * .agent()` scopes its queries + inserts by that workspace. The REST/MCP
+   * layer calls this with the authenticated Principal's workspace; the
+   * workspace is resolved from the credential, NEVER from the request body.
+   *
+   * OPTIONAL during the migration window — impls that predate workspace
+   * isolation omit it; the default (no binding) maps to the `default`
+   * workspace at the store layer (ADR D7).
+   *
+   * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T3.1 + ADR D1/D3
+   */
+  withWorkspace?(workspaceId: string): Memory;
+
+  /**
    * v0.6: code-as-skill procedural memory entry-point.
    *
    * Scopes the returned skill memory to a single repository identifier;

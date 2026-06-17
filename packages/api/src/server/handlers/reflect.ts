@@ -10,7 +10,13 @@ import type { Context } from 'hono';
 
 import { ReflectBody, resolveScope } from '../schemas.js';
 
-import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';
+import {
+  EMPTY_BODY,
+  MALFORMED_BODY,
+  safeJson,
+  scopeOrValidationError,
+  workspaceBoundMemory,
+} from './_body-parsing.js';
 
 export async function reflectHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await safeJson(c);
@@ -28,7 +34,8 @@ export async function reflectHandler(c: Context, memory: Memory): Promise<Respon
     return scopeOrValidationError(parsed.error, c);
   }
   const { maxIterations } = parsed.data;
-  const scoped = resolveScope(memory, parsed.data);
+  // multi-tenant-workspace-isolation T3.1: scope reflect by the Principal's workspace (ADR D3).
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
   const result = await scoped.reflect({ maxIterations });
   return c.json(result, 202);
 }
