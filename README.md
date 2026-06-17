@@ -152,6 +152,10 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 **Security** — Bearer auth (`THEMEMORY_API_KEY`), rate limiting (30 writes/min, 100 reads/min), CORS, 1 MB body cap, OIDC bridge for multi-tenant.
 
+**Workspace isolation (pre-release)** — every API key resolves to a `workspace` (the tenant boundary); the `AuthVerifier` resolves a `Principal { workspaceId, scopes }` from the credential and every query is scoped by it. The three memory tiers (User / Session / Agent) are partitions *within* a workspace. A request can only ever read or write its own workspace's memories; a cross-workspace `forget` by id returns `404` (never `403` — no existence leak). Data belongs to a workspace via a denormalized `workspace_id` column (app-level isolation). No credential / the legacy `THEMEMORY_API_KEY` collapses to a single `default` workspace, so existing single-tenant deployments keep working unchanged.
+
+> **Pre-release breaking change.** `AuthVerifier` evolves from `verify(token): Promise<boolean>` ("is this key valid?") to also resolving `resolvePrincipal(token): Promise<Principal | null>` ("whose key is this?"). `verify` stays during the migration window; custom verifier implementations should add `resolvePrincipal`. The opt-in recall-cache, skill, and eviction surfaces are workspace-aware at the column level but their per-workspace cache-key / scope threading lands in a follow-up — until then, run those opt-in surfaces single-workspace only.
+
 ## Agent loops via MCP
 
 Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor, and any [MCP](https://modelcontextprotocol.io)-compatible agent. The MCP server wires the **real** providers (`LocalTransformerEmbedder` + `OpenAILLM`) — there are **no stubs in production path**, so `OPENAI_API_KEY` is required at boot.
