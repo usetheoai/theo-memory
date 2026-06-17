@@ -124,7 +124,18 @@ export {
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
+  WorkspaceMismatch,
 } from './errors.js';
+
+/**
+ * Multi-tenant workspace-isolation domain types (ADR D1/D2). `Principal` is
+ * what an `AuthVerifier` resolves from a credential; `Workspace` is the tenant
+ * boundary. The three memory tiers layer UNDER the workspace.
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.1
+ */
+export type { Principal, Workspace } from './principal.js';
+export { DEFAULT_WORKSPACE_ID, makeVerifyShim } from './principal.js';
 
 /**
  * Chat-message shape shared across the LLM DIP + v3 history persistence.
