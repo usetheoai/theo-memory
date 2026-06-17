@@ -235,9 +235,17 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
               stderr += chunk.toString('utf-8');
             });
             child.on('close', (code) => resolveExit({ stderr, code }));
+            // integration-suite-stabilization (flaky-timing fix): the internal
+            // SIGKILL guard was 8_000ms, which under full-suite load is shorter
+            // than the CLI cold-start (node + dotenvx env injection) + eager
+            // bind + EADDRINUSE-exit cycle — the process was correctly exiting 1
+            // but got SIGKILL'd first, yielding `code === null` (observed
+            // 8089ms in-suite; passes cleanly in isolation). Raised below the
+            // test's own timeout so a genuine HANG (no exit at all) is still
+            // caught as `null !== 1`.
             setTimeout(() => {
               if (!child.killed) child.kill('SIGKILL');
-            }, 8_000);
+            }, 13_000);
           },
         );
         expect(result.code).toBe(1);
@@ -245,6 +253,6 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       } finally {
         await new Promise<void>((resolveClose) => sentinel.close(() => resolveClose()));
       }
-    }, 15_000);
+    }, 20_000);
   },
 );
