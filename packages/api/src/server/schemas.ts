@@ -120,3 +120,30 @@ export function resolveScope<T extends Record<string, unknown>>(
   if (typeof body['agentId'] === 'string') return memory.agent(body['agentId']);
   throw new Error('resolveScope: no scope tier present; should be filtered by superRefine');
 }
+
+// ============================================================================
+// RBAC member-management bodies (multi-tenant-rbac-and-slice1-completion T2.1)
+// ============================================================================
+
+/** The three workspace roles, as a zod enum (mirrors the DB CHECK constraint). */
+export const WorkspaceRoleSchema = z.enum(['owner', 'admin', 'member']);
+
+/**
+ * `POST /v1/members` body — add a member by email with a role. `.strict()` so
+ * an unknown key (e.g. a forged `workspaceId`) is rejected with 400, never
+ * silently dropped (workspace is derived from the Principal, never the body).
+ */
+export const AddMemberBody = z
+  .object({
+    email: z.string().email(),
+    name: z.string().min(1).max(200).optional(),
+    role: WorkspaceRoleSchema,
+  })
+  .strict();
+
+/** `PATCH /v1/members/:userId` body — change a member's role. `.strict()`. */
+export const SetMemberRoleBody = z
+  .object({
+    role: WorkspaceRoleSchema,
+  })
+  .strict();
