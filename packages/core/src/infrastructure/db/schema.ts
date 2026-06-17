@@ -55,6 +55,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   real,
   serial,
   text,
@@ -84,6 +85,54 @@ export const workspaces = pgTable('workspaces', {
   name: text('name').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * multi-tenant-rbac-and-slice1-completion T0.2 — global user identity (ADR D2).
+ *
+ * A `users` row is identity that spans workspaces; membership + role live in
+ * {@link workspaceUsers}. `email` is the global unique handle (add-by-email).
+ * The seeded `'default-owner'` row is the actor every legacy / no-credential
+ * request acts as (owner of the `'default'` workspace) so single-tenant
+ * deployments keep working after RBAC lands.
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T0.2
+ */
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * multi-tenant-rbac-and-slice1-completion T0.2 — membership + role (ADR D1/D3).
+ *
+ * The M:N join between {@link users} and {@link workspaces}: a user has exactly
+ * ONE role per workspace (composite PK `(workspace_id, user_id)`). `role` is
+ * constrained to the `owner | admin | member` enum at the DB layer (CHECK) so a
+ * bad role never persists. Role resolution LEFT JOINs this table from
+ * `theo_api_keys` on `(workspace_id, user_id)`; a key with no membership row
+ * resolves to the least-privileged `member` (default-deny).
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T0.2 + ADR D3
+ */
+export const workspaceUsers = pgTable(
+  'workspace_users',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    check('workspace_users_role_check', sql`${table.role} IN ('owner', 'admin', 'member')`),
+  ],
+);
 
 /** Primary memory store — every remember/recall/forget operation touches this. */
 export const memories = pgTable(
@@ -441,6 +490,12 @@ export const theoApiKeys = pgTable(
     // resolvePrincipal joins on key_hash and returns this workspace_id (ADR D2).
     // Backfilled to 'default' for pre-0016 keys (ADR D5).
     workspaceId: text('workspace_id').notNull().default('default').references(() => workspaces.id),
+    // multi-tenant-rbac-and-slice1-completion T0.2 (ADR D2): the membership the
+    // key acts as. Role resolution LEFT JOINs workspace_users on
+    // (workspace_id, user_id). Nullable — legacy keys have no member; backfilled
+    // to 'default-owner' by 0017. ON DELETE SET NULL so deleting a user does not
+    // orphan the key as a dangling FK.
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
     // Human-friendly label shown in the keys list + audit log. Trimmed
     // non-empty per cloud EC-4.
     keyName: varchar('key_name', { length: 64 }).notNull(),
