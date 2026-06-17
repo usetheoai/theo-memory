@@ -20,7 +20,8 @@
 import { Buffer } from 'node:buffer';
 import { timingSafeEqual } from 'node:crypto';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 
 const THEMEMORY_API_KEY_ENV = 'THEMEMORY_API_KEY';
 
@@ -64,5 +65,20 @@ export class BearerAuthVerifier implements AuthVerifier {
     const a = Buffer.from(token, 'utf8');
     const b = Buffer.from(this.#expectedToken, 'utf8');
     return timingSafeEqual(a, b);
+  }
+
+  /**
+   * multi-tenant-workspace-isolation T2.1 (ADR D2 + D7): the legacy env-key
+   * credential bridges to the `default` workspace. A matching token resolves to
+   * the `default`-workspace Principal with full memory scopes (single-tenant OSS
+   * deployments keep working unchanged); a non-match resolves to `null` → 401.
+   */
+  async resolvePrincipal(token: string): Promise<Principal | null> {
+    const ok = await this.verify(token);
+    if (!ok) return null;
+    return {
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      scopes: ['memory:read', 'memory:write', 'memory:delete'],
+    };
   }
 }
