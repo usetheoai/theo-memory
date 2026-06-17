@@ -5,7 +5,7 @@
  * v0.4b T7.1 PUBLIC API. Body shape: `{ memoryId, hard? }`.
  */
 import type { Memory } from '@usetheo/memory/contract';
-import { MemoryNotFound } from '@usetheo/memory/contract';
+import { MemoryNotFound, WorkspaceMismatch } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
 import { ForgetBody } from '../schemas.js';
@@ -39,7 +39,9 @@ export async function forgetHandler(c: Context, memory: Memory): Promise<Respons
   try {
     await scopedMemory.forget(memoryId, hard !== undefined ? { hard } : undefined);
   } catch (err) {
-    if (err instanceof MemoryNotFound) {
+    // Both a missing id (MemoryNotFound) and a cross-workspace id
+    // (WorkspaceMismatch) map to 404 — never 403, no existence leak (ADR D6).
+    if (err instanceof MemoryNotFound || err instanceof WorkspaceMismatch) {
       return c.json({ code: 'NOT_FOUND', message: 'Memory not found' }, 404);
     }
     throw err;

@@ -520,6 +520,12 @@
           "name": "memories_hash_scope_unique_idx",
           "columns": [
             {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "hash",
               "isExpression": false,
               "asc": true,

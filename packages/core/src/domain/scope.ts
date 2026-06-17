@@ -172,11 +172,17 @@ export interface Filters {
 }
 
 /**
- * multi-tenant-workspace-isolation T1.1 / ADR D4 — the REST/server-facing
- * scoping contract. Identical to {@link Filters} but with `workspace_id`
- * PROMOTED TO REQUIRED, so a handler that forgets to inject the Principal's
- * workspace is a TypeScript COMPILE ERROR, not a silent unscoped query
- * (closes the `composeFilters(undefined)` leak hole). The SDK-internal store
- * path keeps the optional {@link Filters} for unit/in-memory use.
+ * multi-tenant-workspace-isolation — FORWARD-LOOKING scoping contract.
+ *
+ * `Filters` with `workspace_id` PROMOTED TO REQUIRED. The INTENT (ADR D4) is to
+ * tighten the VectorStore DIP signatures to consume this type, making "forgot
+ * the workspace" a TypeScript COMPILE ERROR. That tightening is NOT YET WIRED
+ * (it ripples through every store adapter) — tracked as a follow-up. TODAY,
+ * isolation is enforced at RUNTIME via the `Memory.withWorkspace` binding +
+ * the `workspace_id NOT NULL DEFAULT 'default'` column, proven by the IDOR
+ * goal test. This type is the documented target, NOT yet load-bearing — do
+ * not delete it as "unused"; it marks the follow-up's contract.
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § ADR D4 (amended 2026-06-17)
  */
 export type ScopedFilters = Filters & { readonly workspace_id: string };
