@@ -43,4 +43,13 @@ END $$;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "memories_workspace_user_idx" ON "memories" ("workspace_id","user_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "memories_workspace_session_idx" ON "memories" ("workspace_id","session_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "memories_workspace_agent_idx" ON "memories" ("workspace_id","agent_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "recall_cache_workspace_scope_idx" ON "recall_cache" ("workspace_id","scope_key");
+CREATE INDEX IF NOT EXISTS "recall_cache_workspace_scope_idx" ON "recall_cache" ("workspace_id","scope_key");--> statement-breakpoint
+-- EC-12 (discovered during T1.1): the dedup unique index must include
+-- workspace_id, else the SAME fact under the SAME user in TWO workspaces would
+-- collide on the composite key and the second write would bump the FIRST
+-- workspace's confirmation_count (a cross-workspace data-integrity leak). Recreate
+-- the index with workspace_id as the leading column. workspace_id is NOT NULL so
+-- no COALESCE is needed for it.
+DROP INDEX IF EXISTS "memories_hash_scope_unique_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "memories_hash_scope_unique_idx"
+  ON "memories" ("workspace_id", "hash", COALESCE("user_id", ''), COALESCE("session_id", ''), COALESCE("agent_id", ''));

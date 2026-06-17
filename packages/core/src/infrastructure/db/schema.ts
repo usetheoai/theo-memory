@@ -166,7 +166,11 @@ export const memories = pgTable(
     // The v0.1 global UNIQUE was a pre-existing cross-scope dedup defect — see
     // EC-1 absorption in the principles-alignment-hardening edge-case review.
     // @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D5
+    // multi-tenant-workspace-isolation T1.1 / EC-12: workspace_id leads the dedup
+    // key so the same fact under the same user in two workspaces is two rows, not
+    // a cross-workspace confirmation_count bump. workspace_id is NOT NULL (no COALESCE).
     uniqueIndex('memories_hash_scope_unique_idx').on(
+      table.workspaceId,
       table.hash,
       sql`COALESCE(${table.userId}, '')`,
       sql`COALESCE(${table.sessionId}, '')`,
