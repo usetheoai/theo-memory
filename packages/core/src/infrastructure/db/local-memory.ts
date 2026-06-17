@@ -8,6 +8,7 @@ import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import type { VectorStore } from '../../domain/dip/vector-store.js';
 import {
   MemoryNotFound,
+  WorkspaceMismatch,
 } from '../../domain/errors.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
@@ -155,8 +156,11 @@ export class LocalMemory implements Memory {
     if (this.workspaceId !== undefined) {
       const rowWorkspace = (existing.payload['workspace_id'] as string | undefined) ?? 'default';
       if (rowWorkspace !== this.workspaceId) {
-        throw new MemoryNotFound(
-          `memoryId ${memoryId} not found in workspace ${this.workspaceId} (cross-workspace forget → 404, EC-5)`,
+        // /review F-wire-1: throw the typed WorkspaceMismatch (maps to 404 at the
+        // handler per ADR D6 — NOT 403, no existence leak). The handler treats
+        // WorkspaceMismatch and MemoryNotFound identically (both → 404).
+        throw new WorkspaceMismatch(
+          `memoryId ${memoryId} not in workspace ${this.workspaceId} (cross-workspace forget → 404, EC-5)`,
         );
       }
     }

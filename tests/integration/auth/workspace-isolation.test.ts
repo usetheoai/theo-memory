@@ -3,7 +3,7 @@
  *
  * Exercises the end-to-end isolation property through the Memory.withWorkspace
  * seam the REST handlers use: a workspace-bound memory only ever reads/writes
- * its own workspace's rows, and a cross-workspace forget is a 404 (MemoryNotFound)
+ * its own workspace's rows, and a cross-workspace forget is a 404 (WorkspaceMismatch)
  * that never touches the other workspace's row (EC-5 / ADR D6).
  *
  * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T3.1
@@ -12,7 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-import { createLocalMemory, LastWriteWinsConflictPolicy, MemoryNotFound, PgvectorStore } from '@usetheo/memory';
+import { createLocalMemory, LastWriteWinsConflictPolicy, PgvectorStore, WorkspaceMismatch } from '@usetheo/memory';
 import { DeterministicStubEmbedder } from '@usetheo/memory/embedders/stub';
 import type { LLM, LLMResponse, Memory, Message } from '@usetheo/memory';
 
@@ -89,7 +89,7 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(aResults.length).toBeGreaterThanOrEqual(1);
     });
 
-    test('cross-workspace forget is a 404 (MemoryNotFound) and never touches the other workspace row (EC-5)', async () => {
+    test('cross-workspace forget is a 404 (WorkspaceMismatch) and never touches the other workspace row (EC-5)', async () => {
       const userId = `bob-${randomUUID()}`;
       const wsA = base.withWorkspace!('ws-a');
       const wsB = base.withWorkspace!('ws-b');
@@ -102,8 +102,8 @@ if (PG_URI === undefined || PG_URI === '') {
       const wsAId = rows[0]?.id;
       expect(wsAId).toBeDefined();
 
-      // ws-B tries to forget ws-A's id → MemoryNotFound (→ 404 at the handler).
-      await expect(wsB.forget(wsAId as string)).rejects.toBeInstanceOf(MemoryNotFound);
+      // ws-B tries to forget ws-A's id → WorkspaceMismatch (→ 404 at the handler).
+      await expect(wsB.forget(wsAId as string)).rejects.toBeInstanceOf(WorkspaceMismatch);
 
       // ws-A's row is UNTOUCHED (still valid — not soft-deleted).
       const after = await pool.query<{ alive: boolean }>(
