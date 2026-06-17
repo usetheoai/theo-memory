@@ -356,3 +356,20 @@ export class InvalidSkillError extends Error {
     Object.setPrototypeOf(this, InvalidSkillError.prototype);
   }
 }
+
+/**
+ * Thrown when a request addresses a resource that exists in a DIFFERENT
+ * workspace than the authenticated {@link Principal}'s. Maps to HTTP 404 (NOT
+ * 403) at the boundary so the response does not leak the resource's existence
+ * in another tenant (ADR D6 + OWASP IDOR guidance).
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § ADR D6
+ */
+export class WorkspaceMismatch extends Error {
+  override readonly name = 'WorkspaceMismatch' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(`Workspace mismatch: ${message}`, options);
+    Object.setPrototypeOf(this, WorkspaceMismatch.prototype);
+  }
+}
