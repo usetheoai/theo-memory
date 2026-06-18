@@ -189,8 +189,13 @@ export function resolveCompat(opt?: RunMcpServerOptions['compat']): 'openmemory'
   return undefined;
 }
 
-/** Compat (SSE) port: CLI flag → THEOMEM_MCP_HTTP_PORT → OpenMemory default 8765. */
-function resolveCompatPort(opt?: number): number {
+/**
+ * Compat (SSE) port: CLI flag → THEOMEM_MCP_HTTP_PORT → OpenMemory default 8765.
+ *
+ * @internal — exported for unit testing the 8765 default + env/flag precedence;
+ * NOT re-exported from `packages/cli/src/index.ts`.
+ */
+export function resolveCompatPort(opt?: number): number {
   if (opt !== undefined) return resolvePort(opt);
   const envRaw = process.env['THEOMEM_MCP_HTTP_PORT'];
   if (envRaw === undefined) return 8765;
@@ -278,7 +283,19 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
         new McpServer({ name: 'themory', version: '0.3.0', memoryFactory: () => memory, toolset: 'openmemory' }),
     });
     const compatShutdown = (): void => {
-      void handle.close().finally(() => process.exit(0));
+      void (async (): Promise<void> => {
+        try {
+          // Mirror the native shutdown race-guard: a single wedged SSE session's
+          // server.stop() must NOT block process exit past the grace window
+          // (else Docker/k8s SIGKILLs us). Same SHUTDOWN_TIMEOUT_MS as native.
+          await Promise.race([
+            handle.close(),
+            new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+          ]);
+        } finally {
+          process.exit(0);
+        }
+      })();
     };
     process.on('SIGTERM', compatShutdown);
     process.on('SIGINT', compatShutdown);
