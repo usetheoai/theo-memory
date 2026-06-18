@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - OpenMemory MCP-shape compatibility — CLI wiring (openmemory-mcp-compat T2.1): `themory mcp --compat openmemory` (or env `THEOMEM_MCP_COMPAT=openmemory`) boots the OpenMemory tool surface over SSE on port 8765 (default) — the runnable drop-in for OpenMemory-wired MCP clients. Native `themory mcp` is unchanged.
-- OpenMemory MCP-shape compatibility — SSE transport + GOAL TEST (openmemory-mcp-compat T1.1/T3.1): `connectSse` mounts the OpenMemory connection convention (`GET /{client}/sse/{user}` + POST message routes + `/{client}/http/{user}` Streamable HTTP) using the SDK's `SSEServerTransport` (no new dep); `user_id`+`client_name` are parsed from the URL path and bound per message via `withScope` (local-first scoping, blueprint D3). Proven by `tests/integration/openmemory/mcp-compat.test.ts` — a real `@modelcontextprotocol/sdk` client over SSE against real pgvector: tools/list = the 4 names, add→search→delete round-trip, and per-user isolation.
+- OpenMemory MCP-shape compatibility — SSE transport + GOAL TEST (openmemory-mcp-compat T1.1/T3.1): `connectSse` mounts the OpenMemory connection convention (`GET /{client}/sse/{user}` + POST message routes + `/{client}/http/{user}` Streamable HTTP) using the SDK's `SSEServerTransport` (no new dep); `user_id` is parsed from the URL path and bound per message via `withScope` (local-first scoping, blueprint D3). Proven by `tests/integration/openmemory/mcp-compat.test.ts` — a real `@modelcontextprotocol/sdk` client over SSE against real pgvector: tools/list = the 4 names, add→search→delete round-trip, and per-user isolation.
 - OpenMemory MCP-shape compatibility — Phase 0 (openmemory-mcp-compat T0.1): an opt-in `toolset: 'openmemory'` on the MCP server exposes the OpenMemory tool surface (`add_memories`/`search_memory`/`list_memories`/`delete_memories`) as an alias over the native `remember`/`recall`/`getAll`/`forget` verbs, with OpenMemory-parity JSON-string returns and `delete_memories(memory_ids)` mapping to forget-per-id. Adapter-only (`packages/mcp`); `src/core` untouched. Roadmap Item 26 (P0 sub-goal 3 — MCP), NOT the cut REDACTED data-adapter (no `vendor SDK` dep).
 
 ### Changed
@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+- OpenMemory MCP compat (openmemory-mcp-compat /review): `delete_memories` now enforces per-user ownership before deleting — on the multi-user SSE path a user can no longer delete another user's memory by id (cross-user IDOR closed). add/search/list were already user-scoped; delete now matches. Regression covered by a unit guard + an end-to-end IDOR test against real pgvector.
 
 ## [0.4.0] - 2026-06-18
 

@@ -119,9 +119,17 @@ describe('openMemoryDispatch — handler mapping', () => {
     expect(JSON.parse(text(r))).toEqual([{ id: 'm1', memory: 'likes coffee', created_at: FIXED.toISOString() }]);
   });
 
-  it('delete_memories calls forget per id', async () => {
+  // Helper: a user-scoped MemoryItem owned by `userId`.
+  const ownedBy = (id: string, userId: string): MemoryItem => ({
+    id, text: 't', hash: 'h', scope: { kind: 'user', userId },
+    createdAt: FIXED, updatedAt: FIXED, metadata: {}, tValid: FIXED, tInvalid: null,
+  });
+
+  it('delete_memories forgets only ids the requesting user owns', async () => {
     const scoped = scopedMock();
     const memory = memoryMock(scoped);
+    // Both ids exist and belong to alice (the requesting user).
+    vi.mocked(memory.get).mockImplementation((id: string) => Promise.resolve(ownedBy(id, 'alice')));
     vi.mocked(memory.forget).mockResolvedValue(undefined);
 
     const r = await withScope(ALICE, () =>
@@ -132,15 +140,32 @@ describe('openMemoryDispatch — handler mapping', () => {
     expect(JSON.parse(text(r))).toEqual({ deleted: ['a', 'b'] });
   });
 
-  it('delete_memories returns an Error string when no ids are accessible', async () => {
+  it('delete_memories REFUSES to forget another user\'s memory (cross-user IDOR guard)', async () => {
     const scoped = scopedMock();
     const memory = memoryMock(scoped);
-    vi.mocked(memory.forget).mockRejectedValue(new Error('not found'));
+    // The id exists but belongs to bob; alice must NOT be able to delete it.
+    vi.mocked(memory.get).mockResolvedValue(ownedBy('bob-secret', 'bob'));
+    vi.mocked(memory.forget).mockResolvedValue(undefined);
+
+    const r = await withScope(ALICE, () =>
+      openMemoryDispatch(DELETE_MEMORIES, { memory_ids: ['bob-secret'] }, { memoryFactory: () => memory }),
+    );
+
+    expect(vi.mocked(memory.forget)).not.toHaveBeenCalled();
+    expect(r.isError).toBe(true);
+    expect(text(r)).toMatch(/No accessible memories/);
+  });
+
+  it('delete_memories returns an Error string when ids are unknown', async () => {
+    const scoped = scopedMock();
+    const memory = memoryMock(scoped);
+    vi.mocked(memory.get).mockResolvedValue(null);
 
     const r = await withScope(ALICE, () =>
       openMemoryDispatch(DELETE_MEMORIES, { memory_ids: ['x'] }, { memoryFactory: () => memory }),
     );
 
+    expect(vi.mocked(memory.forget)).not.toHaveBeenCalled();
     expect(r.isError).toBe(true);
     expect(text(r)).toMatch(/^Error: /);
   });
