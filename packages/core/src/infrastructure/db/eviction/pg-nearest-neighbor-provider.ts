@@ -27,8 +27,13 @@ const MAX_ISOLATION_DISTANCE = 1;
 export class PgNearestNeighborProvider implements NearestNeighborProvider {
   constructor(private readonly pool: Pool) {}
 
-  async distance(memoryId: string, scope: Scope): Promise<number> {
+  async distance(memoryId: string, scope: Scope, workspaceId?: string): Promise<number> {
     const column = scopeColumn(scope);
+    // multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): when a
+    // workspace is bound, restrict the neighbor search to the same tenant so a
+    // ws-B memory never lowers a ws-A row's isolation distance (which would bias
+    // ws-A's eviction choice — a cross-workspace information bleed).
+    const wsClause = workspaceId !== undefined ? ' AND m.workspace_id = $3' : '';
     const sql = `WITH self AS (
         SELECT embedding FROM memories WHERE id = $1
       )
@@ -36,12 +41,16 @@ export class PgNearestNeighborProvider implements NearestNeighborProvider {
         FROM memories m
        WHERE m.${column} = $2
          AND m.id <> $1
-         AND m.t_invalid IS NULL
+         AND m.t_invalid IS NULL${wsClause}
        ORDER BY m.embedding <=> (SELECT embedding FROM self) ASC
        LIMIT 1`;
+    const params: readonly (string)[] =
+      workspaceId !== undefined
+        ? [memoryId, scopeValue(scope), workspaceId]
+        : [memoryId, scopeValue(scope)];
     const result = await this.pool.query<{ distance: number | string }>(
       sql,
-      [memoryId, scopeValue(scope)],
+      [...params],
     );
     const row = result.rows[0];
     if (row === undefined) {

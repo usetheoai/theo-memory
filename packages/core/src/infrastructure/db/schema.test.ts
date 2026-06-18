@@ -53,6 +53,8 @@ describe('memories table', () => {
         'confirmation_count',
         // themory-category-filter-server-side T2.1 (ADR D2 + ADR D6 — operator category filter)
         'category',
+        // multi-tenant-workspace-isolation T0.2 (ADR D1 — OUTER tenant anchor)
+        'workspace_id',
       ].sort(),
     );
   });

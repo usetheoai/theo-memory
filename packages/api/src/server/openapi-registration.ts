@@ -15,11 +15,21 @@ import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
 
 import {
+  AddMemberBody,
   ForgetBody,
   RecallBody,
   ReflectBody,
   RememberBody,
+  SetMemberRoleBody,
 } from './schemas.js';
+
+const MemberSchema = z.object({
+  userId: z.string(),
+  email: z.string().email(),
+  name: z.string().nullable(),
+  role: z.enum(['owner', 'admin', 'member']),
+  createdAt: z.string().datetime(),
+});
 
 const ScopeTypeEnum = z
   .enum(['user', 'session', 'agent', 'skill'])
@@ -188,6 +198,69 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
           "Listing memories on 'skill' scope is not implemented at P0 (SDK-only via Memory.skills(...) per ADR-0010; closes F-rev-1 from theo-memory-standalone-p0 review).",
         content: { 'application/json': { schema: ErrorEnvelopeSchema } },
       },
+    },
+  });
+
+  // multi-tenant-rbac-and-slice1-completion (F-dom-api-1): the RBAC membership
+  // surface. Workspace is derived from the authenticated Principal (never the
+  // body); routes are gated by requireRole('admin').
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/members',
+    operationId: 'listMembers',
+    summary: "List the authenticated workspace's members (role: admin).",
+    responses: {
+      200: {
+        description: 'Members of the caller workspace.',
+        content: { 'application/json': { schema: z.object({ members: z.array(MemberSchema) }) } },
+      },
+      401: { description: 'Missing/invalid credential.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      403: { description: 'Caller role below admin.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      503: { description: 'Auth backend unavailable (fail-closed).', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/members',
+    operationId: 'addMember',
+    summary: 'Add a member by email (role: admin). Creates the global user if new.',
+    request: { body: { content: { 'application/json': { schema: AddMemberBody } } } },
+    responses: {
+      201: { description: 'Member added.', content: { 'application/json': { schema: z.object({ member: MemberSchema }) } } },
+      401: { description: 'Missing/invalid credential.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      403: { description: 'Caller role below admin.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      409: { description: 'User already a member.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      422: { description: 'Invalid body (e.g. forged workspaceId rejected).', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+    },
+  });
+  registry.registerPath({
+    method: 'patch',
+    path: '/v1/members/{userId}',
+    operationId: 'setMemberRole',
+    summary: "Change a member's role (role: admin). Cannot demote the last owner.",
+    request: {
+      params: z.object({ userId: z.string().min(1) }),
+      body: { content: { 'application/json': { schema: SetMemberRoleBody } } },
+    },
+    responses: {
+      200: { description: 'Role updated.', content: { 'application/json': { schema: z.object({ member: MemberSchema }) } } },
+      403: { description: 'Caller role below admin.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      404: { description: 'Member not found (or in another workspace — no existence leak).', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      409: { description: 'Would leave the workspace without an owner.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      422: { description: 'Invalid body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+    },
+  });
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/members/{userId}',
+    operationId: 'removeMember',
+    summary: 'Remove a member (role: admin). Cannot remove the last owner.',
+    request: { params: z.object({ userId: z.string().min(1) }) },
+    responses: {
+      204: { description: 'Member removed.' },
+      403: { description: 'Caller role below admin.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      404: { description: 'Member not found (or in another workspace — no existence leak).', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      409: { description: 'Would leave the workspace without an owner.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
     },
   });
 }

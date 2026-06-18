@@ -54,6 +54,15 @@ export interface ScoreContext {
    * back to `neighborProvider.distance(...)` or skips the multiplier.
    */
   readonly neighborDistances?: ReadonlyMap<string, number>;
+  /**
+   * multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): the workspace
+   * the eviction pass is bound to. Threaded into `neighborProvider.distance(...)`
+   * so the long-tail isolation metric is computed against same-workspace
+   * neighbors only — a ws-B memory never influences which ws-A row is evicted.
+   * Undefined for legacy single-tenant passes (distance falls back to the
+   * `workspace_id NOT NULL DEFAULT 'default'` column bound).
+   */
+  readonly workspaceId?: string;
 }
 
 /**
@@ -188,5 +197,5 @@ export interface NearestNeighborProvider {
    * uniformly. Implementations dispatch on `scope.kind` to pick the column
    * predicate (user_id / session_id / agent_id).
    */
-  distance(memoryId: string, scope: Scope): Promise<number>;
+  distance(memoryId: string, scope: Scope, workspaceId?: string): Promise<number>;
 }

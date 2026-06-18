@@ -157,4 +157,32 @@ export interface Filters {
    * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D5 + EC-3 + EC-9
    */
   readonly category?: string;
+  /**
+   * multi-tenant-workspace-isolation T1.1: the OUTER tenant anchor (ADR D1).
+   * When set, every store query filters by `workspace_id = :workspace_id` so a
+   * Principal only sees its own workspace's rows. Resolved from the credential's
+   * Principal (ADR D3), never the request body. The store insert hoists this
+   * into the `workspace_id` column (defaulting to `'default'` when omitted, the
+   * no-credential collapse target per ADR D7). The REST path carries it as a
+   * REQUIRED field via {@link ScopedFilters} (ADR D4 compile-time guard).
+   *
+   * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T1.1 + ADR D1/D3/D4
+   */
+  readonly workspace_id?: string;
 }
+
+/**
+ * multi-tenant-workspace-isolation — FORWARD-LOOKING scoping contract.
+ *
+ * `Filters` with `workspace_id` PROMOTED TO REQUIRED. The INTENT (ADR D4) is to
+ * tighten the VectorStore DIP signatures to consume this type, making "forgot
+ * the workspace" a TypeScript COMPILE ERROR. That tightening is NOT YET WIRED
+ * (it ripples through every store adapter) — tracked as a follow-up. TODAY,
+ * isolation is enforced at RUNTIME via the `Memory.withWorkspace` binding +
+ * the `workspace_id NOT NULL DEFAULT 'default'` column, proven by the IDOR
+ * goal test. This type is the documented target, NOT yet load-bearing — do
+ * not delete it as "unused"; it marks the follow-up's contract.
+ *
+ * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § ADR D4 (amended 2026-06-17)
+ */
+export type ScopedFilters = Filters & { readonly workspace_id: string };

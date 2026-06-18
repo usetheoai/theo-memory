@@ -43,6 +43,14 @@ export interface LocalScopedSkillMemoryDeps {
   readonly llm: LLM;
   readonly tracer?: Tracer;
   /**
+   * multi-tenant-rbac-and-slice1-completion T3.1 — the workspace this skill
+   * memory is bound to (from `Memory.withWorkspace(...).skills(repoId)`). When
+   * set, every skill add/recall/consolidate is workspace-isolated via the
+   * `workspace_id` filter + insert column; when unset, the store default
+   * (`'default'`) applies (ADR D7).
+   */
+  readonly workspaceId?: string;
+  /**
    * v0.6.1 T4.1 / F10: `forget(skillId)` delegates here so the canonical
    * `LocalMemory.forget` path runs — that path writes the `'forget'` history
    * event via the configured `HistoryManager`. The delegate is `LocalMemory.forget`
@@ -72,7 +80,10 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     }
     this.scope = { kind: 'repo', repoId };
     // RepoScope maps to agent_id at the store layer per EC-4 (filtersFromScope arm).
-    this.filters = { agent_id: repoId };
+    // T3.1: carry workspace_id so recall + consolidate isolate via composeFilters.
+    this.filters = this.deps.workspaceId !== undefined
+      ? { agent_id: repoId, workspace_id: this.deps.workspaceId }
+      : { agent_id: repoId };
   }
 
   async add(draft: SkillDraft): Promise<Skill> {
@@ -94,7 +105,8 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
       description: draft.description,
       codeLanguage: draft.codeLanguage,
       // RepoScope persists in agent_id at the store layer per EC-4.
-      scope: { agentId: this.scope.repoId },
+      // T3.1: stamp the workspace so the skill is found only within it.
+      scope: { agentId: this.scope.repoId, workspaceId: this.deps.workspaceId ?? 'default' },
     });
     return {
       id,

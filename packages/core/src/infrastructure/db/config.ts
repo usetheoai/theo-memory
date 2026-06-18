@@ -38,7 +38,7 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * when `eviction.trigger === 'capacity'`. NOT a public field; consumers
    * configure eviction via the `eviction` option above.
    */
-  readonly postRememberHook?: (scope: Scope) => Promise<void>;
+  readonly postRememberHook?: (scope: Scope, workspaceId?: string) => Promise<void>;
   /**
    * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
    * declared embedding dimension produced by the embedder. Defaults to

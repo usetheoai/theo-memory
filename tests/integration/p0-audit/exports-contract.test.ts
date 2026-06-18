@@ -71,8 +71,12 @@ describe('T1.2 — src/core/index.ts contract-barrel JSDoc + @see', () => {
   const content = readFileSync(CONTRACT_PATH, 'utf8');
   const blocks = findExportBlocks(content);
 
-  test('1. src/core/index.ts contains 41 export statements (T0.1 baseline)', () => {
-    expect(blocks.length).toBe(41);
+  test('1. src/core/index.ts contains 43 export statements (T0.1 baseline + 2 workspace exports)', () => {
+    // multi-tenant-workspace-isolation T0.1 added two export statements to the
+    // contract barrel: `Principal`/`Workspace` types and the
+    // `DEFAULT_WORKSPACE_ID`/`makeVerifyShim` values (architecture.md § 9 —
+    // conscious public-surface growth, each with a JSDoc + @see block).
+    expect(blocks.length).toBe(43);
   });
 
   test('2. every export statement has a JSDoc block above', () => {

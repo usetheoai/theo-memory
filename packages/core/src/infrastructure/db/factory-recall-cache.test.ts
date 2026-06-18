@@ -246,7 +246,9 @@ describe('T2.2 — write-trigger cache invalidation hooks', () => {
     // (cache.invalidateCalls is NOT populated here because we replaced
     // invalidateScope with a gated Promise — the existing T2.2-RED-1 test
     // covers the CALL assertion; this test covers the AWAIT ORDER.)
-    expect(cache.invalidateScope).toHaveBeenCalledWith({ kind: 'user', userId: 'alice' });
+    // T3.1: invalidateScope is now (scope, workspaceId); the SDK-direct path is
+    // unbound so workspaceId is undefined (collapses to the `default` workspace).
+    expect(cache.invalidateScope).toHaveBeenCalledWith({ kind: 'user', userId: 'alice' }, undefined);
   });
 
   /**
