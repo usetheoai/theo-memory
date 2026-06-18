@@ -59,10 +59,10 @@ export class CapacityBasedTrigger {
    * already held by another transaction (EC-2 absorption — the other
    * writer's eviction will resolve the overflow).
    */
-  async fire(scope: Scope, now: Date): Promise<EvictionResult | null> {
+  async fire(scope: Scope, now: Date, workspaceId?: string): Promise<EvictionResult | null> {
     const client = await this.pool.connect();
     try {
-      return await this.fireInTransaction(client, scope, now);
+      return await this.fireInTransaction(client, scope, now, workspaceId);
     } finally {
       client.release();
     }
@@ -72,18 +72,19 @@ export class CapacityBasedTrigger {
     client: PoolClient,
     scope: Scope,
     now: Date,
+    workspaceId?: string,
   ): Promise<EvictionResult | null> {
     await client.query('BEGIN');
     try {
       const lockResult = await client.query<{ locked: boolean }>(
         'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
-        [advisoryLockKey(scope)],
+        [advisoryLockKey(scope, workspaceId)],
       );
       if (lockResult.rows[0]?.locked !== true) {
         await client.query('COMMIT');
         return null;
       }
-      const result = await this.runEvictionPass(client, scope, now);
+      const result = await this.runEvictionPass(client, scope, now, workspaceId);
       await client.query('COMMIT');
       return result;
     } catch (err) {
@@ -96,8 +97,11 @@ export class CapacityBasedTrigger {
     client: PoolClient,
     scope: Scope,
     now: Date,
+    workspaceId?: string,
   ): Promise<EvictionResult | null> {
-    const where = scopeWhereClause(scope);
+    // multi-tenant-rbac-and-slice1-completion T3.1: COUNT + candidate load +
+    // scoring are all workspace-bound so the overflow + victim set are per-tenant.
+    const where = scopeWhereClause(scope, 1, workspaceId);
     const countResult = await client.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
          FROM memories
@@ -121,8 +125,12 @@ export class CapacityBasedTrigger {
         // observability-only — do NOT poison the eviction
       }
     }
-    const candidates = await loadCandidates(client, scope);
-    const context: ScoreContext = { meanIsolationDistance: 0, now };
+    const candidates = await loadCandidates(client, scope, workspaceId);
+    const context: ScoreContext = {
+      meanIsolationDistance: 0,
+      now,
+      ...(workspaceId !== undefined ? { workspaceId } : {}),
+    };
     const victimIds = await this.policy.selectVictims(candidates, fraction, context);
     let result: EvictionResult;
     if (victimIds.length === 0) {
