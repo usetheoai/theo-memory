@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- OpenMemory MCP-shape compatibility — Phase 0 (openmemory-mcp-compat T0.1): an opt-in `toolset: 'openmemory'` on the MCP server exposes the OpenMemory tool surface (`add_memories`/`search_memory`/`list_memories`/`delete_memories`) as an alias over the native `remember`/`recall`/`getAll`/`forget` verbs, with OpenMemory-parity JSON-string returns and `delete_memories(memory_ids)` mapping to forget-per-id. Adapter-only (`packages/mcp`); `src/core` untouched. Roadmap Item 26 (P0 sub-goal 3 — MCP), NOT the cut REDACTED data-adapter (no `vendor SDK` dep).
 
 ### Changed
 
