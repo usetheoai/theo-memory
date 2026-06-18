@@ -9,10 +9,13 @@ import type { Memory } from '@usetheo/memory/contract';
 /**
  * Transport flavor for the MCP server.
  *
- * Per ADR D1: ship `stdio` (default — local CLI via `npx @usetheo/memory/agent-tools`)
- * and `streamable-http` (for HTTP deploy paths, TheoCloud v0.5 alignment).
- * SSE explicitly skipped (4× independently confirmed deprecated). `fastmcp` wrapper
- * deferred until v0.5+ OAuth scenarios.
+ * Per ADR D1: `stdio` (default — local CLI via `themory mcp`) and
+ * `streamable-http` (HTTP deploy paths, TheoCloud v0.5 alignment) are the native
+ * transports. `sse` was added by the OpenMemory MCP-compat cycle (Roadmap Item
+ * 26): it is NOT used by the native server (which still ships stdio + streamable-
+ * http only); it backs the opt-in `--compat openmemory` surface, whose clients
+ * (Cursor/Claude/Windsurf/Cline) speak the OpenMemory SSE convention. `fastmcp`
+ * wrapper deferred until v0.5+ OAuth scenarios.
  */
 export type TransportKind = 'stdio' | 'streamable-http' | 'sse';
 
