@@ -16,17 +16,26 @@
  * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.1
  * @see src/core/scope.ts (Scope union — discriminator-based exhaustive switch)
  */
+import { DEFAULT_WORKSPACE_ID } from '../../../domain/principal.js';
 import type { Scope } from '../../../domain/scope.js';
 
-export function deriveScopeKey(scope: Scope): string {
+/**
+ * multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100% / EC-8): the cache
+ * key is PREFIXED with the workspace so a byte-identical query under the same
+ * scope in two workspaces produces two DISTINCT keys — no cross-workspace cache
+ * hit. `workspaceId` defaults to {@link DEFAULT_WORKSPACE_ID} for unbound
+ * SDK/unit callers (ADR D7), matching the `workspace_id` column default.
+ */
+export function deriveScopeKey(scope: Scope, workspaceId: string = DEFAULT_WORKSPACE_ID): string {
+  const ws = `ws:${workspaceId}|`;
   switch (scope.kind) {
     case 'user':
-      return `user:${scope.userId}`;
+      return `${ws}user:${scope.userId}`;
     case 'session':
-      return `session:${scope.sessionId}`;
+      return `${ws}session:${scope.sessionId}`;
     case 'agent':
-      return `agent:${scope.agentId}`;
+      return `${ws}agent:${scope.agentId}`;
     case 'repo':
-      return `repo:${scope.repoId}`;
+      return `${ws}repo:${scope.repoId}`;
   }
 }

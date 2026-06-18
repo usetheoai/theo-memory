@@ -1,0 +1,242 @@
+agent: architecture
+review_target: e881a8e..HEAD for plan multi-tenant-rbac-and-slice1-completion
+plan: .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/api/src/server/handlers/admin-keys.ts
+    line: 222
+    plan_ref: ADR D4 "mint handler consults MembersRepository.getMemberRole"
+    summary: >
+      Anti-escalation guard re-implements the caller-role-join SQL + target-role
+      lookup inline instead of delegating to MembersRepository.getMemberRole as
+      the plan's ADR D4 prescribes. Knowledge of the role-join lives in three
+      places now (api-key-verifier.SELECT_PRINCIPAL_BY_HASH_SQL, members-store-pg
+      .getMemberRole, and this handler), violating DRY for a security-critical
+      authz rule.
+    evidence: |
+      ```ts
+      // admin-keys.ts:222 — inline caller-role join (duplicates api-key-verifier)
+      const callerRow = await pool.query<{ workspace_id: string; role: string | null }>(
+        `SELECT k.workspace_id, m.role
+           FROM theo_api_keys k
+           LEFT JOIN workspace_users m
+             ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
+          WHERE k.key_hash = $1 ...`, [callerHash]);
+      // admin-keys.ts:238 — inline target-role lookup (duplicates getMemberRole)
+      const targetRow = await pool.query<{ role: string }>(
+        `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`, ...);
+      ```
+      Plan T2.1 Deep Dives: "anti-escalation (mint): ... const tr = await
+      members.getMemberRole(principal.workspaceId, rawUserId)". The DIP that
+      exists for exactly this lookup is bypassed. The handler also re-derives the
+      caller's role from the raw Authorization header (re-hashing the token)
+      instead of reading the already-resolved `getPrincipal(c)` — the Principal
+      injected by bearerAuth already carries workspaceId+role+userId.
+    recommended_action: >
+      Pass MembersRepository into createKeyHandler (DI like members handlers) and
+      replace both inline queries with getPrincipal(c) for the caller +
+      members.getMemberRole(workspaceId, targetUserId) for the target. Removes 2
+      duplicated SQL strings and the double token-hash.
+
+  - id: F-arch-2
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.ts
+    line: 79
+    plan_ref: ADR D6 "recall-cache scope key includes workspace_id"
+    summary: >
+      Workspace isolation in the recall cache is achieved ONLY via the scope_key
+      prefix (deriveScopeKey embeds `ws:${workspaceId}|`). The `recall_cache
+      .workspace_id` column (schema.ts:423, NOT NULL DEFAULT 'default') is never
+      read or written by GET_SQL/INSERT_SQL/INVALIDATE_SCOPE_SQL — it is a dead
+      column whose declared purpose (tenant isolation) is silently unmet at the
+      column level. The plan ADR D6 says "the cosine lookup also ANDs
+      workspace_id" — the SQL does not.
+    evidence: |
+      ```sql
+      -- GET_SQL filters scope_key only; no workspace_id predicate
+      WHERE scope_key = $1 AND (1 - (query_embedding <=> $2::vector)) >= $3 ...
+      -- INSERT_SQL inserts scope_key, query_embedding, result_set, expires_at,
+      -- threshold_used — workspace_id column is left to its DEFAULT 'default'
+      ```
+      All recall_cache rows across every workspace will physically carry
+      workspace_id='default' even when serving ws-B traffic. Isolation holds
+      functionally (scope_key prefix differs), but the column-level invariant the
+      migration/schema advertises is violated, and ADR D6's stated AND-clause is
+      absent.
+    recommended_action: >
+      Either (a) populate + filter workspace_id in the three cache SQL statements
+      to match ADR D6 and make the column load-bearing (defense-in-depth +
+      queryable by tenant), OR (b) drop the workspace_id column from recall_cache
+      and document in ADR D6 that prefix-keying is the sole isolation mechanism.
+      The current state — column present, advertised, but unused — is the worst
+      of both (drift between schema intent and runtime).
+
+  - id: F-arch-3
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/pgvector-skill-store.ts
+    line: 110
+    plan_ref: ADR D6 "skill-store + eviction add the workspace_id insert"
+    summary: >
+      insertSkill and insertDerivedSkillAtomic thread workspace_id into the
+      INSERT column list, but the non-atomic insertDerivedSkill (lines 102-138)
+      does NOT include workspace_id — a derived skill written via this path lands
+      in workspace_id='default' regardless of source. Latent isolation
+      inconsistency. Today the live consolidate path uses insertDerivedSkillAtomic
+      so it is not a live leak, but the three sibling methods now diverge in their
+      column contract.
+    evidence: |
+      ```ts
+      // insertDerivedSkill (NON-atomic) — column list omits workspace_id:
+      `INSERT INTO memories (
+         text, hash, embedding, payload,
+         user_id, session_id, agent_id,            // <-- no workspace_id
+         kind, derived_from, code, description, code_language
+       ) VALUES (...)`,
+      // vs insertDerivedSkillAtomic which DOES list workspace_id (line 170)
+      ```
+      Callers in production: only insertDerivedSkillAtomic (consolidate.ts) and
+      the test/conformance harness use insertDerivedSkill. So no current data
+      escapes, but a future caller of the non-atomic variant would silently
+      cross-contaminate workspaces.
+    recommended_action: >
+      Add `workspace_id` (args.scope.workspaceId ?? 'default') to the
+      insertDerivedSkill column list + VALUES for parity with its two siblings,
+      or remove the now-redundant non-atomic insertDerivedSkill if the atomic
+      variant fully supersedes it.
+
+  - id: F-arch-4
+    severity: MEDIUM
+    file: packages/api/src/server/handlers/admin-keys.ts
+    line: 1
+    plan_ref: Global DoD "File-size budget respected (500 LoC)"
+    summary: >
+      admin-keys.ts is 570 LoC, over the 500-LoC module-hygiene budget the plan's
+      Global Definition of Done explicitly asserts. The RBAC anti-escalation
+      guard (~57 lines) pushed it past the cap. The file already aggregates 5
+      handlers plus shared helpers; SRP pressure is high.
+    evidence: |
+      `wc -l packages/api/src/server/handlers/admin-keys.ts` = 570.
+      architecture.md § Module hygiene + plan Global DoD: "File-size budget
+      respected (500 LoC)". The anti-escalation block (admin-keys.ts:200-258) is
+      a self-contained authz concern that could live beside requireRole or in a
+      dedicated guard module.
+    recommended_action: >
+      Extract the anti-escalation guard into a small `assertMintAntiEscalation`
+      helper (consuming MembersRepository + Principal per F-arch-1) in a sibling
+      module, bringing admin-keys.ts back under budget and isolating the
+      security-critical logic for focused review.
+
+  - id: F-arch-5
+    severity: LOW
+    file: packages/core/src/infrastructure/db/scoped-skill-memory.ts
+    line: 186
+    plan_ref: ADR D6 skill-store workspace isolation
+    summary: >
+      LocalScopedSkillMemory.forget's cross-scope guard checks
+      row.metadata['agent_id'] === repoId + kind==='skill' but does NOT also
+      assert the row's workspace matches this.deps.workspaceId. Isolation is
+      already enforced upstream (getDelegate is the workspace-bound LocalMemory
+      .get, and the bound memory only resolves rows in its workspace), so this is
+      defense-in-depth, not a live hole — but the guard reads as workspace-blind
+      where every other secondary-store path now carries an explicit workspace
+      predicate.
+    evidence: |
+      ```ts
+      const isOwnedSkill =
+        row !== null
+        && row.metadata['kind'] === 'skill'
+        && row.metadata['agent_id'] === this.scope.repoId;
+        // no workspace_id check here; relies on getDelegate scoping
+      ```
+    recommended_action: >
+      Optionally add `&& row.metadata['workspace_id'] === (this.deps.workspaceId
+      ?? 'default')` to the guard so the isolation invariant is visible at the
+      guard site, consistent with the explicit workspace predicates added to
+      eviction/cache. Low priority — current behavior is correct via the bound
+      getDelegate.
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/domain/principal.ts
+    line: 41
+    plan_ref: T0.1 + architecture.md § 3 (DIP — domain defines types, no I/O)
+    summary: >
+      Principal evolution (added userId + role; new WorkspaceRole / ROLE_RANK /
+      roleSatisfies / DEFAULT_OWNER_USER_ID) is clean pure-domain code with zero
+      I/O and zero adapter imports. roleSatisfies is a total ordinal function;
+      additive widening preserved every existing export (Workspace, Principal,
+      DEFAULT_WORKSPACE_ID, makeVerifyShim). Barrel export updated correctly. No
+      DIP boundary violation — core/domain imports nothing from local/ or cloud/.
+    evidence: |
+      principal.ts: ROLE_RANK = { member:0, admin:1, owner:2 };
+      roleSatisfies(role,min) = ROLE_RANK[role] >= ROLE_RANK[min]. domain/index.ts
+      re-exports WorkspaceRole (type) + roleSatisfies/DEFAULT_OWNER_USER_ID
+      (values). No issues found.
+    recommended_action: None — exemplary additive domain evolution.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/api/src/server/store/members-store.ts
+    line: 40
+    plan_ref: ADR D3 + T2.1 (MembersRepository DIP, in-memory <-> pg parity)
+    summary: >
+      MembersRepository DIP is well-shaped: ISP-clean (5 cohesive methods, all
+      consumers use them), workspaceId as mandatory first param on every method
+      enforces the owned()-scoping discipline at the type level, and the
+      in-memory/pg impls share an identical result-shape contract
+      (AddMemberResult/SetRoleResult/RemoveMemberResult discriminated unions). The
+      last-owner guard logic is structurally identical across both impls
+      (count-owners then refuse), with the pg impl adding FOR UPDATE serialization
+      per ADR D3. LSP holds — the in-memory impl is a faithful substitute for
+      contract tests.
+    evidence: |
+      members-store.ts ownerCount + setRole/remove guard mirrors
+      members-store-pg.ts ownerCount(FOR UPDATE) + tx guard. Both return
+      {ok:false,reason:'last_owner'} on the same condition. createInMemory and
+      createPostgres are interchangeable behind MembersRepository.
+    recommended_action: None — clean DIP with genuine in-memory/pg parity.
+
+  - id: F-arch-8
+    severity: INFO
+    file: packages/api/src/server/auth/middleware.ts
+    line: 133
+    plan_ref: ADR D5 (503 fail-closed) + T1.1
+    summary: >
+      The 503 fail-closed guard is correctly placed: resolvePrincipalFrom is
+      wrapped in try/catch, the Principal is c.set ONLY on a non-null successful
+      resolution, and a thrown verifier returns 503 service_unavailable without
+      ever falling through to the privileged DEFAULT_PRINCIPAL. requireRole is
+      mounted after bearerAuth so 401 precedes 403. Fail-closed semantics match
+      ADR D5 exactly — no fail-open-to-owner path exists.
+    evidence: |
+      ```ts
+      let principal: Principal | null;
+      try { principal = await resolvePrincipalFrom(hoistedVerifier, token); }
+      catch { return c.json({ code: 'SERVICE_UNAVAILABLE', ... }, 503); }
+      if (principal === null) return 401;
+      c.set('principal', principal);
+      ```
+    recommended_action: None — fail-closed correctly implemented.
+
+  - id: F-arch-9
+    severity: INFO
+    file: packages/core/src/infrastructure/db/eviction/scope-where.ts
+    line: 98
+    plan_ref: ADR D6 (eviction workspace threading, backward-compat)
+    summary: >
+      Eviction workspace threading is consistently backward-compatible: every
+      touched signature (scopeWhereClause, advisoryLockKey, loadCandidates,
+      NearestNeighborProvider.distance, CapacityBasedTrigger.fire,
+      TimeBasedTrigger, TriadicScoringPolicy, ScoreContext.workspaceId) adds
+      workspaceId as a trailing OPTIONAL param; omitting it reproduces the legacy
+      single-tenant SQL byte-for-byte. The runtime wiring is live — factory's
+      postRememberHook forwards scope+workspaceId, LocalScopedMemory passes
+      this.filters.workspace_id, so the threading is exercised end-to-end (not
+      dead code). No OCP/SRP regressions.
+    evidence: |
+      scope-where.ts: `if (workspaceId === undefined) return legacy; else AND
+      workspace_id = $N+1`. factory.ts postRememberHook(scope, workspaceId) ->
+      capacityTrigger.fire(scope, now, workspaceId). scoped-memory.ts passes
+      this.filters.workspace_id ?? undefined at every cache + eviction call site.
+    recommended_action: None — clean optional-param backward-compatible threading.

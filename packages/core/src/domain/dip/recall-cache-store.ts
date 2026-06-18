@@ -123,7 +123,11 @@ export interface RecallCacheStore {
    * to `queryEmbedding` ≥ effective threshold AND is non-expired; otherwise
    * `undefined`. PURE READ — no side effects, no eviction.
    */
-  get(queryEmbedding: readonly number[], scope: Scope): Promise<CachedResult | undefined>;
+  get(
+    queryEmbedding: readonly number[],
+    scope: Scope,
+    workspaceId?: string,
+  ): Promise<CachedResult | undefined>;
 
   /**
    * Populates the cache for the given `(scope, queryEmbedding)` slot.
@@ -139,6 +143,7 @@ export interface RecallCacheStore {
     scope: Scope,
     results: readonly MemoryItemWithScore[],
     ttlSeconds: number,
+    workspaceId?: string,
   ): Promise<void>;
 
   /**
@@ -148,7 +153,7 @@ export interface RecallCacheStore {
    *
    * Returns the number of rows deleted (observability + dogfood evidence).
    */
-  invalidateScope(scope: Scope): Promise<number>;
+  invalidateScope(scope: Scope, workspaceId?: string): Promise<number>;
 
   /**
    * Sweep: deletes rows where `expires_at IS NOT NULL AND expires_at <= NOW()`.

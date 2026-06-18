@@ -65,6 +65,12 @@ function scopeFromFilters(filters: Filters): Scope {
 
 function buildPayload(text: string, hash: string, filters: Filters, metadata: Payload | undefined): Payload {
   const out: Payload = { text, hash };
+  // multi-tenant-workspace-isolation T3.1: carry the workspace into the payload
+  // so the store insert hoists it to the workspace_id column. Sourced from the
+  // Principal-bound filters (ADR D3), never from caller metadata.
+  if (filters.workspace_id !== undefined) {
+    out['workspace_id'] = filters.workspace_id;
+  }
   if (filters.user_id !== undefined) {
     out['user_id'] = filters.user_id;
   }
