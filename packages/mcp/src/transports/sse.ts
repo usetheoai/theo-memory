@@ -10,9 +10,15 @@
  *
  * Per-connection model: the SDK `Server` is 1:1 with a transport, so each GET
  * spawns a FRESH `McpServer` (via `serverFactory`) + `SSEServerTransport`, keyed
- * by the SDK-generated `sessionId`. The `user_id` + `client_name` are parsed from
- * the URL path (OpenMemory's local-first, no-bearer scoping) and bound per message
- * via `withScope` so tool handlers resolve the right user (blueprint D3).
+ * by the SDK-generated `sessionId`. The `user_id` is parsed from the URL path
+ * (OpenMemory's local-first, no-bearer scoping) and bound per message via
+ * `withScope` so tool handlers resolve the right user (blueprint D3).
+ *
+ * The `{client}` path segment is part of the OpenMemory route shape but is NOT
+ * yet surfaced as `mcp_client` metadata on stored memories — that enrichment
+ * (blueprint D3 / Q2) is DEFERRED to a follow-up: threading it would widen the
+ * core `ScopedContext` contract, which is out of scope for this MCP-compat cycle.
+ * The segment is still required structurally (it forms the messages endpoint).
  *
  * Uses the SDK's existing `SSEServerTransport` — NO new dependency (blueprint Corner 2).
  *
@@ -67,7 +73,6 @@ interface Session {
   readonly transport: SSEServerTransport;
   readonly server: McpServer;
   readonly userId: string;
-  readonly clientName: string;
 }
 
 export async function connectSse(options: SseOptions): Promise<SseHandle> {
@@ -94,12 +99,11 @@ export async function connectSse(options: SseOptions): Promise<SseHandle> {
     // 1. Open SSE stream: GET /{client}/sse/{user}
     const getMatch = SSE_GET_RE.exec(path);
     if (method === 'GET' && getMatch) {
-      const clientName = decodeURIComponent(getMatch[1] ?? '');
       const userId = decodeURIComponent(getMatch[2] ?? '');
       const messagesEndpoint = `/${getMatch[1]}/sse/${getMatch[2]}/messages/`;
       const transport = new SSEServerTransport(messagesEndpoint, res);
       const server = options.serverFactory();
-      const session: Session = { transport, server, userId, clientName };
+      const session: Session = { transport, server, userId };
       sessions.set(transport.sessionId, session);
       transport.onclose = (): void => {
         sessions.delete(transport.sessionId);
@@ -130,6 +134,13 @@ export async function connectSse(options: SseOptions): Promise<SseHandle> {
 
     // 3. Streamable HTTP: /{client}/http/{user} (MCP 2025-03-26+). Per-connection
     //    stateful transport + fresh server, scope bound from the path.
+    //
+    //    Deliberately hand-rolled here rather than delegating to
+    //    `connectStreamableHttp`: that helper owns its OWN http.Server + bearer-auth
+    //    pipeline and binds scope from the Authorization header, NOT from the URL
+    //    path. The compat surface needs the OpenMemory path-param scoping
+    //    (`/{client}/http/{user}` → withScope userId) on THIS shared server, so the
+    //    transport is constructed inline. (blueprint D2 / Q2 path-scoping)
     const httpMatch = HTTP_RE.exec(path);
     if (httpMatch) {
       const userId = decodeURIComponent(httpMatch[2] ?? '');
