@@ -150,14 +150,18 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
     return this.ttlSecondsByScopeTier[tier];
   }
 
-  async get(queryEmbedding: readonly number[], scope: Scope): Promise<CachedResult | undefined> {
+  async get(
+    queryEmbedding: readonly number[],
+    scope: Scope,
+    workspaceId?: string,
+  ): Promise<CachedResult | undefined> {
     // EC-8 absorption: PG NaN semantics differ from IEEE 754 — NaN > x is TRUE
     // in PG (per PG docs § 8.1.4), so the SQL `>=` filter does NOT exclude
     // NaN rows. Guard at the entry: zero-norm query → MISS without DB roundtrip.
     if (isZeroNorm(queryEmbedding)) {
       return undefined;
     }
-    const scopeKey = deriveScopeKey(scope);
+    const scopeKey = deriveScopeKey(scope, workspaceId);
     const vectorLiteral = embeddingToVectorLiteral(queryEmbedding);
     // T3.1 — wall-clock latency observation for the HIT path (miss-path
     // latency is observed at the Memory.recall() wrap site since miss includes
@@ -183,8 +187,9 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
     scope: Scope,
     results: readonly MemoryItemWithScore[],
     ttlSeconds: number,
+    workspaceId?: string,
   ): Promise<void> {
-    const scopeKey = deriveScopeKey(scope);
+    const scopeKey = deriveScopeKey(scope, workspaceId);
     const vectorLiteral = embeddingToVectorLiteral(queryEmbedding);
     const resultSetJson = JSON.stringify(results);
     // EC-7 absorption: SERIALIZABLE isolation defends against the concurrent-set LRU race.
@@ -205,8 +210,8 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
     });
   }
 
-  async invalidateScope(scope: Scope): Promise<number> {
-    const scopeKey = deriveScopeKey(scope);
+  async invalidateScope(scope: Scope, workspaceId?: string): Promise<number> {
+    const scopeKey = deriveScopeKey(scope, workspaceId);
     const result = await this.pool.query(INVALIDATE_SCOPE_SQL, [scopeKey]);
     return result.rowCount ?? 0;
   }

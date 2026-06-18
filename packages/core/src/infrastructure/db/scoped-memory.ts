@@ -201,7 +201,7 @@ export class LocalScopedMemory implements ScopedMemory {
     // PgEvictor counter (T10.1 will lazy-init the meter).
     if (this.config.postRememberHook !== undefined) {
       try {
-        await this.config.postRememberHook(this.scope);
+        await this.config.postRememberHook(this.scope, this.filters.workspace_id ?? undefined);
       } catch {
         // Eviction failures are observability-only; do not poison remember().
       }
@@ -215,7 +215,7 @@ export class LocalScopedMemory implements ScopedMemory {
     // the 9-step pipeline on the next recall).
     if (this.recallCacheStore !== undefined) {
       try {
-        await this.recallCacheStore.invalidateScope(this.scope);
+        await this.recallCacheStore.invalidateScope(this.scope, this.filters.workspace_id ?? undefined);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[themory] recall-cache invalidateScope (remember) failed:', err);
@@ -275,7 +275,7 @@ export class LocalScopedMemory implements ScopedMemory {
 
     // Cache-aware path: embed once, consult cache, populate on miss.
     const queryEmbedding = await this.config.embedder.embed(query);
-    const cached = await cache.get(queryEmbedding, this.scope);
+    const cached = await cache.get(queryEmbedding, this.scope, this.filters.workspace_id ?? undefined);
     if (cached !== undefined) {
       return [...cached.results];
     }
@@ -291,7 +291,7 @@ export class LocalScopedMemory implements ScopedMemory {
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
     }, options);
     const ttlSeconds = resolveCacheTtl(this.scope, this.config.recallCache);
-    await cache.set(queryEmbedding, this.scope, results, ttlSeconds);
+    await cache.set(queryEmbedding, this.scope, results, ttlSeconds, this.filters.workspace_id ?? undefined);
     const { getRecallCacheMissDurationHistogram } = await import('./recall-cache/recall-cache-metrics.js');
     getRecallCacheMissDurationHistogram().record(performance.now() - missStart, {
       scope_tier: this.scope.kind,
