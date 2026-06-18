@@ -102,6 +102,17 @@ This is a deliberate scope expansion of P0, signed off by the project owner per 
 - **Breaking change:** `AuthVerifier.verify` → Principal resolution is a pre-release breaking change (acceptable while Status is `Pre-release`); the legacy `THEMEMORY_API_KEY` env credential bridges to a `default` workspace so existing single-tenant deployments keep working (non-destructive migration: add nullable → backfill `default` → NOT NULL → compat bridge → enforce).
 - **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this slug is re-classified.
 
+### Amendment 2026-06-17 (II) — Multi-tenant RBAC (members + roles) RE-CLASSIFIED as in-scope (project-owner sign-off)
+
+**Project-owner directive (2026-06-17):** the **RBAC membership layer** — `users` + `workspace_users` (M:N with an `owner|admin|member` role), `Principal` widened to `{ workspaceId, userId, role, scopes }`, `requireRole(min)` gating the management routes, `/v1/members` CRUD, the **last-owner invariant** (atomic `FOR UPDATE` tx → 409), the **anti-escalation guard** on key mint, and **fail-closed 503** on auth-backend failure — is hereby **re-classified as IN-SCOPE under PRIORITY 0**, on the explicit rationale that it is the **membership layer the workspace amendment (above) and the v0.5 TheoCloud managed runtime (Item 7) depend on** to delegate per-workspace administration. Replicates the `../theo-rag` sibling reference (same TS+Hono+drizzle+pg+zod stack).
+
+Honest disclosure (Rule 3):
+
+- **Slug:** `multi-tenant-rbac-and-slice1-completion`. Also completes the deferred secondary-store isolation of the first slug (recall-cache / skill / eviction `workspace_id` threading → Slice 1 100%).
+- **Breaking change:** `Principal` widened from `{ workspaceId, scopes }` to `{ workspaceId, userId, role, scopes }` (pre-release; acceptable). The env/no-credential bridge resolves to the seeded `default-owner` with role `owner`; a key with no membership row resolves default-deny to `member`.
+- **Non-destructive migration** `0017_workspace_members.sql`: idempotent seed (`default-owner` + its `default`-workspace owner membership) + backfill of legacy keys, so single-tenant deployments keep working.
+- **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this slug is re-classified.
+
 ---
 
 ## What this project is
