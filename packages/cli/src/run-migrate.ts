@@ -18,6 +18,7 @@
  * @see Plan theo-memory-standalone-p0 § T2.4 + EC-35 + EC-36
  */
 import { runMigrations } from '@usetheo/memory';
+import { embeddingDimForKind, resolveEmbedderKind } from '@usetheo/memory-agent-core';
 import { Pool } from 'pg';
 
 
@@ -33,7 +34,13 @@ export async function runMigrate(): Promise<void> {
 
   const pool = new Pool({ connectionString: pgUri });
   try {
-    await runMigrations(pool);
+    // Embedder-aware (F-wire-1): the migration embedding dimension MUST match the
+    // selected embedder (THEOMEM_EMBEDDER: local 384 / openai 1536), so a
+    // standalone `themory migrate` provisions the same schema the server/mcp boot
+    // would. Without this, `themory migrate` left the schema at the shipped
+    // vector(1536) default and a subsequent local-embedder (384) consumer failed
+    // every insert on a dimension mismatch.
+    await runMigrations(pool, { embeddingDim: embeddingDimForKind(resolveEmbedderKind()) });
     process.stdout.write('themory migrate: migrations applied successfully.\n');
   } catch (err) {
     process.stderr.write(
