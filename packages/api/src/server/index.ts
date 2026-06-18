@@ -38,3 +38,24 @@ export type { CreateOauth4webapiIntrospectOptions } from './auth/oidc-introspect
 // RFC 9728 (well-known oauth-protected-resource per ADR-0015 #4)
 export { wellKnownOauthProtectedResourceHandler } from './handlers/well-known.js';
 export type { OidcDiscoveryConfig } from './handlers/well-known.js';
+
+// RBAC (multi-tenant-rbac-and-slice1-completion T4.1) — the members/roles surface
+// so a third-party SDK consumer composing a custom server can role-gate routes +
+// back `/v1/members` without reaching into internal subpaths. The role primitives
+// (`WorkspaceRole`, `roleSatisfies`, `DEFAULT_OWNER_USER_ID`) are convenience
+// re-exports from the core contract barrel (`@usetheo/memory/contract`).
+export { requireRole } from './auth/middleware.js';
+export {
+  createInMemoryMembersRepository,
+  isWorkspaceRole,
+} from './store/members-store.js';
+export type {
+  MembersRepository,
+  Member,
+  AddMemberResult,
+  SetRoleResult,
+  RemoveMemberResult,
+} from './store/members-store.js';
+export { createPostgresMembersRepository } from './store/members-store-pg.js';
+export { roleSatisfies, DEFAULT_OWNER_USER_ID } from '@usetheo/memory/contract';
+export type { WorkspaceRole } from '@usetheo/memory/contract';

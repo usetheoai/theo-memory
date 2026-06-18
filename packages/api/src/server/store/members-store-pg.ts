@@ -85,12 +85,25 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
     }
   }
 
-  async function ownerCount(tx: QueryRunner, workspaceId: string): Promise<number> {
-    const { rows } = await tx.query<{ role: string }>(
-      `SELECT role FROM workspace_users WHERE workspace_id = $1 FOR UPDATE`,
+  /**
+   * Lock the ENTIRE workspace's membership rows in one FOR UPDATE acquisition
+   * and return them. multi-tenant-rbac-and-slice1-completion (F-dom-db-3): a
+   * single deterministic lock acquisition (all rows, by physical order) — both
+   * setRole and remove derive the target + owner-count from this locked set
+   * instead of taking a per-target lock THEN the all-rows lock, which inverted
+   * the lock order between two concurrent demotions of DIFFERENT targets and
+   * could deadlock (40P01 → 500). The last-owner invariant + the same-target
+   * serialization are preserved.
+   */
+  async function lockMembership(
+    tx: QueryRunner,
+    workspaceId: string,
+  ): Promise<{ user_id: string; role: string }[]> {
+    const { rows } = await tx.query<{ user_id: string; role: string }>(
+      `SELECT user_id, role FROM workspace_users WHERE workspace_id = $1 FOR UPDATE`,
       [workspaceId],
     );
-    return rows.filter((r) => r.role === 'owner').length;
+    return rows;
   }
 
   return {
@@ -148,13 +161,10 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
 
     async setRole(workspaceId, userId, role): Promise<SetRoleResult> {
       return runInTx(async (tx) => {
-        const target = await tx.query<{ role: string }>(
-          `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 FOR UPDATE`,
-          [workspaceId, userId],
-        );
-        const current = target.rows[0];
+        const locked = await lockMembership(tx, workspaceId);
+        const current = locked.find((r) => r.user_id === userId);
         if (current === undefined) return { ok: false, reason: 'not_found' };
-        const owners = await ownerCount(tx, workspaceId);
+        const owners = locked.filter((r) => r.role === 'owner').length;
         if (current.role === 'owner' && role !== 'owner' && owners === 1) {
           return { ok: false, reason: 'last_owner' };
         }
@@ -182,13 +192,10 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
 
     async remove(workspaceId, userId): Promise<RemoveMemberResult> {
       return runInTx(async (tx) => {
-        const target = await tx.query<{ role: string }>(
-          `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 FOR UPDATE`,
-          [workspaceId, userId],
-        );
-        const current = target.rows[0];
+        const locked = await lockMembership(tx, workspaceId);
+        const current = locked.find((r) => r.user_id === userId);
         if (current === undefined) return { ok: false, reason: 'not_found' };
-        const owners = await ownerCount(tx, workspaceId);
+        const owners = locked.filter((r) => r.role === 'owner').length;
         if (current.role === 'owner' && owners === 1) {
           return { ok: false, reason: 'last_owner' };
         }

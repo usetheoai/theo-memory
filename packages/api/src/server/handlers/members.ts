@@ -30,7 +30,10 @@ export async function addMemberHandler(c: Context, repo: MembersRepository): Pro
   }
   const parsed = AddMemberBody.safeParse(json);
   if (!parsed.success) {
-    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Body invalid' }, 400);
+    // 422 for schema-valid-JSON-but-invalid-fields — consistent with the 4-verb
+    // handlers + the OpenAPI contract (F-dom-api-3). 400 is reserved for
+    // unparseable JSON (handled above).
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Body invalid' }, 422);
   }
   // exactOptionalPropertyTypes: omit `name` entirely when absent (never pass undefined).
   const input =
@@ -58,7 +61,10 @@ export async function setMemberRoleHandler(c: Context, repo: MembersRepository):
   }
   const parsed = SetMemberRoleBody.safeParse(json);
   if (!parsed.success) {
-    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Body invalid' }, 400);
+    // 422 for schema-valid-JSON-but-invalid-fields — consistent with the 4-verb
+    // handlers + the OpenAPI contract (F-dom-api-3). 400 is reserved for
+    // unparseable JSON (handled above).
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Body invalid' }, 422);
   }
   const result = await repo.setRole(workspaceId, userId, parsed.data.role);
   if (!result.ok) {
