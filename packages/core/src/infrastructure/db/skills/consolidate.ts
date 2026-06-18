@@ -404,6 +404,10 @@ export async function consolidate(
                   : deps.scope.kind === 'repo'
                     ? deps.scope.repoId
                     : null,
+              // T3.1: the consolidated (derived) skill stays in its source
+              // workspace — taken from the already-projected filter (never 'default'
+              // unless the source memory was unbound).
+              workspaceId: deps.filters.workspace_id ?? 'default',
             };
             const insertArgs: InsertDerivedSkillArgs = {
               embedding,

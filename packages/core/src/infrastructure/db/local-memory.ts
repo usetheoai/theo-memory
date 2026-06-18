@@ -201,7 +201,10 @@ export class LocalMemory implements Memory {
     // simply continues serving — slightly stale but bounded by TTL).
     if (this.recallCacheStore !== undefined && scopeFromMemory !== undefined) {
       try {
-        await this.recallCacheStore.invalidateScope(scopeFromMemory);
+        // T3.1: scope cache invalidation to the forgotten row's workspace so
+        // the correct workspace's cache entries are cleared (EC-8).
+        const rowWorkspace = (existing.payload['workspace_id'] as string | undefined) ?? undefined;
+        await this.recallCacheStore.invalidateScope(scopeFromMemory, rowWorkspace);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[themory] recall-cache invalidateScope (forget) failed:', err);
@@ -264,6 +267,8 @@ export class LocalMemory implements Memory {
       vectorStore: skillStore,
       embedder: this.config.embedder,
       llm: this.config.llm,
+      // T3.1: thread the workspace binding so skill add/recall/consolidate isolate.
+      ...(this.workspaceId !== undefined ? { workspaceId: this.workspaceId } : {}),
       // T4.1 / F10 + EC-2: forget delegates to LocalMemory.forget (canonical
       // path: writes the 'forget' history event); get delegates to LocalMemory.get
       // for the pre-delegate scope-isolation guard.

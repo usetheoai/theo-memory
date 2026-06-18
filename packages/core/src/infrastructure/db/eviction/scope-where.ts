@@ -75,8 +75,13 @@ export function scopeValue(scope: Scope): string {
  *
  * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1 + T12.1 (F-dom-pg-5)
  */
-export function advisoryLockKey(scope: Scope): string {
-  return `eviction_${scope.kind}_${scopeValue(scope)}`;
+export function advisoryLockKey(scope: Scope, workspaceId?: string): string {
+  // multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): namespace the
+  // lock by workspace so an eviction pass in ws-A never serializes against an
+  // unrelated ws-B pass on the same tier id. Omitting workspaceId keeps the
+  // legacy single-tenant key shape (backward-compatible for unit tests).
+  const ws = workspaceId !== undefined ? `ws_${workspaceId}_` : '';
+  return `eviction_${ws}${scope.kind}_${scopeValue(scope)}`;
 }
 
 /**
@@ -93,9 +98,22 @@ export function advisoryLockKey(scope: Scope): string {
 export function scopeWhereClause(
   scope: Scope,
   paramStart = 1,
+  workspaceId?: string,
 ): { sql: string; params: readonly string[] } {
+  // multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): when a
+  // workspace is bound, AND a `workspace_id = $N+1` predicate so an eviction
+  // pass only ever sees — and can only ever soft-delete — rows in its own
+  // tenant. Omitting workspaceId preserves the legacy single-tenant predicate
+  // (the `workspace_id NOT NULL DEFAULT 'default'` column still bounds it to
+  // the default workspace at the data layer).
+  if (workspaceId === undefined) {
+    return {
+      sql: `${scopeColumn(scope)} = $${paramStart}`,
+      params: [scopeValue(scope)],
+    };
+  }
   return {
-    sql: `${scopeColumn(scope)} = $${paramStart}`,
-    params: [scopeValue(scope)],
+    sql: `${scopeColumn(scope)} = $${paramStart} AND workspace_id = $${paramStart + 1}`,
+    params: [scopeValue(scope), workspaceId],
   };
 }

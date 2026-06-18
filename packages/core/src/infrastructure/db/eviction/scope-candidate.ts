@@ -89,8 +89,12 @@ const CANDIDATE_COLUMNS = `id, text, hash, user_id, session_id, agent_id, payloa
 export async function loadCandidates(
   client: PoolClient,
   scope: Scope,
+  workspaceId?: string,
 ): Promise<readonly MemoryItem[]> {
-  const where = scopeWhereClause(scope);
+  // multi-tenant-rbac-and-slice1-completion T3.1: candidates are workspace-bound
+  // when a workspace is supplied — the eviction pass cannot load (and therefore
+  // cannot soft-delete) a row from another tenant.
+  const where = scopeWhereClause(scope, 1, workspaceId);
   const result = await client.query<ScopeCandidateRow>(
     `SELECT ${CANDIDATE_COLUMNS}
        FROM memories
