@@ -1,0 +1,126 @@
+agent: wiring
+review_target: db077aa..HEAD for plan openmemory-mcp-compat
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md
+triad_revalidation:
+  total_new_symbols: 7   # buildOpenMemoryToolsList, openMemoryDispatch, addMemoriesHandler, searchMemoryHandler, listMemoriesHandler, deleteMemoriesHandler, connectSse (+ resolveCompat, ToolsetKind)
+  pillar_a_honest_pass: 7 / 7   # all reachable from `themory mcp --compat openmemory` production entrypoint
+  pillar_b_honest_pass: 6 / 7   # delete cross-user isolation + CLI --compat passthrough untested
+  pillar_c_observed: 1 / 1      # compat-mode stderr disclosure emitted in run-mcp-server.ts:271-273
+
+summary: >
+  The full production wiring chain is HONEST and reachable end-to-end:
+  cli.ts (--compat openmemory, line 174-203) -> runMcpServer(options) ->
+  resolveCompat (run-mcp-server.ts:186,211) -> compat branch (268-286) ->
+  connectSse({ serverFactory: () => new McpServer({...toolset:'openmemory'}) }) ->
+  McpServer ctor (server.ts:88-92) selects buildOpenMemoryToolsList + openMemoryDispatch ->
+  SSE POST message binds withScope({session:{userId}}) (sse.ts:125-127) ->
+  handlers call memoryFromCtx(getScope(), factory()) -> memory.user(userId) scoped verbs.
+  NO orphan exports (every export in index.ts is also called in production), NO dead branches.
+  The scope-binding contract (withScope {session:{userId}} -> getScope -> memoryFromCtx ->
+  memory.user) is verified against scope.ts + theokit/index.ts + core/scope.ts ScopedContext shape.
+  Two real gaps: (1) delete_memories bypasses path scope; (2) /http/ branch diverges from
+  the plan's "reuse connectStreamableHttp" decision and is untested.
+
+findings:
+  - id: F-wiring-1
+    severity: MEDIUM
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 113
+    plan_ref: T0.1 / ADR D3 (path user_id -> user scope) + D4 (delete -> forget per id)
+    summary: >
+      deleteMemoriesHandler resolves the UNSCOPED Memory (deps.memoryFactory()) instead of the
+      path-bound user scope, breaking the per-user isolation symmetry the other 3 handlers honor.
+    evidence: |
+      tools.ts:113-129 deleteMemoriesHandler:
+        const memory = deps.memoryFactory();          // <-- raw, NOT memoryFromCtx(getScope(), ...)
+        for (const id of parsed.memory_ids) { await memory.forget(id); ... }
+      Contrast the other three handlers (tools.ts:91,99,108) which all do:
+        const scoped = memoryFromCtx(getScope(), deps.memoryFactory());  // user-bound
+      Memory.forget(memoryId) is global-by-UUID (local-memory.ts:147); the cross-workspace IDOR
+      guard (local-memory.ts:156-166) only fires when `this.workspaceId !== undefined`, but the
+      SSE composition root wires the raw SDK Memory (run-mcp-server.ts:263 wireMemoryFromPool ->
+      workspaceId undefined). Therefore user `alice` connected at /cursor/sse/alice can delete
+      `bob`'s memory by passing bob's id — no per-user check. add/search/list ARE isolated;
+      delete is the asymmetric hole. Plan D3 says the path user_id binds the connection scope;
+      delete does not consult it. Practical blast radius is bounded (memory IDs are non-enumerable
+      UUIDs returned only by the caller's own scoped list/search), so MEDIUM not HIGH — but it is
+      a genuine wiring deviation from the stated per-user-isolation contract.
+    recommended_action: >
+      Scope the delete the same way as the other handlers. Either resolve forget through the
+      scoped memory (memoryFromCtx(getScope(), factory()) if ScopedMemory exposes forget) OR, if
+      forget must stay on the root Memory, first verify the id is in the caller's scope via a
+      scoped get/list before forgetting. Add an integration assertion: user B's delete_memories
+      against user A's id returns "Error:" / leaves A's row intact.
+
+  - id: F-wiring-2
+    severity: MEDIUM
+    file: packages/mcp/src/transports/sse.ts
+    line: 133
+    plan_ref: D2 + Coverage Matrix row 6 (/{client}/http/{user} -> streamable-http delegation) + Objective Phase 1
+    summary: >
+      The /{client}/http/{user} branch hand-rolls a fresh StreamableHTTPServerTransport inline
+      instead of delegating to the existing connectStreamableHttp, diverging from plan D2/AC, and
+      has ZERO test coverage (no unit test, not exercised by the goal test which uses SSE only).
+    evidence: |
+      Plan D2 decision: "the /{client}/http/{user} route delegates to the existing
+      connectStreamableHttp"; Coverage Matrix #6: "/{client}/http/{user} -> streamable-http |
+      T1.1 | delegation"; AC T1.1: "/<c>/http/<u> delegates to connectStreamableHttp (spy asserted)."
+      Actual sse.ts:133-141:
+        const httpMatch = HTTP_RE.exec(path);
+        if (httpMatch) {
+          const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
+          const server = options.serverFactory();
+          await server.start(transport as unknown as Transport);
+          await withScope({ session: { userId } }, () => transport.handleRequest(req, res));
+        }
+      connectStreamableHttp is imported at run-mcp-server.ts:41 but NOT imported in sse.ts — no
+      delegation. sse.test.ts (44 lines) has no /http/ case; mcp-compat.test.ts goal test only
+      connects via SSEClientTransport. The branch is reachable (regex routes to it) and scope-bound,
+      so it is wired-but-untested + diverges from the planned reuse. The AC spy assertion is unmet.
+    recommended_action: >
+      Either (a) align to plan D2: have the /http/ branch delegate to connectStreamableHttp (DRY,
+      single source of truth for the streamable-http session lifecycle + ADR-0015 TLS guard), OR
+      (b) if the inline transport is intentional, amend the plan D2/Coverage-Matrix#6 + AC to drop
+      the "delegate to connectStreamableHttp" wording (cross-validation honesty). EITHER WAY add a
+      test that hits /{client}/http/{user} and asserts scope binding + a tools/call round-trip.
+
+  - id: F-wiring-3
+    severity: LOW
+    file: packages/cli/src/cli.ts
+    line: 199
+    plan_ref: T2.1 (CLI --compat passthrough)
+    summary: >
+      The `themory mcp --compat openmemory` flag -> RunMcpServerOptions.compat passthrough has no
+      unit test in cli.test.ts (the delegation layer that proves the flag reaches runMcpServer).
+    evidence: |
+      cli.ts:174-181 declares the --compat option; cli.ts:199 forwards
+      `...(opts.compat !== undefined ? { compat: opts.compat } : {})` into runMcpServer(options).
+      Static wiring is present and correct, but `grep -n "compat" packages/cli/src/__tests__/cli.test.ts`
+      returns 0 hits — the existing cli.test.ts asserts transport/port/host/auth passthrough (tests
+      39-42) but NOT compat. The plan T2.1 "Files to edit" lists run-mcp-server.test.ts for the
+      resolution matrix; compat-resolution.test.ts covers resolveCompat() in isolation, but the
+      CLI-flag -> runMcpServer delegation edge is unasserted.
+    recommended_action: >
+      Add one cli.test.ts case mirroring test 40: invoke buildProgram().parseAsync([... 'mcp',
+      '--compat', 'openmemory']) and assert mockRunMcpServer was called with { compat: 'openmemory' }.
+      Cheap (the mock harness already exists at cli.test.ts:30).
+
+  - id: F-wiring-4
+    severity: INFO
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 268
+    plan_ref: T2.1 (compat boot wiring + observability)
+    summary: >
+      Pillar (c) observability for compat mode is HONEST: the compat branch emits a dedicated
+      stderr disclosure line including transport=sse + the connect URL, and the generic
+      transport/auth disclosure is correctly suppressed when compat !== undefined.
+    evidence: |
+      run-mcp-server.ts:271-273 emits:
+        `themory mcp: compat=openmemory transport=sse on http://${compatHost}:${compatPort}/{client}/sse/{user}`
+      and run-mcp-server.ts:247 gates the legacy disclosure block on `compat === undefined`, so no
+      double/contradictory disclosure. This satisfies cycle-implement Wiring-triad pillar (c)
+      (runtime-visible signal) and Princípio 3 (auditability). No action needed; recorded as a
+      positive wiring observation. CAVEAT: the compat-branch boot path (run-mcp-server.ts:268-286)
+      itself has no automated test (run-mcp-server.test.ts covers native banners only); the SSE
+      transport is proven via the goal test calling connectSse directly, so the gap is the
+      glue-line between resolveCompat and connectSse, not the transport.

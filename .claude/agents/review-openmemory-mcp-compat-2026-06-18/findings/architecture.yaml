@@ -1,0 +1,253 @@
+agent: architecture
+review_target: db077aa..HEAD for plan openmemory-mcp-compat
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md
+findings:
+  - id: F-arch-1
+    severity: HIGH
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 113
+    plan_ref: T0.1 / D4 + Coverage Matrix #10 (per-user isolation)
+    summary: >-
+      deleteMemoriesHandler bypasses the scope gate the native forget handler
+      deliberately enforces — per-user isolation is NOT held on the delete path.
+    evidence: |
+      ```ts
+      // openmemory/tools.ts:113
+      export async function deleteMemoriesHandler(args: unknown, deps: Deps): Promise<CallToolResult> {
+        const parsed = DeleteMemoriesInput.parse(args);
+        const memory = deps.memoryFactory();        // <- NO getScope() / memoryFromCtx
+        for (const id of parsed.memory_ids) {
+          try { await memory.forget(id); deleted.push(id); } catch { /* skip */ }
+        }
+      ```
+      vs the native handler (tools/forget-handler.ts), which states:
+      "Gate on scope even for forget — prevents anonymous bulk-delete via stdio."
+      and calls `getScope()` before `memoryFactory().forget(id)`.
+      `Memory.forget(memoryId)` (local-memory.ts:147-166) enforces only the
+      WORKSPACE tenant boundary, NOT the within-workspace User tier. So a client
+      connected as `user_id=alice` can delete `user_id=bob`'s memory in the same
+      workspace by supplying its UUID — `search_memory`/`list_memories` ARE
+      user-scoped (memoryFromCtx), but `delete_memories` is not. The plan's
+      per-user-isolation claim (Coverage Matrix #10) holds for add/search but is
+      broken for delete.
+    recommended_action: >-
+      Call getScope() at the top of deleteMemoriesHandler (matching the native
+      forget handler's deliberate gate) so unauthenticated/unscoped delete is
+      rejected; and resolve forget through the user-scoped memory where the
+      contract allows, OR add an explicit cross-user ownership check before
+      forget. At minimum the goal test must add a negative case: user alice
+      cannot delete_memories an id belonging to bob.
+
+  - id: F-arch-2
+    severity: MEDIUM
+    file: packages/mcp/src/transports/sse.ts
+    line: 102
+    plan_ref: T1.1 / D3 + Q2 + Coverage Matrix #7 (client_name -> metadata)
+    summary: >-
+      client_name is parsed and stored in the Session struct but never used —
+      the plan's "client_name -> mcp_client metadata" requirement is unimplemented
+      (dead field).
+    evidence: |
+      ```ts
+      // sse.ts:97-102 — clientName captured + stored
+      const clientName = decodeURIComponent(getMatch[1] ?? '');
+      const session: Session = { transport, server, userId, clientName };
+      ```
+      But `clientName` is read nowhere after assignment (grep: only the
+      declaration + the field write). The compat add path
+      (tools.ts:89 addMemoriesHandler) calls `scoped.remember(parsed.text, opts)`
+      with opts = `{ infer }` only — no `metadata: { mcp_client: clientName }`.
+      Plan ADR D3 ("client_name is attached as memory metadata"), Q2 (key name
+      `mcp_client`) and Coverage Matrix row 7 ("client_name -> metadata") are not
+      satisfied. RememberOptions.metadata exists (options.ts:12) so the seam is
+      available.
+    recommended_action: >-
+      Either thread clientName into the scope/handler so add_memories writes
+      `metadata: { mcp_client: clientName }` (closing Coverage Matrix #7), or, if
+      metadata provenance is intentionally deferred, remove the clientName field
+      from Session + the JSDoc claim and record the deferral as an explicit ADR
+      caveat per Inquebrável Rule 3 (no silent divergence from the plan).
+
+  - id: F-arch-3
+    severity: MEDIUM
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 139
+    plan_ref: T0.1 / D5 vs ADR D6 (native dispatch error contract)
+    summary: >-
+      openMemoryDispatch flattens ALL errors to a text "Error:" result, including
+      protocol-level errors that the native dispatch deliberately throws as
+      McpError — divergent error-handling contract between the two toolsets.
+    evidence: |
+      ```ts
+      // openmemory/tools.ts:139-153
+      export async function openMemoryDispatch(toolName, args, deps) {
+        const handler = HANDLERS.get(toolName);
+        if (handler === undefined) return errorResult(`Unknown tool: ${toolName}`);
+        try { return await handler(args, deps); }
+        catch (err) { return errorResult(err instanceof Error ? err.message : String(err)); }
+      }
+      ```
+      Native dispatch (tools/dispatch.ts:39-58) classifies errors and THROWS
+      McpError for Protocol Errors (-32601/-32602/-32603) per ADR D6, returning
+      CallToolResult only for Execution Errors. The OpenMemory variant returns a
+      tool-result string even for unknown-tool / malformed-params. This IS the
+      documented OpenMemory parity (D5: result strings, not protocol errors), so
+      it is a justified divergence — but the two dispatchers now diverge on the
+      project's own ADR D6 contract without that divergence being called out as
+      its own ADR in this plan. Risk: a future maintainer "fixes" one to match
+      the other.
+    recommended_action: >-
+      Add a one-line ADR note in the plan (or a JSDoc @see) explicitly stating
+      openMemoryDispatch INTENTIONALLY overrides ADR D6's throw-McpError contract
+      for OpenMemory wire parity (D5), so the divergence is auditable and not
+      mistaken for a bug. No code change required if the parity is the contract.
+
+  - id: F-arch-4
+    severity: LOW
+    file: packages/mcp/src/transports/sse.ts
+    line: 110
+    plan_ref: T1.1
+    summary: >-
+      `server.start(transport as unknown as Transport)` double-cast — consistent
+      with existing precedent (streamable-http.ts:164) but the cast hides SDK
+      type-version skew.
+    evidence: |
+      ```ts
+      // sse.ts:110 and :138
+      await server.start(transport as unknown as Transport);
+      ```
+      Precedent exists at streamable-http.ts:164 (same `as unknown as Transport`),
+      so this is the established pattern for the SDK's Transport type skew, not a
+      new defect. Flagged only so it is not silently propagated further.
+    recommended_action: >-
+      No change required (matches existing pattern). If the SDK exposes a single
+      canonical Transport type, prefer a single shared cast helper to avoid the
+      double-cast appearing in a third transport file.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/mcp/src/server.ts
+    line: 88
+    plan_ref: T0.1 / D1 (OCP — toolset branching)
+    summary: >-
+      Toolset selection via a single `options.toolset === 'openmemory'` boolean is
+      a reasonable two-option branch; not yet a registry, but acceptable under
+      YAGNI for exactly 2 toolsets.
+    evidence: |
+      ```ts
+      // server.ts:88-92
+      const openMemory = options.toolset === 'openmemory';
+      this.sdkServer.setRequestHandler(ListToolsRequestSchema, () =>
+        Promise.resolve(openMemory ? buildOpenMemoryToolsList() : buildToolsListResponse()));
+      const dispatchFn = openMemory ? openMemoryDispatch : dispatch;
+      ```
+      OCP note: a THIRD toolset would require editing these two ternaries (the
+      classic switch-grows-with-variants smell). With only native+openmemory
+      (ToolsetKind union in agent-core/types.ts:27) this is KISS-correct; a
+      `Map<ToolsetKind, { list, dispatch }>` registry is the OCP refactor IF a
+      third surface ever lands. No action now (YAGNI).
+    recommended_action: >-
+      No change. If a third toolset is ever added, refactor the two ternaries into
+      a ToolsetKind-keyed strategy map at that point (not before).
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 268
+    plan_ref: T2.1 (compat resolution + wiring + DIP composition root)
+    summary: >-
+      Compat branch is correctly placed in the composition root; serverFactory
+      injection respects DIP (sse.ts depends on the McpServer abstraction, not on
+      src/local). No issues found.
+    evidence: |
+      ```ts
+      // run-mcp-server.ts:274-279
+      const handle = await connectSse({
+        host: compatHost, port: compatPort,
+        serverFactory: () => new McpServer({ ..., toolset: 'openmemory' }),
+      });
+      ```
+      sse.ts imports only `McpServer` (type), `withScope`, SDK transports, and
+      node built-ins — no ascending import into src/local/ or src/cloud/. The
+      pgvector/embedder/LLM wiring stays in the composition root via
+      wireMemoryFromPool. DIP boundary (architecture.md § 3) is respected; the
+      compat layer is adapter-only as ADR D1 claims.
+    recommended_action: No action — boundary is clean.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/agent-core/src/types.ts
+    line: 17
+    plan_ref: T0.2 (ToolsetKind + TransportKind)
+    summary: >-
+      TransportKind now includes 'sse' while the JSDoc above it still says "SSE
+      explicitly skipped" — stale comment contradicts the type it documents.
+    evidence: |
+      ```ts
+      // types.ts:11-17
+      /** ... SSE explicitly skipped (4x independently confirmed deprecated). ... */
+      export type TransportKind = 'stdio' | 'streamable-http' | 'sse';
+      ```
+      The 'sse' member was added (Roadmap Item 26) but the preceding JSDoc still
+      asserts SSE is skipped. Documentation rot per architecture.md § 6 / DRY
+      (single source of truth). Not a behavioral defect.
+    recommended_action: >-
+      Update the TransportKind JSDoc to note SSE was re-introduced as the
+      OpenMemory compat transport (Roadmap Item 26), superseding the "skipped"
+      note, so the comment matches the type.
+
+  - id: F-arch-8
+    severity: INFO
+    file: packages/cli/src/cli.ts
+    line: 174
+    plan_ref: T2.1 (--compat pass-through)
+    summary: >-
+      --compat option correctly added with .choices(['openmemory']) and threaded
+      into RunMcpServerOptions; thin router stays a pass-through. No issues found.
+    evidence: |
+      ```ts
+      // cli.ts:174-200
+      .addOption(new Option('--compat <mode>', '...').choices(['openmemory']))
+      ...
+      ...(opts.compat !== undefined ? { compat: opts.compat } : {}),
+      ```
+      The CLI layer only routes; resolution (resolveCompat) lives in
+      run-mcp-server.ts (correct SRP — router routes, runner resolves).
+    recommended_action: No action.
+
+  - id: F-arch-9
+    severity: INFO
+    file: packages/mcp/src/index.ts
+    line: 13
+    plan_ref: T2.1 (barrel exports)
+    summary: >-
+      Public barrel exports buildOpenMemoryToolsList / openMemoryDispatch /
+      connectSse + SseOptions/SseHandle types — additive, no breaking change. No
+      issues found.
+    evidence: |
+      ```ts
+      // index.ts:12-15
+      export { buildOpenMemoryToolsList, openMemoryDispatch } from './openmemory/tools.js';
+      export { connectSse } from './transports/sse.js';
+      export type { SseOptions, SseHandle } from './transports/sse.js';
+      ```
+    recommended_action: No action.
+
+  - id: F-arch-10
+    severity: INFO
+    file: tests/integration/openmemory/mcp-compat.test.ts
+    line: 1
+    plan_ref: T3.1 (THE GOAL TEST)
+    summary: >-
+      Goal test + the 3 unit/contract tests are in scope of the diff but are test
+      assets, not production architecture; trivial — no architectural issues
+      found here (test-depth is the tests-reviewer's remit).
+    evidence: |
+      Files: tools.test.ts (156), compat-resolution.test.ts (40),
+      sse.test.ts (44), mcp-compat.test.ts (160). All under the 500 LoC budget.
+      Note for cross-validation/tests reviewers: the per-user-isolation negative
+      assertion for delete_memories (see F-arch-1) should be verified present in
+      the goal test.
+    recommended_action: >-
+      Defer to tests reviewer; ensure F-arch-1's delete-isolation negative case is
+      covered.

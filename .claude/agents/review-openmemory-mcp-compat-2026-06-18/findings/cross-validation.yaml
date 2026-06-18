@@ -1,0 +1,186 @@
+agent: cross-validation
+review_target: db077aa..HEAD for plan openmemory-mcp-compat
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md
+commits:
+  - 895cd9b feat(mcp)(openmemory T0.1) — Phase 0 tool alias set
+  - 0d5a80f feat(mcp)(openmemory T1.1/T3.1) — SSE transport + GOAL TEST
+  - 5c533e3 feat(mcp)(openmemory T2.1) — themory mcp --compat CLI wiring
+  - b40ee74 chore(openmemory) — code-quality audit + dogfood log (not a plan task)
+
+plan_tasks_summary:
+  total_tasks: 4            # T0.1, T1.1, T2.1, T3.1
+  fully_implemented: 3      # T0.1, T2.1, T3.1
+  partial: 1               # T1.1 (client_name->metadata mapping + declared scope-shape assertion not done)
+  missing: 0
+  diverged: 1              # T2.1 named resolveRunOptions / run-mcp-server.test.ts; impl used resolveCompat / compat-resolution.test.ts (functionally equivalent)
+
+acceptance_criteria_summary:
+  total: 19
+  satisfied: 15
+  unverified: 3            # T1.1 scope-shape assertion; T1.1 /http delegation spy; T2.1 stderr substring assertion
+  false_claims: 1         # T1.1 AC#1 declared getScope()=={kind:'user',userId}; actual is {session:{userId}}
+
+adr_compliance:
+  total_adrs: 4
+  respected: 4            # D1 alias-only, D2 SDK SSEServerTransport (no new dep), D3 path scoping, D4 delete_memories->forget per id
+  diverged_without_new_adr: 0
+
+coverage_matrix:
+  total_rows: 12
+  satisfied: 11
+  partial: 1              # row 7: "client_name -> metadata" — client_name parsed but NOT attached as mcp_client metadata
+
+goal_verification:
+  goal_test_file: tests/integration/openmemory/mcp-compat.test.ts
+  exists: true
+  tools_list_exact_4_names: true       # line 96-98 sorted equality vs the 4 names
+  add_search_delete_round_trip: true   # lines 104-133
+  per_user_isolation: true             # lines 135-158 (parallel clients, distinct user_id)
+  real_pgvector: true                  # createIsolatedDb + PgvectorStore; describe.skip when THEOMEM_PG_URI unset
+  zero_failed_claimed: "0d5a80f commit msg: PASSES 3/3 vs real pgvector (not re-run by this reviewer; env-gated)"
+  delete_tool_name_correct: true       # delete_memories(memory_ids), NOT delete_all_memories — matches plan D4 + blueprint, deliberately diverges from the (wrong) OpenMemory announcement
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    Plan frontmatter created_at 2026-06-18; plan committed in db077aa (the base of
+    this review range). All 3 implementation commits (895cd9b/0d5a80f/5c533e3) are
+    AFTER db077aa. Plan is the frozen ground truth. No drift.
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: packages/mcp/src/transports/sse.ts
+    line: 185
+    plan_ref: T1.1 Acceptance Criteria item 1 ("getScope() returns { kind: 'user', userId: '<u>' }")
+    summary: Declared scope shape does not match the bound shape — plan says {kind:'user',userId}, impl binds {session:{userId}}; the asserting unit test was never written.
+    evidence: |
+      Plan T1.1 AC#1 (plan line 185):
+        "during the handler, getScope() returns { kind: 'user', userId: '<u>' } (asserted)"
+      Impl sse.ts:125 + 139:
+        await withScope({ session: { userId: session.userId } }, () => ...)
+      agent-core/scope.ts getScope() returns the ScopedContext verbatim — i.e.
+      { session: { userId } }, NOT { kind: 'user', userId }. memoryFromCtx maps
+      { session: { userId } } to memory.user(userId) downstream (tools.ts:91), so
+      the BEHAVIOR (per-user scoping) is correct and the GOAL TEST proves isolation.
+      BUT: (a) the plan's literal AC is a false claim against the chosen ScopedContext
+      shape, and (b) sse.test.ts asserts ONLY the TLS guard + 404 routing — there is
+      NO unit test asserting getScope() inside the handler at all (the declared
+      assertion never landed).
+    recommended_action: Either (a) correct the plan AC to the actual ScopedContext shape ({ session: { userId } }) since the GOAL TEST proves the behavior, or (b) add the missing sse.test.ts assertion that opening GET /<c>/sse/<u> binds the path user into the request scope. Behavioral risk is low (goal test covers isolation); this is a documentation-vs-code truthfulness gap.
+
+  - id: F-xval-2
+    severity: MEDIUM
+    file: packages/mcp/src/transports/sse.ts
+    line: 102
+    plan_ref: ADR D3 + Coverage Matrix row 7 + Unresolved Question Q2 ("client_name -> metadata key mcp_client")
+    summary: client_name is parsed and stored on the Session struct but never attached as memory metadata — the D3/Q2 "client_name -> metadata" half of the mapping is unimplemented.
+    evidence: |
+      Plan D3 (line 79-80): "client_name is attached as memory metadata."
+      Plan Q2 (line 102): "Default: mcp_client (mirrors OpenMemory's mcp_client metadata). Resolved."
+      Coverage Matrix row 7 (line 246): "path user_id -> user scope; client_name -> metadata (D3)".
+      Impl: sse.ts:97 parses clientName; sse.ts:102 stores it on Session; grep shows
+      clientName is NEVER read again and NO 'mcp_client' literal exists anywhere in
+      packages/mcp/src/. addMemoriesHandler (tools.ts:89-95) passes only { infer } to
+      remember() — no client metadata threaded through.
+    recommended_action: Thread session.clientName into the add_memories path as metadata { mcp_client: clientName } (matching OpenMemory mcp_server.py:93), OR explicitly downgrade D3/Q2/row-7 to "client_name parsed but metadata-attach deferred" with a one-line rationale. Currently the Coverage Matrix claims a resolution that the code does not deliver.
+
+  - id: F-xval-3
+    severity: LOW
+    file: packages/mcp/src/openmemory/compat-resolution.test.ts
+    line: 1
+    plan_ref: T2.1 Files to edit (declared "run-mcp-server.test.ts — resolution matrix") + T2.1 AC ("resolveRunOptions({ compat: 'openmemory' }) returns { transport:'sse', toolset:'openmemory', port:8765 }")
+    summary: Implementation diverged from the plan's declared function/file names (resolveRunOptions / run-mcp-server.test.ts) to resolveCompat / compat-resolution.test.ts — functionally equivalent, but the declared resolution-matrix assertions (toolset+port together) were not written as declared.
+    evidence: |
+      Plan T2.1 (line 214): "packages/mcp/src/run-mcp-server.test.ts — resolution matrix (compat flag/env precedence)".
+      Plan T2.1 AC#1 (line 229): resolveRunOptions({compat}) returns {transport:'sse', toolset:'openmemory', port:8765}.
+      Impl: NO resolveRunOptions exists (grep: 0 hits). run-mcp-server.test.ts was NOT
+      modified in db077aa..HEAD (git log -- that file is empty for the range). The new
+      compat tests live in compat-resolution.test.ts and assert ONLY resolveCompat()
+      precedence (flag/env/native) — they do NOT assert transport=='sse', toolset=='openmemory',
+      or port==8765 as a combined tuple. resolveCompatPort (run-mcp-server.ts:193-198) hard-codes
+      8765 default and runMcpServer:268-285 wires sse+openmemory, so the BEHAVIOR matches; only the
+      declared unit-level tuple assertion is absent.
+    recommended_action: Acceptable refactor (resolveCompat is cleaner than a god resolveRunOptions), but per anti-pattern #3 (scope/contract divergence without ADR) either add a one-line note to the plan/implementation doc recording the rename, OR add an assertion that compat mode resolves port 8765 + toolset openmemory. Low risk; documentation-fidelity only.
+
+  - id: F-xval-4
+    severity: LOW
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 231
+    plan_ref: T2.1 Acceptance Criteria item 3 ("startup stderr matches /compat=openmemory/ and contains substring /sse/ — asserted via captured stderr")
+    summary: The stderr disclosure line is emitted correctly but NO test captures/asserts it; the declared "asserted via captured stderr" AC is unverified.
+    evidence: |
+      Plan T2.1 AC#3 (line 231): stderr "/compat=openmemory/" + substring "/sse/" asserted via captured stderr.
+      Impl run-mcp-server.ts:271-273 emits:
+        "themory mcp: compat=openmemory transport=sse on http://<host>:<port>/{client}/sse/{user}"
+      — satisfies BOTH substrings at RUNTIME. But grep of *.test.ts shows no test
+      captures process.stderr for the compat path (run-mcp-server.test.ts asserts the
+      pre-existing transport/auth disclosure only; compat-resolution.test.ts asserts no stderr).
+    recommended_action: Add a captured-stderr assertion for the compat boot path, OR mark the AC satisfied-by-inspection in the implementation doc. The string is provably correct by reading the source; only the automated guard is missing.
+
+  - id: F-xval-5
+    severity: INFO
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 86
+    plan_ref: ADR D4 (delete tool name resolution) + Context (line 17)
+    summary: Delete tool name correctly resolved to delete_memories(memory_ids) per the source code, deliberately NOT delete_all_memories from the OpenMemory announcement — plan and implementation are consistent.
+    evidence: |
+      Plan Context (line 17) + D4 (line 85-89): delete tool is delete_memories(memory_ids),
+      announcement's delete_all_memories is wrong (mcp_server.py:296); delete_all_memories
+      NOT implemented.
+      Impl tools.ts:36 DELETE_MEMORIES='delete_memories'; tools.ts:50-52 DeleteMemoriesInput
+      requires memory_ids:string[]; tools.ts:113-129 maps to forget per id (best-effort).
+      No delete_all_memories anywhere. Matches the plan exactly. Drop-in clients wired to
+      the (incorrect) announcement name delete_all_memories will NOT find a matching tool —
+      this is the deliberate, documented "match the code not the marketing" decision (D4),
+      not a defect. Flagged INFO so the reviewer batch is aware of the intentional
+      divergence from the public OpenMemory announcement.
+    recommended_action: None required — consistent with plan + blueprint. Optionally document in README that the delete tool is delete_memories (not the announcement's delete_all_memories) so consumers wired to the announcement know.
+
+  - id: F-xval-6
+    severity: INFO
+    file: packages/mcp/src/transports/sse.ts
+    line: 133
+    plan_ref: T1.1 Acceptance Criteria item 4 ("/<c>/http/<u> delegates to connectStreamableHttp (spy asserted)") + Coverage Matrix row 6
+    summary: The /http/ route does NOT delegate to connectStreamableHttp() as the plan declared; it inlines StreamableHTTPServerTransport directly. Behavior is equivalent (streamable-http per connection) but the declared delegation + spy assertion do not hold.
+    evidence: |
+      Plan T1.1 AC#4 (line 188) + Matrix row 6 (line 245): "/{client}/http/{user} -> streamable-http"
+      via delegation to connectStreamableHttp (spy asserted).
+      Impl sse.ts:133-141 constructs `new StreamableHTTPServerTransport(...)` inline and
+      calls server.start + transport.handleRequest directly — it does NOT call
+      connectStreamableHttp (grep: connectStreamableHttp is imported only in run-mcp-server.ts,
+      not in sse.ts). No spy test exists for this route. Functionally the /http/ path serves
+      streamable-http; the divergence is the integration mechanism, not the outcome.
+    recommended_action: Acceptable (the connectStreamableHttp helper binds its own node:http server, so it cannot be reused inside sse.ts's single shared http server — the inline transport is the correct shape). Update Matrix row 6 / T1.1 AC#4 wording to "inline StreamableHTTPServerTransport (shared http server)" instead of "delegates to connectStreamableHttp", and add a route test if /http/ is a supported surface.
+
+global_dod_check:
+  goal_test_zero_failed: true            # commit-claimed 3/3; env-gated, not re-run here
+  typecheck_lint: "commit-claimed clean (895cd9b/0d5a80f/5c533e3); not re-run by this reviewer"
+  file_size_budget: true                 # tools.ts 153, sse.ts 177, all < 500 LoC
+  changelog_updated: true                # all 3 commits touch CHANGELOG [Unreleased] Added
+  readme_documents_compat: true          # README:262-263 themory mcp --compat openmemory + connect URL
+  no_paper_names: true                   # vendor wire-names as literals in adapter only; internal ids neutral (compatTools, openMemoryDispatch); code-quality audit b40ee74 = PASS 100
+  src_core_untouched: true               # all changes in packages/mcp + packages/cli + packages/agent-core/types.ts (toolset option); src/core not touched
+
+notes: |
+  Strong cross-validation result. All 4 plan tasks have implementing commits with
+  task IDs in the messages (no anti-pattern #1). The GOAL TEST exists, matches the
+  plan's declared assertions, drives a REAL MCP SDK client over SSE against real
+  pgvector, and covers all 3 goal pillars (tools/list=4, round-trip, per-user
+  isolation). The delete tool name is correctly source-faithful (delete_memories,
+  not the announcement's delete_all_memories) per D4 — flagged INFO as an
+  intentional, documented divergence from the public announcement.
+
+  The two MEDIUM findings are documentation/contract-fidelity gaps, NOT behavioral
+  bugs: (F-xval-1) the plan declared a scope shape {kind:'user',userId} that differs
+  from the chosen ScopedContext {session:{userId}} and the asserting unit test was
+  never written; (F-xval-2) client_name is parsed but the declared "client_name ->
+  mcp_client metadata" mapping (D3/Q2/Matrix row 7) is unimplemented — the Coverage
+  Matrix claims a resolution the code does not deliver. Neither blocks merge but
+  both should be reconciled (fix code OR correct the plan) to keep the plan honest
+  as the frozen contract.
+
+  Three LOW/INFO findings note that several declared unit-level assertions (compat
+  resolution tuple, compat stderr capture, /http/ delegation spy) were not written
+  as declared, though the behaviors are provable by inspection and the integration
+  GOAL TEST exercises the end-to-end path.
