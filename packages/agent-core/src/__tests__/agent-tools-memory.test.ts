@@ -12,11 +12,17 @@
  *
  * @see plan verbs-as-cli-fixes-cycle-2 § ADR D4 + T3.1 step 6
  */
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { Pool } from 'pg';
 
-import { wireMemoryFromPool } from '../agent-tools-memory.js';
+import {
+  wireMemoryFromPool,
+  resolveEmbedderKind,
+  embeddingDimForKind,
+  LOCAL_EMBEDDER_DIM,
+  OPENAI_EMBEDDER_DIM,
+} from '../agent-tools-memory.js';
 
 // Mock the ACTUAL specifiers wireMemoryFromPool imports (post extract-cli move +
 // lazy optional-dep refactor): `@usetheo/memory` (createLocalMemory / runMigrations
@@ -39,6 +45,12 @@ vi.mock('@usetheo/memory/embedders/local', () => ({
 
 vi.mock('@usetheo/memory/llms/openai', () => ({
   OpenAILLM: class {
+    constructor() {}
+  },
+}));
+
+vi.mock('@usetheo/memory/embedders/openai', () => ({
+  OpenAIEmbedder: class {
     constructor() {}
   },
 }));
@@ -72,5 +84,56 @@ describe('T3.1 / EC-3 — wireMemoryFromPool lifecycle invariant', () => {
     const result = await fakePool.query('SELECT 1');
     expect(result).toBeDefined();
     expect(endSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('embedder selection via THEOMEM_EMBEDDER', () => {
+  const ENV = 'THEOMEM_EMBEDDER';
+  let saved: string | undefined;
+  beforeEach(() => {
+    saved = process.env[ENV];
+    delete process.env[ENV];
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env[ENV];
+    else process.env[ENV] = saved;
+  });
+
+  test('defaults to local when unset (back-compat)', () => {
+    expect(resolveEmbedderKind()).toBe('local');
+  });
+
+  test("treats empty string as local", () => {
+    process.env[ENV] = '';
+    expect(resolveEmbedderKind()).toBe('local');
+  });
+
+  test('resolves openai when THEOMEM_EMBEDDER=openai', () => {
+    process.env[ENV] = 'openai';
+    expect(resolveEmbedderKind()).toBe('openai');
+  });
+
+  test('fails loud on an unknown value (no silent fallback)', () => {
+    process.env[ENV] = 'cohere';
+    expect(() => resolveEmbedderKind()).toThrow(/THEOMEM_EMBEDDER/);
+  });
+
+  test('dimension follows the embedder kind (local 384, openai 1536)', () => {
+    expect(embeddingDimForKind('local')).toBe(LOCAL_EMBEDDER_DIM);
+    expect(embeddingDimForKind('local')).toBe(384);
+    expect(embeddingDimForKind('openai')).toBe(OPENAI_EMBEDDER_DIM);
+    expect(embeddingDimForKind('openai')).toBe(1536);
+  });
+
+  test('wireMemoryFromPool with openai builds the OpenAI embedder at dim 1536', async () => {
+    process.env[ENV] = 'openai';
+    const { createLocalMemory } = await import('@usetheo/memory');
+    const fakePool = { end: vi.fn(), query: vi.fn(async () => ({ rows: [] })) } as unknown as Pool;
+
+    await wireMemoryFromPool(fakePool);
+
+    // createLocalMemory receives embeddingDim 1536 on the openai path.
+    const memArgs = vi.mocked(createLocalMemory).mock.calls.at(-1)?.[0] as { embeddingDim?: number } | undefined;
+    expect(memArgs?.embeddingDim).toBe(1536);
   });
 });
