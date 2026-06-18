@@ -212,6 +212,31 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
     return;
   }
 
+  // FAIL-CLOSED data-loss guard (/review post-v0.5.0 F-dom-cli-1 / F-dom-mem-2 /
+  // F-arch-1 consensus): a dim change physically wipes every memory + entity. On
+  // a FRESH database (0 rows) this is the normal first-boot path (the shipped
+  // schema is vector(1536); a local-embedder deploy shrinks it to 384), so it is
+  // allowed silently. But on a POPULATED database — e.g. an operator flipping
+  // THEOMEM_EMBEDDER on an existing deployment — refuse to wipe unless the
+  // operator explicitly opts in via THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE=1.
+  // Without this, migrate-on-startup turns a routine env edit into silent,
+  // irreversible data loss (Inquebrável Rule 8 — fail loud, never silently destroy).
+  const rowCountResult = await pool.query<{ count: number }>(
+    'SELECT COUNT(*)::int AS count FROM memories',
+  );
+  const rowCount = rowCountResult.rows[0]?.count ?? 0;
+  const optedIn = process.env['THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE'] === '1';
+  if (rowCount > 0 && !optedIn) {
+    throw new Error(
+      `[themory] runMigrations: refusing destructive embedding-dim change ` +
+        `${String(currentDim)} → ${String(targetDim)} on a populated database ` +
+        `(${String(rowCount)} memories). This wipes ALL memories + entities + audit trail. ` +
+        `If this is intentional (e.g. switching THEOMEM_EMBEDDER), set ` +
+        `THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE=1 to proceed. To keep the data, ` +
+        `keep the embedder (and its dimension) unchanged.`,
+    );
+  }
+
   // eslint-disable-next-line no-console
   console.error(
     `[themory] runMigrations: dim change ${String(currentDim)} → ${String(targetDim)} — DESTRUCTIVE cascade: ` +

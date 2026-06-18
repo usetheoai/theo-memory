@@ -130,10 +130,21 @@ export interface VectorStore {
   /** Drop the entire collection/table. Administrative; pairs with Memory.reset(scope) at the domain layer. */
   deleteCol(): Promise<void>;
 
-  /** Paginated list (results, totalCount). */
+  /**
+   * Paginated list (results, totalCount).
+   *
+   * Returns only currently-valid (live) rows by default — soft-deleted rows
+   * (`t_invalid IS NOT NULL`) are excluded, matching `search`/recall, so a
+   * forgotten memory never reappears in a listing.
+   *
+   * @param includeSoftDeleted — when `true`, ALSO return soft-deleted rows.
+   *   Reserved for administrative full-scope purge (`Memory.reset`), which must
+   *   physically remove every row in scope including tombstones. Default `false`.
+   */
   list(
     filters?: Filters,
     topK?: number,
+    includeSoftDeleted?: boolean,
   ): Promise<readonly [readonly VectorStoreResult[], number]>;
 
   /**
