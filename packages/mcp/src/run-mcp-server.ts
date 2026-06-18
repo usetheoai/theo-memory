@@ -29,7 +29,8 @@ import { OidcAuthVerifier } from '@usetheo/memory-api';
 
 import {
   assertEnvOrExit,
-  LOCAL_EMBEDDER_DIM,
+  embeddingDimForKind,
+  resolveEmbedderKind,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
@@ -220,11 +221,20 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   const port = transport === 'streamable-http' ? resolvePort(options?.port) : 0;
   const host = transport === 'streamable-http' ? resolveHost(options?.host) : '';
 
-  const pool = new Pool({ connectionString: pgUri });
-  await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
+  // Embedder selection (THEOMEM_EMBEDDER): local (Xenova 384) | openai (1536).
+  // The migration dim MUST match the embedder; resolve once and reuse.
+  const embedderKind = resolveEmbedderKind();
+  const embedderDim = embeddingDimForKind(embedderKind);
 
+  const pool = new Pool({ connectionString: pgUri });
+  await runMigrations(pool, { embeddingDim: embedderDim });
+
+  const embedderLabel =
+    embedderKind === 'openai'
+      ? `OpenAIEmbedder (text-embedding-3-small, dim=${String(embedderDim)})`
+      : `LocalTransformerEmbedder (Xenova MiniLM, dim=${String(embedderDim)})`;
   process.stderr.write(
-    `themory mcp: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${LOCAL_EMBEDDER_DIM}) + OpenAILLM via OPENAI_BASE_URL.\n`,
+    `themory mcp: real providers wired — ${embedderLabel} + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
   // T3.1 — ADR D3 transport+auth disclosure (Princípio 3 auditability).

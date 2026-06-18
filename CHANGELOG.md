@@ -16,6 +16,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.6.0] - 2026-06-18
+
+### Added
+- Runtime embedder is now selectable via `THEOMEM_EMBEDDER`: `local` (default — Xenova MiniLM, 384-dim, no API key, back-compat) or `openai` (`text-embedding-3-small`, 1536-dim; requires `OPENAI_API_KEY`). The `openai` path needs NO `@xenova/transformers`/`onnxruntime-node`/`sharp` at runtime and performs NO HuggingFace model download on cold start. Migration dimension follows the selected embedder; unknown values fail loud (no silent fallback).
+
+
+### Fixed
+- `Memory.reset(scope)` (administrative/GDPR full-scope wipe) again physically removes ALREADY-forgotten (soft-deleted) rows. The list soft-delete fix had regressed it (reset enumerates via `list`, now live-only); `list` gained an opt-in `includeSoftDeleted` param that `reset` uses to enumerate tombstones. (/review post-v0.5.0 F-dom-mem-1)
+- Destructive embedding-dimension change (triggered by switching `THEOMEM_EMBEDDER` on an existing deployment) now FAILS CLOSED on a populated database: it refuses to wipe unless `THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE=1` is set. A fresh (0-row) database still migrates silently. Prevents a routine env edit from silently destroying all memories. (/review post-v0.5.0 F-dom-cli-1)
+- `themory migrate` is now embedder-aware — it provisions the schema at the dimension matching `THEOMEM_EMBEDDER` (local 384 / openai 1536), so a standalone migrate matches what server/mcp boot would create. Previously it left the schema at the shipped `vector(1536)` default. (/review post-v0.5.0 F-wire-1)
+- `getAll`/`list` (scopes endpoint `GET /v1/scopes/.../memories`, OpenMemory `list_memories`, dashboard listing, reflection Orient, eviction candidate scan) now EXCLUDES soft-deleted memories (`t_invalid IS NOT NULL`), matching `recall`/`search`. Previously a memory you `forget()`/`delete_memories` still reappeared in listings while being correctly hidden from recall. (`PgvectorStore.list`)
+- Clean-checkout build restored: `build:core` now runs BEFORE the main `tsc` pass so cross-package `@usetheo/memory/*` subpath imports resolve against core's freshly-built `.d.ts`. Previously a build from a state without `packages/core/dist` (clean clone / CI / Docker) failed with `TS2307 Cannot find module '@usetheo/memory/theokit'`; it only "worked" incrementally.
+- Docker image build restored after the npm→pnpm migration + monorepo split (was broken since 2026-06-15; published `0.1.0-alpha` predates it): `.dockerignore` no longer excludes `pnpm-lock.yaml` (the builder runs `pnpm install --frozen-lockfile`) nor `scripts/` (postbuild:rewrite-aliases needs it); `Dockerfile` copies ALL workspace packages (`core/api/mcp/agent-core/cli`), not just `packages/cli`.
+- Docker runtime embedder fixed: `INCLUDE_OPTIONAL` now defaults to `true` so `onnxruntime-node` (the default LocalTransformerEmbedder's ONNX backend — an OPTIONAL dependency of `@xenova/transformers`) ships in the runtime image. Previously `--no-optional` stripped it and the embedder crashed at runtime (`Cannot find package 'onnxruntime-node'`). Set `TRANSFORMERS_CACHE=/tmp/.transformers-cache` so the distroless nonroot image can cache the model (was EACCES-ing).
+
 ## [0.5.0] - 2026-06-18
 
 ### Added

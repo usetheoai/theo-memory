@@ -131,6 +131,13 @@ if (PG_URI === undefined || PG_URI === '') {
           await client.callTool({ name: 'search_memory', arguments: { query: secret } }),
         ) as unknown[];
         expect(afterDelete).toHaveLength(0);
+
+        // list_memories must ALSO exclude the deleted memory (getAll/list parity
+        // with recall — a forgotten memory must not reappear in any listing).
+        const listAfterDelete = parseToolText(
+          await client.callTool({ name: 'list_memories', arguments: {} }),
+        ) as unknown[];
+        expect(listAfterDelete).toHaveLength(0);
       } finally {
         await client.close();
       }

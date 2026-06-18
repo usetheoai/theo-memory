@@ -33,20 +33,25 @@ FROM node:${NODE_VERSION}-bookworm-slim AS builder
 
 WORKDIR /build
 
-# Copy manifests first so layer cache survives source-only edits.
+# Copy root manifests + ALL workspace package sources BEFORE install: pnpm needs
+# every workspace package.json present to create the `node_modules/@usetheo/*`
+# symlinks the build resolves against. The monorepo split (extract-cli-to-packages
+# 2026-06-15) means `pnpm build` compiles core/api/mcp/agent-core/cli together;
+# `scripts/` is required by postbuild:rewrite-aliases. Tests/docs/examples/.claude
+# are excluded via .dockerignore — the context stays small.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY tsconfig.json tsconfig.build.json tsconfig.contract.json ./
+COPY scripts/ ./scripts/
+COPY packages/ ./packages/
 
 # Enable corepack for pnpm, then install all deps (incl. dev for typecheck + build).
 RUN corepack enable && corepack prepare pnpm@10.34.1 --activate && \
     pnpm install --frozen-lockfile
 
-# Copy ONLY the surface needed to run the build. Tests, docs, examples,
-# .claude/ are excluded via .dockerignore — keeps the build context small.
-COPY tsconfig.json tsconfig.build.json tsconfig.contract.json ./
-COPY packages/cli/ ./packages/cli/
-
-# EC-40 — tsc emits dist/ + postbuild copies migrations. Failure aborts
-# the entire image build (no escape hatch by design).
+# EC-40 — tsc emits dist/ + postbuild copies migrations. Failure aborts the entire
+# image build (no escape hatch by design). build:core runs FIRST so the main tsc
+# resolves @usetheo/memory/* subpaths against core's freshly-built dist/*.d.ts
+# (clean-checkout build-order fix).
 RUN pnpm build
 
 ###############################################################################
@@ -61,9 +66,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 # Enable corepack for pnpm.
 RUN corepack enable && corepack prepare pnpm@10.34.1 --activate
 
-# Production-only install (omit dev + optional) — yields a lean node_modules
-# tree suitable for copying into distroless.
-ARG INCLUDE_OPTIONAL=false
+# Production install — yields a lean node_modules tree for distroless.
+# INCLUDE_OPTIONAL defaults to TRUE: the default LocalTransformerEmbedder
+# (@xenova/transformers) requires `onnxruntime-node`, which @xenova declares as
+# an OPTIONAL dependency. `--no-optional` strips it → the embedder crashes at
+# runtime ("Cannot find package 'onnxruntime-node'"). Set the arg to false ONLY
+# for an OpenAI-embedder-only deployment that never constructs the local embedder.
+ARG INCLUDE_OPTIONAL=true
 RUN if [ "$INCLUDE_OPTIONAL" = "true" ]; then \
       pnpm install --prod --frozen-lockfile; \
     else \
@@ -82,6 +91,13 @@ WORKDIR /app
 COPY --from=builder /build/dist/ /app/dist/
 COPY --from=production-deps /build/node_modules/ /app/node_modules/
 COPY package.json /app/package.json
+
+# @xenova/transformers caches the downloaded MiniLM model. The distroless image
+# runs as nonroot, so the default cache dir (under node_modules/) is read-only —
+# without this, @xenova spams EACCES and cannot cache the model. Point the cache
+# at a writable path so the model is reused within the container's lifetime.
+# (Mount a volume here to persist across restarts / avoid re-download.)
+ENV TRANSFORMERS_CACHE=/tmp/.transformers-cache
 
 # REST port (overridable at runtime via --port or PORT env).
 EXPOSE 8080
