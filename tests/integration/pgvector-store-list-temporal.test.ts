@@ -136,6 +136,30 @@ if (PG_URI === undefined || PG_URI === '') {
       }
     });
 
+    test('list() EXCLUDES soft-deleted rows (t_invalid IS NOT NULL) — parity with search/recall', async () => {
+      // Given: one live row + one soft-deleted row (t_invalid set) for the same user.
+      // A consumer listing their memories (scopes endpoint / OpenMemory list_memories /
+      // dashboard) must NOT see a memory they forgot — list MUST match recall, which
+      // filters `t_invalid IS NULL`. The getAll projection already hardcodes
+      // tInvalid:null, proving list was always intended to be live-only.
+      const idLive = '00000000-0000-0000-0000-0000000000d1';
+      const idDeleted = '00000000-0000-0000-0000-0000000000d2';
+      await pool.query(
+        `INSERT INTO memories (id, text, hash, embedding, payload, user_id, created_at, t_invalid)
+         VALUES ($1, 'live row', 'h-live', $2::vector, '{}'::jsonb, 'alice', NOW(), NULL),
+                ($3, 'forgotten row', 'h-del', $4::vector, '{}'::jsonb, 'alice', NOW(), NOW())`,
+        [idLive, vectorLiteral(makeVec(0.7)), idDeleted, vectorLiteral(makeVec(0.8))],
+      );
+
+      // When: list with the user filter
+      const [results, total] = await store.list({ user_id: 'alice' }, 10);
+
+      // Then: only the live row is returned; the soft-deleted row is excluded
+      // from BOTH the page AND the count.
+      expect(results.map((r) => r.id)).toEqual([idLive]);
+      expect(total).toBe(1);
+    });
+
     test('list() orders by created_at DESC, id ASC across identical timestamps (EC-2 pagination determinism)', async () => {
       // Given: 3 rows.
       //   - idLater: with a LATER created_at — under DESC primary must come FIRST.

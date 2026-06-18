@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Runtime embedder is now selectable via `THEOMEM_EMBEDDER`: `local` (default — Xenova MiniLM, 384-dim, no API key, back-compat) or `openai` (`text-embedding-3-small`, 1536-dim; requires `OPENAI_API_KEY`). The `openai` path needs NO `@xenova/transformers`/`onnxruntime-node`/`sharp` at runtime and performs NO HuggingFace model download on cold start. Migration dimension follows the selected embedder; unknown values fail loud (no silent fallback).
 
 ### Changed
 
@@ -13,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- `getAll`/`list` (scopes endpoint `GET /v1/scopes/.../memories`, OpenMemory `list_memories`, dashboard listing, reflection Orient, eviction candidate scan) now EXCLUDES soft-deleted memories (`t_invalid IS NOT NULL`), matching `recall`/`search`. Previously a memory you `forget()`/`delete_memories` still reappeared in listings while being correctly hidden from recall. (`PgvectorStore.list`)
 - Clean-checkout build restored: `build:core` now runs BEFORE the main `tsc` pass so cross-package `@usetheo/memory/*` subpath imports resolve against core's freshly-built `.d.ts`. Previously a build from a state without `packages/core/dist` (clean clone / CI / Docker) failed with `TS2307 Cannot find module '@usetheo/memory/theokit'`; it only "worked" incrementally.
 - Docker image build restored after the npm→pnpm migration + monorepo split (was broken since 2026-06-15; published `0.1.0-alpha` predates it): `.dockerignore` no longer excludes `pnpm-lock.yaml` (the builder runs `pnpm install --frozen-lockfile`) nor `scripts/` (postbuild:rewrite-aliases needs it); `Dockerfile` copies ALL workspace packages (`core/api/mcp/agent-core/cli`), not just `packages/cli`.
 - Docker runtime embedder fixed: `INCLUDE_OPTIONAL` now defaults to `true` so `onnxruntime-node` (the default LocalTransformerEmbedder's ONNX backend — an OPTIONAL dependency of `@xenova/transformers`) ships in the runtime image. Previously `--no-optional` stripped it and the embedder crashed at runtime (`Cannot find package 'onnxruntime-node'`). Set `TRANSFORMERS_CACHE=/tmp/.transformers-cache` so the distroless nonroot image can cache the model (was EACCES-ing).

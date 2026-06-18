@@ -31,7 +31,8 @@ import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import {
   assertEnvOrExit,
-  LOCAL_EMBEDDER_DIM,
+  embeddingDimForKind,
+  resolveEmbedderKind,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
@@ -113,12 +114,17 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);
 
+  // Embedder selection (THEOMEM_EMBEDDER): local (Xenova 384) | openai (1536).
+  // Migration dim MUST match the embedder; resolve once and reuse.
+  const embedderKind = resolveEmbedderKind();
+  const embedderDim = embeddingDimForKind(embedderKind);
+
   const pool = new Pool({ connectionString: pgUri });
 
   // ADR D8 — migrate-on-startup BEFORE port binds.
   if (!shouldSkipMigrations()) {
     try {
-      await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
+      await runMigrations(pool, { embeddingDim: embedderDim });
     } catch (err) {
       process.stderr.write(
         `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
@@ -128,8 +134,12 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     }
   }
 
+  const embedderLabel =
+    embedderKind === 'openai'
+      ? `OpenAIEmbedder (text-embedding-3-small, dim=${String(embedderDim)})`
+      : `LocalTransformerEmbedder (Xenova MiniLM, dim=${String(embedderDim)})`;
   process.stderr.write(
-    `themory server: real providers wired — LocalTransformerEmbedder (Xenova MiniLM, dim=${String(LOCAL_EMBEDDER_DIM)}) + OpenAILLM via OPENAI_BASE_URL.\n`,
+    `themory server: real providers wired — ${embedderLabel} + OpenAILLM via OPENAI_BASE_URL.\n`,
   );
 
   // EC-33 readiness gate — bind port EAGERLY; warm Memory factory async so

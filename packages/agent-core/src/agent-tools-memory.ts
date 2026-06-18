@@ -26,7 +26,7 @@
 
 import { createLocalMemory, runMigrations } from '@usetheo/memory';
 import { PgvectorStore } from '@usetheo/memory';
-import type { Memory } from '@usetheo/memory/contract';
+import type { Embedder, Memory } from '@usetheo/memory/contract';
 // NOTE: `LocalTransformerEmbedder` (@xenova/transformers) and `OpenAILLM` (openai)
 // are backed by OPTIONAL dependencies. They are dynamically imported inside
 // `wireMemoryFromPool` (the single construction site) so that merely importing
@@ -50,6 +50,39 @@ import { Pool } from 'pg';
  * extraction).
  */
 export const LOCAL_EMBEDDER_DIM = 384;
+
+/**
+ * @internal Embedding dimension produced by `OpenAIEmbedder`
+ * (`text-embedding-3-small`, 1536-dim — fits pgvector's 1536 HNSW cap).
+ * Single source of truth for the OpenAI-embedder path.
+ */
+export const OPENAI_EMBEDDER_DIM = 1536;
+
+/** Which embedder backs the runtime Memory. */
+export type EmbedderKind = 'local' | 'openai';
+
+/**
+ * @internal Resolve the embedder backend from `THEOMEM_EMBEDDER`:
+ *   - unset / empty / `'local'` → `'local'` (Xenova MiniLM, no API key, default
+ *     for back-compat with the 384-dim local runtime).
+ *   - `'openai'`               → `'openai'` (OpenAI `text-embedding-3-small`,
+ *     1536-dim; requires `OPENAI_API_KEY`; no @xenova/onnx/sharp at runtime).
+ *
+ * Fails LOUD (throws) on any other value — no silent fallback (Inquebrável Rule 8).
+ */
+export function resolveEmbedderKind(): EmbedderKind {
+  const k = process.env['THEOMEM_EMBEDDER'];
+  if (k === undefined || k === '' || k === 'local') return 'local';
+  if (k === 'openai') return 'openai';
+  throw new Error(
+    `Unknown THEOMEM_EMBEDDER='${k}' (expected 'local' or 'openai').`,
+  );
+}
+
+/** Embedding dimension for an embedder kind (must match the migration dim). */
+export function embeddingDimForKind(kind: EmbedderKind): number {
+  return kind === 'openai' ? OPENAI_EMBEDDER_DIM : LOCAL_EMBEDDER_DIM;
+}
 
 /**
  * @internal Shared boundary helper for agent-tools subpath (CLI/MCP/REST).
@@ -120,17 +153,32 @@ export const OPENAI_API_KEY_ENV_SPEC = {
 export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
   // Lazy-load the optional-dependency-backed adapters at the single construction
   // site (see import-section note). Keeps CLI module-load (and `--help`) free of
-  // the @xenova/transformers + openai graph.
-  const [{ LocalTransformerEmbedder }, { OpenAILLM }] = await Promise.all([
-    import('@usetheo/memory/embedders/local'),
+  // the @xenova/transformers + openai graph. Only the SELECTED embedder is
+  // imported — `THEOMEM_EMBEDDER=openai` never pulls @xenova/onnx/sharp.
+  const kind = resolveEmbedderKind();
+  const embeddingDim = embeddingDimForKind(kind);
+
+  const [embedder, { OpenAILLM }] = await Promise.all([
+    buildEmbedder(kind),
     import('@usetheo/memory/llms/openai'),
   ]);
+
   return createLocalMemory({
-    vectorStore: new PgvectorStore(pool, { embeddingDim: LOCAL_EMBEDDER_DIM }),
-    embedder: new LocalTransformerEmbedder(),
+    vectorStore: new PgvectorStore(pool, { embeddingDim }),
+    embedder,
     llm: new OpenAILLM(),
-    embeddingDim: LOCAL_EMBEDDER_DIM,
+    embeddingDim,
   });
+}
+
+/** Lazily construct the selected embedder (imports only the chosen backend). */
+async function buildEmbedder(kind: EmbedderKind): Promise<Embedder> {
+  if (kind === 'openai') {
+    const { OpenAIEmbedder } = await import('@usetheo/memory/embedders/openai');
+    return new OpenAIEmbedder();
+  }
+  const { LocalTransformerEmbedder } = await import('@usetheo/memory/embedders/local');
+  return new LocalTransformerEmbedder();
 }
 
 /**
@@ -155,7 +203,8 @@ export async function createAgentToolsMemory(): Promise<readonly [Memory, () => 
   const pgUri = process.env['THEOMEM_PG_URI']!;
 
   const pool = new Pool({ connectionString: pgUri });
-  await runMigrations(pool, { embeddingDim: LOCAL_EMBEDDER_DIM });
+  // Migration dim MUST match the selected embedder (local 384 / openai 1536).
+  await runMigrations(pool, { embeddingDim: embeddingDimForKind(resolveEmbedderKind()) });
 
   const memory = await wireMemoryFromPool(pool);
 

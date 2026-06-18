@@ -646,7 +646,11 @@ export class PgvectorStore implements VectorStore {
     topK = 100,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
     const filter = composeFilters(filters, 1);
-    const countSql = `SELECT COUNT(*)::int AS total FROM memories WHERE 1=1${filter.sql}`;
+    // Live-only: exclude soft-deleted rows (t_invalid IS NOT NULL), matching
+    // search()/recall. Without this, a memory the consumer forgot still appears
+    // in getAll → scopes endpoint / OpenMemory list_memories / dashboard. The
+    // getAll projection hardcodes tInvalid:null, confirming list is live-only.
+    const countSql = `SELECT COUNT(*)::int AS total FROM memories WHERE t_invalid IS NULL${filter.sql}`;
     const countResult = await this.pool.query<{ total: number }>(countSql, [...filter.params]);
     const total = countResult.rows[0]?.total ?? 0;
 
@@ -660,7 +664,7 @@ export class PgvectorStore implements VectorStore {
              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
              created_at
       FROM memories
-      WHERE 1=1${filter.sql}
+      WHERE t_invalid IS NULL${filter.sql}
       ORDER BY created_at DESC, id ASC
       LIMIT $${filter.nextParamIndex}
     `;
