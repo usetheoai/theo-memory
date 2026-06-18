@@ -1,0 +1,97 @@
+agent: wiring
+review_target: e881a8e..HEAD for plan multi-tenant-rbac-and-slice1-completion
+plan: .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md
+triad_revalidation:
+  total_new_symbols: 7   # requireRole, MembersRepository(+2 factories), members handlers x4, getMemberRole, deriveScopeKey(ws), advisoryLockKey(ws), scopeWhereClause(ws)
+  pillar_a_honest_pass: 6 / 7    # getMemberRole has NO production caller (F-wire-1)
+  pillar_b_honest_pass: 7 / 7    # all symbols exercised by integration/contract tests
+  pillar_c_observed: n/a         # this slice adds authz gates + workspace predicates; no new OTel metric required (reuses existing eviction/cache metrics, which DO receive the threaded workspaceId)
+findings:
+  - id: F-wire-1
+    severity: MEDIUM
+    file: packages/api/src/server/store/members-store.ts
+    line: 63
+    plan_ref: T2.1 ADR D4 — "mint handler consults MembersRepository.getMemberRole"
+    summary: >-
+      getMemberRole is a public method on the MembersRepository DIP (declared
+      line 63, implemented in-memory line 171 + pg line 203) with ZERO
+      production callers. The anti-escalation guard the plan said would consume
+      it (ADR D4 line 356: "members.getMemberRole(principal.workspaceId, rawUserId)")
+      instead inlines its OWN raw SQL against workspace_users in admin-keys.ts.
+      The security behavior IS wired + tested, but via a parallel raw query that
+      bypasses the DIP, leaving getMemberRole dead.
+    evidence: |
+      grep getMemberRole across packages/ + tests/ (excluding dist/):
+        members-store.ts:63 (interface decl)
+        members-store.ts:171 (in-memory impl)
+        members-store-pg.ts:203 (pg impl)
+        members-store.contract.test.ts:77/81/82 (contract test ONLY)
+      No src/** caller. admin-keys.ts:238-242 does its own:
+        `SELECT role FROM workspace_users WHERE workspace_id=$1 AND user_id=$2`
+      i.e. the anti-escalation guard re-implements getMemberRole inline instead
+      of injecting the repo (admin-keys.ts has no MembersRepository parameter).
+    recommended_action: >-
+      Either (a) wire the anti-escalation guard in createKeyHandler to consume
+      the injected MembersRepository.getMemberRole (matches ADR D4 + removes the
+      duplicated raw SQL + the DIP bypass), OR (b) if the inline SQL is the
+      deliberate choice (admin-keys already owns a pool), drop getMemberRole from
+      the DIP + impls + contract test as dead surface. Current state ships a
+      DIP method no production path calls (dead_public_export risk for
+      /code-quality) AND duplicates the role-lookup logic (DRY).
+  - id: F-wire-2
+    severity: LOW
+    file: packages/core/src/infrastructure/db/pgvector-skill-store.ts
+    line: 110
+    plan_ref: T3.1 / D6 — skill-store threads workspace_id
+    summary: >-
+      insertDerivedSkill (non-atomic, line 102-138) omits the workspace_id
+      column from its INSERT, while its atomic sibling insertDerivedSkillAtomic
+      (line 153) and insertSkill (line 70) both write it. The production
+      consolidate path uses ONLY insertDerivedSkillAtomic (consolidate.ts:426),
+      so the live workspace-isolation chain is intact — but the non-atomic
+      variant is an inconsistency that would silently write a derived skill to
+      workspace_id='default' if any future caller adopts it.
+    evidence: |
+      pgvector-skill-store.ts insertDerivedSkill INSERT (line 111-119):
+        INSERT INTO memories (text, hash, embedding, payload,
+          user_id, session_id, agent_id, ...)   -- NO workspace_id
+      vs insertDerivedSkillAtomic (line 166-174): includes workspace_id, and
+      insertSkill (line 73-81): includes workspace_id.
+      Production callers of insertDerivedSkill (non-atomic): only
+      vector-store-conformance.ts:272/292 (tests). consolidate.ts:426 calls the
+      Atomic variant exclusively.
+    recommended_action: >-
+      Add workspace_id to insertDerivedSkill's INSERT for parity with its two
+      siblings (the InsertDerivedSkillArgs.scope already carries workspaceId), OR
+      document at the method why the non-atomic variant is workspace-agnostic /
+      slated for removal. No live leak today; pre-emptive consistency fix.
+  - id: F-wire-3
+    severity: INFO
+    file: packages/api/src/server/app.ts
+    line: 287
+    plan_ref: T2.1 — wire /v1/members under requireRole + resolveMembersRepository
+    summary: >-
+      Composition-root wiring is HONEST and COMPLETE. requireRole('admin') is
+      mounted on all four /v1/members routes (GET/POST/PATCH/DELETE, lines
+      288-291), mounted AFTER bearerAuth (line 278) so 401 precedes 403. The
+      members repo is resolved via injected override OR a pg repo derived from
+      adminApi.pool. The eviction workspace chain is unbroken end-to-end:
+      scoped-memory.ts:204 postRememberHook(scope, filters.workspace_id) →
+      factory.ts:220 hook → capacity-trigger.fire(scope,now,workspaceId) →
+      scopeWhereClause/loadCandidates/advisoryLockKey/ScoreContext all receive
+      workspaceId. recall-cache deriveScopeKey(scope, workspaceId) is reached
+      from LocalScopedMemory.recall (scoped-memory.ts:278/294) +
+      LocalMemory.forget invalidateScope (local-memory.ts:207). Skill workspaceId
+      flows LocalMemory.skills() → LocalScopedSkillMemory (local-memory.ts:271).
+      All verified by tests/integration/workspace/cache-skill-eviction-isolation.test.ts
+      (cache MISS + skill isolation + eviction isolation vs real pgvector) and
+      tests/integration/auth/workspace-rbac.test.ts (last-owner Promise.all race,
+      403/422/200 anti-escalation) + workspace-rbac-matrix.test.ts (member 403 on
+      every management route via it.each).
+    evidence: |
+      app.ts:284-292 membersRepo resolution + 4 requireRole('admin') mounts.
+      factory.ts:218-222 + capacity-based-trigger.ts:62-104 (workspaceId threaded
+      into COUNT + advisory lock + candidate load + ScoreContext).
+      scope-where.ts:78-119 (advisoryLockKey + scopeWhereClause AND workspace_id).
+      members-store-pg.ts:88-203 (FOR UPDATE owner-count guard in setRole/remove).
+    recommended_action: No action — wiring triad satisfied; recorded as the positive baseline.

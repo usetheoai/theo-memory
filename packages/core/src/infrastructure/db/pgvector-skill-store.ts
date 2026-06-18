@@ -108,19 +108,24 @@ export class PgvectorSkillStore {
       );
     }
     const result = await this.pool.query<{ id: string }>(
+      // multi-tenant-rbac-and-slice1-completion (F-dom-db-2): write workspace_id
+      // so a derived skill stays in its source workspace — parity with insertSkill
+      // + insertDerivedSkillAtomic (a derived skill via this path previously fell
+      // back to the column default 'default', a cross-workspace leak).
       `INSERT INTO memories (
          text, hash, embedding, payload,
-         user_id, session_id, agent_id,
+         workspace_id, user_id, session_id, agent_id,
          kind, derived_from, code, description, code_language
        ) VALUES (
          $1, $2, $3::vector, '{}'::jsonb,
-         $4, $5, $6,
-         'skill', $7::jsonb, $8, $9, $10
+         $4, $5, $6, $7,
+         'skill', $8::jsonb, $9, $10, $11
        ) RETURNING id`,
       [
         args.description,
         args.hash,
         vectorLiteral(args.embedding),
+        args.scope.workspaceId ?? 'default',
         args.scope.userId ?? null,
         args.scope.sessionId ?? null,
         args.scope.agentId ?? null,
