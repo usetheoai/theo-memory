@@ -11,7 +11,13 @@ import type { Context } from 'hono';
 
 import { RememberBody, resolveScope } from '../schemas.js';
 
-import { EMPTY_BODY, MALFORMED_BODY, safeJson, scopeOrValidationError } from './_body-parsing.js';
+import {
+  EMPTY_BODY,
+  MALFORMED_BODY,
+  safeJson,
+  scopeOrValidationError,
+  workspaceBoundMemory,
+} from './_body-parsing.js';
 
 export async function rememberHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await safeJson(c);
@@ -29,7 +35,10 @@ export async function rememberHandler(c: Context, memory: Memory): Promise<Respo
     return scopeOrValidationError(parsed.error, c);
   }
   const { text, infer, attributedTo, metadata, category } = parsed.data;
-  const scoped = resolveScope(memory, parsed.data);
+  // multi-tenant-workspace-isolation T3.1: bind to the Principal's workspace
+  // (ADR D3) BEFORE resolving the body's tier — the workspace comes from the
+  // credential, the tier from the body.
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
   // themory-category-filter-server-side T4.2 — pass category through the SDK
   // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
   const items = await scoped.remember(text, { infer, attributedTo, metadata, category });

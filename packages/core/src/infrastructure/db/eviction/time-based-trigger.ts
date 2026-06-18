@@ -42,6 +42,14 @@ export interface TimeBasedTriggerConfig {
    * tiers (User / Session / Agent) per ADR-0002.
    */
   readonly scope: Scope;
+  /**
+   * multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): the workspace
+   * this cron eviction is bound to. When set, the candidate load + advisory
+   * lock + scoring are workspace-scoped (one trigger per (workspace, scope)).
+   * When unset, the pass operates within the `default` workspace via the
+   * `workspace_id NOT NULL DEFAULT 'default'` column bound (ADR D7).
+   */
+  readonly workspaceId?: string;
 }
 
 /**
@@ -63,6 +71,7 @@ export class TimeBasedTrigger {
   private readonly cronExpression: string;
   private readonly evictionFraction: number;
   private readonly scope: Scope;
+  private readonly workspaceId: string | undefined;
   private cronJob: Cron | null = null;
   private tickListener: OnTickCallback | null = null;
 
@@ -83,6 +92,7 @@ export class TimeBasedTrigger {
     this.cronExpression = config.cronExpression;
     this.evictionFraction = config.evictionFraction;
     this.scope = config.scope;
+    this.workspaceId = config.workspaceId;
   }
 
   /**
@@ -148,13 +158,13 @@ export class TimeBasedTrigger {
     try {
       const lockResult = await client.query<{ locked: boolean }>(
         'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
-        [advisoryLockKey(this.scope)],
+        [advisoryLockKey(this.scope, this.workspaceId)],
       );
       if (lockResult.rows[0]?.locked !== true) {
         await client.query('COMMIT');
         return null;
       }
-      const candidates = await loadCandidates(client, this.scope);
+      const candidates = await loadCandidates(client, this.scope, this.workspaceId);
       if (candidates.length === 0) {
         await client.query('COMMIT');
         return null;
@@ -169,7 +179,11 @@ export class TimeBasedTrigger {
           // observability-only — do NOT poison the eviction
         }
       }
-      const context: ScoreContext = { meanIsolationDistance: 0, now };
+      const context: ScoreContext = {
+        meanIsolationDistance: 0,
+        now,
+        ...(this.workspaceId !== undefined ? { workspaceId: this.workspaceId } : {}),
+      };
       const victimIds = await this.policy.selectVictims(
         candidates,
         this.evictionFraction,

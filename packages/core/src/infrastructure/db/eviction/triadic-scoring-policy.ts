@@ -328,11 +328,15 @@ export class TriadicScoringPolicy implements EvictionPolicy {
    * provider is wired (e.g., pure-math unit tests), returns the max-isolation
    * fallback 1.0 — equivalent to full long-tail protection.
    */
-  async nearestNeighborDistance(memoryId: string, scope: Scope): Promise<number> {
+  async nearestNeighborDistance(
+    memoryId: string,
+    scope: Scope,
+    workspaceId?: string,
+  ): Promise<number> {
     if (this.neighborProvider === null) {
       return MAX_ISOLATION_DISTANCE;
     }
-    return this.neighborProvider.distance(memoryId, scope);
+    return this.neighborProvider.distance(memoryId, scope, workspaceId);
   }
 
   async score(memory: MemoryItem, context: ScoreContext): Promise<number> {
@@ -386,7 +390,7 @@ export class TriadicScoringPolicy implements EvictionPolicy {
       if (scopeId === null) {
         return MAX_PROTECTION_MULTIPLIER;
       }
-      isolation = await this.neighborProvider.distance(memory.id, memory.scope);
+      isolation = await this.neighborProvider.distance(memory.id, memory.scope, context.workspaceId);
     }
     if (isolation === null) {
       return MAX_PROTECTION_MULTIPLIER;
@@ -434,7 +438,7 @@ export class TriadicScoringPolicy implements EvictionPolicy {
     for (const memory of candidates) {
       const scopeId = getNeighborScopeId(memory.scope);
       const isolation = scopeId !== null
-        ? await this.neighborProvider.distance(memory.id, memory.scope)
+        ? await this.neighborProvider.distance(memory.id, memory.scope, context.workspaceId)
         : MAX_ISOLATION_DISTANCE;
       cache.set(memory.id, isolation);
     }
@@ -444,6 +448,9 @@ export class TriadicScoringPolicy implements EvictionPolicy {
       meanIsolationDistance: mean,
       now: context.now,
       neighborDistances: cache,
+      // T3.1: preserve the pass-level workspace so score()'s cache-miss
+      // fallback distance query stays workspace-scoped.
+      ...(context.workspaceId !== undefined ? { workspaceId: context.workspaceId } : {}),
     };
   }
 }

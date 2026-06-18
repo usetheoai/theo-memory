@@ -119,13 +119,13 @@ describe.skipIf(ROOT_PG_URI === '')(
       // First recall populates the cache for user:alice.
       await memory.user('alice').recall('what is my favorite color?');
       const before = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(before.rows[0]?.count).toBe('1');
       // remember() must invalidate the scope per Item 19 AC#3.
       await memory.user('alice').remember('My favorite color is teal.');
       const after = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(after.rows[0]?.count).toBe('0');
     }, 120_000);
