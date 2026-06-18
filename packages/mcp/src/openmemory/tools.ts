@@ -22,7 +22,8 @@
 import type { CallToolResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-import type { Memory } from '@usetheo/memory/contract';
+import { MissingScopeError } from '@usetheo/memory/contract';
+import type { Memory, MemoryItem } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
 
@@ -110,16 +111,45 @@ export async function listMemoriesHandler(_args: unknown, deps: Deps): Promise<C
   return jsonResult(all.map((m) => ({ id: m.id, memory: m.text, created_at: m.createdAt.toISOString() })));
 }
 
+/**
+ * Resolve the path-bound user id from the active scope, mirroring the user-tier
+ * resolution in `memoryFromCtx`. This is the scope gate the other three handlers
+ * get for free via `memoryFromCtx`; `forget` lives on top-level `Memory` (NOT
+ * `ScopedMemory`), so the delete path must re-derive the user id explicitly.
+ *
+ * @throws MissingScopeError when the request carries no user-tier scope.
+ */
+function requireUserId(): string {
+  const userId = getScope().session?.userId;
+  if (typeof userId !== 'string' || userId.trim().length === 0) {
+    throw new MissingScopeError('delete_memories requires a user-scoped request.');
+  }
+  return userId;
+}
+
+/** A memory is the requesting user's iff it is user-scoped to that exact id. */
+function ownedByUser(item: MemoryItem, userId: string): boolean {
+  return item.scope.kind === 'user' && item.scope.userId === userId;
+}
+
 export async function deleteMemoriesHandler(args: unknown, deps: Deps): Promise<CallToolResult> {
   const parsed = DeleteMemoriesInput.parse(args);
+  const userId = requireUserId();
   const memory = deps.memoryFactory();
   const deleted: string[] = [];
   for (const id of parsed.memory_ids) {
+    // Per-user isolation (the load-bearing IDOR guard on the multi-user SSE path):
+    // `Memory.forget` is global-by-id by design, so we MUST confirm ownership
+    // before forgetting. An id the user does not own is skipped, never deleted.
+    const item = await memory.get(id);
+    if (item === null || !ownedByUser(item, userId)) {
+      continue; // unknown OR not owned → skip (best-effort OpenMemory parity)
+    }
     try {
       await memory.forget(id);
       deleted.push(id);
     } catch {
-      // best-effort, OpenMemory parity: skip inaccessible/unknown ids.
+      // already-forgotten / race → skip
     }
   }
   if (deleted.length === 0) {
@@ -135,7 +165,15 @@ const HANDLERS = new Map<string, (a: unknown, d: Deps) => Promise<CallToolResult
   [DELETE_MEMORIES, deleteMemoriesHandler],
 ]);
 
-/** Dispatch an OpenMemory `tools/call` to its alias handler. */
+/**
+ * Dispatch an OpenMemory `tools/call` to its alias handler.
+ *
+ * Contract divergence from the NATIVE dispatch (ADR D6 throws `McpError`): the
+ * OpenMemory wire-shape expects ALL failures — unknown tool, validation, handler
+ * error — as a single `isError: true` text result `"Error: …"` that clients
+ * parse (blueprint D5). This is the deliberate wire-parity override of the native
+ * throw-contract, isolated to this compat adapter so `src/core` is untouched.
+ */
 export async function openMemoryDispatch(
   toolName: string,
   args: unknown,
