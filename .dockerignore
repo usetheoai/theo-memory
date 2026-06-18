@@ -8,7 +8,7 @@ build/
 coverage/
 *.tsbuildinfo
 
-# Dependencies — the builder runs `npm ci` from package-lock.json
+# Dependencies — the builder runs `pnpm install --frozen-lockfile` from pnpm-lock.yaml
 node_modules/
 
 # Version control
@@ -60,12 +60,13 @@ CLAUDE.md
 LICENSE
 README.md
 
-# Lock files for ecosystems we don't build with
-pnpm-lock.yaml
+# Lock files for ecosystems we don't build with (pnpm-lock.yaml IS needed —
+# the builder runs `pnpm install --frozen-lockfile`)
 yarn.lock
 
 # Migration-tooling configs not needed in runtime
 drizzle.config.ts
 
-# Compiled type-check helpers / scripts not part of the runtime path
-scripts/
+# NOTE: scripts/ is NOT excluded — `pnpm build` runs
+# scripts/rewrite-dist-aliases.mjs (postbuild:rewrite-aliases). Excluding it
+# breaks the image build.
