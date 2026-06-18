@@ -260,7 +260,8 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ```bash
 themory server                      # Start REST API
-themory mcp                         # Start MCP server
+themory mcp                         # Start MCP server (native verbs)
+themory mcp --compat openmemory     # OpenMemory-compatible MCP server over SSE (port 8765)
 themory migrate                     # Apply pending migrations
 themory health --deep               # Probe embedder + LLM + DB
 
