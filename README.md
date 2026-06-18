@@ -85,6 +85,13 @@ npm run db:push
 npx themory server
 ```
 
+**Embedder selection** — set `THEOMEM_EMBEDDER`:
+
+- `local` (default) — Xenova MiniLM, 384-dim, no API key. Downloads the model on first use.
+- `openai` — OpenAI `text-embedding-3-small`, 1536-dim. Requires `OPENAI_API_KEY`; needs no on-device model and makes no HuggingFace download. Recommended for server/Docker deployments.
+
+The migration dimension follows the selected embedder, so set `THEOMEM_EMBEDDER` before the first `db:push` / startup migration.
+
 Try it:
 
 ```bash
