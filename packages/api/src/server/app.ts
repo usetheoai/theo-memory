@@ -245,6 +245,14 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // theo_live_* admin keys that don't match THEMEMORY_API_KEY env var.
   // requireScope owns its own Bearer extraction + theo_api_keys SHA-256 lookup,
   // bypassing the env-secret comparison. EC-7 sentinel test 5 protects this.
+  // RBAC T2.1 — membership store powering `/v1/members/*` AND the key-mint
+  // anti-escalation target-role lookup (ADR D4). Constructed BEFORE the admin
+  // block so the mint handler can consult `getMemberRole` via the DIP rather
+  // than an inline SQL duplicate.
+  const membersRepo: MembersRepository | undefined =
+    options.membersRepository ??
+    (adminApi !== undefined ? createPostgresMembersRepository(adminApi.pool) : undefined);
+
   if (adminApi !== undefined) {
     const adminBootstrap = adminApi.bootstrapToken;
     app.use(
@@ -263,7 +271,13 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
       const token = header.replace(/^Bearer\s+/i, '');
       const viaBootstrap =
         adminBootstrap !== undefined && adminBootstrap.length > 0 && token === adminBootstrap;
-      return createKeyHandler(c, adminApi.pool, ADMIN_SUBJECT, { viaBootstrapToken: viaBootstrap });
+      return createKeyHandler(c, adminApi.pool, ADMIN_SUBJECT, {
+        viaBootstrapToken: viaBootstrap,
+        // ADR D4: consult the MembersRepository DIP for the target's role.
+        ...(membersRepo !== undefined
+          ? { getMemberRole: (ws: string, uid: string) => membersRepo.getMemberRole(ws, uid) }
+          : {}),
+      });
     });
     app.get('/v1/admin/keys/list', (c) => listKeysHandler(c, adminApi.pool, ADMIN_SUBJECT));
     app.delete('/v1/admin/keys/:id', (c) => revokeKeyHandler(c, adminApi.pool, ADMIN_SUBJECT));
@@ -280,10 +294,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // RBAC T2.1 — `/v1/members/*` membership management, gated by requireRole.
   // Mounted AFTER bearerAuth so the Principal (with role) is injected; the
   // handlers derive the workspace from the Principal (never the body). The repo
-  // is the injected override OR a pg repo derived from the admin pool.
-  const membersRepo: MembersRepository | undefined =
-    options.membersRepository ??
-    (adminApi !== undefined ? createPostgresMembersRepository(adminApi.pool) : undefined);
+  // was constructed above (shared with the key-mint anti-escalation lookup).
   if (membersRepo !== undefined) {
     app.get('/v1/members', requireRole('admin'), (c) => listMembersHandler(c, membersRepo));
     app.post('/v1/members', requireRole('admin'), (c) => addMemberHandler(c, membersRepo));

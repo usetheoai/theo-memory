@@ -108,10 +108,21 @@ export function requireScope(opts: RequireScopeOptions): MiddlewareHandler {
       );
     }
     const hash = createHash('sha256').update(token).digest('hex');
-    const { rows } = await opts.pool.query<{ scopes: unknown }>(
-      SELECT_SCOPES_BY_HASH_SQL,
-      [hash],
-    );
+    let rows: { scopes: unknown }[];
+    try {
+      ({ rows } = await opts.pool.query<{ scopes: unknown }>(
+        SELECT_SCOPES_BY_HASH_SQL,
+        [hash],
+      ));
+    } catch {
+      // multi-tenant-rbac-and-slice1-completion (F-dom-auth-6): fail CLOSED on
+      // auth-backend failure — return an explicit 503 (matching the bearer
+      // middleware's contract, ADR D5), never fall through to a granted scope.
+      return c.json(
+        { code: 'SERVICE_UNAVAILABLE', message: 'Authentication backend unavailable.' },
+        503,
+      );
+    }
     if (rows.length === 0) {
       return c.json(
         { code: 'INVALID_API_KEY', message: 'API key not recognized.' },

@@ -172,6 +172,52 @@ if (PG_URI === undefined || PG_URI === '') {
         const created = (await res.json()) as { secret?: string };
         expect(created.secret).toMatch(/^theo_live_/);
       });
+
+      // Regression for the /review BLOCKER (F-dom-auth-1 / F-dom-db-1): a key
+      // minted by a NON-default-workspace admin MUST carry that admin's
+      // workspace_id, not the schema default 'default'. Before the fix the
+      // INSERT omitted workspace_id, cross-tenant-misplacing every minted key.
+      test('a key minted by a wsrbac admin carries workspace_id=wsrbac (BLOCKER regression)', async () => {
+        await seedUser(pool, 'wsrbac', 'u-admin', 'admin');
+        const adminTok = `theo_live_${randomUUID()}`;
+        await seedKey(pool, adminTok, 'wsrbac', 'u-admin');
+        const res = await appWith().request('/v1/admin/keys', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${adminTok}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'minted', scopes: ['memory:read'] }),
+        });
+        expect(res.status).toBe(200);
+        const created = (await res.json()) as { id: string };
+        const { rows } = await pool.query<{ workspace_id: string }>(
+          `SELECT workspace_id FROM theo_api_keys WHERE id = $1`,
+          [created.id],
+        );
+        expect(rows[0]?.workspace_id).toBe('wsrbac');
+      });
+
+      // F-dom-auth-2 (default-deny): a caller key whose bound user has NO
+      // membership row resolves to the least-privileged 'member' — NEVER 'owner'
+      // (the pre-fix code initialized callerRole to 'owner'). So such a caller
+      // cannot mint a key bound to an owner.
+      test('a caller with no membership row is default-deny member; cannot bind a key to an owner', async () => {
+        await seedUser(pool, 'wsrbac', 'u-owner', 'owner');
+        // Key exists (passes requireScope) but its user has no workspace_users row
+        // → role-join yields NULL → default-deny 'member'. Insert the bare user
+        // (FK theo_api_keys.user_id → users.id) WITHOUT a membership row.
+        await pool.query(
+          `INSERT INTO users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING`,
+          ['user-without-membership', 'no-member@x.local'],
+        );
+        const noMemberTok = `theo_live_${randomUUID()}`;
+        await seedKey(pool, noMemberTok, 'wsrbac', 'user-without-membership');
+        const res = await appWith().request('/v1/admin/keys', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${noMemberTok}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'k', scopes: ['memory:read'], user_id: 'u-owner' }),
+        });
+        expect(res.status).toBe(403);
+        expect((await res.json())).toMatchObject({ code: 'INSUFFICIENT_ROLE' });
+      });
     });
   });
 }
