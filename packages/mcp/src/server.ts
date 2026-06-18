@@ -20,6 +20,7 @@ import { withScope } from '@usetheo/memory-agent-core';
 import type { McpServerOptions } from '@usetheo/memory-agent-core';
 import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
+import { buildOpenMemoryToolsList, openMemoryDispatch } from './openmemory/tools.js';
 
 /**
  * MCP `_meta` key for per-call user-scope override. Reverse-DNS namespaced
@@ -81,13 +82,16 @@ export class McpServer {
       { name: this.name, version: this.version },
       { capabilities: this.capabilities },
     );
-    // Register the static tools/list handler at construction time (4 tools never change
-    // for v0.3 per ADR D2 listChanged:false). See `tools/list-handler.ts` for shape.
+    // Toolset selection (Roadmap Item 26): native verbs (default) OR the
+    // OpenMemory alias set. Both register the same JSON-RPC handlers; only the
+    // list payload + the dispatch function differ.
+    const openMemory = options.toolset === 'openmemory';
     this.sdkServer.setRequestHandler(ListToolsRequestSchema, () =>
-      Promise.resolve(buildToolsListResponse()),
+      Promise.resolve(openMemory ? buildOpenMemoryToolsList() : buildToolsListResponse()),
     );
-    // Register the tools/call dispatch handler — routes to {remember,recall,forget,reflect}
-    // handlers per T5.1. Protocol Errors throw McpError; Tool Execution Errors return CallToolResult.
+    const dispatchFn = openMemory ? openMemoryDispatch : dispatch;
+    // Register the tools/call dispatch handler. Protocol Errors throw McpError;
+    // Tool Execution Errors return CallToolResult.
     const memoryFactory = options.memoryFactory;
     this.sdkServer.setRequestHandler(CallToolRequestSchema, (req) => {
       if (memoryFactory === undefined) {
@@ -104,10 +108,10 @@ export class McpServer {
       const userId = resolveScopedUserId(req.params._meta);
       if (userId !== undefined) {
         return withScope({ session: { userId } }, () =>
-          dispatch(req.params.name, req.params.arguments, { memoryFactory }),
+          dispatchFn(req.params.name, req.params.arguments, { memoryFactory }),
         );
       }
-      return dispatch(req.params.name, req.params.arguments, { memoryFactory });
+      return dispatchFn(req.params.name, req.params.arguments, { memoryFactory });
     });
   }
 
