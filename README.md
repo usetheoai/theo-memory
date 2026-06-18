@@ -343,26 +343,32 @@ npm run lint                # Zero warnings
 
 ## Comparison
 
-> **Capability comparison of the open-source projects** — not a performance benchmark, and not the vendors' hosted/cloud tiers (those differ). Competitor cells were verified against each project's public repository + official docs (2026-06), not assumed. `—` = absent in the OSS project; `Cloud-only` = exists, but only in the proprietary managed tier; `Partial` / `?` = qualified below.
+How Theo Memory positions against direct alternatives in the agent-memory space:
 
-| | Theo Memory | Mem0 (`mem0ai`) | Letta (ex-MemGPT) | Zep / Graphiti |
+| | **Theo Memory** | Mem0 (`mem0ai`) | Letta (ex-MemGPT) | Zep / Graphiti |
 |---|---|---|---|---|
-| License | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 |
-| Local store (default) | Postgres + pgvector | Qdrant (pgvector optional) | Postgres + pgvector | Neo4j (graph) |
-| Memory model | `user` · `session` · `agent` · `skills` tiers, inside a **workspace** tenant | `user`/`agent`/`run` filters | core / recall / archival blocks | episodes → temporal graph |
-| Bi-temporal `asOf` | Yes (`recall({ asOf })`) | — ¹ | ? | Yes |
-| Procedural / skill memory | Yes (code-as-skill library) | Partial (summarized text) | — | — |
-| Read-side recall cache | Yes (query-embedding cosine) | — | — | — |
-| Auth | Bearer + API keys + OIDC | — (lib); API key (server) | Bearer / shared password | — |
-| **Multi-tenant + RBAC (in OSS)** | **Yes** — workspace isolation + members/roles | Cloud-only | Cloud-only ² | Cloud-only |
-| MCP memory server | Yes (4 tools) | Partial (plugin, not core lib) | Host/client only ³ | Yes |
-| Hybrid retrieval | semantic + BM25 + entity | semantic + BM25 + entity | vector + full-text | semantic + BM25 + graph |
+| Open source | ✅ Apache-2.0 | ✅ Apache-2.0 | ✅ Apache-2.0 | ✅ Apache-2.0 |
+| Self-hosted | ✅ | ✅ | ✅ | ✅ |
+| Primary language | **TypeScript** | Python | Python | Python |
+| Default vector store | Postgres + pgvector | Qdrant (pgvector optional) | Postgres + pgvector | Neo4j (graph) |
+| Memory model | `user` · `session` · `agent` · `skills`, inside a **workspace** | `user`/`agent`/`run` filters | core / recall / archival blocks | episodes → temporal graph |
+| Hybrid retrieval | ✅ semantic + BM25 + entity | ✅ semantic + BM25 + entity | ✅ vector + full-text | ✅ semantic + BM25 + graph |
+| Bi-temporal `asOf` | ✅ `recall({ asOf })` | ❌ ¹ | ❔ n/d | ✅ |
+| Procedural / skill memory | ✅ code-as-skill library | partial · summarized text | ❌ | ❌ |
+| Read-side recall cache | ✅ query-embedding cosine | ❌ | ❌ | ❌ |
+| MCP memory server | ✅ 4 tools | partial · plugin, not core lib ⁴ | ❌ host/client only ³ | ✅ |
+| REST API | ✅ Hono + OpenAPI 3.1 | partial · OpenMemory server ⁴ | ✅ | ❌ engine lib ⁵ |
+| Multi-tenant isolation | ✅ workspace · 404 cross-tenant | Cloud-only ⁴ | Cloud-only ² | Cloud-only ⁵ |
+| Role-based access control | ✅ owner / admin / member | ❌ (Platform) ⁴ | Cloud-only ² | ❌ (Zep Cloud) ⁵ |
+| API-key auth (hashed at rest) | ✅ SHA-256 | partial ⁴ | ✅ bearer / password | ❌ ⁵ |
 
-¹ Mem0 removed its graph store + temporal columns in the v3 algorithm ([migration doc](https://docs.mem0.ai/migration/oss-v2-to-v3)). ² Letta self-hosting is single-user; RBAC/multi-tenancy are Letta Cloud ([RBAC docs](https://docs.letta.com/guides/cloud/rbac/), [self-host gap #2887](https://github.com/letta-ai/letta/issues/2887)). ³ Letta consumes MCP servers as a host; it is not itself a memory-tools MCP server in core.
-
-The differentiator is the highlighted row: **multi-tenant workspace isolation + members/roles RBAC ship in the open-source package** here (cross-tenant access is `404`; an admin can't mint a key that outranks itself; a workspace can't lose its last owner) — where Mem0, Letta, and Zep gate equivalent tenancy/RBAC to their hosted tiers. (Theo Memory itself is still **pre-release** — see [Status](#status).)
-
-Sources: [Mem0](https://github.com/mem0ai/mem0) · [Letta](https://github.com/letta-ai/letta) · [Graphiti](https://github.com/getzep/graphiti) repos + docs.
+<sub>Best-effort capability comparison from each project's public repo + docs as of June 2026 — **open-source surfaces only** (vendors' hosted tiers differ) and **not a performance benchmark**. ✅ = present in the OSS project · ❌ = absent · partial = qualified · `Cloud-only` = exists only in the proprietary managed tier · `❔ n/d` = could not verify in source/docs. Theo Memory tracks feature parity with managed memory APIs while keeping your data — **and your authorization layer** — on infrastructure you own: the differentiator is a complete `owner`/`admin`/`member` model with workspace isolation (cross-tenant access is `404`, an admin can't mint a key that outranks itself, a workspace can't lose its last owner) running on **your** Postgres in TypeScript, where the others gate equivalent tenancy/RBAC to their hosted tiers. Theo Memory itself is still **pre-release** — see [Status](#status).
+<br>¹ Mem0 removed its graph store + temporal columns in the v3 algorithm ([migration doc](https://docs.mem0.ai/migration/oss-v2-to-v3)).
+² Letta self-hosting is single-user; RBAC + multi-tenancy are Letta Cloud ([RBAC docs](https://docs.letta.com/guides/cloud/rbac/), [self-host gap #2887](https://github.com/letta-ai/letta/issues/2887)).
+³ Letta consumes MCP servers as a host; it is not itself a memory-tools MCP server in core.
+⁴ Mem0's importable core (`mem0ai`) is an in-process library; REST + API-key auth live in the separate OpenMemory server, and multi-tenancy/RBAC in the hosted Mem0 Platform.
+⁵ Zep cells reflect the open-source Graphiti engine; the hosted API, auth, multi-tenancy, and RBAC are Zep Cloud.
+<br>Sources: [Mem0](https://github.com/mem0ai/mem0) · [Letta](https://github.com/letta-ai/letta) · [Graphiti](https://github.com/getzep/graphiti) repos + docs. Spot an error? Open a PR.</sub>
 
 ## Roadmap
 
