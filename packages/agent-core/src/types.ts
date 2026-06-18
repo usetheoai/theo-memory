@@ -14,7 +14,17 @@ import type { Memory } from '@usetheo/memory/contract';
  * SSE explicitly skipped (4× independently confirmed deprecated). `fastmcp` wrapper
  * deferred until v0.5+ OAuth scenarios.
  */
-export type TransportKind = 'stdio' | 'streamable-http';
+export type TransportKind = 'stdio' | 'streamable-http' | 'sse';
+
+/**
+ * Tool surface the MCP server exposes.
+ *
+ * `native` (default) = TheMemory's verbs (`remember`/`recall`/`forget`/`reflect`).
+ * `openmemory` = the OpenMemory-shape alias set (`add_memories`/`search_memory`/
+ * `list_memories`/`delete_memories`) for drop-in compatibility with OpenMemory-wired
+ * MCP clients. Roadmap Item 26 (P0 sub-goal 3).
+ */
+export type ToolsetKind = 'native' | 'openmemory';
 
 /**
  * Constructor options for the MCP server class (implementation lands at T1.1).
@@ -37,4 +47,10 @@ export interface McpServerOptions {
    * Execution Error per ADR D6.
    */
   readonly memoryFactory?: () => Memory;
+  /**
+   * Tool surface to expose. Defaults to `'native'`. When `'openmemory'`, the
+   * server's `tools/list` + `tools/call` use the OpenMemory alias set instead
+   * of the native verbs (Roadmap Item 26).
+   */
+  readonly toolset?: ToolsetKind;
 }
