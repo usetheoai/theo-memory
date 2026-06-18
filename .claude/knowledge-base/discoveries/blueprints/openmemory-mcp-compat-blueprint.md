@@ -8,9 +8,13 @@ status: SHIPPABLE_WITH_CAVEATS (pending /discover-confidence)
 
 # Blueprint: OpenMemory MCP-shape compatibility
 
-## Context & Objective
+## Context
 
-Make TheMemory's MCP server a **drop-in for the OpenMemory MCP Server** so OpenMemory-wired clients (Cursor / Claude Desktop / Windsurf / Cline) work unchanged. All findings below are read from the reference clone `.claude/knowledge-base/references/mem0/openmemory/` (Mem0 OSS, Apache-2.0). Source is authoritative over the marketing announcement (ADR D2 of the plan) — and the two **disagree** (see Headline findings).
+All findings below are read from the reference clone `.claude/knowledge-base/references/mem0/openmemory/` (Mem0 OSS, Apache-2.0). Source is authoritative over the marketing announcement (ADR D2 of the plan) — and the two **disagree** (see Headline findings). OpenMemory is Mem0's local-first MCP memory server; classified under P0 sub-goal 3 (MCP) per CLAUDE.md Amendment 2026-06-18, Roadmap Item 26.
+
+## Objective
+
+Make TheMemory's MCP server a **drop-in for the OpenMemory MCP Server** so OpenMemory-wired clients (Cursor / Claude Desktop / Windsurf / Cline) work unchanged — by exposing the OpenMemory tool surface + transport over our existing `remember`/`recall`/`forget` verbs, with a tool→verb mapping table sufficient for a follow-up `/to-plan` to implement without re-reading the reference.
 
 ## Headline findings (the surprises)
 
@@ -20,7 +24,7 @@ Make TheMemory's MCP server a **drop-in for the OpenMemory MCP Server** so OpenM
 
 ---
 
-## Coverage Corner 1 — Techniques (the tool surface)
+## Coverage Corner 4 — Techniques
 
 ### Q1+Q2: the four tools — signatures, derived schemas, returns
 
@@ -40,7 +44,7 @@ Tool name + param confirmed: `delete_memories(memory_ids)`. The announcement's `
 
 ---
 
-## Coverage Corner 2 — Integration tests (our compat-test checklist)
+## Coverage Corner 1 — Integration Tests
 
 From `api/tests/test_mcp_server.py` — the surface OpenMemory itself guards, which our compat layer must satisfy:
 
@@ -61,7 +65,7 @@ From `api/tests/test_mcp_server.py` — the surface OpenMemory itself guards, wh
 
 ---
 
-## Coverage Corner 3 — Dependencies (Q6 verdict)
+## Coverage Corner 2 — Dependencies
 
 - **OpenMemory:** `mcp[cli]>=1.3.0` (Python MCP SDK — FastMCP + `mcp.server.sse.SseServerTransport`, `mcp_server.py:34-35` + requirements.txt:11).
 - **Ours:** `@modelcontextprotocol/sdk@^1.29.0` (`packages/mcp/package.json:20`). Confirmed present: `node_modules/@modelcontextprotocol/sdk/dist/esm/server/{sse.js, streamableHttp.js, stdio.js}`.
@@ -69,7 +73,7 @@ From `api/tests/test_mcp_server.py` — the surface OpenMemory itself guards, wh
 
 ---
 
-## Coverage Corner 4 — Tools / transport + scoping (Q4)
+## Coverage Corner 3 — Tools
 
 Routes (all in `mcp_server.py`, `mcp_router`, mounted under `/mcp`):
 
@@ -99,22 +103,44 @@ Routes (all in `mcp_server.py`, `mcp_router`, mounted under `/mcp`):
 
 ---
 
-## ADRs (recommendations for the implement phase)
+## Cross-cutting Comparison
 
-### ADR-A — Compat tools are ALIASES in `packages/mcp`, not new core code
+| Dimension | OpenMemory MCP Server | TheMemory (today) | Compat implication |
+|---|---|---|---|
+| Tool names | `add_memories` / `search_memory` / `list_memories` / `delete_memories` | `remember` / `recall` / (list via scopes) / `forget` | alias layer maps names |
+| Tenant key | path `user_id` (+ `client_name` app id) | `workspace` (credential) + user/session/agent tiers | path user → user tier inside credential's workspace |
+| Auth | none (local-first; identity = URL path) | bearer / API keys / OIDC | compat endpoint = local/no-auth → default workspace |
+| Transport | SSE + Streamable HTTP | stdio + Streamable HTTP | ADD SSE (SDK ships it) |
+| Return shape | JSON **string** + `"Error: …"` result strings | structured | match string convention in the alias layer |
+| Delete | by IDs (soft-delete, permission-filtered) | `forget(id)` (soft-delete) | maps 1:1 per id |
+
+## ADRs
+
+### D1 — Compat tools are ALIASES in `packages/mcp`, not new core code
 Expose the 4 OpenMemory tool names as a thin alias layer over our existing `remember`/`recall`/`forget` + listing, living in `packages/mcp` (adapter boundary, `architecture.md § 3`). `src/core` learns nothing about OpenMemory. Identifiers stay neutral per `no-paper-names-in-code.md` (e.g. `openMemoryCompatTools` is OK as a vendor-interop module name in the adapter layer; tool NAMES `add_memories` etc. are the wire contract, allowed as string literals).
 
-### ADR-B — Transport: add SSE wiring, reuse streamable-http for `/http/`
+### D2 — Transport: add SSE wiring, reuse streamable-http for `/http/`
 Add an SSE transport in `packages/mcp` using the SDK's `SSEServerTransport` at `GET /{client}/sse/{user}` + the POST message routes; map OpenMemory's `/{client}/http/{user}` to our existing `connectStreamableHttp`. No new dependency (Corner 3).
 
-### ADR-C — Scoping: path `user_id` → user tier within the credential's workspace
+### D3 — Scoping: path `user_id` → user tier within the credential's workspace
 Bind path `user_id` to our user tier; resolve the workspace from the connection credential (default workspace if the local endpoint is unauthenticated). `client_name` → memory metadata (not a tier). Preserves the v0.4.0 workspace isolation.
 
-### ADR-D — Implement `delete_memories(memory_ids)`; flag the announcement discrepancy
+### D4 — Implement `delete_memories(memory_ids)`; flag the announcement discrepancy
 Match the code, not the announcement. Optionally register a `delete_all_memories()` alias behind a flag for clients hard-coded to the announcement name.
 
-### ADR-E — Return-shape parity
+### D5 — Return-shape parity
 Tools return JSON **strings** for success and `"Error: …"` strings for failures (result strings, not protocol errors). Match this so OpenMemory clients parse responses identically.
+
+## Recommendations
+
+For the follow-up `/to-plan openmemory-mcp-compat` (implementation), in order:
+
+1. **Alias module** in `packages/mcp` registering the 4 OpenMemory tools (`add_memories`, `search_memory`, `list_memories`, `delete_memories`) over our existing verbs (D1) — neutral identifiers per `no-paper-names-in-code.md`.
+2. **SSE transport wiring** using the SDK's `SSEServerTransport` at `GET /{client}/sse/{user}` + the POST message routes; map `/{client}/http/{user}` to existing `connectStreamableHttp` (D2). No new dependency.
+3. **Path-param scoping**: bind `user_id` → user tier within the credential's workspace (default workspace for the unauthenticated local endpoint); carry `client_name` as metadata (D3).
+4. **delete_memories(memory_ids)** → `forget(id)` per id; decide on the optional `delete_all_memories` alias (D4).
+5. **Return-shape parity**: JSON-string success + `"Error: …"` result strings (D5).
+6. **Compat test suite** mirroring `test_mcp_server.py` (Coverage Corner 1): `tools/list` exact set, descriptions, input schemas, unknown-tool error, per-user isolation, content-type, 405/406/400/404 protocol errors.
 
 ## Out of scope (confirmed)
 OpenMemory dashboard UI (`openmemory/ui/**`), the Docker stack, the Mem0 client internals (`utils/memory.py`), and any `mem0ai` dependency — none are touched.
