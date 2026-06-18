@@ -113,6 +113,16 @@ Honest disclosure (Rule 3):
 - **Non-destructive migration** `0017_workspace_members.sql`: idempotent seed (`default-owner` + its `default`-workspace owner membership) + backfill of legacy keys, so single-tenant deployments keep working.
 - **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this slug is re-classified.
 
+### Amendment 2026-06-18 — OpenMemory MCP-shape compatibility classified under P0 sub-goal 3 (project-owner directive)
+
+**Project-owner directive (2026-06-18, "URGENTE P0"):** add **OpenMemory MCP-shape compatibility** — TheMemory's MCP server exposing the OpenMemory tool surface (`add_memories` / `search_memory` / `list_memories` / `delete_all_memories`) over the OpenMemory SSE transport convention, so any MCP client already wired to the OpenMemory MCP Server (Cursor / Claude Desktop / Windsurf / Cline) works against TheMemory as a drop-in. Governance path per the owner: **create a Roadmap item + run a `/discover` cycle first** (no code until the blueprint lands).
+
+Honest classification (Rule 3 + Rule 10):
+
+- **This is NOT the cut data-adapter.** The "Adapters (REDACTED, REDACTED, REDACTED) — cut 2026-05-21" decision rejected *wrapping a vendor's data SDK as a backend*. This is **MCP protocol/tool-shape interoperability** — it maps the OpenMemory tool names onto our existing `remember`/`recall`/`forget` verbs; no `vendor SDK` dependency, no vendor backend. It therefore falls under **P0 sub-goal 3 (MCP available + reliable)**, not a freeze violation. The cut stays in force for true vendor data-adapters.
+- **Slug:** `openmemory-mcp-compat` (Roadmap Item 26). Governance: discover → blueprint → plan → implement → review, like any P0-hardening cycle.
+- **Scope guardrail:** MCP tool-shape + transport compatibility only. NOT the OpenMemory dashboard UI, NOT importing the `openmemory/` Docker stack, NOT a REDACTED data-SDK dependency. The local `REDACTED` reference clone (`openmemory/`) is read-only study material for the discover.
+
 ---
 
 ## What this project is
@@ -303,6 +313,7 @@ Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → 
 | 13 | **v1.2 — Adaptive retrieval** | `shouldRetrieve` + `wasRetrievalGood` decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). | **(b) FROZEN under P0** — no plans, no PRs, no discovery cycles |
 | 14 | **v1.3 — Optional graph backend** | `@usetheo/memory/graph` adapter for KG-style queries. Backend: Postgres + Apache AGE OR Neo4j. | **(b) FROZEN under P0** |
 | 15 | **v1.4 — Domain ontologies** | Typed schemas per domain (medical / legal / code / support) layered over LLM extraction. | **(b) FROZEN under P0** |
+| 26 | **OpenMemory MCP-shape compatibility** | TheMemory MCP server exposes the OpenMemory tool surface (`add_memories`/`search_memory`/`list_memories`/`delete_all_memories`) over the OpenMemory SSE transport convention so OpenMemory-wired MCP clients (Cursor/Claude/Windsurf/Cline) work drop-in. Slug `openmemory-mcp-compat`. **Discover cycle first** (study the `openmemory/` reference clone). | **(a) IN-SCOPE — P0 sub-goal 3 (MCP)** per Amendment 2026-06-18. NOT the cut data-adapter (protocol/tool-shape compat, no `vendor SDK` dep). |
 
 ### Cross-validation-derived backlog (post-P0)
 
