@@ -57,6 +57,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Semantic recall cache** — near-duplicate queries reuse cached results (cosine similarity)
 - **MMR diversification** — opt-in reranking for result diversity
 - **Auth lifecycle** — bearer tokens, Stripe-shape API keys, OIDC bridge
+- **Multi-tenant + RBAC** — workspace isolation (cross-tenant access is `404`, never `403`) + members/roles (`owner`/`admin`/`member`) with last-owner & anti-escalation guards — see [Multi-tenancy & RBAC](#multi-tenancy--rbac)
 - **Three surfaces** — REST API (Hono + OpenAPI 3.1) · MCP server · CLI
 - **Docker-ready** — distroless image < 200 MB with healthcheck
 - **Observable** — 16 OpenTelemetry events + per-handler spans
@@ -153,13 +154,59 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 **Security** — Bearer auth (`THEMEMORY_API_KEY`), rate limiting (30 writes/min, 100 reads/min), CORS, 1 MB body cap, OIDC bridge for multi-tenant.
 
-**Workspace isolation (pre-release)** — every API key resolves to a `workspace` (the tenant boundary); the `AuthVerifier` resolves a `Principal { workspaceId, userId, role, scopes }` from the credential and every REST query is scoped by it. (The MCP transport currently binds the `default` workspace; per-workspace MCP is a tracked follow-up.) The three memory tiers (User / Session / Agent) are partitions *within* a workspace. A request can only ever read or write its own workspace's memories; a cross-workspace `forget` by id returns `404` (never `403` — no existence leak). Data belongs to a workspace via a denormalized `workspace_id` column (app-level isolation). No credential / the legacy `THEMEMORY_API_KEY` collapses to a single `default` workspace, so existing single-tenant deployments keep working unchanged.
+## Multi-tenancy & RBAC
 
-> **Pre-release breaking change.** `AuthVerifier` evolves from `verify(token): Promise<boolean>` ("is this key valid?") to resolving `resolvePrincipal(token): Promise<Principal | null>` ("whose key is this?") — the `Principal` carries `{ workspaceId, userId, role, scopes }`. `verify` stays during the migration window; custom verifier implementations should add `resolvePrincipal`. Every workspace-scoped surface — the primary 4-verb `memories` path **and** the opt-in recall-cache, skill, and eviction surfaces — is fully workspace-isolated (the cache key is workspace-prefixed; eviction passes are workspace-bound).
+Two orthogonal layers turn the single-tenant memory store into a multi-tenant, role-gated one. Both are enforced **server-side from the credential** — never from the request body.
 
-**Members & roles (RBAC)** — a workspace has members (`users` ↔ `workspace_users`, M:N) each holding one role: `owner` ⊇ `admin` ⊇ `member`. An API key acts as a member; its role is resolved by joining the key to its membership (no membership → least-privileged `member`, default-deny). Management routes (`/v1/members`, `/v1/admin/keys`) are gated by `requireRole('admin')` (401 precedes 403); the RAG verbs stay open to any member. Two invariants are enforced: a workspace can **never lose its last owner** (atomic `FOR UPDATE` transaction → `409`), and an admin **cannot mint a key that outranks itself** (`403` for a higher-ranked target, `422` for a non-member). An auth-backend failure during role resolution **fails closed** with an explicit `503` — never a privileged default.
+### Slice 1 — Workspace isolation (the tenant boundary)
 
-> **Admin key management is deployment-level.** The `/v1/admin/keys/*` endpoints (gated by the `memory:admin` scope) manage keys at the deployment level; per-workspace member administration is the `/v1/members` surface above. Treat `memory:admin` as a deployment-operator privilege.
+Every API key resolves to a `workspace`. The `AuthVerifier` resolves a `Principal { workspaceId, userId, role, scopes }` from the credential, and **every** persistence query is scoped by `principal.workspaceId`:
+
+- **Where the workspace comes from** — the credential, never the body. The three memory tiers (`user` / `session` / `agent`) are partitions *within* a workspace; `workspace_id` is the outer tenant anchor.
+- **How isolation is enforced** — app-level: a denormalized `workspace_id` column on every directly-queried table (`memories`, `entities`, `history`, `recall_cache`, …), composed first in every `WHERE`. The `memories` dedup index leads with `workspace_id` (the same fact under the same user in two workspaces is two distinct rows).
+- **Cross-tenant access is `404`, never `403`** — a by-id `forget`/`GET` for another workspace's row reveals nothing (no existence leak); the row is invisible because the `workspace_id` filter excludes it.
+- **Every surface is covered** — the primary 4-verb path (`remember`/`recall`/`forget`/`reflect`) **and** the opt-in recall-cache (key is workspace-prefixed `ws:<id>|…` → no cross-workspace hit), skill store, and eviction passes (COUNT + candidates + nearest-neighbor are workspace-bound) are all isolated.
+- **Legacy bridge** — no credential / the env `THEMEMORY_API_KEY` collapses to a single `default` workspace, so existing single-tenant deployments keep working unchanged.
+
+```ts
+// SDK: bind a workspace; every scoped op below is isolated to it.
+const wsA = memory.withWorkspace('acme');
+await wsA.user('alice').remember('Prefers dark mode');
+await wsA.user('alice').recall('UI preferences'); // only ever sees 'acme' rows
+```
+
+### Slice 2 — Members & roles (RBAC)
+
+A workspace has members (`users` ↔ `workspace_users`, M:N) each holding one role: `owner` ⊇ `admin` ⊇ `member`.
+
+- **Role resolution** — an API key *acts as* a member; its role is resolved by joining the key to its membership. **Default-deny:** a key with no membership row resolves to the least-privileged `member`, never `owner`.
+- **Route gating** — management routes (`/v1/members`, `/v1/admin/keys`) require `requireRole('admin')` (401 precedes 403); the RAG verbs stay open to any member.
+- **Last-owner invariant** — a workspace can **never lose its last owner**: demote/remove runs in a transaction with a workspace-wide `SELECT … FOR UPDATE` before the owner-count guard, so two concurrent demotions can't race to zero owners (the second returns `409`).
+- **Anti-escalation** — an admin **cannot mint a key that outranks itself**: binding a key to a higher-ranked member is `403`, to a non-member `422`, to a lower/equal member `200`. A minted key carries the minter's `workspace_id`.
+- **Fail-closed** — if the auth backend errors during role resolution, the request gets an explicit `503` — never a privileged default.
+
+```bash
+# Add a member by email (admin-gated). Creates the global user if new.
+curl -X POST $BASE/v1/members \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"email":"bob@acme.com","role":"member"}'
+# → 201 { "member": { "userId": "...", "email": "bob@acme.com", "role": "member", ... } }
+
+# Promote to admin (last-owner-safe → 409 if it would orphan the workspace).
+curl -X PATCH $BASE/v1/members/$USER_ID \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"role":"admin"}'
+
+# Mint an API key bound to a member (anti-escalation: 403 if the target outranks you).
+curl -X POST $BASE/v1/admin/keys \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"bob-agent","scopes":["memory:read","memory:write"],"user_id":"'$USER_ID'"}'
+# → 200 { "id": "apk-…", "secret": "theo_live_…" }  (secret shown once)
+```
+
+> **Pre-release breaking change.** `AuthVerifier` evolves from `verify(token): Promise<boolean>` ("is this key valid?") to resolving `resolvePrincipal(token): Promise<Principal | null>` ("whose key is this?") — the `Principal` carries `{ workspaceId, userId, role, scopes }`. `verify` stays during the migration window; custom verifier implementations should add `resolvePrincipal`.
+
+> **Admin key management is deployment-level.** The `/v1/admin/keys/*` endpoints (gated by the `memory:admin` scope) manage keys at the deployment level; per-workspace member administration is the `/v1/members` surface above. Treat `memory:admin` as a deployment-operator privilege. The MCP transport currently binds the `default` workspace; per-workspace MCP is a tracked follow-up.
 
 ## Agent loops via MCP
 
