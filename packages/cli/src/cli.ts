@@ -171,6 +171,14 @@ export function buildProgram(): Command {
     )
     .option('--issuer <url>', 'OIDC issuer URL for --auth=oidc/both (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
     .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
+    .addOption(
+      new Option(
+        '--compat <mode>',
+        'Tool-surface compatibility mode. `openmemory` exposes the OpenMemory tool surface ' +
+          '(add_memories/search_memory/list_memories/delete_memories) over an SSE endpoint ' +
+          '(/{client}/sse/{user}, default port 8765) — a drop-in for OpenMemory-wired MCP clients.',
+      ).choices(['openmemory']),
+    )
     .action(
       async (opts: {
         transport?: 'stdio' | 'streamable-http';
@@ -179,6 +187,7 @@ export function buildProgram(): Command {
         auth?: 'none' | 'api-keys' | 'oidc' | 'both';
         issuer?: string;
         clientId?: string;
+        compat?: 'openmemory';
       }) => {
         const options: RunMcpServerOptions = {
           ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
@@ -187,6 +196,7 @@ export function buildProgram(): Command {
           ...(opts.auth !== undefined ? { auth: opts.auth } : {}),
           ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
           ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
+          ...(opts.compat !== undefined ? { compat: opts.compat } : {}),
         };
         await runMcpServer(options);
       },
