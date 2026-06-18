@@ -2,11 +2,13 @@
 slug: openmemory-mcp-compat
 owner: paulohenriquevn
 created_at: 2026-06-18
-version: 1.0
+version: 1.1
 cycle: discover (phase 1 — discovery plan)
 ---
 
 # Discovery Plan: OpenMemory MCP-shape compatibility
+
+> **v1.1 (edge-case absorption 2026-06-18):** EC-1 Q6 now compares all 3 OpenMemory transport routes (SSE + `/http/`) against our stdio/streamable-http-only stack; EC-2 Q1 derives the FastMCP-generated JSON schema from signatures (not literal); EC-3 Q4 cites the `mcp_router` route handlers (`mcp_server.py:435-496`) as the user/client scoping source; EC-4 halt-loop checkpoint added (enumerate ALL transport routes). Report: `.claude/knowledge-base/reviews/openmemory-mcp-compat-edge-cases-2026-06-18.md`.
 
 ## Context
 
@@ -63,12 +65,12 @@ Out-of-scope (explicit):
 
 | # | Question | Corner | Fase A (method) | Fase B (cross-check) | Expected answer shape |
 |---|---|---|---|---|---|
-| Q1 | Exact tool surface: names, params + defaults, and JSON **input schemas** of every `@mcp.tool` (the 4 named + any extra). | techniques | Read `references/mem0/openmemory/api/app/mcp_server.py` (grep `@mcp.tool`, read each `async def`) | Read `references/mem0/openmemory/api/tests/test_mcp_server.py` (`test_tools_list_has_input_schemas`) | Per-tool: name, signature, JSON schema, description string |
+| Q1 | Exact tool surface: names, params + defaults, and JSON **input schemas** of every `@mcp.tool` (the 4 named + any extra). **EC-2:** schemas are FastMCP-GENERATED from the Python signatures, not literal in source — DERIVE + label "derived". | techniques | Read `references/mem0/openmemory/api/app/mcp_server.py` (grep `@mcp.tool`, read each `async def`); derive JSON schema from the signature + type hints | Read `references/mem0/openmemory/api/tests/test_mcp_server.py` (`test_tools_list_has_input_schemas` — asserts presence only) | Per-tool: name, signature, DERIVED JSON schema, description string |
 | Q2 | Tool **return shapes**: what does each tool return (string? JSON? list)? incl. error strings (`"Error: user_id not provided"`). | techniques | Read `mcp_server.py` (return statements of each tool) | Read `test_mcp_server.py` (`test_response_content_type_is_json`) | Return type + example payload per tool |
 | Q3 | **delete semantics discrepancy**: is the delete tool `delete_all_memories` (clear all) or delete-by-IDs? exact name + params. | techniques | Read `mcp_server.py:296+` | Read `test_mcp_server.py` (delete cases, if any) | The real tool name + param + behavior; gap vs announcement |
-| Q4 | SSE **transport + scoping**: the mount path(s), how `user_id` + `client_name` are extracted per request (contextvars), and the client connect-URL shape. | tools | Read `mcp_server.py` (`SseServerTransport("/mcp/messages/")`, `user_id_var`/`client_name_var`, the SSE route mount) | Read `run.sh` / `docker-compose.yml` (port 8765) + announcement URL `/mcp/<client>/sse/<user>` | Path shape + the user/client extraction mechanism + port |
+| Q4 | **Transport + scoping**: ALL transport route mounts (EC-4) and how `user_id` + `client_name` are extracted per request. **EC-3:** the scoping lives in the `mcp_router` route handlers, not the `SseServerTransport(...)` line. | tools | Read `mcp_server.py:435-496` — `mcp_router` `GET /{client_name}/sse/{user_id}` (`handle_sse`, `request.path_params` → contextvars) + POST `/messages/` `:465` + `/{client}/sse/{user}/messages/` `:470` + `/{client}/http/{user}` `:496` | Read `run.sh` / `docker-compose.yml` (port 8765) + announcement URL `/mcp/<client>/sse/<user>` | Every route + the path-param→contextvar extraction + port |
 | Q5 | How is the MCP surface **tested** (tools/list, input-schema presence, per-user isolation, JSON-RPC error codes)? | tests | Read `references/mem0/openmemory/api/tests/test_mcp_server.py` | grep its assertions (`expected = {"add_memories",...}`, `test_different_users_are_isolated`) | List of test classes + what each asserts → our compat-test checklist |
-| Q6 | What **MCP SDK + transport deps** does OpenMemory use (Python `mcp` FastMCP + `SseServerTransport`), and does our TS MCP stack (`@modelcontextprotocol/sdk` in `packages/mcp`) already provide SSE + tool registration to match — i.e. any NEW dep needed? | deps | Read `mcp_server.py:34-35` imports + `references/mem0/openmemory/api/pyproject.toml`/requirements | Read our `packages/mcp/package.json` + `packages/mcp/src/**` for current transport/tool API | Their SDK+transport vs ours; "no new dep" or named gap |
+| Q6 | **Transport gap (EC-1):** OpenMemory mounts SSE (`/{client}/sse/{user}`) AND `/{client}/http/{user}`; our package exports only `connectStdio` + `connectStreamableHttp` (`packages/mcp/src/index.ts:9-10`) — NO legacy SSE. Does our streamable-http satisfy OpenMemory's `/http/` route, or must we ADD an SSE transport for `/sse/` clients? Any NEW dep? | deps | Read `mcp_server.py:34-35` (`mcp.server.fastmcp`, `mcp.server.sse`) + the 3 transport routes (`:435/:470/:496`) | Read `packages/mcp/src/transports/streamable-http.ts` + `packages/mcp/package.json` (`@modelcontextprotocol/sdk` version — does it ship an SSE server transport?) | Explicit verdict: SSE is a NEW transport to add / `/http/` maps to our streamable-http; new dep yes/no |
 
 Budget: 6 questions — techniques 3 (max), tests 1, tools 1, deps 1. Within [5,10]; every corner ≥ 1.
 
@@ -95,7 +97,9 @@ A research question may be marked DONE only when:
 1. Its answer cites ≥ 1 real `references/mem0/openmemory/...` path (verified to exist).
 2. Tool-shape questions (Q1-Q3) capture the input schema / return shape verbatim (not paraphrased).
 3. Q4 records the literal mount path string + the user/client extraction mechanism.
-4. Any announcement-vs-source discrepancy (D2) is recorded explicitly.
+4. **EC-4:** Q4 is DONE only when the blueprint enumerates EVERY transport route (`/messages/`, `/{client}/sse/{user}`, `/{client}/sse/{user}/messages/`, `/{client}/http/{user}`) — not just SSE.
+5. **EC-1:** Q6 is DONE only when it states an explicit SSE-transport verdict (new transport to add, or `/http/`→our streamable-http) + a new-dep yes/no.
+6. Any announcement-vs-source discrepancy (D2) is recorded explicitly.
 
 ## Acceptance Criteria
 
