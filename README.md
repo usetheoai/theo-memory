@@ -147,6 +147,7 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 | `POST` | `/v1/forget` | Soft or hard delete |
 | `POST` | `/v1/reflect` | Consolidate episodic → semantic |
 | `GET` | `/v1/scopes/:type/:id/memories` | List with `?category=` filter |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/v1/members` | Workspace member CRUD (role-gated: `admin`) |
 | `GET` | `/v1/health` | Liveness (auth-exempt) |
 | `GET` | `/v1/openapi.json` | Spec (auth-exempt) |
 
@@ -154,9 +155,11 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 **Workspace isolation (pre-release)** — every API key resolves to a `workspace` (the tenant boundary); the `AuthVerifier` resolves a `Principal { workspaceId, scopes }` from the credential and every REST query is scoped by it. (The MCP transport currently binds the `default` workspace; per-workspace MCP is a tracked follow-up.) The three memory tiers (User / Session / Agent) are partitions *within* a workspace. A request can only ever read or write its own workspace's memories; a cross-workspace `forget` by id returns `404` (never `403` — no existence leak). Data belongs to a workspace via a denormalized `workspace_id` column (app-level isolation). No credential / the legacy `THEMEMORY_API_KEY` collapses to a single `default` workspace, so existing single-tenant deployments keep working unchanged.
 
-> **Pre-release breaking change.** `AuthVerifier` evolves from `verify(token): Promise<boolean>` ("is this key valid?") to also resolving `resolvePrincipal(token): Promise<Principal | null>` ("whose key is this?"). `verify` stays during the migration window; custom verifier implementations should add `resolvePrincipal`. The opt-in recall-cache, skill, and eviction surfaces are workspace-aware at the column level but their per-workspace cache-key / scope threading lands in a follow-up — until then, run those opt-in surfaces single-workspace only.
->
-> **Admin key management is deployment-level in this slice.** The `/v1/admin/keys/*` endpoints (gated by the `memory:admin` scope) manage every key in the deployment, not per-workspace — per-workspace admin delegation belongs to the (deferred) membership layer. Treat `memory:admin` as a deployment-operator privilege, not a per-tenant one.
+> **Pre-release breaking change.** `AuthVerifier` evolves from `verify(token): Promise<boolean>` ("is this key valid?") to resolving `resolvePrincipal(token): Promise<Principal | null>` ("whose key is this?") — the `Principal` carries `{ workspaceId, userId, role, scopes }`. `verify` stays during the migration window; custom verifier implementations should add `resolvePrincipal`. Every workspace-scoped surface — the primary 4-verb `memories` path **and** the opt-in recall-cache, skill, and eviction surfaces — is fully workspace-isolated (the cache key is workspace-prefixed; eviction passes are workspace-bound).
+
+**Members & roles (RBAC)** — a workspace has members (`users` ↔ `workspace_users`, M:N) each holding one role: `owner` ⊇ `admin` ⊇ `member`. An API key acts as a member; its role is resolved by joining the key to its membership (no membership → least-privileged `member`, default-deny). Management routes (`/v1/members`, `/v1/admin/keys`) are gated by `requireRole('admin')` (401 precedes 403); the RAG verbs stay open to any member. Two invariants are enforced: a workspace can **never lose its last owner** (atomic `FOR UPDATE` transaction → `409`), and an admin **cannot mint a key that outranks itself** (`403` for a higher-ranked target, `422` for a non-member). An auth-backend failure during role resolution **fails closed** with an explicit `503` — never a privileged default.
+
+> **Admin key management is deployment-level.** The `/v1/admin/keys/*` endpoints (gated by the `memory:admin` scope) manage keys at the deployment level; per-workspace member administration is the `/v1/members` surface above. Treat `memory:admin` as a deployment-operator privilege.
 
 ## Agent loops via MCP
 
