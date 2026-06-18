@@ -1,0 +1,131 @@
+agent: domain-database
+review_target: db077aa..HEAD for plan openmemory-mcp-compat
+domain: database (memory-layer / per-user isolation)
+domain_specific_patterns_checked:
+  - "three-tier scope model (User/Session/Agent) preservation"
+  - "ADD-only invariant (no public update; infer:false raw store)"
+  - "per-user isolation on read (recall/getAll)"
+  - "per-user authorization on delete (forget by id)"
+  - "path-param trust + injection surface"
+  - "input byte caps (MAX_CONTENT_BYTES / MAX_QUERY_BYTES)"
+  - "client_name -> mcp_client metadata (plan D3 / Q2)"
+  - "GOAL TEST proves isolation against real pgvector"
+findings:
+  - id: F-db-1
+    severity: BLOCKER
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 113
+    plan_ref: ADR D4 (delete_memories -> forget per id, "accessible-only") + Coverage Matrix #10 (per-user isolation) + Drawbacks "Path-scoping has no auth"
+    domain_anchor: "packages/core/src/domain/memory-store.ts:70,122-139 — Memory.forget is GLOBAL by id, no scope; ScopedMemory deliberately EXCLUDES forget ('memoryId is globally unique — cross-scope footgun')"
+    summary: "Cross-user delete IDOR — deleteMemoriesHandler calls the UNSCOPED Memory.forget(id), bypassing the path-user scope, so user B can soft-delete user A's memory by guessing/leaking its id."
+    evidence: |
+      tools.ts:113-129 — the delete handler does NOT use memoryFromCtx(getScope(),...)
+      (which every other handler uses to bind memory.user(<pathUser>)); it calls
+      forget on the raw, scope-less Memory:
+
+        export async function deleteMemoriesHandler(args, deps) {
+          const parsed = DeleteMemoriesInput.parse(args);
+          const memory = deps.memoryFactory();        // <-- UNSCOPED
+          for (const id of parsed.memory_ids) {
+            try { await memory.forget(id); ... }       // <-- no user-tier check
+          }
+        }
+
+      The contract confirms forget enforces ONLY workspace (tenant) isolation, and
+      ONLY when a workspace is bound (local-memory.ts:156 `if (this.workspaceId !== undefined)`).
+      The OpenMemory compat path is unauthenticated local-first: no credential -> `default`
+      workspace, workspaceId undefined -> the workspace guard is SKIPPED entirely. There is
+      NO within-workspace user_id check anywhere in the forget path. Result: any path-user
+      `/{client}/sse/{userB}` can delete any other path-user's row via
+      delete_memories({memory_ids:[<alice_id>]}). The plan's own Drawbacks row
+      ("Path-scoping has no auth ... High") and ADR D4 ("accessible-only") promised
+      accessibility scoping that is not implemented. The handler's comment
+      "skip inaccessible/unknown ids" (tools.ts:122) is false — forget throws ONLY on
+      truly-missing ids (MemoryNotFound), never on cross-user ids, because user-tier is
+      not part of forget's accessibility check.
+    recommended_action: |
+      Enforce per-user ownership BEFORE forgetting. Two viable approaches:
+      (1) Resolve the scoped view and verify ownership: for each id, `const m = await memory.get(id)`
+          then assert the memory's scope userId === getScope().session.userId (and workspace),
+          skip + count as inaccessible otherwise; only then forget. OR
+      (2) Add a scope-aware delete to the contract (e.g. ScopedMemory.forget that filters by
+          the captured scope) and route through memoryFromCtx like the other 3 handlers.
+      Add a regression integration test (see F-db-2) asserting userB CANNOT delete userA's id.
+
+  - id: F-db-2
+    severity: HIGH
+    file: tests/integration/openmemory/mcp-compat.test.ts
+    line: 135
+    plan_ref: T3.1 GOAL TEST + Coverage Matrix #10 (per-user isolation) + Acceptance "per-user isolation holds"
+    domain_anchor: "CLAUDE.md Princípio 3 (auditable/observable) + testing.md (test the security-sensitive boundary)"
+    summary: "GOAL TEST proves cross-user isolation for READ (search) only; it never tests cross-user DELETE, so the F-db-1 IDOR passes the suite undetected."
+    evidence: |
+      The 'per-user isolation' test (lines 135-158) has userA add + search and userB search;
+      it asserts bFound.length === 0 (read isolation). There is NO assertion that userB's
+      delete_memories({memory_ids:[alice_id]}) is rejected. The round-trip delete test
+      (line 104) deletes the SAME user's own id (happy path). The most security-sensitive
+      write path on this surface (delete by arbitrary id) has zero cross-user coverage —
+      exactly the gap the plan flagged as "High" severity in Drawbacks.
+    recommended_action: |
+      Add a test: userA add_memories -> capture alice_id; userB delete_memories({memory_ids:[alice_id]})
+      -> assert it returns an Error/no-op (deleted does NOT contain alice_id); then userA
+      search still finds the memory (still present). This is the RED test that must accompany
+      the F-db-1 fix (Inquebrável Rule 5: regression test before fix).
+
+  - id: F-db-3
+    severity: MEDIUM
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 89
+    plan_ref: ADR D3 + Unresolved Q2 ("client_name as metadata -> mcp_client; Resolved") + glossary "client_name attached as memory metadata"
+    domain_anchor: "blueprint D3 / mcp_server.py:93 mcp_client metadata parity"
+    summary: "client_name is parsed from the SSE path (sse.ts:97,102) but never attached as `mcp_client` metadata on add_memories — plan D3/Q2 contract unmet."
+    evidence: |
+      sse.ts:102 builds Session { ..., clientName } but binds ONLY { session: { userId } }
+      to withScope (sse.ts:124, 142). addMemoriesHandler (tools.ts:89-95) passes only
+      { infer } to remember — no metadata. The plan's D3 ("client_name is attached as memory
+      metadata") and Q2 (resolved: key `mcp_client`) are therefore not implemented. OpenMemory
+      clients that filter/audit by mcp_client see nothing.
+    recommended_action: |
+      Thread clientName into the bound scope/context (e.g. include it in the ScopedContext or
+      a request-metadata channel) and have addMemoriesHandler pass
+      remember(text, { ...opts, metadata: { mcp_client: clientName } }). Or, if intentionally
+      deferred, mark D3/Q2 as a CAVEAT in the plan + CHANGELOG (honesty Rule 3) rather than
+      silently dropping it.
+
+  - id: F-db-4
+    severity: LOW
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 106
+    plan_ref: "Coverage Matrix #2 (list_memories) ; CLAUDE.md EC-14 pagination DOS cap precedent (theo-memory-standalone-p0)"
+    domain_anchor: "REST GET /v1/scopes/:type/:id/memories ships a pagination cap (EC-14 DOS guard); list_memories here is uncapped"
+    summary: "list_memories -> scoped.getAll() with no limit/pagination — a user with a large memory set returns the full table in one JSON blob (mirrors the EC-14 DOS concern the REST layer already guards)."
+    evidence: |
+      listMemoriesHandler (tools.ts:106-111) calls scoped.getAll() with no GetAllOptions cap.
+      OpenMemory's list is per-user so blast radius is one user, but a runaway agent loop or a
+      user with thousands of rows produces an unbounded response. The project already treats
+      this as a real concern elsewhere (CLAUDE.md EC-14 pagination DOS cap on the REST
+      memories listing).
+    recommended_action: |
+      Pass a sane default cap to getAll (e.g. { limit: 100 } or the project's standard page
+      size) and document it; or confirm getAll already caps internally. Low because per-user
+      scope bounds the blast radius and infer-path is the primary surface.
+
+  - id: F-db-5
+    severity: INFO
+    file: packages/mcp/src/transports/sse.ts
+    line: 97
+    plan_ref: "Failure scenarios table (unparseable path -> 404) + path scoping (D3)"
+    domain_anchor: "path-param trust / injection surface"
+    summary: "Path user_id/client_name are decodeURIComponent'd into a scope object used as a SQL bind parameter downstream (no string concat) — no SQL-injection vector found; the user_id is trusted-by-design (local-first, no auth)."
+    evidence: |
+      sse.ts:97-99 decodeURIComponent the path segments; userId flows only into
+      { session: { userId } } -> memory.user(userId) -> store query as a parameterized value
+      (pgvector-store uses $-params, not concatenation). No injection. NOTE the trust model:
+      with no auth on the SSE path, ANY user_id is accepted verbatim — acceptable per the
+      plan's documented local-first/localhost-bind posture, but it is the root enabler of
+      F-db-1 (anyone can present as any user). Flagged INFO so the trust assumption is on the
+      record for the human reviewer alongside the BLOCKER.
+    recommended_action: |
+      No code change for injection. Ensure the non-localhost-without-TLS guard (ADR-0015,
+      plan T1.1) is actually enforced on connectSse so the unauthenticated path is never
+      exposed off-host; verify in /review wiring agent.

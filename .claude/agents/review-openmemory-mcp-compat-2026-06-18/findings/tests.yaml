@@ -1,0 +1,139 @@
+agent: tests
+review_target: db077aa..HEAD for plan openmemory-mcp-compat
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md
+test_files_enumerated:
+  - path: packages/mcp/src/openmemory/tools.test.ts
+    category: unit (contract)
+    tests: 10
+    note: 2 describe blocks (buildOpenMemoryToolsList x4, openMemoryDispatch x6). Strong — asserts exact names, schema shape, handler delegation with spy call-args, JSON-string return parity, Error-string parity, unknown-tool parity.
+  - path: packages/mcp/src/openmemory/compat-resolution.test.ts
+    category: unit
+    tests: 4
+    note: Tests resolveCompat precedence (flag > env > native, unknown-env ignored). Narrower than plan T2.1 named file (run-mcp-server.test.ts) AND narrower than T2.1 AC.
+  - path: packages/mcp/src/transports/sse.test.ts
+    category: unit/component (real node:http via fetch)
+    tests: 4
+    note: TLS guard, accept-localhost, 404 unknown path, 404 unknown session. Does NOT assert the T1.1 AC core behaviors (scope binding, POST routing to transport, /http/ delegation).
+  - path: tests/integration/openmemory/mcp-compat.test.ts
+    category: integration (THE GOAL TEST — real @modelcontextprotocol/sdk Client over SSE vs real pgvector)
+    tests: 3
+    note: tools/list=4 names; add->search->delete round-trip; per-user isolation (parallel clients). Genuinely real pgvector via createIsolatedDb (CREATE DATABASE TEMPLATE). DeterministicStubEmbedder used (correct per plan for deterministic recall with infer:false — NOT a stub of the store boundary).
+test_pyramid:
+  unit_added: 18
+  integration_added: 3
+  e2e_added: 0
+  total: 21
+  note: Pyramid is healthy (unit-heavy). pgvector boundary exercised by a real container, not mocked.
+goal_test_assessment:
+  proves_real_mcp_client_over_sse: true
+  proves_tools_list_4_names: true
+  proves_add_search_delete_round_trip: true
+  proves_per_user_isolation: true
+  store_boundary_is_real_pgvector: true
+  embedder_is_stub: true (DeterministicStubEmbedder — intentional, deterministic recall; store is still real pgvector)
+  verdict: The GOAL TEST genuinely proves the stated acceptance criteria against real pgvector.
+edge_cases_from_plan:
+  covered:
+    - delete_memories no-accessible-ids -> Error string (tools.test.ts:135)
+    - unknown tool -> Error string parity (tools.test.ts:148)
+    - non-localhost-without-TLS guard (sse.test.ts:21)
+    - unparseable path -> 404 (sse.test.ts:30)
+    - unknown SSE session POST -> 404 (sse.test.ts:36)
+    - per-user isolation, parallel clients (integration:135)
+    - after delete, re-search returns 0 (integration:126)
+  missing:
+    - "T1.1 AC: getScope() returns {kind:'user', userId} during GET handler — not asserted at unit level"
+    - "T1.1 AC: POST /messages/ reaches SSE transport message handler (spy call-count===1) — not asserted at unit level"
+    - "T1.1 AC: /{client}/http/{user} delegates to streamable-http — not asserted anywhere"
+    - "T1.1 Concurrency test (declared): N parallel SSE connections, no cross-bind of AsyncLocalStorage scope — not asserted at unit level (integration parallel-isolation partially covers the contract end-to-end)"
+    - "Failure scenario (plan table): client disconnects mid-stream -> scope reset / no leak / server stays up — not tested"
+    - "T2.1 AC: resolveRunOptions({compat:'openmemory'}) returns {transport:'sse', toolset:'openmemory', port:8765} — not tested (only resolveCompat string is tested)"
+    - "T2.1 AC3: boot stderr matches /compat=openmemory/ and contains /sse/ — not tested"
+findings:
+  - id: F-test-1
+    severity: HIGH
+    file: packages/mcp/src/transports/sse.test.ts
+    line: 20
+    plan_ref: T1.1 Acceptance Criteria (lines 185-188)
+    summary: SSE unit test omits the THREE core T1.1 acceptance criteria — scope binding, POST-to-transport routing, and /http/ delegation.
+    evidence: |
+      Plan T1.1 AC (plan:185-188) requires:
+        - "GET /<c>/sse/<u> ... getScope() returns { kind: 'user', userId: '<u>' } (asserted)"
+        - "POST /<c>/sse/<u>/messages/ reaches the SSE transport's message handler (spy asserted call-count === 1)"
+        - "/<c>/http/<u> delegates to connectStreamableHttp (spy asserted)"
+      grep over sse.test.ts: getScope -> 0 hits; handlePostMessage/spy/toHaveBeenCalled -> 0 hits; /http/ delegation -> 0 hits.
+      sse.test.ts only covers: TLS guard, accept-localhost, 404 unknown path, 404 unknown session.
+      The scope-binding behavior (sse.ts:125 withScope) and /http/ branch (sse.ts:133-141) are the load-bearing
+      D3 contract and are exercised ONLY indirectly via the integration GOAL TEST happy path. A regression in the
+      withScope wiring or the /http/ branch would pass the unit suite.
+    recommended_action: Add unit tests asserting (a) getScope().userId during a GET SSE handler equals the path user, (b) a POST to /<c>/sse/<u>/messages/?sessionId=<valid> reaches transport.handlePostMessage (spy), (c) a request to /<c>/http/<u> drives the streamable-http branch.
+  - id: F-test-2
+    severity: HIGH
+    file: packages/mcp/src/openmemory/compat-resolution.test.ts
+    line: 22
+    plan_ref: T2.1 Acceptance Criteria (lines 229-231)
+    summary: T2.1 acceptance criteria are not tested — only the narrow resolveCompat string-resolver is. resolveRunOptions resolution matrix (transport=sse, toolset=openmemory, port=8765) and the boot stderr disclosure are untested.
+    evidence: |
+      Plan T2.1 AC (plan:229-231) requires:
+        - "resolveRunOptions({ compat: 'openmemory' }) returns { transport: 'sse', toolset: 'openmemory', port: 8765 }"
+        - "THEOMEM_MCP_COMPAT=openmemory yields the same resolution as the flag"
+        - "On boot in compat mode, the startup stderr string matches /compat=openmemory/ and contains the substring /sse/"
+      compat-resolution.test.ts only asserts resolveCompat(undefined|'openmemory') -> 'openmemory'|undefined.
+      It never asserts that compat resolution flips transport to 'sse', toolset to 'openmemory', or port to 8765,
+      nor the stderr disclosure. The actual wiring of compat -> {sse, 8765} (the T2.1 "what") is unverified by any test.
+      The test file is also renamed from the plan's declared run-mcp-server.test.ts (cosmetic; flagged in cross-validation scope).
+    recommended_action: Extend the test to drive the full resolution path (resolveRunOptions or equivalent) asserting transport/toolset/port=8765 under both flag and env, and capture boot stderr to assert /compat=openmemory/ + /sse/.
+  - id: F-test-3
+    severity: MEDIUM
+    file: packages/mcp/src/transports/sse.test.ts
+    line: 20
+    plan_ref: T1.1 Concurrency tests (lines 181-183) + Failure scenarios table (lines 193-201)
+    summary: Declared concurrency invariant (N parallel SSE connections, no AsyncLocalStorage cross-bind) and the mid-stream-disconnect failure scenario are not unit-tested.
+    evidence: |
+      Plan T1.1 "#### Concurrency tests" (plan:181-183): "a parallel test opens N SSE connections with different user_id;
+      each asserts getScope().userId equals its own (no cross-bind ...), and cancellation propagation resets the scope on disconnect."
+      Plan Failure scenarios (plan:196): node:http SSE "client disconnects mid-stream -> abort the SSE request -> scope reset; no leak; server stays up."
+      grep sse.test.ts: Promise.all|parallel|concurren -> 0 hits; disconnect/abort/close-on-stream -> 0 hits.
+      The integration per-user isolation test (mcp-compat.test.ts:135) covers cross-user isolation END-TO-END with two
+      parallel clients (good), but does NOT prove the per-connection AsyncLocalStorage no-cross-bind invariant at the
+      transport unit level, nor the scope-reset-on-disconnect / no-leak guarantee (sse.ts:104-109 onclose + res.on('close')).
+    recommended_action: Add a transport-level test opening 2+ concurrent SSE sessions with distinct users and asserting each message resolves its own scope; add an abort/disconnect test asserting the session is removed from the sessions Map (no leak).
+  - id: F-test-4
+    severity: LOW
+    file: tests/integration/openmemory/mcp-compat.test.ts
+    line: 53
+    plan_ref: T3.1 Concurrency tests (lines 282-283)
+    summary: T3.1 declared "cancellation propagation on client disconnect" is not asserted; the parallel-clients test proves isolation but not disconnect-cancellation.
+    evidence: |
+      Plan T3.1 "#### Concurrency tests" (plan:283): "two clients with distinct user_id that each recall only their
+      own memory (per-user isolation; cancellation propagation on client disconnect)."
+      mcp-compat.test.ts:135 covers per-user isolation via parallel clients (the isolation half), but no test
+      forcibly disconnects a client mid-call to assert cancellation propagation / no orphaned session.
+      The describe.skip at line 53 is a legitimate env-guard (skips ONLY when THEOMEM_PG_URI unset) — NOT a leaked
+      skip, so it is correctly NOT flagged as a BLOCKER.
+    recommended_action: Optionally add a disconnect-during-call assertion, or downgrade the plan claim — the isolation contract is otherwise well proven.
+  - id: F-test-5
+    severity: LOW
+    file: packages/mcp/src/openmemory/tools.test.ts
+    line: 122
+    plan_ref: testing.md Anti-patterns ("no 'and' in test names")
+    summary: One integration test name contains "and"/comma compound behavior (round-trips ... then delete) — two behaviors in one test.
+    evidence: |
+      tests/integration/openmemory/mcp-compat.test.ts:104
+        test('add_memories -> search_memory round-trips, then delete_memories removes it', ...)
+      This asserts both the round-trip AND the delete-removal in one test (per testing.md, split one-behavior-per-test).
+      For an integration GOAL TEST this is a pragmatic/acceptable trade-off (shared expensive setup), hence LOW.
+      tools.test.ts names are otherwise behavior-descriptive and single-purpose — good.
+    recommended_action: Acceptable for the GOAL TEST given setup cost; if split, separate "round-trip recalls stored memory" from "delete removes memory".
+  - id: F-test-6
+    severity: INFO
+    file: packages/mcp/src/openmemory/tools.test.ts
+    line: 9
+    plan_ref: testing.md (AAA/GWT, fixture hygiene)
+    summary: Contract test quality is high — deterministic fixtures (frozen FIXED date), precise mocks (vitest-mock-extended), spy-asserted call-args, real JSON.parse on returns. No assert-nothing tests found.
+    evidence: |
+      tools.test.ts uses FIXED = new Date('2026-06-18...') for deterministic created_at assertions (line 25);
+      asserts exact return payloads via JSON.parse (lines 83, 100-102, 119, 132); asserts spy call-args
+      (remember called with ('likes coffee', {infer:false}) line 81; forget call sequence ['a','b'] line 131).
+      No bare expect(x).toBeDefined()-only tests. Mocks are scoped to the dependency (ScopedMemory/Memory), not the world.
+    recommended_action: None — exemplary contract test. Keep this bar for the gaps in F-test-1/2/3.

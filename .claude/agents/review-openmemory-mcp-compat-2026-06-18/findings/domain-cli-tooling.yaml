@@ -1,0 +1,123 @@
+agent: domain-cli-tooling
+review_target: db077aa..HEAD for plan openmemory-mcp-compat
+domain: cli-tooling
+domain_specific_patterns_checked:
+  - "Commander Option.choices() validation parity with --transport/--auth"
+  - "resolveCompat precedence (CLI flag → env → undefined)"
+  - "resolveCompatPort default (8765 matches OpenMemory)"
+  - "stderr startup disclosure honesty (Inquebravel Rule 3)"
+  - "graceful shutdown SIGTERM/SIGINT in compat branch"
+  - "stub/real-provider disclosure preserved in compat mode"
+  - "backward-compat: native themory mcp unchanged"
+  - "README documents --compat openmemory"
+findings:
+  - id: F-cli-1
+    severity: HIGH
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 280
+    plan_ref: T2.1 / Drawbacks-Risks (graceful shutdown)
+    summary: Compat SIGTERM/SIGINT handler lacks the SHUTDOWN_TIMEOUT_MS race-guard the native path has — a hung handle.close() blocks process exit forever.
+    evidence: |
+      Compat branch (lines 280-284):
+        const compatShutdown = (): void => {
+          void handle.close().finally(() => process.exit(0));
+        };
+        process.on('SIGTERM', compatShutdown);
+        process.on('SIGINT', compatShutdown);
+
+      Native branch (lines 294-305) guards with a timeout race so a stuck
+      server.stop() cannot wedge shutdown:
+        await Promise.race([
+          server.stop(),
+          new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+        ]);
+
+      connectSse().close() iterates every live session calling s.server.stop()
+      (sse.ts:168-170) then httpServer.close() — any one hanging SSE session or
+      the http close callback never firing means compatShutdown never reaches
+      process.exit(0). Docker/k8s then SIGKILLs after the grace period. The
+      operator-facing behavior (clean SIGTERM under load) diverges from native.
+    recommended_action: |
+      Wrap handle.close() in the same Promise.race against SHUTDOWN_TIMEOUT_MS
+      as shutdownHandler, then process.exit(0) in finally. Reuse the existing
+      SHUTDOWN_TIMEOUT_MS constant (line 58) for parity.
+
+  - id: F-cli-2
+    severity: LOW
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 192
+    plan_ref: T2.1 (resolveCompatPort precedence)
+    summary: Compat SSE port reuses THEOMEM_MCP_HTTP_PORT (the streamable-http port env), so an operator who set that env for the native HTTP transport silently rebinds the SSE compat port too — surprising coupling with no dedicated env.
+    evidence: |
+      resolveCompatPort (lines 192-198):
+        function resolveCompatPort(opt?: number): number {
+          if (opt !== undefined) return resolvePort(opt);
+          const envRaw = process.env['THEOMEM_MCP_HTTP_PORT'];
+          if (envRaw === undefined) return 8765;
+          return resolvePort(Number.parseInt(envRaw, 10));
+        }
+
+      An operator running native HTTP on THEOMEM_MCP_HTTP_PORT=8080 who switches
+      to --compat openmemory expecting the documented 8765 default instead gets
+      8080 with no warning. The plan/README advertise 8765 as THE compat default
+      (README:264, startup line:272), but the env quietly overrides it. There is
+      no THEOMEM_MCP_COMPAT_PORT escape to set the SSE port without disturbing
+      the native HTTP port.
+    recommended_action: |
+      Either (a) document in the --compat help + README that THEOMEM_MCP_HTTP_PORT
+      also governs the SSE compat port, or (b) introduce a dedicated
+      THEOMEM_MCP_COMPAT_PORT (preferred — decouples the two transports' port
+      config and matches operator mental model of "compat is its own surface").
+
+  - id: F-cli-3
+    severity: LOW
+    file: packages/mcp/src/openmemory/compat-resolution.test.ts
+    line: 27
+    plan_ref: T2.1 (resolution matrix)
+    summary: resolveCompat precedence test omits the flag-vs-env conflict case (flag set AND env set) — the documented "Tier-1 wins over Tier-2" precedence is not actually asserted.
+    evidence: |
+      compat-resolution.test.ts covers: neither set, flag only, env only, unknown
+      env. It never sets BOTH process.env.THEOMEM_MCP_COMPAT and passes a flag, so
+      the precedence claim in the JSDoc ("CLI flag (Tier-1) OR env (Tier-2)") is
+      untested. Since resolveCompat short-circuits on opt==='openmemory' first
+      (line 187), flag-wins IS the behavior, but a hostile env value with a flag
+      present (e.g. flag='openmemory', env='mem0') has no regression guard.
+    recommended_action: |
+      Add a case: process.env.THEOMEM_MCP_COMPAT='mem0'; expect(resolveCompat('openmemory')).toBe('openmemory')
+      and the inverse (flag undefined + env 'openmemory') already exists. Cheap
+      regression lock for the precedence contract.
+
+  - id: F-cli-4
+    severity: INFO
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 271
+    plan_ref: T2.1 Acceptance Criteria (startup stderr /compat=openmemory/ + /sse/)
+    summary: Startup disclosure is honest and operator-clear — meets Inquebravel Rule 3 and the plan's stderr assertion. Confirmed positive.
+    evidence: |
+      Line 271-273 writes:
+        themory mcp: compat=openmemory transport=sse on http://<host>:<port>/{client}/sse/{user}
+      Contains the required /compat=openmemory/ + /sse/ substrings (plan T2.1 AC),
+      tells the operator the exact connect URL template, and the "real providers
+      wired" line (221-223) still fires in compat mode (NOT suppressed) — so the
+      no-stub honesty disclosure is preserved. The transport/auth disclosure
+      block is correctly gated off (line 247 `compat === undefined &&`) because it
+      describes the native transport which compat overrides.
+    recommended_action: No action — documents correct behavior for the consolidated report.
+
+  - id: F-cli-5
+    severity: INFO
+    file: packages/cli/src/cli.ts
+    line: 173
+    plan_ref: T2.1 / backward-compat
+    summary: --compat flag validation + native backward-compat are correct. Commander Option.choices(['openmemory']) mirrors --transport/--auth exactly; native themory mcp passthrough is fully preserved.
+    evidence: |
+      cli.ts:174-181 uses `new Option('--compat <mode>', ...).choices(['openmemory'])`
+      — identical pattern to --transport (line 154) and --auth (line 170), so
+      Commander auto-rejects `--compat foo` with its standard
+      "error: option '--compat <mode>' argument 'foo' is invalid. Allowed choices
+      are openmemory." message. All pre-existing opts (transport/port/host/auth/
+      issuer/clientId) still flow into RunMcpServerOptions unchanged (lines 197-202);
+      compat is purely additive (line 203). Native `themory mcp` with no --compat
+      resolves compat=undefined and takes the unchanged native code path. README:264
+      documents the flag with the port-8765 note.
+    recommended_action: No action — confirms validation correctness + zero backward-compat regression.
