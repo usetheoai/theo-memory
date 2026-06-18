@@ -39,6 +39,7 @@ import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
+import { connectSse } from './transports/sse.js';
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
 // (single source of truth for the Xenova MiniLM 384-dim constant; was
@@ -57,6 +58,14 @@ const SHUTDOWN_TIMEOUT_MS = 5_000;
  */
 export interface RunMcpServerOptions {
   readonly transport?: 'stdio' | 'streamable-http';
+  /**
+   * OpenMemory MCP-shape compatibility mode (Roadmap Item 26). When
+   * `'openmemory'` (CLI `--compat openmemory` OR env `THEOMEM_MCP_COMPAT=openmemory`),
+   * the server exposes the OpenMemory tool surface over an SSE endpoint
+   * (`/{client}/sse/{user}`, default port 8765) — a drop-in for OpenMemory-wired
+   * MCP clients. Overrides `transport` (forces SSE).
+   */
+  readonly compat?: 'openmemory';
   readonly port?: number;
   readonly host?: string;
   /**
@@ -170,6 +179,29 @@ function resolveHost(opt?: string): string {
   return opt ?? process.env['THEOMEM_MCP_HTTP_HOST'] ?? '127.0.0.1';
 }
 
+/**
+ * Resolve OpenMemory compat mode: CLI flag (Tier-1) OR `THEOMEM_MCP_COMPAT` env
+ * (Tier-2). Any value other than `'openmemory'` resolves to `undefined` (native).
+ */
+export function resolveCompat(opt?: RunMcpServerOptions['compat']): 'openmemory' | undefined {
+  if (opt === 'openmemory') return 'openmemory';
+  if (process.env['THEOMEM_MCP_COMPAT'] === 'openmemory') return 'openmemory';
+  return undefined;
+}
+
+/**
+ * Compat (SSE) port: CLI flag → THEOMEM_MCP_HTTP_PORT → OpenMemory default 8765.
+ *
+ * @internal — exported for unit testing the 8765 default + env/flag precedence;
+ * NOT re-exported from `packages/cli/src/index.ts`.
+ */
+export function resolveCompatPort(opt?: number): number {
+  if (opt !== undefined) return resolvePort(opt);
+  const envRaw = process.env['THEOMEM_MCP_HTTP_PORT'];
+  if (envRaw === undefined) return 8765;
+  return resolvePort(Number.parseInt(envRaw, 10));
+}
+
 export async function runMcpServer(options?: RunMcpServerOptions): Promise<void> {
   // verbs-as-cli-fixes-cycle-1 T2.1 / ADR D3: env-fail boundary now goes
   // through the shared `assertEnvOrExit` helper at agent-tools-memory.ts.
@@ -181,6 +213,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
   const pgUri = process.env['THEOMEM_PG_URI']!;
 
+  const compat = resolveCompat(options?.compat);
   const { transport, auth: authMode } = resolveMcpModes(options ?? {});
   // Validate port eagerly so an invalid CLI flag fails BEFORE we touch pg —
   // avoids leaking a connection pool when the operator typo'd the port.
@@ -216,7 +249,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     envTransport === 'stdio' || envTransport === 'streamable-http' ||
     envAuth === 'none' || envAuth === 'api-keys' || envAuth === 'oidc' || envAuth === 'both';
   const quiet = process.env['THEOMEM_MCP_QUIET'] === '1';
-  if (!wasExplicit && !quiet) {
+  if (compat === undefined && !wasExplicit && !quiet) {
     if (transport === 'streamable-http' && authMode === 'api-keys') {
       process.stderr.write(
         'themory mcp: transport=streamable-http + auth=api-keys (THEMEMORY_API_KEY present; pass --transport=stdio to override).\n',
@@ -233,6 +266,41 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   // source of truth for `PgvectorStore` + `LocalTransformerEmbedder` +
   // `OpenAILLM` wiring across CLI/MCP/REST.
   const memory = await wireMemoryFromPool(pool);
+
+  // OpenMemory compat (Roadmap Item 26): expose the OpenMemory tool surface over
+  // SSE so OpenMemory-wired MCP clients connect unchanged. A fresh McpServer per
+  // connection (SDK Server is 1:1 with a transport); scope is path-derived.
+  if (compat === 'openmemory') {
+    const compatPort = resolveCompatPort(options?.port);
+    const compatHost = resolveHost(options?.host);
+    process.stderr.write(
+      `themory mcp: compat=openmemory transport=sse on http://${compatHost}:${String(compatPort)}/{client}/sse/{user}\n`,
+    );
+    const handle = await connectSse({
+      host: compatHost,
+      port: compatPort,
+      serverFactory: () =>
+        new McpServer({ name: 'themory', version: '0.3.0', memoryFactory: () => memory, toolset: 'openmemory' }),
+    });
+    const compatShutdown = (): void => {
+      void (async (): Promise<void> => {
+        try {
+          // Mirror the native shutdown race-guard: a single wedged SSE session's
+          // server.stop() must NOT block process exit past the grace window
+          // (else Docker/k8s SIGKILLs us). Same SHUTDOWN_TIMEOUT_MS as native.
+          await Promise.race([
+            handle.close(),
+            new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+          ]);
+        } finally {
+          process.exit(0);
+        }
+      })();
+    };
+    process.on('SIGTERM', compatShutdown);
+    process.on('SIGINT', compatShutdown);
+    return;
+  }
 
   const server = new McpServer({
     name: 'themory',
