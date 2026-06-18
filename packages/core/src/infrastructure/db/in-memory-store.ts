@@ -209,7 +209,12 @@ export class InMemoryVectorStore implements VectorStore {
   async list(
     filters?: Filters,
     topK = 100,
+    _includeSoftDeleted = false,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    // InMemoryVectorStore hard-deletes (delete() removes the row), so it holds no
+    // soft-deleted state — `includeSoftDeleted` is a no-op here. The param exists
+    // for VectorStore DIP signature parity with PgvectorStore.
+    void _includeSoftDeleted;
     const matching: VectorStoreResult[] = [];
     for (const [id, row] of this.rows.entries()) {
       if (!matchesFilters(row.payload, filters)) {

@@ -158,6 +158,12 @@ if (PG_URI === undefined || PG_URI === '') {
       // from BOTH the page AND the count.
       expect(results.map((r) => r.id)).toEqual([idLive]);
       expect(total).toBe(1);
+
+      // BUT with includeSoftDeleted=true (Memory.reset full-scope purge path),
+      // BOTH rows are returned so reset can physically delete the tombstone too.
+      const [allResults, allTotal] = await store.list({ user_id: 'alice' }, 10, true);
+      expect(allResults.map((r) => r.id).sort()).toEqual([idLive, idDeleted].sort());
+      expect(allTotal).toBe(2);
     });
 
     test('list() orders by created_at DESC, id ASC across identical timestamps (EC-2 pagination determinism)', async () => {
