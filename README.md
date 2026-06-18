@@ -11,7 +11,7 @@ Drop-in TypeScript SDK. Postgres + pgvector. Works with any LLM.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-7C3AED?style=flat-square)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-1%2C216%20passing-brightgreen?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/tests-1%2C500%2B%20passing-brightgreen?style=flat-square)](#testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](#docker)
 [![MCP](https://img.shields.io/badge/MCP-4%20tools-FF6B35?style=flat-square)](#mcp-server)
@@ -59,9 +59,11 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Auth lifecycle** — bearer tokens, Stripe-shape API keys, OIDC bridge
 - **Multi-tenant + RBAC** — workspace isolation (cross-tenant access is `404`, never `403`) + members/roles (`owner`/`admin`/`member`) with last-owner & anti-escalation guards — see [Multi-tenancy & RBAC](#multi-tenancy--rbac)
 - **Three surfaces** — REST API (Hono + OpenAPI 3.1) · MCP server · CLI
+- **OpenMemory drop-in** — `themory mcp --compat openmemory` serves the OpenMemory tool surface over SSE for Cursor / Claude Desktop / Windsurf / Cline
+- **Selectable embedder** — `THEOMEM_EMBEDDER=local` (on-device Xenova MiniLM) or `openai` (`text-embedding-3-small`, no on-device model)
 - **Docker-ready** — distroless image < 200 MB with healthcheck
 - **Observable** — 16 OpenTelemetry events + per-handler spans
-- **Tested** — 1,216 unit tests, 254 test files, 328 integration tests against real pgvector
+- **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 270+ test files
 
 ## Quickstart
 
@@ -241,18 +243,29 @@ Add `themory` to your project-local `.mcp.json` (Claude Code reads this file fro
 **Tools:** `remember` · `recall` · `forget` · `reflect`
 **Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEMEMORY_API_KEY` is set)
 
+### OpenMemory-compatible mode
+
+Run the server in OpenMemory drop-in mode so MCP clients already wired to the [OpenMemory MCP Server](https://github.com/vendor SDK/REDACTED/tree/main/openmemory) (Cursor, Claude Desktop, Windsurf, Cline) work unchanged:
+
+```bash
+themory mcp --compat openmemory      # or env THEOMEM_MCP_COMPAT=openmemory
+```
+
+This exposes the OpenMemory tool surface — `add_memories` · `search_memory` · `list_memories` · `delete_memories` — as an alias over the native verbs, served over the OpenMemory SSE convention at `http://localhost:8765/{client}/sse/{user}` (`THEOMEM_MCP_HTTP_PORT` overrides the port). Scope is taken from the URL path (`{user}`); per-user isolation holds across all four tools, including delete (a user can only delete their own memories). No new dependency — it reuses the MCP SDK's `SSEServerTransport`. The native `themory mcp` is unchanged.
+
 ## Docker
 
 ```bash
-docker pull usetheo/themory:0.2.0
+docker pull ghcr.io/usetheo/themory:0.1.0-alpha
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
-  usetheo/themory:0.2.0
+  -e THEOMEM_EMBEDDER=openai \
+  ghcr.io/usetheo/themory:0.1.0-alpha
 ```
 
-Also available from GHCR: `docker pull ghcr.io/usetheo/themory:0.2.0`
+> The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
 
 Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
 
@@ -260,7 +273,7 @@ Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), health
 # Apply migrations (or `health`) against the distroless image
 docker run --rm --entrypoint /nodejs/bin/node \
   -e THEOMEM_PG_URI=postgres://... \
-  usetheo/themory:0.2.0 /app/dist/agent-tools/cli.js migrate
+  ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
 ```
 
 ## CLI
@@ -334,20 +347,20 @@ Query → Embed → Semantic ANN → BM25 → Entity boost → Score → Thresho
 ## Testing
 
 ```bash
-npm test                    # 1,216 unit tests
-npm run test:integration    # 328 integration tests (real pgvector)
+npm test                    # ~970 contract/unit tests
+npm run test:integration    # 540+ integration tests (real pgvector)
 npm run typecheck           # Zero errors
 npm run lint                # Zero warnings
 ```
 
 | Metric | Value |
 |---|---|
-| Unit tests | 1,216 passing |
-| Test files | 254 |
-| Integration tests | 328 (against `ankane/pgvector:v0.5.1`) |
+| Contract / unit tests | ~970 passing |
+| Test files | 270+ |
+| Integration tests | 540+ (against `ankane/pgvector:v0.5.1`) |
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
-| Migrations | 15 |
+| Migrations | 18 |
 
 ## Comparison
 
@@ -389,6 +402,8 @@ How Theo Memory positions against direct alternatives in the agent-memory space:
 | v0.7 | Episodic → semantic distillation | **Shipped** |
 | v1.1 | Multi-peer + bi-temporal | **Shipped** |
 | v1.5 | Semantic recall cache | **Shipped** |
+| v0.5 | OpenMemory MCP-shape compatibility (drop-in over SSE) | **Shipped** |
+| v0.6 | Selectable embedder (`THEOMEM_EMBEDDER` local / OpenAI) | **Shipped** |
 | v1.0 | Contract stable / production-ready | In progress |
 | — | Agentic tool-use + injection/command safety sandbox | Planned (post-P0) |
 | — | Layered config + `themory config` subcommand | Planned (post-P0) |
