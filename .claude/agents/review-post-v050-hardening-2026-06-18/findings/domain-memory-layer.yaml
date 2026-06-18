@@ -1,0 +1,138 @@
+agent: review-post-v050-hardening-domain-memory-layer
+review_target: 245fb75..HEAD for plan post-v050-hardening
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "list()/search() soft-delete (t_invalid IS NULL) parity"
+  - "bi-temporal asOf contract (v1.1 ADR-0011) vs list() current-state view"
+  - "soft-delete exclusion across ALL list() callers (dedup pipeline, reflect Orient, eviction scan, reset)"
+  - "Princípio 3 auditability — soft-delete remains observable via history()"
+  - "destructive dim-change migration triggered by THEOMEM_EMBEDDER toggle"
+  - "InMemoryVectorStore vs PgvectorStore list() conformance parity"
+
+findings:
+  - id: F-dom-mem-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/local-memory.ts
+    line: 243
+    plan_ref: post-v050-hardening — list() now filters t_invalid IS NULL
+    domain_anchor: CLAUDE.md § Princípio 3 (auditability / GDPR survival) + memory-store.ts:147 "Administrative wipe of a scope"
+    summary: >
+      reset(scope) enumerates rows to hard-delete via vectorStore.list(filters, 10_000).
+      After this change list() excludes soft-deleted rows (t_invalid IS NOT NULL), so an
+      administrative reset() now leaves previously-forgotten (soft-deleted) rows PHYSICALLY
+      PRESENT in the table. This is a behavior REGRESSION introduced by the diff: before the
+      change, list() returned soft-deleted rows and reset() would have hard-deleted them too.
+      reset() is the documented "administrative wipe of a scope" — a GDPR/erasure path. A
+      consumer calling reset() to purge a scope will now silently retain soft-deleted rows,
+      defeating the wipe-completeness expectation.
+    evidence: |
+      ```ts
+      async reset(scope: Scope): Promise<void> {
+        assertScopeIsNonEmpty(scope);
+        const filters = filtersFromScope(scope);
+        const [results] = await this.config.vectorStore.list(filters, 10_000); // <-- now live-only
+        for (const r of results) {
+          await this.config.vectorStore.delete(r.id); // soft-deleted rows never enumerated
+        }
+      }
+      ```
+      list() page SQL now: `FROM memories WHERE t_invalid IS NULL${filter.sql}` (pgvector-store.ts:667).
+    recommended_action: >
+      reset() must purge ALL rows in the scope regardless of t_invalid. Either (a) give
+      reset() a direct scope-scoped `DELETE FROM memories WHERE <scope>` path that ignores
+      t_invalid, or (b) add a `includeInvalidated`/`includeSoftDeleted` flag to list() and
+      have reset() pass it. Add a regression integration test: soft-delete a row, reset(scope),
+      assert COUNT(*) for the scope == 0 (including t_invalid rows). Flag for human: confirm
+      whether reset() is in any GDPR-erasure code path.
+
+  - id: F-dom-mem-2
+    severity: MEDIUM
+    file: README.md
+    line: 88
+    plan_ref: post-v050-hardening — THEOMEM_EMBEDDER selection (local 384 | openai 1536)
+    domain_anchor: migrations-runner.ts:217 DESTRUCTIVE cascade + Inquebrável Rule 8 (fail loud) + CLAUDE.md § Princípio 3
+    summary: >
+      THEOMEM_EMBEDDER is resolved at server/MCP startup and feeds runMigrations({ embeddingDim }).
+      Switching the value on an EXISTING populated DB (local↔openai changes 384↔1536) triggers the
+      DESTRUCTIVE dim-change migration that runs `DELETE FROM memories` + `DELETE FROM entities`
+      (FK CASCADE wipes the history audit trail; SET NULL nullifies v0.7 distillation provenance and
+      breaks v0.6 supersession chains). There is NO confirmation gate — the only safeguard is a
+      console.error WARN emitted at migrations-runner.ts:217, AFTER which the BEGIN/DELETE runs
+      unconditionally. The README documents THEOMEM_EMBEDDER but only says "set before the first
+      db:push / startup migration"; it does NOT warn that toggling the env on a populated DB silently
+      wipes ALL memories + audit trail on the next boot. A user experimenting with `THEOMEM_EMBEDDER=openai`
+      then reverting to `local` would lose all data twice.
+    evidence: |
+      ```ts
+      // run-server.ts:127 — every boot, before port binds:
+      await runMigrations(pool, { embeddingDim: embedderDim }); // embedderDim from THEOMEM_EMBEDDER
+      ```
+      ```ts
+      // migrations-runner.ts:216-225 — WARN is a log line, not a gate:
+      console.error('... DESTRUCTIVE cascade: DELETE FROM memories ...');
+      ...
+      await client.query('DELETE FROM memories');   // :248
+      await client.query('DELETE FROM entities');   // :249
+      ```
+    recommended_action: >
+      Document the destructive-toggle risk EXPLICITLY in the README THEOMEM_EMBEDDER block
+      (e.g., "Changing THEOMEM_EMBEDDER on a populated database DESTROYS all memories and the
+      audit trail on next startup, because the embedding dimension changes."). Stronger: require
+      an explicit opt-in env (e.g., THEOMEM_ALLOW_DESTRUCTIVE_DIM_CHANGE=true) before the
+      auto-migration performs a dim change at startup; otherwise fail loud and refuse to boot,
+      surfacing currentDim→targetDim and the manual `themory migrate` escape hatch. The migrate-
+      on-startup default (ADR D8) makes the silent path especially dangerous in Docker.
+
+  - id: F-dom-mem-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/vector-store-conformance.ts
+    line: 207
+    plan_ref: post-v050-hardening — list() soft-delete exclusion (t_invalid IS NULL)
+    domain_anchor: rules/testing.md § Pyramid (Pgvector adapter integration parity) + CLAUDE.md § Princípio 3
+    summary: >
+      The new soft-delete exclusion behavior of list() is covered by a pgvector-only integration
+      test (tests/integration/pgvector-store-list-temporal.test.ts:139) but NOT by the shared
+      VectorStoreConformance contract. InMemoryVectorStore.list() (in-memory-store.ts:209) has no
+      t_invalid concept and iterates ALL rows filtered only by matchesFilters(payload). Today this
+      is a LATENT divergence (InMemory has no soft-delete state, so no row can be soft-deleted in
+      that adapter), but the conformance suite is the contract that keeps the two adapters in lockstep.
+      A future change that adds soft-delete to InMemory, or a consumer that asserts list() semantics
+      via the in-memory test double, would silently diverge from pgvector's live-only contract.
+    evidence: |
+      ```ts
+      // in-memory-store.ts:213-229 — no t_invalid filtering:
+      for (const [id, row] of this.rows.entries()) {
+        if (!matchesFilters(row.payload, filters)) continue; // only payload filters
+        matching.push(projected);
+      }
+      ```
+      Conformance suite list() tests (vector-store-conformance.ts:188, 207) only assert pagination
+      + total count; none insert a t_invalid row and assert exclusion.
+    recommended_action: >
+      Add a conformance contract case "list() excludes soft-deleted rows" guarded for adapters that
+      support soft-delete (or document explicitly that soft-delete is a pgvector-only concept and
+      InMemory is current-state-only by construction). Lowest priority — no active bug, but it
+      closes the adapter-parity gap that rules/testing.md § Pyramid relies on.
+
+notes:
+  - non_finding: >
+      list() vs bi-temporal asOf is CORRECT. composeTemporalWhere (pgvector-store.ts:147-167)
+      gives search()/keywordSearch() an optional asOf for time-travel (recall can still see
+      historically-valid soft-deleted rows via `t_invalid > asOf`). list() has no asOf param and
+      is now a pure current-state view (`t_invalid IS NULL`), matching search()'s DEFAULT
+      (asOf undefined) branch EXACTLY. The divergence (list = current-state only, recall = optional
+      time-travel) is the intended, documented contract — list is a "what do I have now" listing,
+      not an audit/replay surface. No finding.
+  - non_finding: >
+      Princípio 3 auditability is PRESERVED. The list() exclusion is observable (CHANGELOG documents
+      it under Fixed) and soft-deleted memories remain fully auditable via Memory.history(id), which
+      reads the append-only `history` table (history-manager.ts) and is NOT filtered by t_invalid.
+      The forget→soft-delete decision stays traceable. No finding.
+  - non_finding: >
+      Eviction (v0.4b) + reflection/distillation Orient are CORRECTLY served by the new list()
+      semantics. consolidate.ts:272 + reflect-orchestrator.ts:106 use list() for the Orient gather —
+      excluding soft-deleted rows is correct (don't re-consolidate forgotten memories). Eviction
+      candidate scans must not re-evict already-soft-deleted rows, so live-only is correct. The
+      forgetting THE GOAL TEST (recall@10) runs through recall()/search(), which were already
+      t_invalid-filtered, so it is unaffected by the list() change. extraction/pipeline.ts:310 uses
+      list() for the dedup-context window — correctly avoids deduping against forgotten memories.

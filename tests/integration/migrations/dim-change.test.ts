@@ -277,7 +277,11 @@ describe.skipIf(ROOT_PG_URI === '')(
       );
       expect(fk.rows[0]?.action).toBe('n'); // 'n' = SET NULL
 
-      // Trigger the destructive dim change.
+      // Trigger the destructive dim change. This test INTENTIONALLY verifies the
+      // destructive cascade on a populated DB, so it opts into the fail-closed
+      // data-loss guard (/review post-v0.5.0 F-dom-cli-1) that otherwise refuses
+      // to wipe a non-empty database.
+      process.env['THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE'] = '1';
       await m.runMigrations(pool, { embeddingDim: 384 });
 
       // (a) row count is 0 post-ALTER (DELETE FROM memories ran — wipes
@@ -304,6 +308,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       expect(afterConsolidation.rows[0]?.c).toBe(1);
       expect(afterConsolidation.rows[0]?.kept).toBeNull();
       } finally {
+        delete process.env['THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE'];
         await pool.end();
       }
     });

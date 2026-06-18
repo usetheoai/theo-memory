@@ -1,0 +1,158 @@
+agent: review-post-v050-hardening-wiring
+review_target: 245fb75..HEAD for plan post-v050-hardening
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md  # NOTE: agent def names this plan, but the diff is a post-v0.5.0 hardening batch (embedder selection + soft-delete list fix + Docker/build-order fix); no plan file matches the slug post-v050-hardening
+changed_files:
+  - packages/agent-core/src/agent-tools-memory.ts        # NEW: resolveEmbedderKind, embeddingDimForKind, OPENAI_EMBEDDER_DIM, EmbedderKind, buildEmbedder
+  - packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+  - packages/cli/src/run-server.ts                        # migrate+stderr use resolved dim
+  - packages/mcp/src/run-mcp-server.ts                    # migrate+stderr use resolved dim
+  - packages/core/src/infrastructure/db/pgvector-store.ts # list() now WHERE t_invalid IS NULL
+  - tests/integration/openmemory/mcp-compat.test.ts       # list_memories excludes deleted
+  - tests/integration/pgvector-store-list-temporal.test.ts
+  - Dockerfile
+  - .dockerignore
+  - CHANGELOG.md / README.md / CLAUDE.md / package.json
+
+triad_revalidation:
+  total_new_symbols: 4   # resolveEmbedderKind, embeddingDimForKind, OPENAI_EMBEDDER_DIM, EmbedderKind (+ private buildEmbedder)
+  pillar_a_honest_pass: 4 / 4   # resolveEmbedderKind + embeddingDimForKind called by wireMemoryFromPool, createAgentToolsMemory, run-server.ts, run-mcp-server.ts (real, functionally necessary callers)
+  pillar_b_honest_pass: 4 / 4   # exercised by packages/agent-core/src/__tests__/agent-tools-memory.test.ts (+67 lines) and tests/integration/openmemory/mcp-compat.test.ts
+  pillar_c_observed: n/a         # this batch adds no new OTel metric; existing stderr-disclosure line is the runtime-observable signal and is correctly parameterized per kind
+
+dim_consistency_verdict: CONSISTENT_FOR_RUNTIME_PATHS_BUT_MIGRATE_SUBCOMMAND_DIVERGES
+dim_consistency_detail: |
+  CRITICAL requirement (migration dim == embedder dim) is SATISFIED for the 3 boot paths
+  that wire a live Memory:
+    - wireMemoryFromPool (agent-tools-memory.ts:158-171): resolves kind ONCE
+      (resolveEmbedderKind) -> embeddingDim (embeddingDimForKind) -> used for BOTH
+      `new PgvectorStore(pool,{embeddingDim})` AND `createLocalMemory({embeddingDim})`.
+      The embedder built by buildEmbedder(kind) is the SAME kind. No drift possible.
+    - createAgentToolsMemory (agent-tools-memory.ts:207): runMigrations(pool,
+      {embeddingDim: embeddingDimForKind(resolveEmbedderKind())}) then wireMemoryFromPool(pool)
+      — both resolve from the same env var in the same process, same value.
+    - run-server.ts:119-127 and run-mcp-server.ts:226-230: resolve embedderKind/embedderDim
+      ONCE, pass to runMigrations, then call wireMemoryFromPool (which re-resolves identically).
+  Self-correcting mechanism confirmed: migration SQL 0000_crazy_mimic.sql ships vector(1536);
+  runMigrations(pool,{embeddingDim:384}) triggers applyDimChange(pool,384) which ALTERs the
+  column down to 384 (DROP HNSW -> ALTER -> CREATE HNSW, atomic tx). For openai (1536) the
+  applyDimChange atttypmod probe is an idempotent no-op. So local AND openai paths converge
+  to a schema whose dim matches the embedder.
+
+findings:
+  - id: F-wire-1
+    severity: MEDIUM
+    file: packages/cli/src/run-migrate.ts
+    line: 36
+    plan_ref: post-v0.5.0 embedder-selection batch — migration-dim/embedder-dim consistency
+    summary: >
+      `themory migrate` is NOT embedder-aware while the other 3 migration sites are.
+      It calls runMigrations(pool) with no embeddingDim, so the schema is left at the
+      migration-file default vector(1536). The diff made run-server/run-mcp/createAgentToolsMemory
+      resolve the dim from THEOMEM_EMBEDDER (384 for local) but left `themory migrate` behind.
+    evidence: |
+      packages/cli/src/run-migrate.ts:36  ->  await runMigrations(pool);   // no embeddingDim
+      migrations/0000_crazy_mimic.sql:11   ->  "embedding" vector(1536) NOT NULL
+      migrations-runner.ts:84-86           ->  applyDimChange runs ONLY when options.embeddingDim !== undefined
+      Contrast: run-server.ts:127 / run-mcp-server.ts:230 pass {embeddingDim: embedderDim}.
+      Failure mode: operator runs `THEOMEM_EMBEDDER=local themory migrate` (creates 1536-dim
+      schema, NOT shrunk to 384), then connects an EXTERNAL local-embedder app (384) that does
+      NOT migrate-on-startup -> every INSERT fails with a pgvector dim mismatch
+      ("expected 1536 dimensions, not 384" — the exact "every insert fails" class the review brief warns about).
+      Mitigated in the server/mcp flow because migrate-on-startup re-runs applyDimChange and
+      self-corrects; the standalone `themory migrate` -> external-consumer flow is the unguarded one.
+    recommended_action: >
+      Make run-migrate.ts resolve the dim like the other paths:
+      `await runMigrations(pool, { embeddingDim: embeddingDimForKind(resolveEmbedderKind()) });`
+      (import both from @usetheo/memory-agent-core, already a dependency of packages/cli).
+      One-line change closes the 4th migration site and makes all paths uniformly embedder-aware.
+
+  - id: F-wire-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/in-memory-store.ts
+    line: 209
+    plan_ref: pgvector-store list() soft-delete fix (CHANGELOG Fixed)
+    summary: >
+      The list() soft-delete fix is asymmetric across VectorStore implementations, but
+      NOT a behavioral defect. PgvectorStore.list now filters t_invalid IS NULL;
+      InMemoryStore.list has no such filter — however InMemoryStore.delete() HARD-removes
+      the row (rows.delete(id)) and never sets tInvalid, so it has no soft-deleted rows to
+      leak. Observable behavior (deleted memory absent from list) is identical -> LSP preserved.
+    evidence: |
+      pgvector-store.ts:649-667  ->  WHERE t_invalid IS NULL (count + page)
+      in-memory-store.ts:198-201 ->  async delete(id) { this.rows.delete(id); }  (hard delete)
+      in-memory-store.ts:209-242 ->  list() iterates rows; deleted rows already gone.
+      vector-store-conformance.ts has NO assertion that list() excludes soft-deleted rows.
+    recommended_action: >
+      Optional hardening (NOT blocking): add a conformance-suite case asserting list() excludes
+      soft-deleted rows. For PgvectorStore it would catch a regression; for InMemoryStore it is
+      vacuously true. Documents the contract that recall/search/list all agree on live-only.
+
+  - id: F-wire-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 651
+    plan_ref: list() soft-delete fix — caller reachability (review brief: "any caller that BROKE")
+    summary: >
+      All 6 list()/getAll consumers were traced; none relied on list() returning soft-deleted
+      rows. The fix is correct for every caller and breaks none.
+    evidence: |
+      Consumers of vectorStore.list() / scoped.getAll():
+        - scoped-memory.ts:319 (getAll) -> scopes endpoint + OpenMemory list_memories  [TARGET, correct]
+        - mcp/openmemory/tools.ts:110 listMemoriesHandler -> scoped.getAll()             [reaches fix, correct]
+        - api/server/handlers/scopes.ts:145 -> scoped.getAll({category?})                [reaches fix, correct]
+        - reflect-orchestrator.ts:106 -> list(filters,100)  (Reflect input)              [forgotten memories SHOULD be excluded -> improvement]
+        - skills/consolidate.ts:272 -> list(orientFilters)  (Orient/consolidation)       [forgotten skills SHOULD be excluded -> improvement]
+        - extraction/pipeline.ts:310 -> list(filters,5)     (dedup/context lookup)       [soft-deleted SHOULD NOT count as existing -> improvement]
+        - local-memory.ts:243 reset(scope) -> list then delete(id)                        [already-deleted rows need no re-delete -> minor efficiency win, no break]
+      No caller depends on soft-deleted visibility (no audit path reads list() to see tombstones;
+      audit lives in `history` table, unaffected by this query).
+    recommended_action: No action. Documented for completeness per review brief.
+
+  - id: F-wire-4
+    severity: INFO
+    file: scripts/rewrite-dist-aliases.mjs
+    line: 34
+    plan_ref: Docker build-order fix + barrel export resolution (review brief: phantom import check)
+    summary: >
+      Export wiring + build-order verified end-to-end. New symbols resolve with zero phantom
+      imports; runtime alias rewrite covers the new OpenAI embedder subpath; ENTRYPOINT resolves.
+    evidence: |
+      - agent-core barrel: packages/agent-core/src/index.ts:18 `export * from './agent-tools-memory.js'`
+        re-exports resolveEmbedderKind + embeddingDimForKind + OPENAI_EMBEDDER_DIM + EmbedderKind.
+      - mcp/cli import them DIRECTLY from '@usetheo/memory-agent-core' (run-server.ts:34-39,
+        run-mcp-server.ts:32-37) — resolves via the barrel.
+      - `npx tsc -p tsconfig.build.json --noEmit` -> EXIT 0, no TS2305/TS2307 on new exports.
+      - OpenAIEmbedder subpath '@usetheo/memory/embedders/openai' exists
+        (packages/core/src/infrastructure/embedders/openai.ts:51 export class OpenAIEmbedder)
+        and is covered by PREFIX rewrite '@usetheo/memory/embedders/' (rewrite-dist-aliases.mjs:43)
+        -> dist/core/src/infrastructure/embedders/openai.js (present in dist).
+      - Docker: builder COPYs scripts/ + ALL packages/; build:core runs BEFORE the main tsc
+        (package.json build script) so core's .d.ts exist before subpaths are resolved — the
+        clean-checkout TS2307 fix. Runtime ENTRYPOINT /app/dist/agent-tools/cli.js resolves
+        because rewrite-dist-aliases turns @usetheo/* bare specifiers into relative dist paths
+        (runtime does NOT depend on node_modules/@usetheo workspace symlinks, which would be
+        dangling in distroless). INCLUDE_OPTIONAL=true ships onnxruntime-node for the default
+        local embedder; TRANSFORMERS_CACHE=/tmp writable under nonroot.
+    recommended_action: No action. Wiring is honest and deep.
+
+boundary_respect:
+  status: PASS
+  detail: >
+    agent-core imports @usetheo/memory + @usetheo/memory/embedders/* + @usetheo/memory/llms/*
+    (core public subpaths) — allowed (agent-tools tier depends on core). No core->local/cloud/
+    theokit/agent-tools back-import introduced. pgvector-store.ts change stays within core
+    infrastructure. No cross-tier violation.
+
+summary:
+  blockers: 0
+  high: 0
+  medium: 1   # F-wire-1 themory migrate not embedder-aware
+  info: 3
+  verdict_contribution: >
+    Embedder-selection wiring is deep and honest for the 3 runtime boot paths (dim guaranteed
+    consistent via single-resolve + self-correcting applyDimChange). The list() soft-delete fix
+    is reachable from every named caller (scopes endpoint, OpenMemory list_memories, reflect,
+    eviction/reset, dedup) and breaks none. Exports resolve (typecheck clean, no phantom imports).
+    Docker/build-order fix is correct. ONE MEDIUM gap: `themory migrate` standalone is not
+    embedder-aware and can produce a 1536-dim schema under THEOMEM_EMBEDDER=local, causing insert
+    failures for external local-embedder consumers that do not migrate-on-startup.

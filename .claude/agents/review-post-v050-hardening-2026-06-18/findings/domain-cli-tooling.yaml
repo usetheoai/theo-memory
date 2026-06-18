@@ -1,0 +1,204 @@
+agent: review-post-v050-hardening-domain-cli-tooling
+review_target: 245fb75..HEAD for plan post-v050-hardening
+domain: cli-tooling
+domain_specific_patterns_checked:
+  - "stderr real-providers disclosure honesty (Inquebravel Rule 3) + back-compat sentinel"
+  - "THEOMEM_EMBEDDER operator ergonomics + failure-mode surfacing (OPENAI_API_KEY)"
+  - "Dockerfile build-order / INCLUDE_OPTIONAL / TRANSFORMERS_CACHE operational soundness"
+  - "image-size impact documentation for OpenAI-embedder deployments"
+  - "destructive dim-change migration footgun on embedder swap (migrate-on-startup)"
+  - "fail-loud on unknown THEOMEM_EMBEDDER (no silent fallback)"
+
+summary_verdict: >
+  The operator/CLI/Docker surface is largely sound. stderr disclosure is HONEST and
+  byte-back-compatible on the default path (no sentinel regression). THEOMEM_EMBEDDER
+  fails loud on unknown values. The Docker fixes (build:core-first, COPY packages/,
+  INCLUDE_OPTIONAL=true default, TRANSFORMERS_CACHE) are operationally correct and
+  well-commented. The one genuine operator footgun is the destructive dim-change that
+  fires automatically on startup when an operator flips THEOMEM_EMBEDDER against an
+  existing DB — the warning is emitted AS the data is wiped, not BEFORE, so it cannot
+  prevent loss. Plus two documentation gaps (image-size / INCLUDE_OPTIONAL=false slimming;
+  OPENAI_API_KEY-wrong-vs-missing failure mode).
+
+findings:
+  - id: F-dom-cli-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/migrations-runner.ts
+    line: 102
+    plan_ref: "post-v050-hardening — THEOMEM_EMBEDDER selectable embedder (CHANGELOG Added)"
+    domain_anchor: "Inquebravel Rule 8 (Fail-Fast, Fail-Clear) + CLAUDE.md Principio 3 (auditable, IGNORE never silent)"
+    summary: >
+      Flipping THEOMEM_EMBEDDER (e.g. local->openai) on an EXISTING populated DB triggers
+      the DESTRUCTIVE dim-change cascade automatically during migrate-on-startup
+      (run-server.ts:127 runMigrations(pool,{embeddingDim}) and run-mcp-server.ts:227 same).
+      applyDimChange runs DELETE FROM memories + DELETE FROM entities + DROP/RECREATE HNSW
+      with NO operator confirmation gate. The DESTRUCTIVE-cascade warning at line 216-225 is
+      emitted INSIDE the same runMigrations call, on the same code path that then performs the
+      wipe at lines 229-231+ — i.e. the operator reads the warning only AFTER (or as) the data
+      is already being deleted. On migrate-on-startup (ADR D8, port binds AFTER migrate) this
+      is silent-to-the-operator data loss: a single env-var typo or an intentional embedder
+      swap wipes all memories + the history audit trail + v0.7 provenance + v0.6 supersession
+      chains. This is the highest-blast-radius operator footgun in the diff.
+    evidence: |
+      run-server.ts:126-128
+        const embedderKind = resolveEmbedderKind();
+        const embedderDim = embeddingDimForKind(embedderKind);
+        ...
+        await runMigrations(pool, { embeddingDim: embedderDim });   // startup, pre-port-bind
+
+      migrations-runner.ts:215-231 (warning then wipe, same call):
+        console.error(`[themory] runMigrations: dim change ${currentDim} -> ${targetDim} -- DESTRUCTIVE cascade: DELETE FROM memories ...`);
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
+          ...
+    mitigating_factors: >
+      (1) The sequence IS idempotent (lines 206-213: if currentDim === targetDim, no-op) — a
+      RESTART with the same embedder does NOT re-wipe. (2) The warning is detailed and honest
+      about the full FK cascade. (3) THEOMEM_SKIP_MIGRATIONS (shouldSkipMigrations) lets a
+      cautious operator bind without migrating. The risk is specifically the FIRST startup
+      after an embedder flip on a non-empty DB.
+    recommended_action: >
+      Add a guard so an embedder swap does NOT silently destroy data on startup. Options for
+      the human to choose (95% rule): (a) require an explicit opt-in env (e.g.
+      THEOMEM_ALLOW_DESTRUCTIVE_DIM_CHANGE=1) before applyDimChange will DELETE when
+      currentDim != targetDim AND row count > 0 — otherwise fail-LOUD with exit!=0 and a
+      "refusing to wipe N memories; set THEOMEM_ALLOW_DESTRUCTIVE_DIM_CHANGE=1 to proceed"
+      message (fail-closed, Rule 8); (b) at minimum, probe row count and emit the DESTRUCTIVE
+      warning with the concrete count BEFORE the BEGIN, and document the footgun in README
+      next to the THEOMEM_EMBEDDER section. (a) is the Rule-8-correct fix.
+
+  - id: F-dom-cli-2
+    severity: MEDIUM
+    file: README.md
+    line: 88
+    plan_ref: "post-v050-hardening — embedder selection docs"
+    domain_anchor: "operator ergonomics — failure mode clarity (Inquebravel Rule 8 fail-clear)"
+    summary: >
+      The README embedder-selection block (lines 88-94) documents THEOMEM_EMBEDDER=openai
+      requires OPENAI_API_KEY but does NOT describe the failure mode when the key is present
+      but WRONG/expired. Note: assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC])
+      runs unconditionally (run-server.ts:111, run-mcp-server.ts:214), so a MISSING key
+      exits 2 with a clear message at boot for BOTH embedder kinds (the LLM needs it too) —
+      good. But a present-but-invalid key with THEOMEM_EMBEDDER=openai surfaces only as a
+      runtime 401 at first embed (inside the EC-33 warm Promise / first remember), AFTER the
+      port has bound and GET /v1/health returns OK. The operator sees a healthy server that
+      500s on first write with no startup hint. The migrate-on-startup also does not exercise
+      the embedder, so boot looks green.
+    evidence: |
+      run-server.ts:111  assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);  // presence only
+      agent-tools-memory.ts:176-179  buildEmbedder('openai') -> new OpenAIEmbedder()    // no boot-time validate
+      README.md:91  "- `openai` ... Requires `OPENAI_API_KEY`; ..."                     // no wrong-key note
+    recommended_action: >
+      Document in README that an invalid OPENAI_API_KEY surfaces as a 401 on the first
+      embed, not at boot, and (optionally) point operators at `themory health --deep`
+      (CLAUDE.md Item 18 says it smoke-validates embedder + LLM) as the pre-flight check.
+      Lower priority than F-dom-cli-1; this is a clarity gap, not data loss.
+
+  - id: F-dom-cli-3
+    severity: MEDIUM
+    file: README.md
+    line: 88
+    plan_ref: "post-v050-hardening — Dockerfile INCLUDE_OPTIONAL default flip true"
+    domain_anchor: "operator ergonomics — image-size trade-off disclosure"
+    summary: >
+      Dockerfile INCLUDE_OPTIONAL default flipped false->true (Dockerfile:71) so
+      onnxruntime-node ships by default — correct for the default local embedder. But the
+      image-size impact is NOT documented for operators, and neither README nor
+      docker-compose.prod.yaml mentions the slim path. The Dockerfile comment (lines 67-72)
+      correctly says "Set the arg to false ONLY for an OpenAI-embedder-only deployment", but
+      an OpenAI-embedder operator has no README signal that they can pass
+      --build-arg INCLUDE_OPTIONAL=false to drop onnxruntime-node. HONEST CAVEAT that MUST be
+      stated if this is documented: @xenova/transformers (and thus sharp) is a REGULAR
+      dependency, so INCLUDE_OPTIONAL=false only strips the OPTIONAL onnxruntime-node — sharp
+      and @xenova still install. The slimming benefit is partial, not full; documenting it
+      without that caveat would overstate the savings.
+    evidence: |
+      Dockerfile:71  ARG INCLUDE_OPTIONAL=true
+      Dockerfile:67-72 comment: "Set the arg to false ONLY for an OpenAI-embedder-only deployment ..."
+      README.md:88-94  embedder-selection block — no INCLUDE_OPTIONAL / image-size mention
+      grep INCLUDE_OPTIONAL docker-compose*.yaml -> none
+      CLAUDE.md:155  "Docker stack (distroless ... 199.7 MB)" — pre-flip size, now larger with onnxruntime-node
+    recommended_action: >
+      Add an operator note (README Docker section) that the default image now ships
+      onnxruntime-node (larger image) to support the default local embedder, and that an
+      OpenAI-embedder-only deployment MAY build with --build-arg INCLUDE_OPTIONAL=false to
+      drop it — WITH the explicit caveat that @xenova/transformers + sharp remain (regular
+      deps) so the saving is partial. Also update the CLAUDE.md "199.7 MB" figure or note
+      it is now larger, to avoid a stale-size claim (Rule 3 honesty).
+
+  - id: F-dom-cli-4
+    severity: INFO
+    file: packages/cli/src/run-server.ts
+    line: 137
+    plan_ref: "post-v050-hardening — stderr embedder disclosure"
+    domain_anchor: "Inquebravel Rule 3 (extreme honesty) + FC2-T1.1 sentinel back-compat"
+    summary: >
+      POSITIVE / back-compat confirmation (not a defect). The stderr disclosure is honest and
+      back-compatible. On the DEFAULT path (THEOMEM_EMBEDDER unset/local) embedderDim=384, so
+      the emitted string is byte-identical to the pre-diff string:
+      "themory server: real providers wired -- LocalTransformerEmbedder (Xenova MiniLM, dim=384)
+      + OpenAILLM via OPENAI_BASE_URL." (same for MCP). The only sentinel test
+      (run-server.test.ts:209 expect(captured).toMatch(/real providers wired/i)) still passes;
+      no test asserts the embedder substring literally. The openai branch honestly names
+      "OpenAIEmbedder (text-embedding-3-small, dim=1536)". Verified old strings via
+      git show 245fb75 — identical template on the local branch.
+    evidence: |
+      run-server.ts:134-142  embedderLabel ternary; local branch == old string with dim=384
+      git show 245fb75:packages/cli/src/run-server.ts -> "...LocalTransformerEmbedder (Xenova MiniLM, dim=${LOCAL_EMBEDDER_DIM})..."
+      run-server.test.ts:209  expect(captured).toMatch(/real providers wired/i)  // still green
+    recommended_action: "None — documented as verified-good for the consolidator."
+
+  - id: F-dom-cli-5
+    severity: INFO
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 73
+    plan_ref: "post-v050-hardening — fail-loud on unknown THEOMEM_EMBEDDER"
+    domain_anchor: "Inquebravel Rule 8 (no silent fallback)"
+    summary: >
+      POSITIVE confirmation. resolveEmbedderKind throws on any value other than
+      ''/undefined/'local'/'openai' (line 77-79), satisfying the CHANGELOG claim
+      "unknown values fail loud (no silent fallback)" and Rule 8. Covered by a unit test
+      (agent-tools-memory.test.ts:118 expect(() => resolveEmbedderKind()).toThrow(/THEMEMORY?.../)).
+      No defect. One minor ergonomics note: the throw propagates from runServer/runMcpServer
+      as an uncaught exception (not via assertEnvOrExit's clean exit-2 + stderr-message
+      contract), so an unknown THEOMEM_EMBEDDER produces a stack trace rather than the
+      one-line operator message the env-presence failures get. Acceptable (it IS loud), but
+      a routed clean message would match the established CLI failure UX.
+    evidence: |
+      agent-tools-memory.ts:73-80  resolveEmbedderKind throws Error("Unknown THEOMEM_EMBEDDER='...'")
+      called at run-server.ts:126 / run-mcp-server.ts:223 OUTSIDE any try that maps to exit-2
+    recommended_action: >
+      Optional polish: route the unknown-embedder case through the same stderr+exit(2)
+      contract as assertEnvOrExit for a consistent CLI failure UX. Not blocking.
+
+  - id: F-dom-cli-6
+    severity: INFO
+    file: .dockerignore
+    line: 63
+    plan_ref: "post-v050-hardening — Docker build restoration"
+    domain_anchor: "operational soundness — build reproducibility"
+    summary: >
+      POSITIVE confirmation. The .dockerignore + Dockerfile changes are coherent and
+      self-documenting: pnpm-lock.yaml un-ignored (builder runs pnpm install
+      --frozen-lockfile), scripts/ un-ignored (postbuild:rewrite-aliases needs it), and
+      Dockerfile COPYs all workspace packages before install so pnpm can create the
+      @usetheo/* symlinks. build:core moved to run FIRST in package.json:18 so the main tsc
+      resolves @usetheo/memory/* subpaths against core's freshly-built .d.ts — matches the
+      CHANGELOG "clean-checkout build-order" fix and the Dockerfile EC-40 comment. These are
+      operationally sound. (Verification of an actual clean docker build is outside this
+      read-only domain pass — flag to wiring/cross-validation agents if an empirical build
+      gate is desired.)
+    evidence: |
+      .dockerignore:60-72  pnpm-lock.yaml + scripts/ now kept with explanatory comments
+      Dockerfile:41-46  COPY scripts/ + COPY packages/ before pnpm install
+      package.json:18  "build": "... && npm run build:core && tsc -p tsconfig.build.json && ..."
+    recommended_action: "None — verified-coherent. Defer empirical build-success to a CI/build gate."
+
+notes_for_consolidator: >
+  Highest-value finding is F-dom-cli-1 (destructive dim-change footgun on embedder swap;
+  data loss without a confirmation gate, warning fires too late on migrate-on-startup).
+  F-dom-cli-2 and F-dom-cli-3 are documentation gaps (MEDIUM). F-dom-cli-4/5/6 are positive
+  back-compat / fail-loud / build-coherence confirmations recorded for audit completeness.
+  No fabricated citations: all file:line verified against working tree and git show 245fb75.

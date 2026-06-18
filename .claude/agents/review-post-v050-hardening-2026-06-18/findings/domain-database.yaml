@@ -1,0 +1,154 @@
+agent: review-post-v050-hardening-domain-database
+review_target: 245fb75..HEAD for plan post-v050-hardening
+domain: database (pgvector-schema + bi-temporal soft-delete + HNSW dim migration)
+domain_specific_patterns_checked:
+  - "list() soft-delete predicate parity with search()/recall() (t_invalid IS NULL)"
+  - "composeFilters parameter-index continuity (literal predicate adds no param)"
+  - "count query vs page query predicate consistency"
+  - "partial-index coverage for the live-only scoped list() hot path"
+  - "pgvector HNSW 2000-dim limit vs OpenAI 1536-dim migration"
+  - "destructive dim-change migration path (DROP/DELETE/ALTER/RECREATE HNSW) at 1536"
+  - "in-memory store soft-delete asymmetry (hard-delete is correct)"
+  - "SQL injection on changed queries (literal vs parameterized)"
+  - "migration dim alignment with selected embedder kind (local 384 / openai 1536)"
+
+verified_correct:
+  - check: "Parameter indexing unaffected by the WHERE 1=1 -> WHERE t_invalid IS NULL change"
+    evidence: |
+      composeFilters(filters, 1) is called with startParamIndex=1 (pgvector-store.ts:648).
+      Its emitted sql always begins with ' AND ' (pgvector-store.ts:234), so
+      `WHERE t_invalid IS NULL${filter.sql}` -> `WHERE t_invalid IS NULL AND col = $1 ...`.
+      The literal `t_invalid IS NULL` binds NO parameter, so $1.. indexing and
+      nextParamIndex (used for the LIMIT placeholder at line 669) are unchanged.
+      CORRECT.
+  - check: "count query and page query use the SAME predicate (consistency)"
+    evidence: |
+      countSql (line 653) and pageSql (line 667) BOTH use `WHERE t_invalid IS NULL${filter.sql}`.
+      The new integration test asserts total===1 AND results===[idLive] for a
+      live+soft-deleted pair (pgvector-store-list-temporal.test.ts:139-161). CORRECT.
+  - check: "list() now matches search()/recall() live-only semantics"
+    evidence: |
+      search() (line 500) uses composeTemporalWhere(asOf, 2) which defaults to the
+      literal `t_invalid IS NULL` (line 162) when asOf is absent. keywordSearch()
+      (line 565) is identical. list() pre-fix used `WHERE 1=1` (returned soft-deleted
+      rows); post-fix it uses `t_invalid IS NULL`, restoring parity. CORRECT and a
+      genuine bug fix.
+  - check: "in-memory store does NOT need the soft-delete filter for list()"
+    evidence: |
+      InMemoryVectorStore.delete() does `this.rows.delete(vectorId)` (in-memory-store.ts:200)
+      — a HARD delete that removes the entry from the Map. list() iterates
+      this.rows.entries() (line 214), so a forgotten row is already absent. local-memory.ts:138
+      documents this intentional asymmetry: t_invalid is a Postgres-only concept; the
+      in-memory adapter keeps v0.1 hard-delete. CORRECT — no change needed in-memory.
+  - check: "no SQL injection in the changed queries"
+    evidence: |
+      `t_invalid IS NULL` is a static SQL literal (no interpolation). filter.sql
+      interpolates only `$N` placeholders; all values are bound via parameter arrays
+      (filter.params). composeFilters EC-6 note (line 213) confirms parameterized
+      binding. SAFE.
+  - check: "OpenAI 1536-dim is within pgvector HNSW limits and the dim guard rejects >2000"
+    evidence: |
+      OPENAI_EMBEDDER_DIM = 1536 (agent-tools-memory.ts:56). applyDimChange guards
+      `targetDim > 2000` -> throw (migrations-runner.ts:157-158). 1536 <= 2000, so it
+      passes; pgvector HNSW supports up to 2000 dims. CORRECT.
+  - check: "destructive dim-change path handles 1536 correctly"
+    evidence: |
+      applyDimChange is dim-agnostic: DROP HNSW (lines 230-238) -> DELETE rows
+      (248-258, the documented destructive contract) -> ALTER COLUMN TYPE
+      vector(${targetDim}) (259-266) -> CREATE HNSW (270-277) -> in-transaction
+      atttypmod canary verifying actual dim == targetDim (305-320). All inside
+      BEGIN/COMMIT. 1536 flows through unchanged. CORRECT.
+  - check: "migration dim is aligned with the selected embedder kind"
+    evidence: |
+      createAgentToolsMemory now runs runMigrations(pool, { embeddingDim:
+      embeddingDimForKind(resolveEmbedderKind()) }) (agent-tools-memory.ts:206-207),
+      and wireMemoryFromPool builds PgvectorStore({ embeddingDim }) + createLocalMemory({
+      embeddingDim }) from the SAME resolved kind (lines 161-178). Local=384 / openai=1536
+      stay consistent across store, migration, and createLocalMemory. CORRECT.
+
+findings:
+  - id: F-dom-db-1
+    severity: LOW
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 653
+    plan_ref: post-v050-hardening list() live-only soft-delete parity
+    domain_anchor: "pgvector index strategy — partial indexes idx_memories_eviction_score_{user,session} (schema.ts:250-258) are partial on `t_invalid IS NULL`"
+    summary: >
+      No dedicated index on `t_invalid` alone. An UNSCOPED list({}) (no scope filter)
+      now does `WHERE t_invalid IS NULL` with no usable index and will seq-scan a large
+      memories table. The common PRODUCTION path is index-supported (see evidence), so
+      severity is LOW — but the perf characteristic should be acknowledged.
+    evidence: |
+      Production getAll() ALWAYS passes a non-empty scope filter
+      (scoped-memory.ts:319 -> filtersFromScope(scope) with assertScopeIsNonEmpty),
+      producing `WHERE t_invalid IS NULL AND user_id = $1`. This predicate is covered
+      by the partial index idx_memories_eviction_score_user
+      (schema.ts:253-255: .on(table.userId).where(t_invalid IS NULL)), so the planner
+      can use it. The only unscoped list({}) calls are in the conformance harness
+      (vector-store-conformance.ts:95,188,207) — not a production path. A future
+      consumer that lists unscoped at scale would seq-scan; a `CREATE INDEX
+      idx_memories_live ON memories(created_at DESC) WHERE t_invalid IS NULL` would
+      cover both the unscoped predicate AND the ORDER BY, but is NOT required for the
+      current shipped callers.
+    recommended_action: >
+      No action required for this cycle (production list() is always scoped + index-covered).
+      OPTIONAL hardening: if an unscoped list endpoint is ever exposed, add a partial
+      index `WHERE t_invalid IS NULL` keyed on (created_at DESC) to avoid a seq-scan and
+      support the ORDER BY. Document the scoped-only assumption near list().
+
+  - id: F-dom-db-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 349
+    plan_ref: post-v050-hardening list() live-only soft-delete parity (impact corroboration)
+    domain_anchor: "bi-temporal contract — MemoryItem.tInvalid must reflect real row state"
+    summary: >
+      The fix is MORE load-bearing than the diff comment states: getAll() hardcodes
+      `tInvalid: null` on every projected item (scoped-memory.ts:349). Pre-fix, a
+      soft-deleted row flowed through list() and was presented to the consumer with a
+      FALSE `tInvalid: null` — actively MISREPRESENTING a forgotten memory as live
+      (a Princípio 3 auditability violation, not just an over-count). Post-fix the
+      row is excluded, so the hardcoded `tInvalid: null` is only ever applied to
+      genuinely-live rows. This corroborates the fix; no further action.
+    evidence: |
+      scoped-memory.ts:317 getAll() -> vectorStore.list(filters) -> map() -> line 349
+      `tInvalid: null` unconditionally. The same hardcode exists in get() at
+      local-memory.ts:229. With the WHERE t_invalid IS NULL fix, soft-deleted rows
+      never reach this projection.
+    recommended_action: >
+      None. Optional: note in the list() comment that the consumer projection assumes
+      live-only rows (the hardcoded tInvalid:null is only valid because list() now
+      filters), so a future relaxation of the list() predicate must also fix the
+      projection.
+
+  - id: F-dom-db-3
+    severity: INFO
+    file: tests/integration/pgvector-store-list-temporal.test.ts
+    line: 139
+    plan_ref: post-v050-hardening soft-delete exclusion test
+    domain_anchor: "TDD discipline (Inquebrável Rule 5) + integration against real pgvector"
+    summary: >
+      The soft-delete exclusion test is well-shaped: inserts a live + a soft-deleted
+      (t_invalid=NOW()) row for the same user and asserts ONLY the live row is returned
+      AND total===1 (covers both the page query and the count query). True RED pre-fix
+      (WHERE 1=1 would return both rows + total===2). Runs against real
+      ankane/pgvector:v0.5.1 per the integration shape. No gap.
+    evidence: |
+      pgvector-store-list-temporal.test.ts:147-160 — INSERT one row t_invalid=NULL +
+      one row t_invalid=NOW(); list({user_id:'alice'}); assert results.map(id)===[idLive]
+      AND total===1.
+    recommended_action: None.
+
+summary_verdict: >
+  The two changed queries are CORRECT. (a) Parameter indexing is unaffected — the
+  literal `t_invalid IS NULL` adds no param and composeFilters continues from $1 with
+  a leading ' AND '. (b) Count and page queries use the identical predicate. (c) The
+  change restores list()/getAll() parity with search()/recall() live-only semantics
+  and fixes a real auditability bug (soft-deleted rows were leaking into the scopes
+  endpoint / OpenMemory list_memories / dashboard with a false tInvalid:null). The
+  OpenAI 1536-dim migration is within pgvector's 2000-dim HNSW limit and the
+  destructive dim-change path is dim-agnostic with an in-transaction atttypmod canary.
+  In-memory store correctly needs NO change (it hard-deletes). No SQL injection. One
+  LOW perf note (unscoped list() would seq-scan, but production list() is always scoped
+  and partial-index-covered) and two INFO corroborations. No BLOCKER, no HIGH, no
+  MEDIUM.

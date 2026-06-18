@@ -1,0 +1,182 @@
+agent: review-post-v050-hardening-cross-validation
+review_target: 245fb75..HEAD (post-v0.5.0 hardening — NO formal plan; validated against commit-stated intent + CHANGELOG [Unreleased])
+plan: NONE (hardening found during pre-prod validation; commits are self-describing)
+
+# Cross-validation note: the generated agent definition references the
+# openmemory-mcp-compat plan. That plan corresponds to the v0.5.0 release
+# (commits at/below 245fb75), NOT to this hardening range. Per the task brief,
+# this review validates the 5 post-release hardening commits against their
+# stated intent + the CHANGELOG, not against a frozen plan. Steps E/F/G of the
+# template (Coverage Matrix / ADR compliance / plan drift) are N/A — there is
+# no plan to diverge from. Adapted accordingly.
+
+commits_in_range:
+  - sha: bf6046f
+    msg: "chore(release): record v0.5.0 release"
+    note: release-record commit (the tag base); not part of the hardening work
+  - sha: a17edb9
+    msg: "docs(governance): mark Roadmap Item 26 SHIPPED v0.5.0"
+    note: CLAUDE.md governance only
+  - sha: d0382fd
+    msg: "fix(build,docker): unblock clean-checkout build + production image"
+  - sha: be6c0cd
+    msg: "feat(embedder)+fix(list): THEOMEM_EMBEDDER=openai + list excludes soft-deleted"
+  - sha: d9a1d51
+    msg: "docs(readme): document THEOMEM_EMBEDDER"
+  - sha: e6703c1
+    msg: "chore(dogfood): degradation log from pre-prod validation smoke runs"
+
+intent_vs_diff_summary:
+  changes_claimed: 6           # 4 CHANGELOG Fixed/Added topics + readme + dogfood
+  changes_verified_in_diff: 6
+  claimed_but_absent: 0
+  scope_creep_undeclared: 0
+
+changelog_accuracy_summary:
+  unreleased_entries: 5        # 1 Added (embedder) + 4 Fixed (list, build-order, docker-build, docker-embedder)
+  entries_matching_diff: 5
+  overclaims_detected: 0
+  missing_entries: 0
+
+honesty_summary:
+  xenova_falsely_claimed_removed: false   # "### Removed" is empty; @xenova still a declared dep (package.json:46, packages/core/package.json:82)
+  lean_image_overclaim: false             # CHANGELOG correctly states the image now INCLUDES onnxruntime (heavier, not leaner) — honest
+  embedder_default_regression: false      # default stays 'local'; tested explicitly
+
+verifications:
+  - id: V1
+    claim: ".dockerignore un-excludes pnpm-lock.yaml + scripts/"
+    verdict: CONFIRMED
+    evidence: |
+      git show d0382fd -- .dockerignore: removed "pnpm-lock.yaml" from the
+      exclude list; "scripts/" exclusion replaced with a NOTE explaining it is
+      kept (postbuild:rewrite-aliases needs it). Both un-excluded as claimed.
+  - id: V2
+    claim: "Dockerfile copies all workspace packages (not just packages/cli)"
+    verdict: CONFIRMED
+    evidence: |
+      git show d0382fd -- Dockerfile: builder stage now `COPY packages/ ./packages/`
+      + `COPY scripts/ ./scripts/` + tsconfigs BEFORE `pnpm install`. The old
+      `COPY packages/cli/ ./packages/cli/` line is gone. INCLUDE_OPTIONAL ARG
+      default flipped false→true; TRANSFORMERS_CACHE=/tmp/.transformers-cache ENV added.
+  - id: V3
+    claim: "package.json build runs build:core before the main tsc"
+    verdict: CONFIRMED
+    evidence: |
+      git show d0382fd -- package.json: build script reordered to
+      `prebuild:clean && build:core && tsc -p tsconfig.build.json && ...`.
+      Previously build:core ran LAST. Matches CHANGELOG clean-checkout claim.
+  - id: V4
+    claim: "Embedder default stays 'local' (back-compat)"
+    verdict: CONFIRMED
+    evidence: |
+      resolveEmbedderKind() (packages/agent-core/src/agent-tools-memory.ts):
+      unset / '' / 'local' → 'local'. Unit tests in agent-tools-memory.test.ts:
+      "defaults to local when unset (back-compat)", "treats empty string as local",
+      "fails loud on an unknown value". buildEmbedder() imports ONLY the selected
+      backend (openai path never pulls @xenova) — matches the CHANGELOG no-@xenova
+      runtime claim for the openai path.
+  - id: V5
+    claim: "No disclosure-string regression for the default path"
+    verdict: CONFIRMED
+    evidence: |
+      run-server.ts / run-mcp-server.ts build embedderLabel conditionally; the
+      'real providers wired' prefix is retained. Existing assertions use the
+      regex /real providers wired/i (run-mcp-server.test.ts:119/159/175,
+      run-server.test.ts:209) — NOT the exact old "LocalTransformerEmbedder..."
+      literal — so they stay green. The only file matching the literal label
+      (tests/integration/adapters-or-local-e2e-smoke.test.ts) uses it in a
+      comment + a direct `new LocalTransformerEmbedder()` construction, not as a
+      disclosure-string assertion. No regression.
+  - id: V6
+    claim: "PgvectorStore.list() excludes soft-deleted rows (t_invalid IS NULL)"
+    verdict: CONFIRMED
+    evidence: |
+      git show be6c0cd -- pgvector-store.ts: both countSql and the page SELECT
+      changed `WHERE 1=1` → `WHERE t_invalid IS NULL`. Matches the CHANGELOG
+      Fixed entry; regression tests added (pgvector-store-list-temporal.test.ts +
+      openmemory mcp-compat list-after-delete).
+  - id: V7
+    claim: "README THEOMEM_EMBEDDER doc matches code behavior"
+    verdict: CONFIRMED
+    evidence: |
+      git show d9a1d51 -- README.md: documents local (default, 384, downloads
+      model) vs openai (1536, requires OPENAI_API_KEY, no on-device model / no HF
+      download), and that the migration dim follows the selection — all of which
+      match resolveEmbedderKind/embeddingDimForKind/buildEmbedder. Accurate.
+
+findings:
+  - id: F-xval-1
+    severity: LOW
+    file: .claude/agents/review-post-v050-hardening-2026-06-18/cross-validation.md
+    plan_ref: "agent definition Pre-read steps 1-3 + Output path"
+    summary: >-
+      The generated cross-validation agent definition points at the
+      openmemory-mcp-compat plan + implementation/progress artifacts, but this
+      review range is post-release hardening with NO plan. The agent template's
+      plan-centric steps (E Coverage Matrix, F ADR compliance, G plan drift) are
+      not applicable. The Output section also says `.yml` while the dispatch
+      brief asks for `.yaml`.
+    evidence: |
+      cross-validation.md line 16: plan: openmemory-mcp-compat-plan.md (that plan
+      maps to commits <= 245fb75, the v0.5.0 base — outside this range).
+      No .claude/knowledge-base/plans/post-v050-hardening-plan.md exists.
+    recommended_action: >-
+      Informational only — does not affect the code. For future hardening
+      reviews with no plan, generate a plan-less reviewer variant. Findings
+      written to cross-validation.yaml per the dispatch brief.
+  - id: F-xval-2
+    severity: INFO
+    file: CHANGELOG.md
+    plan_ref: "Honesty check (brief item 5)"
+    summary: >-
+      Honesty verified positively: the Docker embedder fix makes the image
+      heavier (ships onnxruntime-node), and the CHANGELOG says exactly that — no
+      "lean image" overclaim, and @xenova is NOT falsely claimed removed (the
+      Removed section is empty; the dep is still declared). The "no @xenova at
+      runtime" claim is correctly scoped to the openai code path only, which the
+      lazy-import in buildEmbedder() actually delivers.
+    evidence: |
+      package.json:46 + packages/core/package.json:82 still declare
+      "@xenova/transformers": "^2.17.2". CHANGELOG Fixed entry: "INCLUDE_OPTIONAL
+      now defaults to true so onnxruntime-node ... ships in the runtime image."
+    recommended_action: None — this is a positive honesty confirmation.
+
+dod_checks:
+  build_order_in_diff: PASS
+  dockerfile_copies_all_packages: PASS
+  embedder_default_local: PASS
+  embedder_unknown_fails_loud: PASS
+  list_soft_delete_filter: PASS
+  readme_matches_code: PASS
+  changelog_no_overclaim: PASS
+  note: >-
+    Full test-suite re-run (npm test) NOT executed in this read-only review;
+    commit be6c0cd claims "contract 977 + integration 542/0-fail; typecheck +
+    lint clean" and adds the named regression tests, which are present in the
+    diff. A runtime confirmation belongs to the tests reviewer.
+
+coverage_summary:
+  commits_reviewed: 6
+  code_commits_validated: 2          # d0382fd, be6c0cd
+  doc_governance_commits_validated: 3 # a17edb9, d9a1d51, e6703c1
+  release_record_commit: 1            # bf6046f (out of scope, noted)
+  changelog_unreleased_entries_cross_checked: 5
+  brief_items_covered: "1-6 (all)"
+  blockers: 0
+  highs: 0
+  mediums: 0
+  lows: 1
+  infos: 1
+  verdict: READY_TO_MERGE
+  verdict_rationale: >-
+    Every CHANGELOG [Unreleased] entry maps 1:1 to a verified diff; commit
+    messages match the actual changes with zero claimed-but-absent edits and zero
+    undeclared scope creep. Build/docker fixes are real (.dockerignore, Dockerfile
+    copy-all + INCLUDE_OPTIONAL=true, package.json build:core-first). Embedder
+    default stays local with explicit back-compat + fail-loud tests and no
+    disclosure-string regression. The list soft-delete fix is present with
+    regressions. No honesty violation: the image is honestly heavier (onnxruntime
+    included), @xenova is not falsely claimed removed, and the no-@xenova claim is
+    correctly scoped to the openai path. Only a LOW (mismatched generated agent
+    definition) and an INFO (positive honesty confirmation).

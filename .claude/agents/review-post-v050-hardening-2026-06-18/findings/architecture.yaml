@@ -1,0 +1,130 @@
+agent: architecture
+review_target: 245fb75..HEAD for post-v0.5.0 hardening
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 207
+    summary: >-
+      Switching THEOMEM_EMBEDDER on a populated DB silently auto-triggers the
+      DESTRUCTIVE dim-change cascade on next boot — loud-logged but ungated.
+    evidence: |
+      // createAgentToolsMemory + both runners call unconditionally on startup:
+      await runMigrations(pool, { embeddingDim: embeddingDimForKind(resolveEmbedderKind()) });
+      // migrations-runner.ts::applyDimChange (currentDim 384 -> 1536):
+      //   "DESTRUCTIVE cascade: DELETE FROM memories ... DELETE FROM entities
+      //    + DROP/RECREATE HNSW indexes"  (console.error then runs it)
+      // It is idempotent (no-op when dim matches) but auto-runs the wipe when
+      // the operator flips local<->openai against existing data.
+    recommended_action: >-
+      The embedder selection is correct and dim-coupling is internally consistent
+      (resolve once, reuse for both migration + store). The residual risk is the
+      destructive auto-cascade on a live dim flip. Add a refusal/confirmation gate
+      (e.g. require THEMEMORY_ALLOW_DESTRUCTIVE_DIM_CHANGE=true to proceed when
+      currentDim != targetDim AND row count > 0), or at minimum surface this in
+      the README embedder-switch docs. Loud stderr alone is insufficient for a
+      one-way data-loss path on a routine env-var change.
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 73
+    summary: >-
+      resolveEmbedderKind + embeddingDimForKind + buildEmbedder: clean fail-loud
+      composition-root placement; SOLID/DIP respected.
+    evidence: |
+      export function resolveEmbedderKind(): EmbedderKind {
+        const k = process.env['THEOMEM_EMBEDDER'];
+        if (k === undefined || k === '' || k === 'local') return 'local';
+        if (k === 'openai') return 'openai';
+        throw new Error(`Unknown THEOMEM_EMBEDDER='${k}' (expected 'local' or 'openai').`);
+      }
+      // buildEmbedder lazy-imports ONLY the chosen backend (verified: embedders/openai.ts
+      // imports `openai` only; embedders/local.ts imports @xenova/transformers).
+    recommended_action: >-
+      No change. The selection lives at the agent-core composition layer (correct —
+      not in core/), reads the public @usetheo/memory subpaths (DIP boundary intact),
+      and fails loud on unknown values with no silent fallback (Inquebrável Rule 8).
+      buildEmbedder keeps the openai path free of @xenova as required.
+
+  - id: F-arch-3
+    severity: LOW
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 175
+    summary: >-
+      OCP: a 3rd embedder requires editing 3 sites (EmbedderKind union, resolve
+      branches, buildEmbedder, embeddingDimForKind) — acceptable for 2 backends,
+      but the switch is closed-by-edit not open-by-extension.
+    evidence: |
+      export type EmbedderKind = 'local' | 'openai';
+      async function buildEmbedder(kind: EmbedderKind): Promise<Embedder> {
+        if (kind === 'openai') { ... return new OpenAIEmbedder(); }
+        ... return new LocalTransformerEmbedder();
+      }
+    recommended_action: >-
+      No change now (YAGNI — 2 backends, no 3rd in scope; a registry/map would be
+      premature abstraction). If/when item 24 "Embedder registry + more providers"
+      unfreezes, replace the if-chain with a Record<EmbedderKind, {dim, build}>
+      table so adding a provider is one entry. Note for the future plan only.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/cli/src/run-server.ts
+    line: 119
+    summary: >-
+      DRY: dim resolution NOT duplicated as knowledge — both runners call the
+      shared resolveEmbedderKind/embeddingDimForKind helpers (single source of truth).
+    evidence: |
+      // run-server.ts:119  and  run-mcp-server.ts:226 — identical shape:
+      const embedderKind = resolveEmbedderKind();
+      const embedderDim = embeddingDimForKind(embedderKind);
+      await runMigrations(pool, { embeddingDim: embedderDim });
+      // The 2-line call sequence repeats, but the DIM KNOWLEDGE (384/1536, default,
+      // throw) lives once in agent-tools-memory.ts. createAgentToolsMemory reuses
+      // the same helpers. No DRY violation (repetition is invocation, not logic).
+    recommended_action: >-
+      No change. The repeated 2-line resolve+migrate sequence is acceptable
+      invocation duplication (KISS over a forced helper); the load-bearing
+      knowledge is centralized.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 648
+    summary: >-
+      list() soft-delete fix is correct and consistent with search()/keywordSearch:
+      base predicate t_invalid IS NULL on both count + page; filter.sql appends ' AND ...'.
+    evidence: |
+      const countSql = `SELECT COUNT(*)::int AS total FROM memories WHERE t_invalid IS NULL${filter.sql}`;
+      ...
+      WHERE t_invalid IS NULL${filter.sql}
+      // composeFilters returns { sql: ` AND ${parts.join(' AND ')}` } -> valid SQL.
+      // Matches search() (composeTemporalWhere default t_invalid IS NULL) — list()
+      // was the only live-read path missing the predicate. getAll projection
+      // hardcodes tInvalid:null, so live-only is the correct contract.
+    recommended_action: >-
+      No change. Correct fix; closes a real correctness gap (forgotten memories
+      leaking into scopes endpoint / OpenMemory list_memories / dashboard).
+      Verify a regression test pins both count and page (see
+      tests/integration/.../pgvector-store-list-temporal.test.ts in the diff).
+
+  - id: F-arch-6
+    severity: INFO
+    file: Dockerfile
+    line: 36
+    summary: >-
+      Dockerfile build-order + INCLUDE_OPTIONAL=true default + TRANSFORMERS_CACHE
+      are coherent with the lazy-embedder + default-local runtime; no arch defect.
+    evidence: |
+      ARG INCLUDE_OPTIONAL=true   # local embedder (@xenova) needs onnxruntime-node (optional dep)
+      ENV TRANSFORMERS_CACHE=/tmp/.transformers-cache  # distroless nonroot writable cache
+      # package.json build: build:core now runs FIRST so the main tsc resolves
+      # @usetheo/memory/* subpaths against core's freshly-built dist *.d.ts.
+    recommended_action: >-
+      No change. Build-order fix (build:core before main tsc) matches the
+      subpath-resolution dependency. INCLUDE_OPTIONAL=true is the safe default for
+      the default-local runtime; the comment correctly notes openai-only deploys can
+      flip it. One latent coupling: an openai-only image with INCLUDE_OPTIONAL=false
+      still ships local.ts in dist (lazy-import never fires) — fine, but the
+      F-arch-1 destructive-dim risk persists if such a deploy later flips to local.

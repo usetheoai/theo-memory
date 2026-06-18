@@ -1,0 +1,203 @@
+agent: review-post-v050-hardening-tests
+review_target: 245fb75..HEAD for plan post-v050-hardening
+plan: .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md
+note: >
+  The diff (single commit be6c0cd) ships two changes — (1) THEOMEM_EMBEDDER=openai
+  embedder selection in packages/agent-core, (2) list() excluding soft-deleted rows
+  in pgvector-store. Neither maps to a TDD task in the openmemory-mcp-compat plan;
+  this is post-v0.5.0 hardening work. Review judges the tests on their own merits
+  against rules/testing.md.
+
+test_pyramid:
+  unit_added: 6        # all in packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+  integration_added: 2 # 1 in pgvector-store-list-temporal.test.ts + 1 assertion-extension in mcp-compat goal test
+  e2e_added: 0
+  total: 8
+  pyramid_balance: HEALTHY  # unit-heavy; pgvector-touching code DOES have an integration test
+
+changed_test_files:
+  - packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+  - tests/integration/pgvector-store-list-temporal.test.ts
+  - tests/integration/openmemory/mcp-compat.test.ts
+
+edge_cases_from_plan:
+  covered: 4   # default/empty/openai-known/unknown-throws for resolver; soft-delete count+page for list
+  missing:
+    - "Integration boot with THEOMEM_EMBEDDER=openai end-to-end (real OpenAIEmbedder + dim-1536 migration) — no test boots the openai path against real pgvector; all openai coverage is mock-only"
+    - "Migration/embedder dim coupling at the createAgentToolsMemory + server entrypoints (runMigrations called with embeddingDimForKind) — asserted nowhere; a future divergence between migration dim and createLocalMemory dim would not be caught"
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 128
+    plan_ref: "post-v0.5.0 hardening — THEOMEM_EMBEDDER=openai option"
+    summary: >
+      No integration test boots the openai embedder path end-to-end. The entire
+      THEOMEM_EMBEDDER=openai surface is verified with vi.mock'd @usetheo/memory
+      and a stubbed OpenAIEmbedder (mock at line 52-56). wireMemoryFromPool only
+      ever proves it PASSES embeddingDim:1536 to a MOCK createLocalMemory — it
+      never proves OpenAIEmbedder actually constructs, embeds at 1536, or that a
+      1536-dim migration + pgvector round-trips. This is the same gap the agent
+      task flagged: "likely NOT — flag the gap honestly". Confirmed: no test
+      sets THEOMEM_EMBEDDER=openai against a real container.
+    evidence: |
+      grep -rln "THEOMEM_EMBEDDER" tests/ -> 0 matches (only packages/ src + unit test)
+      grep -rln "embedders/openai|OpenAIEmbedder" tests/ -> only p0-audit bundle/smoke
+        import tests + chat-with-memory-policy-factory (pre-existing; none boot the
+        agent-core openai wiring).
+      Unit mock: packages/agent-core/src/__tests__/agent-tools-memory.test.ts:52-56
+        vi.mock('@usetheo/memory/embedders/openai', () => ({ OpenAIEmbedder: class {} }))
+    recommended_action: >
+      Add a gated integration test (THEOMEM_PG_URI + OPENAI_API_KEY present) that
+      runs createAgentToolsMemory with THEOMEM_EMBEDDER=openai, asserts the schema
+      column is vector(1536), and round-trips one remember+recall. If a real OpenAI
+      call is undesirable in CI, at minimum boot wireMemoryFromPool with the REAL
+      (un-mocked) embedders/openai subpath to prove the dynamic import resolves and
+      OpenAIEmbedder constructs. Acceptable to defer with an explicit caveat, but
+      the openai path currently ships with zero non-mock coverage.
+
+  - id: F-tests-2
+    severity: MEDIUM
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 121
+    plan_ref: "post-v0.5.0 hardening — dim/migration coupling"
+    summary: >
+      The dim<->migration coupling is the actual production risk (mismatch =
+      pgvector dimension error at insert time) and it is NOT tested. The unit
+      test proves embeddingDimForKind returns 384/1536 and that wireMemoryFromPool
+      forwards it to createLocalMemory, but the parallel runMigrations(pool, {
+      embeddingDim }) call — which lives in createAgentToolsMemory:206 AND is
+      duplicated in run-server.ts:127 / run-mcp-server.ts:230 — is asserted in
+      none of the three sites. The coupling comment ("Migration dim MUST match the
+      selected embedder") is enforced only by convention, not by a test.
+    evidence: |
+      packages/agent-core/src/agent-tools-memory.ts:206
+        await runMigrations(pool, { embeddingDim: embeddingDimForKind(resolveEmbedderKind()) });
+      No test spies runMigrations to assert it receives 1536 under THEOMEM_EMBEDDER=openai.
+      createAgentToolsMemory tested in tests/integration/cli/verbs-cli-fixes.test.ts
+        + unit file, but neither asserts the migration dim.
+    recommended_action: >
+      Add a unit test that spies the mocked runMigrations and asserts it is called
+      with embeddingDim 1536 when THEOMEM_EMBEDDER=openai (mirror the existing
+      wireMemoryFromPool assertion at line 128-138 but on the runMigrations mock
+      inside createAgentToolsMemory). Cheap, deterministic, closes the highest-risk
+      gap. Separately, the same coupling is copy-pasted across 3 sites (DRY smell,
+      out of scope for tests but worth a wiring-reviewer note).
+
+  - id: F-tests-3
+    severity: LOW
+    file: tests/integration/pgvector-store-list-temporal.test.ts
+    line: 139
+    plan_ref: "post-v0.5.0 hardening — list() excludes soft-deleted"
+    summary: >
+      The soft-delete list regression is TRUE RED and well constructed: it inserts
+      BOTH a live row (t_invalid NULL) AND a soft-deleted row (t_invalid NOW()),
+      then asserts results.map(id) === [idLive] (page excludes deleted) AND
+      total === 1 (count excludes deleted). This correctly covers both the count
+      SQL and the page SQL — the two separate WHERE clauses the fix touched
+      (pgvector-store.ts:649 + :667). Verified true-RED: pre-fix both queries used
+      `WHERE 1=1` so the deleted row would appear → results would be length 2 and
+      total 2, failing both assertions. AAA structure is clean (Given/When/Then
+      comments). Minor: this is the ONLY positive observation; flagged LOW purely
+      to record the verification, no action required.
+    evidence: |
+      Fix (pgvector-store.ts): countSql WHERE 1=1 -> WHERE t_invalid IS NULL (line 649);
+        page SQL WHERE 1=1 -> WHERE t_invalid IS NULL (line 667).
+      Test asserts both axes:
+        expect(results.map((r) => r.id)).toEqual([idLive]);   // page
+        expect(total).toBe(1);                                 // count
+    recommended_action: >
+      None. Test is correct and TRUE RED on both the page and the count. Good
+      use of a live+deleted pair rather than a single deleted row.
+
+  - id: F-tests-4
+    severity: LOW
+    file: tests/integration/openmemory/mcp-compat.test.ts
+    line: 108
+    plan_ref: "post-v0.5.0 hardening — list_memories excludes deleted"
+    summary: >
+      The mcp-compat assertion correctly extends the existing goal test to prove
+      list_memories ALSO excludes a forgotten memory (parity with search_memory
+      which was already asserted at line 133). However, this assertion lives inside
+      a test named "add_memories -> search_memory round-trips, then delete_memories
+      removes it" — adding a third behavior (list_memories exclusion) overloads a
+      test whose name already contains two "then" clauses. Per testing.md
+      anti-pattern (no "and"/multi-behavior test names), the list-exclusion check
+      ideally belongs in its own test ("list_memories excludes a deleted memory").
+      As-is it is correct and TRUE RED (pre-fix list would return the deleted row),
+      just packed into an over-broad test.
+    evidence: |
+      Test name (line 108): 'add_memories → search_memory round-trips, then
+        delete_memories removes it' — already multi-behavior; the new
+        list_memories assertion (line 140) is a 3rd behavior under the same it().
+      testing.md § Anti-patterns: "Tests with `and` in the name ... split into two".
+    recommended_action: >
+      Optional: extract the list_memories-exclusion assertion into its own test
+      that adds → deletes → asserts list_memories is empty. Low priority — the
+      assertion itself is valid and the behavior is covered.
+
+  - id: F-tests-5
+    severity: LOW
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 90
+    plan_ref: "post-v0.5.0 hardening — resolver determinism"
+    summary: >
+      Resolver unit tests are deterministic and correctly cover the fail-loud path:
+      'fails loud on an unknown value' asserts resolveEmbedderKind() THROWS with a
+      /THEOMEM_EMBEDDER/ message under value 'cohere' (line 116-119), matching
+      Inquebrável Rule 8 (fail-fast, no silent fallback). The default/empty/openai
+      branches are each covered. env save/restore in beforeEach/afterEach (line
+      93-100) is correct and prevents cross-test leakage. The throw assertion uses
+      a regex on the env-var name rather than the full message — acceptable
+      (resilient to message wording) but does not assert the rejected value 'cohere'
+      is surfaced to the operator.
+    evidence: |
+      Line 116-119:
+        process.env[ENV] = 'cohere';
+        expect(() => resolveEmbedderKind()).toThrow(/THEOMEM_EMBEDDER/);
+      Impl throws: `Unknown THEOMEM_EMBEDDER='${k}' (expected 'local' or 'openai').`
+    recommended_action: >
+      Optional: tighten the assertion to .toThrow(/cohere/) OR
+      /expected 'local' or 'openai'/ so the test also guards that the offending
+      value + valid set are reported (error-message quality is part of the
+      fail-loud contract). Functionally fine as-is.
+
+  - id: F-tests-6
+    severity: LOW
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 128
+    plan_ref: "post-v0.5.0 hardening — wireMemoryFromPool openai assertion robustness"
+    summary: >
+      The 'wireMemoryFromPool with openai builds the OpenAI embedder at dim 1536'
+      test only asserts the embeddingDim arg forwarded to createLocalMemory. It
+      does NOT assert WHICH embedder was constructed — i.e. that the OpenAIEmbedder
+      (not LocalTransformerEmbedder) is the one passed. Because both embedder
+      subpaths are mocked, a regression where buildEmbedder picked the wrong branch
+      but still forwarded dim 1536 would pass. The test name promises "builds the
+      OpenAI embedder" but the assertion only checks the dimension.
+    evidence: |
+      Line 135-137: only asserts memArgs?.embeddingDim === 1536. No assertion on
+        memArgs.embedder being an instanceof the mocked OpenAIEmbedder, nor that
+        the embedders/openai mock constructor was invoked while embedders/local
+        was not.
+    recommended_action: >
+      Add an assertion that the openai embedder mock was constructed (e.g. spy the
+      mocked OpenAIEmbedder constructor) OR that memArgs.embedder is the openai
+      instance, so the test name's "builds the OpenAI embedder" claim is actually
+      verified, not just the dimension side-effect.
+
+summary:
+  blocker: 0
+  high: 0
+  medium: 2
+  low: 4
+  verdict_input: >
+    No BLOCKER/HIGH. Two MEDIUM gaps are the honest weak spots: (F-tests-1) the
+    openai embedder path has ZERO non-mock coverage — nothing boots
+    THEOMEM_EMBEDDER=openai end-to-end; (F-tests-2) the dim<->migration coupling
+    (the real prod-failure risk) is asserted at none of its 3 sites. The
+    soft-delete list regression (F-tests-3/4) is correctly TRUE RED on BOTH page
+    and count. Resolver tests are deterministic and cover the fail-loud unknown
+    path. No skipped/.only tests; no flaky/time-dependent constructs; env
+    save/restore is clean.

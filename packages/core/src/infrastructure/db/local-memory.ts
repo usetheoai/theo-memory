@@ -240,7 +240,11 @@ export class LocalMemory implements Memory {
   async reset(scope: Scope): Promise<void> {
     assertScopeIsNonEmpty(scope);
     const filters = filtersFromScope(scope);
-    const [results] = await this.config.vectorStore.list(filters, 10_000);
+    // includeSoftDeleted=true: an administrative scope wipe must physically
+    // remove EVERY row in scope, including already-forgotten (soft-deleted)
+    // tombstones — otherwise GDPR erasure would leave them behind (the default
+    // live-only list() excludes them).
+    const [results] = await this.config.vectorStore.list(filters, 10_000, true);
     for (const r of results) {
       await this.config.vectorStore.delete(r.id);
     }
