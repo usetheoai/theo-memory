@@ -91,6 +91,28 @@ Only the project owner signs off the P0 closure. After closure, Phase IV items u
 
 This directive does NOT change the README Status (`Pre-release`), the locked names, the voice & tone, or the 3 root overrides. It does NOT delete any Roadmap item from history. It SCOPES forward work to hardening only. Per Inquebrável Rule 3 (extreme honesty), any future commit that introduces a new feature outside this scope must be reverted OR re-classified as in-scope with explicit rationale.
 
+### Amendment 2026-06-17 — Multi-tenant workspace isolation RE-CLASSIFIED as in-scope (project-owner sign-off)
+
+**Project-owner directive (2026-06-17):** the **multi-tenant-flat workspace isolation** model — a `workspaces` tenant boundary resolved from the API-key credential (`AuthVerifier` evolves from `verify(token): boolean` to resolving a `Principal { workspaceId }`), with every query scoped by the Principal's workspace — is hereby **re-classified as IN-SCOPE under PRIORITY 0**, on the explicit rationale that it is **CORE to the system** (the foundation the v0.5 TheoCloud managed runtime, Roadmap Item 7, is built on; the `theo_api_keys.tenant_id='self'` + `subject` columns from Item 20 were already planted as its forward-compat seam).
+
+This is a deliberate scope expansion of P0, signed off by the project owner per the closure-authority rule above. It carries **strategic** weight (it interacts with the locked names "memory tiers" and "two runtimes") and ships a **PUBLIC API BREAKING** change to `AuthVerifier`. Honest disclosure (Rule 3):
+
+- **Slug:** `multi-tenant-workspace-isolation`. Tracked as a new Roadmap row (folds into / unblocks Item 7).
+- **Locked-names interaction:** the three memory tiers (`User` / `Session` / `Agent`) are NOT replaced — they remain as within-workspace organizational partitions. `workspace_id` is added as the OUTER tenant anchor, resolved from the credential. The two-runtime contract is unchanged (local OSS gains workspace isolation; cloud is its managed form).
+- **Breaking change:** `AuthVerifier.verify` → Principal resolution is a pre-release breaking change (acceptable while Status is `Pre-release`); the legacy `THEMEMORY_API_KEY` env credential bridges to a `default` workspace so existing single-tenant deployments keep working (non-destructive migration: add nullable → backfill `default` → NOT NULL → compat bridge → enforce).
+- **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this slug is re-classified.
+
+### Amendment 2026-06-17 (II) — Multi-tenant RBAC (members + roles) RE-CLASSIFIED as in-scope (project-owner sign-off)
+
+**Project-owner directive (2026-06-17):** the **RBAC membership layer** — `users` + `workspace_users` (M:N with an `owner|admin|member` role), `Principal` widened to `{ workspaceId, userId, role, scopes }`, `requireRole(min)` gating the management routes, `/v1/members` CRUD, the **last-owner invariant** (atomic `FOR UPDATE` tx → 409), the **anti-escalation guard** on key mint, and **fail-closed 503** on auth-backend failure — is hereby **re-classified as IN-SCOPE under PRIORITY 0**, on the explicit rationale that it is the **membership layer the workspace amendment (above) and the v0.5 TheoCloud managed runtime (Item 7) depend on** to delegate per-workspace administration. Replicates the `../theo-rag` sibling reference (same TS+Hono+drizzle+pg+zod stack).
+
+Honest disclosure (Rule 3):
+
+- **Slug:** `multi-tenant-rbac-and-slice1-completion`. Also completes the deferred secondary-store isolation of the first slug (recall-cache / skill / eviction `workspace_id` threading → Slice 1 100%).
+- **Breaking change:** `Principal` widened from `{ workspaceId, scopes }` to `{ workspaceId, userId, role, scopes }` (pre-release; acceptable). The env/no-credential bridge resolves to the seeded `default-owner` with role `owner`; a key with no membership row resolves default-deny to `member`.
+- **Non-destructive migration** `0017_workspace_members.sql`: idempotent seed (`default-owner` + its `default`-workspace owner membership) + backfill of legacy keys, so single-tenant deployments keep working.
+- **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this slug is re-classified.
+
 ---
 
 ## What this project is

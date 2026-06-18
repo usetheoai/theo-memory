@@ -10,11 +10,27 @@
  *
  * @see Plan theo-memory-standalone-p0-fixes-cycle-1 § T1.2 + ADR D2
  */
+import type { Memory, Principal } from '@usetheo/memory/contract';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import type { z } from 'zod';
 
 export const EMPTY_BODY = Symbol('empty-body');
 export const MALFORMED_BODY = Symbol('malformed-body');
+
+/**
+ * multi-tenant-workspace-isolation T3.1 (ADR D3): bind `memory` to the
+ * authenticated Principal's workspace (injected by the auth middleware via
+ * `c.set('principal')`). When no Principal is present (auth middleware not
+ * mounted — e.g. a bare test harness) OR the impl predates `withWorkspace`,
+ * falls back to the `default` workspace. The workspace ALWAYS comes from the
+ * credential here, never from the request body.
+ */
+export function workspaceBoundMemory(c: Context, memory: Memory): Memory {
+  const principal = c.get('principal') as Principal | undefined;
+  const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  return memory.withWorkspace !== undefined ? memory.withWorkspace(workspaceId) : memory;
+}
 
 export async function safeJson(c: Context): Promise<unknown> {
   const raw = await c.req.text();

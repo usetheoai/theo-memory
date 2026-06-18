@@ -10,6 +10,7 @@
  */
 import { describe, test, expectTypeOf } from 'vitest';
 
+import type { Principal } from '../principal.js';
 import type { AuthVerifier } from './auth-verifier.js';
 
 describe('AuthVerifier (12th DIP) — type-level shape', () => {
@@ -19,11 +20,20 @@ describe('AuthVerifier (12th DIP) — type-level shape', () => {
     expectTypeOf<AuthVerifier['verify']>().returns.toEqualTypeOf<Promise<boolean>>();
   });
 
-  test('single-method interface (ISP discipline per architecture.md § 13.4)', () => {
-    // ISP: AuthVerifier exposes ONLY verify; no methods consumers do not call.
-    // Compile-time check via Pick narrowing — fails to type if the interface
-    // accidentally grows additional methods.
+  test('exposes optional resolvePrincipal(token): Promise<Principal | null> (ADR D2)', () => {
+    // multi-tenant-workspace-isolation ADR D2 (additive-then-breaking): the
+    // verifier evolves from a boolean check to resolving a Principal. During
+    // the Phase 0→2 migration window resolvePrincipal is OPTIONAL so the 3
+    // existing impls keep compiling; Phase 4 promotes it to required and
+    // removes verify.
+    expectTypeOf<AuthVerifier>().toHaveProperty('resolvePrincipal');
+    expectTypeOf<NonNullable<AuthVerifier['resolvePrincipal']>>().returns.toEqualTypeOf<
+      Promise<Principal | null>
+    >();
+  });
+
+  test('interface exposes exactly { verify, resolvePrincipal } (ISP discipline per architecture.md § 13.4)', () => {
     type Method = keyof AuthVerifier;
-    expectTypeOf<Method>().toEqualTypeOf<'verify'>();
+    expectTypeOf<Method>().toEqualTypeOf<'verify' | 'resolvePrincipal'>();
   });
 });

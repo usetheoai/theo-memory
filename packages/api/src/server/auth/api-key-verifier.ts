@@ -23,7 +23,7 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { AuthVerifier, Principal, WorkspaceRole } from '@usetheo/memory/contract';
 
 /**
  * Minimal Pool surface — DIP-clean. Production wires `pg.Pool` (which
@@ -54,6 +54,29 @@ SELECT id FROM theo_api_keys
    AND revoked_at IS NULL
    AND (expires_at IS NULL OR expires_at > NOW())
    AND tenant_id = 'self'
+ LIMIT 1`;
+
+/**
+ * multi-tenant-workspace-isolation T2.1: resolve the credential's workspace +
+ * scopes. The WHERE predicate is VERBATIM the active-key predicate above
+ * (revoked_at IS NULL AND expires_at NULL-or-future) so a revoked / expired key
+ * resolves to no row → null Principal → 401 (EC-2). Only the SELECT list grows.
+ */
+// multi-tenant-rbac-and-slice1-completion T1.1: LEFT JOIN workspace_users to
+// resolve the member's role. The WHERE predicate is VERBATIM the active-key
+// predicate (revoked_at IS NULL AND expires_at NULL-or-future) so a revoked /
+// expired key resolves to no row → null Principal → 401 (EC-2). A key whose
+// user has NO membership row yields role = NULL → defaulted to 'member'
+// (default-deny) in the handler. Only the SELECT list + JOIN grow.
+const SELECT_PRINCIPAL_BY_HASH_SQL = `\
+SELECT k.workspace_id, k.user_id, k.scopes, m.role
+ FROM theo_api_keys k
+ LEFT JOIN workspace_users m
+   ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
+ WHERE k.key_hash = $1
+   AND k.revoked_at IS NULL
+   AND (k.expires_at IS NULL OR k.expires_at > NOW())
+   AND k.tenant_id = 'self'
  LIMIT 1`;
 
 /** UPDATE fire-and-forget for last_used_at observability. */
@@ -91,5 +114,46 @@ export class ApiKeyAuthVerifier implements AuthVerifier {
     });
 
     return true;
+  }
+
+  /**
+   * multi-tenant-workspace-isolation T2.1 (ADR D2): resolve "whose key?" —
+   * the credential's `workspaceId` + granted `scopes` — or `null` when the key
+   * is unknown / revoked / expired (EC-2). The boolean {@link verify} above is
+   * retained for the migration window; this is the canonical path.
+   */
+  async resolvePrincipal(token: string): Promise<Principal | null> {
+    if (token.length <= PREFIX.length) return null;
+    if (!token.startsWith(PREFIX)) return null;
+
+    const hash = createHash('sha256').update(token).digest('hex');
+
+    const { rows } = await this.#pool.query<{
+      workspace_id: string;
+      user_id: string | null;
+      scopes: unknown;
+      role: string | null;
+    }>(SELECT_PRINCIPAL_BY_HASH_SQL, [hash]);
+    const row = rows[0];
+    if (row === undefined) return null;
+
+    // scopes is a jsonb array; pg may surface it as a parsed array OR a string.
+    let scopes: readonly string[] = [];
+    const raw: unknown = typeof row.scopes === 'string' ? JSON.parse(row.scopes) : row.scopes;
+    if (Array.isArray(raw)) scopes = raw.filter((s): s is string => typeof s === 'string');
+
+    // Default-deny: a key with no membership row resolves to the least-privileged
+    // role. Only the three enum values are trusted; anything else collapses to
+    // 'member' (defense-in-depth against a malformed row).
+    const role: WorkspaceRole =
+      row.role === 'owner' || row.role === 'admin' || row.role === 'member' ? row.role : 'member';
+
+    void this.#pool.query(UPDATE_LAST_USED_SQL, [hash]).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.warn(`[themory] last_used_at update failed: ${msg}`);
+    });
+
+    return { workspaceId: row.workspace_id, userId: row.user_id, role, scopes };
   }
 }

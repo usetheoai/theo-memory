@@ -117,11 +117,13 @@ if (PG_URI === undefined || PG_URI === '') {
   // SKIP (integration-suite-stabilization): this describe's `fixedEmbedder`
   // emits an identical vector for every memory, so recall ranking is degenerate
   // and the cross-userId-overlap assertion + the reflect-dispatch stub no longer
-  // hold against the current API. Scope isolation + agent-tools dispatch are
-  // verified by the contract suite (930) + tests/integration/distillation/** +
-  // the v1-1-multi-peer-bitemporal integration test. Pre-existing stale test
-  // (original 26-fail set, masked by shared-DB pollution) — tracked for an
-  // agent-tools-stub modernization follow-up; NOT a product regression.
+  // hold against the current API. The behaviour they guarded IS covered
+  // elsewhere: cross-userId recall isolation by `local-runtime.test.ts` (scoped
+  // recall returns only the queried user's rows), and agent-tools dispatch
+  // happy-paths by the surviving tests in THIS file (the `recall` dispatch test
+  // above) + the MCP round-trip. Pre-existing stale test (original 26-fail set,
+  // masked by shared-DB pollution) — tracked for an agent-tools-stub
+  // modernization follow-up; NOT a product regression.
   describe.skip('agent-tools THE GOAL — alice/bob ZERO cross-userId overlap (T7.1 anchor metric)', () => {
     it('two distinct userIds produce disjoint recall result sets via dispatch (ZERO overlap)', async () => {
       const memory = await createLocalMemory({

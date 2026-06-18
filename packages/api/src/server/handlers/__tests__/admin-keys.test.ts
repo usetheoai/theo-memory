@@ -146,16 +146,21 @@ describe('createKeyHandler — POST /v1/admin/keys', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'x', scopes: ['memory:read', 'memory:read', 'memory:write'] }),
     });
-    // INSERT param 7 (0-indexed 6) is the scopes JSON — assert deduped.
+    // INSERT scopes JSON param. Column list (RBAC slice):
+    // (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
+    // → scopes is at 0-indexed param 8 (workspace_id added ahead of user_id).
     const insertSql = queries.find((q) => /INSERT INTO theo_api_keys/i.test(q.sql));
     expect(insertSql).toBeDefined();
-    const scopesParam = insertSql!.params[6];
+    const scopesParam = insertSql!.params[8];
     expect(JSON.parse(scopesParam as string)).toEqual(['memory:read', 'memory:write']);
   });
 
   test('7. EC-6 — id collision (UNIQUE violation) propagates as 500 INTERNAL', async () => {
     const uniqueErr = new Error('duplicate key value violates unique constraint');
-    const { pool } = makePool([{ throws: uniqueErr }]);
+    // RBAC slice: the mint now resolves the caller (query 0, returns no row →
+    // default-deny member/'default' workspace) BEFORE the INSERT (query 1) which
+    // throws the unique violation.
+    const { pool } = makePool([{ rows: [] }, { throws: uniqueErr }]);
     const app = buildApp(pool);
     const res = await app.request('/v1/admin/keys', {
       method: 'POST',

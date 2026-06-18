@@ -75,7 +75,7 @@ describe.skipIf(ROOT_PG_URI === '')(
         await store.set(vec(i + 1), ALICE, SAMPLE, 600);
       }
       const { rows } = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(rows[0]?.count).toBe(String(SMALL_CAP));
     });
@@ -88,7 +88,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       }
       // The "oldest" row is the first one inserted; capture its id.
       const oldest = await pool.query<{ id: number }>(
-        `SELECT id FROM recall_cache WHERE scope_key = 'user:alice' ORDER BY created_at ASC LIMIT 1`,
+        `SELECT id FROM recall_cache WHERE scope_key = 'ws:default|user:alice' ORDER BY created_at ASC LIMIT 1`,
       );
       const oldestId = oldest.rows[0]?.id;
       // Push one more → eviction fires.
@@ -109,7 +109,7 @@ describe.skipIf(ROOT_PG_URI === '')(
         await store.set(vec(i + 100), ALICE, SAMPLE, 600);
       }
       const bobCount = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:bob'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:bob'`,
       );
       expect(bobCount.rows[0]?.count).toBe(String(SMALL_CAP));
     });
@@ -127,7 +127,7 @@ describe.skipIf(ROOT_PG_URI === '')(
         store.set(vec(202), ALICE, SAMPLE, 600),
       ]);
       const { rows } = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       // Final count must equal cap exactly — concurrent eviction did NOT under-evict
       // (final < cap means we deleted too many) NOR over-insert (final > cap means we missed an eviction).
