@@ -89,7 +89,9 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
     });
     const store = new PgvectorRecallCacheStore(pool as unknown as Pool, { threshold: 0.75 });
     await store.get([0.1, 0.2, 0.3], { kind: 'session', sessionId: 'run-42' });
-    expect(capturedParams).toEqual(['session:run-42', '[0.1,0.2,0.3]', 0.75]);
+    // T3.1 (Slice 1 100% / EC-8): the scope key is workspace-prefixed; an unbound
+    // get defaults to the `default` workspace, matching the column default.
+    expect(capturedParams).toEqual(['ws:default|session:run-42', '[0.1,0.2,0.3]', 0.75]);
   });
 
   it('T1.1-RED-8 (mock) — scope isolation: distinct scope_key per Scope.kind/id', async () => {
@@ -104,7 +106,29 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
     await store.get([1, 0, 0], { kind: 'session', sessionId: 'S1' });
     await store.get([1, 0, 0], { kind: 'agent', agentId: 'A1' });
     await store.get([1, 0, 0], { kind: 'repo', repoId: 'R1' });
-    expect(captured).toEqual(['user:alice', 'user:bob', 'session:S1', 'agent:A1', 'repo:R1']);
+    // T3.1: every key is workspace-prefixed (unbound → default workspace).
+    expect(captured).toEqual([
+      'ws:default|user:alice',
+      'ws:default|user:bob',
+      'ws:default|session:S1',
+      'ws:default|agent:A1',
+      'ws:default|repo:R1',
+    ]);
+  });
+
+  it('T3.1 (mock) — workspace isolation: same scope in two workspaces yields distinct cache keys (EC-8)', async () => {
+    const captured: string[] = [];
+    const pool = buildPool((_sql, params) => {
+      captured.push(String(params?.[0]));
+      return { rows: [] };
+    });
+    const store = new PgvectorRecallCacheStore(pool as unknown as Pool);
+    // Byte-identical query + scope, two different workspaces → two DISTINCT keys,
+    // so a ws-A cache row can never satisfy a ws-B lookup (no cross-workspace hit).
+    await store.get([1, 0, 0], ALICE, 'ws-a');
+    await store.get([1, 0, 0], ALICE, 'ws-b');
+    expect(captured).toEqual(['ws:ws-a|user:alice', 'ws:ws-b|user:alice']);
+    expect(captured[0]).not.toBe(captured[1]);
   });
 
   it('T1.1 (mock) — set() opens SERIALIZABLE transaction, COUNTs scope, INSERTs', async () => {
@@ -247,10 +271,18 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
 });
 
 describe('deriveScopeKey — pure function', () => {
-  it('builds `${kind}:${id}` for all 4 scope tiers', () => {
-    expect(deriveScopeKey({ kind: 'user', userId: 'u1' })).toBe('user:u1');
-    expect(deriveScopeKey({ kind: 'session', sessionId: 's1' })).toBe('session:s1');
-    expect(deriveScopeKey({ kind: 'agent', agentId: 'a1' })).toBe('agent:a1');
-    expect(deriveScopeKey({ kind: 'repo', repoId: 'r1' })).toBe('repo:r1');
+  it('builds `ws:${workspace}|${kind}:${id}` for all 4 scope tiers (default workspace)', () => {
+    expect(deriveScopeKey({ kind: 'user', userId: 'u1' })).toBe('ws:default|user:u1');
+    expect(deriveScopeKey({ kind: 'session', sessionId: 's1' })).toBe('ws:default|session:s1');
+    expect(deriveScopeKey({ kind: 'agent', agentId: 'a1' })).toBe('ws:default|agent:a1');
+    expect(deriveScopeKey({ kind: 'repo', repoId: 'r1' })).toBe('ws:default|repo:r1');
+  });
+
+  it('prefixes the workspace so the SAME scope in two workspaces yields DISTINCT keys (EC-8)', () => {
+    const a = deriveScopeKey({ kind: 'user', userId: 'u1' }, 'ws-a');
+    const b = deriveScopeKey({ kind: 'user', userId: 'u1' }, 'ws-b');
+    expect(a).toBe('ws:ws-a|user:u1');
+    expect(b).toBe('ws:ws-b|user:u1');
+    expect(a).not.toBe(b);
   });
 });

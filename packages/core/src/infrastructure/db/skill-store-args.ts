@@ -29,6 +29,12 @@ export interface InsertSkillArgs {
     readonly userId?: string | null;
     readonly sessionId?: string | null;
     readonly agentId?: string | null;
+    /**
+     * multi-tenant-rbac-and-slice1-completion T3.1 — the workspace the skill
+     * belongs to. Defaults to `'default'` at the store layer for unbound
+     * callers (ADR D7), matching the `workspace_id` column default.
+     */
+    readonly workspaceId?: string | null;
   };
 }
 

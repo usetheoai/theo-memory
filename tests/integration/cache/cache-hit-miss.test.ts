@@ -147,7 +147,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       const swept = await store.clearExpired();
       expect(swept).toBe(1);
       const remaining = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(remaining.rows[0]?.count).toBe('1');
     }, 10_000);

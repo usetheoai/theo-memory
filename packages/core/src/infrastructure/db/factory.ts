@@ -206,7 +206,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
     neighborProvider,
   });
 
-  let postRememberHook: ((scope: Scope) => Promise<void>) | undefined;
+  let postRememberHook: ((scope: Scope, workspaceId?: string) => Promise<void>) | undefined;
   let stopCron: (() => void) | undefined;
 
   if (config.eviction.trigger === 'capacity') {
@@ -215,8 +215,10 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
       policy,
       config.eviction.maxMemoriesPerScope,
     );
-    postRememberHook = async (scope: Scope): Promise<void> => {
-      await capacityTrigger.fire(scope, new Date());
+    // multi-tenant-rbac-and-slice1-completion T3.1: forward the binding's
+    // workspace so the capacity pass evicts only within the writing tenant.
+    postRememberHook = async (scope: Scope, workspaceId?: string): Promise<void> => {
+      await capacityTrigger.fire(scope, new Date(), workspaceId);
     };
   } else {
     const timeTrigger = new TimeBasedTrigger(pool, policy, {
