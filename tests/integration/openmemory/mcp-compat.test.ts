@@ -35,11 +35,15 @@ const emptyJsonLlm: LLM = {
     Promise.resolve({ content: '[]', role: 'assistant' }),
 };
 
+/** Raw text content an OpenMemory tool returns (used for `"Error: …"` results). */
+function parseToolTextRaw(result: { content?: unknown }): string {
+  const content = result.content as { type: string; text?: string }[] | undefined;
+  return content?.[0]?.text ?? '';
+}
+
 /** Parse the JSON-string text content an OpenMemory tool returns. */
 function parseToolText(result: { content?: unknown }): unknown {
-  const content = result.content as { type: string; text?: string }[] | undefined;
-  const text = content?.[0]?.text ?? '';
-  return JSON.parse(text);
+  return JSON.parse(parseToolTextRaw(result));
 }
 
 async function connectClient(baseUrl: string, clientName: string, userId: string): Promise<Client> {
@@ -152,6 +156,38 @@ if (PG_URI === undefined || PG_URI === '') {
           await b.callTool({ name: 'search_memory', arguments: { query: secret } }),
         ) as unknown[];
         expect(bFound).toHaveLength(0);
+      } finally {
+        await Promise.all([a.close(), b.close()]);
+      }
+    });
+
+    test('per-user isolation: user B cannot DELETE user A memory by id (IDOR guard)', async () => {
+      const userA = `alice-${randomUUID()}`;
+      const userB = `bob-${randomUUID()}`;
+      const [a, b] = await Promise.all([
+        connectClient(baseUrl, 'cursor', userA),
+        connectClient(baseUrl, 'claude', userB),
+      ]);
+      try {
+        const secret = 'alice private note that bob must not delete';
+        const added = parseToolText(
+          await a.callTool({ name: 'add_memories', arguments: { text: secret, infer: false } }),
+        ) as { ids: string[] };
+        const aliceId = added.ids[0];
+
+        // Bob attempts to delete Alice's memory by its id — must be refused.
+        const bobDelete = await b.callTool({
+          name: 'delete_memories',
+          arguments: { memory_ids: [aliceId] },
+        });
+        expect(bobDelete.isError).toBe(true);
+        expect(parseToolTextRaw(bobDelete)).toMatch(/No accessible memories/);
+
+        // Alice's memory survives Bob's attempt.
+        const aStillFound = parseToolText(
+          await a.callTool({ name: 'search_memory', arguments: { query: secret } }),
+        ) as unknown[];
+        expect(aStillFound.length).toBeGreaterThanOrEqual(1);
       } finally {
         await Promise.all([a.close(), b.close()]);
       }
