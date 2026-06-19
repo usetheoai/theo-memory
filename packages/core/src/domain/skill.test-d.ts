@@ -18,6 +18,7 @@ import type {
   ScopedSkillMemory,
   Skill,
   SkillDraft,
+  SkillListOptions,
   SkillRecallOptions,
   SkillWithScore,
   SourceCluster,
@@ -69,12 +70,16 @@ test('ConsolidationResult is the 4-phase orchestrator return shape (D4)', () => 
   expectTypeOf<ConsolidationResult['durationMs']>().toEqualTypeOf<number>();
 });
 
-test('ScopedSkillMemory exposes 4 verbs (add / recall / consolidate / forget) and NO reflect', () => {
+test('ScopedSkillMemory exposes add / recall / getAll / consolidate / forget and NO reflect', () => {
   expectTypeOf<ScopedSkillMemory['add']>().parameters.toEqualTypeOf<[SkillDraft]>();
   expectTypeOf<ScopedSkillMemory['add']>().returns.resolves.toEqualTypeOf<Skill>();
 
   expectTypeOf<ScopedSkillMemory['recall']>().parameters.toEqualTypeOf<[string, SkillRecallOptions?]>();
   expectTypeOf<ScopedSkillMemory['recall']>().returns.resolves.toEqualTypeOf<readonly SkillWithScore[]>();
+
+  // dashboard-phase2b-skills-browse T1.1 — read-only enumeration verb.
+  expectTypeOf<ScopedSkillMemory['getAll']>().parameters.toEqualTypeOf<[SkillListOptions?]>();
+  expectTypeOf<ScopedSkillMemory['getAll']>().returns.resolves.toEqualTypeOf<readonly Skill[]>();
 
   expectTypeOf<ScopedSkillMemory['consolidate']>().parameters.toEqualTypeOf<[ConsolidateOptions?]>();
   expectTypeOf<ScopedSkillMemory['consolidate']>().returns.resolves.toEqualTypeOf<ConsolidationResult>();
@@ -83,9 +88,9 @@ test('ScopedSkillMemory exposes 4 verbs (add / recall / consolidate / forget) an
   expectTypeOf<ScopedSkillMemory['forget']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('ScopedSkillMemory has exactly the 4 keys (D2 — no reflect; consolidate is the skill-specific verb)', () => {
+test('ScopedSkillMemory has exactly the 5 keys (D2 — no reflect; consolidate is the skill-specific verb; getAll is read-only listing)', () => {
   type Keys = keyof ScopedSkillMemory;
-  expectTypeOf<Keys>().toEqualTypeOf<'add' | 'recall' | 'consolidate' | 'forget'>();
+  expectTypeOf<Keys>().toEqualTypeOf<'add' | 'recall' | 'getAll' | 'consolidate' | 'forget'>();
 });
 
 test('Memory.skills(repoId: string) is the v0.6 factory returning ScopedSkillMemory', () => {
