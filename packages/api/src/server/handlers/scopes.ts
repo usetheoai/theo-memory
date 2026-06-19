@@ -167,8 +167,11 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     });
   }
   if (cursor !== null) {
+    // F-arch-1/F-xval-1 fix: compose the cursor predicate onto the ALREADY
+    // date-filtered set (`filtered`), NOT the raw `all`. Reading `all` here
+    // silently dropped the from/to filter on every paginated continuation.
     const cutoff = new Date(cursor.lastCreatedAt).getTime();
-    filtered = all.filter((m) => {
+    filtered = filtered.filter((m) => {
       const ts = m.createdAt.getTime();
       return ts < cutoff || (ts === cutoff && m.id < cursor.lastId);
     });
