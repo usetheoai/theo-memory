@@ -24,14 +24,30 @@
  * consistent with the memories endpoint (EC-6).
  */
 import type { Memory, Skill } from '@usetheo/memory/contract';
+import { InvalidSkillError, MemoryNotFound, SkillAlreadyExists } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import { workspaceBoundMemory } from './_body-parsing.js';
+import { EMPTY_BODY, MALFORMED_BODY, safeJson, workspaceBoundMemory } from './_body-parsing.js';
 
 /** Listing cap (DOS guard + consistent with the memories endpoint's max). */
 const MAX_TOP_K = 100;
 const DEFAULT_TOP_K = 100;
+
+/**
+ * skills-write-surface T2.1 — code payload byte cap (DOS guard, tighter than the
+ * 1 MiB remember body limit since a single skill should be modest). Oversize →
+ * 413. Adjustable (Unresolved Q1).
+ */
+const MAX_SKILL_CODE_BYTES = 64 * 1024;
+
+const PostSkillSchema = z
+  .object({
+    code: z.string().min(1),
+    description: z.string().min(1),
+    codeLanguage: z.enum(['typescript', 'javascript']),
+  })
+  .strict();
 
 const QuerySchema = z.object({
   includeSuperseded: z.coerce.boolean().optional(),
@@ -98,4 +114,82 @@ export async function skillsHandler(c: Context, memory: Memory): Promise<Respons
   const page = truncated ? fetched.slice(0, topK) : fetched;
 
   return c.json({ skills: page.map(toDto), truncated }, 200);
+}
+
+/**
+ * POST /v1/scopes/skill/:repoId/skills — create a skill (skills-write-surface T2.1).
+ * Body = SkillDraft {code, description, codeLanguage}. 201 on success; 409 on
+ * dedup-collision (D1); 422 on invalid body / language / empty fields; 413 on
+ * oversized code; 400 on empty repoId. Workspace-bound (EC-1 parity); store-only.
+ */
+export async function postSkillHandler(c: Context, memory: Memory): Promise<Response> {
+  const repoId = c.req.param('repoId');
+  if (repoId === undefined || repoId.length === 0) {
+    return c.json(
+      { code: 'INVALID_SCOPE', message: 'repoId path segment is required and must be non-empty.' },
+      400,
+    );
+  }
+
+  const json = await safeJson(c);
+  if (json === MALFORMED_BODY) {
+    return c.json({ code: 'BAD_REQUEST', message: 'Malformed JSON body' }, 400);
+  }
+  if (json === EMPTY_BODY) {
+    return c.json({ code: 'INVALID_BODY', message: 'Request body required' }, 422);
+  }
+  const parsed = PostSkillSchema.safeParse(json);
+  if (!parsed.success) {
+    return c.json(
+      { code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Invalid skill body' },
+      422,
+    );
+  }
+  // EC: code size cap (DOS guard) — 413 Payload Too Large.
+  if (Buffer.byteLength(parsed.data.code, 'utf8') > MAX_SKILL_CODE_BYTES) {
+    return c.json(
+      { code: 'PAYLOAD_TOO_LARGE', message: `code exceeds ${String(MAX_SKILL_CODE_BYTES)} bytes` },
+      413,
+    );
+  }
+
+  const scoped = workspaceBoundMemory(c, memory).skills(repoId);
+  try {
+    const skill = await scoped.add(parsed.data);
+    return c.json({ id: skill.id, hash: skill.hash }, 201);
+  } catch (err) {
+    if (err instanceof SkillAlreadyExists) {
+      return c.json({ code: 'SKILL_ALREADY_EXISTS', message: err.message }, 409);
+    }
+    if (err instanceof InvalidSkillError) {
+      return c.json({ code: 'INVALID_BODY', message: err.message }, 422);
+    }
+    throw err;
+  }
+}
+
+/**
+ * DELETE /v1/scopes/skill/:repoId/skills/:skillId — forget (curate) a skill
+ * (skills-write-surface T2.2, D4). 204 on success; 404 when the id is not a skill
+ * in this repo's scope (`MemoryNotFound`, scope-isolated). Workspace-bound.
+ */
+export async function deleteSkillHandler(c: Context, memory: Memory): Promise<Response> {
+  const repoId = c.req.param('repoId');
+  const skillId = c.req.param('skillId');
+  if (repoId === undefined || repoId.length === 0 || skillId === undefined || skillId.length === 0) {
+    return c.json(
+      { code: 'INVALID_SCOPE', message: 'repoId and skillId path segments are required.' },
+      400,
+    );
+  }
+  const scoped = workspaceBoundMemory(c, memory).skills(repoId);
+  try {
+    await scoped.forget(skillId);
+    return c.body(null, 204);
+  } catch (err) {
+    if (err instanceof MemoryNotFound) {
+      return c.json({ code: 'NOT_FOUND', message: err.message }, 404);
+    }
+    throw err;
+  }
 }

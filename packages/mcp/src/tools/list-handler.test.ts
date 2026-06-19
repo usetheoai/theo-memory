@@ -20,19 +20,27 @@ import { describe, expect, test } from 'vitest';
 import { buildToolsListResponse } from './list-handler.js';
 
 describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
-  test('returns exactly 4 tools (no pagination at v0.3 per ADR D2 listChanged:false)', () => {
+  test('returns exactly 6 tools (4 verbs + add_skill/forget_skill; no pagination per ADR D2 listChanged:false)', () => {
     const response = buildToolsListResponse();
-    expect(response.tools).toHaveLength(4);
-    // No nextCursor for 4 static tools (plan T2.2 Deep Dives)
+    // skills-write-surface T2.3 (D3): the static list grows from 4 to 6.
+    expect(response.tools).toHaveLength(6);
+    // No nextCursor for a static list (plan T2.2 Deep Dives; listChanged:false)
     expect(response).not.toHaveProperty('nextCursor');
   });
 
-  test('tool names match locked verbs in declaration order', () => {
-    // CLAUDE.md § Locked names: API verbs `remember/recall/forget/reflect`.
-    // Order matters per declaration (plan T2.2 § Deep Dives).
+  test('tool names match locked verbs in declaration order + skills write tools', () => {
+    // CLAUDE.md § Locked names: API verbs `remember/recall/forget/reflect`;
+    // skills-write-surface adds add_skill/forget_skill (D3).
     const response = buildToolsListResponse();
     const names = response.tools.map((t) => t.name);
-    expect(names).toEqual(['remember', 'recall', 'forget', 'reflect']);
+    expect(names).toEqual([
+      'remember',
+      'recall',
+      'forget',
+      'reflect',
+      'add_skill',
+      'forget_skill',
+    ]);
   });
 
   test("remember.inputSchema.required includes 'content' (F-zod-schema-fixture-test absorption)", () => {
