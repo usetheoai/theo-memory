@@ -88,12 +88,14 @@ export async function skillsHandler(c: Context, memory: Memory): Promise<Respons
 
   // EC-1 — resolve via the workspace-bound Memory (parity with memories/metrics).
   const scoped = workspaceBoundMemory(c, memory).skills(repoId);
-  const skills = await scoped.getAll(
-    includeSuperseded === true ? { includeSuperseded: true, topK } : { topK },
+  // EC-4 — over-fetch ONE past the cap so truncation disclosure is exact: a repo
+  // with EXACTLY `topK` skills must report `truncated:false` (not a false
+  // positive). We request topK+1, then truncate to topK for the response.
+  const fetched = await scoped.getAll(
+    includeSuperseded === true ? { includeSuperseded: true, topK: topK + 1 } : { topK: topK + 1 },
   );
+  const truncated = fetched.length > topK;
+  const page = truncated ? fetched.slice(0, topK) : fetched;
 
-  // EC-4 — honest truncation disclosure when the cap was hit.
-  const truncated = skills.length >= topK;
-
-  return c.json({ skills: skills.map(toDto), truncated }, 200);
+  return c.json({ skills: page.map(toDto), truncated }, 200);
 }
