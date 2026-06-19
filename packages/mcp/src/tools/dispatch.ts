@@ -14,7 +14,9 @@ import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.j
 import type { Memory } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '@usetheo/memory-agent-core';
 
+import { addSkillHandler, TOOL_NAME as ADD_SKILL } from './add-skill-handler.js';
 import { forgetHandler, TOOL_NAME as FORGET } from './forget-handler.js';
+import { forgetSkillHandler, TOOL_NAME as FORGET_SKILL } from './forget-skill-handler.js';
 import { recallHandler, TOOL_NAME as RECALL } from './recall-handler.js';
 import { reflectHandler, TOOL_NAME as REFLECT } from './reflect-handler.js';
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
@@ -26,6 +28,9 @@ const HANDLERS = new Map<string, HandlerFn>([
   [RECALL, recallHandler],
   [FORGET, forgetHandler],
   [REFLECT, reflectHandler],
+  // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
+  [ADD_SKILL, addSkillHandler],
+  [FORGET_SKILL, forgetSkillHandler],
 ]);
 
 /**

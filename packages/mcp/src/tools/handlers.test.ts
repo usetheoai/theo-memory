@@ -246,3 +246,60 @@ describe('dispatch — error paths (ADR D6)', () => {
     expect((result.content as { text: string }[])[0]?.text).toMatch(/Retry/i);
   });
 });
+
+describe('dispatch — skills write surface (skills-write-surface T2.3)', () => {
+  it('add_skill stores via memory.skills(repoId).add and reports the id', async () => {
+    const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn() };
+    skillScoped.add.mockResolvedValue({ id: 'sk-1', hash: 'h-1' });
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
+
+    const result = await dispatch(
+      'add_skill',
+      { repoId: 'acme', code: 'export const x=1;', description: 'a skill', codeLanguage: 'typescript' },
+      { memoryFactory: () => memory },
+    );
+
+    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
+    expect(skillScoped.add).toHaveBeenCalledWith({ code: 'export const x=1;', description: 'a skill', codeLanguage: 'typescript' });
+    expect(result.isError ?? false).toBe(false);
+    expect(JSON.stringify(result.content)).toContain('sk-1');
+  });
+
+  it('add_skill returns a Tool Execution Error on SkillAlreadyExists', async () => {
+    const { SkillAlreadyExists } = await import('@usetheo/memory/contract');
+    const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn() };
+    skillScoped.add.mockRejectedValue(new SkillAlreadyExists('h-1', 'acme'));
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
+
+    const result = await dispatch(
+      'add_skill',
+      { repoId: 'acme', code: 'x', description: 'dupe', codeLanguage: 'typescript' },
+      { memoryFactory: () => memory },
+    );
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('already exists');
+  });
+
+  it('forget_skill deletes via memory.skills(repoId).forget', async () => {
+    const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn() };
+    skillScoped.forget.mockResolvedValue(undefined);
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
+
+    const result = await dispatch('forget_skill', { repoId: 'acme', skillId: 'sk-1' }, { memoryFactory: () => memory });
+    expect(skillScoped.forget).toHaveBeenCalledWith('sk-1');
+    expect(result.isError ?? false).toBe(false);
+  });
+
+  it('forget_skill is idempotent on MemoryNotFound (cross-repo/non-existent)', async () => {
+    const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn() };
+    skillScoped.forget.mockRejectedValue(new MemoryNotFound('sk-x'));
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
+
+    const result = await dispatch('forget_skill', { repoId: 'acme', skillId: 'sk-x' }, { memoryFactory: () => memory });
+    expect(result.isError ?? false).toBe(false);
+  });
+});
