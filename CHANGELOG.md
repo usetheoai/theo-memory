@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Docker image build is now reproducible: pinned `sharp` to `^0.33.5` via a pnpm override (npm-hosted libvips, no GitHub-CDN download), so `pnpm install --frozen-lockfile` in the image build no longer fails when the flaky GitHub CDN times out fetching `sharp@0.32.6`'s libvips. `sharp` is pulled transitively by `@xenova/transformers` (the local embedder) and runs its postinstall under the pnpm build-allowlist; the text-embedding path never invokes `sharp` at runtime, and `@xenova/transformers` imports cleanly against 0.33.x. Makes `make e2e` (which builds the image from source) deterministic again (#memory-integration).
 
 ### Security
 
