@@ -378,3 +378,53 @@ describe('LocalScopedSkillMemory.add — collision mapping (skills-write-surface
     ).rejects.toBe(boom);
   });
 })
+
+describe('LocalScopedSkillMemory.forget — cross-workspace guard (skills-write-surface /review HIGH)', () => {
+  function buildForgetScoped(deps: {
+    workspaceId?: string;
+    row: { metadata: Record<string, unknown> } | null;
+  }) {
+    let forgetCalled = false;
+    const scoped = new LocalScopedSkillMemory('repo-alpha', {
+      vectorStore: {} as unknown as LocalScopedSkillMemoryDeps['vectorStore'],
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      ...(deps.workspaceId !== undefined ? { workspaceId: deps.workspaceId } : {}),
+      forgetDelegate: async () => {
+        forgetCalled = true;
+        await Promise.resolve();
+      },
+      getDelegate: async () => {
+        await Promise.resolve();
+        return deps.row as never;
+      },
+    });
+    return { scoped, didForget: () => forgetCalled };
+  }
+
+  test('rejects a skill in ANOTHER workspace with MemoryNotFound (no forgetDelegate call)', async () => {
+    const { scoped, didForget } = buildForgetScoped({
+      workspaceId: 'ws-B',
+      row: { metadata: { kind: 'skill', agent_id: 'repo-alpha', workspace_id: 'ws-A' } },
+    });
+    await expect(scoped.forget('sk-1')).rejects.toBeInstanceOf(MemoryNotFound);
+    expect(didForget()).toBe(false);
+  });
+
+  test('allows forget when workspace + agent_id + kind all match', async () => {
+    const { scoped, didForget } = buildForgetScoped({
+      workspaceId: 'ws-A',
+      row: { metadata: { kind: 'skill', agent_id: 'repo-alpha', workspace_id: 'ws-A' } },
+    });
+    await scoped.forget('sk-1');
+    expect(didForget()).toBe(true);
+  });
+
+  test('default workspace: a row with no workspace_id matches the default-bound scope', async () => {
+    const { scoped, didForget } = buildForgetScoped({
+      row: { metadata: { kind: 'skill', agent_id: 'repo-alpha' } }, // no workspace_id => 'default'
+    });
+    await scoped.forget('sk-1');
+    expect(didForget()).toBe(true);
+  });
+});
