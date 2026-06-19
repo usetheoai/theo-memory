@@ -4,12 +4,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-- **`GET /v1/scopes/:type/:id/{metrics,entities}` now surface real `attributed_to` aggregation.** The handlers read the attributed peer from `metadata.attributed_to` (where `ScopedMemory.getAll()` projects it) with the top-level `attributedTo` field as a fallback — previously they read only the top-level field, which `getAll()` does NOT populate, so `entity_count`/`entities` were always 0/empty against real pgvector (latent bug surfaced by the theo-cloud Phase 2A attribution round-trip e2e). Unit fixtures updated to the real getAll contract (attributed_to in metadata) (#memory-integration).
-
 ### Added
-- **Subject-scoped `GET /v1/scopes/:type/:id/metrics` + `GET /v1/scopes/:type/:id/entities`** (plan `theo-memory-dashboard-full-integration` T2.1/T2.2, ADR D2 amendment). `metrics` returns real `{ total_memories, entity_count, add_events, retrieval_api_usage }` (counts from the scope's active rows; `entity_count` = distinct `attributed_to`; `retrieval_api_usage` honest-0 — no persisted recall counter yet). `entities` aggregates the distinct `attributed_to` peers (v1.1 multi-peer attribution) with `memory_count` + `last_seen_at`. **Scope = SUBJECT, not workspace** — the theo-cloud gateway shares one master key across customers and isolates by subject-in-path, so a workspace aggregate would leak cross-customer totals. No new table/migration/pipeline (the standalone entity-boost table is unpopulated; richer NER extraction is a follow-up). OpenAPI registered. P0 hardening. 5 new tests (#memory-integration).
-- `GET /v1/scopes/:type/:id/memories` now accepts optional `from`/`to` RFC3339 query params filtering by `created_at` (inclusive bounds), so the theo-cloud dashboard's Memories date-range inputs become a real server-side filter instead of a no-op control (plan `theo-memory-dashboard-full-integration` ADR D3 / gap 7). Invalid datetimes are rejected at the boundary (422 `INVALID_QUERY`). OpenAPI registration extended with `from`/`to` (and the previously-undocumented `category`) query params. P0 hardening — honest behavior of an already-shipped surface (Inquebrável Rule 3) (#memory-integration).
 
 ### Changed
 
@@ -20,6 +15,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.7.0] - 2026-06-19
+
+### Added
+- **Subject-scoped `GET /v1/scopes/:type/:id/metrics` + `GET /v1/scopes/:type/:id/entities`** (plan `theo-memory-dashboard-full-integration` T2.1/T2.2, ADR D2 amendment). `metrics` returns real `{ total_memories, entity_count, add_events, retrieval_api_usage }` (counts from the scope's active rows; `entity_count` = distinct `attributed_to`; `retrieval_api_usage` honest-0 — no persisted recall counter yet). `entities` aggregates the distinct `attributed_to` peers (v1.1 multi-peer attribution) with `memory_count` + `last_seen_at`. **Scope = SUBJECT, not workspace** — the theo-cloud gateway shares one master key across customers and isolates by subject-in-path, so a workspace aggregate would leak cross-customer totals. No new table/migration/pipeline (the standalone entity-boost table is unpopulated; richer NER extraction is a follow-up). OpenAPI registered. P0 hardening. 5 new tests (#memory-integration).
+- `GET /v1/scopes/:type/:id/memories` now accepts optional `from`/`to` RFC3339 query params filtering by `created_at` (inclusive bounds), so the theo-cloud dashboard's Memories date-range inputs become a real server-side filter instead of a no-op control (plan `theo-memory-dashboard-full-integration` ADR D3 / gap 7). Invalid datetimes are rejected at the boundary (422 `INVALID_QUERY`). OpenAPI registration extended with `from`/`to` (and the previously-undocumented `category`) query params. P0 hardening — honest behavior of an already-shipped surface (Inquebrável Rule 3) (#memory-integration).
+
+
+### Fixed
+- **`GET /v1/scopes/:type/:id/{metrics,entities}` now surface real `attributed_to` aggregation.** The handlers read the attributed peer from `metadata.attributed_to` (where `ScopedMemory.getAll()` projects it) with the top-level `attributedTo` field as a fallback — previously they read only the top-level field, which `getAll()` does NOT populate, so `entity_count`/`entities` were always 0/empty against real pgvector (latent bug surfaced by the theo-cloud Phase 2A attribution round-trip e2e). Unit fixtures updated to the real getAll contract (attributed_to in metadata) (#memory-integration).
 
 ## [0.6.0] - 2026-06-18
 
