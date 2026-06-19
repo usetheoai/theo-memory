@@ -223,6 +223,47 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/skill/{repoId}/skills',
+    operationId: 'scopeSkills',
+    summary: 'Read-only listing of a repo\'s skills (Repo tier / REDACTED skill library).',
+    request: {
+      params: z.object({ repoId: z.string().min(1) }),
+      query: z.object({
+        includeSuperseded: z.boolean().optional(),
+        topK: z.number().int().min(1).max(100).optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'The repo skills (head-of-chain by default). `truncated` is true when the topK cap was hit.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              skills: z.array(
+                z.object({
+                  id: z.string(),
+                  hash: z.string(),
+                  description: z.string(),
+                  code: z.string().nullable(),
+                  codeLanguage: z.string().nullable(),
+                  createdAt: z.string(),
+                  derivedFrom: z.array(z.string()),
+                  supersededBy: z.string().nullable(),
+                }),
+              ),
+              truncated: z.boolean(),
+            }),
+          },
+        },
+      },
+      400: { description: 'Empty repoId.' },
+      422: { description: 'Invalid query (topK out of range).' },
+    },
+  });
+
   registry.registerPath({
     method: 'get',
     path: '/v1/scopes/{type}/{id}/memories',
