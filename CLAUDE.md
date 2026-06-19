@@ -135,6 +135,18 @@ Honest classification (Rule 3 + Rule 10):
 - **Scope guardrail (KISS/YAGNI):** read-only browse ONLY — list `{hash, description, code payload, language, createdAt, derivedFrom, supersededBy}` per repo. NO skill executor, NO editor, NO sandbox/e2b/modal deps, NO write/forget from the dashboard. Per ADR D2 alternatives (a)+(b) rejected.
 - **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this read-only skills-browse surface is re-classified.
 
+### Amendment 2026-06-19 (II) — Skills WRITE surface (REST POST + MCP add_skill + UI forget curation) RE-CLASSIFIED as in-scope (project-owner / CTO sign-off)
+
+**Project-owner directive (2026-06-19, explicit `/goal`):** the **programmatic skills WRITE surface** — a REST `POST /v1/scopes/skill/:repoId/skills` (create), an MCP `add_skill` tool, and **forget curation** (delete a bad skill) wired through the gateway BFF + surfaced as a delete action in the dashboard Skills tab — is hereby **re-classified as IN-SCOPE under PRIORITY 0**, extending the read-only unfreeze above.
+
+Honest classification (Rule 3 + Rule 10):
+
+- **What this is:** exposure of the ALREADY-SHIPPED `ScopedSkillMemory.add()` + `forget()` SDK capability (Roadmap Item 8, SHIPPED) over REST + MCP + gateway, plus a delete (curation) control in the dashboard. It is surface exposure of an existing capability (P0 sub-goal 2 "SDKs 100% functional" + sub-goal 3 "MCP available"), not a net-new memory capability. The closed loop it enables: an **agent** (running against TheoCloud/MCP) authors its own skills — the canonical REDACTED flow — instead of skills being SDK-in-process-only.
+- **Slug:** `skills-write-surface`. Governance: `/discover` → `/to-plan` → `/edge-case-plan` → `/plan-confidence` → `/implement` → `/review`, like any P0-hardening cycle.
+- **Public surface additions (pre-release, acceptable):** REST `POST /v1/scopes/skill/:repoId/skills` (body = `SkillDraft {code, description, codeLanguage}`); MCP `add_skill` tool; gateway `POST /v1/memory/skills` (SDK, `memory:write`) + BFF `POST /v1/dashboard/memory/skills` (JWT) + a forget path; dashboard delete-skill curation. Per-customer repoId namespacing (`{subject}:{repoId}`, D3) reused.
+- **Scope guardrail (KISS/YAGNI — the security line):** STORE-only. The system stores code-as-skill (text); it does NOT execute it. NO executor, NO sandbox (e2b/modal), NO code editor in the UI. The UI gets at most a **forget (delete)** curation control + optionally edit-description — NOT a code editor. Authoring of code is for the **agent** (REST/MCP); the human curates. Per the design discussion 2026-06-19 (UI-create of executable code rejected: contradicts the agent-autonomy thesis + RCE surface).
+- **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this skills write/curation surface is re-classified.
+
 ---
 
 ## What this project is

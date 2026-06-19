@@ -29,6 +29,7 @@ import {
   MemoryNotFound,
   MemoryStoreError,
   MissingScopeError,
+  WorkspaceMismatch,
 } from '@usetheo/memory/contract';
 
 export interface ErrorEnvelope {
@@ -65,7 +66,10 @@ export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
   if (err instanceof InvalidScope || err instanceof EmptyScopeError || err instanceof MissingScopeError) {
     return { status: 422, body: { code: 'INVALID_SCOPE', message: 'Scope validation failed.' } };
   }
-  if (err instanceof MemoryNotFound) {
+  if (err instanceof MemoryNotFound || err instanceof WorkspaceMismatch) {
+    // WorkspaceMismatch → 404 (NOT 403/500): a cross-workspace target must not
+    // leak its existence in another tenant (ADR D6 + OWASP IDOR). Defense-in-depth
+    // behind the scoped-skill forget() workspace guard (skills-write-surface /review).
     return { status: 404, body: { code: 'MEMORY_NOT_FOUND', message: 'Memory not found.' } };
   }
   if (err instanceof ContentTooLargeError) {
