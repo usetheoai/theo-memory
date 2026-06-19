@@ -76,6 +76,21 @@ describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
     const res = await app.fetch(new Request('http://localhost/v1/scopes/Bad/alice/metrics'));
     expect(res.status).toBe(404);
   });
+
+  // F-test-2 — empty-string attributed_to in metadata is excluded (the peerOf
+  // `!== ''` guard). A direct SDK/REST caller can persist '' (gateway trim only
+  // guards the dashboard path), so the guard must hold server-side.
+  test('empty-string attributed_to in metadata is NOT counted', async () => {
+    const items = [
+      makeItem('id-1', '2026-06-01T00:00:00Z', 'paulo'),
+      makeItem('id-2', '2026-06-02T00:00:00Z', ''), // metadata.attributed_to = ''
+    ];
+    const app = createServer({ memory: stubMemory(items) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
+    const body = (await res.json()) as Record<string, number>;
+    expect(body.total_memories).toBe(2);
+    expect(body.entity_count).toBe(1); // only paulo; '' excluded
+  });
 });
 
 describe('T2.2 — GET /v1/scopes/:type/:id/entities', () => {
