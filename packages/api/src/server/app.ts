@@ -39,6 +39,7 @@ import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopesHandler } from './handlers/scopes.js';
+import { skillsHandler } from './handlers/skills.js';
 import {
   wellKnownOauthProtectedResourceHandler,
   type OidcDiscoveryConfig,
@@ -309,6 +310,9 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
   app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory));
   app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory));
+  // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
+  // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
+  app.get('/v1/scopes/skill/:repoId/skills', (c) => skillsHandler(c, memory));
 
   app.post('/v1/remember', (c) => rememberHandler(c, memory));
   app.post('/v1/recall', (c) => recallHandler(c, memory));

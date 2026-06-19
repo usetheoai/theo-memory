@@ -23,6 +23,7 @@ import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
+import { attributedPeerOf } from './_attributed-peer.js';
 import { workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
@@ -40,19 +41,6 @@ function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): Scoped
   }
 }
 
-/**
- * Read a memory's attributed peer. `getAll()` projects `attributed_to` into
- * `metadata` (not the top-level `attributedTo` field), so we read metadata as
- * the source of truth with the top-level field as a fallback (stubs/future).
- * Returns undefined for null/empty/missing. Shared shape with entities.ts.
- */
-function peerOf(m: { attributedTo?: string; metadata?: Readonly<Record<string, unknown>> }): string | undefined {
-  if (typeof m.attributedTo === 'string' && m.attributedTo !== '') return m.attributedTo;
-  const fromMeta = m.metadata?.['attributed_to'];
-  if (typeof fromMeta === 'string' && fromMeta !== '') return fromMeta;
-  return undefined;
-}
-
 export async function metricsHandler(c: Context, memory: Memory): Promise<Response> {
   const rawType = c.req.param('type');
   const id = c.req.param('id');
@@ -67,7 +55,7 @@ export async function metricsHandler(c: Context, memory: Memory): Promise<Respon
 
   const entities = new Set<string>();
   for (const m of items) {
-    const peer = peerOf(m);
+    const peer = attributedPeerOf(m);
     if (peer !== undefined) entities.add(peer);
   }
 
