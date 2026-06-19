@@ -261,3 +261,77 @@ describe('LocalScopedSkillMemory.forget — T4.1', () => {
     ).rejects.toBeInstanceOf(MemoryNotFound);
   });
 });
+
+describe('LocalScopedSkillMemory.getAll — dashboard-phase2b-skills-browse T1.1', () => {
+  test('returns the repo head-of-chain skills (add round-trips with hash+description+code)', async () => {
+    const { memory } = await buildMemory();
+    const scoped = memory.skills('repo-alpha');
+    const a = await scoped.add({
+      code: 'kubectl rollout restart',
+      description: 'restart a deployment',
+      codeLanguage: 'typescript',
+    });
+    const b = await scoped.add({
+      code: 'terraform apply -auto-approve',
+      description: 'apply infra changes',
+      codeLanguage: 'typescript',
+    });
+
+    const all = await scoped.getAll();
+
+    const ids = all.map((s) => s.id);
+    expect(ids).toContain(a.id);
+    expect(ids).toContain(b.id);
+    const restart = all.find((s) => s.id === a.id);
+    expect(restart?.hash).toBe(a.hash);
+    expect(restart?.description).toBe('restart a deployment');
+    expect(restart?.code).toBe('kubectl rollout restart');
+    expect(restart?.codeLanguage).toBe('typescript');
+    expect(restart?.kind).toBe('skill');
+  });
+
+  test('returns [] for a repo with no skills (never null/throw)', async () => {
+    const { memory } = await buildMemory();
+    const all = await memory.skills('empty-repo').getAll();
+    expect(all).toEqual([]);
+  });
+
+  test('excludes superseded skills by default; includeSuperseded:true includes them', async () => {
+    const { memory, store } = await buildMemory();
+    const scoped = memory.skills('repo-alpha');
+    const head = await scoped.add({
+      code: 'new',
+      description: 'deploy strategy head',
+      codeLanguage: 'typescript',
+    });
+    const old = await scoped.add({
+      code: 'old',
+      description: 'deploy strategy old',
+      codeLanguage: 'typescript',
+    });
+    // Mark `old` as superseded by `head` (parity with consolidate()).
+    await store.markSuperseded([old.id], head.id);
+
+    const headOnly = await scoped.getAll();
+    expect(headOnly.map((s) => s.id)).toContain(head.id);
+    expect(headOnly.map((s) => s.id)).not.toContain(old.id);
+
+    const withSuperseded = await scoped.getAll({ includeSuperseded: true });
+    expect(withSuperseded.map((s) => s.id)).toContain(old.id);
+  });
+
+  test('is scope-isolated — repoA.getAll() never returns a repoB skill', async () => {
+    const { memory } = await buildMemory();
+    const alpha = memory.skills('repo-alpha');
+    const beta = memory.skills('repo-beta');
+    const alphaSkill = await alpha.add({
+      code: 'a',
+      description: 'alpha-only skill',
+      codeLanguage: 'typescript',
+    });
+    await beta.add({ code: 'b', description: 'beta-only skill', codeLanguage: 'typescript' });
+
+    const fromAlpha = await alpha.getAll();
+    expect(fromAlpha.map((s) => s.id)).toEqual([alphaSkill.id]);
+  });
+});

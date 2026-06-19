@@ -28,6 +28,7 @@ import type {
   ScopedSkillMemory,
   Skill,
   SkillDraft,
+  SkillListOptions,
   SkillRecallOptions,
   SkillWithScore,
 } from '../../domain/skill.js';
@@ -151,6 +152,31 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     const skills: SkillWithScore[] = [];
     for (const r of results) {
       const projected = decodeSkillPayload(r.id, r.metadata, this.scope, r.score);
+      if (projected !== null) {
+        skills.push(projected);
+      }
+    }
+    return skills;
+  }
+
+  async getAll(options?: SkillListOptions): Promise<readonly Skill[]> {
+    // dashboard-phase2b-skills-browse T1.1 — read-only enumeration. Reuses the
+    // VectorStore.list primitive (D1: same projection + soft-delete + ordering
+    // the memories tier already relies on) with the skill-scope filters recall
+    // builds. workspace_id is inherited via this.filters (EC-1 — the scoped
+    // object is constructed from the workspace-resolved Memory).
+    const includeSuperseded = options?.includeSuperseded === true;
+    const filters: Filters = {
+      ...this.filters,
+      kind: 'skill',
+      excludeSuperseded: !includeSuperseded,
+    };
+    const [rows] = await this.deps.vectorStore.list(filters, options?.topK ?? 100);
+    const skills: Skill[] = [];
+    for (const r of rows) {
+      // list() projects the row payload; decodeSkillPayload reads the skill
+      // columns from it (3-arg form — no recall score for a listing).
+      const projected = decodeSkillPayload(r.id, r.payload, this.scope);
       if (projected !== null) {
         skills.push(projected);
       }
