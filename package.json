@@ -90,7 +90,10 @@
       "esbuild",
       "sharp",
       "protobufjs"
-    ]
+    ],
+    "overrides": {
+      "sharp": "^0.33.5"
+    }
   },
   "private": true,
   "optionalDependencies": {
