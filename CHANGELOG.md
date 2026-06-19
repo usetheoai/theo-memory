@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- PRIORITY 0 scope amendment (project-owner / CTO sign-off 2026-06-19): the read-only **Skills / Repo-tier dashboard browse surface** (a new skills listing REST endpoint + gateway BFF + dashboard Skills tab) is UNFROZEN and re-classified as in-scope P0 hardening. It exposes a listing of the already-shipped `Memory.skills(repoId)` SDK capability; read-only browse only (no executor/editor/sandbox). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19". (#dashboard-phase2b-skills-browse)
 
 ### Deprecated
 
