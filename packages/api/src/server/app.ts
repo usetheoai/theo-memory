@@ -28,13 +28,13 @@ import {
 import { entitiesHandler } from './handlers/entities.js';
 import { forgetHandler } from './handlers/forget.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
-import { metricsHandler } from './handlers/metrics.js';
 import {
   addMemberHandler,
   listMembersHandler,
   removeMemberHandler,
   setMemberRoleHandler,
 } from './handlers/members.js';
+import { metricsHandler } from './handlers/metrics.js';
 import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
