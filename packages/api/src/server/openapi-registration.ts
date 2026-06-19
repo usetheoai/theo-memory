@@ -228,7 +228,7 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     method: 'get',
     path: '/v1/scopes/skill/{repoId}/skills',
     operationId: 'scopeSkills',
-    summary: 'Read-only listing of a repo\'s skills (Repo tier / Voyager skill library).',
+    summary: 'Read-only listing of a repo\'s skills (Repo tier skill library).',
     request: {
       params: z.object({ repoId: z.string().min(1) }),
       query: z.object({
