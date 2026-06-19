@@ -41,6 +41,19 @@ interface EntityAccumulator {
   last_seen_at: string;
 }
 
+/**
+ * Read a memory's attributed peer. `getAll()` projects `attributed_to` into
+ * `metadata` (not the top-level `attributedTo` field), so metadata is the
+ * source of truth with the top-level field as a fallback. Returns undefined for
+ * null/empty/missing. Shared shape with metrics.ts.
+ */
+function peerOf(m: { attributedTo?: string; metadata?: Readonly<Record<string, unknown>> }): string | undefined {
+  if (typeof m.attributedTo === 'string' && m.attributedTo !== '') return m.attributedTo;
+  const fromMeta = m.metadata?.['attributed_to'];
+  if (typeof fromMeta === 'string' && fromMeta !== '') return fromMeta;
+  return undefined;
+}
+
 export async function entitiesHandler(c: Context, memory: Memory): Promise<Response> {
   const rawType = c.req.param('type');
   const id = c.req.param('id');
@@ -55,8 +68,8 @@ export async function entitiesHandler(c: Context, memory: Memory): Promise<Respo
 
   const acc = new Map<string, EntityAccumulator>();
   for (const m of items) {
-    const name = m.attributedTo;
-    if (name === undefined || name === null || name === '') continue;
+    const name = peerOf(m);
+    if (name === undefined) continue;
     const createdAt = m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt);
     const existing = acc.get(name);
     if (existing === undefined) {

@@ -17,7 +17,10 @@ function makeItem(id: string, createdAt: string, attributedTo?: string): MemoryI
     payload: {},
     createdAt: new Date(createdAt),
     updatedAt: new Date(createdAt),
-    attributedTo,
+    // REAL getAll() contract: attributed_to is projected into metadata, NOT the
+    // top-level attributedTo field. The handlers must read metadata (the bug the
+    // Phase 2A e2e caught: reading only top-level returned empty against pgvector).
+    metadata: attributedTo !== undefined ? { attributed_to: attributedTo } : {},
   } as unknown as MemoryItem;
 }
 
@@ -38,7 +41,7 @@ function stubMemory(items: readonly MemoryItem[]): Memory {
     history: vi.fn(),
     reset: vi.fn(),
     flushReflections: vi.fn(),
-  } as unknown as Memory;
+  };
 }
 
 describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
