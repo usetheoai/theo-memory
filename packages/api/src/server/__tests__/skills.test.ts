@@ -8,6 +8,7 @@
 import type { Memory, Skill } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
+import { SkillAlreadyExists, MemoryNotFound } from '@usetheo/memory/contract';
 import { createServer } from '../index.js';
 
 function makeSkill(id: string, opts?: Partial<Skill>): Skill {
@@ -160,5 +161,103 @@ describe('T2.1 — GET /v1/scopes/skill/:repoId/skills', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { skills: unknown[] };
     expect(body.skills).toHaveLength(1);
+  });
+});
+
+
+// Write-surface stub: lets each test program add()/forget() behavior.
+function stubWriteMemory(opts: {
+  add?: (d: unknown) => Promise<unknown>;
+  forget?: (id: string) => Promise<void>;
+}): Memory {
+  const scopedSkill = {
+    getAll: vi.fn().mockResolvedValue([]),
+    add: vi.fn(opts.add ?? (async () => ({ id: 'new-id', hash: 'new-hash' }))),
+    recall: vi.fn(),
+    consolidate: vi.fn(),
+    forget: vi.fn(opts.forget ?? (async () => undefined)),
+  };
+  const base = {
+    user: vi.fn(), session: vi.fn(), agent: vi.fn(),
+    skills: vi.fn().mockReturnValue(scopedSkill),
+    forget: vi.fn(), get: vi.fn(), history: vi.fn(), reset: vi.fn(), flushReflections: vi.fn(),
+  } as unknown as Memory;
+  (base as unknown as { withWorkspace: (ws: string) => Memory }).withWorkspace = vi
+    .fn().mockReturnValue(base);
+  return base;
+}
+
+function postReq(repoId: string, body: unknown): Request {
+  return new Request(`http://localhost/v1/scopes/skill/${repoId}/skills`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+describe('T2.1 — POST /v1/scopes/skill/:repoId/skills', () => {
+  const valid = { code: 'export const x=1;', description: 'a skill', codeLanguage: 'typescript' };
+
+  test('201 with {id,hash} on a valid SkillDraft', async () => {
+    const app = createServer({ memory: stubWriteMemory({ add: async () => ({ id: 's1', hash: 'h1' }) }) });
+    const res = await app.fetch(postReq('acme', valid));
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string; hash: string };
+    expect(body.id).toBe('s1');
+    expect(body.hash).toBe('h1');
+  });
+
+  test('409 when add throws SkillAlreadyExists', async () => {
+    const app = createServer({
+      memory: stubWriteMemory({ add: async () => { throw new SkillAlreadyExists('h1', 'acme'); } }),
+    });
+    const res = await app.fetch(postReq('acme', valid));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('SKILL_ALREADY_EXISTS');
+  });
+
+  test('422 on invalid codeLanguage and on empty description', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    expect((await app.fetch(postReq('acme', { ...valid, codeLanguage: 'python' }))).status).toBe(422);
+    expect((await app.fetch(postReq('acme', { ...valid, description: '' }))).status).toBe(422);
+  });
+
+  test('413 when code exceeds the byte cap', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    const big = { ...valid, code: 'x'.repeat(64 * 1024 + 1) };
+    expect((await app.fetch(postReq('acme', big))).status).toBe(413);
+  });
+
+  test('400 on empty repoId path / malformed body', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    const malformed = new Request('http://localhost/v1/scopes/skill/acme/skills', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{not json',
+    });
+    expect((await app.fetch(malformed)).status).toBe(400);
+  });
+
+  test('OpenAPI documents POST + DELETE for skills', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    const spec = (await (await app.fetch(new Request('http://localhost/v1/openapi.json'))).json()) as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    expect(spec.paths['/v1/scopes/skill/{repoId}/skills']?.post).toBeDefined();
+    expect(spec.paths['/v1/scopes/skill/{repoId}/skills/{skillId}']?.delete).toBeDefined();
+  });
+});
+
+describe('T2.2 — DELETE /v1/scopes/skill/:repoId/skills/:skillId', () => {
+  test('204 on successful forget', async () => {
+    const app = createServer({ memory: stubWriteMemory({ forget: async () => undefined }) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/acme/skills/s1', { method: 'DELETE' }));
+    expect(res.status).toBe(204);
+  });
+
+  test('404 when forget throws MemoryNotFound (cross-repo/non-existent)', async () => {
+    const app = createServer({
+      memory: stubWriteMemory({ forget: async () => { throw new MemoryNotFound('s1'); } }),
+    });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/acme/skills/s1', { method: 'DELETE' }));
+    expect(res.status).toBe(404);
   });
 });
