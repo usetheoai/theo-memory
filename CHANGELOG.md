@@ -5,13 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- **`POST /v1/scopes/skill/:repoId/skills`** (`@usetheo/memory/server`) — create a skill (store-only; code is never executed). 201 `{id,hash}`; **409 SKILL_ALREADY_EXISTS** on dedup-collision (D1); 422 invalid body/language/empty; 413 oversized code (64 KiB cap); 400 empty repoId/malformed. Workspace-bound. OpenAPI-registered. (skills-write-surface T2.1)
-- **`DELETE /v1/scopes/skill/:repoId/skills/:skillId`** — forget (curate) a skill; 204 success, 404 when not a skill in this repo scope (scope-isolated). OpenAPI-registered. (skills-write-surface T2.2, D4)
-- MCP tools **`add_skill`** + **`forget_skill`** (`@usetheo/memory-mcp`) — author + curate skills over MCP (the Voyager agent flow). Static tool list grows from 4 to 6 (`listChanged:false` preserved). `add_skill` returns a Tool Execution Error on dedup-collision; `forget_skill` is idempotent. Store-only. (skills-write-surface T2.3, D3)
-- `SkillAlreadyExists` domain error: `ScopedSkillMemory.add()` now maps a dedup-collision (same description → `UNIQUE(hash)`) to this typed error instead of a raw Postgres unique-violation, so the REST/MCP boundary can return 409 (skills-write-surface T1.1, D1). EC-W1: guarded on the hash constraint to never mis-map a future unique index. Exported from `@usetheo/memory/contract`. (#skills-write-surface)
 
 ### Changed
-- PRIORITY 0 scope amendment (project-owner / CTO `/goal` 2026-06-19): the **skills WRITE surface** (REST `POST /v1/scopes/skill/:repoId/skills` + MCP `add_skill` + forget curation) is re-classified as in-scope P0 hardening — surface exposure of the already-shipped `ScopedSkillMemory.add()`/`forget()` SDK capability over REST/MCP/gateway so an agent can author its own skills (Voyager flow). STORE-only (no executor/sandbox/code-editor). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19 (II)". (#skills-write-surface)
 
 ### Deprecated
 
@@ -20,6 +15,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.9.0] - 2026-06-19
+
+### Added
+- **`POST /v1/scopes/skill/:repoId/skills`** (`@usetheo/memory/server`) — create a skill (store-only; code is never executed). 201 `{id,hash}`; **409 SKILL_ALREADY_EXISTS** on dedup-collision (D1); 422 invalid body/language/empty; 413 oversized code (64 KiB cap); 400 empty repoId/malformed. Workspace-bound. OpenAPI-registered. (skills-write-surface T2.1)
+- **`DELETE /v1/scopes/skill/:repoId/skills/:skillId`** — forget (curate) a skill; 204 success, 404 when not a skill in this repo scope (scope-isolated). OpenAPI-registered. (skills-write-surface T2.2, D4)
+- MCP tools **`add_skill`** + **`forget_skill`** (`@usetheo/memory-mcp`) — author + curate skills over MCP (the Voyager agent flow). Static tool list grows from 4 to 6 (`listChanged:false` preserved). `add_skill` returns a Tool Execution Error on dedup-collision; `forget_skill` is idempotent. Store-only. (skills-write-surface T2.3, D3)
+- `SkillAlreadyExists` domain error: `ScopedSkillMemory.add()` now maps a dedup-collision (same description → `UNIQUE(hash)`) to this typed error instead of a raw Postgres unique-violation, so the REST/MCP boundary can return 409 (skills-write-surface T1.1, D1). EC-W1: guarded on the hash constraint to never mis-map a future unique index. Exported from `@usetheo/memory/contract`. (#skills-write-surface)
+
+
+### Changed
+- PRIORITY 0 scope amendment (project-owner / CTO `/goal` 2026-06-19): the **skills WRITE surface** (REST `POST /v1/scopes/skill/:repoId/skills` + MCP `add_skill` + forget curation) is re-classified as in-scope P0 hardening — surface exposure of the already-shipped `ScopedSkillMemory.add()`/`forget()` SDK capability over REST/MCP/gateway so an agent can author its own skills (Voyager flow). STORE-only (no executor/sandbox/code-editor). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19 (II)". (#skills-write-surface)
 
 ## [0.8.0] - 2026-06-19
 
