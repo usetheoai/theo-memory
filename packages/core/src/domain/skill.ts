@@ -114,6 +114,23 @@ export interface SkillRecallOptions {
 }
 
 /**
+ * Options consumed by `ScopedSkillMemory.getAll()`. Read-only enumeration of a
+ * repo's skills — distinct from `recall()` (semantic search): `getAll` lists the
+ * repo's skills without a query, for a browse/listing surface.
+ */
+export interface SkillListOptions {
+  /**
+   * When `true`, include skills whose `supersededBy IS NOT NULL`. Default `false`
+   * — only the head-of-version-chain skills are returned. Mirrors
+   * `SkillRecallOptions.includeSuperseded`.
+   */
+  readonly includeSuperseded?: boolean;
+
+  /** Maximum number of rows. Implementation default: 100 (listing cap). */
+  readonly topK?: number;
+}
+
+/**
  * Options consumed by `ScopedSkillMemory.consolidate()`. The 4-phase
  * orchestrator (Orient → Gather → Consolidate → Report) clusters skills
  * whose embedding cosine ≥ `clusterThreshold`.
@@ -168,6 +185,14 @@ export interface ConsolidationResult {
 export interface ScopedSkillMemory {
   add(skill: SkillDraft): Promise<Skill>;
   recall(query: string, options?: SkillRecallOptions): Promise<readonly SkillWithScore[]>;
+  /**
+   * Read-only enumeration of the repo's skills (no query). Returns the
+   * head-of-version-chain skills by default (superseded ancestors excluded
+   * unless `options.includeSuperseded`). Soft-deleted rows are excluded.
+   * Returns `[]` for a repo with no skills (never null). Powers the read-only
+   * skills browse surface (dashboard) — distinct from `recall()` semantic search.
+   */
+  getAll(options?: SkillListOptions): Promise<readonly Skill[]>;
   consolidate(options?: ConsolidateOptions): Promise<ConsolidationResult>;
   forget(skillId: string): Promise<void>;
 }
