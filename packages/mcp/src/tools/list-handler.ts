@@ -32,6 +32,16 @@ import {
   DESCRIPTION as REMEMBER_DESC,
   INPUT_SCHEMA as rememberInput,
 } from './remember-schema.js';
+import {
+  TOOL_NAME as ADD_SKILL_NAME,
+  DESCRIPTION as ADD_SKILL_DESC,
+  INPUT_SCHEMA as addSkillInput,
+} from './add-skill-schema.js';
+import {
+  TOOL_NAME as FORGET_SKILL_NAME,
+  DESCRIPTION as FORGET_SKILL_DESC,
+  INPUT_SCHEMA as forgetSkillInput,
+} from './forget-skill-schema.js';
 import { emitToolSchema } from './schema-emit.js';
 
 /** Spec-compliant `tools/list` response shape (no pagination for 4 static tools). */
@@ -69,6 +79,17 @@ export function buildToolsListResponse(): ToolsListResponse {
         name: REFLECT_NAME,
         description: REFLECT_DESC,
         inputSchema: emitToolSchema(reflectInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
+      {
+        name: ADD_SKILL_NAME,
+        description: ADD_SKILL_DESC,
+        inputSchema: emitToolSchema(addSkillInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      {
+        name: FORGET_SKILL_NAME,
+        description: FORGET_SKILL_DESC,
+        inputSchema: emitToolSchema(forgetSkillInput) as ToolsListResponse['tools'][number]['inputSchema'],
       },
     ],
   };
