@@ -50,7 +50,7 @@ Tracks the deferred items so they are not lost in chat. The two actionable LOW r
 
 ## 4. Skill `forget` scope guard — add `workspace_id` to the ownership check (adjacent debt)
 
-**Status:** ACTIONABLE (small hardening) — surfaced by `/review dashboard-phase2b-skills-browse` (LOW-1). NOT reachable through the read-only browse feature.
+**Status:** DONE / SHIPPED (2026-06-19) — closed by the `skills-write-surface` /review HIGH fix (commit `9b22bb1`): the scoped-skill `forget()` guard now checks `workspace_id` (→ MemoryNotFound/404) and `mapDomainErrorToResponse` maps `WorkspaceMismatch`→404.
 
 **Problem.** `LocalScopedSkillMemory.forget` (`packages/core/src/infrastructure/db/scoped-skill-memory.ts`) verifies `row.metadata['agent_id'] === this.scope.repoId` but does NOT also assert `row.metadata['workspace_id'] === (this.deps.workspaceId ?? 'default')`. On a multi-workspace deployment, a skillId from another workspace that shares the same `agent_id`/repoId would pass this in-memory guard (the canonical `forgetDelegate`/`LocalMemory.forget` may re-scope downstream, but the guard itself is incomplete).
 
