@@ -10,20 +10,17 @@ Tracks the deferred items so they are not lost in chat. The two actionable LOW r
 
 ## 1. Clean-rebuild e2e — make the TheMemory image build resilient to the `sharp` CDN
 
-**Status:** BLOCKED-EXTERNAL (today) → ACTIONABLE (small hardening cycle when picked up)
+**Status:** DONE / SHIPPED (2026-06-19, CTO request) — durable fix landed; clean `make e2e` GREEN.
 
-**Problem.** `make e2e` (theo-cloud) builds the TheMemory image from source; `pnpm install --frozen-lockfile` runs `sharp@0.32.6`'s postinstall, which downloads libvips from the GitHub CDN. That CDN timed out persistently this session (≥5 attempts), so the clean rebuild could not run. The Phase 1 + Phase 2A e2e were validated against `themory-e2e:patched` (the prior image + the fixed handlers overlaid via esbuild); the fixes are also unit-proven (169/169). Disclosed in both repos' CHANGELOGs + PRs.
+**Problem (resolved).** `make e2e` (theo-cloud) builds the TheMemory image from source; `pnpm install --frozen-lockfile` ran `sharp@0.32.6`'s postinstall, which downloaded libvips from the GitHub CDN. That CDN timed out persistently, making the clean rebuild non-reproducible.
 
 **Why `sharp` is there.** `pnpm why sharp` → pulled by `@xenova/transformers@2.17.2` (the LocalTransformerEmbedder). It is listed in `package.json` pnpm build-allowlist (`onlyBuiltDependencies`) so its postinstall runs. TheMemory uses TEXT embeddings only; `sharp` (image processing) is never invoked at runtime — Transformers.js lazy-loads it only for `RawImage` inputs.
 
-**Remediation (validate before shipping).** Make the image build not depend on the libvips download. Candidate approaches (pick one after testing):
-- (a) Remove `sharp` from the pnpm build-allowlist so its postinstall is skipped (installs without the native binary). **MUST TEST:** that `@usetheo/memory/embedders/local` (LocalTransformerEmbedder) still imports + produces a text embedding without `sharp` built — i.e. `@xenova/transformers` does not eager-`require('sharp')` at module load. If it does, this approach is out.
-- (b) Pin/cache the libvips binary in the builder layer (vendored or a registry mirror) so the build is hermetic.
-- (c) `--no-optional` on the production-deps install IF `sharp` is genuinely optional in the resolved tree.
+**Fix shipped (version pin).** Pinned `sharp` to `^0.33.5` via a pnpm `overrides` entry. sharp 0.33+ resolves libvips from npm-hosted `@img/sharp-libvips-*` packages (NO GitHub CDN), so `pnpm install --frozen-lockfile` is hermetic. Rejected alternatives: (a) removing `sharp` from the build-allowlist was unsafe — `@xenova/transformers` `image.js:16` does a STATIC `import sharp from 'sharp'`, so dropping the built binary risks the text path; (b) the apt+`SHARP_FORCE_GLOBAL_LIBVIPS` route failed (Debian libvips 8.14.1 < sharp 0.32.6's required 8.14.5, and `SHARP_FORCE_GLOBAL_LIBVIPS` only exists in sharp 0.33+, so it would have needed the upgrade anyway).
 
-**Acceptance:** a clean `make e2e` (no `THEMORY_IMAGE` override) goes GREEN, including the Phase 2A attribution round-trip + cross-subject isolation legs. Re-run the existing e2e once the CDN recovers as the immediate first check — it may already pass without any change.
+**Validation (all GREEN).** Clean `make e2e` (no `THEMORY_IMAGE` override) PASS — image built from source, `sharp@0.33.5 install: Done` in both builder + production-deps stages with NO `github.com/lovell` download; `TestMemoryE2E_FullVerbSurface` (incl. attribution round-trip + cross-subject isolation) + `TestMemoryE2E_GatewayProxyRoundTrip` PASS. theo-memory api 169/169 + root contract suite 971/971 (after a co-shipped index-signature type fix in `metrics-entities.test.ts`). `@xenova/transformers` imports cleanly against 0.33.x.
 
-**Classification:** hardening (CI reliability), NOT a frozen feature → a small TDD cycle is permitted under P0.
+**Classification:** hardening (CI reliability), NOT a frozen feature. Shipped on `theo-memory` `develop` (`[Unreleased] § Fixed`). Memory updated: [[themory-image-build-sharp-cdn]].
 
 ---
 
