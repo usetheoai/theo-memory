@@ -228,6 +228,23 @@ describe('T2.1 — POST /v1/scopes/skill/:repoId/skills', () => {
     expect((await app.fetch(postReq('acme', big))).status).toBe(413);
   });
 
+  test('422 on whitespace-only description (InvalidSkillError → 422 mapping)', async () => {
+    // zod .min(1) passes "   "; the store throws InvalidSkillError(empty-description)
+    // which the handler maps to 422. Exercises the reachable error branch.
+    const app = createServer({
+      memory: stubWriteMemory({
+        add: async () => {
+          throw new (await import('@usetheo/memory/contract')).InvalidSkillError(
+            'empty-description',
+            'description is empty/whitespace',
+          );
+        },
+      }),
+    });
+    const res = await app.fetch(postReq('acme', { ...valid, description: '   ' }));
+    expect(res.status).toBe(422);
+  });
+
   test('400 on empty repoId path / malformed body', async () => {
     const app = createServer({ memory: stubWriteMemory({}) });
     const malformed = new Request('http://localhost/v1/scopes/skill/acme/skills', {

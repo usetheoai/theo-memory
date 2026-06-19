@@ -112,6 +112,10 @@ if (PG_URI === undefined || PG_URI === '') {
       ]);
       const statuses = [a.status, b.status].sort();
       expect(statuses).toEqual([201, 409]);
+      // No double-insert / lost-update: the DB holds exactly ONE row for the hash.
+      const list = await app.fetch(new Request('http://localhost/v1/scopes/skill/repo-acme/skills'));
+      const body = (await list.json()) as { skills: unknown[] };
+      expect(body.skills).toHaveLength(1);
     });
 
     test('EC-W3: DELETE of a non-skill memory id -> 404 (scope-isolated forget)', async () => {
