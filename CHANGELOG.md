@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- `ScopedSkillMemory.getAll(options?)` — read-only enumeration of a repo's skills (head-of-version-chain by default; `includeSuperseded` to include superseded ancestors; soft-deleted excluded; `[]` for an empty repo). Powers the read-only skills browse surface; distinct from `recall()` semantic search. Reuses the `VectorStore.list` primitive (no new SQL). Pre-release additive change to the `ScopedSkillMemory` DIP contract. (plan `dashboard-phase2b-skills-browse` T1.1)
 
 ### Changed
 - PRIORITY 0 scope amendment (project-owner / CTO sign-off 2026-06-19): the read-only **Skills / Repo-tier dashboard browse surface** (a new skills listing REST endpoint + gateway BFF + dashboard Skills tab) is UNFROZEN and re-classified as in-scope P0 hardening. It exposes a listing of the already-shipped `Memory.skills(repoId)` SDK capability; read-only browse only (no executor/editor/sandbox). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19". (#dashboard-phase2b-skills-browse)
