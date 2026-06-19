@@ -18,7 +18,7 @@ import { hashFact } from '../../domain/dedup.js';
 import type { Embedder } from '../../domain/dip/embedder.js';
 import type { LLM } from '../../domain/dip/llm.js';
 import type { VectorStore } from '../../domain/dip/vector-store.js';
-import { InvalidScope, MemoryNotFound } from '../../domain/errors.js';
+import { InvalidScope, MemoryNotFound, SkillAlreadyExists } from '../../domain/errors.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
 import type { Filters, RepoScope } from '../../domain/scope.js';
@@ -68,6 +68,21 @@ export interface LocalScopedSkillMemoryDeps {
 
 // T3.3: payloadToSkill extraction — see src/local/skills/payload.ts:decodeSkillPayload.
 
+/**
+ * skills-write-surface T1.1 / EC-W1 — detect the Postgres unique-violation
+ * (`code === '23505'`) raised by the `UNIQUE(hash)` skill index. Guards on the
+ * hash constraint name when present so a FUTURE second unique index on the
+ * skill insert path is never mis-mapped to 409; falls back to true on a bare
+ * 23505 (today the hash index is the only unique constraint hit on insertSkill).
+ */
+function isHashUniqueViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const e = err as { code?: unknown; constraint?: unknown };
+  if (e.code !== '23505') return false;
+  const constraint = typeof e.constraint === 'string' ? e.constraint : undefined;
+  return constraint === undefined || constraint.includes('hash');
+}
+
 export class LocalScopedSkillMemory implements ScopedSkillMemory {
   private readonly scope: RepoScope;
   private readonly filters: Filters;
@@ -99,16 +114,29 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     // description (different code) DO collide on the UNIQUE(hash) index.
     // Consumer rewriting the same skill must use a distinct description.
     const hash = hashFact(draft.description);
-    const id = await this.deps.vectorStore.insertSkill({
-      embedding,
-      hash,
-      code: draft.code,
-      description: draft.description,
-      codeLanguage: draft.codeLanguage,
-      // RepoScope persists in agent_id at the store layer per EC-4.
-      // T3.1: stamp the workspace so the skill is found only within it.
-      scope: { agentId: this.scope.repoId, workspaceId: this.deps.workspaceId ?? 'default' },
-    });
+    let id: string;
+    try {
+      id = await this.deps.vectorStore.insertSkill({
+        embedding,
+        hash,
+        code: draft.code,
+        description: draft.description,
+        codeLanguage: draft.codeLanguage,
+        // RepoScope persists in agent_id at the store layer per EC-4.
+        // T3.1: stamp the workspace so the skill is found only within it.
+        scope: { agentId: this.scope.repoId, workspaceId: this.deps.workspaceId ?? 'default' },
+      });
+    } catch (err) {
+      // skills-write-surface T1.1 / D1 + EC-W1: a same-description add collides on
+      // the UNIQUE(hash) index → Postgres unique-violation (code 23505). Map it to
+      // the typed SkillAlreadyExists so the REST/MCP boundary can return 409 (not a
+      // raw 500). EC-W1: guard on the hash constraint specifically so a FUTURE
+      // second unique index is never mis-mapped; re-throw anything else.
+      if (isHashUniqueViolation(err)) {
+        throw new SkillAlreadyExists(hash, this.scope.repoId, { cause: err });
+      }
+      throw err;
+    }
     return {
       id,
       text: draft.description,
@@ -209,18 +237,28 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     //   (a) the row does not exist (parity with LocalMemory.forget EC-12),
     //   (b) the row belongs to another repoId (cross-scope erasure attempt),
     //   (c) the row is not a skill (kind mismatch — a user/agent memory id was
-    //       passed to memory.skills(...).forget).
-    // All three failures surface the SAME error class — consumers cannot
-    // distinguish "you don't own it" from "doesn't exist" (information-leak
-    // prevention; intentional per plan T4.1 deep-dives § behavior matrix).
+    //       passed to memory.skills(...).forget),
+    //   (d) the row belongs to another WORKSPACE (cross-tenant erasure attempt).
+    // All failures surface the SAME error class — consumers cannot distinguish
+    // "you don't own it" from "doesn't exist" (information-leak prevention;
+    // intentional per plan T4.1 deep-dives § behavior matrix).
+    //
+    // skills-write-surface /review HIGH fix: the (d) workspace_id check guards
+    // HERE so a cross-workspace forget maps to MemoryNotFound (404) at the guard,
+    // rather than falling through to LocalMemory.forget which throws the
+    // (api-unmapped) WorkspaceMismatch → 500 — a 500-vs-404 differential would
+    // leak which (repoId, skillId) tuples exist in OTHER workspaces (ADR D6 +
+    // OWASP IDOR). Also closes dashboard-integration-followups § 4.
+    const expectedWorkspace = this.deps.workspaceId ?? 'default';
     const row = await this.deps.getDelegate(skillId);
     const isOwnedSkill =
       row !== null
       && row.metadata['kind'] === 'skill'
-      && row.metadata['agent_id'] === this.scope.repoId;
+      && row.metadata['agent_id'] === this.scope.repoId
+      && (row.metadata['workspace_id'] ?? 'default') === expectedWorkspace;
     if (!isOwnedSkill) {
       throw new MemoryNotFound(
-        `skillId ${skillId} not found in repo '${this.scope.repoId}' (cross-scope or non-skill)`,
+        `skillId ${skillId} not found in repo '${this.scope.repoId}' (cross-scope, cross-workspace, or non-skill)`,
       );
     }
     await this.deps.forgetDelegate(skillId);

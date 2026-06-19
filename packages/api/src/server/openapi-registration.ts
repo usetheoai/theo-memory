@@ -264,6 +264,54 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // skills-write-surface T2.1 — create a skill.
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/scopes/skill/{repoId}/skills',
+    operationId: 'createSkill',
+    summary: 'Create a skill under a repo (store-only; code is never executed).',
+    request: {
+      params: z.object({ repoId: z.string().min(1) }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              code: z.string().min(1),
+              description: z.string().min(1),
+              codeLanguage: z.enum(['typescript', 'javascript']),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: 'Created.',
+        content: { 'application/json': { schema: z.object({ id: z.string(), hash: z.string() }) } },
+      },
+      400: { description: 'Empty repoId or malformed JSON.' },
+      409: { description: 'A skill with this description already exists (dedup-collision).' },
+      413: { description: 'code payload too large.' },
+      422: { description: 'Invalid body (empty fields / invalid codeLanguage).' },
+    },
+  });
+
+  // skills-write-surface T2.2 — forget (curate) a skill.
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/scopes/skill/{repoId}/skills/{skillId}',
+    operationId: 'forgetSkill',
+    summary: 'Forget (delete) a skill — scope-isolated curation.',
+    request: {
+      params: z.object({ repoId: z.string().min(1), skillId: z.string().min(1) }),
+    },
+    responses: {
+      204: { description: 'Deleted.' },
+      400: { description: 'Empty repoId or skillId.' },
+      404: { description: 'Not a skill in this repo scope.' },
+    },
+  });
+
   registry.registerPath({
     method: 'get',
     path: '/v1/scopes/{type}/{id}/memories',
