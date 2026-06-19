@@ -56,10 +56,10 @@ describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, number>;
-    expect(body.total_memories).toBe(4);
-    expect(body.entity_count).toBe(2); // paulo + maria (null skipped)
-    expect(body.add_events).toBe(4);
-    expect(body.retrieval_api_usage).toBe(0);
+    expect(body['total_memories']).toBe(4);
+    expect(body['entity_count']).toBe(2); // paulo + maria (null skipped)
+    expect(body['add_events']).toBe(4);
+    expect(body['retrieval_api_usage']).toBe(0);
   });
 
   test('empty scope returns all zeros (never NaN/null)', async () => {
@@ -67,8 +67,8 @@ describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, number>;
-    expect(body.total_memories).toBe(0);
-    expect(body.entity_count).toBe(0);
+    expect(body['total_memories']).toBe(0);
+    expect(body['entity_count']).toBe(0);
   });
 
   test('unknown scope type → 404', async () => {
@@ -88,8 +88,8 @@ describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
     const app = createServer({ memory: stubMemory(items) });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
     const body = (await res.json()) as Record<string, number>;
-    expect(body.total_memories).toBe(2);
-    expect(body.entity_count).toBe(1); // only paulo; '' excluded
+    expect(body['total_memories']).toBe(2);
+    expect(body['entity_count']).toBe(1); // only paulo; '' excluded
   });
 });
 
