@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`POST /v1/scopes/skill/:repoId/skills`** (`@usetheo/memory/server`) — create a skill (store-only; code is never executed). 201 `{id,hash}`; **409 SKILL_ALREADY_EXISTS** on dedup-collision (D1); 422 invalid body/language/empty; 413 oversized code (64 KiB cap); 400 empty repoId/malformed. Workspace-bound. OpenAPI-registered. (skills-write-surface T2.1)
+- **`DELETE /v1/scopes/skill/:repoId/skills/:skillId`** — forget (curate) a skill; 204 success, 404 when not a skill in this repo scope (scope-isolated). OpenAPI-registered. (skills-write-surface T2.2, D4)
 - `SkillAlreadyExists` domain error: `ScopedSkillMemory.add()` now maps a dedup-collision (same description → `UNIQUE(hash)`) to this typed error instead of a raw Postgres unique-violation, so the REST/MCP boundary can return 409 (skills-write-surface T1.1, D1). EC-W1: guarded on the hash constraint to never mis-map a future unique index. Exported from `@usetheo/memory/contract`. (#skills-write-surface)
 
 ### Changed

@@ -39,7 +39,7 @@ import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopesHandler } from './handlers/scopes.js';
-import { skillsHandler } from './handlers/skills.js';
+import { deleteSkillHandler, postSkillHandler, skillsHandler } from './handlers/skills.js';
 import {
   wellKnownOauthProtectedResourceHandler,
   type OidcDiscoveryConfig,
@@ -313,6 +313,9 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
   // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
   app.get('/v1/scopes/skill/:repoId/skills', (c) => skillsHandler(c, memory));
+  // skills-write-surface T2.1/T2.2 — create + curate (delete) skills.
+  app.post('/v1/scopes/skill/:repoId/skills', (c) => postSkillHandler(c, memory));
+  app.delete('/v1/scopes/skill/:repoId/skills/:skillId', (c) => deleteSkillHandler(c, memory));
 
   app.post('/v1/remember', (c) => rememberHandler(c, memory));
   app.post('/v1/recall', (c) => recallHandler(c, memory));
