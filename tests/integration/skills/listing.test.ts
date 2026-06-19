@@ -118,6 +118,31 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(withSuperseded.map((s) => s.id)).toContain(old.id);
     });
 
+    test('F-1: getAll returns the STORED created_at, not the decode-time now()', async () => {
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: fixedEmbedder(),
+        llm: new StubLLM(),
+      });
+      const skills = memory.skills('repo-acme');
+      const a = await skills.add({
+        code: 'x',
+        description: 'a skill with a known past creation time',
+        codeLanguage: 'typescript',
+      });
+      // Force a known PAST created_at directly in the store. The OLD buggy
+      // getAll (decodeSkillPayload hardcoded new Date()) would return ~now;
+      // the fixed getAll must return this stored value.
+      await pool.query(`UPDATE memories SET created_at = $1 WHERE id = $2`, [
+        '2020-01-02T03:04:05.000Z',
+        a.id,
+      ]);
+
+      const all = await skills.getAll();
+      const found = all.find((s) => s.id === a.id);
+      expect(found?.createdAt.toISOString()).toBe('2020-01-02T03:04:05.000Z');
+    });
+
     test('cross-repo isolation — repoA.getAll() never returns a repoB skill', async () => {
       const memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),

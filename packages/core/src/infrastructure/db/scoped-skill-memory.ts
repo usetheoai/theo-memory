@@ -178,7 +178,11 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
       // columns from it (3-arg form — no recall score for a listing).
       const projected = decodeSkillPayload(r.id, r.payload, this.scope);
       if (projected !== null) {
-        skills.push(projected);
+        // decodeSkillPayload hardcodes createdAt=now() (the payload JSONB does
+        // not carry it); VectorStore.list projects the real created_at into the
+        // top-level result field, so override with the stored truth when present
+        // (the browse surface renders a "Created" column — Inquebrável Rule 3).
+        skills.push(r.createdAt !== undefined ? { ...projected, createdAt: r.createdAt } : projected);
       }
     }
     return skills;
