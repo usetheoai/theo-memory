@@ -169,6 +169,60 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
+  // entity aggregation (ADR D2 amendment).
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/{type}/{id}/metrics',
+    operationId: 'scopeMetrics',
+    summary: 'Subject-scoped memory KPIs (total, entity_count, add_events).',
+    request: { params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }) },
+    responses: {
+      200: {
+        description: 'Scope KPIs.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              total_memories: z.number().int(),
+              entity_count: z.number().int(),
+              add_events: z.number().int(),
+              retrieval_api_usage: z.number().int(),
+            }),
+          },
+        },
+      },
+      404: { description: 'Unknown scope type or empty id.' },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/{type}/{id}/entities',
+    operationId: 'scopeEntities',
+    summary: 'Subject-scoped entity aggregation (distinct attributed_to peers).',
+    request: { params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }) },
+    responses: {
+      200: {
+        description: 'Aggregated entities.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              entities: z.array(
+                z.object({
+                  id: z.string(),
+                  scope_type: z.string(),
+                  memory_count: z.number().int(),
+                  last_seen_at: z.string().optional(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      404: { description: 'Unknown scope type or empty id.' },
+    },
+  });
+
   registry.registerPath({
     method: 'get',
     path: '/v1/scopes/{type}/{id}/memories',
@@ -179,6 +233,9 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
       query: z.object({
         cursor: z.string().optional(),
         limit: z.coerce.number().int().min(1).max(100).optional(),
+        category: z.string().min(1).max(64).optional(),
+        from: z.string().datetime().optional(),
+        to: z.string().datetime().optional(),
       }),
     },
     responses: {

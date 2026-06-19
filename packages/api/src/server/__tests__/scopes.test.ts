@@ -203,4 +203,31 @@ describe('T1.3 — GET /v1/scopes/:type/:id/memories', () => {
     );
     expect(res.status).toBe(404);
   });
+
+  // ADR D3 — created_at range filter (from/to).
+  test('14. from/to narrows the listing to the created_at range (ADR D3)', async () => {
+    const items = [
+      makeItem('id-3', '2026-06-03T00:00:00Z'),
+      makeItem('id-2', '2026-06-02T00:00:00Z'),
+      makeItem('id-1', '2026-06-01T00:00:00Z'),
+    ];
+    const app = createServer({ memory: stubMemory(stubScopedWithItems(items)) });
+    const res = await app.fetch(
+      new Request(
+        'http://localhost/v1/scopes/user/alice/memories?from=2026-06-02T00:00:00Z&to=2026-06-02T23:59:59Z',
+      ),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: MemoryItem[] };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]!.id).toBe('id-2');
+  });
+
+  test('15. invalid from datetime returns 422 (ADR D3 boundary validation)', async () => {
+    const app = createServer({ memory: stubMemory(stubScopedWithItems([])) });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/scopes/user/alice/memories?from=not-a-date'),
+    );
+    expect(res.status).toBe(422);
+  });
 });
