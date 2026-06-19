@@ -25,6 +25,7 @@ import {
   revokeKeyHandler,
   rotateKeyHandler,
 } from './handlers/admin-keys.js';
+import { entitiesHandler } from './handlers/entities.js';
 import { forgetHandler } from './handlers/forget.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
 import {
@@ -33,6 +34,7 @@ import {
   removeMemberHandler,
   setMemberRoleHandler,
 } from './handlers/members.js';
+import { metricsHandler } from './handlers/metrics.js';
 import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
@@ -303,6 +305,10 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   }
 
   app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
+  // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
+  // entity aggregation (real, derived from getAll(); ADR D2 amendment).
+  app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory));
 
   app.post('/v1/remember', (c) => rememberHandler(c, memory));
   app.post('/v1/recall', (c) => recallHandler(c, memory));
