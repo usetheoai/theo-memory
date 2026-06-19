@@ -11,10 +11,11 @@ import { describe, expect, test } from 'vitest';
 import { hashFact } from '../../domain/dedup.js';
 import type { HistoryBatchRecord, HistoryManager } from '../../domain/dip/history-manager.js';
 import type { Message } from '../../domain/dip/llm.js';
-import { InvalidScope, InvalidSkillError, MemoryNotFound } from '../../domain/errors.js';
+import { InvalidScope, InvalidSkillError, MemoryNotFound, SkillAlreadyExists } from '../../domain/errors.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
 
 import { InMemoryVectorStore } from './in-memory-store.js';
+import { LocalScopedSkillMemory, type LocalScopedSkillMemoryDeps } from './scoped-skill-memory.js';
 
 import { createLocalMemory, StubEmbedder, StubLLM } from './index.js';
 
@@ -335,3 +336,45 @@ describe('LocalScopedSkillMemory.getAll — dashboard-phase2b-skills-browse T1.1
     expect(fromAlpha.map((s) => s.id)).toEqual([alphaSkill.id]);
   });
 });
+
+describe('LocalScopedSkillMemory.add — collision mapping (skills-write-surface T1.1)', () => {
+  // Build a LocalScopedSkillMemory directly with a stub store whose insertSkill
+  // throws, to exercise the D1 / EC-W1 catch (the in-memory store does not
+  // enforce UNIQUE(hash); the real collision is proven in integration T2.4).
+  function buildScopedSkill(insertSkill: () => Promise<string>) {
+    return new LocalScopedSkillMemory('repo-alpha', {
+      vectorStore: {
+        insertSkill,
+        // unused by add(); present for the deps type
+      } as unknown as LocalScopedSkillMemoryDeps['vectorStore'],
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      forgetDelegate: async () => undefined,
+      getDelegate: async () => null,
+    });
+  }
+
+  test('maps a Postgres unique-violation (code 23505) on the hash index to SkillAlreadyExists', async () => {
+    const scoped = buildScopedSkill(async () => {
+      await Promise.resolve();
+      throw Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'memories_hash_scope_unique_idx',
+      });
+    });
+    await expect(
+      scoped.add({ code: 'x', description: 'collides', codeLanguage: 'typescript' }),
+    ).rejects.toBeInstanceOf(SkillAlreadyExists);
+  });
+
+  test('re-throws a non-unique-violation store error unchanged (no masking)', async () => {
+    const boom = Object.assign(new Error('connection reset'), { code: '08006' });
+    const scoped = buildScopedSkill(async () => {
+      await Promise.resolve();
+      throw boom;
+    });
+    await expect(
+      scoped.add({ code: 'x', description: 'whatever', codeLanguage: 'typescript' }),
+    ).rejects.toBe(boom);
+  });
+})

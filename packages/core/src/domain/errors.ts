@@ -373,3 +373,30 @@ export class WorkspaceMismatch extends Error {
     Object.setPrototypeOf(this, WorkspaceMismatch.prototype);
   }
 }
+
+/**
+ * Thrown by `ScopedSkillMemory.add()` when the skill's content-derived hash
+ * (`hashFact(description)`) collides with an existing skill in the same scope —
+ * the `UNIQUE(hash)` index rejects the insert. Skills are ADD-only
+ * (architecture.md § 2): the existing row is unchanged (first-write-wins). To
+ * store a variant, revise the `description` (distinct hash) or `forget(id)` then
+ * `add(...)`. Maps to HTTP 409 at the REST boundary (skills-write-surface D1).
+ *
+ * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § ADR D1
+ */
+export class SkillAlreadyExists extends Error {
+  override readonly name = 'SkillAlreadyExists' as const;
+
+  readonly hash: string;
+  readonly repoId: string;
+
+  constructor(hash: string, repoId: string, options?: ErrorOptions) {
+    super(
+      `Skill already exists in repo '${repoId}' (hash ${hash}): a skill with this description is already stored. Revise the description or forget the existing skill first.`,
+      options,
+    );
+    this.hash = hash;
+    this.repoId = repoId;
+    Object.setPrototypeOf(this, SkillAlreadyExists.prototype);
+  }
+}
