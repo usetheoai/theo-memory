@@ -48,6 +48,16 @@ Tracks the deferred items so they are not lost in chat. The two actionable LOW r
 
 ---
 
+## 4. Skill `forget` scope guard — add `workspace_id` to the ownership check (adjacent debt)
+
+**Status:** ACTIONABLE (small hardening) — surfaced by `/review dashboard-phase2b-skills-browse` (LOW-1). NOT reachable through the read-only browse feature.
+
+**Problem.** `LocalScopedSkillMemory.forget` (`packages/core/src/infrastructure/db/scoped-skill-memory.ts`) verifies `row.metadata['agent_id'] === this.scope.repoId` but does NOT also assert `row.metadata['workspace_id'] === (this.deps.workspaceId ?? 'default')`. On a multi-workspace deployment, a skillId from another workspace that shares the same `agent_id`/repoId would pass this in-memory guard (the canonical `forgetDelegate`/`LocalMemory.forget` may re-scope downstream, but the guard itself is incomplete).
+
+**Why deferred.** The `dashboard-phase2b-skills-browse` feature is read-only — no `forget` path is exposed through the gateway/dashboard, so this is not reachable via the shipped surface. Pre-existing; not introduced by that cycle. Fix is a one-line guard extension + a unit test.
+
+**Remediation.** Add `&& row.metadata['workspace_id'] === (this.deps.workspaceId ?? 'default')` to the `isOwnedSkill` check; add a cross-workspace forget-rejection unit test. Classification: hardening (multi-tenant isolation), permitted under P0.
+
 ## Cross-references
 - Blueprint: `.claude/knowledge-base/discoveries/blueprints/dashboard-phase2-skills-bitemporal-attribution-blueprint.md`
 - Reviews: `dashboard-phase2a-attribution-asof-review-2026-06-19.md`, `theo-memory-dashboard-full-integration` review
