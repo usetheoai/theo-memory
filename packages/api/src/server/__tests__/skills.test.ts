@@ -106,15 +106,30 @@ describe('T2.1 — GET /v1/scopes/skill/:repoId/skills', () => {
     expect(boundWs).toBeDefined();
   });
 
-  test('EC-4: when getAll returns exactly the cap, the response discloses truncation', async () => {
+  test('EC-4: truncation disclosed when MORE than topK skills exist (over-fetch topK+1)', async () => {
     const cap = 2;
-    const app = createServer({ memory: stubMemory([makeSkill('s1'), makeSkill('s2')]) });
+    // 3 skills exist; topK=2 → over-fetch 3, truncated, page sliced to 2.
+    const app = createServer({
+      memory: stubMemory([makeSkill('s1'), makeSkill('s2'), makeSkill('s3')]),
+    });
     const res = await app.fetch(
       new Request(`http://localhost/v1/scopes/skill/acme/skills?topK=${cap}`),
     );
     const body = (await res.json()) as { skills: unknown[]; truncated?: boolean };
     expect(body.skills).toHaveLength(2);
     expect(body.truncated).toBe(true);
+  });
+
+  test('EC-4: exactly topK skills (no tail) reports truncated:false (no false positive)', async () => {
+    const cap = 2;
+    // Exactly 2 skills; topK=2 → over-fetch 3 returns only 2 → NOT truncated.
+    const app = createServer({ memory: stubMemory([makeSkill('s1'), makeSkill('s2')]) });
+    const res = await app.fetch(
+      new Request(`http://localhost/v1/scopes/skill/acme/skills?topK=${cap}`),
+    );
+    const body = (await res.json()) as { skills: unknown[]; truncated?: boolean };
+    expect(body.skills).toHaveLength(2);
+    expect(body.truncated).toBe(false);
   });
 
   test('OpenAPI documents GET /v1/scopes/skill/{repoId}/skills with a 200 schema', async () => {
