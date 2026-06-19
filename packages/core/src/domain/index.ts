@@ -124,6 +124,7 @@ export {
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
+  SkillAlreadyExists,
   WorkspaceMismatch,
 } from './errors.js';
 
