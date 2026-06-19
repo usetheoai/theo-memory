@@ -123,6 +123,18 @@ Honest classification (Rule 3 + Rule 10):
 - **Slug:** `openmemory-mcp-compat` (Roadmap Item 26). Governance: discover → blueprint → plan → implement → review, like any P0-hardening cycle.
 - **Scope guardrail:** MCP tool-shape + transport compatibility only. NOT the OpenMemory dashboard UI, NOT importing the `openmemory/` Docker stack, NOT a REDACTED data-SDK dependency. The local `REDACTED` reference clone (`openmemory/`) is read-only study material for the discover.
 
+### Amendment 2026-06-19 — Skills (Repo-tier) dashboard surface UNFROZEN + RE-CLASSIFIED as in-scope (project-owner / CTO sign-off)
+
+**Project-owner directive (2026-06-19, explicit CTO request — "Eu quero o item 1 e 2 isso é um PEDIDO do CTO"):** the **read-only Skills / Repo-tier dashboard surface** — a new TheMemory REST listing endpoint for skills, fronted by the theo-cloud gateway BFF, surfaced as a dashboard Skills tab — is hereby **UNFROZEN and re-classified as IN-SCOPE under PRIORITY 0**. This lifts the freeze that the `dashboard-phase2-skills-bitemporal-attribution` blueprint (ADR D2, SHIPPABLE 98.5) explicitly deferred to "owner unfreeze" per Rule 10.
+
+Honest classification (Rule 3 + Rule 10):
+
+- **What unfreezes:** ONLY the **read-only skills browse surface** of Roadmap Item 8 (REDACTED skill library, already SHIPPED at the SDK layer). The capability exists in `src/core` (`Memory.skills(repoId)`); this work exposes a **listing** of it over REST + gateway + dashboard. It is the "dashboard surface" companion to an already-shipped feature, not a net-new memory capability.
+- **Slug:** `dashboard-phase2b-skills-browse`. Governance: `/to-plan` from blueprint ADR D2 → `/edge-case-plan` → `/plan-confidence` → `/implement` → `/review`, like any P0-hardening cycle. The discovery is already done (blueprint exists).
+- **Public API addition (pre-release, acceptable):** `ScopedSkillMemory` today exposes only `add`/`recall`/`consolidate`/`forget` — NO list-all method. The browse needs a read-only list (e.g. `getAll()` returning the repo's skills); this is a forward-only addition to the DIP contract. The REST endpoint `GET /v1/scopes/skill/:repoId/skills` REPLACES the current honest `501 SKILL_LISTING_NOT_IMPLEMENTED` for the listing path.
+- **Scope guardrail (KISS/YAGNI):** read-only browse ONLY — list `{hash, description, code payload, language, createdAt, derivedFrom, supersededBy}` per repo. NO skill executor, NO editor, NO sandbox/e2b/modal deps, NO write/forget from the dashboard. Per ADR D2 alternatives (a)+(b) rejected.
+- **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this read-only skills-browse surface is re-classified.
+
 ---
 
 ## What this project is
