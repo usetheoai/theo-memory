@@ -45,6 +45,16 @@ const QuerySchema = z.object({
    * to undefined (EC-3 defense-in-depth for direct SDK callers).
    */
   category: z.string().min(1).max(64).optional(),
+  /**
+   * theo-memory-dashboard-full-integration ADR D3 — optional RFC3339
+   * created_at range filter. `from` is an inclusive lower bound, `to` an
+   * inclusive upper bound. Invalid datetimes are rejected at the boundary
+   * (422 INVALID_QUERY). The gateway dashboard's Memories From/To inputs
+   * thread through to these params; without server-side support they were a
+   * no-op control (dishonest per Inquebrável Rule 3).
+   */
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
 });
 
 function pathParamsToScoped(memory: Memory, type: Exclude<ScopeType, 'skill'>, id: string): ScopedMemory {
@@ -113,6 +123,8 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     cursor: c.req.query('cursor'),
     limit: c.req.query('limit'),
     category: c.req.query('category'),
+    from: c.req.query('from'),
+    to: c.req.query('to'),
   });
   if (!queryParse.success) {
     return c.json(
@@ -123,7 +135,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
       422,
     );
   }
-  const { cursor: rawCursor, limit, category } = queryParse.data;
+  const { cursor: rawCursor, limit, category, from, to } = queryParse.data;
 
   let cursor: z.infer<typeof CursorSchema> | null = null;
   if (rawCursor !== undefined) {
@@ -144,6 +156,16 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   const all =
     category !== undefined ? await scoped.getAll({ category }) : await scoped.getAll();
   let filtered: readonly MemoryItem[] = all;
+  // ADR D3 — created_at range filter (inclusive bounds). Applied in-memory,
+  // consistent with the existing cursor filter (same O(scope) honesty note).
+  if (from !== undefined || to !== undefined) {
+    const fromTs = from !== undefined ? new Date(from).getTime() : -Infinity;
+    const toTs = to !== undefined ? new Date(to).getTime() : Infinity;
+    filtered = filtered.filter((m) => {
+      const ts = m.createdAt.getTime();
+      return ts >= fromTs && ts <= toTs;
+    });
+  }
   if (cursor !== null) {
     const cutoff = new Date(cursor.lastCreatedAt).getTime();
     filtered = all.filter((m) => {
