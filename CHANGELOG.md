@@ -5,20 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- `ScopedSkillMemory.getAll(options?)` — read-only enumeration of a repo's skills (head-of-version-chain by default; `includeSuperseded` to include superseded ancestors; soft-deleted excluded; `[]` for an empty repo). Powers the read-only skills browse surface; distinct from `recall()` semantic search. Reuses the `VectorStore.list` primitive (no new SQL). Pre-release additive change to the `ScopedSkillMemory` DIP contract. (plan `dashboard-phase2b-skills-browse` T1.1)
-- **`GET /v1/scopes/skill/:repoId/skills`** (`@usetheo/memory/server`) — read-only Repo-tier skills listing returning `{ skills: [{ id, hash, description, code, codeLanguage, createdAt, derivedFrom, supersededBy }], truncated }`. Dedicated sub-resource (the generic `GET /v1/scopes/:type/:id/memories` keeps returning `501 SKILL_LISTING_NOT_IMPLEMENTED` for `type=skill`, ADR D5). Resolves skills via the workspace-bound Memory (workspace-isolation parity); `truncated:true` discloses the `topK` cap honestly. OpenAPI registered. (plan `dashboard-phase2b-skills-browse` T2.1)
 
 ### Changed
-- PRIORITY 0 scope amendment (project-owner / CTO sign-off 2026-06-19): the read-only **Skills / Repo-tier dashboard browse surface** (a new skills listing REST endpoint + gateway BFF + dashboard Skills tab) is UNFROZEN and re-classified as in-scope P0 hardening. It exposes a listing of the already-shipped `Memory.skills(repoId)` SDK capability; read-only browse only (no executor/editor/sandbox). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19". (#dashboard-phase2b-skills-browse)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- Docker image build is now reproducible: pinned `sharp` to `^0.33.5` via a pnpm override (npm-hosted libvips, no GitHub-CDN download), so `pnpm install --frozen-lockfile` in the image build no longer fails when the flaky GitHub CDN times out fetching `sharp@0.32.6`'s libvips. `sharp` is pulled transitively by `@xenova/transformers` (the local embedder) and runs its postinstall under the pnpm build-allowlist; the text-embedding path never invokes `sharp` at runtime, and `@xenova/transformers` imports cleanly against 0.33.x. Makes `make e2e` (which builds the image from source) deterministic again (#memory-integration).
 
 ### Security
+
+## [0.8.0] - 2026-06-19
+
+### Added
+- `ScopedSkillMemory.getAll(options?)` — read-only enumeration of a repo's skills (head-of-version-chain by default; `includeSuperseded` to include superseded ancestors; soft-deleted excluded; `[]` for an empty repo). Powers the read-only skills browse surface; distinct from `recall()` semantic search. Reuses the `VectorStore.list` primitive (no new SQL). Pre-release additive change to the `ScopedSkillMemory` DIP contract. (plan `dashboard-phase2b-skills-browse` T1.1)
+- **`GET /v1/scopes/skill/:repoId/skills`** (`@usetheo/memory/server`) — read-only Repo-tier skills listing returning `{ skills: [{ id, hash, description, code, codeLanguage, createdAt, derivedFrom, supersededBy }], truncated }`. Dedicated sub-resource (the generic `GET /v1/scopes/:type/:id/memories` keeps returning `501 SKILL_LISTING_NOT_IMPLEMENTED` for `type=skill`, ADR D5). Resolves skills via the workspace-bound Memory (workspace-isolation parity); `truncated:true` discloses the `topK` cap honestly. OpenAPI registered. (plan `dashboard-phase2b-skills-browse` T2.1)
+
+
+### Changed
+- PRIORITY 0 scope amendment (project-owner / CTO sign-off 2026-06-19): the read-only **Skills / Repo-tier dashboard browse surface** (a new skills listing REST endpoint + gateway BFF + dashboard Skills tab) is UNFROZEN and re-classified as in-scope P0 hardening. It exposes a listing of the already-shipped `Memory.skills(repoId)` SDK capability; read-only browse only (no executor/editor/sandbox). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19". (#dashboard-phase2b-skills-browse)
+
+
+### Fixed
+- Docker image build is now reproducible: pinned `sharp` to `^0.33.5` via a pnpm override (npm-hosted libvips, no GitHub-CDN download), so `pnpm install --frozen-lockfile` in the image build no longer fails when the flaky GitHub CDN times out fetching `sharp@0.32.6`'s libvips. `sharp` is pulled transitively by `@xenova/transformers` (the local embedder) and runs its postinstall under the pnpm build-allowlist; the text-embedding path never invokes `sharp` at runtime, and `@xenova/transformers` imports cleanly against 0.33.x. Makes `make e2e` (which builds the image from source) deterministic again (#memory-integration).
 
 ## [0.7.0] - 2026-06-19
 
