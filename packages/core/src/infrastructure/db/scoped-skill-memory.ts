@@ -237,18 +237,28 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
     //   (a) the row does not exist (parity with LocalMemory.forget EC-12),
     //   (b) the row belongs to another repoId (cross-scope erasure attempt),
     //   (c) the row is not a skill (kind mismatch — a user/agent memory id was
-    //       passed to memory.skills(...).forget).
-    // All three failures surface the SAME error class — consumers cannot
-    // distinguish "you don't own it" from "doesn't exist" (information-leak
-    // prevention; intentional per plan T4.1 deep-dives § behavior matrix).
+    //       passed to memory.skills(...).forget),
+    //   (d) the row belongs to another WORKSPACE (cross-tenant erasure attempt).
+    // All failures surface the SAME error class — consumers cannot distinguish
+    // "you don't own it" from "doesn't exist" (information-leak prevention;
+    // intentional per plan T4.1 deep-dives § behavior matrix).
+    //
+    // skills-write-surface /review HIGH fix: the (d) workspace_id check guards
+    // HERE so a cross-workspace forget maps to MemoryNotFound (404) at the guard,
+    // rather than falling through to LocalMemory.forget which throws the
+    // (api-unmapped) WorkspaceMismatch → 500 — a 500-vs-404 differential would
+    // leak which (repoId, skillId) tuples exist in OTHER workspaces (ADR D6 +
+    // OWASP IDOR). Also closes dashboard-integration-followups § 4.
+    const expectedWorkspace = this.deps.workspaceId ?? 'default';
     const row = await this.deps.getDelegate(skillId);
     const isOwnedSkill =
       row !== null
       && row.metadata['kind'] === 'skill'
-      && row.metadata['agent_id'] === this.scope.repoId;
+      && row.metadata['agent_id'] === this.scope.repoId
+      && (row.metadata['workspace_id'] ?? 'default') === expectedWorkspace;
     if (!isOwnedSkill) {
       throw new MemoryNotFound(
-        `skillId ${skillId} not found in repo '${this.scope.repoId}' (cross-scope or non-skill)`,
+        `skillId ${skillId} not found in repo '${this.scope.repoId}' (cross-scope, cross-workspace, or non-skill)`,
       );
     }
     await this.deps.forgetDelegate(skillId);
