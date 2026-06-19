@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- PRIORITY 0 scope amendment (project-owner / CTO `/goal` 2026-06-19): the **skills WRITE surface** (REST `POST /v1/scopes/skill/:repoId/skills` + MCP `add_skill` + forget curation) is re-classified as in-scope P0 hardening — surface exposure of the already-shipped `ScopedSkillMemory.add()`/`forget()` SDK capability over REST/MCP/gateway so an agent can author its own skills (Voyager flow). STORE-only (no executor/sandbox/code-editor). Items 13/14/15 stay FROZEN. See CLAUDE.md § "Amendment 2026-06-19 (II)". (#skills-write-surface)
 
 ### Deprecated
 
