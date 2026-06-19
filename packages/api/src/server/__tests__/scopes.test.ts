@@ -203,4 +203,62 @@ describe('T1.3 — GET /v1/scopes/:type/:id/memories', () => {
     );
     expect(res.status).toBe(404);
   });
+
+  // ADR D3 — created_at range filter (from/to).
+  test('14. from/to narrows the listing to the created_at range (ADR D3)', async () => {
+    const items = [
+      makeItem('id-3', '2026-06-03T00:00:00Z'),
+      makeItem('id-2', '2026-06-02T00:00:00Z'),
+      makeItem('id-1', '2026-06-01T00:00:00Z'),
+    ];
+    const app = createServer({ memory: stubMemory(stubScopedWithItems(items)) });
+    const res = await app.fetch(
+      new Request(
+        'http://localhost/v1/scopes/user/alice/memories?from=2026-06-02T00:00:00Z&to=2026-06-02T23:59:59Z',
+      ),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: MemoryItem[] };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]!.id).toBe('id-2');
+  });
+
+  test('15. invalid from datetime returns 422 (ADR D3 boundary validation)', async () => {
+    const app = createServer({ memory: stubMemory(stubScopedWithItems([])) });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/scopes/user/alice/memories?from=not-a-date'),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  // F-arch-1/F-xval-1 regression — from/to MUST still apply on paginated
+  // continuations (cursor present). Previously the cursor branch read the
+  // unfiltered set and silently dropped the date range on page 2+.
+  test('16. from/to is honored together with a cursor (no leak past the range)', async () => {
+    // 4 items spanning 4 days; date window keeps only id-2 and id-3.
+    const items = [
+      makeItem('id-4', '2026-06-04T00:00:00Z'),
+      makeItem('id-3', '2026-06-03T00:00:00Z'),
+      makeItem('id-2', '2026-06-02T00:00:00Z'),
+      makeItem('id-1', '2026-06-01T00:00:00Z'),
+    ];
+    const app = createServer({ memory: stubMemory(stubScopedWithItems(items)) });
+    // Cursor positioned just after id-3 → page should be the rest of the window.
+    const cursor = Buffer.from(
+      JSON.stringify({ lastId: 'id-3', lastCreatedAt: '2026-06-03T00:00:00.000Z' }),
+      'utf-8',
+    ).toString('base64');
+    const res = await app.fetch(
+      new Request(
+        `http://localhost/v1/scopes/user/alice/memories?from=2026-06-02T00:00:00Z&to=2026-06-03T23:59:59Z&cursor=${encodeURIComponent(cursor)}`,
+      ),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: MemoryItem[] };
+    // id-1 is out of window, id-4 out of window, id-3 is at/after the cursor →
+    // only id-2 remains. Critically, id-1 (older, in older-than-cursor set but
+    // OUT of the date window) must NOT leak through.
+    const ids = body.items.map((m) => m.id);
+    expect(ids).toEqual(['id-2']);
+  });
 });
