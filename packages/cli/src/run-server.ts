@@ -26,7 +26,7 @@
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
 import { serve } from '@hono/node-server';
-import { runMigrations, PgMemoryEntityStore } from '@usetheo/memory';
+import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import {
@@ -238,6 +238,9 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     // serves REAL extracted entities (not the attributed_to fallback) in production.
     // Shares the same pool the Memory factory uses; closes the slice's goal loop.
     memoryEntityStore: new PgMemoryEntityStore(pool),
+    // slice2 T3.2 — wire the edges read port so GET /v1/scopes/:type/:id/graph
+    // serves REAL relation edges in production (mirrors the entity-port F-M1 fix).
+    memoryGraphStore: new PgMemoryGraphStore(pool),
   });
 
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {

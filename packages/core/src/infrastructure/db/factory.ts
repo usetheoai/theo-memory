@@ -36,6 +36,7 @@ import {
 } from './eviction/index.js';
 import { type DisposableMemory, LocalMemory } from './local-memory.js';
 import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
+import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 
 // Re-export cache helpers so existing importers from factory.ts still work
@@ -183,6 +184,9 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
           entityExtractor: config.entityExtractor ?? new CompromiseEntityExtractor(),
           memoryEntityStore:
             config.memoryEntityStore ?? new PgMemoryEntityStore(config.vectorStore.poolForEviction),
+          // slice2 T3.2 — edge port, same gate + same pool as the node port.
+          memoryGraphStore:
+            config.memoryGraphStore ?? new PgMemoryGraphStore(config.vectorStore.poolForEviction),
         }
       : config;
 

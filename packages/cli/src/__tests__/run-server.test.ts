@@ -40,6 +40,7 @@ vi.mock('@usetheo/memory', () => ({
   StubLLM: class MockStubLLM {},
   PgvectorStore: class MockPgvectorStore {},
   PgMemoryEntityStore: class MockPgMemoryEntityStore {},
+  PgMemoryGraphStore: class MockPgMemoryGraphStore {},
 }));
 
 vi.mock('@usetheo/memory/embedders/stub', () => ({
