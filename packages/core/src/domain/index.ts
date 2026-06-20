@@ -183,6 +183,8 @@ export type {
   MemoryEntityStore,
   EntityToLink,
   UpsertAndLinkParams,
+  EntityNodeSummary,
+  ListEntitiesParams,
 } from './dip/memory-entity-store.js';
 
 /**

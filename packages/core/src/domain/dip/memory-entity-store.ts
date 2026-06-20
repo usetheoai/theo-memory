@@ -30,6 +30,27 @@ export interface UpsertAndLinkParams {
   readonly entities: readonly EntityToLink[];
 }
 
+/** One aggregated entity (node) for the listing/graph read side (T4.1, ADR D4). */
+export interface EntityNodeSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly type: EntityType;
+  /** Distinct memories this entity is linked to (via memory_entities). */
+  readonly memoryCount: number;
+  /**
+   * Most recent linked-memory `created_at` (ISO string). Sourced from the
+   * linked memories, NOT `entities.created_at` (which is first-write per the
+   * dedup ON CONFLICT). `memory_entities` carries no per-link timestamp.
+   */
+  readonly lastSeenAt: string;
+}
+
+export interface ListEntitiesParams {
+  readonly workspaceId: string;
+  /** Scope tiers (one set, others undefined) — AND-composed via COALESCE. */
+  readonly filters: Filters;
+}
+
 export interface MemoryEntityStore {
   /**
    * UPSERT the given entities (dedup by the per-scope EC-1 UNIQUE) and link each
@@ -37,4 +58,10 @@ export interface MemoryEntityStore {
    * no-op (composite PK ON CONFLICT DO NOTHING).
    */
   upsertAndLink(params: UpsertAndLinkParams): Promise<void>;
+
+  /**
+   * List the entities (nodes) for a scope, deduped, with `memoryCount` +
+   * `lastSeenAt`, ordered by `memoryCount` desc. Read side of ADR D4.
+   */
+  list(params: ListEntitiesParams): Promise<readonly EntityNodeSummary[]>;
 }
