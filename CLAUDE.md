@@ -147,6 +147,21 @@ Honest classification (Rule 3 + Rule 10):
 - **Scope guardrail (KISS/YAGNI — the security line):** STORE-only. The system stores code-as-skill (text); it does NOT execute it. NO executor, NO sandbox (e2b/modal), NO code editor in the UI. The UI gets at most a **forget (delete)** curation control + optionally edit-description — NOT a code editor. Authoring of code is for the **agent** (REST/MCP); the human curates. Per the design discussion 2026-06-19 (UI-create of executable code rejected: contradicts the agent-autonomy thesis + RCE surface).
 - **Does NOT unfreeze** Items 13/14/15 or any other Phase V item — those stay FROZEN. Only this skills write/curation surface is re-classified.
 
+### Amendment 2026-06-20 — Entity + relation extraction (NO graph DB) UNFROZEN + RE-CLASSIFIED as in-scope (project-owner / CTO sign-off)
+
+**Project-owner directive (2026-06-20, explicit live-session unfreeze):** **entity + relation extraction** — populating the currently-unwritten `entities` table from memory text, plus a relations (triples) layer + a dashboard graph view — is hereby **UNFROZEN and re-classified as IN-SCOPE under PRIORITY 0**. This closes the long-standing honest gap (Followup #3: the `entities` table is never populated; session memory [[themory-entities-table-unpopulated]]) and answers the CTO's request for a Mem0-style entity-graph experience **WITHOUT a graph database**.
+
+Honest classification (Rule 3 + Rule 10):
+
+- **What this is:** a real NER/extraction-and-persist pipeline + a 2-table Postgres relational model (`entities` + `entity_edges`) + a listing/graph REST surface + a dashboard graph view. Grounded in blueprint `entity-relation-extraction-no-graphdb` (`/discover-confidence` SHIPPABLE 100, 2026-06-19).
+- **Slug:** `entity-relation-extraction-no-graphdb` (Roadmap Followup #3 promoted). Governance: `/to-plan` → `/edge-case-plan` → `/deps-audit` → `/plan-confidence` → `/implement` → `/review`, like any P0 cycle.
+- **Locked technique decisions (project-owner, this session):**
+  - **D1 — Entity extraction via `compromise` (the Mem0-TS way), NOT spaCy.** spaCy is Python; TheMemory is TS/Node. Mem0's own TS implementation uses the `compromise` npm package with a regex-only fallback (`mem0-ts/src/oss/src/utils/entity_extraction.ts:300` lazy `require("compromise")`). We mirror that: `compromise` as an OPTIONAL lazy-loaded dep + regex fallback. spaCy-via-Python-sidecar was REJECTED (cross-runtime, +Python runtime in the Docker image). The naive "install spaCy like Mem0" is honestly impossible on a Node stack — `compromise` IS "the Mem0 way" for TS.
+  - **D2 — Persist as 2 Postgres tables, NO graph DB.** `entities` + `entity_edges` (resolution by `(scope, normalized_key)` UNIQUE; edges carry `source_memory_id` provenance per Princípio 3). Item 14 (`@usetheo/memory/graph` backend) stays **FROZEN/out-of-scope** — a 1–2 hop dashboard view needs only JOINs.
+  - **Relations (edges):** `compromise` extracts NODES only; the triple (edge) extraction reuses the EXISTING write-pipeline LLM call (blueprint D1) — no second NLP stack. Suggested phasing: Slice 1 = entities/nodes (compromise) → fixes the empty Entities tab; Slice 2 = relations/edges + `{nodes,edges}` graph view.
+- **Public surface additions (pre-release, acceptable):** a TheMemory REST `GET /v1/scopes/:type/:id/entities` upgrade (real counts, not `attributed_to`-derived) + a future `GET /v1/scopes/:type/:id/graph` (`{nodes,edges}`); gateway SDK + BFF proxies; dashboard Entities/graph view. New migration(s) for the `entities` population + `entity_edges` table.
+- **Does NOT unfreeze** Items 13/14/15 (incl. Item 14 graph backend) or any other Phase V item — those stay FROZEN. Only this Postgres-only entity+relation extraction surface is re-classified.
+
 ---
 
 ## What this project is
