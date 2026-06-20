@@ -56,6 +56,7 @@ export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager } from './inf
  * can construct/inject them (e.g. a custom extractor wrapping `PgMemoryEntityStore`).
  */
 export { PgMemoryEntityStore } from './infrastructure/db/index.js';
+export { PgMemoryGraphStore } from './infrastructure/db/index.js';
 export { CompromiseEntityExtractor } from './infrastructure/extraction/compromise-entity-extractor.js';
 
 /**

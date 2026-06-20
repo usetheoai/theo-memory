@@ -66,6 +66,14 @@ export const MEMORY_EVENTS = [
   // fail-soft per ADR D3 — a remember() MUST NEVER fail because entity linking
   // failed. Mirrors history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
   'entity_linking_failed',
+  // entity-relation-extraction-slice2 T2.0 — Phase 7 edge linking succeeded; attr
+  // `edge_count` = relation edges persisted for the memory. Princípio 3 observability.
+  'entity_edge_linked',
+  // entity-relation-extraction-slice2 T2.0 — Phase 7 edge linking failed (non-fatal;
+  // fail-soft via an INDEPENDENT try/catch from node linking, so a node-link success
+  // still emits entity_linked even when edge linking throws — a remember() MUST NEVER
+  // fail because edge linking failed). @see CLAUDE.md § IMPORTANTE Princípio 3
+  'entity_edge_linking_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

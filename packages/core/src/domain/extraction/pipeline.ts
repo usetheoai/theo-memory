@@ -28,7 +28,8 @@ import type { Embedder } from '../dip/embedder.js';
 import type { EntityExtractor } from '../dip/entity-extractor.js';
 import type { HistoryBatchRecord, HistoryManager } from '../dip/history-manager.js';
 import type { LLM } from '../dip/llm.js';
-import type { EntityToLink, MemoryEntityStore } from '../dip/memory-entity-store.js';
+import type { MemoryEntityStore } from '../dip/memory-entity-store.js';
+import type { MemoryGraphStore } from '../dip/memory-graph-store.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { InvalidScope } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
@@ -38,6 +39,7 @@ import type { Message } from '../message.js';
 import type { RememberOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 
+import { linkEntities, type RelationTriple } from './entity-linking.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
 
 export interface ExtractionDeps {
@@ -47,15 +49,14 @@ export interface ExtractionDeps {
   readonly historyManager?: HistoryManager;
   readonly tracer?: Tracer;
   readonly customInstructions?: string;
-  /** entity-extraction-nodes-slice1 T3.1 — Phase 7 ports. BOTH must be present
-   *  for Phase 7 to run (the factory threads them only when entityBoost !== false). */
+  /** entity-extraction-nodes-slice1 T3.1 — Phase 7 node ports. BOTH must be present
+   *  for node linking to run (the factory threads them only when entityBoost !== false). */
   readonly entityExtractor?: EntityExtractor;
   readonly memoryEntityStore?: MemoryEntityStore;
+  /** entity-relation-extraction-slice2 T2.2 — Phase 7 edge port. Threaded the same
+   *  way as the node ports; relations come from the LLM (infer:true path only). */
+  readonly memoryGraphStore?: MemoryGraphStore;
 }
-
-/** EC-3 — cap entities persisted per memory (a pathological input cannot spawn
- *  unbounded rows + embedding calls). */
-const MAX_ENTITIES_PER_MEMORY = 50;
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -169,7 +170,13 @@ async function runInferFalsePath(
   }
   if (vectors.length > 0) {
     const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
-    return patchItemsWithOutcomes(items, outcomes);
+    const persisted = patchItemsWithOutcomes(items, outcomes);
+    // item-2 fix (2026-06-20): verbatim writes now also extract + link entities
+    // (Phase 7 shared helper). FAIL-SOFT — a remember({infer:false}) never fails
+    // because entity linking failed. Uses the patched ids so links point at the
+    // authoritative (post-UPSERT) memory id.
+    await linkEntities(persisted, filters, deps, deps.tracer);
+    return persisted;
   }
   return items;
 }
@@ -330,6 +337,11 @@ export async function runExtractionPipeline(
   // ============================================================
   const { prompt } = generateAdditiveExtractionPrompt(existingItems, messages, deps.customInstructions);
   let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[];
+  // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
+  let relations: readonly RelationTriple[] | undefined;
+  // multilingual nodes: the LLM is the PRIMARY node source (compromise is an
+  // English-only fallback). Surface names preserved in the input language/script.
+  let llmEntities: readonly { name: string; type?: string | undefined }[] | undefined;
   try {
     const raw = await deps.llm.generateResponse(
       [
@@ -356,6 +368,8 @@ export async function runExtractionPipeline(
     }
     const parsed = AdditiveExtractionSchema.parse(obj);
     extracted = parsed.memory;
+    relations = parsed.relations;
+    llmEntities = parsed.entities;
     emitEvent(tracer, 'extraction_completed', { facts: extracted.length });
   } catch (err) {
     // T2.1 — differentiate LLM network errors (propagate) from parse/validation
@@ -521,59 +535,13 @@ export async function runExtractionPipeline(
   }
 
   // ============================================================
-  // Phase 7: entity linking (entity-extraction-nodes-slice1 T3.1) — FAIL-SOFT.
-  // Runs only when BOTH ports are present (the factory threads them only when
-  // config.entityBoost !== false). Order per ADR D1: cap (EC-3) → drop empty
-  // (EC-2) → embed once via the SAME embedder (EC-5 dim parity) → persist. The
-  // whole phase is wrapped in ONE try/catch (mirrors history_persist_failed):
-  // a remember() MUST NEVER fail because entity linking failed (ADR D3, Princípio 3).
+  // Phase 7: entity + relation linking (slice1 T3.1 + slice2 T2.2) — FAIL-SOFT.
+  // Shared helper in entity-linking.ts; passes the LLM `relations` so edges link
+  // after nodes. The infer:false fast-path calls linkEntities WITHOUT relations.
   // ============================================================
-  const entityExtractor = deps.entityExtractor;
-  const memoryEntityStore = deps.memoryEntityStore;
-  if (entityExtractor !== undefined && memoryEntityStore !== undefined) {
-    try {
-      for (const item of survivingItems) {
-        const cleaned = entityExtractor
-          .extract(item.text)
-          .slice(0, MAX_ENTITIES_PER_MEMORY) // EC-3
-          .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) }))
-          .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
-        if (cleaned.length === 0) continue;
-        const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
-        // F-M2 (/review): drop any entity whose embedding is empty/missing so a
-        // zero-dim '[]'::vector never reaches the INSERT (which would roll back
-        // the whole memory's entity batch). Defense-in-depth with the store guard.
-        const entities: EntityToLink[] = cleaned
-          .map((e, i) => ({
-            type: e.type,
-            name: e.name,
-            normalizedKey: e.normalizedKey,
-            embedding: embeddings[i] ?? [],
-          }))
-          .filter((e) => e.embedding.length > 0);
-        if (entities.length === 0) continue;
-        await memoryEntityStore.upsertAndLink({
-          memoryId: item.id,
-          workspaceId: filters.workspace_id ?? 'default',
-          filters,
-          entities,
-        });
-      }
-      emitEvent(tracer, 'entity_linked', { memory_count: survivingItems.length });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      emitEvent(tracer, 'entity_linking_failed', { error: msg });
-      // eslint-disable-next-line no-console
-      console.warn(`[themory] entity linking failed: ${msg}`);
-    }
-  }
+  await linkEntities(survivingItems, filters, deps, tracer, relations, llmEntities);
 
   // Phase 8: save messages — deferred to v0.2 (historyManager.saveMessages optional)
 
   return survivingItems;
-}
-
-/** Lowercase + underscore the surface name → the per-scope dedup key (EC-1). */
-function normalizeEntityKey(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, '_');
 }

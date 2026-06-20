@@ -202,3 +202,61 @@ describe('T1.2 — N-valent attributed_to vocabulary (v1.1 + blueprint Q5 R1)', 
     }
   });
 });
+
+describe('AdditiveExtractionSchema — relations (slice2 T2.2)', () => {
+  test('schema_parses_optional_relations', () => {
+    const withRelations = {
+      memory: [{ id: '0', text: 'John Smith works at Google' }],
+      relations: [{ source: 'John Smith', relationship: 'works at', destination: 'Google' }],
+    };
+    const parsed = AdditiveExtractionSchema.safeParse(withRelations);
+    expect(parsed.success).toBe(true);
+  });
+
+  test('schema_backcompat_no_relations', () => {
+    const noRelations = { memory: [{ id: '0', text: 'a fact' }] };
+    const parsed = AdditiveExtractionSchema.safeParse(noRelations);
+    expect(parsed.success).toBe(true);
+  });
+
+  test('relations sub-fields are strings (source/relationship/destination)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({
+      memory: [{ id: '0', text: 'x' }],
+      relations: [{ source: 'A', relationship: 'r', destination: 'B' }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      const rel = parsed.data.relations?.[0];
+      expect(rel?.source).toBe('A');
+      expect(rel?.destination).toBe('B');
+    }
+  });
+});
+
+describe('AdditiveExtractionSchema — entities (slice2 multilingual node source)', () => {
+  test('schema_parses_optional_entities (name + optional type)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({
+      memory: [{ id: '0', text: 'A Maria trabalha na Acme' }],
+      entities: [{ name: 'Maria', type: 'PERSON' }, { name: 'Acme' }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.entities?.[0]?.name).toBe('Maria');
+      expect(parsed.data.entities?.[1]?.type).toBeUndefined(); // type optional
+    }
+  });
+
+  test('schema_backcompat_no_entities (omitted field still parses)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({ memory: [{ id: '0', text: 'a fact' }] });
+    expect(parsed.success).toBe(true);
+  });
+
+  test('preserves diacritics in entity surface names (multilingual)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({
+      memory: [{ id: '0', text: 'x' }],
+      entities: [{ name: 'São Paulo', type: 'PLACE' }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.entities?.[0]?.name).toBe('São Paulo');
+  });
+});

@@ -42,8 +42,32 @@ const SYSTEM_PROMPT = [
   'or any peer identifier supplied in conversation context. NOT restricted to a fixed',
   'vocabulary.',
   '',
+  'Also include `entities`: the distinct named entities mentioned in the text — people,',
+  'organizations, places, products, and salient concepts — each `{ "name": "<entity>",',
+  '"type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }`. These are the graph NODES.',
+  'Extract a node for every entity that participates in a stated fact; omit pure filler.',
+  'Represent the first-person speaker (the author of the message) as ONE consistent entity',
+  'named exactly "user" in both `entities` and `relations` — NEVER variants like "I", "me",',
+  '"eu", "Usuário", or "You" for self-statements. This keeps the speaker a single node.',
+  '',
+  'Also include `relations`: factual triples connecting those entities — each',
+  '`{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }`.',
+  'Use the entity SURFACE NAMES exactly as they appear (not ids). Be generous: emit a',
+  'relation for every stated link between two entities — covering employment, location,',
+  'usage, composition, membership, education, ownership/acquisition, and reporting/hierarchy.',
+  'Omit `entities`/`relations` only when the text genuinely has none.',
+  '',
+  'LANGUAGE: detect the input language. Emit every entity name AND every `relationship`',
+  'label in that SAME language/script — NEVER translate or transliterate. Preserve all',
+  'accents/diacritics ("São Paulo", "José", "Müller" — never "Sao Paulo", "Jose"). Use the',
+  'input language for relationship labels too: "trabalha em" not "works at", "mora em" not',
+  '"lives in", "adquiriu" not "acquired". The literal token "user" (the speaker) is the one',
+  'allowed exception to the input-language rule.',
+  '',
   'Output format (strict JSON, no prose):',
-  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }] }',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }],',
+  '  "entities"?: [{ "name": "<entity>", "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }],',
+  '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
 
 function renderExistingMemories(existing: readonly MemoryItem[]): string {
@@ -92,7 +116,9 @@ export function generateAdditiveExtractionPrompt(
   return { prompt, uuidByInt };
 }
 
-/** Zod schema for the LLM's additive-extraction JSON response. */
+/** Zod schema for the LLM's additive-extraction JSON response. `relations` is
+ *  OPTIONAL (slice2 T2.2) — LLMs that omit it still parse (back-compat). Endpoint
+ *  fields are surface strings (resolved to entity ids by name downstream). */
 export const AdditiveExtractionSchema = z.object({
   memory: z.array(
     z.object({
@@ -102,6 +128,23 @@ export const AdditiveExtractionSchema = z.object({
       linked_memory_ids: z.array(z.string()).optional(),
     }),
   ),
+  entities: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.string().optional(),
+      }),
+    )
+    .optional(),
+  relations: z
+    .array(
+      z.object({
+        source: z.string(),
+        relationship: z.string(),
+        destination: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 export type AdditiveExtractionResponse = z.infer<typeof AdditiveExtractionSchema>;

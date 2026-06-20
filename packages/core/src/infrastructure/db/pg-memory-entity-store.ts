@@ -20,9 +20,13 @@ import type {
   UpsertAndLinkParams,
 } from '../../domain/dip/memory-entity-store.js';
 
-const ON_CONFLICT_SCOPE_TYPE_KEY =
+/** F-L7: DO UPDATE the no-op `name = entities.name` so the conflicting row's id is
+ *  RETURNED in one round-trip (a plain DO NOTHING returns no row on conflict,
+ *  forcing a second SELECT). First-write-wins preserved (existing name/embedding
+ *  kept — EXCLUDED is NOT applied). Arbiter matches `entities_scope_type_key_uq`. */
+const ON_CONFLICT_SCOPE_TYPE_KEY_RETURNING =
   `ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),` +
-  ` COALESCE(agent_id,''), COALESCE(type,''), COALESCE(normalized_key,'')) DO NOTHING`;
+  ` COALESCE(agent_id,''), COALESCE(type,''), COALESCE(normalized_key,'')) DO UPDATE SET name = entities.name`;
 
 function toVectorLiteral(embedding: readonly number[]): string {
   return `[${embedding.join(',')}]`;
@@ -51,31 +55,21 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
         // embed_zero_dim_skipped guard. The pipeline also filters these upstream.
         if (e.embedding.length === 0) continue;
 
-        // UPSERT the entity; on conflict the existing row wins (first-write).
+        // UPSERT the entity in ONE round-trip (F-L7): DO UPDATE the no-op
+        // `name = entities.name` so the conflicting row is "touched" and its id is
+        // RETURNED (a plain DO NOTHING returns no row on conflict, forcing a second
+        // SELECT). First-write-wins on the identity columns is preserved — the
+        // no-op SET keeps the existing name/embedding (EXCLUDED is NOT applied).
         const ins = await client.query<{ id: string }>(
           `INSERT INTO entities
              (workspace_id, name, embedding, payload, type, normalized_key, user_id, session_id, agent_id)
            VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, $6, $7, $8)
-           ${ON_CONFLICT_SCOPE_TYPE_KEY}
+           ${ON_CONFLICT_SCOPE_TYPE_KEY_RETURNING}
            RETURNING id`,
           [workspaceId, name, toVectorLiteral(e.embedding), e.type, e.normalizedKey, userId, sessionId, agentId],
         );
 
-        const entityId =
-          ins.rows[0]?.id ??
-          (
-            await client.query<{ id: string }>(
-              `SELECT id FROM entities
-               WHERE workspace_id = $1
-                 AND COALESCE(user_id,'') = COALESCE($2,'')
-                 AND COALESCE(session_id,'') = COALESCE($3,'')
-                 AND COALESCE(agent_id,'') = COALESCE($4,'')
-                 AND COALESCE(type,'') = COALESCE($5,'')
-                 AND COALESCE(normalized_key,'') = COALESCE($6,'')`,
-              [workspaceId, userId, sessionId, agentId, e.type, e.normalizedKey],
-            )
-          ).rows[0]?.id;
-
+        const entityId = ins.rows[0]?.id;
         if (entityId === undefined) continue;
 
         await client.query(

@@ -76,4 +76,36 @@ describe('CompromiseEntityExtractor (T1.2)', () => {
       expect(e.name.trim().length).toBeGreaterThanOrEqual(2);
     }
   });
+
+  test('F-L/recall: sentence-initial proper noun is NOT truncated (John Smith, not Smith)', () => {
+    expect(names('John Smith works at Google')).toContain('John Smith');
+  });
+
+  test('F-L/recall: a lone sentence-initial proper noun is kept (Google), not dropped', () => {
+    expect(names('Google is a search engine')).toContain('Google');
+  });
+
+  test('F-L/recall precision: lone sentence-initial starter stopwords are NOT entities', () => {
+    const out = names('Today I went home');
+    expect(out).not.toContain('Today');
+    expect(out).not.toContain('I');
+    const out2 = names('The cat sat down');
+    expect(out2).not.toContain('The');
+  });
+
+  test('multilingual: preserves diacritics in proper nouns (São Paulo, not So/Sao)', () => {
+    const out = names('Eu moro em São Paulo com José');
+    expect(out).toContain('São Paulo'); // NOT "So Paulo" / "So" — diacritics kept
+    expect(out.some((n) => n.includes('José'))).toBe(true); // NOT "Jos"
+    expect(out).not.toContain('So');
+    expect(out).not.toContain('So Paulo');
+  });
+
+  test('drops predicate/clause-fragment noise ("is a", "on the", "project uses")', () => {
+    // regex-fallback bigrams + nouns() over-match used to leak these as nodes.
+    const out = names('he is a manager and the project uses postgres on the cloud');
+    expect(out).not.toContain('is a');
+    expect(out).not.toContain('on the');
+    expect(out).not.toContain('project uses');
+  });
 });

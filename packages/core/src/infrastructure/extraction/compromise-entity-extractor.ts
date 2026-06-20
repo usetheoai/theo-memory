@@ -39,6 +39,67 @@ const NON_SPECIFIC_ADJ = new Set<string>([
 /** Capitalization-insensitive function words that may glue a proper sequence. */
 const PROPER_GLUE = new Set<string>(['of', 'the', 'and', 'for', 'in', 'at']);
 
+/** Function words that, when a candidate STARTS or ENDS with them (or consists
+ *  entirely of them), mark the candidate as a predicate/clause fragment rather
+ *  than an entity — e.g. "is a", "on the", "and commutes", "lives in", "s skip".
+ *  These leak from `nouns()` over-matching and the regex-fallback bigrams. */
+const BOUNDARY_STOP = new Set<string>([
+  // copulas / auxiliaries
+  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'am', "'s", 's', "'re", 'do',
+  'does', 'did', 'will', 'would', 'can', 'could', 'should', 'may', 'might', 'must',
+  // articles / determiners / pronouns
+  'a', 'an', 'the', 'this', 'that', 'these', 'those', 'it', 'its', 'i', 'we', 'they',
+  'he', 'she', 'you', 'my', 'our', 'your', 'his', 'her', 'their',
+  // prepositions / conjunctions
+  'of', 'on', 'in', 'at', 'to', 'for', 'and', 'or', 'but', 'with', 'by', 'from',
+  'as', 'than', 'then', 'so', 'about', 'into', 'onto', 'over', 'under',
+]);
+
+/** Unambiguously-verbal (conjugated) forms — a candidate whose first or last
+ *  token (after boundary-stripping) is one of these is a relation/clause fragment
+ *  ("project uses", "lives in"→"lives", "and commutes"→"commutes"), not an entity.
+ *  Only conjugated forms (-s / -ed / irregular past) are listed: BASE forms (lead,
+ *  run, build, report, study, work, manage…) are noun-homographs ("team lead",
+ *  "morning run", "the build") and MUST NOT be dropped — keeps recall on the
+ *  English fallback path now that the LLM is the primary node source. */
+const CONJUGATED_VERB = new Set<string>([
+  'uses', 'used', 'using', 'lives', 'lived', 'living', 'commutes', 'commuted',
+  'commuting', 'works', 'worked', 'working', 'reports', 'reported', 'reporting',
+  'studies', 'studied', 'acquires', 'acquired', 'manages', 'managed', 'managing',
+  'builds', 'built', 'knows', 'knew', 'knowing', 'runs', 'ran', 'running', 'makes',
+  'made', 'making', 'leads', 'led', 'leading', 'joins', 'joined', 'joining',
+  'leaves', 'left', 'leaving', 'owns', 'owned', 'owning', 'likes', 'liked',
+  'wants', 'wanted', 'needs', 'needed', 'gets', 'got', 'getting', 'goes', 'went',
+  'going', 'comes', 'came', 'coming', 'is', 'are', 'was', 'were',
+]);
+
+/** Trim leading/trailing function words from a candidate and drop predicate/clause
+ *  fragments. Returns the cleaned entity name, or `null` when nothing entity-like
+ *  remains. Fixes graph noise ("is a", "on the", "project uses", "and commutes",
+ *  "the machine learning engineer"→"machine learning engineer") WITHOUT dropping
+ *  legitimate noun phrases that merely carry a leading article. */
+export function cleanCandidateName(raw: string): string | null {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean);
+  while (tokens.length > 0 && BOUNDARY_STOP.has((tokens[0] ?? '').toLowerCase())) tokens.shift();
+  while (tokens.length > 0 && BOUNDARY_STOP.has((tokens[tokens.length - 1] ?? '').toLowerCase())) tokens.pop();
+  if (tokens.length === 0) return null;
+  const first = (tokens[0] ?? '').toLowerCase();
+  const last = (tokens[tokens.length - 1] ?? '').toLowerCase();
+  if (CONJUGATED_VERB.has(first) || CONJUGATED_VERB.has(last)) return null;
+  return tokens.join(' ');
+}
+
+/** Common sentence-initial words that are NOT proper nouns even when capitalized.
+ *  A LONE sentence-initial capital matching this set is dropped (precision); a
+ *  capital that starts a multi-word run, or a non-starter like "Google", is kept
+ *  (recall) — fixes the sentence-initial truncation edge from the /review. */
+const SENTENCE_STARTERS = new Set<string>([
+  'the', 'a', 'an', 'this', 'that', 'these', 'those', 'i', 'we', 'he', 'she',
+  'they', 'it', 'you', 'my', 'our', 'your', 'his', 'her', 'their', 'today',
+  'yesterday', 'tomorrow', 'then', 'there', 'here', 'when', 'where', 'why',
+  'how', 'what', 'who', 'if', 'so', 'but', 'and', 'or', 'now', 'later',
+]);
+
 type NlpFactory = (text: string) => {
   nouns: () => { out: (fmt: 'array') => string[] };
 };
@@ -66,8 +127,16 @@ function isMeaningful(name: string): boolean {
 }
 
 function pushUnique(acc: Map<string, ExtractedEntity>, type: EntityType, raw: string): void {
-  const name = raw.trim();
+  let name = raw.trim();
   if (!isMeaningful(name)) return; // EC-2 drop guard
+  // Trim function-word edges + drop predicate/clause fragments ("is a", "on the",
+  // "project uses", "and commutes", "the machine learning engineer"→"machine learning
+  // engineer"). QUOTED spans are intentional, so they bypass the cleaner.
+  if (type !== 'QUOTED') {
+    const cleaned = cleanCandidateName(name);
+    if (cleaned === null || !isMeaningful(cleaned)) return;
+    name = cleaned;
+  }
   const key = `${type}::${name.toLowerCase()}`;
   if (!acc.has(key)) acc.set(key, { type, name });
 }
@@ -86,21 +155,30 @@ function extractProper(text: string, acc: Map<string, ExtractedEntity>): void {
   for (const sentence of sentences) {
     const tokens = sentence.split(/\s+/).filter(Boolean);
     let run: string[] = [];
+    let runStartIdx = -1;
     const flush = (): void => {
       if (run.length > 0) {
         // strip trailing glue words
         while (run.length > 0 && PROPER_GLUE.has((run[run.length - 1] ?? '').toLowerCase())) run.pop();
-        if (run.length > 0) pushUnique(acc, 'PROPER', run.join(' '));
+        // Drop a LONE sentence-initial capital that is a common starter stopword
+        // (e.g. "The", "Today", "I") — but keep multi-word runs ("John Smith") and
+        // lone non-starters ("Google"). Fixes the sentence-initial recall edge.
+        const loneSentenceInitialStarter =
+          run.length === 1 && runStartIdx === 0 && SENTENCE_STARTERS.has((run[0] ?? '').toLowerCase());
+        if (run.length > 0 && !loneSentenceInitialStarter) pushUnique(acc, 'PROPER', run.join(' '));
       }
       run = [];
+      runStartIdx = -1;
     };
     for (let i = 0; i < tokens.length; i += 1) {
       const tok = tokens[i] ?? '';
-      const bare = tok.replace(/[^A-Za-z'-]/g, '');
-      const isCap = /^[A-Z][a-z'-]+$/.test(bare);
+      // Unicode-aware: keep ANY-script letters (don't strip diacritics — "São" must
+      // not become "So") and treat any uppercase letter as a capital ("José", "Über").
+      const bare = tok.replace(/[^\p{L}'-]/gu, '');
+      const isCap = /^\p{Lu}[\p{L}'-]+$/u.test(bare);
       const isGlue = run.length > 0 && PROPER_GLUE.has(bare.toLowerCase());
-      // skip the sentence-initial capitalized word (i===0) as a lone proper noun
-      if (isCap && !(i === 0 && run.length === 0)) {
+      if (isCap) {
+        if (run.length === 0) runStartIdx = i;
         run.push(bare);
       } else if (isGlue) {
         run.push(bare.toLowerCase());
