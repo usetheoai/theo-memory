@@ -13,6 +13,7 @@ import type { Tracer } from '@opentelemetry/api';
 
 import type { EntityExtractor } from '../../domain/dip/entity-extractor.js';
 import type { MemoryEntityStore } from '../../domain/dip/memory-entity-store.js';
+import type { MemoryGraphStore } from '../../domain/dip/memory-graph-store.js';
 import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
@@ -49,6 +50,12 @@ export interface LocalMemoryConfig extends MemoryConfig {
    */
   readonly entityExtractor?: EntityExtractor;
   readonly memoryEntityStore?: MemoryEntityStore;
+  /**
+   * entity-relation-extraction-slice2 T3.2 — Phase 7 edge port. Built by
+   * `createLocalMemory` (PgMemoryGraphStore) under the same gate as the node
+   * ports. A consumer MAY inject their own.
+   */
+  readonly memoryGraphStore?: MemoryGraphStore;
   /**
    * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
    * declared embedding dimension produced by the embedder. Defaults to

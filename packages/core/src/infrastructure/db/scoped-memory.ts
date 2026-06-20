@@ -196,6 +196,8 @@ export class LocalScopedMemory implements ScopedMemory {
       // them when entityBoost !== false); both present → Phase 7 runs.
       ...(this.config.entityExtractor !== undefined ? { entityExtractor: this.config.entityExtractor } : {}),
       ...(this.config.memoryEntityStore !== undefined ? { memoryEntityStore: this.config.memoryEntityStore } : {}),
+      // slice2 T3.2 — thread the edge port so Phase 7 edge linking runs.
+      ...(this.config.memoryGraphStore !== undefined ? { memoryGraphStore: this.config.memoryGraphStore } : {}),
     }, options);
 
     // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline

@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Edge port production wiring — `createLocalMemory` wires `PgMemoryGraphStore` by default (same `entityBoost`/PgvectorStore gate as the node port) and `themory server` injects it into `createServer`, so a default `remember()` of a relation populates `entity_edges` and `GET /graph` serves real edges in production. (#entity-relation-extraction-slice2 T3.2)
 - **`GET /v1/scopes/:type/:id/graph`** (`@usetheo/memory/server`) — returns `{nodes, edges}` for a subject scope (nodes via the entities read port, edges via the new graph port). D6: `edges:[]` when the graph store is not wired. OpenAPI-registered. (#entity-relation-extraction-slice2 T3.1)
 - Relation (edge) extraction wired into Phase 7 — the existing write-pipeline LLM call now also emits optional `relations` triples; `linkEdges` (in the new `entity-linking.ts`) resolves endpoints + persists edges (fail-soft, independent try/catch from node linking; EC-3 cap 50, EC-4 relation length ≤64). `remember()` of a relation now populates `entity_edges`. (#entity-relation-extraction-slice2 T2.2)
 - `PgMemoryGraphStore` (default `MemoryGraphStore` impl) — `upsertEdges` resolves endpoint names to entity ids by `(scope, normalized_key)` deterministically (earliest node wins, EC-2) and UPSERTs edges in one round-trip; `listEdges` aggregates `memoryCount = count(DISTINCT source_memory_id)` per triple (EC-1). Exported from `@usetheo/memory`. (#entity-relation-extraction-slice2 T2.1)
