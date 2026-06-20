@@ -76,3 +76,7 @@ export interface MemoryConfig {
 - ADR-0008 (DIP method counts) — `VectorStore` shape supports the entity store as a second instance of the same interface.
 - T2.5 `MemoryConfig` shape — declares `entityBoost?: boolean`.
 - `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/memory/index.ts:151` — Mem0's `_entityStore?: VectorStore` field, used optionally for entity vectors.
+
+## Amendment 2026-06-20 — `entityBoost` also gates write-time entity linking (entity-extraction-nodes-slice1)
+
+`MemoryConfig.entityBoost` originally toggled the entity-*retrieval-boost* store. As of the `entity-extraction-nodes-slice1` slice it ALSO gates write-time entity *linking* (Phase 7 extract→persist into `entities`/`memory_entities`): `createLocalMemory` wires the linking ports only when `entityBoost !== false` (default on). Reusing one flag is intentional (KISS/YAGNI — no new flag) and directionally consistent with this ADR's "write-time and recall-time coupled" rationale. Transient note: today `entityBoost=true` pays the linking cost while the retrieval pipeline still scores `entity_boost = 0` (it does not yet consult the new tables) — the asymmetry closes when retrieval starts consuming them (Slice 2+). See plan § D1.

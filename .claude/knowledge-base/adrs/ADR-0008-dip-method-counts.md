@@ -182,3 +182,12 @@ New DIP introduced by ADR-0005 (no Mem0 equivalent — Mem0 doesn't ship reflect
 - `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/vector_stores/base.ts`
 - `.claude/knowledge-base/references/mem0/mem0-ts/src/oss/src/storage/base.ts`
 - Global CLAUDE.md PARTE II § 13.4 ISP — optional methods justified.
+
+## Amendment 2026-06-20 — DIP census update (entity-extraction-nodes-slice1)
+
+This ADR's original prose ("five DIP surfaces") is stale — the DIP count grew across later cycles (RecallCacheStore, AuthVerifier, etc.). The `entity-extraction-nodes-slice1` slice adds two more, recorded here for the census (per Inquebrável Rule 3 — no silent contract growth):
+
+- `EntityExtractor` (`domain/dip/entity-extractor.ts`) — **1 method** (`extract`). Sync, deterministic. Default impl `CompromiseEntityExtractor`.
+- `MemoryEntityStore` (`domain/dip/memory-entity-store.ts`) — **2 methods** (`upsertAndLink`, `list`). Persist + read on the one port that owns the `entities`/`memory_entities` aggregate (plan ADR D4). Default impl `PgMemoryEntityStore`.
+
+Both are ISP-clean (≤2 methods). No per-DIP method-count cap is changed; this ADR fixes per-DIP counts, not a total-DIP ceiling. See `.claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md` § D1/D4.

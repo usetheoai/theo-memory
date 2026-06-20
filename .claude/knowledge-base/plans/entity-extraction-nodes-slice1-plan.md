@@ -170,7 +170,7 @@ Ported from the reference entity-extraction test checklist (`test_entity_extract
 
 ## Phase 2 — Schema + migration
 
-### T2.1 — Extend `entities` + add `memory_entities`; migration 0017
+### T2.1 — Extend `entities` + add `memory_entities`; migration 0018
 
 #### Why this step
 Action: in `schema.ts` add `normalizedKey` + scope columns to `entities` + a UNIQUE `(workspace_id, user_id, session_id, agent_id, normalized_key)`; add `memoryEntities` table. Generate non-destructive `0018_entity_nodes.sql`.
@@ -190,7 +190,7 @@ Reasoning: ADR D2 — UNIQUE is the resolution; join table gives count + provena
 - A concurrent test fires two simultaneous extract-persist calls of the same entity under the same scope and asserts an atomic-counter invariant: exactly one `entities` row results (the ON CONFLICT DO NOTHING upsert is the happens-before observation). The test asserts the DB row-count invariant, not merely no-throw.
 
 #### Acceptance criteria
-- `npm run db:generate` produces 0017 with only `ADD COLUMN`/`CREATE TABLE`/`CREATE UNIQUE INDEX` (no DROP). Verify: `grep -iE 'drop ' migrations/0018_entity_nodes.sql` returns nothing.
+- `npm run db:generate` produces 0018 with only `ADD COLUMN`/`CREATE TABLE`/`CREATE UNIQUE INDEX` (no DROP). Verify: `grep -iE 'drop ' migrations/0018_entity_nodes.sql` returns nothing.
 - Drizzle journal in sync (no drift). Verify: `npm run db:check` exit 0.
 
 #### DoD
@@ -353,6 +353,7 @@ External-I/O surfaces touched: Postgres (pgvector) writes/reads + the embedder c
 | `compromise` extraction quality < spaCy (JS NLP weaker) | MEDIUM | It is the exact Mem0-TS choice; stoplists ported; quality is a known trade-off, acceptable for a node index; Slice 2 LLM edges add semantic depth. | impl |
 | Entity-linking adds write latency (embed N names per remember) | MEDIUM | entityBoost-gated (opt-out); fail-soft so it never blocks; embeddings batched; measure via OTel. | impl |
 | Migration on a large existing `memories` table (no backfill) | LOW | No backfill — entities populate forward-only (honest, like v1.1 attributed_to EC-1); document in CHANGELOG. | impl |
+| Entity linking runs on the `infer:true` write path only; the `infer:false` verbatim fast-path returns before Phase 7 (`pipeline.ts:305`), so verbatim writes do NOT extract entities (added 2026-06-20 post-/review F-M3) | LOW | Documented in CHANGELOG caveat + the GOAL test header; the GOAL test exercises the default infer:true path. Surfacing entities from verbatim writes is a Slice-2 follow-up. | impl |
 
 ## Unresolved Questions
 
@@ -364,7 +365,7 @@ External-I/O surfaces touched: Postgres (pgvector) writes/reads + the embedder c
 - [ ] All 5 phases' DoD checked.
 - [ ] `npm test` + `npm run typecheck` + `npm run lint` exit 0 (theo-memory).
 - [ ] THE GOAL TEST (T5.1) green vs real `ankane/pgvector:v0.5.1`.
-- [ ] Migration 0017 additive; Drizzle journal synced.
+- [ ] Migration 0018 additive; Drizzle journal synced.
 - [ ] `compromise` declared OPTIONAL; default barrel does NOT hard-require it (bundle isolation).
 - [ ] CHANGELOG `[Unreleased] § Added` entry (entities now populated).
 - [ ] no-paper-names clean in `src/**` (compromise impl identifiers neutral).

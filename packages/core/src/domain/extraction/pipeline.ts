@@ -540,12 +540,18 @@ export async function runExtractionPipeline(
           .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
         if (cleaned.length === 0) continue;
         const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
-        const entities: EntityToLink[] = cleaned.map((e, i) => ({
-          type: e.type,
-          name: e.name,
-          normalizedKey: e.normalizedKey,
-          embedding: embeddings[i] ?? [],
-        }));
+        // F-M2 (/review): drop any entity whose embedding is empty/missing so a
+        // zero-dim '[]'::vector never reaches the INSERT (which would roll back
+        // the whole memory's entity batch). Defense-in-depth with the store guard.
+        const entities: EntityToLink[] = cleaned
+          .map((e, i) => ({
+            type: e.type,
+            name: e.name,
+            normalizedKey: e.normalizedKey,
+            embedding: embeddings[i] ?? [],
+          }))
+          .filter((e) => e.embedding.length > 0);
+        if (entities.length === 0) continue;
         await memoryEntityStore.upsertAndLink({
           memoryId: item.id,
           workspaceId: filters.workspace_id ?? 'default',
@@ -553,7 +559,7 @@ export async function runExtractionPipeline(
           entities,
         });
       }
-      emitEvent(tracer, 'entity_linked', { count: survivingItems.length });
+      emitEvent(tracer, 'entity_linked', { memory_count: survivingItems.length });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       emitEvent(tracer, 'entity_linking_failed', { error: msg });
