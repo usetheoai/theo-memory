@@ -90,3 +90,21 @@ Targeted re-review of the NEEDS_FIXES findings (the fixes are small + verified; 
 
 ### Verdict (revised)
 **READY_TO_MERGE.** All 2 HIGH + all material MEDIUM closed; LOW addressed (1 perf item deferred with rationale). The slice goal (production server serves real extracted entities) is now genuinely wired (F-M1). Honest note: entity extraction quality is bounded by `compromise` (POS non-determinism + sentence-initial recall edge) — documented limitations, acceptable for a node index; Slice 2 (LLM relations) adds semantic depth.
+
+---
+
+## v0.10.1 fixes-cycle addendum (2026-06-20)
+
+Targeted hardening cycle closing the 3 remaining deferred items from this slice (project-owner directive "fixes-cycle dos itens 2+3+4 → v0.10.1"). Small, TDD-driven, gate-verified — re-review rather than a full 5-agent re-spawn (same established pattern as the post-fixes addendum above). Commits `6136c20` (item 4), `bf9d2aa` (item 3), `cd8cb29` (item 2).
+
+| Item | Status | Evidence |
+|---|---|---|
+| Item 4 — sentence-initial proper-noun recall edge (was a documented `compromise` limitation) | ✅ CLOSED | `compromise-entity-extractor.ts` — `SENTENCE_STARTERS` set + `runStartIdx` tracking; `flush()` drops only a LONE sentence-initial starter-stopword, keeps multi-word runs ("John Smith") + lone non-starters ("Google"). 3 RED tests in `compromise-entity-extractor.test.ts` (12/12). |
+| Item 3 — F-L7 double round-trip on ON CONFLICT (the DEFERRED perf item above) | ✅ CLOSED | `pg-memory-entity-store.ts` — `ON CONFLICT … DO UPDATE SET name = entities.name RETURNING id` (1 query; no SELECT fallback). First-write-wins preserved (no-op SET keeps existing name/embedding). Dedup re-verified vs real pgvector (`list.test.ts` 4/4 incl. F-H2 concurrency). |
+| Item 2 — `infer:false` verbatim path skipped Phase 7 (the v0.10.0 caveat) | ✅ CLOSED | `pipeline.ts` — Phase 7 extracted into shared `linkEntities()` helper, called by BOTH the infer:true main path AND `runInferFalsePath`. Fail-soft preserved. New integration test `item-2: infer:false … ALSO extracts + surfaces entities` vs real pgvector. |
+
+### Gates re-validated (v0.10.1)
+- typecheck 0 · contract 1008 pass / 2 skip · api 190 pass · entities integration **11/11** (real pgvector; +1 item-2 regression) · compromise unit 12/12 · lint 0 (changed files) · no-paper-names clean · core dist rebuilt.
+
+### Verdict (v0.10.1)
+**READY_TO_MERGE.** All 3 deferred items closed with TDD + real-pgvector evidence. No new public API; behavior changes are additive (infer:false now extracts) + perf (single round-trip) + recall-quality (sentence-initial). Patch bump v0.10.1, hardening-only.
