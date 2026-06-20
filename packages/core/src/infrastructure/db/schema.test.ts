@@ -126,6 +126,16 @@ describe('entities table', () => {
     expect(uq).toBeDefined();
     expect(uq?.config.unique).toBe(true);
   });
+
+  test('EC-5 (F-H1): entities.embedding dimension equals memories.embedding (no 384-vs-1536 drift)', () => {
+    const entityEmbed = getTableConfig(entities).columns.find((c) => c.name === 'embedding');
+    const memoryEmbed = getTableConfig(memories).columns.find((c) => c.name === 'embedding');
+    expect(entityEmbed).toBeDefined();
+    expect(memoryEmbed).toBeDefined();
+    // getSQLType() renders e.g. "vector(1536)" — a mismatch would surface here
+    // before it ever reaches a failing INSERT cast.
+    expect(entityEmbed?.getSQLType()).toBe(memoryEmbed?.getSQLType());
+  });
 });
 
 describe('memory_entities join table (T2.1)', () => {

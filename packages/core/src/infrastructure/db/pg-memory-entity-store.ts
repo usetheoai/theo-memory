@@ -45,6 +45,11 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
         // EC-2 defense-in-depth at the persist boundary.
         const name = e.name.trim();
         if (name.length < 2 || e.normalizedKey.length < 2) continue;
+        // F-M2 (/review): a zero-dim embedding would render as '[]'::vector and
+        // fail the fixed-dim cast, rolling back the WHOLE memory's entity batch
+        // (silent link loss). Skip the bad entity instead — mirrors Phase 3's
+        // embed_zero_dim_skipped guard. The pipeline also filters these upstream.
+        if (e.embedding.length === 0) continue;
 
         // UPSERT the entity; on conflict the existing row wins (first-write).
         const ins = await client.query<{ id: string }>(

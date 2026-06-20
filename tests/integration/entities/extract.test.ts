@@ -65,9 +65,9 @@ if (PG_URI === undefined || PG_URI === '') {
       const memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: fixedEmbedder(),
-        llm: factLlm('John Smith works at Google'),
+        llm: factLlm('I saw John Smith again today'),
       });
-      await memory.user('alice').remember('John Smith works at Google');
+      await memory.user('alice').remember('I saw John Smith again today');
 
       // Read side: wire the port into the server.
       const app = createServer({ memory, memoryEntityStore: new PgMemoryEntityStore(pool) });
@@ -79,6 +79,47 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(body.entities.every((e) => e.memory_count >= 1)).toBe(true);
     });
 
+    test('F-M4: two distinct memories both surface "John Smith" in the listing (multi-memory chain)', async () => {
+      // Sequence-LLM: a clean controlled fact per call so each remember() persists
+      // a DISTINCT memory (different hash) mentioning John Smith.
+      const facts = ['I saw John Smith on Monday', 'I saw John Smith on Friday'];
+      let call = 0;
+      const seqLlm: LLM = {
+        generateResponse: vi.fn(async () => {
+          const text = facts[call] ?? facts[0];
+          call += 1;
+          return { memory: [{ id: '0', text }] };
+        }),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      };
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: fixedEmbedder(),
+        llm: seqLlm,
+      });
+      await memory.user('carol').remember('I saw John Smith on Monday');
+      await memory.user('carol').remember('I saw John Smith on Friday');
+
+      const app = createServer({ memory, memoryEntityStore: new PgMemoryEntityStore(pool) });
+      const res = await app.fetch(new Request('http://localhost/v1/scopes/user/carol/entities'));
+      const body = (await res.json()) as { entities: { id: string; memory_count: number }[] };
+      // "John Smith" is surfaced end-to-end across the two memories. The exact
+      // dedup-to-one-row + memory_count contract is proven deterministically at
+      // the store layer (list.test.ts) — asserting "exactly one row" HERE would be
+      // brittle because the `compromise` POS tagger non-deterministically labels
+      // "John Smith" PROPER vs COMPOUND across calls, and EC-1 (type-in-identity)
+      // then keeps those as distinct nodes by design. The robust end-to-end
+      // invariant is that John Smith surfaces and the two memories are accounted for.
+      const jsNodes = body.entities.filter((e) => e.id === 'John Smith');
+      expect(jsNodes.length).toBeGreaterThanOrEqual(1);
+      const { rows } = await pool.query<{ n: string }>(
+        `SELECT count(DISTINCT me.memory_id)::int AS n
+           FROM memory_entities me JOIN entities e ON e.id = me.entity_id
+          WHERE e.user_id='carol' AND e.normalized_key='john_smith'`,
+      );
+      expect(Number(rows[0]?.n)).toBe(2); // both memories linked to the John Smith node(s)
+    });
+
     test('negative: entityBoost:false persists zero entity rows', async () => {
       const memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
@@ -86,8 +127,11 @@ if (PG_URI === undefined || PG_URI === '') {
         llm: factLlm('John Smith works at Google'),
         entityBoost: false,
       });
-      await memory.user('bob').remember('John Smith works at Google');
-      const { rows } = await pool.query<{ n: string }>(`SELECT count(*)::int AS n FROM entities`);
+      await memory.user('bob').remember('I saw John Smith again today');
+      // Scoped to user_id='bob' — robust to other integration files sharing the DB.
+      const { rows } = await pool.query<{ n: string }>(
+        `SELECT count(*)::int AS n FROM entities WHERE user_id='bob'`,
+      );
       expect(Number(rows[0]?.n)).toBe(0);
     });
   });
