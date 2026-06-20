@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 - **Entity nodes are now extracted by the LLM (multilingual), not `compromise`.** The write-pipeline LLM call additionally emits an `entities` array (surface names in the input language/script, diacritics preserved); Phase 7 uses these as the PRIMARY node source. `compromise` is demoted to an English-only FALLBACK used only when the LLM returns no entities (e.g. the `infer:false` fast-path). Matches how every SOTA KG system (REDACTED, GraphRAG, LightRAG, REDACTED) extracts nodes — the prompt carries an explicit "keep proper nouns in the original language, never translate/transliterate" instruction. Fixes the entity graph breaking on non-English (e.g. Portuguese) input. (#entity-relation-extraction-slice2 multilingual)
 - Extraction prompt relations guidance broadened (employment/location/usage/composition/membership/education/ownership/reporting) to raise edge recall so more real entities connect. (#entity-relation-extraction-slice2 multilingual)
+- Extraction prompt now (a) represents the first-person speaker as ONE consistent entity named `user` (no more `user`/`Usuário`/`eu` fragmentation of the speaker node) and (b) emits `relationship` labels in the INPUT language too (`trabalha em`, not `works at`). Empirically validated against `gpt-4o-mini` on a pt-BR conversation. (#entity-relation-extraction-slice2 prompt-refinements)
 
 ### Deprecated
 
