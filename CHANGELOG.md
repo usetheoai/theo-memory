@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.11.0] - 2026-06-20
+
+### Added
 - Edge port production wiring — `createLocalMemory` wires `PgMemoryGraphStore` by default (same `entityBoost`/PgvectorStore gate as the node port) and `themory server` injects it into `createServer`, so a default `remember()` of a relation populates `entity_edges` and `GET /graph` serves real edges in production. (#entity-relation-extraction-slice2 T3.2)
 - **`GET /v1/scopes/:type/:id/graph`** (`@usetheo/memory/server`) — returns `{nodes, edges}` for a subject scope (nodes via the entities read port, edges via the new graph port). D6: `edges:[]` when the graph store is not wired. OpenAPI-registered. (#entity-relation-extraction-slice2 T3.1)
 - Relation (edge) extraction wired into Phase 7 — the existing write-pipeline LLM call now also emits optional `relations` triples; `linkEdges` (in the new `entity-linking.ts`) resolves endpoints + persists edges (fail-soft, independent try/catch from node linking; EC-3 cap 50, EC-4 relation length ≤64). `remember()` of a relation now populates `entity_edges`. (#entity-relation-extraction-slice2 T2.2)
@@ -12,20 +26,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `MemoryGraphStore` DIP (2 methods: `upsertEdges`/`listEdges`) + `EdgeToLink`/`EdgeSummary` DTOs (exported from `@usetheo/memory/contract`); 2 new `MEMORY_EVENTS` (`entity_edge_linked`, `entity_edge_linking_failed`, fail-soft). (#entity-relation-extraction-slice2 T2.0)
 - `entity_edges` table (migration 0019, additive) — stores relation triples `{source, relation, destination}` between entity nodes with `source_memory_id` provenance; per-scope UNIQUE includes `source_memory_id` so `memory_count` aggregates across memories. NO graph DB (two relational tables + JOINs). (#entity-relation-extraction-slice2 T1.1)
 
+
 ### Changed
 - **Entity nodes are now extracted by the LLM (multilingual), not `compromise`.** The write-pipeline LLM call additionally emits an `entities` array (surface names in the input language/script, diacritics preserved); Phase 7 uses these as the PRIMARY node source. `compromise` is demoted to an English-only FALLBACK used only when the LLM returns no entities (e.g. the `infer:false` fast-path). Matches how every SOTA KG system (REDACTED, GraphRAG, LightRAG, REDACTED) extracts nodes — the prompt carries an explicit "keep proper nouns in the original language, never translate/transliterate" instruction. Fixes the entity graph breaking on non-English (e.g. Portuguese) input. (#entity-relation-extraction-slice2 multilingual)
 - Extraction prompt relations guidance broadened (employment/location/usage/composition/membership/education/ownership/reporting) to raise edge recall so more real entities connect. (#entity-relation-extraction-slice2 multilingual)
 - Extraction prompt now (a) represents the first-person speaker as ONE consistent entity named `user` (no more `user`/`Usuário`/`eu` fragmentation of the speaker node) and (b) emits `relationship` labels in the INPUT language too (`trabalha em`, not `works at`). Empirically validated against `gpt-4o-mini` on a pt-BR conversation. (#entity-relation-extraction-slice2 prompt-refinements)
 
-### Deprecated
-
-### Removed
 
 ### Fixed
 - `CompromiseEntityExtractor` no longer corrupts accented proper nouns — the ASCII-only `[A-Za-z]` regexes that stripped diacritics ("São Paulo" → "So") are now Unicode-aware (`\p{L}`/`\p{Lu}` with the `u` flag). Correctness fix on the English/offline fallback path. (#entity-relation-extraction-slice2 multilingual)
 - `CompromiseEntityExtractor` drops predicate/clause-fragment noise that leaked as graph nodes ("is a", "on the", "project uses", "s skip") by trimming function-word edges and rejecting conjugated-verb fragments, while preserving legitimate noun phrases that carry a leading article ("the machine learning engineer" → "machine learning engineer"). (#entity-relation-extraction-slice2 noise-filter)
-
-### Security
 
 ## [0.10.1] - 2026-06-20
 
