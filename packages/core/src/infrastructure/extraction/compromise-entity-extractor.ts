@@ -39,6 +39,17 @@ const NON_SPECIFIC_ADJ = new Set<string>([
 /** Capitalization-insensitive function words that may glue a proper sequence. */
 const PROPER_GLUE = new Set<string>(['of', 'the', 'and', 'for', 'in', 'at']);
 
+/** Common sentence-initial words that are NOT proper nouns even when capitalized.
+ *  A LONE sentence-initial capital matching this set is dropped (precision); a
+ *  capital that starts a multi-word run, or a non-starter like "Google", is kept
+ *  (recall) — fixes the sentence-initial truncation edge from the /review. */
+const SENTENCE_STARTERS = new Set<string>([
+  'the', 'a', 'an', 'this', 'that', 'these', 'those', 'i', 'we', 'he', 'she',
+  'they', 'it', 'you', 'my', 'our', 'your', 'his', 'her', 'their', 'today',
+  'yesterday', 'tomorrow', 'then', 'there', 'here', 'when', 'where', 'why',
+  'how', 'what', 'who', 'if', 'so', 'but', 'and', 'or', 'now', 'later',
+]);
+
 type NlpFactory = (text: string) => {
   nouns: () => { out: (fmt: 'array') => string[] };
 };
@@ -86,21 +97,28 @@ function extractProper(text: string, acc: Map<string, ExtractedEntity>): void {
   for (const sentence of sentences) {
     const tokens = sentence.split(/\s+/).filter(Boolean);
     let run: string[] = [];
+    let runStartIdx = -1;
     const flush = (): void => {
       if (run.length > 0) {
         // strip trailing glue words
         while (run.length > 0 && PROPER_GLUE.has((run[run.length - 1] ?? '').toLowerCase())) run.pop();
-        if (run.length > 0) pushUnique(acc, 'PROPER', run.join(' '));
+        // Drop a LONE sentence-initial capital that is a common starter stopword
+        // (e.g. "The", "Today", "I") — but keep multi-word runs ("John Smith") and
+        // lone non-starters ("Google"). Fixes the sentence-initial recall edge.
+        const loneSentenceInitialStarter =
+          run.length === 1 && runStartIdx === 0 && SENTENCE_STARTERS.has((run[0] ?? '').toLowerCase());
+        if (run.length > 0 && !loneSentenceInitialStarter) pushUnique(acc, 'PROPER', run.join(' '));
       }
       run = [];
+      runStartIdx = -1;
     };
     for (let i = 0; i < tokens.length; i += 1) {
       const tok = tokens[i] ?? '';
       const bare = tok.replace(/[^A-Za-z'-]/g, '');
       const isCap = /^[A-Z][a-z'-]+$/.test(bare);
       const isGlue = run.length > 0 && PROPER_GLUE.has(bare.toLowerCase());
-      // skip the sentence-initial capitalized word (i===0) as a lone proper noun
-      if (isCap && !(i === 0 && run.length === 0)) {
+      if (isCap) {
+        if (run.length === 0) runStartIdx = i;
         run.push(bare);
       } else if (isGlue) {
         run.push(bare.toLowerCase());
