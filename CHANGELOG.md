@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- `entity_edges` table (migration 0019, additive) — stores relation triples `{source, relation, destination}` between entity nodes with `source_memory_id` provenance; per-scope UNIQUE includes `source_memory_id` so `memory_count` aggregates across memories. NO graph DB (two relational tables + JOINs). (#entity-relation-extraction-slice2 T1.1)
 
 ### Changed
 
