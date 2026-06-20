@@ -116,6 +116,17 @@ describe('Phase 7 — entity linking (T3.1)', () => {
     expect(calls[0]?.entities[0]?.normalizedKey).toBeDefined();
   });
 
+  test('F-L4: emits entity_linked on the success path', async () => {
+    const { tracer, exporter } = setupTracer();
+    const { store } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: oneFactLlm(), tracer, entityExtractor: makeExtractor([{ type: 'PROPER', name: 'John Smith' }]), memoryEntityStore: store },
+    );
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('entity_linked');
+  });
+
   test('skips Phase 7 entirely when the ports are absent', async () => {
     const result = await runExtractionPipeline(
       [{ role: 'user', content: 'John Smith works at Google' }],
@@ -162,5 +173,27 @@ describe('Phase 7 — entity linking (T3.1)', () => {
       { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: oneFactLlm(), entityExtractor: makeExtractor(many), memoryEntityStore: store },
     );
     expect(calls[0]?.entities.length).toBeLessThanOrEqual(50);
+  });
+
+  test('F-M2: an entity whose embedding is empty is filtered before persist (no zero-dim vector)', async () => {
+    // Embedder returns an EMPTY vector ONLY for the entity named "Empty One"
+    // (keyed by text, NOT index — so the Phase 3 memory embedding stays valid).
+    const partialEmbedder: Embedder = {
+      embed: vi.fn(async () => vec()),
+      embedBatch: vi.fn(async (texts: readonly string[]) => texts.map((t) => (t === 'Empty One' ? [] : vec()))),
+    };
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'x' }],
+      { user_id: 'alice' },
+      {
+        vectorStore: new StubVectorStore(), embedder: partialEmbedder, llm: oneFactLlm(),
+        entityExtractor: makeExtractor([{ type: 'PROPER', name: 'Empty One' }, { type: 'PROPER', name: 'Google' }]),
+        memoryEntityStore: store,
+      },
+    );
+    // Only the valid-embedding entity reaches the store; no zero-dim vector persisted.
+    expect(calls[0]?.entities.map((e) => e.name)).toEqual(['Google']);
+    expect(calls[0]?.entities.every((e) => e.embedding.length === MAX_EMBEDDING_DIM)).toBe(true);
   });
 });
