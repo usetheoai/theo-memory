@@ -42,8 +42,14 @@ const SYSTEM_PROMPT = [
   'or any peer identifier supplied in conversation context. NOT restricted to a fixed',
   'vocabulary.',
   '',
+  'Optionally include `relations`: an array of factual triples connecting named',
+  'entities mentioned in the text — each `{ "source": "<entity>", "relationship":',
+  '"<verb phrase>", "destination": "<entity>" }`. Use the entity SURFACE NAMES as',
+  'they appear (not ids). Omit `relations` entirely if the text states no relation.',
+  '',
   'Output format (strict JSON, no prose):',
-  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }] }',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }],',
+  '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
 
 function renderExistingMemories(existing: readonly MemoryItem[]): string {
@@ -92,7 +98,9 @@ export function generateAdditiveExtractionPrompt(
   return { prompt, uuidByInt };
 }
 
-/** Zod schema for the LLM's additive-extraction JSON response. */
+/** Zod schema for the LLM's additive-extraction JSON response. `relations` is
+ *  OPTIONAL (slice2 T2.2) — LLMs that omit it still parse (back-compat). Endpoint
+ *  fields are surface strings (resolved to entity ids by name downstream). */
 export const AdditiveExtractionSchema = z.object({
   memory: z.array(
     z.object({
@@ -102,6 +110,15 @@ export const AdditiveExtractionSchema = z.object({
       linked_memory_ids: z.array(z.string()).optional(),
     }),
   ),
+  relations: z
+    .array(
+      z.object({
+        source: z.string(),
+        relationship: z.string(),
+        destination: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 export type AdditiveExtractionResponse = z.infer<typeof AdditiveExtractionSchema>;

@@ -202,3 +202,33 @@ describe('T1.2 — N-valent attributed_to vocabulary (v1.1 + blueprint Q5 R1)', 
     }
   });
 });
+
+describe('AdditiveExtractionSchema — relations (slice2 T2.2)', () => {
+  test('schema_parses_optional_relations', () => {
+    const withRelations = {
+      memory: [{ id: '0', text: 'John Smith works at Google' }],
+      relations: [{ source: 'John Smith', relationship: 'works at', destination: 'Google' }],
+    };
+    const parsed = AdditiveExtractionSchema.safeParse(withRelations);
+    expect(parsed.success).toBe(true);
+  });
+
+  test('schema_backcompat_no_relations', () => {
+    const noRelations = { memory: [{ id: '0', text: 'a fact' }] };
+    const parsed = AdditiveExtractionSchema.safeParse(noRelations);
+    expect(parsed.success).toBe(true);
+  });
+
+  test('relations sub-fields are strings (source/relationship/destination)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({
+      memory: [{ id: '0', text: 'x' }],
+      relations: [{ source: 'A', relationship: 'r', destination: 'B' }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      const rel = parsed.data.relations?.[0];
+      expect(rel?.source).toBe('A');
+      expect(rel?.destination).toBe('B');
+    }
+  });
+});

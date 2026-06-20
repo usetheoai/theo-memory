@@ -197,3 +197,107 @@ describe('Phase 7 — entity linking (T3.1)', () => {
     expect(calls[0]?.entities.every((e) => e.embedding.length === MAX_EMBEDDING_DIM)).toBe(true);
   });
 });
+
+// ── slice2 T2.2 — Phase 7 edge linking (relations) ───────────────────────────
+import type { MemoryGraphStore, UpsertEdgesParams } from './dip/memory-graph-store.js';
+
+function spyGraph(opts: { throws?: boolean } = {}): { store: MemoryGraphStore; calls: UpsertEdgesParams[] } {
+  const calls: UpsertEdgesParams[] = [];
+  return {
+    calls,
+    store: {
+      upsertEdges: vi.fn(async (p: UpsertEdgesParams) => {
+        if (opts.throws === true) throw new Error('edge store boom');
+        calls.push(p);
+        await Promise.resolve();
+      }),
+      listEdges: vi.fn(async () => []),
+    },
+  };
+}
+
+const relLlm = (relations: unknown): LLM =>
+  makeLlm({ memory: [{ id: '0', text: 'John Smith works at Google' }], relations });
+
+const goodRel = [{ source: 'John Smith', relationship: 'works at', destination: 'Google' }];
+
+describe('Phase 7 — edge linking (slice2 T2.2)', () => {
+  const baseDeps = (graph: MemoryGraphStore, llm: LLM, tracer?: ReturnType<typeof setupTracer>['tracer']) => ({
+    vectorStore: new StubVectorStore(),
+    embedder: makeEmbedder(),
+    llm,
+    ...(tracer ? { tracer } : {}),
+    entityExtractor: makeExtractor([{ type: 'PROPER' as const, name: 'John Smith' }, { type: 'PROPER' as const, name: 'Google' }]),
+    memoryEntityStore: spyStore().store,
+    memoryGraphStore: graph,
+  });
+
+  test('link_entities_emits_edge_event_on_relations', async () => {
+    const { tracer, exporter } = setupTracer();
+    const { store, calls } = spyGraph();
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      baseDeps(store, relLlm(goodRel), tracer),
+    );
+    expect(calls).toHaveLength(1);
+    // provenance: edge attributed to the FIRST (representative) memory of the call
+    expect(calls[0]?.memoryId).toBe(result[0]?.id);
+    expect(calls[0]?.edges).toHaveLength(1);
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('entity_edge_linked');
+  });
+
+  test('link_entities_failsoft_on_edge_store_throw', async () => {
+    const { tracer, exporter } = setupTracer();
+    const { store } = spyGraph({ throws: true });
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      baseDeps(store, relLlm(goodRel), tracer),
+    );
+    expect(result).toHaveLength(1); // remember() still resolves
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).toContain('entity_edge_linking_failed');
+    expect(spans).toContain('entity_linked'); // node linking still succeeded independently
+  });
+
+  test('link_entities_caps_edges_at_max', async () => {
+    const { store, calls } = spyGraph();
+    const many = Array.from({ length: 80 }, (_v, i) => ({
+      source: 'John Smith', relationship: `rel${String(i)}`, destination: 'Google',
+    }));
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'x' }],
+      { user_id: 'alice' },
+      baseDeps(store, relLlm(many)),
+    );
+    const passed = calls[0]?.edges.length ?? 0;
+    expect(passed).toBeLessThanOrEqual(50);
+  });
+
+  test('link_entities_drops_overlong_or_malformed_relation', async () => {
+    const { store, calls } = spyGraph();
+    const bad = [
+      { source: 'John Smith', relationship: 'x'.repeat(80), destination: 'Google' }, // >64 chars
+      { source: 'John Smith', relationship: '', destination: 'Google' }, // empty
+      {}, // missing keys
+    ];
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'x' }],
+      { user_id: 'alice' },
+      baseDeps(store, relLlm(bad)),
+    );
+    const passed = calls[0]?.edges.length ?? 0;
+    expect(passed).toBe(0);
+  });
+
+  test('no relations → no edge call (back-compat / infer node-only)', async () => {
+    const { store, calls } = spyGraph();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      baseDeps(store, oneFactLlm()),
+    );
+    expect(calls).toHaveLength(0);
+  });
+});
