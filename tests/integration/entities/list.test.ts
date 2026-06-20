@@ -99,5 +99,36 @@ if (PG_URI === undefined || PG_URI === '') {
       const rows = await store.list({ workspaceId: 'default', filters: { user_id: 'nobody' } });
       expect(rows).toEqual([]);
     });
+
+    test('F-H2: two concurrent same-entity upserts (diff memories) → ONE entity row, TWO links', async () => {
+      const m1 = await seedMemory(pool, '2026-06-01T00:00:00Z');
+      const m2 = await seedMemory(pool, '2026-06-02T00:00:00Z');
+      const ent = {
+        type: 'PROPER' as const,
+        name: 'John Smith',
+        normalizedKey: 'john_smith',
+        embedding: new Array(1536).fill(0),
+      };
+      // Concurrent test: the ON CONFLICT DO NOTHING upsert is the happens-before
+      // observation — exactly one entities row must survive the race, with both links.
+      await Promise.all([
+        store.upsertAndLink({ memoryId: m1, workspaceId: 'default', filters: { user_id: 'alice' }, entities: [ent] }),
+        store.upsertAndLink({ memoryId: m2, workspaceId: 'default', filters: { user_id: 'alice' }, entities: [ent] }),
+      ]);
+      // Scoped to user_id='alice' so the assertion is robust to other integration
+      // files sharing the DB (cross-file parallelism on the dev pg).
+      const { rows: erows } = await pool.query<{ n: string }>(
+        `SELECT count(*)::int AS n FROM entities WHERE normalized_key='john_smith' AND user_id='alice'`,
+      );
+      expect(Number(erows[0]?.n)).toBe(1); // atomic-counter invariant: one row, not two
+      const { rows: lrows } = await pool.query<{ n: string }>(
+        `SELECT count(*)::int AS n FROM memory_entities me
+           JOIN entities e ON e.id = me.entity_id
+          WHERE e.user_id='alice' AND e.normalized_key='john_smith'`,
+      );
+      expect(Number(lrows[0]?.n)).toBe(2); // both memories linked to the one entity
+      const summary = await store.list({ workspaceId: 'default', filters: { user_id: 'alice' } });
+      expect(summary.find((s) => s.name === 'John Smith')?.memoryCount).toBe(2);
+    });
   });
 }
