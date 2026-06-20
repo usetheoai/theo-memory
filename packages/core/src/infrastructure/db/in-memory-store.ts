@@ -201,6 +201,24 @@ export class InMemoryVectorStore implements VectorStore {
     await Promise.resolve();
   }
 
+  /** Scope-checked delete (themory-scoped-forget T1.1). In-memory has no
+   *  `t_invalid`, so soft and hard both physically remove once the row's
+   *  workspace + every bound scope-tier column match `filters`. Returns whether
+   *  a row matched (mirrors PgvectorStore.deleteInScope; cross-scope → false). */
+  async deleteInScope(vectorId: string, filters: Filters): Promise<boolean> {
+    await Promise.resolve();
+    const row = this.rows.get(vectorId);
+    if (row === undefined) return false;
+    const rowWs = (row.payload['workspace_id'] as string | undefined) ?? 'default';
+    if (rowWs !== (filters.workspace_id ?? 'default')) return false;
+    for (const col of ['user_id', 'session_id', 'agent_id'] as const) {
+      const val = filters[col];
+      if (val !== undefined && val !== null && row.payload[col] !== val) return false;
+    }
+    this.rows.delete(vectorId);
+    return true;
+  }
+
   async deleteCol(): Promise<void> {
     this.rows.clear();
     await Promise.resolve();
