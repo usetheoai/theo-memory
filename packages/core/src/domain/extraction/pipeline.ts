@@ -339,6 +339,9 @@ export async function runExtractionPipeline(
   let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[];
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
+  // multilingual nodes: the LLM is the PRIMARY node source (compromise is an
+  // English-only fallback). Surface names preserved in the input language/script.
+  let llmEntities: readonly { name: string; type?: string | undefined }[] | undefined;
   try {
     const raw = await deps.llm.generateResponse(
       [
@@ -366,6 +369,7 @@ export async function runExtractionPipeline(
     const parsed = AdditiveExtractionSchema.parse(obj);
     extracted = parsed.memory;
     relations = parsed.relations;
+    llmEntities = parsed.entities;
     emitEvent(tracer, 'extraction_completed', { facts: extracted.length });
   } catch (err) {
     // T2.1 — differentiate LLM network errors (propagate) from parse/validation
@@ -535,7 +539,7 @@ export async function runExtractionPipeline(
   // Shared helper in entity-linking.ts; passes the LLM `relations` so edges link
   // after nodes. The infer:false fast-path calls linkEntities WITHOUT relations.
   // ============================================================
-  await linkEntities(survivingItems, filters, deps, tracer, relations);
+  await linkEntities(survivingItems, filters, deps, tracer, relations, llmEntities);
 
   // Phase 8: save messages — deferred to v0.2 (historyManager.saveMessages optional)
 
