@@ -166,6 +166,14 @@ export type {
 export type { Embedder } from './dip/embedder.js';
 
 /**
+ * `EntityExtractor` DIP — sync, deterministic node extractor from text.
+ * Default adapter: `CompromiseEntityExtractor` (JS-native NLP + regex fallback).
+ *
+ * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
+ */
+export type { EntityExtractor, EntityType, ExtractedEntity } from './dip/entity-extractor.js';
+
+/**
  * `LLM` DIP — chat-completion-shaped fact-extraction interface. Adapters:
  * `StubLLM`, `OpenAILLM` (OpenAI-compatible via `OPENAI_BASE_URL`).
  *
