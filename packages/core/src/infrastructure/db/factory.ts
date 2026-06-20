@@ -16,6 +16,7 @@ import {
   InvalidEmbeddingDim,
 } from '../../domain/errors.js';
 import type { Scope } from '../../domain/scope.js';
+import { CompromiseEntityExtractor } from '../extraction/compromise-entity-extractor.js';
 
 import {
   emitStubEmbedderCacheWarning,
@@ -34,6 +35,7 @@ import {
   TriadicScoringPolicy,
 } from './eviction/index.js';
 import { type DisposableMemory, LocalMemory } from './local-memory.js';
+import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 
 // Re-export cache helpers so existing importers from factory.ts still work
@@ -170,6 +172,20 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   await probeEmbedder(config.embedder, effectiveDim);
   await config.vectorStore.initialize();
 
+  // entity-extraction-nodes-slice1 T3.1 — wire Phase 7 ports when entityBoost is
+  // not disabled AND the store is a PgvectorStore (we need its pool). Default ON
+  // per ADR-0007 (entityBoost !== false). A consumer MAY inject their own ports.
+  // Both downstream LocalMemory paths (eviction-on/off) read `baseConfig`.
+  const baseConfig: LocalMemoryConfig =
+    config.entityBoost !== false && config.vectorStore instanceof PgvectorStoreClass
+      ? {
+          ...config,
+          entityExtractor: config.entityExtractor ?? new CompromiseEntityExtractor(),
+          memoryEntityStore:
+            config.memoryEntityStore ?? new PgMemoryEntityStore(config.vectorStore.poolForEviction),
+        }
+      : config;
+
   // semantic-recall-cache-v1-5 T2.1 — opt-in cache wiring.
   // Resolved BEFORE the eviction branch so both eviction-on and eviction-off
   // paths get the cache (the two features are orthogonal — eviction touches
@@ -188,7 +204,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   }
 
   if (config.eviction === undefined) {
-    const memory = new LocalMemory(config, resolvedReflectionPolicy, recallCacheStore);
+    const memory = new LocalMemory(baseConfig, resolvedReflectionPolicy, recallCacheStore);
     return Object.assign(memory, { dispose: (): Promise<void> => Promise.resolve() });
   }
 
@@ -234,8 +250,8 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
 
   const augmentedConfig: LocalMemoryConfig =
     postRememberHook !== undefined
-      ? { ...config, postRememberHook }
-      : config;
+      ? { ...baseConfig, postRememberHook }
+      : baseConfig;
 
   const memory = new LocalMemory(augmentedConfig, resolvedReflectionPolicy, recallCacheStore);
   const dispose = (): Promise<void> => {

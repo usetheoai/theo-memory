@@ -11,6 +11,7 @@ import type { Tracer } from '@opentelemetry/api';
 import { ContentTooLargeError } from '@usetheo/memory/contract';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
+import type { MemoryEntityStore } from '@usetheo/memory/contract';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 
@@ -126,10 +127,19 @@ export interface CreateServerOptions {
    * exercise the role×route matrix without a DB.
    */
   readonly membersRepository?: MembersRepository;
+  /**
+   * entity-extraction-nodes-slice1 T4.2 (ADR D4) — optional entities read port.
+   * When supplied, `GET /v1/scopes/:type/:id/entities` serves REAL entities from
+   * the `entities`/`memory_entities` tables. When omitted, the handler keeps the
+   * `attributed_to`-derived fallback (no regression for servers without entity
+   * linking). The composition root (CLI `themory server`) injects the
+   * `PgMemoryEntityStore` here, mirroring the `adminApi.pool` wiring precedent.
+   */
+  readonly memoryEntityStore?: MemoryEntityStore;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore } = options;
 
   // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
   // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
@@ -309,7 +319,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
   app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory));
-  app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory, memoryEntityStore));
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
   // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
   app.get('/v1/scopes/skill/:repoId/skills', (c) => skillsHandler(c, memory));

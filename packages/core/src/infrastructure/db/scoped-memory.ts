@@ -192,6 +192,10 @@ export class LocalScopedMemory implements ScopedMemory {
       ...(this.config.historyManager !== undefined ? { historyManager: this.config.historyManager } : {}),
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       ...(this.config.customInstructions !== undefined ? { customInstructions: this.config.customInstructions } : {}),
+      // entity-extraction-nodes-slice1 T3.1 — thread Phase 7 ports (factory sets
+      // them when entityBoost !== false); both present → Phase 7 runs.
+      ...(this.config.entityExtractor !== undefined ? { entityExtractor: this.config.entityExtractor } : {}),
+      ...(this.config.memoryEntityStore !== undefined ? { memoryEntityStore: this.config.memoryEntityStore } : {}),
     }, options);
 
     // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline
