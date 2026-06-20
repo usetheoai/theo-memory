@@ -384,6 +384,60 @@ export const memoryEntities = pgTable(
   ],
 );
 
+/**
+ * entity-relation-extraction-slice2 T1.1 — relation (triple) edges between entity
+ * nodes. A triple `{source, relation, destination}` is two entity FKs + the
+ * relation label + `source_memory_id` provenance (Princípio 3). NO graph DB —
+ * `JOIN`s cover the 1–2 hop dashboard view (ADR D2). All 3 FKs CASCADE so a
+ * forget/GDPR delete of a memory OR an entity cleans its edges.
+ *
+ * EC-1: `source_memory_id` IS part of the dedup UNIQUE (one row per triple+memory)
+ * so `memory_count = count(DISTINCT source_memory_id) GROUP BY triple` aggregates
+ * correctly. Leaving it OUT would freeze `memory_count` at 1 (silent wrong data).
+ */
+export const entityEdges = pgTable(
+  'entity_edges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: text('workspace_id').notNull().default('default'),
+    sourceEntityId: uuid('source_entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+    targetEntityId: uuid('target_entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+    /** Human relation label (first-write-wins on dedup). */
+    relation: text('relation').notNull(),
+    /** Lowercased + underscored relation — the dedup key component. */
+    normalizedRelation: text('normalized_relation').notNull(),
+    /** Provenance: the memory whose text produced this triple. */
+    sourceMemoryId: uuid('source_memory_id').references(() => memories.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    /** Scope tiers mirror `entities` (one set, others NULL — AND-composed via COALESCE). */
+    userId: text('user_id'),
+    sessionId: text('session_id'),
+    agentId: text('agent_id'),
+  },
+  (table) => [
+    // Read path: aggregate edges per (source, relation, target) within a scope.
+    index('entity_edges_source_idx').on(table.sourceEntityId),
+    index('entity_edges_target_idx').on(table.targetEntityId),
+    // EC-1 dedup identity: source_memory_id IS in the arbiter → one row per
+    // (triple, memory) → count(DISTINCT source_memory_id) GROUP BY triple is correct.
+    // COALESCE on the nullable scope tiers (NULL != NULL in a plain UNIQUE).
+    uniqueIndex('entity_edges_scope_triple_uq').on(
+      table.workspaceId,
+      sql`COALESCE(${table.userId}, '')`,
+      sql`COALESCE(${table.sessionId}, '')`,
+      sql`COALESCE(${table.agentId}, '')`,
+      table.sourceEntityId,
+      table.normalizedRelation,
+      table.targetEntityId,
+      sql`COALESCE(${table.sourceMemoryId}::text, '')`,
+    ),
+  ],
+);
+
 /** Audit-trail rows for Memory.history(id). Append-only; ordered by (timestamp DESC, id DESC) per EC-18. */
 export const history = pgTable(
   'history',

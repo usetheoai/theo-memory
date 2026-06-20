@@ -134,6 +134,13 @@
       "when": 1781953226460,
       "tag": "0018_entity_nodes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781965032777,
+      "tag": "0019_entity_edges",
+      "breakpoints": true
     }
   ]
 }
