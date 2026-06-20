@@ -17,9 +17,9 @@ describe('EntityExtractor — type-level shape (T1.1)', () => {
     expectTypeOf<keyof EntityExtractor>().toEqualTypeOf<'extract'>();
   });
 
-  test('extract is sync and returns ReadonlyArray<ExtractedEntity>', () => {
+  test('extract is sync and returns readonly ExtractedEntity[]', () => {
     expectTypeOf<EntityExtractor['extract']>().parameters.toEqualTypeOf<[text: string]>();
-    expectTypeOf<EntityExtractor['extract']>().returns.toEqualTypeOf<ReadonlyArray<ExtractedEntity>>();
+    expectTypeOf<EntityExtractor['extract']>().returns.toEqualTypeOf<readonly ExtractedEntity[]>();
   });
 
   test('ExtractedEntity is { type: EntityType; name: string }', () => {
@@ -35,6 +35,6 @@ describe('EntityExtractor — type-level shape (T1.1)', () => {
   test('a stub satisfies the interface and an empty extraction is valid', () => {
     const stub: EntityExtractor = { extract: () => [] };
     const out = stub.extract('x');
-    expectTypeOf(out).toEqualTypeOf<ReadonlyArray<ExtractedEntity>>();
+    expectTypeOf(out).toEqualTypeOf<readonly ExtractedEntity[]>();
   });
 });
