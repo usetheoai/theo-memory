@@ -240,8 +240,8 @@ packages/core/src/infrastructure/db/schema.test.ts — RED: assert entity_edges 
 
 #### TDD
 ```
-RED:     entity_edges_table_has_expected_columns() — drizzle introspection / getSQLType asserts source_entity_id, target_entity_id, relation, normalized_relation, source_memory_id, scope cols exist
-RED:     entity_edges_unique_arbiter_present() — asserts the per-scope UNIQUE index exists in 0019 SQL
+RED:     entity_edges_table_has_expected_columns() — const cols = await introspectColumns('entity_edges'); expect(cols).toContain('source_entity_id'); expect(cols).toContain('normalized_relation')
+RED:     entity_edges_unique_arbiter_present() — const hasUnique = await uniqueIndexExists('entity_edges'); expect(hasUnique).toBe(true)
 GREEN:   Implement schema + migration + journal
 REFACTOR: None expected
 VERIFY:  npx vitest run --config vitest.contract.config.ts packages/core/src/infrastructure/db/schema.test.ts
@@ -313,7 +313,7 @@ packages/core/src/domain/dip/memory-graph-store.test.ts (NEW) — RED: type-shap
 #### TDD
 ```
 RED:     memory_events_has_23_literals() — expect(MEMORY_EVENTS.length).toBe(23)
-RED:     memory_graph_store_shape() — a stub implementing MemoryGraphStore type-checks (expectTypeOf or a const impl)
+RED:     memory_graph_store_shape() — const stub: MemoryGraphStore = makeStub(); expect(typeof stub.upsertEdges).toBe('function'); expect(typeof stub.listEdges).toBe('function')
 GREEN:   Implement the DIP + events
 REFACTOR: None expected
 VERIFY:  npx vitest run --config vitest.contract.config.ts packages/core/src/domain/memory-event.test.ts packages/core/src/domain/dip/memory-graph-store.test.ts
@@ -391,10 +391,10 @@ effect: one entity_edges row (john_smith --works_at--> google), source_memory_id
 
 #### TDD
 ```
-RED:     upsertEdges_persists_edge_between_existing_nodes() — seed 2 nodes, upsert 1 edge → listEdges returns it (real pg)
-RED:     upsertEdges_skips_unresolvable_endpoint() — edge to a non-existent node → 0 edges, no throw
-RED:     upsertEdges_aggregates_memory_count_across_memories() — same triple from 2 memories (2 source_memory_id) → listEdges memory_count==2 (EC-1)
-RED:     resolveEntityId_deterministic_on_duplicate_key() — seed 2 nodes same normalized_key different type → resolution returns the EARLIEST id consistently (EC-2)
+RED:     upsertEdges_persists_edge_between_existing_nodes() — seed 2 nodes, upsert 1 edge; const edges = await store.listEdges(p); expect(edges.length).toBe(1) (real pg)
+RED:     upsertEdges_skips_unresolvable_endpoint() — edge to a non-existent node; const edges = await store.listEdges(p); expect(edges.length).toBe(0) (no throw)
+RED:     upsertEdges_aggregates_memory_count_across_memories() — same triple from 2 memories; const mc = edges[0].memoryCount; expect(mc).toBe(2) (EC-1)
+RED:     resolveEntityId_deterministic_on_duplicate_key() — seed 2 nodes same normalized_key different type; const first = await resolveTwice(); expect(first).toBe(earliestId) (EC-2)
 GREEN:   Implement PgMemoryGraphStore
 REFACTOR: extract resolveEntityId helper if duplicated with entity store
 VERIFY:  THEOMEM_PG_URI=... npx vitest run --config vitest.integration.config.ts tests/integration/entities/graph.test.ts
@@ -466,12 +466,12 @@ if memoryGraphStore and relations and relations.length > 0:
 
 #### TDD
 ```
-RED:     schema_parses_optional_relations() — AdditiveExtractionSchema.parse({memory:[...], relations:[{source,relationship,destination}]}) ok
-RED:     schema_backcompat_no_relations() — parse({memory:[...]}) still ok (relations omitted)
-RED:     link_entities_emits_edge_event_on_relations() — stub graph store records upsertEdges call; event 'entity_edge_linked' emitted
-RED:     link_entities_failsoft_on_edge_store_throw() — graph store throws → remember() resolves, 'entity_edge_linking_failed' emitted
-RED:     link_entities_caps_edges_at_max() — >50 relations → ≤50 edges passed to upsertEdges (EC-3)
-RED:     link_entities_drops_overlong_or_malformed_relation() — relation>64 chars OR [{}] → dropped, not passed (EC-4)
+RED:     schema_parses_optional_relations() — const parsed = AdditiveExtractionSchema.safeParse(withRelations); expect(parsed.success).toBe(true)
+RED:     schema_backcompat_no_relations() — const parsed = AdditiveExtractionSchema.safeParse(noRelations); expect(parsed.success).toBe(true)
+RED:     link_entities_emits_edge_event_on_relations() — const calls = stubStore.upsertEdgesCalls; expect(calls).toBe(1); expect(events).toContain('entity_edge_linked')
+RED:     link_entities_failsoft_on_edge_store_throw() — const result = await remember(text); expect(result).toBeDefined(); expect(events).toContain('entity_edge_linking_failed')
+RED:     link_entities_caps_edges_at_max() — const passed = stubStore.lastEdgeCount; expect(passed).toBeLessThanOrEqual(50) (EC-3)
+RED:     link_entities_drops_overlong_or_malformed_relation() — const passed = stubStore.lastEdgeCount; expect(passed).toBe(0) (EC-4)
 GREEN:   Implement schema + prompt + pipeline edge linking
 REFACTOR: keep linkEntities cohesive (extract buildEdges helper if it grows)
 VERIFY:  npx vitest run --config vitest.contract.config.ts packages/core/src/domain/extraction/prompt.test.ts packages/core/src/domain/extraction/pipeline.test.ts
@@ -530,9 +530,9 @@ packages/api/src/server/handlers/graph.test.ts (NEW) — RED: {nodes,edges} shap
 
 #### TDD
 ```
-RED:     graph_returns_nodes_and_edges() — with both ports → {nodes:[...], edges:[...]}
-RED:     graph_empty_edges_when_graph_store_absent() — D6: omit graph store → edges:[]
-RED:     graph_invalid_scope_type_404() — bad :type → notFound
+RED:     graph_returns_nodes_and_edges() — const body = await res.json(); expect(body.nodes.length).toBeGreaterThan(0); expect(body.edges.length).toBeGreaterThan(0)
+RED:     graph_empty_edges_when_graph_store_absent() — const body = await res.json(); expect(body.edges).toEqual([]) (D6)
+RED:     graph_invalid_scope_type_404() — const status = res.status; expect(status).toBe(404)
 GREEN:   Implement graphHandler + route + openapi
 REFACTOR: None expected
 VERIFY:  cd packages/api && npx vitest run src/server/handlers/graph.test.ts
@@ -583,8 +583,8 @@ tests/integration/entities/graph.test.ts — extend: factory default-ON wires ed
 
 #### TDD
 ```
-RED:     run_server_injects_graph_store() — mock createServer; assert memoryGraphStore passed
-RED:     factory_default_on_wires_edges() — createLocalMemory (no port) + remember(relation text) → graph.listEdges non-empty (real pg, in graph.test.ts)
+RED:     run_server_injects_graph_store() — const opts = createServerMock.lastCall; expect(opts.memoryGraphStore).toBeDefined()
+RED:     factory_default_on_wires_edges() — createLocalMemory (no port) + remember(relation text); const edges = await store.listEdges(p); expect(edges.length).toBeGreaterThan(0) (real pg)
 GREEN:   Implement factory + config + run-server wiring
 REFACTOR: None expected
 VERIFY:  cd packages/cli && npx vitest run src/run-server.test.ts ; THEOMEM_PG_URI=... npx vitest run --config vitest.integration.config.ts tests/integration/entities/graph.test.ts
@@ -637,7 +637,7 @@ tests/integration/entities/graph.test.ts — GOAL test (full chain) + the T2.1/T
 
 #### TDD
 ```
-RED:     goal_remember_to_graph_edge() — remember('John Smith works at Google') → GET /graph edges contains {source:'John Smith', relation~'works_at', target:'Google'}
+RED:     goal_remember_to_graph_edge() — remember('John Smith works at Google'); const edge = body.edges.find(matchesJohnGoogle); expect(edge).toBeDefined(); expect(edge.target).toBe('Google')
 GREEN:   (implementation already done in Phases 1-3; this test must pass)
 REFACTOR: None expected
 VERIFY:  THEOMEM_PG_URI=... npx vitest run --config vitest.integration.config.ts tests/integration/entities/
