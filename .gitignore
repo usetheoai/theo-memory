@@ -83,3 +83,4 @@ cross-validation-output/
 
 # Dogfood degradation logs (transient hook output; audit lives in manifest + evidence/)
 .claude/knowledge-base/dogfood/degradations/
+.dev-mcp-client/
