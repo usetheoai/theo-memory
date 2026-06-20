@@ -193,6 +193,24 @@ if (PG_URI === undefined || PG_URI === '') {
     });
   });
 
+  describe('PgMemoryGraphStore factory wiring (T3.2)', () => {
+    test('factory_default_on_wires_edges', async () => {
+      // createLocalMemory with NO explicit graph port → the factory wires
+      // PgMemoryGraphStore by default (entityBoost on + PgvectorStore).
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: fixedEmbedder(),
+        llm: relationsLlm('John Smith works at Google'),
+      });
+      await memory.user('facwire').remember('John Smith works at Google');
+      const edges = await graphStore.listEdges({
+        workspaceId: 'default',
+        filters: { user_id: 'facwire' },
+      });
+      expect(edges.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('entity-relation-extraction-slice2 T4.1 — GOAL test vs real pgvector', () => {
     test('goal_remember_to_graph_edge', async () => {
       const memory = await createLocalMemory({
