@@ -11,6 +11,8 @@
  */
 import type { Tracer } from '@opentelemetry/api';
 
+import type { EntityExtractor } from '../../domain/dip/entity-extractor.js';
+import type { MemoryEntityStore } from '../../domain/dip/memory-entity-store.js';
 import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
@@ -39,6 +41,14 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * configure eviction via the `eviction` option above.
    */
   readonly postRememberHook?: (scope: Scope, workspaceId?: string) => Promise<void>;
+  /**
+   * entity-extraction-nodes-slice1 T3.1 — Phase 7 entity-linking ports. Built by
+   * `createLocalMemory` (CompromiseEntityExtractor + PgMemoryEntityStore) when
+   * `entityBoost !== false` AND the vector store is a PgvectorStore. A consumer
+   * MAY inject their own; both must be present for Phase 7 to run.
+   */
+  readonly entityExtractor?: EntityExtractor;
+  readonly memoryEntityStore?: MemoryEntityStore;
   /**
    * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
    * declared embedding dimension produced by the embedder. Defaults to

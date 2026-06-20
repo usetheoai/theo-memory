@@ -333,10 +333,54 @@ export const entities = pgTable(
     embedding: vector('embedding', { dimensions: MAX_EMBEDDING_DIM }).notNull(),
     payload: jsonb('payload').$type<Record<string, string | number | boolean | null>>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    /** entity-extraction-nodes-slice1 T2.1 — node extraction populates these.
+     *  Nullable (additive; pre-existing rows survive per the no-backfill ADR).
+     *  `type` is part of the dedup identity (EC-1) so PROPER "Apple" and NOUN
+     *  "apple" do not silently merge. `normalized_key` = lowercased, underscored
+     *  name (per-scope dedup key). Scope columns mirror `memories` (one tier set,
+     *  others NULL — AND-composed via COALESCE in the UNIQUE below). */
+    type: text('type'),
+    normalizedKey: text('normalized_key'),
+    userId: text('user_id'),
+    sessionId: text('session_id'),
+    agentId: text('agent_id'),
   },
   (table) => [
     index('entities_name_idx').on(table.name),
     index('entities_embedding_hnsw_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
+    // EC-1 dedup identity: COALESCE on the nullable scope tiers (NULL != NULL in a
+    // plain UNIQUE) — mirrors `memories_hash_scope_unique_idx`. workspace_id is
+    // NOT NULL (no COALESCE). `type` + `normalized_key` complete the identity.
+    uniqueIndex('entities_scope_type_key_uq').on(
+      table.workspaceId,
+      sql`COALESCE(${table.userId}, '')`,
+      sql`COALESCE(${table.sessionId}, '')`,
+      sql`COALESCE(${table.agentId}, '')`,
+      sql`COALESCE(${table.type}, '')`,
+      sql`COALESCE(${table.normalizedKey}, '')`,
+    ),
+  ],
+);
+
+/**
+ * entity-extraction-nodes-slice1 T2.1 — provenance link memory↔entity.
+ * Gives `memory_count` (distinct memories per entity via the composite PK) +
+ * provenance (Princípio 3). Both FKs CASCADE so forget/GDPR delete cleans links.
+ */
+export const memoryEntities = pgTable(
+  'memory_entities',
+  {
+    memoryId: uuid('memory_id')
+      .notNull()
+      .references(() => memories.id, { onDelete: 'cascade' }),
+    entityId: uuid('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.memoryId, table.entityId] }),
+    // entity_id-leading index for the handler's GROUP BY (count memories per entity).
+    index('memory_entities_entity_id_idx').on(table.entityId),
   ],
 );
 

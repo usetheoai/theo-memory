@@ -62,6 +62,10 @@ export const MEMORY_EVENTS = [
   'embed_zero_dim_skipped',
   // code-review-fixes-v0-2-1 T2.3 — history persist failed (non-fatal; surfaces silently swallowed error).
   'history_persist_failed',
+  // entity-extraction-nodes-slice1 T3.1 — Phase 7 entity linking failed (non-fatal;
+  // fail-soft per ADR D3 — a remember() MUST NEVER fail because entity linking
+  // failed. Mirrors history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'entity_linking_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
