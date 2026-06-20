@@ -44,6 +44,8 @@ Tracks the deferred items so they are not lost in chat. The two actionable LOW r
 
 **Remediation (post-P0).** Build an entity extraction-and-persist pipeline (LLM/NER over memory text) + a scope link + a migration, then have `entities` aggregate from it. New feature → FROZEN under P0; plan post-closure.
 
+**Discovery DONE (2026-06-19, CTO live session).** A no-graph-DB blueprint was investigated + scored: `.claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md` (`/discover-confidence` SHIPPABLE 100). Key decisions: D1 reuse the existing extraction LLM call to emit `{entities[], relations[]}` (NO spaCy/new dep); D2 persist as 2 Postgres tables (`entities` + `entity_edges`, resolution by `(scope, normalized_key)` UNIQUE) — **NO graph DB** (Item 14 stays out of scope per owner). Edges/`{nodes,edges}` REST + dashboard graph view are our synthesis (no OSS precedent for the edges half — EC-2). Implementation still requires an explicit owner `/goal` unfreeze (new feature, P0).
+
 **Today's behavior is honest:** entities = attributed peers; the dashboard renders empty gracefully when no `attributed_to` is set; disclosed in CHANGELOG + the blueprint.
 
 ---

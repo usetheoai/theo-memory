@@ -1,0 +1,3 @@
+# SEPA — T2.1 (iteration 2)
+pre-RED: CONFIRMED 0017→0018 (0017_workspace_members taken); [CRITICAL] EC-1 nullable-scope UNIQUE must use COALESCE(col,'') (codebase precedent migration 0011 / memories_hash_scope_unique_idx), NOT NULLS NOT DISTINCT; type in UNIQUE; scope cols nullable; entity_id index for GROUP BY.
+post-GREEN: APPROVE. Additive (no DROP), EC-1 COALESCE+type exact mirror, both FKs CASCADE, EC-5 vector(MAX_EMBEDDING_DIM) untouched, tests non-vacuous (dedup=1/diff_type=2/cascade=0 proven vs real pgvector). 2 MINOR doc-hardening (ON_CONFLICT-tracks-index comment added; entity-side cascade leg covered by later forget task). Plan stale 0017 refs fixed to 0018.

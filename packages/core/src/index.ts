@@ -51,6 +51,14 @@ export type { LocalMemoryConfig, DisposableMemory } from './infrastructure/db/in
 export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager } from './infrastructure/db/index.js';
 
 /**
+ * entity-extraction-nodes-slice1 — default entity-linking adapters. The factory
+ * wires these automatically when `entityBoost !== false`; exported so consumers
+ * can construct/inject them (e.g. a custom extractor wrapping `PgMemoryEntityStore`).
+ */
+export { PgMemoryEntityStore } from './infrastructure/db/index.js';
+export { CompromiseEntityExtractor } from './infrastructure/extraction/compromise-entity-extractor.js';
+
+/**
  * Drizzle table objects re-exported for consumers building custom queries
  * outside the `Memory` API (e.g., ETL pipelines, custom dashboards).
  *
@@ -61,7 +69,7 @@ export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager } from './inf
  * @see .claude/knowledge-base/adrs/ADR-0006-bi-temporal-local-schema.md
  * @see .claude/knowledge-base/plans/completed/v1-1-multi-peer-and-bi-temporal-plan.md
  */
-export { entities, history, memories } from './infrastructure/db/index.js';
+export { entities, history, memories, memoryEntities } from './infrastructure/db/index.js';
 
 /**
  * Stub adapters for scaffold demos and unit-test fixtures.

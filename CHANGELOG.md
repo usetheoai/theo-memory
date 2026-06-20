@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.10.0] - 2026-06-20
+
+### Added
+- Entity extraction (nodes) — the `entities` table is now populated from memory text on `remember()`. A new `EntityExtractor` DIP (`CompromiseEntityExtractor` default: JS-native NLP via the optional `compromise` package + regex fallback, no spaCy/Python) extracts PROPER/QUOTED/COMPOUND/NOUN nodes; a new `MemoryEntityStore` DIP (`PgMemoryEntityStore` default) persists them (deduped per `(workspace, scope, type, normalized_key)`) + links them to source memories (`memory_entities` table, migration `0018`). `GET /v1/scopes/:type/:id/entities` now serves the REAL deduplicated entities with `memory_count` + `last_seen_at` (response shape unchanged) when the read port is wired; the `attributed_to`-derived fallback is preserved otherwise. Entity linking is `entityBoost`-gated (default on) and fail-soft (a failure emits `entity_linking_failed` and never fails `remember()`). Caveat: entity linking runs on the `infer:true` write path only; the `infer:false` verbatim fast-path does not yet extract entities (follow-up). (#entity-extraction-nodes-slice1)
+
 ## [0.9.0] - 2026-06-19
 
 ### Added

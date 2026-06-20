@@ -1,132 +1,139 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1779543498602,
-			"tag": "0000_crazy_mimic",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1780023972631,
-			"tag": "0001_reflection_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1780138536776,
-			"tag": "0002_skill_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1780237675392,
-			"tag": "0003_eviction_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1780237676392,
-			"tag": "0004_eviction_half_life_trigger",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1780240669003,
-			"tag": "0005_eviction_partial_indexes",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "7",
-			"when": 1780243549731,
-			"tag": "0006_drop_dead_index_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "7",
-			"when": 1780341763029,
-			"tag": "0007_distillation_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "7",
-			"when": 1780445431070,
-			"tag": "0008_attributed_to",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "7",
-			"when": 1780466527854,
-			"tag": "0009_v1_1_index_parity",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "7",
-			"when": 1780518916892,
-			"tag": "0010_recall_cache",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "7",
-			"when": 1780604800000,
-			"tag": "0011_confirmation_count_and_composite_unique",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "7",
-			"when": 1780841767511,
-			"tag": "0012_theo_api_keys",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "7",
-			"when": 1780843560551,
-			"tag": "0013_admin_config",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "7",
-			"when": 1781001600000,
-			"tag": "0014_add_category_column",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "7",
-			"when": 1781556151973,
-			"tag": "0015_fix_kind_derived_from_check",
-			"breakpoints": true
-		},
-		{
-			"idx": 16,
-			"version": "7",
-			"when": 1781701806642,
-			"tag": "0016_workspaces",
-			"breakpoints": true
-		},
-		{
-			"idx": 17,
-			"version": "7",
-			"when": 1781729934167,
-			"tag": "0017_workspace_members",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1779543498602,
+      "tag": "0000_crazy_mimic",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780023972631,
+      "tag": "0001_reflection_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780138536776,
+      "tag": "0002_skill_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780237675392,
+      "tag": "0003_eviction_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780237676392,
+      "tag": "0004_eviction_half_life_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780240669003,
+      "tag": "0005_eviction_partial_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780243549731,
+      "tag": "0006_drop_dead_index_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780341763029,
+      "tag": "0007_distillation_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780445431070,
+      "tag": "0008_attributed_to",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780466527854,
+      "tag": "0009_v1_1_index_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780518916892,
+      "tag": "0010_recall_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780604800000,
+      "tag": "0011_confirmation_count_and_composite_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780841767511,
+      "tag": "0012_theo_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780843560551,
+      "tag": "0013_admin_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781001600000,
+      "tag": "0014_add_category_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1781556151973,
+      "tag": "0015_fix_kind_derived_from_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781701806642,
+      "tag": "0016_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781729934167,
+      "tag": "0017_workspace_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781953226460,
+      "tag": "0018_entity_nodes",
+      "breakpoints": true
+    }
+  ]
 }
