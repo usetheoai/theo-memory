@@ -223,6 +223,43 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // entity-relation-extraction-slice2 T3.1 — {nodes, edges} relation graph.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/{type}/{id}/graph',
+    operationId: 'scopeGraph',
+    summary: 'Subject-scoped entity relation graph ({nodes, edges}; no graph DB).',
+    request: { params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }) },
+    responses: {
+      200: {
+        description: 'Entity graph: nodes (entities) + edges (relations).',
+        content: {
+          'application/json': {
+            schema: z.object({
+              nodes: z.array(
+                z.object({
+                  id: z.string(),
+                  scope_type: z.string(),
+                  memory_count: z.number().int(),
+                  last_seen_at: z.string().optional(),
+                }),
+              ),
+              edges: z.array(
+                z.object({
+                  source: z.string(),
+                  relation: z.string(),
+                  target: z.string(),
+                  memory_count: z.number().int(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      404: { description: 'Unknown scope type or empty id.' },
+    },
+  });
+
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing.
   registry.registerPath({
     method: 'get',
