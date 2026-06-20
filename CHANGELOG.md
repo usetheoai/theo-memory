@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Subject-scoped forget** — `ScopedMemory.forget(memoryId, { hard? })` deletes a memory ONLY if it belongs to that scope (+ workspace); a cross-scope / cross-workspace / missing id throws `MemoryNotFound` (→ 404, no existence leak). Backed by a new single-SQL `VectorStore.deleteInScope(id, filters, hard)` (workspace + tier WHERE; soft guards `t_invalid IS NULL` for idempotent-404; hard cascades via the entity-link FKs). Lets a multi-tenant gateway delete-by-id without an O(scope) ownership pre-check. The existing top-level `Memory.forget` is unchanged. (#themory-scoped-forget-and-retrieval-counter T1.1)
 
 ### Changed
 

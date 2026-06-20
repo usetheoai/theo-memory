@@ -52,9 +52,9 @@ test('Memory has exactly the 10 top-level keys (v0.4a adds flushReflections; v0.
   >();
 });
 
-test('ScopedMemory has the 4 scoped verbs (no forget; memoryId is globally unique)', () => {
+test('ScopedMemory has the 5 scoped verbs (incl. subject-scoped forget — themory-scoped-forget T1.1)', () => {
   type Keys = keyof ScopedMemory;
-  expectTypeOf<Keys>().toEqualTypeOf<'remember' | 'recall' | 'reflect' | 'getAll'>();
+  expectTypeOf<Keys>().toEqualTypeOf<'remember' | 'recall' | 'reflect' | 'getAll' | 'forget'>();
 });
 
 test('ScopedMemory.remember returns Promise<readonly MemoryItem[]>', () => {
@@ -82,9 +82,9 @@ test('Memory does NOT expose update at the type level (ADR-0003 invariant)', () 
   type _ = Memory['update'];
 });
 
-test('ScopedMemory does NOT expose forget (memoryId is globally unique; cross-scope footgun)', () => {
-  // @ts-expect-error — no forget on ScopedMemory; use top-level Memory.forget(id)
-  type _ = ScopedMemory['forget'];
+test('ScopedMemory.forget is the subject-scoped delete (themory-scoped-forget T1.1, ADR D1)', () => {
+  expectTypeOf<ScopedMemory['forget']>().parameters.toEqualTypeOf<[string, ForgetOptions?]>();
+  expectTypeOf<ScopedMemory['forget']>().returns.resolves.toEqualTypeOf<void>();
 });
 
 test('MemoryStore underlying primitive surface (8 methods adapters implement)', () => {

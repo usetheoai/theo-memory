@@ -637,6 +637,39 @@ export class PgvectorStore implements VectorStore {
     await this.pool.query('DELETE FROM memories WHERE id = $1', [vectorId]);
   }
 
+  /**
+   * Scope-checked delete (themory-scoped-forget T1.1, ADR D1). Removes the row
+   * ONLY when its `workspace_id` AND every bound scope-tier column in `filters`
+   * match — so a cross-subject / cross-workspace id matches 0 rows (the caller
+   * maps that to MemoryNotFound → 404, no existence leak; the other row is never
+   * touched). Single SQL — no read-then-write race. Soft (default) sets
+   * `t_invalid = NOW()` guarded by `t_invalid IS NULL` (double-soft → 0 rows →
+   * idempotent 404, EC-4). Hard physically deletes; child rows in
+   * `memory_entities` / `entity_edges` cascade (FKs are ON DELETE CASCADE,
+   * migrations 0018/0019 — no children-first logic, EC-1). Returns whether a row
+   * matched.
+   *
+   * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T1.1
+   */
+  async deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean> {
+    // workspace param matches what rows carry: unbound rows store 'default'.
+    const params: unknown[] = [vectorId, filters.workspace_id ?? 'default'];
+    let where = 'id = $1 AND workspace_id = $2';
+    // AND every provided scope-tier column (a scoped binding sets exactly one).
+    for (const col of ['user_id', 'session_id', 'agent_id'] as const) {
+      const val = filters[col];
+      if (val !== undefined && val !== null) {
+        params.push(val);
+        where += ` AND ${col} = $${String(params.length)}`;
+      }
+    }
+    const sql = hard
+      ? `DELETE FROM memories WHERE ${where}`
+      : `UPDATE memories SET t_invalid = NOW() WHERE ${where} AND t_invalid IS NULL`;
+    const result = await this.pool.query(sql, params);
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async deleteCol(): Promise<void> {
     await this.pool.query('TRUNCATE memories CASCADE');
   }

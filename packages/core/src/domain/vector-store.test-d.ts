@@ -3,7 +3,7 @@ import { expectTypeOf, test } from 'vitest';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import type { Filters } from './scope.js';
 
-test('VectorStore has exactly 11 required methods (D8 lock)', () => {
+test('VectorStore has exactly 12 required methods (D8 lock + themory-scoped-forget deleteInScope)', () => {
   type Keys = keyof VectorStore;
   expectTypeOf<Keys>().toEqualTypeOf<
     | 'initialize'
@@ -13,6 +13,7 @@ test('VectorStore has exactly 11 required methods (D8 lock)', () => {
     | 'get'
     | 'update'
     | 'delete'
+    | 'deleteInScope'
     | 'deleteCol'
     | 'list'
     | 'getUserId'
@@ -143,6 +144,10 @@ test('synthetic stub class implementing all 11 methods compiles', () => {
     ): Promise<void> {}
 
     async delete(_vectorId: string): Promise<void> {}
+
+    async deleteInScope(): Promise<boolean> {
+      return false;
+    }
 
     async deleteCol(): Promise<void> {}
 
