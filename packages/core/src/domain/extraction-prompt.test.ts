@@ -232,3 +232,31 @@ describe('AdditiveExtractionSchema — relations (slice2 T2.2)', () => {
     }
   });
 });
+
+describe('AdditiveExtractionSchema — entities (slice2 multilingual node source)', () => {
+  test('schema_parses_optional_entities (name + optional type)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({
+      memory: [{ id: '0', text: 'A Maria trabalha na Acme' }],
+      entities: [{ name: 'Maria', type: 'PERSON' }, { name: 'Acme' }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.entities?.[0]?.name).toBe('Maria');
+      expect(parsed.data.entities?.[1]?.type).toBeUndefined(); // type optional
+    }
+  });
+
+  test('schema_backcompat_no_entities (omitted field still parses)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({ memory: [{ id: '0', text: 'a fact' }] });
+    expect(parsed.success).toBe(true);
+  });
+
+  test('preserves diacritics in entity surface names (multilingual)', () => {
+    const parsed = AdditiveExtractionSchema.safeParse({
+      memory: [{ id: '0', text: 'x' }],
+      entities: [{ name: 'São Paulo', type: 'PLACE' }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.entities?.[0]?.name).toBe('São Paulo');
+  });
+});
