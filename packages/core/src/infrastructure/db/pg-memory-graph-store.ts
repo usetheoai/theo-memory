@@ -1,0 +1,129 @@
+/**
+ * PgMemoryGraphStore — default MemoryGraphStore adapter (raw SQL over pg.Pool).
+ *
+ * Persist + read for relation edges. `upsertEdges` resolves each triple's endpoint
+ * names to entity ids by `(scope, normalized_key)` — deterministic via
+ * `ORDER BY created_at ASC LIMIT 1` (EC-2: `compromise` POS non-determinism can
+ * create two nodes sharing a normalized_key with different `type`; the earliest
+ * wins) — then UPSERTs the edge into `entity_edges` (dedup by the EC-1 UNIQUE that
+ * INCLUDES `source_memory_id`, so `memoryCount` aggregates across memories). One
+ * transaction per memory; the caller (Phase 7) is fail-soft and swallows the throw.
+ * Endpoints that do not resolve to an existing node are skipped (D5).
+ *
+ * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.1
+ */
+import type { Pool, PoolClient } from 'pg';
+
+import type {
+  EdgeSummary,
+  ListEdgesParams,
+  MemoryGraphStore,
+  UpsertEdgesParams,
+} from '../../domain/dip/memory-graph-store.js';
+
+/** EC-1 dedup arbiter — column-for-column match of `entity_edges_scope_triple_uq`
+ *  (incl. the `::text` cast on the nullable `source_memory_id`, which is
+ *  load-bearing: the index is on `COALESCE(source_memory_id::text,'')`, so the
+ *  ON CONFLICT inference must use the identical expression). DO UPDATE the no-op
+ *  `relation = entity_edges.relation` so the row id is RETURNED in one round-trip
+ *  (first-write-wins on the human label; mirrors the v0.10.1 entity upsert). */
+const ON_CONFLICT_SCOPE_TRIPLE_RETURNING =
+  `ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),` +
+  ` COALESCE(agent_id,''), source_entity_id, normalized_relation, target_entity_id,` +
+  ` COALESCE(source_memory_id::text,'')) DO UPDATE SET relation = entity_edges.relation`;
+
+export class PgMemoryGraphStore implements MemoryGraphStore {
+  constructor(private readonly pool: Pool) {}
+
+  async upsertEdges(params: UpsertEdgesParams): Promise<void> {
+    if (params.edges.length === 0) return;
+    const { memoryId, workspaceId, filters } = params;
+    const userId = filters.user_id ?? null;
+    const sessionId = filters.session_id ?? null;
+    const agentId = filters.agent_id ?? null;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const e of params.edges) {
+        if (e.normalizedRelation.length < 1) continue;
+        const sourceId = await this.resolveEntityId(client, workspaceId, userId, sessionId, agentId, e.normalizedSourceKey);
+        const targetId = await this.resolveEntityId(client, workspaceId, userId, sessionId, agentId, e.normalizedTargetKey);
+        // D5: an endpoint the node extractor did not produce → skip (fail-soft).
+        if (sourceId === undefined || targetId === undefined) continue;
+
+        await client.query(
+          `INSERT INTO entity_edges
+             (workspace_id, source_entity_id, target_entity_id, relation, normalized_relation, source_memory_id, user_id, session_id, agent_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ${ON_CONFLICT_SCOPE_TRIPLE_RETURNING}
+           RETURNING id`,
+          [workspaceId, sourceId, targetId, e.relation, e.normalizedRelation, memoryId, userId, sessionId, agentId],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** EC-2: resolve an endpoint name (already normalized by the caller — do NOT
+   *  re-normalize) to its entity id by `(scope, normalized_key)`. Earliest node
+   *  wins so a duplicate key (PROPER vs COMPOUND) resolves deterministically. */
+  private async resolveEntityId(
+    client: PoolClient,
+    workspaceId: string,
+    userId: string | null,
+    sessionId: string | null,
+    agentId: string | null,
+    normalizedKey: string,
+  ): Promise<string | undefined> {
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT id FROM entities
+        WHERE workspace_id = $1
+          AND COALESCE(user_id,'') = COALESCE($2,'')
+          AND COALESCE(session_id,'') = COALESCE($3,'')
+          AND COALESCE(agent_id,'') = COALESCE($4,'')
+          AND normalized_key = $5
+        ORDER BY created_at ASC
+        LIMIT 1`,
+      [workspaceId, userId, sessionId, agentId, normalizedKey],
+    );
+    return rows[0]?.id;
+  }
+
+  async listEdges(params: ListEdgesParams): Promise<readonly EdgeSummary[]> {
+    const { workspaceId, filters } = params;
+    // EC-1: count(DISTINCT source_memory_id) aggregates the SAME triple across
+    // memories (the UNIQUE includes source_memory_id → one row per (triple, memory)).
+    // Scope WHERE is on the edge's OWN scope columns (ee.*), $N-bound.
+    const { rows } = await this.pool.query<{
+      source: string;
+      relation: string;
+      target: string;
+      memory_count: string;
+    }>(
+      `SELECT se.name AS source, ee.relation AS relation, te.name AS target,
+              count(DISTINCT ee.source_memory_id) AS memory_count
+         FROM entity_edges ee
+         JOIN entities se ON se.id = ee.source_entity_id
+         JOIN entities te ON te.id = ee.target_entity_id
+        WHERE ee.workspace_id = $1
+          AND COALESCE(ee.user_id,'') = COALESCE($2,'')
+          AND COALESCE(ee.session_id,'') = COALESCE($3,'')
+          AND COALESCE(ee.agent_id,'') = COALESCE($4,'')
+        GROUP BY se.name, ee.relation, te.name
+        ORDER BY memory_count DESC, se.name ASC`,
+      [workspaceId, filters.user_id ?? null, filters.session_id ?? null, filters.agent_id ?? null],
+    );
+    return rows.map((r) => ({
+      source: r.source,
+      relation: r.relation,
+      target: r.target,
+      memoryCount: Number(r.memory_count),
+    }));
+  }
+}
