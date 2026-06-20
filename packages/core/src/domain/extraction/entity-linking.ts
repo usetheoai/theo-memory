@@ -58,10 +58,13 @@ export interface LlmEntity {
 /**
  * Phase 7 entry. Links NODES for the call, then (when `relations` is provided —
  * the infer:true path) links EDGES once. NODES come from the LLM (`llmEntities`)
- * as the PRIMARY, MULTILINGUAL source — every SOTA KG system (REDACTED, GraphRAG,
- * LightRAG, REDACTED) extracts nodes via the LLM, not a NER lib. `compromise` is an
- * English-only FALLBACK used only when the LLM emitted no entities (e.g. the
- * infer:false fast-path). `relations === undefined` skips edge linking.
+ * as the PRIMARY, MULTILINGUAL source (the LLM emits entity surface names in the
+ * input language/script); `compromise` is an English-only FALLBACK used only when
+ * the LLM emitted no entities (e.g. the infer:false fast-path). The LLM-primary
+ * node decision + its prior-art survey live in the plan (cited below).
+ * `relations === undefined` skips edge linking.
+ *
+ * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md
  */
 export async function linkEntities(
   items: readonly MemoryItem[],
