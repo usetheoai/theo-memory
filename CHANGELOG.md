@@ -13,12 +13,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `entity_edges` table (migration 0019, additive) — stores relation triples `{source, relation, destination}` between entity nodes with `source_memory_id` provenance; per-scope UNIQUE includes `source_memory_id` so `memory_count` aggregates across memories. NO graph DB (two relational tables + JOINs). (#entity-relation-extraction-slice2 T1.1)
 
 ### Changed
+- **Entity nodes are now extracted by the LLM (multilingual), not `compromise`.** The write-pipeline LLM call additionally emits an `entities` array (surface names in the input language/script, diacritics preserved); Phase 7 uses these as the PRIMARY node source. `compromise` is demoted to an English-only FALLBACK used only when the LLM returns no entities (e.g. the `infer:false` fast-path). Matches how every SOTA KG system (Graphiti, GraphRAG, LightRAG, Cognee) extracts nodes — the prompt carries an explicit "keep proper nouns in the original language, never translate/transliterate" instruction. Fixes the entity graph breaking on non-English (e.g. Portuguese) input. (#entity-relation-extraction-slice2 multilingual)
+- Extraction prompt relations guidance broadened (employment/location/usage/composition/membership/education/ownership/reporting) to raise edge recall so more real entities connect. (#entity-relation-extraction-slice2 multilingual)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- `CompromiseEntityExtractor` no longer corrupts accented proper nouns — the ASCII-only `[A-Za-z]` regexes that stripped diacritics ("São Paulo" → "So") are now Unicode-aware (`\p{L}`/`\p{Lu}` with the `u` flag). Correctness fix on the English/offline fallback path. (#entity-relation-extraction-slice2 multilingual)
+- `CompromiseEntityExtractor` drops predicate/clause-fragment noise that leaked as graph nodes ("is a", "on the", "project uses", "s skip") by trimming function-word edges and rejecting conjugated-verb fragments, while preserving legitimate noun phrases that carry a leading article ("the machine learning engineer" → "machine learning engineer"). (#entity-relation-extraction-slice2 noise-filter)
 
 ### Security
 

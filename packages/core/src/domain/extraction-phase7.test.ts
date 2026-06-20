@@ -354,3 +354,55 @@ describe('Phase 7 — edge endpoint auto-create (EC-5) + predicate-node filter (
     expect(allLinkedNames).toContain('John Smith');
   });
 });
+
+describe('Phase 7 — LLM is the PRIMARY (multilingual) node source', () => {
+  test('uses LLM-extracted entities as nodes (diacritics preserved) and does NOT call the EN-only extractor', async () => {
+    const { store, calls } = spyStore();
+    const extractor = makeExtractor([{ type: 'PROPER', name: 'ENGLISH_ONLY_NOISE' }]);
+    const llm = makeLlm({
+      memory: [{ id: '0', text: 'A Maria trabalha na Acme em São Paulo' }],
+      entities: [
+        { name: 'Maria', type: 'PERSON' },
+        { name: 'Acme', type: 'ORG' },
+        { name: 'São Paulo', type: 'PLACE' },
+      ],
+    });
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'A Maria trabalha na Acme em São Paulo' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm,
+        entityExtractor: extractor,
+        memoryEntityStore: store,
+      },
+    );
+    expect(result).toHaveLength(1);
+    const linkedNames = calls.flatMap((c) => c.entities.map((e) => e.name));
+    expect(linkedNames).toContain('São Paulo'); // multilingual, diacritics preserved
+    expect(linkedNames).toContain('Maria');
+    expect(linkedNames).toContain('Acme');
+    expect(linkedNames).not.toContain('ENGLISH_ONLY_NOISE'); // compromise NOT used
+    expect(extractor.extract).not.toHaveBeenCalled();
+  });
+
+  test('falls back to the EN extractor when the LLM returns no entities (infer:false / empty)', async () => {
+    const { store, calls } = spyStore();
+    const extractor = makeExtractor([{ type: 'PROPER', name: 'John Smith' }]);
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: oneFactLlm(), // { memory: [...] } — no entities
+        entityExtractor: extractor,
+        memoryEntityStore: store,
+      },
+    );
+    expect(extractor.extract).toHaveBeenCalled();
+    const linkedNames = calls.flatMap((c) => c.entities.map((e) => e.name));
+    expect(linkedNames).toContain('John Smith');
+  });
+});

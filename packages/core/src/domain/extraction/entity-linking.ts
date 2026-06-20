@@ -48,10 +48,20 @@ export function normalizeEntityKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, '_');
 }
 
+/** One named entity as the LLM emits it — multilingual surface name (original
+ *  language/script, diacritics preserved) + a coarse type hint. */
+export interface LlmEntity {
+  readonly name: string;
+  readonly type?: string | undefined;
+}
+
 /**
- * Phase 7 entry. Links NODES per item, then (when `relations` is provided — the
- * infer:true path) links EDGES once for the call. `relations === undefined`
- * (infer:false path) skips edge linking entirely.
+ * Phase 7 entry. Links NODES for the call, then (when `relations` is provided —
+ * the infer:true path) links EDGES once. NODES come from the LLM (`llmEntities`)
+ * as the PRIMARY, MULTILINGUAL source — every SOTA KG system (Graphiti, GraphRAG,
+ * LightRAG, Cognee) extracts nodes via the LLM, not a NER lib. `compromise` is an
+ * English-only FALLBACK used only when the LLM emitted no entities (e.g. the
+ * infer:false fast-path). `relations === undefined` skips edge linking.
  */
 export async function linkEntities(
   items: readonly MemoryItem[],
@@ -59,45 +69,78 @@ export async function linkEntities(
   deps: EntityLinkingDeps,
   tracer: Tracer | undefined,
   relations?: readonly RelationTriple[],
+  llmEntities?: readonly LlmEntity[],
 ): Promise<void> {
-  const entityExtractor = deps.entityExtractor;
   const memoryEntityStore = deps.memoryEntityStore;
-  if (entityExtractor === undefined || memoryEntityStore === undefined) return;
+  if (memoryEntityStore === undefined) return;
 
-  // Relation predicates ("works at", "lives in") are NOT entities. The compromise
-  // node extractor grabs them as COMPOUND noun phrases, polluting the graph with
-  // verb-phrase nodes. Drop any extracted node whose key matches a relation
-  // predicate so the graph shows entities only (EC-5 companion: noise filter).
+  // Relation predicates ("works at", "lives in") are NOT entities — drop any
+  // candidate whose key matches one so a predicate never becomes a node.
   const relationPredicates = new Set(
     (relations ?? []).map((r) => normalizeEntityKey(r.relationship)),
   );
-  // Track which entity keys actually became nodes so linkEdges only auto-creates
-  // the endpoints compromise genuinely missed (avoids duplicate-type rows).
+  // Keys that actually became nodes → linkEdges only auto-creates genuinely
+  // missing endpoints (EC-5), avoiding duplicate rows.
   const linkedKeys = new Set<string>();
 
+  /** Embed + upsert candidate names as nodes linked to ONE memory. Drops EC-2
+   *  short names, relation-verb noise, in-batch dups, and F-M2 empty embeddings. */
+  const upsertNodes = async (
+    candidates: readonly { type: EntityToLink['type']; name: string; normalizedKey: string }[],
+    memoryId: string,
+  ): Promise<void> => {
+    const seen = new Set<string>();
+    const cleaned = candidates
+      .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2) // EC-2
+      .filter((e) => !relationPredicates.has(e.normalizedKey))
+      .filter((e) => {
+        if (seen.has(e.normalizedKey)) return false;
+        seen.add(e.normalizedKey);
+        return true;
+      })
+      .slice(0, MAX_ENTITIES_PER_MEMORY); // EC-3
+    if (cleaned.length === 0) return;
+    const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
+    const entities: EntityToLink[] = cleaned
+      .map((e, i) => ({ type: e.type, name: e.name, normalizedKey: e.normalizedKey, embedding: embeddings[i] ?? [] }))
+      .filter((e) => e.embedding.length > 0); // F-M2: no zero-dim '[]'::vector
+    if (entities.length === 0) return;
+    await memoryEntityStore.upsertAndLink({
+      memoryId,
+      workspaceId: filters.workspace_id ?? 'default',
+      filters,
+      entities,
+    });
+    for (const e of entities) linkedKeys.add(e.normalizedKey);
+  };
+
+  const anchorId = items[0]?.id;
+  const useLlmEntities = llmEntities !== undefined && llmEntities.length > 0;
+  const entityExtractor = deps.entityExtractor;
+
   try {
-    for (const item of items) {
-      const cleaned = entityExtractor
-        .extract(item.text)
-        .slice(0, MAX_ENTITIES_PER_MEMORY) // EC-3
-        .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) }))
-        .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2) // EC-2
-        .filter((e) => !relationPredicates.has(e.normalizedKey)); // drop relation-verb noise
-      if (cleaned.length === 0) continue;
-      const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
-      // F-M2: drop any entity whose embedding is empty so a zero-dim '[]'::vector
-      // never reaches the INSERT (would roll back the whole batch).
-      const entities: EntityToLink[] = cleaned
-        .map((e, i) => ({ type: e.type, name: e.name, normalizedKey: e.normalizedKey, embedding: embeddings[i] ?? [] }))
-        .filter((e) => e.embedding.length > 0);
-      if (entities.length === 0) continue;
-      await memoryEntityStore.upsertAndLink({
-        memoryId: item.id,
-        workspaceId: filters.workspace_id ?? 'default',
-        filters,
-        entities,
-      });
-      for (const e of entities) linkedKeys.add(e.normalizedKey);
+    if (useLlmEntities && anchorId !== undefined) {
+      // PRIMARY (multilingual): LLM-extracted nodes, anchored to the call's
+      // representative memory (mirrors EC-5 edge-endpoint anchoring).
+      await upsertNodes(
+        llmEntities.map((e) => ({
+          type: 'PROPER' as const,
+          name: e.name.trim(),
+          normalizedKey: normalizeEntityKey(e.name),
+        })),
+        anchorId,
+      );
+    } else if (entityExtractor !== undefined) {
+      // FALLBACK (English-only): compromise, per-item. Used on the infer:false
+      // fast-path or when the LLM returned no entities.
+      for (const item of items) {
+        await upsertNodes(
+          entityExtractor
+            .extract(item.text)
+            .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) })),
+          item.id,
+        );
+      }
     }
     emitEvent(tracer, 'entity_linked', { memory_count: items.length });
   } catch (err) {

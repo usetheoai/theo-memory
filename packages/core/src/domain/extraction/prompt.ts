@@ -42,13 +42,26 @@ const SYSTEM_PROMPT = [
   'or any peer identifier supplied in conversation context. NOT restricted to a fixed',
   'vocabulary.',
   '',
-  'Optionally include `relations`: an array of factual triples connecting named',
-  'entities mentioned in the text — each `{ "source": "<entity>", "relationship":',
-  '"<verb phrase>", "destination": "<entity>" }`. Use the entity SURFACE NAMES as',
-  'they appear (not ids). Omit `relations` entirely if the text states no relation.',
+  'Also include `entities`: the distinct named entities mentioned in the text — people,',
+  'organizations, places, products, and salient concepts — each `{ "name": "<entity>",',
+  '"type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }`. These are the graph NODES.',
+  'Extract a node for every entity that participates in a stated fact; omit pure filler.',
+  '',
+  'Also include `relations`: factual triples connecting those entities — each',
+  '`{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }`.',
+  'Use the entity SURFACE NAMES exactly as they appear (not ids). Be generous: emit a',
+  'relation for every stated link between two entities (employment "works at", location',
+  '"lives in"/"located in", usage "uses"/"built with", composition "part of", membership',
+  '"member of", education "studied at", ownership/acquisition "acquired"/"owns", reporting',
+  '"reports to"). Omit `entities`/`relations` only when the text genuinely has none.',
+  '',
+  'LANGUAGE: detect the language of the input and emit every entity and relation SURFACE',
+  'NAME in the ORIGINAL language and script. NEVER translate or transliterate, and PRESERVE',
+  'all accents/diacritics (keep "São Paulo", "José", "Müller" — never "Sao Paulo", "Jose").',
   '',
   'Output format (strict JSON, no prose):',
   '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }],',
+  '  "entities"?: [{ "name": "<entity>", "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }],',
   '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
 
@@ -110,6 +123,14 @@ export const AdditiveExtractionSchema = z.object({
       linked_memory_ids: z.array(z.string()).optional(),
     }),
   ),
+  entities: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.string().optional(),
+      }),
+    )
+    .optional(),
   relations: z
     .array(
       z.object({
