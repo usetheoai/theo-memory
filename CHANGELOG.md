@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Relation (edge) extraction wired into Phase 7 — the existing write-pipeline LLM call now also emits optional `relations` triples; `linkEdges` (in the new `entity-linking.ts`) resolves endpoints + persists edges (fail-soft, independent try/catch from node linking; EC-3 cap 50, EC-4 relation length ≤64). `remember()` of a relation now populates `entity_edges`. (#entity-relation-extraction-slice2 T2.2)
 - `PgMemoryGraphStore` (default `MemoryGraphStore` impl) — `upsertEdges` resolves endpoint names to entity ids by `(scope, normalized_key)` deterministically (earliest node wins, EC-2) and UPSERTs edges in one round-trip; `listEdges` aggregates `memoryCount = count(DISTINCT source_memory_id)` per triple (EC-1). Exported from `@usetheo/memory`. (#entity-relation-extraction-slice2 T2.1)
 - `MemoryGraphStore` DIP (2 methods: `upsertEdges`/`listEdges`) + `EdgeToLink`/`EdgeSummary` DTOs (exported from `@usetheo/memory/contract`); 2 new `MEMORY_EVENTS` (`entity_edge_linked`, `entity_edge_linking_failed`, fail-soft). (#entity-relation-extraction-slice2 T2.0)
 - `entity_edges` table (migration 0019, additive) — stores relation triples `{source, relation, destination}` between entity nodes with `source_memory_id` provenance; per-scope UNIQUE includes `source_memory_id` so `memory_count` aggregates across memories. NO graph DB (two relational tables + JOINs). (#entity-relation-extraction-slice2 T1.1)
