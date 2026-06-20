@@ -7,12 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- Entity linking (Phase 7) now runs on the `infer:false` verbatim write path too, via a shared `linkEntities` helper — `remember(text, { infer: false })` now extracts + surfaces entities, closing the v0.10.0 caveat (entity linking previously ran on the `infer:true` path only). Still fail-soft + `entityBoost`-gated. (#entity-extraction-nodes-slice1 fixes-cycle, item 2)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- Entity upsert (`PgMemoryEntityStore.upsertAndLink`) now resolves the entity id in ONE round-trip on dedup-collision via `ON CONFLICT … DO UPDATE SET name = entities.name RETURNING id` (a plain `DO NOTHING` returns no row on conflict, forcing a second `SELECT`). First-write-wins on the entity name/embedding is preserved. Perf-only; behavior unchanged. (#entity-extraction-nodes-slice1 fixes-cycle, item 3 / F-L7)
+- Entity extraction no longer truncates a sentence-initial proper noun — "John Smith works at Google" now keeps "John Smith" (was dropping the leading capital), and a lone sentence-initial proper noun ("Google is a search engine") is kept, while lone sentence-initial stopwords ("Today", "I", "The") are still dropped for precision. (#entity-extraction-nodes-slice1 fixes-cycle, item 4)
 
 ### Security
 

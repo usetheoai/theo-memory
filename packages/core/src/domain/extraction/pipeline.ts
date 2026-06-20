@@ -169,7 +169,13 @@ async function runInferFalsePath(
   }
   if (vectors.length > 0) {
     const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
-    return patchItemsWithOutcomes(items, outcomes);
+    const persisted = patchItemsWithOutcomes(items, outcomes);
+    // item-2 fix (2026-06-20): verbatim writes now also extract + link entities
+    // (Phase 7 shared helper). FAIL-SOFT — a remember({infer:false}) never fails
+    // because entity linking failed. Uses the patched ids so links point at the
+    // authoritative (post-UPSERT) memory id.
+    await linkEntities(persisted, filters, deps, deps.tracer);
+    return persisted;
   }
   return items;
 }
@@ -522,55 +528,69 @@ export async function runExtractionPipeline(
 
   // ============================================================
   // Phase 7: entity linking (entity-extraction-nodes-slice1 T3.1) — FAIL-SOFT.
-  // Runs only when BOTH ports are present (the factory threads them only when
-  // config.entityBoost !== false). Order per ADR D1: cap (EC-3) → drop empty
-  // (EC-2) → embed once via the SAME embedder (EC-5 dim parity) → persist. The
-  // whole phase is wrapped in ONE try/catch (mirrors history_persist_failed):
-  // a remember() MUST NEVER fail because entity linking failed (ADR D3, Princípio 3).
+  // Shared with the infer:false fast-path (item-2 fix) via linkEntities().
   // ============================================================
-  const entityExtractor = deps.entityExtractor;
-  const memoryEntityStore = deps.memoryEntityStore;
-  if (entityExtractor !== undefined && memoryEntityStore !== undefined) {
-    try {
-      for (const item of survivingItems) {
-        const cleaned = entityExtractor
-          .extract(item.text)
-          .slice(0, MAX_ENTITIES_PER_MEMORY) // EC-3
-          .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) }))
-          .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
-        if (cleaned.length === 0) continue;
-        const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
-        // F-M2 (/review): drop any entity whose embedding is empty/missing so a
-        // zero-dim '[]'::vector never reaches the INSERT (which would roll back
-        // the whole memory's entity batch). Defense-in-depth with the store guard.
-        const entities: EntityToLink[] = cleaned
-          .map((e, i) => ({
-            type: e.type,
-            name: e.name,
-            normalizedKey: e.normalizedKey,
-            embedding: embeddings[i] ?? [],
-          }))
-          .filter((e) => e.embedding.length > 0);
-        if (entities.length === 0) continue;
-        await memoryEntityStore.upsertAndLink({
-          memoryId: item.id,
-          workspaceId: filters.workspace_id ?? 'default',
-          filters,
-          entities,
-        });
-      }
-      emitEvent(tracer, 'entity_linked', { memory_count: survivingItems.length });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      emitEvent(tracer, 'entity_linking_failed', { error: msg });
-      // eslint-disable-next-line no-console
-      console.warn(`[themory] entity linking failed: ${msg}`);
-    }
-  }
+  await linkEntities(survivingItems, filters, deps, tracer);
 
   // Phase 8: save messages — deferred to v0.2 (historyManager.saveMessages optional)
 
   return survivingItems;
+}
+
+/**
+ * Phase 7 — entity linking, FAIL-SOFT, shared by BOTH the infer:true main path
+ * and the infer:false verbatim fast-path (item-2 fix 2026-06-20: verbatim writes
+ * were silently skipping entity extraction). Runs only when BOTH ports are present
+ * (the factory threads them only when `config.entityBoost !== false`). Order per
+ * ADR D1: cap (EC-3) → drop empty (EC-2) → embed once via the SAME embedder
+ * (EC-5 dim parity) → persist. The whole phase is wrapped in ONE try/catch
+ * (mirrors history_persist_failed): a remember() MUST NEVER fail because entity
+ * linking failed (ADR D3, Princípio 3).
+ */
+async function linkEntities(
+  items: readonly MemoryItem[],
+  filters: Filters,
+  deps: ExtractionDeps,
+  tracer: Tracer | undefined,
+): Promise<void> {
+  const entityExtractor = deps.entityExtractor;
+  const memoryEntityStore = deps.memoryEntityStore;
+  if (entityExtractor === undefined || memoryEntityStore === undefined) return;
+  try {
+    for (const item of items) {
+      const cleaned = entityExtractor
+        .extract(item.text)
+        .slice(0, MAX_ENTITIES_PER_MEMORY) // EC-3
+        .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) }))
+        .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
+      if (cleaned.length === 0) continue;
+      const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
+      // F-M2 (/review): drop any entity whose embedding is empty/missing so a
+      // zero-dim '[]'::vector never reaches the INSERT (which would roll back
+      // the whole memory's entity batch). Defense-in-depth with the store guard.
+      const entities: EntityToLink[] = cleaned
+        .map((e, i) => ({
+          type: e.type,
+          name: e.name,
+          normalizedKey: e.normalizedKey,
+          embedding: embeddings[i] ?? [],
+        }))
+        .filter((e) => e.embedding.length > 0);
+      if (entities.length === 0) continue;
+      await memoryEntityStore.upsertAndLink({
+        memoryId: item.id,
+        workspaceId: filters.workspace_id ?? 'default',
+        filters,
+        entities,
+      });
+    }
+    emitEvent(tracer, 'entity_linked', { memory_count: items.length });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    emitEvent(tracer, 'entity_linking_failed', { error: msg });
+    // eslint-disable-next-line no-console
+    console.warn(`[themory] entity linking failed: ${msg}`);
+  }
 }
 
 /** Lowercase + underscore the surface name → the per-scope dedup key (EC-1). */
