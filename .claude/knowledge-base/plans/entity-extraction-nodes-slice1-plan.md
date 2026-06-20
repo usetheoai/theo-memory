@@ -7,6 +7,8 @@ goal: Populate the entities table from memory text via a compromise-based Entity
 
 # Plan: Entity Extraction (Nodes) — Slice 1
 
+> **Version 1.2** (2026-06-20 — T4.1 HALT remediation, cycle-implement Stop-condition #3: the original T4.1 assumed a scoped-memory entities-read path that does not exist. Added ADR D4 + split into T4.1 [READ method on the MemoryEntityStore DIP + PgMemoryEntityStore.list impl] and T4.2 [wire the read port into entitiesHandler via createServer]. The entities-read seam is now a PLANNED public API addition with an ADR + contract tests, not a mid-implement improvisation. See `.claude/knowledge-base/implementations/entity-extraction-nodes-slice1/T4.1-BLOCKED-report.md`.)
+
 > **Version 1.1** (edge-cases absorbed 2026-06-20 — EC-1 `type` included in the dedup identity [UNIQUE on `(workspace_id, scope, type, normalized_key)`] in T2.1/T3.1; EC-2 empty/short-name drop guard in T1.2/T3.1; EC-3 per-memory entity cap + EC-4 entityBoost-default wiring + EC-5 embedding-dim parity added as SHOULD-TEST tasks; EC-6/EC-7 documented. See `.claude/knowledge-base/reviews/entity-extraction-nodes-slice1-edge-cases-2026-06-20.md`.)
 
 > **Version 1.0** — Wire the long-declared-but-deferred Phase 7 (entity linking) of the write pipeline using a `compromise`-based `EntityExtractor` DIP (the Mem0-TS approach, NOT spaCy), persist extracted entities into the existing `entities` table with a per-scope dedup key + a `memory_entities` provenance link, and upgrade `GET /v1/scopes/:type/:id/entities` to read from the REAL table instead of the `attributed_to`-derived stub. NODES only — relations (edges) + graph view are Slice 2. Unfrozen by project-owner/CTO sign-off 2026-06-20 (CLAUDE.md Amendment 2026-06-20), grounded in blueprint `entity-relation-extraction-no-graphdb` (`/discover-confidence` SHIPPABLE 100).
@@ -87,6 +89,13 @@ Today the `entities` table exists (`schema.ts:325`, migration `0000`) but is **n
 - **Alternatives:** (a) new endpoint — REJECTED (the shape already exists + is wired; reuse it). (b) hard-fail on extraction error — REJECTED (entity linking is a side-benefit, not core to remember; Princípio 3 says observe the IGNORE, do not abort the write).
 - **Rationale:** zero downstream churn + honesty (the gap closes silently-better) + fail-fast where it matters (the write) vs fail-soft where it doesn't (the side index).
 
+### D4 — Entities read seam: a READ method on the `MemoryEntityStore` DIP + handler wiring via `createServer` (added 2026-06-20 — T4.1 HALT remediation)
+
+- **Context (honest):** T4.1 v1.1 assumed `entitiesHandler` could read the real table "via the existing scoped-memory path". During `/implement` iteration 4 the SEPA gate caught that NO such read path exists: `entitiesHandler(c, memory)` holds only the `Memory` contract; `ScopedMemory` has no entities-read method; `VectorStore` is at its ADR-0008 cap of 11 methods; the T3.1 `MemoryEntityStore` is persist-only. Reading the real table is a PUBLIC API addition that must be planned (P0 sub-goal 1 + Rule 10), not improvised. This ADR is the planned remediation; the loop-back to `cycle-plan` per cycle-implement Stop-condition #3.
+- **Decision:** extend the `MemoryEntityStore` DIP with a READ method `list(params: { workspaceId; filters }): Promise<readonly EntityNodeSummary[]>` where `EntityNodeSummary = { id; name; type; memoryCount; lastSeenAt }`. `PgMemoryEntityStore.list` runs the `entities JOIN memory_entities` GROUP BY (workspace + scope filtered). Thread the `MemoryEntityStore` port into `entitiesHandler` via `createServer` options (mirroring the `adminApi.pool` precedent) — when absent, the handler falls back to the current `attributed_to`-derived behavior (no regression for servers without entity linking). The handler maps `EntityNodeSummary` → the unchanged response shape `{entities:[{id, memory_count, last_seen_at}]}`.
+- **Alternatives:** (a) `ScopedMemory.entities()` — REJECTED: pollutes the 4-verb-adjacent locked-names surface; forces every impl (incl. cloud) to implement it. (b) add to `VectorStore` — REJECTED: at the ADR-0008 11-method cap. (c) pool-in-handler bypassing the DIP — REJECTED: architecture.md boundary violation. (d) read method on the focused `MemoryEntityStore` DIP that already owns the table — CHOSEN: SRP/ISP (read+write on the one port that owns `entities`/`memory_entities`); symmetric with T3.1; keeps the handler contract-only via the injected port.
+- **Rationale:** Não Reinvente (mirror the `adminApi.pool` wiring precedent) + DIP (focused port owns its table) + honesty (the seam is now planned + ADR'd + contract-tested, not improvised).
+
 ## Dependencies
 
 | Package | Version | Type | Rule 9 evaluation | CVE check |
@@ -97,13 +106,12 @@ Today the `entities` table exists (`schema.ts:325`, migration `0000`) but is **n
 
 ```
 Phase 1 (EntityExtractor DIP + compromise impl)  ─┐
-Phase 2 (schema + migration 0017)               ─┼─> Phase 3 (wire Phase 7 of pipeline)
+Phase 2 (schema + migration 0018)               ─┼─> Phase 3 (wire Phase 7 of pipeline)
                                                   │
-Phase 3 ─> Phase 4 (entitiesHandler reads real table)
-Phase 4 ─> Phase 5 (Integration Validation)
+Phase 3 ─> Phase 4 (T4.1 read DIP method → T4.2 wire handler) ─> Phase 5 (Integration Validation)
 ```
 
-Phase 1 and Phase 2 are independent (parallelizable). Phase 3 needs both. Phase 4 needs Phase 3. Phase 5 needs all.
+Phase 1 and Phase 2 are independent (parallelizable). Phase 3 needs both. Phase 4: T4.1 (read DIP) → T4.2 (handler wiring). Phase 5 needs all.
 
 ## Phase 1 — EntityExtractor DIP + CompromiseEntityExtractor
 
@@ -221,33 +229,63 @@ Reasoning: ADR D3 — fail-soft; the write must never fail because the side inde
 
 ## Phase 4 — Endpoint reads the real table
 
-### T4.1 — `entitiesHandler` queries `entities`+`memory_entities` (shape unchanged)
+### T4.1 — `MemoryEntityStore.list` read method + `PgMemoryEntityStore.list` impl (ADR D4)
 
 #### Why this step
-Action: replace the `attributed_to` accumulation in `entities.ts:46-82` with a scope-filtered query over `entities JOIN memory_entities` GROUP BY entity → `{id: name, memory_count, last_seen_at: max(created_at)}`, sorted desc. Keep the exact response shape.
-Reasoning: ADR D3 — real data, zero downstream churn (gateway/dashboard untouched).
+Action: extend the `MemoryEntityStore` DIP with `list(params: { workspaceId; filters }): Promise<readonly EntityNodeSummary[]>` (+ the `EntityNodeSummary` type); implement `PgMemoryEntityStore.list` as the scope-filtered `entities JOIN memory_entities` GROUP BY → `{ id, name, type, memoryCount, lastSeenAt }`. Export the new type from the barrel.
+Reasoning: ADR D4 — the focused port that owns the table gains its read side (SRP/ISP); `VectorStore` is at its ADR-0008 cap and `ScopedMemory` must not gain entity verbs.
 
 #### Files to edit
-- `packages/api/src/server/handlers/entities.ts`
-- `packages/api/src/server/handlers/__tests__/entities.test.ts`
+- `packages/core/src/domain/dip/memory-entity-store.ts`
+- `packages/core/src/infrastructure/db/pg-memory-entity-store.ts`
+- `packages/core/src/domain/index.ts` (export `EntityNodeSummary`)
+- `tests/integration/entities/list.test.ts` (NEW — real-pgvector read)
 
 #### TDD
-- RED `test('entitiesHandler returns extracted entities with memory_count from the entities table')` — seed entities+links → `expect(body.entities[0].memory_count).toBe(2)`, sorted desc.
-- RED `test('empty scope returns { entities: [] }')`.
-- RED `test('response shape unchanged: id, memory_count, last_seen_at present')` — guards gateway/dashboard contract.
-- RED `test('workspace isolation: another workspace entities not returned')`.
+- RED `test('list returns one summary per entity with memoryCount from the join')` — seed 1 entity linked to 2 memories → `expect(rows[0].memoryCount).toBe(2)` (integration, real pg).
+- RED `test('list is workspace + scope filtered')` — another workspace's entities not returned.
+- RED `test('empty scope returns []')`.
 
 #### Concurrency tests
 (none — single-threaded)
 
 #### Failure scenarios
-- `## Failure scenarios` — DB unavailable during the GROUP BY query → handler returns 500 with a typed error (not a 200 with `[]` that would mask the outage). Test reproduces via a pool that rejects.
+- DB error during the GROUP BY → `list` rejects (the caller handler maps to 500; never a masked 200/[]). Test reproduces via a pool that rejects.
+
+#### Acceptance criteria
+- 3 integration tests green vs real pgvector; typecheck 0; `EntityNodeSummary` exported. Verify: `THEOMEM_PG_URI=... npm run test:integration -- entities/list`.
+
+#### DoD
+- Read method on the DIP + impl + barrel export; tests green.
+
+### T4.2 — Wire the read port into `entitiesHandler` via `createServer` (shape unchanged)
+
+#### Why this step
+Action: add an optional `memoryEntityStore?: MemoryEntityStore` to `createServer` options; thread it to `entitiesHandler(c, memory, memoryEntityStore?)`. When present, the handler calls `memoryEntityStore.list({ workspaceId, filters })` and maps `EntityNodeSummary[]` → the unchanged `{entities:[{id, memory_count, last_seen_at}]}` (sorted desc). When ABSENT, the handler keeps the current `attributed_to`-derived fallback (no regression).
+Reasoning: ADR D4 — handler stays contract-only via the injected port (mirrors the `adminApi.pool` wiring precedent); response shape byte-compatible so gateway/dashboard are untouched.
+
+#### Files to edit
+- `packages/api/src/server/handlers/entities.ts`
+- `packages/api/src/server/app.ts` (createServer options + handler wiring)
+- `packages/api/src/server/handlers/__tests__/entities.test.ts`
+
+#### TDD
+- RED `test('entitiesHandler returns entities from the read port with memory_count')` — stub port returns 2 summaries → `expect(body.entities[0].memory_count).toBe(2)`, sorted desc.
+- RED `test('response shape unchanged: id, memory_count, last_seen_at present')` — guards gateway/dashboard contract.
+- RED `test('falls back to attributed_to derivation when no read port is wired')` — no regression for servers without entity linking.
+- RED `test('read-port rejection surfaces 500 (not a masked empty 200)')`.
+
+#### Concurrency tests
+(none — single-threaded)
+
+#### Failure scenarios
+- `list` rejects → handler returns 500 typed error (test via a port whose `list` rejects).
 
 #### Acceptance criteria
 - 4 tests green; api suite green. Verify: `npm test -- entities` exit 0.
 
 #### DoD
-- Endpoint serves real entities; shape contract held; tests green.
+- Handler serves real entities via the injected port; fallback preserved; shape contract held; tests green.
 
 ## Phase 5 — Integration Validation (mandatory)
 
@@ -298,7 +336,8 @@ External-I/O surfaces touched: Postgres (pgvector) writes/reads + the embedder c
 | Per-scope dedup (normalized_key UNIQUE) | T2.1, T3.1 |
 | Phase 7 gated by entityBoost + fail-soft | T3.1 |
 | `memory_count` correct from real table | T3.1, T4.1, T5.1 |
-| Endpoint shape unchanged (gateway/dashboard untouched) | T4.1 |
+| Entities read seam (MemoryEntityStore.list DIP + impl) | T4.1 |
+| Endpoint shape unchanged via injected read port (gateway/dashboard untouched) | T4.2 |
 | Workspace isolation | T4.1 |
 | EC-1 type in dedup identity (no Apple/apple merge) | T2.1, T3.1 |
 | EC-2 empty/short-name drop guard | T1.2, T3.1 |
