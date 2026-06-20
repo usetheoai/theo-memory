@@ -8,12 +8,17 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 21 values (20 prior + entity_linking_failed from entity-extraction-nodes-slice1 T3.1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(21);
+  test('has 23 values (21 prior + entity_edge_linked + entity_edge_linking_failed from slice2 T2.0)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(23);
   });
 
   test('includes entity_linking_failed (entity-extraction-nodes-slice1 T3.1, fail-soft Phase 7)', () => {
     expect(MEMORY_EVENTS).toContain('entity_linking_failed');
+  });
+
+  test('includes entity_edge_linked + entity_edge_linking_failed (slice2 T2.0, edge fail-soft)', () => {
+    expect(MEMORY_EVENTS).toContain('entity_edge_linked');
+    expect(MEMORY_EVENTS).toContain('entity_edge_linking_failed');
   });
 
   test('includes getall_temporal_fallback (dashboard-memories-tab-standardization T2.2, ADR D2 + EC-7)', () => {

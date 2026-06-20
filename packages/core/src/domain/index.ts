@@ -188,6 +188,21 @@ export type {
 } from './dip/memory-entity-store.js';
 
 /**
+ * `MemoryGraphStore` DIP — persist + read port for relation edges (slice2).
+ * Default adapter: `PgMemoryGraphStore`. ISP-clean (2 methods) per ADR-0008;
+ * the `/graph` handler composes this with `MemoryEntityStore.list` for nodes.
+ *
+ * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.0
+ */
+export type {
+  MemoryGraphStore,
+  EdgeToLink,
+  UpsertEdgesParams,
+  EdgeSummary,
+  ListEdgesParams,
+} from './dip/memory-graph-store.js';
+
+/**
  * `LLM` DIP — chat-completion-shaped fact-extraction interface. Adapters:
  * `StubLLM`, `OpenAILLM` (OpenAI-compatible via `OPENAI_BASE_URL`).
  *
@@ -436,9 +451,9 @@ export type { ActiveSignals, CandidateScores } from './scoring.js';
 export { MAX_EMBEDDING_DIM } from './constants.js';
 
 /**
- * Observable events — `MEMORY_EVENTS` literal union (16 members after
- * principles-alignment-hardening T1.1/T3.1/T4.1) + `emitEvent` helper for
- * OTel-typed event emission.
+ * Observable events — `MEMORY_EVENTS` literal union (23 members; latest:
+ * entity_edge_linked + entity_edge_linking_failed from slice2 T2.0) + `emitEvent`
+ * helper for OTel-typed event emission.
  *
  * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T1.1
  */
