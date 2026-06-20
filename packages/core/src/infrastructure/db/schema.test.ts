@@ -12,7 +12,7 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';
 
-import { entities, history, memories } from './schema.js';
+import { entities, history, memories, memoryEntities } from './schema.js';
 
 describe('memories table', () => {
   test('declares the required columns', () => {
@@ -108,6 +108,42 @@ describe('entities table', () => {
     expect(colNames).toContain('name');
     expect(colNames).toContain('embedding');
     expect(colNames).toContain('payload');
+  });
+
+  test('T2.1: adds normalized_key + type + nullable scope columns', () => {
+    const cfg = getTableConfig(entities);
+    const colNames = cfg.columns.map((c) => c.name);
+    expect(colNames).toContain('normalized_key');
+    expect(colNames).toContain('type');
+    expect(colNames).toContain('user_id');
+    expect(colNames).toContain('session_id');
+    expect(colNames).toContain('agent_id');
+  });
+
+  test('T2.1/EC-1: a UNIQUE index named entities_scope_type_key_uq exists', () => {
+    const cfg = getTableConfig(entities);
+    const uq = cfg.indexes.find((i) => i.config.name === 'entities_scope_type_key_uq');
+    expect(uq).toBeDefined();
+    expect(uq?.config.unique).toBe(true);
+  });
+
+  test('EC-5 (F-H1): entities.embedding dimension equals memories.embedding (no 384-vs-1536 drift)', () => {
+    const entityEmbed = getTableConfig(entities).columns.find((c) => c.name === 'embedding');
+    const memoryEmbed = getTableConfig(memories).columns.find((c) => c.name === 'embedding');
+    expect(entityEmbed).toBeDefined();
+    expect(memoryEmbed).toBeDefined();
+    // getSQLType() renders e.g. "vector(1536)" — a mismatch would surface here
+    // before it ever reaches a failing INSERT cast.
+    expect(entityEmbed?.getSQLType()).toBe(memoryEmbed?.getSQLType());
+  });
+});
+
+describe('memory_entities join table (T2.1)', () => {
+  test('declares memory_id + entity_id columns', () => {
+    const cfg = getTableConfig(memoryEntities);
+    const colNames = cfg.columns.map((c) => c.name);
+    expect(colNames).toContain('memory_id');
+    expect(colNames).toContain('entity_id');
   });
 });
 

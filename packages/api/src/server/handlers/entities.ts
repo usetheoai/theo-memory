@@ -15,7 +15,8 @@
  * NER-style extraction is a separate follow-up. Deriving from `attributedTo`
  * ships REAL data today without fabricating aggregates (Inquebrável Rule 3).
  */
-import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
+import type { Filters, Memory, MemoryEntityStore, Principal, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
@@ -43,13 +44,49 @@ interface EntityAccumulator {
 }
 
 
-export async function entitiesHandler(c: Context, memory: Memory): Promise<Response> {
+/** Build the single-tier Filters for a scope type+id (others undefined). */
+function filtersFor(type: ScopeType, id: string): Filters {
+  switch (type) {
+    case 'user':
+      return { user_id: id };
+    case 'session':
+      return { session_id: id };
+    case 'agent':
+      return { agent_id: id };
+  }
+}
+
+export async function entitiesHandler(
+  c: Context,
+  memory: Memory,
+  memoryEntityStore?: MemoryEntityStore,
+): Promise<Response> {
   const rawType = c.req.param('type');
   const id = c.req.param('id');
 
   const typeParse = ScopeTypeSchema.safeParse(rawType);
   if (!typeParse.success || id === undefined || id.length === 0) {
     return c.notFound();
+  }
+
+  // ADR D4: when the read port is wired, serve REAL entities from the table.
+  // The shape stays {entities:[{id, memory_count, last_seen_at}]} (id = entity
+  // name, byte-compatible with the attributed_to derivation below). A port
+  // rejection propagates → the app onError maps it to 500 (never a masked []).
+  if (memoryEntityStore !== undefined) {
+    const principal = c.get('principal') as Principal | undefined;
+    const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+    const summaries = await memoryEntityStore.list({
+      workspaceId,
+      filters: filtersFor(typeParse.data, id),
+    });
+    const entities = summaries.map((s) => ({
+      id: s.name,
+      scope_type: typeParse.data,
+      memory_count: s.memoryCount,
+      last_seen_at: s.lastSeenAt,
+    }));
+    return c.json({ entities }, 200);
   }
 
   const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
