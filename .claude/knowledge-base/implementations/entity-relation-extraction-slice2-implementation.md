@@ -21,13 +21,13 @@
 
 | # | Plan ref | Status | Wiring (a) | Wiring (b) | Wiring (c) | Commit SHA |
 |---|---|---|---|---|---|---|
-| T1.1 | Phase 1 / T1.1 | pending | — | — | — | — |
-| T2.0 | Phase 2 / T2.0 | pending | — | — | — | — |
-| T2.1 | Phase 2 / T2.1 | pending | — | — | — | — |
-| T2.2 | Phase 2 / T2.2 | pending | — | — | — | — |
-| T3.1 | Phase 3 / T3.1 | pending | — | — | — | — |
-| T3.2 | Phase 3 / T3.2 | pending | — | — | — | — |
-| T4.1 | Phase 4 / T4.1 | pending | — | — | — | — |
+| T1.1 | Phase 1 / T1.1 | committed | — | — | — | 8c31288 |
+| T2.0 | Phase 2 / T2.0 | committed | — | — | — | 16da096 |
+| T2.1 | Phase 2 / T2.1 | committed | — | — | — | dbbf564 |
+| T2.2 | Phase 2 / T2.2 | committed | — | — | — | 5afeb90 |
+| T3.1 | Phase 3 / T3.1 | committed | — | — | — | dc2e029 |
+| T3.2 | Phase 3 / T3.2 | committed | — | — | — | 43f1a40 |
+| T4.1 | Phase 4 / T4.1 | committed | — | — | — | 43f1a40 |
 
 Status legend: `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`.
 Dependency order: T1.1 → T2.0 → T2.1 → T2.2 → T3.1 → T3.2 → T4.1 (each blocks the next; T2.0 + T1.1 both feed T2.1).
