@@ -174,6 +174,18 @@ export type { Embedder } from './dip/embedder.js';
 export type { EntityExtractor, EntityType, ExtractedEntity } from './dip/entity-extractor.js';
 
 /**
+ * `MemoryEntityStore` DIP — persist-only port: UPSERT extracted entities +
+ * link them to their source memory. Default adapter: `PgMemoryEntityStore`.
+ *
+ * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
+ */
+export type {
+  MemoryEntityStore,
+  EntityToLink,
+  UpsertAndLinkParams,
+} from './dip/memory-entity-store.js';
+
+/**
  * `LLM` DIP — chat-completion-shaped fact-extraction interface. Adapters:
  * `StubLLM`, `OpenAILLM` (OpenAI-compatible via `OPENAI_BASE_URL`).
  *
