@@ -60,6 +60,7 @@ class StubVectorStore implements VectorStore {
     await Promise.resolve();
   }
   async delete(id: string): Promise<void> { this.rows.delete(id); await Promise.resolve(); }
+  async deleteInScope(): Promise<boolean> { await Promise.resolve(); return false; }
   async deleteCol(): Promise<void> { this.rows.clear(); await Promise.resolve(); }
   async list(filters?: Filters, topK = 100): Promise<readonly [readonly VectorStoreResult[], number]> {
     const matches: VectorStoreResult[] = [];

@@ -67,6 +67,9 @@ class StubVectorStore implements VectorStore {
   delete(): Promise<void> {
     return Promise.resolve();
   }
+  deleteInScope(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
   deleteCol(): Promise<void> {
     return Promise.resolve();
   }

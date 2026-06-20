@@ -127,6 +127,17 @@ export interface VectorStore {
   /** Delete a single vector by id. */
   delete(vectorId: string): Promise<void>;
 
+  /**
+   * Scope-checked delete (themory-scoped-forget T1.1, ADR D1): delete the row by
+   * id ONLY when its `workspace_id` AND every bound scope-tier column in `filters`
+   * match. Returns whether a row matched (0 → caller maps to MemoryNotFound → 404,
+   * no existence leak; the non-matching row is never touched). `hard=false` is a
+   * soft delete on stores that model `t_invalid` (Pg); stores without it (in-memory)
+   * physically delete regardless of `hard`. Pg soft is idempotent-404 on a row
+   * already soft-deleted (EC-4).
+   */
+  deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean>;
+
   /** Drop the entire collection/table. Administrative; pairs with Memory.reset(scope) at the domain layer. */
   deleteCol(): Promise<void>;
 
