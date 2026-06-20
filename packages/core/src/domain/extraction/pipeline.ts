@@ -25,8 +25,10 @@ import type { Tracer } from '@opentelemetry/api';
 
 import { hashFact } from '../dedup.js';
 import type { Embedder } from '../dip/embedder.js';
+import type { EntityExtractor } from '../dip/entity-extractor.js';
 import type { HistoryBatchRecord, HistoryManager } from '../dip/history-manager.js';
 import type { LLM } from '../dip/llm.js';
+import type { EntityToLink, MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { InvalidScope } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
@@ -45,7 +47,15 @@ export interface ExtractionDeps {
   readonly historyManager?: HistoryManager;
   readonly tracer?: Tracer;
   readonly customInstructions?: string;
+  /** entity-extraction-nodes-slice1 T3.1 — Phase 7 ports. BOTH must be present
+   *  for Phase 7 to run (the factory threads them only when entityBoost !== false). */
+  readonly entityExtractor?: EntityExtractor;
+  readonly memoryEntityStore?: MemoryEntityStore;
 }
+
+/** EC-3 — cap entities persisted per memory (a pathological input cannot spawn
+ *  unbounded rows + embedding calls). */
+const MAX_ENTITIES_PER_MEMORY = 50;
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -511,11 +521,53 @@ export async function runExtractionPipeline(
   }
 
   // ============================================================
-  // Phase 7: entity linking — deferred to v0.2 (gated by config.entityBoost at factory)
-  // Phase 8: save messages — deferred to v0.2 (historyManager.saveMessages optional)
+  // Phase 7: entity linking (entity-extraction-nodes-slice1 T3.1) — FAIL-SOFT.
+  // Runs only when BOTH ports are present (the factory threads them only when
+  // config.entityBoost !== false). Order per ADR D1: cap (EC-3) → drop empty
+  // (EC-2) → embed once via the SAME embedder (EC-5 dim parity) → persist. The
+  // whole phase is wrapped in ONE try/catch (mirrors history_persist_failed):
+  // a remember() MUST NEVER fail because entity linking failed (ADR D3, Princípio 3).
   // ============================================================
-  // Both phases are scaffolded for v0.2 expansion; v0.1 ships the minimum viable
-  // pipeline that closes Roadmap Item 2 acceptance criteria.
+  const entityExtractor = deps.entityExtractor;
+  const memoryEntityStore = deps.memoryEntityStore;
+  if (entityExtractor !== undefined && memoryEntityStore !== undefined) {
+    try {
+      for (const item of survivingItems) {
+        const cleaned = entityExtractor
+          .extract(item.text)
+          .slice(0, MAX_ENTITIES_PER_MEMORY) // EC-3
+          .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) }))
+          .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
+        if (cleaned.length === 0) continue;
+        const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
+        const entities: EntityToLink[] = cleaned.map((e, i) => ({
+          type: e.type,
+          name: e.name,
+          normalizedKey: e.normalizedKey,
+          embedding: embeddings[i] ?? [],
+        }));
+        await memoryEntityStore.upsertAndLink({
+          memoryId: item.id,
+          workspaceId: filters.workspace_id ?? 'default',
+          filters,
+          entities,
+        });
+      }
+      emitEvent(tracer, 'entity_linked', { count: survivingItems.length });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      emitEvent(tracer, 'entity_linking_failed', { error: msg });
+      // eslint-disable-next-line no-console
+      console.warn(`[themory] entity linking failed: ${msg}`);
+    }
+  }
+
+  // Phase 8: save messages — deferred to v0.2 (historyManager.saveMessages optional)
 
   return survivingItems;
+}
+
+/** Lowercase + underscore the surface name → the per-scope dedup key (EC-1). */
+function normalizeEntityKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, '_');
 }
