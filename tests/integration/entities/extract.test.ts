@@ -8,10 +8,10 @@
  * the factory — it wires CompromiseEntityExtractor + PgMemoryEntityStore itself),
  * AND the negative: `entityBoost: false` → zero entity rows.
  *
- * KNOWN LIMITATION (honest, Rule 3): Phase 7 runs on the infer:true write path
- * only; the `infer:false` verbatim fast-path returns before Phase 7 (pipeline.ts
- * :305). Surfacing entities from verbatim writes is a follow-up. The GOAL test
- * therefore exercises the infer:true path (the default remember()).
+ * v0.10.1 item-2 fix (2026-06-20): the `infer:false` verbatim fast-path now ALSO
+ * runs Phase 7 (shared linkEntities helper) — verbatim writes surface entities
+ * too. The earlier KNOWN LIMITATION (Phase 7 ran on infer:true only) is closed;
+ * `test('item-2: infer:false ...')` is the regression guard.
  *
  * Gated by THEOMEM_PG_URI.
  *
@@ -118,6 +118,24 @@ if (PG_URI === undefined || PG_URI === '') {
           WHERE e.user_id='carol' AND e.normalized_key='john_smith'`,
       );
       expect(Number(rows[0]?.n)).toBe(2); // both memories linked to the John Smith node(s)
+    });
+
+    test('item-2: infer:false (verbatim) ALSO extracts + surfaces entities', async () => {
+      // No LLM extraction on this path — the raw text is persisted verbatim and
+      // Phase 7 (shared linkEntities) extracts entities from the verbatim text.
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: fixedEmbedder(),
+        llm: factLlm('unused on infer:false'),
+      });
+      await memory.user('dave').remember('I saw John Smith at Google', { infer: false });
+
+      const app = createServer({ memory, memoryEntityStore: new PgMemoryEntityStore(pool) });
+      const res = await app.fetch(new Request('http://localhost/v1/scopes/user/dave/entities'));
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { entities: { id: string; memory_count: number }[] };
+      const names = body.entities.map((e) => e.id);
+      expect(names).toContain('John Smith');
     });
 
     test('negative: entityBoost:false persists zero entity rows', async () => {
