@@ -16,8 +16,8 @@ import type { Embedder } from '../dip/embedder.js';
 import type { EntityExtractor } from '../dip/entity-extractor.js';
 import type { EntityToLink, MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { EdgeToLink, MemoryGraphStore } from '../dip/memory-graph-store.js';
-import type { MemoryItem } from '../memory-item.js';
 import { emitEvent } from '../memory-event.js';
+import type { MemoryItem } from '../memory-item.js';
 import type { Filters } from '../scope.js';
 
 /** EC-3 — cap entities/edges persisted per memory (a pathological LLM/extractor
@@ -63,13 +63,26 @@ export async function linkEntities(
   const entityExtractor = deps.entityExtractor;
   const memoryEntityStore = deps.memoryEntityStore;
   if (entityExtractor === undefined || memoryEntityStore === undefined) return;
+
+  // Relation predicates ("works at", "lives in") are NOT entities. The compromise
+  // node extractor grabs them as COMPOUND noun phrases, polluting the graph with
+  // verb-phrase nodes. Drop any extracted node whose key matches a relation
+  // predicate so the graph shows entities only (EC-5 companion: noise filter).
+  const relationPredicates = new Set(
+    (relations ?? []).map((r) => normalizeEntityKey(r.relationship)),
+  );
+  // Track which entity keys actually became nodes so linkEdges only auto-creates
+  // the endpoints compromise genuinely missed (avoids duplicate-type rows).
+  const linkedKeys = new Set<string>();
+
   try {
     for (const item of items) {
       const cleaned = entityExtractor
         .extract(item.text)
         .slice(0, MAX_ENTITIES_PER_MEMORY) // EC-3
         .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) }))
-        .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
+        .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2) // EC-2
+        .filter((e) => !relationPredicates.has(e.normalizedKey)); // drop relation-verb noise
       if (cleaned.length === 0) continue;
       const embeddings = await deps.embedder.embedBatch(cleaned.map((e) => e.name));
       // F-M2: drop any entity whose embedding is empty so a zero-dim '[]'::vector
@@ -84,6 +97,7 @@ export async function linkEntities(
         filters,
         entities,
       });
+      for (const e of entities) linkedKeys.add(e.normalizedKey);
     }
     emitEvent(tracer, 'entity_linked', { memory_count: items.length });
   } catch (err) {
@@ -96,7 +110,7 @@ export async function linkEntities(
   // Edge linking is INDEPENDENT (own try/catch) so a node-link success above is
   // not undone by an edge failure. Skipped when relations were not provided.
   if (relations !== undefined) {
-    await linkEdges(items, filters, deps, tracer, relations);
+    await linkEdges(items, filters, deps, tracer, relations, linkedKeys);
   }
 }
 
@@ -112,6 +126,7 @@ async function linkEdges(
   deps: EntityLinkingDeps,
   tracer: Tracer | undefined,
   relations: readonly RelationTriple[],
+  linkedKeys: Set<string>,
 ): Promise<void> {
   const memoryGraphStore = deps.memoryGraphStore;
   if (memoryGraphStore === undefined) return;
@@ -139,6 +154,43 @@ async function linkEdges(
         normalizedTargetKey: normalizeEntityKey(r.destination),
       }));
     if (edges.length === 0) return;
+
+    // EC-5: the LLM's relation endpoints are authoritative entities. compromise
+    // may have missed some (e.g. single-token "NASA"); without the node the edge
+    // cannot resolve (D5 skip) — the live test showed this drops most edges. For
+    // every endpoint NOT already a node, upsert it as a node (embedded via the
+    // SAME embedder) linked to the anchor memory, so the edge resolves. Endpoints
+    // compromise already extracted (in linkedKeys) are skipped to avoid dup rows.
+    const memoryEntityStore = deps.memoryEntityStore;
+    if (memoryEntityStore !== undefined) {
+      const missing = new Map<string, string>(); // normalizedKey -> surface name
+      for (const e of edges) {
+        if (!linkedKeys.has(e.normalizedSourceKey)) missing.set(e.normalizedSourceKey, e.sourceName.trim());
+        if (!linkedKeys.has(e.normalizedTargetKey)) missing.set(e.normalizedTargetKey, e.targetName.trim());
+      }
+      const names = [...missing.values()].filter((n) => n.length >= 2);
+      if (names.length > 0) {
+        const embeddings = await deps.embedder.embedBatch(names);
+        const endpointEntities: EntityToLink[] = names
+          .map((name, i) => ({
+            type: 'PROPER' as const,
+            name,
+            normalizedKey: normalizeEntityKey(name),
+            embedding: embeddings[i] ?? [],
+          }))
+          .filter((e) => e.embedding.length > 0 && e.normalizedKey.length >= 2);
+        if (endpointEntities.length > 0) {
+          await memoryEntityStore.upsertAndLink({
+            memoryId: anchorId,
+            workspaceId: filters.workspace_id ?? 'default',
+            filters,
+            entities: endpointEntities,
+          });
+          for (const e of endpointEntities) linkedKeys.add(e.normalizedKey);
+        }
+      }
+    }
+
     await memoryGraphStore.upsertEdges({
       memoryId: anchorId,
       workspaceId: filters.workspace_id ?? 'default',
