@@ -118,6 +118,7 @@ Reasoning: ADR D1 — the domain owns the contract so the impl is swappable + un
 
 #### TDD
 - RED `test('EntityExtractor type is structurally satisfied by a stub returning typed pairs')` — `expectTypeOf` / a stub impl compiles.
+- Assertion: `const out = stub.extract('x'); expect(out).toEqual([])` compiles against the interface.
 
 #### Concurrency tests
 (none — single-threaded)
@@ -138,8 +139,9 @@ Reasoning: ADR D1 — faithful to `entity_extraction.ts:300`; deterministic + of
 - `packages/core/src/infrastructure/extraction/compromise-entity-extractor.ts` (NEW)
 - `package.json` (core) — add `compromise` optional dep
 
-#### TDD (ported from Mem0 `test_entity_extraction.py:15-101`)
-- RED `test('extracts proper nouns')` — "John Smith works at Google" → contains PROPER.
+#### TDD
+Ported from the reference entity-extraction test checklist (`test_entity_extraction.py:15-101`).
+- RED `test('extracts proper nouns')` — given "John Smith works at Google", `const types = result.map(e => e.type); expect(types).toContain('PROPER')`.
 - RED `test('extracts quoted text')` — `"The Great Gatsby"` → QUOTED.
 - RED `test('extracts compound nouns')` — "machine learning engineer" → COMPOUND.
 - RED `test('empty string returns empty array')` — `''` → `[]`.
@@ -172,7 +174,7 @@ Reasoning: ADR D2 — UNIQUE is the resolution; join table gives count + provena
 - `packages/core/src/infrastructure/db/schema.test.ts` (extend)
 
 #### TDD
-- RED `test('entities has a unique constraint on (workspace_id, scope, type, normalized_key)')` — schema assertion (EC-1: type in identity).
+- RED `test('entities has a unique constraint on (workspace_id, scope, type, normalized_key)')` — `expect(constraintNames).toContain('entities_scope_type_key_uq')` (EC-1: type in identity).
 - RED `test('memory_entities cascades on memory delete')` — insert link, delete memory, link gone (integration, real pg).
 - RED `test('entities.embedding dim equals memories MAX_EMBEDDING_DIM')` — EC-5: assert the entity embedding column dim matches the memory embedder output dim (a 384-vs-1536 mismatch would fail the insert).
 
@@ -200,7 +202,7 @@ Reasoning: ADR D3 — fail-soft; the write must never fail because the side inde
 - the `MEMORY_EVENTS` union — add `entity_linking_failed` literal
 
 #### TDD
-- RED `test('remember() with entityBoost persists extracted entities + links')` — stub extractor returns 2 entities → 2 entities rows + 2 link rows.
+- RED `test('remember() with entityBoost persists extracted entities + links')` — stub extractor returns 2 → `expect(entityRows).toHaveLength(2)` and `expect(linkRows).toHaveLength(2)`.
 - RED `test('entityBoost=false skips entity linking entirely')` — no entities rows written.
 - RED `test('extractor throwing does NOT fail remember() and emits entity_linking_failed')` — fail-soft proven.
 - RED `test('same entity across two memories increments memory_count to 2, entities row stays 1')`.
@@ -230,7 +232,7 @@ Reasoning: ADR D3 — real data, zero downstream churn (gateway/dashboard untouc
 - `packages/api/src/server/handlers/__tests__/entities.test.ts`
 
 #### TDD
-- RED `test('entitiesHandler returns extracted entities with memory_count from the entities table')` — seed entities+links → correct counts, sorted.
+- RED `test('entitiesHandler returns extracted entities with memory_count from the entities table')` — seed entities+links → `expect(body.entities[0].memory_count).toBe(2)`, sorted desc.
 - RED `test('empty scope returns { entities: [] }')`.
 - RED `test('response shape unchanged: id, memory_count, last_seen_at present')` — guards gateway/dashboard contract.
 - RED `test('workspace isolation: another workspace entities not returned')`.
@@ -259,7 +261,7 @@ Reasoning: THE GOAL TEST — proves the full chain (extract → persist → list
 - `tests/integration/entities/extract.test.ts` (NEW)
 
 #### TDD
-- RED THE GOAL TEST as above + the cascade test (delete memory → link gone) + the dedup test (same entity twice → 1 row, count 2).
+- RED THE GOAL TEST: after remember, `const names = body.entities.map(e => e.id); expect(names).toContain('John Smith')`; + cascade test (delete memory → link gone) + dedup test (same entity twice → 1 row, count 2).
 
 #### Concurrency tests
 (none — single-threaded)
