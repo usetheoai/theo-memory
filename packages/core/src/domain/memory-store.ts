@@ -67,8 +67,12 @@ export interface MemoryStore {
  * Scoped sub-object returned by Memory.user/.session/.agent.
  * Inherits the scope at construction time; downstream calls compose Filters from the captured scope.
  *
- * Notably excludes `forget` (memoryId is globally unique — use top-level Memory.forget)
- * and `update` (ADR-0003 ADD-only).
+ * Excludes `update` (ADR-0003 ADD-only). `forget` IS available here as a
+ * SUBJECT-SCOPED delete (themory-scoped-forget T1.1, ADR D1): unlike the
+ * workspace-only `Memory.forget`, this variant deletes a memory ONLY when it
+ * belongs to THIS scope (cross-scope id → MemoryNotFound → 404, no existence
+ * leak), so a multi-tenant gateway can delete-by-id without an O(scope)
+ * ownership pre-check.
  */
 export interface ScopedMemory {
   /**
@@ -80,6 +84,15 @@ export interface ScopedMemory {
   recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
   reflect(options?: ReflectOptions): Promise<ReflectionResult>;
   getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]>;
+
+  /**
+   * Subject-scoped delete. Deletes `memoryId` ONLY if it belongs to this scope
+   * (+ workspace); a cross-scope / cross-workspace / missing id throws
+   * `MemoryNotFound` (→ 404 at the REST layer, never 403 — no existence leak).
+   * Soft by default (`t_invalid` on the Pg runtime); `{ hard: true }` for
+   * GDPR-style physical erasure. @see ADR D1 of themory-scoped-forget plan.
+   */
+  forget(memoryId: string, options?: ForgetOptions): Promise<void>;
 }
 
 /**
