@@ -75,7 +75,7 @@ const CONJUGATED_VERB = new Set<string>([
 
 /** Trim leading/trailing function words from a candidate and drop predicate/clause
  *  fragments. Returns the cleaned entity name, or `null` when nothing entity-like
- *  remains. Fixes graph noise ("is a", "on the", "project uses", "s skip",
+ *  remains. Fixes graph noise ("is a", "on the", "project uses", "and commutes",
  *  "the machine learning engineer"→"machine learning engineer") WITHOUT dropping
  *  legitimate noun phrases that merely carry a leading article. */
 export function cleanCandidateName(raw: string): string | null {
@@ -130,7 +130,7 @@ function pushUnique(acc: Map<string, ExtractedEntity>, type: EntityType, raw: st
   let name = raw.trim();
   if (!isMeaningful(name)) return; // EC-2 drop guard
   // Trim function-word edges + drop predicate/clause fragments ("is a", "on the",
-  // "project uses", "s skip", "the machine learning engineer"→"machine learning
+  // "project uses", "and commutes", "the machine learning engineer"→"machine learning
   // engineer"). QUOTED spans are intentional, so they bypass the cleaner.
   if (type !== 'QUOTED') {
     const cleaned = cleanCandidateName(name);
