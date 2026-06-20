@@ -81,7 +81,10 @@ function spyStore(): { store: MemoryEntityStore; calls: UpsertAndLinkParams[] } 
   const calls: UpsertAndLinkParams[] = [];
   return {
     calls,
-    store: { upsertAndLink: vi.fn(async (p: UpsertAndLinkParams) => { calls.push(p); await Promise.resolve(); }) },
+    store: {
+      upsertAndLink: vi.fn(async (p: UpsertAndLinkParams) => { calls.push(p); await Promise.resolve(); }),
+      list: vi.fn(async () => []),
+    },
   };
 }
 
