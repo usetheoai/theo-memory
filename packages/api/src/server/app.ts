@@ -11,7 +11,7 @@ import type { Tracer } from '@opentelemetry/api';
 import { ContentTooLargeError } from '@usetheo/memory/contract';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
-import type { MemoryEntityStore } from '@usetheo/memory/contract';
+import type { MemoryEntityStore, MemoryGraphStore } from '@usetheo/memory/contract';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 
@@ -27,6 +27,7 @@ import {
   rotateKeyHandler,
 } from './handlers/admin-keys.js';
 import { entitiesHandler } from './handlers/entities.js';
+import { graphHandler } from './handlers/graph.js';
 import { forgetHandler } from './handlers/forget.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
 import {
@@ -136,10 +137,17 @@ export interface CreateServerOptions {
    * `PgMemoryEntityStore` here, mirroring the `adminApi.pool` wiring precedent.
    */
   readonly memoryEntityStore?: MemoryEntityStore;
+  /**
+   * entity-relation-extraction-slice2 T3.1 (ADR D4/D6) — optional edges read port.
+   * When supplied, `GET /v1/scopes/:type/:id/graph` serves REAL relation edges
+   * from `entity_edges`. When omitted, `/graph` returns `{nodes, edges:[]}` (D6).
+   * The composition root (`themory server`) injects `PgMemoryGraphStore` here.
+   */
+  readonly memoryGraphStore?: MemoryGraphStore;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore } = options;
 
   // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
   // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
@@ -320,6 +328,8 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
   app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory));
   app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory, memoryEntityStore));
+  // entity-relation-extraction-slice2 T3.1 — {nodes,edges} graph (no graph DB).
+  app.get('/v1/scopes/:type/:id/graph', (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
   // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
   app.get('/v1/scopes/skill/:repoId/skills', (c) => skillsHandler(c, memory));
