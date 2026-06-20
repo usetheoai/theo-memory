@@ -18,7 +18,8 @@
 export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
-export { entities, history, memories } from './schema.js';
+export { PgMemoryEntityStore } from './pg-memory-entity-store.js';
+export { entities, history, memories, memoryEntities } from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
 // v0.7 T2.1 — re-export conflict-resolution policies for convenience
 // (integration tests + consumer apps).
