@@ -142,7 +142,7 @@ describe('T2.1 — GET /v1/scopes/skill/:repoId/skills', () => {
     };
     const path = spec.paths['/v1/scopes/skill/{repoId}/skills'];
     expect(path).toBeDefined();
-    expect(path?.get?.responses?.['200']).toBeDefined();
+    expect(path?.['get']?.responses?.['200']).toBeDefined();
   });
 
   test('D5: the generic memories endpoint still returns 501 for type=skill', async () => {
@@ -258,8 +258,8 @@ describe('T2.1 — POST /v1/scopes/skill/:repoId/skills', () => {
     const spec = (await (await app.fetch(new Request('http://localhost/v1/openapi.json'))).json()) as {
       paths: Record<string, Record<string, unknown>>;
     };
-    expect(spec.paths['/v1/scopes/skill/{repoId}/skills']?.post).toBeDefined();
-    expect(spec.paths['/v1/scopes/skill/{repoId}/skills/{skillId}']?.delete).toBeDefined();
+    expect(spec.paths['/v1/scopes/skill/{repoId}/skills']?.['post']).toBeDefined();
+    expect(spec.paths['/v1/scopes/skill/{repoId}/skills/{skillId}']?.['delete']).toBeDefined();
   });
 });
 
