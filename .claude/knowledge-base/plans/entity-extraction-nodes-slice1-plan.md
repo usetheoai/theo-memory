@@ -33,7 +33,7 @@ Today the `entities` table exists (`schema.ts:325`, migration `0000`) but is **n
 | `packages/core/src/domain/dip/entity-extractor.ts` (NEW) | 0 | `ea9f2dc` | (new) `EntityExtractor` DIP interface | — |
 | `packages/core/src/infrastructure/extraction/compromise-entity-extractor.ts` (NEW) | 0 | `ea9f2dc` | (new) default impl: compromise + regex fallback (Mem0-TS port) | lazy import; never throws on missing dep |
 | `packages/core/src/infrastructure/db/schema.ts` | 520 | `bbf8975` | Drizzle schema incl. `entities` (`:325`) | existing `entities` columns kept; ADD `normalized_key` + scope cols + new `memory_entities` table; add-only |
-| `packages/core/src/infrastructure/db/migrations/0017_entity_nodes.sql` (NEW) | 0 | `bbf8975` | (new) non-destructive migration | additive only; existing rows survive |
+| `packages/core/src/infrastructure/db/migrations/0018_entity_nodes.sql` (NEW) | 0 | `bbf8975` | (new) non-destructive migration | additive only; existing rows survive |
 | `packages/api/src/server/handlers/entities.ts` | 81 | `6ee371e` | `entitiesHandler` — attributed_to-derived stub (`:46`) | response SHAPE `{entities:[{id, memory_count, last_seen_at, ...}]}` preserved (gateway + dashboard depend on it) |
 | `packages/api/src/server/handlers/__tests__/entities.test.ts` (verify/extend) | 0 | `6ee371e` | unit tests | existing stay green |
 | `tests/integration/entities/extract.test.ts` (NEW) | 0 | `6ee371e` | (new) real-pgvector extract→list round-trip | — |
@@ -165,12 +165,12 @@ Ported from the reference entity-extraction test checklist (`test_entity_extract
 ### T2.1 — Extend `entities` + add `memory_entities`; migration 0017
 
 #### Why this step
-Action: in `schema.ts` add `normalizedKey` + scope columns to `entities` + a UNIQUE `(workspace_id, user_id, session_id, agent_id, normalized_key)`; add `memoryEntities` table. Generate non-destructive `0017_entity_nodes.sql`.
+Action: in `schema.ts` add `normalizedKey` + scope columns to `entities` + a UNIQUE `(workspace_id, user_id, session_id, agent_id, normalized_key)`; add `memoryEntities` table. Generate non-destructive `0018_entity_nodes.sql`.
 Reasoning: ADR D2 — UNIQUE is the resolution; join table gives count + provenance with CASCADE for forget.
 
 #### Files to edit
 - `packages/core/src/infrastructure/db/schema.ts`
-- `packages/core/src/infrastructure/db/migrations/0017_entity_nodes.sql` (NEW)
+- `packages/core/src/infrastructure/db/migrations/0018_entity_nodes.sql` (NEW)
 - `packages/core/src/infrastructure/db/schema.test.ts` (extend)
 
 #### TDD
@@ -182,7 +182,7 @@ Reasoning: ADR D2 — UNIQUE is the resolution; join table gives count + provena
 - A concurrent test fires two simultaneous extract-persist calls of the same entity under the same scope and asserts an atomic-counter invariant: exactly one `entities` row results (the ON CONFLICT DO NOTHING upsert is the happens-before observation). The test asserts the DB row-count invariant, not merely no-throw.
 
 #### Acceptance criteria
-- `npm run db:generate` produces 0017 with only `ADD COLUMN`/`CREATE TABLE`/`CREATE UNIQUE INDEX` (no DROP). Verify: `grep -iE 'drop ' migrations/0017_entity_nodes.sql` returns nothing.
+- `npm run db:generate` produces 0017 with only `ADD COLUMN`/`CREATE TABLE`/`CREATE UNIQUE INDEX` (no DROP). Verify: `grep -iE 'drop ' migrations/0018_entity_nodes.sql` returns nothing.
 - Drizzle journal in sync (no drift). Verify: `npm run db:check` exit 0.
 
 #### DoD
