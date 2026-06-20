@@ -301,3 +301,56 @@ describe('Phase 7 — edge linking (slice2 T2.2)', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('Phase 7 — edge endpoint auto-create (EC-5) + predicate-node filter (slice2 fix)', () => {
+  test('EC-5: a relation endpoint compromise did NOT extract is auto-created as a node', async () => {
+    const { store: graph, calls: graphCalls } = spyGraph();
+    const { store: entityStore, calls: entityCalls } = spyStore();
+    // Extractor returns ONLY "John Smith" (misses "Google") — mimics compromise
+    // missing single-token entities. The LLM relation names Google as endpoint.
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: relLlm(goodRel),
+        entityExtractor: makeExtractor([{ type: 'PROPER', name: 'John Smith' }]),
+        memoryEntityStore: entityStore,
+        memoryGraphStore: graph,
+      },
+    );
+    // The edge was still linked (upsertEdges called)...
+    expect(graphCalls).toHaveLength(1);
+    // ...AND the missing endpoint "Google" was auto-created as a node (a 2nd
+    // upsertAndLink beyond the compromise node-linking call).
+    const allLinkedNames = entityCalls.flatMap((c) => c.entities.map((e) => e.name));
+    expect(allLinkedNames).toContain('Google');
+  });
+
+  test('relation predicate ("works at") is NOT persisted as a node', async () => {
+    const { store: graph } = spyGraph();
+    const { store: entityStore, calls: entityCalls } = spyStore();
+    // Extractor erroneously returns the verb phrase "works at" as a COMPOUND node
+    // (compromise noise). It must be filtered because it is a relation predicate.
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: relLlm(goodRel),
+        entityExtractor: makeExtractor([
+          { type: 'PROPER', name: 'John Smith' },
+          { type: 'PROPER', name: 'Google' },
+          { type: 'COMPOUND', name: 'works at' },
+        ]),
+        memoryEntityStore: entityStore,
+        memoryGraphStore: graph,
+      },
+    );
+    const allLinkedNames = entityCalls.flatMap((c) => c.entities.map((e) => e.name));
+    expect(allLinkedNames).not.toContain('works at');
+    expect(allLinkedNames).toContain('John Smith');
+  });
+});
