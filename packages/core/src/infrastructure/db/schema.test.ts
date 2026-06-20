@@ -12,7 +12,7 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';
 
-import { entities, history, memories, memoryEntities } from './schema.js';
+import { entities, entityEdges, history, memories, memoryEntities } from './schema.js';
 
 describe('memories table', () => {
   test('declares the required columns', () => {
@@ -135,6 +135,32 @@ describe('entities table', () => {
     // getSQLType() renders e.g. "vector(1536)" — a mismatch would surface here
     // before it ever reaches a failing INSERT cast.
     expect(entityEmbed?.getSQLType()).toBe(memoryEmbed?.getSQLType());
+  });
+});
+
+describe('entity_edges table (slice2 T1.1)', () => {
+  test('entity_edges_table_has_expected_columns', () => {
+    const cfg = getTableConfig(entityEdges);
+    const cols = cfg.columns.map((c) => c.name);
+    expect(cols).toContain('source_entity_id');
+    expect(cols).toContain('target_entity_id');
+    expect(cols).toContain('relation');
+    expect(cols).toContain('normalized_relation');
+    expect(cols).toContain('source_memory_id');
+    expect(cols).toContain('workspace_id');
+  });
+
+  test('entity_edges_unique_arbiter_present (EC-1: source_memory_id IN the key)', () => {
+    const cfg = getTableConfig(entityEdges);
+    const uq = cfg.indexes.find((i) => i.config.name === 'entity_edges_scope_triple_uq');
+    const hasUnique = uq !== undefined && uq.config.unique === true;
+    expect(hasUnique).toBe(true);
+  });
+
+  test('EC-5 parity: entity_edges has no embedding (edges are not embedded; only nodes are)', () => {
+    const cfg = getTableConfig(entityEdges);
+    const cols = cfg.columns.map((c) => c.name);
+    expect(cols).not.toContain('embedding');
   });
 });
 
