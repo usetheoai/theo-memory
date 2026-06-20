@@ -12,7 +12,13 @@
  */
 import type { Pool } from 'pg';
 
-import type { MemoryEntityStore, UpsertAndLinkParams } from '../../domain/dip/memory-entity-store.js';
+import type { EntityType } from '../../domain/dip/entity-extractor.js';
+import type {
+  EntityNodeSummary,
+  ListEntitiesParams,
+  MemoryEntityStore,
+  UpsertAndLinkParams,
+} from '../../domain/dip/memory-entity-store.js';
 
 const ON_CONFLICT_SCOPE_TYPE_KEY =
   `ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),` +
@@ -80,5 +86,40 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
     } finally {
       client.release();
     }
+  }
+
+  async list(params: ListEntitiesParams): Promise<readonly EntityNodeSummary[]> {
+    const { workspaceId, filters } = params;
+    // ADR D4: 3-table join. memoryCount = COUNT(DISTINCT memory_id); lastSeenAt =
+    // MAX(linked memory created_at) (NOT entities.created_at — first-write per dedup).
+    // Scope WHERE reuses the EC-1 COALESCE idiom byte-for-byte; all values $N-bound.
+    const { rows } = await this.pool.query<{
+      id: string;
+      name: string;
+      type: EntityType | null;
+      memory_count: string;
+      last_seen_at: Date;
+    }>(
+      `SELECT e.id, e.name, e.type,
+              COUNT(DISTINCT me.memory_id) AS memory_count,
+              MAX(m.created_at) AS last_seen_at
+         FROM entities e
+         JOIN memory_entities me ON me.entity_id = e.id
+         JOIN memories m ON m.id = me.memory_id
+        WHERE e.workspace_id = $1
+          AND COALESCE(e.user_id,'') = COALESCE($2,'')
+          AND COALESCE(e.session_id,'') = COALESCE($3,'')
+          AND COALESCE(e.agent_id,'') = COALESCE($4,'')
+        GROUP BY e.id
+        ORDER BY memory_count DESC, e.name ASC`,
+      [workspaceId, filters.user_id ?? null, filters.session_id ?? null, filters.agent_id ?? null],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      type: r.type ?? 'NOUN',
+      memoryCount: Number(r.memory_count),
+      lastSeenAt: r.last_seen_at instanceof Date ? r.last_seen_at.toISOString() : String(r.last_seen_at),
+    }));
   }
 }
