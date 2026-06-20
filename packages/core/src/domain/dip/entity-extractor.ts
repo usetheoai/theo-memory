@@ -25,5 +25,5 @@ export interface EntityExtractor {
    * Extract entities from a single text. Synchronous + deterministic.
    * Implementations MUST drop blank/too-short candidates (no empty-name entities).
    */
-  extract(text: string): ReadonlyArray<ExtractedEntity>;
+  extract(text: string): readonly ExtractedEntity[];
 }
