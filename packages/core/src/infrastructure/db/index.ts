@@ -20,7 +20,15 @@ export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 export { PgMemoryGraphStore } from './pg-memory-graph-store.js';
-export { entities, entityEdges, history, memories, memoryEntities } from './schema.js';
+export { PgUsageCounterStore } from './pg-usage-counter-store.js';
+export {
+  entities,
+  entityEdges,
+  history,
+  memories,
+  memoryEntities,
+  scopeUsageCounters,
+} from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
 // v0.7 T2.1 — re-export conflict-resolution policies for convenience
 // (integration tests + consumer apps).
