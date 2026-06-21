@@ -42,6 +42,11 @@ import {
   DESCRIPTION as FORGET_SKILL_DESC,
   INPUT_SCHEMA as forgetSkillInput,
 } from './forget-skill-schema.js';
+import {
+  TOOL_NAME as EXECUTE_SKILL_NAME,
+  DESCRIPTION as EXECUTE_SKILL_DESC,
+  INPUT_SCHEMA as executeSkillInput,
+} from './execute-skill-schema.js';
 import { emitToolSchema } from './schema-emit.js';
 
 /** Spec-compliant `tools/list` response shape (no pagination for 4 static tools). */
@@ -90,6 +95,12 @@ export function buildToolsListResponse(): ToolsListResponse {
         name: FORGET_SKILL_NAME,
         description: FORGET_SKILL_DESC,
         inputSchema: emitToolSchema(forgetSkillInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      // agentic-skill-execution-sandbox T2.4 — opt-in skill execution over MCP.
+      {
+        name: EXECUTE_SKILL_NAME,
+        description: EXECUTE_SKILL_DESC,
+        inputSchema: emitToolSchema(executeSkillInput) as ToolsListResponse['tools'][number]['inputSchema'],
       },
     ],
   };

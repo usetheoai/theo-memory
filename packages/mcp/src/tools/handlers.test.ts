@@ -303,3 +303,71 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
     expect(result.isError ?? false).toBe(false);
   });
 });
+
+describe('execute_skill dispatch — T2.4', () => {
+  function skillScopedWith(execute: ReturnType<typeof vi.fn>): {
+    add: ReturnType<typeof vi.fn>;
+    recall: ReturnType<typeof vi.fn>;
+    getAll: ReturnType<typeof vi.fn>;
+    consolidate: ReturnType<typeof vi.fn>;
+    forget: ReturnType<typeof vi.fn>;
+    execute: ReturnType<typeof vi.fn>;
+  } {
+    return {
+      add: vi.fn(),
+      recall: vi.fn(),
+      getAll: vi.fn(),
+      consolidate: vi.fn(),
+      forget: vi.fn(),
+      execute,
+    };
+  }
+
+  it('execute_skill runs via memory.skills(repoId).execute and returns the output', async () => {
+    const execute = vi.fn().mockResolvedValue({ output: 5, truncated: false, elapsedMs: 2 });
+    const skillScoped = skillScopedWith(execute);
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
+
+    const result = await dispatch(
+      'execute_skill',
+      { repoId: 'acme', skillId: 'sk-1', args: { x: 2, y: 3 } },
+      { memoryFactory: () => memory },
+    );
+
+    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
+    expect(execute).toHaveBeenCalledWith('sk-1', { x: 2, y: 3 }, undefined);
+    expect(result.isError).toBe(false);
+    expect(JSON.stringify(result.content)).toContain('5');
+  });
+
+  it('execute_skill returns a Tool Execution Error with the reason on a guard denial', async () => {
+    const { ToolInvocationDeniedError } = await import('@usetheo/memory/contract');
+    const execute = vi.fn().mockRejectedValue(new ToolInvocationDeniedError('timeout', 'exceeded'));
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScopedWith(execute) as never);
+
+    const result = await dispatch(
+      'execute_skill',
+      { repoId: 'acme', skillId: 'sk-1' },
+      { memoryFactory: () => memory },
+    );
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('timeout');
+  });
+
+  it('execute_skill returns a Tool Execution Error when no executor is wired', async () => {
+    const { SkillExecutionNotConfiguredError } = await import('@usetheo/memory/contract');
+    const execute = vi.fn().mockRejectedValue(new SkillExecutionNotConfiguredError('no executor'));
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScopedWith(execute) as never);
+
+    const result = await dispatch(
+      'execute_skill',
+      { repoId: 'acme', skillId: 'sk-1' },
+      { memoryFactory: () => memory },
+    );
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content).toLowerCase()).toContain('not configured');
+  });
+});
