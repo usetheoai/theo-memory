@@ -125,8 +125,12 @@ export {
   MissingScopeError,
   ReflectionNotConfigured,
   SkillAlreadyExists,
+  SkillExecutionNotConfiguredError,
+  SkillExecutorUnavailableError,
+  ToolInvocationDeniedError,
   WorkspaceMismatch,
 } from './errors.js';
+export type { ToolInvocationDeniedReason } from './errors.js';
 
 /**
  * Multi-tenant workspace-isolation domain types (ADR D1/D2). `Principal` is

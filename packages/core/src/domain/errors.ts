@@ -400,3 +400,82 @@ export class SkillAlreadyExists extends Error {
     Object.setPrototypeOf(this, SkillAlreadyExists.prototype);
   }
 }
+
+/**
+ * Reason a skill execution was denied by a sandbox guard. Exhaustive over the
+ * six guards + the structured-args / language / async / null-code edge cases
+ * (one literal per denial path). The literal is carried on
+ * {@link ToolInvocationDeniedError.reason} and emitted on the
+ * `tool_invocation_denied` OTel event for auditability (Princípio 3).
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + T1.3
+ */
+export type ToolInvocationDeniedReason =
+  | 'node-binding-attempt'
+  | 'fs-access-attempt'
+  | 'timeout'
+  | 'output-cap'
+  | 'tool-call-cap'
+  | 'non-cloneable-args'
+  | 'non-cloneable-result'
+  | 'unsupported-language'
+  | 'unsupported-async'
+  | 'empty-code';
+
+/**
+ * Thrown when a sandbox guard denies a skill execution. Carries a stable
+ * {@link ToolInvocationDeniedReason} discriminant so callers (and the
+ * `tool_invocation_denied` audit event) can distinguish denial classes. Maps to
+ * HTTP 403 at the REST boundary. Distinct from {@link SkillExecutionNotConfiguredError}
+ * (no executor wired → 501) and {@link SkillExecutorUnavailableError} (sandbox
+ * backend not installed → 503).
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + ADR D3
+ */
+export class ToolInvocationDeniedError extends Error {
+  override readonly name = 'ToolInvocationDeniedError' as const;
+
+  readonly reason: ToolInvocationDeniedReason;
+
+  constructor(reason: ToolInvocationDeniedReason, detail: string, options?: ErrorOptions) {
+    super(`Skill execution denied (${reason}): ${detail}`, options);
+    this.reason = reason;
+    Object.setPrototypeOf(this, ToolInvocationDeniedError.prototype);
+  }
+}
+
+/**
+ * Thrown when `ScopedSkillMemory.execute()` is called but no `SkillExecutor` was
+ * wired into the memory (execution is opt-in/gated per ADR D3 — STORE-only is the
+ * default). Maps to HTTP 501 at the REST boundary.
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + ADR D3
+ */
+export class SkillExecutionNotConfiguredError extends Error {
+  override readonly name = 'SkillExecutionNotConfiguredError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(`Skill execution not configured: ${message}`, options);
+    Object.setPrototypeOf(this, SkillExecutionNotConfiguredError.prototype);
+  }
+}
+
+/**
+ * Thrown when the optional sandbox backend (the `isolated-vm` native addon) is not
+ * installed in the runtime. Distinct from a denial (the skill never ran) and from
+ * not-configured (an executor IS wired but its backend is missing). The message
+ * carries an install hint. Maps to HTTP 503 at the REST boundary.
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 (EC-3)
+ */
+export class SkillExecutorUnavailableError extends Error {
+  override readonly name = 'SkillExecutorUnavailableError' as const;
+
+  constructor(backend: string, options?: ErrorOptions) {
+    super(
+      `Skill executor unavailable: the '${backend}' sandbox backend is not installed. Install it (e.g. \`pnpm add ${backend}\`) to enable skill execution.`,
+      options,
+    );
+    Object.setPrototypeOf(this, SkillExecutorUnavailableError.prototype);
+  }
+}
