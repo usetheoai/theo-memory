@@ -17,8 +17,18 @@ import type { Tracer } from '@opentelemetry/api';
 import { hashFact } from '../../domain/dedup.js';
 import type { Embedder } from '../../domain/dip/embedder.js';
 import type { LLM } from '../../domain/dip/llm.js';
+import type {
+  SkillExecutor,
+  SkillExecutionOptions,
+  SkillExecutionResult,
+} from '../../domain/dip/skill-executor.js';
 import type { VectorStore } from '../../domain/dip/vector-store.js';
-import { InvalidScope, MemoryNotFound, SkillAlreadyExists } from '../../domain/errors.js';
+import {
+  InvalidScope,
+  MemoryNotFound,
+  SkillAlreadyExists,
+  SkillExecutionNotConfiguredError,
+} from '../../domain/errors.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
 import type { Filters, RepoScope } from '../../domain/scope.js';
@@ -64,6 +74,13 @@ export interface LocalScopedSkillMemoryDeps {
    * delegate is `LocalMemory.get` bound by the `Memory.skills()` factory.
    */
   readonly getDelegate: (memoryId: string) => Promise<MemoryItem | null>;
+  /**
+   * agentic-skill-execution-sandbox T2.1 — optional `SkillExecutor` enabling
+   * `execute(skillId, args)`. When unset, `execute()` throws
+   * `SkillExecutionNotConfiguredError` (ADR D3 — execution is opt-in/gated; the
+   * default is STORE-only). Wired by `createLocalMemory({ skillExecutor })` (T2.2).
+   */
+  readonly skillExecutor?: SkillExecutor;
 }
 
 // T3.3: payloadToSkill extraction — see src/local/skills/payload.ts:decodeSkillPayload.
@@ -262,5 +279,32 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
       );
     }
     await this.deps.forgetDelegate(skillId);
+  }
+
+  async execute(
+    skillId: string,
+    args: Readonly<Record<string, unknown>>,
+    opts?: SkillExecutionOptions,
+  ): Promise<SkillExecutionResult> {
+    // ADR D3 — execution is opt-in/gated. No executor wired ⇒ STORE-only default.
+    if (this.deps.skillExecutor === undefined) {
+      throw new SkillExecutionNotConfiguredError(
+        `repo '${this.scope.repoId}' has no SkillExecutor wired; pass createLocalMemory({ skillExecutor })`,
+      );
+    }
+    // Resolve the skill WITH its code via the workspace+scope-isolated browse path
+    // (getAll inherits this.filters → same isolation as forget). includeSuperseded
+    // so any stored id resolves; a non-matching id yields MemoryNotFound (404, no
+    // existence leak). Bounded by the repo's skill set (small — not the unbounded
+    // user scope the gateway forget worried about). A direct by-id read is a future
+    // optimization if a repo's skill count ever grows large.
+    const skills = await this.getAll({ includeSuperseded: true });
+    const skill = skills.find((s) => s.id === skillId);
+    if (skill === undefined) {
+      throw new MemoryNotFound(
+        `skillId ${skillId} not found in repo '${this.scope.repoId}' (absent, cross-scope, or cross-workspace)`,
+      );
+    }
+    return this.deps.skillExecutor.execute(skill, args, opts);
   }
 }

@@ -14,6 +14,7 @@
  * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § ADRs D1-D5
  * @see .claude/knowledge-base/discoveries/blueprints/voyager-skill-library-blueprint.md § ADRs D1-D3
  */
+import type { SkillExecutionOptions, SkillExecutionResult } from './dip/skill-executor.js';
 import type { MemoryItem } from './memory-item.js';
 
 /** v0.6: language tag of a skill's executable payload. */
@@ -195,4 +196,19 @@ export interface ScopedSkillMemory {
   getAll(options?: SkillListOptions): Promise<readonly Skill[]>;
   consolidate(options?: ConsolidateOptions): Promise<ConsolidationResult>;
   forget(skillId: string): Promise<void>;
+  /**
+   * Execute a stored skill inside the configured `SkillExecutor` sandbox and
+   * return its captured result. Opt-in/gated (ADR D3): when no executor was
+   * wired into the memory, throws `SkillExecutionNotConfiguredError` — STORE-only
+   * is the default. A `skillId` that is not a current skill in this repo's scope
+   * (absent / superseded / cross-scope / cross-workspace) throws `MemoryNotFound`
+   * (→ 404, no existence leak). A guard denial throws `ToolInvocationDeniedError`.
+   *
+   * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T2.1 + ADR D3
+   */
+  execute(
+    skillId: string,
+    args: Readonly<Record<string, unknown>>,
+    opts?: SkillExecutionOptions,
+  ): Promise<SkillExecutionResult>;
 }
