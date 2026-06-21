@@ -1,0 +1,136 @@
+agent: review-themory-scoped-forget-and-retrieval-counter-domain-pgvector-schema
+review_target: 1068f77^..HEAD for plan themory-scoped-forget-and-retrieval-counter
+domain: pgvector-schema
+domain_specific_patterns_checked:
+  - "migration additive-only (CREATE TABLE, no DROP/ALTER of existing tables)"
+  - "drizzle journal sync (meta/_journal.json idx 20 + 0020_snapshot.json) so migrate() applies, not skips"
+  - "drizzle schema.ts pgTable column types (uuid PK, text scope cols, bigint mode:number, timestamptz)"
+  - "UNIQUE index COALESCE expression on (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''), COALESCE(agent_id,''))"
+  - "EC-3 expression-equivalence: ON CONFLICT arbiter + getRecallCount WHERE == UNIQUE index expression"
+  - "deleteInScope raw SQL soft (UPDATE t_invalid WHERE ... AND t_invalid IS NULL) + hard (DELETE) scope+workspace WHERE"
+  - "SQL-injection safety (parameterized values; column names from hardcoded const array)"
+  - "EC-1 FK ON DELETE CASCADE on memory_entities.memory_id + entity_edges.source_memory_id (no FK violation on hard delete)"
+  - "int8 -> Number coercion correctness (node-postgres returns bigint as string)"
+findings:
+  - id: F-dom-pgv-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/schema.ts
+    line: 659
+    plan_ref: T2.1 / ADR D2
+    domain_anchor: drizzle schema mode:'number' vs raw-SQL store
+    summary: >
+      JSDoc on scopeUsageCounters claims `recall_count` is `mode:'number'` so
+      "getRecallCount() returns a JS number". This is slightly misleading: the
+      drizzle `bigint(..., { mode:'number' })` declaration is NOT what coerces the
+      value — getRecallCount lives in PgUsageCounterStore which issues a RAW
+      pool.query (not drizzle) and does the int8->Number coercion itself via
+      `Number(rows[0].recall_count)`. The drizzle table is exported only for
+      schema/migration parity; nothing reads the counter through drizzle. The
+      coercion is correct; only the comment's causality is imprecise. No runtime
+      impact.
+    evidence: |
+      ```ts
+      // schema.ts JSDoc: "`recall_count` is `mode:'number'` so getRecallCount() returns a JS number"
+      // pg-usage-counter-store.ts actually does:
+      const { rows } = await this.pool.query<{ recall_count: string }>(...);
+      return rows[0] === undefined ? 0 : Number(rows[0].recall_count);
+      ```
+    recommended_action: >
+      Optional doc tweak: clarify that the JS-number coercion happens in
+      PgUsageCounterStore.getRecallCount (raw SQL + Number()), and mode:'number'
+      keeps the drizzle type in parity. No code change required.
+  - id: F-dom-pgv-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/in-memory-store.ts
+    line: 204
+    plan_ref: T1.1 / EC-4
+    domain_anchor: soft-delete idempotency parity in-memory vs pg
+    summary: >
+      InMemoryVectorStore.deleteInScope physically removes the row on BOTH soft
+      and hard (no t_invalid model) — documented in its JSDoc. A second
+      soft-forget of an already-removed in-memory row returns false (-> 404),
+      which happens to MATCH the pg behavior (pg's `t_invalid IS NULL` guard also
+      yields 0 rows on the second soft call -> 404). So the idempotent-404 EC-4
+      contract holds on both stores for the double-soft case, but for a DIFFERENT
+      mechanism (in-memory: row gone; pg: t_invalid already set). Worth noting the
+      in-memory store cannot exercise the "row still exists but hidden" soft-delete
+      semantics, so unit tests of EC-4 against in-memory do not actually prove the
+      pg `t_invalid IS NULL` guard — that requires the integration test. Verified
+      tests/integration/scoped-forget.test.ts exists to cover the real pg path.
+    evidence: |
+      ```ts
+      // in-memory: soft == hard (no t_invalid)
+      async deleteInScope(vectorId, filters) {
+        const row = this.rows.get(vectorId);
+        if (row === undefined) return false; // 2nd call -> false -> 404 (parity by coincidence)
+        ...
+        this.rows.delete(vectorId);
+        return true;
+      }
+      ```
+    recommended_action: >
+      None required — integration test (real pgvector) is the authoritative EC-4
+      oracle and is present. Parity is acceptable.
+ec_verification:
+  EC-1_fk_cascade:
+    status: PASS
+    detail: >
+      0018_entity_nodes.sql: memory_entities.memory_id FK is ON DELETE cascade
+      against memories.id. 0019_entity_edges.sql: entity_edges.source_memory_id FK
+      is ON DELETE cascade against memories.id. So the hard `DELETE FROM memories
+      WHERE ...` cascade-cleans children with no FK violation; the deleteInScope
+      JSDoc claim ("FKs are ON DELETE CASCADE, migrations 0018/0019 — no
+      children-first logic") is ACCURATE. No 500-on-FK-violation risk.
+  EC-3_expression_equivalence:
+    status: PASS
+    detail: >
+      schema UNIQUE: (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),
+      COALESCE(agent_id,'')). increment ON CONFLICT arbiter (ON_CONFLICT_SCOPE_TUPLE
+      const): column-for-column identical COALESCE(...,''). getRecallCount WHERE:
+      workspace_id=$1 AND COALESCE(user_id,'')=COALESCE($2,'') AND
+      COALESCE(session_id,'')=COALESCE($3,'') AND COALESCE(agent_id,'')=COALESCE($4,'').
+      Expression-equivalent (NOT split-key): write and read hit the same row.
+      workspace_id normalized to 'default' on BOTH increment and getRecallCount
+      (filters.workspace_id ?? 'default'). End-to-end read-key consistency: recall
+      increments with this.filters (Principal-derived workspace); metrics reads
+      with principal.workspaceId + filtersFor(type,id) — both derive workspace from
+      the same Principal at the REST boundary, so they agree.
+  EC-4_soft_idempotent:
+    status: PASS
+    detail: >
+      pg soft path: UPDATE ... WHERE ... AND t_invalid IS NULL -> 0 rows on a
+      row already soft-deleted -> returns false -> MemoryNotFound -> 404.
+  migration_additive:
+    status: PASS
+    detail: >
+      0020_scope_usage_counters.sql is CREATE TABLE + CREATE UNIQUE INDEX only.
+      No DROP, no ALTER of any existing table. Journal idx 20 present + monotonic
+      (tag 0020_scope_usage_counters). 0020_snapshot.json contains the table with
+      its single unique index (scope_usage_counters_scope_uq, isUnique=true).
+      drizzle migrate() will apply (not silently skip) — no F-T7-1-3 regression.
+  sql_injection_safety:
+    status: PASS
+    detail: >
+      PgUsageCounterStore: all values bound as $1..$4 parameters; the ON CONFLICT
+      clause is a static const string with no interpolation. deleteInScope
+      (pgvector-store.ts): vectorId + workspace + tier values all bound as
+      $1..$N; the only interpolated token is `col` from a hardcoded
+      `['user_id','session_id','agent_id'] as const` array (NOT user input) and
+      `$${params.length}` (a positional index, not a value) — injection-safe.
+  int8_coercion:
+    status: PASS
+    detail: >
+      node-postgres returns int8/bigint as a STRING (precision-safe default);
+      getRecallCount types the row as { recall_count: string } and coerces via
+      Number(). Per-scope recall counts are well within Number.MAX_SAFE_INTEGER
+      for any realistic deployment (correctly noted in the inline comment).
+summary_verdict: >
+  DB layer is clean. Migration is strictly additive + journal/snapshot synced.
+  Schema column types correct (uuid PK, text scope cols, bigint mode:number for
+  recall_count, timestamptz updated_at). EC-3 expression-equivalence holds across
+  index + increment arbiter + getRecallCount WHERE, with consistent
+  workspace_id='default' normalization and Principal-consistent read key. EC-1 FK
+  cascade confirmed (0018/0019 ON DELETE cascade -> hard delete safe). deleteInScope
+  raw SQL is parameterized and injection-safe (column names from a hardcoded const).
+  int8->Number coercion is correct. Two INFO-level documentation/parity notes only;
+  no HIGH/MEDIUM defects in the pgvector-schema / db-migrations domain.

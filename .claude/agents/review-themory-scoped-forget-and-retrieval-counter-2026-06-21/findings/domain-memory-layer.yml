@@ -1,0 +1,196 @@
+agent: review-themory-scoped-forget-and-retrieval-counter-domain-memory-layer
+review_target: 1068f77^..HEAD for plan themory-scoped-forget-and-retrieval-counter
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Princípio 3 auditability — IGNORE/side-effect failures never silent (typed OTel event + history)"
+  - "Scope isolation — subject+workspace scope-checked forget; per-scope counter key alignment (EC-3)"
+  - "404-not-403 no-existence-leak discipline on scoped forget"
+  - "ADD-only invariant + locked verbs (no update(); forget added to ScopedMemory consistent with Memory.forget)"
+  - "recall() behavior unchanged across 3 cache paths (bypass/hit/miss) after retrieveResults extraction"
+  - "counter semantic = recall() calls tracked per scope (counts HIT path too)"
+  - "bi-temporal soft-delete (t_invalid) preserved in deleteInScope soft path"
+  - "EC-1 hard-delete entity-link FK cascade (0018/0019 ON DELETE CASCADE)"
+  - "EC-6 skill (repo) scope NOT counted — served by LocalScopedSkillMemory"
+  - "DIP boundary — UsageCounterStore port in domain, Pg impl in infra, gated factory wiring"
+
+findings:
+  - id: F-dom-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 360
+    plan_ref: ADR D1 — subject-scoped forget; Princípio 3 audit trail
+    domain_anchor: "CLAUDE.md § IMPORTANTE Princípio 3 (memory is auditable; forget emits history)"
+    summary: >
+      VERIFIED (not a defect). LocalScopedMemory.forget emits the `forget` history
+      event best-effort (addHistory(memoryId,'',null,'forget',Date)) and invalidates
+      the recall cache for the scope. The history write is wrapped try/catch so a
+      history blip does not undo the delete — correct fail-soft posture. Princípio 3
+      auditability honored: the forget decision is recorded in the `history` table.
+    evidence: |
+      ```ts
+      if (this.config.historyManager !== undefined) {
+        try {
+          await this.config.historyManager.addHistory(memoryId, '', null, 'forget', new Date());
+        } catch { /* history persistence failure must not block forget */ }
+      }
+      ```
+    recommended_action: None — correct.
+
+  - id: F-dom-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 274
+    plan_ref: ADR D3 — fail-soft recall counter; Princípio 3 (IGNORE never silent)
+    domain_anchor: "CLAUDE.md § IMPORTANTE Princípio 3 (every IGNORE decision is OBSERVABLE)"
+    summary: >
+      VERIFIED. The counter increment is fail-soft AND observable: on error it
+      emits the typed MEMORY_EVENTS literal `retrieval_counted_failed` (appended to
+      memory-event.ts, 24th literal) with {scope_tier, error} via emitEvent — never
+      rethrows, so recall() always returns results. Mirrors the entity-edge-linking
+      fail-soft precedent. IGNORE is NOT silent: the dropped count is auditable.
+    evidence: |
+      ```ts
+      try { await counter.increment(this.filters); }
+      catch (err) {
+        emitEvent(this.config.tracer, 'retrieval_counted_failed', {
+          scope_tier: this.scope.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      ```
+    recommended_action: None — matches Princípio 3 + ADR D3.
+
+  - id: F-dom-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 265
+    plan_ref: "ADR D3 — counter semantic: count ALL recall() calls per scope (HIT included)"
+    domain_anchor: "Plan Q3 / Coverage Matrix #7 — count every recall() call (a call IS API usage)"
+    summary: >
+      VERIFIED. recall() now delegates the 3 cache paths to a private
+      retrieveResults() (bypass / cache-hit / cache-miss) and bumps the counter ONCE
+      AFTER retrieveResults returns, regardless of which path served. This correctly
+      implements the "recall() calls tracked per scope" semantic — a cache HIT still
+      counts as API usage (it would otherwise under-report exactly the cheap path).
+      The cache-path bodies were moved verbatim into retrieveResults; recall()
+      behavior for all 3 paths is unchanged (the asOf NaN guard still precedes the
+      counted region, so a rejected recall does NOT count — correct).
+    evidence: |
+      ```ts
+      const results = await this.retrieveResults(query, options);
+      // counter bumped here, after retrieveResults, for ALL cache paths
+      if (counter !== undefined) { try { await counter.increment(this.filters); } ... }
+      return results;
+      ```
+    recommended_action: None — semantic matches the plan + Princípio 1 (recall is a tracked signal).
+
+  - id: F-dom-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 658
+    plan_ref: "ADR D1 — scope+workspace-checked delete; 404-not-403; EC-1 FK cascade; EC-4 idempotent soft"
+    domain_anchor: "Plan Baseline 'soft delete' + '404-not-403 discipline'; bi-temporal t_invalid"
+    summary: >
+      VERIFIED. deleteInScope is a single SQL with WHERE id AND workspace_id AND
+      every bound scope-tier column — a cross-subject / cross-workspace id matches 0
+      rows (→ MemoryNotFound → 404, no existence leak, other row untouched). Soft
+      path preserves bi-temporal semantics (SET t_invalid = NOW() ... AND t_invalid
+      IS NULL → double-soft yields 0 rows = idempotent 404, EC-4). Hard path relies
+      on ON DELETE CASCADE confirmed present in 0018 (memory_entities) + 0019
+      (entity_edges.source_memory_id) — EC-1 closed; no FK violation on hard delete
+      of an entity-linked memory.
+    evidence: |
+      ```sql
+      -- soft (default): bi-temporal preserved
+      UPDATE memories SET t_invalid = NOW() WHERE id=$1 AND workspace_id=$2 AND <tier>=$n AND t_invalid IS NULL
+      -- hard: children cascade (0018/0019 ON DELETE cascade verified)
+      DELETE FROM memories WHERE id=$1 AND workspace_id=$2 AND <tier>=$n
+      ```
+    recommended_action: None — scope isolation + bi-temporal soft-delete + EC-1 all correct.
+
+  - id: F-dom-5
+    severity: INFO
+    file: packages/api/src/server/handlers/metrics.ts
+    line: 91
+    plan_ref: "EC-3 — identical workspace+scope key on increment / read / UNIQUE"
+    domain_anchor: "Plan EC-3; pg-usage-counter-store EC-3 note (write/read key must agree)"
+    summary: >
+      VERIFIED — no key-split defect on the REST/gateway path. The metrics read key
+      = {workspace_id (from principal), single-tier filtersFor(type,id)} and the
+      recall increment key = LocalScopedMemory.filters. Because Memory.session/
+      .user/.agent each take a SINGLE id (memory-store.ts:104-107) and the REST
+      recall handler resolves scope via resolveScope (single-tier, schemas.ts:118),
+      the REST recall always produces a single-tier filter — byte-identical to the
+      metrics single-tier read after COALESCE(col,''). PgUsageCounterStore
+      normalizes workspace_id to 'default' on both increment and getRecallCount, and
+      the ON CONFLICT arbiter is column-for-column equal to the UNIQUE index
+      (schema.ts scope_usage_counters_scope_uq). EC-3 holds for the consumer path.
+    evidence: |
+      ```ts
+      // metrics read (single-tier):
+      retrievalApiUsage = await usageCounterStore.getRecallCount({ workspace_id, ...filtersFor(type,id) });
+      // REST recall scope (single-tier): resolveScope -> memory.session(id) -> filters {session_id}
+      ```
+    recommended_action: >
+      None required for this plan. NOTE (out of scope, no change requested): a
+      direct SDK caller could bind a two-tier scope (a hypothetical
+      memory.session(userId, sessionId)) whose increment row would carry user_id,
+      which a single-tier metrics read would not match. The plan's consumer is the
+      REST/gateway single-tier path, so the metric is correct where it is consumed;
+      flagging only for awareness, not as a defect of this diff.
+
+  - id: F-dom-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 273
+    plan_ref: "EC-6 — skill (repo) scope NOT counted (served by LocalScopedSkillMemory)"
+    domain_anchor: "Plan EC-6; ADR-0010 RepoScope 4th tier"
+    summary: >
+      VERIFIED. The increment lives only in LocalScopedMemory.recall (user/session/
+      agent). ScopedSkillMemory is a separate class and the metrics endpoint enum is
+      user/session/agent-only (SCOPE_TYPES). Skill recalls are intentionally out of
+      this counter's scope, documented inline + in the metrics JSDoc. No leakage of
+      skill recalls into retrieval_api_usage.
+    evidence: |
+      ```ts
+      // EC-6: skill (repo) scope is served by LocalScopedSkillMemory, which is
+      // intentionally NOT wired to the counter — this class only counts user/session/agent.
+      ```
+    recommended_action: None — correct per EC-6.
+
+  - id: F-dom-7
+    severity: INFO
+    file: packages/core/src/domain/memory-store.ts
+    line: 88
+    plan_ref: "ADR D1 — forget added to ScopedMemory (additive; ADD-only/locked verbs not violated)"
+    domain_anchor: "CLAUDE.md § Locked names (verbs remember/recall/forget/reflect); ADR-0003 ADD-only"
+    summary: >
+      VERIFIED. Adding forget() to the ScopedMemory contract does NOT violate the
+      locked-verb set (forget is one of the 4 locked verbs) nor ADD-only (forget is
+      explicitly the non-update mutation path; update remains excluded). The JSDoc
+      correctly differentiates the subject-scoped variant from the workspace-only
+      Memory.forget. The in-memory adapter implements deleteInScope (ignoring `hard`
+      since it has no t_invalid) so the contract is compile-satisfied across both
+      adapters — consistent LSP behavior (returns matched? boolean both places).
+    evidence: |
+      ```ts
+      // ScopedMemory now declares: forget(memoryId, options?: ForgetOptions): Promise<void>
+      // JSDoc: "Excludes `update` (ADR-0003 ADD-only). `forget` IS available here as a SUBJECT-SCOPED delete"
+      ```
+    recommended_action: None — additive, locked-verb-consistent, ADD-only preserved.
+
+summary_verdict: >
+  No memory-layer principle violations found. All 6 requested checks pass:
+  (1) Princípio 3 auditability — recall counter fail-soft emits typed
+  `retrieval_counted_failed` (IGNORE not silent); forget emits `forget` history.
+  (2) Scope isolation — deleteInScope is workspace+scope-checked single-SQL with
+  404-not-403 no-existence-leak; counter key aligned on the REST/gateway path
+  (EC-3); EC-6 skill scope excluded. (3) ADD-only + locked verbs intact (forget is
+  a locked verb; update still excluded). (4) recall() unchanged across the 3 cache
+  paths after retrieveResults extraction; counter bumped once after, covering
+  bypass/hit/miss. (5) counter semantic counts HIT path too — matches "recall()
+  calls tracked per scope". (6) bi-temporal soft-delete (t_invalid + IS NULL guard)
+  preserved; hard delete cascades via verified 0018/0019 FKs (EC-1). One INFO-level
+  awareness note (F-dom-5): a hypothetical two-tier SDK scope would key-split the
+  counter vs single-tier metrics read, but the plan's consumer is the single-tier
+  REST/gateway path where the metric is correct — not a defect of this diff.

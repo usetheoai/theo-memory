@@ -1,0 +1,184 @@
+agent: review-themory-scoped-forget-and-retrieval-counter-tests
+review_target: 1068f77^..HEAD for plan themory-scoped-forget-and-retrieval-counter
+plan: .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md
+summary_verdict: PASS_WITH_FINDINGS
+notes: >
+  Strong integration suite. No BLOCKER. AAA/Given-When-Then format consistent,
+  fixtures deterministic (fixed embeddings, stub LLM, no wall-clock asserts on the
+  new paths), DB reset between tests (TRUNCATE ... RESTART IDENTITY CASCADE).
+  The two `describe.skip(...)` blocks are legitimate THEOMEM_PG_URI env-gating, NOT
+  test.skip leaks — correctly excluded from the BLOCKER rule. Integration ran GREEN
+  vs real pgvector (594 passed / 0 failed) per the review brief. Findings below are
+  coverage-gap / plan-divergence items, none blocking.
+
+test_pyramid:
+  unit_added: 0        # touched stubs (deleteInScope on VectorStore stubs) + test-d sentinels are contract guards, not new behavior units
+  integration_added: 10  # scoped-forget.test.ts (6 deleteInScope + 2 wrapper + 7 REST) + scope-usage-counter.test.ts (3 migration + 4 store + 5 recall + 1 GOAL) — counted as new behavior blocks
+  e2e_added: 0
+  total: 35  # approx new it/test blocks across the two new integration files + metrics-entities additions
+  note: >
+    Pyramid is correct for the surface — both features touch pgvector, so the load-bearing
+    coverage is rightly at the integration tier. metrics-entities.test.ts adds 3 unit-tier
+    handler tests (stubbed Memory + stubbed counter) for the 4-field shape + 0-fallback.
+    The test-d sentinels (vector-store / memory-store) correctly upgraded the locked method/key
+    counts (VectorStore 11->12, ScopedMemory 4->5 verbs incl. forget) and flipped the prior
+    `@ts-expect-error no forget on ScopedMemory` guard into a positive signature assertion —
+    these are valid public-contract guards per the plan's ADR D1.
+
+edge_cases_from_plan:
+  covered:
+    - "EC-4 double soft-forget -> idempotent false/404 (deleteInScope layer)"
+    - "EC-3 increment+read agree on omitted workspace ('default') — byte-identical COALESCE"
+    - "EC-6 skill-scope recall NOT counted (getRecallCount agent_id=repoX == 0)"
+    - "fail-soft: recall resolves when counter.increment throws + increment called once"
+    - "cross-subject forget -> 0 rows, victim row survives live (primitive + wrapper + REST)"
+    - "cross-workspace forget -> 0 rows, victim survives (primitive layer)"
+    - "50 concurrent store increments -> exactly 50 (atomic ON CONFLICT, no lost update)"
+    - "GOAL: 2 recalls -> GET /metrics retrieval_api_usage == 2, other 3 fields intact"
+    - "DELETE 204 / cross-subject 404 / bad memId 422 / bad type 404 / ?hard=true physical / ?hard=false soft / OpenAPI path registered"
+    - "metrics 4-field shape byte-identical (Object.keys sorted) + 0-fallback when no counter store"
+    - "scope isolation across tier and id (user/bob, session/alice read 0)"
+  missing:
+    - "T2.3 plan-specified end-to-end concurrency test: 20 concurrent recall() via Promise.all -> getRecallCount == 20 (only the store-level 50-concurrent test exists)"
+    - "EC-1 test seeds only memory_entities; plan named entity_edges.source_memory_id explicitly — the source_memory_id CASCADE branch is not exercised by a seeded edge"
+    - "REST-layer cross-workspace 404 (handler tests cover cross-subject 404 only; cross-workspace is covered at the deleteInScope primitive layer, not through the DELETE route)"
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: tests/integration/scope-usage-counter.test.ts
+    line: 99
+    plan_ref: "T2.3 #### Concurrency tests — 'Atomic-counter invariant (end-to-end) — 20 concurrent recall() on user(alice) via Promise.all -> getRecallCount == 20'"
+    summary: >
+      The plan T2.3 explicitly specifies an END-TO-END concurrency test (20 concurrent
+      recall() calls through the core recall path -> count == 20) to prove the fail-soft
+      increment inside LocalScopedMemory.recall() does not lose updates under contention.
+      Only the store-level test exists (T2.2: 50 concurrent store.increment()). The
+      end-to-end recall path (which adds the gate + try/catch + result-then-increment
+      ordering) is never raced. The atomicity guarantee is at the SQL layer so the risk
+      is low, but the plan-named test is absent — a regression in the recall wiring
+      (e.g. increment moved outside a guard, or awaited serially) would not be caught.
+    evidence: |
+      grep 'Promise.all' tests/integration/scope-usage-counter.test.ts -> only line 101,
+      inside "T2.2 ... 50 concurrent increments" calling store.increment directly.
+      No test issues N concurrent memory.user(x).recall(...) and asserts count == N.
+    recommended_action: >
+      Add the plan-specified test: remember once, fire ~20 concurrent memory.user('x').recall(...)
+      via Promise.all, assert reader.getRecallCount == 20. Closes the end-to-end atomicity gap.
+
+  - id: F-tests-2
+    severity: MEDIUM
+    file: tests/integration/scoped-forget.test.ts
+    line: 98
+    plan_ref: "T1.1 Deep Dives EC-1 + RED test_hard_forget_of_entity_linked_memory_succeeds — names BOTH memory_entities AND entity_edges.source_memory_id"
+    summary: >
+      The EC-1 test ('hard forget of an entity-linked memory succeeds via CASCADE') seeds
+      a memory_entities link only. The plan's EC-1 deep-dive explicitly calls out that a
+      post-slice1/2 memory may ALSO be an entity_edges.source_memory_id, and that the hard
+      DELETE must not throw an FK violation on that reference. The 0019 migration confirms
+      entity_edges.source_memory_id IS ON DELETE cascade (so the prod path is correct), but
+      the test never seeds an entity_edges row pointing at the deleted memory, so the
+      source_memory_id CASCADE branch is asserted by reasoning, not by the test. If a future
+      migration changed that FK to RESTRICT/NO ACTION, this test would stay green while
+      prod hard-delete started 500-ing.
+    evidence: |
+      tests/integration/scoped-forget.test.ts:99-108 inserts into entities + memory_entities only.
+      grep 'entity_edges' in the file -> only TRUNCATE lines (42/135/173), no INSERT.
+      Migration 0019:17 — entity_edges_source_memory_id_memories_id_fk ... ON DELETE cascade.
+    recommended_action: >
+      Extend the EC-1 test (or add a sibling) to also INSERT an entity_edges row with
+      source_memory_id = the target memory, then assert hard forget succeeds and the edge
+      row is gone — exercising the source_memory_id CASCADE the plan named.
+
+  - id: F-tests-3
+    severity: LOW
+    file: tests/integration/scoped-forget.test.ts
+    line: 156
+    plan_ref: "T1.1 Acceptance Criteria — 'cross-subject AND cross-workspace both -> MemoryNotFound (404 upstream)'; T1.2 surfaces it over REST"
+    summary: >
+      Cross-workspace 404 is proven at the deleteInScope primitive layer (line 84) but never
+      through the DELETE /v1/scopes/... route. The REST suite proves cross-SUBJECT 404 only.
+      Because workspace is resolved from the credential (Principal) and not the path, the REST
+      path that derives the workspace filter is a distinct concern from subject narrowing;
+      the AC pairs the two checks at every layer. Risk is low (primitive coverage exists and
+      the handler forwards both MemoryNotFound and WorkspaceMismatch -> 404), but the
+      handler-level cross-workspace path is untested.
+    evidence: |
+      REST cross-workspace test absent: grep 'cross-workspace' shows only the primitive test
+      (line 84). T1.2 describe block (line 156+) has cross-subject (192) but no workspace variant.
+    recommended_action: >
+      Add a REST test seeding under workspace w1 and issuing the DELETE under a credential
+      resolving to w2 (or 'default'), asserting 404 + victim intact — mirroring the
+      cross-subject REST test through the auth-resolved workspace filter.
+
+  - id: F-tests-4
+    severity: LOW
+    file: packages/core/src/domain/memory-event.test.ts
+    line: 11
+    plan_ref: "testing.md Anti-patterns — 'describe behavior, not method/count'; T2.3 appends retrieval_counted_failed"
+    summary: >
+      The MEMORY_EVENTS test asserts an exact magic count ('has 24 values'). This is a
+      brittle structural assertion (every new event literal forces a hand-edit of the number),
+      and the test name encodes the count rather than the behavior. It is paired with a
+      behavior assertion (`includes retrieval_counted_failed`) which is the load-bearing one.
+      Pre-existing pattern in the file, but the T2.3 edit propagates it (23->24). Minor.
+    evidence: |
+      memory-event.test.ts:11 — test('has 24 values (23 prior + retrieval_counted_failed ...)')
+      expect(MEMORY_EVENTS).toHaveLength(24)
+    recommended_action: >
+      Keep the `toContain('retrieval_counted_failed')` behavior test (line 15, good); consider
+      relaxing the exact-length assertion to `>= N` or dropping it — it adds maintenance cost
+      without catching a behavior bug the toContain tests miss. Non-blocking.
+
+  - id: F-tests-5
+    severity: INFO
+    file: tests/integration/scoped-forget.test.ts
+    line: 119
+    plan_ref: "T1.1 RED test_forget_cross_workspace_throws_MemoryNotFound (at the ScopedMemory wrapper)"
+    summary: >
+      The 'ScopedMemory.forget (scoped wrapper)' describe block tests owned + cross-subject
+      MemoryNotFound, but not the cross-workspace MemoryNotFound at the wrapper level (the
+      plan RED list for T1.1 includes test_forget_cross_workspace_throws_MemoryNotFound). It
+      is covered at the primitive deleteInScope layer (line 84), so this is informational
+      duplication-of-concern, not a true gap. Recording for completeness.
+    evidence: |
+      describe 'T1.1 ScopedMemory.forget' (line 119) has 2 tests (owned, cross-subject);
+      no cross-workspace wrapper test. Primitive layer covers it at line 84.
+    recommended_action: >
+      Optional: add a wrapper-level cross-workspace MemoryNotFound assertion for parity with
+      the plan's RED list, or rely on the primitive coverage (acceptable).
+
+tdd_compliance:
+  verdict: PASS
+  evidence: >
+    Commit order is test-bearing-with-impl per task (TDD RED files are the integration tests,
+    co-committed with the feature commit per this project's integration-gated convention):
+    1068f77 (T1.1 deleteInScope), 89b59e2 (T1.2 REST), e5bb07d (0020), 6a2c335 (T2.2 store),
+    d19117c (T2.3 recall increment), e601115 (T2.4 metrics), 34f4d19 (cli mock). Each commit
+    references its task ID. The plan's RED test names map 1:1 to assertions present in the
+    integration files. No implementation-only commit precedes its test.
+
+skipped_or_only_leaks:
+  verdict: NONE
+  evidence: >
+    grep for .skip/.only/xit/xtest across the touched test files returns only the two
+    legitimate describe.skip env-gates (THEOMEM_PG_URI absent). No it.only/test.only,
+    no commented-out test blocks.
+
+determinism:
+  verdict: PASS
+  evidence: >
+    Embeddings are fixed arrays (MAX_EMBEDDING_DIM filled 0 / 0.1), LLM is a vi.fn stub
+    returning a deterministic single fact, hashes seeded with Math.random ONLY to avoid
+    UNIQUE collisions across rows (not asserted on), DB reset per test via TRUNCATE.
+    No wall-clock assertions on the new counter/forget paths. last_seen_at assertion in
+    metrics-entities uses fixed ISO fixtures, not Date.now().
+
+implementation_vs_behavior:
+  verdict: MOSTLY_BEHAVIOR
+  note: >
+    Tests assert observable behavior (HTTP status, getAll exclusion, getRecallCount value,
+    JSON body shape, MemoryNotFound rejection). The test-d sentinels and the MEMORY_EVENTS
+    length test are structural-contract assertions (intentional public-API guards), which is
+    acceptable for locked-surface invariants but is the one place the suite tests shape over
+    behavior (see F-tests-4).

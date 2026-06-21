@@ -1,0 +1,116 @@
+agent: review-themory-scoped-forget-and-retrieval-counter-architecture
+review_target: 1068f77^..HEAD for plan themory-scoped-forget-and-retrieval-counter
+plan: .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md
+summary_verdict: |
+  Architecturally sound. DIP/ISP clean (UsageCounterStore 2-method port in domain,
+  PgUsageCounterStore impl in infrastructure, factory injects; domain never imports
+  the impl). The recall() -> retrieveResults() extraction is behavior-preserving (the
+  entire prior recall body moved verbatim; only the asOf validation stays in the outer
+  wrapper, before the fail-soft counter increment). EC-3 normalization is byte-identical
+  across the UNIQUE index, the ON CONFLICT arbiter, and the getRecallCount WHERE; the
+  workspace_id 'default' fallback agrees on write (recall) and read (metrics). No `any`,
+  no new console.log, naming hygiene OK. Two real findings worth fixing: a DRY violation
+  (scope-type mapping duplicated across two handlers — the plan's own REFACTOR step
+  anticipated extracting it) and an SRP/coupling concern (the usage counter is gated
+  behind `entityBoost`, an orthogonal concern). The rest are LOW/INFO.
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/api/src/server/handlers/scoped-forget.ts
+    line: 21
+    plan_ref: T1.2 TDD "REFACTOR: share pathParamsToScoped/scope-type enum with metrics.ts if duplicated (extract to _scope-params.ts)"
+    summary: DRY violation — SCOPE_TYPES / ScopeTypeSchema / ScopeType / pathParamsToScoped duplicated verbatim between scoped-forget.ts and metrics.ts; the plan's own REFACTOR step prescribed extracting to a shared module and it was skipped.
+    evidence: |
+      scoped-forget.ts:21-34
+      ```ts
+      const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
+      const ScopeTypeSchema = z.enum(SCOPE_TYPES);
+      type ScopeType = (typeof SCOPE_TYPES)[number];
+      function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): ScopedMemory {
+        switch (type) { case 'user': return memory.user(id); ... }
+      }
+      ```
+      metrics.ts:38-51 — byte-identical SCOPE_TYPES, ScopeTypeSchema, ScopeType, pathParamsToScoped.
+      This is duplicated KNOWLEDGE (the scope-type -> scoped-memory routing), now present in 2 handlers (entities.ts/graph.ts/scopes.ts resolve the same concept too). The Rule-of-3 is met. The plan's T1.2 REFACTOR explicitly named the fix ("extract to _scope-params.ts"); the commit landed the handler without it.
+    recommended_action: Extract SCOPE_TYPES + ScopeTypeSchema + ScopeType + pathParamsToScoped into packages/api/src/server/handlers/_scope-params.ts and import from both metrics.ts and scoped-forget.ts (and migrate the other scope handlers opportunistically). Single source of truth for the scope-tier routing.
+  - id: F-arch-2
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 182
+    plan_ref: ADR D4 ("UsageCounterStore wired behind the same entityBoost/PgvectorStore factory gate")
+    summary: SRP/coupling — the recall usage counter is wired ONLY when `config.entityBoost !== false`, coupling an orthogonal billing/usage concern to the entity-extraction feature flag. A consumer who disables entityBoost on the pg runtime silently gets retrieval_api_usage stuck at 0.
+    evidence: |
+      factory.ts:181-196
+      ```ts
+      const baseConfig: LocalMemoryConfig =
+        config.entityBoost !== false && config.vectorStore instanceof PgvectorStoreClass
+          ? { ...config,
+              entityExtractor: ...,
+              memoryEntityStore: ...,
+              memoryGraphStore: ...,
+              usageCounterStore: config.usageCounterStore ?? new PgUsageCounterStore(config.vectorStore.poolForEviction),
+            }
+          : config;
+      ```
+      `entityBoost` controls entity extraction (ADR-0007). The recall counter has nothing to do with entities — it is per-scope API-usage accounting. Bundling it in the same conditional means `createLocalMemory({ entityBoost: false })` on a real pg pool produces a metrics endpoint that under-reports retrieval_api_usage as 0 forever, even though the pool exists. The honest 0-fallback (D4) is intended for the in-memory adapter, not for a pg consumer who merely turned off entity boost.
+    recommended_action: Gate usageCounterStore on the PgvectorStore-instance check ALONE (the only true prerequisite is the pool), independent of `entityBoost`. e.g. wire it whenever `config.vectorStore instanceof PgvectorStoreClass`, defaulting `config.usageCounterStore`. If the coupling is intentional, document it as a known limitation in the metrics JSDoc + ADR D4 consequences (currently neither says "0 also when entityBoost:false on pg").
+  - id: F-arch-3
+    severity: LOW
+    file: packages/api/src/server/openapi-registration.ts
+    line: 207
+    plan_ref: T1.2 Acceptance "OpenAPI registers the DELETE path"
+    summary: OpenAPI 204 description says "Deleted (or already absent in scope)" but the handler returns 404 (not 204) for an id absent in scope; the doc misdescribes the not-found contract.
+    evidence: |
+      openapi-registration.ts:
+      ```ts
+      204: { description: 'Deleted (or already absent in scope).' },
+      404: { description: 'Not found in this scope / workspace (no existence leak).' },
+      ```
+      But scoped-forget.ts maps MemoryNotFound (which deleteInScope raises on 0-row match incl. already-soft-deleted, EC-4) to 404, never 204. "already absent in scope" yields 404, not 204. The 204 description is misleading for consumers reading the spec.
+    recommended_action: Change the 204 description to "Deleted." and let the 404 row cover the absent/cross-scope case (it already does). Keeps the published contract truthful.
+  - id: F-arch-4
+    severity: LOW
+    file: packages/core/src/infrastructure/db/in-memory-store.ts
+    line: 207
+    plan_ref: T1.1 task 4 (in-memory deleteInScope for unit tests)
+    summary: LSP nuance — InMemoryVectorStore.deleteInScope drops the `hard` parameter and always physically deletes, diverging from the VectorStore.deleteInScope(…, hard) contract semantics (soft vs hard). Documented in JSDoc, so acknowledged, but a hard/soft-sensitive consumer test against in-memory cannot distinguish the two.
+    evidence: |
+      in-memory-store.ts:207
+      ```ts
+      async deleteInScope(vectorId: string, filters: Filters): Promise<boolean> { ... this.rows.delete(vectorId); ... }
+      ```
+      vs vector-store.ts:139 `deleteInScope(vectorId, filters, hard): Promise<boolean>`. The omitted 3rd param is legal in TS (fewer params is assignable), and the interface JSDoc explicitly states "stores without t_invalid physically delete regardless of hard". This is a contract-acknowledged divergence (in-memory has no soft-delete model), so it is not a defect — flagged INFO-grade for completeness.
+    recommended_action: None required (acknowledged in the interface JSDoc). Optionally accept `_hard: boolean` in the signature to make the no-op explicit and keep arity parity with the port.
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 374
+    plan_ref: T1.1 (LocalScopedMemory.forget side-effects)
+    summary: console.error used for best-effort recall-cache invalidation failure in scoped forget, with an eslint-disable. Matches the existing precedent in the top-level forget path; not a structured-logger violation worth blocking.
+    evidence: |
+      ```ts
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[themory] recall-cache invalidateScope (scoped forget) failed:', err);
+      }
+      ```
+      architecture.md § 7 bans console.log in production paths and § 8 bans swallowing errors. Here the error is logged (not swallowed) on a documented best-effort side effect, and the same console.error+eslint-disable pattern already exists for the recall-cache path elsewhere in this class. Consistent with prior art; no new logger abstraction warranted for a single best-effort branch.
+    recommended_action: None (consistent with existing pattern). If a structured logger DIP is ever introduced for core, migrate this and the sibling cache-invalidation logs together.
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 289
+    plan_ref: T2.3 (recall() -> retrieveResults() extraction)
+    summary: recall() refactor is behavior-preserving — the full prior recall body (cache applicability, bypass path, hit/miss, miss-histogram) moved verbatim into private retrieveResults(); only the asOf-NaN validation remains in the outer recall, executing BEFORE the new fail-soft counter increment so a rejected recall does not count. SRP-positive (recall = validate + retrieve + count-fail-soft; retrieveResults = the 9-step pipeline). No regression.
+    evidence: |
+      recall() (256-287) now: asOf validation -> const results = await this.retrieveResults(...) -> gated fail-soft increment -> return results. retrieveResults (289-337) holds the unchanged cache/pipeline logic. Diff confirms no logic line of the original body was altered, only relocated.
+    recommended_action: None — clean extraction.
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/domain/dip/usage-counter-store.ts
+    line: 19
+    plan_ref: ADR-0008 (DIP method counts) + ADR D2/D3/D4
+    summary: UsageCounterStore is a correct, ISP-clean 2-method port (increment + getRecallCount), placed in domain/dip, importing only the domain Filters type. PgUsageCounterStore implements it with an atomic single-statement UPSERT (no lost update) mirroring the established edge-store idiom. DIP boundary respected (factory injects; domain never imports the pg impl; domain/index re-exports only the type, core/index re-exports the impl).
+    evidence: |
+      usage-counter-store.ts imports `type { Filters } from '../scope.js'` only. pg-usage-counter-store.ts:23-26 ON_CONFLICT arbiter == schema.ts UNIQUE index columns (EC-3). factory.ts:40 imports the impl; grep confirms zero domain->infrastructure imports.
+    recommended_action: None — canonical DIP/port-adapter shape, consistent with PgMemoryEntityStore/PgMemoryGraphStore.

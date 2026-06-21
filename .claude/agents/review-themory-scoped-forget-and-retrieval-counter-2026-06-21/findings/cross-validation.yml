@@ -1,0 +1,143 @@
+agent: review-themory-scoped-forget-and-retrieval-counter-cross-validation
+review_target: 1068f77^..HEAD for plan themory-scoped-forget-and-retrieval-counter
+plan: .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md
+
+commit_to_task_map:
+  T1.1: 1068f77  # ScopedMemory.forget + VectorStore.deleteInScope (core)
+  T1.2: 89b59e2  # DELETE /v1/scopes/:type/:id/memories/:memId REST handler + route + OpenAPI
+  T2.1: e5bb07d  # scope_usage_counters table (migration 0020) + drizzle schema
+  T2.2: 6a2c335  # UsageCounterStore DIP + PgUsageCounterStore atomic UPSERT + factory wiring + barrels
+  T2.3: d19117c  # fail-soft per-scope recall counter increment in LocalScopedMemory.recall()
+  T2.4: e601115  # metrics.ts serves real retrieval_api_usage + AppOptions.usageCounterStore seam + run-server inject
+  T2.4_followup: 34f4d19  # run-server.test.ts mock mirror for PgUsageCounterStore (same-task, surfaced by validation gate)
+  docs: [0129bea, 81c6af7]  # phase-1 mini-review + final implementation contract
+
+plan_tasks_summary:
+  total_tasks: 6
+  fully_implemented: 6
+  partial: 0
+  missing: 0
+  diverged: 0   # zero unjustified divergences; 2 justified (test-file location + GOAL test split) noted below
+
+acceptance_criteria_summary:
+  total: 28   # across T1.1(4)+T1.2(3)+T2.1(2)+T2.2(3)+T2.3(3)+T2.4(2)+FinalPhase(5) + sub-bullets
+  satisfied: 25
+  unverified: 3   # the `npm run test:coverage 100% on critical path` criteria (T1.1, T2.2, T2.3) — no such script exists in the project
+  false_claims: 0   # all task checkboxes are unchecked in the plan (not falsely ticked); GOAL behavior is genuinely proven by tests
+
+adr_compliance:
+  total_adrs: 5
+  respected: 5
+  diverged_without_new_adr: 0
+  notes:
+    D1: "Respected — ScopedMemory.forget delegates to single-SQL deleteInScope (workspace + tier WHERE); 0 rows -> MemoryNotFound -> 404. No O(scope) read-then-write."
+    D2: "Respected — dedicated scope_usage_counters table (migration 0020), NOT a history event; UNIQUE on the COALESCE scope tuple; ON CONFLICT +1; metrics reads recall_count."
+    D3: "Respected and IMPROVED — increment lives in core LocalScopedMemory.recall() (covers SDK+REST), fail-soft try/catch emitting retrieval_counted_failed, gated on optional port. The recall body was extracted to retrieveResults() so the counter is bumped once across cache bypass/hit/miss — strictly more correct than the plan pseudo-code which would have only counted the post-cache path."
+    D4: "Respected — PgUsageCounterStore wired behind the same factory gate as entity/graph; metrics.ts falls back to 0 when the store is absent (in-memory/tests) — honest, not fabricated."
+    D5: "Respected — POST /v1/forget unchanged; DELETE route additive; 4-field metrics shape byte-identical; gateway cutover out of scope."
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: "Plan last edited 2026-06-20 20:28:34 (v1.1 + edge-cases + confidence commit). First implement commit 1068f77 is 2026-06-20 20:59:54 — 31 min later. Plan was FROZEN before implement start. Review is reliable."
+
+goal_proof:
+  goal_a_delete_204_404:
+    proven: true
+    evidence: "tests/integration/scoped-forget.test.ts:183-235 — app.fetch DELETE owned -> 204; cross-subject -> 404 (victim row intact); non-UUID -> 422; bad type -> 404; ?hard=true physical removal; ?hard=false stays soft; OpenAPI registers the DELETE path. Real ankane/pgvector:v0.5.1 (THEOMEM_PG_URI-gated)."
+  goal_b_retrieval_usage_gt_0:
+    proven: true
+    evidence: "tests/integration/scope-usage-counter.test.ts:222-242 — full chain: 2 recalls via memory.user('heidi').recall() then GET /v1/scopes/user/heidi/metrics via app.fetch -> body.retrieval_api_usage == 2, status 200, 4-field shape preserved. Real pgvector."
+  ec3_write_read_key_agreement:
+    verified: true
+    evidence: "DEFAULT_WORKSPACE_ID='default' (principal.ts:84) == Pgvector/counter store '?? default' fallback. Recall path: workspaceBoundMemory -> withWorkspace(principal.workspaceId ?? DEFAULT_WORKSPACE_ID) sets filters.workspace_id. Metrics read: principal.workspaceId ?? DEFAULT_WORKSPACE_ID + single-tier filtersFor(type,id). Identical COALESCE(col,'') across UNIQUE index, increment ON CONFLICT arbiter, and getRecallCount WHERE (pg-usage-counter-store.ts:24,58-60). Write key == read key end-to-end."
+
+findings:
+  - id: F-xval-1
+    severity: LOW
+    file: tests/integration/scoped-forget.test.ts, tests/integration/scope-usage-counter.test.ts
+    plan_ref: "T1.1 Files-to-edit (line 188: packages/core/src/infrastructure/db/scoped-memory.test.ts), T1.2 (line 272: scoped-forget.test.ts co-located), T2.1/T2.2/T2.3 (co-located *.test.ts), Final Phase (line 609: tests/integration/scoped-forget-and-counter.test.ts)"
+    summary: "Test-file location diverged from plan: plan declared co-located unit test paths (e.g. scoped-memory.test.ts, pg-usage-counter-store.test.ts, metrics.test.ts) but all RED tests landed under tests/integration/ (scoped-forget.test.ts, scope-usage-counter.test.ts) + the API contract test extended metrics-entities.test.ts. The plan's single named GOAL file tests/integration/scoped-forget-and-counter.test.ts does NOT exist — it was split into scoped-forget.test.ts (Goal a) + scope-usage-counter.test.ts (Goal b)."
+    evidence: |
+      Plan T1.1 line 188: "packages/core/src/infrastructure/db/scoped-memory.test.ts — RED tests first" — file not created; tests in tests/integration/scoped-forget.test.ts.
+      Plan Final Phase lines 48,609: "tests/integration/scoped-forget-and-counter.test.ts (NEW) — GOAL test" — file absent; two files cover (a)+(b).
+      `ls tests/integration/scoped-forget-and-counter.test.ts` -> not found.
+    assessment: "JUSTIFIED divergence, not an unfixed gap. The feature is genuinely scope-checked against a REAL Postgres (single-SQL workspace+tier WHERE) — a co-located unit test with a mocked store could only assert the wrapper calls deleteInScope, NOT that the SQL actually scope-isolates. Integration tests against ankane/pgvector are the CORRECT and stronger choice for this surface (mirrors the project's existing integration-heavy convention for SQL primitives). The GOAL split is cosmetic — both goals are proven at the e2e/REST layer. No ADR was written for the naming divergence; the implementation contract documents it. Recommend a one-line note in the implementation md (already largely covered)."
+    recommended_action: "Accept the divergence; optionally add an explicit line in the implementation contract that the plan-named scoped-forget-and-counter.test.ts was realized as two integration files. No code change required."
+
+  - id: F-xval-2
+    severity: LOW
+    file: packages/core/src/infrastructure/db/scoped-memory.ts; multiple task Acceptance Criteria
+    plan_ref: "T1.1 AC line 247, T2.2 AC line 439, T2.3 AC line 505 ('npm run test:coverage 100% on the new ... critical path'); Global DoD line 612; Final Phase Execution line 611"
+    summary: "Coverage Acceptance Criteria are structurally unverifiable: the plan repeatedly demands `npm run test:coverage` 100% on critical paths, but no `test:coverage` script exists in package.json. The post-implementation validation report SKIP'd the coverage check for exactly this reason ('no test:coverage script in package.json')."
+    evidence: |
+      package.json scripts: only "test" (vitest.contract) + "test:integration" (vitest.integration). No "test:coverage".
+      Validation report .../implement-validate-2026-06-21.md: "coverage — SKIP — Reason: no 'test:coverage' script in package.json".
+      Plan T1.1 AC: "- [ ] Pass: coverage — `npm run test:coverage` 100% on the new deleteInScope + forget (critical path)."
+    assessment: "The coverage AC was never satisfiable as written — a plan defect that /plan-confidence + /deps-audit did not catch, not an implementer failure. Mitigated: the critical paths (deleteInScope soft/hard/cross-scope/cross-workspace/idempotent, atomic UPSERT 50-concurrent, fail-soft recall, metrics real-count) are each exercised by dedicated integration assertions against real pgvector, so behavioral coverage is strong even though the numeric gate could not run. Honest disclosure: 'coverage 100%' is NOT proven; behavior IS proven."
+    recommended_action: "Either (a) add a `test:coverage` script (vitest --coverage) and run it on the changed files, or (b) amend future plan templates to stop asserting a non-existent script. Do not block merge — behavioral coverage is demonstrably strong."
+
+  - id: F-xval-3
+    severity: INFO
+    file: tests/integration/p0-audit/exports-root.test.ts, exports-contract.test.ts, full-public-surface.test.ts
+    plan_ref: "T2.3 (d19117c) — NOT in T2.3 Files-to-edit (lines 458-461 declare only memory-event.ts + scoped-memory.ts + scoped-memory.test.ts)"
+    summary: "T2.3 edited 3 p0-audit baseline tests (export-count 9->13 root, 43->47 contract) that are NOT in any task's declared Files-to-edit. The implementer disclosed this in the commit body as a fix for sentinels that were ALREADY RED on develop."
+    evidence: |
+      git show 1068f77^:packages/core/src/index.ts | grep -c '^export ' -> 12, but exports-root.test.ts asserted 9 at the branch base => test was RED on develop BEFORE this plan (caused by entity-extraction slices a80a4e6/dbbf564, 2026-06-20, which grew the barrels without updating baselines).
+      This plan's T2.2 added +1 export each (->13 root / ->47 contract). T2.3 reconciles the count (9->13, 43->47) AND backfills per-export JSDoc+@see for the entity/graph/usage-counter block.
+      Commit d19117c body: "Also (honest disclosure, Inquebravel Rule 3): fixes the p0-audit public-surface sentinels that were ALREADY RED on develop ... Pure docs + test-baseline; no behavior change to those slices."
+    assessment: "NOT scope-creep — it is a JUSTIFIED pre-existing-RED reconciliation, transparently disclosed per Inquebrável Rule 3. The branch could not reach green DoD without absorbing the +3 drift the entity slices left behind, because T2.2 legitimately touches the same barrels (+1). Honest, minimal (count baselines + JSDoc backfill, no behavior change). The verbose disclosure in the commit body is exactly the right process. The only nit: the +3 entity-slice drift is technically pre-existing debt outside this plan's Coverage Matrix; folding its fix here is pragmatic and correct given the barrels are shared."
+    recommended_action: "Accept. The disclosure satisfies Rule 3. Note for /review: confirm the per-export JSDoc backfill (sentinel test 2 'every export has a JSDoc block') actually passes for the new entity/graph exports — validation reports npm test PASS, so it does."
+
+  - id: F-xval-4
+    severity: LOW
+    file: packages/core/src/infrastructure/db/in-memory-store.ts:208
+    plan_ref: "T1.1 Pseudo-code (line 209) declares deleteInScope(id, filters, hard); VectorStore interface (vector-store.ts:139) requires 3 params"
+    summary: "InMemoryVectorStore.deleteInScope is implemented with 2 params (vectorId, filters) — it silently drops the `hard` param the interface declares. TS structural typing allows the narrower impl (method param bivariance), so typecheck passes, but the in-memory adapter ignores `hard` entirely."
+    evidence: |
+      interface: deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean>  (vector-store.ts:139)
+      in-memory impl: async deleteInScope(vectorId: string, filters: Filters): Promise<boolean>  (in-memory-store.ts:208)
+      JSDoc explains: "In-memory has no t_invalid, so soft and hard both physically remove" — intentional.
+    assessment: "Intentional + documented (in-memory has no soft-delete column, so soft==hard is a correct semantic). Acceptable. Minor honesty nit: dropping the param rather than accepting `_hard: boolean` makes the contract-conformance less explicit at the call site, but it is harmless — the in-memory adapter is unit-test-only and bundle-isolation-safe."
+    recommended_action: "Optional: accept `_hard: boolean` in the in-memory signature to make interface conformance explicit (matches the synthetic stub in vector-store.test-d.ts which also returns false). No functional impact; do not block."
+
+  - id: F-xval-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/config.ts; packages/api/src/server/handlers/scoped-forget.ts
+    plan_ref: "T2.2 Files-to-edit (lines 393-397 — config.ts NOT listed); T1.2 REFACTOR (line 306 — extract pathParamsToScoped to _scope-params.ts 'if duplicated')"
+    summary: "Two minor declared-files / refactor gaps, both benign: (1) config.ts (LocalMemoryConfig) was edited in T2.2 to thread usageCounterStore but was not in the task's Files-to-edit; (2) the optional REFACTOR to extract pathParamsToScoped into a shared _scope-params.ts was NOT done — scoped-forget.ts re-declares its own copy, duplicating metrics.ts."
+    evidence: |
+      config.ts diff (6a2c335): adds `readonly usageCounterStore?: UsageCounterStore` to LocalMemoryConfig — necessary because LocalScopedMemory reads this.config.usageCounterStore in T2.3. Plan listed factory.ts + barrels but omitted the config type that carries the dep.
+      scoped-forget.ts:24-33 declares its own pathParamsToScoped + SCOPE_TYPES; metrics.ts:42 has the same. Plan REFACTOR step was conditional ('if duplicated ... extract').
+    assessment: "(1) config.ts edit is an unavoidable consequence of the D3/D4 wiring the plan DID declare — a declared-files omission in the plan, not implementer scope-creep. (2) The pathParamsToScoped duplication is a missed-but-OPTIONAL refactor (plan said 'if duplicated'); it is now triplicated (metrics.ts, scoped-forget.ts, plus entities/graph likely). Mild DRY debt, not a contract divergence."
+    recommended_action: "Accept both. Optionally extract the shared pathParamsToScoped + ScopeType enum into packages/api/src/server/handlers/_scope-params.ts in a follow-up (the architecture reviewer may also flag the DRY)."
+
+global_dod_check:
+  all_phases_completed: true
+  npm_test_green: true            # validation report: npm test PASS
+  npm_test_integration_green: true  # implementation contract: integration 0 failures; GOAL 12/12 + DELETE 15/15 + counter 11/11
+  typecheck_zero_errors: true     # validation report: typecheck PASS
+  lint_zero_warnings: true        # validation report: lint PASS
+  file_size_budget: true          # all touched src files < 500 LoC (scoped-memory.ts grew but within budget)
+  changelog_updated: true         # CHANGELOG [Unreleased] Added: T1.1, T1.2, T2.1-T2.4 entries present
+  backward_compat: true           # POST /v1/forget unchanged; metrics 4-field shape byte-identical (asserted)
+  no_paper_names: true            # no Voyager/Mem0/etc in new src; "Mem0-shape" not introduced in domain code
+  runtime_metric_proof: true      # retrieval_api_usage observed == 2 in GOAL e2e (not just compiles)
+  new_public_api_jsdoc_contract_tested: true  # ScopedMemory.forget JSDoc'd + memory-store.test-d.ts asserts 5-verb surface + param/return types
+  coverage_gate: UNVERIFIABLE     # no test:coverage script (F-xval-2)
+  plan_archived: pending          # post-/review + PR merge (not yet)
+
+verdict_summary: |
+  All 6 tasks (T1.1, T1.2, T2.1, T2.2, T2.3, T2.4) are fully implemented, correctly mapped to
+  commits with task IDs in the messages, and all 5 ADRs (D1-D5) are respected (D3 improved on the
+  plan). The plan Goal is PROVEN by integration tests against real pgvector: (a) DELETE 204/404/422
+  with no existence leak and victim-row-intact, and (b) retrieval_api_usage == 2 read through the
+  metrics endpoint after two recalls. EC-1/EC-3/EC-4/EC-6 are each covered. Plan was frozen before
+  implement start (no drift). CHANGELOG + backward-compat + JSDoc/contract-test DoD satisfied.
+
+  Zero BLOCKER, zero HIGH, zero MEDIUM. Five low-grade findings, all either justified divergences
+  transparently disclosed (test-file location F-xval-1; p0-audit pre-existing-RED reconciliation
+  F-xval-3) or benign plan/refactor gaps (coverage-script absence F-xval-2; in-memory hard-param
+  drop F-xval-4; config.ts declared-files omission + optional DRY refactor skipped F-xval-5). The
+  one substantive honesty caveat: the 'coverage 100%' acceptance criteria were never satisfiable
+  (no test:coverage script) — behavior is strongly proven, numeric coverage is not. Recommend
+  READY_TO_MERGE from a cross-validation standpoint.
