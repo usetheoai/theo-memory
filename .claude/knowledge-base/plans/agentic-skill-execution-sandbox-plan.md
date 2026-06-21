@@ -295,7 +295,7 @@ packages/core/src/index.ts — export SandboxedSkillExecutor
 - **EC-1 — code invocation wrapper (CRITICAL):** isolated-vm `compileScript` runs a CLASSIC script, so top-level `export` is a SyntaxError and a bare `function` declaration evaluates to `undefined`. The wrapper MUST: (a) strip the leading `export ` from `export (async )?function NAME` (mirror Letta `typescript_generator.py` handling), (b) append an invocation expression `;NAME(...injectedArgNames)` as the LAST statement so the script's completion value IS the function's return, (c) extract that value across the membrane via `script.run(ctx, { timeout, copy: true })` (or `result: { reference: true }` then `.copy()`). Without this the benign case returns `undefined`.
 - **EC-3 — missing addon:** wrap `await import('isolated-vm')` in try/catch; on `ERR_MODULE_NOT_FOUND` throw `SkillExecutorUnavailableError` (install hint), NEVER let the raw module error escape.
 - **EC-2 — null code:** if `skill.code === null` (derived skills, `skill.ts:34`) → `ToolInvocationDeniedError('empty-code')` BEFORE touching the isolate.
-- **EC-4 — async:** detect `async function` (regex/AST like `is_async_typescript_function`); v1 awaits via `script.run(ctx,{ timeout, promise: true, copy: true })`. (If awaiting proves unstable, fall back to deny `'unsupported-async'` — decide in impl, assert either way.)
+- **EC-4 — async (LOCKED v1, SEPA initial brief 2026-06-21):** detect `async function` (regex `/async\s+function/`) → DENY with `ToolInvocationDeniedError('unsupported-async')`. Awaiting via `script.run(ctx,{ promise: true, copy: true })` is DEFERRED to a follow-up (matches the no-host-bridge / pure-compute v1 posture; avoids membrane Promise edge cases on a security path). The RED test asserts the denial, not an awaited value.
 - **EC-5 — opts bounds:** clamp `memoryLimitMb` to ≥ 8 (isolated-vm minimum) and reject `timeoutMs <= 0` before constructing the isolate.
 - **EC-6 — non-cloneable result:** a function/symbol/circular return cannot `copy:true`-cross the membrane → `ToolInvocationDeniedError('non-cloneable-result')`.
 - Guard mapping (EC-5 of the blueprint):
@@ -322,9 +322,9 @@ class SandboxedSkillExecutor implements SkillExecutor:
     try:
       ctx = await isolate.createContext()
       for (k,v) of args: ctx.global.setSync(k, copyOrDeny(v))   # guard #2/#4 (ExternalCopy)
-      isAsync = /async\s+function/.test(skill.code)             # EC-4
+      if /async\s+function/.test(skill.code): throw ToolInvocationDeniedError('unsupported-async')  # EC-4 LOCKED v1: deny
       script = await isolate.compileScript(wrapInvocation(skill.code, argNames))  # EC-1: strip export + append NAME(args)
-      raw = await script.run(ctx, { timeout: opts.timeoutMs ?? 1000, promise: isAsync, copy: true })  # guard #5 + EC-1/EC-6
+      raw = await script.run(ctx, { timeout: opts.timeoutMs ?? 1000, copy: true })  # guard #5 + EC-1/EC-6
       out = capOutput(raw, opts.maxOutputBytes ?? 65536)        # guard #6
       emitEvent(tracer,'skill_executed',{skillId:skill.id})
       return { output: out.value, truncated: out.truncated, elapsedMs }
@@ -349,7 +349,7 @@ output: { output: 5, truncated: false, elapsedMs: <n> }
 ```
 RED:     test_benign_add_returns_5() -> expect(out).toBe(5) (EC-1 export-strip+invocation)
 RED:     test_null_code_denied_empty_code() (EC-2); test_missing_addon_throws_unavailable() stub import throw (EC-3)
-RED:     test_async_skill_awaited_or_denied() (EC-4); test_memory_limit_clamped_and_timeout_rejected() (EC-5); test_noncloneable_result_denied() (EC-6)
+RED:     test_async_skill_denied_unsupported_async() (EC-4 LOCKED v1: deny); test_memory_limit_clamped_and_timeout_rejected() (EC-5); test_noncloneable_result_denied() (EC-6)
 RED:     test_child_process_reach_denied_node_binding(); test_fs_require_denied_fs_access(); test_infinite_loop_denied_timeout_and_disposed(); test_output_flood_denied_output_cap(); test_noncloneable_arg_denied(); test_typescript_skill_denied_unsupported_language()
 GREEN:   implement SandboxedSkillExecutor (wrapInvocation + lazy import + guards)
 REFACTOR: extract wrapInvocation/copyOrDeny/capOutput helpers (SRP)
