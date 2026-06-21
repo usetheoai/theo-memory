@@ -8,8 +8,13 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 24 values (23 prior + retrieval_counted_failed from T2.3 recall counter)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(24);
+  test('has 26 values (24 prior + tool_invocation_denied + skill_executed from M1 T1.2)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(26);
+  });
+
+  test('includes tool_invocation_denied + skill_executed (agentic-skill-execution-sandbox T1.2)', () => {
+    expect(MEMORY_EVENTS).toContain('tool_invocation_denied');
+    expect(MEMORY_EVENTS).toContain('skill_executed');
   });
 
   test('includes retrieval_counted_failed (themory-scoped-forget-and-retrieval-counter T2.3, fail-soft)', () => {
