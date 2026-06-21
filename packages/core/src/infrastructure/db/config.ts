@@ -18,6 +18,7 @@ import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
 } from '../../domain/dip/recall-cache-store.js';
+import type { SkillExecutor } from '../../domain/dip/skill-executor.js';
 import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
 import type { MemoryConfig } from '../../domain/memory-store.js';
 import type { Scope } from '../../domain/scope.js';
@@ -65,6 +66,17 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * their own; when absent, recall does not count (and metrics falls back to 0).
    */
   readonly usageCounterStore?: UsageCounterStore;
+  /**
+   * agentic-skill-execution-sandbox T2.2 — opt-in `SkillExecutor` enabling
+   * `Memory.skills(repoId).execute(skillId, args)`. When absent, `execute()`
+   * throws `SkillExecutionNotConfiguredError` (ADR D3 — execution is opt-in/gated;
+   * STORE-only is the default). Threaded into `LocalScopedSkillMemory` by the
+   * `skills()` factory. The default impl is `SandboxedSkillExecutor` (isolated-vm,
+   * optional addon); a consumer enables execution by passing one explicitly.
+   *
+   * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T2.2 + ADR D3
+   */
+  readonly skillExecutor?: SkillExecutor;
   /**
    * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
    * declared embedding dimension produced by the embedder. Defaults to
