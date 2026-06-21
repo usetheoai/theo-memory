@@ -402,11 +402,13 @@ export class SkillAlreadyExists extends Error {
 }
 
 /**
- * Reason a skill execution was denied by a sandbox guard. Exhaustive over the
- * six guards + the structured-args / language / async / null-code edge cases
- * (one literal per denial path). The literal is carried on
- * {@link ToolInvocationDeniedError.reason} and emitted on the
- * `tool_invocation_denied` OTel event for auditability (Princípio 3).
+ * Reason a skill execution was denied by a sandbox guard. One literal per denial
+ * path. The literal is carried on {@link ToolInvocationDeniedError.reason} and
+ * emitted on the `tool_invocation_denied` OTel event for auditability (Princípio 3).
+ *
+ * Nine literals are wired by the v1 `SandboxedSkillExecutor` (T1.3); `'tool-call-cap'`
+ * is a RESERVED seam for the future host-callback bridge (a skill calling back into
+ * host tools) — not yet reachable in v1, which injects zero host capabilities.
  *
  * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + T1.3
  */

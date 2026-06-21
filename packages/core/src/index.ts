@@ -73,6 +73,15 @@ export { PgMemoryGraphStore } from './infrastructure/db/index.js';
  */
 export { PgUsageCounterStore } from './infrastructure/db/index.js';
 /**
+ * `SandboxedSkillExecutor` — default `SkillExecutor` impl (isolated-vm). Wired
+ * opt-in via `createLocalMemory({ skillExecutor })` (T2.2). The `isolated-vm`
+ * addon is optional + lazy-loaded — importing this symbol does NOT pull it.
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.3
+ */
+export { SandboxedSkillExecutor } from './infrastructure/db/index.js';
+export type { SandboxedSkillExecutorDeps } from './infrastructure/db/index.js';
+/**
  * entity-extraction-nodes-slice1 — default entity extractor (compromise-based,
  * lazy-loaded with a regex fallback). Wired when `entityBoost !== false`.
  *

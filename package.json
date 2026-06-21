@@ -89,7 +89,8 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp",
-      "protobufjs"
+      "protobufjs",
+      "isolated-vm"
     ],
     "overrides": {
       "sharp": "^0.33.5"
