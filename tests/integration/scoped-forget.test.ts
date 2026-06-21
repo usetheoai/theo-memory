@@ -18,6 +18,7 @@ import pg from 'pg';
 
 import { MAX_EMBEDDING_DIM, PgvectorStore, createLocalMemory, runMigrations, MemoryNotFound } from '@usetheo/memory';
 import type { Embedder, LLM } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory-api';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
@@ -149,6 +150,89 @@ if (PG_URI === undefined || PG_URI === '') {
       // victim survives, still live
       const aliceAll = await memory.user('alice').getAll();
       expect(aliceAll.find((m) => m.id === item!.id)).toBeDefined();
+    });
+  });
+
+  describe('T1.2 DELETE /v1/scopes/:type/:id/memories/:memId', () => {
+    const pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
+    const embedder: Embedder = {
+      embed: vi.fn(async () => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
+      embedBatch: vi.fn(async (t: readonly string[]) => t.map(() => new Array<number>(MAX_EMBEDDING_DIM).fill(0))),
+    };
+    const llm = (text: string): LLM => ({
+      generateResponse: vi.fn(async () => ({ memory: [{ id: '0', text }] })),
+      generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+    });
+    const UUID = '00000000-0000-4000-8000-000000000000';
+
+    afterAll(async () => {
+      await pool.end();
+    });
+    beforeEach(async () => {
+      await runMigrations(pool);
+      await pool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
+    });
+
+    async function seedAlice(text: string): Promise<{ app: Awaited<ReturnType<typeof createServer>> | ReturnType<typeof createServer>; id: string }> {
+      const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool), embedder, llm: llm(text) });
+      const [item] = await memory.user('alice').remember(text);
+      const app = createServer({ memory });
+      return { app, id: item!.id };
+    }
+
+    test('DELETE an owned memory returns 204 and removes it', async () => {
+      const { app, id } = await seedAlice('alice fact one');
+      const res = await app.fetch(new Request(`http://localhost/v1/scopes/user/alice/memories/${id}`, { method: 'DELETE' }));
+      expect(res.status).toBe(204);
+      const list = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/memories'));
+      const body = (await list.json()) as { items: { id: string }[] };
+      expect(body.items.find((m) => m.id === id)).toBeUndefined();
+    });
+
+    test('DELETE a cross-subject id returns 404 and leaves the victim row intact', async () => {
+      const { app, id } = await seedAlice('alice fact two');
+      const res = await app.fetch(new Request(`http://localhost/v1/scopes/user/bob/memories/${id}`, { method: 'DELETE' }));
+      expect(res.status).toBe(404);
+      // victim survives, still live in alice's scope (no existence leak, no wrong-row delete)
+      const aliceList = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/memories'));
+      const body = (await aliceList.json()) as { items: { id: string }[] };
+      expect(body.items.find((m) => m.id === id)).toBeDefined();
+    });
+
+    test('DELETE a non-UUID memId returns 422', async () => {
+      const { app } = await seedAlice('alice fact three');
+      const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/memories/not-a-uuid', { method: 'DELETE' }));
+      expect(res.status).toBe(422);
+    });
+
+    test('DELETE with a bad scope type returns 404', async () => {
+      const { app } = await seedAlice('alice fact four');
+      const res = await app.fetch(new Request(`http://localhost/v1/scopes/bogus/alice/memories/${UUID}`, { method: 'DELETE' }));
+      expect(res.status).toBe(404);
+    });
+
+    test('DELETE ?hard=true physically removes the row', async () => {
+      const { app, id } = await seedAlice('alice fact five');
+      const res = await app.fetch(new Request(`http://localhost/v1/scopes/user/alice/memories/${id}?hard=true`, { method: 'DELETE' }));
+      expect(res.status).toBe(204);
+      const { rows } = await pool.query('SELECT 1 FROM memories WHERE id = $1', [id]);
+      expect(rows.length).toBe(0);
+    });
+
+    test('DELETE ?hard=false stays soft (row survives with t_invalid set)', async () => {
+      const { app, id } = await seedAlice('alice fact six');
+      const res = await app.fetch(new Request(`http://localhost/v1/scopes/user/alice/memories/${id}?hard=false`, { method: 'DELETE' }));
+      expect(res.status).toBe(204);
+      const { rows } = await pool.query<{ t_invalid: Date | null }>('SELECT t_invalid FROM memories WHERE id = $1', [id]);
+      expect(rows.length).toBe(1);
+      expect(rows[0]!.t_invalid).not.toBeNull();
+    });
+
+    test('OpenAPI spec registers the DELETE scoped-forget path', async () => {
+      const { app } = await seedAlice('alice fact seven');
+      const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+      const spec = (await res.json()) as { paths: Record<string, Record<string, unknown>> };
+      expect(spec.paths['/v1/scopes/{type}/{id}/memories/{memId}']?.['delete']).toBeDefined();
     });
   });
 }
