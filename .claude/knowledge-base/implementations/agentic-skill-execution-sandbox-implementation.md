@@ -25,7 +25,7 @@
 | T1.3 | Phase 1 / T1.3 — SandboxedSkillExecutor + 6 guards | committed | defer | defer | defer | 1419f02 |
 | T1.4 | Phase 1 / T1.4 — bundle-isolation gate | committed | n/a | n/a | n/a | 4cf2d03 |
 | T2.1 | Phase 2 / T2.1 — ScopedSkillMemory.execute() + façade | committed | defer | defer | defer | e507a6e |
-| T2.2 | Phase 2 / T2.2 — factory gated wiring | pending | — | — | — | — |
+| T2.2 | Phase 2 / T2.2 — factory gated wiring | committed | pass | defer | defer | 70e2083 |
 | T2.3 | Phase 2 / T2.3 — REST POST .../execute | pending | — | — | — | — |
 | T2.4 | Phase 2 / T2.4 — MCP execute_skill tool | pending | — | — | — | — |
 | T3.1 | Phase 3 / T3.1 — GOAL integration test + gates | pending | — | — | — | — |
