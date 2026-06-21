@@ -169,6 +169,7 @@ describe('T2.1 — GET /v1/scopes/skill/:repoId/skills', () => {
 function stubWriteMemory(opts: {
   add?: (d: unknown) => Promise<unknown>;
   forget?: (id: string) => Promise<void>;
+  execute?: (skillId: string, args: unknown) => Promise<unknown>;
 }): Memory {
   const scopedSkill = {
     getAll: vi.fn().mockResolvedValue([]),
@@ -176,6 +177,9 @@ function stubWriteMemory(opts: {
     recall: vi.fn(),
     consolidate: vi.fn(),
     forget: vi.fn(opts.forget ?? (async () => undefined)),
+    execute: vi.fn(
+      opts.execute ?? (async () => ({ output: null, truncated: false, elapsedMs: 1 })),
+    ),
   };
   const base = {
     user: vi.fn(), session: vi.fn(), agent: vi.fn(),
@@ -276,5 +280,134 @@ describe('T2.2 — DELETE /v1/scopes/skill/:repoId/skills/:skillId', () => {
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/acme/skills/s1', { method: 'DELETE' }));
     expect(res.status).toBe(404);
+  });
+});
+
+function executeReq(repoId: string, skillId: string, body: unknown): Request {
+  return new Request(`http://localhost/v1/scopes/skill/${repoId}/skills/${skillId}/execute`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+describe('T2.3 — POST /v1/scopes/skill/:repoId/skills/:skillId/execute', () => {
+  test('200 with {output,truncated,elapsedMs} on a benign execution', async () => {
+    const app = createServer({
+      memory: stubWriteMemory({
+        execute: async () => ({ output: 5, truncated: false, elapsedMs: 3 }),
+      }),
+    });
+    const res = await app.fetch(executeReq('acme', 's1', { args: { x: 2, y: 3 } }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { output: unknown; truncated: boolean };
+    expect(body.output).toBe(5);
+    expect(body.truncated).toBe(false);
+  });
+
+  test('403 when the executor denies (ToolInvocationDeniedError)', async () => {
+    const { ToolInvocationDeniedError } = await import('@usetheo/memory/contract');
+    const app = createServer({
+      memory: stubWriteMemory({
+        execute: async () => {
+          throw new ToolInvocationDeniedError('timeout', 'exceeded');
+        },
+      }),
+    });
+    const res = await app.fetch(executeReq('acme', 's1', { args: {} }));
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { code: string; reason?: string };
+    expect(body.reason).toBe('timeout');
+  });
+
+  test('404 when the skill is absent / cross-scope (MemoryNotFound)', async () => {
+    const app = createServer({
+      memory: stubWriteMemory({
+        execute: async () => {
+          throw new MemoryNotFound('s1');
+        },
+      }),
+    });
+    const res = await app.fetch(executeReq('acme', 's1', { args: {} }));
+    expect(res.status).toBe(404);
+  });
+
+  test('501 when no executor is wired (SkillExecutionNotConfiguredError)', async () => {
+    const { SkillExecutionNotConfiguredError } = await import('@usetheo/memory/contract');
+    const app = createServer({
+      memory: stubWriteMemory({
+        execute: async () => {
+          throw new SkillExecutionNotConfiguredError('no executor');
+        },
+      }),
+    });
+    const res = await app.fetch(executeReq('acme', 's1', { args: {} }));
+    expect(res.status).toBe(501);
+  });
+
+  test('503 when the sandbox backend is not installed (SkillExecutorUnavailableError)', async () => {
+    const { SkillExecutorUnavailableError } = await import('@usetheo/memory/contract');
+    const app = createServer({
+      memory: stubWriteMemory({
+        execute: async () => {
+          throw new SkillExecutorUnavailableError('isolated-vm');
+        },
+      }),
+    });
+    const res = await app.fetch(executeReq('acme', 's1', { args: {} }));
+    expect(res.status).toBe(503);
+  });
+
+  test('422 on a malformed body (args not an object)', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    const res = await app.fetch(executeReq('acme', 's1', { args: 'not-an-object' }));
+    expect(res.status).toBe(422);
+  });
+
+  test('400 on malformed JSON (the only bespoke parse branch)', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/scopes/skill/acme/skills/s1/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{ not json',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test('200 on an empty body (args defaults to {})', async () => {
+    let seenArgs: unknown;
+    const app = createServer({
+      memory: stubWriteMemory({
+        execute: async (_id, args) => {
+          seenArgs = args;
+          return { output: 'ok', truncated: false, elapsedMs: 1 };
+        },
+      }),
+    });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/scopes/skill/acme/skills/s1/execute', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(seenArgs).toEqual({});
+  });
+});
+
+describe('T2.3 — OpenAPI registration for execute', () => {
+  test('documents POST /v1/scopes/skill/{repoId}/skills/{skillId}/execute', async () => {
+    const app = createServer({ memory: stubWriteMemory({}) });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    const spec = (await res.json()) as {
+      paths: Record<string, Record<string, { responses?: Record<string, unknown> }>>;
+    };
+    const path = spec.paths['/v1/scopes/skill/{repoId}/skills/{skillId}/execute'];
+    expect(path).toBeDefined();
+    expect(path?.['post']?.responses?.['200']).toBeDefined();
+    expect(path?.['post']?.responses?.['403']).toBeDefined();
+    expect(path?.['post']?.responses?.['501']).toBeDefined();
   });
 });
