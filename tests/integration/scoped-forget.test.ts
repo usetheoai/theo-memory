@@ -97,15 +97,32 @@ if (PG_URI === undefined || PG_URI === '') {
 
     test('EC-1: hard forget of an entity-linked memory succeeds via CASCADE', async () => {
       const id = await seed({ user: 'alice', suffix: 'linked' });
-      const { rows } = await pool.query<{ id: string }>(
+      // (a) memory_entities link (node provenance)
+      const acme = await pool.query<{ id: string }>(
         `INSERT INTO entities (name, normalized_key, type, embedding, payload, workspace_id, user_id)
          VALUES ('Acme','acme','PROPER',$1::vector,'{}'::jsonb,'default','alice') RETURNING id`,
         [JSON.stringify(EMB)],
       );
-      await pool.query('INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)', [id, rows[0]!.id]);
+      await pool.query('INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)', [id, acme.rows[0]!.id]);
+      // (b) entity_edges row whose source_memory_id IS the target memory — the plan's
+      // EC-1 names this second FK explicitly; it must cascade on hard delete too.
+      const bob = await pool.query<{ id: string }>(
+        `INSERT INTO entities (name, normalized_key, type, embedding, payload, workspace_id, user_id)
+         VALUES ('Bob','bob','PROPER',$1::vector,'{}'::jsonb,'default','alice') RETURNING id`,
+        [JSON.stringify(EMB)],
+      );
+      await pool.query(
+        `INSERT INTO entity_edges (workspace_id, source_entity_id, target_entity_id, relation, normalized_relation, source_memory_id, user_id)
+         VALUES ('default',$1,$2,'works at','works_at',$3,'alice')`,
+        [acme.rows[0]!.id, bob.rows[0]!.id, id],
+      );
+
       const matched = await store.deleteInScope(id, { user_id: 'alice', workspace_id: 'default' }, true);
       expect(matched).toBe(true);
       expect(await exists(id)).toBe(false);
+      // both FK references cascaded — no orphan edge pointing at the deleted memory
+      const edges = await pool.query('SELECT 1 FROM entity_edges WHERE source_memory_id = $1', [id]);
+      expect(edges.rows).toHaveLength(0);
     });
 
     test('EC-4: double soft forget returns false (idempotent 404)', async () => {
