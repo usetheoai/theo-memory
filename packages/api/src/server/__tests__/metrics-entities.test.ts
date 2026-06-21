@@ -3,10 +3,18 @@
  * entities endpoints. Derived from getAll(); entities from attributed_to.
  */
 import type { MemoryItem } from '@usetheo/memory/contract';
-import type { Memory } from '@usetheo/memory/contract';
+import type { Memory, UsageCounterStore } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
 import { createServer } from '../index.js';
+
+/** Stub recall counter that reports a fixed cumulative count. */
+function stubCounter(count: number): UsageCounterStore {
+  return {
+    increment: vi.fn(async () => undefined),
+    getRecallCount: vi.fn(async () => count),
+  };
+}
 
 function makeItem(id: string, createdAt: string, attributedTo?: string): MemoryItem {
   return {
@@ -90,6 +98,40 @@ describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
     const body = (await res.json()) as Record<string, number>;
     expect(body['total_memories']).toBe(2);
     expect(body['entity_count']).toBe(1); // only paulo; '' excluded
+  });
+});
+
+describe('T2.4 — retrieval_api_usage from the recall counter', () => {
+  test('reports the real cumulative recall count when a counter store is wired', async () => {
+    const items = [makeItem('id-1', '2026-06-01T00:00:00Z', 'paulo')];
+    const app = createServer({ memory: stubMemory(items), usageCounterStore: stubCounter(2) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, number>;
+    // retrieval_api_usage now reflects the counter; the other 3 stay getAll-derived.
+    expect(body['retrieval_api_usage']).toBe(2);
+    expect(body['total_memories']).toBe(1);
+    expect(body['add_events']).toBe(1);
+    expect(body['entity_count']).toBe(1);
+  });
+
+  test('response is exactly the 4-field shape (no key added/removed)', async () => {
+    const app = createServer({ memory: stubMemory([]), usageCounterStore: stubCounter(5) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
+    const body = (await res.json()) as Record<string, number>;
+    expect(Object.keys(body).sort()).toEqual([
+      'add_events',
+      'entity_count',
+      'retrieval_api_usage',
+      'total_memories',
+    ]);
+  });
+
+  test('falls back to 0 when no counter store is wired (honest, no regression)', async () => {
+    const app = createServer({ memory: stubMemory([]) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
+    const body = (await res.json()) as Record<string, number>;
+    expect(body['retrieval_api_usage']).toBe(0);
   });
 });
 

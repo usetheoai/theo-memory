@@ -12,6 +12,7 @@ import { ContentTooLargeError } from '@usetheo/memory/contract';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import type { MemoryEntityStore, MemoryGraphStore } from '@usetheo/memory/contract';
+import type { UsageCounterStore } from '@usetheo/memory/contract';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 
@@ -145,10 +146,19 @@ export interface CreateServerOptions {
    * The composition root (`themory server`) injects `PgMemoryGraphStore` here.
    */
   readonly memoryGraphStore?: MemoryGraphStore;
+  /**
+   * themory-scoped-forget-and-retrieval-counter T2.4 (ADR D4 + EC-2) — optional
+   * recall-counter read port. When supplied, `GET /v1/scopes/:type/:id/metrics`
+   * serves the REAL `retrieval_api_usage` from `scope_usage_counters`. When
+   * omitted, the field falls back to 0 (in-memory adapter / tests — no regression).
+   * The composition root (`themory server`) injects `PgUsageCounterStore` here,
+   * mirroring the `memoryEntityStore` wiring precedent.
+   */
+  readonly usageCounterStore?: UsageCounterStore;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore } = options;
 
   // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
   // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
@@ -333,7 +343,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   app.delete('/v1/scopes/:type/:id/memories/:memId', (c) => scopedForgetHandler(c, memory));
   // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
-  app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory, usageCounterStore));
   app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory, memoryEntityStore));
   // entity-relation-extraction-slice2 T3.1 — {nodes,edges} graph (no graph DB).
   app.get('/v1/scopes/:type/:id/graph', (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
