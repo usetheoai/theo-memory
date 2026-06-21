@@ -195,6 +195,23 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // themory-scoped-forget T1.2 — subject-scoped DELETE (404-not-403; no leak).
+  registry.registerPath({
+    method: 'delete',
+    path: '/v1/scopes/{type}/{id}/memories/{memId}',
+    operationId: 'scopedForget',
+    summary: 'Delete a memory by id within the named subject scope (soft; ?hard=true for GDPR erasure).',
+    request: {
+      params: z.object({ type: ScopeTypeEnum, id: z.string().min(1), memId: z.string().uuid() }),
+      query: z.object({ hard: z.enum(['true', 'false']).optional() }),
+    },
+    responses: {
+      204: { description: 'Deleted (or already absent in scope).' },
+      404: { description: 'Not found in this scope / workspace (no existence leak).' },
+      422: { description: 'memId is not a UUID.' },
+    },
+  });
+
   registry.registerPath({
     method: 'get',
     path: '/v1/scopes/{type}/{id}/entities',
