@@ -11,8 +11,16 @@ import { describe, expect, test } from 'vitest';
 import { hashFact } from '../../domain/dedup.js';
 import type { HistoryBatchRecord, HistoryManager } from '../../domain/dip/history-manager.js';
 import type { Message } from '../../domain/dip/llm.js';
-import { InvalidScope, InvalidSkillError, MemoryNotFound, SkillAlreadyExists } from '../../domain/errors.js';
+import type { SkillExecutor, SkillExecutionResult } from '../../domain/dip/skill-executor.js';
+import {
+  InvalidScope,
+  InvalidSkillError,
+  MemoryNotFound,
+  SkillAlreadyExists,
+  SkillExecutionNotConfiguredError,
+} from '../../domain/errors.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
+import type { Skill } from '../../domain/skill.js';
 
 import { InMemoryVectorStore } from './in-memory-store.js';
 import { LocalScopedSkillMemory, type LocalScopedSkillMemoryDeps } from './scoped-skill-memory.js';
@@ -426,5 +434,110 @@ describe('LocalScopedSkillMemory.forget — cross-workspace guard (skills-write-
     });
     await scoped.forget('sk-1');
     expect(didForget()).toBe(true);
+  });
+});
+
+describe('LocalScopedSkillMemory.execute — T2.1 (opt-in/gated wiring)', () => {
+  function recordingExecutor(): { executor: SkillExecutor; received(): { skill: Skill; args: unknown } | null } {
+    let captured: { skill: Skill; args: unknown } | null = null;
+    return {
+      executor: {
+        async execute(skill, args): Promise<SkillExecutionResult> {
+          await Promise.resolve();
+          captured = { skill, args };
+          return { output: 42, truncated: false, elapsedMs: 1 };
+        },
+      },
+      received: () => captured,
+    };
+  }
+
+  test('test_execute_throws_not_configured_when_none (STORE-only default)', async () => {
+    const scoped = new LocalScopedSkillMemory('repo-alpha', {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      forgetDelegate: async () => undefined,
+      getDelegate: async () => null,
+    });
+    await expect(scoped.execute('any-id', {})).rejects.toBeInstanceOf(SkillExecutionNotConfiguredError);
+  });
+
+  test('test_execute_delegates_to_injected_executor (skill carries code)', async () => {
+    const rec = recordingExecutor();
+    const scoped = new LocalScopedSkillMemory('repo-alpha', {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      forgetDelegate: async () => undefined,
+      getDelegate: async () => null,
+      skillExecutor: rec.executor,
+    });
+    const added = await scoped.add({
+      code: 'export function f(x) { return x; }',
+      description: 'identity skill',
+      codeLanguage: 'javascript',
+    });
+    const result = await scoped.execute(added.id, { x: 7 });
+    expect(result.output).toBe(42);
+    const got = rec.received();
+    expect(got?.skill.id).toBe(added.id);
+    expect(got?.skill.code).toBe('export function f(x) { return x; }');
+    expect(got?.args).toEqual({ x: 7 });
+  });
+
+  test('test_execute_throws_memory_not_found_on_foreign_id (404, no existence leak)', async () => {
+    const rec = recordingExecutor();
+    const scoped = new LocalScopedSkillMemory('repo-alpha', {
+      vectorStore: new InMemoryVectorStore(),
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      forgetDelegate: async () => undefined,
+      getDelegate: async () => null,
+      skillExecutor: rec.executor,
+    });
+    await expect(scoped.execute('nonexistent-id', {})).rejects.toBeInstanceOf(MemoryNotFound);
+    expect(rec.received()).toBeNull();
+  });
+});
+
+describe('LocalScopedSkillMemory.execute — cross-scope isolation (T2.1 IDOR)', () => {
+  test('test_execute_cross_repo_id_throws_memory_not_found', async () => {
+    // A skill added under repo-alpha must NOT be executable from repo-beta — the
+    // agent_id (RepoScope) filter inherited via getAll/this.filters yields
+    // MemoryNotFound (404, no existence leak); the executor is never reached.
+    // Cross-WORKSPACE isolation for skills is verified at T3.1 against real
+    // pgvector: the in-memory adapter's insertSkill does not persist workspace_id
+    // (followup themory-inmemory-skill-workspace-parity).
+    const store = new InMemoryVectorStore();
+    let called = false;
+    const executor: SkillExecutor = {
+      async execute(): Promise<SkillExecutionResult> {
+        await Promise.resolve();
+        called = true;
+        return { output: 1, truncated: false, elapsedMs: 1 };
+      },
+    };
+    const mkScoped = (repoId: string): LocalScopedSkillMemory =>
+      new LocalScopedSkillMemory(repoId, {
+        vectorStore: store,
+        embedder: new FixedEmbedder(),
+        llm: new StubLLM(),
+        forgetDelegate: async () => undefined,
+        getDelegate: async () => null,
+        skillExecutor: executor,
+      });
+    const alpha = mkScoped('repo-alpha');
+    const beta = mkScoped('repo-beta');
+    const added = await alpha.add({
+      code: 'export function f() { return 1; }',
+      description: 'alpha private skill',
+      codeLanguage: 'javascript',
+    });
+    await expect(beta.execute(added.id, {})).rejects.toBeInstanceOf(MemoryNotFound);
+    expect(called).toBe(false);
+    // sanity: repo-alpha CAN execute its own skill
+    const ok = await alpha.execute(added.id, {});
+    expect(ok.output).toBe(1);
   });
 });
