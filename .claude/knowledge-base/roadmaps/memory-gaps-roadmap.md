@@ -44,7 +44,7 @@ skill (shell metachars / path escape / timeout / output-flood) → `ToolInvocati
 
 **Deps:** none (skill library already shipped). **Risk:** HIGH (RCE surface) — the sandbox is the whole point; deps-audit + security review mandatory. Heavy optional dep (e2b/modal/firejail) — evaluate in `/discover`.
 
-**Status:** NOT STARTED. Start with `/discover-plan agentic-skill-execution-sandbox`.
+**Status:** DISCOVERY DONE (blueprint `60cfa69`, SHIPPABLE_WITH_CAVEATS 89). **D3 sandbox-tech LOCKED 2026-06-21 (owner):** `isolated-vm` in-process (V8 isolate) as default `SandboxedSkillExecutor`, with the `SkillExecutor` DIP leaving a seam for an opt-in out-of-process impl (e2b/modal) as defense-in-depth. Rationale: fits distroless-no-shell (EC-47, native addon like onnxruntime-node), offline/zero-cost, real isolation (no require/process/fs); vm2 REJECTED (CVE-2026-22709 9.8), node:vm REJECTED (not a boundary), worker_threads REJECTED (shares process). isolated-vm as optional/lazy dep; `/deps-audit` + security review mandatory. NEXT: `/to-plan agentic-skill-execution-sandbox --milestone M1`.
 
 ---
 
