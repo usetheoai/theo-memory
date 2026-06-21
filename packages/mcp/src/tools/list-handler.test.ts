@@ -20,17 +20,17 @@ import { describe, expect, test } from 'vitest';
 import { buildToolsListResponse } from './list-handler.js';
 
 describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
-  test('returns exactly 6 tools (4 verbs + add_skill/forget_skill; no pagination per ADR D2 listChanged:false)', () => {
+  test('returns exactly 7 tools (4 verbs + add_skill/forget_skill + execute_skill; no pagination per ADR D2 listChanged:false)', () => {
     const response = buildToolsListResponse();
-    // skills-write-surface T2.3 (D3): the static list grows from 4 to 6.
-    expect(response.tools).toHaveLength(6);
+    // skills-write-surface (D3) grew 4→6; agentic-skill-execution-sandbox T2.4 adds execute_skill → 7.
+    expect(response.tools).toHaveLength(7);
     // No nextCursor for a static list (plan T2.2 Deep Dives; listChanged:false)
     expect(response).not.toHaveProperty('nextCursor');
   });
 
-  test('tool names match locked verbs in declaration order + skills write tools', () => {
+  test('tool names match locked verbs in declaration order + skills write/execute tools', () => {
     // CLAUDE.md § Locked names: API verbs `remember/recall/forget/reflect`;
-    // skills-write-surface adds add_skill/forget_skill (D3).
+    // skills-write-surface adds add_skill/forget_skill (D3); T2.4 adds execute_skill.
     const response = buildToolsListResponse();
     const names = response.tools.map((t) => t.name);
     expect(names).toEqual([
@@ -40,6 +40,7 @@ describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
       'reflect',
       'add_skill',
       'forget_skill',
+      'execute_skill',
     ]);
   });
 
