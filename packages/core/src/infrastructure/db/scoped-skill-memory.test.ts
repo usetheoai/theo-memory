@@ -541,3 +541,37 @@ describe('LocalScopedSkillMemory.execute — cross-scope isolation (T2.1 IDOR)',
     expect(ok.output).toBe(1);
   });
 });
+
+describe('createLocalMemory({ skillExecutor }) — T2.2 factory gated wiring', () => {
+  test('test_factory_optin_skill_executor_reaches_execute', async () => {
+    let seen: { code: string | null } | null = null;
+    const executor: SkillExecutor = {
+      async execute(skill): Promise<SkillExecutionResult> {
+        await Promise.resolve();
+        seen = { code: skill.code };
+        return { output: 99, truncated: false, elapsedMs: 1 };
+      },
+    };
+    const memory = await createLocalMemory({
+      vectorStore: new InMemoryVectorStore(),
+      embedder: new FixedEmbedder(),
+      llm: new StubLLM(),
+      skillExecutor: executor,
+    });
+    const scoped = memory.skills('repo-alpha');
+    const added = await scoped.add({
+      code: 'export function g() { return 99; }',
+      description: 'factory-wired skill',
+      codeLanguage: 'javascript',
+    });
+    const result = await scoped.execute(added.id, {});
+    expect(result.output).toBe(99);
+    expect(seen).toEqual({ code: 'export function g() { return 99; }' });
+  });
+
+  test('test_factory_default_off_execute_throws_not_configured', async () => {
+    const { memory } = await buildMemory(); // no skillExecutor wired
+    const scoped = memory.skills('repo-alpha');
+    await expect(scoped.execute('any-id', {})).rejects.toBeInstanceOf(SkillExecutionNotConfiguredError);
+  });
+});
