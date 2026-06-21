@@ -7,6 +7,10 @@ import {
   MemoryNotFound,
   MissingScopeError,
   ReflectionNotConfigured,
+  ToolInvocationDeniedError,
+  SkillExecutionNotConfiguredError,
+  SkillExecutorUnavailableError,
+  type ToolInvocationDeniedReason,
 } from './errors.js';
 
 describe('EC-2 — every error subclass survives cross-module instanceof checks', () => {
@@ -94,5 +98,59 @@ describe('MissingScopeError — fail-loud per ADR D4 (binding 3-state resolver)'
     const root = new Error('upstream session decode failure');
     const e = new MissingScopeError('session decryption failed', { cause: root });
     expect(e.cause).toBe(root);
+  });
+});
+
+describe('ToolInvocationDeniedError (T1.2)', () => {
+  test('name + reason + instanceof Error', () => {
+    const e = new ToolInvocationDeniedError('timeout', 'exceeded 1000ms');
+    expect(e).toBeInstanceOf(Error);
+    expect(e instanceof ToolInvocationDeniedError).toBe(true);
+    expect(e.name).toBe('ToolInvocationDeniedError');
+    expect(e.reason).toBe('timeout');
+    expect(e.message).toContain('timeout');
+  });
+
+  test('reason union covers all 10 guard literals', () => {
+    const reasons: ToolInvocationDeniedReason[] = [
+      'node-binding-attempt',
+      'fs-access-attempt',
+      'timeout',
+      'output-cap',
+      'tool-call-cap',
+      'non-cloneable-args',
+      'non-cloneable-result',
+      'unsupported-language',
+      'unsupported-async',
+      'empty-code',
+    ];
+    for (const r of reasons) {
+      expect(new ToolInvocationDeniedError(r, 'detail').reason).toBe(r);
+    }
+  });
+
+  test('retains cause via ErrorOptions', () => {
+    const root = new Error('isolate boom');
+    const e = new ToolInvocationDeniedError('timeout', 'x', { cause: root });
+    expect(e.cause).toBe(root);
+  });
+});
+
+describe('SkillExecutionNotConfiguredError (T1.2)', () => {
+  test('name + instanceof Error', () => {
+    const e = new SkillExecutionNotConfiguredError('no executor wired for this scope');
+    expect(e).toBeInstanceOf(Error);
+    expect(e instanceof SkillExecutionNotConfiguredError).toBe(true);
+    expect(e.name).toBe('SkillExecutionNotConfiguredError');
+  });
+});
+
+describe('SkillExecutorUnavailableError (T1.2)', () => {
+  test('name + instanceof Error + carries install hint in message', () => {
+    const e = new SkillExecutorUnavailableError('isolated-vm');
+    expect(e).toBeInstanceOf(Error);
+    expect(e instanceof SkillExecutorUnavailableError).toBe(true);
+    expect(e.name).toBe('SkillExecutorUnavailableError');
+    expect(e.message).toContain('isolated-vm');
   });
 });

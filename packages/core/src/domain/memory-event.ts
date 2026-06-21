@@ -79,6 +79,15 @@ export const MEMORY_EVENTS = [
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors
   // history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
   'retrieval_counted_failed',
+  // agentic-skill-execution-sandbox T1.2 — a sandbox guard denied a skill
+  // execution. Attribute `reason` carries the ToolInvocationDeniedReason literal.
+  // Every denial is observable (Princípio 3 — no silent IGNORE on an RCE surface).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'tool_invocation_denied',
+  // agentic-skill-execution-sandbox T1.2 — a skill executed successfully inside the
+  // sandbox. Attribute `skill_id`. Pairs with tool_invocation_denied for the
+  // execute-path success/deny audit ratio.
+  'skill_executed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
