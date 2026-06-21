@@ -194,6 +194,20 @@ if (PG_URI === undefined || PG_URI === '') {
       await expect(memory.user('grace').recall('hiking')).resolves.toBeDefined();
       expect(throwingCounter.increment).toHaveBeenCalledTimes(1);
     });
+
+    test('20 concurrent recall() calls count exactly 20 end-to-end (no lost update on the recall path)', async () => {
+      // Given: a user scope with one remembered fact
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder,
+        llm: llm('iris likes climbing'),
+      });
+      await memory.user('iris').remember('iris likes climbing');
+      // When: 20 racing recalls through the full recall path (gate + fail-soft increment)
+      await Promise.all(Array.from({ length: 20 }, () => memory.user('iris').recall('climbing')));
+      // Then: the counter reflects every recall (atomicity holds through the wiring, not just the store)
+      expect(await reader.getRecallCount({ workspace_id: 'default', user_id: 'iris' })).toBe(20);
+    });
   });
 
   describe('T2.4 GOAL — GET /metrics retrieval_api_usage reflects real recalls (full chain)', () => {
