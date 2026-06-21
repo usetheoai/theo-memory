@@ -87,17 +87,18 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     // (factory createMemory/createLocalMemory/runMigrations, config types, stores, schema,
     // stubs, + `export * from ./domain`). This is a brittle line-count proxy; the real
     // API-correctness checks (no `any`, paper-names, subpath smoke) live in the sibling tests.
-    test('1. src/index.ts declares 9 export statements (post-reorg barrel baseline)', () => {
+    test('1. src/index.ts declares 13 export statements (post-reorg + entity/graph + usage-counter)', () => {
+      // 13 = 9 (post-reorg) + 3 entity-extraction slice exports + 1 usage-counter
+      // export (PgUsageCounterStore; themory-scoped-forget-and-retrieval-counter T2.2).
       const lines = rootContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(9);
+      expect(lines.length).toBe(13);
     });
 
-    test('2. src/core/index.ts declares 43 export statements (T0.1 baseline + 2 workspace exports)', () => {
-      // multi-tenant-workspace-isolation T0.1 added 2 export statements to the
-      // contract barrel (Principal/Workspace types + DEFAULT_WORKSPACE_ID/
-      // makeVerifyShim values) — conscious public-surface growth per architecture.md § 9.
+    test('2. src/core/index.ts declares 47 export statements (workspace baseline + entity/graph + usage-counter)', () => {
+      // 47 = 43 (workspace baseline) + 3 entity-extraction slice type exports + 1
+      // usage-counter type export (UsageCounterStore; themory-scoped-forget T2.2).
       const lines = contractContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(43);
+      expect(lines.length).toBe(47);
     });
 
     test('3. src/index.ts contains zero `any` occurrences (public-surface floor)', () => {
