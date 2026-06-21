@@ -41,6 +41,7 @@ vi.mock('@usetheo/memory', () => ({
   PgvectorStore: class MockPgvectorStore {},
   PgMemoryEntityStore: class MockPgMemoryEntityStore {},
   PgMemoryGraphStore: class MockPgMemoryGraphStore {},
+  PgUsageCounterStore: class MockPgUsageCounterStore {},
 }));
 
 vi.mock('@usetheo/memory/embedders/stub', () => ({
