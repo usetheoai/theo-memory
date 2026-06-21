@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- **PRIORITY 0 feature freeze LIFTED in full** (project-owner sign-off 2026-06-21). Items 13/14/15/21/23/24/25 + Phase V are no longer FROZEN; new features may run the normal cycle. The P0 HARDENING bar (APIs correct / SDKs functional / MCP available) and the SEPARATE `production-ready`/v1.0 gate (`/dogfood` + benchmark, Item 11) are UNCHANGED — the unfreeze is feature scope only, not the honesty gate. Governance only; no consumer code change. (CLAUDE.md § PRIORITY 0 Amendment 2026-06-21; roadmap at `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`)
 
 ### Deprecated
 
