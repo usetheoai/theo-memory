@@ -256,11 +256,40 @@ export class LocalScopedMemory implements ScopedMemory {
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
     // v1.1 T3.1 + EC-3 + ADR-0011: BiTemporalNotSupportedLocally throw lifted.
     // Boundary validation rejects invalid Date input per architecture.md § 8
-    // (validate at boundaries; inside src/core/ trust the contract).
+    // (validate at boundaries; inside src/core/ trust the contract). A rejected
+    // recall (invalid asOf) does NOT count — the throw precedes the increment.
     if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
       throw new InvalidScope('asOf must be a valid Date');
     }
 
+    const results = await this.retrieveResults(query, options);
+
+    // T2.3 — per-scope recall usage counter backing `retrieval_api_usage`. Counted
+    // once per recall() across ALL retrieval paths (cache bypass / hit / miss), since
+    // the wrapper bumps after retrieveResults regardless of which path served.
+    // FAIL-SOFT (Princípio 3): a counter write MUST NEVER fail a recall — the consumer
+    // already has results. Gated on the optional port (absent for in-memory / no-pg).
+    // EC-6: skill (repo) scope is served by LocalScopedSkillMemory, which is
+    // intentionally NOT wired to the counter — this class only counts user/session/agent.
+    const counter = this.config.usageCounterStore;
+    if (counter !== undefined) {
+      try {
+        await counter.increment(this.filters);
+      } catch (err) {
+        emitEvent(this.config.tracer, 'retrieval_counted_failed', {
+          scope_tier: this.scope.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return results;
+  }
+
+  private async retrieveResults(
+    query: string,
+    options?: RecallOptions,
+  ): Promise<readonly MemoryItemWithScore[]> {
     // semantic-recall-cache-v1-5 T2.1 — cache applicability boundary (ADR D8).
     // EC-4 + EC-5 absorption: v1.5.0 cache key is (scope_key, query_embedding)
     // per Blueprint D4 — it does NOT include `asOf` (bi-temporal) OR

@@ -5,10 +5,17 @@
  *
  * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § Phase 2
  */
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import pg from 'pg';
 
-import { runMigrations, PgUsageCounterStore } from '@usetheo/memory';
+import {
+  runMigrations,
+  PgUsageCounterStore,
+  PgvectorStore,
+  createLocalMemory,
+  MAX_EMBEDDING_DIM,
+} from '@usetheo/memory';
+import type { Embedder, LLM, UsageCounterStore } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
@@ -98,6 +105,94 @@ if (PG_URI === undefined || PG_URI === '') {
       );
       // Then: the atomic ON CONFLICT DO UPDATE preserved every increment
       expect(await store.getRecallCount({ workspace_id: 'default', user_id: 'dave' })).toBe(50);
+    });
+  });
+
+  describe('T2.3 recall() increments the per-scope counter (fail-soft, EC-6)', () => {
+    const pool = new pg.Pool({ connectionString: PG_URI, max: 8 });
+    const reader = new PgUsageCounterStore(pool);
+    const embedder: Embedder = {
+      embed: vi.fn(async () => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
+      embedBatch: vi.fn(async (t: readonly string[]) =>
+        t.map(() => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
+      ),
+    };
+    const llm = (text: string): LLM => ({
+      generateResponse: vi.fn(async () => ({ memory: [{ id: '0', text }] })),
+      generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+    beforeEach(async () => {
+      await runMigrations(pool);
+      await pool.query(
+        'TRUNCATE memories, entities, memory_entities, entity_edges, history, scope_usage_counters RESTART IDENTITY CASCADE',
+      );
+    });
+
+    test('one recall bumps the scope counter to 1', async () => {
+      // Given: a user scope with one remembered fact
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder,
+        llm: llm('erin likes tea'),
+      });
+      await memory.user('erin').remember('erin likes tea');
+      // When: the consumer recalls once
+      await memory.user('erin').recall('tea');
+      // Then: retrieval_api_usage for that scope is 1
+      expect(await reader.getRecallCount({ workspace_id: 'default', user_id: 'erin' })).toBe(1);
+    });
+
+    test('counts each recall cumulatively', async () => {
+      // Given: a user scope
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder,
+        llm: llm('frank likes jazz'),
+      });
+      await memory.user('frank').remember('frank likes jazz');
+      // When: three recalls
+      await memory.user('frank').recall('jazz');
+      await memory.user('frank').recall('music');
+      await memory.user('frank').recall('frank');
+      // Then: the counter is 3
+      expect(await reader.getRecallCount({ workspace_id: 'default', user_id: 'frank' })).toBe(3);
+    });
+
+    test('EC-6 skill-scope recall is NOT counted', async () => {
+      // Given: a memory with a skill (repo) scope (maps repoId -> agent_id column)
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder,
+        llm: llm('skill body'),
+      });
+      // When: a skill recall runs (served by LocalScopedSkillMemory, not the counted path)
+      await memory.skills('repoX').recall('anything');
+      // Then: no counter row for that scope key
+      expect(await reader.getRecallCount({ workspace_id: 'default', agent_id: 'repoX' })).toBe(0);
+    });
+
+    test('recall is fail-soft when the counter throws', async () => {
+      // Given: a counter store whose increment always fails
+      const throwingCounter: UsageCounterStore = {
+        increment: vi.fn(async () => {
+          throw new Error('counter down');
+        }),
+        getRecallCount: vi.fn(async () => 0),
+      };
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder,
+        llm: llm('grace likes hiking'),
+        usageCounterStore: throwingCounter,
+      });
+      await memory.user('grace').remember('grace likes hiking');
+      // When/Then: recall resolves (does NOT reject) despite the counter failure
+      await expect(memory.user('grace').recall('hiking')).resolves.toBeDefined();
+      expect(throwingCounter.increment).toHaveBeenCalledTimes(1);
     });
   });
 }

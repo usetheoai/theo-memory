@@ -74,6 +74,11 @@ export const MEMORY_EVENTS = [
   // still emits entity_linked even when edge linking throws — a remember() MUST NEVER
   // fail because edge linking failed). @see CLAUDE.md § IMPORTANTE Princípio 3
   'entity_edge_linking_failed',
+  // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
+  // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
+  // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors
+  // history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'retrieval_counted_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
