@@ -16,10 +16,19 @@
  *  - `total_memories`     = active rows in scope
  *  - `entity_count`       = distinct non-null `attributedTo` peers
  *  - `add_events`         = active rows (each surviving row is one add)
- *  - `retrieval_api_usage`= 0 — no persisted source (recall calls are not
- *                           logged); a recall counter is a separate follow-up.
+ *  - `retrieval_api_usage`= cumulative `recall()` calls for the scope, read from
+ *                           the persisted counter (themory-scoped-forget-and-retrieval-counter
+ *                           T2.4). 0 when no counter store is wired (in-memory
+ *                           adapter / tests) — honest fallback, never fabricated.
  */
-import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
+import type {
+  Filters,
+  Memory,
+  Principal,
+  ScopedMemory,
+  UsageCounterStore,
+} from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
@@ -41,7 +50,23 @@ function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): Scoped
   }
 }
 
-export async function metricsHandler(c: Context, memory: Memory): Promise<Response> {
+/** Build the single-tier Filters for a scope type+id (others undefined). */
+function filtersFor(type: ScopeType, id: string): Filters {
+  switch (type) {
+    case 'user':
+      return { user_id: id };
+    case 'session':
+      return { session_id: id };
+    case 'agent':
+      return { agent_id: id };
+  }
+}
+
+export async function metricsHandler(
+  c: Context,
+  memory: Memory,
+  usageCounterStore?: UsageCounterStore,
+): Promise<Response> {
   const rawType = c.req.param('type');
   const id = c.req.param('id');
 
@@ -59,12 +84,26 @@ export async function metricsHandler(c: Context, memory: Memory): Promise<Respon
     if (peer !== undefined) entities.add(peer);
   }
 
+  // retrieval_api_usage: read the persisted per-scope recall counter when wired.
+  // EC-3 — the read key must match what recall() incremented: same workspace_id
+  // (from the principal, mirroring the entities handler) + same single-tier filter.
+  // 0-fallback when no counter store is injected (honest, no regression).
+  let retrievalApiUsage = 0;
+  if (usageCounterStore !== undefined) {
+    const principal = c.get('principal') as Principal | undefined;
+    const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+    retrievalApiUsage = await usageCounterStore.getRecallCount({
+      workspace_id: workspaceId,
+      ...filtersFor(typeParse.data, id),
+    });
+  }
+
   return c.json(
     {
       total_memories: items.length,
       entity_count: entities.size,
       add_events: items.length,
-      retrieval_api_usage: 0,
+      retrieval_api_usage: retrievalApiUsage,
     },
     200,
   );
