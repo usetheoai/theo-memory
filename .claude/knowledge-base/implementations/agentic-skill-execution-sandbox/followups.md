@@ -1,0 +1,4 @@
+# Followups — agentic-skill-execution-sandbox
+
+- **themory-inmemory-skill-workspace-parity** (LOW): `InMemoryVectorStore.insertSkill` does not persist `workspace_id` (its local InsertSkillArgs scope type omits `workspaceId`), so skill-scope workspace isolation is only faithful against pgvector. Cross-workspace `execute()` isolation is therefore verified at T3.1 (real pgvector), not in the in-memory unit test (which covers cross-scope/repoId). Fix: thread `workspaceId` through the in-memory insertSkill + write `payload['workspace_id']` (parity with PgvectorStore). Surfaced T2.1 (SEPA pre-COMMIT MINOR).
+- **direct-by-id skill read** (LOW): `execute()` resolves the skill via `getAll({includeSuperseded:true})` + find-by-id (O(repo-skills), bounded). If a repo's skill count ever grows large, add a direct by-id skill read delegate. Surfaced T2.1.
