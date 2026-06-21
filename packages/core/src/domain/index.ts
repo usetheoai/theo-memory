@@ -203,6 +203,16 @@ export type {
 } from './dip/memory-graph-store.js';
 
 /**
+ * `UsageCounterStore` DIP — persist + read port for the per-scope recall counter
+ * (`retrieval_api_usage`). Default adapter: `PgUsageCounterStore`. ISP-clean
+ * (2 methods) per ADR-0008. The recall path increments fail-soft; the metrics
+ * handler reads the cumulative count.
+ *
+ * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T2.2
+ */
+export type { UsageCounterStore } from './dip/usage-counter-store.js';
+
+/**
  * `LLM` DIP — chat-completion-shaped fact-extraction interface. Adapters:
  * `StubLLM`, `OpenAILLM` (OpenAI-compatible via `OPENAI_BASE_URL`).
  *
