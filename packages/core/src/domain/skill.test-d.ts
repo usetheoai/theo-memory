@@ -88,9 +88,11 @@ test('ScopedSkillMemory exposes add / recall / getAll / consolidate / forget and
   expectTypeOf<ScopedSkillMemory['forget']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('ScopedSkillMemory has exactly the 5 keys (D2 — no reflect; consolidate is the skill-specific verb; getAll is read-only listing)', () => {
+test('ScopedSkillMemory has exactly the 6 keys (D2 + agentic-skill-execution-sandbox T2.1 execute; no reflect)', () => {
   type Keys = keyof ScopedSkillMemory;
-  expectTypeOf<Keys>().toEqualTypeOf<'add' | 'recall' | 'getAll' | 'consolidate' | 'forget'>();
+  expectTypeOf<Keys>().toEqualTypeOf<
+    'add' | 'recall' | 'getAll' | 'consolidate' | 'forget' | 'execute'
+  >();
 });
 
 test('Memory.skills(repoId: string) is the v0.6 factory returning ScopedSkillMemory', () => {
