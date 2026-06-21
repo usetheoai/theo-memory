@@ -51,12 +51,33 @@ export type { LocalMemoryConfig, DisposableMemory } from './infrastructure/db/in
 export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager } from './infrastructure/db/index.js';
 
 /**
- * entity-extraction-nodes-slice1 — default entity-linking adapters. The factory
- * wires these automatically when `entityBoost !== false`; exported so consumers
- * can construct/inject them (e.g. a custom extractor wrapping `PgMemoryEntityStore`).
+ * entity-extraction-nodes-slice1 — default entity-NODE-linking adapter. The
+ * factory wires it automatically when `entityBoost !== false`; exported so a
+ * consumer can construct/inject their own.
+ *
+ * @see .claude/knowledge-base/plans/completed/entity-extraction-nodes-slice1-plan.md § T3.1
  */
 export { PgMemoryEntityStore } from './infrastructure/db/index.js';
+/**
+ * entity-relation-extraction-slice2 — default relation-EDGE-linking adapter,
+ * wired under the same `entityBoost`/PgvectorStore gate as the node adapter.
+ *
+ * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.1
+ */
 export { PgMemoryGraphStore } from './infrastructure/db/index.js';
+/**
+ * themory-scoped-forget-and-retrieval-counter — default per-scope recall-counter
+ * adapter backing `retrieval_api_usage`, wired under the same gate.
+ *
+ * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T2.2
+ */
+export { PgUsageCounterStore } from './infrastructure/db/index.js';
+/**
+ * entity-extraction-nodes-slice1 — default entity extractor (compromise-based,
+ * lazy-loaded with a regex fallback). Wired when `entityBoost !== false`.
+ *
+ * @see .claude/knowledge-base/plans/completed/entity-extraction-nodes-slice1-plan.md § T1.2
+ */
 export { CompromiseEntityExtractor } from './infrastructure/extraction/compromise-entity-extractor.js';
 
 /**

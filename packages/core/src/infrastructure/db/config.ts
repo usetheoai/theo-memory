@@ -18,6 +18,7 @@ import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
 } from '../../domain/dip/recall-cache-store.js';
+import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
 import type { MemoryConfig } from '../../domain/memory-store.js';
 import type { Scope } from '../../domain/scope.js';
 
@@ -56,6 +57,14 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * ports. A consumer MAY inject their own.
    */
   readonly memoryGraphStore?: MemoryGraphStore;
+  /**
+   * themory-scoped-forget-and-retrieval-counter T2.2 — per-scope recall counter
+   * port (`retrieval_api_usage`). Built by `createLocalMemory` (PgUsageCounterStore)
+   * under the same gate as the entity/graph ports. The recall path increments it
+   * fail-soft (T2.3); the metrics handler reads it (T2.4). A consumer MAY inject
+   * their own; when absent, recall does not count (and metrics falls back to 0).
+   */
+  readonly usageCounterStore?: UsageCounterStore;
   /**
    * adapters-openrouter-local-embedder T0.1 (ADR D2 + EC-1 absorption):
    * declared embedding dimension produced by the embedder. Defaults to

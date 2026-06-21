@@ -6,13 +6,14 @@
  */
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
-import { InvalidScope } from '../../domain/errors.js';
+import { InvalidScope, MemoryNotFound } from '../../domain/errors.js';
 import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
 import type { ScopedMemory } from '../../domain/memory-store.js';
 import type { Message } from '../../domain/message.js';
 import type {
+  ForgetOptions,
   GetAllOptions,
   RecallOptions,
   ReflectOptions,
@@ -255,11 +256,40 @@ export class LocalScopedMemory implements ScopedMemory {
   async recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]> {
     // v1.1 T3.1 + EC-3 + ADR-0011: BiTemporalNotSupportedLocally throw lifted.
     // Boundary validation rejects invalid Date input per architecture.md § 8
-    // (validate at boundaries; inside src/core/ trust the contract).
+    // (validate at boundaries; inside src/core/ trust the contract). A rejected
+    // recall (invalid asOf) does NOT count — the throw precedes the increment.
     if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
       throw new InvalidScope('asOf must be a valid Date');
     }
 
+    const results = await this.retrieveResults(query, options);
+
+    // T2.3 — per-scope recall usage counter backing `retrieval_api_usage`. Counted
+    // once per recall() across ALL retrieval paths (cache bypass / hit / miss), since
+    // the wrapper bumps after retrieveResults regardless of which path served.
+    // FAIL-SOFT (Princípio 3): a counter write MUST NEVER fail a recall — the consumer
+    // already has results. Gated on the optional port (absent for in-memory / no-pg).
+    // EC-6: skill (repo) scope is served by LocalScopedSkillMemory, which is
+    // intentionally NOT wired to the counter — this class only counts user/session/agent.
+    const counter = this.config.usageCounterStore;
+    if (counter !== undefined) {
+      try {
+        await counter.increment(this.filters);
+      } catch (err) {
+        emitEvent(this.config.tracer, 'retrieval_counted_failed', {
+          scope_tier: this.scope.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return results;
+  }
+
+  private async retrieveResults(
+    query: string,
+    options?: RecallOptions,
+  ): Promise<readonly MemoryItemWithScore[]> {
     // semantic-recall-cache-v1-5 T2.1 — cache applicability boundary (ADR D8).
     // EC-4 + EC-5 absorption: v1.5.0 cache key is (scope_key, query_embedding)
     // per Blueprint D4 — it does NOT include `asOf` (bi-temporal) OR
@@ -318,6 +348,40 @@ export class LocalScopedMemory implements ScopedMemory {
       },
       options,
     );
+  }
+
+  /**
+   * Subject-scoped delete (themory-scoped-forget T1.1, ADR D1). Deletes the row
+   * ONLY if it belongs to THIS scope (+ workspace) via the store's single-SQL
+   * `deleteInScope`; a cross-scope / cross-workspace / missing id → MemoryNotFound
+   * (→ 404, no existence leak). Cache invalidation + history are best-effort
+   * (a side-effect failure does NOT undo the delete).
+   */
+  async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
+    const matched = await this.config.vectorStore.deleteInScope(
+      memoryId,
+      this.filters,
+      options?.hard ?? false,
+    );
+    if (!matched) {
+      throw new MemoryNotFound(`memoryId ${memoryId} not found in this scope`);
+    }
+    // Stale cache after a delete is a real bug — invalidate this scope (best-effort).
+    if (this.recallCacheStore !== undefined) {
+      try {
+        await this.recallCacheStore.invalidateScope(this.scope, this.filters.workspace_id ?? undefined);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[themory] recall-cache invalidateScope (scoped forget) failed:', err);
+      }
+    }
+    if (this.config.historyManager !== undefined) {
+      try {
+        await this.config.historyManager.addHistory(memoryId, '', null, 'forget', new Date());
+      } catch {
+        // history persistence failure must not block forget
+      }
+    }
   }
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {

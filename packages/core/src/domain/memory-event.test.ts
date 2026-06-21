@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 23 values (21 prior + entity_edge_linked + entity_edge_linking_failed from slice2 T2.0)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(23);
+  test('has 24 values (23 prior + retrieval_counted_failed from T2.3 recall counter)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(24);
+  });
+
+  test('includes retrieval_counted_failed (themory-scoped-forget-and-retrieval-counter T2.3, fail-soft)', () => {
+    expect(MEMORY_EVENTS).toContain('retrieval_counted_failed');
   });
 
   test('includes entity_linking_failed (entity-extraction-nodes-slice1 T3.1, fail-soft Phase 7)', () => {

@@ -648,3 +648,34 @@ export const adminConfig = pgTable('admin_config', {
   bootstrapConsumed: boolean('bootstrap_consumed').notNull().default(false),
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
 });
+
+/**
+ * scope_usage_counters — per-scope cumulative `recall()` counter
+ * (themory-scoped-forget-and-retrieval-counter § T2.1, ADR D2). NOT tied to a
+ * memory (a recall is scope-level, not row-level) → no FK to `memories`; a
+ * counter outlives individual rows. The UNIQUE on the scope tuple (COALESCE on
+ * the nullable tiers — NULL != NULL in a plain UNIQUE) is the ON CONFLICT
+ * arbiter `PgUsageCounterStore.increment` names (EC-3: same expression on write
+ * + read). `recall_count` is `mode:'number'` so `getRecallCount()` returns a JS
+ * number that serializes as `retrieval_api_usage` in the metrics JSON.
+ */
+export const scopeUsageCounters = pgTable(
+  'scope_usage_counters',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: text('workspace_id').notNull().default('default'),
+    userId: text('user_id'),
+    sessionId: text('session_id'),
+    agentId: text('agent_id'),
+    recallCount: bigint('recall_count', { mode: 'number' }).notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('scope_usage_counters_scope_uq').on(
+      table.workspaceId,
+      sql`COALESCE(${table.userId}, '')`,
+      sql`COALESCE(${table.sessionId}, '')`,
+      sql`COALESCE(${table.agentId}, '')`,
+    ),
+  ],
+);
