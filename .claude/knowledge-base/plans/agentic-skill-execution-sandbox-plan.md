@@ -196,7 +196,7 @@ interface SkillExecutor {
 
 #### TDD
 ```
-RED:     skill-executor.test-d.ts — expectTypeOf<SkillExecutor['execute']> matches (skill,args,opts?)=>Promise<SkillExecutionResult> (fails: module missing)
+RED:     test_skill_executor_port_shape() -> expectTypeOf<SkillExecutor['execute']> equals (skill,args,opts?)=>Promise<SkillExecutionResult> (fails: module missing)
 GREEN:   create the port file
 REFACTOR: None expected
 VERIFY:  npm run typecheck
@@ -250,7 +250,7 @@ packages/core/src/index.ts / domain/index.ts — export new errors
 
 #### TDD
 ```
-RED:     errors.test.ts — ToolInvocationDeniedError name/reason/instanceof; SkillExecutionNotConfiguredError name; SkillExecutorUnavailableError name (fails: classes missing)
+RED:     test_tool_invocation_denied_error_name() -> expect(new ToolInvocationDeniedError('timeout','x').name).toBe('ToolInvocationDeniedError'); test_skill_execution_not_configured_error_name(); test_skill_executor_unavailable_error_name() (fails: classes missing)
 GREEN:   add three classes + event literals
 REFACTOR: None expected
 VERIFY:  npm test -- errors
@@ -347,7 +347,10 @@ output: { output: 5, truncated: false, elapsedMs: <n> }
 
 #### TDD
 ```
-RED:     test benign add(2,3)=5 (EC-1 export-strip+invocation); test null-code skill → denied('empty-code') (EC-2); test missing-addon (stub import throw) → SkillExecutorUnavailableError (EC-3); test async skill awaited→value OR denied('unsupported-async') (EC-4); test memoryLimitMb<8 clamped + timeoutMs<=0 rejected (EC-5); test non-cloneable RESULT → denied('non-cloneable-result') (EC-6); test child_process reach → denied('node-binding-attempt'); test fs require → denied('fs-access-attempt'); test infinite loop → denied('timeout')+disposed; test output flood → denied('output-cap'); test non-cloneable ARG → denied('non-cloneable-args'); test typescript skill → denied('unsupported-language')
+RED:     test_benign_add_returns_5() -> expect(out).toBe(5) (EC-1 export-strip+invocation)
+RED:     test_null_code_denied_empty_code() (EC-2); test_missing_addon_throws_unavailable() stub import throw (EC-3)
+RED:     test_async_skill_awaited_or_denied() (EC-4); test_memory_limit_clamped_and_timeout_rejected() (EC-5); test_noncloneable_result_denied() (EC-6)
+RED:     test_child_process_reach_denied_node_binding(); test_fs_require_denied_fs_access(); test_infinite_loop_denied_timeout_and_disposed(); test_output_flood_denied_output_cap(); test_noncloneable_arg_denied(); test_typescript_skill_denied_unsupported_language()
 GREEN:   implement SandboxedSkillExecutor (wrapInvocation + lazy import + guards)
 REFACTOR: extract wrapInvocation/copyOrDeny/capOutput helpers (SRP)
 VERIFY:  npm test -- sandboxed-skill-executor
@@ -395,7 +398,7 @@ packages/core/src/__tests__/skill-executor-bundle-isolation.test.ts — NEW: ass
 
 #### TDD
 ```
-RED:     test default barrel import graph excludes 'isolated-vm'
+RED:     test_default_barrel_excludes_isolated_vm() -> expect(moduleGraph).not.toContain('isolated-vm')
 GREEN:   confirm/convert to lazy dynamic import in the executor
 REFACTOR: None expected
 VERIFY:  npm test -- bundle-isolation
@@ -450,7 +453,7 @@ packages/core/src/infrastructure/db/__tests__/scoped-skill-memory.test.ts — RE
 
 #### TDD
 ```
-RED:     execute() delegates to injected executor; throws SkillExecutionNotConfiguredError when none; throws MemoryNotFound on foreign/missing id
+RED:     test_execute_delegates_to_injected_executor() -> expect(stub.calledWith(skill,args)).toBe(true); test_execute_throws_not_configured_when_none(); test_execute_throws_memory_not_found_on_foreign_id()
 GREEN:   implement execute() in LocalScopedSkillMemory + add to interface
 REFACTOR: None expected
 VERIFY:  npm test -- scoped-skill-memory
@@ -499,7 +502,7 @@ packages/core/src/infrastructure/db/__tests__/factory.test.ts — RED: wired exe
 
 #### TDD
 ```
-RED:     createLocalMemory with skillExecutor → skills().execute runs; without → not-configured
+RED:     test_factory_optin_skill_executor_reaches_execute() -> expect(result).toBe(<benign output>); test_factory_default_off_execute_throws_not_configured()
 GREEN:   thread the optional dep
 REFACTOR: None expected
 VERIFY:  npm test -- factory
@@ -550,7 +553,7 @@ packages/api/src/__tests__/... — RED: 200 benign, 403 denied, 404 foreign, 501
 
 #### TDD
 ```
-RED:     POST execute → 200 benign output; 403 on malicious; 404 foreign skill; 501 not-configured; 503 addon-unavailable (EC-3); 400 invalid body
+RED:     test_post_execute_200_benign() -> expect(res.status).toBe(200); test_post_execute_403_malicious(); test_post_execute_404_foreign_skill(); test_post_execute_501_not_configured(); test_post_execute_503_addon_unavailable() (EC-3); test_post_execute_400_invalid_body()
 GREEN:   implement handler + route + openapi
 REFACTOR: None expected
 VERIFY:  npm test -- skills (api)
@@ -607,7 +610,7 @@ packages/mcp/src/tools/handlers.test.ts — RED: execute_skill registered + disp
 
 #### TDD
 ```
-RED:     execute_skill in tools/list (gated); dispatch benign → output; malicious → error result with reason
+RED:     test_execute_skill_in_tools_list() -> expect(toolNames).toContain('execute_skill'); test_execute_skill_dispatch_benign_returns_output(); test_execute_skill_denial_maps_to_error_result()
 GREEN:   implement
 REFACTOR: None expected
 VERIFY:  npm test -- handlers (mcp)
@@ -680,6 +683,15 @@ Stateless MCP dispatch.
 ### T3.1 — GOAL integration test + validation gates
 
 This phase is the single task `T3.1` (referenced by Coverage Matrix #8 + #9): author + run `tests/integration/skill-execution-sandbox.test.ts` against real isolated-vm, then run `/deps-audit` (PASS, done 2026-06-21) + the mandatory security review (`/review`) as validation gates.
+
+#### TDD
+```
+RED:     test_goal_benign_skill_returns_output() -> expect(out.output).toBe(5) against real isolated-vm
+RED:     test_goal_malicious_node_binding_denied(); test_goal_malicious_fs_access_denied(); test_goal_infinite_loop_denied_timeout(); test_goal_output_flood_denied(); test_goal_tool_call_cap_denied() -> each expects ToolInvocationDeniedError + tool_invocation_denied event + zero host escape
+GREEN:   author the integration test against real isolated-vm + real pgvector (skill read)
+REFACTOR: None expected
+VERIFY:  npm run test:integration -- skill-execution-sandbox
+```
 
 #### Concurrency tests
 - **Timeout / cancellation propagation (end-to-end):** the integration test runs an infinite-loop skill under a tight `timeout`; assert it aborts with `ToolInvocationDeniedError('timeout')` and the isolate is disposed (no leak). Each `execute()` owns its own isolate, so concurrent executions share no state — the cancellation propagation case is the only race-relevant path and is asserted here.
