@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`SkillExecutor` DIP port** (`@usetheo/memory`) — the contract for executing a stored skill's code-as-skill payload inside a hardened sandbox (`execute(skill, args, opts?) -> SkillExecutionResult`). Pure domain contract (no I/O, no native addon); default impl `SandboxedSkillExecutor` (isolated-vm) lands next. Part of M1 procedural skill execution (gap G2 / Item 21). STORE-only stays the default; execution is opt-in/gated. (#agentic-skill-execution-sandbox T1.1)
 
 ### Changed
 - **PRIORITY 0 feature freeze LIFTED in full** (project-owner sign-off 2026-06-21). Items 13/14/15/21/23/24/25 + Phase V are no longer FROZEN; new features may run the normal cycle. The P0 HARDENING bar (APIs correct / SDKs functional / MCP available) and the SEPARATE `production-ready`/v1.0 gate (`/dogfood` + benchmark, Item 11) are UNCHANGED — the unfreeze is feature scope only, not the honesty gate. Governance only; no consumer code change. (CLAUDE.md § PRIORITY 0 Amendment 2026-06-21; roadmap at `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`)
