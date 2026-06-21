@@ -195,4 +195,51 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(throwingCounter.increment).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('T2.4 GOAL — GET /metrics retrieval_api_usage reflects real recalls (full chain)', () => {
+    const pool = new pg.Pool({ connectionString: PG_URI, max: 8 });
+    const embedder: Embedder = {
+      embed: vi.fn(async () => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
+      embedBatch: vi.fn(async (t: readonly string[]) =>
+        t.map(() => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
+      ),
+    };
+    const llm = (text: string): LLM => ({
+      generateResponse: vi.fn(async () => ({ memory: [{ id: '0', text }] })),
+      generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+    beforeEach(async () => {
+      await runMigrations(pool);
+      await pool.query(
+        'TRUNCATE memories, entities, memory_entities, entity_edges, history, scope_usage_counters RESTART IDENTITY CASCADE',
+      );
+    });
+
+    test('after two recalls, the metrics endpoint reports retrieval_api_usage == 2', async () => {
+      // Given: a server whose memory + metrics share one pool (run-server wiring shape)
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder,
+        llm: llm('heidi likes sailing'),
+      });
+      const { createServer } = await import('@usetheo/memory-api');
+      const app = createServer({ memory, usageCounterStore: new PgUsageCounterStore(pool) });
+      await memory.user('heidi').remember('heidi likes sailing');
+      // When: two recalls happen (counter increments via the memory's auto-wired store)
+      await memory.user('heidi').recall('sailing');
+      await memory.user('heidi').recall('heidi');
+      // Then: GET /metrics surfaces the real count (was hardcoded 0 before T2.4)
+      const res = await app.fetch(
+        new Request('http://localhost/v1/scopes/user/heidi/metrics'),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, number>;
+      expect(body['retrieval_api_usage']).toBe(2);
+      expect(body['total_memories']).toBeGreaterThanOrEqual(1);
+    });
+  });
 }

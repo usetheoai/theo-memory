@@ -26,7 +26,7 @@
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
 import { serve } from '@hono/node-server';
-import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo/memory';
+import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore, PgUsageCounterStore } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import {
@@ -241,6 +241,10 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     // slice2 T3.2 — wire the edges read port so GET /v1/scopes/:type/:id/graph
     // serves REAL relation edges in production (mirrors the entity-port F-M1 fix).
     memoryGraphStore: new PgMemoryGraphStore(pool),
+    // T2.4 — wire the recall-counter read port so GET /v1/scopes/:type/:id/metrics
+    // serves the REAL retrieval_api_usage (same pool as the Memory factory, so the
+    // counter recall() increments is the counter metrics reads). Mirrors the above.
+    usageCounterStore: new PgUsageCounterStore(pool),
   });
 
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
