@@ -20,7 +20,7 @@
 
 | # | Plan ref | Status | Wiring (a) | Wiring (b) | Wiring (c) | Commit SHA |
 |---|---|---|---|---|---|---|
-| T1.1 | Phase 1 / T1.1 — SkillExecutor DIP port + types | pending | — | — | — | — |
+| T1.1 | Phase 1 / T1.1 — SkillExecutor DIP port + types | committed | defer | defer | n/a | aae750f |
 | T1.2 | Phase 1 / T1.2 — typed errors + OTel events | pending | — | — | — | — |
 | T1.3 | Phase 1 / T1.3 — SandboxedSkillExecutor + 6 guards | pending | — | — | — | — |
 | T1.4 | Phase 1 / T1.4 — bundle-isolation gate | pending | — | — | — | — |
