@@ -141,6 +141,13 @@
       "when": 1781965032777,
       "tag": "0019_entity_edges",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782000821935,
+      "tag": "0020_scope_usage_counters",
+      "breakpoints": true
     }
   ]
 }
