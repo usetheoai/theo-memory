@@ -27,7 +27,7 @@
 | T2.1 | Phase 2 / T2.1 — ScopedSkillMemory.execute() + façade | committed | defer | defer | defer | e507a6e |
 | T2.2 | Phase 2 / T2.2 — factory gated wiring | committed | pass | defer | defer | 70e2083 |
 | T2.3 | Phase 2 / T2.3 — REST POST .../execute | committed | pass | defer | defer | 237d056 |
-| T2.4 | Phase 2 / T2.4 — MCP execute_skill tool | pending | — | — | — | — |
+| T2.4 | Phase 2 / T2.4 — MCP execute_skill tool | committed | pass | defer | defer | 0ec263b |
 | T3.1 | Phase 3 / T3.1 — GOAL integration test + gates | pending | — | — | — | — |
 
 Status legend: `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`.
