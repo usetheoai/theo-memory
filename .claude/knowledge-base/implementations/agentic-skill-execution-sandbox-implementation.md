@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|
 | T1.1 | Phase 1 / T1.1 — SkillExecutor DIP port + types | committed | defer | defer | n/a | aae750f |
 | T1.2 | Phase 1 / T1.2 — typed errors + OTel events | committed | defer | defer | defer | 89c96e1 |
-| T1.3 | Phase 1 / T1.3 — SandboxedSkillExecutor + 6 guards | pending | — | — | — | — |
+| T1.3 | Phase 1 / T1.3 — SandboxedSkillExecutor + 6 guards | committed | defer | defer | defer | 1419f02 |
 | T1.4 | Phase 1 / T1.4 — bundle-isolation gate | pending | — | — | — | — |
 | T2.1 | Phase 2 / T2.1 — ScopedSkillMemory.execute() + façade | pending | — | — | — | — |
 | T2.2 | Phase 2 / T2.2 — factory gated wiring | pending | — | — | — | — |
