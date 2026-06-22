@@ -1,0 +1,191 @@
+agent: review-domain-ontologies-architecture
+review_target: main..HEAD for plan domain-ontologies
+plan: .claude/knowledge-base/plans/domain-ontologies-plan.md
+reviewer_notes: |
+  Scope note — the architecture.md DIP boundary section names `src/core/` vs
+  `src/local/`/`src/cloud/`. The codebase was reorganized into
+  `packages/core/src/{domain,infrastructure}/` (commit ab62443). The boundary
+  was re-mapped accordingly: `domain/` is the contract/pure layer (== old core/),
+  `infrastructure/db/` is the adapter layer (== old local/). All findings apply
+  the boundary in its current form.
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction/entity-linking.ts
+    line: 135
+    plan_ref: T4.1 (not in the plan's Phase 1-3 task breakdown)
+    summary: >-
+      entity-linking type persistence changed from hardcoded 'PROPER' to
+      `e.type ?? 'PROPER'` — a behavioral change to the ALREADY-SHIPPED entity
+      extraction feature (slices 1/2) on the DEFAULT no-ontology path, bundled
+      into T4.1 without its own plan task or a dedicated regression test.
+    evidence: |
+      Before:  type: 'PROPER' as const,
+      After:   type: e.type ?? 'PROPER',
+      The SYSTEM_PROMPT (prompt.ts) already instructs the LLM to emit
+      `type: <PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>`. Pre-change, those
+      LLM-emitted types were DISCARDED (all LLM-path nodes persisted as
+      'PROPER'). Post-change, with NO ontology configured, `entities.type` now
+      stores PERSON/ORG/PLACE/... instead of always 'PROPER'. The plan's
+      "default byte-unchanged" invariant is scoped to the PROMPT output
+      (correctly held), but the PERSISTED entity-type value silently changes for
+      every existing entity-extraction consumer.
+    recommended_action: >-
+      This is a defensible fix (the old hardcode was lossy), but it must be
+      disclosed as a behavioral change to shipped behavior: (a) add a CHANGELOG
+      `[Unreleased] § Changed` entry stating LLM entity types now persist on the
+      no-ontology path (today the CHANGELOG only lists `Added`); (b) add one
+      explicit unit/integration assertion that, WITHOUT an ontology, a stub-LLM
+      `type: 'PERSON'` persists as 'PERSON' (not 'PROPER') — the current phase7
+      tests assert only on `name`, so the new persisted-type contract is
+      unguarded against future regression.
+
+  - id: F-arch-2
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 212
+    plan_ref: T3.1 (factory resolve + thread)
+    summary: >-
+      `resolveOntology(this.config.ontology)` is invoked on EVERY remember()
+      call. For a custom Ontology OBJECT this re-runs full `validateOntology`
+      per write — the factory already validated it once at construction. DRY +
+      avoidable per-write work.
+    evidence: |
+      factory.ts:175  if (config.ontology !== undefined) { resolveOntology(config.ontology); }  // result discarded
+      scoped-memory.ts:212  ...(this.config.ontology !== undefined ? { ontology: resolveOntology(this.config.ontology) } : {})
+      The factory resolves-for-validation then THROWS AWAY the resolved object;
+      LocalScopedMemory.remember() then resolves again on the hot path. Idempotent
+      (so no correctness bug), but a custom-object ontology pays validateOntology
+      on every single remember().
+    recommended_action: >-
+      Resolve ONCE at the factory and store the concrete `Ontology` on the
+      resolved config (e.g. carry a `resolvedOntology: Ontology` on
+      LocalMemoryConfig), then thread that directly in scoped-memory. Eliminates
+      the per-write re-resolution and keeps the fail-fast validation at the
+      single construction boundary (single source of truth).
+
+  - id: F-arch-3
+    severity: LOW
+    file: packages/core/src/domain/extraction/pipeline.ts
+    line: 426
+    plan_ref: T2.2 fail-soft acceptance criterion
+    summary: >-
+      The try/catch wrapping `applyOntologyToEntities` is effectively dead — the
+      helper performs no throwing operation (Set build + Array.map + emitEvent),
+      so the fail-soft catch can never fire as written.
+    evidence: |
+      if (deps.ontology !== undefined && llmEntities !== undefined) {
+        try {
+          llmEntities = applyOntologyToEntities(llmEntities, deps.ontology, tracer);
+        } catch {
+          // degrade to raw entities (fail-soft); coercion is best-effort enrichment.
+        }
+      }
+      applyOntologyToEntities is pure and total over `{name, type?}[]`; there is
+      no code path inside it that throws. The catch satisfies the plan's
+      fail-soft acceptance criterion structurally but guards nothing real.
+    recommended_action: >-
+      Acceptable to keep as defensive depth (cheap, documents intent), but note
+      in the JSDoc that the catch is belt-and-suspenders. If a fail-soft TEST
+      asserts this catch, it must inject a throwing tracer/helper to actually
+      exercise the branch — otherwise the fail-soft guarantee for the ontology
+      step is asserted vacuously.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/core/src/domain/ontology.ts
+    line: 1
+    plan_ref: T1.1, ADR D1/D3/D4
+    summary: >-
+      DIP boundary CLEAN. ontology.ts (domain) imports only `./errors.js`; zero
+      infrastructure imports. prompt.ts + pipeline.ts ontology additions import
+      only domain modules. The `Ontology`/`BUILTIN_ONTOLOGIES`/`resolveOntology`
+      contract correctly lives in the pure domain layer per architecture.md § 3.
+    evidence: |
+      grep "from '.*infrastructure" in ontology.ts / extraction/prompt.ts /
+      extraction/pipeline.ts → NONE. Domain owns the contract; factory
+      (infrastructure) consumes it via DIP. SRP respected: ontology.ts = type +
+      registry + resolver only; coercion lives in extraction/pipeline.ts as a
+      pure helper (applyOntologyToEntities).
+    recommended_action: No action — exemplary boundary discipline; recorded as a positive finding.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/domain/dip/memory-entity-store.ts
+    line: 15
+    plan_ref: T4.1 (EntityToLink/EntityNodeSummary.type widening)
+    summary: >-
+      Widening EntityToLink.type and EntityNodeSummary.type from the closed
+      `EntityType` union ('PROPER'|'QUOTED'|'COMPOUND'|'NOUN') to `string` is a
+      SOUND wider-not-narrower change — no consumer narrows on the literals; the
+      value is written to a `text` column and surfaced as a string. The closed
+      `EntityType` union remains correctly used by the EntityExtractor DIP
+      (compromise fallback), which legitimately emits only the 4 literals. No
+      LSP/ISP break.
+    evidence: |
+      EntityToLink.type: EntityType  →  EntityToLink.type: string
+      pg-memory-entity-store.ts read row type: EntityType|null → string|null
+      EntityExtractor.extract() still returns ExtractedEntity{type: EntityType}
+      (4-literal union intact; test-d.ts still asserts the closed union). A
+      `string` field accepts every old EntityType value (union ⊆ string), so all
+      existing producers remain assignable — backward-compatible widening.
+    recommended_action: >-
+      No action. (Cosmetic: EntityNodeSummary.type is now `string` while the JSDoc
+      still references the compromise kinds first — acceptable since the doc was
+      updated to enumerate compromise|LLM|ontology sources.)
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/domain/memory-store.ts
+    line: 257
+    plan_ref: T3.1 ADR D4 ((string & {}) idiom)
+    summary: >-
+      The `OntologyName | (string & {})` config-type idiom is applied correctly
+      and identically on both `MemoryConfig.ontology?` and `resolveOntology`'s
+      param — preserves built-in-key autocomplete while accepting any string
+      (unknown keys fail-fast with InvalidOntology at the factory). Sound, with a
+      call-site comment explaining the idiom.
+    evidence: |
+      memory-store.ts:257  readonly ontology?: Ontology | OntologyName | (string & {});
+      ontology.ts:109      value: Ontology | OntologyName | (string & {})
+      Both annotated with the same rationale comment. No `any`; strict-mode safe.
+    recommended_action: No action — idiom used correctly and documented.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/domain/errors.ts
+    line: 51
+    plan_ref: T1.1 (InvalidOntology typed error)
+    summary: >-
+      InvalidOntology follows the project typed-domain-error pattern exactly
+      (override readonly name as const, prefixed message, setPrototypeOf for
+      instanceof across the transpile boundary). Fail-fast at the config boundary
+      per architecture.md § 8. No swallowed errors introduced anywhere in the diff.
+    evidence: |
+      export class InvalidOntology extends Error {
+        override readonly name = 'InvalidOntology' as const;
+        constructor(message: string, options?: ErrorOptions) {
+          super(`Invalid ontology: ${message}`, options);
+          Object.setPrototypeOf(this, InvalidOntology.prototype);
+        }
+      }
+    recommended_action: No action — conforms to the errors.ts convention.
+
+summary_counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 2
+  LOW: 1
+  INFO: 4
+overall_assessment: >-
+  Architecturally sound. DIP boundary clean (domain owns the Ontology contract,
+  zero infra leakage), SRP respected (type/registry/resolver vs pure coercion
+  helper vs factory wiring), typed errors + fail-fast/fail-soft split correct,
+  the EntityType→string widening is a backward-compatible wider change, and the
+  (string & {}) idiom is applied correctly. No BLOCKER/HIGH. Two MEDIUMs worth
+  closing before merge: (F-arch-1) the entity-linking 'PROPER'→e.type change
+  alters PERSISTED behavior of the shipped entity-extraction feature on the
+  no-ontology default path and deserves a CHANGELOG `Changed` entry + an explicit
+  regression assertion; (F-arch-2) resolveOntology runs per-remember() instead of
+  once at the factory (DRY/hot-path). Both are non-blocking; the gate verdict from
+  this agent is READY_TO_MERGE-compatible (0 BLOCKER, 0 HIGH).

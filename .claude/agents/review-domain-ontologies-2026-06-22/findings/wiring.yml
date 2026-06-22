@@ -1,0 +1,150 @@
+agent: review-domain-ontologies-wiring
+review_target: main..HEAD for plan domain-ontologies (Roadmap Item 15)
+plan: .claude/knowledge-base/plans/domain-ontologies-plan.md
+verdict: READY_TO_MERGE
+summary: >
+  The wiring triad for the ontology feature is HONEST and DEEP. The full caller
+  chain is connected end-to-end (no orphan modules); the integration test
+  exercises the real path against pgvector; the ontology_type_coerced OTel event
+  is emitted on coercion and asserted via a real InMemorySpanExporter span. tsc
+  clean; 28 ontology contract tests + 29 prompt-composer + 18 factory + 66 p0-audit
+  export-surface tests all green. One LOW naming-hygiene note (paper-name `mem0` in
+  src JSDoc) belongs to the domain reviewer's lane; zero wiring BLOCKER/HIGH.
+
+triad_revalidation:
+  total_new_symbols: 7  # Ontology, OntologyName (types); BUILTIN_ONTOLOGIES, ONTOLOGY_FALLBACK_TYPE, resolveOntology, validateOntology (values); InvalidOntology (error)
+  pillar_a_honest_pass: 7 / 7   # every public symbol has a real (non-no-op) caller or is a legit public-API export re-exported via src/index.ts
+  pillar_b_honest_pass: 7 / 7   # exercised by contract tests + the GOAL integration test (not merely imported)
+  pillar_c_observed: 1 / 1      # ontology_type_coerced emitted in applyOntologyToEntities + asserted via real OTel span
+
+caller_chain_trace:
+  status: CONNECTED_END_TO_END
+  path: |
+    createLocalMemory({ ontology })
+      -> factory.ts:177  resolveOntology(config.ontology)   [fail-fast, before side effects]
+      -> MemoryConfig.ontology  (memory-store.ts:257)
+      -> scoped-memory.ts:212  ExtractionDeps.ontology = resolveOntology(config.ontology)
+      -> pipeline.ts:369  generateAdditiveExtractionPrompt(..., deps.ontology)  [vocab injected]
+      -> pipeline.ts:429  applyOntologyToEntities(llmEntities, deps.ontology, tracer)  [coerce post-parse, emit event]
+      -> pipeline.ts:585  linkEntities(..., llmEntities)  [coerced types flow to persistence]
+      -> entity-linking.ts:135  type: e.type ?? 'PROPER'  [persists to entities.type column]
+  verified: true
+
+findings:
+  - id: F-wire-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 177
+    plan_ref: T3.1 ADR D4 — factory fail-fast on invalid ontology config
+    summary: Pillar (a) caller is real and functionally necessary — factory fail-fast + scoped-memory thread, not a no-op
+    evidence: |
+      factory.ts:177-179 calls resolveOntology(config.ontology) BEFORE any side effect
+      (probeEmbedder / vectorStore.initialize), so an unknown key throws InvalidOntology
+      at construction (asserted by factory-recall-cache.test.ts:337 "fail-fast"). The
+      resolved ontology is then threaded into ExtractionDeps at scoped-memory.ts:212,
+      reaching the extraction pipeline on every remember(). No dead branch, no
+      `if (false)`, no commented call.
+    recommended_action: none — pillar (a) is honest
+
+  - id: F-wire-2
+    severity: INFO
+    file: packages/core/src/domain/extraction/apply-ontology.test.ts
+    line: 40
+    plan_ref: T2.2 — ontology_type_coerced OTel event (Princípio 3 observability)
+    summary: Pillar (c) runtime metric observed in a REAL span, not fabricated
+    evidence: |
+      apply-ontology.test.ts:15-19 wires a real BasicTracerProvider + InMemorySpanExporter
+      + SimpleSpanProcessor. Test "coercion emits an observable ontology_type_coerced event"
+      (:40) calls applyOntologyToEntities with an out-of-vocab type and asserts
+      exporter.getFinishedSpans() contains 'ontology_type_coerced' (:44). The "no type"
+      case (:48) asserts ZERO spans — proving the emit is gated, not unconditional. The
+      event literal is registered in MEMORY_EVENTS (memory-event.ts:101) and the union
+      count bumped 27->28 with a member assertion (memory-event.test.ts:11,16). Magnitude
+      is correct: one span per out-of-vocab entity (1 coercion in the unit fixture).
+    recommended_action: none — pillar (c) is honest
+
+  - id: F-wire-3
+    severity: LOW
+    file: tests/integration/ontology.test.ts
+    line: 67
+    plan_ref: T4.1 GOAL — domain-typed persist + coerce vs real pgvector
+    summary: GOAL integration test asserts persistence (entities.type) but NOT the ontology_type_coerced span at the integration layer — the event assertion lives only at the unit layer
+    evidence: |
+      ontology.test.ts:85-87 asserts the in-vocab type persists ('Diagnosis') and the
+      out-of-vocab type persists coerced ('OTHER') by reading the real entities table —
+      this is strong end-to-end proof of the coercion BEHAVIOR. However the
+      `ontology_type_coerced` EVENT is only asserted in the unit test
+      (apply-ontology.test.ts:44), not via the integration run. Per the wiring-triad
+      DEEP-check, pillar (c) is still satisfied (real span asserted in a real OTel
+      pipeline), but the integration test does not double-confirm the event fires on
+      the full createLocalMemory path. Acceptable: the coerced 'OTHER' value in the
+      persisted column is itself observable proof the coercion executed end-to-end.
+    recommended_action: >
+      Optional hardening — pass a tracer into createLocalMemory in ontology.test.ts and
+      assert the span, to confirm the event on the integration path too. Not blocking:
+      the persisted OTHER value already proves the coercion ran end-to-end and the unit
+      span assertion proves the emit.
+
+  - id: F-wire-4
+    severity: INFO
+    file: packages/core/src/domain/index.ts
+    line: 223
+    plan_ref: T3.1 — public exports + p0-audit count reconcile (52->54)
+    summary: Public barrel exports the ontology surface; the 52->54 export-STATEMENT reconcile is correct and InvalidOntology folds into the pre-existing error export (no double-count)
+    evidence: |
+      domain/index.ts adds 2 NEW export statements: `export type { Ontology, OntologyName }`
+      (:223) and `export { BUILTIN_ONTOLOGIES, ONTOLOGY_FALLBACK_TYPE, resolveOntology,
+      validateOntology }` (:231). InvalidOntology was added to the PRE-EXISTING errors
+      export block (:141), so it adds 0 to the statement count. Root index.ts re-exports
+      `* from './domain/index.js'` (:209), so the surface is public via the root barrel too.
+      p0-audit tests assert 54 export statements and pass: exports-contract.test.ts:81,
+      full-public-surface.test.ts:103 (20/20 + 46/46 green). The count is statements, not
+      symbols — matches the +2 delta exactly.
+    recommended_action: none — reconcile is correct, no drift
+
+  - id: F-wire-5
+    severity: INFO
+    file: packages/core/src/domain/ontology.ts
+    line: 83
+    plan_ref: T1.1 — dead-export reachability of the ontology surface
+    summary: No dead exports — all 7 ontology symbols are either re-exported via src/index.ts (public API) or used by an in-project caller
+    evidence: |
+      resolveOntology -> used by factory.ts + scoped-memory.ts (the wiring chain).
+      ONTOLOGY_FALLBACK_TYPE -> used by prompt.ts + pipeline.ts (coercion fallback).
+      validateOntology -> called internally by resolveOntology (ontology.ts:118) AND a
+      legit public API (custom-ontology validation for consumers), re-exported in barrel.
+      BUILTIN_ONTOLOGIES -> resolved by key at runtime + a legit public registry API,
+      re-exported in barrel + used by every ontology test.
+      InvalidOntology -> thrown by ontology.ts validate/resolve + exported.
+      Ontology / OntologyName -> the config + ExtractionDeps + factory types.
+      Every export is reachable; none is "internal but unused".
+    recommended_action: none
+
+  - id: F-wire-6
+    severity: INFO
+    file: packages/core/src/domain/ontology.ts
+    line: 20
+    plan_ref: architecture.md — domain boundary (pure, zero I/O)
+    summary: Boundary respected — ontology.ts imports only ./errors.js; extraction imports ontology from ../ontology (intra-domain), no cross-tier leak
+    evidence: |
+      ontology.ts sole import is `import { InvalidOntology } from './errors.js'` — zero
+      infrastructure/local/cloud import. prompt.ts:22 + pipeline.ts:39 import the ontology
+      from '../ontology.js' (same domain tier). No src/core leak into local/cloud/theokit/
+      agent-tools. The boundary-check hook had nothing to catch — clean by construction.
+    recommended_action: none
+
+green_gates:
+  tsc_noemit: "PASS (packages/core, exit 0, 0 errors)"
+  ontology_contract_tests: "PASS (28/28 — ontology.test.ts + apply-ontology.test.ts + memory-event.test.ts)"
+  prompt_composer_tests: "PASS (29/29 — extraction-prompt.test.ts incl. default-path byte-identical regression)"
+  factory_wiring_tests: "PASS (18/18 — factory-recall-cache.test.ts incl. fail-fast + default-unchanged)"
+  p0_audit_export_surface: "PASS (66/66 — exports-contract + exports-root + full-public-surface + no-any-in-public)"
+
+cross_lane_note: >
+  Paper-name `mem0` appears as a bare token in src JSDoc prose at ontology.ts:14
+  ("Prior art: mem0's project-level custom_categories"), ontology.ts:43 ("mirrors
+  mem0's coding taxonomy shape"), and pipeline.ts:5. Per no-paper-names-in-code.md
+  the `**/benchmarks/**` exemption does NOT cover packages/core/src/domain — this is
+  a LOW naming-hygiene finding owned by the architecture/domain reviewer, not a
+  wiring defect. Flagged here only for visibility; recommend the domain reviewer
+  confirm severity.

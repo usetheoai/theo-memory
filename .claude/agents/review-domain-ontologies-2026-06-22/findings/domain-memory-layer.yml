@@ -1,0 +1,188 @@
+agent: review-domain-ontologies-domain-memory-layer
+review_target: main..HEAD for plan domain-ontologies (Roadmap Item 15)
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Ontology as a typed layer over the EXISTING extraction pipeline (prompt injection + post-parse validation) — correct placement"
+  - "Princípio 3 auditability — coercion observable via ontology_type_coerced, emitted ONLY on actual coercion (no flooding)"
+  - "Fail-soft discipline — ontology error degrades to raw entities, NEVER fails remember() (own try/catch after parse)"
+  - "ADR D3 no-poly-store — persists in existing entities.type/entity_edges.relation, NO new store/migration"
+  - "Out-of-vocab RELATIONS kept (not coerced/dropped) — only entity types coerce"
+  - "Default (no-ontology) path behavior — prompt byte-unchanged + entity-linking e.type change impact"
+  - "Built-in vocabularies (medical/legal/code/support) — curated/sensible"
+  - "ADD-only invariant preserved; three-tier scope (User/Session/Agent) untouched"
+
+findings:
+  - id: F-dom-1
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction/entity-linking.ts
+    line: 135
+    plan_ref: T4.1 — persist LLM/ontology entity types (e.type not hardcoded PROPER)
+    domain_anchor: "schema.ts:338-360 — `type` is part of the entity dedup UNIQUE identity (entities_scope_type_key_uq, EC-1)"
+    summary: >
+      The T4.1 change `type: e.type ?? 'PROPER'` alters the DEFAULT (no-ontology) path,
+      not just the ontology path. Before this cycle the LLM-extracted node path persisted
+      every entity as the constant 'PROPER'; now it persists the LLM's coarse type
+      (PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER). Because `type` is part of the entity dedup
+      UNIQUE identity (entities_scope_type_key_uq COALESCEs type into the key), this is a
+      real SEMANTIC behavior change to the default extraction path — the plan's
+      "default path byte-unchanged" claim is true ONLY for the prompt string (T2.1 test),
+      NOT for persisted entity typing. Acceptable on the merits (LLM types are more useful
+      than a placeholder, and the entity slices have not yet reached `main` so there is no
+      production backfill collision), but it is undisclosed scope: a same-call entity whose
+      coarse type the LLM varies run-to-run (PERSON vs OTHER) now lands as two dedup
+      identities instead of merging under a single 'PROPER'. The dedup key just became
+      sensitive to LLM type drift.
+    evidence: |
+      ```ts
+      // entity-linking.ts:128-138 (upsertNodes, LLM-primary path)
+      llmEntities.map((e) => ({
+        type: e.type ?? 'PROPER',   // was: type: 'PROPER' as const
+        name: e.name.trim(),
+        normalizedKey: normalizeEntityKey(e.name),
+      })),
+      ```
+      ```ts
+      // schema.ts:354-361 — type is in the dedup UNIQUE
+      uniqueIndex('entities_scope_type_key_uq').on(
+        table.workspaceId, COALESCE(userId), COALESCE(sessionId),
+        COALESCE(agentId), COALESCE(type, ''), COALESCE(normalizedKey, ''))
+      ```
+    recommended_action: >
+      Document this as a deliberate default-path change in the CHANGELOG and plan (it is
+      NOT a no-op for persistence). Optionally add a regression test asserting an
+      LLM-typed entity (no ontology) now persists with its LLM coarse type, so the change
+      is intentional and pinned. Consider whether type-in-dedup-identity is still the right
+      EC-1 choice now that type is a free-drifting LLM value rather than a stable
+      compromise kind — a future entity may fragment across PERSON/OTHER duplicates.
+
+  - id: F-dom-2
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction/entity-linking.ts
+    line: 227
+    plan_ref: T2.2 / T4.1 — coerced types flow to persistence
+    domain_anchor: "schema.ts:338 — type is part of the dedup identity; two node-creation paths must agree on type"
+    summary: >
+      The linkEdges endpoint auto-creation path (for relation endpoints the LLM listed
+      ONLY in `relations`, not in `entities[]`) still hardcodes `type: 'PROPER' as const`,
+      while the primary upsertNodes path (F-dom-1) now persists the LLM/ontology type. So
+      the SAME logical entity gets type 'PROPER' when it arrives only as an edge endpoint
+      but its ontology/LLM type when it arrives as a node. The `linkedKeys` guard
+      (lines 219-220) prevents an actual DUPLICATE row within a single remember() call
+      (endpoints already in linkedKeys are skipped), so this is not a same-call dup
+      regression — but across calls or when an ontology is configured, an endpoint-only
+      entity escapes ontology coercion entirely (it is never run through
+      applyOntologyToEntities) and persists as the placeholder 'PROPER', inconsistent with
+      the ontology's vocabulary and bypassing the Item-15 typing thesis for that subset.
+    evidence: |
+      ```ts
+      // entity-linking.ts:225-232 — linkEdges endpoint auto-create still hardcodes PROPER
+      const endpointEntities: EntityToLink[] = names.map((name, i) => ({
+        type: 'PROPER' as const,   // <-- not ontology-coerced, inconsistent with upsertNodes
+        name, normalizedKey: normalizeEntityKey(name),
+        embedding: embeddings[i] ?? [],
+      }))
+      ```
+    recommended_action: >
+      Acknowledge the endpoint-only entities are an ontology blind spot (relation endpoints
+      not in entities[] never get a domain type). Either (a) document the limitation, or
+      (b) since these endpoints have no LLM type, leaving them 'PROPER' is defensible —
+      but at minimum note that ontology coercion is entity-array-only and edge-endpoint
+      entities are out of scope, so a reader does not expect domain types on them.
+
+  - id: F-dom-3
+    severity: LOW
+    file: packages/core/src/domain/extraction/prompt.ts
+    line: 70
+    plan_ref: T2.1 / ADR D2 — inject ontology vocab; LLM steered to domain types
+    domain_anchor: "Mem0-shape extraction prompt — single coherent instruction to the LLM"
+    summary: >
+      The ontology directive is PREPENDED (renderOntologyDirective, highest priority) but
+      the SYSTEM_PROMPT body still hardcodes the generic enum in two places — the entities
+      instruction (line 48: `<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>`) and the strict
+      output-format example (line 70). When an ontology is active the LLM receives
+      conflicting guidance: "use ONLY these [medical] types" at the top, then a literal
+      JSON example showing PERSON|ORG|... at the bottom. The JSDoc claims the generic enum
+      is "overridden by this higher-priority directive", but the example is the LAST and
+      most concrete instruction, which LLMs weight heavily. Correctness is preserved by
+      the post-parse coercion safety net (so this is best-effort steering, matching the
+      plan's framing), but the conflicting example measurably weakens the prompt-steering
+      effectiveness — more out-of-vocab emissions → more coercion to OTHER → more domain
+      nuance lost (the Drawbacks "too-narrow vocab → everything OTHER" risk amplified by a
+      self-contradicting prompt).
+    evidence: |
+      ```text
+      SYSTEM_PROMPT line 48: "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>"
+      SYSTEM_PROMPT line 70 (output-format example): "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>"
+      ```
+    recommended_action: >
+      Consider templating the entities-type enum in SYSTEM_PROMPT so the ontology
+      vocabulary replaces (not just precedes) the generic example when an ontology is set,
+      OR add a closing line in renderOntologyDirective like "IGNORE the generic
+      PERSON|ORG|... example below; the DOMAIN ONTOLOGY types above are authoritative."
+      Low severity because post-parse coercion guarantees correctness regardless.
+
+  - id: F-dom-4
+    severity: LOW
+    file: packages/core/src/domain/extraction-prompt.test.ts
+    line: 279
+    plan_ref: T2.1 acceptance — "default path byte-identical to pre-change (explicit string assertion)"
+    domain_anchor: "testing.md — assert actual behavior with explicit values, not self-consistency"
+    summary: >
+      The "byte-identical" regression test compares generateAdditiveExtractionPrompt([],
+      msgs) against the same call with explicit undefined args — it proves the new optional
+      param is inert when absent, but it does NOT pin the prompt against a frozen snapshot
+      of the actual pre-Item-15 output string. A future edit to SYSTEM_PROMPT would pass
+      this test while silently changing the default-path prompt. The plan's acceptance
+      criterion asked for an "explicit string assertion" of byte-identity vs pre-change;
+      this is a weaker self-consistency check. Low risk because the composer change is a
+      purely-gated prefix, but the regression guard is thinner than the plan claims.
+    evidence: |
+      ```ts
+      const a = generateAdditiveExtractionPrompt([], msgs).prompt;
+      const b = generateAdditiveExtractionPrompt([], msgs, undefined, undefined).prompt;
+      expect(a).toBe(b);  // self-consistency, not a frozen pre-Item-15 snapshot
+      ```
+    recommended_action: >
+      Optionally pin a frozen expected prompt string (or a hash of it) so an accidental
+      SYSTEM_PROMPT edit trips the default-path regression. Not blocking.
+
+  - id: F-dom-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 178
+    plan_ref: T3.1 / ADR D4 — factory resolve + fail-fast
+    domain_anchor: "DRY — resolveOntology computed twice (factory fail-fast + per-remember in scoped-memory)"
+    summary: >
+      The factory calls resolveOntology(config.ontology) purely for the fail-fast side
+      effect and discards the result (line 178); scoped-memory.ts:212 then re-resolves it
+      on EVERY remember() call. resolveOntology is pure + cheap + idempotent on an
+      already-resolved object, so this is correct and fail-soft-safe, but it is a minor DRY
+      / efficiency nit: the resolved Ontology could be computed once and threaded, instead
+      of re-validating a built-in object on every write. Noting for awareness, not a defect.
+    evidence: |
+      ```ts
+      // factory.ts:177-179 — resolves then discards
+      if (config.ontology !== undefined) { resolveOntology(config.ontology); }
+      // scoped-memory.ts:212 — re-resolves per remember()
+      ...(this.config.ontology !== undefined ? { ontology: resolveOntology(this.config.ontology) } : {}),
+      ```
+    recommended_action: >
+      Optionally resolve once in the factory and thread the concrete Ontology onto the
+      config so scoped-memory consumes the already-resolved object. KISS — fine as-is.
+
+positives:
+  - "Fail-soft placement is CORRECT (pipeline.ts:427-433): own try/catch AFTER the parse try/catch, gated on `deps.ontology !== undefined && llmEntities !== undefined`; a coercion throw degrades to raw entities and NEVER fails remember(). Mirrors the entity/relation slice fail-soft discipline exactly."
+  - "Princípio 3 auditability is correct: ontology_type_coerced is a registered MEMORY_EVENTS literal (count bumped 27→28, asserted), emitted ONLY when an actual out-of-vocab coercion happens (in-vocab + no-type entities emit nothing — apply-ontology.test.ts confirms no flooding), with attributes {ontology, from, to, entity}."
+  - "Out-of-vocab RELATIONS are correctly KEPT, not coerced/dropped: applyOntologyToEntities touches entities ONLY; `relations` flows through the pipeline untouched (no data loss, per ADR D2)."
+  - "ADR D3 (no poly-store) honored: NO new store, NO new migration; domain types persist in the existing entities.type (text) + entity_edges.relation (text) columns. The EntityToLink/EntityNodeSummary.type widening from the compromise-only EntityType union to `string` is sound (text column already accepts arbitrary values)."
+  - "applyOntologyToEntities is a pure helper (no mutation — apply-ontology.test.ts asserts input array + items untouched), returns a NEW array, testable in isolation."
+  - "The 4 built-in ontologies (medical/legal/code/support) are curated and sensible: each carries domain-appropriate entity types + verb-phrase relation types, and the validator ENFORCES that every ontology (built-in or custom) includes the OTHER coercion fallback — so the safety net can never be configured away."
+  - "GOAL integration test (tests/integration/ontology.test.ts) reads persisted entities.type directly via SQL against real ankane/pgvector — asserts in-vocab Diagnosis persists AND out-of-vocab Wizard coerces to OTHER. Robust real-persistence assertion; the test author used non-English tokens to avoid compromise-fallback collision (implicitly acknowledging the dual-path type concern)."
+  - "ADD-only invariant + three-tier scope model untouched; ontology is purely an extraction-time typing layer (opt-in via MemoryConfig.ontology, default absent = generic extraction)."
+
+summary_counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 2
+  LOW: 2
+  INFO: 1

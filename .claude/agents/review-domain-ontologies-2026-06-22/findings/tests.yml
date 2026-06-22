@@ -1,0 +1,141 @@
+agent: review-domain-ontologies-tests
+review_target: main..HEAD for plan domain-ontologies
+plan: .claude/knowledge-base/plans/domain-ontologies-plan.md
+test_pyramid:
+  unit_added: 20
+  integration_added: 1
+  e2e_added: 0
+  total: 21
+  note: >
+    Unit breakdown — ontology.test.ts (7: registry keys, OTHER-fallback invariant,
+    resolve key/object/validate, 3 typed-throw paths) + apply-ontology.test.ts
+    (5: in-vocab verbatim, out-of-vocab→OTHER, observable event, untyped-untouched,
+    no-mutation) + extraction-prompt.test.ts T2.1 block (3: injection,
+    byte-identical default regression, directive lists all types) +
+    memory-event.test.ts (2: count==28, ontology_type_coerced member) +
+    factory-recall-cache.test.ts T3.1 block (3: factory resolves+injects,
+    fail-fast bad key, default unchanged). Integration — ontology.test.ts GOAL
+    (1 `it`, gated by THEOMEM_PG_URI via describe.skipIf). Pyramid shape is
+    CORRECT for a pure-logic feature with one real-pgvector GOAL (no inversion).
+edge_cases_from_plan:
+  covered: 7
+  missing:
+    - "Fail-soft: an ontology validation error never throws out of remember() (plan T2.2 AC + D2 + Failure scenarios) — NO test exercises the try/catch at pipeline.ts:430"
+    - "Out-of-vocab relations are KEPT (no data loss) (plan ADR D2) — no test asserts relations survive the ontology layer"
+findings:
+  - id: F-tests-1
+    severity: HIGH
+    file: packages/core/src/domain/extraction/apply-ontology.test.ts
+    line: 60
+    plan_ref: T2.2 Acceptance Criteria — "An ontology validation error does NOT throw out of the extraction pipeline (fail-soft — remember() still succeeds; asserted)"; ADR D2; § Failure scenarios "Ontology validation throws internally: fail-soft"
+    summary: >
+      Fail-soft path is implemented (try/catch at pipeline.ts:427-433 swallows
+      a coercion throw and degrades to raw entities) but is NEVER asserted by any
+      test. The plan lists this as an explicit Acceptance Criterion AND a Failure
+      Scenario for T2.2. A regression that removed the try/catch — letting an
+      ontology error propagate and FAIL remember() — would pass the entire suite
+      green. This is the load-bearing fail-soft invariant (mirrors the
+      entity/relation slices' fail-soft, cited by Princípio 3 + ADR D2).
+    evidence: |
+      grep -rn 'fail-soft\|never fails\|degrade\|still succeed' \
+        packages/core/src/domain/extraction/apply-ontology.test.ts \
+        tests/integration/ontology.test.ts  -> 0 matches
+      pipeline.ts:427-433 has the try { applyOntologyToEntities } catch {} but
+      applyOntologyToEntities itself cannot throw (Set.has + map), so the only way
+      to exercise the catch is via the pipeline with a throwing ontology/tracer —
+      untested.
+    recommended_action: >
+      Add a pipeline-level (or applyOntology-level) unit test where the ontology
+      coercion throws (e.g. a Proxy ontology whose entityTypes getter throws, or a
+      tracer.startActiveSpan that throws) and assert remember()/extract still
+      resolves AND entities persist with raw (un-coerced) types. Defends the
+      designed fail-soft degradation.
+  - id: F-tests-2
+    severity: MEDIUM
+    file: tests/integration/ontology.test.ts
+    line: 88
+    plan_ref: T4.1 Acceptance Criteria — "in-vocab type persists, out-of-vocab → OTHER, event emitted, default path unchanged"
+    summary: >
+      The GOAL test asserts only 2 of the 4 stated AC truths — (1) in-vocab
+      persists and (2) out-of-vocab→OTHER. It does NOT assert (3) the
+      ontology_type_coerced event was emitted, nor (3b) the default path
+      (no ontology) leaves entity types untouched. Both are explicitly listed
+      in the T4.1 AC. The event IS covered at unit level (apply-ontology.test.ts)
+      and default-unchanged IS covered at unit level (extraction-prompt + factory),
+      so this is not a suite-wide coverage hole — but the GOAL test under-delivers
+      against its own stated contract.
+    evidence: |
+      tests/integration/ontology.test.ts only has expect(byName.get('Qquib'))
+      .toBe('Diagnosis') + expect(byName.get('Zylophan')).toBe('OTHER').
+      No assertion on ontology_type_coerced span; no second remember() without
+      ontology to prove the default path persists raw types end-to-end.
+    recommended_action: >
+      Either (a) add the event-emitted + default-path-unchanged assertions to the
+      GOAL test to match its AC, or (b) consciously scope the GOAL to the
+      persistence truth and move the unmet AC bullets to the unit layer in the plan
+      (honest scope note). (a) is preferred — the OTel span + default regression
+      against real pgvector is the highest-value end-to-end guard.
+  - id: F-tests-3
+    severity: LOW
+    file: tests/integration/ontology.test.ts
+    line: 43
+    plan_ref: ADR D2 — "out-of-vocab relations are KEPT (record divergence via the same event)"; Coverage Matrix "Keep out-of-vocab relations (no data loss) [D2] → T2.2"
+    summary: >
+      "Keep out-of-vocab relations" is a Coverage-Matrix-mapped behavior but no
+      test exercises it. applyOntologyToEntities (pipeline.ts:52) only touches
+      entities; relations flow through parsed.relations untouched — so the
+      behavior holds BY CONSTRUCTION today. The risk is purely regression: a
+      future change adding relation coercion (or a relation-type allowlist) would
+      silently drop relations with no test to catch it. The integration GOAL uses
+      relations: [], so even the happy relation path is unexercised under an
+      ontology.
+    evidence: |
+      grep -rn 'relation' packages/core/src/domain/extraction/apply-ontology.test.ts
+        -> 0 matches
+      tests/integration/ontology.test.ts:43  relations: []
+      pipeline.ts:52 applyOntologyToEntities signature takes entities only; no
+      relation handling — so "kept" is implicit, not asserted.
+    recommended_action: >
+      Add a small assertion (unit or in the GOAL) that an out-of-vocab relation
+      (e.g. relationship 'enchants' against the medical ontology) is PERSISTED to
+      entity_edges.relation unchanged when an ontology is configured — locking the
+      "coerce-not-drop, entities-only" contract against future drift.
+  - id: F-tests-4
+    severity: INFO
+    file: tests/integration/ontology.test.ts
+    line: 49
+    plan_ref: testing.md § Pyramid (integration gated by env); rules/cycle-implement (no flaky CI)
+    summary: >
+      Positive finding — the GOAL test is honest and well-constructed: discloses
+      the deterministic-stub-LLM pattern in the file header (matching the reranker
+      GOAL precedent the plan cites), uses a REAL PgvectorStore + REAL
+      LocalTransformerEmbedder + isolated DB (themem_ontology_goal) with
+      DROP/CREATE + pool.end() teardown, reads back entities.type directly via SQL
+      (asserts persistence, not the in-memory return value), and gates on
+      THEOMEM_PG_URI via describe.skipIf (no flaky CI). The stub fixture uses
+      non-English nonce tokens (Qquib/Zylophan) to avoid collision with the
+      compromise fallback extractor — a thoughtful determinism guard.
+    evidence: |
+      describe.skipIf(ROOT_PG_URI === '')(...) + beforeAll CREATE DATABASE +
+      afterAll pool.end(); reads back via SELECT name, type FROM entities.
+    recommended_action: "No action — exemplary integration test discipline."
+  - id: F-tests-5
+    severity: INFO
+    file: packages/core/src/domain/ontology.test.ts
+    line: 1
+    plan_ref: testing.md § BDD (behavior, not implementation); Unbreakable Rule 7
+    summary: >
+      Positive finding — unit suite quality is high. Test names describe behavior
+      ("coerces to OTHER", "throws InvalidOntology on a custom ontology missing
+      the OTHER fallback"), each test asserts one behavior, AAA structure is clear,
+      no .skip/.only/xit leaks across any ontology test file, fixtures are
+      deterministic (BUILTIN_ONTOLOGIES + InMemorySpanExporter real OTel span
+      capture, not a vi.fn mock-the-world). TDD honored: tests + impl ship in the
+      same commits (ef61073, 1f9f125, b1d56c2) — not implementation-first. The
+      no-mutation test (apply-ontology.test.ts:54) and the OTHER-fallback-invariant
+      test (ontology.test.ts:49) are exactly the right guards.
+    evidence: |
+      grep -rn '\.skip\|\.only\|xit(\|xtest(' <all 5 ontology test files> -> 0
+      git log: ef61073 (T1.1/T2.1/T2.2 test+impl together), 1f9f125 (T3.1),
+      b1d56c2 (T4.1 GOAL).
+    recommended_action: "No action — strong unit discipline."

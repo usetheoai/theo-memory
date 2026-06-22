@@ -1,0 +1,155 @@
+agent: review-domain-ontologies-domain-database
+review_target: main..HEAD for plan domain-ontologies
+domain: database
+domain_specific_patterns_checked:
+  - "D3: NO new migration — entities.type (text) + entity_edges.relation (text) carry domain types"
+  - "entity dedup UNIQUE arbiter entities_scope_type_key_uq includes COALESCE(type,'') in identity"
+  - "entity-linking type widening (hardcoded 'PROPER' -> e.type ?? 'PROPER')"
+  - "EntityToLink.type / EntityNodeSummary.type widening (EntityType union -> string)"
+  - "list() read aggregation correctness with multi-type rows (GROUP BY e.id)"
+  - "GOAL integration test isolated-DB pattern (DROP/CREATE themem_ontology_goal, runMigrations embeddingDim:384, pool.end teardown, leak-free)"
+  - "Direct SQL readback of entities.type in GOAL test"
+findings:
+  - id: F-dom-db-1
+    severity: HIGH
+    file: packages/core/src/domain/extraction/entity-linking.ts
+    line: 135
+    plan_ref: ADR D3 — persist in existing entities.type column; T4.1 — entity-linking uses e.type not hardcoded PROPER
+    domain_anchor: 0018_entity_nodes.sql:15 UNIQUE entities_scope_type_key_uq includes COALESCE("type", '') in the identity tuple
+    summary: >
+      The `type: e.type ?? 'PROPER'` change silently alters entity dedup semantics
+      for the DEFAULT (no-ontology) path, not just the ontology path. Because `type`
+      is part of the dedup UNIQUE arbiter, the SAME entity name extracted with a
+      DIFFERENT LLM type now produces a DIFFERENT entity row. Pre-change every LLM
+      entity persisted under the constant `type='PROPER'`, so a name deduped to ONE
+      row across extractions. Post-change a name like 'Paris' emitted once as 'PLACE'
+      and once as 'OTHER' (or 'PERSON') yields TWO rows for the same real-world
+      entity — fragmenting memory_count, splitting the graph node, and inflating the
+      Entities dashboard. This is a behavior change to an already-shipped surface
+      (slice-1/slice-2 entity extraction) that occurs even when the consumer never
+      configures an ontology.
+    evidence: |
+      ```ts
+      // entity-linking.ts:135 (post-change)
+      type: e.type ?? 'PROPER',   // was: type: 'PROPER' as const
+      ```
+      ```sql
+      -- 0018_entity_nodes.sql:15
+      CREATE UNIQUE INDEX "entities_scope_type_key_uq" ON "entities" USING btree
+        ("workspace_id",COALESCE("user_id",''),COALESCE("session_id",''),
+         COALESCE("agent_id",''),COALESCE("type",''),COALESCE("normalized_key",''));
+      ```
+      LLM type is non-deterministic across calls for the same name; with type in the
+      dedup key, type instability => row multiplication for one real entity.
+    recommended_action: >
+      This is the most important finding. Two acceptable resolutions: (a) ACCEPT and
+      document explicitly — argue that a name+type pair IS the intended identity
+      (Paris-as-PLACE and Paris-as-PERSON are legitimately distinct entities) and add
+      a plan/ADR note + a regression test asserting same-name-different-type yields 2
+      rows by design; OR (b) if the intent is name-stable identity, the type column
+      must NOT be in the dedup arbiter for the LLM path (requires a migration to drop
+      type from the UNIQUE — out of D3 scope). Given the dashboard graph view shipped
+      (themory-entities-table-unpopulated RESOLVED), confirm with the project owner
+      which semantics is intended before merge. At minimum, the default-path dedup
+      change must be called out in CHANGELOG (currently framed as additive-only).
+  - id: F-dom-db-2
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction/entity-linking.ts
+    line: 135
+    plan_ref: T4.1 — persist LLM/ontology entity types
+    domain_anchor: 0018_entity_nodes.sql UNIQUE arbiter; pg-memory-entity-store.ts:62 INSERT first-write-wins
+    summary: >
+      First-write-wins on the dedup row means the type column is fixed by the FIRST
+      extraction that created the (name,type) row and never updated (DO UPDATE SET
+      name = entities.name is a no-op). Combined with F-dom-db-1, the ontology
+      coercion result is only persisted if it is the FIRST writer for that exact
+      (type, normalized_key) tuple. If a name was already persisted under a different
+      type earlier (e.g. via the compromise fallback as 'NOUN' or an earlier
+      no-ontology extraction as 'PROPER'), the new ontology-typed insert is a
+      DIFFERENT row (different type => no conflict) rather than an update — so the old
+      row lingers AND a new typed row is created. Verify this interaction is intended
+      and that the GOAL test's clean isolated DB (no pre-existing rows) is not masking
+      it.
+    evidence: |
+      ```ts
+      // pg-memory-entity-store.ts:26-28 — no-op DO UPDATE, EXCLUDED never applied
+      ON CONFLICT (... COALESCE(type,''), COALESCE(normalized_key,'')) DO UPDATE SET name = entities.name
+      ```
+      The GOAL test uses non-English tokens (Qquib/Zylophan) specifically so the
+      compromise fallback does NOT also extract them — confirming the authors are
+      aware the two extractors can produce competing rows for the same name.
+    recommended_action: >
+      Document the multi-extractor / multi-type row coexistence as a known property,
+      or add an integration assertion that an entity first seen untyped then re-seen
+      with an ontology type does not produce orphan duplicate rows in a way that
+      breaks the dashboard. Lower priority than F-dom-db-1 but same root cause
+      (type-in-identity).
+  - id: F-dom-db-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-memory-entity-store.ts
+    line: 118
+    plan_ref: T4.1 — widen read type EntityType|null -> string|null
+    domain_anchor: list() read query
+    summary: >
+      The read-query type widening (EntityType|null -> string|null) is sound and
+      correctly mirrors the column type (text, nullable). The `r.type ?? 'NOUN'`
+      fallback default is unchanged and acceptable. list() does GROUP BY e.id (per
+      row), so memory_count = COUNT(DISTINCT me.memory_id) aggregates correctly PER
+      entity row — the aggregation itself is correct even under the multi-row
+      condition of F-dom-db-1 (it simply reports more, smaller-count rows). No defect
+      in the query; the read-side correctness concern reduces to the write-side
+      identity question in F-dom-db-1.
+    evidence: |
+      ```ts
+      type: string | null,           // matches text column
+      ...
+      type: r.type ?? 'NOUN',        // unchanged fallback
+      // SQL: GROUP BY e.id ORDER BY memory_count DESC, e.name ASC
+      ```
+    recommended_action: No action. Documented as confirmation that list() aggregation is correct.
+  - id: F-dom-db-4
+    severity: INFO
+    file: tests/integration/ontology.test.ts
+    line: 53
+    plan_ref: T4.1 — GOAL integration test
+    domain_anchor: isolated-DB pattern + runMigrations + pool.end teardown
+    summary: >
+      The GOAL integration test follows the correct isolated-DB pattern: admin pool
+      DROP/CREATE themem_ontology_goal then closed (adminPool.end), runMigrations(pool,
+      {embeddingDim:384}), afterAll pool.end() teardown, skipIf on missing
+      THEOMEM_PG_URI. Leak-free (both pools closed). Direct SQL readback of
+      entities.type via parameterized query ($1::text[]) is correct and proves real
+      persistence. NO new migration is added (verified: ontology commits touch zero
+      .sql files; D3 honored). One minor robustness note (non-blocking): the test
+      asserts ONLY the two LLM-named tokens and does not assert the no-ontology
+      default-path-unchanged regression at the integration layer (the plan's claim 2);
+      that regression is covered at the unit layer (apply-ontology.test.ts +
+      extraction-pipeline.test.ts), so coverage exists, just not in this file.
+    evidence: |
+      ```ts
+      await adminPool.query(`DROP DATABASE IF EXISTS ${ISOLATED_DB}`);
+      await adminPool.query(`CREATE DATABASE ${ISOLATED_DB}`);
+      await adminPool.end();
+      pool = new pg.Pool({ connectionString: PG_URI });
+      await runMigrations(pool, { embeddingDim: 384 });
+      // afterAll: await pool?.end();
+      ```
+    recommended_action: >
+      No action required. Optionally add an explicit default-path (no ontology)
+      readback assertion in this integration file for end-to-end symmetry, but the
+      unit-level regression already covers it.
+summary_counts:
+  BLOCKER: 0
+  HIGH: 1
+  MEDIUM: 1
+  LOW: 0
+  INFO: 2
+most_important_finding: >
+  F-dom-db-1 (HIGH): including `type` in the entity dedup UNIQUE arbiter, combined
+  with the entity-linking change from a hardcoded `type='PROPER'` to `e.type ??
+  'PROPER'`, changes dedup semantics for the DEFAULT no-ontology path too — the same
+  entity name with a different (non-deterministic LLM) type now produces a SEPARATE
+  entity row, fragmenting memory_count / the graph node / the dashboard. Needs an
+  explicit accept-by-design ADR + regression test, or a decision to drop type from
+  the dedup key. Not a BLOCKER (the GOAL behavior is correct and shipped surfaces
+  still function) but must be consciously decided + documented before merge.

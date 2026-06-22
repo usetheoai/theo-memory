@@ -1,0 +1,206 @@
+agent: review-domain-ontologies-cross-validation
+review_target: main..HEAD for plan domain-ontologies
+plan: .claude/knowledge-base/plans/domain-ontologies-plan.md
+generated: 2026-06-22
+
+# ============================================================
+# Commit map (feature commits, all on develop, all reference Item 15 + task IDs)
+# ============================================================
+commit_map:
+  T1.1: ef61073  # Ontology DIP + registry + resolveOntology/validateOntology (also T2.1/T2.2 — one commit)
+  T2.1: ef61073  # prompt composer ontology injection (renderOntologyDirective)
+  T2.2: ef61073  # pipeline post-parse coercion + ontology_type_coerced event + ExtractionDeps.ontology
+  T3.1: 1f9f125  # MemoryConfig.ontology slot + factory fail-fast + scoped-memory thread + public exports + p0-audit reconcile
+  T4.1: b1d56c2  # GOAL integration test + entity-linking type-persist divergence (widen EntityToLink/EntityNodeSummary.type)
+  code_quality: 1439b63  # /code-quality PASS 100 (cycle-implement gate)
+  plan: a77390e         # plan committed BEFORE first feature commit (frozen)
+
+plan_tasks_summary:
+  total_tasks: 5
+  fully_implemented: 5
+  partial: 0
+  missing: 0
+  diverged: 1   # T4.1 carried an in-scope-but-undocumented-as-ADR behavior change to the default path (see F-xval-1)
+
+acceptance_criteria_summary:
+  total: 19
+  satisfied: 19
+  unverified: 0
+  false_claims: 0
+  notes: >
+    All Acceptance Criteria across T1.1-T4.1 verified observably. Empirically confirmed:
+    typecheck exit 0; 75 contract tests + 63 p0-audit export tests green; GOAL integration
+    test PASSED against real ankane/pgvector:v0.5.1 on the running themem container
+    (in-vocab 'Diagnosis' persisted, out-of-vocab 'Wizard' coerced to 'OTHER'); default-path
+    entities/extract+list integration tests still green; eslint clean on all 8 changed files;
+    /code-quality PASS 100 (0 hard/soft caps).
+
+adr_compliance:
+  total_adrs: 4
+  respected: 4
+  diverged_without_new_adr: 0
+  per_adr:
+    D1_flat_ontology_not_owl:
+      status: RESPECTED
+      evidence: >
+        ontology.ts:Ontology = { name; entityTypes: readonly string[]; relationTypes: readonly
+        string[]; description? } — a flat typed vocabulary. No OWL/RDF, no reasoner. Matches D1
+        verbatim.
+    D2_inject_prompt_postparse_coerce_observable_keep_relations:
+      status: RESPECTED
+      evidence: >
+        renderOntologyDirective prepends the vocab directive (prompt.ts); applyOntologyToEntities
+        coerces out-of-vocab entity types -> OTHER + emits ontology_type_coerced (pipeline.ts);
+        wrapped in try/catch fail-soft so remember() never fails; relations are NOT touched (kept).
+        ontology_type_coerced added to MEMORY_EVENTS (count 27 -> 28, asserted).
+    D3_existing_columns_no_polystore_no_migration:
+      status: RESPECTED
+      evidence: >
+        Zero new .sql migration files in the diff (verified). Persists to existing entities.type
+        (text) via the existing PgMemoryEntityStore upsert. The PG type column annotation was
+        widened EntityType|null -> string|null (read-back typing only); no DDL change.
+    D4_optin_config_default_unchanged:
+      status: RESPECTED
+      evidence: >
+        MemoryConfig.ontology? added (optional); factory resolveOntology(config.ontology) only when
+        set (fail-fast); absent => no DOMAIN ONTOLOGY directive (asserted byte-unchanged in
+        factory-recall-cache.test.ts + extraction-prompt.test.ts). DEVIATION from D4 wording: the
+        validator is plain TS (validateOntology), NOT zod — see F-xval-3 (LOW).
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    Plan committed a77390e at 2026-06-22 17:15:26; first feature commit ef61073 at 17:22:50.
+    Plan file has exactly ONE commit in its history (the SHIPPABLE 99.2 commit) and was not
+    touched again. Contract was frozen before /implement. Review is reliable.
+
+coverage_matrix:
+  total_rows: 16
+  mapped_and_implemented: 16
+  unmapped_or_missing: 0
+  notes: >
+    All 16 Coverage Matrix rows trace to an implemented task. Spot-checked: prompt injection (T2.1
+    renderOntologyDirective), post-parse coercion (T2.2 applyOntologyToEntities), keep-relations
+    (relations untouched in pipeline), ontology_type_coerced OTel event (memory-event.ts +
+    apply-ontology.test.ts real span assertion), fail-soft (try/catch in pipeline.ts + GOAL),
+    MemoryConfig.ontology slot (memory-store.ts), factory resolve (factory.ts), public exports
+    (domain/index.ts), p0-audit reconcile (exports-contract+full-public-surface bumped 52->54),
+    persistence reuse/no-migration (D3), no-new-dep (no zod added — actually no dep at all), GOAL
+    (ontology.test.ts PASSED vs real pgvector).
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction/entity-linking.ts
+    plan_ref: T4.1 (commit b1d56c2) + blueprint ADR D3 ("entities.type carries domain types, NO migration")
+    summary: >
+      In-scope but architecturally-significant behavior change to the DEFAULT (no-ontology) path,
+      shipped under a T4.1 commit without its own ADR. entity-linking.ts changed the LLM-entity
+      persist type from a hardcoded `'PROPER'` to `e.type ?? 'PROPER'`. This is REQUIRED for the
+      feature (without it, ontology-coerced domain types would be discarded at persistence — D3's
+      "entities.type carries domain types" would be false in practice). BUT it ALSO changes the
+      default path: when the configured LLM returns typed `entities[]` (the `useLlmEntities`
+      branch) and NO ontology is set, entities now persist with the LLM's emitted type
+      (PERSON/ORG/CONCEPT/...) instead of the previous constant 'PROPER'. Because the entity
+      UNIQUE identity is `(scope, COALESCE(type,''), normalized_key)` (entities_scope_type_key_uq),
+      pre-existing rows written as 'PROPER' will NOT dedup against new typed rows for the same
+      entity — they become distinct identities. This is a real, observable change to a shipped
+      surface (the slice-1/2 entity nodes), in the default path, made under the T4.1 GOAL-test
+      commit.
+    evidence: |
+      Before: type: 'PROPER' as const  (hardcoded; slice-1/2 discarded the LLM type)
+      After:  type: e.type ?? 'PROPER' (persists the LLM-emitted/ontology-coerced type)
+      UNIQUE: ON CONFLICT (workspace_id, ..., COALESCE(type,''), COALESCE(normalized_key,''))
+              (pg-memory-entity-store.ts:27-28) — type IS part of entity identity (EC-1).
+      Blast radius assessed (NOT broken): the project's default-path integration tests
+      (entities/extract.test.ts, list.test.ts) use an LLM stub WITHOUT an `entities` field, so
+      they exercise the compromise FALLBACK branch (still emits 'PROPER'/'COMPOUND') and remain
+      GREEN (verified: 8/8 passing vs real pgvector). The behavior change only manifests when the
+      consumer's real LLM returns typed entities[].
+    risk: >
+      (a) NECESSARY: yes — without it the GOAL test (domain type persists) cannot pass; D3 demands it.
+      (b) HONESTLY IN-SCOPE: yes — directly serves the Goal; not gratuitous scope creep.
+      (c) BEHAVIOR-CHANGE RISK on the default path: YES — entity dedup identity for the LLM-entity
+          path silently shifts from 'PROPER' to real LLM types. For pre-Item-15 data this means
+          old 'PROPER' rows and new typed rows for the same entity no longer merge. Pre-release
+          status (acceptable per CLAUDE.md), but it is an undocumented semantic change to a shipped
+          feature riding inside the GOAL-test commit.
+    recommended_action: >
+      Document the entity-linking type-persist change as a short ADR (D5) in the plan/CHANGELOG —
+      "LLM-path entities now persist their emitted/ontology-coerced type instead of the 'PROPER'
+      placeholder; entity dedup identity (which includes type) therefore changes for the LLM path;
+      pre-Item-15 'PROPER' rows do not retro-merge (no backfill, honest per the entity-slice
+      no-backfill precedent)." Either (a) add the ADR + a one-line CHANGELOG `Changed` note, or
+      (b) confirm with the owner that the pre-release breaking-change is acceptable un-ADR'd. The
+      code itself is correct; the gap is documentation/traceability (Rule 3 honesty).
+
+  - id: F-xval-2
+    severity: LOW
+    file: packages/core/src/domain/index.ts (and packages/core/src/index.ts NOT edited)
+    plan_ref: T3.1 "Files to edit" — listed BOTH `packages/core/src/domain/index.ts` AND `packages/core/src/index.ts` (root barrel) + `exports-root.test.ts`
+    summary: >
+      T3.1 declared three export-surface files to edit (domain/index.ts, root index.ts,
+      exports-root.test.ts) but only domain/index.ts was edited. The root barrel
+      (packages/core/src/index.ts) was NOT touched and exports-root.test.ts was NOT bumped. This
+      is NOT a defect: the root barrel already does `export * from './domain/index.js'` (line 209),
+      so Ontology/OntologyName/BUILTIN_ONTOLOGIES/resolveOntology/validateOntology/
+      ONTOLOGY_FALLBACK_TYPE/InvalidOntology are transitively reachable from `@usetheo/memory`
+      (the GOAL test imports `Ontology` from '@usetheo/memory' and compiles). exports-root.test.ts
+      counts EXPLICIT `export` statements in the root index, which did not change, so it remains
+      green (verified). The plan's file list was conservative; the `export *` made the explicit
+      root edits unnecessary.
+    evidence: |
+      packages/core/src/index.ts:209  export * from './domain/index.js';
+      git diff main..HEAD -- packages/core/src/index.ts          => empty
+      git diff main..HEAD -- tests/.../exports-root.test.ts       => empty
+      exports-root.test.ts                                        => GREEN (63/63 p0-audit)
+    recommended_action: >
+      No action required for correctness. OPTIONAL: a one-line note in the implementation summary
+      that the explicit root-barrel edits in the plan's T3.1 file list were obviated by the
+      pre-existing `export *` re-export (so a future reader does not flag the plan/impl file-list
+      mismatch as a gap). Public reachability is confirmed.
+
+  - id: F-xval-3
+    severity: LOW
+    file: packages/core/src/domain/ontology.ts
+    plan_ref: T1.1 + ADR D4 ("zod-validated"); plan "Files to edit" + Dependencies row + Deep file dependency analysis all say "zod validator"
+    summary: >
+      The plan repeatedly specified a "zod validator"/"zod schema validating a custom ontology"
+      for the Ontology (D4 "zod-validated"; T1.1 action "a zod schema validating a custom
+      ontology"; Deep dependency analysis "Imports only zod"; Dependencies row "Ontology schema
+      validation reuses zod"). The implementation uses a plain hand-written `validateOntology()`
+      (no zod import in ontology.ts). Functionally equivalent and arguably simpler (KISS), and it
+      still throws the typed InvalidOntology on every documented invalid case (empty entityTypes,
+      missing OTHER, empty relationTypes, blank name — all asserted). But it is a divergence from
+      the plan's stated mechanism that is not noted anywhere.
+    evidence: |
+      Plan: "a zod schema validating a custom ontology" (T1.1); "zod-validated" (D4).
+      Impl:  grep "zod" packages/core/src/domain/ontology.ts => no matches; plain
+             validateOntology() with manual checks throwing InvalidOntology.
+      Tests: ontology.test.ts asserts all four invalid cases throw InvalidOntology (green).
+    recommended_action: >
+      Acceptable divergence (the simpler implementation honors the validation contract and the
+      no-new-dep goal — actually exceeds it, since the Dependencies section's "reuses zod" is moot:
+      ZERO deps are added). Recommend a one-line note in the implementation summary / CHANGELOG
+      that the validator is plain-TS rather than zod (KISS; same typed-error contract), to keep the
+      plan-vs-impl traceable. No code change needed.
+
+  - id: F-xval-4
+    severity: INFO
+    file: .claude/knowledge-base/implementations/
+    plan_ref: cross-validation pre-read items 2 + 3 (implementation contract + .progress json)
+    summary: >
+      No implementation summary (`domain-ontologies-implementation.md`) and no
+      `.progress-domain-ontologies.json` exist. The agent definition lists these as "if exists",
+      so their absence is not a blocker, but per cycle-implement.md the final summary
+      (`knowledge-base/implementations/{slug}-implementation.md` with the per-task wiring-triad
+      checklist) is a normal cycle output. The /code-quality audit
+      (domain-ontologies-code-quality-2026-06-22.md, PASS 100) IS present and serves as the
+      implement-gate evidence.
+    evidence: |
+      ls .claude/knowledge-base/implementations/domain-ontologies*  => no matches
+      ls .claude/knowledge-base/audits/domain-ontologies-code-quality-2026-06-22.md => present, PASS 100
+    recommended_action: >
+      OPTIONAL: produce the implementation summary md with the per-task wiring-triad checklist for
+      audit completeness. Not merge-blocking — the commit history + code-quality audit + this
+      review provide the traceability.
