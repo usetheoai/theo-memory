@@ -87,11 +87,13 @@ describe('T1.1 — src/index.ts barrel JSDoc + @see', () => {
   const content = readFileSync(INDEX_PATH, 'utf8');
   const blocks = findExportBlocks(content);
 
-  test('1. src/index.ts contains exactly 13 export statements (post-reorg + entity/graph + usage-counter)', () => {
-    // 13 = 9 (post-reorg) + 3 entity-extraction slice exports (PgMemoryEntityStore,
-    // PgMemoryGraphStore, CompromiseEntityExtractor; slices 1/2 2026-06-20) + 1
-    // usage-counter export (PgUsageCounterStore; themory-scoped-forget-and-retrieval-counter T2.2).
-    expect(blocks.length).toBe(13);
+  test('1. src/index.ts contains exactly 15 export statements (post-reorg + entity/graph + usage-counter + skill-exec deps)', () => {
+    // 15 = 13 (prior baseline) + 2 M1 agentic-skill exports (M1 v0.13:
+    // SandboxedSkillExecutor value + SandboxedSkillExecutorDeps type). The
+    // reranker cycle reconciled the M1-skill-exec surface drift this snapshot
+    // had not absorbed (reranker itself adds NO root export — its impl is
+    // subpath-only at @usetheo/memory/reranker-local).
+    expect(blocks.length).toBe(15);
   });
 
   for (let i = 0; i < 8; i++) {

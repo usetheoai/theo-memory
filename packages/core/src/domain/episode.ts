@@ -79,10 +79,116 @@ export function resolveEpisodeLimit(limit: number | undefined): number {
   return Math.min(limit, EPISODE_LIMIT_MAX);
 }
 
+// Portable base64url codec over UTF-8 bytes — uses ONLY `Uint8Array` (lib.es2015),
+// no `Buffer` / `btoa` / `TextEncoder` Node-or-DOM globals. This keeps the domain
+// layer platform-agnostic so consumers compiling the public barrel under bare
+// `moduleResolution: node16/nodenext/bundler` (no `@types/node`) type-check
+// cleanly. (cross-encoder-reranker cycle: reconciles M2-episodes drift surfaced
+// by the public-paths EC-9 moduleResolution fixture.)
+const B64URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const B64URL_LOOKUP: Record<string, number> = (() => {
+  const m: Record<string, number> = {};
+  for (let i = 0; i < B64URL_ALPHABET.length; i++) {
+    m[B64URL_ALPHABET[i] as string] = i;
+  }
+  return m;
+})();
+
+function utf8Encode(str: string): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    let code = str.charCodeAt(i);
+    // Combine surrogate pairs into a single code point.
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < str.length) {
+      const next = str.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        code = 0x10000 + ((code - 0xd800) << 10) + (next - 0xdc00);
+        i++;
+      }
+    }
+    if (code < 0x80) {
+      out.push(code);
+    } else if (code < 0x800) {
+      out.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+    } else if (code < 0x10000) {
+      out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+    } else {
+      out.push(
+        0xf0 | (code >> 18),
+        0x80 | ((code >> 12) & 0x3f),
+        0x80 | ((code >> 6) & 0x3f),
+        0x80 | (code & 0x3f),
+      );
+    }
+  }
+  return out;
+}
+
+function utf8Decode(bytes: Uint8Array): string {
+  let str = '';
+  for (let i = 0; i < bytes.length; ) {
+    const b0 = bytes[i++] ?? 0;
+    let code: number;
+    if (b0 < 0x80) {
+      code = b0;
+    } else if ((b0 & 0xe0) === 0xc0) {
+      code = ((b0 & 0x1f) << 6) | ((bytes[i++] ?? 0) & 0x3f);
+    } else if ((b0 & 0xf0) === 0xe0) {
+      code = ((b0 & 0x0f) << 12) | (((bytes[i++] ?? 0) & 0x3f) << 6) | ((bytes[i++] ?? 0) & 0x3f);
+    } else {
+      code =
+        ((b0 & 0x07) << 18) |
+        (((bytes[i++] ?? 0) & 0x3f) << 12) |
+        (((bytes[i++] ?? 0) & 0x3f) << 6) |
+        ((bytes[i++] ?? 0) & 0x3f);
+    }
+    if (code > 0xffff) {
+      code -= 0x10000;
+      str += String.fromCharCode(0xd800 + (code >> 10), 0xdc00 + (code & 0x3ff));
+    } else {
+      str += String.fromCharCode(code);
+    }
+  }
+  return str;
+}
+
+function base64UrlEncode(bytes: readonly number[]): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i] ?? 0;
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    const n = (b0 << 16) | ((b1 ?? 0) << 8) | (b2 ?? 0);
+    out += B64URL_ALPHABET[(n >> 18) & 0x3f];
+    out += B64URL_ALPHABET[(n >> 12) & 0x3f];
+    out += b1 === undefined ? '' : B64URL_ALPHABET[(n >> 6) & 0x3f];
+    out += b2 === undefined ? '' : B64URL_ALPHABET[n & 0x3f];
+  }
+  return out;
+}
+
+function base64UrlDecode(str: string): Uint8Array {
+  const bytes: number[] = [];
+  for (let i = 0; i < str.length; i += 4) {
+    const c0 = B64URL_LOOKUP[str[i] as string];
+    const c1 = B64URL_LOOKUP[str[i + 1] as string];
+    if (c0 === undefined || c1 === undefined) {
+      throw new InvalidScope('episode cursor is malformed (not base64url)');
+    }
+    const c2raw = str[i + 2];
+    const c3raw = str[i + 3];
+    const n = (c0 << 18) | (c1 << 12) | ((B64URL_LOOKUP[c2raw as string] ?? 0) << 6) | (B64URL_LOOKUP[c3raw as string] ?? 0);
+    bytes.push((n >> 16) & 0xff);
+    if (c2raw !== undefined && c2raw !== '') bytes.push((n >> 8) & 0xff);
+    if (c3raw !== undefined && c3raw !== '') bytes.push(n & 0xff);
+  }
+  return Uint8Array.from(bytes);
+}
+
 /** Encode a `(created_at, id)` position to an opaque cursor (full ms precision). */
 export function encodeEpisodeCursor(createdAt: Date, id: string): string {
   const raw = `${createdAt.toISOString()}${CURSOR_SEPARATOR}${id}`;
-  return Buffer.from(raw, 'utf8').toString('base64url');
+  return base64UrlEncode(utf8Encode(raw));
 }
 
 /**
@@ -94,8 +200,11 @@ export function encodeEpisodeCursor(createdAt: Date, id: string): string {
 export function decodeEpisodeCursor(cursor: string): EpisodeCursor {
   let raw: string;
   try {
-    raw = Buffer.from(cursor, 'base64url').toString('utf8');
-  } catch {
+    raw = utf8Decode(base64UrlDecode(cursor));
+  } catch (err) {
+    if (err instanceof InvalidScope) {
+      throw err;
+    }
     throw new InvalidScope('episode cursor is malformed (not base64url)');
   }
   const sepIndex = raw.indexOf(CURSOR_SEPARATOR);

@@ -60,6 +60,13 @@ export type {
  * @see .claude/knowledge-base/plans/first-class-episodes-plan.md
  */
 export type { EpisodeListOptions, EpisodePage, EpisodeCursor } from './episode.js';
+/**
+ * Episode pagination runtime values + cursor codec (M2 / gap G3): the default +
+ * max page-size constants and the opaque `(created_at, id)` cursor encode/decode
+ * used by the episodes read surface.
+ *
+ * @see .claude/knowledge-base/plans/first-class-episodes-plan.md
+ */
 export {
   EPISODE_LIMIT_DEFAULT,
   EPISODE_LIMIT_MAX,
@@ -147,6 +154,12 @@ export {
   ToolInvocationDeniedError,
   WorkspaceMismatch,
 } from './errors.js';
+/**
+ * `ToolInvocationDeniedReason` — the typed literal union carried by
+ * `ToolInvocationDeniedError` (which sandbox guard denied a skill execution).
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2
+ */
 export type { ToolInvocationDeniedReason } from './errors.js';
 
 /**
