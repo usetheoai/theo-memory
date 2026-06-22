@@ -46,4 +46,11 @@ describe('VoyageEmbedder', () => {
     const e = new VoyageEmbedder({ apiKey: 'k', fetchImpl: stubFetch({ data: [{}] }) });
     await expect(e.embed('x')).rejects.toBeInstanceOf(EmbedderError);
   });
+
+  test('fail-fast: missing API key throws EmbedderError at construction', () => {
+    vi.stubEnv('VOYAGE_API_KEY', '');
+    expect(() => new VoyageEmbedder({})).toThrow(EmbedderError);
+    expect(() => new VoyageEmbedder({})).toThrow(/api key/i);
+    vi.unstubAllEnvs();
+  });
 });

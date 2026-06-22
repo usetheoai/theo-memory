@@ -42,6 +42,11 @@ export default defineConfig({
       '@usetheo/memory/embedders/stub': new URL('./packages/core/src/infrastructure/embedders/stub.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders/openai': new URL('./packages/core/src/infrastructure/embedders/openai.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders/local': new URL('./packages/core/src/infrastructure/embedders/local.ts', import.meta.url).pathname,
+      // Item 24 — embedder registry + fetch-based adapters (map subpaths to src for integration tests).
+      '@usetheo/memory/embedders/ollama': new URL('./packages/core/src/infrastructure/embedders/ollama.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/voyage': new URL('./packages/core/src/infrastructure/embedders/voyage.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/google': new URL('./packages/core/src/infrastructure/embedders/google.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/registry': new URL('./packages/core/src/infrastructure/embedders/registry.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders': new URL('./packages/core/src/infrastructure/embedders/index.ts', import.meta.url).pathname,
       '@usetheo/memory/llms/stub': new URL('./packages/core/src/infrastructure/llms/stub.ts', import.meta.url).pathname,
       '@usetheo/memory/llms/openai': new URL('./packages/core/src/infrastructure/llms/openai.ts', import.meta.url).pathname,
