@@ -94,6 +94,11 @@ export const MEMORY_EVENTS = [
   // `error` carries the error name. Mirrors history_persist_failed.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'recall_rerank_failed',
+  // domain-ontologies T2.2 / ADR D2 (Item 15) — an LLM-extracted entity type fell
+  // outside the configured domain ontology vocabulary and was coerced to OTHER.
+  // Attributes `{ontology, from, to, entity}`. Every coercion is observable so a
+  // too-narrow ontology vocabulary surfaces (Princípio 3 — no silent typing loss).
+  'ontology_type_coerced',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

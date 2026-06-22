@@ -48,6 +48,24 @@ export class RerankerConflict extends Error {
   }
 }
 
+/**
+ * InvalidOntology — thrown when a domain ontology config is invalid: an unknown
+ * built-in registry key, OR a custom `Ontology` failing schema validation (empty
+ * `entityTypes`/`relationTypes`, or `entityTypes` missing the `OTHER` coercion
+ * fallback). Fail-fast at the factory boundary (config error), distinct from the
+ * runtime fail-soft coercion of out-of-vocab LLM output.
+ *
+ * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D1 + D4
+ */
+export class InvalidOntology extends Error {
+  override readonly name = 'InvalidOntology' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(`Invalid ontology: ${message}`, options);
+    Object.setPrototypeOf(this, InvalidOntology.prototype);
+  }
+}
+
 export class EmbeddingMismatch extends Error {
   override readonly name = 'EmbeddingMismatch' as const;
 

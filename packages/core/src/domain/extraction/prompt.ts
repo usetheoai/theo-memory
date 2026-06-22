@@ -19,6 +19,7 @@ import { z } from 'zod';
 
 import type { MemoryItem } from '../memory-item.js';
 import type { Message } from '../message.js';
+import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
 
 /**
  * Escape line-start markdown headers in user-controlled text.
@@ -89,13 +90,37 @@ export interface PromptResult {
 }
 
 /**
+ * Render the domain-ontology directive (Item 15 / ADR D2). When an ontology is
+ * configured, this steers the LLM toward the domain vocabulary — entity types +
+ * relation types are CONSTRAINED to the ontology's lists (the generic
+ * `PERSON|ORG|...` enum in SYSTEM_PROMPT is overridden by this higher-priority
+ * directive). Post-parse validation (`extraction/pipeline.ts`) enforces it.
+ */
+export function renderOntologyDirective(ontology: Ontology): string {
+  const desc = ontology.description !== undefined && ontology.description.length > 0
+    ? ` (${ontology.description})`
+    : '';
+  return [
+    `DOMAIN ONTOLOGY: "${ontology.name}"${desc}.`,
+    `For \`entities[].type\`, use ONLY these types: ${ontology.entityTypes.join(', ')}.`,
+    `If an entity does not fit any of those, use "${ONTOLOGY_FALLBACK_TYPE}".`,
+    `For \`relations[].relationship\`, prefer these relation types: ${ontology.relationTypes.join(', ')}.`,
+  ].join('\n');
+}
+
+/**
  * Compose the extraction prompt + the integer→UUID mapping that the response
  * resolution step uses to translate `linked_memory_ids: ['1']` back to real UUIDs.
+ *
+ * When `ontology` is provided (Item 15), its vocabulary directive is prepended
+ * (highest priority) so the LLM is steered to the domain types. Default (absent)
+ * is byte-identical to pre-Item-15 output.
  */
 export function generateAdditiveExtractionPrompt(
   existing: readonly MemoryItem[],
   newMessages: readonly Message[],
   customInstructions?: string,
+  ontology?: Ontology,
 ): PromptResult {
   const uuidByInt = new Map<number, string>();
   existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
@@ -104,8 +129,12 @@ export function generateAdditiveExtractionPrompt(
     ? `${customInstructions}\n\n`
     : '';
 
+  const ontologyPrefix = ontology !== undefined
+    ? `${renderOntologyDirective(ontology)}\n\n`
+    : '';
+
   const prompt = [
-    customPrefix + SYSTEM_PROMPT,
+    ontologyPrefix + customPrefix + SYSTEM_PROMPT,
     '',
     renderExistingMemories(existing),
     renderNewMessages(newMessages),

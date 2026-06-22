@@ -36,11 +36,38 @@ import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Message } from '../message.js';
+import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
 import type { RememberOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 
 import { linkEntities, type RelationTriple } from './entity-linking.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
+
+/**
+ * domain-ontologies T2.2 (ADR D2) — coerce LLM-extracted entity types to the
+ * ontology vocabulary. Out-of-vocab types map to `OTHER` + emit
+ * `ontology_type_coerced` (Princípio 3). Pure: returns a NEW array, no mutation.
+ * Entities with no `type` are left untouched (downstream defaults them).
+ */
+export function applyOntologyToEntities(
+  entities: readonly { name: string; type?: string | undefined }[],
+  ontology: Ontology,
+  tracer: Tracer | undefined,
+): readonly { name: string; type?: string | undefined }[] {
+  const allowed = new Set(ontology.entityTypes);
+  return entities.map((e) => {
+    if (e.type === undefined || allowed.has(e.type)) {
+      return e;
+    }
+    emitEvent(tracer, 'ontology_type_coerced', {
+      ontology: ontology.name,
+      from: e.type,
+      to: ONTOLOGY_FALLBACK_TYPE,
+      entity: e.name,
+    });
+    return { ...e, type: ONTOLOGY_FALLBACK_TYPE };
+  });
+}
 
 export interface ExtractionDeps {
   readonly vectorStore: VectorStore;
@@ -56,6 +83,10 @@ export interface ExtractionDeps {
   /** entity-relation-extraction-slice2 T2.2 — Phase 7 edge port. Threaded the same
    *  way as the node ports; relations come from the LLM (infer:true path only). */
   readonly memoryGraphStore?: MemoryGraphStore;
+  /** domain-ontologies T2.2 (Item 15) — optional domain ontology. When present,
+   *  its vocab is injected into the extraction prompt + the LLM's entity types
+   *  are validated post-parse (out-of-vocab → OTHER, observable). */
+  readonly ontology?: Ontology;
 }
 
 type Payload = Record<string, string | number | boolean | null>;
@@ -335,7 +366,7 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 2: LLM extraction (single call; Zod parse with EC-10 fallback)
   // ============================================================
-  const { prompt } = generateAdditiveExtractionPrompt(existingItems, messages, deps.customInstructions);
+  const { prompt } = generateAdditiveExtractionPrompt(existingItems, messages, deps.customInstructions, deps.ontology);
   let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[];
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
@@ -387,6 +418,18 @@ export async function runExtractionPipeline(
     }
     emitEvent(tracer, 'extraction_parse_failure');
     return [];
+  }
+
+  // domain-ontologies T2.2 (ADR D2) — when an ontology is configured, validate
+  // the LLM's entity types against the domain vocabulary: out-of-vocab → OTHER
+  // + emit `ontology_type_coerced` (Princípio 3 observability). Fail-soft: an
+  // ontology error degrades to the raw entities — it NEVER fails remember().
+  if (deps.ontology !== undefined && llmEntities !== undefined) {
+    try {
+      llmEntities = applyOntologyToEntities(llmEntities, deps.ontology, tracer);
+    } catch {
+      // degrade to raw entities (fail-soft); coercion is best-effort enrichment.
+    }
   }
 
   if (extracted.length === 0) {
