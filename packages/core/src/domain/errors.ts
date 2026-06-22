@@ -406,9 +406,10 @@ export class SkillAlreadyExists extends Error {
  * path. The literal is carried on {@link ToolInvocationDeniedError.reason} and
  * emitted on the `tool_invocation_denied` OTel event for auditability (Princípio 3).
  *
- * Nine literals are wired by the v1 `SandboxedSkillExecutor` (T1.3); `'tool-call-cap'`
- * is a RESERVED seam for the future host-callback bridge (a skill calling back into
- * host tools) — not yet reachable in v1, which injects zero host capabilities.
+ * All nine literals are wired by the v1 `SandboxedSkillExecutor` (T1.3). A future
+ * host-callback bridge (a skill calling back into host tools) will add its own
+ * per-call cap literal WITH backing code at that time (not pre-declared — review
+ * 2026-06-22 F-arch-1/2 removed the unimplemented `tool-call-cap` seam per YAGNI).
  *
  * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + T1.3
  */
@@ -417,7 +418,6 @@ export type ToolInvocationDeniedReason =
   | 'fs-access-attempt'
   | 'timeout'
   | 'output-cap'
-  | 'tool-call-cap'
   | 'non-cloneable-args'
   | 'non-cloneable-result'
   | 'unsupported-language'
