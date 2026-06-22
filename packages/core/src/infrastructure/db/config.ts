@@ -140,8 +140,8 @@ export interface LocalMemoryConfig extends MemoryConfig {
 
   /**
    * adaptive-retrieval (Roadmap Item 13) — optional adaptive policy. When
-   * present, recall runs the Self-RAG `shouldRetrieve` pre-embed gate (in
-   * `scoped-memory.ts`, may skip retrieval) + the CRAG `assess` grade-and-correct
+   * present, recall runs the `shouldRetrieve` pre-embed gate (in
+   * `scoped-memory.ts`, may skip retrieval) + the `assess` grade-and-correct
    * (pipeline Step 8.6, may relax the threshold). Absent ⇒ default OFF, the
    * pipeline is byte-identical to v0.17 (opt-in per ADR D4). `RecallOptions.adaptive`
    * forwards per-call tuning. The default impl is `HeuristicAdaptiveRetrievalPolicy`

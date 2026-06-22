@@ -301,7 +301,7 @@ export class LocalScopedMemory implements ScopedMemory {
     query: string,
     options?: RecallOptions,
   ): Promise<readonly MemoryItemWithScore[]> {
-    // adaptive-retrieval T3.1 / ADR D2 (Item 13) — Self-RAG `shouldRetrieve`
+    // adaptive-retrieval T3.1 / ADR D2 (Item 13) — `shouldRetrieve`
     // PRE-embed gate. Runs BEFORE the cache/embed so a skip avoids the embed +
     // DB cost entirely. Opt-in: ONLY when a retrievalPolicy is wired (default
     // OFF ⇒ this whole block is skipped, byte-unchanged). Fail-soft (ADR D4): a
@@ -317,8 +317,15 @@ export class LocalScopedMemory implements ScopedMemory {
           });
           return [];
         }
-      } catch {
+      } catch (err) {
         // fail-soft — degrade to normal retrieval (do NOT skip on a policy error).
+        // Observable (F-dom-obs-1) so a gate outage is never silent (Princípio 3),
+        // symmetric with the assess fail-soft path in the pipeline.
+        emitEvent(this.config.tracer, 'retrieval_policy_failed', {
+          scope_tier: this.scope.kind,
+          hook: 'should_retrieve',
+          error: err instanceof Error ? err.name : 'unknown',
+        });
       }
     }
 
@@ -335,7 +342,7 @@ export class LocalScopedMemory implements ScopedMemory {
     // bug). Mirrors the asOf / attributedTo bypass.
     // adaptive-retrieval T3.1 / ADR D2 (Item 13) — a wired retrievalPolicy
     // BYPASSES the cache: the v1.5 cache key does not encode the adaptive outcome
-    // (a `shouldRetrieve` skip or a CRAG corrective relax), so serving a cached
+    // (a `shouldRetrieve` skip or a corrective relax), so serving a cached
     // plain result for an adaptive recall would be a correctness bug. Mirrors the
     // rerank / asOf / attributedTo bypass.
     const cache = this.recallCacheStore;

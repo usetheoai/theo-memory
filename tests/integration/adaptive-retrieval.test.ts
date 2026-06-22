@@ -14,7 +14,7 @@
  *
  * Three scenarios prove the feature:
  *   1. shouldRetrieve=false ⇒ recall returns [] WITHOUT embedding (embed-spy 0) + retrieval_skipped.
- *   2. CRAG relax ⇒ a sub-threshold ("weak") doc surfaces + retrieval_corrected.
+ *   2. relax ⇒ a sub-threshold ("weak") doc surfaces + retrieval_corrected.
  *   3. default (no policy) ⇒ byte-identical to a plain recall (weak stays dropped).
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
@@ -81,7 +81,7 @@ function setupTracer(): { tracer: ReturnType<BasicTracerProvider['getTracer']>; 
   return { tracer: provider.getTracer('adaptive-goal'), exporter };
 }
 
-describe.skipIf(ROOT_PG_URI === '')('adaptive-retrieval GOAL — Self-RAG skip + CRAG correct', () => {
+describe.skipIf(ROOT_PG_URI === '')('adaptive-retrieval GOAL — skip + correct', () => {
   const USER = `adaptive-goal-${Date.now()}`;
   let pool: pg.Pool;
 
@@ -126,7 +126,7 @@ describe.skipIf(ROOT_PG_URI === '')('adaptive-retrieval GOAL — Self-RAG skip +
     expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_skipped');
   }, 60_000);
 
-  it('CRAG relax ⇒ a sub-threshold doc surfaces + emits retrieval_corrected', async () => {
+  it('relax ⇒ a sub-threshold doc surfaces + emits retrieval_corrected', async () => {
     const { tracer, exporter } = setupTracer();
     const vectorStore = new PgvectorStore(pool, { embeddingDim: DIM });
     await vectorStore.initialize();
