@@ -17,6 +17,11 @@
  *
  * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § T4.1 (GOAL)
  */
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -64,13 +69,17 @@ describe.skipIf(ROOT_PG_URI === '')('domain-ontologies GOAL — typed extraction
     await pool?.end();
   });
 
-  it('persists an in-vocab domain entity type + coerces out-of-vocab to OTHER (real pgvector)', async () => {
+  it('persists an in-vocab domain entity type + coerces out-of-vocab to OTHER + emits the event (real pgvector)', async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
+    const tracer = provider.getTracer('ontology-goal');
     const memory = await createLocalMemory({
       vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
       embedder: new LocalTransformerEmbedder(),
       embeddingDim: 384,
       llm: makeMedicalStubLlm(),
       ontology: 'medical',
+      tracer,
     });
     await memory.user(USER).remember('clinical note');
 
@@ -85,5 +94,28 @@ describe.skipIf(ROOT_PG_URI === '')('domain-ontologies GOAL — typed extraction
     expect(byName.get('Qquib')).toBe('Diagnosis');
     // (2) the out-of-vocab type was coerced to the ontology fallback.
     expect(byName.get('Zylophan')).toBe('OTHER');
+    // (3) the coercion was observable (Princípio 3) — ontology_type_coerced span emitted.
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).toContain('ontology_type_coerced');
+  }, 180_000);
+
+  it('default path (no ontology) persists the LLM entity as the PROPER placeholder (byte-unchanged)', async () => {
+    const memory = await createLocalMemory({
+      vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
+      embedder: new LocalTransformerEmbedder(),
+      embeddingDim: 384,
+      llm: makeMedicalStubLlm(),
+      // NO ontology configured — the entity-linking type-carry is gated off, so
+      // LLM nodes persist as the shipped 'PROPER' placeholder (review F-dom-db-1:
+      // the no-ontology dedup identity is unchanged).
+    });
+    const noOntUser = `${USER}-noont`;
+    await memory.user(noOntUser).remember('clinical note');
+    const { rows } = await pool.query<{ name: string; type: string | null }>(
+      `SELECT name, type FROM entities WHERE name = $1 AND agent_id IS NULL AND session_id IS NULL AND user_id = $2`,
+      ['Qquib', noOntUser],
+    );
+    // The domain type did NOT leak onto the default path; it's the PROPER placeholder.
+    expect(rows[0]?.type).toBe('PROPER');
   }, 180_000);
 });

@@ -85,6 +85,16 @@ NO new dependency is introduced. The ontology is a typed config + a prompt/valid
 ### D4 — Opt-in via a zod-validated `MemoryConfig.ontology?` slot (registry key OR custom object); default byte-unchanged
 **Decision:** `MemoryConfig.ontology?: Ontology | OntologyName`; resolved + zod-validated at factory; absent = current generic extraction (byte-unchanged). **Rationale:** mirrors shipped opt-in slots; per-instance config beats mem0's project-only limitation. **Alternatives:** always-on default ontology (rejected — changes existing behavior), per-call override (deferred — KISS follow-up). **Consequences:** a new config slot + a built-in registry module; no behavior change for existing callers.
 
+### D5 — Entity-type persistence is GATED on an active ontology (review F-dom-db-1 absorption)
+
+**Decision:** the entity-linking node-persist carries the LLM's (ontology-coerced) `type` ONLY when an ontology is configured (`deps.ontology !== undefined`); with NO ontology it keeps the shipped `'PROPER'` placeholder. Relation-endpoint auto-created nodes take `OTHER` under an ontology, `'PROPER'` otherwise.
+
+**Rationale:** `/review` (domain-database F-dom-db-1 HIGH + architecture F-arch-1 + cross-validation F-xval-1 + domain-memory F-dom-1) found that the shipped entity dedup UNIQUE identity (`entities_scope_type_key_uq`) includes `type`. Carrying the LLM's non-deterministic coarse type on the DEFAULT (no-ontology) path would change dedup semantics for the already-shipped entity-graph feature (the same name typed PERSON vs OTHER across runs fragments into multiple rows, inflating the Entities tab + fragmenting `memory_count`). Gating the type-carry on an active ontology keeps the default path byte-unchanged (including persistence) and confines the new behavior to the opt-in feature — NO migration, NO change to shipped entity dedup.
+
+**Alternatives considered:** (a) drop `type` from the dedup UNIQUE index (cleaner data model but a risky migration changing shipped entity dedup for all users + dup-row handling — rejected as out-of-scope for the ontology cycle); (b) carry the LLM type unconditionally (the original implementation — rejected: undisclosed default-path regression per the review); (c) accept fragmentation by-design (rejected: avoidable by gating).
+
+**Consequences:** under an ontology the types are constrained by the vocabulary + coerced to `OTHER`, so the residual fragmentation risk is bounded (limited vocab) and is the opt-in feature's accepted behavior. The cleaner "entity identity = name+scope, type as attribute" model (dropping type from the UNIQUE) is recorded as a FUTURE option for a dedicated entity-dedup-hardening cycle (would need a migration).
+
 ## Dependency Graph
 
 ```
