@@ -22,13 +22,12 @@ export const INPUT_SCHEMA = z.object({
   skillId: z.string().min(1),
   /** Structured args injected into the skill (never string-concatenated into source). */
   args: z.record(z.unknown()).default({}),
-  /** Per-call execution bounds. */
+  /** Per-call execution bounds (bounded ceilings per review 2026-06-22 F-dom-conc-2). */
   opts: z
     .object({
-      timeoutMs: z.number().int().positive().optional(),
-      memoryLimitMb: z.number().int().positive().optional(),
-      maxOutputBytes: z.number().int().positive().optional(),
-      maxToolCalls: z.number().int().nonnegative().optional(),
+      timeoutMs: z.number().int().positive().max(30_000).optional(),
+      memoryLimitMb: z.number().int().positive().max(256).optional(),
+      maxOutputBytes: z.number().int().positive().max(10_000_000).optional(),
     })
     .optional(),
 });

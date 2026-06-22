@@ -111,13 +111,12 @@ describe('ToolInvocationDeniedError (T1.2)', () => {
     expect(e.message).toContain('timeout');
   });
 
-  test('reason union covers all 10 guard literals', () => {
+  test('reason union covers all 9 wired guard literals', () => {
     const reasons: ToolInvocationDeniedReason[] = [
       'node-binding-attempt',
       'fs-access-attempt',
       'timeout',
       'output-cap',
-      'tool-call-cap',
       'non-cloneable-args',
       'non-cloneable-result',
       'unsupported-language',

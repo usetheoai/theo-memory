@@ -176,6 +176,24 @@ if (PG_URI === undefined || PG_URI === '') {
       });
     }
 
+    test('cross-workspace isolation: a ws-a skill is NOT executable from ws-b (real pgvector)', async () => {
+      // F-tests-2 (review 2026-06-22): closes the unit-deferred cross-workspace case.
+      // Real pgvector persists workspace_id on the skill insert (the in-memory
+      // adapter does not), so this is the authoritative isolation assertion.
+      const memory = await buildMemory();
+      const wsA = memory.withWorkspace('ws-a').skills('shared-repo');
+      const wsB = memory.withWorkspace('ws-b').skills('shared-repo');
+      const added = await wsA.add({
+        code: 'export function f() { return 1; }',
+        description: 'ws-a private skill',
+        codeLanguage: 'javascript',
+      });
+      await expect(wsB.execute(added.id, {})).rejects.toMatchObject({ name: 'MemoryNotFound' });
+      // sanity: ws-a executes its own skill
+      const ok = await wsA.execute(added.id, {});
+      expect(ok.output).toBe(1);
+    });
+
     test('ToolInvocationDeniedError is the exported typed error (instanceof)', async () => {
       const memory = await buildMemory();
       const skills = memory.skills('goal-repo');

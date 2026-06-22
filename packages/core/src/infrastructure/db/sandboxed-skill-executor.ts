@@ -60,11 +60,20 @@ export interface SandboxedSkillExecutorDeps {
 }
 
 const DEFAULT_TIMEOUT_MS = 1000;
+// F-dom-conc-2 / F-sec-3 (review 2026-06-22): a client-controllable timeout with no
+// ceiling is a remote event-loop-stall amplifier. Cap it (clamp, not reject).
+const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MEMORY_LIMIT_MB = 16;
 const MIN_MEMORY_LIMIT_MB = 8;
+// F-sec-2 (review 2026-06-22): cap the isolate heap so the post-run host copy
+// (F-sec-1) is bounded — the isolate cannot produce a result larger than this.
+const MAX_MEMORY_LIMIT_MB = 256;
 const DEFAULT_MAX_OUTPUT_BYTES = 65536;
 
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
+// F-sec-4 (review 2026-06-22): even valid-identifier arg keys must not be the
+// prototype-pollution sentinels (isolate-contained, but closed defensively).
+const PROTO_SENTINELS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
 const NAMED_FUNCTION_RE = /function\s+([A-Za-z_$][\w$]*)/;
 const ASYNC_FUNCTION_RE = /async\s+function/;
 // DEC-2 source pre-scan (defense-in-depth + audit; the isolate is the primary boundary).
@@ -124,12 +133,18 @@ export class SandboxedSkillExecutor implements SkillExecutor {
     }
     const fnName: string = fnMatch[1];
     const argNames = Object.keys(args);
-    if (argNames.some((k) => !IDENTIFIER_RE.test(k))) {
-      this.#deny('non-cloneable-args', 'arg key is not a valid identifier');
+    if (argNames.some((k) => !IDENTIFIER_RE.test(k) || PROTO_SENTINELS.has(k))) {
+      this.#deny('non-cloneable-args', 'arg key is not a valid (non-prototype) identifier');
     }
-    const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    if (timeoutMs <= 0) throw new RangeError('timeoutMs must be > 0');
-    const memoryLimit = Math.max(MIN_MEMORY_LIMIT_MB, opts.memoryLimitMb ?? DEFAULT_MEMORY_LIMIT_MB);
+    const requestedTimeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    if (requestedTimeout <= 0) throw new RangeError('timeoutMs must be > 0');
+    // Clamp both bounds to a ceiling (F-dom-conc-2 / F-sec-2/3): a caller cannot
+    // request an unbounded wall-clock stall or an unbounded isolate heap.
+    const timeoutMs = Math.min(MAX_TIMEOUT_MS, requestedTimeout);
+    const memoryLimit = Math.min(
+      MAX_MEMORY_LIMIT_MB,
+      Math.max(MIN_MEMORY_LIMIT_MB, opts.memoryLimitMb ?? DEFAULT_MEMORY_LIMIT_MB),
+    );
     const maxOutputBytes = opts.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
 
     // --- Load the optional addon (EC-3 → typed unavailable error, NOT a denial). ---
@@ -142,10 +157,16 @@ export class SandboxedSkillExecutor implements SkillExecutor {
     const ivm = normalizeIvm(loaded);
 
     // --- Post-isolate path (denials here MUST dispose — handled by finally). ---
+    // F-dom-conc-1 (review 2026-06-22): use the ASYNC isolated-vm API. The *Sync
+    // variants run untrusted skill code on the main Node thread and would block the
+    // event loop for the whole timeout window on a server surface (REST/MCP); the
+    // async `run`/`compileScript` execute OFF the main thread, keeping the loop
+    // responsive under concurrent requests. (Supersedes DEC-1's sync choice, whose
+    // rationale weighed only throughput, not event-loop responsiveness.)
     let isolate: Isolate | undefined;
     try {
       isolate = new ivm.Isolate({ memoryLimit });
-      const context = isolate.createContextSync();
+      const context = await isolate.createContext();
       for (const [key, value] of Object.entries(args)) {
         // Only structured-cloneable primitives go in directly; objects/functions/
         // symbols route through ExternalCopy, which THROWS on non-cloneable values
@@ -154,19 +175,19 @@ export class SandboxedSkillExecutor implements SkillExecutor {
           value === null || ['string', 'number', 'boolean', 'bigint', 'undefined'].includes(typeof value);
         try {
           if (isCopyablePrimitive) {
-            context.global.setSync(key, value);
+            await context.global.set(key, value);
           } else {
-            context.global.setSync(key, new ivm.ExternalCopy(value).copyInto());
+            await context.global.set(key, new ivm.ExternalCopy(value).copyInto());
           }
         } catch {
           this.#deny('non-cloneable-args', `arg '${key}' is not structured-cloneable`);
         }
       }
 
-      const script = isolate.compileScriptSync(wrapInvocation(code, argNames, fnName));
+      const script = await isolate.compileScript(wrapInvocation(code, argNames, fnName));
       let raw: unknown;
       try {
-        raw = script.runSync(context, { timeout: timeoutMs, copy: true });
+        raw = await script.run(context, { timeout: timeoutMs, copy: true });
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
         if (/timed out/i.test(message)) this.#deny('timeout', `execution exceeded ${timeoutMs}ms`);

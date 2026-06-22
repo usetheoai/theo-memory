@@ -37,12 +37,11 @@ describe('SkillExecutor — type-level shape (T1.1)', () => {
     }>();
   });
 
-  test('SkillExecutionOptions: all four fields optional numbers', () => {
+  test('SkillExecutionOptions: all three fields optional numbers', () => {
     expectTypeOf<SkillExecutionOptions>().toEqualTypeOf<{
       readonly timeoutMs?: number;
       readonly memoryLimitMb?: number;
       readonly maxOutputBytes?: number;
-      readonly maxToolCalls?: number;
     }>();
   });
 });
