@@ -86,8 +86,8 @@ The full unfreeze also reopens these (from the cross-validation backlog + Phase 
 NOT gaps vs Letta; pick them up only after M1/M2 if they earn priority. **Priority order
 re-ordered by project-owner 2026-06-22:**
 
-1. Item 23 — cross-encoder reranker (`Reranker` DIP) — extends the long-term lead
-2. Item 15 — domain ontologies
+1. ~~Item 23 — cross-encoder reranker (`Reranker` DIP)~~ ✅ **SHIPPED v0.15.0 (2026-06-22, PR #61 merge `fc98cd9`, tag v0.15.0).** Full cycle: discover (blueprint SHIPPABLE 99.7) → plan (SHIPPABLE 98.0) → deps-audit PASS (zero new deps) → implement (7 tasks TDD) → code-quality PASS 100 → review (6 agents READY_TO_MERGE; 0 BLOCKER/HIGH, 4 MEDIUM closed inline) → release. Shipped: `Reranker` DIP + `CrossEncoderReranker` (@xenova `Xenova/ms-marco-MiniLM-L-6-v2`, no new dep) wired post-threshold (Step 8.5a, opt-in `recall({rerank})`), mutually exclusive with diversify (`RerankerConflict`), fail-soft (`recall_rerank_failed`), cache-bypass, `@usetheo/memory/reranker-local` subpath. GOAL test real pgvector + real @xenova. Records: `cross-encoder-reranker-plan.md`, `cross-encoder-reranker-review-2026-06-22.md`, `releases/v0.15.0-release.md`.
+2. **Item 15 — domain ontologies** ← NEXT
 3. Item 24 — embedder registry + more providers
 4. Item 13 — adaptive retrieval (Self-RAG/CRAG hooks)
 5. Item 14 — optional graph backend (Apache AGE / Neo4j)
