@@ -315,13 +315,13 @@ export class InMemoryVectorStore implements VectorStore {
     }
 
     // Sort by (created_at, id) in the active order. id (string) is the
-    // deterministic tie-break for identical timestamps.
+    // deterministic tie-break for identical timestamps. Reuses the single
+    // canonical comparator (F-arch-4 DRY) so the cursor filter + sort never drift.
     const dir = order === 'asc' ? 1 : -1;
-    rows.sort((a, b) => {
-      const dt = (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0);
-      if (dt !== 0) return dt * dir;
-      return (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * dir;
-    });
+    rows.sort(
+      (a, b) =>
+        compareCreatedAtId(a.createdAt ?? new Date(0), a.id, b.createdAt ?? new Date(0), b.id) * dir,
+    );
 
     // Cursor filter (after/before). At most one is honored; after wins.
     const cursorRaw = options.after ?? options.before;
