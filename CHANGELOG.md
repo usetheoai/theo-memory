@@ -5,7 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- First-class episodic / message-log read surface (M2): `ScopedMemory.episodes(opts?)` returns a cursor-paginated, bi-temporal-aware temporal log of a scope's memories (after/before/limit/order/asOf/queryText). Built over the existing memory substrate — no new storage engine, no new dependency, no new table (cursor `(created_at, id)`). New `VectorStore.listEpisodes` DIP method (pgvector + in-memory). (#M2 first-class-episodes)
 
 ### Changed
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.14.0] - 2026-06-22
+
+### Added
+- First-class episodic / message-log read surface (M2): `ScopedMemory.episodes(opts?)` returns a cursor-paginated, bi-temporal-aware temporal log of a scope's memories (after/before/limit/order/asOf/queryText). Built over the existing memory substrate — no new storage engine, no new dependency, no new table (cursor `(created_at, id)`). New `VectorStore.listEpisodes` DIP method (pgvector + in-memory). (#M2 first-class-episodes)
 
 ## [0.13.0] - 2026-06-22
 
