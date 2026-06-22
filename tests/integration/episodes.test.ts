@@ -192,5 +192,80 @@ if (PG_URI === undefined || PG_URI === '') {
       const next = await session.episodes({ limit: 1, after: rebuilt });
       expect(next.items[0]?.id).not.toBe(last.id);
     });
+
+    test('8. identical created_at rows paginate with no gap/overlap (id tie-break, EC-3)', async () => {
+      // Force EXACTLY-equal created_at across N rows via direct SQL so the
+      // (created_at, id) id-tiebreak page-boundary path is exercised
+      // deterministically (not by chance), per review F-tests-2.
+      const ts = '2026-06-22T12:00:00.000Z';
+      const ids: string[] = [];
+      for (let i = 0; i < 5; i += 1) {
+        const id = `00000000-0000-4000-8000-00000000000${i}`;
+        ids.push(id);
+        // eslint-disable-next-line no-await-in-loop
+        await pool.query(
+          `INSERT INTO memories (id, text, hash, payload, embedding, session_id, created_at, t_valid)
+           VALUES ($1, $2, $3, $4::jsonb, $5::vector, $6, $7, $7)`,
+          [
+            id,
+            `same-ts-${String(i)}`,
+            `h-${String(i)}`,
+            '{}',
+            `[${new Array(DIM).fill(0).join(',')}]`,
+            'tie',
+            ts,
+          ],
+        );
+      }
+      const session = (await buildMemory()).session('tie');
+      const full = (await session.episodes({ limit: 100 })).items.map((m) => m.id);
+      expect(full).toHaveLength(5);
+
+      const collected: string[] = [];
+      let after: string | undefined;
+      for (let guard = 0; guard < 20; guard += 1) {
+        const opts = after === undefined ? { limit: 2 } : { limit: 2, after };
+        // eslint-disable-next-line no-await-in-loop
+        const page = await session.episodes(opts);
+        collected.push(...page.items.map((m) => m.id));
+        if (page.nextCursor === undefined) break;
+        after = page.nextCursor;
+      }
+      expect(collected).toEqual(full); // no gap
+      expect(new Set(collected).size).toBe(5); // no overlap
+    });
+
+    test('9. all 4 cursor combinations (asc|desc × after|before) are gap/overlap-free', async () => {
+      const session = (await buildMemory()).session('s1');
+      await rememberSeq(session, ['c1', 'c2', 'c3', 'c4']);
+
+      for (const order of ['asc', 'desc'] as const) {
+        const full = (await session.episodes({ limit: 100, order })).items.map((m) => m.id);
+        // forward walk with `after`
+        const fwd: string[] = [];
+        let after: string | undefined;
+        for (let g = 0; g < 20; g += 1) {
+          const opts = after === undefined ? { limit: 2, order } : { limit: 2, order, after };
+          // eslint-disable-next-line no-await-in-loop
+          const page = await session.episodes(opts);
+          fwd.push(...page.items.map((m) => m.id));
+          if (page.nextCursor === undefined) break;
+          after = page.nextCursor;
+        }
+        expect(fwd).toEqual(full);
+
+        // `before` from a mid cursor returns strictly-earlier rows in this order
+        const mid = full[2] as string;
+        const midItem = (await session.episodes({ limit: 100, order })).items.find((m) => m.id === mid);
+        if (midItem === undefined) throw new Error('expected mid item');
+        const before = await session.episodes({
+          limit: 100,
+          order,
+          before: encodeEpisodeCursor(midItem.createdAt, midItem.id),
+        });
+        // everything strictly before `mid` in the active order = full.slice(0, 2)
+        expect(before.items.map((m) => m.id).sort()).toEqual(full.slice(0, 2).sort());
+      }
+    });
   });
 }
