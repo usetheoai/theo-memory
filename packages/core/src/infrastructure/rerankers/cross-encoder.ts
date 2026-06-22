@@ -86,6 +86,22 @@ function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x));
 }
 
+/**
+ * Minimal typed views over the @xenova call contract (the library types the
+ * tokenizer/model call results as `any`). These local types document the exact
+ * shape this reranker depends on and keep the impl free of `any` per
+ * architecture.md (no `any` in production code).
+ */
+type PairTokenizedInputs = Record<string, unknown>;
+type TokenizePairs = (
+  queries: readonly string[],
+  opts: { readonly text_pair: readonly string[]; readonly padding: boolean; readonly truncation: boolean },
+) => PairTokenizedInputs;
+interface SequenceClassifierOutput {
+  readonly logits: { readonly data: Float32Array };
+}
+type RunSequenceClassifier = (inputs: PairTokenizedInputs) => Promise<SequenceClassifierOutput>;
+
 export interface CrossEncoderRerankerOptions {
   /** Cross-encoder model id. Default `Xenova/ms-marco-MiniLM-L-6-v2`. */
   readonly model?: string;
@@ -111,6 +127,10 @@ export class CrossEncoderReranker implements Reranker {
       return [];
     }
     const { tokenizer, model } = await getBundle(this.modelId);
+    // The @xenova tokenizer/model instances are callable; their call results are
+    // typed `any` upstream. Narrow via the local contract types (no `any`).
+    const tokenize = tokenizer as unknown as TokenizePairs;
+    const runModel = model as unknown as RunSequenceClassifier;
 
     // Score each candidate against the query in bounded batches.
     const scores = new Array<number>(candidates.length);
@@ -119,17 +139,16 @@ export class CrossEncoderReranker implements Reranker {
       const queries = batch.map(() => query);
       const docs = batch.map((c) => c.text);
       // Pair-encode (query, doc): the cross-encoder's text_pair input.
-      const inputs = tokenizer(queries, {
+      const inputs = tokenize(queries, {
         text_pair: docs,
         padding: true,
         truncation: true,
       });
-      const output = await model(inputs);
+      const output = await runModel(inputs);
       // ms-marco cross-encoders emit a single relevance logit per pair.
       // logits.data is a Float32Array of length batch_size * num_labels;
       // num_labels === 1 for this model family → one score per pair.
-      const logits = output.logits;
-      const data = logits.data as Float32Array;
+      const data = output.logits.data;
       const numLabels = data.length / batch.length;
       for (let i = 0; i < batch.length; i++) {
         // Use the first (relevance) logit of each row, passed through sigmoid.

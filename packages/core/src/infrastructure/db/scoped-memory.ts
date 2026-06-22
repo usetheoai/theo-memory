@@ -303,14 +303,22 @@ export class LocalScopedMemory implements ScopedMemory {
     // when the consumer asked for a historical OR peer-filtered slice would be
     // a correctness bug (Inquebrável Rule 3). BYPASS path: when EITHER option
     // is set, skip the cache entirely (no get, no set).
+    // cross-encoder-reranker T4.1 / ADR D6 — setting `options.rerank` BYPASSES
+    // the cache (the v1.5 cache key does not include rerank; serving a
+    // non-reranked cached result for a rerank request would be a correctness
+    // bug). Mirrors the asOf / attributedTo bypass.
     const cache = this.recallCacheStore;
     const cacheApplicable =
-      cache !== undefined && options?.asOf === undefined && options?.attributedTo === undefined;
+      cache !== undefined &&
+      options?.asOf === undefined &&
+      options?.attributedTo === undefined &&
+      options?.rerank === undefined;
 
     if (!cacheApplicable || cache === undefined) {
       return runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
         vectorStore: this.config.vectorStore,
         embedder: this.config.embedder,
+        ...(this.config.reranker !== undefined ? { reranker: this.config.reranker } : {}),
         ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       }, options);
     }
