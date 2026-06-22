@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 27 values (26 prior + recall_rerank_failed from cross-encoder-reranker T2.2)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(27);
+  test('has 28 values (27 prior + ontology_type_coerced from domain-ontologies T2.2)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(28);
+  });
+
+  test('includes ontology_type_coerced (domain-ontologies T2.2, Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('ontology_type_coerced');
   });
 
   test('includes tool_invocation_denied + skill_executed (agentic-skill-execution-sandbox T1.2)', () => {
