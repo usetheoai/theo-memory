@@ -226,3 +226,43 @@ describe('T3.2 — @usetheo/memory/reranker-local subpath isolation', () => {
     expect(typeof mod.RerankerConflict).toBe('function');
   });
 });
+
+/**
+ * embedder-registry T3.1 — `@usetheo/memory/embedders/registry` subpath isolation.
+ * The registry resolves every adapter via LAZY `await import()`, so its static
+ * graph MUST NOT reach the SDK-backed adapters (`openai.ts`/`local.ts`) nor the
+ * heavy deps they statically pull (`openai`, `@xenova/transformers`). The 4 new
+ * subpaths smoke-import their public surface.
+ *
+ * @see .claude/knowledge-base/plans/embedder-registry-plan.md § T3.1 + ADR D2 + D4
+ */
+describe('T3.1 — @usetheo/memory/embedders/registry subpath isolation', () => {
+  test('registry static-import graph does NOT reach the SDK-backed adapters or their deps', () => {
+    const entry = resolve(REPO_ROOT, 'packages/core/src/infrastructure/embedders/registry.ts');
+    const reachable = walkImports(entry);
+    const adapterLeaks = Array.from(reachable).filter(
+      (p) => p.endsWith('embedders/openai.ts') || p.endsWith('embedders/local.ts'),
+    );
+    expect(adapterLeaks).toEqual([]);
+  });
+
+  test('registry subpath resolves createEmbedder (smoke import)', async () => {
+    const mod = await import('../../packages/core/src/infrastructure/embedders/registry.js');
+    expect(typeof mod.createEmbedder).toBe('function');
+  });
+
+  test('ollama subpath resolves OllamaEmbedder (smoke import)', async () => {
+    const mod = await import('../../packages/core/src/infrastructure/embedders/ollama.js');
+    expect(typeof mod.OllamaEmbedder).toBe('function');
+  });
+
+  test('voyage subpath resolves VoyageEmbedder (smoke import)', async () => {
+    const mod = await import('../../packages/core/src/infrastructure/embedders/voyage.js');
+    expect(typeof mod.VoyageEmbedder).toBe('function');
+  });
+
+  test('google subpath resolves GoogleEmbedder (smoke import)', async () => {
+    const mod = await import('../../packages/core/src/infrastructure/embedders/google.js');
+    expect(typeof mod.GoogleEmbedder).toBe('function');
+  });
+});
