@@ -18,6 +18,7 @@ import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
 import type { ScopedMemory } from '../../domain/memory-store.js';
 import type { Message } from '../../domain/message.js';
+import { resolveOntology } from '../../domain/ontology.js';
 import type {
   ForgetOptions,
   GetAllOptions,
@@ -205,6 +206,10 @@ export class LocalScopedMemory implements ScopedMemory {
       ...(this.config.memoryEntityStore !== undefined ? { memoryEntityStore: this.config.memoryEntityStore } : {}),
       // slice2 T3.2 — thread the edge port so Phase 7 edge linking runs.
       ...(this.config.memoryGraphStore !== undefined ? { memoryGraphStore: this.config.memoryGraphStore } : {}),
+      // domain-ontologies T3.1 — resolve the ontology config (key|object) to a
+      // concrete Ontology + thread it (the factory already validated it once for
+      // fail-fast; resolveOntology is pure + idempotent on an already-resolved object).
+      ...(this.config.ontology !== undefined ? { ontology: resolveOntology(this.config.ontology) } : {}),
     }, options);
 
     // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline
