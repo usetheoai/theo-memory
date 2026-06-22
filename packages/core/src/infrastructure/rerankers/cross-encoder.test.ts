@@ -41,11 +41,21 @@ vi.mock('@xenova/transformers', () => {
     AutoModelForSequenceClassification: {
       from_pretrained: (...args: unknown[]) => {
         modelLoad(...args);
+        const modelId = typeof args[0] === 'string' ? args[0] : '';
+        // F-tests-2: simulate a transient HF-CDN load rejection ONCE per model id
+        // so the retry-after-rejection (singleton reset) path is exercised.
+        if (rejectOnceModels.has(modelId)) {
+          rejectOnceModels.delete(modelId);
+          return Promise.reject(new Error('transient model load failure'));
+        }
         return Promise.resolve(fakeModel);
       },
     },
   };
 });
+
+// Model ids whose FIRST load should reject (then succeed on retry). Mutated per-test.
+const rejectOnceModels = new Set<string>();
 
 // Imported AFTER the mock is registered (vi.mock is hoisted).
 const { CrossEncoderReranker } = await import('./cross-encoder.js');
@@ -120,5 +130,23 @@ describe('CrossEncoderReranker', () => {
     // Lazy singleton keyed by model id → loaded exactly once despite 2 concurrent callers.
     expect(tokenizerLoad).toHaveBeenCalledTimes(1);
     expect(modelLoad).toHaveBeenCalledTimes(1);
+  });
+
+  test('retry-after-rejection: a rejected first load resets the singleton so the next call retries (F-M5 parity)', async () => {
+    const MODEL = 'Xenova/reject-once-test';
+    rejectOnceModels.add(MODEL);
+    const r = new CrossEncoderReranker({ model: MODEL });
+    // First call: the model load rejects → rerank() rejects (the pipeline's
+    // try/catch is what turns this into fail-soft; the impl itself surfaces it).
+    await expect(r.rerank('q', [item('a', 'aa', 0.5)], 1)).rejects.toThrow(
+      'transient model load failure',
+    );
+    // Second call: the singleton slot was reset on rejection → a fresh load is
+    // attempted (NOT a cached rejected promise) → succeeds.
+    const out = await r.rerank('q', [item('b', 'bb', 0.5)], 1);
+    expect(out.map((o) => o.id)).toEqual(['b']);
+    // Two load attempts total for this model id: the rejected one + the retry.
+    const loadsForModel = modelLoad.mock.calls.filter((c) => c[0] === MODEL);
+    expect(loadsForModel).toHaveLength(2);
   });
 });
