@@ -1,5 +1,5 @@
 /**
- * Façade unit tests for the adaptive-retrieval Self-RAG `shouldRetrieve` gate
+ * Façade unit tests for the adaptive-retrieval `shouldRetrieve` gate
  * (Item 13 T3.1). Exercised against the real InMemoryVectorStore (in-process,
  * no I/O) so it runs in the always-on contract suite. Asserts:
  *   - shouldRetrieve=false ⇒ recall returns [] WITHOUT embedding (embed-spy 0)
@@ -8,6 +8,11 @@
  *
  * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § T3.1 + ADR D2 + D4 + EC-3
  */
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { describe, expect, test, vi } from 'vitest';
 
 import type { AdaptiveRetrievalPolicy } from '../../domain/dip/adaptive-retrieval-policy.js';
@@ -76,13 +81,16 @@ describe('adaptive-retrieval shouldRetrieve gate (façade)', () => {
     expect(embedder.embed).not.toHaveBeenCalled(); // the skip avoided the embed
   });
 
-  test('shouldRetrieve throws ⇒ fail-soft: normal retrieval, never skips on error', async () => {
+  test('shouldRetrieve throws ⇒ fail-soft: normal retrieval + observable retrieval_policy_failed', async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
     const memory = await createLocalMemory({
       vectorStore: new InMemoryVectorStore(),
       embedder: mkEmbedder(),
       llm: echoLlm(),
       entityBoost: false,
       retrievalPolicy: throwingGate,
+      tracer: provider.getTracer('adaptive-gate-test'),
     });
     const session = memory.session('s1');
     await session.remember('I like dark mode');
@@ -90,6 +98,8 @@ describe('adaptive-retrieval shouldRetrieve gate (façade)', () => {
     const results = await session.recall('dark mode');
     // fail-soft → the gate error is swallowed and retrieval runs normally.
     expect(results.length).toBeGreaterThanOrEqual(1);
+    // F-dom-obs-1: the gate failure is observable (not a silent catch).
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_policy_failed');
   });
 
   test('EC-3: no retrievalPolicy wired ⇒ default path retrieves normally', async () => {

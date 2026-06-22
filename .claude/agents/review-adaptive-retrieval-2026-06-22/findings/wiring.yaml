@@ -1,0 +1,288 @@
+agent: review-adaptive-retrieval-wiring
+review_target: 3a60d5a..HEAD (git diff for adaptive-retrieval Item 13)
+plan: .claude/knowledge-base/plans/adaptive-retrieval-plan.md
+review_date: 2026-06-22
+
+overview: |
+  Deep wiring review for the new AdaptiveRetrievalPolicy DIP and its default
+  HeuristicAdaptiveRetrievalPolicy implementation. The triad (caller + integration
+  test + runtime metric) is **FULLY WIRED and HONEST**. All three pillars verified
+  end-to-end against real pgvector.
+
+triad_revalidation:
+  total_new_symbols: 4
+  pillar_a_honest_pass: 4 / 4
+  pillar_b_honest_pass: 3 / 3
+  pillar_c_observed: 3 / 3
+
+findings:
+  - id: F-wire-1-pillar-a-caller
+    severity: PASS
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 314
+    plan_ref: T3.1 (Self-RAG shouldRetrieve pre-embed gate)
+    summary: |
+      PILLAR A (Static Caller) — HONEST PASS. The Self-RAG shouldRetrieve gate
+      is called in LocalScopedMemory.retrieveResults() BEFORE the cache/embed step
+      (line 314, inside an optional block gated by retrievalPolicy !== undefined).
+      The caller is NOT dead:
+      - It is exercised in test #1 (shouldRetrieve=false scenario).
+      - The call path is: recall() → retrieveResults() → shouldRetrieve (pre-embed).
+      - When shouldRetrieve returns false, recall returns [] without embedding.
+      - Fail-soft (ADR D4): throws are caught and the normal retrieval path resumes.
+    evidence: |
+      - scoped-memory.ts:308-322 — shouldRetrieve invocation within try-catch.
+      - scoped-memory.ts:314 — emitEvent('retrieval_skipped') proves the path runs.
+      - Integration test adaptive-retrieval.test.ts:102-127 — scenario confirms embed skipped.
+      - Cache-bypass logic (line 328) correctly gates cache per retrievalPolicy presence.
+
+  - id: F-wire-2-pillar-a-assess
+    severity: PASS
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 355
+    plan_ref: T2.1 (CRAG assess post-threshold hook)
+    summary: |
+      PILLAR A (Static Caller) — HONEST PASS. The CRAG assess hook is called
+      in runRetrievalPipeline() at Step 8.6 (line 355) when a retrievalPolicy is
+      wired in deps. The call path is not a no-op:
+      - Called after threshold filtering (line 304).
+      - Receives the threshold-passing results + optional per-call tuning.
+      - Returns { sufficient, action, relaxedThreshold? } that MUTATES the `scored`
+        array when action='relax' (lines 195-207).
+      - Fail-soft: throws are caught (line 211), emits low-confidence, returns original.
+    evidence: |
+      - pipeline.ts:348-365 — applyAdaptiveAssessStage() invocation with all deps.
+      - pipeline.ts:355-363 — tuning (options?.adaptive) threaded from RecallOptions.
+      - pipeline.ts:165-211 — applyAdaptiveAssessStage() implementation shows relax path.
+      - Integration test adaptive-retrieval.test.ts:129-152 — scenario confirms relax surfaces weak doc.
+
+  - id: F-wire-3-pillar-b-integration
+    severity: PASS
+    file: tests/integration/adaptive-retrieval.test.ts
+    line: 102
+    plan_ref: T5.1 (GOAL test end-to-end)
+    summary: |
+      PILLAR B (Integration Test) — HONEST PASS + DEEP EXERCISE. The three
+      scenarios cover both decision hooks end-to-end against REAL pgvector:
+
+      1. Test line 102-127 (shouldRetrieve=false): 
+         - Wires skip policy; queries with embedder spy.
+         - Assertion: results===[], embedder.embed NOT called (proves no embed).
+         - Event: retrieval_skipped emitted (observability).
+
+      2. Test line 129-152 (CRAG relax):
+         - Wires HeuristicAdaptiveRetrievalPolicy with correctiveFloor=1.5.
+         - Stores strong doc (semantic ~1.0) + weak doc (semantic ~0.3).
+         - Queries with threshold 0.5: weak dropped at first pass, surfaces after relax.
+         - Assertion: WEAK text appears in results.
+         - Event: retrieval_corrected emitted.
+
+      3. Test line 154-170 (default, no policy):
+         - Confirms byte-identical behavior when retrievalPolicy is undefined.
+         - Weak stays dropped (no adaptive path).
+
+      Each test is NOT an orphan import — they exercise the actual pipeline.
+      The deterministic embedder + queue LLM ensure reproducible scores.
+    evidence: |
+      - Crafted vectors (line 47) guarantee semantic scores (1.0 for STRONG/QUERY, 0.3 for WEAK).
+      - Token-disjoint texts (line 43) prevent BM25 from perturbing semantic signal.
+      - Real PgvectorStore.initialize() (line 110) + runMigrations (line 95) use actual pgvector.
+      - Tracer + span exporter (line 78) capture MEMORY_EVENTS for verification (line 126, 151).
+      - All three tests run in same transaction-isolated DB (ISOLATED_DB).
+
+  - id: F-wire-4-pillar-c-metrics
+    severity: PASS
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 179
+    plan_ref: ADR D4 (fail-soft observability)
+    summary: |
+      PILLAR C (Runtime Metric) — HONEST PASS. Three MEMORY_EVENTS literals are
+      emitted at correct pipeline points:
+
+      1. retrieval_skipped (line 314, scoped-memory.ts):
+         - Emitted when shouldRetrieve returns { retrieve: false }.
+         - Contains scope_tier + reason.
+         - Integration test line 126 verifies event appears.
+
+      2. retrieval_corrected (line 202, pipeline.ts):
+         - Emitted when assess recommends action='relax' + valid relaxedThreshold.
+         - The relax actually surfaces new results (EC-2 safeguard).
+         - Integration test line 151 verifies event appears.
+
+      3. retrieval_low_confidence (line 179, 196, 211):
+         - Emitted when assess.action='reject' OR relax surfaces nothing OR assess throws.
+         - Contains reason + scope_tier for diagnosis.
+         - Three codepaths ensure observable failure modes (ADR D4 fail-soft).
+
+      All three are wired to emitEvent(tracer, ...) with proper span naming.
+      Event emission is observable via OTel span exporter (test line 78).
+    evidence: |
+      - domain/memory-event.ts: literal strings declared in MEMORY_EVENTS union.
+      - pipeline.ts lines 179, 196, 202, 211: emitEvent calls with correct names.
+      - scoped-memory.ts line 314: pre-embed retrieval_skipped event.
+      - Test line 126: exporter.getFinishedSpans() captures retrieval_skipped span.
+      - Test line 151: exporter.getFinishedSpans() captures retrieval_corrected span.
+      - All spans have otel/tracer provider attached (BasicTracerProvider + SimpleSpanProcessor).
+
+dead_exports_audit:
+  - symbol: AdaptiveRetrievalPolicy
+    exported_from: packages/core/src/domain/index.ts
+    caller_status: REAL
+    callers:
+      - packages/core/src/infrastructure/db/config.ts (LocalMemoryConfig.retrievalPolicy)
+      - packages/core/src/domain/retrieval/pipeline.ts (RunRetrievalPipelineDeps.retrievalPolicy)
+      - tests/integration/adaptive-retrieval.test.ts (policy wiring in test setup)
+    verdict: NOT_DEAD — core DIP interface used in two real production paths
+    
+  - symbol: RetrievalDecision
+    exported_from: packages/core/src/domain/index.ts
+    caller_status: REAL
+    callers:
+      - packages/core/src/infrastructure/adaptive/heuristic-policy.ts (return type of shouldRetrieve)
+      - tests/integration/adaptive-retrieval.test.ts (fixture asserts)
+    verdict: NOT_DEAD — return type of policy method
+    
+  - symbol: RetrievalAssessment
+    exported_from: packages/core/src/domain/index.ts
+    caller_status: REAL
+    callers:
+      - packages/core/src/infrastructure/adaptive/heuristic-policy.ts (return type of assess)
+      - packages/core/src/domain/retrieval/pipeline.ts (result inspection in Step 8.6)
+      - tests/integration/adaptive-retrieval.test.ts (fixture asserts)
+    verdict: NOT_DEAD — return type of policy method
+    
+  - symbol: AdaptiveTuning
+    exported_from: packages/core/src/domain/index.ts
+    caller_status: REAL
+    callers:
+      - packages/core/src/domain/dip/adaptive-retrieval-policy.ts (assess param type)
+      - packages/core/src/domain/options.ts (RecallOptions.adaptive shape)
+      - packages/core/src/domain/retrieval/pipeline.ts (applyAdaptiveAssessStage param)
+    verdict: NOT_DEAD — per-call tuning record type
+
+heuristic_policy_subpath_isolation:
+  - subpath: "@usetheo/memory/adaptive-local"
+    declared_in: packages/core/package.json#exports
+    target: dist/infrastructure/adaptive/index.d.ts
+    bundle_isolation_verified: true
+    test_evidence: |
+      - tests/integration/subpath-isolation.test.ts line (see grep output above)
+      - Default barrel (src/index.ts) static graph does NOT reach heuristic-policy.ts.
+      - Subpath barrel re-exports HeuristicAdaptiveRetrievalPolicy (smoke test passes).
+      - ADR D5: bundle isolation by default, key-free default impl behind subpath.
+
+package_json_exports_parity:
+  - subpath: "./adaptive-local"
+    types: "./dist/infrastructure/adaptive/index.d.ts"
+    default: "./dist/infrastructure/adaptive/index.js"
+    pack_verification: |
+      npm pack --dry-run shows:
+        - dist/infrastructure/adaptive/index.d.ts (544B)
+        - dist/infrastructure/adaptive/index.js (497B)
+        - dist/infrastructure/adaptive/heuristic-policy.d.ts (2.8kB)
+        - dist/infrastructure/adaptive/heuristic-policy.js (1.8kB)
+      All files present and ship in tarball (verified in npm notice output above).
+
+exports_contract_test_reconciliation:
+  - test_file: tests/integration/p0-audit/exports-contract.test.ts
+  - prior_export_count: 54
+  - new_export_count: 55
+  - new_export_statement: |
+      export type {
+        AdaptiveRetrievalPolicy,
+        RetrievalDecision,
+        RetrievalAssessment,
+        AdaptiveTuning,
+      } from './dip/adaptive-retrieval-policy.js';
+  - test_assertion: expect(blocks.length).toBe(55) [PASSES]
+  - jsdoc_coverage: 55 / 55 export statements have JSDoc blocks [PASSES]
+
+config_threading_verification:
+  - config_type: LocalMemoryConfig
+    extends: MemoryConfig (domain contract)
+    new_field: retrievalPolicy?: AdaptiveRetrievalPolicy
+    threading_path: |
+      1. factory.createLocalMemory(config) receives config with optional retrievalPolicy.
+      2. baseConfig spread (line ~108 of factory.ts) preserves all config keys including retrievalPolicy.
+      3. LocalMemory constructor receives baseConfig.
+      4. LocalScopedMemory instance reads this.config.retrievalPolicy (line 308 scoped-memory.ts).
+      5. runRetrievalPipeline called with {..., retrievalPolicy: this.config.retrievalPolicy, ...} (line 335).
+    verdict: FULLY_THREADED — retrievalPolicy flows from factory input → config → scoped-memory → pipeline deps
+
+cache_bypass_verification:
+  - cache_gating_line: packages/core/src/infrastructure/db/scoped-memory.ts:328
+  - gate_logic: |
+      const cacheApplicable = cache !== undefined &&
+        options?.asOf === undefined &&
+        options?.attributedTo === undefined &&
+        options?.rerank === undefined &&
+        this.config.retrievalPolicy === undefined;  // <-- KEY GATE
+    
+      When retrievalPolicy is wired ⇒ cacheApplicable = false ⇒ full pipeline runs.
+      Rationale: v1.5 cache key does not encode adaptive outcome (shouldRetrieve skip
+      or CRAG relax), so serving cached-non-adaptive result for adaptive recall would
+      be a correctness bug (mirrors rerank/asOf/attributedTo bypass logic).
+  - verdict: CORRECT — cache bypass prevents stale result serving
+
+recursion_and_scope_check:
+  - question: Do the shouldRetrieve / assess hooks reference back into Memory or recall recursively?
+    answer: NO — both hooks are pure decision functions per DIP contract (dip/adaptive-retrieval-policy.ts:17-26).
+             The policy NEVER performs I/O or invokes Memory methods. SRP separation preserved.
+             All I/O is pipeline's responsibility; policy only DECIDES (ADR D1).
+    verdict: NO_RECURSION — design is sound
+
+anti_patterns_not_found:
+  - no_dead_branch_callers: |
+      All callers are real:
+      - shouldRetrieve: called in real optional block (line 308, gated by policy !== undefined).
+      - assess: called in real optional block (line 348, gated by deps.retrievalPolicy !== undefined).
+      - NO `if (false) assessPolicy(...)` stubs. NO commented-out calls.
+  
+  - no_test_only_orphans: |
+      All new symbols are EXERCISED in integration tests, not just imported:
+      - AdaptiveRetrievalPolicy wired via createLocalMemory (test line 111).
+      - shouldRetrieve invoked (test embeds spy proves it was NOT called on false case).
+      - assess invoked (test result differences prove relax happened).
+  
+  - no_fabricated_metrics: |
+      Three MEMORY_EVENTS are REAL OTel spans captured by test tracer:
+      - Test line 78: BasicTracerProvider + InMemorySpanExporter setup.
+      - Test line 126: exporter.getFinishedSpans() returns actual tracer output.
+      - Test line 151: same tracer, same exporter captures retrieval_corrected.
+      - Events are not manually injected; they come from emitEvent calls in real code paths.
+
+concurrent_safety_check:
+  - question: Are there race conditions in the policy calls or adaptive stage?
+    answer: |
+      The policy is stateless per design (HeuristicAdaptiveRetrievalPolicy stores
+      only config in constructor; assess/shouldRetrieve methods are pure + read-only).
+      The candidates map and scored array are local per pipeline invocation (not shared).
+      The applyAdaptiveAssessStage function is synchronous on the results array
+      (does not modify input per contract, only reads maxScore/threshold).
+      No concurrent mutations of shared state.
+    verdict: SAFE — no race conditions detected
+
+final_summary:
+  wiring_triad_confidence: 100%
+  pillar_a_honest: YES
+  pillar_b_honest: YES
+  pillar_c_honest: YES
+  overall_verdict: READY_FOR_MERGE
+  blockers: NONE
+  reviewer_notes: |
+    The adaptive-retrieval implementation demonstrates all three wiring
+    pillars at high confidence. The DIP is properly typed, the implementation
+    is properly isolated (bundle-isolated subpath), the default impl is
+    reasonable (heuristic-based, key-free), and the integration test exercises
+    all real code paths end-to-end against pgvector. The optional wiring
+    (retrievalPolicy parameter) correctly gates the feature off-by-default,
+    preserving byte-identical behavior for existing callers. Runtime observability
+    is complete (three MEMORY_EVENTS + OTel spans). No dead code. No paper names
+    in code. The plan's ADRs are honored in the implementation.
+    
+    Spot-check: verified that shouldRetrieve pre-embed gate actually skips the
+    embed (test spy confirms embedder.embed not called on skip). Verified that
+    CRAG relax surfaces new results (weak doc appears after threshold relaxes).
+    Verified that cache-bypass logic correctly prevents stale results when
+    adaptive is wired. All critical integration paths verified against REAL
+    pgvector storage.

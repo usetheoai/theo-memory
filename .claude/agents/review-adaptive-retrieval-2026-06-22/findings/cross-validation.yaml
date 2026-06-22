@@ -1,0 +1,325 @@
+agent: review-adaptive-retrieval-cross-validation
+review_target: 3a60d5a..HEAD for plan adaptive-retrieval (Roadmap Item 13)
+plan: .claude/knowledge-base/plans/adaptive-retrieval-plan.md
+blueprint: .claude/knowledge-base/discoveries/blueprints/adaptive-retrieval-blueprint.md
+commits:
+  - ced3ea7  # feat(retrieval): adaptive-retrieval Self-RAG/CRAG decision hooks (Item 13)
+  - fdf40a8  # docs(adaptive-retrieval): code-quality PASS audit + implement-validate report
+
+plan_tasks_summary:
+  total_tasks: 6        # T1.1 T2.1 T3.1 T4.1 T4.2 T5.1
+  fully_implemented: 6
+  partial: 0
+  missing: 0
+  diverged: 0           # one intentional, well-documented additive (AdaptiveTuning 3rd param) — within ADR D1 spirit, not a divergence
+
+coverage_table:
+  - task: T1.1
+    title: AdaptiveRetrievalPolicy DIP + type-level contract
+    status: fully_implemented
+    files:
+      - packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+      - packages/core/src/domain/dip/adaptive-retrieval-policy.test-d.ts
+      - packages/core/src/domain/index.ts   # type re-export (zero-runtime)
+    acceptance_criteria:
+      - "exactly 2 methods (ADR-0008 cap): MET — shouldRetrieve + assess; verified in test-d toHaveProperty + parameters/returns assertions"
+      - "RetrievalDecision + RetrievalAssessment exported: MET (also AdaptiveTuning)"
+      - "tsc clean + type-level test green: MET (validate report tsc PASS; test asserts action union accept|relax|reject)"
+    notes: >
+      ADDITIVE beyond plan: an optional 3rd param `tuning?: AdaptiveTuning` on assess()
+      (not in the plan's D1 signature `assess(query, results)`). This is a method-signature
+      extension, NOT a 3rd method — still 2 methods, ADR-0008 honored. It is documented in
+      JSDoc + the type test. Reasonable (forwards RecallOptions.adaptive per-call), but it is
+      a silent shape extension vs the plan's declared D1 signature. LOW.
+
+  - task: T2.1
+    title: 3 MEMORY_EVENTS literals + RecallOptions.adaptive toggle
+    status: fully_implemented
+    files:
+      - packages/core/src/domain/memory-event.ts
+      - packages/core/src/domain/memory-event.test.ts
+      - packages/core/src/domain/options.ts
+      - packages/core/src/domain/options.test-d.ts
+    acceptance_criteria:
+      - "3 new literals present; MemoryEvent widened: MET — retrieval_skipped/_corrected/_low_confidence appended; count 28->31; test asserts presence + length"
+      - "RecallOptions.adaptive optional, default-OFF preserved: MET — optional block {correctiveFloor?, relaxedThreshold?}; test-d asserts exact shape"
+
+  - task: T3.1
+    title: pre-embed shouldRetrieve gate + pipeline Step 8.6 assess+correct (fail-soft + events)
+    status: fully_implemented
+    files:
+      - packages/core/src/domain/retrieval/pipeline.ts            # Step 8.6 applyAdaptiveAssessStage
+      - packages/core/src/domain/retrieval-pipeline.test.ts       # 7 Step-8.6 unit tests
+      - packages/core/src/infrastructure/db/scoped-memory.ts      # pre-embed gate + cache bypass
+      - packages/core/src/infrastructure/db/scoped-memory-adaptive.test.ts  # 3 façade tests
+    acceptance_criteria:
+      - "shouldRetrieve=false => recall []; embedder NOT called; retrieval_skipped: MET — façade test asserts toEqual([]) + embed not called; GOAL asserts span"
+      - "assess relax => sub-threshold row surfaces, retrieval_corrected: MET — pipeline test 'assess relax surfaces a sub-threshold row'"
+      - "EC-1: relax only when 0<=rt<threshold; out-of-range => accept no event: MET — pipeline test 'EC-1 relaxedThreshold>=threshold no-op accept'; clamp at pipeline.ts:189"
+      - "EC-2: relax yields 0 new => retrieval_low_confidence, original results, no throw: MET — pipeline test 'EC-2'; logic pipeline.ts:195-201 (relaxed.length<=scoredSorted.length)"
+      - "EC-3: adaptive option set but NO policy wired => byte-identical: MET — façade test 'EC-3'; pipeline guarded by deps.retrievalPolicy!==undefined; scoped-memory gate guarded by config.retrievalPolicy"
+      - "assess/shouldRetrieve throw => normal path, never crashes (fail-soft): MET — both wrapped in try/catch; pipeline test 'fail-soft assess throws'; façade test 'shouldRetrieve throws'"
+      - "no policy => byte-identical to v0.17 (default-OFF regression): MET — pipeline test 'regression no retrievalPolicy'; GOAL scenario 3"
+    notes: >
+      Cache-bypass correctly added (scoped-memory.ts:347 + comment :336-340): a wired
+      retrievalPolicy disables the recall cache, mirroring the rerank/asOf/attributedTo
+      bypass — correct because the v1.5 cache key does not encode the adaptive outcome.
+      This bypass was NOT explicitly an acceptance criterion but is a correct, necessary
+      consequence absorbed in-cycle. GOOD (positive divergence).
+
+  - task: T4.1
+    title: HeuristicAdaptiveRetrievalPolicy (key-free default impl)
+    status: fully_implemented
+    files:
+      - packages/core/src/infrastructure/adaptive/heuristic-policy.ts
+      - packages/core/src/infrastructure/adaptive/heuristic-policy.test.ts
+      - packages/core/src/infrastructure/adaptive/index.ts
+    acceptance_criteria:
+      - "implements the DIP; key-free; deterministic: MET — pure in-memory, top-score compare + marker Set; 6 unit tests"
+      - "default shouldRetrieve conservative (always retrieve) unless marker matches: MET — empty markers default => {retrieve:true}; test 'default always retrieve'"
+    notes: >
+      assess() returns action:'relax' (NOT 'reject') on empty result set (heuristic-policy.ts:84-86),
+      reasoning a relax may surface sub-threshold rows. Plan T4.1 RED said 'low confidence reason
+      when empty' but the heuristic chooses relax-on-empty. The pipeline then emits
+      retrieval_low_confidence if the relax surfaces nothing (EC-2). Net behavior matches intent;
+      the heuristic's empty-set branch is a defensible design choice, documented. LOW (the plan's
+      RED bullet phrasing 'low confidence reason when empty' is not literally what the impl does,
+      but the end-to-end observable outcome is consistent).
+
+  - task: T4.2
+    title: LocalMemoryConfig.retrievalPolicy slot + thread + subpath + isolation + smoke
+    status: fully_implemented
+    files:
+      - packages/core/src/infrastructure/db/config.ts            # retrievalPolicy? slot (NOTE: not factory.ts)
+      - packages/core/src/infrastructure/db/scoped-memory.ts     # threads policy into pipeline deps + gate
+      - packages/core/package.json                               # ./adaptive-local export
+      - vitest.integration.config.ts                             # alias
+      - tests/integration/subpath-isolation.test.ts             # isolation + smoke
+      - tests/integration/p0-audit/full-public-surface.test.ts  # ./adaptive-local smoke (17e) + count 54->55
+      - tests/integration/p0-audit/exports-contract.test.ts     # count 54->55
+    acceptance_criteria:
+      - "createLocalMemory({ retrievalPolicy }) wires end-to-end: MET — slot in LocalMemoryConfig (config.ts:153); GOAL composes it; threaded into pipeline deps (scoped-memory.ts:354)"
+      - "@usetheo/memory/adaptive-local resolves HeuristicAdaptiveRetrievalPolicy; default barrel does NOT reach impl: MET — subpath-isolation test walkImports asserts no leak + smoke import"
+      - "npm pack --dry-run ships dist/infrastructure/adaptive/*.{js,d.ts}: NOT INDEPENDENTLY VERIFIED in this review (export map points there; validate-report claims pack ok). LOW residual."
+    notes: >
+      Plan named the config slot file as factory.ts; the slot actually lives in config.ts
+      (the extracted LocalMemoryConfig leaf module that factory.ts + scoped-memory.ts both
+      import). This is a plan-vs-reality file-path drift, NOT a defect — config.ts is the
+      correct home for the interface (factory.ts only spreads config). INFO.
+
+  - task: T5.1
+    title: GOAL integration test + full gate
+    status: fully_implemented
+    files:
+      - tests/integration/adaptive-retrieval.test.ts
+    acceptance_criteria:
+      - "Skip scenario: [] + embed-spy 0 + retrieval_skipped: MET — test 1 asserts toEqual([]) + not.toHaveBeenCalled + span contains retrieval_skipped"
+      - "Correct scenario: sub-threshold row surfaces + retrieval_corrected: MET — test 2 asserts results contain WEAK + span retrieval_corrected"
+      - "Default scenario: byte-identical to plain recall: MET — test 3 asserts STRONG present + WEAK absent (weak stays dropped)"
+      - "Contract suite green; /code-quality PASS; tsc/build/lint clean: per validate+audit reports (see overclaim findings below for independent-verification caveats)"
+    notes: >
+      GOAL test composes REAL pgvector (runMigrations) + REAL pipeline + a crafted
+      deterministic embedder + queue-LLM stub. The 3 scenarios map 1:1 to the plan Goal
+      (skip + correct + default-unchanged). Embed-spy assertion for the skip path is genuine
+      (mockClear after seed, then assert not called). Solid GOAL.
+
+adr_compliance:
+  total_adrs: 5
+  respected: 5
+  diverged_without_new_adr: 0
+  detail:
+    D1_dip_2_methods:
+      status: RESPECTED
+      evidence: "AdaptiveRetrievalPolicy has exactly 2 methods (shouldRetrieve, assess). The optional 3rd param `tuning` on assess is a signature extension, not a method — within ADR-0008. test-d asserts the 2-method shape."
+    D2_two_seams:
+      status: RESPECTED
+      evidence: "shouldRetrieve PRE-embed in scoped-memory.ts retrieveResults (before cache+embed, :309-323); assess POST-threshold at pipeline Step 8.6 (:347-367). Gating in scoped-memory (not the vector store) honors the DIP boundary."
+    D3_keyfree_heuristic_bounded_no_external_fallback:
+      status: RESPECTED
+      evidence: "HeuristicAdaptiveRetrievalPolicy is key-free, pure in-memory (no model, no API key). Corrective re-filters the already-fetched `candidates` pool via filterAtThreshold — NO re-embed, NO external service. EC-1 clamp present."
+    D3_zero_new_dependency:
+      status: RESPECTED
+      evidence: "git diff packages/core/package.json shows ONLY the ./adaptive-local export entry added. dependencies + optionalDependencies UNCHANGED (no new runtime/optional dep). Confirmed by node -e dump."
+    D4_optin_default_off_failsoft_3_events:
+      status: RESPECTED
+      evidence: "Adaptive path runs only when config.retrievalPolicy is wired (default OFF, byte-unchanged); both hooks try/catch fail-soft; 3 events appended + emitted. Regression tests + GOAL scenario 3 prove byte-unchanged."
+    D5_subpath:
+      status: RESPECTED
+      evidence: "./adaptive-local subpath added to package.json exports + vitest alias; subpath-isolation test asserts default barrel does NOT statically reach heuristic-policy.ts; DIP TYPE reachable from barrel (zero-runtime)."
+
+edge_cases_absorbed:
+  EC-1_clamp:
+    status: ABSORBED
+    evidence: "pipeline.ts:189 `if (rt===undefined||NaN||rt<0||rt>=threshold) return scoredSorted` => treated as accept (no event). Test 'EC-1 relaxedThreshold>=threshold no-op accept'."
+  EC-2_relax_surfaces_nothing:
+    status: ABSORBED
+    evidence: "pipeline.ts:195-201 `if (relaxed.length<=scoredSorted.length)` => emit retrieval_low_confidence + return original. Test 'EC-2 relax surfaces nothing'."
+  EC-3_option_without_policy:
+    status: ABSORBED
+    evidence: "Both seams guarded by policy!==undefined (config-level + deps-level). Façade test 'EC-3 no retrievalPolicy wired => default path retrieves normally'."
+  EC-4_skip_still_counts:
+    status: ABSORBED
+    evidence: >
+      The recall() per-scope usage counter (scoped-memory.ts:285-295) runs AFTER
+      retrieveResults returns, including the skip's [] — so a Self-RAG skip STILL counts as
+      a recall() invocation, satisfying EC-4 structurally. The validate report lists EC-4 as
+      'documented in code' (scoped-memory.ts:279 comment 'once per recall() across ALL
+      retrieval paths'). No dedicated EC-4 test, but the structure makes it true by
+      construction. LOW residual (no explicit test asserting the counter bumps on skip).
+
+zero_dependency_check:
+  result: CONFIRMED
+  evidence: "git diff 3a60d5a..HEAD packages/core/package.json: only the './adaptive-local' export object was added. `dependencies` and `optionalDependencies` are byte-unchanged. ADR D3 ZERO new dependency holds."
+
+goal_test_assertion_vs_goal_claim:
+  result: FAITHFUL
+  evidence: >
+    Plan Goal claims: (a) shouldRetrieve=false => recall []  WITHOUT embedding (embed-spy 0)
+    + retrieval_skipped; (b) weak-top retrieval triggers corrective relax (retrieval_corrected);
+    (c) plain recall with no adaptive option byte-identical. tests/integration/adaptive-retrieval.test.ts
+    asserts EXACTLY these three against real ankane/pgvector:v0.5.1 via runMigrations. The embed-spy
+    count-0 assertion is genuine (mockClear after the seed remember, then not.toHaveBeenCalled).
+
+docs_commit_claim_audit:
+  - claim: "GOAL 3/3 vs real pgvector"
+    status: PLAUSIBLE_NOT_INDEPENDENTLY_RERUN
+    note: "Test file structurally contains exactly 3 it() scenarios that assert skip+correct+default. describe.skipIf(THEOMEM_PG_URI==='') — passes only when a real pgvector URI is present. The 3/3 claim is consistent with the test file; not re-executed in this review (no live container spun up here). No overclaim detected in the test shape."
+  - claim: "Contract suite 1163 passed, 2 skipped"
+    status: PLAUSIBLE_NOT_INDEPENDENTLY_RERUN
+    note: "Not re-run in this review. The new contract tests (DIP type-d, 3 event-union, RecallOptions.adaptive type-d, 7 pipeline Step-8.6, 3 façade gate, 6 heuristic) all exist and are well-formed. No reason to doubt the count; flagged only as not-independently-verified."
+  - claim: "/code-quality PASS (0 hard/soft caps)"
+    status: VERIFIED
+    note: "audit JSON + md present: verdict PASS, score_cap 100, hard_caps_triggered [], 0 findings, languages_audited [typescript]. Consistent."
+  - claim: "core count 54 -> 55"
+    status: VERIFIED
+    note: "Both p0-audit tests (exports-contract.test.ts test 1, full-public-surface.test.ts test 2 + 17e) bumped 54->55 for the AdaptiveRetrievalPolicy DIP type export added to domain/index.ts. The added export block is a single `export type { AdaptiveRetrievalPolicy, RetrievalDecision, RetrievalAssessment, AdaptiveTuning }` (one export statement)."
+
+validate_report_honest_disclosure_audit:
+  GetAllOptions_misanchor_bug:
+    claim: "RecallOptions.adaptive was initially mis-added to GetAllOptions via a mis-anchored category field; vitest typecheck gave false green; npm run build (tsc -p tsconfig.build.json) caught it; moved to RecallOptions."
+    git_reality: CONSISTENT
+    evidence: >
+      The bug was caught + fixed WITHIN the single feat commit ced3ea7, so git history shows
+      only the corrected final state (adaptive correctly in RecallOptions; no GetAllOptions/category
+      churn in the range). `git log -p options.ts` over the range shows zero GetAllOptions/category
+      hits — exactly what an in-cycle catch-and-fix produces. The honest disclosure matches what
+      git can show; it is a truthful self-report of an in-cycle authoring error, not a shipped defect.
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+    also:
+      - packages/core/src/domain/options.ts
+      - packages/core/src/domain/memory-event.ts
+      - packages/core/src/domain/index.ts
+      - packages/core/src/domain/retrieval/pipeline.ts
+      - packages/core/src/infrastructure/db/config.ts
+      - packages/core/src/infrastructure/db/scoped-memory.ts
+      - packages/core/src/infrastructure/adaptive/heuristic-policy.ts
+    plan_ref: "Global Definition of Done line 362: 'No paper names in src/** (Self-RAG/CRAG cite the plan/blueprint, not code)' + .claude/rules/no-paper-names-in-code.md"
+    summary: >
+      The plan's own DoD explicitly requires NO paper names in src/**, yet the research-paper
+      names "Self-RAG" and "CRAG" appear 20 times across src/**/*.ts JSDoc/comments (non-test).
+    evidence: |
+      grep -rniE '\b(self-rag|crag)\b' packages/core/src --include='*.ts' (excluding tests) => 20 hits:
+        domain/dip/adaptive-retrieval-policy.ts (7), domain/retrieval/pipeline.ts (4),
+        infrastructure/db/config.ts (2), infrastructure/db/scoped-memory.ts (2),
+        domain/options.ts (2), domain/index.ts (1), domain/memory-event.ts (2),
+        infrastructure/adaptive/heuristic-policy.ts (1).
+      no-paper-names-in-code.md: "Research-paper and marketing names ... SHALL NOT appear in src/** ... JSDoc, inline comments".
+      The rule's banned-token list does NOT literally enumerate Self-RAG/CRAG (it lists Voyager/Mem0/Letta/...),
+      and no sentinel test greps them — which is why the contract suite stayed green. But the rule's
+      scope is open-ended ("etc.") AND the plan's DoD names Self-RAG/CRAG SPECIFICALLY as the names to
+      keep OUT of code. The DoD line 362 was therefore checked off (commit shipped) without being satisfied.
+    recommended_action: >
+      Either (a) replace "Self-RAG"/"CRAG" in src/** with neutral wording per the rule
+      (e.g. "pre-embed retrieval gate" / "post-threshold grade-and-correct"), citing the plan/blueprint
+      via @see for provenance; OR (b) if the project owner judges these acronyms acceptable, add an
+      explicit exemption (an ADR amending no-paper-names-in-code.md, like the benchmark-vendor ADR-0017)
+      AND correct the plan DoD line 362. Do NOT silently leave the DoD claim checked while violated
+      (Inquebrável Rule 3).
+
+  - id: F-xval-2
+    severity: LOW
+    file: packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+    plan_ref: "ADR D1 — assess(query, results): Promise<RetrievalAssessment>"
+    summary: >
+      The shipped assess() signature has an extra optional 3rd param `tuning?: AdaptiveTuning`
+      not present in the plan's declared D1 signature. Not a method-count violation (still 2 methods),
+      but a silent signature extension vs the ADR.
+    evidence: |
+      Plan ADR D1 line 81: "assess(query, results): Promise<RetrievalAssessment>"
+      Shipped (adaptive-retrieval-policy.ts:101-105): assess(query, results, tuning?: AdaptiveTuning)
+      AdaptiveTuning + the 3rd param are documented in JSDoc + the type test, and forward
+      RecallOptions.adaptive per-call overrides — a reasonable need. The validate report mentions
+      AdaptiveTuning but does not flag it as an ADR-D1 signature divergence.
+    recommended_action: >
+      Acceptable as-is (within ADR-0008; documented), but note the divergence in the implementation
+      record so the ADR and code agree. Optionally amend ADR D1's signature to include the optional
+      tuning param.
+
+  - id: F-xval-3
+    severity: LOW
+    file: packages/core/src/infrastructure/adaptive/heuristic-policy.ts
+    plan_ref: "T4.1 TDD RED: 'assess returns ... low confidence reason when empty'"
+    summary: >
+      Plan T4.1 RED phrasing says the heuristic returns a low-confidence reason on an empty
+      result set; the impl instead returns action:'relax' on empty (so the pipeline may surface
+      sub-threshold rows, then emits retrieval_low_confidence only if the relax surfaces nothing via EC-2).
+    evidence: |
+      heuristic-policy.ts:84-86: `if (top === undefined) return { sufficient:false, action:'relax', relaxedThreshold, reason:'empty result set' }`
+      heuristic-policy.test.ts: test 'empty result set => relax (may surface sub-threshold rows)'.
+      Plan line 233 RED: "low confidence reason when empty".
+      Net observable behavior is consistent (empty + relax-surfaces-nothing => retrieval_low_confidence
+      per EC-2), but the heuristic's literal empty-set action differs from the RED bullet's wording.
+    recommended_action: >
+      No code change required — the relax-on-empty is a defensible design (try harder before
+      declaring low confidence) and the end-to-end audit signal is correct. Note the wording
+      mismatch so the plan RED and impl agree.
+
+  - id: F-xval-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/config.ts
+    plan_ref: "T4.2 'Files to edit: packages/core/src/infrastructure/db/factory.ts'"
+    summary: >
+      The plan declared the retrievalPolicy? config slot would live in factory.ts; it actually
+      lives in config.ts (the extracted LocalMemoryConfig leaf). Plan-vs-reality file-path drift, not a defect.
+    evidence: |
+      Plan T4.2 + Baseline Context table name factory.ts for LocalMemoryConfig.
+      Actual: retrievalPolicy? added to LocalMemoryConfig in packages/core/src/infrastructure/db/config.ts:153
+      (config.ts is the leaf both factory.ts and scoped-memory.ts import — the correct home).
+    recommended_action: "None. Correct placement; plan baseline was slightly stale on the file split."
+
+  - id: F-xval-5
+    severity: INFO
+    file: tests/integration/adaptive-retrieval.test.ts
+    plan_ref: "Acceptance: npm pack --dry-run ships dist/infrastructure/adaptive/*.{js,d.ts}"
+    summary: >
+      The pack-manifest acceptance criterion (T4.2) was not independently re-verified in this
+      cross-validation pass; the export map points to dist/infrastructure/adaptive/* and the
+      validate report asserts the gate, but no pack run was reproduced here.
+    evidence: |
+      package.json exports['./adaptive-local'].default = ./dist/infrastructure/adaptive/index.js
+      validate report line 16 asserts subpath isolation + smoke PASS.
+    recommended_action: "Low residual; trust the validate report or re-run `npm pack --dry-run` to confirm the dist glob ships."
+
+overall_assessment: >
+  The implementation faithfully delivers all 6 tasks of the adaptive-retrieval plan with
+  strong plan<->code<->test fidelity. All 5 ADRs (D1 2-method DIP, D2 two seams, D3 key-free
+  heuristic + bounded in-memory corrective with NO re-embed/NO external fallback + ZERO new
+  dependency, D4 opt-in/default-OFF/fail-soft/3 events, D5 subpath) are respected. All four
+  edge cases (EC-1 clamp, EC-2 relax-surfaces-nothing, EC-3 option-without-policy, EC-4
+  skip-still-counts) are absorbed — EC-4 by construction (counter after retrieveResults).
+  The GOAL test asserts exactly the plan's Goal (skip + correct + default-unchanged vs real
+  pgvector) with a genuine embed-spy. ZERO new dependency is CONFIRMED from the package.json diff.
+  The validate-report's honest disclosure of the in-cycle GetAllOptions mis-anchor bug is
+  consistent with git (caught + fixed inside the single feat commit). docs-commit numeric claims
+  are verified where cheaply checkable (54->55 export count, code-quality PASS) and plausible-
+  but-not-rerun for the live-pgvector GOAL 3/3 and contract 1163.
+  The ONE substantive finding is F-xval-1 (MEDIUM): the plan's OWN DoD line 362 ("No paper names
+  in src/**: Self-RAG/CRAG cite the plan/blueprint, not code") is checked-off-but-violated — 20
+  Self-RAG/CRAG occurrences ship in src/** JSDoc/comments. It is not test-enforced (no sentinel
+  covers those tokens), so it slipped past the green suite, but it is a real DoD self-claim
+  violation per Inquebrável Rule 3. Recommend neutral-wording cleanup OR an explicit exemption ADR
+  + DoD correction. No BLOCKER, no HIGH.

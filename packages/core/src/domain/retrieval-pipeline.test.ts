@@ -360,7 +360,7 @@ describe('runRetrievalPipeline — adaptive-retrieval Step 8.6 (Item 13)', () =>
     expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_corrected');
   });
 
-  test('EC-1: relaxedThreshold >= original threshold is a no-op accept (no widening, no event)', async () => {
+  test('EC-1: relaxedThreshold >= original threshold is clamped (no widening); emits low_confidence', async () => {
     const store = makeStore([
       { id: 'strong', text: 'strong', semanticScore: 0.9 },
       { id: 'weak', text: 'weak', semanticScore: 0.2 },
@@ -370,10 +370,13 @@ describe('runRetrievalPipeline — adaptive-retrieval Step 8.6 (Item 13)', () =>
       'query',
       { user_id: 'alice' },
       { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: relaxPolicy(0.9), tracer },
-      { topK: 10, threshold: 0.5 }, // relaxedThreshold 0.9 >= 0.5 → clamp to accept
+      { topK: 10, threshold: 0.5 }, // relaxedThreshold 0.9 >= 0.5 → clamped, no widening
     );
-    expect(results.map((r) => r.id)).not.toContain('weak');
-    expect(exporter.getFinishedSpans().map((s) => s.name)).not.toContain('retrieval_corrected');
+    expect(results.map((r) => r.id)).not.toContain('weak'); // no out-of-range widening
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).not.toContain('retrieval_corrected');
+    // F-dom-obs-2: a requested-but-unapplicable relax is observable (results stay weak ⇒ low confidence).
+    expect(spans).toContain('retrieval_low_confidence');
   });
 
   test('EC-2: relax that surfaces nothing new emits retrieval_low_confidence', async () => {
@@ -406,7 +409,7 @@ describe('runRetrievalPipeline — adaptive-retrieval Step 8.6 (Item 13)', () =>
     expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_low_confidence');
   });
 
-  test('fail-soft: assess throws → normal results, no crash, observable low_confidence', async () => {
+  test('fail-soft: assess throws → normal results, no crash, observable retrieval_policy_failed', async () => {
     const throwingPolicy: AdaptiveRetrievalPolicy = {
       shouldRetrieve: async () => ({ retrieve: true }),
       assess: async () => {
@@ -423,7 +426,9 @@ describe('runRetrievalPipeline — adaptive-retrieval Step 8.6 (Item 13)', () =>
     );
     expect(results.map((r) => r.id)).toEqual(['a']);
     const spans = exporter.getFinishedSpans().map((s) => s.name);
-    expect(spans).toContain('retrieval_low_confidence');
+    // F-dom-obs-1: a policy CRASH emits the distinct policy-failed signal, not low_confidence.
+    expect(spans).toContain('retrieval_policy_failed');
+    expect(spans).not.toContain('retrieval_low_confidence');
   });
 
   test('regression — no retrievalPolicy → default path byte-unchanged', async () => {

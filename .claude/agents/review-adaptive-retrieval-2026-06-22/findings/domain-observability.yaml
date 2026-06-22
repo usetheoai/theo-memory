@@ -1,0 +1,170 @@
+agent: review-adaptive-retrieval-domain-observability
+review_target: 3a60d5a..HEAD for plan adaptive-retrieval (Item 13)
+plan: .claude/knowledge-base/plans/adaptive-retrieval-plan.md
+findings:
+  - id: F-dom-obs-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: "320-322"
+    plan_ref: "T3.1 (ADR D4 fail-soft)"
+    summary: "bare `catch {}` on shouldRetrieve gate swallows errors silently with NO observable signal"
+    evidence: |
+      ```ts
+      } catch {
+        // fail-soft — degrade to normal retrieval (do NOT skip on a policy error).
+      }
+      ```
+      Per Inquebrável Rule 8 (fail-fast, fail-clear), this asymmetry violates the honesty principle:
+      - Pipeline Step 8.6 assess failure EMITS `retrieval_low_confidence{reason:'assess_failed:...'}` (pipeline.ts:211-214)
+      - Scoped-memory shouldRetrieve failure EMITS NOTHING
+      
+      The reranker at Step 8.5 (pipeline.ts:106-110) also emits observable `recall_rerank_failed` on throw.
+      
+      The shouldRetrieve gate is equally critical (it's the SKIP optimization); a silent catch violates auditability (Princípio 3).
+    recommended_action: "Emit an observable event on shouldRetrieve throw (e.g., `retrieval_skipped{reason:'gate_failed:...'}` OR a new dedicated `retrieval_gate_failed` event). Match the assess fail-soft pattern at pipeline.ts:209-216."
+
+  - id: F-dom-obs-2
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: "188-191"
+    plan_ref: "T3.1 (EC-1 clamp)"
+    summary: "EC-1 clamp (out-of-range relaxedThreshold) treated as accept with NO event, but inconsistent with assess='reject' behavior"
+    evidence: |
+      ```ts
+      if (rt === undefined || Number.isNaN(rt) || rt < 0 || rt >= threshold) {
+        return scoredSorted;  // EC-1: no correction, no event
+      }
+      ```
+      
+      When `assess` returns `action:'reject'` (line 178-183), the pipeline emits `retrieval_low_confidence{reason:'rejected'}`.
+      
+      When `assess` returns `action:'relax'` but the clamping validation fails (lines 189-190):
+      - A no-op widening (rt >= threshold) is NOT observed
+      - An out-of-range value (rt < 0 || NaN) is NOT observed
+      
+      This is honest fail-soft, but it creates an asymmetry: when the policy behaves unexpectedly (returns an invalid threshold), the absence of an event masks the discrepancy. A caller tuning `RecallOptions.adaptive.relaxedThreshold` could pass an invalid value and silently lose the correction without any signal.
+    recommended_action: "Emit a soft observable event when the EC-1 clamp rejects a relax, e.g., `retrieval_low_confidence{scope_tier, reason:'relax_invalid_threshold:...' }` (documenting the clamped value). Surfaces tuning mistakes transparently per Princípio 3."
+
+  - id: F-dom-obs-3
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: "194-200"
+    plan_ref: "T3.1 (EC-2 absorption)"
+    summary: "relax-surfaces-nothing path emits event but asymmetrically compares with original (not checked for enlargement)"
+    evidence: |
+      ```ts
+      if (relaxed.length <= scoredSorted.length) {
+        emitEvent(tracer, 'retrieval_low_confidence', {
+          scope_tier: scopeTier,
+          reason: 'relax_surfaced_nothing',
+        });
+        return scoredSorted;
+      }
+      ```
+      
+      The condition `relaxed.length <= scoredSorted.length` correctly detects when a relax didn't EXPAND the set. However, the event name "low_confidence" + reason "relax_surfaced_nothing" conflates two semantic cases:
+      1. Relax returned EMPTY (the corrective is useless)
+      2. Relax returned rows but SAME COUNT or FEWER (the corrective didn't help)
+      
+      The `surfaced` attribute line 206 measures expansion (`relaxed.length - scoredSorted.length`), but when this is ≤ 0, no event is emitted — the failure is reported via low_confidence with a vague reason.
+      
+      For operators debugging "why did the relax not work?", this masks whether the issue is:
+      - The relaxed threshold too high (still filtering too aggressively)
+      - The pool too small (not enough sub-threshold candidates stored)
+      - The configuration mismatch
+    recommended_action: "Include the expansion count (or relaxed.length vs scoredSorted.length) as an attribute when emitting 'relax_surfaced_nothing', e.g., `{relaxed_count: N, original_count: M}`. Provides better diagnostics for operators tuning thresholds."
+
+  - id: F-dom-obs-4
+    severity: LOW
+    file: packages/core/src/domain/memory-event.ts
+    line: "102-115"
+    plan_ref: "T2.1 (event definitions)"
+    summary: "event attributes are sufficient but could be more specific on failure modes"
+    evidence: |
+      Three events added:
+      - `retrieval_skipped` — carries `{scope_tier, reason}` ✓ Sufficient for debugging why skip fired
+      - `retrieval_corrected` — carries `{scope_tier, from_threshold, to_threshold, surfaced}` ✓ Good diagnostic coverage
+      - `retrieval_low_confidence` — carries `{scope_tier, reason}` ✓ But "reason" is a string, not an enum
+      
+      The JSDoc (lines 102-115) describes when each event fires, but the reason attribute can be:
+      - 'rejected' (policy decision)
+      - 'relax_surfaced_nothing' (EC-2)
+      - 'assess_failed:...' (failure mode, from line 213)
+      - Plus future reasons from operators' custom policies
+      
+      Without an enum / discriminated-union shape, operators cannot filter/dashboard on "all assess failures" vs "all policy rejections" — they must string-match.
+    recommended_action: "Consider a discriminated `{reason_type: 'policy_rejected' | 'relax_empty' | 'assess_error', reason_detail?: string}` shape for future versions (breaking change, so defer to follow-up). For now, document the reason string values in JSDoc or link to a reason-registry for operational clarity."
+
+  - id: F-dom-obs-5
+    severity: INFO
+    file: packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+    line: "N/A"
+    plan_ref: "T1.1 (DIP contract)"
+    summary: "Paper names in JSDoc (Self-RAG, CRAG) violate no-paper-names rule"
+    evidence: |
+      Lines 7, 10, 12-13 reference Self-RAG and CRAG pattern names in JSDoc:
+      ```ts
+      /**
+       * Two cohesive decision hooks that adapt the recall pipeline (Self-RAG +
+       * CRAG patterns), wired OPT-IN, default OFF:
+       *
+       *   - `shouldRetrieve` — the Self-RAG "Retrieve?" PRE-embed gate.
+       *   - `assess` — the CRAG grade-and-correct POST-threshold hook.
+      ```
+      
+      Per `.claude/rules/no-paper-names-in-code.md`, paper names (Self-RAG, CRAG) are allowed in:
+      - `.claude/knowledge-base/plans/**`
+      - `.claude/knowledge-base/discoveries/blueprints/**`
+      - `.claude/knowledge-base/adrs/**`
+      - `README.md`, `CHANGELOG.md`, public-facing copy
+      
+      They are NOT allowed in `src/**` JSDoc/comments. The rule exempts `benchmarks/` for vendor adapters (ADR-0017), but this is in the domain DIP, not a vendor adapter.
+      
+      Compare pipeline.ts line 28-29 which correctly cites the plan instead of naming the papers inline.
+    recommended_action: "Replace JSDoc references with neutral descriptors: 'pre-embed decision gate' instead of 'Self-RAG gate'; 'post-threshold grade-and-correct' instead of 'CRAG grade-and-correct'. Optionally add `@see .claude/knowledge-base/plans/adaptive-retrieval-plan.md` to maintain traceability to the papers (they are cited in the plan, not in code)."
+
+  - id: F-dom-obs-6
+    severity: INFO
+    file: packages/core/src/infrastructure/adaptive/heuristic-policy.ts
+    line: "3-15"
+    plan_ref: "T4.1 (heuristic impl)"
+    summary: "Paper names CRAG in JSDoc (same violation as F-dom-obs-5)"
+    evidence: |
+      Lines 3-15:
+      ```ts
+      /**
+       * HeuristicAdaptiveRetrievalPolicy — the key-free default AdaptiveRetrievalPolicy
+       * (Roadmap Item 13, ADR D3). Pure in-memory: NO model, NO API key, NO new
+       * dependency. Ships behind the `@usetheo/memory/adaptive-local` subpath (ADR D5,
+       * bundle isolation).
+       *
+       *  - `shouldRetrieve` — conservative: returns `{ retrieve: true }` UNLESS the
+       *    query (lower-cased, trimmed) exactly matches one of the configured
+       *    no-retrieve markers (e.g. greetings / chitchat the consumer knows never
+       *    need memory). Default markers list is empty ⇒ always retrieve (safe default).
+       *  - `assess` — CRAG grade: when the top result's score is below the corrective
+      ```
+      
+      Line 11: 'CRAG grade' violates the rule (same as F-dom-obs-5).
+    recommended_action: "Replace 'CRAG grade' with 'grade-and-correct' or 'scoring gate'. Add `@see .claude/knowledge-base/plans/adaptive-retrieval-plan.md` for traceability."
+
+  - id: F-dom-obs-7
+    severity: INFO
+    file: packages/core/src/domain/memory-event.ts
+    line: "102-115"
+    plan_ref: "T2.1 (event JSDoc)"
+    summary: "JSDoc comments cite paper names (Self-RAG, CRAG) in event descriptions"
+    evidence: |
+      Lines 102-115:
+      ```ts
+      // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the Self-RAG pre-embed gate
+      // (`AdaptiveRetrievalPolicy.shouldRetrieve`) returned `{retrieve:false}`, so
+      // recall() returned [] WITHOUT embedding the query. Attribute `{scope_tier,
+      // reason}`. Princípio 3 — a skip is never silent.
+      'retrieval_skipped',
+      // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the CRAG grade-and-correct hook
+      // (`AdaptiveRetrievalPolicy.assess`) recommended a relax and the pipeline
+      ```
+      
+      Lines 102 and 107 cite Self-RAG and CRAG in JSDoc comments.
+    recommended_action: "Replace 'the Self-RAG pre-embed gate' with 'the pre-embed retrieval gate' and 'the CRAG grade-and-correct hook' with 'the post-threshold grade-and-correct hook'. Keep the ADR references."

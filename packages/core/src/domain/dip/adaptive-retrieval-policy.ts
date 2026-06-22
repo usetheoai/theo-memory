@@ -1,13 +1,13 @@
 /**
  * AdaptiveRetrievalPolicy DIP — adaptive-retrieval decision hooks (Roadmap Item 13).
  *
- * Two cohesive decision hooks that adapt the recall pipeline (Self-RAG +
- * CRAG patterns), wired OPT-IN, default OFF:
+ * Two cohesive decision hooks that adapt the recall pipeline, wired OPT-IN,
+ * default OFF:
  *
- *   - `shouldRetrieve` — the Self-RAG "Retrieve?" PRE-embed gate. When it
+ *   - `shouldRetrieve` — the PRE-embed retrieval-decision gate. When it
  *     returns `{ retrieve: false }`, `recall()` returns `[]` WITHOUT embedding
  *     the query (skips the embed + DB cost) and emits `retrieval_skipped`.
- *   - `assess` — the CRAG grade-and-correct POST-threshold hook. It inspects
+ *   - `assess` — the POST-threshold grade-and-correct hook. It inspects
  *     the threshold-passing pool's top score; when weak it recommends a bounded
  *     in-memory corrective (re-filter the already-fetched pool at a relaxed
  *     threshold — NO re-embed, NO external fallback) via `action: 'relax'`.
@@ -81,7 +81,7 @@ export interface RetrievalAssessment {
 
 export interface AdaptiveRetrievalPolicy {
   /**
-   * Self-RAG pre-embed gate. Decide whether retrieval should run at all for
+   * Pre-embed retrieval-decision gate. Decide whether retrieval should run at all for
    * this query/scope. Returning `{ retrieve: false }` skips the embed + DB hit.
    *
    * @param query - the recall query text.
@@ -90,7 +90,7 @@ export interface AdaptiveRetrievalPolicy {
   shouldRetrieve(query: string, scope: Scope): Promise<RetrievalDecision>;
 
   /**
-   * CRAG grade-and-correct. Inspect the threshold-passing results and decide
+   * Post-threshold grade-and-correct. Inspect the threshold-passing results and decide
    * whether they are sufficient or a bounded corrective is warranted. MUST NOT
    * mutate `results`.
    *

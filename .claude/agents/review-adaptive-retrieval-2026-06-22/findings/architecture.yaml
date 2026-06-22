@@ -1,0 +1,347 @@
+agent: review-adaptive-retrieval-architecture
+review_target: 3a60d5a..HEAD for plan adaptive-retrieval
+plan: .claude/knowledge-base/plans/adaptive-retrieval-plan.md
+findings:
+  - id: F-arch-1
+    severity: HIGH
+    file: packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+    line: 5
+    plan_ref: Plan § Global Definition of Done (no paper names in src/**)
+    summary: Paper-name citations "Self-RAG" and "CRAG" appear in JSDoc comments in production code
+    evidence: |
+      Line 5 (JSDoc header):
+      ```ts
+      * Two cohesive decision hooks that adapt the recall pipeline (Self-RAG +
+      * CRAG patterns), wired OPT-IN, default OFF:
+      ```
+      Lines 7, 10 (method JSDoc):
+      ```ts
+      *   - `shouldRetrieve` — the Self-RAG "Retrieve?" PRE-embed gate.
+      *   - `assess` — the CRAG grade-and-correct POST-threshold hook.
+      ```
+      Lines 85, 93 (method-level JSDoc):
+      ```ts
+      * Self-RAG pre-embed gate. Decide whether retrieval should run at all
+      * CRAG grade-and-correct. Inspect the threshold-passing results
+      ```
+    recommended_action: |
+      Replace paper-name references with neutral descriptive language per no-paper-names-in-code.md.
+      - "Self-RAG 'Retrieve?' PRE-embed gate" → "pre-embed retrieval-decision gate"
+      - "CRAG grade-and-correct" → "threshold-aware assessment and correction stage"
+      - "Self-RAG pre-embed gate" → "pre-pipeline retrieval-decision gate"
+      Cite the plan/blueprint in @see references instead (already present at line 33).
+
+  - id: F-arch-2
+    severity: HIGH
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 28
+    plan_ref: Plan § Global Definition of Done (no paper names in src/**)
+    summary: Paper-name citations "Self-RAG" and "CRAG" appear 8+ times in JSDoc and inline comments
+    evidence: |
+      Line 4-5 (header JSDoc):
+      ```ts
+      * Step 2: embed query
+      * Step 3: semantic over-fetch (internalLimit = max(topK*4, 60))
+      ```
+      Introduced lines with adaptive-retrieval (from git diff):
+      ```
+      + import type { AdaptiveRetrievalPolicy, AdaptiveTuning } from '../dip/adaptive-retrieval-policy.js';
+      + * Self-RAG `shouldRetrieve` pre-embed gate + CRAG `assess` post-threshold
+      + * The Self-RAG `shouldRetrieve` pre-embed gate runs in `scoped-memory.ts`
+      + * Step 8.6 — adaptive-retrieval CRAG grade-and-correct (Item 13, ADR D2 + D3 + D4).
+      + // Step 8.6 — adaptive-retrieval CRAG grade-and-correct (Item 13, ADR D2).
+      ```
+    recommended_action: |
+      Replace all "Self-RAG" / "CRAG" / "CRAG" references in JSDoc and comments:
+      - Line in RetrievalDeps: "adaptive-retrieval (Item 13) — optional adaptive policy..." → remove paper names, keep ADR reference
+      - applyAdaptiveAssessStage JSDoc: "CRAG grade-and-correct" → "assessment and correction"
+      - Pipeline comment line 347: "CRAG grade-and-correct" → "assessment and correction stage"
+      Keep ADR references (e.g., "ADR D2") as these point to the plan where paper names ARE appropriate.
+
+  - id: F-arch-3
+    severity: HIGH
+    file: packages/core/src/infrastructure/adaptive/heuristic-policy.ts
+    line: 5
+    plan_ref: Plan § Global Definition of Done (no paper names in src/**)
+    summary: "CRAG grade" and "Self-RAG" appear in production impl JSDoc
+    evidence: |
+      Line 8-9 (JSDoc):
+      ```ts
+      *  - `assess` — CRAG grade: when the top result's score is below the corrective
+      ```
+      Line 5 (header):
+      ```ts
+      * HeuristicAdaptiveRetrievalPolicy — the key-free default AdaptiveRetrievalPolicy
+      ```
+      The issue is the "CRAG grade" terminology at line 8.
+    recommended_action: |
+      Replace "CRAG grade:" with "assessment:" to describe the behavior without citing the paper.
+      Existing @see references to the plan (line 19) are appropriate.
+
+  - id: F-arch-4
+    severity: MEDIUM
+    file: packages/core/src/domain/memory-event.ts
+    line: 85
+    plan_ref: Plan § T2.1 (3 observable events + RecallOptions.adaptive toggle)
+    summary: Event literal comments cite paper names "Self-RAG" and "CRAG"
+    evidence: |
+      Lines preceding the literal additions:
+      ```ts
+      // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the Self-RAG pre-embed gate
+      'retrieval_skipped',
+      // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the CRAG grade-and-correct hook
+      'retrieval_corrected',
+      // adaptive-retrieval T2.1 / ADR D4 (Item 13) — `assess` judged the pool
+      'retrieval_low_confidence',
+      ```
+    recommended_action: |
+      Remove paper-name citations from event comments; replace with behavioral descriptions:
+      - "the Self-RAG pre-embed gate" → "when the pre-pipeline retrieval-decision gate"
+      - "the CRAG grade-and-correct hook" → "when the assessment-and-correction stage"
+      Cite the plan/ADR for specifics (already done); event comments should describe the EVENT, not the pattern origin.
+
+  - id: F-arch-5
+    severity: MEDIUM
+    file: packages/core/src/domain/options.ts
+    line: [~90-110]
+    plan_ref: Plan § T2.1 (RecallOptions.adaptive)
+    summary: RecallOptions.adaptive JSDoc mentions "Self-RAG/CRAG" decision hooks
+    evidence: |
+      From git diff output (grep showed 2 lines):
+      ```
+      +   * Self-RAG/CRAG decision hooks. Tunes the adaptive policy wired via
+      +   *   - `correctiveFloor`: the top-score threshold below which the CRAG `assess`
+      ```
+    recommended_action: |
+      Replace JSDoc to describe the option behavior without paper names:
+      - "Self-RAG/CRAG decision hooks" → "adaptive retrieval policy hooks"
+      - "the CRAG `assess` hook" → "the assessment stage"
+
+  - id: F-arch-6
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 303
+    plan_ref: Plan § T3.1 (pre-embed shouldRetrieve gate)
+    summary: Inline comment cites "Self-RAG" paper name pattern
+    evidence: |
+      Comment block before the adaptive policy gate:
+      ```ts
+      // adaptive-retrieval T3.1 / ADR D2 (Item 13) — Self-RAG `shouldRetrieve`
+      // PRE-embed gate. Runs BEFORE the cache/embed so a skip avoids the embed +
+      ```
+      Line 336 (cache bypass comment):
+      ```ts
+      // adaptive-retrieval T3.1 / ADR D2 (Item 13) — a wired retrievalPolicy
+      // BYPASSES the cache: the v1.5 cache key does not encode the adaptive outcome
+      // (a `shouldRetrieve` skip or a CRAG corrective relax), so serving a cached
+      ```
+    recommended_action: |
+      Remove paper-name descriptors from comments:
+      - "Self-RAG `shouldRetrieve` PRE-embed gate" → "pre-embed retrieval-decision gate"
+      - "CRAG corrective relax" → "assessment-corrected retrieval"
+      Cite the ADR/task ID (already present) to point to the plan where full context exists.
+
+  - id: F-arch-7
+    severity: LOW
+    file: packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+    line: 82
+    plan_ref: ADR-0008 (DIP method-count cap)
+    summary: DIP method count verified correct; no issue detected
+    evidence: |
+      Interface AdaptiveRetrievalPolicy (lines 82-106) declares exactly 2 methods:
+      1. shouldRetrieve (line 90)
+      2. assess (line 101)
+      Complies with ADR-0008 cap (≤ 2 methods for any DIP per plan ADR D1).
+    recommended_action: INFO — no action. Method count is correct.
+
+  - id: F-arch-8
+    severity: LOW
+    file: packages/core/src/domain/dip/adaptive-retrieval-policy.ts
+    line: 37
+    plan_ref: architecture.md § 3 (DIP boundary: no infrastructure imports)
+    summary: DIP imports only domain types; boundary discipline respected
+    evidence: |
+      Imports at lines 37-38:
+      ```ts
+      import type { MemoryItemWithScore } from '../memory-item.js';
+      import type { Scope } from '../scope.js';
+      ```
+      No imports from `src/infrastructure/**` — all types are from `src/domain/**`.
+      Enforces architecture.md § 3 (domain declares interfaces; infrastructure implements).
+    recommended_action: INFO — no action. DIP boundary respected.
+
+  - id: F-arch-9
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 127
+    plan_ref: Plan § T3.1 (DRY extraction of Step 8 gate for both call sites)
+    summary: filterAtThreshold extracted correctly for both initial filter and relax path; DRY principle honored
+    evidence: |
+      Function filterAtThreshold (lines 127-147) is called at:
+      1. Line 296 (initial threshold filter in the main pipeline)
+      2. Line 192 (adaptive relax corrective re-filter)
+      EC-1 absorption (plan line 97): "The pipeline applies the relax ONLY when
+      `0 ≤ relaxedThreshold < originalThreshold`" is enforced at lines 189-190:
+      ```ts
+      if (rt === undefined || Number.isNaN(rt) || rt < 0 || rt >= threshold) {
+        return scoredSorted;
+      }
+      ```
+      Same logic both call sites ⇒ byte-consistent filtering per EC-1.
+    recommended_action: INFO — no action. DRY extraction and EC-1 clamp correct.
+
+  - id: F-arch-10
+    severity: LOW
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 347
+    plan_ref: Plan § T3.1 (cache bypass when retrievalPolicy wired)
+    summary: Cache-bypass logic correct; prevents serving non-adaptive results for adaptive recall
+    evidence: |
+      Lines 342-347:
+      ```ts
+      const cacheApplicable =
+        cache !== undefined &&
+        options?.asOf === undefined &&
+        options?.attributedTo === undefined &&
+        options?.rerank === undefined &&
+        this.config.retrievalPolicy === undefined;
+      ```
+      When `this.config.retrievalPolicy !== undefined`, cacheApplicable is false,
+      forcing full pipeline (line 350) not cache lookup. This prevents the
+      correctness bug: serving cached plain results for an adaptive recall
+      (which may have `shouldRetrieve` skip or CRAG relax applied).
+      Mirrors the rerank/asOf/attributedTo bypass pattern (plan ADR D2, EC-5).
+    recommended_action: INFO — no action. Cache bypass logic is correct.
+
+  - id: F-arch-11
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 353
+    plan_ref: Plan § T4.2 (scoped-memory thread + pipeline deps threading)
+    summary: retrievalPolicy correctly threaded from config to pipeline deps; no missed wiring points
+    evidence: |
+      Lines 353-354 in runRetrievalPipeline when cache-applicable:
+      ```ts
+      ...(this.config.retrievalPolicy !== undefined ? { retrievalPolicy: this.config.retrievalPolicy } : {}),
+      ```
+      Also verified at scoped-memory.ts line 354:
+      ```ts
+      ...(this.config.retrievalPolicy !== undefined ? { retrievalPolicy: this.config.retrievalPolicy } : {}),
+      ```
+      The policy is conditionally threaded only when present (opt-in per ADR D4).
+      Both code paths (cache bypass + cache-aware path) thread the policy correctly.
+    recommended_action: INFO — no action. Wiring is complete.
+
+  - id: F-arch-12
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 353
+    plan_ref: Plan § T3.1 / EC-2 (relax yielding no new rows)
+    summary: EC-2 absorption correct; relax that surfaces nothing returns original pool with event
+    evidence: |
+      Lines 195-200:
+      ```ts
+      if (relaxed.length <= scoredSorted.length) {
+        emitEvent(tracer, 'retrieval_low_confidence', {
+          scope_tier: scopeTier,
+          reason: 'relax_surfaced_nothing',
+        });
+        return scoredSorted;
+      }
+      ```
+      When relaxed pool is ≤ original, no new rows surfaced ⇒ emit
+      low_confidence + return original (NOT relaxed).
+      Matches plan EC-2: "a relax that surfaces nothing new ⇒ low confidence, original pool."
+    recommended_action: INFO — no action. EC-2 is correctly implemented.
+
+  - id: F-arch-13
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 209
+    plan_ref: Plan § ADR D4 (fail-soft contract)
+    summary: Fail-soft contract honored; policy errors never crash recall
+    evidence: |
+      Both async helpers wrapped in try/catch:
+      applyAdaptiveAssessStage (lines 172-216):
+      ```ts
+      try {
+        const results = scoredSorted.map(rowToItem);
+        const assessment = await policy.assess(query, results, tuning);
+        ...
+      } catch (err) {
+        // ADR D4 fail-soft — a policy outage NEVER takes down recall.
+        emitEvent(tracer, 'retrieval_low_confidence', {
+          scope_tier: scopeTier,
+          reason: `assess_failed:${err instanceof Error ? err.name : 'unknown'}`,
+        });
+        return scoredSorted;
+      }
+      ```
+      Also in scoped-memory.ts lines 311-322:
+      ```ts
+      if (adaptivePolicy !== undefined) {
+        try {
+          const decision = await adaptivePolicy.shouldRetrieve(query, this.scope);
+          ...
+        } catch {
+          // fail-soft — degrade to normal retrieval
+        }
+      }
+      ```
+      Both seams (pre-embed + post-threshold) fail gracefully per ADR D4.
+    recommended_action: INFO — no action. Fail-soft contract correct.
+
+  - id: F-arch-14
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 353
+    plan_ref: Plan § T3.1 (scored rebinding after Step 8.6)
+    summary: scored variable rebinding correct; allows downstream rerank/diversify/topK to operate on corrected pool
+    evidence: |
+      Lines 352-367 (after Step 8):
+      ```ts
+      if (deps.retrievalPolicy !== undefined) {
+        scored = [
+          ...(await applyAdaptiveAssessStage(
+            query,
+            scored,
+            candidates,
+            maxScore,
+            threshold,
+            deps.retrievalPolicy,
+            options?.adaptive,
+            rowToItem,
+            scope.kind,
+            tracer,
+          )),
+        ];
+      }
+      ```
+      The spread operator `[...result]` creates a fresh array (ScoredRow[]),
+      and the assignment rebinds scored. Subsequent code (Step 8.5 rerank, diversify, topK)
+      all operate on the potentially-corrected scored array.
+      Comment at line 350 is clear: "rebinding `scored`; the rerank/diversify/topK stages
+      below then operate on the corrected pool."
+      No mutation of inputs; immutable rebind pattern is correct.
+    recommended_action: INFO — no action. Rebinding pattern is correct.
+
+summary: |
+  **FINDING COUNT: 14 total**
+  - **HIGH (paper-name violations): 6** — all in JSDoc/comments, violating no-paper-names-in-code.md
+  - **MEDIUM (paper-name violations): 2** — same rule violation in inline comments and option JSDoc
+  - **LOW (informational): 6** — all PASSED; design is sound
+
+  **BLOCKING ISSUE: F-arch-1, F-arch-2, F-arch-3, F-arch-4, F-arch-5, F-arch-6**
+  The paper-name citations "Self-RAG", "CRAG", "CRAG grade", "Self-RAG/CRAG" must be removed from
+  all `src/**` JSDoc and comments per the locked no-paper-names-in-code.md rule. This is NOT optional;
+  it is part of the Global Definition of Done in the plan itself.
+
+  **ARCHITECTURE QUALITY (excluding paper-name issues): SOLID**
+  - SRP: policy DECIDES, pipeline ACTS (correctly separated)
+  - OCP: opt-in DIP seam (composition over modification)
+  - DIP: domain declares interface, infrastructure implements; no upward imports
+  - Method count: exactly 2 methods per ADR-0008 cap
+  - Fail-soft: all policy calls wrapped; never crash recall
+  - Cache bypass: correct; prevents serving wrong cached results
+  - DRY: filterAtThreshold extracted and reused for both call sites
+  - EC absorptions: all explicitly verified (EC-1 clamp, EC-2 no-new-rows, EC-5 no-op events)

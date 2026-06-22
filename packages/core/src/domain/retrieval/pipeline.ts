@@ -50,9 +50,9 @@ export interface RetrievalDeps {
   readonly reranker?: Reranker;
   /**
    * adaptive-retrieval (Item 13) — optional adaptive policy. When present, the
-   * pipeline runs the CRAG `assess` grade-and-correct stage (Step 8.6) after the
+   * pipeline runs the `assess` grade-and-correct stage (Step 8.6) after the
    * threshold filter. Absent ⇒ no adaptive stage (default OFF, byte-unchanged).
-   * The Self-RAG `shouldRetrieve` pre-embed gate runs in `scoped-memory.ts`
+   * The `shouldRetrieve` pre-embed gate runs in `scoped-memory.ts`
    * (before this pipeline), not here.
    */
   readonly retrievalPolicy?: AdaptiveRetrievalPolicy;
@@ -147,15 +147,17 @@ function filterAtThreshold(
 }
 
 /**
- * Step 8.6 — adaptive-retrieval CRAG grade-and-correct (Item 13, ADR D2 + D3 + D4).
+ * Step 8.6 — adaptive-retrieval grade-and-correct (Item 13, ADR D2 + D3 + D4).
  * Calls the policy's `assess` on the threshold-passing results; on `action:'relax'`
  * with a valid `relaxedThreshold` (EC-1 clamp: `0 <= rt < threshold`), re-filters
  * the pre-threshold `candidates` pool at the lower threshold and returns the
- * (re-sorted) corrected pool + emits `retrieval_corrected`. On `reject` OR a
- * relax that surfaces nothing, emits `retrieval_low_confidence` and returns the
- * original pool. Fail-soft (ADR D4): a policy throw degrades to the original pool
- * + an observable `retrieval_low_confidence{reason:'assess_failed'}` — recall
- * NEVER crashes on a policy outage.
+ * (re-sorted) corrected pool + emits `retrieval_corrected`. On `reject`, a relax
+ * that surfaces nothing, OR an out-of-range `relaxedThreshold` (EC-1 — the
+ * requested correction could not be applied so the results stay weak), emits
+ * `retrieval_low_confidence` and returns the original pool. Fail-soft (ADR D4): a
+ * policy throw degrades to the original pool + an observable
+ * `retrieval_policy_failed{hook:'assess'}` (distinct from a genuine low-confidence
+ * outcome) — recall NEVER crashes on a policy outage.
  */
 async function applyAdaptiveAssessStage(
   query: string,
@@ -185,8 +187,16 @@ async function applyAdaptiveAssessStage(
     // action === 'relax' — per-call override wins over the policy's value.
     const rt = tuning?.relaxedThreshold ?? assessment.relaxedThreshold;
     // EC-1 clamp: relax ONLY when 0 <= rt < threshold (no no-op widening / no
-    // out-of-range surfacing). Otherwise treat as accept (no correction, no event).
+    // out-of-range surfacing). When a relax WAS requested but the threshold is
+    // invalid, the requested correction could not be applied ⇒ the results stay
+    // weak ⇒ that IS a low-confidence outcome (observable, not silent — F-dom-obs-2).
     if (rt === undefined || Number.isNaN(rt) || rt < 0 || rt >= threshold) {
+      emitEvent(tracer, 'retrieval_low_confidence', {
+        scope_tier: scopeTier,
+        reason: 'relax_threshold_invalid',
+        requested_threshold: rt ?? -1,
+        original_threshold: threshold,
+      });
       return scoredSorted;
     }
     const relaxed = filterAtThreshold(candidates, maxScore, rt);
@@ -196,6 +206,8 @@ async function applyAdaptiveAssessStage(
       emitEvent(tracer, 'retrieval_low_confidence', {
         scope_tier: scopeTier,
         reason: 'relax_surfaced_nothing',
+        pool_size: scoredSorted.length,
+        relaxed_size: relaxed.length,
       });
       return scoredSorted;
     }
@@ -207,10 +219,13 @@ async function applyAdaptiveAssessStage(
     });
     return relaxed;
   } catch (err) {
-    // ADR D4 fail-soft — a policy outage NEVER takes down recall.
-    emitEvent(tracer, 'retrieval_low_confidence', {
+    // ADR D4 fail-soft — a policy outage NEVER takes down recall. Emitted as a
+    // DISTINCT policy-failure signal (F-dom-obs-1) so a crash is not conflated
+    // with a genuine low-confidence outcome.
+    emitEvent(tracer, 'retrieval_policy_failed', {
       scope_tier: scopeTier,
-      reason: `assess_failed:${err instanceof Error ? err.name : 'unknown'}`,
+      hook: 'assess',
+      error: err instanceof Error ? err.name : 'unknown',
     });
     return scoredSorted;
   }
@@ -344,7 +359,7 @@ export async function runRetrievalPipeline(
     };
   };
 
-  // Step 8.6 — adaptive-retrieval CRAG grade-and-correct (Item 13, ADR D2).
+  // Step 8.6 — adaptive-retrieval grade-and-correct (Item 13, ADR D2).
   // Opt-in: runs ONLY when a retrievalPolicy is wired (default OFF ⇒ byte-
   // unchanged). The corrective may relax the threshold over the pre-threshold
   // `candidates` pool, rebinding `scored`; the rerank/diversify/topK stages

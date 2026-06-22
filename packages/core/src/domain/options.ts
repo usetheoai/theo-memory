@@ -196,10 +196,10 @@ export interface RecallOptions {
 
   /**
    * adaptive-retrieval (Roadmap Item 13) — Princípio 2 (priorização > volume) +
-   * Self-RAG/CRAG decision hooks. Tunes the adaptive policy wired via
+   * adaptive-retrieval decision hooks. Tunes the adaptive policy wired via
    * `createLocalMemory({ retrievalPolicy })`:
    *
-   *   - `correctiveFloor`: the top-score threshold below which the CRAG `assess`
+   *   - `correctiveFloor`: the top-score threshold below which the `assess`
    *     hook recommends a corrective relax (heuristic default impl).
    *   - `relaxedThreshold`: the lower threshold the corrective re-filters the
    *     already-fetched pool at. The pipeline applies it ONLY when
