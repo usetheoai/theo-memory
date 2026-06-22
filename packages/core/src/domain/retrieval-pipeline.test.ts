@@ -15,7 +15,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { Embedder } from './dip/embedder.js';
+import type { Reranker } from './dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from './dip/vector-store.js';
+import { RerankerConflict } from './errors.js';
 import { runRetrievalPipeline } from './retrieval/pipeline.js';
 
 const mockEmbedding = (): readonly number[] => {
@@ -240,5 +242,96 @@ describe('runRetrievalPipeline (9-step search)', () => {
       { topK: 10, threshold: 0.5 },
     );
     expect(results).toHaveLength(1);
+  });
+});
+
+describe('cross-encoder-reranker T2.2 — post-threshold rerank stage (Step 8.5a)', () => {
+  // A stub reranker that re-sorts by the LENGTH of each candidate text
+  // descending (deterministic, model-free) and truncates to topK. Proves the
+  // pipeline delegates ordering to the reranker + truncates.
+  const lengthReranker: Reranker = {
+    rerank: async (_query, candidates, topK) =>
+      [...candidates].sort((a, b) => b.text.length - a.text.length).slice(0, topK),
+  };
+
+  test('reranks the threshold-passing pool + truncates to topK (delegates ordering to the reranker)', async () => {
+    const store = makeStore([
+      { id: 'short', text: 'hi', semanticScore: 0.9 }, // cosine #1 but shortest
+      { id: 'longest', text: 'a much longer relevant passage', semanticScore: 0.6 },
+      { id: 'mid', text: 'medium text here', semanticScore: 0.7 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), reranker: lengthReranker },
+      { topK: 2, threshold: 0.1, rerank: {} },
+    );
+    // Reranker sorts by text length desc → 'longest' first, 'mid' second; 'short' dropped (topK=2).
+    expect(results.map((r) => r.id)).toEqual(['longest', 'mid']);
+  });
+
+  test('both diversify and rerank set → throws RerankerConflict (ADR D3, before any inference)', async () => {
+    const store = makeStore([{ id: 'a', text: 'one', semanticScore: 0.9 }]);
+    await expect(
+      runRetrievalPipeline(
+        'query',
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), reranker: lengthReranker },
+        { topK: 5, threshold: 0.1, rerank: {}, diversify: { lambda: 0.5 } },
+      ),
+    ).rejects.toBeInstanceOf(RerankerConflict);
+  });
+
+  test('reranker throws → fail-soft degrade to cosine order + emit recall_rerank_failed (ADR D4)', async () => {
+    const throwingReranker: Reranker = {
+      rerank: async () => {
+        throw new Error('model load failed');
+      },
+    };
+    const { tracer, exporter } = setupTracer();
+    const store = makeStore([
+      { id: 'a', text: 'first', semanticScore: 0.9 },
+      { id: 'b', text: 'second', semanticScore: 0.7 },
+      { id: 'c', text: 'third', semanticScore: 0.5 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), reranker: throwingReranker, tracer },
+      { topK: 2, threshold: 0.1, rerank: {} },
+    );
+    // Fail-soft: original cosine order preserved, truncated to topK.
+    expect(results.map((r) => r.id)).toEqual(['a', 'b']);
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).toContain('recall_rerank_failed');
+  });
+
+  test('options.rerank set but NO reranker wired → no-op (cosine order, no throw)', async () => {
+    const store = makeStore([
+      { id: 'a', text: 'first', semanticScore: 0.9 },
+      { id: 'b', text: 'second', semanticScore: 0.7 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder() }, // no reranker
+      { topK: 5, threshold: 0.1, rerank: {} },
+    );
+    expect(results.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  test('regression — neither rerank nor diversify set → default cosine top-K unchanged', async () => {
+    const store = makeStore([
+      { id: 'a', text: 'first', semanticScore: 0.9 },
+      { id: 'b', text: 'second', semanticScore: 0.7 },
+      { id: 'c', text: 'third', semanticScore: 0.5 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), reranker: lengthReranker },
+      { topK: 2, threshold: 0.1 }, // no rerank option → reranker ignored
+    );
+    expect(results.map((r) => r.id)).toEqual(['a', 'b']);
   });
 });

@@ -88,6 +88,12 @@ export const MEMORY_EVENTS = [
   // sandbox. Attribute `skill_id`. Pairs with tool_invocation_denied for the
   // execute-path success/deny audit ratio.
   'skill_executed',
+  // cross-encoder-reranker T2.2 / ADR D4 — the post-threshold cross-encoder
+  // rerank failed (non-fatal; fail-soft per Princípio 3 — recall() degrades to
+  // the original cosine order and NEVER throws on a reranker outage). Attribute
+  // `error` carries the error name. Mirrors history_persist_failed.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_rerank_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

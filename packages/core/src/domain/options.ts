@@ -159,6 +159,40 @@ export interface RecallOptions {
     readonly lambda: number;
     readonly topPool?: number;
   };
+
+  /**
+   * cross-encoder-reranker (Roadmap Item 23) — Princípio 2 (priorização >
+   * volume). When set, retrieval applies a cross-encoder rerank AFTER the
+   * threshold filter and BEFORE topK truncation (the same Step 8.5 seam as
+   * `diversify`, but optimizing relevance instead of diversity):
+   *
+   *   selected = reranker.rerank(query, candidates[:pool], topK)
+   *
+   * Requires a `Reranker` wired via `LocalMemoryConfig.reranker`. Default (when
+   * undefined) is byte-identical — no rerank, no behavior change for existing
+   * callers (opt-in per ADR D5).
+   *
+   * - `topK`: results to keep after rerank. Defaults to the recall `topK`.
+   * - `pool`: candidate pool size fed to the reranker before truncation.
+   *   Defaults to `topK * 4` (bounds cross-encoder cost — ADR D3).
+   *
+   * MUTUALLY EXCLUSIVE with `diversify`: setting both throws `RerankerConflict`
+   * before any inference (ADR D3). When `rerank` is set but no reranker is wired
+   * in config, the rerank is a no-op (results pass through cosine-sorted).
+   * On inference failure the pipeline degrades to cosine order (fail-soft, ADR D4).
+   *
+   * Note: setting `rerank` BYPASSES the semantic recall cache (ADR D6) — the
+   * v1.5 cache key does not include rerank, so a reranked request always runs
+   * the full pipeline.
+   *
+   * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D3 + D5 + D6
+   * @see CLAUDE.md § IMPORTANTE Princípio 2
+   * @throws RerankerConflict — when both `rerank` and `diversify` are set.
+   */
+  readonly rerank?: {
+    readonly topK?: number;
+    readonly pool?: number;
+  };
 }
 
 export interface ForgetOptions {
