@@ -228,6 +228,30 @@ describe('T3.2 — @usetheo/memory/reranker-local subpath isolation', () => {
 });
 
 /**
+ * adaptive-retrieval T4.2 — `@usetheo/memory/adaptive-local` subpath isolation.
+ * The DEFAULT barrel does NOT pull the heuristic IMPL transitively, AND the
+ * subpath barrel smoke-imports `HeuristicAdaptiveRetrievalPolicy`. The DIP TYPE
+ * `AdaptiveRetrievalPolicy` IS reachable from the default barrel (zero-runtime).
+ *
+ * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § T4.2 + ADR D5
+ */
+describe('T4.2 — @usetheo/memory/adaptive-local subpath isolation', () => {
+  test('default @usetheo/memory barrel does NOT reach packages/core/src/infrastructure/adaptive/heuristic-policy.ts', () => {
+    const entry = resolve(REPO_ROOT, 'packages/core/src/index.ts');
+    const reachable = walkImports(entry);
+    const implLeaks = Array.from(reachable).filter((p) =>
+      p.endsWith('adaptive/heuristic-policy.ts'),
+    );
+    expect(implLeaks).toEqual([]);
+  });
+
+  test('adaptive-local subpath barrel re-exports HeuristicAdaptiveRetrievalPolicy (smoke import)', async () => {
+    const mod = await import('../../packages/core/src/infrastructure/adaptive/index.js');
+    expect(typeof mod.HeuristicAdaptiveRetrievalPolicy).toBe('function');
+  });
+});
+
+/**
  * embedder-registry T3.1 — `@usetheo/memory/embedders/registry` subpath isolation.
  * The registry resolves every adapter via LAZY `await import()`, so its static
  * graph MUST NOT reach the SDK-backed adapters (`openai.ts`/`local.ts`) nor the

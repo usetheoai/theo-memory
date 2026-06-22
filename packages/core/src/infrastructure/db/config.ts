@@ -11,6 +11,7 @@
  */
 import type { Tracer } from '@opentelemetry/api';
 
+import type { AdaptiveRetrievalPolicy } from '../../domain/dip/adaptive-retrieval-policy.js';
 import type { EntityExtractor } from '../../domain/dip/entity-extractor.js';
 import type { MemoryEntityStore } from '../../domain/dip/memory-entity-store.js';
 import type { MemoryGraphStore } from '../../domain/dip/memory-graph-store.js';
@@ -136,6 +137,20 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * @see src/domain/dip/reranker.ts
    */
   readonly reranker?: Reranker;
+
+  /**
+   * adaptive-retrieval (Roadmap Item 13) — optional adaptive policy. When
+   * present, recall runs the `shouldRetrieve` pre-embed gate (in
+   * `scoped-memory.ts`, may skip retrieval) + the `assess` grade-and-correct
+   * (pipeline Step 8.6, may relax the threshold). Absent ⇒ default OFF, the
+   * pipeline is byte-identical to v0.17 (opt-in per ADR D4). `RecallOptions.adaptive`
+   * forwards per-call tuning. The default impl is `HeuristicAdaptiveRetrievalPolicy`
+   * (`@usetheo/memory/adaptive-local`, key-free, no new dependency).
+   *
+   * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D2 + D3 + D4 + D5
+   * @see src/domain/dip/adaptive-retrieval-policy.ts
+   */
+  readonly retrievalPolicy?: AdaptiveRetrievalPolicy;
 }
 
 /**

@@ -14,6 +14,7 @@ import {
 import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from './constants.js';
+import type { AdaptiveRetrievalPolicy } from './dip/adaptive-retrieval-policy.js';
 import type { Embedder } from './dip/embedder.js';
 import type { Reranker } from './dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from './dip/vector-store.js';
@@ -333,5 +334,129 @@ describe('cross-encoder-reranker T2.2 — post-threshold rerank stage (Step 8.5a
       { topK: 2, threshold: 0.1 }, // no rerank option → reranker ignored
     );
     expect(results.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('runRetrievalPipeline — adaptive-retrieval Step 8.6 (Item 13)', () => {
+  // A policy whose `assess` recommends a relax to the given threshold.
+  const relaxPolicy = (relaxedThreshold: number): AdaptiveRetrievalPolicy => ({
+    shouldRetrieve: async () => ({ retrieve: true }),
+    assess: async () => ({ sufficient: false, action: 'relax', relaxedThreshold }),
+  });
+
+  test('assess relax surfaces a sub-threshold row + emits retrieval_corrected', async () => {
+    const store = makeStore([
+      { id: 'strong', text: 'strong', semanticScore: 0.9 },
+      { id: 'weak', text: 'weak', semanticScore: 0.2 }, // below 0.5, above 0.05
+    ]);
+    const { tracer, exporter } = setupTracer();
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: relaxPolicy(0.05), tracer },
+      { topK: 10, threshold: 0.5 }, // 'weak' is dropped at 0.5; relax to 0.05 surfaces it
+    );
+    expect(results.map((r) => r.id)).toContain('weak');
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_corrected');
+  });
+
+  test('EC-1: relaxedThreshold >= original threshold is clamped (no widening); emits low_confidence', async () => {
+    const store = makeStore([
+      { id: 'strong', text: 'strong', semanticScore: 0.9 },
+      { id: 'weak', text: 'weak', semanticScore: 0.2 },
+    ]);
+    const { tracer, exporter } = setupTracer();
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: relaxPolicy(0.9), tracer },
+      { topK: 10, threshold: 0.5 }, // relaxedThreshold 0.9 >= 0.5 → clamped, no widening
+    );
+    expect(results.map((r) => r.id)).not.toContain('weak'); // no out-of-range widening
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).not.toContain('retrieval_corrected');
+    // F-dom-obs-2: a requested-but-unapplicable relax is observable (results stay weak ⇒ low confidence).
+    expect(spans).toContain('retrieval_low_confidence');
+  });
+
+  test('EC-2: relax that surfaces nothing new emits retrieval_low_confidence', async () => {
+    const store = makeStore([{ id: 'strong', text: 'strong', semanticScore: 0.9 }]);
+    const { tracer, exporter } = setupTracer();
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: relaxPolicy(0.05), tracer },
+      { topK: 10, threshold: 0.5 },
+    );
+    expect(results.map((r) => r.id)).toEqual(['strong']);
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_low_confidence');
+  });
+
+  test('assess reject emits retrieval_low_confidence, keeps original results', async () => {
+    const rejectPolicy: AdaptiveRetrievalPolicy = {
+      shouldRetrieve: async () => ({ retrieve: true }),
+      assess: async () => ({ sufficient: false, action: 'reject', reason: 'too weak' }),
+    };
+    const store = makeStore([{ id: 'a', text: 'a', semanticScore: 0.9 }]);
+    const { tracer, exporter } = setupTracer();
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: rejectPolicy, tracer },
+      { topK: 10, threshold: 0.1 },
+    );
+    expect(results.map((r) => r.id)).toEqual(['a']);
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('retrieval_low_confidence');
+  });
+
+  test('fail-soft: assess throws → normal results, no crash, observable retrieval_policy_failed', async () => {
+    const throwingPolicy: AdaptiveRetrievalPolicy = {
+      shouldRetrieve: async () => ({ retrieve: true }),
+      assess: async () => {
+        throw new Error('policy boom');
+      },
+    };
+    const store = makeStore([{ id: 'a', text: 'a', semanticScore: 0.9 }]);
+    const { tracer, exporter } = setupTracer();
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: throwingPolicy, tracer },
+      { topK: 10, threshold: 0.1 },
+    );
+    expect(results.map((r) => r.id)).toEqual(['a']);
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    // F-dom-obs-1: a policy CRASH emits the distinct policy-failed signal, not low_confidence.
+    expect(spans).toContain('retrieval_policy_failed');
+    expect(spans).not.toContain('retrieval_low_confidence');
+  });
+
+  test('regression — no retrievalPolicy → default path byte-unchanged', async () => {
+    const store = makeStore([
+      { id: 'a', text: 'a', semanticScore: 0.9 },
+      { id: 'b', text: 'b', semanticScore: 0.2 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder() }, // no policy
+      { topK: 10, threshold: 0.5 },
+    );
+    expect(results.map((r) => r.id)).toEqual(['a']); // 'b' stays dropped (no adaptive)
+  });
+
+  test('per-call tuning.relaxedThreshold overrides the assessment value', async () => {
+    // Policy recommends relax to 0.9 (would clamp); the call overrides to 0.05.
+    const store = makeStore([
+      { id: 'strong', text: 'strong', semanticScore: 0.9 },
+      { id: 'weak', text: 'weak', semanticScore: 0.2 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), retrievalPolicy: relaxPolicy(0.9) },
+      { topK: 10, threshold: 0.5, adaptive: { relaxedThreshold: 0.05 } },
+    );
+    expect(results.map((r) => r.id)).toContain('weak');
   });
 });
