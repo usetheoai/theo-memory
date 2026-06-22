@@ -1,0 +1,174 @@
+agent: review-agentic-skill-execution-sandbox-tests
+review_target: aae750f..HEAD for plan agentic-skill-execution-sandbox
+plan: .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md
+verdict: READY_TO_MERGE_WITH_MINOR_NOTES
+summary: >
+  The test suite is strong: the GOAL integration test exercises real pgvector + real
+  isolated-vm with 1 benign + 5 per-guard malicious cases + an instanceof check (7 total,
+  satisfies the plan GOAL of 6). The dispose-asymmetry invariant (pre-isolate denials =
+  count 0, post-isolate denials = count 1) is asserted explicitly per case via a Proxy
+  loader seam. "Zero host escape" is asserted behaviorally (host process intact + a benign
+  re-execution succeeds after each denial), not via vibes. All 10 reason literals are
+  covered at the error layer; EC-1..EC-7 are all exercised. No .only / .skip / xit leaks.
+  Findings are minor: one structurally-dead reason literal (tool-call-cap) has NO behavioral
+  test despite the plan DEC-7 mandating a direct unit test, and a couple of fixture-honesty
+  nits.
+
+test_pyramid:
+  unit_added: 28      # sandboxed-skill-executor(15) + bundle-isolation(2) + errors(5) + scoped-skill-memory(6)
+  integration_added: 7  # GOAL: 1 benign + 5 malicious(loop) + 1 instanceof
+  e2e_added: 0
+  api_mcp_added: 12   # api skills execute(9) + mcp handlers execute(3)
+  total: 47
+  note: >
+    Pyramid is healthy (unit-heavy, single integration suite for the real-addon GOAL).
+    NOT inverted. Integration suite is correctly gated by THEOMEM_PG_URI (describe.skip
+    when unset) per the integration-suite convention; validation evidence confirms it ran
+    against real ankane/pgvector:v0.5.1 + real isolated-vm (exec=5; process/require=undefined).
+
+edge_cases_from_plan:
+  covered:
+    - "EC-1 export-strip + invocation wrapper + copy:true (test_benign_add_returns_5 → output 5)"
+    - "EC-2 null code → empty-code (test_null_code_denied_empty_code, count 0)"
+    - "EC-3 missing addon → SkillExecutorUnavailableError (test_missing_addon_throws_unavailable; api 503)"
+    - "EC-4 async denied → unsupported-async (test_async_skill_denied_unsupported_async)"
+    - "EC-5 timeout<=0 reject (test_timeout_non_positive_rejected) + memoryLimit clamp (test_memory_limit_clamped_below_minimum_still_runs)"
+    - "EC-6 non-cloneable result → non-cloneable-result (unit + GOAL)"
+    - "EC-7 gating model: 501 not-configured (api + mcp + façade STORE-only default)"
+    - "DEC-2 node/fs pre-scan denials (node-binding-attempt + fs-access-attempt)"
+    - "DEC-4 invalid-arg-key injection guard (test_invalid_arg_key_denied)"
+    - "DEC-5 no-named-function → unsupported-language"
+    - "dispose asymmetry (count()===0 pre-isolate, ===1 post-isolate) asserted per case"
+    - "cross-repo IDOR: skill of repo-alpha not executable from repo-beta → MemoryNotFound, executor never reached"
+  missing:
+    - "tool-call-cap reason has NO behavioral test (only listed in the error-union array test); plan DEC-7 required a DIRECT unit test of the private cap helper to avoid a dead branch"
+    - "superseded-skill execution behavior not pinned (no test asserts whether a skill with supersededBy != null can/cannot be executed)"
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.test.ts
+    line: 0
+    plan_ref: "T1.3 DEC-7 — 'tool-call-cap ... covered by a DIRECT unit test of the private cap helper to avoid dead branch'; Coverage Matrix #3 + GOAL case test_goal_tool_call_cap_denied"
+    summary: >
+      The 'tool-call-cap' denial reason is structurally dead and has zero behavioral
+      coverage. It appears only in errors.test.ts:120 (constructor smoke over the reason
+      union). The plan DEC-7 explicitly required a direct unit test of the private cap
+      helper precisely so this branch is NOT dead; the implementation
+      (sandboxed-skill-executor.ts) never references 'tool-call-cap'/maxToolCalls at all
+      (grep = 0 hits), so there is no helper to test and no reachable branch. The plan's
+      GOAL list named test_goal_tool_call_cap_denied as one of the 6 cases; the actual GOAL
+      test substituted 'non-cloneable result' for it.
+    evidence: |
+      grep -rn 'tool-call-cap|maxToolCalls' packages/core/src/infrastructure/db/sandboxed-skill-executor.ts -> 0 hits
+      grep tests: only errors.test.ts:120 ('tool-call-cap' in the reason[] array) + skill-executor.test-d.ts:45 (maxToolCalls? type)
+      plan DEC-7: "tool-call-cap is the Q3 host-bridge seam (structurally unreachable in v1, no host callback); covered by a DIRECT unit test of the private cap helper to avoid dead branch"
+    recommended_action: >
+      Either (a) extract the cap check into a testable private helper and add a direct
+      unit test as DEC-7 mandated, OR (b) honestly drop 'tool-call-cap' from the
+      ToolInvocationDeniedReason union for v1 (it is dead with no host bridge) and re-add
+      it with the Q3 host-bridge follow-up. Option (b) is more honest per KISS/YAGNI since
+      v1 has no host callback path. As-is, the literal is a documented dead branch that the
+      plan said would be guarded by a test that does not exist.
+
+  - id: F-tests-2
+    severity: LOW
+    file: packages/core/src/infrastructure/db/scoped-skill-memory.test.ts
+    line: 0
+    plan_ref: "T2.1 Deep Dives — workspace+scope isolation; T3.1 cross-workspace"
+    summary: >
+      Cross-WORKSPACE skill isolation is NOT unit-tested; only cross-REPO (agent_id)
+      isolation is. The test honestly documents the gap inline (the InMemoryVectorStore's
+      insertSkill does not persist workspace_id; followup
+      themory-inmemory-skill-workspace-parity) and defers workspace isolation to the T3.1
+      integration suite against real pgvector. The deferral is disclosed, but the GOAL
+      integration test does NOT actually contain a cross-workspace execute assertion — it
+      only covers cross-repo via the benign/malicious single-workspace path.
+    evidence: |
+      scoped-skill-memory.test.ts: "Cross-WORKSPACE isolation for skills is verified at T3.1 ... the in-memory adapter's insertSkill does not persist workspace_id"
+      tests/integration/skill-execution-sandbox.test.ts: no withWorkspace / cross-workspace execute case present
+    recommended_action: >
+      Add one integration assertion in skill-execution-sandbox.test.ts: a skill added under
+      workspace A cannot be executed from workspace B (MemoryNotFound, executor never
+      reached) — to close the deferral the unit test points to. If deferred again, record
+      it as an explicit caveat in the PR / CHANGELOG.
+
+  - id: F-tests-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.test.ts
+    line: 42
+    plan_ref: "skill.ts:67 — Skill.derivedFrom is a required readonly field"
+    summary: >
+      The mkSkill fixture omits the required `derivedFrom` field (and `text`/`hash`/`scope`
+      from the broader MemoryItem-derived shape) and casts `as Skill`. It compiles and the
+      executor only reads id/code/codeLanguage, so behavior is unaffected — but the cast
+      hides a non-conformant fixture. Per testing.md anti-patterns, fixtures should be
+      faithful to the type.
+    evidence: |
+      mkSkill returns { id, kind, code, description, codeLanguage, supersededBy, createdAt } as Skill
+      skill.ts:67 readonly derivedFrom: readonly string[];  // required, omitted
+    recommended_action: >
+      Add `derivedFrom: []` (and any other required fields) to mkSkill so the fixture is a
+      genuine Skill without the `as Skill` escape hatch, or reuse the existing
+      createSkill/test factory if one exists.
+
+  - id: F-tests-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.test.ts
+    line: 247
+    plan_ref: "T1.3 EC-5 — clamp memoryLimitMb to >= 8"
+    summary: >
+      test_memory_limit_clamped_below_minimum_still_runs asserts only the output (42), not
+      the clamp itself. It is a valid indirect assertion (memoryLimitMb:2 < the 8 MB
+      isolated-vm minimum would make `new Isolate({memoryLimit:2})` throw if NOT clamped, so
+      a successful run proves the clamp). Naming is slightly aspirational vs what is
+      asserted. Acceptable as-is; noting for transparency.
+    evidence: |
+      test body: expect(result.output).toBe(42)  // no direct assertion on the constructed memoryLimit
+    recommended_action: >
+      Optional: add a comment explaining the indirect proof (run-succeeds ⇒ clamp-applied),
+      or inject the loader to capture the Isolate({memoryLimit}) arg and assert >= 8.
+
+aaa_bdd_compliance:
+  status: GOOD
+  notes: >
+    Tests follow Arrange-Act-Assert with clear separation. Names describe behavior
+    (test_null_code_denied_empty_code, 'malicious denied + audited + zero host escape: ...').
+    The GOAL malicious-case name uses 'denied + audited + zero host escape' which technically
+    bundles three assertions into one named test — defensible here because they are the three
+    facets of a SINGLE behavior (a denial must be typed AND audited AND escape-free); splitting
+    would weaken the invariant. No method-name tests, no 'test 1' style names.
+
+mock_fixture_hygiene:
+  status: GOOD
+  notes: >
+    recordingTracer + trackingLoader (Proxy over real isolated-vm) are precise seams, not
+    world-mocks. Integration suite TRUNCATEs DB state in beforeEach (deterministic, no shared
+    state). The dispose Proxy seam is well-justified (isolated-vm dispose is a non-configurable
+    native method vi.spyOn cannot wrap) and documented in a comment. mkEmbedder is deterministic.
+    No random data, no unfrozen time-dependent assertions (elapsedMs asserted only as typeof number).
+
+tdd_order:
+  status: PASS
+  notes: >
+    Commit history shows test+impl committed together per task (feat commits include the .test.ts).
+    The plan is strictly RED-first per TDD section; commit granularity is per-task atomic
+    (52e60b6 T1.1 ... 804edbb T3.1). Acceptable per the project's per-task commit convention;
+    no impl-before-test inversion observable at the task grain.
+
+skipped_or_only:
+  status: PASS
+  notes: "No it.only/test.only/xit/xtest/commented-out test blocks added. describe.skip is the legitimate THEOMEM_PG_URI integration gate, not a disabled test."
+
+goal_satisfaction:
+  plan_goal_cases: 6   # 1 benign + 5 per-guard malicious
+  actual_goal_cases: 7 # 1 benign + 5 malicious(loop) + 1 instanceof
+  satisfied: true
+  note: >
+    GOAL exceeds the plan target. The 5 malicious cases are node-binding, fs-access,
+    timeout(infinite loop), output-cap(flood), non-cloneable-result. The plan's 6th named
+    case (tool-call-cap) was correctly NOT used (it is structurally unreachable in v1 — see
+    F-tests-1); 'non-cloneable result' is a meaningful real guard substituted in its place,
+    plus an instanceof check for the exported typed error. Every malicious case also asserts
+    the tool_invocation_denied audit event AND zero host escape (host process intact + benign
+    re-exec returns 7).

@@ -1,0 +1,169 @@
+agent: review-agentic-skill-execution-sandbox-architecture
+review_target: aae750f^..HEAD for plan agentic-skill-execution-sandbox (M1 slice)
+plan: .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md
+rules_read:
+  - .claude/rules/architecture.md
+  - .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md
+summary_line: >
+  DIP boundary is clean and exemplary (port in domain/dip, impl in infrastructure/db,
+  domain never value-imports the addon, lazy dynamic import gated behind execute()).
+  The Strategy/opt-in seam (SkillExecutor port + gated factory wiring) is applied correctly.
+  Main architectural defects are an OCP seam shipped WITHOUT backing impl or test
+  (tool-call-cap / maxToolCalls), an ISP dead member surfaced all the way to REST+MCP
+  schemas, and a couple of minor hygiene items.
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 86
+    plan_ref: T1.3 Deep Dives DEC-7 + Guard mapping #7 (per-execute tool-call cap)
+    summary: >
+      The `tool-call-cap` guard / `maxToolCalls` option seam is declared across the
+      port, the errors union, and both transport schemas but has ZERO implementation
+      and ZERO test — the plan's DEC-7 required a `#deny`-based private cap helper with
+      a DIRECT unit test "to avoid a dead branch". The executor has neither.
+    evidence: |
+      `SandboxedSkillExecutor.execute()` never reads `opts.maxToolCalls`, never counts
+      host-callback invocations, and never throws `'tool-call-cap'`:
+        grep tool-call-cap|maxToolCalls packages/core/src/infrastructure → 0 hits
+        grep maxToolCalls in executor → 0 hits (only maxOutputBytes consumed, line 133/180)
+      Yet the seam is fully surfaced:
+        domain/errors.ts: ToolInvocationDeniedReason includes 'tool-call-cap'
+        domain/dip/skill-executor.ts:41  `readonly maxToolCalls?: number`
+        api .../handlers/skills.ts:218    `maxToolCalls: z.number()....optional()`
+        mcp .../execute-skill-schema.ts:31 `maxToolCalls: z.number()....optional()`
+      No `#deny`/cap helper exists; the only `#deny` is the generic denial triad (line 96).
+      Plan DEC-7 (T1.3): "tool-call-cap ... covered by a DIRECT unit test of the private
+      cap helper to avoid a dead branch." No such helper, no such test.
+    recommended_action: >
+      Either (a) honor DEC-7 by adding the private cap helper + its direct unit test so
+      the literal + option are reachable, OR (b) per YAGNI, REMOVE `maxToolCalls` from
+      SkillExecutionOptions and both zod schemas and drop `'tool-call-cap'` from the
+      reason union (keep a one-line ADR note that the host-bridge cap lands with the Q3
+      host-callback follow-up). Do not ship a declared-but-unreachable OCP seam silently.
+  - id: F-arch-2
+    severity: MEDIUM
+    file: packages/core/src/domain/dip/skill-executor.ts
+    line: 41
+    plan_ref: T1.1 Deep Dives (SkillExecutionOptions) + ISP (architecture.md / Inquebrável ISP)
+    summary: >
+      `SkillExecutionOptions.maxToolCalls` is an ISP dead member — declared on the public
+      port, accepted + validated by the REST handler (T2.3) and the MCP schema (T2.4),
+      cast into the executor, but consumed by no implementation. A consumer who passes it
+      gets silent no-op behavior, which violates the honesty discipline at the public
+      surface (the option claims a capability the only impl does not provide).
+    evidence: |
+      Port: packages/core/src/domain/dip/skill-executor.ts:41
+        `/** Maximum host-callback invocations allowed per execute() call. */
+         readonly maxToolCalls?: number;`
+      REST: packages/api/src/server/handlers/skills.ts:218 validates it (positive int)
+      MCP:  packages/mcp/src/tools/execute-skill-schema.ts:31 validates it
+      Executor: never references it (see F-arch-1 evidence).
+      A public option that no impl honors is the ISP "consumer forced to depend on a
+      member nobody implements" smell, plus an Inquebrável Rule 3 honesty gap (the API
+      advertises a bound it does not enforce).
+    recommended_action: >
+      Tie to F-arch-1: if the cap is implemented, document the default + enforce it; if
+      deferred per YAGNI, remove the member from the port + both schemas until the Q3
+      host-bridge cycle reintroduces it WITH an impl. Keep the public surface honest.
+  - id: F-arch-3
+    severity: LOW
+    file: packages/mcp/src/tools/execute-skill-schema.ts
+    line: 13
+    plan_ref: T2.4 Files to edit ("packages/mcp/src/tools/constants.ts — EXECUTE_SKILL_NAME")
+    summary: >
+      The plan T2.4 specified the tool-name constant in `constants.ts` (mirroring the
+      existing tool-name constant convention); the implementation instead declares
+      `TOOL_NAME = 'execute_skill'` locally in `execute-skill-schema.ts`. A benign
+      divergence, but it splits the tool-name source-of-truth convention: other tools'
+      names live in `constants.ts` per the plan's stated pattern.
+    evidence: |
+      Plan T2.4 § Files to edit: "packages/mcp/src/tools/constants.ts — EXECUTE_SKILL_NAME".
+      Actual: execute-skill-schema.ts:13 `export const TOOL_NAME = 'execute_skill' as const;`
+      No EXECUTE_SKILL_NAME added to constants.ts.
+    recommended_action: >
+      Acceptable as-is IF the codebase's other skill tools already keep TOOL_NAME in their
+      own schema files (verify add-skill-handler/forget-skill-handler do the same — they
+      appear to). If they centralize in constants.ts, move EXECUTE_SKILL there for
+      consistency. Otherwise note the divergence in the implementation log (cross-val).
+  - id: F-arch-4
+    severity: LOW
+    file: packages/mcp/src/tools/list-handler.ts
+    line: 45
+    plan_ref: architecture.md § 7 (module hygiene — import ordering) — minor
+    summary: >
+      The new `execute-skill-schema` import block is placed AFTER the `forget-skill-schema`
+      block but a `schema-emit` import sits between sibling schema imports, breaking the
+      grouped-alphabetical import ordering the surrounding file otherwise follows. Cosmetic;
+      will trip an import-order lint rule if one is configured.
+    evidence: |
+      list-handler.ts: forget-skill-schema (line ~42) then execute-skill-schema (line ~45)
+      then `import { emitToolSchema } from './schema-emit.js'` — the execute block was
+      appended out of alphabetical order relative to the forget block.
+    recommended_action: >
+      Reorder the execute-skill-schema import above forget-skill-schema (alpha) or let the
+      lint autofix handle it. No behavioral impact.
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 182
+    plan_ref: T1.3 Deep Dives DEC-3 (output-cap deny-only v1; truncated reserved)
+    summary: >
+      `SkillExecutionResult.truncated` is hardcoded `false` and the over-cap path denies
+      rather than soft-truncates. This is a DOCUMENTED divergence (DEC-3 YAGNI: deny-only
+      v1, truncated reserved), correctly matching the plan. No action — flagged only so the
+      reviewer record shows it was checked and is intentional, not an oversight.
+    evidence: |
+      Line 182: `return { output: raw, truncated: false, elapsedMs: ... }`
+      Line 180: over-cap → `#deny('output-cap', ...)` (deny, never soft-truncate)
+      Plan DEC-3: "output-cap = deny-only v1 ... truncated is reserved and returns false in v1".
+    recommended_action: >
+      None. Keep the reserved field documented; revisit if a soft-truncate mode is added.
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 1
+    plan_ref: ADR D1 + architecture.md § 3 (DIP direction) + T1.4 (bundle isolation)
+    summary: >
+      DIP boundary and the optional/lazy addon seam are implemented correctly. Port lives
+      in domain/dip (pure, addon-free); impl in infrastructure/db; the addon is referenced
+      ONLY via `import type` (erased) + lazy `() => import('isolated-vm')`; the bundle-
+      isolation test asserts exactly that on the source text; the constructor `loadIsolatedVm`
+      seam keeps it testable; the e2b/modal opt-in seam is preserved via the port. Clean.
+    evidence: |
+      skill-executor.ts:16 imports only `type { Skill }` — no I/O, no addon.
+      sandboxed-skill-executor.ts:23 `import type { Isolate, ExternalCopy } from 'isolated-vm'`
+      sandboxed-skill-executor.ts:92 `this.#load = deps.loadIsolatedVm ?? (() => import('isolated-vm'))`
+      skill-executor-bundle-isolation.test.ts:32-42 asserts NO static value import + type+dynamic only.
+      boundary check: no domain/*.ts (non-test) imports infrastructure or isolated-vm.
+    recommended_action: >
+      None. This is the architectural strength of the slice; the DIP + Strategy + lazy-load
+      patterns are applied to the canonical UsageCounterStore/recallCache precedent.
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-skill-memory.ts
+    line: 284
+    plan_ref: T2.1 + ADR D3 (gated wiring; STORE-only default; SRP façade)
+    summary: >
+      `LocalScopedSkillMemory.execute()` is a clean thin-façade delegation honoring the
+      opt-in gate (no executor -> SkillExecutionNotConfiguredError), reusing the existing
+      workspace+scope isolation via getAll (no existence leak -> MemoryNotFound), and
+      delegating the security boundary to the injected port (SRP preserved). One minor note
+      (perf, not architecture): execute() resolves the skill via getAll(includeSuperseded)
+      then a linear find — already documented in-code as a future by-id optimization.
+    evidence: |
+      scoped-skill-memory.ts:290 gate; :301 getAll resolve; :308 delegate to skillExecutor.execute.
+      Comment lines 295-300 acknowledge the O(repo-skills) resolution + future by-id read.
+    recommended_action: >
+      None for architecture. The by-id optimization is appropriately deferred and bounded
+      to the (small) repo skill set per the in-code rationale.
+notes:
+  - >
+    Factory wiring (T2.2) flows through config.ts -> local-memory.ts skills() factory
+    (config spread), NOT through createLocalMemory's explicit branches. This is consistent
+    with how tracer/workspaceId/usageCounter thread today (additive, gated, default-off).
+    Architecturally sound; cross-validation should confirm the factory.test covers the
+    opt-in-reaches-execute + default-off paths the plan T2.2 required.
+  - >
+    No SOLID DIP boundary violation found (boundary-check.sh invariant holds). No circular
+    dependency introduced. No `any` in the new public surface. No console.log in new paths.

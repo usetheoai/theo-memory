@@ -1,0 +1,122 @@
+agent: review-agentic-skill-execution-sandbox-wiring
+review_target: aae750f..HEAD for plan agentic-skill-execution-sandbox (M1 slice)
+plan: .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md
+verdict: READY_TO_MERGE
+summary: >
+  The wiring triad is HONEST and DEEP for every new public symbol. The full chain
+  port (SkillExecutor) -> impl (SandboxedSkillExecutor) -> façade (LocalScopedSkillMemory.execute)
+  -> factory (createLocalMemory({ skillExecutor })) -> REST (executeSkillHandler + route)
+  + MCP (execute_skill schema -> handler -> dispatch map -> tools/list) -> GOAL integration
+  test is fully connected. No orphan exports of consequence, no dead branches from the
+  opt-in gating, DIP boundaries respected (domain port imports only Skill type; infra
+  impl never imported by domain). Pillar (c) runtime-metric proof exists: the GOAL test
+  observes both skill_executed and tool_invocation_denied (reason-matched) via a recording
+  tracer; the implement-validate report attests 7/7 GREEN against real ankane/pgvector +
+  real isolated-vm. Two LOW/INFO items only (one dead type export; one DEC-7 doc drift).
+
+triad_revalidation:
+  total_new_symbols: 8
+  symbols_checked:
+    - SkillExecutor (port)
+    - SandboxedSkillExecutor (impl) + SandboxedSkillExecutorDeps
+    - ToolInvocationDeniedError + SkillExecutionNotConfiguredError + SkillExecutorUnavailableError
+    - ToolInvocationDeniedReason (union)
+    - ScopedSkillMemory.execute (façade method)
+    - executeSkillHandler (REST)
+    - execute_skill (MCP tool: TOOL_NAME/INPUT_SCHEMA/handler)
+    - SkillExecutionResult / SkillExecutionOptions (types)
+  pillar_a_honest_pass: 8 / 8       # every symbol has a real, functionally-necessary production caller
+  pillar_b_honest_pass: 8 / 8       # handler tests EXERCISE the symbol (args asserted, error mapping asserted) — not import-only
+  pillar_c_observed: 2 / 2          # skill_executed + tool_invocation_denied observed in the GOAL test recording tracer (attested 7/7 vs real pg+ivm)
+
+chain_connectivity:
+  port_to_impl: CONNECTED            # SandboxedSkillExecutor implements SkillExecutor; impl imports the port type
+  impl_to_facade: CONNECTED          # LocalScopedSkillMemory.deps.skillExecutor.execute(skill,args,opts) (scoped-skill-memory.ts:308)
+  facade_to_factory: CONNECTED       # createLocalMemory threads config.skillExecutor into LocalScopedSkillMemory deps (local-memory.ts:284-286; config.ts:79)
+  factory_to_rest: CONNECTED         # executeSkillHandler -> workspaceBoundMemory(c,memory).skills(repoId).execute (skills.ts:259-267); route registered app.ts:363
+  factory_to_mcp: CONNECTED          # executeSkillHandler -> deps.memoryFactory().skills(repoId).execute (execute-skill-handler.ts:37-44); dispatch map dispatch.ts:36; tools/list list-handler.ts:101-103
+  to_goal_test: CONNECTED            # tests/integration/skill-execution-sandbox.test.ts wires createLocalMemory({skillExecutor:SandboxedSkillExecutor}) -> skills().execute end-to-end
+
+gating_no_dead_branches:
+  ec7_model: register-always + 501/not-configured (confirmed app.ts:362-365 comment + impl)
+  rest_not_configured_branch_live: true     # skills.ts:279-281 mapped to 501; exercised by REST test
+  mcp_not_configured_branch_live: true      # execute-skill-handler.ts:56-58 -> isError result; exercised by MCP test
+  facade_not_configured_branch_live: true   # scoped-skill-memory.ts:290-293 throws SkillExecutionNotConfiguredError; exercised by façade test
+  conclusion: >
+    The opt-in gate (no executor wired -> not-configured) is a LIVE, tested path at all
+    three surfaces (façade, REST, MCP). It does NOT leave dead branches.
+
+dip_boundary:
+  domain_imports_infra: false        # grep: no domain/ import of sandboxed-skill-executor (infra) — CLEAN
+  port_io_free: true                 # skill-executor.ts imports only `import type { Skill }` — no addon, no I/O
+  isolated_vm_lazy: true             # `import type { Isolate, ExternalCopy }` erased; runtime load is `() => import('isolated-vm')` only (constructor seam DEC-6)
+  bundle_isolation_gate: PASS        # skill-executor-bundle-isolation.test.ts green; default barrel addon-free
+
+tests_run_locally:
+  core_executor_facade_bundle: "43 passed (sandboxed-skill-executor + scoped-skill-memory + bundle-isolation)"
+  mcp_rest_handlers: "52 passed (mcp handlers + list-handler + api skills)"
+  goal_integration: "1 skipped (THEOMEM_PG_URI unset — gated per integration-suite convention; attested 7/7 in implement-validate-2026-06-21.md against real pg+ivm)"
+
+findings:
+  - id: F-wire-1
+    severity: LOW
+    file: packages/mcp/src/tools/execute-skill-schema.ts
+    line: 36
+    plan_ref: T2.4 — execute_skill schema
+    summary: >
+      Exported type `ExecuteSkillInput` (z.infer of INPUT_SCHEMA) has ZERO consumers
+      across the repo and is not re-exported via any package barrel — a small dead export.
+    evidence: |
+      grep -rn 'ExecuteSkillInput' packages/ --include='*.ts' returns only its own
+      declaration line. The handler uses INPUT_SCHEMA.parse(args) directly (inferred
+      inline) and never references the named type.
+    recommended_action: >
+      Either drop the `ExecuteSkillInput` export (YAGNI) or consume it as the handler's
+      `args` parameter type. Non-blocking — matches the sibling add-skill-schema export
+      style; flag only so it does not accrete. Not a /code-quality dead_public_export
+      BLOCKER (it is a local-package type, not a public-API surface export).
+
+  - id: F-wire-2
+    severity: INFO
+    file: packages/core/src/domain/errors.ts
+    line: 420
+    plan_ref: DEC-7 — tool-call-cap seam
+    summary: >
+      Doc drift, not a defect. Plan DEC-7 said `tool-call-cap` would be "covered by a
+      DIRECT unit test of the private cap helper to avoid a dead branch." The shipped impl
+      has NO private cap helper and NEVER throws `tool-call-cap`; the literal is a reserved
+      union member exercised only by errors.test.ts:120. This is actually CLEANER than the
+      plan (no unreachable code branch exists), and it is honestly documented in the union
+      JSDoc (errors.ts:409-411) as a reserved Q3 host-bridge seam.
+    evidence: |
+      grep 'tool-call-cap' packages/core/src: only errors.ts (union + JSDoc) +
+      errors.test.ts. No throw site in sandboxed-skill-executor.ts. No #denyToolCallCap
+      helper. maxToolCalls option declared (skill-executor.ts:41) but never read by the impl.
+    recommended_action: >
+      No code change required. Optionally tighten the plan/JSDoc cross-ref so a future
+      reader does not expect a private-helper test. The reserved literal + unread
+      maxToolCalls option are an intentional, documented forward seam (OCP), not dead code.
+
+  - id: F-wire-3
+    severity: INFO
+    file: .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md
+    line: 34
+    plan_ref: T2.2 — factory gated wiring
+    summary: >
+      Documentation-vs-code path drift (non-blocking). The plan's Baseline Context names
+      `packages/core/src/infrastructure/db/factory.ts` as the wiring locus, but the actual
+      createLocalMemory skillExecutor threading lives in `local-memory.ts:284-286` +
+      `config.ts:79`. The wiring is correct and complete — only the plan's file pointer is stale.
+    evidence: |
+      grep skillExecutor packages/core/src/infrastructure/db/factory.ts -> no hits;
+      local-memory.ts:284 spreads `{ skillExecutor: this.config.skillExecutor }` into
+      LocalScopedSkillMemory deps. Chain is fully connected regardless of the doc pointer.
+    recommended_action: >
+      No code change. The reviewer confirms the factory-gated wiring is real and tested
+      (factory default-off + opt-in both asserted). Plan pointer can be corrected on the
+      next plan touch (audit-trail-rotation opportunistic cleanup).
+
+orphan_exports: none_of_consequence  # only F-wire-1 (local type, non-public-surface)
+dead_code_from_gating: none          # all not-configured branches are live + tested
+boundary_violations: none
+race_conditions: none                # each execute() owns its own isolate; isolate.dispose() in finally on every post-isolate path; no cross-call shared state

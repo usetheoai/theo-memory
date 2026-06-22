@@ -1,0 +1,233 @@
+agent: review-agentic-skill-execution-sandbox-domain-security
+review_target: main..HEAD for plan agentic-skill-execution-sandbox
+domain: security
+verdict: NO_BLOCKER  # no real host-escape found; isolate-as-primary-boundary reasoning holds against actual code
+summary: >
+  Dedicated security review of the RCE surface (untrusted agent-authored JS executed in
+  isolated-vm). I audited the executor + the 6 guards + the REST/MCP handlers + the
+  scoped-skill-memory execute() gate + the GOAL/contract tests. The core threat-model
+  reasoning (DEC-2: isolate is the PRIMARY boundary; pre-scan is audit/defense-in-depth)
+  is CORRECT and verified against the actual code: a fresh isolate has no
+  process/require/fs/module bindings; compileScriptSync runs a CLASSIC script (no ESM
+  import resolution); a pre-scan bypass via obfuscation resolves to `undefined` inside the
+  isolate, NOT an escape. Args are injected as structured values; arg KEYS are
+  identifier-validated before being joined into the invocation expression (no source
+  injection). dispose() is in finally on every post-isolate path (no isolate-accumulation
+  DoS). timeout (wall-clock via runSync), memoryLimit (clamped >= 8MB), and output cap are
+  real. Execution is genuinely opt-in (default-off). 404-vs-403 does not leak existence.
+  No host-escape, no prototype-pollution-to-host, no ExternalCopy reference leak found.
+  Findings below are hardening (MEDIUM/LOW/INFO), not blockers.
+
+domain_specific_patterns_checked:
+  - "isolate-as-primary-boundary (DEC-2): no Node bindings reachable by construction"
+  - "source pre-scan is audit/defense-only, bypass yields undefined not escape"
+  - "D4 structured-arg injection: setSync/ExternalCopy, arg-key identifier guard"
+  - "isolate.dispose() in finally on every post-isolate path (no resource leak)"
+  - "DoS guards: wall-clock timeout, memoryLimit clamp, output byte cap"
+  - "ExternalCopy deep-copy membrane (no live host reference shared in/out)"
+  - "classic-script compile (no ESM import resolution inside isolate)"
+  - "execution opt-in / default-off (Princípio: STORE-only default per ADR D3)"
+  - "404 (no existence leak) vs 403 (guard denial) error mapping"
+  - "tool_invocation_denied audit event on every denial (Princípio 3, no silent IGNORE)"
+
+host_escape_assessment:
+  can_untrusted_code_reach_host: false
+  reasoning: |
+    1. `new ivm.Isolate({ memoryLimit })` + `createContextSync()` produce a bare V8
+       context. isolated-vm injects ZERO host globals unless the host calls
+       global.setSync / Reference / Callback. This executor injects ONLY validated arg
+       values (structured copies) — never a function, Reference, or Callback. v1 injects
+       zero host capabilities (the `tool-call-cap` reason is a RESERVED future seam,
+       errors.ts:418-420). So there is no host-callback bridge to abuse.
+    2. `compileScriptSync` compiles a CLASSIC script, not a module — `import(...)` is a
+       SyntaxError-free runtime call ONLY if the isolate has a dynamic-import callback;
+       it does not, so `import('fs')` rejects/throws inside the isolate. `require` is
+       simply undefined inside the isolate.
+    3. The pre-scan (FS_TOKEN_RE / NODE_BINDING_TOKEN_RE) is bypassable by obfuscation
+       (e.g. globalThis['pro'+'cess']). VERIFIED that a bypass is HARMLESS: the
+       obfuscated reference resolves to `undefined` in the isolate (the binding does not
+       exist), so it is a denied-attempt-missed-by-audit, NOT an escape. The primary
+       boundary (no bindings) carries the security guarantee; the pre-scan only improves
+       the audit trail. This matches DEC-2 exactly.
+    4. Result crosses the membrane via `runSync(context, { copy: true })` — a structured
+       copy, never a live host reference. ExternalCopy on the way IN is likewise a copy.
+
+findings:
+  - id: F-sec-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 179
+    plan_ref: DEC-3 output-size cap
+    domain_anchor: "DoS guard — output cap measured AFTER the value is copied into the host"
+    summary: >
+      The output cap is enforced AFTER `runSync({ copy: true })` has already
+      materialized the full return value into HOST memory, and then `outputByteLength`
+      runs `JSON.stringify(raw)` on it a second time. A skill that returns a value just
+      under the isolate's memoryLimit (default 16MB, up to whatever the caller sets)
+      forces a host-side allocation of that copied value PLUS its JSON serialization
+      BEFORE the cap can reject it. The isolate memoryLimit bounds the worst case, but the
+      cap is not a true pre-materialization guard — it is a post-hoc reject. With a large
+      `memoryLimitMb` opt, a single execute() can transiently allocate tens of MB on the
+      host heap regardless of a small `maxOutputBytes`.
+    evidence: |
+      ```ts
+      raw = script.runSync(context, { timeout: timeoutMs, copy: true }); // full copy into host
+      ...
+      const bytes = outputByteLength(raw);                               // JSON.stringify again
+      if (bytes > maxOutputBytes) this.#deny('output-cap', ...);         // reject AFTER alloc
+      ```
+    recommended_action: >
+      Accept as a documented MEDIUM for v1 (memoryLimit bounds the blast radius and the
+      surface is opt-in/gated). For hardening: clamp `memoryLimitMb` to a sane MAX
+      (mirroring the >= 8 MIN clamp) so a caller cannot raise the host-allocation ceiling
+      arbitrarily, and/or measure the in-isolate serialized length via a non-copy
+      `runSync({ copy:false })` + Reference size probe before copying out. Document the
+      relationship maxOutputBytes <= f(memoryLimitMb).
+
+  - id: F-sec-2
+    severity: LOW
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 132
+    plan_ref: EC-5 memory-limit clamp
+    domain_anchor: "DoS guard — memoryLimitMb has a MIN clamp but no MAX clamp"
+    summary: >
+      `memoryLimit = Math.max(MIN_MEMORY_LIMIT_MB, opts.memoryLimitMb ?? DEFAULT)` clamps
+      the floor (>= 8MB) but imposes no ceiling. A caller (REST `opts.memoryLimitMb` /
+      MCP `opts`) can request an arbitrarily large isolate heap. The REST zod schema only
+      enforces `.int().positive()` (handlers/skills.ts:217), so e.g. memoryLimitMb =
+      4_000_000 is accepted and passed straight to the isolate constructor. Combined with
+      F-sec-1, this widens the host-memory blast radius. Per-execute it is bounded by the
+      single isolate, but concurrent executes multiply it.
+    evidence: |
+      ```ts
+      const memoryLimit = Math.max(MIN_MEMORY_LIMIT_MB, opts.memoryLimitMb ?? DEFAULT_MEMORY_LIMIT_MB);
+      // handlers/skills.ts ExecuteSkillSchema:
+      memoryLimitMb: z.number().int().positive().optional(),  // no .max()
+      ```
+    recommended_action: >
+      Add a MAX clamp (e.g. MAX_MEMORY_LIMIT_MB = 256) in the executor AND a `.max(...)`
+      on the REST/MCP zod opt schemas, so an untrusted caller cannot escalate the isolate
+      heap. Same for `timeoutMs` (a 24h timeout pins a worker indefinitely — see F-sec-3).
+
+  - id: F-sec-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 130
+    plan_ref: EC-5 timeout guard
+    domain_anchor: "DoS guard — timeoutMs lower-bounded only; no upper bound"
+    summary: >
+      `timeoutMs` is validated `> 0` but has no upper bound. The REST schema is
+      `z.number().int().positive()` with no `.max()`. A caller can request
+      timeoutMs = 86_400_000 (24h); `runSync` is SYNCHRONOUS and BLOCKS the calling
+      thread (the Node event loop / the Hono request worker) for the full duration. A
+      handful of long-timeout executes can saturate the server's request concurrency
+      (thread/event-loop starvation), a request-amplification DoS distinct from
+      memory/CPU. Note also that runSync executing on the main thread means even a
+      correctly-bounded long timeout blocks all other requests for that interval.
+    evidence: |
+      ```ts
+      const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      if (timeoutMs <= 0) throw new RangeError('timeoutMs must be > 0');   // no max
+      ...
+      raw = script.runSync(context, { timeout: timeoutMs, copy: true });   // BLOCKS the thread
+      ```
+    recommended_action: >
+      Clamp timeoutMs to a MAX (e.g. <= 30_000ms) in the executor + `.max()` on the zod
+      schemas. Longer term, consider `script.run()` (async/Promise form) instead of
+      runSync so a long execution does not block the request worker, OR run executions in
+      a dedicated worker_thread pool with a concurrency cap. Document that synchronous
+      runSync on the request path is an intentional v1 trade-off if kept.
+
+  - id: F-sec-4
+    severity: LOW
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 127
+    plan_ref: DEC-4 arg-key identifier guard
+    domain_anchor: "structured-arg injection — IDENTIFIER_RE admits __proto__/constructor as arg keys"
+    summary: >
+      `IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/` correctly blocks injection-shaped keys
+      (the `a); globalThis.x=1; (` test passes). But it ADMITS `__proto__`,
+      `constructor`, and `prototype` as arg keys, which then flow to
+      `context.global.setSync('__proto__', value)` and into the invocation
+      `fn(__proto__)`. I traced this and it is NOT a host-escape: setSync targets the
+      ISOLATE's global, ExternalCopy deep-copies the value (no host prototype touched),
+      and any prototype mutation stays inside the disposable isolate. So this is contained
+      — but `setSync('__proto__', ...)`/`fn(constructor)` is surprising behavior on an
+      untrusted-input path and worth defense-in-depth.
+    evidence: |
+      ```ts
+      const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;          // matches __proto__, constructor, prototype
+      if (argNames.some((k) => !IDENTIFIER_RE.test(k))) this.#deny('non-cloneable-args', ...);
+      ...
+      context.global.setSync(key, ...);                    // key may be '__proto__'
+      ```
+    recommended_action: >
+      Add a small dangerous-key denylist ({__proto__, constructor, prototype}) to the
+      arg-key guard and deny with 'non-cloneable-args' (or a dedicated reason). Pure
+      defense-in-depth; confirmed isolate-contained today, so LOW.
+
+  - id: F-sec-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 71
+    plan_ref: DEC-2 source pre-scan (audit layer)
+    domain_anchor: "pre-scan is trivially bypassable — confirmed acceptable per threat model"
+    summary: >
+      The pre-scan regexes (FS_TOKEN_RE, NODE_BINDING_TOKEN_RE) are word-boundary string
+      matches and are bypassable by any obfuscation (globalThis['pro'+'cess'],
+      String.fromCharCode, bracket access, computed property). This is EXPECTED and
+      DOCUMENTED (DEC-2: the isolate is the primary boundary; the pre-scan is
+      audit/defense-in-depth). I verified a bypass is harmless (resolves to undefined in
+      the isolate). Flagging only so reviewers do NOT mistake the pre-scan for the
+      security boundary: it improves the `tool_invocation_denied` audit signal but must
+      never be relied on as the control. The JSDoc and threat model already state this
+      correctly.
+    evidence: |
+      ```ts
+      const FS_TOKEN_RE = /\brequire\b|\bimport\s*\(|\bfs\b/;            // bypass: globalThis['fs']
+      const NODE_BINDING_TOKEN_RE = /\bprocess\b|\bchild_process\b|...;  // bypass: globalThis['pro'+'cess']
+      ```
+    recommended_action: >
+      No action required — correctly scoped as audit/defense. Keep the JSDoc honest about
+      its non-authoritative role (it already is). Do NOT escalate the pre-scan into a
+      perceived security control.
+
+  - id: F-sec-6
+    severity: INFO
+    file: packages/api/src/server/handlers/skills.ts
+    line: 274
+    plan_ref: ADR D3 error map (no existence leak)
+    domain_anchor: "403 denial body echoes ToolInvocationDeniedError.message"
+    summary: >
+      The 403 response includes `message: err.message`, which is the executor's denial
+      detail string (e.g. "Skill execution denied (timeout): execution exceeded 1000ms").
+      I confirmed these detail strings are GENERIC (guard-class descriptions), never the
+      skill's source/content or another tenant's data, so there is no sensitive-detail or
+      existence leak. The 404 path (MemoryNotFound) correctly returns the same class for
+      absent / cross-scope / cross-workspace, so existence is not leaked via status-code
+      differential. INFO only: keep denial `detail` strings free of skill content or
+      caller-controlled echo as the guard set grows.
+    evidence: |
+      ```ts
+      if (err instanceof ToolInvocationDeniedError)
+        return c.json({ code:'TOOL_INVOCATION_DENIED', reason: err.reason, message: err.message }, 403);
+      if (err instanceof MemoryNotFound)
+        return c.json({ code:'NOT_FOUND', message: err.message }, 404);   // same class for all 3 leak cases
+      ```
+    recommended_action: >
+      No change required for v1. As a forward guard, keep ToolInvocationDeniedError
+      `detail` strings static (do not interpolate skill code or arg values into them).
+
+confirmed_safe:
+  - "Host escape (Q1): NO bindings in isolate; classic-script compile; pre-scan bypass yields undefined not escape. Verified."
+  - "Arg-key source injection (Q2): identifier guard blocks injection keys; values via setSync/ExternalCopy, never concatenated. Verified by test_invalid_arg_key_denied."
+  - "dispose() guarantee (Q3): finally { isolate?.dispose() } on every post-isolate path; pre-isolate denials create no isolate. Verified by dispose-count tests (0 pre, 1 post)."
+  - "DoS guards exist (Q4): wall-clock timeout via runSync, memoryLimit MIN clamp, output cap. REAL — but see F-sec-1/2/3 for missing MAX clamps (LOW/MEDIUM hardening)."
+  - "Existence leak (Q5): 404 covers absent/cross-scope/cross-workspace uniformly; 403 only for owned-skill guard denials; no skill-content in error bodies. Verified."
+  - "Opt-in (Q6): skillExecutor conditionally spread (local-memory.ts:284); unset => SkillExecutionNotConfiguredError => 501. Default-off confirmed."
+  - "Prototype pollution / ExternalCopy / Symbol (Q7): ExternalCopy deep-copies across membrane; functions/symbols non-cloneable => denied; copy:true result is a copy not a live ref; isolate-internal mutation stays in the disposable isolate. No host pollution path found (see F-sec-4 for __proto__ arg-key defense-in-depth)."
+
+notes_for_human:
+  - "No BLOCKER: I could not construct a host-escape against the actual code. The isolate-as-primary-boundary architecture is sound and the implementation respects it."
+  - "The 3 DoS hardening findings (F-sec-1/2/3) share a root cause: unbounded opt ceilings (memoryLimitMb, timeoutMs) + synchronous runSync on the request thread. Recommend addressing them together: add MAX clamps in the executor AND .max() on the REST/MCP zod opt schemas. Worth considering before this surface is exposed to untrusted multi-tenant callers, but acceptable as documented MEDIUM/LOW for an opt-in v1."
+  - "F-sec-4 (__proto__ as arg key) is contained today; cheap to close with a denylist."

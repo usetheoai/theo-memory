@@ -1,0 +1,113 @@
+agent: review-agentic-skill-execution-sandbox-domain-memory-layer
+review_target: main..HEAD for plan agentic-skill-execution-sandbox
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "RepoScope 4th tier contract (ADR-0010) preserved; 5 existing skill verbs unchanged; execute() purely additive"
+  - "execute() resolves skill via workspace+scope-isolated getAll path (same isolation as forget) — no cross-scope/cross-workspace leak"
+  - "Princípio 3 auditability: success (skill_executed) AND denial (tool_invocation_denied) are observable — IGNORE never silent"
+  - "STORE-only default preserved (ADR-0010 not softened); execution opt-in/gated via SkillExecutorUnavailable/NotConfigured"
+  - "skill read WITH code (code: string | null); derived skills (code=null) → empty-code denial"
+  - "no paper names in src/** execute path (identifiers / error messages / concept descriptors / JSDoc prose)"
+verdict: PASS
+summary: |
+  The skill-execution feature respects all TheMemory memory-layer invariants. The
+  RepoScope 4th-tier contract and the 5 existing skill verbs (add/recall/getAll/
+  consolidate/forget) are unchanged — execute() is a purely additive 6th method on
+  ScopedSkillMemory. Execution is opt-in/gated (STORE-only default preserved per
+  ADR-0010 / ADR D3). Resolution reuses the workspace+scope-isolated getAll path,
+  giving execute() byte-identical isolation to forget(); a non-matching id yields
+  MemoryNotFound (404, no existence leak). Princípio 3 is honored: both the success
+  (skill_executed) and every denial path (tool_invocation_denied with a typed reason
+  literal) emit OTel events — the RCE surface has no silent IGNORE. Skills are read
+  WITH their code; derived skills (code=null) are denied at the cheap pre-isolate
+  guard (empty-code). No paper names appear in the execute path except as allowed
+  @see filesystem-coordinate references. No HIGH or BLOCKER findings.
+findings:
+  - id: F-dom-mem-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-skill-memory.ts
+    line: 301
+    plan_ref: T2.1 — execute() resolves via getAll; ADR D3 execution gated
+    domain_anchor: CLAUDE.md § Princípio 2 (priorização sobre volume) + dashboard gateway-forget O(scope) precedent
+    summary: >
+      execute() resolves the skill by enumerating the repo's skills via
+      getAll({ includeSuperseded: true }) then Array.find on id. This is O(scope)
+      in the repo's skill count. The code comments this honestly ("Bounded by the
+      repo's skill set ... A direct by-id read is a future optimization if a repo's
+      skill count ever grows large"). Correctness/isolation are fine (getAll inherits
+      this.filters → workspace + agent_id isolation, identical to forget); this is a
+      noted-and-disclosed efficiency seam, NOT a defect. Flag for the post-P0 backlog
+      only — no action required this cycle.
+    evidence: |
+      ```ts
+      // execute() — scoped-skill-memory.ts
+      const skills = await this.getAll({ includeSuperseded: true });
+      const skill = skills.find((s) => s.id === skillId);
+      if (skill === undefined) {
+        throw new MemoryNotFound(
+          `skillId ${skillId} not found in repo '${this.scope.repoId}' (absent, cross-scope, or cross-workspace)`,
+        );
+      }
+      return this.deps.skillExecutor.execute(skill, args, opts);
+      ```
+    recommended_action: >
+      No change required. If a future repo accumulates a large skill set, add a
+      by-id read primitive (mirroring the gateway-forget O(scope) precedent) so
+      execute() does not page the whole scope. Track as a post-P0 followup.
+
+invariant_checklist:
+  - invariant: "4th-tier RepoScope (Memory.skills(repoId)) contract preserved"
+    status: PASS
+    note: >
+      LocalScopedSkillMemory still constructs scope = { kind: 'repo', repoId } and
+      maps it to agent_id at the store layer per EC-4 (unchanged). execute() does
+      not alter the scope model.
+  - invariant: "5 existing skill verbs (add/recall/getAll/consolidate/forget) UNCHANGED"
+    status: PASS
+    note: >
+      git diff main..HEAD shows the 5 verb signatures byte-identical (no `-`
+      deletions of verb lines). execute() is the only genuinely new method on the
+      ScopedSkillMemory interface — purely additive.
+  - invariant: "execute() isolation == forget() isolation (no cross-scope/cross-workspace leak)"
+    status: PASS
+    note: >
+      execute() resolves via this.getAll(...) which spreads this.filters
+      ({ agent_id: repoId, workspace_id }) into the list query — the SAME composed
+      filter forget()'s ownership guard uses. A cross-scope / cross-workspace /
+      absent id falls out as `skill === undefined` → MemoryNotFound (404, no
+      existence leak), matching forget()'s 404-not-403 no-leak discipline.
+  - invariant: "Princípio 3 — execution decision observable (success + denial), never silent"
+    status: PASS
+    note: >
+      SandboxedSkillExecutor.#deny emits 'tool_invocation_denied' { reason } for
+      every guard path (10 typed reason literals) before throwing
+      ToolInvocationDeniedError; the success path emits 'skill_executed' { skill_id }.
+      Both literals added to MEMORY_EVENTS (now 26). The deny/exec ratio is
+      dashboard-able. No IGNORE on the RCE surface is silent.
+  - invariant: "STORE-only default preserved (ADR-0010 not softened); execution opt-in/gated"
+    status: PASS
+    note: >
+      When deps.skillExecutor is undefined, execute() throws
+      SkillExecutionNotConfiguredError (→ 501) — STORE-only stays the default. A
+      consumer must explicitly wire createLocalMemory({ skillExecutor }). The
+      isolated-vm addon is lazy/optional (SkillExecutorUnavailableError → 503 when
+      absent), keeping the default barrel addon-free.
+  - invariant: "skill read WITH code (code: string | null); derived skills (code=null) → denial"
+    status: PASS
+    note: >
+      Skill.code is `string | null` (null on consolidate()-derived skills). execute()
+      passes the resolved Skill (with code) to the executor; SandboxedSkillExecutor
+      denies skill.code === null at the cheap pre-isolate guard with
+      reason='empty-code' (no isolate created). Honest behavior — a derived skill
+      carries no executable payload and is correctly non-executable.
+  - invariant: "no paper names in src/** (execute path: identifiers / errors / JSDoc concept prose)"
+    status: PASS
+    note: >
+      grep over the execute-path files surfaces paper-name tokens ONLY inside @see
+      filesystem-coordinate references (e.g. `voyager-skill-library-plan.md`,
+      `agentic-skill-execution-sandbox-blueprint.md`) — explicitly ALLOWED by
+      no-paper-names-in-code.md ("File paths in @see references ... are filesystem
+      coordinates, not concept names — they are OK and encouraged"). No paper name
+      appears as an identifier, runtime error message, enum/string-literal, or
+      concept descriptor. Neutral wording is used throughout ("sandbox", "isolate",
+      "code-as-skill payload", "4-phase consolidation").

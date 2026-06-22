@@ -1,0 +1,229 @@
+agent: review-agentic-skill-execution-sandbox-domain-concurrency
+review_target: main..HEAD for plan agentic-skill-execution-sandbox
+domain: concurrency
+domain_specific_patterns_checked:
+  - "per-execute isolate ownership (no shared state across concurrent calls)"
+  - "dispose() in finally guaranteed on EVERY path (success/timeout/denial/throw)"
+  - "synchronous isolated-vm API blocking the Node event loop under timeout window"
+  - "runSync timeout = real in-isolate wall-clock cancellation + heap reclaim on dispose"
+  - "dispose-counting Proxy as a faithful concurrency assertion"
+  - "unbounded per-call timeout amplifying the sync-blocking hazard on a server surface"
+
+verdict_summary: >
+  The isolate-ownership and dispose-lifecycle design is CORRECT and well-tested:
+  each execute() constructs its own isolate, no module-level mutable state is shared
+  across concurrent calls, and isolate?.dispose() in a finally covers every exit path
+  (success, every post-isolate denial, timeout, and unexpected throw). The
+  dispose-asymmetry (pre-isolate denials do NOT dispose; post-isolate denials DO) is
+  real and the Proxy-based test faithfully asserts it. The one genuine concurrency
+  hazard is the DEC-1 synchronous isolated-vm API (runSync) blocking the single Node
+  event loop for the full timeout window — under-named in the plan and amplified by an
+  unbounded per-call timeoutMs on the REST/MCP server surfaces.
+
+findings:
+  - id: F-dom-conc-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 169
+    plan_ref: "DEC-1 sync isolated-vm API (plan § Deep Dives, line 297)"
+    domain_anchor: "Inquebrável § Error Handling / KISS tension; Node single-threaded event-loop model"
+    summary: >
+      runSync(context, { timeout: timeoutMs, copy: true }) executes untrusted skill
+      code SYNCHRONOUSLY on the main Node thread. isolated-vm's *Sync methods run the
+      script to completion (or timeout) WITHOUT yielding the event loop. A skill that
+      spins for its full timeout window (default 1000ms, but see F-dom-conc-2 — caller
+      can request far more) blocks EVERY other concurrent operation on that process for
+      the entire window. Because execute() is exposed over a Hono REST endpoint
+      (POST /v1/scopes/skill/:repoId/skills/:skillId/execute, app.ts:363) and an MCP
+      tool (dispatch.ts:36), this is a server surface: one slow/adversarial skill stalls
+      ALL in-flight HTTP/MCP requests on the same instance (head-of-line blocking /
+      single-skill DoS), not just the calling request.
+    evidence: |
+      ```ts
+      // sandboxed-skill-executor.ts:166-169 — sync compile + sync run on the main thread
+      const script = isolate.compileScriptSync(wrapInvocation(code, argNames, fnName));
+      let raw: unknown;
+      try {
+        raw = script.runSync(context, { timeout: timeoutMs, copy: true });  // <-- blocks the event loop for up to timeoutMs
+      ```
+      The DEC-1 rationale ("v1 is pure-compute, no host bridge -> no async benefit")
+      weighed only the CPU/throughput angle. It did NOT name the cost that matters for
+      concurrency: the async variant (script.run(...) -> Promise) lets isolated-vm run
+      the script on a SEPARATE V8 thread, so the Node event loop stays responsive while
+      the isolate computes. The sync API trades that responsiveness away. For an
+      in-process library call this is acceptable; for a per-request server handler it is
+      a real availability hazard.
+    honest_severity_rationale: >
+      Rated HIGH (not BLOCKER) because: (a) the executor is OPT-IN — absent a wired
+      SkillExecutor the endpoint returns 501, so default deployments are unaffected;
+      (b) the wall-clock timeout still bounds the stall to a finite window; (c) this is a
+      known/acceptable tradeoff for the LIBRARY use case. It is NOT LOW/INFO because the
+      same code path is wired into a multi-tenant server surface where one tenant's skill
+      degrades availability for all tenants on the instance — a cross-request blast radius
+      that no per-call guard mitigates. The plan consciously chose sync but did not
+      disclose this server-surface consequence; flag both per anti-pattern #5.
+    recommended_action: >
+      Do NOT silently accept. Either (1) document the tradeoff explicitly in the plan +
+      JSDoc + README as "skill execution is synchronous and blocks the event loop for up
+      to timeoutMs; run the execute surface on a dedicated process/instance or behind a
+      worker pool for multi-tenant serving", OR (2) switch the run to the async
+      script.run({ promise:false, copy:true }) form (off-main-thread) for the wired-server
+      path while keeping sync for the embedded path, OR (3) offload execute() to a
+      worker_threads/piscina pool in the API layer. Minimum acceptable for v1: an explicit
+      ADR/JSDoc disclosure (option 1) — the hazard must be auditable per Princípio 3, not
+      buried under "no async benefit".
+
+  - id: F-dom-conc-2
+    severity: HIGH
+    file: packages/api/src/server/handlers/skills.ts
+    line: 215
+    plan_ref: "DEC-1 (sync run) + EC-5 (opts bounds: only timeoutMs<=0 rejected)"
+    domain_anchor: "DOS guard discipline (cf. REST 1MB body-limit precedent, Item 16)"
+    summary: >
+      The REST ExecuteSkillSchema validates timeoutMs as z.number().int().positive()
+      with NO upper bound; the SDK opts and the executor likewise only reject <= 0
+      (sandboxed-skill-executor.ts:131). A client can therefore request
+      timeoutMs: 600000 and, combined with F-dom-conc-1's sync runSync, block the server
+      event loop for up to 10 minutes per call. This turns the event-loop-blocking
+      property into an unbounded, client-controlled availability lever.
+    evidence: |
+      ```ts
+      // handlers/skills.ts:213-218 — no max on timeoutMs
+      opts: z.object({
+        timeoutMs: z.number().int().positive().optional(),   // <-- no .max(...)
+        memoryLimitMb: z.number().int().positive().optional(),
+        maxOutputBytes: z.number().int().positive().optional(),
+        ...
+      ```
+      ```ts
+      // sandboxed-skill-executor.ts:130-131 — lower-bound only
+      const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      if (timeoutMs <= 0) throw new RangeError('timeoutMs must be > 0');
+      ```
+    honest_severity_rationale: >
+      HIGH and tightly coupled to F-dom-conc-1: on the embedded/library path an unbounded
+      timeout is a caller-owns-its-own-foot situation (LOW). On the server path it is a
+      remote, client-chosen blocking window stacked on top of the sync hazard — the
+      amplifier that pushes F-dom-conc-1 from "bounded 1s stall" to "10-minute stall".
+    recommended_action: >
+      Add an upper bound (e.g. timeoutMs .max(5000) in the REST schema + a clamp/ceiling
+      constant in the executor mirroring MIN_MEMORY_LIMIT_MB). Pair with F-dom-conc-1's
+      disclosure/offload. If left as-is for v1, document it as a known limitation in the
+      same ADR.
+
+  - id: F-dom-conc-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 183
+    plan_ref: "Pre/Post-isolate dispose asymmetry (plan § DEC, line 302); EC-5/timeout guard #5"
+    domain_anchor: "RAII / finally-guaranteed cleanup; no isolate leak on any path"
+    summary: >
+      POSITIVE finding (verification, not a defect). The dispose lifecycle is correct.
+      isolate is declared before the try; isolate?.dispose() lives in the finally, so the
+      V8 isolate is reclaimed on EVERY post-creation path: success (return), timeout deny,
+      non-cloneable-args deny (ExternalCopy throw mapped to #deny), non-cloneable-result
+      deny, output-cap deny, AND any unexpected throw (#deny throws; finally still runs).
+      Pre-isolate denials (empty-code, unsupported-language, unsupported-async,
+      node/fs-binding, invalid-arg-key, timeout<=0) return/throw BEFORE the isolate is
+      constructed, so there is nothing to dispose — the optional-chaining isolate?. makes
+      that safe. No path leaks an isolate. Concurrent execute() calls share no
+      module-level mutable state (the only fields are #tracer and #load, both readonly and
+      set at construction), so isolates from parallel calls cannot interfere.
+    evidence: |
+      ```ts
+      let isolate: Isolate | undefined;
+      try {
+        isolate = new ivm.Isolate({ memoryLimit });
+        ... // every #deny here THROWS -> finally runs
+        return { output: raw, truncated: false, elapsedMs: performance.now() - start };
+      } finally {
+        isolate?.dispose();   // guaranteed on success, deny-throw, and timeout-throw
+      }
+      ```
+    recommended_action: >
+      None. Keep as-is. (Documented here so the reviewer record affirms the no-leak
+      invariant was actively checked, not assumed.)
+
+  - id: F-dom-conc-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.test.ts
+    line: 63
+    plan_ref: "DEC-6 loader seam as the dispose-count test hook; dispose-asymmetry tests"
+    domain_anchor: "faithful concurrency/lifecycle assertion (test fidelity)"
+    summary: >
+      The dispose-counting Proxy is a FAITHFUL assertion of the lifecycle invariant. The
+      comment correctly explains why a plain vi.spyOn cannot wrap isolated-vm's native
+      non-configurable dispose, and the Proxy delegates every non-dispose member to the
+      REAL isolate (native methods .bind(target)) so compileScriptSync/createContextSync/
+      runSync still hit real V8 — the test runs against REAL isolated-vm, not a mock. The
+      count() asserts exactly the pre/post dispose asymmetry (0 for pre-isolate denials,
+      1 for benign + every post-isolate denial incl. timeout). One honest gap, not a
+      defect: there is NO test that drives TWO concurrent execute() calls to prove
+      isolate isolation / dispose-count == N under parallelism. The current tests are
+      sequential; the "no cross-call shared state" claim (plan lines 370-371, 707-708) is
+      argued structurally (no shared mutable state) rather than demonstrated by a parallel
+      test. Given the structural argument is sound (readonly fields only), this is
+      acceptable for v1 but worth a follow-up test.
+    evidence: |
+      ```ts
+      // test l.70-83 — Proxy counts dispose, delegates the rest to the real isolate
+      return new Proxy(iso, {
+        get(target, prop, receiver): unknown {
+          if (prop === 'dispose') {
+            return () => { disposed += 1; target.dispose(); };
+          }
+          const value = Reflect.get(target, prop, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      ```
+      No test of the form: await Promise.all([exec.execute(...), exec.execute(...)])
+      asserting t.count() === 2 and both outputs correct (true concurrency proof).
+    recommended_action: >
+      Optional follow-up: add one Promise.all parallel-execute test asserting each call
+      gets its own isolate (dispose count == N) and outputs don't bleed across calls.
+      Closes the gap between the structural "no shared state" claim and an empirical
+      concurrency assertion. Not a blocker — the structural argument holds.
+
+  - id: F-dom-conc-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.ts
+    line: 172
+    plan_ref: "guard #5 timeout (plan line 317); Letta local_sandbox.py:183-205 terminate->kill re-expressed"
+    domain_anchor: "real wall-clock cancellation + heap reclaim"
+    summary: >
+      Cancellation is REAL (verification). isolated-vm's runSync({ timeout }) enforces an
+      in-isolate wall-clock budget at the V8 level — it does not rely on cooperative
+      yielding, so even a tight `while(true){}` is aborted (test
+      test_infinite_loop_denied_timeout_and_disposed asserts exactly this with timeout
+      50ms). On timeout, runSync throws ("... timed out"), the catch maps it to
+      #deny('timeout'), and the finally disposes the isolate — which reclaims the V8 heap
+      the runaway allocated. The cancellation+reclaim chain is sound.
+    evidence: |
+      ```ts
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        if (/timed out/i.test(message)) this.#deny('timeout', `execution exceeded ${timeoutMs}ms`);
+        ...
+      } finally {
+        isolate?.dispose();   // reclaims the heap of the timed-out isolate
+      }
+      ```
+      Caveat (already captured by F-dom-conc-1): the cancellation is real, but because it
+      is the SYNC variant, the wall-clock budget is consumed on the main thread — the
+      event loop is blocked until the timeout fires, then dispose reclaims. Real
+      cancellation does not undo the event-loop-blocking property.
+    recommended_action: >
+      None for correctness. The blocking-during-the-timeout aspect is tracked under
+      F-dom-conc-1.
+
+notes:
+  - "Plan honesty: DEC-1 (line 297) DID consciously choose the sync API, and the plan's
+     own Concurrency-tests sections (lines 370-371, 707-708) correctly state 'each execute
+     owns its own isolate so there is no cross-call shared state to race'. That claim is
+     accurate. What the plan did NOT disclose is the event-loop-blocking consequence of
+     the sync choice on the wired server surface — F-dom-conc-1 + F-dom-conc-2 flag that
+     gap at HIGH per review anti-pattern #5 (do not dismiss a finding because the plan is
+     the contract; the plan can have a domain blind spot)."
+  - "No cross-call isolate leak or interference found. The dispose lifecycle is the
+     strongest part of this implementation."
