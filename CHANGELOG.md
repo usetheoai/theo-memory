@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
-- Docker image build from HEAD broke since M1 (v0.13.0): the `builder` + `production-deps` stages (slim base) lacked node-gyp's toolchain, so the OPTIONAL native dep `isolated-vm` (added by M1 skill execution) failed to install and `pnpm build` aborted with `Cannot find module 'isolated-vm'`. Added `python3`/`make`/`g++` to both stages so `isolated-vm` + `onnxruntime-node` compile; the `.node` binaries flow to the distroless runtime. (surfaced by the M2 Theo-Cloud live-test)
+- `isolated-vm` pinned `^7.0.0` → `^6.1.2` (M1 dependency-compatibility bug): `isolated-vm@7` declares `engines: node>=26`, but the project's runtime is **Node 22** (Docker base + `distroless/nodejs22`). pnpm correctly OMITS the optional dep on Node 22 (unmet engines), so the image could not build from HEAD AND M1 skill-execution could never run on the Node 22 distroless runtime. `isolated-vm@6.1.2` declares `node>=22` (compatible) and is API-identical for the surface M1 uses (`Isolate`/`createContext`/`compileScript`/`run`/`ExternalCopy`/`dispose`); M1 GOAL test 8/8 + M2 9/9 green on it. (surfaced by the M2 Theo-Cloud live-test)
+- Docker image build from HEAD broke since M1 (v0.13.0): the `builder` + `production-deps` stages (slim base) lacked node-gyp's toolchain for the native `isolated-vm`/`onnxruntime-node` builds. Added `python3`/`make`/`g++` to both stages so the `.node` binaries compile and flow to the distroless runtime. (surfaced by the M2 Theo-Cloud live-test)
 
 ### Security
 
