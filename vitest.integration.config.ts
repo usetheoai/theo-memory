@@ -47,6 +47,7 @@ export default defineConfig({
       '@usetheo/memory/llms/openai': new URL('./packages/core/src/infrastructure/llms/openai.ts', import.meta.url).pathname,
       '@usetheo/memory/llms': new URL('./packages/core/src/infrastructure/llms/index.ts', import.meta.url).pathname,
       '@usetheo/memory/cache-pg': new URL('./packages/core/src/infrastructure/db/recall-cache/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/reranker-local': new URL('./packages/core/src/infrastructure/rerankers/index.ts', import.meta.url).pathname,
       '@usetheo/memory': new URL('./packages/core/src/index.ts', import.meta.url).pathname,
     },
   },
