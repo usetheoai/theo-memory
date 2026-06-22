@@ -71,6 +71,41 @@ function payloadToScore(payload: Payload, fallback: number): number {
 }
 
 /**
+ * Step 8.5a — cross-encoder rerank stage (ADR D3 + D4). Extracted from
+ * `runRetrievalPipeline` for cohesion (review F-arch-2 / plan T2.2 REFACTOR).
+ * Reranks the cosine-sorted top `pool` (default topK*4, bounded), truncates to
+ * topK. Fail-soft (ADR D4): on inference failure, emit `recall_rerank_failed`
+ * and degrade to the original cosine order — a reranker outage MUST NEVER take
+ * down recall.
+ */
+async function applyRerankStage(
+  query: string,
+  scored: readonly { id: string; payload: Payload; score: number }[],
+  reranker: Reranker,
+  rerankOpts: { readonly topK?: number; readonly pool?: number },
+  topK: number,
+  rowToItem: (row: { id: string; payload: Payload; score: number }) => MemoryItemWithScore,
+  tracer: Tracer | undefined,
+): Promise<readonly MemoryItemWithScore[]> {
+  const rerankTopK = rerankOpts.topK ?? topK;
+  const pool = rerankOpts.pool ?? topK * 4;
+  const poolItems = scored.slice(0, pool).map(rowToItem);
+  try {
+    const reranked = await reranker.rerank(query, poolItems, rerankTopK);
+    emitEvent(tracer, 'extraction_completed', { results: reranked.length });
+    return reranked;
+  } catch (err) {
+    // ADR D4 fail-soft — observable degradation, then cosine fallback.
+    emitEvent(tracer, 'recall_rerank_failed', {
+      error: err instanceof Error ? err.name : 'unknown',
+    });
+    const fallback = scored.slice(0, rerankTopK).map(rowToItem);
+    emitEvent(tracer, 'extraction_completed', { results: fallback.length });
+    return fallback;
+  }
+}
+
+/**
  * 9-step search. Returns the top-K MemoryItemWithScore array sorted by combined score desc.
  */
 export async function runRetrievalPipeline(
@@ -222,29 +257,11 @@ export async function runRetrievalPipeline(
   }
 
   // Step 8.5a — cross-encoder rerank (ADR D3). Opt-in via options.rerank AND a
-  // wired deps.reranker. Reranks the cosine-sorted top `pool` (default topK*4,
-  // bounded), truncates to topK. Fail-soft (ADR D4): on inference failure,
-  // degrade to the original cosine order — a reranker outage MUST NEVER take
-  // down recall. When options.rerank is set but no reranker is wired, the
-  // rerank is a no-op (results pass through cosine-sorted).
+  // wired deps.reranker. When options.rerank is set but no reranker is wired,
+  // the rerank is a no-op (results fall through cosine-sorted). Logic extracted
+  // to applyRerankStage for cohesion (review F-arch-2 / plan T2.2 REFACTOR).
   if (options?.rerank !== undefined && deps.reranker !== undefined) {
-    const reranker = deps.reranker;
-    const rerankTopK = options.rerank.topK ?? topK;
-    const pool = options.rerank.pool ?? topK * 4;
-    const poolItems = scored.slice(0, pool).map(rowToItem);
-    try {
-      const reranked = await reranker.rerank(query, poolItems, rerankTopK);
-      emitEvent(tracer, 'extraction_completed', { results: reranked.length });
-      return reranked;
-    } catch (err) {
-      // ADR D4 fail-soft — observable degradation, then cosine fallback.
-      emitEvent(tracer, 'recall_rerank_failed', {
-        error: err instanceof Error ? err.name : 'unknown',
-      });
-      const fallback = scored.slice(0, rerankTopK).map(rowToItem);
-      emitEvent(tracer, 'extraction_completed', { results: fallback.length });
-      return fallback;
-    }
+    return applyRerankStage(query, scored, deps.reranker, options.rerank, topK, rowToItem, tracer);
   }
 
   let top: readonly { id: string; payload: Payload; score: number }[];
