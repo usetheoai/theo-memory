@@ -48,4 +48,12 @@ describe('GoogleEmbedder', () => {
     const e = new GoogleEmbedder({ apiKey: 'k', fetchImpl: stubFetch({ embeddings: [{}] }) });
     await expect(e.embed('x')).rejects.toBeInstanceOf(EmbedderError);
   });
+
+  test('fail-fast: missing API key throws EmbedderError at construction', () => {
+    vi.stubEnv('GOOGLE_API_KEY', '');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    expect(() => new GoogleEmbedder({})).toThrow(EmbedderError);
+    expect(() => new GoogleEmbedder({})).toThrow(/api key/i);
+    vi.unstubAllEnvs();
+  });
 });

@@ -40,7 +40,10 @@ export interface EmbedderSpec {
 function isModuleNotFound(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
   const code = (err as { code?: unknown }).code;
+  // Primary, robust signal: the standard Node error code (ESM + CJS).
   if (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') return true;
+  // Secondary fallback (permissive by design): some bundlers/loaders drop the
+  // code and only carry the message. Narrow enough not to catch generic errors.
   const message = (err as { message?: unknown }).message;
   return typeof message === 'string' && /cannot find (module|package)/i.test(message);
 }
@@ -49,6 +52,10 @@ function isModuleNotFound(err: unknown): boolean {
  * Provider → lazy loader. Each entry dynamically imports its adapter module so
  * the registry's static graph stays free of SDK deps. The SDK-backed loaders
  * (`openai`/`local`) translate a module-not-found into an install-hint error.
+ *
+ * Exported (read-only) so advanced consumers can ENUMERATE the available
+ * provider keys (`Object.keys(EMBEDDER_REGISTRY)`); `createEmbedder` is the
+ * intended construction entry point.
  */
 export const EMBEDDER_REGISTRY: Readonly<
   Record<EmbedderProvider, (spec: EmbedderSpec) => Promise<Embedder>>
