@@ -18,6 +18,7 @@ import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
 } from '../../domain/dip/recall-cache-store.js';
+import type { Reranker } from '../../domain/dip/reranker.js';
 import type { SkillExecutor } from '../../domain/dip/skill-executor.js';
 import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
 import type { MemoryConfig } from '../../domain/memory-store.js';
@@ -119,6 +120,22 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * @see src/core/dip/recall-cache-store.ts (13th DIP)
    */
   readonly recallCache?: RecallCacheStoreConfig | RecallCacheStore;
+  /**
+   * cross-encoder-reranker T4.1 — opt-in `Reranker` enabling a post-threshold
+   * cross-encoder rerank stage. When present AND a recall sets `options.rerank`,
+   * the threshold-passing pool is reranked before topK truncation (ADR D3).
+   * Absent ⇒ `options.rerank` is a no-op (results pass through cosine-sorted).
+   * The default impl is `CrossEncoderReranker` (`@usetheo/memory/reranker-local`,
+   * @xenova — optional addon); a consumer enables reranking by passing one.
+   *
+   * Setting `options.rerank` BYPASSES the recall cache (ADR D6) — the v1.5
+   * cache key does not include rerank, so a reranked request runs the full
+   * pipeline (no get, no set).
+   *
+   * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § T4.1 + ADR D3 + D6
+   * @see src/domain/dip/reranker.ts
+   */
+  readonly reranker?: Reranker;
 }
 
 /**

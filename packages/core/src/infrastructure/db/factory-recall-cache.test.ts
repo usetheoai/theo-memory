@@ -14,6 +14,7 @@ import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
 import type { Embedder } from '../../domain/dip/embedder.js';
 import type { LLM } from '../../domain/dip/llm.js';
 import type { CachedResult, RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
+import type { Reranker } from '../../domain/dip/reranker.js';
 import { InvalidCacheConfig } from '../../domain/errors.js';
 import type { MemoryItemWithScore } from '../../domain/memory-item.js';
 import type { Scope } from '../../domain/scope.js';
@@ -276,5 +277,40 @@ describe('T2.2 — write-trigger cache invalidation hooks', () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+describe('cross-encoder-reranker T4.1 — createLocalMemory({ reranker }) wiring + cache bypass', () => {
+  const makeSpyReranker = (): Reranker & { rerank: ReturnType<typeof vi.fn> } => ({
+    // Reorders by reversing (deterministic) + truncates to topK. Spy-able.
+    rerank: vi.fn(
+      async (_query: string, candidates: readonly MemoryItemWithScore[], topK: number) =>
+        [...candidates].reverse().slice(0, topK),
+    ),
+  });
+
+  test('reranker is threaded to the pipeline and invoked when options.rerank is set', async () => {
+    const reranker = makeSpyReranker();
+    const memory = await createLocalMemory({ ...baseConfig(), reranker });
+    await memory.user('alice').remember('I love coffee');
+    await memory.user('alice').recall('coffee', { rerank: {} });
+    expect(reranker.rerank).toHaveBeenCalledTimes(1);
+  });
+
+  test('reranker is NOT invoked when options.rerank is absent (default path unchanged)', async () => {
+    const reranker = makeSpyReranker();
+    const memory = await createLocalMemory({ ...baseConfig(), reranker });
+    await memory.user('alice').remember('I love coffee');
+    await memory.user('alice').recall('coffee'); // no rerank option
+    expect(reranker.rerank).not.toHaveBeenCalled();
+  });
+
+  test('recall({ rerank }) BYPASSES the cache (ADR D6 — no get, no set)', async () => {
+    const cache = makeFakeCache();
+    const reranker = makeSpyReranker();
+    const memory = await createLocalMemory({ ...baseConfig(cache), reranker });
+    await memory.user('alice').recall('coffee', { rerank: {} });
+    expect(cache.getCalls).toHaveLength(0);
+    expect(cache.setCalls).toHaveLength(0);
   });
 });

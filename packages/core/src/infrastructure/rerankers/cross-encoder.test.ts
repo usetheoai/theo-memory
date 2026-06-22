@@ -15,7 +15,7 @@ import type { Scope } from '../../domain/scope.js';
 // The model returns a logit per pair = the LENGTH of the doc text, so a longer
 // doc scores higher after sigmoid (deterministic, model-free). The tokenizer
 // records the (query, doc) pairs it was asked to encode.
-const tokenizerCalls: Array<{ queries: string[]; docs: string[] }> = [];
+const tokenizerCalls: { queries: string[]; docs: string[] }[] = [];
 const tokenizerLoad = vi.fn();
 const modelLoad = vi.fn();
 
