@@ -53,6 +53,7 @@ const SOURCE_PATH_MAP: Record<string, string[]> = {
   'agent-tools/index.ts': ['packages', 'cli', 'src', 'index.ts'],
   'local/recall-cache/index.ts': ['packages', 'core', 'src', 'infrastructure', 'db', 'recall-cache', 'index.ts'],
   'rerankers/index.ts': ['packages', 'core', 'src', 'infrastructure', 'rerankers', 'index.ts'],
+  'adaptive/index.ts': ['packages', 'core', 'src', 'infrastructure', 'adaptive', 'index.ts'],
   'embedders/index.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'index.ts'],
   'embedders/local.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'local.ts'],
   'embedders/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'openai.ts'],
@@ -100,11 +101,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
       expect(lines.length).toBe(15);
     });
 
-    test('2. src/core/index.ts declares 54 export statements (+ M2 episodes + reranker DIP + ontology)', () => {
+    test('2. src/core/index.ts declares 55 export statements (+ M2 episodes + reranker DIP + ontology + adaptive DIP)', () => {
       // 54 = 52 (47 baseline + 4 episodes + 1 reranker) + 2 ontology exports
       // (Ontology/OntologyName type + BUILTIN_ONTOLOGIES/resolveOntology value; Item 15).
       const lines = contractContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(54);
+      expect(lines.length).toBe(55);
     });
 
     test('3. src/index.ts contains zero `any` occurrences (public-surface floor)', () => {
@@ -171,6 +172,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     test.skipIf(!XENOVA_OK)('17. `./reranker-local` smoke-imports (xenova installed)', async () => {
       const mod = await importFromSource('rerankers/index.ts');
       expect(typeof mod['CrossEncoderReranker']).toBe('function');
+    });
+
+    test('17e. `./adaptive-local` smoke-imports (key-free, no SDK)', async () => {
+      const mod = await importFromSource('adaptive/index.ts');
+      expect(typeof mod['HeuristicAdaptiveRetrievalPolicy']).toBe('function');
     });
 
     test('14. `./embedders/stub` smoke-imports', async () => {

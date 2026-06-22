@@ -1,0 +1,29 @@
+{
+  "verdict": "PASS",
+  "score_cap": 100,
+  "hard_caps_triggered": [],
+  "soft_caps_triggered": [],
+  "findings_by_detector": {},
+  "severity_counts": {
+    "HARD": 0,
+    "SOFT_CAP": 0,
+    "SOFT_FLOOR": 0,
+    "INFO": 0
+  },
+  "languages_audited": [
+    "typescript"
+  ],
+  "schema_version": "0.1.0",
+  "languages_skipped": [
+    "python",
+    "rust",
+    "go"
+  ],
+  "skip_reasons": {
+    "python": "manifest 'pyproject.toml' not found",
+    "rust": "manifest 'Cargo.toml' not found",
+    "go": "manifest 'go.mod' not found"
+  },
+  "mode": "plan-bound",
+  "plan_path": ".claude/knowledge-base/plans/adaptive-retrieval-plan.md"
+}

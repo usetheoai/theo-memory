@@ -193,6 +193,30 @@ export interface RecallOptions {
     readonly topK?: number;
     readonly pool?: number;
   };
+
+  /**
+   * adaptive-retrieval (Roadmap Item 13) — Princípio 2 (priorização > volume) +
+   * Self-RAG/CRAG decision hooks. Tunes the adaptive policy wired via
+   * `createLocalMemory({ retrievalPolicy })`:
+   *
+   *   - `correctiveFloor`: the top-score threshold below which the CRAG `assess`
+   *     hook recommends a corrective relax (heuristic default impl).
+   *   - `relaxedThreshold`: the lower threshold the corrective re-filters the
+   *     already-fetched pool at. The pipeline applies it ONLY when
+   *     `0 <= relaxedThreshold < threshold` (EC-1); otherwise it is a no-op accept.
+   *
+   * DEFAULT OFF: the adaptive path runs ONLY when a `retrievalPolicy` is wired
+   * in config. Setting `adaptive` WITHOUT a wired policy is a no-op (EC-3) —
+   * byte-identical to a plain `recall()`. No behavior change for existing callers
+   * (opt-in per ADR D4).
+   *
+   * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D2 + D3 + D4
+   * @see CLAUDE.md § IMPORTANTE Princípio 2 + Princípio 3
+   */
+  readonly adaptive?: {
+    readonly correctiveFloor?: number;
+    readonly relaxedThreshold?: number;
+  };
 }
 
 export interface ForgetOptions {
