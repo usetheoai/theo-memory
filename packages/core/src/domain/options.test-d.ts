@@ -23,6 +23,12 @@ describe('option types — fields are readonly + optional + primitive', () => {
     expectTypeOf<RecallOptions['asOf']>().toEqualTypeOf<Date | undefined>();
   });
 
+  test('RecallOptions exposes rerank opt-in shape (cross-encoder-reranker T2.1)', () => {
+    expectTypeOf<RecallOptions['rerank']>().toEqualTypeOf<
+      { readonly topK?: number; readonly pool?: number } | undefined
+    >();
+  });
+
   test('ForgetOptions exposes hard', () => {
     expectTypeOf<ForgetOptions['hard']>().toEqualTypeOf<boolean | undefined>();
   });

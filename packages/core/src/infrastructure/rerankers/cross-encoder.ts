@@ -148,7 +148,17 @@ export class CrossEncoderReranker implements Reranker {
       // ms-marco cross-encoders emit a single relevance logit per pair.
       // logits.data is a Float32Array of length batch_size * num_labels;
       // num_labels === 1 for this model family → one score per pair.
-      const data = output.logits.data;
+      // F-arch-3 (review): runtime-guard the narrowed @xenova output shape. The
+      // `as unknown as RunSequenceClassifier` cast is a compile-time promise; a
+      // future @xenova upgrade that drifts the output shape must trip the ADR D4
+      // fail-soft path (the pipeline's try/catch → recall_rerank_failed event)
+      // rather than silently yield 0 scores (a quiet precision regression).
+      const data = output?.logits?.data as Float32Array | undefined;
+      if (data === undefined || typeof data.length !== 'number' || data.length < batch.length) {
+        throw new TypeError(
+          `CrossEncoderReranker: unexpected model output shape (expected logits.data length >= ${String(batch.length)}, got ${String(data?.length)})`,
+        );
+      }
       const numLabels = data.length / batch.length;
       for (let i = 0; i < batch.length; i++) {
         // Use the first (relevance) logit of each row, passed through sigmoid.
