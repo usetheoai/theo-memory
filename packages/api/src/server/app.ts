@@ -28,6 +28,7 @@ import {
   rotateKeyHandler,
 } from './handlers/admin-keys.js';
 import { entitiesHandler } from './handlers/entities.js';
+import { episodesHandler } from './handlers/episodes.js';
 import { forgetHandler } from './handlers/forget.js';
 import { graphHandler } from './handlers/graph.js';
 import { healthDbHandler, healthHandler } from './handlers/health.js';
@@ -343,6 +344,10 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   }
 
   app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
+  // first-class-episodes M2 T3.1 — subject-scoped episodic/message-log read:
+  // cursor-paginated, bi-temporal-aware (asOf) temporal list. 200 {items,nextCursor?}
+  // / 422 (bad limit/cursor/asOf/after+before) / 404 (bad scope type).
+  app.get('/v1/scopes/:type/:id/episodes', (c) => episodesHandler(c, memory));
   // themory-scoped-forget T1.2 — subject-scoped DELETE (drops the gateway's
   // O(scope) ownership pre-check). 204 / 404 (cross-scope, no leak) / 422 (bad id).
   app.delete('/v1/scopes/:type/:id/memories/:memId', (c) => scopedForgetHandler(c, memory));
