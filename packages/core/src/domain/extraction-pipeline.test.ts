@@ -22,6 +22,7 @@ import type { Embedder } from './dip/embedder.js';
 import type { LLM } from './dip/llm.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import { runExtractionPipeline } from './extraction/pipeline.js';
+import { BUILTIN_ONTOLOGIES } from './ontology.js';
 import type { Filters } from './scope.js';
 
 type Payload = Record<string, string | number | boolean | null>;
@@ -323,4 +324,66 @@ describe('runExtractionPipeline (8-phase write)', () => {
     );
     expect(result).toHaveLength(1);
   });
+
+  describe('domain-ontologies T2.2 — ontology coercion + fail-soft (Item 15)', () => {
+    test('out-of-vocab entity type is coerced + emits ontology_type_coerced; in-vocab kept', async () => {
+      const { tracer, exporter } = setupTracer();
+      const store = new StubVectorStore();
+      const llm = makeLlm({
+        memory: [{ id: '0', text: 'clinical note' }],
+        entities: [
+          { name: 'hypertension', type: 'Diagnosis' }, // in medical vocab
+          { name: 'Merlin', type: 'Wizard' }, // out-of-vocab → OTHER
+        ],
+      });
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'note' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer, ontology: BUILTIN_ONTOLOGIES.medical },
+      );
+      expect(result).toHaveLength(1);
+      const spans = exporter.getFinishedSpans().map((sp) => sp.name);
+      expect(spans).toContain('ontology_type_coerced');
+    });
+
+    test('FAIL-SOFT: an ontology-layer throw (broken tracer) NEVER fails the write (ADR D2)', async () => {
+      const store = new StubVectorStore();
+      const llm = makeLlm({
+        memory: [{ id: '0', text: 'clinical note' }],
+        entities: [{ name: 'Merlin', type: 'Wizard' }], // out-of-vocab → triggers the coercion event path
+      });
+      // A tracer whose startActiveSpan throws on the coercion event — the pipeline's
+      // ontology try/catch MUST swallow it so the write still succeeds (fail-soft).
+      const throwingTracer = {
+        startActiveSpan: ((name: string) => {
+          if (name === 'ontology_type_coerced') throw new Error('tracer exploded');
+        }) as never,
+      } as never;
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'note' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer: throwingTracer, ontology: BUILTIN_ONTOLOGIES.medical },
+      );
+      // The fact still persisted despite the ontology-layer throw.
+      expect(result).toHaveLength(1);
+      expect(result[0]?.text).toBe('clinical note');
+    });
+
+    test('no ontology configured → no coercion event (default path)', async () => {
+      const { tracer, exporter } = setupTracer();
+      const store = new StubVectorStore();
+      const llm = makeLlm({
+        memory: [{ id: '0', text: 'clinical note' }],
+        entities: [{ name: 'Merlin', type: 'Wizard' }],
+      });
+      await runExtractionPipeline(
+        [{ role: 'user', content: 'note' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+      );
+      const spans = exporter.getFinishedSpans().map((sp) => sp.name);
+      expect(spans).not.toContain('ontology_type_coerced');
+    });
+  });
+
 });
