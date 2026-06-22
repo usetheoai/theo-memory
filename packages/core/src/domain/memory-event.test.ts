@@ -8,13 +8,17 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 26 values (24 prior + tool_invocation_denied + skill_executed from M1 T1.2)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(26);
+  test('has 27 values (26 prior + recall_rerank_failed from cross-encoder-reranker T2.2)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(27);
   });
 
   test('includes tool_invocation_denied + skill_executed (agentic-skill-execution-sandbox T1.2)', () => {
     expect(MEMORY_EVENTS).toContain('tool_invocation_denied');
     expect(MEMORY_EVENTS).toContain('skill_executed');
+  });
+
+  test('includes recall_rerank_failed (cross-encoder-reranker T2.2, fail-soft ADR D4)', () => {
+    expect(MEMORY_EVENTS).toContain('recall_rerank_failed');
   });
 
   test('includes retrieval_counted_failed (themory-scoped-forget-and-retrieval-counter T2.3, fail-soft)', () => {

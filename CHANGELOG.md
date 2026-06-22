@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Optional cross-encoder reranker (Roadmap Item 23): a new `Reranker` DIP + a default `CrossEncoderReranker` (cross-encoder via `@xenova/transformers`, no new dependency) wired as an opt-in post-threshold recall stage. Enable per-call via `recall({ rerank: {} })` with a reranker wired through `createLocalMemory({ reranker })`; the default impl ships behind the `@usetheo/memory/reranker-local` subpath (bundle-isolated). Mutually exclusive with `diversify` (throws `RerankerConflict`); fail-soft to cosine order on inference failure (emits `recall_rerank_failed`); bypasses the semantic recall cache. Default (no `rerank` option) is byte-unchanged. (cross-encoder-reranker; Item 23)
 - Opt-in skill execution in the production runtime: `THEOMEM_SKILL_EXECUTION=true` wires `SandboxedSkillExecutor` into the shared `wireMemoryFromPool` factory (so `themory server` + MCP + CLI all honor one flag). Default OFF — the secure STORE-only default + the `501 SKILL_EXECUTION_NOT_CONFIGURED` response are unchanged when unset. (production-runtime-hardening; surfaced by the M2 live-test)
 
 ### Changed
