@@ -212,10 +212,12 @@ const ExecuteSkillSchema = z
     args: z.record(z.unknown()).default({}),
     opts: z
       .object({
-        timeoutMs: z.number().int().positive().optional(),
-        memoryLimitMb: z.number().int().positive().optional(),
-        maxOutputBytes: z.number().int().positive().optional(),
-        maxToolCalls: z.number().int().nonnegative().optional(),
+        // Bounded ceilings (review 2026-06-22 F-dom-conc-2 / F-sec-2/3) so a caller
+        // cannot request an unbounded wall-clock stall or isolate heap. The executor
+        // also clamps; these reject grossly-out-of-range values at the boundary.
+        timeoutMs: z.number().int().positive().max(30_000).optional(),
+        memoryLimitMb: z.number().int().positive().max(256).optional(),
+        maxOutputBytes: z.number().int().positive().max(10_000_000).optional(),
       })
       .strict()
       .optional(),

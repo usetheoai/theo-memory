@@ -37,8 +37,6 @@ export interface SkillExecutionOptions {
   readonly memoryLimitMb?: number;
   /** Maximum serialized output size in bytes before the cap guard trips. */
   readonly maxOutputBytes?: number;
-  /** Maximum host-callback invocations allowed per execute() call. */
-  readonly maxToolCalls?: number;
 }
 
 export interface SkillExecutor {
