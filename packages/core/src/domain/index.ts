@@ -143,6 +143,7 @@ export {
   InvalidSkillError,
   ContentTooLargeError,
   EmbedderError,
+  EmbedderUnavailableError,
   EmptyScopeError,
   MemoryNotFound,
   MemoryStoreError,
