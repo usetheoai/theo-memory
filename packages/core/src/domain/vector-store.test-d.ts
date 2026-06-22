@@ -106,7 +106,7 @@ test('getUserId() / setUserId() are session-metadata NOT tenant-isolation (EC-6 
   expectTypeOf<VectorStore['setUserId']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('synthetic stub class implementing all 11 methods compiles', () => {
+test('synthetic stub class implementing all 13 methods compiles', () => {
   class StubVectorStore implements VectorStore {
     async initialize(): Promise<void> {}
 

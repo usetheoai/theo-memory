@@ -80,10 +80,13 @@ describe('InMemoryVectorStore.listEpisodes', () => {
     expect(page.length).toBe(cap + 1);
   });
 
-  test('queryText filters by literal substring and escapes LIKE metacharacters', async () => {
+  test('queryText filters by literal substring (no wildcard semantics in-memory)', async () => {
+    // In-memory matches via case-insensitive .includes — inherently literal, so a
+    // "50%" query matches ONLY the literal "50%" row, not "500". (The SQL ILIKE
+    // ESCAPE path that actually escapes %/_ metacharacters is covered by the
+    // pgvector GOAL test.)
     const store = new InMemoryVectorStore();
     await seed(store, ['discount 50% off', 'plain text', 'fifty 500 units']);
-    // "50%" must match ONLY the literal "50%" row, not "500" (no wildcard).
     const rows = await store.listEpisodes(SESSION, { queryText: '50%' });
     expect(rows.map((r) => String(r.payload['text']))).toEqual(['discount 50% off']);
   });
