@@ -11,8 +11,8 @@
  * columns — NO new store, NO migration (ADR D3, the competitive attack on
  * poly-store ontology systems).
  *
- * Prior art: REDACTED's project-level `custom_categories` (a domain-tuned taxonomy
- * injected into the extraction/categorization prompt).
+ * Prior art (a domain-tuned category taxonomy injected into the extraction
+ * prompt to constrain the LLM's output) is surveyed in the blueprint.
  *
  * @see .claude/knowledge-base/discoveries/blueprints/domain-ontologies-blueprint.md
  * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D1 + D4
@@ -40,7 +40,7 @@ export type OntologyName = 'medical' | 'legal' | 'code' | 'support';
 /**
  * Built-in domain ontologies (blueprint Rec 2). Each carries a curated entity +
  * relation vocabulary; `OTHER` is always present as the coercion fallback. The
- * `code` ontology mirrors REDACTED's coding taxonomy shape.
+ * `code` ontology mirrors the coding-taxonomy shape surveyed in the blueprint.
  */
 export const BUILTIN_ONTOLOGIES: Readonly<Record<OntologyName, Ontology>> = {
   medical: {
