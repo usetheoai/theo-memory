@@ -1,7 +1,9 @@
 /**
  * VectorStore DIP — adapter contract for vector-storage backends (pgvector, REDACTED, etc).
  *
- * @see ADR-0008 — DIP method counts (VectorStore: 11 required).
+ * @see ADR-0008 — DIP method counts (VectorStore: 13 required — 11 original +
+ *   `deleteInScope` (themory-scoped-forget) + `listEpisodes` (first-class-episodes M2);
+ *   both additive read/scoped methods on the store that owns `memories`).
  * @see ADR-0001 — upstream-shape architecture (nine-step search requires keywordSearch BM25 fallback).
  *
  * v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the
@@ -13,6 +15,7 @@
  *
  * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.1
  */
+import type { EpisodeListOptions } from '../episode.js';
 import type { Filters } from '../scope.js';
 
 export interface VectorStoreResult {
@@ -157,6 +160,37 @@ export interface VectorStore {
     topK?: number,
     includeSoftDeleted?: boolean,
   ): Promise<readonly [readonly VectorStoreResult[], number]>;
+
+  /**
+   * Episodic / message-log read surface (M2 / gap G3): a cursor-paginated,
+   * bi-temporal-aware TEMPORAL list of the scope's memories ordered by
+   * `(created_at, id)`.
+   *
+   * Contract:
+   * - **Ordering**: `created_at <order>, id <order>` (default `desc`); `id` (UUID)
+   *   is the deterministic tie-break for same-millisecond rows.
+   * - **Cursor**: `options.after` / `options.before` are opaque `(created_at, id)`
+   *   cursors (see `domain/episode.ts`); a cursor value matching no row simply
+   *   yields the page from that position (no error — deliberate divergence from a
+   *   row-id lookup). At most one of after/before is honored.
+   * - **Soft-delete vs asOf (MUTUALLY EXCLUSIVE)**: when `options.asOf` is set, the
+   *   ADR-0011 bi-temporal predicate applies (a row soft-deleted AFTER asOf still
+   *   appears at asOf); otherwise soft-deleted rows (`t_invalid IS NOT NULL`) are
+   *   excluded. The two are an if/else, never a conjunction.
+   * - **queryText**: optional literal partial-text filter (ILIKE with escaped
+   *   metacharacters) — NOT semantic search.
+   * - **Over-fetch**: returns AT MOST `resolveEpisodeLimit(options.limit) + 1`
+   *   rows; the caller (façade) uses the extra row to compute `nextCursor`.
+   *
+   * Additive read method; existing methods are unchanged (ADR-0008 method-count
+   * note — this is a read of the same `memories` the store already owns).
+   *
+   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 + ADRs D1-D4
+   */
+  listEpisodes(
+    filters: Filters | undefined,
+    options: EpisodeListOptions,
+  ): Promise<readonly VectorStoreResult[]>;
 
   /**
    * @see ADR-0002 — tenant isolation uses `Filters` on every call, NOT this method.

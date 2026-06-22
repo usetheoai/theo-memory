@@ -11,6 +11,12 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
 import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from '../../domain/dip/vector-store.js';
+import {
+  type EpisodeListOptions,
+  decodeEpisodeCursor,
+  escapeLikePattern,
+  resolveEpisodeLimit,
+} from '../../domain/episode.js';
 import { EmbeddingMismatch } from '../../domain/errors.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
@@ -707,6 +713,83 @@ export class PgvectorStore implements VectorStore {
     `;
     const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK]);
     return [pageResult.rows.map(rowToResult), total];
+  }
+
+  /**
+   * first-class-episodes M2 T2.1 — cursor-paginated, bi-temporal-aware temporal
+   * list ordered by `(created_at, id)`.
+   *
+   * EC-1: `composeTemporalWhere(options.asOf)` is MUTUALLY EXCLUSIVE — asOf set →
+   * ADR-0011 bi-temporal predicate (a row soft-deleted AFTER asOf still appears);
+   * asOf unset → `t_invalid IS NULL` (live only). Never a conjunction.
+   * EC-2: `queryText` uses `ILIKE $n ESCAPE '\'` over a metacharacter-escaped
+   * pattern so `%`/`_`/`\` match literally.
+   * EC-3: cursor predicate is a row-value comparison `(created_at, id) {<|>} ($a,$b)`
+   * matching the `ORDER BY created_at, id` comparator (full ms precision via the
+   * opaque cursor; UUID id is the deterministic tie-break).
+   *
+   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 + ADRs D1-D4 + D7
+   */
+  async listEpisodes(
+    filters: Filters | undefined,
+    options: EpisodeListOptions,
+  ): Promise<readonly VectorStoreResult[]> {
+    const cap = resolveEpisodeLimit(options.limit);
+    const order = options.order === 'asc' ? 'ASC' : 'DESC';
+
+    // EC-1: asOf vs soft-delete are an if/else (composeTemporalWhere), never ANDed.
+    const temporal = composeTemporalWhere(options.asOf, 1);
+    const filter = composeFilters(filters, temporal.nextParamIndex);
+    const params: (string | number | boolean | Date | null)[] = [
+      ...temporal.params,
+      ...filter.params,
+    ];
+    let idx = filter.nextParamIndex;
+    const extra: string[] = [];
+
+    // EC-3: cursor row-value comparison. After = later-in-active-order; before =
+    // earlier. For DESC, "later" means smaller (created_at,id); for ASC, larger.
+    //
+    // PRECISION (the load-bearing detail): the `created_at` COLUMN is timestamptz
+    // (microsecond), but the cursor carries a JS-Date/ISO MILLISECOND value (the
+    // `pg` driver already truncates timestamptz → JS Date at ms, so the encoded
+    // cursor can only ever be ms). Comparing the raw µs column against an ms
+    // cursor makes the boundary row leak back in for ASC (`col_µs > cursor_ms` is
+    // true for the boundary row itself). We therefore compare — and order by —
+    // `created_at` TRUNCATED to milliseconds, so the column and the cursor share
+    // one granularity and the unique `id` is the deterministic intra-ms tie-break.
+    const cursorRaw = options.after ?? options.before;
+    if (cursorRaw !== undefined) {
+      const isAfter = options.after !== undefined;
+      const cursor = decodeEpisodeCursor(cursorRaw);
+      const laterIsSmaller = order === 'DESC';
+      const op = isAfter === laterIsSmaller ? '<' : '>';
+      extra.push(`(date_trunc('milliseconds', created_at), id) ${op} ($${idx}, $${idx + 1})`);
+      params.push(cursor.createdAt, cursor.id);
+      idx += 2;
+    }
+
+    // EC-2: literal partial-text filter (ILIKE with escaped metacharacters).
+    if (options.queryText !== undefined && options.queryText.length > 0) {
+      extra.push(`text ILIKE $${idx} ESCAPE '\\'`);
+      params.push(`%${escapeLikePattern(options.queryText)}%`);
+      idx += 1;
+    }
+
+    const extraSql = extra.length > 0 ? ` AND ${extra.join(' AND ')}` : '';
+    const pageSql = `
+      SELECT id, text, hash, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category,
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             created_at
+      FROM memories
+      WHERE ${temporal.sql}${filter.sql}${extraSql}
+      ORDER BY date_trunc('milliseconds', created_at) ${order}, id ${order}
+      LIMIT $${idx}
+    `;
+    // Over-fetch cap+1 so the façade can compute nextCursor (truncation disclosure).
+    params.push(cap + 1);
+    const result = await this.pool.query<MemoriesRow>(pageSql, params);
+    return result.rows.map(rowToResult);
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

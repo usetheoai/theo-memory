@@ -17,6 +17,11 @@
  * @see blueprint Recommendation 6 + ADR D6
  */
 import type { InsertOutcome, VectorStore, VectorStoreResult } from '../../domain/dip/vector-store.js';
+import {
+  type EpisodeListOptions,
+  decodeEpisodeCursor,
+  resolveEpisodeLimit,
+} from '../../domain/episode.js';
 import { InvalidSkillError } from '../../domain/errors.js';
 import type { Filters } from '../../domain/scope.js';
 import type { SkillLanguage } from '../../domain/skill.js';
@@ -55,6 +60,16 @@ function cosineSim(a: readonly number[], b: readonly number[]): number {
     return 0;
   }
   return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+/**
+ * Compare two `(created_at, id)` positions. Returns <0 / 0 / >0 like a
+ * standard comparator (ascending). Used by listEpisodes cursor filtering.
+ */
+function compareCreatedAtId(aDate: Date, aId: string, bDate: Date, bId: string): number {
+  const dt = aDate.getTime() - bDate.getTime();
+  if (dt !== 0) return dt;
+  return aId < bId ? -1 : aId > bId ? 1 : 0;
 }
 
 function matchesFilters(payload: Payload, filters: Filters | undefined): boolean {
@@ -263,6 +278,69 @@ export class InMemoryVectorStore implements VectorStore {
     });
     await Promise.resolve();
     return [matching.slice(0, topK), matching.length];
+  }
+
+  /**
+   * first-class-episodes M2 T2.1 — cursor-paginated temporal list.
+   *
+   * Mirrors PgvectorStore.listEpisodes ordering `(created_at, id)` so the
+   * in-memory contract matches the GOAL (pgvector) behavior. Note: this store
+   * hard-deletes (no `t_invalid` tombstones), so `options.asOf` bi-temporal
+   * replay is a no-op here — the GOAL integration test (T4.1) covers asOf on the
+   * real pgvector runtime. `queryText` is a literal case-insensitive substring
+   * match (inherently non-wildcard; the SQL escape concern does not apply here).
+   *
+   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 (EC-5)
+   */
+  async listEpisodes(
+    filters: Filters | undefined,
+    options: EpisodeListOptions,
+  ): Promise<readonly VectorStoreResult[]> {
+    const cap = resolveEpisodeLimit(options.limit);
+    const order: 'asc' | 'desc' = options.order ?? 'desc';
+    const queryText = options.queryText?.toLowerCase();
+
+    let rows: VectorStoreResult[] = [];
+    for (const [id, row] of this.rows.entries()) {
+      if (!matchesFilters(row.payload, filters)) {
+        continue;
+      }
+      if (queryText !== undefined && queryText.length > 0) {
+        const text = String(row.payload['text'] ?? '').toLowerCase();
+        if (!text.includes(queryText)) {
+          continue;
+        }
+      }
+      rows.push({ id, payload: row.payload, createdAt: row.createdAt });
+    }
+
+    // Sort by (created_at, id) in the active order. id (string) is the
+    // deterministic tie-break for identical timestamps. Reuses the single
+    // canonical comparator (F-arch-4 DRY) so the cursor filter + sort never drift.
+    const dir = order === 'asc' ? 1 : -1;
+    rows.sort(
+      (a, b) =>
+        compareCreatedAtId(a.createdAt ?? new Date(0), a.id, b.createdAt ?? new Date(0), b.id) * dir,
+    );
+
+    // Cursor filter (after/before). At most one is honored; after wins.
+    const cursorRaw = options.after ?? options.before;
+    if (cursorRaw !== undefined) {
+      const isAfter = options.after !== undefined;
+      const cursor = decodeEpisodeCursor(cursorRaw);
+      rows = rows.filter((r) => {
+        const cmp = compareCreatedAtId(r.createdAt ?? new Date(0), r.id, cursor.createdAt, cursor.id);
+        // In the active order, "after" keeps rows that come strictly later in the
+        // sequence; "before" keeps rows strictly earlier. `dir` maps the
+        // (created_at,id) comparison onto sequence position.
+        const seq = cmp * dir; // <0 earlier-in-sequence, >0 later-in-sequence
+        return isAfter ? seq > 0 : seq < 0;
+      });
+    }
+
+    // Over-fetch cap+1 so the façade can detect more pages.
+    await Promise.resolve();
+    return rows.slice(0, cap + 1);
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

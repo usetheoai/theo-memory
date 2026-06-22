@@ -66,6 +66,7 @@ function makeStore(rows: readonly FakeRow[], bm25Mode: 'pass' | 'null' = 'pass')
     deleteInScope: () => Promise.resolve(false),
     deleteCol: () => Promise.resolve(),
     list: () => Promise.resolve([[], 0]),
+    listEpisodes: () => Promise.resolve([]),
     getUserId: () => Promise.resolve(''),
     setUserId: () => Promise.resolve(),
   };
