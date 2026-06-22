@@ -99,6 +99,20 @@ export const MEMORY_EVENTS = [
   // Attributes `{ontology, from, to, entity}`. Every coercion is observable so a
   // too-narrow ontology vocabulary surfaces (Princípio 3 — no silent typing loss).
   'ontology_type_coerced',
+  // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the Self-RAG pre-embed gate
+  // (`AdaptiveRetrievalPolicy.shouldRetrieve`) returned `{retrieve:false}`, so
+  // recall() returned [] WITHOUT embedding the query. Attribute `{scope_tier,
+  // reason}`. Princípio 3 — a skip is never silent.
+  'retrieval_skipped',
+  // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the CRAG grade-and-correct hook
+  // (`AdaptiveRetrievalPolicy.assess`) recommended a relax and the pipeline
+  // re-filtered the already-fetched pool at a lower threshold. Attribute
+  // `{from_threshold, to_threshold, surfaced}`. Princípio 3 — every corrective is observable.
+  'retrieval_corrected',
+  // adaptive-retrieval T2.1 / ADR D4 (Item 13) — `assess` judged the pool
+  // unusable (reject) OR a relax surfaced nothing. recall() returns the original
+  // (possibly empty) results; NEVER throws. Attribute `{scope_tier, reason}`.
+  'retrieval_low_confidence',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

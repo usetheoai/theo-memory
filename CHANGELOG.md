@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Adaptive retrieval — Self-RAG / CRAG decision hooks (Roadmap Item 13): a new opt-in `AdaptiveRetrievalPolicy` DIP (`shouldRetrieve` pre-embed gate + `assess` post-threshold grade-and-correct) wired into `recall()`, DEFAULT OFF (byte-unchanged). When a policy is wired via `createLocalMemory({ retrievalPolicy })`, a `shouldRetrieve` returning `{retrieve:false}` makes `recall()` return `[]` WITHOUT embedding the query (Self-RAG skip — saves embed + DB cost); a CRAG `assess` recommending `relax` re-filters the already-fetched pool at a lower threshold (bounded in-memory corrective — NO re-embed, NO external fallback). Default impl `HeuristicAdaptiveRetrievalPolicy` (key-free, no new dependency) ships behind `@usetheo/memory/adaptive-local` (bundle-isolated). Tune per-call via `RecallOptions.adaptive`. Fail-soft (a policy outage degrades to normal retrieval, never crashes recall) + 3 observable events (`retrieval_skipped` / `retrieval_corrected` / `retrieval_low_confidence`, Princípio 3). EC-1 clamp: a relax applies only when `0 <= relaxedThreshold < threshold`. A wired policy bypasses the semantic recall cache (the cache key does not encode the adaptive outcome). (adaptive-retrieval; Item 13)
 
 ### Changed
 

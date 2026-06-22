@@ -212,6 +212,24 @@ export type { Embedder } from './dip/embedder.js';
 export type { Reranker } from './dip/reranker.js';
 
 /**
+ * `AdaptiveRetrievalPolicy` DIP — adaptive-retrieval decision hooks (Item 13).
+ * Self-RAG `shouldRetrieve` pre-embed gate + CRAG `assess` post-threshold
+ * grade-and-correct. Default impl: `HeuristicAdaptiveRetrievalPolicy` (key-free),
+ * shipped behind the `@usetheo/memory/adaptive-local` subpath (bundle-isolated).
+ * Wire via `createLocalMemory({ retrievalPolicy })`; tune per-call via
+ * `RecallOptions.adaptive`.
+ *
+ * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D1 + D4 + D5
+ * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md
+ */
+export type {
+  AdaptiveRetrievalPolicy,
+  RetrievalDecision,
+  RetrievalAssessment,
+  AdaptiveTuning,
+} from './dip/adaptive-retrieval-policy.js';
+
+/**
  * Domain ontologies (Item 15) — typed per-domain entity/relation vocabularies
  * layered over LLM extraction. `BUILTIN_ONTOLOGIES` ships medical/legal/code/
  * support; `resolveOntology` resolves a registry key OR a custom `Ontology`.
