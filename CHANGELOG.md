@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Embedder registry + 3 new fetch-based providers (Roadmap Item 24): `createEmbedder(spec)` — a string-keyed factory that resolves an `Embedder` from a provider key (`stub`/`openai`/`local`/`ollama`/`voyage`/`google`) via LAZY dynamic import, so the `@usetheo/memory/embedders/registry` subpath's static graph stays free of the heavy SDK deps (`openai`, `@xenova/transformers`) — bundle isolation. Three NEW first-party adapters with ZERO new dependency (Node-global `fetch`, injectable for testing): `OllamaEmbedder` (`@usetheo/memory/embedders/ollama`), `VoyageEmbedder` (`@usetheo/memory/embedders/voyage`), `GoogleEmbedder` (Gemini, `@usetheo/memory/embedders/google`). Unknown provider key → `EmbedderError` listing the valid keys (fail-loud); an SDK-backed provider whose dependency is not installed → the new `EmbedderUnavailableError` with an install hint. Narrows the 3-vs-8 provider gap surfaced by the the reference project cross-validation. (embedder-registry; Item 24)
 
 ### Changed
 
