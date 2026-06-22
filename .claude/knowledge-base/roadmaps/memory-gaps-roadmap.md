@@ -83,19 +83,20 @@ These are recorded so the cross-validation findings are not lost. Implementing t
 ## Now-available (unfrozen, NOT gap-driven — opportunistic, post-M1/M2)
 
 The full unfreeze also reopens these (from the cross-validation backlog + Phase V). They are
-NOT gaps vs Letta; pick them up only after M1/M2 if they earn priority:
+NOT gaps vs Letta; pick them up only after M1/M2 if they earn priority. **Priority order
+re-ordered by project-owner 2026-06-22:**
 
-- Item 23 — cross-encoder reranker (extends the long-term lead)
-- Item 24 — embedder registry + more providers
-- Item 13 — adaptive retrieval (Self-RAG/CRAG hooks)
-- Item 14 — optional graph backend (Apache AGE / Neo4j)
-- Item 15 — domain ontologies
-- Item 25 — ingest robustness (poison-record skip, deterministic chunker fallback)
+1. Item 23 — cross-encoder reranker (`Reranker` DIP) — extends the long-term lead
+2. Item 15 — domain ontologies
+3. Item 24 — embedder registry + more providers
+4. Item 13 — adaptive retrieval (Self-RAG/CRAG hooks)
+5. Item 14 — optional graph backend (Apache AGE / Neo4j)
+6. Item 25 — ingest robustness (poison-record skip, deterministic chunker fallback)
 
 ## Sequencing
 
 1. **M1 (G2)** first — highest value, genuinely ours, but HIGH risk → do it carefully with security review.
 2. **M2 (G3)** second — low risk, leverages shipped substrate, closes a real Letta-parity gap + the EC-9 caveat.
-3. Opportunistic items only after M1/M2 ship + a `/dogfood` re-check.
+3. Opportunistic items only after M1/M2 ship + a `/dogfood` re-check. Order (project-owner 2026-06-22): **Item 23 (reranker) → Item 15 (domain ontologies)** → Item 24 → Item 13 → Item 14 → Item 25.
 
 > Governance: each milestone is one full cycle ending in a `develop→main` release PR (human-gated). `production-ready` is NOT claimed until Item 11's dogfood + benchmark gates close — independent of this roadmap.
