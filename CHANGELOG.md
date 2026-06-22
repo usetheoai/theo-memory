@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Docker image build from HEAD broke since M1 (v0.13.0): the `builder` + `production-deps` stages (slim base) lacked node-gyp's toolchain, so the OPTIONAL native dep `isolated-vm` (added by M1 skill execution) failed to install and `pnpm build` aborted with `Cannot find module 'isolated-vm'`. Added `python3`/`make`/`g++` to both stages so `isolated-vm` + `onnxruntime-node` compile; the `.node` binaries flow to the distroless runtime. (surfaced by the M2 Theo-Cloud live-test)
 
 ### Security
 
