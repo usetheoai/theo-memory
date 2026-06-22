@@ -381,10 +381,9 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
               args: z.record(z.unknown()).optional(),
               opts: z
                 .object({
-                  timeoutMs: z.number().int().positive().optional(),
-                  memoryLimitMb: z.number().int().positive().optional(),
-                  maxOutputBytes: z.number().int().positive().optional(),
-                  maxToolCalls: z.number().int().nonnegative().optional(),
+                  timeoutMs: z.number().int().positive().max(30_000).optional(),
+                  memoryLimitMb: z.number().int().positive().max(256).optional(),
+                  maxOutputBytes: z.number().int().positive().max(10_000_000).optional(),
                 })
                 .optional(),
             }),
