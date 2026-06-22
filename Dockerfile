@@ -44,6 +44,16 @@ COPY tsconfig.json tsconfig.build.json tsconfig.contract.json ./
 COPY scripts/ ./scripts/
 COPY packages/ ./packages/
 
+# Native-addon build toolchain (python3/make/g++) — REQUIRED since M1
+# (agentic-skill-execution-sandbox) added `isolated-vm`, an OPTIONAL native
+# dependency. The slim base lacks node-gyp's toolchain, so without this pnpm
+# silently SKIPS the optional native build and `pnpm build` (tsc) then fails with
+# "Cannot find module 'isolated-vm'" (the type import in sandboxed-skill-executor.ts
+# cannot resolve). onnxruntime-node (the local embedder's optional dep) compiles
+# here too. Discarded with this stage; only dist/ is copied forward.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Enable corepack for pnpm, then install all deps (incl. dev for typecheck + build).
 RUN corepack enable && corepack prepare pnpm@10.34.1 --activate && \
     pnpm install --frozen-lockfile
@@ -62,6 +72,13 @@ FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
 WORKDIR /build
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+
+# Native-addon build toolchain — the production install compiles the optional
+# native deps (onnxruntime-node for the local embedder; isolated-vm for M1 skill
+# execution) so the compiled `.node` binaries land in node_modules for the
+# distroless runtime. Discarded with this stage; only node_modules is copied.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Enable corepack for pnpm.
 RUN corepack enable && corepack prepare pnpm@10.34.1 --activate
