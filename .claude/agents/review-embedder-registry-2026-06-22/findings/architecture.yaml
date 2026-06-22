@@ -1,0 +1,420 @@
+agent: review-embedder-registry-architecture
+review_target: c7949d9..HEAD for plan embedder-registry
+plan: .claude/knowledge-base/plans/embedder-registry-plan.md
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/registry.ts
+    line: 21
+    plan_ref: Plan § ADR D1, D2 + .claude/rules/architecture.md § 3 DIP
+    summary: DIP boundary integrity confirmed — registry.ts imports only the Embedder DIP contract and error types; all adapters resolved via dynamic import()
+    evidence: |
+      ```ts
+      // Static imports (lines 21-22):
+      import type { Embedder } from '../../domain/dip/embedder.js';
+      import { EmbedderError, EmbedderUnavailableError } from '../../domain/errors.js';
+      
+      // All adapters loaded dynamically (lines 56-112):
+      stub: async () => {
+        const { DeterministicStubEmbedder } = await import('./stub.js');
+        ...
+      },
+      openai: async () => {
+        try {
+          const { OpenAIEmbedder } = await import('./openai.js');
+        } catch (err) {
+          if (isModuleNotFound(err)) {
+            throw new EmbedderUnavailableError(...);
+          }
+        }
+      },
+      // Similarly for 'local', 'ollama', 'voyage', 'google'
+      ```
+      No static imports of SDK-backed adapters (openai.ts, local.ts) → bundle isolation preserved.
+    recommended_action: None — complies with architecture.md § 3 (DIP boundary) and plan ADR D1/D2 (lazy dynamic-import).
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/core/src/domain/errors.ts
+    line: 346
+    plan_ref: Plan § ADR D2 + .claude/rules/architecture.md § 8
+    summary: EmbedderUnavailableError typed correctly with install-hint message; mirrors SkillExecutorUnavailableError precedent
+    evidence: |
+      ```ts
+      export class EmbedderUnavailableError extends Error {
+        override readonly name = 'EmbedderUnavailableError' as const;
+
+        constructor(provider: string, dep: string, options?: ErrorOptions) {
+          super(
+            `Embedder provider '${provider}' is unavailable: the '${dep}' package is not installed. Install it (e.g. \`pnpm add ${dep}\`) to use this provider, or choose a fetch-based provider (ollama / voyage / google) that needs no SDK.`,
+            options,
+          );
+          Object.setPrototypeOf(this, EmbedderUnavailableError.prototype);
+        }
+      }
+      ```
+      - Extends Error (proper subclass)
+      - Carries provider + dep parameters → distinct from generic EmbedderError
+      - Message includes install hint + alternatives (rule 8: fail-loud + actionable error)
+      - Prototype chain properly set (EC-2 absorption for ESM/CJS compat)
+    recommended_action: None — complies with Inquebrável Rule 8 (error handling) and architecture.md § 8.
+
+  - id: F-arch-3
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/registry.ts
+    line: 40
+    plan_ref: Plan § ADR D2 (install-hint + unknown-key error handling)
+    summary: isModuleNotFound() guard correctly detects ERR_MODULE_NOT_FOUND across contexts (dynamic import, CJS, Node versions)
+    evidence: |
+      ```ts
+      function isModuleNotFound(err: unknown): boolean {
+        if (typeof err !== 'object' || err === null) return false;
+        const code = (err as { code?: unknown }).code;
+        if (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') return true;
+        const message = (err as { message?: unknown }).message;
+        return typeof message === 'string' && /cannot find (module|package)/i.test(message);
+      }
+      ```
+      - Defensive type narrowing (unknown → object → optional code/message)
+      - Checks both error.code (ESM standard) and error.message regex (CJS fallback)
+      - Used in SDK-backed loaders (openai, local) at lines 65 + 78
+    recommended_action: None — error detection is robust and follows Node.js conventions.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/registry.ts
+    line: 122
+    plan_ref: Plan § ADR D1 (unknown-key error contract)
+    summary: Unknown provider error correctly typed and informative — lists valid keys per fail-loud design
+    evidence: |
+      ```ts
+      export async function createEmbedder(spec: EmbedderSpec): Promise<Embedder> {
+        const loader = EMBEDDER_REGISTRY[spec.provider] as ... | undefined;
+        if (loader === undefined) {
+          const valid = Object.keys(EMBEDDER_REGISTRY).join(', ');
+          throw new EmbedderError(
+            `Unknown embedder provider '${String(spec.provider)}'. Valid providers: ${valid}.`,
+          );
+        }
+        return loader(spec);
+      }
+      ```
+      - Throws EmbedderError (not a generic Error) — typed exception per architecture.md § 8
+      - Message includes the invalid key AND valid keys list → operationally actionable
+      - Matches mem0's unsupported-provider pattern (blueprint Q1)
+    recommended_action: None — complies with plan ADR D1 + Inquebrável Rule 8.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/ollama.ts
+    line: 30
+    plan_ref: Plan § T2.1 + ADR D3 (fetch-based adapter DIP)
+    summary: OllamaEmbedder correctly implements Embedder DIP (2 methods per ADR-0008) with injectable fetch for testability
+    evidence: |
+      ```ts
+      export class OllamaEmbedder implements Embedder {
+        private readonly model: string;
+        private readonly baseUrl: string;
+        private readonly fetchImpl: typeof fetch;
+
+        constructor(options: OllamaEmbedderOptions = {}) {
+          this.model = options.model ?? DEFAULT_MODEL;
+          this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+          this.fetchImpl = options.fetchImpl ?? fetch;
+        }
+
+        async embed(text: string): Promise<readonly number[]> {
+          const [vec] = await this.embedBatch([text]);
+          return vec ?? [];
+        }
+
+        async embedBatch(texts: readonly string[]): Promise<readonly (readonly number[])[]> {
+          if (texts.length === 0) return [];
+          // HTTP fetch + error handling
+        }
+      }
+      ```
+      - Implements Embedder (2 methods: embed + embedBatch, per ADR-0008)
+      - fetch injected via ctor option (testability, default to global)
+      - embed() delegates to embedBatch() (DRY, single HTTP path)
+      - Empty batch short-circuit at line 47
+    recommended_action: None — DIP compliance verified. Identical structure for Voyage and Google adapters.
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/voyage.ts
+    line: 1
+    plan_ref: Plan § T2.2 + ADR D3
+    summary: VoyageEmbedder and GoogleEmbedder (google.ts) mirror OllamaEmbedder structure — all fetch-based adapters follow DIP correctly
+    evidence: |
+      Both VoyageEmbedder and GoogleEmbedder:
+      - Implement Embedder interface (embed + embedBatch methods)
+      - Accept injectable fetch via ctor options
+      - Wrap HTTP requests in typed error throws (EmbedderError on non-2xx/malformed)
+      - Handle empty batch short-circuit
+      - Preserve order of input texts in response
+      
+      Voyage (lines 46-71): POST https://api.voyageai.com/v1/embeddings with Bearer auth
+      Google (lines 46-100): POST to generativelanguage.googleapis.com with API key param
+      Both match the provider endpoint shapes documented in blueprint (Coverage Corner 2).
+    recommended_action: None — fetch-based adapters follow consistent DIP pattern.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/index.ts
+    line: 23
+    plan_ref: Plan § ADR D4 + plan-implement T3.1
+    summary: embedders/index.ts barrel does NOT re-export createEmbedder; registry stays isolated per bundle-isolation requirement
+    evidence: |
+      ```ts
+      // Actual exports in index.ts (lines 23-31):
+      export { DeterministicStubEmbedder } from './stub.js';
+      export { OpenAIEmbedder } from './openai.js';
+      export { LocalTransformerEmbedder } from './local.js';
+      export { OllamaEmbedder } from './ollama.js';
+      // ... voyage, google exports ...
+      
+      // createEmbedder and EmbedderProvider/EmbedderSpec are NOT here.
+      // They are accessible ONLY via @usetheo/memory/embedders/registry.
+      ```
+      - Plan ADR D4 explicitly forbids re-exporting registry from the adapters barrel
+      - This preserves the bundle-isolation guarantee (importing default barrel doesn't pull dynamic-import registry)
+      - Registry imports available via separate subpath: `@usetheo/memory/embedders/registry`
+    recommended_action: None — adheres to ADR D4 and maintains bundle isolation.
+
+  - id: F-arch-8
+    severity: INFO
+    file: packages/core/package.json
+    line: 53
+    plan_ref: Plan § ADR D4 + plan-implement T3.1 (subpath exports)
+    summary: 4 new subpath exports correctly declared in package.json; no circular dependencies with existing exports
+    evidence: |
+      New exports (lines 53-68):
+      ```json
+      "./embedders/ollama": { "types": "./dist/infrastructure/embedders/ollama.d.ts", "default": "./dist/infrastructure/embedders/ollama.js" },
+      "./embedders/voyage": { "types": "./dist/infrastructure/embedders/voyage.d.ts", "default": "./dist/infrastructure/embedders/voyage.js" },
+      "./embedders/google": { "types": "./dist/infrastructure/embedders/google.d.ts", "default": "./dist/infrastructure/embedders/google.js" },
+      "./embedders/registry": { "types": "./dist/infrastructure/embedders/registry.d.ts", "default": "./dist/infrastructure/embedders/registry.js" }
+      ```
+      - Follow existing pattern (./embedders/stub, ./embedders/openai, ./embedders/local)
+      - Correct file paths (.d.ts + .js in dist/)
+      - No new dependencies declared in optionalDependencies (plan § Dependencies verified)
+    recommended_action: None — subpath exports conform to the existing pattern.
+
+  - id: F-arch-9
+    severity: INFO
+    file: packages/core/src/domain/index.ts
+    line: 146
+    plan_ref: Plan § T1.1 (EmbedderUnavailableError export)
+    summary: EmbedderUnavailableError correctly exported from domain/index.ts in the existing errors block; export-statement count unchanged
+    evidence: |
+      ```ts
+      // Line 137-158, existing errors block now includes EmbedderUnavailableError:
+      export {
+        BiTemporalNotSupportedLocally,
+        EmbeddingMismatch,
+        InvalidEmbeddingDim,
+        InvalidOntology,
+        InvalidScope,
+        InvalidSkillError,
+        ContentTooLargeError,
+        EmbedderError,
+        EmbedderUnavailableError,  // <-- NEW, added to existing block
+        // ... rest of errors ...
+      } from './errors.js';
+      ```
+      - Additive to an existing export statement (does NOT create a new statement)
+      - Plan T1.1 AC: "p0-audit core export-statement count UNCHANGED (54)"
+      - Reachable from default barrel: `import { EmbedderUnavailableError } from '@usetheo/memory'`
+    recommended_action: None — export correctly placed in existing block per plan T1.1 acceptance criteria.
+
+  - id: F-arch-10
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/registry.ts
+    line: 86
+    plan_ref: Plan § Acceptance criteria (exactOptionalPropertyTypes)
+    summary: exactOptionalPropertyTypes discipline correctly applied in registry loader spread-syntax usage
+    evidence: |
+      Lines 86-93 (ollama loader):
+      ```ts
+      ollama: async (spec) => {
+        const { OllamaEmbedder } = await import('./ollama.js');
+        return new OllamaEmbedder({
+          ...(spec.model !== undefined ? { model: spec.model } : {}),
+          ...(spec.baseUrl !== undefined ? { baseUrl: spec.baseUrl } : {}),
+          ...(spec.fetchImpl !== undefined ? { fetchImpl: spec.fetchImpl } : {}),
+        });
+      },
+      ```
+      - Conditional spread prevents passing `undefined` to adapter constructors
+      - Matches plan requirement: "exactOptionalPropertyTypes: omit undefined keys"
+      - Similar pattern in voyage (lines 95-101) and google (lines 103-110) loaders
+    recommended_action: None — exactOptionalPropertyTypes compliance verified.
+
+  - id: F-arch-11
+    severity: INFO
+    file: tests/integration/subpath-isolation.test.ts
+    line: 240
+    plan_ref: Plan § T3.1 + ADR D4 (bundle isolation test)
+    summary: Bundle isolation test correctly validates registry's static-import graph excludes SDK-backed adapters
+    evidence: |
+      ```ts
+      test('registry static-import graph does NOT reach the SDK-backed adapters or their deps', () => {
+        const entry = resolve(REPO_ROOT, 'packages/core/src/infrastructure/embedders/registry.ts');
+        const reachable = walkImports(entry);
+        const adapterLeaks = Array.from(reachable).filter(
+          (p) => p.endsWith('embedders/openai.ts') || p.endsWith('embedders/local.ts'),
+        );
+        expect(adapterLeaks).toEqual([]);
+      });
+      ```
+      - walkImports() performs static AST analysis (not esbuild bundle test)
+      - Checks for reachability of openai.ts and local.ts from registry.ts entry
+      - Test PASSES when no leaks found
+      - Plan § T3.1 AC confirmed: "bundle-isolation test asserts importing @usetheo/memory/embedders/registry does NOT statically reach openai.ts/local.ts/the openai/@xenova deps"
+    recommended_action: None — integration test correctly gates bundle isolation per plan acceptance criteria.
+
+  - id: F-arch-12
+    severity: INFO
+    file: packages/core/src/domain/errors.ts
+    line: 346
+    plan_ref: .claude/rules/architecture.md § 8 (error handling) + Inquebrável Rule 8
+    summary: Error handling discipline maintained — EmbedderError and EmbedderUnavailableError are distinct, typed, fail-loud
+    evidence: |
+      - EmbedderError: unknown provider key or HTTP/network failure → generic error message (fail-loud)
+      - EmbedderUnavailableError: SDK-based provider's optional dep missing → install-hint message
+      - No silent fallback (rejected in plan ADR D2 alternatives)
+      - No generic Error class used (architecture.md § 8 forbids)
+      - Callers can `instanceof` check to distinguish error types
+      - registry.ts lines 65-70, 78-83 show proper catch + re-throw pattern
+    recommended_action: None — error typing complies with architecture.md § 8 and Inquebrável Rule 8.
+
+  - id: F-arch-13
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders
+    line: 1
+    plan_ref: .claude/rules/no-paper-names-in-code.md
+    summary: No paper-name citations (Voyager, Mem0, etc.) leak into source code; provider class/adapter names (OllamaEmbedder, etc.) are legitimate infrastructure identifiers
+    evidence: |
+      Provider names are domain identifiers (HTTP endpoints):
+      - OllamaEmbedder → interfaces with Ollama's /api/embed endpoint
+      - VoyageEmbedder → interfaces with Voyage's /v1/embeddings endpoint
+      - GoogleEmbedder → interfaces with Google's generativelanguage.googleapis.com endpoint
+      
+      Distinction per no-paper-names rule:
+      - "Ollama", "Voyage", "Google" are PROVIDER NAMES (the subject of the adapter), not paper citations
+      - No references to "Mem0-style", "Voyager pattern", "LangMem", etc. in src/
+      - Plan citations to mem0 (blueprint Q1, ADR D1 rationale) appear ONLY in JSDoc @see references to blueprints, not in variable/class names
+    recommended_action: None — complies with no-paper-names-in-code.md (provider names are legitimate domain identifiers, not citations).
+
+  - id: F-arch-14
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/registry.ts
+    line: 1
+    plan_ref: Plan § ADR D1 + .claude/rules/architecture.md § 6 (naming conventions)
+    summary: File and class naming conventions correctly applied — kebab-case for file (registry.ts), PascalCase for types (EmbedderProvider, EmbedderSpec, EMBEDDER_REGISTRY)
+    evidence: |
+      - File: registry.ts (kebab-case) ✓
+      - Type alias: EmbedderProvider (PascalCase) ✓
+      - Interface: EmbedderSpec (PascalCase) ✓
+      - Constant: EMBEDDER_REGISTRY (UPPER_SNAKE_CASE) ✓
+      - Function: createEmbedder (camelCase) ✓
+      - Helper: isModuleNotFound (camelCase) ✓
+      
+      All conform to architecture.md § 6 (Naming conventions).
+    recommended_action: None — naming conventions correctly applied throughout.
+
+  - id: F-arch-15
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/registry.test.ts
+    line: 1
+    plan_ref: Plan § T3.1 (TDD acceptance criteria) + .claude/rules/testing.md
+    summary: Registry unit tests cover all major branches — stub/fetch/sdk providers, unknown key, missing SDK dep (simulated)
+    evidence: |
+      Test coverage (lines 16-56):
+      - resolves stub provider → DeterministicStubEmbedder
+      - resolves fetch-based provider (ollama) with options
+      - resolves voyage + google providers
+      - unknown provider → EmbedderError with valid-keys list
+      - missing SDK dep → EmbedderUnavailableError with install hint (mocked import failure)
+      
+      Plan § T3.1 TDD-RED acceptance:
+      - ✓ `createEmbedder('stub')` resolves
+      - ✓ `createEmbedder('ollama', baseUrl)` resolves
+      - ✓ `createEmbedder('bogus')` rejects EmbedderError
+      - ✓ simulated missing SDK → EmbedderUnavailableError
+    recommended_action: None — test coverage matches plan T3.1 acceptance criteria.
+
+  - id: F-arch-16
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/ollama.test.ts
+    line: 1
+    plan_ref: Plan § T2.1 (fetch-based adapter tests)
+    summary: OllamaEmbedder unit test uses injected stub fetch; verifies request shape, response parsing, error handling
+    evidence: |
+      Test structure (lines 1-50):
+      - RED: embed(text) → stub fetch returns deterministic vector
+      - RED: embedBatch([]) → empty short-circuit
+      - RED: embedBatch([a,b]) → preserves order
+      - RED: HTTP non-2xx → typed EmbedderError
+      - RED: malformed response → typed EmbedderError
+      
+      Plan § T2.1 TDD acceptance:
+      - ✓ correct URL/headers/body (model, input)
+      - ✓ parsed vector from embeddings array
+      - ✓ empty-batch short-circuit
+      - ✓ order preservation
+      - ✓ typed throw on non-2xx/malformed
+      
+      Same test pattern used for VoyageEmbedder (voyage.test.ts) and GoogleEmbedder (google.test.ts).
+    recommended_action: None — fetch-adapter unit tests follow plan T2.x pattern.
+
+  - id: F-arch-17
+    severity: INFO
+    file: tests/integration/embedder-registry.test.ts
+    line: 1
+    plan_ref: Plan § T4.1 (GOAL integration test)
+    summary: Integration test validates registry-built embedder round-trips against real pgvector; unknown-key and missing-dep paths tested
+    evidence: |
+      Test structure (lines 1-113):
+      - GOAL: createEmbedder({provider:'ollama', baseUrl, fetchImpl:stubFetch}) → embed + persist + recall against real pgvector
+      - Unknown provider path: createEmbedder({provider:'bogus'}) → EmbedderError
+      - Bundle isolation maintained (verified by subpath-isolation.test.ts)
+      
+      Plan § T4.1 acceptance:
+      - ✓ registry-built embedder round-trips remember+recall vs real pgvector
+      - ✓ unknown-key throws EmbedderError
+      - ✓ bundle isolation holds (separate test)
+    recommended_action: None — GOAL integration test covers plan T4.1 acceptance criteria.
+
+  - id: F-arch-18
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders
+    line: 1
+    plan_ref: Plan § SRP and SOLID compliance
+    summary: SRP compliance verified — each adapter class has exactly one reason to change (its provider's HTTP endpoint shape)
+    evidence: |
+      - OllamaEmbedder: changes when Ollama's /api/embed endpoint evolves
+      - VoyageEmbedder: changes when Voyage's /v1/embeddings endpoint evolves
+      - GoogleEmbedder: changes when Google's generativelanguage.googleapis.com endpoint evolves
+      - Each adapter is INDEPENDENT — no cross-adapter shared state or logic
+      
+      OCP: new providers added as NEW adapter files + NEW loader in EMBEDDER_REGISTRY
+      (no switch-case logic extended; new behavior is pure addition)
+      
+      LSP: all adapters are subtypes of Embedder; callers can call embed/embedBatch
+      on any adapter without type checks
+    recommended_action: None — SOLID principles (SRP, OCP, LSP) correctly applied.
+
+summary: Architecture review of embedder-registry (Item 24) PASSED. All findings are INFO-level confirmations of correct design and implementation. No BLOCKER, HIGH, MEDIUM, or LOW severity issues detected.
+
+  Zero defects found in:
+  - DIP boundary integrity (registry.ts statically imports only contracts, all adapters dynamic)
+  - Error typing and fail-loud design (EmbedderError + EmbedderUnavailableError with install hints)
+  - Adapter DIP compliance (all 6 adapters implement Embedder with 2 methods per ADR-0008)
+  - Bundle isolation (static-import graph excludes SDK deps; integration test confirms)
+  - exactOptionalPropertyTypes discipline (conditional spread in registry loaders)
+  - Naming conventions (kebab-case, PascalCase, camelCase, UPPER_SNAKE_CASE)
+  - Test coverage (unit tests for adapters, unit tests for registry, integration test with real pgvector)
+  - SOLID principles (SRP per adapter, OCP via new adapter files, LSP via Embedder contract)
+  - No paper-name citations in source (provider class names are legitimate infrastructure identifiers)

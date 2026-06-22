@@ -1,0 +1,180 @@
+agent: review-embedder-registry-domain-observability
+review_target: c7949d9..HEAD (embedder-registry Item 24)
+plan: .claude/knowledge-base/plans/embedder-registry-plan.md
+findings:
+  - id: F-obs-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/embedders/voyage.ts
+    line: 53
+    plan_ref: Item 24 (D3) § T2.2 acceptance criteria + plan § Failure scenarios
+    summary: Voyage and Google adapters silently pass empty/missing API keys to the provider, deferring auth failure to HTTP 401 instead of fail-fast at construction.
+    evidence: |
+      ```ts
+      // voyage.ts:53
+      authorization: `Bearer ${this.apiKey ?? ''}`,
+      
+      // google.ts:56
+      const url = `${this.baseUrl}/${modelPath}:batchEmbedContents?key=${this.apiKey ?? ''}`;
+      ```
+      Both adapters fall back to empty string when `apiKey` is undefined or env-var unset.
+      The HTTP request is issued with an empty token / bare `key=` param.
+      The provider responds with HTTP 401 (Unauthorized), which is then wrapped in EmbedderError.
+      
+      **Contrast — fail-fast alternative:**
+      Ollama (which requires no API key) documents "Default base URL `http://localhost:11434`" — transparent.
+      The plan (§ Failure scenarios) lists "Provider HTTP non-2xx" as a failure mode but does NOT mandate
+      fail-fast validation at ctor time for missing auth. However, Rule 8 (Fail Alto/Cedo/Claro) and
+      Princípio 3 (auditability) suggest that a configuration error (missing required credential) should
+      be caught EARLY, not deferred to the first embed call.
+    recommended_action: |
+      **Option 1 (RECOMMENDED — Inquebrável Rule 8):**
+      Add a validation step in the Voyage and Google adapter constructors:
+      ```ts
+      if (!this.apiKey || this.apiKey.trim() === '') {
+        throw new EmbedderError(
+          `Google embedder requires an API key. Set it via the 'apiKey' option or the 'GOOGLE_API_KEY' / 'GEMINI_API_KEY' env var.`
+        );
+      }
+      ```
+      This fails LOUD at construction (fail-fast), making the error traceable to configuration time,
+      not runtime (when the first embed request is issued).
+      
+      **Option 2 (acceptable; current):**
+      Document the deferred-auth contract explicitly: add a note to the JSDoc stating that auth errors
+      are detected at embed-time (first HTTP call) and wrapped in EmbedderError with the HTTP status.
+      Update the plan's "Failure scenarios" section to clarify "missing credentials → HTTP 401 from provider".
+      
+      The current behavior is NOT a bug (the typed error is still thrown), but it violates fail-early
+      discipline. Given that the plan explicitly lists "Provider HTTP non-2xx" as a separate failure mode
+      distinct from "missing credentials", Option 1 is recommended.
+
+  - id: F-obs-2
+    severity: LOW
+    file: packages/core/src/infrastructure/embedders/registry.ts
+    line: 40-46
+    plan_ref: Item 24 (D2) § T3.1 TDD + plan § Registry error handling
+    summary: The `isModuleNotFound` heuristic in registry.ts checks code + message but could misclassify unrelated errors if a module-loading error has a message matching `/cannot find (module|package)/i`.
+    evidence: |
+      ```ts
+      function isModuleNotFound(err: unknown): boolean {
+        if (typeof err !== 'object' || err === null) return false;
+        const code = (err as { code?: unknown }).code;
+        if (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') return true;
+        const message = (err as { message?: unknown }).message;
+        return typeof message === 'string' && /cannot find (module|package)/i.test(message);
+      }
+      ```
+      The code checks for standard Node error codes (primary defense).
+      The fallback regex match on `message` is permissive: if ANY error has a message containing
+      "cannot find module" or "cannot find package", it is classified as module-not-found.
+      
+      **Example false-positive scenario:**
+      If an SDK module LOADS successfully but throws an error with the message
+      "Cannot find module 'config' in the user's project", the regex would match and the error
+      would be wrapped as `EmbedderUnavailableError` instead of propagated as-is.
+      
+      **Current test coverage:**
+      `registry.test.ts:43-56` tests the module-not-found path via vi.doMock with an explicit
+      ERR_MODULE_NOT_FOUND code. The regex fallback is NOT exercised by the test.
+    recommended_action: |
+      **Severity: LOW** — the primary defense (code check) is robust. The regex fallback is defensive.
+      
+      **Recommended action:**
+      Add a comment to the `isModuleNotFound` function noting the fallback is a secondary heuristic
+      for non-standard runtimes (e.g. some bundlers may not preserve the error code).
+      This is not a bug, but documenting the heuristic improves maintainability.
+      
+      ```ts
+      function isModuleNotFound(err: unknown): boolean {
+        if (typeof err !== 'object' || err === null) return false;
+        const code = (err as { code?: unknown }).code;
+        if (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') return true;
+        // Fallback: non-standard runtimes may not preserve error codes.
+        // Check the message string (secondary defense; permissive by design).
+        const message = (err as { message?: unknown }).message;
+        return typeof message === 'string' && /cannot find (module|package)/i.test(message);
+      }
+      ```
+
+  - id: F-obs-3
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders
+    line: —
+    plan_ref: Item 24 (§ Global Definition of Done, Integration Validation)
+    summary: No OTel observability signals (events/metrics) for embedder resolution failures or successful provider selection. Considered and deferred per KISS/YAGNI (registry is construction-time factory, not hot path).
+    evidence: |
+      The registry module (registry.ts) uses only typed errors (`EmbedderError` / `EmbedderUnavailableError`)
+      for failure signaling. No OTel emitEvent() calls are present.
+      
+      The plan § "Observability" does NOT explicitly address metrics or events, treating the registry
+      as an application-layer factory (analogous to how the Memory factory does not emit a metric
+      per `createLocalMemory` call).
+      
+      Cross-ref: the SEMANTIC recall-cache (Item 19) emitted 3 OTel metrics (Counter + 2 Histograms)
+      because recall() is a hot path called per user-facing query. The registry's `createEmbedder()`
+      is called once per Memory instance (cold path / boot time).
+      
+      **Observability via error types alone:**
+      The typed errors carry the REASON (unknown key → list valid providers; missing SDK → install hint).
+      A consumer catching EmbedderError can log the error message at their chosen level (ERROR/WARN/INFO).
+      This satisfies Princípio 3 (auditability) via error messaging.
+    recommended_action: |
+      **No action required.** The current typed-error-only approach is appropriate for a construction-time
+      factory. Per KISS/YAGNI (Inquebrável Rule 10), adding OTel signals to a non-hot path would be
+      over-engineering. If observability is needed in future (e.g., tracking provider migration,
+      measuring adoption of fetch-based adapters), the signals can be added to the registry or lifted
+      to the consumer (the Memory factory can emit on behalf of the embedder).
+      
+      This is logged as INFO because the design decision is sound and properly justified.
+
+  - id: F-obs-4
+    severity: INFO
+    file: packages/core/src/infrastructure/embedders/ollama.ts
+    line: 61
+    plan_ref: Item 24 (T2.1) § HTTP error handling
+    summary: The HTTP error message is terse (only status code). Consider including the provider name for multi-provider contexts.
+    evidence: |
+      ```ts
+      // ollama.ts:61
+      throw new EmbedderError(`Ollama embed returned HTTP ${String(res.status)}`);
+      
+      // voyage.ts:63
+      throw new EmbedderError(`Voyage embed returned HTTP ${String(res.status)}`);
+      
+      // google.ts:74
+      throw new EmbedderError(`Google embed returned HTTP ${String(res.status)}`);
+      ```
+      All three adapters include the provider name (Ollama/Voyage/Google) in the message.
+      This is good practice for multi-provider error contexts (a consumer using multiple
+      embedders can tell which one failed).
+    recommended_action: |
+      **No action required.** The errors are specific and actionable. The provider name is included,
+      allowing the consumer to identify which adapter failed. This satisfies Rule 8 (Fail Alto/Cedo/Claro).
+      
+      Logged as INFO to recognize this good practice.
+
+summary: |
+  **Domain Review (Observability / Error Handling) — embedder-registry Item 24**
+  
+  The implementation demonstrates strong adherence to Inquebrável Rule 8 (Fail Alto/Cedo/Claro) and
+  Princípio 3 (auditability) with ONE MEDIUM-severity finding:
+  
+  **MEDIUM F-obs-1:** Voyage and Google adapters allow empty/missing API keys to silently pass through
+  to the provider, deferring auth failure to HTTP 401 instead of fail-fast at construction.
+  Recommended fix: validate non-empty credentials in the constructor and throw EmbedderError immediately.
+  
+  **LOW F-obs-2:** The `isModuleNotFound` heuristic's regex fallback is overly permissive and could
+  theoretically misclassify unrelated errors. Recommend adding a clarifying comment about the fallback's
+  secondary-defense role.
+  
+  **INFO F-obs-3:** No OTel signals for embedder resolution (appropriate; registry is construction-time,
+  not hot-path; typed errors suffice per KISS/YAGNI).
+  
+  **INFO F-obs-4:** HTTP error messages are specific and include provider names (good practice).
+  
+  The three fetch-based adapters properly wrap network errors and HTTP failures in typed EmbedderError
+  with specific messages (provider name + status). The registry's unknown-key handling lists valid
+  providers. Error cause-chaining is correct (`cause: err instanceof Error ? err : undefined`).
+  No paper names in error strings. Test coverage for error paths is strong (5 error test cases across
+  3 adapters + registry unknown-key + missing-SDK).
+

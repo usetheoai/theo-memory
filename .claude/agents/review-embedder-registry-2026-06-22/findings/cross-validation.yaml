@@ -1,0 +1,121 @@
+agent: cross-validation
+plan: .claude/knowledge-base/plans/embedder-registry-plan.md
+blueprint: .claude/knowledge-base/discoveries/blueprints/embedder-registry-blueprint.md
+scope: c7949d9..HEAD (commits 5631418 feat, f945627 docs)
+date: 2026-06-22
+verdict: NEEDS_FIXES
+summary: >
+  Plan tasks T1.1, T2.1, T2.2, T2.3, T3.1 are FULLY implemented and independently
+  verified passing (37 new unit tests green, typecheck 0 errors, bundle isolation +
+  4 subpath smokes green, no new deps, no paper names, 6 EmbedderProvider keys ==
+  registry keys exactly). ADR D1/D2/D3/D4 respected. HOWEVER T4.1 (the GOAL test)
+  is NON-RUNNABLE AS COMMITTED: vitest.integration.config.ts is missing the 4 new
+  subpath aliases the plan T4.1 explicitly listed to edit, so the GOAL test fails
+  to COLLECT ("Cannot find package '@usetheo/memory/embedders/registry'", 0 tests
+  run). The validate report's "GOAL 2/2 vs real pgvector" PASS claim does not
+  reproduce from the committed tree — it only passes once the missing aliases are
+  added (independently confirmed: patch the alias -> 2/2 green vs real pgvector).
+  This is one HIGH-severity reproducibility/overclaim defect; everything else is solid.
+
+coverage_table:
+  - task: T1.1 EmbedderUnavailableError + public export
+    status: fully
+    commit: 5631418
+    note: class added at errors.ts:358 (mirrors SkillExecutorUnavailableError); folded into existing barrel export block (domain/index.ts:146, no new export statement); errors.test.ts case green; reachable from default barrel. p0-audit count assumption preserved.
+  - task: T2.1 Ollama adapter (fetch, zero dep)
+    status: fully
+    commit: 5631418
+    note: POST {baseUrl}/api/embed, injectable fetch, empty-batch short-circuit, order preserved, typed EmbedderError on non-2xx + malformed. 4 unit tests green. No SDK import.
+  - task: T2.2 Voyage adapter (fetch, zero dep)
+    status: fully
+    commit: 5631418
+    note: POST https://api.voyageai.com/v1/embeddings, Bearer key, VOYAGE_API_KEY fallback, row-without-embedding throws. 4 unit tests green.
+  - task: T2.3 Google Gemini adapter (fetch, zero dep)
+    status: diverged
+    commit: 5631418
+    note: Implemented + 4 unit tests green, BUT uses :batchEmbedContents for ALL paths; plan T2.3 + blueprint Q2/ADR D3 specified :embedContent (single) / :batchEmbedContents (batch). Functionally correct (batch endpoint handles n=1) but an undocumented endpoint divergence from BOTH plan and blueprint. No new ADR records it.
+  - task: T3.1 createEmbedder registry + lazy loaders + subpaths + bundle isolation
+    status: fully
+    commit: 5631418
+    note: registry.ts dynamic-import-only; 6 providers resolve; unknown key -> EmbedderError (valid-keys list); simulated missing SDK -> EmbedderUnavailableError; bundle-isolation walk + 4 subpath smokes green; package.json exports + p0-audit + subpath-isolation updated. EmbedderProvider keys == registry keys exactly. NOTE benign divergence from blueprint ADR D4 (registry exported only from /embedders/registry, NOT from /embedders) — this is MORE correct (preserves isolation) and is documented in index.ts JSDoc.
+  - task: T4.1 GOAL integration test + full gate
+    status: partial
+    commit: 5631418
+    note: GOAL test FILE written correctly and round-trips 2/2 vs real pgvector WHEN the missing aliases are present (independently confirmed). As committed it fails to collect because vitest.integration.config.ts lacks the 4 new subpath aliases the plan explicitly listed to edit. Validate-report PASS claim not reproducible from committed tree.
+
+adr_compliance:
+  D1_factory_plus_lazy_loader_map: respected
+  D2_lazy_import_EmbedderUnavailableError_EmbedderError_unknown_key: respected
+  D3_three_fetch_adapters_zero_dep: respected_with_one_endpoint_divergence (Google :batchEmbedContents only, see F-xval-2)
+  D4_subpaths_plus_bundle_isolation: respected (export-location is tighter than blueprint D4, documented; not a regression)
+
+independent_verification:
+  new_unit_tests: "37 passed (ollama/voyage/google/registry/errors) via vitest.contract.config.ts"
+  typecheck_core: "tsc --noEmit exit 0"
+  bundle_isolation_plus_smokes: "5 passed (registry static graph excludes openai.ts/local.ts; 4 subpath smokes)"
+  p0_audit_embedder_smokes: "11 passed (incl 17a-17d new subpaths)"
+  no_new_runtime_or_optional_dep: "confirmed — only 4 subpath exports added to package.json; dependencies/optionalDependencies unchanged"
+  no_paper_names: "confirmed — 0 hits in new src + tests"
+  build_dist: "npm run build exit 0; all 4 dist/infrastructure/embedders/*.js emitted (DoD pack-ship satisfied)"
+  goal_test_committed_state: "FAIL to collect — Cannot find package '@usetheo/memory/embedders/registry' (missing vitest.integration alias)"
+  goal_test_with_alias_added: "2 passed (2) vs real ankane/pgvector:v0.5.1 — round-trip + unknown-key EmbedderError"
+
+findings:
+  - id: F-xval-1
+    severity: HIGH
+    file: vitest.integration.config.ts
+    line: 42-45
+    plan_ref: "T4.1 Files to edit: 'vitest.integration.config.ts (aliases for the 4 new subpaths if imported by name)'; T4.1 Acceptance Criterion 1 (GOAL test PASSES)"
+    summary: >
+      The GOAL integration test (tests/integration/embedder-registry.test.ts) imports
+      '@usetheo/memory/embedders/registry' by name, but vitest.integration.config.ts only
+      aliases embedders/{stub,openai,local} and embedders — NOT registry/ollama/voyage/google.
+      As committed, the test fails to collect (0 tests run). The plan T4.1 explicitly listed
+      this config file as a file-to-edit; it is absent from the commit diff entirely.
+    evidence: |
+      Committed run: `THEOMEM_PG_URI=... npx vitest run --config vitest.integration.config.ts tests/integration/embedder-registry.test.ts`
+      -> "Error: Cannot find package '@usetheo/memory/embedders/registry' ... Test Files 1 failed; Tests no tests"
+      After adding the missing alias for embedders/registry -> "Test Files 1 passed; Tests 2 passed" vs real pgvector.
+      The implement-validate report (line 15) claims "GOAL integration ... PASS — 2/2" — true only with the alias present, NOT in the committed state.
+    recommended_action: >
+      Add the 4 aliases (embedders/{registry,ollama,voyage,google} -> packages/core/src/infrastructure/embedders/*.ts)
+      to vitest.integration.config.ts in the same way as the existing stub/openai/local entries, then re-confirm 2/2.
+      Alternatively rely solely on the built dist (which DOES resolve via node + the package exports map), but the
+      other embedder subpaths are aliased, so for consistency add the aliases. Until fixed, the GOAL gate is not
+      reproducible from a clean checkout.
+  - id: F-xval-2
+    severity: LOW
+    file: packages/core/src/infrastructure/embedders/google.ts
+    line: 53-56
+    plan_ref: "T2.3 (Action: 'Google: POST .../{model}:embedContent?key= -> embedding.values (single) / batch via :batchEmbedContents'); blueprint Q2/ADR D3 line 43 (':embedContent?key=')"
+    summary: >
+      GoogleEmbedder uses :batchEmbedContents for ALL calls (incl. single embed()),
+      diverging from the plan + blueprint which specified :embedContent for the single path.
+      Functionally correct (the batch endpoint handles n=1 and preserves order) but an
+      undocumented endpoint divergence with no new ADR explaining the choice.
+    evidence: |
+      google.ts:55-56 -> `const url = .../${modelPath}:batchEmbedContents?key=...` for embed() via embedBatch([text]).
+      plan T2.3 + blueprint line 43 -> ':embedContent?key=$GOOGLE_API_KEY' for the single path.
+      google.test.ts:25-27 asserts the :batchEmbedContents URL — the test was written to the implementation, not the plan.
+    recommended_action: >
+      Either (a) add a one-line ADR/JSDoc note in google.ts justifying the batch-only choice
+      (simpler, single code path, batch handles n=1), or (b) align to the plan's :embedContent single path.
+      Option (a) is preferable (KISS) — just document the conscious divergence per Inquebrável Rule 3.
+  - id: F-xval-3
+    severity: INFO
+    file: .claude/knowledge-base/reviews/embedder-registry-implement-validate-2026-06-22.md
+    line: 15
+    plan_ref: "T4.1 DoD; Inquebrável Rule 3 (extreme honesty)"
+    summary: >
+      The validate report claims "GOAL integration ... PASS — 2/2 vs real ankane/pgvector:v0.5.1".
+      This is true with the integration alias present but NOT reproducible from the committed tree
+      (see F-xval-1). The report does not disclose the alias dependency. Other claims verified TRUE:
+      contract 1144 (37 new tests confirmed green subset), code-quality PASS score_cap 100 (audit file
+      consistent; no symbol_fabrication/dead_public_export found in independent reads), no new dep, no paper names.
+    evidence: |
+      Confirmed TRUE: code-quality PASS 100 (audit json+md present, 0 findings), zero new deps,
+      zero paper names, dist builds with all 4 embedder .js files. Only the GOAL PASS claim is
+      conditional on the un-committed alias.
+    recommended_action: >
+      After F-xval-1 is fixed, the 2/2 claim becomes reproducible — no report change needed then.
+      If not fixing the alias, the report must disclose that the GOAL test requires the alias to run.

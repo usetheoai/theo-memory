@@ -34,13 +34,21 @@ interface GoogleEmbedResponse {
 
 export class GoogleEmbedder implements Embedder {
   private readonly model: string;
-  private readonly apiKey: string | undefined;
+  private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: GoogleEmbedderOptions = {}) {
     this.model = options.model ?? DEFAULT_MODEL;
-    this.apiKey = options.apiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'];
+    const apiKey = options.apiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'];
+    // Fail-fast (Inquebrável Rule 8): surface a missing credential at construction
+    // with a clear message instead of deferring to an opaque HTTP 401 at embed-time.
+    if (apiKey === undefined || apiKey.trim() === '') {
+      throw new EmbedderError(
+        "Google embedder requires an API key. Pass it via the 'apiKey' option or the GOOGLE_API_KEY (or GEMINI_API_KEY) env var.",
+      );
+    }
+    this.apiKey = apiKey;
     this.baseUrl = (options.baseUrl ?? BASE_URL).replace(/\/+$/, '');
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -53,7 +61,10 @@ export class GoogleEmbedder implements Embedder {
   async embedBatch(texts: readonly string[]): Promise<readonly (readonly number[])[]> {
     if (texts.length === 0) return [];
     const modelPath = this.model.startsWith('models/') ? this.model : `models/${this.model}`;
-    const url = `${this.baseUrl}/${modelPath}:batchEmbedContents?key=${this.apiKey ?? ''}`;
+    // NOTE: single + batch both route through `:batchEmbedContents` (one HTTP call,
+    // order-preserving) — a deliberate simplification over a separate `:embedContent`
+    // path for size 1 (functionally identical; one code path = less surface).
+    const url = `${this.baseUrl}/${modelPath}:batchEmbedContents?key=${this.apiKey}`;
     const requests = texts.map((t) => ({
       model: modelPath,
       content: { parts: [{ text: t }] },

@@ -28,12 +28,20 @@ interface VoyageEmbedResponse {
 
 export class VoyageEmbedder implements Embedder {
   private readonly model: string;
-  private readonly apiKey: string | undefined;
+  private readonly apiKey: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: VoyageEmbedderOptions = {}) {
     this.model = options.model ?? DEFAULT_MODEL;
-    this.apiKey = options.apiKey ?? process.env['VOYAGE_API_KEY'];
+    const apiKey = options.apiKey ?? process.env['VOYAGE_API_KEY'];
+    // Fail-fast (Inquebrável Rule 8): surface a missing credential at construction
+    // with a clear message instead of deferring to an opaque HTTP 401 at embed-time.
+    if (apiKey === undefined || apiKey.trim() === '') {
+      throw new EmbedderError(
+        "Voyage embedder requires an API key. Pass it via the 'apiKey' option or the VOYAGE_API_KEY env var.",
+      );
+    }
+    this.apiKey = apiKey;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -50,7 +58,7 @@ export class VoyageEmbedder implements Embedder {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey ?? ''}`,
+          authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({ model: this.model, input: texts }),
       });

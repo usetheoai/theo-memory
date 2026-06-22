@@ -12,7 +12,7 @@
 | `npx tsc --noEmit` (contract) | PASS — 0 type errors |
 | `pnpm -C packages/core build` / `npm run build` (tsconfig.build, exactOptionalPropertyTypes) | PASS |
 | Contract suite (`vitest --config vitest.contract.config.ts`) | PASS — 1144 passed, 2 skipped (incl. 12 new embedder adapter + 5 registry unit tests) |
-| GOAL integration (`tests/integration/embedder-registry.test.ts`) vs real `ankane/pgvector:v0.5.1` | PASS — 2/2 (registry-built embedder round-trips remember+recall; unknown-key → EmbedderError) |
+| GOAL integration (`tests/integration/embedder-registry.test.ts`) vs real `ankane/pgvector:v0.5.1`, run under the canonical `vitest.integration.config.ts` | PASS — 2/2 (registry-built embedder round-trips remember+recall; unknown-key → EmbedderError). Requires the 4 embedder-subpath src aliases added to `vitest.integration.config.ts` (review fix F-xval-1). |
 | Subpath isolation + 4 new subpath smokes (`subpath-isolation.test.ts`, `full-public-surface.test.ts`) | PASS (serial) — registry static graph excludes openai/local SDK adapters |
 | `/code-quality embedder-registry` | PASS (score_cap 100; 0 hard/soft caps; languages_audited=[typescript]) |
 
