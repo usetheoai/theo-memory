@@ -3,7 +3,7 @@ import { expectTypeOf, test } from 'vitest';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import type { Filters } from './scope.js';
 
-test('VectorStore has exactly 12 required methods (D8 lock + themory-scoped-forget deleteInScope)', () => {
+test('VectorStore has exactly 13 required methods (D8 lock + deleteInScope + first-class-episodes listEpisodes)', () => {
   type Keys = keyof VectorStore;
   expectTypeOf<Keys>().toEqualTypeOf<
     | 'initialize'
@@ -16,6 +16,7 @@ test('VectorStore has exactly 12 required methods (D8 lock + themory-scoped-forg
     | 'deleteInScope'
     | 'deleteCol'
     | 'list'
+    | 'listEpisodes'
     | 'getUserId'
     | 'setUserId'
   >();
@@ -156,6 +157,10 @@ test('synthetic stub class implementing all 11 methods compiles', () => {
       _topK?: number,
     ): Promise<readonly [readonly VectorStoreResult[], number]> {
       return [[], 0];
+    }
+
+    async listEpisodes(): Promise<readonly VectorStoreResult[]> {
+      return [];
     }
 
     async getUserId(): Promise<string> {

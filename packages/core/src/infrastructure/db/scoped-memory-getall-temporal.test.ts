@@ -82,6 +82,7 @@ function makeVectorStoreReturning(
     deleteInScope: vi.fn(async () => false),
     deleteCol: vi.fn(async () => undefined),
     list: vi.fn(async (_filters?: Filters, _topK?: number) => [rows, rows.length] as const),
+    listEpisodes: vi.fn(async () => rows),
     getUserId: vi.fn(async () => ''),
     setUserId: vi.fn(async () => undefined),
   };

@@ -5,6 +5,7 @@ import type { HistoryManager } from './dip/history-manager.js';
 import type { LLM } from './dip/llm.js';
 import type { ReflectionPolicy } from './dip/reflection-policy.js';
 import type { VectorStore } from './dip/vector-store.js';
+import type { EpisodeListOptions, EpisodePage } from './episode.js';
 import type { HistoryEntry } from './history-entry.js';
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
 import type {
@@ -52,9 +53,16 @@ test('Memory has exactly the 10 top-level keys (v0.4a adds flushReflections; v0.
   >();
 });
 
-test('ScopedMemory has the 5 scoped verbs (incl. subject-scoped forget — themory-scoped-forget T1.1)', () => {
+test('ScopedMemory has the 5 scoped verbs + episodes read surface (first-class-episodes M2 T1.2)', () => {
   type Keys = keyof ScopedMemory;
-  expectTypeOf<Keys>().toEqualTypeOf<'remember' | 'recall' | 'reflect' | 'getAll' | 'forget'>();
+  expectTypeOf<Keys>().toEqualTypeOf<
+    'remember' | 'recall' | 'reflect' | 'getAll' | 'forget' | 'episodes'
+  >();
+});
+
+test('ScopedMemory.episodes returns Promise<EpisodePage> (first-class-episodes M2 T1.2)', () => {
+  expectTypeOf<ScopedMemory['episodes']>().parameters.toEqualTypeOf<[EpisodeListOptions?]>();
+  expectTypeOf<ScopedMemory['episodes']>().returns.resolves.toEqualTypeOf<EpisodePage>();
 });
 
 test('ScopedMemory.remember returns Promise<readonly MemoryItem[]>', () => {
