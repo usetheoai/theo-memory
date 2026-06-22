@@ -127,7 +127,12 @@ export async function linkEntities(
       // representative memory (mirrors EC-5 edge-endpoint anchoring).
       await upsertNodes(
         llmEntities.map((e) => ({
-          type: 'PROPER' as const,
+          // domain-ontologies T4.1 — persist the LLM's emitted type (now
+          // ontology-coerced upstream when an Ontology is configured) instead of
+          // the old hardcoded 'PROPER' placeholder. Falls back to 'PROPER' only
+          // when the LLM omitted a type. This is what makes domain types reach
+          // `entities.type` (the slice-1/2 hardcode discarded the LLM type).
+          type: e.type ?? 'PROPER',
           name: e.name.trim(),
           normalizedKey: normalizeEntityKey(e.name),
         })),
