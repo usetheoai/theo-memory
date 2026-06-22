@@ -8,7 +8,7 @@
  *    query (lower-cased, trimmed) exactly matches one of the configured
  *    no-retrieve markers (e.g. greetings / chitchat the consumer knows never
  *    need memory). Default markers list is empty ⇒ always retrieve (safe default).
- *  - `assess` — CRAG grade: when the top result's score is below the corrective
+ *  - `assess` — grade: when the top result's score is below the corrective
  *    floor, recommends `action: 'relax'` with the configured `relaxedThreshold`
  *    so the pipeline re-filters the already-fetched pool at the lower bar
  *    (bounded in-memory corrective; the pipeline applies the EC-1 clamp). When
