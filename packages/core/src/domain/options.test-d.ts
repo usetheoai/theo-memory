@@ -29,6 +29,12 @@ describe('option types — fields are readonly + optional + primitive', () => {
     >();
   });
 
+  test('RecallOptions exposes adaptive opt-in shape (adaptive-retrieval Item 13 T2.1)', () => {
+    expectTypeOf<RecallOptions['adaptive']>().toEqualTypeOf<
+      { readonly correctiveFloor?: number; readonly relaxedThreshold?: number } | undefined
+    >();
+  });
+
   test('ForgetOptions exposes hard', () => {
     expectTypeOf<ForgetOptions['hard']>().toEqualTypeOf<boolean | undefined>();
   });
