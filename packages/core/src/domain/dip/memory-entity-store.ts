@@ -12,11 +12,15 @@
  */
 import type { Filters } from '../scope.js';
 
-import type { EntityType } from './entity-extractor.js';
-
-/** One entity ready to persist: kind + name + its embedding vector. */
+/** One entity ready to persist: type + name + its embedding vector.
+ *
+ * `type` is `string` (persisted to a `text` column): it carries the compromise
+ * fallback kinds (`PROPER|QUOTED|COMPOUND|NOUN`), the LLM's coarse types
+ * (`PERSON|ORG|...`), OR a domain-ontology entity type (`Diagnosis`, `Clause`,
+ * ...) when an `Ontology` is configured (Item 15). Widened from the
+ * compromise-only `EntityType` union so domain types reach persistence. */
 export interface EntityToLink {
-  readonly type: EntityType;
+  readonly type: string;
   readonly name: string;
   readonly normalizedKey: string;
   readonly embedding: readonly number[];
@@ -34,7 +38,9 @@ export interface UpsertAndLinkParams {
 export interface EntityNodeSummary {
   readonly id: string;
   readonly name: string;
-  readonly type: EntityType;
+  /** Entity type — `string` (see `EntityToLink.type`): compromise kind, LLM type,
+   *  or a domain-ontology type when an `Ontology` is configured (Item 15). */
+  readonly type: string;
   /** Distinct memories this entity is linked to (via memory_entities). */
   readonly memoryCount: number;
   /**
