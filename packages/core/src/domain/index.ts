@@ -140,6 +140,7 @@ export {
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
+  RerankerConflict,
   SkillAlreadyExists,
   SkillExecutionNotConfiguredError,
   SkillExecutorUnavailableError,
@@ -184,6 +185,16 @@ export type {
  * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md
  */
 export type { Embedder } from './dip/embedder.js';
+
+/**
+ * `Reranker` DIP — optional post-threshold relevance re-scoring port (Item 23).
+ * Default adapter: `CrossEncoderReranker` (cross-encoder via `@xenova`),
+ * shipped behind the `@usetheo/memory/reranker-local` subpath (bundle-isolated).
+ *
+ * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D1
+ * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md
+ */
+export type { Reranker } from './dip/reranker.js';
 
 /**
  * `EntityExtractor` DIP — sync, deterministic node extractor from text.
