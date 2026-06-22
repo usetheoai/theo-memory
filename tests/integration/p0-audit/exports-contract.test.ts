@@ -71,12 +71,14 @@ describe('T1.2 — src/core/index.ts contract-barrel JSDoc + @see', () => {
   const content = readFileSync(CONTRACT_PATH, 'utf8');
   const blocks = findExportBlocks(content);
 
-  test('1. src/core/index.ts contains 47 export statements (workspace baseline + entity/graph + usage-counter)', () => {
-    // 47 = 43 (workspace baseline) + 3 entity-extraction slice type exports
-    // (MemoryEntityStore / MemoryGraphStore + their param types; slices 1/2
-    // 2026-06-20) + 1 usage-counter type export (UsageCounterStore;
-    // themory-scoped-forget-and-retrieval-counter T2.2). Each has a JSDoc + @see block.
-    expect(blocks.length).toBe(47);
+  test('1. src/core/index.ts contains 52 export statements (workspace baseline + entity/graph + usage-counter + episodes + reranker)', () => {
+    // 52 = 47 (prior baseline) + 4 M2 episodes exports (M2 v0.14 first-class-episodes:
+    // EpisodeListOptions/EpisodePage/EpisodeCursor type export + the
+    // EPISODE_LIMIT/cursor-codec value export) + 1 reranker DIP type export
+    // (Reranker; cross-encoder-reranker Item 23). The reranker cycle reconciled
+    // the M2-episodes surface drift this snapshot had not absorbed.
+    // Each has a JSDoc + @see block.
+    expect(blocks.length).toBe(52);
   });
 
   test('2. every export statement has a JSDoc block above', () => {
