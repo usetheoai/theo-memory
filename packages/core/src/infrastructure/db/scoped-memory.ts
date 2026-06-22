@@ -6,6 +6,12 @@
  */
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
+import {
+  type EpisodeListOptions,
+  type EpisodePage,
+  encodeEpisodeCursor,
+  resolveEpisodeLimit,
+} from '../../domain/episode.js';
 import { InvalidScope, MemoryNotFound } from '../../domain/errors.js';
 import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import { emitEvent } from '../../domain/memory-event.js';
@@ -423,5 +429,62 @@ export class LocalScopedMemory implements ScopedMemory {
       emitEvent(this.config.tracer, 'getall_temporal_fallback', { count: fallbackCount });
     }
     return items;
+  }
+
+  /**
+   * first-class-episodes M2 T2.2 — episodic / message-log read surface.
+   *
+   * Reuses the SAME `this.filters` (scope + workspace) the recall/forget/getAll
+   * paths use, so isolation parity is automatic (no bespoke filter logic).
+   * Delegates the temporal query to `vectorStore.listEpisodes` (cursor + asOf +
+   * t_invalid handled at the store, EC-1), then assembles the page: trim the
+   * cap+1 over-fetch and compute `nextCursor` from the last kept row (EC-3).
+   *
+   * EC-3 (boundary validation, mirrors recall): an invalid `asOf` Date throws
+   * `InvalidScope` BEFORE any query runs. Bad cursors throw `InvalidScope` inside
+   * `listEpisodes`/`decodeEpisodeCursor`. Both map to REST 422.
+   *
+   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.2
+   */
+  async episodes(options?: EpisodeListOptions): Promise<EpisodePage> {
+    if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
+      throw new InvalidScope('asOf must be a valid Date');
+    }
+    const cap = resolveEpisodeLimit(options?.limit);
+    const rows = await this.config.vectorStore.listEpisodes(this.filters, options ?? {});
+    const hasMore = rows.length > cap;
+    const kept = hasMore ? rows.slice(0, cap) : rows;
+
+    // EC-7: aggregate temporal-fallback in one pass (same discipline as getAll);
+    // emit ONE event when any row lacked a projected created_at — surfaces a
+    // stale adapter rather than silently lying about freshness.
+    let fallbackCount = 0;
+    const items: MemoryItem[] = kept.map((r) => {
+      let createdAt = r.createdAt;
+      if (createdAt === undefined) {
+        fallbackCount += 1;
+        createdAt = new Date();
+      }
+      return {
+        id: r.id,
+        text: String(r.payload['text'] ?? ''),
+        hash: String(r.payload['hash'] ?? r.id),
+        scope: this.scope,
+        createdAt,
+        updatedAt: createdAt,
+        metadata: { ...r.payload },
+        tValid: createdAt,
+        tInvalid: null,
+      };
+    });
+    if (fallbackCount > 0) {
+      emitEvent(this.config.tracer, 'getall_temporal_fallback', { count: fallbackCount });
+    }
+
+    if (!hasMore || items.length === 0) {
+      return { items };
+    }
+    const last = items[items.length - 1] as MemoryItem;
+    return { items, nextCursor: encodeEpisodeCursor(last.createdAt, last.id) };
   }
 }
