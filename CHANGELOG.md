@@ -5,7 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- Optional domain ontologies (Roadmap Item 15): a typed per-domain `Ontology` vocabulary (entity types + relation types; built-ins `medical`/`legal`/`code`/`support`) layered over the LLM extraction pipeline. Enable via `createLocalMemory({ ontology: 'medical' })` (registry key) or a custom `Ontology` object. The ontology vocabulary is injected into the extraction prompt (steering the LLM) and validated post-parse: out-of-vocabulary entity types coerce to `OTHER` and emit an observable `ontology_type_coerced` event (Princípio 3); out-of-vocab relations are kept. Persisted in the EXISTING `entities.type` + `entity_edges.relation` columns — NO new store, NO migration (the "ontologies without poly-store" attack on Cognee). Fail-soft: an ontology mismatch never fails `remember()`. Default (no ontology) is byte-unchanged. (domain-ontologies; Item 15)
 
 ### Changed
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.16.0] - 2026-06-22
+
+### Added
+- Optional domain ontologies (Roadmap Item 15): a typed per-domain `Ontology` vocabulary (entity types + relation types; built-ins `medical`/`legal`/`code`/`support`) layered over the LLM extraction pipeline. Enable via `createLocalMemory({ ontology: 'medical' })` (registry key) or a custom `Ontology` object. The ontology vocabulary is injected into the extraction prompt (steering the LLM) and validated post-parse: out-of-vocabulary entity types coerce to `OTHER` and emit an observable `ontology_type_coerced` event (Princípio 3); out-of-vocab relations are kept. Persisted in the EXISTING `entities.type` + `entity_edges.relation` columns — NO new store, NO migration (the "ontologies without poly-store" attack on Cognee). Fail-soft: an ontology mismatch never fails `remember()`. Default (no ontology) is byte-unchanged. (domain-ontologies; Item 15)
 
 ## [0.15.0] - 2026-06-22
 
