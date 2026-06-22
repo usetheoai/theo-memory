@@ -12,7 +12,6 @@
  */
 import type { Pool } from 'pg';
 
-import type { EntityType } from '../../domain/dip/entity-extractor.js';
 import type {
   EntityNodeSummary,
   ListEntitiesParams,
@@ -95,7 +94,7 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
     const { rows } = await this.pool.query<{
       id: string;
       name: string;
-      type: EntityType | null;
+      type: string | null;
       memory_count: string;
       last_seen_at: Date;
     }>(

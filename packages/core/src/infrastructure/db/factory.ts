@@ -15,6 +15,7 @@ import {
   InvalidCacheConfig,
   InvalidEmbeddingDim,
 } from '../../domain/errors.js';
+import { resolveOntology } from '../../domain/ontology.js';
 import type { Scope } from '../../domain/scope.js';
 import { CompromiseEntityExtractor } from '../extraction/compromise-entity-extractor.js';
 
@@ -171,6 +172,11 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   // adapters-openrouter-local-embedder T0.1 (EC-1 absorption): pre-flight
   // FIRST — config-level rejection before any side effect (probe / store init).
   const effectiveDim = validateEmbeddingDim(config.embeddingDim);
+  // domain-ontologies T3.1 (ADR D4) — fail-fast on an invalid ontology config
+  // (unknown registry key / malformed custom Ontology) BEFORE any side effect.
+  if (config.ontology !== undefined) {
+    resolveOntology(config.ontology);
+  }
   await probeEmbedder(config.embedder, effectiveDim);
   await config.vectorStore.initialize();
 
