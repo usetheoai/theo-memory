@@ -185,8 +185,9 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
   // execute endpoint stays 501 (secure STORE-only default unchanged). EC-1: the
   // SandboxedSkillExecutor constructor is addon-free (isolated-vm loads lazily at
   // execute()), so enabling this on a runtime without the addon boots fine and
-  // degrades to a typed 503 at execute — never a boot crash. EC-4: the static
-  // import does NOT pull isolated-vm at module-load (type-only import in the impl).
+  // degrades to a typed 503 at execute — never a boot crash. EC-4: this value-import
+  // of SandboxedSkillExecutor pulls its module, whose OWN `isolated-vm` import is
+  // TYPE-ONLY (erased) — so module-load stays addon-free; isolated-vm loads only at execute().
   const skillExecutor = resolveSkillExecutionEnabled() ? new SandboxedSkillExecutor() : undefined;
 
   return createLocalMemory({
