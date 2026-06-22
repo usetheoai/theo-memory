@@ -213,7 +213,7 @@ export type { Reranker } from './dip/reranker.js';
 
 /**
  * `AdaptiveRetrievalPolicy` DIP — adaptive-retrieval decision hooks (Item 13).
- * Self-RAG `shouldRetrieve` pre-embed gate + CRAG `assess` post-threshold
+ * `shouldRetrieve` pre-embed gate + `assess` post-threshold
  * grade-and-correct. Default impl: `HeuristicAdaptiveRetrievalPolicy` (key-free),
  * shipped behind the `@usetheo/memory/adaptive-local` subpath (bundle-isolated).
  * Wire via `createLocalMemory({ retrievalPolicy })`; tune per-call via
