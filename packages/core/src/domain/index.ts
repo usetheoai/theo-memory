@@ -54,6 +54,22 @@ export type {
 } from './options.js';
 
 /**
+ * Episodic / message-log read surface (M2 / gap G3): cursor-paginated,
+ * bi-temporal-aware temporal projection of the existing memory substrate.
+ *
+ * @see .claude/knowledge-base/plans/first-class-episodes-plan.md
+ */
+export type { EpisodeListOptions, EpisodePage, EpisodeCursor } from './episode.js';
+export {
+  EPISODE_LIMIT_DEFAULT,
+  EPISODE_LIMIT_MAX,
+  decodeEpisodeCursor,
+  encodeEpisodeCursor,
+  escapeLikePattern,
+  resolveEpisodeLimit,
+} from './episode.js';
+
+/**
  * `Memory` (top-level) + `ScopedMemory` (after `.user(id)` etc.) + config
  * + store interfaces. The contract `MemoryStore` is what local/ and
  * cloud/ runtimes implement.

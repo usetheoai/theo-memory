@@ -25,6 +25,7 @@ import type { HistoryManager } from './dip/history-manager.js';
 import type { LLM } from './dip/llm.js';
 import type { ReflectionPolicy } from './dip/reflection-policy.js';
 import type { VectorStore } from './dip/vector-store.js';
+import type { EpisodeListOptions, EpisodePage } from './episode.js';
 import type { HistoryEntry } from './history-entry.js';
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
 import type {
@@ -84,6 +85,24 @@ export interface ScopedMemory {
   recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
   reflect(options?: ReflectOptions): Promise<ReflectionResult>;
   getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]>;
+
+  /**
+   * Episodic / message-log read surface (M2 / gap G3): list this scope's
+   * memories as a cursor-paginated, bi-temporal-aware TEMPORAL log. The episode
+   * boundary is the Session tier (`session_id`), generalizing to user/agent as
+   * the temporal projection of whatever scope this sub-object is bound to.
+   *
+   * Distinct from `recall()` (semantic) and `getAll()` (unordered page): episodes
+   * are ordered by `(created_at, id)`, cursor-paginated (`after`/`before`/`limit`/
+   * `order`), exclude soft-deleted rows by default, and honor `asOf` bi-temporal
+   * replay (a row soft-deleted AFTER `asOf` still appears at `asOf`). An optional
+   * `queryText` applies a literal partial-text filter (NOT semantic search).
+   *
+   * Additive: the 4 existing verbs (remember/recall/forget/getAll) are unchanged.
+   *
+   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T1.2 + ADRs D1-D4
+   */
+  episodes(options?: EpisodeListOptions): Promise<EpisodePage>;
 
   /**
    * Subject-scoped delete. Deletes `memoryId` ONLY if it belongs to this scope

@@ -76,6 +76,7 @@ class StubVectorStore implements VectorStore {
     await Promise.resolve();
     return [matches.slice(0, topK), matches.length];
   }
+  async listEpisodes(): Promise<readonly VectorStoreResult[]> { await Promise.resolve(); return []; }
   getUserId(): Promise<string> { return Promise.resolve(''); }
   setUserId(): Promise<void> { return Promise.resolve(); }
   get size(): number { return this.rows.size; }
