@@ -1,0 +1,178 @@
+agent: review-first-class-episodes-architecture
+review_target: c1645618578e92542159c5b2bf8f7d88af66d949..HEAD for plan first-class-episodes
+plan: .claude/knowledge-base/plans/first-class-episodes-plan.md
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/core/src/domain/dip/vector-store.ts
+    line: 4
+    plan_ref: T2.1 ADR D3 (DIP widening 12->13) + ADR-0008 method-count note
+    summary: >-
+      Stale ADR-0008 method-count JSDoc — the DIP doc-comment still claims
+      "VectorStore: 11 required" after this slice grew the port to 13 methods
+      (the test-d sentinel was correctly bumped to 13, but the source-of-truth
+      JSDoc on the interface was not).
+    evidence: |
+      vector-store.ts:4
+      ```ts
+       * @see ADR-0008 — DIP method counts (VectorStore: 11 required).
+      ```
+      ...while vector-store.test-d.ts:6 now asserts:
+      ```ts
+      test('VectorStore has exactly 13 required methods (D8 lock + deleteInScope + first-class-episodes listEpisodes)', () => {
+      ```
+      The count diverged silently across two prior slices (11 -> 12 deleteInScope -> 13 listEpisodes); this slice touched both the interface and the
+      test-d count yet left the interface JSDoc at 11. Per CLAUDE.md P0 sub-goal 1
+      ("every public export ... JSDoc-cross-referenced") an inaccurate count
+      cross-ref on a public DIP is a correctness-of-docs regression.
+    recommended_action: >-
+      Update the JSDoc to "VectorStore: 13 required" (and consider citing the
+      additive listEpisodes read alongside the ADR-0008 method-count note that
+      the diff's own JSDoc on listEpisodes already references).
+  - id: F-arch-2
+    severity: LOW
+    file: packages/core/src/domain/vector-store.test-d.ts
+    line: 109
+    plan_ref: T2.1 (DIP shape sentinel)
+    summary: >-
+      Stale test description "synthetic stub class implementing all 11 methods
+      compiles" — the stub now implements 13 methods (it adds listEpisodes). The
+      assertion is correct; only the human-facing test name is wrong.
+    evidence: |
+      vector-store.test-d.ts:109
+      ```ts
+      test('synthetic stub class implementing all 11 methods compiles', () => {
+      ```
+      The stub body (same test) now includes the new method:
+      ```ts
+      async listEpisodes(): Promise<readonly VectorStoreResult[]> { return []; }
+      ```
+    recommended_action: >-
+      Rename the test to "...all 13 methods compiles" so the sentinel name tracks
+      the real DIP cardinality (matches the sibling test renamed to 13 in the
+      same file).
+  - id: F-arch-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/in-memory-store.ts
+    line: 557
+    plan_ref: Global DoD "every changed file <= 500 lines"; ADR D7
+    summary: >-
+      in-memory-store.ts crosses the 500-LoC budget (479 -> 557 after +78). ADR
+      D7 explicitly grants the over-budget exemption ONLY to pgvector-store.ts;
+      the in-memory adapter crossing 500 is not covered by D7 and is not recorded
+      as a documented follow-up.
+    evidence: |
+      `wc -l packages/core/src/infrastructure/db/in-memory-store.ts` -> 557
+      Plan Baseline Context table: "in-memory-store.ts | 479 LoC". ADR D7 scope:
+      "listEpisodes is added to the existing pgvector-store.ts (977 LoC)" — it
+      names pgvector only; architecture.md keeps the 500-LoC budget for the rest.
+    recommended_action: >-
+      Either record the in-memory-store split as a documented follow-up alongside
+      the pgvector-store-split debt (honest-debt, not silent), or note the
+      in-memory adapter is a test/dev fixture explicitly outside the LoC budget.
+      No code change strictly required; the gap is the missing audit-trail note.
+  - id: F-arch-4
+    severity: LOW
+    file: packages/core/src/infrastructure/db/in-memory-store.ts
+    line: 65
+    plan_ref: T2.1 REFACTOR "extract cursor encode/decode helper (shared, pure)"
+    summary: >-
+      Mild DRY duplication of the `(created_at, id)` comparator within the
+      in-memory store: a dedicated `compareCreatedAtId` helper exists AND an
+      inline comparator is hand-written in the sort step, expressing the same
+      ordering concept two ways.
+    evidence: |
+      in-memory-store.ts:65 helper:
+      ```ts
+      function compareCreatedAtId(aDate, aId, bDate, bId): number {
+        const dt = aDate.getTime() - bDate.getTime();
+        if (dt !== 0) return dt;
+        return aId < bId ? -1 : aId > bId ? 1 : 0;
+      }
+      ```
+      ...then the sort re-implements it inline (in-memory-store.ts ~318):
+      ```ts
+      rows.sort((a, b) => {
+        const dt = (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0);
+        if (dt !== 0) return dt * dir;
+        return (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * dir;
+      });
+      ```
+      Both encode the same "(created_at then id)" comparator. The duplication is
+      benign now but is a maintenance trap if the tie-break rule ever changes
+      (two edit sites, easy to drift). Note: pgvector delegates to SQL ORDER BY,
+      so the canonical comparator only lives in the in-memory adapter — keeping a
+      single helper there matters more.
+    recommended_action: >-
+      Reuse `compareCreatedAtId` in the sort (apply `* dir`), so the comparator
+      has one authoritative implementation in the adapter.
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/domain/episode.ts
+    line: 1
+    plan_ref: architecture.md § 3 (DIP, src/core/ <- contracts, no I/O); T1.1
+    summary: >-
+      DIP boundary clean. The domain episode module is I/O-free — it imports only
+      domain siblings (errors.js, memory-item.js) and exposes pure cursor/limit
+      helpers + types. No infrastructure import; no pg/Pool/fetch/fs. The
+      VectorStore.listEpisodes port lives in domain/dip and the API handler
+      depends on @usetheo/memory/contract (the port), not the concrete store.
+    evidence: |
+      episode.ts imports:
+      ```ts
+      import { InvalidScope } from './errors.js';
+      import type { MemoryItem } from './memory-item.js';
+      ```
+      grep for pg|Pool|fetch|fs|http|drizzle in episode.ts -> no matches.
+      handlers/episodes.ts:20 depends on the port, not infra:
+      ```ts
+      import type { EpisodeListOptions, Memory, ScopedMemory } from '@usetheo/memory/contract';
+      ```
+    recommended_action: No action — confirms the additive read respects the layering.
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 740
+    plan_ref: T2.1 EC-1 (asOf vs soft-delete mutually exclusive) + DRY
+    summary: >-
+      EC-1 (bi-temporal vs soft-delete mutual exclusivity) is structurally
+      guaranteed, not merely asserted by tests: listEpisodes reuses the SAME
+      composeTemporalWhere helper as list/search, which returns EITHER the
+      ADR-0011 asOf predicate OR `t_invalid IS NULL` — never a conjunction. SQL is
+      fully parameterized ($n placeholders); cursor is a row-value comparison
+      reusing the ORDER BY comparator. Strong DRY + SRP on the WHERE-builder.
+    evidence: |
+      pgvector-store.ts:741
+      ```ts
+      const temporal = composeTemporalWhere(options.asOf, 1);
+      const filter = composeFilters(filters, temporal.nextParamIndex);
+      ```
+      composeTemporalWhere (pgvector-store.ts:167) is an if/else by construction:
+      ```ts
+      if (asOf === undefined) { return { sql: 't_invalid IS NULL', ... }; }
+      return { sql: '(t_valid IS NULL OR t_valid <= $N) AND (t_invalid IS NULL OR t_invalid > $N+1)', ... };
+      ```
+    recommended_action: No action — exemplary reuse of the existing query helpers.
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/domain/memory-store.ts
+    line: 105
+    plan_ref: T1.2 (ScopedMemory.episodes additive); ISP / ADR D3
+    summary: >-
+      Additive interface evolution is ISP-clean and backward compatible. The plan
+      pseudocode said episodes(scope, opts?), but the impl correctly drops the
+      scope param to match the established ScopedMemory pattern (recall/getAll
+      take no scope — it is bound to the sub-object). The 4 existing verbs are
+      byte-unchanged; listEpisodes is correctly placed on VectorStore (the data
+      owner) rather than a new EpisodeStore DIP (YAGNI, per ADR D3).
+    evidence: |
+      memory-store.ts:105
+      ```ts
+      episodes(options?: EpisodeListOptions): Promise<EpisodePage>;
+      ```
+      matches sibling signatures memory-store.ts:85-87 (recall/getAll take no
+      scope). git diff shows remember/recall/reflect/getAll/forget unchanged.
+    recommended_action: >-
+      No action. Optional: reconcile the plan pseudocode (episodes(scope, opts?))
+      with the shipped signature in the cross-validation report so the divergence
+      is logged as deliberate, not drift.

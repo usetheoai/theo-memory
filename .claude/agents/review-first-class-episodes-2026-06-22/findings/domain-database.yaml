@@ -1,0 +1,240 @@
+agent: review-first-class-episodes-domain-database
+review_target: c1645618578e92542159c5b2bf8f7d88af66d949..HEAD for plan first-class-episodes
+domain: database (pgvector / memory-layer)
+domain_specific_patterns_checked:
+  - "SQL injection: full parameterization of listEpisodes ($n placeholders only; ASC|DESC + <|> enum-derived)"
+  - "EC-1 bi-temporal mutual exclusivity (composeTemporalWhere if/else, NOT ANDed with t_invalid IS NULL)"
+  - "Cursor row-value comparison (created_at, id) <op> ($a,$b) vs ORDER BY created_at <order>, id <order>"
+  - "4 cursor operator combinations: {after,before} x {asc,desc}"
+  - "SQL param-index accounting: temporal -> filter -> cursor -> queryText -> LIMIT"
+  - "ILIKE ESCAPE '\\' literal-match with escapeLikePattern (% _ \\)"
+  - "Index usage (memories_session_id_idx) + full-table-scan risk for ORDER BY created_at"
+  - "In-memory vs pgvector ordering/cursor parity"
+  - "D1 — NO new table/migration shipped"
+  - "Workspace + scope isolation reuse via composeFilters/this.filters"
+
+findings:
+  - id: F-dom-db-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 753-761
+    plan_ref: ADR D2 + EC-3 — cursor row-value comparison matching ORDER BY comparator
+    domain_anchor: SQL cursor pagination correctness (4 combinations)
+    summary: >
+      VERIFIED CORRECT. All 4 cursor operator combinations are sound. With
+      isAfter = (options.after !== undefined), laterIsSmaller = (order === 'DESC'),
+      op = (isAfter === laterIsSmaller ? '<' : '>'):
+      DESC+after -> '<' (older = smaller, correct);
+      DESC+before -> '>' (newer = larger, correct);
+      ASC+after -> '>' (newer = larger, correct);
+      ASC+before -> '<' (older = smaller, correct).
+      The row-value comparator (created_at, id) <op> ($a,$b) shares direction with
+      ORDER BY created_at <order>, id <order>, so it is internally consistent.
+      The in-memory impl (compareCreatedAtId * dir, isAfter ? seq>0 : seq<0)
+      maps to the SAME 4 outcomes. No off-by-one, no overlap/gap defect.
+    evidence: |
+      ```ts
+      const isAfter = options.after !== undefined;
+      const laterIsSmaller = order === 'DESC';
+      const op = isAfter === laterIsSmaller ? '<' : '>';
+      extra.push(`(created_at, id) ${op} ($${idx}, $${idx + 1})`);
+      ```
+    recommended_action: None — correct. Documented here as positive verification.
+
+  - id: F-dom-db-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 741-782
+    plan_ref: EC-1 — asOf branch and default soft-delete exclusion mutually exclusive
+    domain_anchor: ADR-0011 bi-temporal predicate; Princípio 3 auditable temporal correctness
+    summary: >
+      VERIFIED CORRECT. EC-1 holds. The WHERE is composed as
+      `${temporal.sql}${filter.sql}${extraSql}`. composeTemporalWhere returns
+      EITHER 't_invalid IS NULL' (asOf undefined) OR the ADR-0011 null-safe
+      predicate (asOf set) — never both. composeFilters adds NO t_invalid clause;
+      extraSql is only cursor + queryText. A row soft-deleted AFTER asOf
+      (t_invalid > asOf) satisfies '(t_invalid IS NULL OR t_invalid > asOf)' and
+      still appears at asOf. The integration test #4 confirms this against real
+      pgvector with a DB-side skew-free anchor.
+    evidence: |
+      ```ts
+      const temporal = composeTemporalWhere(options.asOf, 1);
+      // ... WHERE ${temporal.sql}${filter.sql}${extraSql}
+      // composeTemporalWhere: asOf undefined -> 't_invalid IS NULL'
+      //                       asOf set -> '(t_valid IS NULL OR t_valid <= $N) AND (t_invalid IS NULL OR t_invalid > $N+1)'
+      ```
+    recommended_action: None — correct.
+
+  - id: F-dom-db-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 741-782
+    plan_ref: EC-6 — parameterized binding protects against SQL injection
+    domain_anchor: SQL injection — full parameterization
+    summary: >
+      VERIFIED CORRECT. listEpisodes is fully parameterized. Every user-controlled
+      value flows through a $n placeholder (cursor.createdAt, cursor.id, the
+      ILIKE pattern, the LIMIT, plus temporal + filter params). The ONLY
+      interpolated fragments are the ORDER direction ('ASC'|'DESC', collapsed via
+      `options.order === 'asc' ? 'ASC' : 'DESC'`) and the cursor operator
+      ('<'|'>', from boolean logic) — both enum/derived, never raw user strings.
+      ILIKE uses `$n ESCAPE '\\'` over an escaped pattern. No string interpolation
+      of user input into SQL anywhere.
+    evidence: |
+      ```ts
+      const order = options.order === 'asc' ? 'ASC' : 'DESC'; // not user string
+      extra.push(`text ILIKE $${idx} ESCAPE '\\'`);
+      params.push(`%${escapeLikePattern(options.queryText)}%`);
+      ```
+    recommended_action: None — correct.
+
+  - id: F-dom-db-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 741-782
+    plan_ref: ADR D2 — param ordering temporal -> filter -> cursor -> queryText -> LIMIT
+    domain_anchor: SQL param-index off-by-one accounting (BLOCKER class)
+    summary: >
+      VERIFIED CORRECT — no off-by-one. Worked example (asOf + workspace_id +
+      session_id + after-cursor + queryText): temporal uses $1,$2 (nextParamIndex=3);
+      composeFilters from 3 -> workspace_id=$3, session_id=$4 (nextParamIndex=5);
+      idx=5; cursor (created_at,id) < ($5,$6), idx=7; queryText ILIKE $7, idx=8;
+      LIMIT $8. params array order = [asOf, asOf, ws, session, createdAt, id,
+      pattern, cap+1] — indices 1..8 align exactly with placeholders. The
+      asOf-undefined path (temporal nextParamIndex stays at startParamIndex with
+      0 params) is equally consistent.
+    evidence: |
+      ```ts
+      const temporal = composeTemporalWhere(options.asOf, 1);
+      const filter = composeFilters(filters, temporal.nextParamIndex);
+      const params = [...temporal.params, ...filter.params];
+      let idx = filter.nextParamIndex;
+      // cursor: ($idx,$idx+1) push(createdAt,id); idx+=2
+      // queryText: $idx push(pattern); idx+=1
+      // LIMIT $idx push(cap+1)
+      ```
+    recommended_action: None — correct. This was the highest-risk surface; it checks out.
+
+  - id: F-dom-db-5
+    severity: LOW
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 771-779
+    plan_ref: ADR D1 — "the read is bounded by the existing memories_session_id_idx"
+    domain_anchor: Index usage — ORDER BY created_at has no supporting composite index
+    summary: >
+      ORDER BY created_at, id has NO supporting index. The memories indexes are
+      single-column btrees on user_id / session_id / agent_id (+ category, hnsw,
+      partial eviction indexes); there is NO (session_id, created_at, id) composite
+      and NO created_at index at all. For a SCOPED query (session_id filter set),
+      Postgres uses memories_session_id_idx to select the scope subset, then performs
+      an in-memory sort of that (usually small) subset — acceptable, not a
+      full-table scan. The risk is the UNSCOPED case (filters undefined): WHERE
+      degrades to `t_invalid IS NULL` only, forcing a seq-scan + sort of the whole
+      live table. The façade always supplies scope filters (this.filters), so the
+      reachable SDK/REST path is bounded; but VectorStore.listEpisodes is a public
+      DIP method that accepts `filters: undefined`. The plan's D1 claim ("bounded by
+      memories_session_id_idx") is true only when a scope filter is present.
+    evidence: |
+      schema.ts:229 index('memories_session_id_idx').on(table.sessionId)
+      // no created_at index; ORDER BY created_at DESC, id DESC -> sort node
+      // pgvector-store.ts:733 listEpisodes(filters: Filters | undefined, ...)
+    recommended_action: >
+      Acceptable for M2 (scoped reads dominate; volumes are per-session). If
+      large-scope episode pages become a hot path, add a partial composite index
+      `(session_id, created_at DESC, id DESC) WHERE t_invalid IS NULL` (and
+      user/agent equivalents) so the ORDER BY is index-served and the cursor
+      seek is an index range scan. Track as a documented follow-up, not a blocker.
+
+  - id: F-dom-db-6
+    severity: LOW
+    file: packages/core/src/infrastructure/db/in-memory-store.ts
+    line: 69-73, 320-324
+    plan_ref: EC-5 — in-memory ordering parity with pgvector (created_at, id)
+    domain_anchor: id tie-break ordering parity (uuid type vs JS string)
+    summary: >
+      pgvector compares the `id` component as type `uuid` (schema.ts:141
+      id: uuid(...)) both in the row-value cursor comparison and in ORDER BY ... id;
+      the in-memory impl compares `id` with JS lexicographic string `<`. For
+      canonical lowercase UUIDs the two orderings agree byte-for-byte (hex chars
+      sort identically to their byte values), so parity holds for the real id
+      generator (defaultRandom / uuid v4 lowercase). The divergence would only
+      surface for non-canonical id casing/format, which the production path never
+      produces. Worth recording so a future test fixture that injects upper-case
+      or non-UUID ids does not silently diverge between the two stores.
+    evidence: |
+      ```ts
+      // in-memory: JS string comparison
+      return aId < bId ? -1 : aId > bId ? 1 : 0;
+      // pgvector: (created_at, id) <op> ($a,$b) where id column is type uuid
+      ```
+    recommended_action: >
+      No code change. Note in the in-memory listEpisodes JSDoc that id-tie ordering
+      assumes canonical lowercase UUIDs (matching pgvector uuid ordering); keep
+      fixtures using lowercase UUID-shaped ids.
+
+  - id: F-dom-db-7
+    severity: MEDIUM
+    file: tests/integration/episodes.test.ts
+    line: 102-120
+    plan_ref: ADR D2 + EC-3 — cursor across 4 {after,before} x {asc,desc} combinations
+    domain_anchor: SQL cursor operator runtime coverage
+    summary: >
+      The 4-combination cursor operator logic (F-dom-db-1) is analytically correct,
+      but only ONE of the four combinations — DESC+after (the default-order forward
+      walk) — is exercised end-to-end against REAL pgvector. ASC+after, DESC+before,
+      and ASC+before have NO integration coverage; the in-memory unit test covers
+      asc/desc ordering but the cursor no-gap/no-overlap walk there is also
+      default-order (after). A sign-flip regression in the `op` ternary for the
+      uncovered combos (e.g., the before-path or the asc-path) would pass CI. Since
+      the cursor comparator is the load-bearing pagination invariant, the 3
+      uncovered combos are the cheapest place a future edit could break silently.
+    evidence: |
+      ```ts
+      // integration test 2 — only DESC(default)+after is walked:
+      const opts = after === undefined ? { limit: 2 } : { limit: 2, after };
+      after = page.nextCursor;
+      ```
+    recommended_action: >
+      Add integration assertions (or in-memory unit cases that mirror the same op
+      derivation) for the remaining 3 cursor combinations: order=asc + after,
+      order=desc + before, order=asc + before — verifying no-gap/no-overlap and
+      correct directionality. Coordinate with the tests reviewer; this is a
+      test-depth gap, not a correctness defect in the shipped SQL.
+
+  - id: F-dom-db-8
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 733-784
+    plan_ref: D1 — episodes are a READ projection; NO new table/migration
+    domain_anchor: migration discipline (single head, no schema change)
+    summary: >
+      VERIFIED. `git diff c164561..HEAD --name-only` shows ZERO files under
+      packages/core/src/infrastructure/db/migrations/** and ZERO schema.ts changes.
+      listEpisodes is pure raw SQL over the existing `memories` table reusing
+      existing columns (created_at, id, t_valid, t_invalid, session_id, ...). D1
+      ("no migration, no new table") holds — no migration-head/parity risk.
+    evidence: |
+      git diff --name-only c1645618578e92542159c5b2bf8f7d88af66d949..HEAD
+        -> no *.sql, no schema.ts, no migrations/meta changes
+    recommended_action: None — correct.
+
+  - id: F-dom-db-9
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 763-768
+    plan_ref: EC-2 — ILIKE metacharacter escape (% _ \\)
+    domain_anchor: literal text filter, not wildcard
+    summary: >
+      VERIFIED CORRECT. queryText wraps escapeLikePattern(options.queryText) in
+      `%...%` and uses `ILIKE $n ESCAPE '\\'`. escapeLikePattern escapes \\, %, _
+      with a backslash prefix; the JS literal '\\\\' compiles to a single backslash
+      so SQL sees ESCAPE '\'. Therefore a queryText of "50%" matches the literal
+      "50%" and NOT "500" — confirmed by both the in-memory unit test and
+      integration test #6. No injection (value is a bound param).
+    evidence: |
+      ```ts
+      extra.push(`text ILIKE $${idx} ESCAPE '\\'`);
+      params.push(`%${escapeLikePattern(options.queryText)}%`);
+      // escapeLikePattern: text.replace(/[\\%_]/g, (c) => `\\${c}`)
+      ```
+    recommended_action: None — correct.

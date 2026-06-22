@@ -74,9 +74,21 @@ describe('GET /v1/scopes/:type/:id/episodes', () => {
     const app = createServer({ memory: stubMemory(scoped) });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/session/s1/episodes'));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { items: MemoryItem[]; nextCursor?: string };
+    const body = (await res.json()) as {
+      items: { id: string; text: string; scope_type: string; created_at: string; metadata: unknown }[];
+      nextCursor?: string;
+    };
     expect(body.items).toHaveLength(2);
     expect(body.nextCursor).toBe('CURSOR123');
+    // F-tests-4: assert the wire shape (snake_case created_at, scope_type) so a
+    // createdAt-vs-created_at regression fails red.
+    expect(body.items[0]).toEqual({
+      id: 'id-2',
+      text: 'fact-id-2',
+      scope_type: 'session',
+      created_at: '2026-06-03T00:00:02.000Z',
+      metadata: {},
+    });
   });
 
   test('forwards after/limit/order/q to ScopedMemory.episodes', async () => {

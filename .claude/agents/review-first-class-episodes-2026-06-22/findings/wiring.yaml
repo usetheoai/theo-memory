@@ -1,0 +1,104 @@
+agent: review-first-class-episodes-wiring
+review_target: c1645618578e92542159c5b2bf8f7d88af66d949..HEAD for plan first-class-episodes (M2)
+plan: .claude/knowledge-base/plans/first-class-episodes-plan.md
+
+triad_revalidation:
+  total_new_public_symbols: 9
+  # episode.ts: EpisodeListOptions, EpisodePage, EpisodeCursor, EPISODE_LIMIT_DEFAULT,
+  #   EPISODE_LIMIT_MAX, resolveEpisodeLimit, encodeEpisodeCursor, decodeEpisodeCursor,
+  #   escapeLikePattern  +  VectorStore.listEpisodes  +  ScopedMemory.episodes()  +  episodesHandler
+  pillar_a_static_caller_honest_pass: "11 / 11"
+  pillar_b_integration_test_honest_pass: "10 / 11"   # the REST seam over real pgvector is the gap (see F-wire-1)
+  pillar_c_runtime_metric_observed: "1 / 1"          # Hono OTel span rest.v1.scopes.list covers the route (happy-path observability)
+
+summary: >
+  The slice is genuinely wired end-to-end, not an orphan module. ScopedMemory.episodes()
+  is reachable from production via app.ts:350 (GET /v1/scopes/:type/:id/episodes ->
+  episodesHandler -> workspaceBoundMemory(c,memory).<tier>(id).episodes(opts)). The façade
+  delegates to vectorStore.listEpisodes (scoped-memory.ts:454), implemented on BOTH the
+  PgvectorStore (production, pgvector-store.ts:733) and InMemoryVectorStore (fixture,
+  in-memory-store.ts:295). Every new episode.ts export is consumed (decode/encode/resolve in
+  the two store impls + façade; escapeLikePattern in pgvector listEpisodes; the 3 types in
+  the DIP + façade signatures). The barrel re-exports them as public API (domain/index.ts:62-70),
+  so none are dead. Boundary discipline holds: core never imports api (only JSDoc mentions).
+  Pillar (c) is satisfied by the existing per-request Hono OTel span (otel-middleware
+  deriveSpanName matches /v1/scopes/ -> rest.v1.scopes.list with http.route/http.status_code) —
+  the same observability every sibling scope-read (entities/metrics/graph) relies on; the plan
+  Global DoD does NOT require a dedicated episodes.* metric. Verified live: api handler suite
+  7/7 GREEN, core episode unit suite 16/16 GREEN. The one real wiring-depth gap is that the
+  REST handler -> façade -> real-pgvector seam is never exercised by a single integration test
+  (the GOAL test goes SDK->pgvector; the handler is only tested against a stubbed Memory),
+  which diverges from the established graph-endpoint precedent.
+
+findings:
+  - id: F-wire-1
+    severity: MEDIUM
+    file: tests/integration/episodes.test.ts
+    line: 71
+    plan_ref: T4.1 GOAL + Final Phase Integration Validation; cf. tests/integration/entities/graph.test.ts (precedent)
+    summary: >
+      The episodes REST handler is never exercised end-to-end over real pgvector. The GOAL
+      integration test builds `createLocalMemory(...)` and calls `session.episodes()` directly
+      (the SDK façade -> PgvectorStore path). The REST seam (episodesHandler -> workspaceBound
+      ->façade->pgvector, query-param parsing, cursor forwarding, asOf->422 mapping over a real
+      store) is covered ONLY by packages/api/.../episodes.test.ts against a STUBBED Memory
+      (vi.fn().mockResolvedValue). No test composes `createServer(...)` + `app.fetch(...)` over a
+      real pgvector pool for /v1/scopes/:type/:id/episodes. The two halves are each tested; the
+      handler->façade->pgvector seam is not tested as one unit.
+    evidence: |
+      tests/integration/episodes.test.ts:71-78  buildMemory() = createLocalMemory({ vectorStore: new PgvectorStore(pool), ... }) — SDK path only.
+      tests/integration/episodes.test.ts:96      await session.episodes({ limit: 100 })  — façade call, NOT app.fetch.
+      packages/api/src/server/__tests__/episodes.test.ts:42-65  stubScoped()/stubMemory() — REST tested against an in-process stub; episodes is a vi.fn, no real store.
+      Contrast precedent — tests/integration/entities/graph.test.ts:223-228:
+        const app = createServer({ memory, memoryEntityStore: new PgMemoryEntityStore(pool), memoryGraphStore: new PgMemoryGraphStore(pool) });
+        const res = await app.fetch(new Request('http://localhost/v1/scopes/user/grapher/graph'));
+      The sibling scope-read endpoint DOES have a REST->façade->real-pg integration test; episodes does not.
+    recommended_action: >
+      Add one REST-level integration case to tests/integration/episodes.test.ts (gated by
+      THEOMEM_PG_URI, mirroring graph.test.ts): createServer({ memory }) -> app.fetch
+      GET /v1/scopes/session/s1/episodes?limit=2&order=asc after seeding via the façade; assert
+      200 {items,nextCursor} and that nextCursor round-trips through a second app.fetch with ?after=.
+      Closes the handler->façade->pgvector seam at the same depth as the graph precedent. The
+      consumer here is the theo-cloud gateway BFF (it adopts this REST surface) — the seam is the
+      contract it actually calls, not the SDK path the GOAL test proves.
+
+  - id: F-wire-2
+    severity: LOW
+    file: packages/core/src/domain/episode.ts
+    line: 63
+    plan_ref: T1.1 (EpisodePage shape); ADR D3 (forward-cursor only in v1)
+    summary: >
+      EpisodePage.prevCursor is declared but never written or read anywhere in the slice (no
+      backward pagination in v1 — the JSDoc explicitly marks it "reserved for a future
+      backward-pagination follow-up"). It is a forward-declared optional field with zero current
+      consumer. Honest YAGNI flag, not a defect: it ships an unused contract surface ahead of need.
+    evidence: |
+      packages/core/src/domain/episode.ts:56-64  EpisodePage { items; nextCursor?; prevCursor? }.
+      grep 'prevCursor' (non-test, non-dist): ONLY the declaration + its own JSDoc — zero producers, zero consumers.
+      Façade scoped-memory.ts:484-488 returns { items } or { items, nextCursor } — never sets prevCursor.
+    recommended_action: >
+      Acceptable to keep as a documented reservation (it is optional + clearly annotated, no runtime
+      cost). If the team prefers strict YAGNI, drop prevCursor until the backward-pagination
+      follow-up lands and re-add it then (additive, non-breaking either way since it is optional).
+
+  - id: F-wire-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 481
+    plan_ref: Wiring triad pillar (c) — runtime metric reuse (getall_temporal_fallback)
+    summary: >
+      The façade's reuse of the getall_temporal_fallback OTel event is a FALLBACK-only signal: it
+      fires only when a row lacks a projected createdAt. Against the production PgvectorStore,
+      created_at is a NOT NULL column always projected, so on the happy path this event emits
+      count=0 / never. It is therefore NOT the load-bearing observability for episodes() — the real
+      pillar (c) is the per-request Hono span (rest.v1.scopes.list) created by otel-middleware for
+      the route. This is correct and consistent with sibling endpoints; flagged only so the triad
+      pillar (c) is not mis-attributed to a fallback counter that does not fire in normal operation.
+    evidence: |
+      packages/core/src/infrastructure/db/scoped-memory.ts:461-482  fallbackCount only increments when r.createdAt === undefined.
+      packages/core/src/infrastructure/db/pgvector-store.ts:771-783  listEpisodes SELECT includes created_at (notNull column) -> createdAt always present -> fallbackCount stays 0.
+      packages/api/src/server/observability/otel-middleware.ts:28  path.startsWith('/v1/scopes/') -> span 'rest.v1.scopes.list' with http.route/http.status_code — the genuine per-request metric for the episodes route.
+    recommended_action: >
+      No action required. Optionally, if per-tier episode visibility is later wanted, set
+      span.setAttribute('scope.tier', type) inside episodesHandler so the shared scopes span
+      disambiguates episodes traffic from other /v1/scopes/* reads. Not a blocker.

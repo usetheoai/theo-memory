@@ -749,13 +749,22 @@ export class PgvectorStore implements VectorStore {
 
     // EC-3: cursor row-value comparison. After = later-in-active-order; before =
     // earlier. For DESC, "later" means smaller (created_at,id); for ASC, larger.
+    //
+    // PRECISION (the load-bearing detail): the `created_at` COLUMN is timestamptz
+    // (microsecond), but the cursor carries a JS-Date/ISO MILLISECOND value (the
+    // `pg` driver already truncates timestamptz → JS Date at ms, so the encoded
+    // cursor can only ever be ms). Comparing the raw µs column against an ms
+    // cursor makes the boundary row leak back in for ASC (`col_µs > cursor_ms` is
+    // true for the boundary row itself). We therefore compare — and order by —
+    // `created_at` TRUNCATED to milliseconds, so the column and the cursor share
+    // one granularity and the unique `id` is the deterministic intra-ms tie-break.
     const cursorRaw = options.after ?? options.before;
     if (cursorRaw !== undefined) {
       const isAfter = options.after !== undefined;
       const cursor = decodeEpisodeCursor(cursorRaw);
       const laterIsSmaller = order === 'DESC';
       const op = isAfter === laterIsSmaller ? '<' : '>';
-      extra.push(`(created_at, id) ${op} ($${idx}, $${idx + 1})`);
+      extra.push(`(date_trunc('milliseconds', created_at), id) ${op} ($${idx}, $${idx + 1})`);
       params.push(cursor.createdAt, cursor.id);
       idx += 2;
     }
@@ -774,7 +783,7 @@ export class PgvectorStore implements VectorStore {
              created_at
       FROM memories
       WHERE ${temporal.sql}${filter.sql}${extraSql}
-      ORDER BY created_at ${order}, id ${order}
+      ORDER BY date_trunc('milliseconds', created_at) ${order}, id ${order}
       LIMIT $${idx}
     `;
     // Over-fetch cap+1 so the façade can compute nextCursor (truncation disclosure).

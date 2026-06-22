@@ -1,7 +1,9 @@
 /**
  * VectorStore DIP — adapter contract for vector-storage backends (pgvector, Qdrant, etc).
  *
- * @see ADR-0008 — DIP method counts (VectorStore: 11 required).
+ * @see ADR-0008 — DIP method counts (VectorStore: 13 required — 11 original +
+ *   `deleteInScope` (themory-scoped-forget) + `listEpisodes` (first-class-episodes M2);
+ *   both additive read/scoped methods on the store that owns `memories`).
  * @see ADR-0001 — upstream-shape architecture (nine-step search requires keywordSearch BM25 fallback).
  *
  * v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the

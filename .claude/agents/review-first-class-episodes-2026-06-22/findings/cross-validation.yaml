@@ -1,0 +1,161 @@
+agent: review-first-class-episodes-cross-validation
+review_target: c1645618578e92542159c5b2bf8f7d88af66d949..HEAD for plan first-class-episodes
+plan: .claude/knowledge-base/plans/first-class-episodes-plan.md
+plan_tasks_summary:
+  total_tasks: 6          # T1.1, T1.2, T2.1, T2.2, T3.1, T4.1
+  fully_implemented: 5    # T1.1, T1.2, T2.1, T3.1, T4.1
+  partial: 1              # T2.2 — production code shipped; declared RED unit test file missing
+  missing: 0
+  diverged: 2             # T1.2 signature (scope param dropped) + T2.1 return type (rows not EpisodePage) — both benign, NOT ADR-documented
+acceptance_criteria_summary:
+  total: 22
+  satisfied: 20
+  unverified: 2           # GOAL test 5/5(7) vs real pgvector — skips clean without THEOMEM_PG_URI (not runnable in this env); T2.2 facade-level unit AC
+  false_claims: 0
+adr_compliance:
+  total_adrs: 7           # D1, D2, D3, D4, D5, D6, D7
+  respected: 7
+  diverged_without_new_adr: 0
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    Plan committed at cefd50c (2026-06-22 11:30:36) and NOT touched by any of the 3
+    implementation commits (bdc5e20 Phase 1+2 @ 11:50:30, dd31b1f Phase 3, 70a0168 Phase 4).
+    Plan is frozen ground truth. No drift.
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 0
+    plan_ref: T2.2 Files to edit + TDD ("scoped-memory-episodes.test.ts (NEW) — RED: composeFilters isolation + asOf NaN throws InvalidScope"; test names test_episodes_composes_scope_filters / test_episodes_asof_nan_throws_invalid_scope)
+    summary: >
+      T2.2 partial — the declared RED unit-test file scoped-memory-episodes.test.ts was
+      NOT created. The LocalScopedMemory.episodes() facade (composeFilters isolation +
+      asOf-NaN → InvalidScope guard + cap+1 over-fetch → nextCursor) ships in production code
+      but has NO dedicated facade-level unit test. Coverage exists only transitively: the
+      asOf-NaN→422 path via the api test, and isolation via the GOAL integration test (which
+      skips clean without a live pgvector). The plan's two named RED cases are absent.
+    evidence: |
+      ls packages/core/src/infrastructure/db/{__tests__/,}scoped-memory-episodes.test.ts → not found.
+      grep for facade episodes tests: only list-episodes.test.ts (exercises InMemoryVectorStore.listEpisodes
+      DIRECTLY — the STORE, not the facade) + memory-store.test-d.ts (type keyset).
+      Facade code present at scoped-memory.ts async episodes(): asOf-NaN guard + this.filters reuse
+      + nextCursor computation — all unit-untested at the facade layer.
+      Plan T2.2 DoD: "unit green; typecheck green; isolation reuses composeFilters" — typecheck/isolation
+      hold, but the declared unit test is missing.
+    recommended_action: >
+      Add packages/core/src/infrastructure/db/__tests__/scoped-memory-episodes.test.ts with the two
+      declared cases (asOf-NaN throws InvalidScope; episodes() delegates with composeFilters-composed
+      filters / cross-scope isolation). Cheap and closes the only TDD-shape gap in the slice. Inquebrável Rule 5.
+
+  - id: F-xval-2
+    severity: LOW
+    file: packages/core/src/domain/memory-store.ts
+    line: 105
+    plan_ref: T1.2 Deep Dives ("episodes(scope: Scope, opts?: EpisodeListOptions): Promise<EpisodePage>")
+    summary: >
+      Signature divergence from plan (undocumented but benign). Plan T1.2 declared
+      episodes(scope, opts?); the implemented interface verb is episodes(options?: EpisodeListOptions)
+      — the scope is implicit, resolved by the scoped facade binding (memory.user(id)/.session(id)/.agent(id)),
+      identical to how the existing recall/forget/getAll verbs already take no scope param. The implemented
+      shape is MORE consistent with the existing 4 verbs than the plan's literal signature; this is an
+      improvement, not a defect, but it diverges from the plan text without an in-impl ADR note.
+    evidence: |
+      memory-store.ts:105 → episodes(options?: EpisodeListOptions): Promise<EpisodePage>;
+      Plan line 209 → "episodes(scope: Scope, opts?: EpisodeListOptions): Promise<EpisodePage>".
+      The 4 existing ScopedMemory verbs (recall/forget/getAll) take no scope param (scope bound at
+      memory.<tier>(id)); the impl correctly mirrors that. Façade composes scope via this.filters/this.scope.
+    recommended_action: >
+      No code change needed (the impl shape is correct and consistent). Optionally note the
+      signature normalization in the implementation summary for traceability.
+
+  - id: F-xval-3
+    severity: LOW
+    file: packages/core/src/domain/dip/vector-store.ts
+    line: 188
+    plan_ref: T2.1 Pseudo-code / Signatures ("listEpisodes(filters, opts): Promise<EpisodePage>")
+    summary: >
+      Return-type divergence from plan (undocumented but benign). Plan T2.1 pseudocode had the DIP
+      method return Promise<EpisodePage> (store computes the page). The implementation returns
+      Promise<readonly VectorStoreResult[]> (store over-fetches cap+1 raw rows; the LocalScopedMemory
+      facade computes hasMore/nextCursor and maps to MemoryItem/EpisodePage). This is a cleaner SRP split
+      (store = query, facade = pagination), mirrors the existing list()→facade getAll pattern, and the
+      over-fetch contract is documented in the DIP JSDoc — but it diverges from the plan signature without
+      an explicit ADR.
+    evidence: |
+      vector-store.ts:188-191 → listEpisodes(filters, options): Promise<readonly VectorStoreResult[]>
+      DIP JSDoc (vector-store.ts:180-184) documents the over-fetch cap+1 contract explicitly.
+      scoped-memory.ts episodes() does the slice(0,cap)/nextCursor/toItem mapping.
+      Plan pseudocode (line 259/266-268) returned EpisodePage from the store.
+    recommended_action: >
+      No code change needed (the split is sound and consistent with list→getAll). Note the
+      DIP return-shape decision in the implementation summary for plan-vs-impl traceability.
+
+  - id: F-xval-4
+    severity: INFO
+    file: packages/core/src/domain/episode.ts
+    line: 34
+    plan_ref: T1.1 Files to edit ("packages/core/src/domain/options.ts — add EpisodeListOptions")
+    summary: >
+      Documented deviation (already disclosed in the review prompt). Plan T1.1 Files-to-edit placed
+      EpisodeListOptions/EpisodePage in options.ts; the impl placed them in a NEW dedicated
+      domain/episode.ts (co-located with the pure cursor helpers). This is the documented deviation;
+      it is a better cohesion choice (the episode types + cursor helpers form one module) and is
+      correctly barrel-exported from domain/index.ts + root index.ts. options.ts is byte-unchanged.
+    evidence: |
+      grep "Episode" packages/core/src/domain/options.ts → none (options.ts untouched, additive promise kept).
+      packages/core/src/domain/episode.ts (NEW, 123 LoC) holds the types + helpers.
+      domain/index.ts:62 exports EpisodeListOptions/EpisodePage/EpisodeCursor; root index.ts:203
+      export * from './domain/index.js' re-exports them (typecheck of the api handler importing from
+      @usetheo/memory/contract resolves → exit 0).
+    recommended_action: No action — cohesive placement is an improvement; barrels export correctly.
+
+  - id: F-xval-5
+    severity: INFO
+    file: tests/integration/episodes.test.ts
+    line: 90
+    plan_ref: T4.1 GOAL test (plan says "5/5"); Goal statement (5 cases)
+    summary: >
+      GOAL test is a SUPERSET of the plan's declared 5 cases (7 cases: temporal order+asc-reverse,
+      cursor no-gap/no-overlap, scope/workspace isolation, EC-1 asOf replay, soft-delete exclusion,
+      EC-2 queryText literal, nextCursor round-trip). This OVER-delivers vs plan (EC-2 + cursor
+      round-trip added). NOT verifiable in this review environment — the suite gates on THEOMEM_PG_URI
+      and skips clean when unset (1 skipped, exit 0 observed). The summary's "GOAL 7" claim is
+      consistent with the test file; the pass-against-real-pgvector assertion is taken on trust here.
+    evidence: |
+      tests/integration/episodes.test.ts: describe.skip when THEOMEM_PG_URI unset; 7 test() under
+      "THE GOAL — episodic read surface (real pgvector)"; case 4 asserts EC-1 (row soft-deleted AFTER
+      asOf still appears at asOf, excluded from default). npx vitest run → "1 skipped" (gated correctly).
+    recommended_action: >
+      No action. CI/reviewer with a live ankane/pgvector:v0.5.1 must confirm 7/7 green before merge
+      (the only AC this review could not execute).
+
+cross_validation_summary:
+  verdict: READY_TO_MERGE_WITH_CAVEATS
+  one_line: >
+    The slice faithfully implements the plan: all 6 tasks shipped, 7/7 ADRs respected, Coverage
+    Matrix 13/13 delivered, no plan drift, no scope creep (peripheral test edits are compile-forced
+    DIP-stub additions), no false claims. One MEDIUM (T2.2 declared facade unit-test file missing —
+    production code present, covered only transitively), two LOW benign undocumented signature/return-type
+    normalizations (both improve consistency with the existing 4 verbs / list→getAll pattern), one
+    documented INFO deviation (types in episode.ts not options.ts — better cohesion), and one INFO
+    (GOAL integration test is a superset of the plan's 5 cases but unrunnable here without pgvector).
+  gates_verified_in_this_review:
+    typecheck: PASS (tsc --noEmit -p tsconfig.contract.json, exit 0)
+    lint: PASS (eslint, 0 warnings)
+    core_episode_units: PASS (16/16 — episode.test.ts 9 + list-episodes.test.ts 7)
+    api_episodes_suite: PASS (7/7, run from packages/api)
+    integration_goal: SKIPPED_CLEAN (THEOMEM_PG_URI unset; gated correctly — unverified by reviewer)
+    changelog: PASS (Unreleased entry present, Rule 6)
+    no_paper_names: PASS (0 hits in new src files)
+    plan_drift: NONE
+  coverage_matrix_delivery: 13/13 rows delivered and traceable to commits (T1.1/T1.2/T2.1/T2.2/T3.1/T4.1)
+  adr_delivery:
+    D1_no_new_table: HONORED (no migration; read projection over memories)
+    D2_created_at_id_cursor: HONORED (row-value (created_at,id), opaque base64url, default desc, cap 200)
+    D3_listEpisodes_on_VectorStore_DIP: HONORED (added to VectorStore, no new EpisodeStore DIP; method count 12->13 sentinel updated)
+    D4_temporal_not_semantic: HONORED (queryText ILIKE literal, no embedding path)
+    D5_EC9_skill_asOf_deferred: HONORED (no skill-scope asOf added; documented follow-up)
+    D6_REST_422_empty_200: HONORED (asOf-NaN/bad-cursor/after+before -> 422 via central InvalidScope mapper + zod superRefine; empty/foreign scope -> 200 [])
+    D7_pgvector_file_split_deferred: HONORED (listEpisodes added as self-contained method; no split; over-budget recorded)

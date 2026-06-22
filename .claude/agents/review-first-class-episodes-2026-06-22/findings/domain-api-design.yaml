@@ -1,0 +1,158 @@
+agent: review-first-class-episodes-domain-api-design
+review_target: c1645618578e92542159c5b2bf8f7d88af66d949..HEAD for plan first-class-episodes
+domain: api-design
+domain_specific_patterns_checked:
+  - "REST status-code contract (200 page / 404 bad-scope / 422 query-validation)"
+  - "No existence leak on list endpoint (foreign/empty scope -> 200 {items:[]})"
+  - "zod query schema: .strict() unknown-param rejection + limit coerce/cap + order enum + superRefine after+before (EC-4)"
+  - "Workspace/tenant isolation via workspaceBoundMemory(c, memory) (matches entities.ts/metrics.ts)"
+  - "OpenAPI scopeEpisodes path/params/responses vs actual handler behavior"
+  - "Response DTO shape ({id,text,scope_type,created_at,metadata} + nextCursor) vs MemoryItem"
+  - "422-vs-400 query-validation divergence from older scopes-memories endpoint (ADR D6)"
+  - "Auth: route under bearer + rate-limit read middleware (app.get('/v1/scopes/*', ...))"
+findings:
+  - id: F-dom-api-1
+    severity: INFO
+    file: packages/api/src/server/handlers/episodes.ts
+    line: 97
+    plan_ref: ADR D6 — REST 404/empty cross-scope (no existence leak); T3.1 "mirror entities.ts/metrics.ts scope-read pattern"
+    domain_anchor: CLAUDE.md Amendment 2026-06-17 (multi-tenant workspace isolation; Principal-scoped queries)
+    summary: >
+      Workspace/tenant isolation is correctly enforced. The handler calls
+      pathParamsToScoped(workspaceBoundMemory(c, memory), ...) exactly like
+      entities.ts:92 and metrics.ts:78 — the Principal's workspaceId (from
+      c.get('principal'), set by bearerAuth) scopes the query; foreign-workspace
+      rows are never returned. NOT a tenant-isolation BLOCKER. Recorded as a
+      positive confirmation (the spawn brief flagged a missing binding as a
+      BLOCKER; it is present).
+    evidence: |
+      ```ts
+      const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
+      const page = await scoped.episodes(options);
+      ```
+      Identical pattern to entities.ts (`workspaceBoundMemory(c, memory)`) and metrics.ts.
+    recommended_action: None — isolation is correct and consistent with siblings.
+
+  - id: F-dom-api-2
+    severity: LOW
+    file: packages/api/src/server/handlers/episodes.ts
+    line: 11
+    plan_ref: ADR D6 — "invalid cursor -> 422"; v1.1 EC-4
+    domain_anchor: agent recipe api-design "error response shape consistent across endpoints"
+    summary: >
+      Deliberate 422-vs-400 divergence is acceptable, NOT a consistency BLOCKER.
+      episodes uses 422 for ALL query-validation (bad limit / after+before /
+      invalid asOf). The older GET .../memories (scopes.ts:144) returns 400
+      INVALID_CURSOR for a bad cursor while using 422 for other query errors —
+      internally inconsistent itself. ADR D6 + the handler JSDoc explicitly
+      document the episode surface choosing a single 422 for all query-validation
+      and aligning with the 4-verb asOf->422 precedent. This is a documented,
+      intentional design decision (the older endpoint predates it). Honest
+      disclosure: a consumer hitting BOTH endpoints sees 400 for a bad memories
+      cursor but 422 for a bad episodes cursor — a real (small) cross-endpoint
+      inconsistency, mitigated by being documented and forward-consistent.
+    evidence: |
+      scopes.ts:144  -> return c.json({ code: 'INVALID_CURSOR', ... }, 400);
+      episodes.ts:72 -> return c.json({ code: 'INVALID_QUERY', ... }, 422);   // all query validation
+      ADR D6: "invalid asOf (NaN Date) -> 422; invalid cursor -> 422".
+    recommended_action: >
+      Accept as-is. Optionally note in the README/OpenAPI changelog that
+      .../episodes standardizes on 422 for query validation (the .../memories
+      400-on-cursor is legacy and not being retro-changed to avoid a breaking
+      change). No code change required.
+
+  - id: F-dom-api-3
+    severity: LOW
+    file: packages/api/src/server/handlers/episodes.ts
+    line: 100
+    plan_ref: Plan §151/§166 — "reuse MemoryItem as the item; EpisodePage { items, nextCursor? }"
+    domain_anchor: agent recipe api-design "endpoint shapes match plan's contract section"
+    summary: >
+      The episode DTO drops the bi-temporal fields (t_valid / t_invalid),
+      attributedTo, hash and updatedAt — surfacing only {id, text, scope_type,
+      created_at, metadata}. This is internally consistent with the sibling
+      shapes and acceptable for a v1 episode feed, BUT it is a mild contract
+      tension: the endpoint's headline feature is bi-temporal `asOf` replay, yet
+      the response gives the consumer no temporal validity window to interpret
+      WHICH version they received. A consumer replaying at two asOf instants
+      cannot distinguish a superseded row from a current one in the payload.
+    evidence: |
+      ```ts
+      const items = page.items.map((m) => ({
+        id: m.id, text: m.text, scope_type: typeParse.data,
+        created_at: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt),
+        metadata: m.metadata,
+      }));
+      ```
+      MemoryItem carries more (hash, attributedTo, t_valid/t_invalid) per
+      packages/core/src/domain/memory-item.ts; none surface in the episode DTO.
+    recommended_action: >
+      Acceptable to ship as-is for M2 (KISS — a feed shape). Consider a
+      follow-up to surface a `t_valid`/`t_invalid` (or a single `validAt`)
+      field once a consumer of `asOf` replay needs to disambiguate versions.
+      Document the omission in the OpenAPI description for `scopeEpisodes` so
+      consumers know the DTO is a projection, not the full MemoryItem.
+
+  - id: F-dom-api-4
+    severity: INFO
+    file: packages/api/src/server/openapi-registration.ts
+    line: 206
+    plan_ref: Plan T3.1 — "register route + OpenAPI"
+    domain_anchor: agent recipe api-design "OpenAPI params match actual handler behavior"
+    summary: >
+      The OpenAPI scopeEpisodes `params.type` uses the shared ScopeTypeEnum
+      (user|session|agent|skill) but the handler's ScopeTypeSchema only accepts
+      user|session|agent — a `skill` path value yields 404 "Unknown scope type".
+      So the spec advertises `skill` as a syntactically valid enum value for a
+      param whose only documented response to it is 404. This is NOT new to this
+      slice: metrics.ts and entities.ts reuse the identical ScopeTypeEnum while
+      rejecting skill the same way, so the episode endpoint is CONSISTENT with
+      its siblings. Flagged for completeness only.
+    evidence: |
+      openapi-registration.ts:206  params: z.object({ type: ScopeTypeEnum, id: ... })  // ScopeTypeEnum includes 'skill'
+      episodes.ts:26               const SCOPE_TYPES = ['user','session','agent']      // skill -> 404
+      (entities.ts / metrics.ts share the exact same ScopeTypeEnum-vs-handler gap)
+    recommended_action: >
+      No action needed for this slice (matches established sibling convention).
+      If addressed, it should be a cross-endpoint cleanup (a 3-tier enum for the
+      list/aggregation params) — out of scope for first-class-episodes.
+
+  - id: F-dom-api-5
+    severity: INFO
+    file: packages/api/src/server/app.ts
+    line: 350
+    plan_ref: Plan T3.1 — route registration; auth/rate-limit composition
+    domain_anchor: CLAUDE.md Item 16 (REST server, Bearer auth + rate limit)
+    summary: >
+      Auth + rate-limit are correctly inherited. The episodes route is
+      app.get('/v1/scopes/:type/:id/episodes', ...) which falls under the
+      pre-mounted app.get('/v1/scopes/*', rateLimitMiddleware('read')) (app.ts:257)
+      and the generic app.use('/v1/*', bearerAuth(authVerifier)) (app.ts:333) +
+      otelMiddleware + bodyLimit + cors. No per-route auth wiring was needed and
+      none is missing. Positive confirmation.
+    evidence: |
+      app.ts:257  app.get('/v1/scopes/*', rateLimitMiddleware('read'));
+      app.ts:333  app.use('/v1/*', bearerAuth(authVerifier));
+      app.ts:350  app.get('/v1/scopes/:type/:id/episodes', (c) => episodesHandler(c, memory));
+    recommended_action: None — auth + read rate-limit correctly applied via prefix middleware.
+
+  - id: F-dom-api-6
+    severity: INFO
+    file: packages/api/src/server/handlers/episodes.ts
+    line: 30
+    plan_ref: Plan §348 query zod; EC-4
+    domain_anchor: agent recipe api-design "status codes / validation correctness"
+    summary: >
+      zod query schema is correct and stricter than the sibling scopes.ts:
+      `.strict()` rejects unknown params (returns 422), limit is `z.coerce`d,
+      int, positive, capped at max(200), order is an enum, and the superRefine
+      rejects after+before-together per EC-4. asOf NaN is caught post-parse and
+      mapped to 422. The 200/404/422 surface matches the OpenAPI responses block.
+      Positive confirmation; no defect.
+    evidence: |
+      ```ts
+      z.object({ after, before, limit: z.coerce.number().int().positive().max(200).optional(), order, asOf, q })
+        .strict()
+        .superRefine((val, ctx) => { if (val.after && val.before) ctx.addIssue(...); });
+      ```
+    recommended_action: None — query contract is sound and well-aligned to the OpenAPI doc.

@@ -1,0 +1,205 @@
+agent: review-first-class-episodes-tests
+review_target: c1645618578e92542159c5b2bf8f7d88af66d949..HEAD (86e67ec) for plan first-class-episodes
+plan: .claude/knowledge-base/plans/first-class-episodes-plan.md
+test_pyramid:
+  unit_added: 16        # episode.test.ts (9 cursor/limit/escape helpers) + list-episodes.test.ts (7 in-memory)
+  integration_added: 8  # tests/integration/episodes.test.ts (GOAL vs real pgvector; plan promised 5, 8 shipped)
+  e2e_added: 0
+  type_d_added: 2       # memory-store.test-d.ts + vector-store.test-d.ts (type-shape, not behavior)
+  api_handler_added: 7  # packages/api/src/server/__tests__/episodes.test.ts (Hono fetch + vi.fn stub)
+  total: 33
+  verdict: healthy pyramid (unit-heavy, real-pgvector integration present, no E2E inversion)
+edge_cases_from_plan:
+  covered:
+    - EC-1 asOf-replay-includes-row-soft-deleted-after-asof (GOAL case 4, real pgvector — rigorous, db-side now() anchor)
+    - EC-2 queryText LIKE-escape (GOAL case 6 '50%'!='500'; escapeLikePattern unit-tested in episode.test.ts)
+    - EC-4 after+before together -> 422 (api test line 120)
+    - EC-5 in-memory orders by (created_at,id) parity (list-episodes.test.ts line 31/41)
+    - cursor no-gap/no-overlap forward pagination (list-episodes line 49; GOAL case 2)
+    - soft-delete exclusion default (GOAL case 5)
+    - scope/workspace isolation (list-episodes line 91; GOAL case 3)
+    - cursor encode/decode round-trip + malformed -> InvalidScope (episode.test.ts line 18-41)
+  missing:
+    - "EC-3 DETERMINISTIC same-created_at (identical millisecond) cursor no-gap/no-overlap — plan promised test_list_episodes_cursor_same_created_at_no_gap_no_overlap; only probabilistically exercised"
+    - "T2.2 facade unit tests (scoped-memory-episodes.test.ts) — plan REQUIRED test_episodes_composes_scope_filters + test_episodes_asof_nan_throws_invalid_scope; FILE NEVER CREATED"
+    - "before-cursor (backward pagination) behavior — implemented in both adapters, asserted in zero tests"
+    - "handler response item RESHAPE (created_at ISO / scope_type / dropped hash+tValid) — no field-level assertion"
+findings:
+  - id: F-tests-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/__tests__/scoped-memory-episodes.test.ts
+    line: 0
+    plan_ref: T2.2 TDD — "test_episodes_composes_scope_filters(); test_episodes_asof_nan_throws_invalid_scope()"
+    summary: >
+      The T2.2 facade unit test file the plan explicitly mandates was never created. LocalScopedMemory.episodes()
+      carries real, untested logic — the asOf-NaN InvalidScope guard, nextCursor computation, hasMore detection,
+      and the fallbackCount OTel event emission (getall_temporal_fallback). None of it is unit-tested.
+    evidence: |
+      Plan T2.2 (line 300-315) lists files-to-edit including
+      "packages/core/src/infrastructure/db/__tests__/scoped-memory-episodes.test.ts (NEW)" with two RED tests.
+      ls .claude/.../__tests__/ + find packages -name '*scoped-memory-episodes*' -> NO FILE.
+      The facade body (scoped-memory.ts:449-486) computes nextCursor + emits an event + guards asOf — all unverified
+      at the unit level.
+    recommended_action: >
+      Add scoped-memory-episodes.test.ts asserting (a) composeFilters isolation is forwarded to listEpisodes,
+      (b) asOf NaN Date throws InvalidScope, (c) nextCursor is computed only when rows.length > cap,
+      (d) getall_temporal_fallback event emitted when a row lacks createdAt.
+  - id: F-tests-2
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/list-episodes.test.ts
+    line: 49
+    plan_ref: T2.1 TDD EC-3 — "test_list_episodes_cursor_same_created_at_no_gap_no_overlap"; edge-cases-impl EC-3
+    summary: >
+      EC-3's load-bearing assertion — cursor no-gap/no-overlap when >=3 rows share the IDENTICAL created_at
+      millisecond — is NOT deterministically tested. The "no gap and no overlap" test seeds via sequential
+      remember()/insert(), which only COLLIDES on the same ms by chance. InMemoryVectorStore.insert() hard-codes
+      createdAt:new Date() with no injection hook, so the id-tiebreak page-boundary path cannot be forced.
+    evidence: |
+      EC-3 (edge-cases-impl line 28-30) explicitly asks: "insert >=3 rows with the IDENTICAL created_at
+      (millisecond) ... assert the 2nd page resumes at exactly the 3rd row (no row dropped, none repeated)".
+      list-episodes.test.ts:36 comment acknowledges "identical-ms rows fall back to id DESC" but no test forces it.
+      in-memory-store.ts:136 — this.rows.set(id, {..., createdAt: new Date()}) — no created_at parameter.
+      Cursor drop/duplicate at the same-instant page edge is the #1 Medium risk in the plan's Drawbacks table.
+    recommended_action: >
+      Add a deterministic test that forces identical created_at (inject a createdAt hook on insert, or use vi.useFakeTimers
+      with frozen clock across N inserts) and asserts page2 resumes at exactly the next id with no gap/overlap.
+      Mirror it in the GOAL test using SQL to set 3 rows to the same created_at.
+  - id: F-tests-3
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/list-episodes.test.ts
+    line: 0
+    plan_ref: T2.1 Deep Dives — "before/desc (and > for after/asc), order-aware"; EpisodeListOptions.before
+    summary: >
+      Backward pagination (the `before` cursor) is implemented in BOTH in-memory (seq<0 branch) and pgvector
+      (op '>' branch) but exercised by ZERO tests. Only `after`+`before` together (-> 422) is tested. The entire
+      before-cursor predicate is untested code that could silently drop/duplicate rows.
+    evidence: |
+      in-memory-store.ts listEpisodes: isAfter ? seq>0 : seq<0  (the seq<0 / before branch never hit by a test).
+      pgvector-store.ts listEpisodes: op = isAfter === laterIsSmaller ? '<' : '>' (the before op never hit).
+      grep `before` across the 4 test files -> only the EC-4 conflict test + comments; no positive before-pagination assertion.
+    recommended_action: >
+      Either add a before-cursor no-gap/no-overlap test (paginate backward from the tail, assert it reconstructs
+      the reverse order) OR, if backward paging is YAGNI for v1 per EC-7, gate the `before` branch behind an explicit
+      "not yet supported" path so untested code is not shipped.
+  - id: F-tests-4
+    severity: MEDIUM
+    file: packages/api/src/server/__tests__/episodes.test.ts
+    line: 68
+    plan_ref: T3.1 Acceptance — "api episodes test asserts 200 page+nextCursor"
+    summary: >
+      The handler RESHAPES each item (MemoryItem -> {id, text, scope_type, created_at(ISO snake_case), metadata};
+      drops hash/tValid/updatedAt) but the 200 test asserts only items.length===2 and nextCursor. No test asserts the
+      reshaped field contract — created_at ISO string, scope_type echo, snake_case keys. A regression that breaks the
+      wire shape (e.g. createdAt vs created_at) would pass this test green.
+    evidence: |
+      handlers/episodes.ts:101-108 maps to {id,text,scope_type,created_at,metadata}.
+      episodes.test.ts:77-79 only checks body.items toHaveLength(2) + body.nextCursor === 'CURSOR123'.
+      grep created_at|scope_type|body.items[0] in the api test -> 0 field-level assertions.
+      testing.md anti-pattern: "Tests that only assert structure (expect(result).toBeDefined())".
+    recommended_action: >
+      Assert the wire shape of body.items[0]: created_at is an ISO string, scope_type === 'session', and
+      that hash/tValid are absent (the deliberate projection contract the gateway depends on).
+  - id: F-tests-5
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 450
+    plan_ref: T2.2 TDD — "test_episodes_asof_nan_throws_invalid_scope"; Failure scenarios row asOf NaN -> 422
+    summary: >
+      The facade-level asOf-NaN InvalidScope guard is never reached by any test. The api asOf-NaN->422 test is
+      satisfied entirely by the HANDLER boundary check (handlers/episodes.ts:84), which short-circuits before the
+      facade runs; the GOAL test does not test asOf NaN; the facade has no unit test. So the guard at scoped-memory.ts:450
+      is effectively unverified (potential dead defensive code, or an SDK-direct consumer's only protection that nobody tests).
+    evidence: |
+      api test line 102 (?asOf=not-a-date) -> 422 returned by handler at episodes.ts:84-88 (Number.isNaN check),
+      BEFORE scoped.episodes() is called. scoped-memory.ts:450 InvalidScope guard duplicates that check for the
+      SDK-direct path but has no covering test.
+    recommended_action: >
+      Add the facade unit test (folds into F-tests-1) asserting episodes({asOf: new Date('x')}) rejects with InvalidScope,
+      proving the SDK-direct guard (the only protection when not going through the REST zod boundary).
+  - id: F-tests-6
+    severity: LOW
+    file: packages/core/src/infrastructure/db/list-episodes.test.ts
+    line: 83
+    plan_ref: T2.1 EC-2 — queryText LIKE escape
+    summary: >
+      The in-memory test is named "queryText filters by literal substring and escapes LIKE metacharacters" but the
+      in-memory impl does a plain .includes() substring match and NEVER calls escapeLikePattern (escape is a no-op for
+      substring matching). The test name over-claims escaping behavior that only the pgvector path performs. The real
+      LIKE-escape is correctly covered by GOAL case 6, but the unit name is misleading and the "and"-conjoined name
+      violates testing.md (one behavior per test).
+    evidence: |
+      list-episodes.test.ts:83 name contains "and escapes LIKE metacharacters".
+      in-memory-store.ts listEpisodes: text.includes(queryText) — no escapeLikePattern call (grep confirms 0 calls).
+      testing.md anti-pattern: "Tests with 'and' in the name (creates and validates) — split into two tests".
+    recommended_action: >
+      Rename to "queryText matches a literal substring (no wildcard semantics)"; drop the escape claim for in-memory
+      (escape is a pgvector-only concern, already covered by GOAL case 6).
+  - id: F-tests-7
+    severity: LOW
+    file: packages/core/src/domain/episode.test.ts
+    line: 28
+    plan_ref: T1.1 — decodeEpisodeCursor throws InvalidScope on malformed base64
+    summary: >
+      The "throws InvalidScope on malformed base64" test does not actually exercise the base64-decode catch branch.
+      Buffer.from('!!!not-base64!!!','base64url') does NOT throw — it lenient-decodes to garbage bytes; the throw then
+      comes from the downstream "missing id component" path (indexOf('|') < 0), not the try/catch. The catch block at
+      episode.ts:98 is effectively dead under this input, so the test gives false confidence that the base64 failure
+      path is covered.
+    evidence: |
+      episode.test.ts:28-30 expects decodeEpisodeCursor('!!!not-base64!!!') toThrow(InvalidScope).
+      episode.ts:96-99 try Buffer.from(...,'base64url') — Node base64url decode is lenient and does not throw on this input;
+      the actual throw is episode.ts:103 (missing-separator). The catch at :98 is not reached.
+    recommended_action: >
+      Either accept the catch as defensive (document it) or assert the true catch path is unreachable; add a test for the
+      genuinely-distinct failure modes (missing separator, invalid date, empty id) which the suite already partially does.
+  - id: F-tests-8
+    severity: LOW
+    file: tests/integration/episodes.test.ts
+    line: 91
+    plan_ref: T4.1 GOAL — temporal order
+    summary: >
+      GOAL case 1 ("temporal order") asserts only asc === desc.reverse() and length 4 — it does NOT assert the actual
+      chronological content (e.g. that order=asc yields e1,e2,e3,e4 in insertion order). asc===desc.reverse() is a
+      symmetry tautology that holds for ANY stable total order, even a wrong one. The true "newest-first temporal"
+      semantics are not pinned to insertion order.
+    evidence: |
+      integration/episodes.test.ts:96-99 — only expect(asc).toEqual([...desc].reverse()) + length.
+      No assertion that asc[0].text==='e1' (oldest) / desc[0].text==='e4' (newest). The deterministic echoLlm makes the
+      text content predictable, so the stronger assertion is available and cheap.
+    recommended_action: >
+      Strengthen case 1 to assert desc[0].text==='e4' and asc[0].text==='e1' (newest-first vs chronological), so a
+      reversed-order or wrong-direction regression is caught (today only an asymmetry would be).
+  - id: F-tests-9
+    severity: INFO
+    file: packages/core/src/domain/extraction-pipeline.test.ts
+    line: 79
+    plan_ref: T2.1 — VectorStore DIP grows listEpisodes (4 stub updates)
+    summary: >
+      The 4 unrelated StubVectorStore updates (extraction-phase7, extraction-pipeline, extraction-pipeline-category,
+      retrieval-pipeline, scoped-memory-getall-temporal) add a no-op listEpisodes -> []. Correct compile-fix for the
+      widened DIP; benign. Noting that the test-d "synthetic stub" return type is readonly VectorStoreResult[] (row array),
+      confirming listEpisodes returns rows (not EpisodePage) — a deliberate deviation from the plan T2.1 pseudocode
+      (which said listEpisodes: Promise<EpisodePage>). nextCursor is assembled at the facade. Architecturally sound;
+      cross-validation should confirm the plan-vs-impl signature divergence is acceptable.
+    evidence: |
+      vector-store.test-d.ts:162 — async listEpisodes(): Promise<readonly VectorStoreResult[]> { return []; }
+      plan T2.1 pseudocode line 259 — "listEpisodes(filters, opts): Promise<EpisodePage>".
+      Deviation: page assembly moved to LocalScopedMemory.episodes() (scoped-memory.ts:449).
+    recommended_action: >
+      No test action. Flag to cross-validation: confirm the listEpisodes return-type deviation from the plan
+      (rows vs EpisodePage) is an accepted refactor, since it shifts nextCursor responsibility to the facade.
+  - id: F-tests-10
+    severity: INFO
+    file: tests/integration/episodes.test.ts
+    line: 24
+    plan_ref: T4.1 — gated by THEOMEM_PG_URI
+    summary: >
+      The GOAL suite uses describe.skip when THEOMEM_PG_URI is unset (integration convention) WITH a CI=true fail-loud
+      guard (line 24 throws if CI && unset). This is the correct anti-false-green pattern, NOT a forbidden .skip/.only leak.
+      Recorded so the consolidator does not mis-flag it as a BLOCKER skipped test. Fixtures are deterministic
+      (fixed embedder vector, echo LLM, beforeEach TRUNCATE) — no flakiness signal from random data or wall-clock.
+    evidence: |
+      integration/episodes.test.ts:24 throws on CI&&unset; :53 describe.skip otherwise.
+      beforeEach TRUNCATE memories,entities,history RESTART IDENTITY CASCADE (line 68) — DB reset between tests.
+      asOf case uses DB-side SELECT now() (line 143) — skew-free, not a wall-clock race.
+    recommended_action: No action. Good determinism + reset hygiene.
