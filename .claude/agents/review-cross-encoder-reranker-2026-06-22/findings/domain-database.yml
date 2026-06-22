@@ -1,0 +1,144 @@
+agent: review-cross-encoder-reranker-domain-database
+review_target: main..HEAD for plan cross-encoder-reranker
+domain: database
+domain_specific_patterns_checked:
+  - "GOAL integration test DB isolation (DROP/CREATE themem_reranker_goal + migrate + pool teardown)"
+  - "PgvectorStore(pool, {embeddingDim:384}) + runMigrations(pool, {embeddingDim:384}) parametric-dim discipline"
+  - "pool lifecycle / connection-leak safety (borrowed pool vs owned pool; afterAll teardown)"
+  - "episode.ts portable base64url cursor codec — wire-format round-trip + cross-compat with persisted Node-Buffer cursors"
+  - "(created_at, id) keyset pagination semantics unchanged by the codec swap"
+  - "reranker pool sizing (topK*4) vs the over-fetch internalLimit — no unbounded query"
+  - "recall_rerank_failed registered in MEMORY_EVENTS (Princípio 3 auditability)"
+
+verification_notes:
+  cursor_wire_format: |
+    Empirically verified (node script, 8 edge cases incl. multi-byte UTF-8, 4-byte
+    emoji surrogate pairs, all 3 trailing-byte alignments, 1/2-byte total inputs):
+      - oldEncode(raw) === newEncode(raw)  → BYTE-IDENTICAL wire format (Node
+        base64url is unpadded; the hand-rolled encoder also omits padding chars).
+      - oldDecode(newEncode(raw)) === raw  → Node Buffer reads new cursors.
+      - newDecode(oldEncode(raw)) === raw  → new codec reads ALL persisted
+        Node-Buffer cursors. NO regression to in-flight / persisted cursors.
+      - newDecode(newEncode(raw)) === raw  → round-trip intact.
+    ALL PASS. The codec swap (Buffer → Uint8Array-only) preserves the exact opaque
+    cursor wire contract.
+  keyset_semantics: |
+    Pagination keyset is unchanged. The diff touches ONLY the encode/decode byte
+    plumbing inside episode.ts; the comparator stays `(created_at, id)` with
+    `ORDER BY created_at, id` and the same `<iso-ms>|<id>` payload. encode/decode
+    are pure helpers; no SQL / ordering / tie-break change.
+  db_isolation: |
+    GOAL test isolation is correct + collision-free: ISOLATED_DB='themem_reranker_goal'
+    is unique across tests/integration/ (the cache GOAL test uses a different name).
+    Pattern matches the sibling cache GOAL test: admin pool → DROP IF EXISTS → CREATE
+    → admin pool.end() → app pool → runMigrations(pool,{embeddingDim:384}). afterAll
+    closes the app pool. PgvectorStore BORROWS the supplied pool (constructor takes
+    `pool`; no internal `new Pool`/`.end()`), so the test's afterAll pool.end() is the
+    authoritative single teardown — no double-close, no orphaned pool.
+  pool_sizing: |
+    No unbounded query. The DB fetch is `internalLimit = max(topK*4, 60)` (pipeline.ts:95),
+    computed INDEPENDENTLY of options.rerank.pool. The rerank `pool` only `.slice()`s
+    the already-fetched in-memory `scored` array (pipeline.ts:234) — it cannot widen
+    the SQL fetch, so there is no DOS / unbounded-scan vector through rerank.pool.
+
+findings:
+  - id: F-dom-db-1
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 233
+    plan_ref: ADR D3 — rerank the over-fetch pool (default topK*4, bounded), truncate to topK
+    domain_anchor: "pipeline.ts:95 internalLimit = max(topK*4, 60) — the over-fetch ceiling"
+    summary: >
+      A consumer-supplied options.rerank.pool LARGER than internalLimit is SILENTLY
+      capped by the over-fetch ceiling. With topK=20 the DB fetches max(80,60)=80 rows;
+      a caller passing rerank.pool=1000 reranks only the 80 fetched candidates (the
+      .slice(0,1000) is bounded by the 80-row array). This is safe (no unbounded
+      query — see verification_notes.pool_sizing) but the effective pool is not what
+      the caller asked for. The default (pool ?? topK*4) aligns with internalLimit so
+      the default path is exact; only an explicit oversized pool diverges silently.
+    evidence: |
+      ```ts
+      const internalLimit = Math.max(topK * 4, 60);            // :95 — DB fetch ceiling
+      const semanticResults = await deps.vectorStore.search(queryVector, internalLimit, filters);
+      ...
+      const pool = options.rerank.pool ?? topK * 4;            // :233 — can exceed internalLimit
+      const poolItems = scored.slice(0, pool).map(rowToItem);  // :234 — silently capped at scored.length
+      ```
+    recommended_action: >
+      Optional (KISS-acceptable to defer): either clamp pool to internalLimit and
+      document the ceiling in the RecallOptions.rerank.pool JSDoc, OR widen
+      internalLimit to max(topK*4, pool, 60) so an explicit larger pool is honored.
+      Lowest-effort: a one-line JSDoc note that rerank.pool is bounded by the
+      over-fetch ceiling (max(topK*4,60)). Not a blocker — no correctness/safety bug.
+
+  - id: F-dom-db-2
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 237
+    plan_ref: ADR D4 — fail-soft + OTel event (recall_rerank_failed) for the degradation path
+    domain_anchor: "CLAUDE.md Princípio 3 — every recall/reflect phase emits a typed MEMORY_EVENTS event"
+    summary: >
+      The rerank SUCCESS path emits `extraction_completed` (a write-pipeline event
+      name reused for "search completed"), not a rerank-specific success event. The
+      FAILURE path correctly emits the dedicated `recall_rerank_failed`. So a rerank
+      that SUCCEEDED is observationally indistinguishable from a plain recall in the
+      OTel stream — an operator cannot confirm the reranker actually ran from events
+      alone. This is plan-conformant (D4 only mandated the failure event) and follows
+      the pre-existing event-reuse convention (line 87 reuses `extraction_started`
+      for "search started"), so it is a pre-existing-pattern smell, not a new defect.
+    evidence: |
+      ```ts
+      const reranked = await reranker.rerank(query, poolItems, rerankTopK);
+      emitEvent(tracer, 'extraction_completed', { results: reranked.length });  // :237 — generic, not rerank-specific
+      return reranked;
+      ...
+      emitEvent(tracer, 'recall_rerank_failed', { error: ... });               // :241 — dedicated (good)
+      ```
+    recommended_action: >
+      Optional: add a `recall_rerank_applied` (or similar) literal to MEMORY_EVENTS
+      so the SUCCESS path is observable, symmetric with `recall_rerank_failed`. Defer
+      acceptable — the failure path (the one that matters for incident response) is
+      already auditable. Flag for the memory-layer reviewer / human to decide whether
+      Princípio 3 wants success-path symmetry.
+
+  - id: F-dom-db-3
+    severity: LOW
+    file: tests/integration/reranker.test.ts
+    line: 76
+    plan_ref: T5.1 — GOAL test; beforeAll/afterAll DB lifecycle
+    domain_anchor: "factory.ts:266 createLocalMemory returns a memory with dispose(); dispose stops cron triggers"
+    summary: >
+      The GOAL test never calls memory.dispose(). For THIS test it is leak-free
+      because no eviction/cron trigger is configured (dispose only stops cron; the
+      pool is owned by the test and closed in afterAll). It is a latent fragility:
+      any future variant of this test that wires eviction (TimeBasedTrigger) would
+      leak a setInterval keeping the vitest worker alive. The pool teardown itself
+      is correct (afterAll pool.end()).
+    evidence: |
+      ```ts
+      const memory = await createLocalMemory({ ..., reranker: new CrossEncoderReranker() });
+      // ... no memory.dispose() anywhere; only:
+      afterAll(async () => { await pool?.end(); });
+      ```
+    recommended_action: >
+      Optional hardening: add `await (memory as any).dispose?.()` (or capture the
+      handle) in afterAll for symmetry with the dispose contract. Not required while
+      no cron is configured. Documents leak-safety intent for future editors.
+
+summary_counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 0
+  LOW: 3
+  INFO: 0
+
+overall_domain_verdict: >
+  PASS (database domain). The two highest-risk database concerns are CLEAN:
+  (1) the episode.ts base64url cursor codec swap is byte-for-byte wire-compatible
+  with persisted Node-Buffer cursors (empirically verified, all edge cases) and the
+  (created_at, id) keyset pagination semantics are entirely unchanged — NO M2-episodes
+  regression; (2) the GOAL integration test's DB isolation (unique themem_reranker_goal,
+  DROP/CREATE/migrate, borrowed-pool single teardown) is correct and leak-free, and the
+  reranker pool sizing cannot produce an unbounded query (the DB over-fetch ceiling is
+  independent of options.rerank.pool). The 3 LOW findings are optional hardening /
+  observability-symmetry notes, none blocking merge.

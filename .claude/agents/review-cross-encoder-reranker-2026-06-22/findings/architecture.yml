@@ -1,0 +1,142 @@
+agent: review-cross-encoder-reranker-architecture
+review_target: main..HEAD for plan cross-encoder-reranker
+plan: .claude/knowledge-base/plans/cross-encoder-reranker-plan.md
+summary:
+  blocker: 0
+  high: 0
+  medium: 2
+  low: 2
+  info: 4
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: packages/core/src/domain/dip/reranker.ts
+    line: 34
+    plan_ref: T1.1 / ADR D1
+    summary: Reranker DIP is a clean 1-method async port, ISP-correct, ZERO infrastructure imports — DIP boundary respected.
+    evidence: |
+      ```ts
+      import type { MemoryItemWithScore } from '../memory-item.js';
+      export interface Reranker {
+        rerank(query: string, candidates: readonly MemoryItemWithScore[], topK: number): Promise<readonly MemoryItemWithScore[]>;
+      }
+      ```
+      Single method per ADR-0008 cap; imports only a domain type; explicit immutability + fail-soft contract in JSDoc. No issues.
+    recommended_action: None.
+
+  - id: F-arch-2
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 76
+    plan_ref: T2.2 REFACTOR ("extract the rerank branch to a private helper if Step 8.5 exceeds cohesion")
+    summary: runRetrievalPipeline is now a ~200-line function (76-276) carrying Steps 1-9 PLUS two post-threshold rerank branches (rerank Step 8.5a + diversify) inline. SRP/cohesion strain — the plan's own REFACTOR step anticipated extraction.
+    evidence: |
+      ```ts
+      // Step 8.5a — cross-encoder rerank ... (lines 224-248)
+      if (options?.rerank !== undefined && deps.reranker !== undefined) { ... try { ... } catch (err) { ... } }
+      let top: ...;
+      if (options?.diversify !== undefined) { ... mmrRerank ... }  // lines 251-271
+      ```
+      The function mixes query preprocessing, embedding, over-fetch, BM25, scoring, threshold, two reranker strategies, and DTO mapping in one body. The rerank try/catch + the diversify block are each self-contained units that the plan explicitly flagged as extraction candidates.
+    recommended_action: Extract the cross-encoder rerank branch into a private `applyRerankStage(...)` helper (and optionally the diversify block into `applyDiversifyStage(...)`) so the pipeline reads as a sequence of named stages. Behavior-preserving; improves cohesion + testability.
+
+  - id: F-arch-3
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/rerankers/cross-encoder.ts
+    line: 95
+    plan_ref: architecture.md § 7 (no `any` in production code)
+    summary: The cross-encoder narrows the @xenova tokenizer/model via `as unknown as <LocalType>` double-casts. No literal `any` survives (architecture.md § 7 satisfied), but the double-cast bypasses the type system at the most fragile boundary (model output shape) with no runtime guard — a silent shape drift in a future @xenova upgrade would surface as `undefined`/NaN scores, not a typed error.
+    evidence: |
+      ```ts
+      const tokenize = tokenizer as unknown as TokenizePairs;
+      const runModel = model as unknown as RunSequenceClassifier;
+      const output = await runModel(inputs);
+      const data = output.logits.data;            // assumed Float32Array
+      const numLabels = data.length / batch.length;
+      const raw = data[i * numLabels] ?? 0;       // ?? 0 masks shape drift silently
+      ```
+      architecture.md § 7 says "If you must escape the type system, use `unknown` with a runtime assertion." The `as unknown as` is the unknown escape, but there is NO runtime assertion that `output.logits?.data` is a Float32Array — the `?? 0` quietly substitutes a 0 score, which (combined with the pipeline fail-soft) could mask a real integration break as a silent precision regression rather than a `recall_rerank_failed` event.
+    recommended_action: Add a minimal runtime guard after `runModel` (e.g. assert `output?.logits?.data` is a TypedArray of expected length; throw a typed error otherwise) so a real shape drift trips the ADR D4 fail-soft path (observable `recall_rerank_failed`) instead of silently producing 0 scores. Keeps the no-`any` discipline AND honors architecture.md § 7's "unknown WITH a runtime assertion".
+
+  - id: F-arch-4
+    severity: LOW
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 338
+    plan_ref: T4.1 / ADR D6 (cache bypass when rerank set)
+    summary: The cache-aware retrieval call (line 338) deliberately does NOT thread `reranker`, relying on the invariant that `options.rerank` set ⇒ cacheApplicable=false ⇒ this branch is unreachable for rerank requests. The invariant holds today but is implicit (the omission is correct only because of the cacheApplicable predicate three lines up).
+    evidence: |
+      ```ts
+      const cacheApplicable = cache !== undefined && ... && options?.rerank === undefined;  // line 311-315
+      if (!cacheApplicable || cache === undefined) { ...reranker threaded... }              // line 317-323 (bypass path)
+      // cache-aware path (only reached when rerank === undefined):
+      const results = await runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
+        vectorStore: this.config.vectorStore, embedder: this.config.embedder,
+        ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),     // no reranker — correct, but only by coupling
+      }, options);
+      ```
+      Correct by construction, but the safety depends on a reader connecting the cacheApplicable predicate to the omission. A future edit that loosens cacheApplicable (e.g. adds a rerank-aware cache key per D6's rejected alternative) would silently drop reranking on the cache path.
+    recommended_action: Add a one-line comment at line 338 stating "no reranker threaded here BY DESIGN — rerank requests bypass the cache via cacheApplicable (D6); if the cache ever becomes rerank-aware, thread reranker here too." Pure documentation; no behavior change.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/domain/errors.ts
+    line: 39
+    plan_ref: T2.1 / ADR D3
+    summary: RerankerConflict is a correctly-shaped typed domain error (stable `name` discriminant, prototype restored for instanceof, clear message, ErrorOptions cause-chaining) per architecture.md § 8.
+    evidence: |
+      ```ts
+      export class RerankerConflict extends Error {
+        override readonly name = 'RerankerConflict' as const;
+        constructor(options?: ErrorOptions) { super('recall() received both `diversify` and `rerank` ...', options);
+          Object.setPrototypeOf(this, RerankerConflict.prototype); }
+      }
+      ```
+      Fail-loud at the boundary BEFORE inference (pipeline.ts:220-222), exactly as ADR D3 specifies. No issues.
+    recommended_action: None.
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/infrastructure/rerankers/index.ts
+    line: 16
+    plan_ref: T3.2 / ADR D5 (subpath isolation)
+    summary: Bundle-isolation discipline correct — the default barrels (index.ts:209 `export * from domain/index.js`; domain/index.ts:210 `export type { Reranker }`) export only the TYPE; the @xenova-importing CrossEncoderReranker value is reachable ONLY via the ./reranker-local subpath. The type export is erased at runtime so @xenova stays out of the default module graph (EC-26 precedent).
+    evidence: |
+      ```ts
+      // domain/index.ts:210
+      export type { Reranker } from './dip/reranker.js';   // type-only — erased at runtime
+      // index.ts:209
+      export * from './domain/index.js';                   // re-exports the type; NOT the impl
+      // rerankers/index.ts (subpath ./reranker-local):
+      export { CrossEncoderReranker, type CrossEncoderRerankerOptions } from './cross-encoder.js';
+      ```
+      package.json#exports "./reranker-local" → dist/infrastructure/rerankers/index.js. Mirrors ./cache-pg + ./embedders/local. RerankerConflict (a value) is re-exported through the wildcard but it has zero heavy deps. Public-export contract (architecture.md § 9) satisfied via the wildcard.
+    recommended_action: None. (Verify the bundle-isolation test actually asserts @xenova absence — deferred to the wiring/tests reviewers.)
+
+  - id: F-arch-7
+    severity: LOW
+    file: packages/core/src/infrastructure/rerankers/cross-encoder.ts
+    line: 162
+    plan_ref: T3.1 (MUST NOT mutate input; sort)
+    summary: The reranker overwrites the public `score` field with the cross-encoder sigmoid on the returned items. Immutability of the INPUT is preserved (new objects via spread), but consumers now see a sigmoid relevance score in `.score` that is on a DIFFERENT scale than the additive cosine `combined` score they get without rerank — a silent semantic shift in the same field across two recall modes.
+    evidence: |
+      ```ts
+      const ranked = candidates
+        .map((c, i): MemoryItemWithScore => ({ ...c, score: scores[i] ?? 0 }))  // score := sigmoid(logit) ∈ [0,1]
+        .sort((a, b) => b.score - a.score).slice(0, topK);
+      ```
+      Non-rerank recall returns `score = combined additive score`; rerank recall returns `score = cross-encoder sigmoid`. Both are [0,1]-ish but not comparable across calls. This is an intentional design choice (the GOAL test asserts the score is "distinct from the cosine baseline — proving real re-scoring") and is acceptable, but it is not documented on MemoryItemWithScore.score.
+    recommended_action: Document on the MemoryItemWithScore.score JSDoc (or the RecallOptions.rerank JSDoc) that when rerank is active, `.score` is the cross-encoder relevance score, not the additive cosine combined score — so consumers do not compare scores across rerank/non-rerank calls.
+
+  - id: F-arch-8
+    severity: INFO
+    file: packages/core/src/infrastructure/db/config.ts
+    line: 138
+    plan_ref: T4.1
+    summary: LocalMemoryConfig.reranker? slot is an additive optional DIP slot mirroring skillExecutor?/recallCache?; correct dependency direction (infrastructure imports the domain Reranker type). No boundary violation.
+    evidence: |
+      ```ts
+      import type { Reranker } from '../../domain/dip/reranker.js';   // infra → domain (correct ascending? NO — domain is the high-level contract; infra depends on it. Correct.)
+      readonly reranker?: Reranker;
+      ```
+      Additive, optional, omitting compiles. No issues.
+    recommended_action: None.

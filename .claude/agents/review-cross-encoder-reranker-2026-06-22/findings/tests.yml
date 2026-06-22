@@ -1,0 +1,161 @@
+agent: review-cross-encoder-reranker-tests
+review_target: main..HEAD for plan cross-encoder-reranker
+plan: .claude/knowledge-base/plans/cross-encoder-reranker-plan.md
+verdict: READY_TO_MERGE_WITH_CAVEATS
+
+test_pyramid:
+  unit_added: 6        # dip/reranker.test-d (2) + rerankers/cross-encoder.test (5 cases) + retrieval-pipeline rerank describe (5 cases) + errors.test RerankerConflict (2) + memory-event.test recall_rerank_failed (1) + factory-recall-cache reranker describe (3) — counted as test FILES touched for reranker: 6
+  integration_added: 1 # tests/integration/reranker.test.ts (GOAL) + reranker assertions folded into subpath-isolation.test.ts + p0-audit/full-public-surface.test.ts (count-reconciliation + smoke)
+  e2e_added: 0
+  total: 7
+  pyramid_balance: HEALTHY  # heavy unit/contract base (stubbed @xenova, stubbed reranker in pipeline), exactly ONE real-model integration GOAL test gated by THEOMEM_PG_URI + XENOVA_OK. Not inverted.
+
+edge_cases_from_plan:
+  covered:
+    - "empty candidates short-circuits to [] with no model load (T3.1 AC) — cross-encoder.test.ts:80"
+    - "rerank reorders + truncates to topK (T2.2 RED-a) — retrieval-pipeline.test.ts:257 + cross-encoder.test.ts:88"
+    - "diversify+rerank both set -> throws RerankerConflict before inference (D3, T2.2 RED-b) — retrieval-pipeline.test.ts:273"
+    - "reranker throws -> fail-soft degrade to cosine order + emit recall_rerank_failed (D4, T2.2 RED-c) — retrieval-pipeline.test.ts:284"
+    - "neither rerank nor diversify -> default cosine top-K byte-unchanged regression guard (T2.2 RED-d) — retrieval-pipeline.test.ts:322"
+    - "options.rerank set but NO reranker wired -> no-op cosine order, no throw — retrieval-pipeline.test.ts:309"
+    - "(query, doc) pair construction for tokenizer (T3.1) — cross-encoder.test.ts:108"
+    - "batchSize respected, two batches for 3 docs at batchSize=2 (T3.1) — cross-encoder.test.ts:116"
+    - "concurrent rerank() share ONE model load / single-load invariant (T3.1 concurrency) — cross-encoder.test.ts:124"
+    - "input not mutated, original order/score preserved (immutability) — cross-encoder.test.ts:99"
+    - "RerankerConflict constructible, stable name, instanceof, preserves cause (T2.1) — errors.test.ts (RerankerConflict block)"
+    - "recall_rerank_failed member of MEMORY_EVENTS union (T2.2) — memory-event.test.ts:18"
+    - "LocalMemoryConfig.reranker threaded + invoked when options.rerank set (T4.1) — factory-recall-cache.test.ts:reranker block"
+    - "reranker NOT invoked when options.rerank absent (T4.1) — factory-recall-cache.test.ts"
+    - "recall({rerank}) BYPASSES cache, no get/no set (D6, T4.1) — factory-recall-cache.test.ts"
+    - "subpath isolation: default barrel does NOT reach rerankers/cross-encoder.ts (T3.2) — subpath-isolation.test.ts:159"
+    - "reranker-local subpath smoke-imports CrossEncoderReranker (T3.2) — subpath-isolation.test.ts:168 + full-public-surface.test.ts:152"
+    - "Reranker type + RerankerConflict reachable from default barrel (T3.2) — subpath-isolation.test.ts:173"
+    - "GOAL: relevant doc ranked #1 + real cross-encoder re-scoring (sigmoid in [0,1], distinct from cosine baseline) vs real pgvector + real @xenova (T5.1) — tests/integration/reranker.test.ts"
+  missing:
+    - "RecallOptions.rerank shape NOT asserted at type-contract level (plan T2.1 RED mandated options.test-d.ts assertion)"
+    - "retry-after-rejection: rejected first model load resets the lazy singleton so the next call retries (plan T3.1 concurrency AC) — only single-load is tested"
+    - "pool default (topK*4) / pool bounding NOT asserted (plan D3 + T2.2 — only truncation-to-topK is exercised)"
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: packages/core/src/domain/options.test-d.ts
+    line: 0
+    plan_ref: T2.1 TDD RED — "options.test-d.ts asserts the rerank? shape"
+    summary: >
+      Plan T2.1 explicitly mandated a type-level RED assertion that
+      RecallOptions.rerank has shape `{ topK?: number; pool?: number }`. The
+      RecallOptions.rerank field EXISTS in source (options.ts:192) and is
+      exercised indirectly through pipeline + factory tests, but no .test-d.ts
+      asserts its type contract. The single .test-d.ts that mentions rerank is
+      dip/reranker.test-d.ts (the DIP method shape, not RecallOptions). A future
+      narrowing of rerank's shape (e.g. removing pool) would not be caught by a
+      type test as the plan intended.
+    evidence: |
+      grep -c rerank packages/core/src/domain/options.test-d.ts -> 0
+      grep -rln rerank packages/core/src/**/*.test-d.ts -> only dip/reranker.test-d.ts
+      source HAS the field: options.ts:192  `readonly rerank?: { ... }`
+    recommended_action: >
+      Add to options.test-d.ts:
+      expectTypeOf<RecallOptions['rerank']>().toEqualTypeOf<{ readonly topK?: number; readonly pool?: number } | undefined>()
+      to honor the plan T2.1 RED contract.
+
+  - id: F-tests-2
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/rerankers/cross-encoder.test.ts
+    line: 124
+    plan_ref: T3.1 Concurrency tests + Acceptance Criteria — "retry-after-rejection"
+    summary: >
+      Plan T3.1 concurrency AC required two invariants: (a) single model load
+      under concurrency [COVERED], and (b) "a rejected first load resets the
+      singleton so the next call retries (mirrors embedders/local.ts F-M5)".
+      Only (a) is tested. The retry-after-rejection path — the durability fix
+      that F-M5 added to the embedder precedent the plan explicitly cites — has
+      no regression test. A regression where a rejected first load caches the
+      rejected promise (permanent dead reranker) would pass the suite.
+    evidence: |
+      grep -ni 'retry|reject|reset' cross-encoder.test.ts -> 0 matches
+      plan T3.1 #### Concurrency tests: "a rejected first load resets the
+      singleton so the next call retries (mirrors embedders/local.ts F-M5)"
+    recommended_action: >
+      Add a test: mock from_pretrained to reject on first call, resolve on
+      second; assert the first rerank() rejects, the singleton is cleared, and
+      a second rerank() succeeds (loader invoked twice). Mirror the
+      embedders/local.ts F-M5 retry test.
+
+  - id: F-tests-3
+    severity: LOW
+    file: packages/core/src/domain/retrieval-pipeline.test.ts
+    line: 257
+    plan_ref: ADR D3 + T2.2 — "rerank the top `pool` (default topK*4, bounded)"
+    summary: >
+      D3 specifies the rerank stage feeds the reranker a candidate pool of
+      default size topK*4 (bounded), then truncates to topK. Tests assert the
+      reranker receives the threshold-passing candidates and the output is
+      truncated to topK, but no test asserts the POOL default (topK*4) or its
+      upper bound. If the pool were silently set to topK (no over-fetch for the
+      reranker) precision lift would be lost on larger corpora — undetected.
+    evidence: |
+      grep -ni pool retrieval-pipeline.test.ts -> only the word in a describe
+      title; no assertion on the count of candidates passed to reranker.rerank.
+    recommended_action: >
+      With a spy reranker, seed >topK*4 threshold-passing rows and assert
+      reranker.rerank received min(pool_default = topK*4, passing_count)
+      candidates; add an upper-bound case.
+
+  - id: F-tests-4
+    severity: INFO
+    file: tests/integration/reranker.test.ts
+    line: 1
+    plan_ref: Goal honest amendment (Inquebravel Rule 3) — GOAL test framing
+    summary: >
+      The GOAL test honestly amends the v1.0 "precision@1 flips wrong->right"
+      framing: on a 2-doc corpus the bi-encoder already orders correctly, so
+      the test instead asserts (1) the genuinely-relevant doc is #1 under
+      rerank AND (2) the top score is the real cross-encoder sigmoid in [0,1]
+      DISTINCT from the cosine baseline score (proving real re-scoring, not a
+      passthrough). This amendment is SOUND and well-documented in the file
+      header + plan Goal amendment. Both assertions are robust and non-flaky:
+      assertion (2) (score != baseline + bounded [0,1]) genuinely proves the
+      reranker ran the model rather than passing through. No fixture-engineered
+      flip means no flaky CI. Honest disclosure done right.
+    evidence: |
+      reranker.test.ts header documents the empirical T5.1 finding;
+      assertions: expect(reranked[0]?.text).toBe(RELEVANT) +
+      expect(top!.score).not.toBe(baselineRelevantScore) + bounded [0,1].
+    recommended_action: >
+      None required. Optionally, a SEPARATE larger/adversarial-corpus
+      integration fixture demonstrating an actual precision@k flip would
+      strengthen the empirical claim, but is correctly out of scope here.
+
+  - id: F-tests-5
+    severity: INFO
+    file: packages/core/src/infrastructure/rerankers/cross-encoder.test.ts
+    line: 30
+    plan_ref: testing.md - mock hygiene; no-paper-names-in-code.md (benchmarks exemption N/A here)
+    summary: >
+      The @xenova boundary mock is precise (mocks only AutoTokenizer +
+      AutoModelForSequenceClassification, deterministic logit = doc length).
+      AAA structure is clean across all reranker test files; test names
+      describe behavior; no .only / xit / commented tests. The model id strings
+      ('Xenova/ms-marco-...') in the integration test name the model under
+      test, not a paper-name biasing domain code — acceptable. TDD commit order
+      is the project atomic-commit convention (test+impl in one feat commit per
+      task, e.g. ca269c4 for T1.1/T2.1/T2.2); RED-then-GREEN within the commit
+      is the team's documented pattern, not a TDD violation.
+    evidence: |
+      grep .only/xit/.skip across reranker tests -> only describe.skipIf
+      (THEOMEM_PG_URI env gate) which is the sanctioned integration gate.
+      git log: ca269c4 (T1.1/T2.1/T2.2), 84da91d (T3.1/T3.2), b1f2293 (T4.1).
+    recommended_action: None.
+
+notes: >
+  No BLOCKER, no HIGH. Edge-case coverage from the plan is strong: all five
+  T2.2 RED scenarios, the T3.1 unit matrix (empty/reorder/pair/batch/concurrent),
+  fail-soft + OTel event, cache bypass (D6), subpath isolation (D5), and the
+  real-model GOAL test are present and behavior-asserting (no toBeDefined-only
+  vibes). Three gaps are pure plan-TDD-divergence (a missing type-contract
+  assertion, a missing retry-after-rejection regression test, and an unasserted
+  pool default) — none change runtime correctness, all are cheap to close.
+  The GOAL test's honest amendment is sound and is a model of Inquebravel
+  Rule 3 disclosure.

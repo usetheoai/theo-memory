@@ -1,0 +1,120 @@
+agent: review-cross-encoder-reranker-wiring
+review_target: main..HEAD for plan cross-encoder-reranker
+plan: .claude/knowledge-base/plans/cross-encoder-reranker-plan.md
+verdict: READY_TO_MERGE
+summary: >
+  The cross-encoder reranker wiring triad is HONEST and DEEP. The full caller
+  path is connected end-to-end (no orphan module): createLocalMemory(config) →
+  LocalMemoryConfig.reranker → LocalMemory(baseConfig) → ScopedMemory.config.reranker
+  → threaded at scoped-memory.ts:321 → RetrievalDeps.reranker → pipeline Step 8.5a
+  invokes reranker.rerank when options.rerank is set. The cache-aware pipeline call
+  (scoped-memory.ts:338) deliberately omits the reranker, but that branch is only
+  reachable when options.rerank === undefined (cacheApplicable guard at :315), so
+  every rerank request flows through the reranker-threaded call at :318/:321 — the
+  omission is correct, not a wiring gap. Integration GOAL test exercises the REAL
+  path (real pgvector + real @xenova both models). Fail-soft OTel event
+  recall_rerank_failed is in the MEMORY_EVENTS union (memory-event.ts:96) and
+  asserted via a REAL tracer span (not a fabricated .wiring-evidence.json number).
+  Bundle isolation verified by a static import-graph walk (strongest form). All 3
+  new public symbols PASS check_wiring.py; 55 contract tests + 13 isolation tests green.
+
+triad_revalidation:
+  total_new_symbols: 3            # CrossEncoderReranker, Reranker (type), RerankerConflict
+  pillar_a_honest_pass: 3 / 3     # check_wiring PASS + manually traced full path to entry point
+  pillar_b_honest_pass: 3 / 3     # integration + contract tests genuinely exercise the symbols
+  pillar_c_observed: 1 / 1        # recall_rerank_failed emitted + asserted via real OTel span
+
+caller_path_trace:
+  entry_point: createLocalMemory(config) (factory.ts:153)
+  hops:
+    - LocalMemoryConfig.reranker? slot (config.ts:138)
+    - factory passes config/baseConfig to new LocalMemory(...) (factory.ts:184/196/216) — reranker preserved
+    - ScopedMemory.recall threads this.config.reranker into runRetrievalPipeline (scoped-memory.ts:321)
+    - RetrievalDeps.reranker (pipeline.ts:49)
+    - pipeline Step 8.5a invokes reranker.rerank when options.rerank set + deps.reranker present (pipeline.ts:230-238)
+  reachable: true
+  orphan: false
+
+findings:
+  - id: F-wire-1
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 237
+    plan_ref: T2.2 / ADR D4 — rerank-stage observability
+    summary: >
+      The rerank SUCCESS path emits the pre-existing `extraction_completed` event
+      (lines 237 and 245), reusing an extraction-domain event name on a recall-path
+      stage. The load-bearing fail-soft event (`recall_rerank_failed`) is correct,
+      typed, and tested — this nit only concerns the success/fallback-success spans.
+    evidence: |
+      pipeline.ts:237  emitEvent(tracer, 'extraction_completed', { results: reranked.length });
+      pipeline.ts:245  emitEvent(tracer, 'extraction_completed', { results: fallback.length });
+      A dedicated `recall_rerank_completed` (or no success span, mirroring the MMR
+      diversify stage which emits none) would be more semantically honest per
+      Princípio 3 auditability. MMR diversify Step 8.5 emits no success event, so
+      the rerank success span is arguably extra noise under a confusing name.
+      Non-blocking: the failure path — the one that MUST be observable per ADR D4 —
+      is correct and verified by a real OTel exporter span assertion
+      (retrieval-pipeline.test.ts:306).
+    recommended_action: >
+      Optional post-merge polish — either drop the success-path emitEvent (match the
+      diversify stage which emits none) or introduce a `recall_rerank_completed`
+      literal in MEMORY_EVENTS. No action required for merge.
+
+  - id: F-wire-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 338
+    plan_ref: T4.1 / ADR D6 — cache bypass on rerank
+    summary: >
+      The cache-aware pipeline call (line 338) does NOT thread the reranker, while
+      the cache-bypass call (line 318/321) does. This is CORRECT by construction:
+      cacheApplicable (line 311-315) is false whenever options.rerank is set, so the
+      cache-aware branch is unreachable for any rerank request. Verified, not a gap.
+    evidence: |
+      scoped-memory.ts:315  options?.rerank === undefined   // part of cacheApplicable
+      scoped-memory.ts:317  if (!cacheApplicable || cache === undefined) { ... reranker threaded ... }
+      A rerank request → cacheApplicable=false → always takes the :318 branch which
+      threads this.config.reranker (:321). The :338 branch only runs for non-rerank
+      cache-eligible recalls. ADR D6 bypass is implemented exactly as the shipped
+      asOf/attributedTo bypass precedent.
+    recommended_action: None — documented for the audit trail; the design is sound.
+
+dead_exports_check:
+  CrossEncoderReranker: reachable via @usetheo/memory/reranker-local subpath (package.json:69-71) + used in integration test + check_wiring PASS (4 callers)
+  CrossEncoderRerankerOptions: re-exported via reranker-local barrel; public ctor option type
+  Reranker: exported as type from domain/index.ts:210 + index.ts public barrel; used by pipeline RetrievalDeps, config slot, options — check_wiring PASS (10 callers)
+  RerankerConflict: exported from domain/index.ts:150 public barrel; thrown in pipeline.ts:221, tested — check_wiring PASS (4 callers)
+  verdict: no dead exports — every new export is either subpath-published or used internally
+
+boundary_respect_dip:
+  domain_dip_reranker_imports_infrastructure: false   # only imports domain type MemoryItemWithScore
+  pipeline_options_errors_import_infrastructure: false
+  verdict: clean — DIP boundary preserved (port in domain, impl in infrastructure/rerankers behind subpath)
+
+bundle_isolation:
+  method: static import-graph walk from packages/core/src/index.ts (walkImports)
+  default_barrel_reaches_cross_encoder_impl: false
+  default_barrel_reaches_xenova_via_reranker: false
+  subpath_smoke_import_resolves_CrossEncoderReranker: true
+  reranker_type_RerankerConflict_reachable_from_default_barrel: true
+  test_file: tests/integration/subpath-isolation.test.ts (T3.2 block) — 13 passed
+  verdict: PASS — heavy @xenova model code stays out of the default bundle (EC-26 precedent honored)
+
+memory_events_union:
+  recall_rerank_failed_in_union: true   # memory-event.ts:96
+  asserted_in_test: true                # memory-event.test.ts + retrieval-pipeline.test.ts:306 (real span)
+  fabricated_wiring_evidence_json: false # observability proven via OTel exporter span, not a number file
+
+tests_run_during_review:
+  contract: "npx vitest run retrieval-pipeline rerankers/cross-encoder memory-event domain/errors dip/reranker --config vitest.contract.config.ts → 4 files, 55 passed, 0 type errors"
+  bundle_isolation: "npx vitest run subpath-isolation --config vitest.integration.config.ts → 13 passed, 1 skipped"
+  check_wiring: "CrossEncoderReranker / Reranker / RerankerConflict → all PASS (pillars a+b)"
+  goal_integration_test: "tests/integration/reranker.test.ts — NOT run here (requires THEOMEM_PG_URI + ~CDN model download); skipIf-gated, exercises real pgvector + real @xenova per plan T5.1"
+
+counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 0
+  LOW: 1
+  INFO: 1

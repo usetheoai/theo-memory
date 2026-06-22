@@ -1,0 +1,104 @@
+agent: review-cross-encoder-reranker-domain-memory-layer
+review_target: main..HEAD for plan cross-encoder-reranker
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Post-threshold recall stage placement (after Step 8 threshold, sibling of Step 8.5 MMR diversify)"
+  - "Mutual exclusion of rerank vs MMR diversify (ADR D3, fail-loud before inference)"
+  - "Princípio 2 — priorização/diversidade > volume (rerank re-scores then truncates topK)"
+  - "Princípio 3 — auditability: recall_rerank_failed OTel event on the IGNORE/degrade decision"
+  - "Fail-soft discipline (ADR D4): reranker failure degrades to cosine order, NEVER throws out of recall()"
+  - "Cache interaction (ADR D6): options.rerank BYPASSES the v1.5 recall cache (correctness)"
+  - "Cross-encoder scoring: sigmoid(logits), sort desc, truncate topK, no input mutation (ms-marco family)"
+  - "Default path (no rerank, no diversify) byte-unchanged vs shipped 9-step pipeline"
+  - "ADD-only invariant + 3-tier scope preserved (no recall-side mutation)"
+  - "DIP boundary: Reranker port in domain/dip (zero infra import); impl behind @usetheo/memory/reranker-local subpath"
+findings:
+  - id: F-dom-1
+    severity: INFO
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 237
+    plan_ref: ADR D4 — fail-soft + OTel event for the IGNORE/degrade decision
+    domain_anchor: CLAUDE.md § Princípio 3 (memória auditável; cada fase emite evento OTel tipado)
+    summary: >
+      The rerank SUCCESS path reuses the generic 'extraction_completed' event (line 237/245/273)
+      rather than a dedicated rerank-success literal. The failure/IGNORE decision IS properly
+      observable via the typed 'recall_rerank_failed' member of MEMORY_EVENTS (the load-bearing
+      Princípio 3 requirement — confirmed present in memory-event.ts:96 + asserted in
+      memory-event.test.ts). The success-path reuse is consistent with the pre-existing pipeline
+      convention (Step 1 reuses 'extraction_started' for "search started", pipeline.ts:87), so it
+      is a documented project pattern, not a regression. No action required; flagged only so the
+      observability seam is consciously known. A dedicated 'recall_reranked' event could be added
+      later (additive, YAGNI today).
+    evidence: |
+      ```ts
+      const reranked = await reranker.rerank(query, poolItems, rerankTopK);
+      emitEvent(tracer, 'extraction_completed', { results: reranked.length }); // reuse, per pipeline convention
+      return reranked;
+      // ...
+      emitEvent(tracer, 'recall_rerank_failed', { error: ... }); // <-- the IGNORE decision IS typed + observable
+      ```
+    recommended_action: >
+      No change required. Optionally (post-merge, additive) introduce a dedicated
+      'recall_reranked' MEMORY_EVENTS literal for the success path symmetry with the failure event.
+
+# ---------------------------------------------------------------------------
+# Positive verifications (no defect — recorded so the absence is auditable):
+#
+# 1. PLACEMENT (Princípio 2 + ADR D3) — CORRECT. The rerank branch (pipeline.ts:230-248)
+#    runs AFTER the threshold filter (Step 8, :149-178) and AFTER the cosine sort (:182),
+#    as a sibling of Step 8.5 MMR diversify (:251). It re-scores the threshold-passing pool
+#    (default topK*4) then truncates to topK — priorização > volume honored.
+#
+# 2. MUTUAL EXCLUSION (ADR D3) — CORRECT + fail-loud. `if (options.rerank && options.diversify)
+#    throw new RerankerConflict()` fires (pipeline.ts:220-222) BEFORE any inference and BEFORE
+#    the rerank branch. RerankerConflict is a typed domain error with a stable discriminant
+#    (errors.ts:39-47, `name = 'RerankerConflict'`). Tested (retrieval-pipeline.test.ts:273).
+#
+# 3. FAIL-SOFT (ADR D4) — CORRECT. The reranker call is wrapped in try/catch (pipeline.ts:235-247);
+#    on ANY throw it emits recall_rerank_failed and returns the original cosine order truncated to
+#    rerankTopK — never throws out of recall(). Mirrors the entity/skill enrichment fail-soft
+#    precedent. Tested with a throwing stub (retrieval-pipeline.test.ts:285).
+#
+# 4. NO-OP WHEN UNWIRED — CORRECT. options.rerank set but deps.reranker === undefined falls
+#    through to the default `scored.slice(0, topK)` path (cosine order, no throw). Tested
+#    (retrieval-pipeline.test.ts:309).
+#
+# 5. CACHE BYPASS (ADR D6) — CORRECT. scoped-memory.ts:311-315 adds `options?.rerank === undefined`
+#    to the cacheApplicable predicate, so a rerank request takes the bypass path (line 318-323)
+#    which is the ONLY path that threads `reranker` into RetrievalDeps. The cache-aware path
+#    (line 338-342) intentionally does NOT thread the reranker — correct, because it is
+#    unreachable for rerank requests. No correctness bug serving a non-reranked cached result
+#    for a rerank query. Mirrors the asOf/attributedTo bypass exactly.
+#
+# 6. CROSS-ENCODER SCORING — CORRECT for ms-marco single-logit family. cross-encoder.ts:
+#    text_pair pair-encoding (:142-146), sigmoid(first logit per row) (:151-157), sort desc +
+#    slice topK (:162-165). NO input mutation: `candidates.map(c => ({ ...c, score }))` builds
+#    new objects via spread (:163). numLabels = data.length / batch.length correctly handles the
+#    single-logit shape. Empty-candidates short-circuit to [] (:126-128).
+#
+# 7. DEFAULT PATH BYTE-UNCHANGED — CORRECT. With neither rerank nor diversify set, control flows
+#    to `top = scored.slice(0, topK)` (:270) — identical to the shipped v1.5 9-step path. Explicit
+#    regression test (retrieval-pipeline.test.ts:323).
+#
+# 8. ADD-ONLY + 3-TIER SCOPE — PRESERVED. The reranker operates on read-side MemoryItemWithScore
+#    only; no write/update path touched. scopeFromFilters (pipeline.ts:55) unchanged.
+#
+# 9. DIP BOUNDARY — CORRECT. dip/reranker.ts imports only MemoryItemWithScore (type), zero infra.
+#    CrossEncoderReranker lives in infrastructure/rerankers behind ./reranker-local (package.json:69);
+#    default barrel exports only the Reranker TYPE + RerankerConflict (domain/index.ts:150,210),
+#    erased at runtime — bundle isolation holds.
+summary_counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 0
+  LOW: 0
+  INFO: 1
+verdict_contribution: >
+  No domain-layer defects. All three TheMemory princípios are honored: Princípio 2 (rerank is a
+  post-threshold priorização stage that truncates volume), Princípio 3 (the rerank-failure IGNORE
+  decision emits the typed recall_rerank_failed OTel event), and the fail-soft discipline (a
+  reranker outage degrades to cosine order and never throws out of recall, mirroring entity/skill
+  enrichment). Cache bypass (ADR D6), cross-encoder sigmoid scoring with no input mutation, mutual
+  exclusion with MMR diversify, and the byte-unchanged default path are all correctly implemented
+  and tested. The single INFO note (success-path event reuse) follows a pre-existing pipeline
+  convention and requires no change.
