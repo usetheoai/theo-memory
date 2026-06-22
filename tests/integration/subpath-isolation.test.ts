@@ -194,3 +194,35 @@ describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
     });
   });
 });
+
+/**
+ * cross-encoder-reranker T3.2 — `@usetheo/memory/reranker-local` subpath isolation.
+ * Mirrors the cache-pg contract: the DEFAULT barrel does NOT pull the
+ * cross-encoder IMPL (nor `@xenova/transformers` via it) transitively, AND the
+ * subpath barrel smoke-imports `CrossEncoderReranker`. The DIP TYPE `Reranker`
+ * IS reachable from the default barrel (zero-runtime type export) — only the
+ * IMPL is subpath-isolated.
+ *
+ * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § T3.2 + ADR D5
+ */
+describe('T3.2 — @usetheo/memory/reranker-local subpath isolation', () => {
+  test('default @usetheo/memory barrel does NOT reach packages/core/src/infrastructure/rerankers/cross-encoder.ts', () => {
+    const entry = resolve(REPO_ROOT, 'packages/core/src/index.ts');
+    const reachable = walkImports(entry);
+    const implLeaks = Array.from(reachable).filter((p) =>
+      p.endsWith('rerankers/cross-encoder.ts'),
+    );
+    expect(implLeaks).toEqual([]);
+  });
+
+  test('reranker-local subpath barrel re-exports CrossEncoderReranker (smoke import)', async () => {
+    const mod = await import('../../packages/core/src/infrastructure/rerankers/index.js');
+    expect(typeof mod.CrossEncoderReranker).toBe('function');
+  });
+
+  test('Reranker DIP type + RerankerConflict error reachable from the default barrel', async () => {
+    const mod = await import('../../packages/core/src/index.js');
+    // RerankerConflict is a real class (value export); Reranker is a type (erased).
+    expect(typeof mod.RerankerConflict).toBe('function');
+  });
+});
