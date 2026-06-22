@@ -195,6 +195,49 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // first-class-episodes M2 T3.1 — subject-scoped episodic/message-log read.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/{type}/{id}/episodes',
+    operationId: 'scopeEpisodes',
+    summary:
+      'Subject-scoped episodic / message-log read: cursor-paginated, bi-temporal-aware temporal list of memories (NOT semantic).',
+    request: {
+      params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
+      query: z.object({
+        after: z.string().min(1).optional(),
+        before: z.string().min(1).optional(),
+        limit: z.coerce.number().int().positive().max(200).optional(),
+        order: z.enum(['asc', 'desc']).optional(),
+        asOf: z.string().min(1).optional(),
+        q: z.string().min(1).optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'A page of episode items, newest-first by default, with an optional forward cursor.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              items: z.array(
+                z.object({
+                  id: z.string(),
+                  text: z.string(),
+                  scope_type: ScopeTypeEnum,
+                  created_at: z.string(),
+                  metadata: z.record(z.unknown()),
+                }),
+              ),
+              nextCursor: z.string().optional(),
+            }),
+          },
+        },
+      },
+      404: { description: 'Unknown scope type or empty id.' },
+      422: { description: 'Invalid query (bad limit / cursor / asOf, or both after+before).' },
+    },
+  });
+
   // themory-scoped-forget T1.2 — subject-scoped DELETE (404-not-403; no leak).
   registry.registerPath({
     method: 'delete',
