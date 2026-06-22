@@ -80,6 +80,12 @@ export { PgUsageCounterStore } from './infrastructure/db/index.js';
  * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.3
  */
 export { SandboxedSkillExecutor } from './infrastructure/db/index.js';
+/**
+ * `SandboxedSkillExecutorDeps` — constructor dependency bundle for the
+ * isolated-vm-backed `SandboxedSkillExecutor` (opt-in skill execution).
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.3
+ */
 export type { SandboxedSkillExecutorDeps } from './infrastructure/db/index.js';
 /**
  * entity-extraction-nodes-slice1 — default entity extractor (compromise-based,

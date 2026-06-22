@@ -52,6 +52,7 @@ const SOURCE_PATH_MAP: Record<string, string[]> = {
   'core/index.ts': ['packages', 'core', 'src', 'domain', 'index.ts'],
   'agent-tools/index.ts': ['packages', 'cli', 'src', 'index.ts'],
   'local/recall-cache/index.ts': ['packages', 'core', 'src', 'infrastructure', 'db', 'recall-cache', 'index.ts'],
+  'rerankers/index.ts': ['packages', 'core', 'src', 'infrastructure', 'rerankers', 'index.ts'],
   'embedders/index.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'index.ts'],
   'embedders/local.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'local.ts'],
   'embedders/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'openai.ts'],
@@ -87,18 +88,19 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     // (factory createMemory/createLocalMemory/runMigrations, config types, stores, schema,
     // stubs, + `export * from ./domain`). This is a brittle line-count proxy; the real
     // API-correctness checks (no `any`, paper-names, subpath smoke) live in the sibling tests.
-    test('1. src/index.ts declares 13 export statements (post-reorg + entity/graph + usage-counter)', () => {
-      // 13 = 9 (post-reorg) + 3 entity-extraction slice exports + 1 usage-counter
-      // export (PgUsageCounterStore; themory-scoped-forget-and-retrieval-counter T2.2).
+    test('1. src/index.ts declares 15 export statements (+ M1 skill-exec deps)', () => {
+      // 15 = 13 (prior baseline) + 2 M1 agentic-skill exports (SandboxedSkillExecutor
+      // value + SandboxedSkillExecutorDeps type). Reconciled by the reranker cycle
+      // (reranker adds NO root export — impl is subpath-only).
       const lines = rootContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(13);
+      expect(lines.length).toBe(15);
     });
 
-    test('2. src/core/index.ts declares 47 export statements (workspace baseline + entity/graph + usage-counter)', () => {
-      // 47 = 43 (workspace baseline) + 3 entity-extraction slice type exports + 1
-      // usage-counter type export (UsageCounterStore; themory-scoped-forget T2.2).
+    test('2. src/core/index.ts declares 52 export statements (+ M2 episodes + reranker DIP)', () => {
+      // 52 = 47 (prior baseline) + 4 M2 episodes exports + 1 reranker DIP type
+      // export (Reranker; Item 23). Reconciled by the reranker cycle.
       const lines = contractContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(47);
+      expect(lines.length).toBe(52);
     });
 
     test('3. src/index.ts contains zero `any` occurrences (public-surface floor)', () => {
@@ -160,6 +162,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     test.skipIf(!OPENAI_OK)('13. `./embedders/openai` smoke-imports (openai SDK installed)', async () => {
       const mod = await importFromSource('embedders/openai.ts');
       expect(Object.keys(mod).length).toBeGreaterThan(0);
+    });
+
+    test.skipIf(!XENOVA_OK)('17. `./reranker-local` smoke-imports (xenova installed)', async () => {
+      const mod = await importFromSource('rerankers/index.ts');
+      expect(typeof mod['CrossEncoderReranker']).toBe('function');
     });
 
     test('14. `./embedders/stub` smoke-imports', async () => {
