@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
+  EmbedderUnavailableError,
   InvalidScope,
   RerankerConflict,
   MemoryNotFound,
@@ -152,6 +153,19 @@ describe('SkillExecutorUnavailableError (T1.2)', () => {
     expect(e instanceof SkillExecutorUnavailableError).toBe(true);
     expect(e.name).toBe('SkillExecutorUnavailableError');
     expect(e.message).toContain('isolated-vm');
+  });
+});
+
+describe('EmbedderUnavailableError (embedder-registry T1.1 / ADR D2)', () => {
+  test('name + instanceof Error + install-hint message + cause', () => {
+    const cause = new Error('ERR_MODULE_NOT_FOUND');
+    const e = new EmbedderUnavailableError('openai', 'openai', { cause });
+    expect(e).toBeInstanceOf(Error);
+    expect(e instanceof EmbedderUnavailableError).toBe(true);
+    expect(e.name).toBe('EmbedderUnavailableError');
+    expect(e.message).toContain('openai');
+    expect(e.message).toMatch(/install/i);
+    expect(e.cause).toBe(cause);
   });
 });
 
