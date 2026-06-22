@@ -10,7 +10,9 @@ import {
   AdditiveExtractionSchema,
   escapeMarkdownHeaders,
   generateAdditiveExtractionPrompt,
+  renderOntologyDirective,
 } from './extraction/prompt.js';
+import { BUILTIN_ONTOLOGIES } from './ontology.js';
 import type { MemoryItem } from './memory-item.js';
 import type { Message } from './message.js';
 
@@ -258,5 +260,32 @@ describe('AdditiveExtractionSchema — entities (slice2 multilingual node source
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.entities?.[0]?.name).toBe('São Paulo');
+  });
+});
+
+describe('domain-ontologies T2.1 — generateAdditiveExtractionPrompt ontology injection', () => {
+  const msgs: readonly Message[] = [{ role: 'user', content: 'Patient has a fever and was prescribed ibuprofen.' }];
+
+  test('with an ontology, the prompt contains the domain vocabulary + description', () => {
+    const { prompt } = generateAdditiveExtractionPrompt([], msgs, undefined, BUILTIN_ONTOLOGIES.medical);
+    expect(prompt).toContain('DOMAIN ONTOLOGY: "medical"');
+    expect(prompt).toContain('Symptom');
+    expect(prompt).toContain('Medication');
+    expect(prompt).toContain('treats');
+    expect(prompt).toContain('OTHER');
+    expect(prompt).toContain('Clinical / medical domain');
+  });
+
+  test('without an ontology, the prompt is byte-identical to the pre-Item-15 output', () => {
+    const a = generateAdditiveExtractionPrompt([], msgs).prompt;
+    const b = generateAdditiveExtractionPrompt([], msgs, undefined, undefined).prompt;
+    expect(a).toBe(b);
+    expect(a).not.toContain('DOMAIN ONTOLOGY');
+  });
+
+  test('renderOntologyDirective lists every entity + relation type', () => {
+    const d = renderOntologyDirective(BUILTIN_ONTOLOGIES.code);
+    for (const t of BUILTIN_ONTOLOGIES.code.entityTypes) expect(d).toContain(t);
+    for (const r of BUILTIN_ONTOLOGIES.code.relationTypes) expect(d).toContain(r);
   });
 });
