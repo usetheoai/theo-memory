@@ -24,7 +24,7 @@
  * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T3.1 + ADRs D3 + D4
  */
 
-import { createLocalMemory, runMigrations } from '@usetheo/memory';
+import { createLocalMemory, runMigrations, SandboxedSkillExecutor } from '@usetheo/memory';
 import { PgvectorStore } from '@usetheo/memory';
 import type { Embedder, Memory } from '@usetheo/memory/contract';
 // NOTE: `LocalTransformerEmbedder` (@xenova/transformers) and `OpenAILLM` (openai)
@@ -77,6 +77,22 @@ export function resolveEmbedderKind(): EmbedderKind {
   throw new Error(
     `Unknown THEOMEM_EMBEDDER='${k}' (expected 'local' or 'openai').`,
   );
+}
+
+/**
+ * production-runtime-hardening T1.1 (ADR D1): opt-in gate for M1 skill execution.
+ *
+ * `THEOMEM_SKILL_EXECUTION=true` → enable; unset / anything-else → DISABLED. The
+ * STORE-only default is preserved (the REST execute endpoint stays `501
+ * SKILL_EXECUTION_NOT_CONFIGURED` when unset), honoring M1's opt-in/gated security
+ * line. Exact-match `'true'` only (EC-2) — mirrors `resolveEmbedderKind`'s
+ * exact-match contract so `'1'`/`'TRUE'`/`'yes'` do NOT silently enable an
+ * RCE-capable surface.
+ *
+ * @see .claude/knowledge-base/plans/production-runtime-hardening-plan.md § T1.1 + ADR D1
+ */
+export function resolveSkillExecutionEnabled(): boolean {
+  return process.env['THEOMEM_SKILL_EXECUTION'] === 'true';
 }
 
 /** Embedding dimension for an embedder kind (must match the migration dim). */
@@ -163,11 +179,22 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
     import('@usetheo/memory/llms/openai'),
   ]);
 
+  // production-runtime-hardening T1.1 (ADR D1/D2 + EC-1/EC-4): opt-in skill
+  // execution, wired at this single shared site so server + MCP + CLI all honor
+  // one `THEOMEM_SKILL_EXECUTION` flag. Default OFF → no skillExecutor → the REST
+  // execute endpoint stays 501 (secure STORE-only default unchanged). EC-1: the
+  // SandboxedSkillExecutor constructor is addon-free (isolated-vm loads lazily at
+  // execute()), so enabling this on a runtime without the addon boots fine and
+  // degrades to a typed 503 at execute — never a boot crash. EC-4: the static
+  // import does NOT pull isolated-vm at module-load (type-only import in the impl).
+  const skillExecutor = resolveSkillExecutionEnabled() ? new SandboxedSkillExecutor() : undefined;
+
   return createLocalMemory({
     vectorStore: new PgvectorStore(pool, { embeddingDim }),
     embedder,
     llm: new OpenAILLM(),
     embeddingDim,
+    ...(skillExecutor !== undefined ? { skillExecutor } : {}),
   });
 }
 

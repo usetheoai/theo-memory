@@ -94,6 +94,23 @@ function trackingLoader(): DisposeTracker {
   };
 }
 
+describe('SandboxedSkillExecutor — constructor is addon-free (production-runtime-hardening EC-1)', () => {
+  test('test_constructor_does_not_require_isolated_vm: new SandboxedSkillExecutor() never loads the addon at construction', () => {
+    // EC-1: enabling THEOMEM_SKILL_EXECUTION on a runtime WITHOUT isolated-vm must
+    // NOT crash server boot. The constructor only captures a lazy loader; the addon
+    // loads at execute(). A throwing loader proves the ctor never invokes it.
+    let loaderCalled = false;
+    const throwingLoader = (): never => {
+      loaderCalled = true;
+      throw new Error('isolated-vm absent');
+    };
+    expect(() => new SandboxedSkillExecutor({ loadIsolatedVm: throwingLoader })).not.toThrow();
+    expect(loaderCalled).toBe(false);
+    // Default constructor (real `() => import('isolated-vm')`) also must not throw.
+    expect(() => new SandboxedSkillExecutor()).not.toThrow();
+  });
+});
+
 describe('SandboxedSkillExecutor — benign execution (T1.3 EC-1)', () => {
   test('test_benign_add_returns_5: export function add returns the invocation result', async () => {
     const events: RecordedEvent[] = [];

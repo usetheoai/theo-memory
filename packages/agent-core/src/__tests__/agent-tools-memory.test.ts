@@ -19,6 +19,7 @@ import type { Pool } from 'pg';
 import {
   wireMemoryFromPool,
   resolveEmbedderKind,
+  resolveSkillExecutionEnabled,
   embeddingDimForKind,
   LOCAL_EMBEDDER_DIM,
   OPENAI_EMBEDDER_DIM,
@@ -33,6 +34,11 @@ vi.mock('@usetheo/memory', () => ({
   createLocalMemory: vi.fn(async () => ({})),
   runMigrations: vi.fn(async () => undefined),
   PgvectorStore: class {
+    constructor() {}
+  },
+  // production-runtime-hardening T1.1 — addon-free stand-in (EC-1: real ctor is
+  // addon-free too; isolated-vm loads only at execute()).
+  SandboxedSkillExecutor: class {
     constructor() {}
   },
 }));
@@ -54,6 +60,50 @@ vi.mock('@usetheo/memory/embedders/openai', () => ({
     constructor() {}
   },
 }));
+
+describe('production-runtime-hardening T1.1 — skill-execution opt-in (THEOMEM_SKILL_EXECUTION)', () => {
+  const saved = process.env['THEOMEM_SKILL_EXECUTION'];
+  afterEach(() => {
+    if (saved === undefined) delete process.env['THEOMEM_SKILL_EXECUTION'];
+    else process.env['THEOMEM_SKILL_EXECUTION'] = saved;
+    vi.clearAllMocks();
+  });
+
+  test('disabled by default — env unset → createLocalMemory called WITHOUT skillExecutor', async () => {
+    delete process.env['THEOMEM_SKILL_EXECUTION'];
+    const memMod = (await import('@usetheo/memory')) as unknown as {
+      createLocalMemory: ReturnType<typeof vi.fn>;
+    };
+    memMod.createLocalMemory.mockClear();
+    const fakePool = { end: vi.fn(), query: vi.fn(async () => ({ rows: [] })) } as unknown as Pool;
+    await wireMemoryFromPool(fakePool);
+    const cfg = memMod.createLocalMemory.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect('skillExecutor' in cfg).toBe(false);
+  });
+
+  test('enabled — THEOMEM_SKILL_EXECUTION=true → config carries a skillExecutor', async () => {
+    process.env['THEOMEM_SKILL_EXECUTION'] = 'true';
+    const memMod = (await import('@usetheo/memory')) as unknown as {
+      createLocalMemory: ReturnType<typeof vi.fn>;
+    };
+    memMod.createLocalMemory.mockClear();
+    const fakePool = { end: vi.fn(), query: vi.fn(async () => ({ rows: [] })) } as unknown as Pool;
+    await wireMemoryFromPool(fakePool);
+    const cfg = memMod.createLocalMemory.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(cfg['skillExecutor']).toBeDefined();
+  });
+
+  test('EC-2: resolver accepts ONLY exact "true" (1/TRUE/yes/" true " → disabled)', () => {
+    for (const v of ['1', 'TRUE', 'yes', ' true ', 'false', '']) {
+      process.env['THEOMEM_SKILL_EXECUTION'] = v;
+      expect(resolveSkillExecutionEnabled()).toBe(false);
+    }
+    process.env['THEOMEM_SKILL_EXECUTION'] = 'true';
+    expect(resolveSkillExecutionEnabled()).toBe(true);
+    delete process.env['THEOMEM_SKILL_EXECUTION'];
+    expect(resolveSkillExecutionEnabled()).toBe(false);
+  });
+});
 
 describe('T3.1 / EC-3 — wireMemoryFromPool lifecycle invariant', () => {
   test('does NOT call pool.end() (caller owns pool lifecycle)', async () => {
