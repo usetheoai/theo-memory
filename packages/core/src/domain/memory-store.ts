@@ -28,6 +28,7 @@ import type { VectorStore } from './dip/vector-store.js';
 import type { EpisodeListOptions, EpisodePage } from './episode.js';
 import type { HistoryEntry } from './history-entry.js';
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
+import type { Ontology, OntologyName } from './ontology.js';
 import type {
   ForgetOptions,
   GetAllOptions,
@@ -237,6 +238,23 @@ export interface MemoryConfig {
 
   /** Optional system-prompt prefix injected into LLM extraction calls (upstream-pipeline parity). */
   readonly customInstructions?: string;
+
+  /**
+   * Optional domain ontology (Roadmap Item 15). A built-in registry key
+   * (`'medical' | 'legal' | 'code' | 'support'`) OR a custom `Ontology` object.
+   * When set, the domain entity/relation vocabulary is injected into the
+   * extraction prompt + the LLM's entity types are validated post-parse
+   * (out-of-vocab → `OTHER`, observable via `ontology_type_coerced`). Persisted
+   * in the existing `entities.type` columns — no new store, no migration.
+   * Resolved + validated at factory time (`InvalidOntology` on a bad key/object);
+   * absent = current generic extraction (byte-unchanged).
+   *
+   * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D4
+   */
+  // `OntologyName | (string & {})` keeps autocomplete for the 4 built-in keys
+  // while accepting any string (e.g. a dynamic value from env/config); an
+  // unknown key fail-fasts with `InvalidOntology` at the factory.
+  readonly ontology?: Ontology | OntologyName | (string & {});
 }
 
 /**

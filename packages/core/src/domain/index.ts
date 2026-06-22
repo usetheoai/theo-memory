@@ -138,6 +138,7 @@ export {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
   InvalidEmbeddingDim,
+  InvalidOntology,
   InvalidScope,
   InvalidSkillError,
   ContentTooLargeError,
@@ -208,6 +209,26 @@ export type { Embedder } from './dip/embedder.js';
  * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md
  */
 export type { Reranker } from './dip/reranker.js';
+
+/**
+ * Domain ontologies (Item 15) — typed per-domain entity/relation vocabularies
+ * layered over LLM extraction. `BUILTIN_ONTOLOGIES` ships medical/legal/code/
+ * support; `resolveOntology` resolves a registry key OR a custom `Ontology`.
+ * Opt-in via `MemoryConfig.ontology`; persisted in the existing tables (no
+ * poly-store, no migration).
+ *
+ * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D1 + D4
+ * @see .claude/knowledge-base/discoveries/blueprints/domain-ontologies-blueprint.md
+ */
+export type { Ontology, OntologyName } from './ontology.js';
+/**
+ * Domain-ontology runtime values: the built-in registry (medical/legal/code/
+ * support), the `OTHER` coercion fallback constant, and the `resolveOntology`/
+ * `validateOntology` resolvers consumers use to build a custom ontology.
+ *
+ * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D1 + D4
+ */
+export { BUILTIN_ONTOLOGIES, ONTOLOGY_FALLBACK_TYPE, resolveOntology, validateOntology } from './ontology.js';
 
 /**
  * `EntityExtractor` DIP — sync, deterministic node extractor from text.
