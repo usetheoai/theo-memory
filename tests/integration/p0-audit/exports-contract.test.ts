@@ -71,14 +71,14 @@ describe('T1.2 — src/core/index.ts contract-barrel JSDoc + @see', () => {
   const content = readFileSync(CONTRACT_PATH, 'utf8');
   const blocks = findExportBlocks(content);
 
-  test('1. src/core/index.ts contains 54 export statements (workspace baseline + entity/graph + usage-counter + episodes + reranker + ontology)', () => {
+  test('1. src/core/index.ts contains 55 export statements (workspace baseline + entity/graph + usage-counter + episodes + reranker + ontology + adaptive DIP)', () => {
     // 54 = 52 (prior: +4 episodes +1 reranker) + 2 ontology exports (Ontology/OntologyName type export + BUILTIN_ONTOLOGIES/resolveOntology value export); earlier: 47 baseline + 4 M2 episodes (M2 v0.14 first-class-episodes:
     // EpisodeListOptions/EpisodePage/EpisodeCursor type export + the
     // EPISODE_LIMIT/cursor-codec value export) + 1 reranker DIP type export
     // (Reranker; cross-encoder-reranker Item 23). The reranker cycle reconciled
     // the M2-episodes surface drift this snapshot had not absorbed.
     // Each has a JSDoc + @see block.
-    expect(blocks.length).toBe(54);
+    expect(blocks.length).toBe(55);
   });
 
   test('2. every export statement has a JSDoc block above', () => {

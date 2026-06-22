@@ -25,6 +25,7 @@
  */
 import type { Tracer } from '@opentelemetry/api';
 
+import type { AdaptiveRetrievalPolicy, AdaptiveTuning } from '../dip/adaptive-retrieval-policy.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
@@ -47,6 +48,14 @@ export interface RetrievalDeps {
    * reranked before topK truncation (ADR D3). Absent ⇒ rerank is a no-op.
    */
   readonly reranker?: Reranker;
+  /**
+   * adaptive-retrieval (Item 13) — optional adaptive policy. When present, the
+   * pipeline runs the CRAG `assess` grade-and-correct stage (Step 8.6) after the
+   * threshold filter. Absent ⇒ no adaptive stage (default OFF, byte-unchanged).
+   * The Self-RAG `shouldRetrieve` pre-embed gate runs in `scoped-memory.ts`
+   * (before this pipeline), not here.
+   */
+  readonly retrievalPolicy?: AdaptiveRetrievalPolicy;
   readonly tracer?: Tracer;
 }
 
@@ -102,6 +111,108 @@ async function applyRerankStage(
     const fallback = scored.slice(0, rerankTopK).map(rowToItem);
     emitEvent(tracer, 'extraction_completed', { results: fallback.length });
     return fallback;
+  }
+}
+
+type Candidate = { semantic: number; bm25: number; entity: number; payload: Payload };
+type ScoredRow = { id: string; payload: Payload; score: number };
+
+/**
+ * Step 8 gate (extracted for DRY — used by the initial threshold filter AND the
+ * adaptive Step 8.6 relax corrective). Applies the semantic gate + additive
+ * combine + final-threshold gate + NaN drop, returning the surviving rows
+ * (unsorted). Same logic for both call sites so the corrective re-filter is
+ * byte-consistent with the initial filter (EC-1 + DRY).
+ */
+function filterAtThreshold(
+  candidates: ReadonlyMap<string, Candidate>,
+  maxScore: number,
+  threshold: number,
+): ScoredRow[] {
+  const out: ScoredRow[] = [];
+  for (const [id, c] of candidates.entries()) {
+    if (c.semantic < threshold) {
+      continue;
+    }
+    const combined = combineScores(
+      { semantic: c.semantic, bm25: c.bm25, entityBoostScore: c.entity },
+      maxScore,
+    );
+    if (combined < threshold || Number.isNaN(combined)) {
+      continue;
+    }
+    out.push({ id, payload: c.payload, score: combined });
+  }
+  return out;
+}
+
+/**
+ * Step 8.6 — adaptive-retrieval CRAG grade-and-correct (Item 13, ADR D2 + D3 + D4).
+ * Calls the policy's `assess` on the threshold-passing results; on `action:'relax'`
+ * with a valid `relaxedThreshold` (EC-1 clamp: `0 <= rt < threshold`), re-filters
+ * the pre-threshold `candidates` pool at the lower threshold and returns the
+ * (re-sorted) corrected pool + emits `retrieval_corrected`. On `reject` OR a
+ * relax that surfaces nothing, emits `retrieval_low_confidence` and returns the
+ * original pool. Fail-soft (ADR D4): a policy throw degrades to the original pool
+ * + an observable `retrieval_low_confidence{reason:'assess_failed'}` — recall
+ * NEVER crashes on a policy outage.
+ */
+async function applyAdaptiveAssessStage(
+  query: string,
+  scoredSorted: readonly ScoredRow[],
+  candidates: ReadonlyMap<string, Candidate>,
+  maxScore: number,
+  threshold: number,
+  policy: AdaptiveRetrievalPolicy,
+  tuning: AdaptiveTuning | undefined,
+  rowToItem: (row: ScoredRow) => MemoryItemWithScore,
+  scopeTier: string,
+  tracer: Tracer | undefined,
+): Promise<readonly ScoredRow[]> {
+  try {
+    const results = scoredSorted.map(rowToItem);
+    const assessment = await policy.assess(query, results, tuning);
+    if (assessment.action === 'accept') {
+      return scoredSorted;
+    }
+    if (assessment.action === 'reject') {
+      emitEvent(tracer, 'retrieval_low_confidence', {
+        scope_tier: scopeTier,
+        reason: assessment.reason ?? 'rejected',
+      });
+      return scoredSorted;
+    }
+    // action === 'relax' — per-call override wins over the policy's value.
+    const rt = tuning?.relaxedThreshold ?? assessment.relaxedThreshold;
+    // EC-1 clamp: relax ONLY when 0 <= rt < threshold (no no-op widening / no
+    // out-of-range surfacing). Otherwise treat as accept (no correction, no event).
+    if (rt === undefined || Number.isNaN(rt) || rt < 0 || rt >= threshold) {
+      return scoredSorted;
+    }
+    const relaxed = filterAtThreshold(candidates, maxScore, rt);
+    relaxed.sort((a, b) => b.score - a.score);
+    // EC-2: a relax that surfaces nothing new ⇒ low confidence, original pool.
+    if (relaxed.length <= scoredSorted.length) {
+      emitEvent(tracer, 'retrieval_low_confidence', {
+        scope_tier: scopeTier,
+        reason: 'relax_surfaced_nothing',
+      });
+      return scoredSorted;
+    }
+    emitEvent(tracer, 'retrieval_corrected', {
+      scope_tier: scopeTier,
+      from_threshold: threshold,
+      to_threshold: rt,
+      surfaced: relaxed.length - scoredSorted.length,
+    });
+    return relaxed;
+  } catch (err) {
+    // ADR D4 fail-soft — a policy outage NEVER takes down recall.
+    emitEvent(tracer, 'retrieval_low_confidence', {
+      scope_tier: scopeTier,
+      reason: `assess_failed:${err instanceof Error ? err.name : 'unknown'}`,
+    });
+    return scoredSorted;
   }
 }
 
@@ -182,23 +293,7 @@ export async function runRetrievalPipeline(
   // principles-alignment-hardening T4.1: capture pre-threshold count for the
   // recall_threshold_filtered event (Princípio 3 IGNORE auditability per ADR D2).
   const preThresholdCount = candidates.size;
-  const scored: { id: string; payload: Payload; score: number }[] = [];
-  for (const [id, c] of candidates.entries()) {
-    if (c.semantic < threshold) {
-      continue;
-    }
-    const combined = combineScores(
-      { semantic: c.semantic, bm25: c.bm25, entityBoostScore: c.entity },
-      maxScore,
-    );
-    if (combined < threshold) {
-      continue;
-    }
-    if (Number.isNaN(combined)) {
-      continue;
-    }
-    scored.push({ id, payload: c.payload, score: combined });
-  }
+  let scored: ScoredRow[] = filterAtThreshold(candidates, maxScore, threshold);
   // principles-alignment-hardening T4.1 — emit recall_threshold_filtered ONLY
   // when filtered_count > 0 (no-op observability discipline; do not flood
   // dashboards with zero-filter events). EC-5 absorption: emitEvent is no-op
@@ -248,6 +343,28 @@ export async function runRetrievalPipeline(
       score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,
     };
   };
+
+  // Step 8.6 — adaptive-retrieval CRAG grade-and-correct (Item 13, ADR D2).
+  // Opt-in: runs ONLY when a retrievalPolicy is wired (default OFF ⇒ byte-
+  // unchanged). The corrective may relax the threshold over the pre-threshold
+  // `candidates` pool, rebinding `scored`; the rerank/diversify/topK stages
+  // below then operate on the corrected pool. Fail-soft inside the helper.
+  if (deps.retrievalPolicy !== undefined) {
+    scored = [
+      ...(await applyAdaptiveAssessStage(
+        query,
+        scored,
+        candidates,
+        maxScore,
+        threshold,
+        deps.retrievalPolicy,
+        options?.adaptive,
+        rowToItem,
+        scope.kind,
+        tracer,
+      )),
+    ];
+  }
 
   // cross-encoder-reranker T2.2 / ADR D3 — diversify and rerank are mutually
   // exclusive post-threshold reranks of the same pool. Fail-loud BEFORE any
