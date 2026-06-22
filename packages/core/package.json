@@ -50,6 +50,22 @@
       "types": "./dist/infrastructure/embedders/local.d.ts",
       "default": "./dist/infrastructure/embedders/local.js"
     },
+    "./embedders/ollama": {
+      "types": "./dist/infrastructure/embedders/ollama.d.ts",
+      "default": "./dist/infrastructure/embedders/ollama.js"
+    },
+    "./embedders/voyage": {
+      "types": "./dist/infrastructure/embedders/voyage.d.ts",
+      "default": "./dist/infrastructure/embedders/voyage.js"
+    },
+    "./embedders/google": {
+      "types": "./dist/infrastructure/embedders/google.d.ts",
+      "default": "./dist/infrastructure/embedders/google.js"
+    },
+    "./embedders/registry": {
+      "types": "./dist/infrastructure/embedders/registry.d.ts",
+      "default": "./dist/infrastructure/embedders/registry.js"
+    },
     "./llms": {
       "types": "./dist/infrastructure/llms/index.d.ts",
       "default": "./dist/infrastructure/llms/index.js"

@@ -57,6 +57,10 @@ const SOURCE_PATH_MAP: Record<string, string[]> = {
   'embedders/local.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'local.ts'],
   'embedders/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'openai.ts'],
   'embedders/stub.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'stub.ts'],
+  'embedders/ollama.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'ollama.ts'],
+  'embedders/voyage.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'voyage.ts'],
+  'embedders/google.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'google.ts'],
+  'embedders/registry.ts': ['packages', 'core', 'src', 'infrastructure', 'embedders', 'registry.ts'],
   'llms/index.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'index.ts'],
   'llms/openai.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'openai.ts'],
   'llms/stub.ts': ['packages', 'core', 'src', 'infrastructure', 'llms', 'stub.ts'],
@@ -187,6 +191,28 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     test('17. `./llms/stub` smoke-imports', async () => {
       const mod = await importFromSource('llms/stub.ts');
       expect(Object.keys(mod).length).toBeGreaterThan(0);
+    });
+
+    // embedder-registry (Item 24) — 4 new subpaths. Fetch-based adapters + the
+    // registry need NO SDK, so they smoke-import unconditionally.
+    test('17a. `./embedders/ollama` smoke-imports', async () => {
+      const mod = await importFromSource('embedders/ollama.ts');
+      expect(typeof mod['OllamaEmbedder']).toBe('function');
+    });
+
+    test('17b. `./embedders/voyage` smoke-imports', async () => {
+      const mod = await importFromSource('embedders/voyage.ts');
+      expect(typeof mod['VoyageEmbedder']).toBe('function');
+    });
+
+    test('17c. `./embedders/google` smoke-imports', async () => {
+      const mod = await importFromSource('embedders/google.ts');
+      expect(typeof mod['GoogleEmbedder']).toBe('function');
+    });
+
+    test('17d. `./embedders/registry` smoke-imports', async () => {
+      const mod = await importFromSource('embedders/registry.ts');
+      expect(typeof mod['createEmbedder']).toBe('function');
     });
 
     test('18. `./server` smoke-imports', async () => {

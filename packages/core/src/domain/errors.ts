@@ -345,6 +345,29 @@ export class EmbedderError extends Error {
 }
 
 /**
+ * EmbedderUnavailableError — thrown by the embedder registry (`createEmbedder`)
+ * when an SDK-based provider's OPTIONAL dependency is not installed in the
+ * runtime (e.g. `createEmbedder({ provider: 'openai' })` without the `openai`
+ * SDK, or `'local'` without `@xenova/transformers`). Distinct from
+ * `EmbedderError` (provider reachable but failing) and from an unknown-provider
+ * key (also `EmbedderError`). The message carries an install hint. Mirrors
+ * `SkillExecutorUnavailableError`.
+ *
+ * @see .claude/knowledge-base/plans/embedder-registry-plan.md § ADR D2
+ */
+export class EmbedderUnavailableError extends Error {
+  override readonly name = 'EmbedderUnavailableError' as const;
+
+  constructor(provider: string, dep: string, options?: ErrorOptions) {
+    super(
+      `Embedder provider '${provider}' is unavailable: the '${dep}' package is not installed. Install it (e.g. \`pnpm add ${dep}\`) to use this provider, or choose a fetch-based provider (ollama / voyage / google) that needs no SDK.`,
+      options,
+    );
+    Object.setPrototypeOf(this, EmbedderUnavailableError.prototype);
+  }
+}
+
+/**
  * Thrown when input content exceeds the embedder's per-call dimension cap
  * (1536 at v0.1 per pgvector HNSW limit; MAX_CONTENT_BYTES=50_000 at the
  * agent-tools boundary per EC-2). Classified as Tool Execution Error per ADR D6
