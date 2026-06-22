@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Opt-in skill execution in the production runtime: `THEOMEM_SKILL_EXECUTION=true` wires `SandboxedSkillExecutor` into the shared `wireMemoryFromPool` factory (so `themory server` + MCP + CLI all honor one flag). Default OFF — the secure STORE-only default + the `501 SKILL_EXECUTION_NOT_CONFIGURED` response are unchanged when unset. (production-runtime-hardening; surfaced by the M2 live-test)
 
 ### Changed
 
@@ -13,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- M1 skill execution `503 SKILL_EXECUTOR_UNAVAILABLE` in the distroless runtime: the `production-deps` stage used pnpm's default isolated node_modules, so the OPTIONAL native deps (`isolated-vm`, `onnxruntime-node`) never reached the top-level node_modules the distroless runtime copies → unreachable from the flattened `/app/dist`. Fixed by installing production-deps with `--config.node-linker=hoisted` (flat layout); verified a skill executes end-to-end in the distroless image (HTTP 200). Also fixes the local embedder (`onnxruntime-node`) in the published image. (production-runtime-hardening)
 - `isolated-vm` pinned `^7.0.0` → `^6.1.2` (M1 dependency-compatibility bug): `isolated-vm@7` declares `engines: node>=26`, but the project's runtime is **Node 22** (Docker base + `distroless/nodejs22`). pnpm correctly OMITS the optional dep on Node 22 (unmet engines), so the image could not build from HEAD AND M1 skill-execution could never run on the Node 22 distroless runtime. `isolated-vm@6.1.2` declares `node>=22` (compatible) and is API-identical for the surface M1 uses (`Isolate`/`createContext`/`compileScript`/`run`/`ExternalCopy`/`dispose`); M1 GOAL test 8/8 + M2 9/9 green on it. (surfaced by the M2 Theo-Cloud live-test)
 - Docker image build from HEAD broke since M1 (v0.13.0): the `builder` + `production-deps` stages (slim base) lacked node-gyp's toolchain for the native `isolated-vm`/`onnxruntime-node` builds. Added `python3`/`make`/`g++` to both stages so the `.node` binaries compile and flow to the distroless runtime. (surfaced by the M2 Theo-Cloud live-test)
 
