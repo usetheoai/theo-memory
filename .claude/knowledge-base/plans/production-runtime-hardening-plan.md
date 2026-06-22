@@ -81,6 +81,12 @@ Per `architecture.md`: the wire lives in `agent-core` (composition layer), depen
 - **Rationale:** `sharp` is a transitive optional dep of `@xenova/transformers`, which backs the DEFAULT local embedder — removing it would break `THEOMEM_EMBEDDER=local`. The flakiness is network-transient; a retry is the proportionate fix (KISS).
 - **Alternatives:** (a) remove `@xenova`/sharp — REJECTED (breaks the default local embedder); (b) vendor libvips — REJECTED (heavy, image bloat); (c) do nothing — REJECTED (release risk the user flagged).
 
+### D6 — Distroless flat node_modules via `--config.node-linker=hoisted` (the 503 root-cause fix)
+- **Decision:** the `production-deps` stage installs with `--config.node-linker=hoisted` (+ `COPY packages/` so the workspace importers' optionalDependencies are seen) so the OPTIONAL native deps (`isolated-vm`, `onnxruntime-node`) land at the TOP-LEVEL node_modules the distroless runtime copies.
+- **Rationale:** pnpm's default isolated layout buries optional/workspace deps under `.pnpm/` + per-package `node_modules`, unreachable from the flattened `/app/dist` (root-cause of the live `503 SKILL_EXECUTOR_UNAVAILABLE`). `node-linker=hoisted` is layout-only — it does NOT change resolution (`--frozen-lockfile` still honored, lockfile untouched) — it flattens the same resolved set. This was discovered during T2.2 (the toolchain + `COPY packages/` were necessary but insufficient); recorded as an ADR per `/review` F-arch-5.
+- **Alternatives:** (a) hoist isolated-vm to the ROOT package.json — REJECTED (duplicates the M1 declaration; doesn't fix onnxruntime); (b) copy resolved dirs from the builder stage — REJECTED (fragile path coupling); (c) `shamefully-hoist` globally in `.npmrc` — REJECTED (affects dev installs; scope the flat layout to the production-deps install only).
+- **Consequences:** image grows to ~476MB (the @xenova/onnx + isolated-vm natives); the `<200MB` target now applies only to the `INCLUDE_OPTIONAL=false` OpenAI-only profile (documented in the Dockerfile header).
+
 ### D5 — Gateway episodes proxy DEFERRED to the theo-cloud repo (out of scope)
 - **Decision:** the "gateway has no episodes proxy" item is NOT in this plan; it is a `theo-cloud` repo cycle (BFF proxy + dashboard surface for `GET /v1/scopes/:type/:id/episodes`).
 - **Rationale:** cross-repo — the gateway code lives in `theo-cloud`, not `theo-memory`; this repo's cycle cannot land it. Honest scope disclosure (Inquebrável Rule 3).
@@ -265,8 +271,9 @@ VERIFY: `docker build -t themory-e2e:hardening -f Dockerfile .` exit 0
 | 9 | EC-2 env exact `'true'` only | T1.1 | resolver exact-match test |
 | 10 | EC-3 blast radius (server+MCP+CLI) | T1.1 + D2 | single shared wire site |
 | 11 | EC-4/5/6 documented behaviors | T1.1 + T3.1 + T2.2 | static import / bounded retry / container env |
+| 12 | distroless flat-layout (node-linker=hoisted) — the 503 root-cause fix | T3.1 + ADR D6 | production-deps `--config.node-linker=hoisted` + `COPY packages/`; verified HTTP 200 |
 
-**Coverage: 11/11 (100%)**
+**Coverage: 12/12 (100%)**
 
 ## Global Definition of Done
 - [ ] All phases completed (`git log --oneline` shows T1.1→T3.1 commits)

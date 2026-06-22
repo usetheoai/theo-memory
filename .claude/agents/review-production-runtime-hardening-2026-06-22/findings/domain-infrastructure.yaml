@@ -1,0 +1,262 @@
+agent: review-production-runtime-hardening-domain-infrastructure
+review_target: b06e1df7212e88f3aa1c04f251ac1433d4d7b895..HEAD for plan production-runtime-hardening
+domain: infrastructure
+domain_specific_patterns_checked:
+  - "distroless no-shell / nonroot invariant (EC-47 + ADR D13)"
+  - "pnpm node-linker=hoisted flat node_modules for distroless runtime resolution"
+  - "--frozen-lockfile honored under node-linker override"
+  - "bounded retry loop (3x) fail-loud, no infinite loop"
+  - "native-addon toolchain (python3/make/g++) discarded with builder stage"
+  - "COPY packages/ runtime-bloat (only node_modules copied to runtime)"
+  - "INCLUDE_OPTIONAL=true coherence with hoisted"
+  - "distroless-verify evidence vs Dockerfile change consistency"
+
+findings:
+  - id: F-dom-infra-1
+    severity: INFO
+    file: Dockerfile
+    line: 123
+    plan_ref: "production-runtime-hardening — distroless 503 fix (node-linker=hoisted)"
+    domain_anchor: "EC-39 (optional deps included) + distroless runtime resolution"
+    summary: >
+      The --config.node-linker=hoisted change is CORRECT for the stated goal.
+      Verified end-to-end: the runtime (Stage 3) copies ONLY
+      `/build/node_modules/` (line 139) and runs `/app/dist/agent-tools/cli.js`,
+      which at runtime does `import('isolated-vm')` (sandboxed-skill-executor.ts:101)
+      and (transitively via @xenova/transformers) resolves `onnxruntime-node`.
+      Bare-specifier resolution from /app/dist walks up to /app/node_modules.
+      pnpm's DEFAULT isolated layout places transitive/optional deps under
+      `.pnpm/` + per-package `node_modules`, so the top-level /app/node_modules
+      lacks `isolated-vm`/`onnxruntime-node` at a directly-resolvable path → 503.
+      `node-linker=hoisted` flattens every dep to the top level → both resolve.
+      This matches the M2-live-test root cause and the distroless-verify evidence
+      (HTTP 200 skill execute; isolated-vm + onnxruntime-node present at runtime root).
+    evidence: |
+      Dockerfile:139  COPY --from=production-deps /build/node_modules/ /app/node_modules/
+      core/src/.../sandboxed-skill-executor.ts:101  this.#load = deps.loadIsolatedVm ?? (() => import('isolated-vm'));
+      distroless-verify-2026-06-22.md: "isolated-vm at /app/node_modules (runtime root): present", "POST .../execute: HTTP 200"
+    recommended_action: None — the change is sound and evidence-backed.
+
+  - id: F-dom-infra-2
+    severity: INFO
+    file: Dockerfile
+    line: 121
+    plan_ref: "ADR D4 — build resilience (bounded retry)"
+    domain_anchor: "Inquebrável Rule 8 (fail loud, never silent-skip), no infinite loop"
+    summary: >
+      The bounded retry loop is correct and fails LOUD. `for i in 1 2 3` is a
+      finite range (max 3 iterations — no infinite loop). On success `&& break`
+      exits early. On the 3rd failure `[ "$i" = "3" ] && ... exit 1` aborts the
+      build with non-zero status (RUN fails → image build fails). There is NO
+      silent-skip path: a persistently failing install never produces an image.
+      Same pattern correctly applied to both builder (line 64) and production-deps
+      (line 122). Backoff (sleep $((i*5)) = 5s,10s) is sensible for a CDN flake.
+    evidence: |
+      Dockerfile:122-127
+        for i in 1 2 3; do
+          pnpm install --prod --frozen-lockfile --config.node-linker=hoisted $OPT_FLAG && break;
+          echo "...retrying in $((i*5))s..."; sleep $((i*5));
+          [ "$i" = "3" ] && echo "prod install failed after 3 attempts" && exit 1;
+        done
+    recommended_action: None — bounded and fail-loud as required.
+
+  - id: F-dom-infra-3
+    severity: LOW
+    file: Dockerfile
+    line: 122
+    plan_ref: "ADR D4 — build resilience (bounded retry)"
+    domain_anchor: "fail-loud completeness (non-CDN failure on 3rd attempt)"
+    summary: >
+      Minor robustness gap in the retry construct: the final `exit 1` is gated on
+      `[ "$i" = "3" ]` AND fires only inside the loop body AFTER a failed attempt.
+      Because the loop has exactly 3 iterations, this works. BUT the construct
+      relies on the loop variable string-comparing to the literal "3"; if the
+      range is ever edited (e.g. to `1 2 3 4 5`) without updating the "3" literal,
+      the loop would exhaust silently and the RUN would exit 0 (last statement is
+      the `sleep`/echo, success), shipping an image with a FAILED install. This is
+      a latent footgun, not a current defect (range and literal agree today).
+    evidence: |
+      Dockerfile:126  [ "$i" = "3" ] && echo "prod install failed after 3 attempts" && exit 1;
+      The cap literal ("3") is decoupled from the for-range ("1 2 3"); they must be
+      kept in sync manually. A drift would convert fail-loud into silent-success.
+    recommended_action: >
+      Optional hardening: replace the in-loop literal-gated exit with a
+      post-loop guard, e.g. `... && break; done; pnpm install ... || exit 1`
+      using a trailing unconditional check, OR derive the cap from a single var
+      (MAX=3; for i in $(seq 1 $MAX); ...; [ "$i" = "$MAX" ] && exit 1). Keeps
+      fail-loud invariant resilient to future range edits. Non-blocking.
+
+  - id: F-dom-infra-4
+    severity: INFO
+    file: Dockerfile
+    line: 123
+    plan_ref: "production-runtime-hardening (node-linker override)"
+    domain_anchor: "--frozen-lockfile honored under node-linker=hoisted"
+    summary: >
+      `--frozen-lockfile` IS still honored alongside `--config.node-linker=hoisted`.
+      node-linker controls the on-disk node_modules SHAPE (flat vs isolated); it
+      does not alter dependency RESOLUTION (the resolved graph in pnpm-lock.yaml
+      lockfileVersion 9.0). pnpm-lock.yaml declares no `node-linker` setting
+      (grep: 0 hits), so the override is a layout-only directive applied at link
+      time; the resolution step still validates against the frozen lockfile and
+      aborts on any drift. No phantom deps are introduced — hoisting re-places the
+      SAME resolved set at the top level, it does not add packages. Risk that
+      hoisted "pulls phantom deps": NOT present (hoisting exposes already-resolved
+      deps to a flatter path; it does not widen the dependency set).
+    evidence: |
+      pnpm-lock.yaml: lockfileVersion '9.0'; `grep -c node-linker pnpm-lock.yaml` = 0
+      node-linker is a pnpm install/link directive orthogonal to the resolved graph;
+      --frozen-lockfile guards resolution, not layout.
+    recommended_action: None — combination is valid.
+
+  - id: F-dom-infra-5
+    severity: INFO
+    file: Dockerfile
+    line: 93
+    plan_ref: "production-runtime-hardening — packages/ visibility for optional deps"
+    domain_anchor: "runtime bloat (only node_modules copied to runtime)"
+    summary: >
+      `COPY packages/ ./packages/` in production-deps is NECESSARY and does NOT
+      bloat the runtime. Necessary because pnpm requires each workspace
+      package.json present to see packages/core's optionalDependencies
+      (isolated-vm, @xenova/transformers→onnxruntime-node) — confirmed core
+      declares isolated-vm + @xenova/transformers as optionalDependencies. No
+      runtime bloat: Stage 3 copies ONLY `/build/node_modules/` (line 139) +
+      `dist/` (from builder) + root package.json; `packages/` sources are
+      discarded with the production-deps stage and never reach the distroless
+      image. Additionally, the runtime does NOT need node_modules/@usetheo/*
+      because postbuild:rewrite-aliases rewrites all @usetheo/* specifiers in
+      dist/ to RELATIVE paths — so the flat third-party node_modules suffices.
+    evidence: |
+      packages/core/package.json optionalDependencies: { isolated-vm, @xenova/transformers, ... }
+      Dockerfile:138-140 — runtime copies dist/ + node_modules/ + package.json ONLY (no packages/)
+      scripts/rewrite-dist-aliases.mjs — rewrites @usetheo/* to relative dist paths
+    recommended_action: None — correct; sources stay in the throwaway stage.
+
+  - id: F-dom-infra-6
+    severity: INFO
+    file: Dockerfile
+    line: 99
+    plan_ref: "ADR D13 + EC-38 (native toolchain in builder stages only)"
+    domain_anchor: "toolchain discarded with stage"
+    summary: >
+      The native-addon toolchain (python3/make/g++) is correctly installed in
+      BOTH the builder (line 54) and production-deps (line 99) stages and is
+      DISCARDED — the distroless runtime (Stage 3) is a fresh FROM
+      gcr.io/distroless/nodejs22-debian12:nonroot and copies only dist/ +
+      node_modules/ + package.json. The toolchain (and apt lists, cleaned via
+      rm -rf /var/lib/apt/lists/*) never reaches the runtime image. The compiled
+      .node binaries (the actual addon outputs) live inside node_modules and ARE
+      copied forward — which is exactly what's needed.
+    evidence: |
+      Dockerfile:99-100  apt-get install python3 make g++ && rm -rf /var/lib/apt/lists/*
+      Dockerfile:132  FROM gcr.io/distroless/nodejs22-debian12:nonroot AS runtime  (fresh base)
+      Dockerfile:138-140  copies dist/ + node_modules/ + package.json only
+    recommended_action: None.
+
+  - id: F-dom-infra-7
+    severity: INFO
+    file: Dockerfile
+    line: 158
+    plan_ref: "EC-47 distroless no-shell + ADR D13 ENTRYPOINT direct node"
+    domain_anchor: "distroless no-shell + nonroot invariant preserved"
+    summary: >
+      The distroless invariants are preserved by this diff. Stage 3 base is
+      unchanged (gcr.io/distroless/nodejs22-debian12:nonroot → nonroot UID 65532,
+      no shell). ENTRYPOINT is unchanged and still invokes the node binary
+      directly (["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]) —
+      no shell layer, no docker-entrypoint.sh. The retry loops live ONLY in the
+      builder/production-deps stages (which DO have a shell), never in the runtime.
+      The hoisted change runs in production-deps, not the runtime — distroless
+      contract untouched.
+    evidence: |
+      Dockerfile:132  FROM gcr.io/distroless/nodejs22-debian12:nonroot AS runtime
+      Dockerfile:158  ENTRYPOINT ["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]
+      The diff touches only builder (line 63-69) + production-deps (line 84-127); Stage 3 unchanged.
+    recommended_action: None.
+
+  - id: F-dom-infra-8
+    severity: LOW
+    file: Dockerfile
+    line: 139
+    plan_ref: "production-runtime-hardening — image size (hoisted layout)"
+    domain_anchor: "image-size target < 200MB (header line 21) under flat layout"
+    summary: >
+      Image-size regression risk from the hoisted layout is LOW but UNVERIFIED in
+      this slice. A flat (hoisted) node_modules generally does NOT increase total
+      disk size vs pnpm's isolated layout when copied into a non-pnpm image — in
+      the runtime there is no pnpm store + symlink farm, just the resolved files,
+      and the isolated layout's per-package node_modules are not copied anyway.
+      However the published-image header still declares "< 200MB" (line 21) and
+      the prior published image was 199.7MB (CLAUDE.md Item 17) — already within
+      0.3MB of the cap. Adding the (previously-skipped) isolated-vm +
+      onnxruntime-node native .node binaries WILL increase the runtime image (these
+      addons are non-trivial). The distroless-verify evidence confirms FUNCTION
+      (HTTP 200) but does NOT report the resulting image size.
+    evidence: |
+      Dockerfile:21  "# Image target: < 200MB."
+      CLAUDE.md Item 17: prior image 199.7 MB (under 200 MB target)
+      distroless-verify-2026-06-22.md: reports function (HTTP 200) but no `docker images` size line.
+    recommended_action: >
+      Measure the new image size (`docker images themory:<tag>`) and update the
+      Dockerfile header line 21 if it now exceeds 200MB. The optional native deps
+      adding ~tens of MB is EXPECTED and acceptable (they are the fix), but the
+      <200MB claim in the file header is now likely stale and should be corrected
+      to stay honest (Inquebrável Rule 3). Non-blocking; documentation accuracy.
+
+  - id: F-dom-infra-9
+    severity: INFO
+    file: Dockerfile
+    line: 120
+    plan_ref: "EC-39 optional deps included (INCLUDE_OPTIONAL default true)"
+    domain_anchor: "INCLUDE_OPTIONAL=true coherence with hoisted"
+    summary: >
+      INCLUDE_OPTIONAL=true remains coherent with the hoisted change. The two are
+      orthogonal and composed correctly: INCLUDE_OPTIONAL controls WHETHER optional
+      deps are installed (true → no --no-optional flag), node-linker=hoisted
+      controls WHERE they land (flat top level). With the default true + hoisted,
+      isolated-vm + onnxruntime-node are both installed AND top-level-resolvable —
+      the intended state. The --no-optional branch (INCLUDE_OPTIONAL=false) still
+      works: it strips optionals (OpenAI-embedder-only deployment) and hoisting the
+      remaining set is harmless. OPT_FLAG is correctly computed once and reused
+      across retries.
+    evidence: |
+      Dockerfile:121  OPT_FLAG=$([ "$INCLUDE_OPTIONAL" = "true" ] && echo "" || echo "--no-optional");
+      Dockerfile:123  pnpm install --prod --frozen-lockfile --config.node-linker=hoisted $OPT_FLAG
+    recommended_action: None — coherent.
+
+  - id: F-dom-infra-10
+    severity: INFO
+    file: .claude/knowledge-base/reviews/production-runtime-hardening-distroless-verify-2026-06-22.md
+    line: 15
+    plan_ref: "distroless-verify evidence vs Dockerfile change"
+    domain_anchor: "evidence consistency"
+    summary: >
+      The distroless-verify evidence is CONSISTENT with the Dockerfile change. The
+      evidence claims isolated-vm + onnxruntime-node present at the runtime root
+      and a HTTP 200 skill execute — which is exactly the outcome the
+      node-linker=hoisted + COPY packages/ change is designed to produce. The
+      root-cause narrative in the evidence (isolated layout → optionals under
+      packages/*/node_modules → unreachable; hoisted → flat → reachable) matches
+      pnpm's documented linker semantics and the runtime copy strategy.
+    evidence: |
+      distroless-verify-2026-06-22.md:18 — root-cause matches the Dockerfile comment block (line 113-119)
+      Evidence HTTP 200 corresponds to THEOMEM_SKILL_EXECUTION=true + isolated-vm resolvable.
+    recommended_action: >
+      One caveat worth noting (not a defect): the evidence image is `themory-e2e:prh3`
+      built locally, not the published GHCR tag. The empirical claim is sound for a
+      from-this-Dockerfile build; a published-image re-verify at release time would
+      fully close the loop. Non-blocking.
+
+summary_verdict: >
+  The Dockerfile change is technically SOUND. node-linker=hoisted correctly fixes
+  the distroless 503 by flattening node_modules so the runtime-copied root resolves
+  the optional native deps; --frozen-lockfile is still honored (layout != resolution,
+  no phantom deps); the 3x retry is bounded + fail-loud (no infinite loop); the
+  toolchain + packages/ sources are discarded with their stages (no runtime bloat);
+  distroless no-shell/nonroot/direct-ENTRYPOINT invariants are untouched; and the
+  distroless-verify evidence matches the change. Two non-blocking LOW findings:
+  (1) the retry cap literal "3" is decoupled from the for-range — a latent
+  fail-loud footgun if edited; (2) the new optional native deps likely push the
+  image over the file-header "< 200MB" claim — measure + correct the header for
+  honesty. No BLOCKER/HIGH/MEDIUM findings.

@@ -1,0 +1,182 @@
+agent: review-production-runtime-hardening-architecture
+review_target: b06e1df7212e88f3aa1c04f251ac1433d4d7b895..HEAD for plan production-runtime-hardening
+plan: .claude/knowledge-base/plans/production-runtime-hardening-plan.md
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 190
+    plan_ref: T1.1 / ADR D1 + D2
+    summary: DIP wiring is clean — opt-in skillExecutor flows through the public @usetheo/memory surface into the LocalMemoryConfig.skillExecutor DIP slot at the single shared construction site.
+    evidence: |
+      ```ts
+      const skillExecutor = resolveSkillExecutionEnabled() ? new SandboxedSkillExecutor() : undefined;
+      return createLocalMemory({
+        vectorStore: new PgvectorStore(pool, { embeddingDim }),
+        embedder, llm: new OpenAILLM(), embeddingDim,
+        ...(skillExecutor !== undefined ? { skillExecutor } : {}),
+      });
+      ```
+      The composition layer (agent-core) depends only on the public surface
+      (SandboxedSkillExecutor + createLocalMemory + the config slot at
+      config.ts:79 `readonly skillExecutor?: SkillExecutor`). No reach into
+      core internals, no new boundary. DIP respected; D2 single-site honored
+      (wireMemoryFromPool reaches server/MCP/CLI). Default-preserving per D1.
+    recommended_action: None — this is the correct shape.
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 197
+    plan_ref: T1.1 Deep Dives (exactOptionalPropertyTypes)
+    summary: Conditional spread is the correct exactOptionalPropertyTypes pattern; the plan specified `skillExecutor ? ...` but the impl uses the stricter `skillExecutor !== undefined ?` — a correct, defensible deviation.
+    evidence: |
+      ```ts
+      ...(skillExecutor !== undefined ? { skillExecutor } : {})
+      ```
+      tsconfig.contract.json:12 `"exactOptionalPropertyTypes": true`. The
+      conditional spread never emits `skillExecutor: undefined`, satisfying the
+      slot's `skillExecutor?: SkillExecutor` exact-optional contract. Plan text
+      (§ Deep Dives) wrote `...(skillExecutor ? { skillExecutor } : {})`; impl
+      tightened to explicit `!== undefined`. Since SandboxedSkillExecutor is a
+      truthy object the two are behaviorally identical here, and `!== undefined`
+      is the more honest predicate. Not a divergence worth flagging beyond note.
+    recommended_action: None.
+
+  - id: F-arch-3
+    severity: LOW
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 27
+    plan_ref: T1.1 EC-4 (static import) + import-section note lines 30-35
+    summary: SandboxedSkillExecutor moved to a STATIC import while the file-level note (lines 30-35) still asserts optional-dep adapters are "dynamically imported inside wireMemoryFromPool" — the note is now partially inaccurate and the asymmetry vs the embedder/LLM lazy-import pattern deserves an inline rationale at the import site.
+    evidence: |
+      ```ts
+      import { createLocalMemory, runMigrations, SandboxedSkillExecutor } from '@usetheo/memory';
+      ```
+      vs the module note at :30-35: "`LocalTransformerEmbedder` ... and `OpenAILLM`
+      ... are dynamically imported inside `wireMemoryFromPool` ... so that merely
+      importing this module ... does NOT pull the heavy optional-dep graph."
+      The new static import is SAFE — verified: sandboxed-skill-executor.ts:23 uses
+      `import type { Isolate, ExternalCopy } from 'isolated-vm'` (type-only, erased)
+      and the ctor (:99-101) only captures a lazy loader `() => import('isolated-vm')`,
+      so module-load does NOT pull the addon (EC-4 holds). The risk is documentary,
+      not functional: a future maintainer reading the :30-35 note may assume ALL
+      optional adapters are lazy and wrongly "fix" the static import, or add a
+      sibling static import that DOES pull a heavy graph, eroding the `--help`
+      cold-load guarantee. The wire-site comment (:188-189) does explain it, but
+      the contradicting top-of-file note is the one a reader hits first.
+    recommended_action: Amend the :30-35 import-section note to call out the deliberate exception (SandboxedSkillExecutor is static-import-safe because isolated-vm is type-only + lazy-loaded at execute()), so the lazy-import invariant for @xenova/openai is not mistaken as universal.
+
+  - id: F-arch-4
+    severity: LOW
+    file: tests/integration/skill-execution-server-wiring.test.ts
+    line: 76
+    plan_ref: T2.1 ("build the REST app via the same wiring path"; "Exercises wireMemoryFromPool/createServer")
+    summary: The GOAL integration test re-implements the wiring inline (buildMemory) with a config that DIVERGES from the real wireMemoryFromPool shape, so it does not actually exercise the production wiring path the plan named — it validates createLocalMemory's skillExecutor slot, not the agent-core wire.
+    evidence: |
+      ```ts
+      function buildMemory(skillExecutionEnabled: boolean) {
+        return createLocalMemory({
+          vectorStore: new PgvectorStore(pool),      // real wire: PgvectorStore(pool, { embeddingDim })
+          embedder: mkEmbedder(), llm: stubLlm(),
+          entityBoost: false,                        // real wire: not set
+          ...(skillExecutionEnabled ? { skillExecutor: new SandboxedSkillExecutor() } : {}),
+        });
+      }
+      ```
+      Plan T2.1 Deep file dependency analysis: "Exercises `wireMemoryFromPool`/
+      `createServer` with `THEOMEM_SKILL_EXECUTION` toggled". The test instead
+      hand-rolls a parallel createLocalMemory call and never imports
+      wireMemoryFromPool, resolveSkillExecutionEnabled, or createServer. It also
+      asserts at the SDK layer (`skills.execute()` rejects with
+      SkillExecutionNotConfiguredError) rather than the REST 501 the GOAL prose
+      and plan line 57 specify ("env on → REST execute returns output; env off
+      → 501"). The env→executor mapping IS unit-tested (agent-tools-memory.test.ts),
+      and isolated-vm round-trip IS proven here — but the seam between
+      THEOMEM_SKILL_EXECUTION and the constructed config is exercised only with a
+      mock in the unit test, never against the real wire end-to-end. A regression
+      where wireMemoryFromPool stopped reading resolveSkillExecutionEnabled (or
+      dropped the spread) would NOT be caught by this integration test.
+    recommended_action: Drive the integration test through the real path — set process.env['THEOMEM_SKILL_EXECUTION'], call wireMemoryFromPool(pool) (or createServer + the REST execute handler), and assert HTTP 200 output / HTTP 501 — instead of re-deriving the config inline. At minimum add an assertion that the inline buildMemory matches wireMemoryFromPool's actual config keys so the two cannot drift.
+
+  - id: F-arch-5
+    severity: MEDIUM
+    file: Dockerfile
+    line: 108
+    plan_ref: T3.1 / ADR D4 (scoped to "sharp/libvips build resilience via install retry")
+    summary: The Dockerfile diff lands two material architectural changes (`COPY packages/` into production-deps + `--config.node-linker=hoisted` flat layout) that are the actual distroless-503 root-cause fix, but neither is covered by any ADR — the plan's only Dockerfile ADR (D4) is scoped to the sharp retry. Significant arch change shipped without a design record.
+    evidence: |
+      ```dockerfile
+      COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+      COPY packages/ ./packages/                                   # NEW — undocumented in ADRs
+      ...
+      RUN ... pnpm install --prod --frozen-lockfile --config.node-linker=hoisted $OPT_FLAG ...  # NEW layout change
+      ```
+      The CHANGELOG (Fixed) correctly attributes this as the distroless 503 fix
+      ("production-deps stage used pnpm's default isolated node_modules, so the
+      OPTIONAL native deps never reached the top-level node_modules the distroless
+      runtime copies"). This is the SUBSTANTIVE architectural decision of the
+      slice — changing the production-deps install layout from isolated to hoisted
+      and feeding it the workspace package.json tree. Yet ADR D3 only commits to
+      "live verification" and ADR D4 only to the sharp retry. There is no ADR
+      capturing (a) why hoisted layout over isolated, (b) the COPY packages/ blast
+      radius (sources discarded but still copied into the stage), or the
+      alternatives (e.g. `pnpm deploy`, explicit optionalDeps allow-list). Per the
+      project's own ADR discipline (plan ADRs gate /plan-confidence), a layout
+      change to the published image with this blast radius warrants D6.
+    recommended_action: Add an ADR (e.g. D6 — "production-deps hoisted node-linker + workspace COPY for distroless optional-native resolution") documenting the decision, the rejected alternatives (pnpm deploy / isolated+symlink-deref / OpenAI-only image), and the consequence (every prod dep flattens to root node_modules). Update the Coverage Matrix row 5 to cover the layout fix, not just the committed pin/toolchain review.
+
+  - id: F-arch-6
+    severity: LOW
+    file: Dockerfile
+    line: 60
+    plan_ref: T3.1 / ADR D4 (bounded retry, fail-loud)
+    summary: The retry loop is bounded and fails loud as required, but `[ "$i" = "3" ] && ... exit 1` runs AFTER `sleep` on the final iteration and relies on `&&` short-circuit for control flow — a brittle shell idiom that adds a needless final backoff sleep and could mask exit semantics under `set -e`-style strictness.
+    evidence: |
+      ```dockerfile
+      for i in 1 2 3; do \
+        pnpm install --frozen-lockfile && break; \
+        echo "pnpm install attempt $i failed (transient CDN?); retrying in $((i*5))s..."; \
+        sleep $((i*5)); \
+        [ "$i" = "3" ] && echo "pnpm install failed after 3 attempts" && exit 1; \
+      done
+      ```
+      Functionally correct (bounded 3, fails loud — D4 satisfied). Minor smells:
+      (1) on attempt 3 it sleeps 15s THEN exits 1 — a wasted backoff before a
+      guaranteed failure; (2) the `&&`-chained `exit 1` is load-bearing control
+      flow inside a one-liner RUN — if the echo ever returned non-zero the exit
+      would be skipped (theoretical here). KISS would put the cap check before the
+      sleep. Not blocking — the contract (bounded + fail-loud) holds.
+    recommended_action: Reorder to check the cap before sleeping (e.g. `if [ "$i" = 3 ]; then echo '...failed after 3 attempts'; exit 1; fi; sleep $((i*5));`) so the final attempt fails immediately without a dead 15s backoff, and the fail-loud path does not depend on `&&` short-circuit.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/infrastructure/db/sandboxed-skill-executor.test.ts
+    line: 97
+    plan_ref: T1.1 EC-1 (constructor addon-free)
+    summary: EC-1 addon-free constructor test is well-targeted and behavior-focused — proves the ctor never invokes the isolated-vm loader, which is the architectural invariant that makes the static import + opt-in-on-boot safe.
+    evidence: |
+      ```ts
+      const throwingLoader = (): never => { loaderCalled = true; throw new Error('isolated-vm absent'); };
+      expect(() => new SandboxedSkillExecutor({ loadIsolatedVm: throwingLoader })).not.toThrow();
+      expect(loaderCalled).toBe(false);
+      expect(() => new SandboxedSkillExecutor()).not.toThrow();
+      ```
+      Uses the existing `loadIsolatedVm` DIP seam (deps.loadIsolatedVm at
+      sandboxed-skill-executor.ts:59/101) — the test asserts the loader is NOT
+      called at construction, directly proving the EC-1 / boot-safety invariant
+      rather than just "does not throw". Correct seam usage; no new coupling.
+    recommended_action: None.
+
+  - id: F-arch-8
+    severity: INFO
+    file: CHANGELOG.md
+    line: 8
+    plan_ref: Global DoD (Rule 6 CHANGELOG discipline)
+    summary: CHANGELOG updated under Added + Fixed with consumer-facing wording and traceability; Rule 6 satisfied. One honesty note — the distroless hoisted-layout fix is the load-bearing change and is correctly disclosed in Fixed.
+    evidence: |
+      Added: opt-in THEOMEM_SKILL_EXECUTION wiring, default-OFF disclosure.
+      Fixed: distroless 503 hoisted node_modules fix + isolated-vm pin + node-gyp
+      toolchain — each with (production-runtime-hardening) / M2-live-test refs.
+      Entries are one-line, consumer-oriented, ticket-referenced. Compliant.
+    recommended_action: None — but pair with F-arch-5 (the Fixed entry describes a change that has no backing ADR).

@@ -1,0 +1,87 @@
+agent: review-production-runtime-hardening-domain-security
+review_target: b06e1df7212e88f3aa1c04f251ac1433d4d7b895..HEAD for plan production-runtime-hardening
+domain: security
+verdict: PASS
+summary: >
+  The #1 security check — default-OFF for the RCE-capable skill-execution surface —
+  is AIRTIGHT. `resolveSkillExecutionEnabled()` is an exact-match strict-equality
+  check (`=== 'true'`), unit-tested for the full loose-truthy attack set
+  ('1' / 'TRUE' / 'yes' / ' true ' / 'false' / '' / unset → DISABLED). No
+  Dockerfile / docker-compose / .env / ENV default sets THEOMEM_SKILL_EXECUTION
+  anywhere. M1's SandboxedSkillExecutor impl (6 guards + isolated-vm isolation) is
+  byte-untouched — this slice only WIRES the existing executor behind the gate and
+  adds a regression test pinning the EC-1 addon-free constructor invariant. Auth is
+  unchanged: the REST `/v1/scopes/skill/:repoId/skills/:skillId/execute` route is
+  not in this diff and remains under the bearer-protected `/v1/*` middleware; the
+  wire only toggles whether a skillExecutor is constructed, never the auth path. No
+  BLOCKER, HIGH, or MEDIUM findings. Two INFO notes recorded for transparency.
+domain_specific_patterns_checked:
+  - "Default-OFF opt-in gate for RCE-capable surface (ADR D1)"
+  - "Exact-match env resolver (no loose truthy) — EC-2"
+  - "No env default in Dockerfile/compose/.env that could silently enable"
+  - "M1 sandbox boundary unchanged (6 guards + isolated-vm isolation untouched)"
+  - "Single-flag blast radius server+MCP+CLI documented + acceptable (D2/D3)"
+  - "Auth not bypassed by the wire (bearer + 501 contract intact)"
+  - "Shipping isolated-vm addon when skill-exec OFF (lazy-load gated at execute)"
+findings:
+  - id: F-dom-sec-1
+    severity: INFO
+    file: Dockerfile
+    line: 108
+    plan_ref: T3.1 / ADR D4 + EC-1 — distroless flat layout ships optional native deps
+    domain_anchor: production-runtime-hardening plan § T3.1 (distroless 503 fix)
+    summary: >
+      The production-deps stage now ships the isolated-vm native addon (hoisted flat
+      node_modules) even when THEOMEM_SKILL_EXECUTION is OFF. Shipping an unused
+      RCE-capable addon is NOT a security concern here because (a) it is lazy-loaded
+      — only `import('isolated-vm')` at execute() time, never at module-load or
+      constructor (EC-1, regression-tested); (b) execute() is unreachable unless the
+      gate is ON (no skillExecutor → SkillExecutionNotConfiguredError → REST 501);
+      (c) presence of a dormant binary is not exploitable without an invocation path.
+      Acceptable. Noted for the record so a future audit does not re-flag the addon's
+      presence in the image as a surprise.
+    evidence: |
+      Dockerfile production-deps stage:
+        pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
+      agent-tools-memory.ts:190 — executor only constructed when gate is true:
+        const skillExecutor = resolveSkillExecutionEnabled() ? new SandboxedSkillExecutor() : undefined;
+      isolated-vm is a type-only static import in the executor impl (EC-4); loads
+      lazily at execute() (EC-1) — gated, so unreachable when OFF.
+    recommended_action: >
+      None required. Optionally document in the README/MCP setup guide that the
+      production image bundles isolated-vm but skill execution remains inert until
+      THEOMEM_SKILL_EXECUTION=true (defense-in-depth transparency).
+  - id: F-dom-sec-2
+    severity: INFO
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 190
+    plan_ref: ADR D2/D3 — one env enables execution for server + MCP + CLI simultaneously
+    domain_anchor: production-runtime-hardening plan § ADR D2 (single shared wire site)
+    summary: >
+      Blast radius: because the gate is read at the single shared `wireMemoryFromPool`
+      site, setting THEOMEM_SKILL_EXECUTION=true enables skill execution across ALL
+      three entry points (REST server, MCP, CLI) at once — there is no per-surface
+      gate. This is the deliberate D2/D3 design (one flag, one source of truth) and is
+      documented in the JSDoc + CHANGELOG. It is acceptable: the operator who sets the
+      flag is opting the whole runtime in, and the REST surface still enforces bearer
+      auth. Noted so the coarse granularity is a conscious, reviewed decision rather
+      than an oversight — a future requirement for per-surface gating (e.g. enable on
+      CLI but not the public REST server) would need a follow-up.
+    evidence: |
+      agent-tools-memory.ts comment (lines 183-189):
+        "wired at this single shared site so server + MCP + CLI all honor one
+         THEOMEM_SKILL_EXECUTION flag."
+      grep confirms NO per-surface override exists; one resolver, one wire.
+    recommended_action: >
+      None for this slice. If per-surface granularity is ever needed, track as a
+      follow-up; do not block this PR.
+checks_passed:
+  - "resolveSkillExecutionEnabled() uses === 'true' (strict, exact-match) — agent-tools-memory.ts:95"
+  - "EC-2 unit test covers '1'/'TRUE'/'yes'/' true '/'false'/'' → all DISABLED — agent-tools-memory.test.ts:96-105"
+  - "default-unset → createLocalMemory called WITHOUT skillExecutor (test) — agent-tools-memory.test.ts:72-82"
+  - "grep THEOMEM_SKILL_EXECUTION: zero defaults in Dockerfile / docker-compose.{yaml,prod.yaml} / ENV / .env"
+  - "docker-compose.prod.yaml sets only THEOMEM_PG_URI — no skill-exec env"
+  - "M1 SandboxedSkillExecutor impl NOT in diff (git diff --stat empty for the impl file) — 6 guards + isolated-vm isolation unchanged"
+  - "EC-1 regression test added: constructor never invokes isolated-vm loader — sandboxed-skill-executor.test.ts:97-113"
+  - "execute REST route + bearer auth NOT in diff; wire only toggles skillExecutor construction, auth path intact"
+  - "DISABLED path still throws SkillExecutionNotConfiguredError → REST 501 (integration test) — skill-execution-server-wiring.test.ts:99-110"

@@ -18,7 +18,12 @@
 #                              lives inside `themory server` (T2.3) so no
 #                              docker-entrypoint.sh needed.
 #
-# Image target: < 200MB. nonroot user (UID 65532) by base default.
+# Image size: ~476MB with INCLUDE_OPTIONAL=true + node-linker=hoisted (the default
+# local embedder's @xenova/transformers + onnxruntime-node dominate; isolated-vm
+# adds the skill-exec sandbox). The earlier "<200MB" target held only for the
+# OpenAI-embedder-only profile (INCLUDE_OPTIONAL=false), which strips @xenova/onnx
+# but also isolated-vm — choose that profile for a lean OpenAI-only deployment that
+# needs neither the local embedder nor skill execution. nonroot user (UID 65532) by base default.
 #
 # @see Plan theo-memory-standalone-p0 § T3.1 + ADR D6 + ADR D13
 # @see EC-38 (glibc distroless) + EC-39 (optional deps included) + EC-40
@@ -61,11 +66,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 # would abort the whole image build. Retry the install up to 3 times with backoff;
 # fail LOUD after the cap (never infinite, never silent-skip a needed dep).
 RUN corepack enable && corepack prepare pnpm@10.34.1 --activate && \
-    for i in 1 2 3; do \
+    MAX=3; for i in $(seq 1 $MAX); do \
       pnpm install --frozen-lockfile && break; \
-      echo "pnpm install attempt $i failed (transient CDN?); retrying in $((i*5))s..."; \
+      echo "pnpm install attempt $i/$MAX failed (transient CDN?); retrying in $((i*5))s..."; \
       sleep $((i*5)); \
-      [ "$i" = "3" ] && echo "pnpm install failed after 3 attempts" && exit 1; \
+      [ "$i" = "$MAX" ] && echo "pnpm install failed after $MAX attempts" && exit 1; \
     done
 
 # EC-40 — tsc emits dist/ + postbuild copies migrations. Failure aborts the entire
@@ -119,11 +124,11 @@ RUN corepack enable && corepack prepare pnpm@10.34.1 --activate
 # copies → skill-exec 503 + local-embedder broken (the M2-live-test root cause).
 ARG INCLUDE_OPTIONAL=true
 RUN OPT_FLAG=$([ "$INCLUDE_OPTIONAL" = "true" ] && echo "" || echo "--no-optional"); \
-    for i in 1 2 3; do \
+    MAX=3; for i in $(seq 1 $MAX); do \
       pnpm install --prod --frozen-lockfile --config.node-linker=hoisted $OPT_FLAG && break; \
-      echo "prod install attempt $i failed (transient CDN?); retrying in $((i*5))s..."; \
+      echo "prod install attempt $i/$MAX failed (transient CDN?); retrying in $((i*5))s..."; \
       sleep $((i*5)); \
-      [ "$i" = "3" ] && echo "prod install failed after 3 attempts" && exit 1; \
+      [ "$i" = "$MAX" ] && echo "prod install failed after $MAX attempts" && exit 1; \
     done
 
 ###############################################################################

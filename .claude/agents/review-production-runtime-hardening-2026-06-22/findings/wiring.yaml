@@ -1,0 +1,112 @@
+agent: review-production-runtime-hardening-wiring
+review_target: b06e1df7212e88f3aa1c04f251ac1433d4d7b895..HEAD for plan production-runtime-hardening
+plan: .claude/knowledge-base/plans/production-runtime-hardening-plan.md
+triad_revalidation:
+  total_new_symbols: 1            # resolveSkillExecutionEnabled (the only new public export in the slice)
+  pillar_a_honest_pass: 1 / 1     # wired into wireMemoryFromPool:190; reaches server/MCP/CLI
+  pillar_b_honest_pass: 1 / 1     # exercised in unit + GOAL integration (behavior of each path)
+  pillar_c_observed: 1 / 1        # distroless live HTTP 200 + existing M1 skill_executed OTel
+reachability_summary: |
+  End-to-end opt-in path is REACHABLE and HONEST:
+    env (THEOMEM_SKILL_EXECUTION=true)
+      -> resolveSkillExecutionEnabled()  (agent-tools-memory.ts:94)
+      -> wireMemoryFromPool:190  new SandboxedSkillExecutor() conditionally spread into createLocalMemory
+      -> reached by ALL three entrypoints:
+           run-server.ts:157 (inside EC-33 warm promise)
+           run-mcp-server.ts:278
+           createAgentToolsMemory():236 (CLI verb handlers)
+      -> ScopedSkillMemory.execute() -> SandboxedSkillExecutor (isolated-vm)
+  Default OFF path is byte-preserving: conditional spread
+    `...(skillExecutor !== undefined ? { skillExecutor } : {})` never passes
+    `skillExecutor: undefined`, so env-unset createLocalMemory call is unchanged
+    (unit test 'disabled by default' asserts `'skillExecutor' in cfg === false`).
+  SandboxedSkillExecutor is exported from the core barrel (core/src/index.ts:82);
+  resolveSkillExecutionEnabled is re-exported from the agent-core barrel
+  (`export * from './agent-tools-memory.js'`) AND used internally AND unit-tested
+  -> NOT a dead export.
+  Dockerfile node-linker=hoisted is the load-bearing fix: it flattens
+  node_modules so the distroless runtime (which copies only the root node_modules)
+  can resolve isolated-vm + onnxruntime-node. The distroless-verify evidence file
+  records HTTP 200 {"output":42} from a live container with the env enabled —
+  consistent with the claim that the hoisted layout makes isolated-vm reach runtime.
+findings:
+  - id: F-wire-1
+    severity: MEDIUM
+    file: tests/integration/skill-execution-server-wiring.test.ts
+    line: 74
+    plan_ref: T2.1 GOAL — "build the REST app via the same wiring path with the env toggled"
+    summary: >
+      GOAL integration test proves the wired-vs-unwired BEHAVIOR but does NOT exercise
+      the real wire site (wireMemoryFromPool with THEOMEM_SKILL_EXECUTION toggled). It
+      replicates the wiring inline via a local buildMemory() helper. No single test
+      proves env -> wireMemoryFromPool -> skillExecutor against the actual production
+      construction site; the env->executor mapping is covered only at the unit tier
+      with createLocalMemory mocked.
+    evidence: |
+      buildMemory() (line 73-83) reconstructs createLocalMemory({ ...skillExecutor })
+      directly instead of calling wireMemoryFromPool. The file comment is explicit:
+      "The exact wiring wireMemoryFromPool performs per THEOMEM_SKILL_EXECUTION" — i.e.
+      a faithful COPY, not the wire itself. If a future edit to wireMemoryFromPool drops
+      the conditional spread or the resolver call, the unit test (mocked createLocalMemory)
+      would catch the mapping, but no integration test would catch a real-wire-to-real-execute
+      regression. The plan's T2.1 step 1 ("build the REST app via the same wiring path")
+      and Deep file dependency analysis ("Exercises wireMemoryFromPool/createServer with
+      THEOMEM_SKILL_EXECUTION toggled via process.env") describe calling the real wire;
+      the implementation diverged to an inline replica.
+    recommended_action: >
+      Add (or convert one GOAL case to) an integration assertion that sets
+      process.env.THEOMEM_SKILL_EXECUTION='true', calls wireMemoryFromPool(pool)
+      against real pg, then executes a skill and asserts output — closing the
+      replica-vs-real-wire gap. The distroless live HTTP 200 evidence partially
+      mitigates (it DOES hit the real wire end-to-end), so MEDIUM not HIGH.
+  - id: F-wire-2
+    severity: INFO
+    file: .claude/knowledge-base/reviews/production-runtime-hardening-distroless-verify-2026-06-22.md
+    line: 15
+    plan_ref: T2.2 / ADR D3 — distroless live verification (the runtime metric / pillar c proof)
+    summary: >
+      Pillar (c) for T2.1/T2.2 is the distroless live verification (HTTP 200), not an
+      automated, re-runnable runtime metric in CI. The evidence is a manually captured
+      curl result documented in a markdown file, not reproduced by an assertion. This is
+      acceptable per ADR D3 (live verification + documented evidence, Dockerized vitest
+      stage explicitly REJECTED for v1), but the proof is non-self-verifying — a reviewer
+      cannot re-run it without manually rebuilding the image.
+    evidence: |
+      distroless-verify file: POST .../execute {x:40,y:2} -> HTTP 200
+      {"output":42,"truncated":false,"elapsedMs":31.7}. Magnitude is sane (single
+      execute -> one 200). implement-validate report lists T2.2 runtime metric column
+      as the live container HTTP 200, and T1.1 leans on the existing M1
+      skill_executed/tool_invocation_denied OTel rather than a new metric. The honest
+      caveat that "the running dev-stack container still runs the pre-fix image" is
+      disclosed in the validate report — consistent with Rule 3.
+    recommended_action: >
+      None required for this cycle (ADR D3 sanctions the live-verification approach).
+      Optional follow-up: a Dockerized smoke stage that re-runs the execute curl in CI
+      would make pillar (c) self-verifying.
+  - id: F-wire-3
+    severity: INFO
+    file: packages/agent-core/src/agent-tools-memory.ts
+    line: 190
+    plan_ref: T1.1 / EC-1 / EC-4 — addon-free static import, no boot crash
+    summary: >
+      Boundary + lazy-load discipline verified honest. The static
+      `import { ... SandboxedSkillExecutor } from '@usetheo/memory'` does NOT pull
+      isolated-vm at module-load (EC-4) and the constructor is addon-free (EC-1,
+      asserted by sandboxed-skill-executor.test.ts new case). The wire respects the
+      composition-layer boundary (agent-core depends on the @usetheo/memory public
+      surface; no cross-tier core->local/cloud violation).
+    evidence: |
+      sandboxed-skill-executor.test.ts:97-110 — `new SandboxedSkillExecutor(...)` with a
+      throwing loadIsolatedVm proves the loader is NOT invoked at construction; default
+      ctor also does not throw. agent-tools-memory imports only from '@usetheo/memory'
+      and '@usetheo/memory/contract' (+ dynamic embedder/llm) — no boundary breach.
+    recommended_action: None — this is a positive finding (honest wiring + boundary respect).
+verdict: >
+  WIRING HONEST. The opt-in is fully reachable end-to-end (env -> resolver -> single
+  shared wire site -> all 3 entrypoints -> execute), the default-OFF path is byte-preserving,
+  resolveSkillExecutionEnabled is exported+used+tested (no dead export), and the Dockerfile
+  node-linker=hoisted change is the genuine fix that lands isolated-vm in the distroless
+  runtime (live HTTP 200 evidence). One MEDIUM gap: the GOAL integration test asserts
+  path BEHAVIOR via an inline wiring replica rather than driving wireMemoryFromPool with the
+  env toggled, so no automated test exercises the real wire-to-execute path (mitigated by
+  the distroless live verification, which does). No BLOCKER, no HIGH.

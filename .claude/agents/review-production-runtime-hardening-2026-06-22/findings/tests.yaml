@@ -1,0 +1,197 @@
+agent: review-production-runtime-hardening-tests
+review_target: b06e1df7212e88f3aa1c04f251ac1433d4d7b895..HEAD for plan production-runtime-hardening
+plan: .claude/knowledge-base/plans/production-runtime-hardening-plan.md
+test_pyramid:
+  unit_added: 4        # agent-tools-memory.test.ts: env-off, env-on, EC-2 exact-true (+ pool-lifecycle/embedder cases pre-existing)
+  unit_added_core: 1   # sandboxed-skill-executor.test.ts: EC-1 constructor-addon-free
+  integration_added: 2 # skill-execution-server-wiring.test.ts: GOAL enabled + disabled (gated by THEOMEM_PG_URI)
+  e2e_added: 0         # distroless proof (T2.2) is a live-evidence .md, not a vitest test (acceptable per ADR D3)
+  total: 7
+  verdict: pyramid healthy — not inverted; integration present for pgvector-touching code; matches plan intent
+
+edge_cases_from_plan:
+  covered: 5   # EC-1 (addon-free ctor), EC-2 (exact 'true'), EC-4 (static import — implicit via mocked barrel), EC-5/EC-6 (DOCUMENT-only), env-off default 501
+  missing: ["EC-3 blast-radius (server+MCP+CLI from one flag) has no dedicated test — the plan TDD names it 'test_skill_execution_...' but edge-cases EC-3 suggests test_wire_enables_executor_for_all_entrypoints which was NOT written"]
+
+findings:
+  - id: F-tests-1
+    severity: HIGH
+    file: tests/integration/skill-execution-server-wiring.test.ts
+    line: 75
+    plan_ref: T2.1 GOAL + "Deep file dependency analysis — Exercises wireMemoryFromPool/createServer with THEOMEM_SKILL_EXECUTION toggled via process.env in-test"
+    summary: >
+      The GOAL integration test does NOT exercise the real production wiring site
+      (wireMemoryFromPool) nor toggle the THEOMEM_SKILL_EXECUTION env. It
+      re-implements the env->executor decision inline via a local
+      buildMemory(boolean) helper that hand-constructs createLocalMemory with/without
+      a SandboxedSkillExecutor. As a result, no single test proves end-to-end that
+      the ACTUAL runtime path (wireMemoryFromPool reading the env) wires the executor
+      against real isolated-vm + real pg. The unit test proves env->config mapping
+      with a MOCKED createLocalMemory; the integration test proves real execute with a
+      HAND-WIRED config. The seam between them — the real wireMemoryFromPool honoring
+      the real env at runtime — is covered by NO test.
+    evidence: |
+      tests/integration/skill-execution-server-wiring.test.ts:75-83 — buildMemory()
+      calls createLocalMemory directly (not wireMemoryFromPool); never sets/reads
+      process.env['THEOMEM_SKILL_EXECUTION']. The file header (line 13-15) acknowledges
+      this: "The env->executor mapping itself is unit-tested ... (mocked
+      createLocalMemory); this test proves the runtime BEHAVIOR of each path."
+      But the plan T2.1 Deep file dependency analysis explicitly says the integration
+      test should toggle the env and exercise wireMemoryFromPool/createServer.
+      grep 'wireMemoryFromPool\|process.env' tests/integration/skill-execution-server-wiring.test.ts
+      -> 0 matches in the test body (only a comment mentions wireMemoryFromPool).
+    recommended_action: >
+      Add one integration case that sets process.env['THEOMEM_SKILL_EXECUTION']='true',
+      calls wireMemoryFromPool(pool) (the real site), and executes a skill (assert
+      output) — and a mirror with the env unset asserting 501/SkillExecutionNotConfigured.
+      Restore the env in afterEach. This closes the mock-vs-real wiring gap and matches
+      the plan's stated T2.1 contract. Alternatively, document the deliberate split as
+      an ADR if the inline-config approach is intended (but then the plan's "toggled via
+      process.env in-test / Exercises wireMemoryFromPool" wording is inaccurate and
+      should be corrected).
+
+  - id: F-tests-2
+    severity: MEDIUM
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 64
+    plan_ref: cycle-implement RED-before-GREEN; testing.md "TDD — Red-Green-Refactor"
+    summary: >
+      TDD RED-before-GREEN order cannot be verified. The entire slice (tests +
+      implementation) landed in a single squashed commit 9f8c0a1 "feat(runtime):
+      opt-in skill execution ...". There is no separate RED commit preceding the
+      GREEN implementation, so the inviolable RED->GREEN discipline (testing.md +
+      Inquebravel Rule 5) is unauditable from git history.
+    evidence: |
+      git log --oneline b06e1df..HEAD -- <the 4 changed src+test files>
+      -> 9f8c0a1 feat(runtime): opt-in skill execution + fix distroless isolated-vm load
+      (single commit; test files and agent-tools-memory.ts impl committed together).
+    recommended_action: >
+      Accept as a known limitation of squashed-commit workflow (the tests DO assert
+      behavior and would have failed pre-impl), OR in future cycles commit the RED test
+      separately so order is auditable. No code change required; logged for honesty.
+
+  - id: F-tests-3
+    severity: MEDIUM
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 81
+    plan_ref: T1.1 TDD "test_skill_execution_enabled_wires_executor — config carries a SandboxedSkillExecutor"
+    summary: >
+      The env-on unit test asserts only that cfg['skillExecutor'] is defined; it does
+      NOT assert the wired value is a SandboxedSkillExecutor instance. Because the
+      barrel is mocked with a stub SandboxedSkillExecutor class (lines 41-44), the
+      test would still pass if the impl wired any truthy object. The plan TDD wording
+      ("config carries a SandboxedSkillExecutor") implies a type/identity assertion.
+    evidence: |
+      agent-tools-memory.test.ts:93 — expect(cfg['skillExecutor']).toBeDefined();
+      The mocked SandboxedSkillExecutor (line 41) is a bare stub, so an
+      instanceof assertion is feasible and would pin the wired type.
+    recommended_action: >
+      Strengthen to expect(cfg['skillExecutor']).toBeInstanceOf(SandboxedSkillExecutor)
+      (importing the mocked class) so the test pins WHICH executor is wired, not merely
+      that the key is present. Low-effort hardening of the env-on assertion.
+
+  - id: F-tests-4
+    severity: LOW
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 64
+    plan_ref: testing.md "No flaky tests" / env save-restore hygiene
+    summary: >
+      The skill-execution describe block captures `const saved = process.env[...]` at
+      describe-evaluation time (module scope of the closure), restoring in afterEach.
+      The EC-2 test mutates the env in a loop and the final delete leaves it unset,
+      relying on afterEach to restore from the single captured snapshot. This works,
+      but the snapshot is taken ONCE (not per-test in beforeEach like the embedder
+      block at line 143). If a future test in this block mutated the env in a
+      beforeEach, the single-snapshot pattern could restore a stale value. Minor
+      inconsistency with the embedder block's per-test beforeEach save pattern.
+    evidence: |
+      Line 65: const saved = process.env['THEOMEM_SKILL_EXECUTION']; (once, at closure
+      build). Compare line 142-149: the embedder block re-captures `saved` in
+      beforeEach per test. Both restore correctly today; the patterns differ.
+    recommended_action: >
+      Optional: align with the embedder block — move the save into a beforeEach for
+      consistency and future-proofing. Not blocking; current tests restore correctly.
+
+  - id: F-tests-5
+    severity: LOW
+    file: packages/agent-core/src/__tests__/agent-tools-memory.test.ts
+    line: 96
+    plan_ref: edge-cases EC-3 "test_wire_enables_executor_for_all_entrypoints"
+    summary: >
+      EC-3 (blast radius — one env flips server+MCP+CLI) has no dedicated test asserting
+      the single-site invariant. The plan rationale (D2) is that wireMemoryFromPool is
+      the single shared site, so the existing env-on test transitively covers all three
+      entrypoints — but there is no explicit assertion or comment pinning that
+      wireMemoryFromPool is the ONLY gate (e.g., a test/comment documenting that
+      run-server/run-mcp-server/createAgentToolsMemory all route through it). EC-3 was
+      classified SHOULD-TEST in the edge-case review.
+    evidence: |
+      grep 'all_entrypoints\|all entrypoints\|blast' agent-tools-memory.test.ts -> none.
+      The contract test at top of file (lines 1-14) pins the pool-lifecycle invariant
+      for all three entrypoints but not the skill-executor blast radius.
+    recommended_action: >
+      Add a one-line comment in the env-on test (or a tiny assertion) documenting that
+      wireMemoryFromPool is the single shared wire site reached by server+MCP+CLI, so a
+      reviewer knows EC-3 is satisfied by construction. SHOULD-TEST, not MUST-FIX.
+
+  - id: F-tests-6
+    severity: INFO
+    file: .claude/knowledge-base/reviews/production-runtime-hardening-distroless-verify-2026-06-22.md
+    line: 1
+    plan_ref: T2.2 / ADR D3 "live verification — recorded as evidence, not a vitest case"
+    summary: >
+      The distroless isolated-vm proof (T2.2) is a live-evidence markdown file, not an
+      automated vitest test. This is an ACCEPTABLE gap per ADR D3 (rejected a Dockerized
+      vitest stage for v1 as heavy CI surface; chose live verification + documented
+      evidence, matching the M2 live-test precedent). The evidence file is concrete
+      (HTTP 200, output:42, isolated-vm present at runtime root, root-cause
+      node-linker=hoisted fix documented). The trade-off: this proof is NOT re-run in CI,
+      so a future Docker/runtime regression in isolated-vm loadability would not be caught
+      automatically — only by re-running the manual step.
+    evidence: |
+      distroless-verify-2026-06-22.md:15 — "POST .../execute {x:40,y:2} -> HTTP 200
+      {output:42,...}". No vitest under tests/ rebuilds/execs the distroless image.
+    recommended_action: >
+      Accept for this cycle (D3-sanctioned). Recommend a follow-up to add a CI-gated
+      Dockerized smoke (build image + curl execute) when CI Docker capacity allows, so
+      the distroless isolated-vm load becomes a regression-protected assertion rather
+      than a point-in-time manual artifact.
+
+  - id: F-tests-7
+    severity: INFO
+    file: tests/integration/skill-execution-server-wiring.test.ts
+    line: 57
+    plan_ref: T2.1 Acceptance "vs real ankane/pgvector:v0.5.1 + real isolated-vm"
+    summary: >
+      The GOAL integration uses real isolated-vm (real SandboxedSkillExecutor, no mock
+      executor) and real pg (gated by THEOMEM_PG_URI), with a CI guard that throws if
+      THEOMEM_PG_URI is unset under CI=true (EC-17 pattern, line 36-38) and a clean
+      describe.skip otherwise. This is correct gating, NOT a leaked skip. The embedder
+      and LLM are deterministic stubs (acceptable — they are not the unit under test;
+      the skill executor is real). Confirms the plan's "no mock executor" acceptance
+      criterion.
+    evidence: |
+      Line 29: import { SandboxedSkillExecutor } from '@usetheo/memory' (real);
+      line 81: new SandboxedSkillExecutor() (real, no vi.fn); line 36-38 CI guard;
+      line 57 describe.skip only when PG_URI unset. grep 'vi.fn' shows mocks only on
+      embedder/llm, never on the executor.
+    recommended_action: none — correctly real-gated; documents that the .skip is a
+      conditional gate, not an Unbreakable-Rule-7 violation.
+
+summary:
+  blocker: 0
+  high: 1     # F-tests-1: GOAL integration bypasses the real wiring site (mock/real seam uncovered)
+  medium: 2   # F-tests-2 (TDD order unauditable, squashed commit); F-tests-3 (env-on assertion weak)
+  low: 2      # F-tests-4 (env save pattern inconsistency); F-tests-5 (EC-3 not explicitly pinned)
+  info: 2     # F-tests-6 (distroless = live evidence, ADR-D3 acceptable gap); F-tests-7 (real isolated-vm confirmed)
+  overall: >
+    Tests are behavior-focused, AAA-formatted, deterministic, with proper env
+    save/restore and correct real-isolated-vm gating. EC-1 (addon-free ctor) and EC-2
+    (exact 'true') are meaningfully tested. The env-off default (501/
+    SkillExecutionNotConfiguredError) IS asserted in the integration. The one real gap
+    (F-tests-1, HIGH): the GOAL integration proves real execute behavior but via an
+    inline buildMemory() helper that does NOT call the production wireMemoryFromPool nor
+    toggle the env, so the actual runtime wiring path is only proven through a mocked
+    unit test — the mock/real seam is uncovered, diverging from the plan's stated T2.1
+    contract. The distroless proof being a live-evidence file (not a vitest) is an
+    acceptable, ADR-D3-sanctioned gap. No skipped-test or .only leaks.
