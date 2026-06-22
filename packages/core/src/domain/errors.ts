@@ -25,6 +25,29 @@ export class InvalidScope extends Error {
   }
 }
 
+/**
+ * RerankerConflict — thrown when `recall()` is called with BOTH
+ * `options.diversify` AND `options.rerank` set. Both are post-threshold reranks
+ * of the same candidate pool; stacking them is a double-rerank with undefined
+ * precedence (diversity undoes the relevance lift, or vice-versa). Fail-loud at
+ * the boundary rather than silently picking one (Princípio 3 + Inquebrável
+ * Rule 8). Distinct from the model-inference fail-soft (plan ADR D4): this is a
+ * consumer-error fail-fast thrown BEFORE any inference.
+ *
+ * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D3
+ */
+export class RerankerConflict extends Error {
+  override readonly name = 'RerankerConflict' as const;
+
+  constructor(options?: ErrorOptions) {
+    super(
+      'recall() received both `diversify` and `rerank` — they are mutually exclusive post-threshold reranks; set at most one.',
+      options,
+    );
+    Object.setPrototypeOf(this, RerankerConflict.prototype);
+  }
+}
+
 export class EmbeddingMismatch extends Error {
   override readonly name = 'EmbeddingMismatch' as const;
 

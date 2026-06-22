@@ -26,7 +26,9 @@
 import type { Tracer } from '@opentelemetry/api';
 
 import type { Embedder } from '../dip/embedder.js';
+import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
+import { RerankerConflict } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItemWithScore } from '../memory-item.js';
@@ -39,6 +41,12 @@ import { mmrRerank } from './mmr.js';
 export interface RetrievalDeps {
   readonly vectorStore: VectorStore;
   readonly embedder: Embedder;
+  /**
+   * cross-encoder-reranker (Item 23) — optional post-threshold reranker.
+   * When present AND `options.rerank` is set, the threshold-passing pool is
+   * reranked before topK truncation (ADR D3). Absent ⇒ rerank is a no-op.
+   */
+  readonly reranker?: Reranker;
   readonly tracer?: Tracer;
 }
 
@@ -172,35 +180,13 @@ export async function runRetrievalPipeline(
   // Step 8.5: MMR diversify rerank (principles-alignment-hardening T4.2 / ADR D3).
   // Opt-in via options.diversify; default (undefined) = byte-identical to v1.5.
   scored.sort((a, b) => b.score - a.score);
-  let top: readonly { id: string; payload: Payload; score: number }[];
-  if (options?.diversify !== undefined) {
-    const { lambda, topPool } = options.diversify;
-    const effectiveTopPool = topPool ?? topK * 3;
-    // Embed candidate texts in ONE batch for diversity computation. Cost is
-    // bounded by topPool (default topK*3 ≤ 60) — one extra embedder call.
-    // The mmrRerank function throws InvalidScope when lambda ∉ [0, 1] (EC-3).
-    const candidatesForMmr = scored.slice(0, effectiveTopPool);
-    const texts = candidatesForMmr.map((c) => String(c.payload['text'] ?? ''));
-    const embeddings = await deps.embedder.embedBatch(texts);
-    const mmrCandidates = candidatesForMmr.map((c, i) => ({
-      id: c.id,
-      score: c.score,
-      embedding: embeddings[i] ?? [],
-      payload: c.payload,
-    }));
-    const selected = mmrRerank(mmrCandidates, lambda, effectiveTopPool, topK);
-    top = selected.map((s) => ({ id: s.id, payload: s.payload, score: s.score }));
-  } else {
-    // Step 9: sort + format top-K (v1.5 default path)
-    top = scored.slice(0, topK);
-  }
-
   const scope = scopeFromFilters(filters);
   const now = new Date();
 
-  emitEvent(tracer, 'extraction_completed', { results: top.length });
-
-  return top.map((row) => {
+  // Map an internal scored row → the public MemoryItemWithScore DTO. Extracted
+  // (cross-encoder-reranker T2.2) so the rerank pool + the final top-K path
+  // share ONE conversion (DRY) — the reranker DIP operates on MemoryItemWithScore.
+  const rowToItem = (row: { id: string; payload: Payload; score: number }): MemoryItemWithScore => {
     // v1.1 T2.1: surface attributed_to from the row payload (rowToResult in
     // pgvector-store projects the column into payload[attributed_to] when
     // non-null). String coercion + undefined-when-absent preserves the
@@ -226,5 +212,65 @@ export async function runRetrievalPipeline(
       ...(confirmationCount !== undefined ? { confirmationCount } : {}),
       score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,
     };
-  });
+  };
+
+  // cross-encoder-reranker T2.2 / ADR D3 — diversify and rerank are mutually
+  // exclusive post-threshold reranks of the same pool. Fail-loud BEFORE any
+  // inference (Princípio 3 + Inquebrável Rule 8).
+  if (options?.rerank !== undefined && options.diversify !== undefined) {
+    throw new RerankerConflict();
+  }
+
+  // Step 8.5a — cross-encoder rerank (ADR D3). Opt-in via options.rerank AND a
+  // wired deps.reranker. Reranks the cosine-sorted top `pool` (default topK*4,
+  // bounded), truncates to topK. Fail-soft (ADR D4): on inference failure,
+  // degrade to the original cosine order — a reranker outage MUST NEVER take
+  // down recall. When options.rerank is set but no reranker is wired, the
+  // rerank is a no-op (results pass through cosine-sorted).
+  if (options?.rerank !== undefined && deps.reranker !== undefined) {
+    const reranker = deps.reranker;
+    const rerankTopK = options.rerank.topK ?? topK;
+    const pool = options.rerank.pool ?? topK * 4;
+    const poolItems = scored.slice(0, pool).map(rowToItem);
+    try {
+      const reranked = await reranker.rerank(query, poolItems, rerankTopK);
+      emitEvent(tracer, 'extraction_completed', { results: reranked.length });
+      return reranked;
+    } catch (err) {
+      // ADR D4 fail-soft — observable degradation, then cosine fallback.
+      emitEvent(tracer, 'recall_rerank_failed', {
+        error: err instanceof Error ? err.name : 'unknown',
+      });
+      const fallback = scored.slice(0, rerankTopK).map(rowToItem);
+      emitEvent(tracer, 'extraction_completed', { results: fallback.length });
+      return fallback;
+    }
+  }
+
+  let top: readonly { id: string; payload: Payload; score: number }[];
+  if (options?.diversify !== undefined) {
+    const { lambda, topPool } = options.diversify;
+    const effectiveTopPool = topPool ?? topK * 3;
+    // Embed candidate texts in ONE batch for diversity computation. Cost is
+    // bounded by topPool (default topK*3 ≤ 60) — one extra embedder call.
+    // The mmrRerank function throws InvalidScope when lambda ∉ [0, 1] (EC-3).
+    const candidatesForMmr = scored.slice(0, effectiveTopPool);
+    const texts = candidatesForMmr.map((c) => String(c.payload['text'] ?? ''));
+    const embeddings = await deps.embedder.embedBatch(texts);
+    const mmrCandidates = candidatesForMmr.map((c, i) => ({
+      id: c.id,
+      score: c.score,
+      embedding: embeddings[i] ?? [],
+      payload: c.payload,
+    }));
+    const selected = mmrRerank(mmrCandidates, lambda, effectiveTopPool, topK);
+    top = selected.map((s) => ({ id: s.id, payload: s.payload, score: s.score }));
+  } else {
+    // Step 9: sort + format top-K (v1.5 default path)
+    top = scored.slice(0, topK);
+  }
+
+  emitEvent(tracer, 'extraction_completed', { results: top.length });
+
+  return top.map(rowToItem);
 }
