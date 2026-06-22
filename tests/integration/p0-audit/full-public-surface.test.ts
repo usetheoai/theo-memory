@@ -96,11 +96,11 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
       expect(lines.length).toBe(15);
     });
 
-    test('2. src/core/index.ts declares 52 export statements (+ M2 episodes + reranker DIP)', () => {
-      // 52 = 47 (prior baseline) + 4 M2 episodes exports + 1 reranker DIP type
-      // export (Reranker; Item 23). Reconciled by the reranker cycle.
+    test('2. src/core/index.ts declares 54 export statements (+ M2 episodes + reranker DIP + ontology)', () => {
+      // 54 = 52 (47 baseline + 4 episodes + 1 reranker) + 2 ontology exports
+      // (Ontology/OntologyName type + BUILTIN_ONTOLOGIES/resolveOntology value; Item 15).
       const lines = contractContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(52);
+      expect(lines.length).toBe(54);
     });
 
     test('3. src/index.ts contains zero `any` occurrences (public-surface floor)', () => {

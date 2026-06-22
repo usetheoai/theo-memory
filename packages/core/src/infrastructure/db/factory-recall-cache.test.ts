@@ -15,7 +15,7 @@ import type { Embedder } from '../../domain/dip/embedder.js';
 import type { LLM } from '../../domain/dip/llm.js';
 import type { CachedResult, RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { Reranker } from '../../domain/dip/reranker.js';
-import { InvalidCacheConfig } from '../../domain/errors.js';
+import { InvalidCacheConfig, InvalidOntology } from '../../domain/errors.js';
 import type { MemoryItemWithScore } from '../../domain/memory-item.js';
 import type { Scope } from '../../domain/scope.js';
 
@@ -312,5 +312,52 @@ describe('cross-encoder-reranker T4.1 — createLocalMemory({ reranker }) wiring
     await memory.user('alice').recall('coffee', { rerank: {} });
     expect(cache.getCalls).toHaveLength(0);
     expect(cache.setCalls).toHaveLength(0);
+  });
+});
+
+describe('domain-ontologies T3.1 — createLocalMemory({ ontology }) wiring + fail-fast', () => {
+  test('resolves a built-in ontology + injects its vocab into the extraction prompt', async () => {
+    const llm = makeLlm();
+    const memory = await createLocalMemory({
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(),
+      llm,
+      ontology: 'medical',
+    });
+    await memory.user('alice').remember('Patient has a fever.');
+    // The extraction system prompt sent to the LLM carried the medical vocabulary.
+    const calls = (llm.generateResponse as ReturnType<typeof vi.fn>).mock.calls;
+    const systemPrompts = calls.map((c) => {
+      const msgs = c[0] as readonly { role: string; content: string }[];
+      return msgs.find((m) => m.role === 'system')?.content ?? '';
+    });
+    expect(systemPrompts.some((p) => p.includes('DOMAIN ONTOLOGY: "medical"') && p.includes('Symptom'))).toBe(true);
+  });
+
+  test('fail-fast: an unknown ontology key throws InvalidOntology at the factory', async () => {
+    await expect(
+      createLocalMemory({
+        vectorStore: new InMemoryVectorStore(),
+        embedder: makeEmbedder(),
+        llm: makeLlm(),
+        ontology: 'bogus-domain',
+      }),
+    ).rejects.toThrow(InvalidOntology);
+  });
+
+  test('no ontology configured → extraction prompt has no DOMAIN ONTOLOGY directive (default unchanged)', async () => {
+    const llm = makeLlm();
+    const memory = await createLocalMemory({
+      vectorStore: new InMemoryVectorStore(),
+      embedder: makeEmbedder(),
+      llm,
+    });
+    await memory.user('alice').remember('Patient has a fever.');
+    const calls = (llm.generateResponse as ReturnType<typeof vi.fn>).mock.calls;
+    const systemPrompts = calls.map((c) => {
+      const msgs = c[0] as readonly { role: string; content: string }[];
+      return msgs.find((m) => m.role === 'system')?.content ?? '';
+    });
+    expect(systemPrompts.every((p) => !p.includes('DOMAIN ONTOLOGY'))).toBe(true);
   });
 });

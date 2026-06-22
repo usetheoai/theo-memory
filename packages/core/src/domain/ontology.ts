@@ -104,7 +104,9 @@ export function validateOntology(ontology: Ontology): Ontology {
  *  - a custom `Ontology` object → validated + returned.
  * Throws `InvalidOntology` on an unknown string key or an invalid custom object.
  */
-export function resolveOntology(value: Ontology | OntologyName | string): Ontology {
+// `OntologyName | (string & {})` keeps editor autocomplete for the built-in keys
+// while still accepting any string (resolved at runtime — unknown keys throw).
+export function resolveOntology(value: Ontology | OntologyName | (string & {})): Ontology {
   if (typeof value === 'string') {
     if (isBuiltinName(value)) {
       return BUILTIN_ONTOLOGIES[value];
