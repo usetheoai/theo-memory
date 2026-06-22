@@ -15,10 +15,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { Pool } from 'pg';
+import type * as MemoryBarrel from '@usetheo/memory';
 
 import {
   wireMemoryFromPool,
   resolveEmbedderKind,
+  resolveSkillExecutionEnabled,
   embeddingDimForKind,
   LOCAL_EMBEDDER_DIM,
   OPENAI_EMBEDDER_DIM,
@@ -29,13 +31,21 @@ import {
 // / PgvectorStore) statically, and `@usetheo/memory/embedders/local` +
 // `@usetheo/memory/llms/openai` dynamically. Mocking these keeps the test hermetic —
 // it must NOT pull the real @xenova/transformers + openai optional deps.
-vi.mock('@usetheo/memory', () => ({
-  createLocalMemory: vi.fn(async () => ({})),
-  runMigrations: vi.fn(async () => undefined),
-  PgvectorStore: class {
-    constructor() {}
-  },
-}));
+// production-runtime-hardening T1.1 — mock ONLY the heavy/IO members; keep the
+// REAL SandboxedSkillExecutor (its constructor is addon-free, EC-1) so the wire
+// test asserts the real wire constructs a REAL executor instance (closes review
+// F-tests-1 + F-tests-3 — the env→real-wire→real-executor seam, not a mock).
+vi.mock('@usetheo/memory', async (importActual) => {
+  const actual = await importActual<typeof MemoryBarrel>();
+  return {
+    ...actual,
+    createLocalMemory: vi.fn(async () => ({})),
+    runMigrations: vi.fn(async () => undefined),
+    PgvectorStore: class {
+      constructor() {}
+    },
+  };
+});
 
 vi.mock('@usetheo/memory/embedders/local', () => ({
   LocalTransformerEmbedder: class {
@@ -54,6 +64,52 @@ vi.mock('@usetheo/memory/embedders/openai', () => ({
     constructor() {}
   },
 }));
+
+describe('production-runtime-hardening T1.1 — skill-execution opt-in (THEOMEM_SKILL_EXECUTION)', () => {
+  const saved = process.env['THEOMEM_SKILL_EXECUTION'];
+  afterEach(() => {
+    if (saved === undefined) delete process.env['THEOMEM_SKILL_EXECUTION'];
+    else process.env['THEOMEM_SKILL_EXECUTION'] = saved;
+    vi.clearAllMocks();
+  });
+
+  test('disabled by default — env unset → createLocalMemory called WITHOUT skillExecutor', async () => {
+    delete process.env['THEOMEM_SKILL_EXECUTION'];
+    const memMod = (await import('@usetheo/memory')) as unknown as {
+      createLocalMemory: ReturnType<typeof vi.fn>;
+    };
+    memMod.createLocalMemory.mockClear();
+    const fakePool = { end: vi.fn(), query: vi.fn(async () => ({ rows: [] })) } as unknown as Pool;
+    await wireMemoryFromPool(fakePool);
+    const cfg = memMod.createLocalMemory.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect('skillExecutor' in cfg).toBe(false);
+  });
+
+  test('enabled — THEOMEM_SKILL_EXECUTION=true → config carries a REAL SandboxedSkillExecutor', async () => {
+    process.env['THEOMEM_SKILL_EXECUTION'] = 'true';
+    const memMod = (await import('@usetheo/memory')) as unknown as {
+      createLocalMemory: ReturnType<typeof vi.fn>;
+      SandboxedSkillExecutor: new () => unknown;
+    };
+    memMod.createLocalMemory.mockClear();
+    const fakePool = { end: vi.fn(), query: vi.fn(async () => ({ rows: [] })) } as unknown as Pool;
+    await wireMemoryFromPool(fakePool);
+    const cfg = memMod.createLocalMemory.mock.calls[0]?.[0] as Record<string, unknown>;
+    // F-tests-3: assert it's a REAL SandboxedSkillExecutor instance, not any truthy object.
+    expect(cfg['skillExecutor']).toBeInstanceOf(memMod.SandboxedSkillExecutor);
+  });
+
+  test('EC-2: resolver accepts ONLY exact "true" (1/TRUE/yes/" true " → disabled)', () => {
+    for (const v of ['1', 'TRUE', 'yes', ' true ', 'false', '']) {
+      process.env['THEOMEM_SKILL_EXECUTION'] = v;
+      expect(resolveSkillExecutionEnabled()).toBe(false);
+    }
+    process.env['THEOMEM_SKILL_EXECUTION'] = 'true';
+    expect(resolveSkillExecutionEnabled()).toBe(true);
+    delete process.env['THEOMEM_SKILL_EXECUTION'];
+    expect(resolveSkillExecutionEnabled()).toBe(false);
+  });
+});
 
 describe('T3.1 / EC-3 — wireMemoryFromPool lifecycle invariant', () => {
   test('does NOT call pool.end() (caller owns pool lifecycle)', async () => {

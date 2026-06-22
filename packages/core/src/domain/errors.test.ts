@@ -4,6 +4,7 @@ import {
   BiTemporalNotSupportedLocally,
   EmbeddingMismatch,
   InvalidScope,
+  RerankerConflict,
   MemoryNotFound,
   MissingScopeError,
   ReflectionNotConfigured,
@@ -151,5 +152,21 @@ describe('SkillExecutorUnavailableError (T1.2)', () => {
     expect(e instanceof SkillExecutorUnavailableError).toBe(true);
     expect(e.name).toBe('SkillExecutorUnavailableError');
     expect(e.message).toContain('isolated-vm');
+  });
+});
+
+describe('RerankerConflict (cross-encoder-reranker T2.1 / ADR D3)', () => {
+  test('name + instanceof Error + survives cross-module instanceof', () => {
+    const e = new RerankerConflict();
+    expect(e).toBeInstanceOf(Error);
+    expect(e instanceof RerankerConflict).toBe(true);
+    expect(e.name).toBe('RerankerConflict');
+    expect(e.message).toContain('mutually exclusive');
+  });
+
+  test('preserves cause via ErrorOptions', () => {
+    const cause = new Error('root');
+    const e = new RerankerConflict({ cause });
+    expect(e.cause).toBe(cause);
   });
 });
