@@ -125,8 +125,12 @@ export {
   MissingScopeError,
   ReflectionNotConfigured,
   SkillAlreadyExists,
+  SkillExecutionNotConfiguredError,
+  SkillExecutorUnavailableError,
+  ToolInvocationDeniedError,
   WorkspaceMismatch,
 } from './errors.js';
+export type { ToolInvocationDeniedReason } from './errors.js';
 
 /**
  * Multi-tenant workspace-isolation domain types (ADR D1/D2). `Principal` is
@@ -211,6 +215,19 @@ export type {
  * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T2.2
  */
 export type { UsageCounterStore } from './dip/usage-counter-store.js';
+
+/**
+ * `SkillExecutor` DIP — the contract for executing a stored skill's code-as-skill
+ * payload inside a hardened sandbox. Default impl `SandboxedSkillExecutor` (isolated-vm,
+ * T1.3). Pure contract — no I/O, no native addon (DIP per architecture.md § 3).
+ *
+ * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.1 + ADR D1
+ */
+export type {
+  SkillExecutor,
+  SkillExecutionOptions,
+  SkillExecutionResult,
+} from './dip/skill-executor.js';
 
 /**
  * `LLM` DIP — chat-completion-shaped fact-extraction interface. Adapters:

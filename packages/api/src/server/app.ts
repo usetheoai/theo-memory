@@ -43,7 +43,12 @@ import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
 import { scopedForgetHandler } from './handlers/scoped-forget.js';
 import { scopesHandler } from './handlers/scopes.js';
-import { deleteSkillHandler, postSkillHandler, skillsHandler } from './handlers/skills.js';
+import {
+  deleteSkillHandler,
+  executeSkillHandler,
+  postSkillHandler,
+  skillsHandler,
+} from './handlers/skills.js';
 import {
   wellKnownOauthProtectedResourceHandler,
   type OidcDiscoveryConfig,
@@ -353,6 +358,11 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // skills-write-surface T2.1/T2.2 — create + curate (delete) skills.
   app.post('/v1/scopes/skill/:repoId/skills', (c) => postSkillHandler(c, memory));
   app.delete('/v1/scopes/skill/:repoId/skills/:skillId', (c) => deleteSkillHandler(c, memory));
+  // agentic-skill-execution-sandbox T2.3 — opt-in/gated skill execution (501 when
+  // no SkillExecutor wired). Registered always; the SDK gate decides reachability.
+  app.post('/v1/scopes/skill/:repoId/skills/:skillId/execute', (c) =>
+    executeSkillHandler(c, memory),
+  );
 
   app.post('/v1/remember', (c) => rememberHandler(c, memory));
   app.post('/v1/recall', (c) => recallHandler(c, memory));

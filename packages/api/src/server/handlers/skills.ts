@@ -23,8 +23,16 @@
  * this endpoint lists whatever repoId is requested within the key's workspace,
  * consistent with the memories endpoint (EC-6).
  */
+import {
+  InvalidSkillError,
+  MemoryNotFound,
+  SkillAlreadyExists,
+  SkillExecutionNotConfiguredError,
+  SkillExecutorUnavailableError,
+  ToolInvocationDeniedError,
+} from '@usetheo/memory/contract';
 import type { Memory, Skill } from '@usetheo/memory/contract';
-import { InvalidSkillError, MemoryNotFound, SkillAlreadyExists } from '@usetheo/memory/contract';
+import type { SkillExecutionOptions } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
@@ -189,6 +197,92 @@ export async function deleteSkillHandler(c: Context, memory: Memory): Promise<Re
   } catch (err) {
     if (err instanceof MemoryNotFound) {
       return c.json({ code: 'NOT_FOUND', message: err.message }, 404);
+    }
+    throw err;
+  }
+}
+
+/**
+ * agentic-skill-execution-sandbox T2.3 — body for POST .../skills/:skillId/execute.
+ * `args` is a structured object passed to the skill (never string-concatenated into
+ * source, per the executor's D4 guard); `opts` are the per-call execution bounds.
+ */
+const ExecuteSkillSchema = z
+  .object({
+    args: z.record(z.unknown()).default({}),
+    opts: z
+      .object({
+        // Bounded ceilings (review 2026-06-22 F-dom-conc-2 / F-sec-2/3) so a caller
+        // cannot request an unbounded wall-clock stall or isolate heap. The executor
+        // also clamps; these reject grossly-out-of-range values at the boundary.
+        timeoutMs: z.number().int().positive().max(30_000).optional(),
+        memoryLimitMb: z.number().int().positive().max(256).optional(),
+        maxOutputBytes: z.number().int().positive().max(10_000_000).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+/**
+ * agentic-skill-execution-sandbox T2.3 — POST /v1/scopes/skill/:repoId/skills/:skillId/execute.
+ *
+ * Runs a stored skill inside the wired `SkillExecutor` sandbox. Gated/opt-in (ADR D3):
+ * when no executor is configured the SDK throws `SkillExecutionNotConfiguredError` →
+ * 501 here (honest "not implemented for this deployment", parity with the prior
+ * `501 SKILL_LISTING_NOT_IMPLEMENTED` precedent). Error map: guard denial → 403
+ * (with the denial `reason`); absent/cross-scope skill → 404 (no existence leak);
+ * sandbox addon not installed → 503; invalid body → 422.
+ */
+export async function executeSkillHandler(c: Context, memory: Memory): Promise<Response> {
+  const repoId = c.req.param('repoId');
+  const skillId = c.req.param('skillId');
+  if (repoId === undefined || repoId.length === 0 || skillId === undefined || skillId.length === 0) {
+    return c.json(
+      { code: 'INVALID_SCOPE', message: 'repoId and skillId path segments are required.' },
+      400,
+    );
+  }
+
+  const json = await safeJson(c);
+  if (json === MALFORMED_BODY) {
+    return c.json({ code: 'BAD_REQUEST', message: 'Malformed JSON body' }, 400);
+  }
+  // An empty body is allowed (defaults to args:{}); only a present-but-invalid body is 422.
+  const candidate = json === EMPTY_BODY ? {} : json;
+  const parsed = ExecuteSkillSchema.safeParse(candidate);
+  if (!parsed.success) {
+    return c.json(
+      { code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? 'Invalid execute body' },
+      422,
+    );
+  }
+
+  const scoped = workspaceBoundMemory(c, memory).skills(repoId);
+  try {
+    const result = await scoped.execute(
+      skillId,
+      parsed.data.args,
+      // safe: the zod opts shape is a structural subset of SkillExecutionOptions
+      // (all-optional bounded numbers); the cast only drops exactOptional `| undefined`.
+      parsed.data.opts as SkillExecutionOptions | undefined,
+    );
+    return c.json(
+      { output: result.output, truncated: result.truncated, elapsedMs: result.elapsedMs },
+      200,
+    );
+  } catch (err) {
+    if (err instanceof ToolInvocationDeniedError) {
+      return c.json({ code: 'TOOL_INVOCATION_DENIED', reason: err.reason, message: err.message }, 403);
+    }
+    if (err instanceof MemoryNotFound) {
+      return c.json({ code: 'NOT_FOUND', message: err.message }, 404);
+    }
+    if (err instanceof SkillExecutionNotConfiguredError) {
+      return c.json({ code: 'SKILL_EXECUTION_NOT_CONFIGURED', message: err.message }, 501);
+    }
+    if (err instanceof SkillExecutorUnavailableError) {
+      return c.json({ code: 'SKILL_EXECUTOR_UNAVAILABLE', message: err.message }, 503);
     }
     throw err;
   }

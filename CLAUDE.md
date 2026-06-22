@@ -162,6 +162,19 @@ Honest classification (Rule 3 + Rule 10):
 - **Public surface additions (pre-release, acceptable):** a TheMemory REST `GET /v1/scopes/:type/:id/entities` upgrade (real counts, not `attributed_to`-derived) + a future `GET /v1/scopes/:type/:id/graph` (`{nodes,edges}`); gateway SDK + BFF proxies; dashboard Entities/graph view. New migration(s) for the `entities` population + `entity_edges` table.
 - **Does NOT unfreeze** Items 13/14/15 (incl. Item 14 graph backend) or any other Phase V item — those stay FROZEN. Only this Postgres-only entity+relation extraction surface is re-classified.
 
+### Amendment 2026-06-21 — PRIORITY 0 FREEZE LIFTED (FULL unfreeze, project-owner sign-off)
+
+**Project-owner directive (2026-06-21, explicit "vamos fazer um unfreeze"):** the PRIORITY 0 feature freeze is hereby **LIFTED IN FULL**. Items **13 (adaptive retrieval), 14 (graph backend), 15 (domain ontologies), 21 (agentic tool-use + sandbox), 23 (reranker), 24 (embedder registry), 25 (ingest robustness)** and any other Phase V+ item are **no longer FROZEN** — they may be discovered, planned, implemented, and reviewed via the normal cycle. This supersedes the freeze clause of the 2026-06-04 GO-TO CTO directive and every "FROZEN under P0" marker in the Roadmap below.
+
+Honest classification (Rule 3 + Rule 10):
+
+- **Trigger:** the `/loop-cross-validation` vs REDACTED (2026-06-21, `cross-validation-output/final_report.md`, overall 3.58/5) surfaced 4 gaps. The owner chose a **full unfreeze** to address them without per-item gating friction.
+- **The P0 HARDENING discipline itself is NOT abandoned.** The 3 P0 sub-goals (APIs correct / SDKs functional / MCP available) remain the quality bar for everything that ships; "hardening" work continues to take precedence when it conflicts with a new feature. What changes is ONLY that net-new features are no longer categorically blocked.
+- **`production-ready` / v1.0 stays SEPARATELY gated (Item 11).** The freeze lift does NOT touch the v1.0 gate: `/dogfood` still returns `EVIDENCE_INSUFFICIENT` and the independent v0.8 benchmark reproduction is still unlogged. README Status stays `Pre-release`; no `production-ready` claim until BOTH close. The unfreeze is about feature scope, not the honesty gate.
+- **Gap roadmap (this session):** the actionable memory gaps are **G2 (procedural execution + injection/command sandbox — Item 21)** and **G3 (first-class episodic / message-log tier)**. See `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`.
+- **G1 (in-context working-memory tier) + G4 (context-window / token-budget) are DEFERRED (project-owner, this session).** They are agent-RUNTIME concerns, not memory-layer features — implementing them in TheMemory core would contradict the locked "memory layer, NOT agent runtime" override. They are recorded as cross-repo followups for **TheoKit**, NOT in this roadmap's critical path.
+- **Locked overrides unchanged:** the 3 root overrides (vendor lock-in exception, Phase-1 scope, Apache-2.0), the locked names, voice/tone, and ADR-0010/0011 are NOT touched by this unfreeze.
+
 ---
 
 ## What this project is
@@ -497,7 +510,7 @@ The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 7. **Don't reinvent.** `pgvector`, `pg`, `zod` for the schema layer. `@usetheo/sdk`'s LLM client + `MemoryAdapter` for ecosystem reuse. REDACTED's two-stage pipeline is the proven shape — adopt, don't redesign.
 8. **No emojis** in code, READMEs, CHANGELOGs, or CLAUDE.md files unless explicitly requested.
 9. **No paper names in code** per `.claude/rules/no-paper-names-in-code.md` (promoted 2026-05-30). Knowledge-base docs MAY cite REDACTED / REDACTED / REDACTED / etc.; `src/**` + tests MUST NOT.
-10. **PRIORITY 0 freeze** (locked 2026-06-04). No new features outside the 3 P0 sub-goals (API correct + SDK functional + MCP available). Items 13/14/15 + future Phase V expansion are FROZEN until P0 closure. Any commit introducing a feature outside this scope MUST be reverted OR re-classified as in-scope with explicit rationale in the commit body. See § PRIORITY 0 above.
+10. **PRIORITY 0 HARDENING discipline** (locked 2026-06-04; **feature freeze LIFTED 2026-06-21** — see § PRIORITY 0 → Amendment 2026-06-21). The 3 P0 sub-goals (API correct + SDK functional + MCP available) remain the quality bar and take precedence when a new feature conflicts with hardening. The categorical FREEZE on Items 13/14/15 + Phase V is NO LONGER in force (full unfreeze, project-owner sign-off). **`production-ready`/v1.0 remains separately gated** by `/dogfood` `EVIDENCE_SUFFICIENT` + benchmark reproduction (Item 11) — the unfreeze does NOT touch that honesty gate.
 
 Full text: `<HOME>/.claude/CLAUDE.md`. Cross-project rules: `<HOME>/Projetos/usetheo/CLAUDE.md`.
 

@@ -366,6 +366,42 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // agentic-skill-execution-sandbox T2.3 — opt-in/gated skill execution.
+  registry.registerPath({
+    method: 'post',
+    path: '/v1/scopes/skill/{repoId}/skills/{skillId}/execute',
+    operationId: 'executeSkill',
+    summary: 'Execute a stored skill inside the hardened sandbox (opt-in; STORE-only by default).',
+    request: {
+      params: z.object({ repoId: z.string().min(1), skillId: z.string().min(1) }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              args: z.record(z.unknown()).optional(),
+              opts: z
+                .object({
+                  timeoutMs: z.number().int().positive().max(30_000).optional(),
+                  memoryLimitMb: z.number().int().positive().max(256).optional(),
+                  maxOutputBytes: z.number().int().positive().max(10_000_000).optional(),
+                })
+                .optional(),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: { description: 'Captured skill result { output, truncated, elapsedMs }.' },
+      400: { description: 'Empty repoId/skillId or malformed JSON.' },
+      403: { description: 'A sandbox guard denied the execution (reason in body).' },
+      404: { description: 'Not a current skill in this repo scope (no existence leak).' },
+      422: { description: 'Invalid execute body.' },
+      501: { description: 'No SkillExecutor wired — execution not configured.' },
+      503: { description: 'Sandbox backend (isolated-vm) not installed.' },
+    },
+  });
+
   registry.registerPath({
     method: 'get',
     path: '/v1/scopes/{type}/{id}/memories',

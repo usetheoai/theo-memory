@@ -279,6 +279,11 @@ export class LocalMemory implements Memory {
       forgetDelegate: (id: string) => this.forget(id),
       getDelegate: (id: string) => this.get(id),
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
+      // agentic-skill-execution-sandbox T2.2 — opt-in execution: thread the
+      // SkillExecutor when wired; absent ⇒ execute() throws not-configured (D3).
+      ...(this.config.skillExecutor !== undefined
+        ? { skillExecutor: this.config.skillExecutor }
+        : {}),
     });
   }
 }
