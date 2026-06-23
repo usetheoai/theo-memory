@@ -60,7 +60,7 @@ function stubMemory(scoped: StubScoped): Memory {
     history: vi.fn(),
     reset: vi.fn(),
     flushReflections: vi.fn(),
-  };
+    listSkillsBySubject: vi.fn().mockResolvedValue({ skills: [], total: 0 }),  };
   return stub;
 }
 

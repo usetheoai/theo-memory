@@ -23,7 +23,11 @@ import type { Filters } from '../../domain/scope.js';
 
 import { PgvectorSkillStore } from './pgvector-skill-store.js';
 import { vectorLiteral } from './pgvector-vector-literal.js';
-import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args.js';
+import type {
+  InsertDerivedSkillArgs,
+  InsertSkillArgs,
+  ListSkillsBySubjectArgs,
+} from './skill-store-args.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -172,6 +176,17 @@ function composeTemporalWhere(
     params: [asOf, asOf],
     nextParamIndex: startParamIndex + 2,
   };
+}
+
+/**
+ * skills-cross-repo-flat-list T1.1 (Drawback #2, High) — escape SQL LIKE
+ * metacharacters in a value used as a literal prefix, so a subject containing
+ * `\ % _` cannot broaden/narrow the `agent_id LIKE '{subject}:%' ESCAPE '\'`
+ * match (cross-tenant leak guard). Order matters: backslash FIRST, then the
+ * wildcards, so the wildcard-escape backslashes are not themselves re-escaped.
+ */
+function escapeLikeWildcards(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
 function composeFilters(filters: Filters | undefined, startParamIndex: number): FilterClause {
@@ -739,6 +754,57 @@ export class PgvectorStore implements VectorStore {
       LIMIT $${filter.nextParamIndex}
     `;
     const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK]);
+    return [pageResult.rows.map(rowToResult), total];
+  }
+
+  /**
+   * skills-cross-repo-flat-list T1.1 (ADR D1/D3) — tenant-safe cross-repo skills
+   * listing. Filters `kind='skill'` rows whose `agent_id` starts with the
+   * escaped `'{subject}:'` prefix (the gateway's per-customer namespace, ADR D3
+   * of skill-library), AND the bound `workspace_id` (defense-in-depth +
+   * multi-workspace correctness). The prefix is wildcard-escaped and bound as a
+   * param with `ESCAPE '\'` so a subject containing `% _ \` cannot broaden the
+   * match (cross-tenant leak guard). Live-only, newest-first; returns
+   * `[rows, total]` mirroring `list()`. The caller decodes + strips the prefix.
+   */
+  async listSkillsBySubject(
+    args: ListSkillsBySubjectArgs,
+  ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    const prefix = `${escapeLikeWildcards(args.subject)}:%`;
+    // Param order: $1 workspace_id, $2 agent_id prefix, [$3 q], then limit/offset.
+    const params: (string | number)[] = [args.workspaceId, prefix];
+    let p = 3;
+    const supersededClause = args.includeSuperseded ? '' : ' AND superseded_by IS NULL';
+    let qClause = '';
+    if (args.q !== undefined && args.q.length > 0) {
+      // /review COR-1: escape LIKE metacharacters in `q` (mirror listEpisodes) so a
+      // `q` of `%`/`_` is a LITERAL substring — matching the in-memory store's
+      // `.includes()` semantics (store parity) rather than a wildcard.
+      qClause = ` AND description ILIKE $${p} ESCAPE '\\'`;
+      params.push(`%${escapeLikePattern(args.q)}%`);
+      p += 1;
+    }
+    const where = `t_invalid IS NULL AND kind = 'skill' AND workspace_id = $1 AND agent_id LIKE $2 ESCAPE '\\'${supersededClause}${qClause}`;
+    const countSql = `SELECT COUNT(*)::int AS total FROM memories WHERE ${where}`;
+    const countResult = await this.pool.query<{ total: number }>(countSql, params);
+    const total = countResult.rows[0]?.total ?? 0;
+
+    const limitIdx = p;
+    const offsetIdx = p + 1;
+    const pageSql = `
+      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
+             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             created_at
+      FROM memories
+      WHERE ${where}
+      ORDER BY created_at DESC, id ASC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `;
+    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [
+      ...params,
+      args.limit,
+      args.offset,
+    ]);
     return [pageResult.rows.map(rowToResult), total];
   }
 
