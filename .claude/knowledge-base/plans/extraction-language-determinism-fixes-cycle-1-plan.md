@@ -310,7 +310,7 @@ Reasoning: Inquebrável Rule 3/5 — the GOAL must be the property the live-test
 
 ## Unresolved Questions
 
-- If the D1 injection + D2 one-shot still leave the hardened GOAL flaky with `gpt-4o-mini`, do we add the D3 alt-a auto-correct re-prompt in THIS cycle or a follow-up? Resolution at T4.1: implement injection+guard first; only escalate to the re-prompt if the real-LLM GOAL does not pass deterministically — recorded honestly in the implementation report (no silent scope creep).
+- If the D1 injection + D2 one-shot still leave the hardened GOAL flaky with `gpt-4o-mini`, do we add the D3 alt-a auto-correct re-prompt in THIS cycle or a follow-up? **RESOLVED at T4.1 (implementation, 2026-06-23): ESCALATED to the auto-correct re-prompt in THIS cycle.** The injection-only run against the real LLM still produced a Portuguese fact for the English dogfood sentence ("sarah trabalha como data scientist" / "ama escalada") — the extraction prompt's own multilingual examples prime the model toward PT. Per the planned escalation path (no silent scope creep), the D3 guard was implemented as DETECT-AND-CORRECT: a focused per-fact rewrite ("Rewrite in {language}") on a mismatch — translation is a task LLMs perform reliably. Fail-soft preserved (correction error → keep original; never fails `remember()`). Hardened GOAL then passed 2/2 against real `gpt-4o-mini` + pgvector.
 - `MIN_DETECT_CHARS` exact value — resolved empirically in T1.1 (start at a small value that classifies the dogfood sentences while returning `null` for `'hi'`).
 
 ## Global Definition of Done

@@ -63,8 +63,10 @@ const SYSTEM_PROMPT = [
   'accents/diacritics ("São Paulo", "José", "Müller" — never "Sao Paulo", "Jose"). Use the',
   'input language for relationship labels too: "trabalha em" not "works at", "mora em" not',
   '"lives in", "adquiriu" not "acquired". This applies to the `memory[].text` fact too:',
-  'write each fact in the SAME language as the input — NEVER translate it (an English input',
-  'yields an English fact; a Portuguese input yields a Portuguese fact).',
+  'write each fact in the SAME language as the input — NEVER translate it. Example: the',
+  'English input "I work as a data scientist" yields the English fact "user works as a data',
+  'scientist" (NOT "trabalha como cientista de dados"); the Portuguese input "Eu sou',
+  'engenheiro" yields the Portuguese fact "user é engenheiro" (NOT "is an engineer").',
   'The literal token "user" (the speaker) is the one allowed exception to the input-language rule.',
   '',
   'Output format (strict JSON, no prose):',
@@ -123,6 +125,7 @@ export function generateAdditiveExtractionPrompt(
   newMessages: readonly Message[],
   customInstructions?: string,
   ontology?: Ontology,
+  detectedLanguage?: { readonly name: string },
 ): PromptResult {
   const uuidByInt = new Map<number, string>();
   existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
@@ -135,8 +138,19 @@ export function generateAdditiveExtractionPrompt(
     ? `${renderOntologyDirective(ontology)}\n\n`
     : '';
 
+  // EG-4 fixes-cycle-1 (D1): when the input language was detected deterministically
+  // upstream, inject the EXPLICIT target-language name as the highest-priority line.
+  // A concrete "write in English" instruction is followed far more reliably than the
+  // model self-detecting (live-test 2026-06-23: self-detect stored EN inputs as PT).
+  const languagePrefix = detectedLanguage !== undefined
+    ? `LANGUAGE DIRECTIVE: the input language is ${detectedLanguage.name}. Write ALL facts `
+      + `(\`memory[].text\`), entity names, and relationship labels in ${detectedLanguage.name} — `
+      + 'NEVER translate or transliterate. The literal token "user" (the speaker) is the only '
+      + 'exception.\n\n'
+    : '';
+
   const prompt = [
-    ontologyPrefix + customPrefix + SYSTEM_PROMPT,
+    languagePrefix + ontologyPrefix + customPrefix + SYSTEM_PROMPT,
     '',
     renderExistingMemories(existing),
     renderNewMessages(newMessages),
