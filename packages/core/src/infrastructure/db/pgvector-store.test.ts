@@ -616,7 +616,8 @@ describe('PgvectorStore.listSkillsBySubject — EG cross-repo flat list (skills-
       q: 'csv',
     });
     const pageCall = captured.find((c) => c.sql.includes('LIMIT'));
-    expect(pageCall!.sql).toMatch(/description ILIKE/);
-    expect(pageCall!.params).toContain('csv');
+    expect(pageCall!.sql).toMatch(/description ILIKE \$\d+ ESCAPE/);
+    // COR-1: q is escaped + wrapped as a literal substring param.
+    expect(pageCall!.params).toContain('%csv%');
   });
 });
