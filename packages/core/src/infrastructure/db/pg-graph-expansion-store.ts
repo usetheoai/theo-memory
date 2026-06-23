@@ -45,6 +45,12 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
       limit,
     ];
 
+    // INJECTION SAFETY (F-sec-1): the ONLY value that selects which SQL fragment
+    // is built is `hops`, typed `1 | 2` at the DIP boundary (ExpandByEntitiesParams)
+    // and sourced from `RecallOptions.graphExpand.hops` (also `1 | 2`). NO user
+    // string is ever interpolated into the SQL — every value flows through the
+    // parametrized `params2` array ($1..$6). Widening `hops` away from the `1 | 2`
+    // literal union would require re-auditing this branch.
     // hop-2 extends the relevant entity set with edge-connected entities (scope-confined on the edge).
     const expandedEntitiesCte =
       hops >= 2
@@ -84,6 +90,10 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
          AND COALESCE(m.user_id,'') = COALESCE($3::text,'')
          AND COALESCE(m.session_id,'') = COALESCE($4::text,'')
          AND COALESCE(m.agent_id,'') = COALESCE($5::text,'')
+       -- GROUP BY m.id only: m.id is the memories PRIMARY KEY, so every other
+       -- selected m.* column is functionally dependent on it (Postgres permits
+       -- this). A future non-m.* non-aggregated SELECT column MUST be added here
+       -- or it will error (loud, not silent) — F-mem-4.
        GROUP BY m.id
        ORDER BY shared_entities DESC, m.id
        LIMIT $6
