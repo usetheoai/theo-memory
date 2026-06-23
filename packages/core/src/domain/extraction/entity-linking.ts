@@ -21,6 +21,8 @@ import type { MemoryItem } from '../memory-item.js';
 import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
 import type { Filters } from '../scope.js';
 
+import { isEntityNoise } from './entity-noise-filter.js';
+
 /** EC-3 — cap entities/edges persisted per memory (a pathological LLM/extractor
  *  cannot spawn unbounded rows + resolution queries). */
 const MAX_ENTITIES_PER_MEMORY = 50;
@@ -101,6 +103,7 @@ export async function linkEntities(
     const seen = new Set<string>();
     const cleaned = candidates
       .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2) // EC-2
+      .filter((e) => !isEntityNoise(e.name)) // EG-2: drop pronoun/contraction/generic/verb-fragment noise (both node sources)
       .filter((e) => !relationPredicates.has(e.normalizedKey))
       .filter((e) => {
         if (seen.has(e.normalizedKey)) return false;
