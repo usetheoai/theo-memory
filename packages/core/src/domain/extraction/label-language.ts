@@ -29,13 +29,16 @@ import type { DetectedLanguage } from './language.js';
 /** The speaker node is always the literal token `user` (EG-4 fact rule mirror). */
 const SPEAKER_TOKEN = 'user';
 
-export interface ExtractedEntity {
+/** The LLM-extracted entity shape this module rewrites (matches the pipeline's
+ *  inline `llmEntities` type). Named distinctly from the DIP `ExtractedEntity`
+ *  (dip/entity-extractor.ts) to avoid a same-name/different-shape clash (F-arch-1). */
+export interface LlmEntityLabel {
   readonly name: string;
   readonly type?: string | undefined;
 }
 
 export interface LabelCorrectionResult {
-  readonly entities: readonly ExtractedEntity[] | undefined;
+  readonly entities: readonly LlmEntityLabel[] | undefined;
   readonly relations: readonly RelationTriple[] | undefined;
   /** Distinct non-speaker labels considered for normalization. */
   readonly labelCount: number;
@@ -44,7 +47,7 @@ export interface LabelCorrectionResult {
 }
 
 function collectDistinctLabels(
-  entities: readonly ExtractedEntity[] | undefined,
+  entities: readonly LlmEntityLabel[] | undefined,
   relations: readonly RelationTriple[] | undefined,
 ): string[] {
   const set = new Set<string>();
@@ -88,7 +91,7 @@ function parseTranslationMap(raw: unknown): Record<string, string> {
  */
 export async function correctEntityRelationLanguage(
   llm: LLM,
-  entities: readonly ExtractedEntity[] | undefined,
+  entities: readonly LlmEntityLabel[] | undefined,
   relations: readonly RelationTriple[] | undefined,
   target: DetectedLanguage,
 ): Promise<LabelCorrectionResult> {
@@ -97,9 +100,10 @@ export async function correctEntityRelationLanguage(
     return { entities, relations, labelCount: 0, corrected: 0 };
   }
 
-  // Always-on normalization (D1): ask the model to translate ONLY the terms not
-  // already in the target language. Detect-gating is unreliable for mixed short
-  // labels, so we do not gate on label-language detection. Fail-soft on any error.
+  // Always-on normalization (D1): ask the model for the target-language form of EVERY
+  // label (translating non-target ones, keeping already-target + proper names
+  // unchanged). Detect-gating is unreliable for mixed short labels, so we do not gate
+  // on label-language detection. Fail-soft on any error.
   let map: Record<string, string> = {};
   try {
     const messages: Message[] = [
@@ -127,7 +131,13 @@ export async function correctEntityRelationLanguage(
     if (t !== undefined && t !== label) corrected += 1;
   }
 
-  const apply = (s: string): string => (s === SPEAKER_TOKEN ? s : map[s] ?? s);
+  // Never translate the speaker token; and never let a label map ONTO the speaker
+  // token (F-dom-8: a wrong translation to "user" would over-merge into the speaker node).
+  const apply = (s: string): string => {
+    if (s === SPEAKER_TOKEN) return s;
+    const t = map[s];
+    return t === undefined || t === SPEAKER_TOKEN ? s : t;
+  };
 
   const newEntities = entities?.map((e) => ({ ...e, name: apply(e.name) }));
   const newRelations = relations?.map((r) => ({
