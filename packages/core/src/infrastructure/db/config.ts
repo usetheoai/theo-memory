@@ -13,6 +13,7 @@ import type { Tracer } from '@opentelemetry/api';
 
 import type { AdaptiveRetrievalPolicy } from '../../domain/dip/adaptive-retrieval-policy.js';
 import type { EntityExtractor } from '../../domain/dip/entity-extractor.js';
+import type { GraphExpansionStore } from '../../domain/dip/graph-expansion-store.js';
 import type { MemoryEntityStore } from '../../domain/dip/memory-entity-store.js';
 import type { MemoryGraphStore } from '../../domain/dip/memory-graph-store.js';
 import type {
@@ -151,6 +152,20 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * @see src/domain/dip/adaptive-retrieval-policy.ts
    */
   readonly retrievalPolicy?: AdaptiveRetrievalPolicy;
+
+  /**
+   * graph-aware-recall — optional entity-graph traversal store. When present AND
+   * a recall sets `options.graphExpand`, the pipeline (Step 8.7) pool-expands the
+   * results with memories connected by a shared entity / relation edge over the
+   * EXISTING `entities`/`memory_entities`/`entity_edges` tables. Absent ⇒ default
+   * OFF (byte-unchanged). The default impl is `PgGraphExpansionStore` (the JOIN),
+   * auto-instantiated by the factory from the pool when the vector store exposes
+   * one (mirrors `memoryGraphStore`). NO new dependency, NO migration.
+   *
+   * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D1 + D4
+   * @see src/domain/dip/graph-expansion-store.ts
+   */
+  readonly graphExpansionStore?: GraphExpansionStore;
 }
 
 /**

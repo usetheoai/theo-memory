@@ -37,6 +37,7 @@ import {
 } from './eviction/index.js';
 import { type DisposableMemory, LocalMemory } from './local-memory.js';
 import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
+import { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
 import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
@@ -194,6 +195,10 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
           // slice2 T3.2 — edge port, same gate + same pool as the node port.
           memoryGraphStore:
             config.memoryGraphStore ?? new PgMemoryGraphStore(config.vectorStore.poolForEviction),
+          // graph-aware-recall T4.3 — recall-time traversal port, same gate + pool.
+          // Auto-defaulted so `recall({ graphExpand })` works without explicit wiring.
+          graphExpansionStore:
+            config.graphExpansionStore ?? new PgGraphExpansionStore(config.vectorStore.poolForEviction),
           // T2.2 — recall usage counter, same gate + same pool (one pool so the
           // recall-path write and the metrics-path read hit the same DB).
           usageCounterStore:
