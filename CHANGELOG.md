@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Entity-graph noise filter (EG-2): the entity-graph no longer stores pronoun/contraction/generic-role/verb-fragment nodes (`I'm`, `m reading`, `love science`, `user`) that polluted the Entities tab + Graph view. A new pure deterministic `isEntityNoise` predicate is applied at the `linkEntities` chokepoint, so it cleans BOTH the LLM-primary AND the compromise-fallback node sources (the LLM path previously had no content filter), plus defense-in-depth in the compromise extractor. Precision-biased + recall-safe: drops only KNOWN English noise + structural fragments; multilingual proper nouns (`São Paulo`, `José`), capitalized-proper compounds (`Love Island`) and verb-homograph noun compounds (`watch list`, `think tank`) are preserved. Fail-soft (a pure total function inside the Phase-7 try/catch; never fails `remember()`). ZERO new dependency, no DIP widening, no public export, no migration. Surfaced by the 2026-06-23 Chrome-MCP end-user dogfood of v0.20.0. (entity-extraction-noise-filter)
 
 ### Security
 

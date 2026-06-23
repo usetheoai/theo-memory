@@ -13,6 +13,7 @@
  * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T1.2
  */
 import type { EntityExtractor, EntityType, ExtractedEntity } from '../../domain/dip/entity-extractor.js';
+import { isEntityNoise } from '../../domain/extraction/entity-noise-filter.js';
 
 /** Minimum surface length for a candidate to count as an entity (EC-2). */
 const MIN_NAME_LENGTH = 2;
@@ -136,6 +137,10 @@ function pushUnique(acc: Map<string, ExtractedEntity>, type: EntityType, raw: st
     const cleaned = cleanCandidateName(name);
     if (cleaned === null || !isMeaningful(cleaned)) return;
     name = cleaned;
+    // EG-2 defense-in-depth: drop pronoun/contraction/generic/verb-fragment
+    // noise the boundary-word cleaner misses ("I'm", "m reading", "love science",
+    // "user"). QUOTED spans bypass (a quoted title may legitimately be anything).
+    if (isEntityNoise(name)) return;
   }
   const key = `${type}::${name.toLowerCase()}`;
   if (!acc.has(key)) acc.set(key, { type, name });
