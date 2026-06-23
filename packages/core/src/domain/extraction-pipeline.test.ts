@@ -422,9 +422,12 @@ describe('runExtractionPipeline (8-phase write)', () => {
       const llm: LLM = {
         generateResponse: vi.fn(async () => {
           call += 1;
+          // call 1 = extraction (json object); call 2 = correction. The real OpenAILLM
+          // text-mode returns a `{ text }` OBJECT (not a bare string) — use that exact
+          // shape so the guard's response-text extraction is tested against reality.
           return call === 1
             ? { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados e adora escalada' }] }
-            : 'Sarah works as a data scientist and loves rock climbing';
+            : { text: 'Sarah works as a data scientist and loves rock climbing' };
         }),
         generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
       };
@@ -438,11 +441,14 @@ describe('runExtractionPipeline (8-phase write)', () => {
       expect(result[0]?.text).toBe('Sarah works as a data scientist and loves rock climbing');
       const mismatch = exporter.getFinishedSpans().find((s) => s.name === 'extraction_language_mismatch');
       expect(mismatch).toBeDefined();
-      expect(mismatch!.attributes['input_language']).toBe('eng');
+      expect(mismatch!.attributes['input_language']).toBe('en');
+      expect(mismatch!.attributes['facts_language']).toBe('pt');
       expect(mismatch!.attributes['fact_count']).toBe(1);
+      expect(mismatch!.attributes['corrected']).toBe(1);
     });
 
-    test('the language guard is fail-soft: a correction error keeps the original fact (never fails remember)', async () => {
+    test('the language guard is fail-soft: a correction error keeps the original fact + emits residual (never fails remember)', async () => {
+      const { tracer, exporter } = setupTracer();
       const store = new StubVectorStore();
       // Extraction returns a PT fact (mismatch); the correction call throws.
       let call = 0;
@@ -457,11 +463,17 @@ describe('runExtractionPipeline (8-phase write)', () => {
       const result = await runExtractionPipeline(
         [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
         { user_id: 'alice' },
-        { vectorStore: store, embedder: makeEmbedder(), llm },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
       );
       // remember() still resolves; the original (uncorrected) fact is kept.
       expect(result).toHaveLength(1);
       expect(result[0]?.text).toBe('Sarah trabalha como cientista de dados');
+      // residual is observable: the mismatch fired with corrected=0 (Princípio 3).
+      const mismatch = exporter.getFinishedSpans().find((s) => s.name === 'extraction_language_mismatch');
+      expect(mismatch).toBeDefined();
+      expect(mismatch!.attributes['facts_language']).toBe('pt');
+      expect(mismatch!.attributes['fact_count']).toBe(1);
+      expect(mismatch!.attributes['corrected']).toBe(0);
     });
 
     test('no extraction_language_mismatch when the fact language matches the input (no-op discipline)', async () => {
