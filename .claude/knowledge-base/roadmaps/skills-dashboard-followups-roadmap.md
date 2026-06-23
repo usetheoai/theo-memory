@@ -25,7 +25,7 @@ Priority legend: **P1** = do soon (correctness/perf/CI health) · **P2** = nice-
 |---|---|---|---|---|---|
 | M1 | Dashboard logs/SSE suite — 16 pre-existing failures | theo-cloud | CI health / bug | **P1** | [x] RELEASED v0.8.1 |
 | M2 | SEC-1 — `agent_id text_pattern_ops` index for the cross-repo prefix LIKE | theo-memory | perf / scalability | **P1** | [x] RELEASED |
-| M3 | SDK-surface symmetry — cross-repo flat list on `/v1/memory/*` (programmatic) | theo-cloud (+ themory contract) | API completeness | **P2** | [ ] |
+| M3 | SDK-surface symmetry — cross-repo flat list on `/v1/memory/*` (programmatic) | theo-cloud (+ themory contract) | API completeness | **P2** | [x] RELEASED v0.9.0 |
 | M4 | Large-table index builds: `CREATE INDEX CONCURRENTLY` runbook (out-of-tx) before GA | theo-memory | ops / migrations | **P2** | [ ] |
 
 ---
@@ -112,7 +112,7 @@ caveat: pgvector 0.8.0 iterative scans would also help the ANN path but are out 
 
 ---
 
-## M3 — SDK-surface symmetry: cross-repo flat list on `/v1/memory/*` — [ ]
+## M3 — SDK-surface symmetry: cross-repo flat list on `/v1/memory/*` — [x] RELEASED v0.9.0 (2026-06-23)
 
 **Repo:** theo-cloud (gateway SDK surface) + themory contract (already shipped)
 **Type:** API completeness · **Priority:** P2
@@ -189,3 +189,4 @@ special-case a single migration to CONCURRENTLY (diverges from precedent for no 
 | 2026-06-23 | Roadmap created from the skills-cross-repo `/review` follow-ups (themory v0.21.0 + theo-cloud v0.8.0). |
 | 2026-06-23 | M1 SHIPPED — theo-cloud v0.8.1 (dashboard-logs-sse-suite-repair); suite globally green, J-19 regressions restored. M2 + M3 remain. |
 | 2026-06-23 | M2 READY_TO_MERGE — theo-memory `skills-subject-prefix-index` (migration 0021, `text_pattern_ops` index). /review 5 agents: 0 BLOCKER/0 HIGH/1 MEDIUM/4 LOW. Spun off M4 (CONCURRENTLY runbook) from the MEDIUM. M3 remains. |
+| 2026-06-23 | M2 + M3 SHIPPED — themory v0.21.1 (index) + theo-cloud v0.9.0 (SDK /v1/memory/skills/all). M3 /review 4 agents: 0 BLOCKER/0 HIGH/0 MEDIUM/3 LOW. Only M4 (CONCURRENTLY runbook, P2) remains. |
