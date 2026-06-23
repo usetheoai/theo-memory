@@ -64,11 +64,14 @@ export function isEntityNoise(name: string): boolean {
   const tokens = s.split(/\s+/).filter(Boolean);
 
   if (tokens.length === 1) {
-    return (
-      PRONOUNS.has(s) ||
-      CONTRACTION_REMNANTS.has(s) ||
-      GENERIC_ROLE.has(s)
-    );
+    // Generic-role + contraction remnants are noise regardless of case
+    // ("User", "M"). A BARE pronoun is dropped only when lowercase: a
+    // capitalized single-token pronoun homograph is very likely a TITLE
+    // ("It", "Her", "Us", "Them" are films), so the EC-1 capitalized-proper
+    // exception applies here too — keep it (recall over precision per D2).
+    if (CONTRACTION_REMNANTS.has(s) || GENERIC_ROLE.has(s)) return true;
+    const firstIsProper = /^\p{Lu}/u.test(name.trim());
+    return PRONOUNS.has(s) && !firstIsProper;
   }
 
   if (tokens.length === 2) {

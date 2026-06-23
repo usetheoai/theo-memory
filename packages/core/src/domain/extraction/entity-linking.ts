@@ -101,9 +101,14 @@ export async function linkEntities(
     memoryId: string,
   ): Promise<void> => {
     const seen = new Set<string>();
-    const cleaned = candidates
-      .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2) // EC-2
-      .filter((e) => !isEntityNoise(e.name)) // EG-2: drop pronoun/contraction/generic/verb-fragment noise (both node sources)
+    const sized = candidates.filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
+    // EG-2: drop pronoun/contraction/generic/verb-fragment noise (both node sources).
+    const denoised = sized.filter((e) => !isEntityNoise(e.name));
+    // Princípio 3 — the IGNORE is observable: emit an aggregated count (never silent;
+    // mirrors recall_threshold_filtered). NOT emitted when nothing was dropped.
+    const noiseFiltered = sized.length - denoised.length;
+    if (noiseFiltered > 0) emitEvent(tracer, 'entity_noise_filtered', { filtered_count: noiseFiltered });
+    const cleaned = denoised
       .filter((e) => !relationPredicates.has(e.normalizedKey))
       .filter((e) => {
         if (seen.has(e.normalizedKey)) return false;
