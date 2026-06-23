@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Graph-aware recall — entity-graph-augmented retrieval (evolves the entity-relation-extraction feature; project-owner direction 2026-06-22 to evolve the existing Postgres entity-graph, NOT a graph-DB backend): a new opt-in `GraphExpansionStore` DIP (`expandByEntities`) + a recall pipeline Step 8.7 that POOL-EXPANDS results with memories CONNECTED to the top results by a shared entity (1 hop) or relation edge (opt-in 2nd hop) via JOINs over the EXISTING `entities`/`memory_entities`/`entity_edges` tables — surfacing connected memories that did not pass the similarity threshold on their own. Enable per-call via `RecallOptions.graphExpand` ({ hops?: 1|2; limit? }); the default `PgGraphExpansionStore` (the JOIN) is auto-wired by the factory (NO new dependency, NO migration, NO poly-store). Graph hits are scored BELOW genuine semantic hits (never outrank a real match); seeds are deduped (EC-1); candidates are scope-confined (EC-2 — no cross-scope leak); fail-soft (a traversal outage degrades to the non-graph pool, never crashes recall) + 2 observable events (`recall_graph_expanded`/`recall_graph_failed`, Princípio 3). A wired+requested graph-expand bypasses the recall cache. DEFAULT OFF — byte-identical when omitted. (graph-aware-recall)
 
 ### Changed
 

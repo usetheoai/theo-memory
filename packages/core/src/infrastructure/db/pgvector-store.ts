@@ -27,7 +27,7 @@ import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args
 
 type Payload = Record<string, string | number | boolean | null>;
 
-interface MemoriesRow extends QueryResultRow {
+export interface MemoriesRow extends QueryResultRow {
   readonly id: string;
   readonly text: string;
   readonly hash: string;
@@ -63,7 +63,7 @@ interface MemoriesRow extends QueryResultRow {
   readonly rank?: number;
 }
 
-function rowToResult(row: MemoriesRow): VectorStoreResult {
+export function rowToResult(row: MemoriesRow): VectorStoreResult {
   const payload: Payload = {
     ...row.payload,
     text: row.text,
