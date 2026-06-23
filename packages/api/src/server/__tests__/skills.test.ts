@@ -48,7 +48,7 @@ function stubMemory(skills: readonly Skill[], onWithWorkspace?: (ws: string) => 
     history: vi.fn(),
     reset: vi.fn(),
     flushReflections: vi.fn(),
-  } as unknown as Memory;
+    listSkillsBySubject: vi.fn().mockResolvedValue({ skills: [], total: 0 }),  } as unknown as Memory;
   // EC-1: withWorkspace returns a memory whose skills() is the same stub, but
   // we record the call so the test can assert the workspace-bound path is used.
   (base as unknown as { withWorkspace: (ws: string) => Memory }).withWorkspace = vi
@@ -409,5 +409,74 @@ describe('T2.3 — OpenAPI registration for execute', () => {
     expect(path?.['post']?.responses?.['200']).toBeDefined();
     expect(path?.['post']?.responses?.['403']).toBeDefined();
     expect(path?.['post']?.responses?.['501']).toBeDefined();
+  });
+});
+
+describe('skills-cross-repo-flat-list — GET /v1/scopes/skill/:subject/all', () => {
+  function stubAllMemory(page: { skills: readonly unknown[]; total: number }): Memory {
+    const base = {
+      user: vi.fn(),
+      session: vi.fn(),
+      agent: vi.fn(),
+      skills: vi.fn(),
+      forget: vi.fn(),
+      get: vi.fn(),
+      history: vi.fn(),
+      reset: vi.fn(),
+      flushReflections: vi.fn(),
+      listSkillsBySubject: vi.fn().mockResolvedValue(page),
+    } as unknown as Memory;
+    (base as unknown as { withWorkspace: (ws: string) => Memory }).withWorkspace = vi
+      .fn()
+      .mockReturnValue(base);
+    return base;
+  }
+  const skillWithRepo = (id: string, repoId: string): unknown => ({
+    ...makeSkill(id),
+    repoId,
+  });
+
+  test('dispatches to skillsAllHandler (cross-repo shape: per-row repoId + total), not the per-repo handler', async () => {
+    const app = createServer({
+      memory: stubAllMemory({ skills: [skillWithRepo('s1', 'repo-a'), skillWithRepo('s2', 'repo-b')], total: 2 }),
+    });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/alice/all'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { skills: { id: string; repoId: string }[]; total: number; truncated: boolean };
+    expect(body.total).toBe(2);
+    expect(body.truncated).toBe(false);
+    expect(body.skills.map((s) => s.repoId).sort()).toEqual(['repo-a', 'repo-b']);
+  });
+
+  test('rejects a subject containing ":" with 400', async () => {
+    const app = createServer({ memory: stubAllMemory({ skills: [], total: 0 }) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/a:b/all'));
+    expect(res.status).toBe(400);
+  });
+
+  test('offset beyond total returns [] with the real total (truncated false)', async () => {
+    const app = createServer({ memory: stubAllMemory({ skills: [], total: 3 }) });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/alice/all?offset=9999'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { skills: unknown[]; total: number; truncated: boolean };
+    expect(body.skills).toEqual([]);
+    expect(body.total).toBe(3);
+    expect(body.truncated).toBe(false);
+  });
+
+  test('rejects negative / non-integer offset with 422', async () => {
+    const app = createServer({ memory: stubAllMemory({ skills: [], total: 0 }) });
+    expect((await app.fetch(new Request('http://localhost/v1/scopes/skill/alice/all?offset=-1'))).status).toBe(422);
+    expect((await app.fetch(new Request('http://localhost/v1/scopes/skill/alice/all?offset=abc'))).status).toBe(422);
+  });
+
+  test('truncated true when more rows exist beyond the page', async () => {
+    const app = createServer({
+      memory: stubAllMemory({ skills: [skillWithRepo('s1', 'repo-a'), skillWithRepo('s2', 'repo-a')], total: 10 }),
+    });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/skill/alice/all?limit=2&offset=0'));
+    const body = (await res.json()) as { truncated: boolean; total: number };
+    expect(body.truncated).toBe(true);
+    expect(body.total).toBe(10);
   });
 });
