@@ -5,7 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- Graph-aware recall over REST: `POST /v1/recall` now accepts an optional `graphExpand` field (`{ hops?: 1 | 2; limit?: number }`), exposing the entity-graph-augmented retrieval (shipped v0.19.0 at the SDK layer) to REST / gateway / MCP / HTTP consumers. Mirrors `RecallOptions.graphExpand`; bounded by a strict zod schema (`hops` ∈ {1,2}, `limit` ≤ 100 — DoS-guard parity with `topK`); the OpenAPI 3.1 spec auto-derives the field. DEFAULT OFF — a recall without `graphExpand` is byte-identical to before; an invalid `graphExpand` is rejected `422` (never `500`). Additive, non-breaking, ZERO new dependency, NO core change. (rest-graph-aware-recall)
 
 ### Changed
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.20.0] - 2026-06-23
+
+### Added
+- Graph-aware recall over REST: `POST /v1/recall` now accepts an optional `graphExpand` field (`{ hops?: 1 | 2; limit?: number }`), exposing the entity-graph-augmented retrieval (shipped v0.19.0 at the SDK layer) to REST / gateway / MCP / HTTP consumers. Mirrors `RecallOptions.graphExpand`; bounded by a strict zod schema (`hops` ∈ {1,2}, `limit` ≤ 100 — DoS-guard parity with `topK`); the OpenAPI 3.1 spec auto-derives the field. DEFAULT OFF — a recall without `graphExpand` is byte-identical to before; an invalid `graphExpand` is rejected `422` (never `500`). Additive, non-breaking, ZERO new dependency, NO core change. (rest-graph-aware-recall)
 
 ## [0.19.0] - 2026-06-23
 
