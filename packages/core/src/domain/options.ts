@@ -217,6 +217,31 @@ export interface RecallOptions {
     readonly correctiveFloor?: number;
     readonly relaxedThreshold?: number;
   };
+
+  /**
+   * graph-aware-recall — Princípio 2 (priorização via the entity-graph structural
+   * signal). When set AND a `graphExpansionStore` is wired via
+   * `createLocalMemory({ graphExpansionStore })`, the pipeline POOL-EXPANDS the
+   * results (Step 8.7) with memories CONNECTED to the top results by a shared
+   * entity (1 hop) or relation edge (opt-in 2nd hop) over the EXISTING
+   * `entities`/`memory_entities`/`entity_edges` tables — surfacing connected
+   * memories that did not pass the similarity threshold on their own. The graph
+   * hits are scored BELOW genuine semantic hits (never outrank a real match).
+   *
+   *   - `hops`: traversal depth (1 = shared-entity; 2 = + one relation hop). Default 1.
+   *   - `limit`: max connected memories to pool-expand (fan-out guard). Default topK.
+   *
+   * DEFAULT OFF: omit (or wire no store) ⇒ recall is byte-identical to today.
+   * Setting `graphExpand` WITHOUT a wired store is a no-op (EC-3). A wired+requested
+   * graph-expand BYPASSES the recall cache (the cache key does not encode it).
+   *
+   * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D3 + D4 + D5
+   * @see CLAUDE.md § IMPORTANTE Princípio 2 + Princípio 3
+   */
+  readonly graphExpand?: {
+    readonly hops?: 1 | 2;
+    readonly limit?: number;
+  };
 }
 
 export interface ForgetOptions {
