@@ -175,8 +175,8 @@ A plain `CREATE INDEX` (what every index migration uses today — `0005`, `0008`
    ```sql
    CREATE INDEX CONCURRENTLY IF NOT EXISTS "<index_name>" ON "memories" (...) WHERE ...;
    ```
-   Run it via `psql`/an ops script against prod (same out-of-band spirit as § 10.3's trigger side-channel).
-3. **Deploy.** `runMigrations()` reaches the migration's `CREATE INDEX IF NOT EXISTS` and finds the index already present → metadata no-op; the Drizzle journal marks the migration applied. No write lock, no crash.
+   Run it via `psql`/an ops script against prod (same out-of-band spirit as § 10.3's trigger side-channel). **The out-of-band index NAME and full DEFINITION (columns, opclass, partial `WHERE`, method) MUST be byte-identical to the `CREATE INDEX` in the generated migration `.sql` — copy it verbatim and change only `CREATE INDEX` → `CREATE INDEX CONCURRENTLY`.** A NAME mismatch reintroduces the blocking in-tx build at deploy (the very stall this avoids); a same-NAME-but-different-DEFINITION build makes the migration's `IF NOT EXISTS` silently keep the WRONG index (Postgres `IF NOT EXISTS` matches on name only, never definition). **Per-database:** run the out-of-band build on EVERY primary (multi-region/replica) before deploying to that environment — a missed node falls back to the blocking build.
+3. **Deploy.** `runMigrations()` reaches the migration's `CREATE INDEX IF NOT EXISTS` and finds the index already present → metadata no-op; the Drizzle journal marks the migration applied (the journal INSERT runs unconditionally after the migration's statements, regardless of the per-statement no-op). No write lock, no crash.
 
 **Recovery:** a failed `CREATE INDEX CONCURRENTLY` leaves an `indisvalid=false` index that still consumes writes — `DROP INDEX CONCURRENTLY IF EXISTS "<index_name>"` then retry. Never leave an INVALID index in place.
 
