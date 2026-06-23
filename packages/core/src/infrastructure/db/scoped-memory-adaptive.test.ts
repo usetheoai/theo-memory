@@ -35,7 +35,7 @@ function mkEmbedder(): Embedder & { embed: ReturnType<typeof vi.fn> } {
   return {
     embed,
     embedBatch: vi.fn(async (texts: readonly string[]) => texts.map(() => vec())),
-  } as Embedder & { embed: ReturnType<typeof vi.fn> };
+  };
 }
 
 function echoLlm(): LLM {

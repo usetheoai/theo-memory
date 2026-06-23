@@ -36,8 +36,8 @@ import {
   TriadicScoringPolicy,
 } from './eviction/index.js';
 import { type DisposableMemory, LocalMemory } from './local-memory.js';
-import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
+import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
