@@ -13,9 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
-- Extraction language determinism (EG-4): the write-pipeline LLM now keeps the persisted `memory[].text` fact in the SAME language as the input instead of translating it non-deterministically (an English input was sometimes stored as a Portuguese fact, e.g. "i live in Lisbon" → "user mora em Lisboa"). The extraction prompt's source-language rule — which already pinned entity names + relation labels — was extended to cover the fact text too (preserve source language, never translate; the literal "user" speaker token remains the only exception). Consistent fact language keeps dedup stable (the same fact hashes equally) and the Memories tab predictable. Verified with a real-OpenAI GOAL (PT input → PT fact, EN input → EN fact). `packages/core` prompt clause only; ZERO new dependency, no migration, no DIP widening, no public-export change. Surfaced by the 2026-06-23 Chrome-MCP end-user dogfood. (extraction-language-determinism)
 
 ### Security
+
+## [0.20.3] - 2026-06-23
+
+### Fixed
+- Extraction language determinism (EG-4): the write-pipeline LLM now keeps the persisted `memory[].text` fact in the SAME language as the input instead of translating it non-deterministically (an English input was sometimes stored as a Portuguese fact, e.g. "i live in Lisbon" → "user mora em Lisboa"). The extraction prompt's source-language rule — which already pinned entity names + relation labels — was extended to cover the fact text too (preserve source language, never translate; the literal "user" speaker token remains the only exception). Consistent fact language keeps dedup stable (the same fact hashes equally) and the Memories tab predictable. Verified with a real-OpenAI GOAL (PT input → PT fact, EN input → EN fact). `packages/core` prompt clause only; ZERO new dependency, no migration, no DIP widening, no public-export change. Surfaced by the 2026-06-23 Chrome-MCP end-user dogfood. (extraction-language-determinism)
 
 ## [0.20.2] - 2026-06-23
 
