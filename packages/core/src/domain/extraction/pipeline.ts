@@ -41,6 +41,7 @@ import type { RememberOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 
 import { linkEntities, type RelationTriple } from './entity-linking.js';
+import { detectInputLanguage } from './language.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
 
 /**
@@ -90,6 +91,23 @@ export interface ExtractionDeps {
 }
 
 type Payload = Record<string, string | number | boolean | null>;
+
+/**
+ * Extract plain text from an LLM `generateResponse` result. The LLM DIP returns a
+ * bare string (most stubs) OR a `{ text }` object (OpenAILLM text-mode wraps the
+ * content — see infrastructure/llms/openai.ts). Used by the EG-4 language-correction
+ * guard, which needs the rewritten fact as a string. Returns '' when neither shape
+ * yields a string (caller treats '' as "no correction" → keeps the original).
+ */
+function extractResponseText(raw: unknown): string {
+  if (typeof raw === 'string') {
+    return raw;
+  }
+  if (raw !== null && typeof raw === 'object' && typeof (raw as { text?: unknown }).text === 'string') {
+    return (raw as { text: string }).text;
+  }
+  return '';
+}
 
 function scopeFromFilters(filters: Filters): Scope {
   if (filters.user_id !== undefined) {
@@ -366,7 +384,18 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 2: LLM extraction (single call; Zod parse with EC-10 fallback)
   // ============================================================
-  const { prompt } = generateAdditiveExtractionPrompt(existingItems, messages, deps.customInstructions, deps.ontology);
+  // EG-4 fixes-cycle-1 (D1): deterministically detect the input language and inject
+  // the EXPLICIT target-language name into the extraction prompt. A concrete "write in
+  // English" instruction is followed far more reliably than the model self-detecting
+  // (live-test 2026-06-23: self-detect stored English inputs as Portuguese facts).
+  const detectedLanguage = detectInputLanguage(messages.map((m) => m.content).join('\n'));
+  const { prompt } = generateAdditiveExtractionPrompt(
+    existingItems,
+    messages,
+    deps.customInstructions,
+    deps.ontology,
+    detectedLanguage ?? undefined,
+  );
   let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[];
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
@@ -402,6 +431,70 @@ export async function runExtractionPipeline(
     relations = parsed.relations;
     llmEntities = parsed.entities;
     emitEvent(tracer, 'extraction_completed', { facts: extracted.length });
+
+    // EG-4 fixes-cycle-1 (D3): fail-soft post-extraction language guard + correction.
+    // The explicit language injection (D1) reduces but does not eliminate residual
+    // translation by gpt-4o-mini (the extraction prompt's own multilingual examples
+    // prime the model). DETECTION IS AGGREGATE, NOT per-fact: franc-min mis-classifies
+    // a single short fact (e.g. "Sarah ama escalada." → Somali), so the guard detects
+    // the language of the JOINED fact text — long enough for franc to reliably flag the
+    // wrong-language case (Portuguese facts for an English input). When franc cannot
+    // confidently map the joined facts (short / exotic mis-detect of genuine English →
+    // null), no correction runs and the facts are kept as-is. On a confident mismatch,
+    // each fact gets a FOCUSED corrective rewrite ("rewrite in {name}") — translation is
+    // a task LLMs perform reliably, unlike the abstract "don't translate" constraint.
+    // Every detection emits `extraction_language_mismatch` (Princípio 3). FAIL-SOFT: the
+    // guard NEVER drops a fact and NEVER fails remember(); on any error it keeps the
+    // original text. Runs sequentially over the (typically 1-3) facts — no concurrency.
+    if (detectedLanguage !== null && extracted.length > 0) {
+      try {
+        const lang = detectedLanguage;
+        const factsLanguage = detectInputLanguage(extracted.map((f) => f.text).join(' '));
+        if (factsLanguage !== null && factsLanguage.iso6391 !== lang.iso6391) {
+          const result: { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[] = [];
+          let correctedCount = 0;
+          for (const fact of extracted) {
+            let text = fact.text;
+            try {
+              const rewritten = await deps.llm.generateResponse(
+                [
+                  {
+                    role: 'system',
+                    content: `Rewrite the user's text in ${lang.name}, preserving the exact meaning and any proper names. Output ONLY the rewritten text — no quotes, no preface, no commentary.`,
+                  },
+                  { role: 'user', content: fact.text },
+                ],
+                { type: 'text' },
+              );
+              // The LLM DIP returns a bare string (stubs) OR `{ text }` (OpenAILLM
+              // text-mode wraps the content — openai.ts). Extract robustly.
+              const candidate = extractResponseText(rewritten).trim();
+              if (candidate.length > 0) {
+                text = candidate;
+                correctedCount += 1;
+              }
+            } catch {
+              // fail-soft: keep the original fact text on any correction error.
+            }
+            result.push({ ...fact, text });
+          }
+          // Observable whenever a wrong-language fact set was DETECTED (the EG-4
+          // residual stays observable even if a correction returned empty —
+          // `corrected < fact_count`). NOT emitted when languages match (no-op).
+          emitEvent(tracer, 'extraction_language_mismatch', {
+            input_language: lang.iso6391,
+            facts_language: factsLanguage.iso6391,
+            fact_count: extracted.length,
+            corrected: correctedCount,
+          });
+          if (correctedCount > 0) {
+            extracted = result;
+          }
+        }
+      } catch {
+        // fail-soft: a guard error must NEVER affect remember().
+      }
+    }
   } catch (err) {
     // T2.1 — differentiate LLM network errors (propagate) from parse/validation
     // errors (return [] with OTel event). Per ADR D3 + EC-6: classify by error

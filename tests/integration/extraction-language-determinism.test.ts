@@ -74,9 +74,19 @@ describe.skipIf(ROOT_PG_URI === '' || !HAS_KEY)('extraction-language-determinism
   }, 60_000);
 
   it('an English input persists an English fact (not translated to Portuguese)', async () => {
-    await memory.user('en').remember('My favorite hobby is hiking on weekends');
+    // fixes-cycle-1 D4: the canonical dogfood sentence the live-test caught being
+    // translated to PT ("cientista de dados", "escalada"). NON-COGNATE assertion:
+    // "data scientist" / "climbing" have NO shared stem with their PT translations,
+    // so a leak is detected reliably (the old "hiking" sentence was a false-green).
+    await memory.user('en').remember('My name is Sarah and I work as a data scientist and I love rock climbing');
     const facts = (await memory.user('en').getAll()).map((m) => m.text.toLowerCase()).join(' || ');
-    expect(facts).toMatch(/\bhik/); // hiking/hike stays EN
-    expect(facts).not.toMatch(/caminha|trilha/); // not translated to PT
+    expect(facts.length).toBeGreaterThan(0); // something was extracted
+    // The property under test is LANGUAGE, not extraction completeness: at least one
+    // clearly-English content token is present (OR — robust to which facts the LLM
+    // chose to extract on a given run)...
+    expect(facts).toMatch(/\bdata\b|scientist|climb/);
+    // ...AND the Portuguese translation of the input is ABSENT (the exact tokens the
+    // live-test produced when the fact was wrongly translated). This is the EG-4 oracle.
+    expect(facts).not.toMatch(/cientista|escalada|caminhada|trilha/);
   }, 60_000);
 });

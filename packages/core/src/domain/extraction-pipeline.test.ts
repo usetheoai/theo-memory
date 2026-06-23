@@ -386,4 +386,119 @@ describe('runExtractionPipeline (8-phase write)', () => {
     });
   });
 
+  describe('extraction-language-determinism fixes-cycle-1 T3.1 — detect-inject + fail-soft guard', () => {
+    // Capturing LLM: records the system-prompt content passed to generateResponse.
+    const makeCapturingLlm = (response: unknown): { llm: LLM; captured: { system: string } } => {
+      const captured = { system: '' };
+      const llm: LLM = {
+        generateResponse: vi.fn(async (messages: readonly { role: string; content: string }[]) => {
+          captured.system = messages.find((m) => m.role === 'system')?.content ?? '';
+          return response;
+        }),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      };
+      return { llm, captured };
+    };
+
+    test('injects the detected input language into the system prompt (D1)', async () => {
+      const store = new StubVectorStore();
+      const { llm, captured } = makeCapturingLlm({ memory: [{ id: '0', text: 'Sarah works as a data scientist' }] });
+      await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm },
+      );
+      expect(captured.system).toMatch(/LANGUAGE DIRECTIVE/);
+      expect(captured.system).toMatch(/in English/);
+    });
+
+    test('corrects a mismatched fact + emits extraction_language_mismatch (D3, Princípio 3)', async () => {
+      const { tracer, exporter } = setupTracer();
+      const store = new StubVectorStore();
+      // Call-aware stub: the EXTRACTION call ({type:'json'}) returns a Portuguese
+      // fact for the English input (the residual EG-4 leak); the CORRECTION call
+      // (plain text) returns the English rewrite.
+      let call = 0;
+      const llm: LLM = {
+        generateResponse: vi.fn(async () => {
+          call += 1;
+          // call 1 = extraction (json object); call 2 = correction. The real OpenAILLM
+          // text-mode returns a `{ text }` OBJECT (not a bare string) — use that exact
+          // shape so the guard's response-text extraction is tested against reality.
+          return call === 1
+            ? { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados e adora escalada' }] }
+            : { text: 'Sarah works as a data scientist and loves rock climbing' };
+        }),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      };
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+      );
+      // The persisted fact was CORRECTED to English (guard never drops it).
+      expect(result).toHaveLength(1);
+      expect(result[0]?.text).toBe('Sarah works as a data scientist and loves rock climbing');
+      const mismatch = exporter.getFinishedSpans().find((s) => s.name === 'extraction_language_mismatch');
+      expect(mismatch).toBeDefined();
+      expect(mismatch!.attributes['input_language']).toBe('en');
+      expect(mismatch!.attributes['facts_language']).toBe('pt');
+      expect(mismatch!.attributes['fact_count']).toBe(1);
+      expect(mismatch!.attributes['corrected']).toBe(1);
+    });
+
+    test('the language guard is fail-soft: a correction error keeps the original fact + emits residual (never fails remember)', async () => {
+      const { tracer, exporter } = setupTracer();
+      const store = new StubVectorStore();
+      // Extraction returns a PT fact (mismatch); the correction call throws.
+      let call = 0;
+      const llm: LLM = {
+        generateResponse: vi.fn(async () => {
+          call += 1;
+          if (call === 1) return { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados' }] };
+          throw new Error('correction LLM unavailable');
+        }),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      };
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+      );
+      // remember() still resolves; the original (uncorrected) fact is kept.
+      expect(result).toHaveLength(1);
+      expect(result[0]?.text).toBe('Sarah trabalha como cientista de dados');
+      // residual is observable: the mismatch fired with corrected=0 (Princípio 3).
+      const mismatch = exporter.getFinishedSpans().find((s) => s.name === 'extraction_language_mismatch');
+      expect(mismatch).toBeDefined();
+      expect(mismatch!.attributes['facts_language']).toBe('pt');
+      expect(mismatch!.attributes['fact_count']).toBe(1);
+      expect(mismatch!.attributes['corrected']).toBe(0);
+    });
+
+    test('no extraction_language_mismatch when the fact language matches the input (no-op discipline)', async () => {
+      const { tracer, exporter } = setupTracer();
+      const store = new StubVectorStore();
+      const llm = makeLlm({ memory: [{ id: '0', text: 'Sarah works as a data scientist and enjoys climbing' }] });
+      await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+      );
+      const spans = exporter.getFinishedSpans().map((s) => s.name);
+      expect(spans).not.toContain('extraction_language_mismatch');
+    });
+
+    test('undetermined/short input injects no directive (byte-unchanged behavior)', async () => {
+      const store = new StubVectorStore();
+      const { llm, captured } = makeCapturingLlm({ memory: [{ id: '0', text: 'ok' }] });
+      await runExtractionPipeline(
+        [{ role: 'user', content: 'hi' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm },
+      );
+      expect(captured.system).not.toMatch(/LANGUAGE DIRECTIVE/);
+    });
+  });
+
 });

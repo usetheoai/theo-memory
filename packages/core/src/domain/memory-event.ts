@@ -134,6 +134,17 @@ export const MEMORY_EVENTS = [
   // recall degraded to the non-graph pool and NEVER crashed. Attribute
   // `{error}`. Mirrors recall_rerank_failed / retrieval_policy_failed.
   'recall_graph_failed',
+  // extraction-language-determinism-fixes-cycle-1 T3.1 / ADR D3 — the post-extraction
+  // language guard detected (over the JOINED fact text) that the persisted facts are in
+  // a different language than the deterministically-detected input language (EG-4
+  // residual) and attempted a focused corrective rewrite. Attributes
+  // `{input_language, facts_language, fact_count, corrected}` where `fact_count` = facts
+  // in the batch and `corrected` = how many were rewritten into the input language
+  // (corrected < fact_count means a residual leaked past correction — still observable).
+  // The guard NEVER drops a fact nor fails remember() (fail-soft). NOT emitted when the
+  // facts already match the input language (no-op discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_language_mismatch',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
