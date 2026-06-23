@@ -23,13 +23,13 @@ Priority legend: **P1** = do soon (correctness/perf/CI health) · **P2** = nice-
 
 | # | Milestone | Repo | Type | Priority | Status |
 |---|---|---|---|---|---|
-| M1 | Dashboard logs/SSE suite — 16 pre-existing failures | theo-cloud | CI health / bug | **P1** | [ ] |
+| M1 | Dashboard logs/SSE suite — 16 pre-existing failures | theo-cloud | CI health / bug | **P1** | [x] RELEASED v0.8.1 |
 | M2 | SEC-1 — `agent_id text_pattern_ops` index for the cross-repo prefix LIKE | theo-memory | perf / scalability | **P1** | [ ] |
 | M3 | SDK-surface symmetry — cross-repo flat list on `/v1/memory/*` (programmatic) | theo-cloud (+ themory contract) | API completeness | **P2** | [ ] |
 
 ---
 
-## M1 — Dashboard logs/SSE suite: 16 pre-existing failures — [ ]
+## M1 — Dashboard logs/SSE suite: 16 pre-existing failures — [x] RELEASED v0.8.1 (2026-06-23)
 
 **Repo:** theo-cloud (`dashboard/`)
 **Type:** CI health / latent bug · **Priority:** P1
@@ -148,3 +148,4 @@ dashboard impact (the dashboard already works via the BFF).
 | Date | Change |
 |---|---|
 | 2026-06-23 | Roadmap created from the skills-cross-repo `/review` follow-ups (themory v0.21.0 + theo-cloud v0.8.0). |
+| 2026-06-23 | M1 SHIPPED — theo-cloud v0.8.1 (dashboard-logs-sse-suite-repair); suite globally green, J-19 regressions restored. M2 + M3 remain. |
