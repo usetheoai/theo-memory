@@ -70,6 +70,16 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     expect(operationIds).toContain('listScopeMemories');
   });
 
+  test('rest-graph-aware-recall — /v1/recall request schema advertises graphExpand (auto-derive regression)', async () => {
+    const app = createServer({ memory: stubMemory() });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    const spec = (await res.json()) as Record<string, unknown>;
+    // The recall request body schema must include the graphExpand property
+    // (auto-derived from RecallBody). Serialize + assert the key is present.
+    const json = JSON.stringify(spec);
+    expect(json).toContain('graphExpand');
+  });
+
   test('4. spec advertises license MIT', async () => {
     const app = createServer({ memory: stubMemory() });
     const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
