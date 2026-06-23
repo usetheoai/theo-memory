@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "idx_memories_skill_subject_prefix" ON "memories" USING btree ("workspace_id","agent_id" text_pattern_ops) WHERE "memories"."kind" = 'skill' AND "memories"."t_invalid" IS NULL;
