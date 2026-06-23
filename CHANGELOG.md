@@ -7,7 +7,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
-- **Migration policy: large-table index builds run `CREATE INDEX CONCURRENTLY` out-of-band (documented + guarded).** drizzle-orm 0.45.2 `migrate()` runs all pending migrations inside ONE transaction, so `CREATE INDEX CONCURRENTLY` (forbidden in a transaction) can never live in a migration file — it would crash `runMigrations()` at deploy (SQLSTATE 25001). New runbook [`architecture.md § 10.4`](.claude/rules/architecture.md) documents the out-of-band-before-deploy procedure for large production tables (build CONCURRENTLY on a direct connection + `IF NOT EXISTS` → the migration's plain `CREATE INDEX IF NOT EXISTS` no-ops at deploy), the INVALID-index recovery, and ADR-0018 records the decision + rejected alternatives. A new guard `tests/integration/migration-no-concurrently.test.ts` (path-drift-sentinel + comment-tolerant, whole-file scan) fails if any journal-applied migration `.sql` smuggles `CREATE INDEX CONCURRENTLY`, catching the deploy-crash footgun at test time. No production/migration code change; plain in-transaction `CREATE INDEX` for small migrations is unchanged. (migration-concurrently-index-runbook, M4)
 
 ### Deprecated
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.21.2] - 2026-06-23
+
+### Changed
+- **Migration policy: large-table index builds run `CREATE INDEX CONCURRENTLY` out-of-band (documented + guarded).** drizzle-orm 0.45.2 `migrate()` runs all pending migrations inside ONE transaction, so `CREATE INDEX CONCURRENTLY` (forbidden in a transaction) can never live in a migration file — it would crash `runMigrations()` at deploy (SQLSTATE 25001). New runbook [`architecture.md § 10.4`](.claude/rules/architecture.md) documents the out-of-band-before-deploy procedure for large production tables (build CONCURRENTLY on a direct connection + `IF NOT EXISTS` → the migration's plain `CREATE INDEX IF NOT EXISTS` no-ops at deploy), the INVALID-index recovery, and ADR-0018 records the decision + rejected alternatives. A new guard `tests/integration/migration-no-concurrently.test.ts` (path-drift-sentinel + comment-tolerant, whole-file scan) fails if any journal-applied migration `.sql` smuggles `CREATE INDEX CONCURRENTLY`, catching the deploy-crash footgun at test time. No production/migration code change; plain in-transaction `CREATE INDEX` for small migrations is unchanged. (migration-concurrently-index-runbook, M4)
 
 ## [0.21.1] - 2026-06-23
 
