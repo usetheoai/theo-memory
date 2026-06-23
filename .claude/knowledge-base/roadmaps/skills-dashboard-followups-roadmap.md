@@ -24,8 +24,9 @@ Priority legend: **P1** = do soon (correctness/perf/CI health) · **P2** = nice-
 | # | Milestone | Repo | Type | Priority | Status |
 |---|---|---|---|---|---|
 | M1 | Dashboard logs/SSE suite — 16 pre-existing failures | theo-cloud | CI health / bug | **P1** | [x] RELEASED v0.8.1 |
-| M2 | SEC-1 — `agent_id text_pattern_ops` index for the cross-repo prefix LIKE | theo-memory | perf / scalability | **P1** | [ ] |
+| M2 | SEC-1 — `agent_id text_pattern_ops` index for the cross-repo prefix LIKE | theo-memory | perf / scalability | **P1** | [x] RELEASED |
 | M3 | SDK-surface symmetry — cross-repo flat list on `/v1/memory/*` (programmatic) | theo-cloud (+ themory contract) | API completeness | **P2** | [ ] |
+| M4 | Large-table index builds: `CREATE INDEX CONCURRENTLY` runbook (out-of-tx) before GA | theo-memory | ops / migrations | **P2** | [ ] |
 
 ---
 
@@ -64,7 +65,16 @@ for `/loop-code-review` or a focused `/to-plan` once the root causes are triaged
 
 ---
 
-## M2 — SEC-1: index the cross-repo prefix LIKE — [ ]
+## M2 — SEC-1: index the cross-repo prefix LIKE — [x] RELEASED (slug: skills-subject-prefix-index)
+
+> SHIPPED 2026-06-23. Migration `0021_shallow_fenris` adds the partial composite index
+> `idx_memories_skill_subject_prefix (workspace_id, agent_id text_pattern_ops) WHERE kind='skill'
+> AND t_invalid IS NULL`. `/review` (5 agents) READY_TO_MERGE: 0 BLOCKER / 0 HIGH / 1 MEDIUM
+> (CONCURRENTLY — pre-existing project-wide, deferred to M4) / 4 LOW. GOAL test proves a Bitmap
+> Index Scan with an `Index Cond` range (`~>=~`/`~<~`) on the new index, never a Seq Scan.
+> Spun off **M4** (CONCURRENTLY runbook) from the MEDIUM finding.
+
+### Original spec — [x]
 
 **Repo:** theo-memory (`packages/core` + a new migration)
 **Type:** performance / multi-tenant scalability · **Priority:** P1
@@ -138,6 +148,35 @@ dashboard impact (the dashboard already works via the BFF).
 
 ---
 
+## M4 — Large-table index builds via `CREATE INDEX CONCURRENTLY` runbook — [ ]
+
+**Repo:** theo-memory (migration strategy) · **Type:** ops / migrations · **Priority:** P2
+
+**Why:** surfaced by the M2 `/review` (F-dom-db-4, MEDIUM). Every partial-index migration in the
+repo (`0005`, `0008`, `0009`, now `0021`) uses a plain in-transaction `CREATE INDEX`, which takes a
+SHARE lock on `memories` and blocks concurrent writes for the build duration. At pre-release / CI
+scale this is trivial; on a large write-hot production `memories` table (post-TheoCloud GA) it is a
+deploy-time write stall. `CREATE INDEX CONCURRENTLY` avoids the write lock but CANNOT run inside a
+transaction — and Drizzle `migrate()` runs every migration in a tx — so it is NOT a drop-in swap.
+
+**Scope:** decide + document a runbook for large-table index builds that run CONCURRENTLY OUT of the
+Drizzle migration tx (e.g. a separate ops-applied step, or a Drizzle "no-transaction" migration mode
+if supported), WITHOUT breaking the single-source-of-truth migration discipline. Project-wide (not
+0021-specific). The existing `IF NOT EXISTS` on these indexes keeps a later CONCURRENTLY re-creation
+path non-conflicting.
+
+**Goal (SMART):** "Document (and, if a mechanism exists, implement) a CONCURRENTLY path for
+large-table index migrations so a production index build does not block writes, decided before any
+production `memories` table exceeds a write-hot threshold; tracked as a runbook in `architecture.md`."
+
+**Acceptance:** a runbook section exists; the decision (out-of-band step vs no-tx migration mode) is
+recorded with rationale; no regression to the in-tx discipline for small migrations.
+
+**Notes:** NOT a blocker for any current feature — it is a GA-readiness ops concern. Do NOT
+special-case a single migration to CONCURRENTLY (diverges from precedent for no benefit).
+
+---
+
 ## Out of this roadmap (tracked elsewhere)
 
 - **Memory-gaps M1/M2** (procedural exec + sandbox; first-class episodes) — `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`.
@@ -149,3 +188,4 @@ dashboard impact (the dashboard already works via the BFF).
 |---|---|
 | 2026-06-23 | Roadmap created from the skills-cross-repo `/review` follow-ups (themory v0.21.0 + theo-cloud v0.8.0). |
 | 2026-06-23 | M1 SHIPPED — theo-cloud v0.8.1 (dashboard-logs-sse-suite-repair); suite globally green, J-19 regressions restored. M2 + M3 remain. |
+| 2026-06-23 | M2 READY_TO_MERGE — theo-memory `skills-subject-prefix-index` (migration 0021, `text_pattern_ops` index). /review 5 agents: 0 BLOCKER/0 HIGH/1 MEDIUM/4 LOW. Spun off M4 (CONCURRENTLY runbook) from the MEDIUM. M3 remains. |

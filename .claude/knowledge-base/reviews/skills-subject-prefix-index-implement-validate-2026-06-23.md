@@ -41,4 +41,16 @@ Bitmap Heap Scan on memories
 The prefix is now a **range Index Cond** (`~>=~` / `~<~`) on the new index — before the fix it was a post-scan `Filter` over a Seq/unique-index scan of the whole shared partition.
 
 ## Coverage Matrix — 9/9 delivered (all plan claims mapped + verified)
+
+| Goal claim / requirement | Task | Verified by |
+|---|---|---|
+| New `(workspace_id, agent_id text_pattern_ops)` partial index ships | T1.2 | `0021_shallow_fenris.sql` (single `CREATE INDEX`, opclass + partial WHERE) |
+| Index declared in schema.ts (parity, no `db:push` drift) | T1.2 | `schema.ts` index decl; `db:generate` no-op (no drift) |
+| Migration idempotent (`CREATE INDEX IF NOT EXISTS`) + journal + snapshot | T1.2 | SQL `IF NOT EXISTS`; `_journal.json` idx 21; `0021_snapshot.json` |
+| Pack manifest ships the new `.sql` + snapshot | Final | `publish-readiness.test.ts` PASS |
+| Structural proof: index uses `text_pattern_ops` opclass on `agent_id` | T1.1/T1.3 | structural test asserts `pg_indexes.indexdef` |
+| Behavioral proof: EXPLAIN shows Index Cond range scan, not Seq Scan | T1.1/T1.3 | behavioral test (captured Bitmap Index Scan + `Index Cond` range) |
+| `listSkillsBySubject` results byte-unchanged (no query change) | T1.3 | cross-repo GOAL 5/5 PASS; `pgvector-store.ts` untouched |
+| No public-API change | D2/D3 | barrel surface unchanged; no new export |
+| CHANGELOG updated | Final | `[Unreleased] § Fixed` entry (SEC-1, M2) |
 ```
