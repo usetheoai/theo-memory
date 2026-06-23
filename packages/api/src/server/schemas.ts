@@ -70,6 +70,17 @@ export const RecallBody = z
     threshold: z.number().min(0).max(1).optional(),
     attributedTo: z.string().optional(),
     asOf: z.string().datetime().optional(),
+    // rest-graph-aware-recall — expose RecallOptions.graphExpand (v0.19.0 SDK
+    // capability) over REST. Bounded: hops literal 1|2 (mirror the SDK type),
+    // limit <= 100 (DoS-guard parity with topK). `.strict()` rejects unknown
+    // inner keys; optional keeps it default-OFF (byte-unchanged when omitted).
+    graphExpand: z
+      .object({
+        hops: z.union([z.literal(1), z.literal(2)]).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine(SingleScopeRefine);
