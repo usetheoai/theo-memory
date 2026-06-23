@@ -48,6 +48,7 @@ import {
   deleteSkillHandler,
   executeSkillHandler,
   postSkillHandler,
+  skillsAllHandler,
   skillsHandler,
 } from './handlers/skills.js';
 import {
@@ -360,6 +361,9 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
   // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
   app.get('/v1/scopes/skill/:repoId/skills', (c) => skillsHandler(c, memory));
+  // skills-cross-repo-flat-list (ADR D2) — flat cross-repo listing for a subject.
+  // Distinct literal `all` segment → no collision with `:repoId/skills`.
+  app.get('/v1/scopes/skill/:subject/all', (c) => skillsAllHandler(c, memory));
   // skills-write-surface T2.1/T2.2 — create + curate (delete) skills.
   app.post('/v1/scopes/skill/:repoId/skills', (c) => postSkillHandler(c, memory));
   app.delete('/v1/scopes/skill/:repoId/skills/:skillId', (c) => deleteSkillHandler(c, memory));

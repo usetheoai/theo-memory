@@ -123,6 +123,9 @@ export type {
   SkillDraft,
   SkillLanguage,
   SkillRecallOptions,
+  SkillsBySubjectOptions,
+  SkillsBySubjectPage,
+  SkillWithRepo,
   SkillWithScore,
   SourceCluster,
 } from './skill.js';
