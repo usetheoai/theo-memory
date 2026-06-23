@@ -85,12 +85,9 @@ if echo "$COMMAND" | grep -qE 'git[[:space:]]+commit' && echo "$COMMAND" | grep 
   exit 2
 fi
 
-# --- npm publish guard (re-enabled after v0.2.0 first publish 2026-06-09) ---
-# Future publishes require explicit user authorization per session.
-if echo "$COMMAND" | grep -qE 'npm[[:space:]]+(publish|unpublish)'; then
-  echo "BLOCKED: npm publish requires explicit user authorization. Use '!' prefix to run manually." >&2
-  exit 2
-fi
+# --- npm publish guard REMOVED 2026-06-23 (user directive: npm/pnpm totally permissive) ---
+# Previously blocked `npm publish`/`unpublish` and required the `!` prefix. The project
+# owner explicitly opted into a fully permissive npm/pnpm surface; publish is now allowed.
 
 # --- pip / pip install / poetry inside .claude/knowledge-base/references/ (Python sub-projects exist there) ---
 if echo "$COMMAND" | grep -qE '(pip|poetry|uv)[[:space:]]+install' && pwd | grep -q '.claude/knowledge-base/references/'; then
