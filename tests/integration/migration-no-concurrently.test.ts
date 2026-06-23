@@ -49,7 +49,10 @@ function hasConcurrentIndex(sql: string): boolean {
       return idx >= 0 ? line.slice(0, idx) : line;
     })
     .join('\n');
-  return /\bCREATE\s+INDEX\s+CONCURRENTLY\b/i.test(withoutLineComments);
+  // `(?:UNIQUE\s+)?` — `CREATE UNIQUE INDEX CONCURRENTLY` is valid Postgres and
+  // crashes the single-tx migrate() identically (SQLSTATE 25001), so it must be
+  // caught too (review F-T1).
+  return /\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i.test(withoutLineComments);
 }
 
 describe('migration guard — no CREATE INDEX CONCURRENTLY in journal-applied migrations (M4)', () => {
@@ -57,10 +60,15 @@ describe('migration guard — no CREATE INDEX CONCURRENTLY in journal-applied mi
     // EC-2: line-split statement is still a real statement → must be flagged.
     expect(hasConcurrentIndex('CREATE INDEX\n  CONCURRENTLY x ON memories(id);')).toBe(true);
     expect(hasConcurrentIndex('CREATE INDEX CONCURRENTLY "i" ON memories(agent_id);')).toBe(true);
+    // F-T1: CREATE UNIQUE INDEX CONCURRENTLY is valid Postgres + crashes single-tx migrate too.
+    expect(hasConcurrentIndex('CREATE UNIQUE INDEX CONCURRENTLY "u" ON memories(hash);')).toBe(true);
+    // F-T2: a real statement with a TRAILING -- comment is still flagged (the stripper keeps the statement prefix).
+    expect(hasConcurrentIndex('CREATE INDEX CONCURRENTLY "i" ON memories(id); -- huge table')).toBe(true);
     // A mention inside a SQL comment is NOT a statement → must NOT be flagged.
     expect(hasConcurrentIndex('-- use CREATE INDEX CONCURRENTLY out-of-band (see § 10.4)')).toBe(false);
     // A plain (in-tx-safe) CREATE INDEX is allowed.
     expect(hasConcurrentIndex('CREATE INDEX IF NOT EXISTS "i" ON memories(agent_id);')).toBe(false);
+    expect(hasConcurrentIndex('CREATE UNIQUE INDEX IF NOT EXISTS "u" ON memories(hash);')).toBe(false);
   });
 
   it('no migration .sql uses CREATE INDEX CONCURRENTLY (would crash drizzle single-tx migrate)', () => {
