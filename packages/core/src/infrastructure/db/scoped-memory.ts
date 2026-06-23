@@ -351,6 +351,7 @@ export class LocalScopedMemory implements ScopedMemory {
       options?.asOf === undefined &&
       options?.attributedTo === undefined &&
       options?.rerank === undefined &&
+      options?.graphExpand === undefined &&
       this.config.retrievalPolicy === undefined;
 
     if (!cacheApplicable || cache === undefined) {
@@ -359,6 +360,7 @@ export class LocalScopedMemory implements ScopedMemory {
         embedder: this.config.embedder,
         ...(this.config.reranker !== undefined ? { reranker: this.config.reranker } : {}),
         ...(this.config.retrievalPolicy !== undefined ? { retrievalPolicy: this.config.retrievalPolicy } : {}),
+        ...(this.config.graphExpansionStore !== undefined ? { graphExpansionStore: this.config.graphExpansionStore } : {}),
         ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       }, options);
     }

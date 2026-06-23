@@ -8,8 +8,8 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 32 values (28 prior + 4 adaptive-retrieval literals from Item 13)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(32);
+  test('has 34 values (32 prior + 2 graph-aware-recall literals)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(34);
   });
 
   test('includes the 4 adaptive-retrieval literals (Item 13, Princípio 3)', () => {
@@ -17,6 +17,11 @@ describe('MEMORY_EVENTS', () => {
     expect(MEMORY_EVENTS).toContain('retrieval_corrected');
     expect(MEMORY_EVENTS).toContain('retrieval_low_confidence');
     expect(MEMORY_EVENTS).toContain('retrieval_policy_failed');
+  });
+
+  test('includes the 2 graph-aware-recall literals (Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('recall_graph_expanded');
+    expect(MEMORY_EVENTS).toContain('recall_graph_failed');
   });
 
   test('includes ontology_type_coerced (domain-ontologies T2.2, Princípio 3)', () => {

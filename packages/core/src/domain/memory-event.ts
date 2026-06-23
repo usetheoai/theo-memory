@@ -119,6 +119,15 @@ export const MEMORY_EVENTS = [
   // DISTINCT from `retrieval_low_confidence` so a policy CRASH is not conflated
   // with a genuine low-confidence outcome (Princípio 3, mirrors recall_rerank_failed).
   'retrieval_policy_failed',
+  // graph-aware-recall (ADR D4) — the pipeline Step 8.7 graph-expansion stage
+  // pool-expanded the results with memories connected by a shared entity / relation
+  // edge over the existing entity-graph tables. Attribute `{seeds, expanded, hops}`.
+  // NOT emitted when nothing was surfaced (no-op discipline). Princípio 3.
+  'recall_graph_expanded',
+  // graph-aware-recall (ADR D4, fail-soft) — the graph traversal/expansion threw;
+  // recall degraded to the non-graph pool and NEVER crashed. Attribute
+  // `{error}`. Mirrors recall_rerank_failed / retrieval_policy_failed.
+  'recall_graph_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

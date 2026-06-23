@@ -16,6 +16,8 @@ import { describe, expect, test, vi } from 'vitest';
 import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { AdaptiveRetrievalPolicy } from './dip/adaptive-retrieval-policy.js';
 import type { Embedder } from './dip/embedder.js';
+import type { GraphExpansionStore } from './dip/graph-expansion-store.js';
+import { InMemoryGraphExpansionStore } from '../infrastructure/db/in-memory-graph-expansion-store.js';
 import type { Reranker } from './dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import { RerankerConflict } from './errors.js';
@@ -458,5 +460,100 @@ describe('runRetrievalPipeline — adaptive-retrieval Step 8.6 (Item 13)', () =>
       { topK: 10, threshold: 0.5, adaptive: { relaxedThreshold: 0.05 } },
     );
     expect(results.map((r) => r.id)).toContain('weak');
+  });
+});
+
+describe('runRetrievalPipeline — graph-aware recall Step 8.7 (graph-aware-recall)', () => {
+  // A stub graph store that returns the given connected rows for any seed set.
+  const stubGraphStore = (
+    rows: readonly { id: string; text: string; sharedEntities: number }[],
+  ): GraphExpansionStore => ({
+    expandByEntities: async () =>
+      rows.map((r) => ({
+        result: { id: r.id, payload: { text: r.text, hash: r.id }, score: 0 },
+        sharedEntities: r.sharedEntities,
+      })),
+  });
+
+  test('appends an entity-connected memory NOT in the pool + emits recall_graph_expanded', async () => {
+    const store = makeStore([{ id: 'a', text: 'seed', semanticScore: 0.9 }]);
+    const { tracer, exporter } = setupTracer();
+    // Use the REAL InMemoryGraphExpansionStore double (caller of T4.2): 'a' and
+    // 'connected' share entity 'e1'; 'connected' is not in the semantic pool.
+    const graph = new InMemoryGraphExpansionStore([
+      { memoryId: 'a', entityIds: ['e1'], result: { id: 'a', payload: { text: 'seed', hash: 'a' }, score: 0 }, filters: { user_id: 'alice' } },
+      { memoryId: 'connected', entityIds: ['e1'], result: { id: 'connected', payload: { text: 'linked', hash: 'connected' }, score: 0 }, filters: { user_id: 'alice' } },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), graphExpansionStore: graph, tracer },
+      { topK: 10, threshold: 0.1, graphExpand: {} },
+    );
+    expect(results.map((r) => r.id)).toContain('connected');
+    // banded: the graph hit sorts BELOW the genuine seed 'a'.
+    expect(results[0]?.id).toBe('a');
+    expect(results[results.length - 1]?.id).toBe('connected');
+    expect(exporter.getFinishedSpans().map((s) => s.name)).toContain('recall_graph_expanded');
+  });
+
+  test('EC-1: a connected row already in the pool is NOT duplicated', async () => {
+    const store = makeStore([
+      { id: 'a', text: 'seed', semanticScore: 0.9 },
+      { id: 'b', text: 'also', semanticScore: 0.8 },
+    ]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      {
+        vectorStore: store,
+        embedder: makeEmbedder(),
+        graphExpansionStore: stubGraphStore([{ id: 'b', text: 'also', sharedEntities: 1 }]), // 'b' already in pool
+      },
+      { topK: 10, threshold: 0.1, graphExpand: {} },
+    );
+    const ids = results.map((r) => r.id);
+    expect(ids.filter((id) => id === 'b')).toHaveLength(1); // no duplicate
+  });
+
+  test('fail-soft: graph store throws → normal results, no crash, emits recall_graph_failed', async () => {
+    const throwingStore: GraphExpansionStore = {
+      expandByEntities: async () => {
+        throw new Error('graph boom');
+      },
+    };
+    const store = makeStore([{ id: 'a', text: 'seed', semanticScore: 0.9 }]);
+    const { tracer, exporter } = setupTracer();
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), graphExpansionStore: throwingStore, tracer },
+      { topK: 10, threshold: 0.1, graphExpand: {} },
+    );
+    expect(results.map((r) => r.id)).toEqual(['a']);
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).toContain('recall_graph_failed');
+  });
+
+  test('EC-3: graphExpand set but NO store wired → byte-identical (no-op)', async () => {
+    const store = makeStore([{ id: 'a', text: 'seed', semanticScore: 0.9 }]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder() }, // no graphExpansionStore
+      { topK: 10, threshold: 0.1, graphExpand: {} },
+    );
+    expect(results.map((r) => r.id)).toEqual(['a']);
+  });
+
+  test('regression — no graphExpand option → default pool byte-unchanged', async () => {
+    const store = makeStore([{ id: 'a', text: 'seed', semanticScore: 0.9 }]);
+    const results = await runRetrievalPipeline(
+      'query',
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), graphExpansionStore: stubGraphStore([{ id: 'x', text: 'x', sharedEntities: 5 }]) },
+      { topK: 10, threshold: 0.1 }, // no graphExpand → store ignored
+    );
+    expect(results.map((r) => r.id)).toEqual(['a']);
   });
 });
