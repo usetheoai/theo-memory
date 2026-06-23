@@ -1,0 +1,432 @@
+agent: review-graph-aware-recall-architecture
+review_target: 1ef4234..HEAD for plan graph-aware-recall
+plan: .claude/knowledge-base/plans/graph-aware-recall-plan.md
+blueprint: .claude/knowledge-base/discoveries/blueprints/graph-aware-recall-blueprint.md
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: packages/core/src/domain/dip/graph-expansion-store.ts
+    line: 60
+    plan_ref: T1.1 Acceptance Criteria / ADR D1
+    summary: GraphExpansionStore DIP correctly declares 1 method (ISP, ADR-0008 cap), returns domain VectorStoreResult DTO, no infrastructure imports
+    evidence: |
+      ```ts
+      export interface GraphExpansionStore {
+        expandByEntities(params: ExpandByEntitiesParams): Promise<readonly GraphExpansionRow[]>;
+      }
+      ```
+      - Exactly 1 method (ISP locked via ADR-0008)
+      - GraphExpansionRow.result is VectorStoreResult (domain DTO, not pipeline-internal)
+      - Zero imports from src/infrastructure (DIP boundary discipline)
+      - JSDoc cites ADR D1 + D5 + architecture.md § 3
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 30
+    plan_ref: T4.1 / ADR D2 + D5
+    summary: PgGraphExpansionStore implements the JOIN traversal correctly — 1-hop shared-entity + opt-in 2-hop relation edges, scope-filtered, dedup-aware
+    evidence: |
+      ```ts
+      export class PgGraphExpansionStore implements GraphExpansionStore {
+        async expandByEntities(params: ExpandByEntitiesParams): Promise<readonly GraphExpansionRow[]> {
+          // ... 1-hop shared-entity self-join (line 72-73)
+          const expandedEntitiesCte = hops >= 2 ? <2-hop relation JOIN> : <1-hop only>;
+          // EC-2: candidate scope filter (lines 83-86)
+          WHERE m.workspace_id = $2 AND COALESCE(m.user_id,'') = COALESCE($3::text,'')
+          // EC-1: seed exclusion (line 82)
+          WHERE me.memory_id <> ALL($1::uuid[])
+          // Dedup against pool (returned to caller): the seeded ids are filtered at SQL boundary
+        }
+      }
+      ```
+      - 1-hop default (shared entities) + 2-hop opt-in (relations) ✓
+      - Scope-confined on CANDIDATE (lines 83-86, ADR D5) ✓
+      - Seed exclusion + LIMIT bounded ✓
+      - Returns VectorStoreResult via rowToResult export ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/in-memory-graph-expansion-store.ts
+    line: 40
+    plan_ref: T4.2 / ADR D2 + D5
+    summary: InMemoryGraphExpansionStore mirrors PG semantics — shared-entity weight, seed exclusion, candidate-side scope confinement, limit
+    evidence: |
+      ```ts
+      export class InMemoryGraphExpansionStore implements GraphExpansionStore {
+        async expandByEntities(params: ExpandByEntitiesParams): Promise<readonly GraphExpansionRow[]> {
+          // EC-1: seed exclusion (line 57)
+          if (seedSet.has(n.memoryId)) continue;
+          // EC-2: scope confinement (line 58)
+          if (!scopeMatches(n.filters, params.filters)) continue;
+          // Shared-entity weight (line 59)
+          const shared = n.entityIds.filter((e) => seedEntities.has(e)).length;
+        }
+      }
+      ```
+      - Seed exclusion ✓
+      - Scope match enforced (candidate-side, EC-2) ✓
+      - Shared-entity weight computed ✓
+      - Ordered by shared-entity count DESC ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-4
+    severity: HIGH
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 457
+    plan_ref: T3.1 / ADR D3 (banded score) + plan § Phase 3 dependency note
+    summary: Spread-operator reassignment pattern `scored = [...]` is non-idiomatic for a mutable rebind; should use standard array reassignment for clarity
+    evidence: |
+      Current (line 457-468):
+      ```ts
+      scored = [
+        ...(await applyGraphExpansionStage(
+          scored,
+          deps.graphExpansionStore,
+          filters,
+          options.graphExpand,
+          topK,
+          scope.kind,
+          tracer,
+        )),
+      ];
+      ```
+      
+      Standard pattern (mirrors adaptive Step 8.6, e.g., line 378 `let scored: ScoredRow[] = filterAtThreshold(...)`):
+      ```ts
+      scored = await applyGraphExpansionStage(...);
+      ```
+      
+      The spread-operator-in-array assignment `[...(await applyGraphExpansionStage(...))]` is semantically equivalent to direct assignment but adds unnecessary wrapping (the helper already returns `readonly ScoredRow[]`, which is assignable to `ScoredRow[]`). The original `applyAdaptiveAssessStage` (lines 210, 227) follows the direct assignment idiom.
+    recommended_action: Simplify the assignment to match the adaptive/rerank pattern: `scored = await applyGraphExpansionStage(...)` (no spread, no array wrapper). This improves readability without changing behavior.
+
+  - id: F-arch-5
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 264
+    plan_ref: T3.1 / ADR D3 (banded score formula)
+    summary: Banded score formula `floor * 0.999 * (sharedEntities / (sharedEntities + 1))` uses a magic constant 0.999; should be named or justified in comment
+    evidence: |
+      ```ts
+      score: floor * 0.999 * (e.sharedEntities / (e.sharedEntities + 1)),
+      ```
+      The formula is:
+      - `floor`: lowest genuine semantic score (or 0.000_001 fallback)
+      - `0.999`: multiplier to ensure graph hits strictly rank BELOW floor (not at floor)
+      - `(sharedEntities / (sharedEntities + 1))`: normalized weight ∈ (0, 1), ordered by count
+      
+      The 0.999 constant is not explained. The plan (ADR D3) says "strictly below the lowest genuine threshold-passing score" but does not specify the multiplier value. The comment at line 280-281 explains the normalization but not the 0.999 choice.
+      
+      Risk: future maintainers may not understand why 0.999 (vs 0.99 or 0.5) is correct, and may accidentally change it, weakening the "never outrank" guarantee.
+    recommended_action: Name the constant (e.g., `const GRAPH_SCORE_SUB_FLOOR_MARGIN = 0.999; score: floor * GRAPH_SCORE_SUB_FLOOR_MARGIN * ...`) OR add a line comment explaining the choice: `// 0.999 ensures graph hits strictly rank BELOW the floor, never at floor (a small 0.1% margin prevents floating-point edge cases)`
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/domain/options.ts
+    line: 241
+    plan_ref: T2.1 Acceptance Criteria
+    summary: RecallOptions.graphExpand option correctly anchored inside RecallOptions interface, not in GetAllOptions (mirrors rerank/adaptive precedent)
+    evidence: |
+      ```ts
+      export interface RecallOptions {
+        // ... existing options (topK, threshold, asOf, attributedTo, onlySkills, includeSuperseded, diversify, rerank, adaptive)
+        
+        readonly graphExpand?: {
+          readonly hops?: 1 | 2;
+          readonly limit?: number;
+        };
+      }
+      ```
+      - Correctly placed INSIDE RecallOptions (closing brace at line 245)
+      - NOT in GetAllOptions or another interface
+      - Mirrors the `rerank` and `adaptive` pattern
+      - Default OFF (optional, no breaking change)
+      - Hops and limit are both optional (ADR D4)
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/domain/memory-event.ts
+    line: 126
+    plan_ref: T2.1 / Princípio 3 (auditability)
+    summary: recall_graph_expanded and recall_graph_failed events correctly appended with JSDoc citing ADR D4 and Princípio 3 observability
+    evidence: |
+      ```ts
+      // graph-aware-recall (ADR D4) — the pipeline Step 8.7 graph-expansion stage
+      // pool-expanded the results with memories connected by a shared entity / relation
+      // edge over the existing entity-graph tables. Attribute `{seeds, expanded, hops}`.
+      // NOT emitted when nothing was surfaced (no-op discipline). Princípio 3.
+      'recall_graph_expanded',
+      // graph-aware-recall (ADR D4, fail-soft) — the graph traversal/expansion threw;
+      // recall degraded to the non-graph pool and NEVER crashed. Attribute
+      // `{error}`. Mirrors recall_rerank_failed / retrieval_policy_failed.
+      'recall_graph_failed',
+      ```
+      - Both events present (lines 126-130)
+      - JSDoc cites ADR D4 + Princípio 3
+      - Mirrors the fail-soft / no-op event precedent from reranker + adaptive
+      - Attributes documented (seeds, expanded, hops; error)
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-8
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 354
+    plan_ref: T3.1 / ADR D4 (cache bypass)
+    summary: Cache bypass condition correctly adds `options?.graphExpand === undefined` to cacheApplicable guard; wired store is also threaded into pipeline deps
+    evidence: |
+      ```ts
+      const cacheApplicable =
+        options?.topK === undefined &&
+        options?.threshold === undefined &&
+        options?.asOf === undefined &&
+        options?.attributedTo === undefined &&
+        options?.rerank === undefined &&
+        options?.graphExpand === undefined &&      // NEW
+        this.config.retrievalPolicy === undefined;
+      
+      // AND in deps composition:
+      ...(this.config.graphExpansionStore !== undefined ? { graphExpansionStore: this.config.graphExpansionStore } : {}),
+      ```
+      - Cache bypass when graphExpand is set ✓ (ADR D4: cache key does not encode it)
+      - Wired store threaded into deps only when config declares one ✓
+      - Mirrors rerank + adaptive pattern ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-9
+    severity: INFO
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 200
+    plan_ref: T4.3 / factory auto-default
+    summary: Factory auto-instantiates PgGraphExpansionStore when vectorStore is PgvectorStore and entityBoost path is active (mirrors memoryGraphStore)
+    evidence: |
+      ```ts
+      graphExpansionStore:
+        config.graphExpansionStore ?? new PgGraphExpansionStore(config.vectorStore.poolForEviction),
+      ```
+      - Auto-defaults from the pool when config slot is omitted ✓
+      - Same gate as memoryGraphStore (entityBoost !== false + PgvectorStore) ✓
+      - Uses same pool accessor ✓
+      - Consumer may override by passing explicit instance ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-10
+    severity: INFO
+    file: packages/core/src/domain/index.ts
+    line: 241
+    plan_ref: T4.3 / public surface
+    summary: GraphExpansionStore DIP type correctly exported from /contract (domain/index.ts); 3 types (Store, Params, Row) re-exported
+    evidence: |
+      ```ts
+      export type {
+        GraphExpansionStore,
+        ExpandByEntitiesParams,
+        GraphExpansionRow,
+      } from './dip/graph-expansion-store.js';
+      ```
+      - All 3 types exported (public DIP + params + result row) ✓
+      - From domain/index.ts (the /contract barrel) ✓
+      - Consumers can import: `import { GraphExpansionStore } from '@usetheo/memory/contract'` ✓
+      - Export count 55 → 56 reconciled (one new type export, per plan T4.3) ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-11
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 66
+    plan_ref: T4.1 / DRY (rowToResult export)
+    summary: rowToResult function correctly exported (was private, now public) to avoid code duplication in PgGraphExpansionStore; MemoriesRow type also exported
+    evidence: |
+      ```ts
+      export function rowToResult(row: MemoriesRow): VectorStoreResult { ... }
+      export interface MemoriesRow extends QueryResultRow { ... }
+      ```
+      Changed from `function rowToResult` (private) to `export function` (public).
+      
+      PgGraphExpansionStore reuses this projection (line 94):
+      ```ts
+      return result.rows.map((row) => ({
+        result: rowToResult(row),
+        sharedEntities: ...,
+      }));
+      ```
+      
+      Without the export, the projection logic would be duplicated → plan explicitly calls this DRY opportunity (plan § T4.1).
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-12
+    severity: INFO
+    file: tests/integration/graph-aware-recall.test.ts
+    line: 77
+    plan_ref: T5.1 GOAL test
+    summary: Integration test correctly exercises GOAL scenario — default OFF byte-unchanged, graphExpand ON surfaces connected below-threshold row, scope isolation enforced
+    evidence: |
+      ```ts
+      it('graphExpand ON ⇒ a shared-entity below-threshold memory surfaces + recall_graph_expanded; default OFF ⇒ absent', async () => {
+        // MATCH = near query (top result)
+        // FAR = far from query (below threshold, shares entity with MATCH)
+        
+        // DEFAULT: only MATCH (byte-unchanged)
+        const baseline = await user.recall(QUERY, { topK: 10, threshold: 0.1 });
+        expect(baseline.map((r) => r.text)).toContain(MATCH);
+        expect(baseline.map((r) => r.text)).not.toContain(FAR);
+        
+        // graphExpand ON: both MATCH + FAR (pool-expansion)
+        const expanded = await user.recall(QUERY, { topK: 10, threshold: 0.1, graphExpand: {} });
+        expect(expanded.map((r) => r.text)).toContain(MATCH);
+        expect(expanded.map((r) => r.text)).toContain(FAR);
+        // Banded: MATCH ranks above FAR (ADR D3)
+        expect(expanded[0]?.text).toBe(MATCH);
+      });
+      
+      it('scope isolation ⇒ a DIFFERENT user\'s shared-entity memory does NOT surface', async () => {
+        // carol's MATCH (top) + dave's FAR (same entity, different user scope)
+        // carol's recall(graphExpand) MUST NOT surface dave's memory
+        expect(carol.map((r) => r.text)).not.toContain(FAR);  // cross-scope rejection
+      });
+      ```
+      - DEFAULT scenario (no graphExpand) returns byte-unchanged pool ✓
+      - graphExpand ON returns expanded pool with connected below-threshold row ✓
+      - Banded score enforced (MATCH ranks above FAR) ✓
+      - Scope isolation enforced (EC-2 / ADR D5) ✓
+      - recall_graph_expanded event emitted ✓
+      - Real pgvector (DIM=8) + deterministic embedder + queue LLM ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-13
+    severity: INFO
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 30
+    plan_ref: ADR-0008 (DIP method-count cap)
+    summary: GraphExpansionStore DIP correctly imported and threaded through RetrievalDeps interface (optional, like reranker/retrievalPolicy)
+    evidence: |
+      ```ts
+      import type { GraphExpansionStore } from '../dip/graph-expansion-store.js';
+      
+      export interface RetrievalDeps {
+        readonly graphExpansionStore?: GraphExpansionStore;  // Line 65
+      }
+      ```
+      - Imported from domain DIP module ✓
+      - Optional field in RetrievalDeps (mirrors reranker/retrievalPolicy) ✓
+      - Consumed in Step 8.7 via guard: `if (deps.graphExpansionStore !== undefined && options?.graphExpand !== undefined)` ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-14
+    severity: INFO
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 258
+    plan_ref: T3.1 acceptance / EC-1 (dedup)
+    summary: applyGraphExpansionStage correctly dedups graph results against existing pool using a Set-based guard
+    evidence: |
+      ```ts
+      const seedSet = new Set(scoredSorted.map((r) => r.id));
+      const expanded = await store.expandByEntities({ seedMemoryIds: seedIds, ... });
+      const fresh = expanded.filter((e) => !seedSet.has(e.result.id));
+      ```
+      - Creates a Set from all ids in scoredSorted (not just topK seeds) ✓
+      - Filters out any expanded result already in the set ✓
+      - Plan EC-1 absorbed: "a connected row may already be in `scored`" ✓
+    recommended_action: No action — complies with plan
+
+  - id: F-arch-15
+    severity: LOW
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 264
+    plan_ref: T3.1 / ADR D3 implementation note
+    summary: Banded score formula uses `Math.min(...scoredSorted.map(...))` to extract floor, but includes rows beyond topK; consider optimizing to only topK for clarity
+    evidence: |
+      Current (lines 273-274):
+      ```ts
+      const lowestSeedScore = Math.min(...scoredSorted.map((r) => r.score));
+      const floor = lowestSeedScore > 0 ? lowestSeedScore : 0.000_001;
+      ```
+      
+      The `lowestSeedScore` is derived from ALL rows in `scoredSorted`, not just the topK seeds used in the traversal (line 264 `seedIds = scoredSorted.slice(0, topK).map(...)`).
+      
+      ADR D3 says graph score is "strictly below the lowest genuine threshold-passing score" — the threshold-passing set is `scoredSorted` (all of it). But semantically, the graph expansion is seeded from topK only, so using the min of all scored rows might be inconsistent if the plan intended "lowest of topK seeds" (ambiguous in the plan language).
+      
+      In practice: if scoredSorted has 100 rows (all threshold-passing, sorted desc), the floor uses the min of all 100. The topK-seeded expansion graph hits will score between floor and the 100th score. This is conservative (extra sub-floor margin) and safe, but worth documenting.
+    recommended_action: Add clarifying comment: `// Use min of entire threshold-passing pool (not just topK seeds) as floor — conservative margin ensures graph hits rank strictly below all genuine hits` OR adjust if plan intended "topK only": `const lowestSeedScore = Math.min(...scoredSorted.slice(0, topK).map(...))`.
+
+  - id: F-arch-16
+    severity: INFO
+    file: packages/core/src/infrastructure/db/config.ts
+    line: 168
+    plan_ref: T4.3 / public DIP slot
+    summary: LocalMemoryConfig.graphExpansionStore slot correctly declared with JSDoc citing plan + ADRs; optional, auto-defaulted by factory
+    evidence: |
+      ```ts
+      /**
+       * graph-aware-recall — optional entity-graph traversal store. When present AND
+       * a recall sets `options.graphExpand`, the pipeline (Step 8.7) pool-expands the
+       * results with memories connected by a shared entity / relation edge over the
+       * EXISTING `entities`/`memory_entities`/`entity_edges` tables. Absent ⇒ default
+       * OFF (byte-unchanged). The default impl is `PgGraphExpansionStore` (the JOIN),
+       * auto-instantiated by the factory from the pool when the vector store exposes
+       * one (mirrors `memoryGraphStore`). NO new dependency, NO migration.
+       *
+       * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D1 + D4
+       * @see src/domain/dip/graph-expansion-store.ts
+       */
+      readonly graphExpansionStore?: GraphExpansionStore;
+      ```
+      - Correctly declared as optional ✓
+      - JSDoc cites plan + ADRs ✓
+      - Auto-defaults documented ✓
+      - Factory wiring (factory.ts line 200) matches this contract ✓
+    recommended_action: No action — complies with plan
+
+summary: |
+  **ARCHITECTURE REVIEW COMPLETE: graph-aware-recall**
+  
+  **Verdict: READY_TO_MERGE with ONE NON-BLOCKING recommendation (F-arch-4: idiomatic improvement)**
+  
+  **SOLID Compliance:**
+  - SRP ✓ — GraphExpansionStore is a single read concern (traversal); MemoryGraphStore (2 methods) is NOT widened
+  - OCP ✓ — GraphExpansionStore is a new DIP port (composition), not modification of existing code
+  - LSP ✓ — both PgGraphExpansionStore and InMemoryGraphExpansionStore correctly implement the contract
+  - ISP ✓ — GraphExpansionStore has exactly 1 method (ADR-0008 cap); params/result types are minimal
+  - DIP ✓ — domain declares port, infrastructure implements; pipeline depends on abstraction only
+  
+  **DIP Boundaries:**
+  - src/domain/ imports domain DIPs only (graph-expansion-store.ts has zero infrastructure imports)
+  - src/infrastructure/ implements ports (pg/in-memory impls)
+  - pipeline.ts depends on GraphExpansionStore TYPE, not concrete PgGraphExpansionStore
+  - factory.ts auto-wires concrete impl (PgGraphExpansionStore) when pool available
+  
+  **Design Patterns:**
+  - GraphExpansionStore mirrors Reranker/AdaptiveRetrievalPolicy opt-in DIP pattern
+  - applyGraphExpansionStage mirrors applyRerankStage fail-soft pattern + applyAdaptiveAssessStage rebind pattern
+  - Observability mirrors recall_rerank_failed / retrieval_policy_failed pattern (Princípio 3)
+  
+  **Coupling & Cohesion:**
+  - GraphExpansionStore is a leaf DIP (no new upward dependencies in src/core/)
+  - factory.ts already depends on PgMemoryGraphStore (same gate); adding PgGraphExpansionStore is natural composition
+  - scoped-memory.ts correctly threads store into deps when wired
+  
+  **Naming & Module Hygiene:**
+  - No paper names (GraphRAG, Self-RAG, CRAG, etc.) in src/ (read-only spot check ✓)
+  - Files: kebab-case ✓ (graph-expansion-store.ts, pg-graph-expansion-store.ts)
+  - Classes: PascalCase ✓ (GraphExpansionStore, PgGraphExpansionStore, InMemoryGraphExpansionStore)
+  - Functions: camelCase ✓ (expandByEntities, applyGraphExpansionStage)
+  - Constants: none added (magic 0.999 should be named — F-arch-5)
+  - No `any` in TypeScript
+  - rowToResult export is deliberate DRY reuse, correctly typed
+  
+  **Coverage & Testing:**
+  - GOAL integration test (T5.1) proves default-OFF byte-unchanged + graphExpand ON surfaces connected memory
+  - Scope isolation test (EC-2, ADR D5) enforced
+  - Event emission tested (recall_graph_expanded present in spans)
+  - Plan §Coverage Matrix 100% (9/9 claims mapped)
+  
+  **Non-Blocking Issues:**
+  1. (MEDIUM) F-arch-5: Magic constant 0.999 should be named for maintainability
+  2. (HIGH) F-arch-4: Spread-operator assignment `scored = [...]` is non-idiomatic; simplify to direct assignment
+  3. (LOW) F-arch-15: Banded floor derivation uses all scoredSorted rows, not just topK seeds; document or clarify intent
+  
+  **No Blockers** — all findings are improvement-level, not correctness-level. Ship as-is or incorporate the three recommendations above.
+
+integrity_checksum: e9f5b04d0a28

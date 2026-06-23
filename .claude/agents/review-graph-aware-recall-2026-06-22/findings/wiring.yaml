@@ -1,0 +1,250 @@
+agent: review-graph-aware-recall-wiring
+review_target: 1ef4234..HEAD for plan graph-aware-recall
+plan: .claude/knowledge-base/plans/graph-aware-recall-plan.md
+triad_revalidation:
+  total_new_symbols: 3
+  pillar_a_honest_pass: 3 / 3
+  pillar_b_honest_pass: 2 / 2
+  pillar_c_observed: 2 / 2
+findings:
+  - id: F-wire-1
+    severity: PASS
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 200-201
+    plan_ref: T4.3 Pillar a — caller
+    summary: "PASS: PgGraphExpansionStore auto-wired in factory under the entityBoost gate"
+    evidence: |
+      factory.ts:200-201 auto-defaults graphExpansionStore when:
+      - config.entityBoost !== false AND
+      - config.vectorStore instanceof PgvectorStoreClass
+      Same gate as memoryGraphStore (T3.2). Consumer can override via config.graphExpansionStore.
+      Pattern matches memoryEntityStore (T3.1) + usageCounterStore (T2.2).
+    recommended_action: PASS
+
+  - id: F-wire-2
+    severity: PASS
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 363
+    plan_ref: T4.3 + T5 Pillar a — config threaded into pipeline deps
+    summary: "PASS: scoped-memory.ts threads graphExpansionStore into pipeline RetrievalDeps"
+    evidence: |
+      scoped-memory.ts:363 spreads config.graphExpansionStore into runRetrievalPipeline deps:
+      ...(this.config.graphExpansionStore !== undefined ? { graphExpansionStore: this.config.graphExpansionStore } : {}),
+      Conditional spread prevents undefined values (ADR D5 EC-3). Pipeline receives it for Step 8.7.
+    recommended_action: PASS
+
+  - id: F-wire-3
+    severity: PASS
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 456-467
+    plan_ref: T5 Pillar a + c — pipeline calls expandByEntities
+    summary: "PASS: pipeline Step 8.7 calls store.expandByEntities() when wired + requested"
+    evidence: |
+      pipeline.ts:456-467: conditional call to applyGraphExpansionStage.
+      Guard: deps.graphExpansionStore !== undefined && options?.graphExpand !== undefined
+      Both metrics emitted: recall_graph_expanded (line 284) + recall_graph_failed (line 293)
+      Fail-soft: catch block (line 291-298) returns original pool on error (ADR D4).
+    recommended_action: PASS
+
+  - id: F-wire-4
+    severity: PASS
+    file: tests/integration/graph-aware-recall.test.ts
+    line: 77-143
+    plan_ref: T5.1 GOAL test + pillar b
+    summary: "PASS: integration test exercises the full graph-aware recall path against real pgvector"
+    evidence: |
+      Test setup: real pgvector container, deterministic embedder, stub LLM, shared-entity extractor.
+      Test 1 (line 126-145): graphExpand ON → memory B (below threshold) surfaces via shared entity.
+        - Baseline (no graphExpand): B absent (semantic threshold gates it).
+        - With graphExpand: B surfaces, A ranks above B (banded scoring ADR D3).
+        - Event recall_graph_expanded observed in OTel spans.
+      Test 2 (line 147-157): scope isolation — different user's same-entity memory does NOT surface.
+        - Confirms EC-2 candidate-side scope filter (filters passed to expandByEntities).
+      Both tests hit the real pipeline + store + entity-linking write path.
+    recommended_action: PASS
+
+  - id: F-wire-5
+    severity: PASS
+    file: packages/core/src/domain/memory-event.ts
+    line: 126, 130
+    plan_ref: T5 Pillar c — runtime observability
+    summary: "PASS: recall_graph_expanded and recall_graph_failed events in union"
+    evidence: |
+      memory-event.ts lines 126, 130 declare the two new events in MEMORY_EVENTS union.
+      Both are emitted by pipeline.ts:
+      - line 284: emitEvent(tracer, 'recall_graph_expanded', {...})
+      - line 293: emitEvent(tracer, 'recall_graph_failed', {...})
+      Events carry diagnostic context: seeds count, expanded count, hops, error name.
+    recommended_action: PASS
+
+  - id: F-wire-6
+    severity: PASS
+    file: packages/core/src/domain/options.ts
+    line: 241-244
+    plan_ref: T3 + T5 — RecallOptions.graphExpand
+    summary: "PASS: graphExpand option properly typed in RecallOptions"
+    evidence: |
+      options.ts:241-244 declares readonly graphExpand?: { hops?: 1|2, limit?: number }
+      Default OFF (omit option → no graph expansion).
+      docs state graphExpand BYPASSES recall cache (ADR D3, since cache key does not encode it).
+      Scoped-memory honors the bypass check at line 347 (cacheApplicable includes options?.graphExpand === undefined).
+    recommended_action: PASS
+
+  - id: F-wire-7
+    severity: PASS
+    file: packages/core/src/infrastructure/db/config.ts
+    line: 16, 168
+    plan_ref: T0 + T4.3 — DIP declared in config
+    summary: "PASS: GraphExpansionStore DIP properly imported and declared in LocalMemoryConfig"
+    evidence: |
+      config.ts line 16: import type { GraphExpansionStore } from dip/graph-expansion-store.js
+      config.ts line 168: readonly graphExpansionStore?: GraphExpansionStore
+      JSDoc lines 159-167 explain auto-wiring by factory, mirrors memoryGraphStore.
+    recommended_action: PASS
+
+  - id: F-wire-8
+    severity: PASS
+    file: packages/core/src/domain/dip/graph-expansion-store.ts
+    line: 60-66
+    plan_ref: T0 — DIP shape
+    summary: "PASS: GraphExpansionStore interface properly designed (1 method, ISP compliant)"
+    evidence: |
+      Interface declares single method expandByEntities per ISP (no bloat).
+      Params: seedMemoryIds, filters, hops (1|2), limit.
+      Returns: GraphExpansionRow[] (the connected memory + sharedEntities weight).
+      MUST-HAVE contract: exclude seeds, scope-confine candidates (EC-2 ADR D5), honor limit.
+      Distinct from MemoryGraphStore (2 methods, upsert+list, for write; this is read-only recall-time).
+    recommended_action: PASS
+
+  - id: F-wire-9
+    severity: PASS
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 1
+    plan_ref: T4.2 — production impl
+    summary: "PASS: PgGraphExpansionStore exports real JOIN impl"
+    evidence: |
+      File exists and exports class PgGraphExpansionStore implements GraphExpansionStore.
+      Implements expandByEntities via 1-2 hop SQL JOINs (entities + entity_edges tables).
+      Threaded into config via factory at line 40.
+    recommended_action: PASS
+
+  - id: F-wire-10
+    severity: PASS
+    file: packages/core/src/infrastructure/db/in-memory-graph-expansion-store.ts
+    line: 1-10
+    plan_ref: T4.1 — test impl
+    summary: "PASS: InMemoryGraphExpansionStore provides test-time graph traversal"
+    evidence: |
+      File exists and exports class InMemoryGraphExpansionStore implements GraphExpansionStore.
+      Test file in-memory-graph-expansion-store.test.ts (line 10) imports it.
+      Covers traversal semantics: shared-entity weight, seed exclusion, scope-confinement, limit.
+      Real caller: the test suite. NOT orphaned. NOT exported from public barrel (correct — internal).
+    recommended_action: PASS
+
+  - id: F-wire-11
+    severity: PASS
+    file: packages/core/src/domain/index.ts
+    line: 242-246
+    plan_ref: T1 — public API exports
+    summary: "PASS: GraphExpansionStore DIP exported as TYPE (not VALUE)"
+    evidence: |
+      domain/index.ts lines 242-246 export type { GraphExpansionStore, ExpandByEntitiesParams, GraphExpansionRow }
+      Exports are TYPES only (interface), not the implementation classes.
+      Pattern matches MemoryGraphStore export (T3.2) — DIP TYPE is public, impls are factory-internal.
+      Consistent with ADR-0008 (don't ship impls unless there's a sub-package reason).
+    recommended_action: PASS
+
+  - id: F-wire-12
+    severity: PASS
+    file: tests/integration/p0-audit/exports-contract.test.ts
+    line: 61
+    plan_ref: T1.2 — contract test
+    summary: "PASS: exports-contract.test.ts expects 56 exports (reconciled with new graph DIP)"
+    evidence: |
+      exports-contract.test.ts line 61: expect(blocks.length).toBe(56)
+      Comment explains: 54 baseline + 2 ontology exports + 1 reranker (Item 23) + now 3 graph-expansion exports
+      (GraphExpansionStore + ExpandByEntitiesParams + GraphExpansionRow).
+      Test suite passes: 144 passed (confirms count matches).
+    recommended_action: PASS
+
+  - id: F-wire-13
+    severity: PASS
+    file: packages/core/src/domain/index.ts
+    line: 239
+    plan_ref: T1 — @see closure
+    summary: "PASS: GraphExpansionStore export has @see cross-refs to plan + blueprint"
+    evidence: |
+      domain/index.ts line 239: @see .claude/knowledge-base/plans/graph-aware-recall-plan.md
+      JSDoc block above the export (lines 232-246) has two @see refs: plan (ADR D1+D5) and ADR-0008.
+      Meets P0 sub-goal 1 (every public export cross-referenced).
+    recommended_action: PASS
+
+  - id: F-wire-14
+    severity: PASS
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 347
+    plan_ref: T4.2 + T5 — cache bypass when graphExpand is set
+    summary: "PASS: scoped-memory correctly adds graphExpand to cacheApplicable guard"
+    evidence: |
+      scoped-memory.ts line 347: options?.graphExpand === undefined is part of the cacheApplicable check.
+      When graphExpand is requested, cache is bypassed. Consistent with ADR D3 rationale:
+      cache key does not encode the graph expansion decision, so serving a cached pool would be wrong.
+      Mirrors rerank, asOf, attributedTo bypasses.
+    recommended_action: PASS
+
+  - id: F-wire-15
+    severity: PASS
+    file: npm pack dry-run
+    line: N/A
+    plan_ref: T1.2 — bundle verification
+    summary: "PASS: npm pack --dry-run ships graph-expansion files"
+    evidence: |
+      npm pack output includes:
+      - dist/domain/dip/graph-expansion-store.d.ts + .js + maps
+      - dist/infrastructure/db/pg-graph-expansion-store.d.ts + .js + maps
+      - dist/infrastructure/db/in-memory-graph-expansion-store.d.ts + .js + maps
+      All compiled artifacts present in the distribution.
+    recommended_action: PASS
+
+  - id: F-wire-16
+    severity: PASS
+    file: git diff statistics
+    line: N/A
+    plan_ref: overall scope
+    summary: "PASS: diff scope is complete and focused"
+    evidence: |
+      Files modified/added: 23 total
+      New DIP interface (1), implementation classes (2), retrieval integration (2), config (2),
+      options (1), events (1), tests (3), exports/validation (2), CHANGELOG (1), plan/review docs (7).
+      Zero orphan modules. Zero dead imports. Diff is cohesive to the graph-aware-recall feature.
+    recommended_action: PASS
+
+summary: |
+  WIRING TRIAD VALIDATION: PASS (3/3 pillars honest)
+
+  Pillar (a) CALLER — HONEST PASS:
+  - Factory auto-defaults PgGraphExpansionStore when entityBoost !== false + Pgvector available
+  - Scoped-memory threads config.graphExpansionStore into pipeline deps (conditional spread)
+  - Pipeline Step 8.7 calls expandByEntities when both store is wired AND options.graphExpand is set
+  - Fail-soft error handling: errors emit recall_graph_failed event, return original pool (ADR D4)
+
+  Pillar (b) INTEGRATION TEST — HONEST PASS:
+  - Real pgvector container, deterministic embedder, entity extractor
+  - Test 1: graphExpand ON surfaces below-threshold memory via shared entity; semantic ranking preserved
+  - Test 2: scope isolation confirmed — different-user memory does NOT surface (EC-2 filter working)
+  - Both test methods exercise the full write + read pipeline, NOT just imports
+
+  Pillar (c) RUNTIME METRIC — HONEST PASS:
+  - recall_graph_expanded emitted with context (seeds count, expanded count, hops) at pipeline.ts:284
+  - recall_graph_failed emitted with error diagnostic at pipeline.ts:293
+  - Both events in MEMORY_EVENTS union and properly typed
+  - Integration test verifies recall_graph_expanded event fires in OTel spans (observable signal)
+
+  NO DEAD CODE, NO ORPHAN EXPORTS:
+  - GraphExpansionStore DIP TYPE is public (domain/index.ts)
+  - PgGraphExpansionStore is the real caller (factory wiring)
+  - InMemoryGraphExpansionStore has real caller (test suite)
+  - RecallOptions.graphExpand properly scoped (opt-in, default OFF)
+  - Cache bypass guard (cacheApplicable) correctly updated
+
+  TESTS PASSING: 144 passed | 1 skipped (145 total), no failures

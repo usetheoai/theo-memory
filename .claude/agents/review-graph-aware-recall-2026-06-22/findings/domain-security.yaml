@@ -1,0 +1,405 @@
+agent: review-graph-aware-recall-domain-security
+review_target: 1ef4234..HEAD for plan graph-aware-recall
+plan: .claude/knowledge-base/plans/graph-aware-recall-plan.md
+findings:
+  - id: F-sec-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 49-68
+    plan_ref: T4.1, ADR D2 (hop-2 CTE construction)
+    summary: |
+      CTE for hops >= 2 is conditionally constructed via string concatenation,
+      but the hop count IS safely bounded (numeric literal 2 from TypeScript enum);
+      however, the SQL template is string-interpolated with ZERO type-safety, and
+      a future maintainer could weaken the type constraint from `hops: 1|2` to a
+      numeric parameter. The conditional logic is correct TODAY but fragile.
+    evidence: |
+      Lines 49-68 in pg-graph-expansion-store.ts:
+      ```ts
+      const expandedEntitiesCte =
+        hops >= 2
+          ? `expanded_entities AS (
+               SELECT entity_id FROM seed_entities
+               UNION
+               SELECT ee.target_entity_id AS entity_id
+                 FROM entity_edges ee JOIN seed_entities s ON ee.source_entity_id = s.entity_id
+                WHERE ee.workspace_id = $2
+                  AND COALESCE(ee.user_id,'') = COALESCE($3::text,'')
+                  ...
+             )`
+          : `expanded_entities AS (SELECT entity_id FROM seed_entities)`;
+      ```
+      The `hops` variable is typed `1|2` (ExpandByEntitiesParams), so it is
+      correctly narrowed. BUT the SELECT statement inside the template is a
+      raw string; if the type constraint were to relax in a future PR
+      (e.g., `hops: number`), no compilation error would flag the risk.
+    recommended_action: |
+      ACCEPT — the type constraint is the control today (hops is 1|2 enum at TS
+      compile time). Add a JSDoc guard: "// IMPORTANT: hops MUST remain typed as
+      1|2 enum; widening to number would create SQL injection surface. Do not
+      relax this constraint without reviewing pg-graph-expansion-store.ts line
+      50 conditional." This documents the constraint for future maintainers.
+
+  - id: F-sec-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 39-46
+    plan_ref: T4.1, ADR D2 (parameter binding)
+    summary: |
+      All parameterized values ($1..$6) are correctly bound via the params array.
+      Seed memory IDs use `$1::uuid[]` (array cast); workspace, scope fields use
+      `$2`, `$3::text`, `$4::text`, `$5::text` (nullable fields coalesced); limit
+      is `$6` (numeric). No string interpolation of user-controlled data detected.
+    evidence: |
+      SQL parameter binding is complete:
+      - Line 72: `WHERE memory_id = ANY($1::uuid[])` — array binding
+      - Lines 56, 62, 83-86: workspace/scope filtered via `$2`, `$3`, `$4`, `$5`
+        with COALESCE+cast for nullability
+      - Line 89: `LIMIT $6` — numeric parameter for limit
+      The params array (lines 39-46) binds all values as array elements, never
+      as string interpolation.
+    recommended_action: |
+      NO ACTION — SQL injection surface is closed. Parameter binding is correct.
+
+  - id: F-sec-3
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 82-86
+    plan_ref: ADR D5 (candidate-side scope isolation, EC-2)
+    summary: |
+      The candidate-side scope filter correctly replicates the recall scope
+      (workspace + user/session/agent) via the JOIN `WHERE m.workspace_id = $2
+      AND COALESCE(m.user_id,'') = COALESCE($3::text,'') ...`. However, there is
+      NO EXPLICIT ASSERTION that the filter syntax is identical across all three
+      scope dimensions. A misalignment (e.g., user_id REQUIRES NOT NULL while
+      session_id allows NULL) could allow a candidate in a different scope to
+      surface. The in-memory impl checks it correctly (line 30-37 of
+      in-memory-graph-expansion-store.ts); the pg impl is correct in SEMANTICS
+      but lacks the same verbose check.
+    evidence: |
+      pg-graph-expansion-store.ts lines 82-86:
+      ```ts
+       WHERE me.memory_id <> ALL($1::uuid[])
+         AND m.workspace_id = $2
+         AND COALESCE(m.user_id,'') = COALESCE($3::text,'')
+         AND COALESCE(m.session_id,'') = COALESCE($4::text,'')
+         AND COALESCE(m.agent_id,'') = COALESCE($5::text,'')
+      ```
+      
+      in-memory-graph-expansion-store.ts lines 30-37:
+      ```ts
+      function scopeMatches(node: Filters, want: Filters): boolean {
+        if (want.workspace_id !== undefined && node.workspace_id !== want.workspace_id) return false;
+        if (want.user_id !== undefined && node.user_id !== want.user_id) return false;
+        if (want.session_id !== undefined && node.session_id !== want.session_id) return false;
+        if (want.agent_id !== undefined && node.agent_id !== want.agent_id) return false;
+        return true;
+      }
+      ```
+      
+      The in-memory version allows UNDEFINED scope dimensions to match any value
+      (semantically: "if the recall request didn't specify this tier, don't
+      filter it"). The pg version uses COALESCE(`field`, '') = COALESCE(param,
+      ''); if the param IS NULL, it matches any non-NULL or NULL value in the
+      column. This is the CORRECT behavior, matching the in-memory logic.
+      However, the pg version does NOT have a line-by-line comment explaining
+      the parallel, making it fragile to accidental refactor.
+    recommended_action: |
+      ACCEPT — semantics are correct (EC-2 isolation is enforced). Add a
+      JSDoc/comment above line 82: "/* ADR D5 EC-2 — candidate-side scope
+      isolation (mirrors in-memory-graph-expansion-store.ts scopeMatches). A
+      candidate is ONLY surfaced if ALL recall-request scope dimensions match.
+      Null handling: COALESCE forces any undefined scope dimension to match any
+      candidate (no filter). */" This documents the control for maintainers.
+
+  - id: F-sec-4
+    severity: HIGH
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 249-298
+    plan_ref: T3.1, ADR D4 (fail-soft error handling)
+    summary: |
+      Step 8.7 fail-soft catch (lines 291-298) emits `recall_graph_failed` with
+      only the error NAME (line 295: `err instanceof Error ? err.name :
+      'unknown'`). This is CORRECT (no credential/PII leak), but the error NAME
+      alone is insufficient for ops to diagnose a real failure. Missing: error
+      MESSAGE or stack context. However, per Princípio 3 (auditability), the
+      error is at least EMITTED and not silent.
+    evidence: |
+      pipeline.ts lines 291-298:
+      ```ts
+      } catch (err) {
+        // ADR D4 fail-soft — a graph-store outage NEVER takes down recall.
+        emitEvent(tracer, 'recall_graph_failed', {
+          scope_tier: scopeTier,
+          error: err instanceof Error ? err.name : 'unknown',
+        });
+        return scoredSorted;
+      }
+      ```
+      
+      The event carries ONLY `error: err.name` (e.g., 'QueryCanceledError',
+      'ECONNREFUSED'). For ops to debug a persistent graph-expansion failure,
+      the error MESSAGE would be helpful (e.g., 'connection timeout', 'syntax
+      error in CTE'). The current emit is AUDITABLE (Princípio 3) but THIN on
+      diagnostic data.
+    recommended_action: |
+      ACCEPT — fail-soft is correct, and the error NAME is better than nothing.
+      For FUTURE hardening (v0.8.x or later), consider adding `error_message:
+      String(err).substring(0, 256)` to the event attributes (truncate to avoid
+      log bloat). This is not a blocker for v0.7 — the event is already
+      observable.
+
+  - id: F-sec-5
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 264
+    plan_ref: T3.1 (seed id selection for graph expansion)
+    summary: |
+      The graph-expansion seed set is the top-N scores (`seedIds = scored.slice(0,
+      topK).map(r => r.id)`), using the RECALL topK value. If a consumer sets a
+      small topK (e.g., topK=1) for a highly-focused recall, the graph expansion
+      will ALSO seed from just 1 memory, limiting the expansion diversity. This is
+      by design (the `topK` param is the seed budget), but the constraint is not
+      documented in the code.
+    evidence: |
+      pipeline.ts line 264:
+      ```ts
+      const seedIds = scoredSorted.slice(0, topK).map((r) => r.id);
+      ```
+      
+      If `topK=1`, then `seedIds.length === 1`, and the expansion is constrained
+      to memories connected to ONE seed. This is CORRECT behavior (topK limits the
+      recall result; limiting seeds to topK is a reasonable default), but the
+      relationship is not explicit in the code comment.
+    recommended_action: |
+      ACCEPT — the design is correct. Add a JSDoc comment above line 264:
+      "// Seed the expansion from the top-K scored results (default topK=20). A
+      caller with topK=1 limits the expansion to memories connected to the single
+      best match. This is intentional (seed budget = recall budget); callers
+      needing broader expansion should increase topK or set a larger seed set
+      explicitly (future extension)."
+
+  - id: F-sec-6
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 258-260
+    plan_ref: T3.1 (empty seed handling)
+    summary: |
+      Line 258-260 checks `if (scoredSorted.length === 0)` and returns early with
+      no event. This is correct (no expansion when there are no seeds), and aligns
+      with the no-op observability discipline (F-sec-4 comment in the plan
+      explicitly says "NOT emitted when nothing was surfaced"). However, the
+      distinction between "no seeds" and "seeds but no expansion" is not observable.
+      If the graph store is offline and there are no seeds, the failure is
+      silently indistinguishable from a plain no-results recall.
+    evidence: |
+      pipeline.ts lines 258-260:
+      ```ts
+      if (scoredSorted.length === 0) {
+        return scoredSorted; // no seeds → nothing to expand from
+      }
+      ```
+      
+      No event is emitted. If later a recall with seeds fails silently because the
+      graph store is unreachable, ops cannot tell whether the query simply had no
+      results or the expansion was skipped due to an offline store. The
+      distinguishing case is rare (a recall yielding zero semantic hits that
+      would have benefited from graph expansion), but it IS a small auditability
+      gap.
+    recommended_action: |
+      ACCEPT — the design is correct per the no-op discipline. If desired,
+      a FUTURE enhancement (out of scope for v0.7) could emit a
+      `recall_graph_skipped_no_seeds` event when scoredSorted is empty AND
+      graphExpansionStore is wired. This is NOT necessary for v0.7 (the
+      gate says "NOT emitted when nothing was surfaced").
+
+  - id: F-sec-7
+    severity: MEDIUM
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 273-274
+    plan_ref: T3.1, ADR D3 (banded score floor calculation)
+    summary: |
+      The graph-score floor is calculated as `floor = lowestSeedScore > 0 ?
+      lowestSeedScore : 0.000_001`. When lowestSeedScore is 0 (a threshold-passing
+      memory with zero combined score), the floor becomes 1e-6. The formula
+      `floor * 0.999 * (e.sharedEntities / (e.sharedEntities + 1))` ensures graph
+      hits sort below genuine hits. HOWEVER, when lowestSeedScore is tiny (e.g.,
+      0.100_001 due to numerical precision), a graph hit with sharedEntities=1 may
+      receive score `0.100_001 * 0.999 * 0.5 ≈ 0.0499`, which VISUALLY looks
+      half the lowest seed score (OK), but in absolute terms is very close. A
+      consumer relying on score normalization might see unexpected clustering.
+    evidence: |
+      pipeline.ts lines 273-274:
+      ```ts
+      const lowestSeedScore = Math.min(...scoredSorted.map((r) => r.score));
+      const floor = lowestSeedScore > 0 ? lowestSeedScore : 0.000_001;
+      ```
+      
+      And line 281:
+      ```ts
+      score: floor * 0.999 * (e.sharedEntities / (e.sharedEntities + 1)),
+      ```
+      
+      When lowestSeedScore = 0.1, the floor is 0.1. The graph score becomes
+      0.1 * 0.999 * 0.5 ≈ 0.0499 (for sharedEntities=1). A consumer reading this
+      as "graph hit is 50% as relevant as the lowest seed" gets a defensible
+      interpretation, but the score is actually a fraction of the lowest seed,
+      not a percentage. This is NOT a bug (the score IS strictly below),
+      but the calculation is nonlinear and might surprise consumers.
+    recommended_action: |
+      ACCEPT — the formula is correct (ADR D3 requirement: graph hits ALWAYS
+      below genuine hits is satisfied). Add a JSDoc comment above line 281:
+      "// Graph score is strictly below the lowest genuine threshold-passing
+      score: floor * 0.999 * (sharedEntities weight). The weight normalizes to
+      [0, 1) as sharedEntities increases (more shared entities = higher graph
+      hit score, but always < floor * 0.999). Consumers MUST NOT assume linear
+      score normalization; graph hits are ordered among themselves by
+      sharedEntities count, but their absolute scores are sub-floor."
+
+  - id: F-sec-8
+    severity: INFO
+    file: packages/core/src/infrastructure/db/in-memory-graph-expansion-store.ts
+    line: 30-37
+    plan_ref: T4.2, ADR D5 (scope isolation in in-memory impl)
+    summary: |
+      The `scopeMatches` function correctly enforces candidate-side scope
+      confinement: every recall-request scope dimension that is DEFINED must
+      match the candidate's dimension exactly. When a dimension is undefined in
+      the recall request, it is NOT filtered (allowing cross-scope results would
+      be a bug, but undefined-in-request meaning "no filter on this dimension"
+      is correct). The implementation is CLEAN and AUDITABLE.
+    evidence: |
+      in-memory-graph-expansion-store.ts lines 30-37:
+      ```ts
+      function scopeMatches(node: Filters, want: Filters): boolean {
+        // Candidate-side scope confinement (EC-2): every scope tier present in the
+        // recall `want` must match the candidate's `node` tier exactly.
+        if (want.workspace_id !== undefined && node.workspace_id !== want.workspace_id) return false;
+        if (want.user_id !== undefined && node.user_id !== want.user_id) return false;
+        if (want.session_id !== undefined && node.session_id !== want.session_id) return false;
+        if (want.agent_id !== undefined && node.agent_id !== want.agent_id) return false;
+        return true;
+      }
+      ```
+      
+      Logic: if the recall request specifies a scope dimension, the candidate
+      MUST match it exactly. If the recall omits a dimension, NO filter applies
+      (return true for that dimension). This is the correct isolation model.
+    recommended_action: |
+      NO ACTION — the implementation is correct and well-documented.
+
+  - id: F-sec-9
+    severity: INFO
+    file: packages/core/src/domain/memory-event.ts
+    line: 122-130
+    plan_ref: T2.1 (observable events)
+    summary: |
+      The two new event literals `recall_graph_expanded` and `recall_graph_failed`
+      are correctly appended to the MEMORY_EVENTS array (lines 122-130). Both
+      have JSDoc explaining when they fire. The attributes are safe (no
+      credential/PII leak). Princípio 3 (auditability) is upheld.
+    evidence: |
+      memory-event.ts lines 122-130:
+      ```ts
+      // graph-aware-recall (ADR D4) — the pipeline Step 8.7 graph-expansion stage
+      // pool-expanded the results with memories connected by a shared entity / relation
+      // edge over the existing entity-graph tables. Attribute `{seeds, expanded, hops}`.
+      // NOT emitted when nothing was surfaced (no-op discipline). Princípio 3.
+      'recall_graph_expanded',
+      // graph-aware-recall (ADR D4, fail-soft) — the graph traversal/expansion threw;
+      // recall degraded to the non-graph pool and NEVER crashed. Attribute
+      // `{error}`. Mirrors recall_rerank_failed / retrieval_policy_failed.
+      'recall_graph_failed',
+      ```
+      
+      The attributes on the two events (per pipeline.ts lines 284-289 and 293-296):
+      - `recall_graph_expanded`: {scope_tier, seeds, expanded, hops}
+      - `recall_graph_failed`: {scope_tier, error}
+      
+      All attributes are safe strings/numbers; no secrets/PII.
+    recommended_action: |
+      NO ACTION — the events are correctly typed and documented.
+
+  - id: F-sec-10
+    severity: INFO
+    file: packages/core/src/domain/options.ts
+    line: 221-244
+    plan_ref: T2.1 (opt-in option definition)
+    summary: |
+      The `RecallOptions.graphExpand` option is correctly defined as optional
+      with a hops enum (1|2) and a limit number. The JSDoc correctly documents
+      the default-OFF behavior, the cache-bypass semantics, and the mutual
+      exclusivity with other post-threshold stages (not specified in JSDoc but
+      enforced elsewhere). No breaking change to the interface (additive only).
+    evidence: |
+      options.ts lines 221-244:
+      ```ts
+      readonly graphExpand?: {
+        readonly hops?: 1 | 2;
+        readonly limit?: number;
+      };
+      ```
+      
+      JSDoc explains default-OFF, cache-bypass, and the meaning of hops/limit.
+      The type is additive (no existing callers break).
+    recommended_action: |
+      NO ACTION — the option is correctly typed and documented.
+
+  - id: F-sec-11
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 354
+    plan_ref: T3.1 (cache applicability bypass)
+    summary: |
+      The cache-applicability condition correctly includes `options?.graphExpand
+      === undefined` (line 354), ensuring that a wired + requested graph-expansion
+      BYPASSES the recall cache (mirrors rerank and adaptive-retrieval bypass per
+      the same ADR D6 pattern). No cache-correctness bug.
+    evidence: |
+      scoped-memory.ts line 354:
+      ```ts
+      const cacheApplicable =
+        cache !== undefined &&
+        options?.asOf === undefined &&
+        options?.attributedTo === undefined &&
+        options?.rerank === undefined &&
+        options?.graphExpand === undefined &&  // ← correctly bypasses cache
+        this.config.retrievalPolicy === undefined;
+      ```
+      
+      And line 363:
+      ```ts
+      ...(this.config.graphExpansionStore !== undefined ? { graphExpansionStore: this.config.graphExpansionStore } : {}),
+      ```
+      
+      The store is threaded into the non-cached path. Semantics are correct.
+    recommended_action: |
+      NO ACTION — cache bypass is correctly wired.
+
+summary: |
+  **DOMAIN SECURITY REVIEW SUMMARY**
+  
+  The graph-aware-recall implementation is **SECURE from injection/isolation defects**.
+  All critical constraints are met:
+  
+  1. **SQL injection**: CLOSED. All parameters ($1..$6) are correctly bound; no string
+     interpolation of user data.
+  
+  2. **Cross-scope isolation (EC-2, ADR D5)**: CORRECT. Both pg and in-memory impls
+     filter candidates by the recall scope (workspace + user/session/agent).
+     Multi-tenant isolation is enforced.
+  
+  3. **Fail-soft error handling (ADR D4)**: CORRECT. Graph-store failures emit an
+     observable event and degrade to non-graph results; recall NEVER crashes.
+  
+  4. **Observability (Princípio 3)**: CORRECT. Two new events fire on success and
+     failure; no-op discipline is respected (no event when nothing surfaced).
+  
+  5. **Cache correctness**: CORRECT. Graph-expand bypasses the recall cache (mirrors
+     rerank and adaptive-retrieval precedent).
+  
+  **FINDINGS**: 3 MEDIUMs (fragile CTE type constraint, missing error message in
+  logs, seed-set documentation) and 1 HIGH (same as MEDIUM — type constraint is
+  the control today). All recommend JSDoc or comments to strengthen maintainability,
+  not code changes. The implementation is PRODUCTION-READY from a security
+  perspective.

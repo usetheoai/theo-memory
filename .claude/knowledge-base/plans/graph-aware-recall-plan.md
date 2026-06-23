@@ -94,6 +94,7 @@ No new dependency. The traversal is pure SQL over 3 existing tables; the in-memo
 **Alternatives:** boost-in-pool-only (rejected — can't surface new rows); unbounded graph score (rejected — weak graph links would outrank strong semantic hits).
 **Consequences:** the score function is documented + unit-tested; graph hits append at the tail, ordered by shared-entity weight.
 **EC-1 absorption (edge-case-plan):** Step 8.7 dedups against the existing pool — rows whose id is already in `scored` are skipped (a `Set(scored.ids)` guard) so a connected-AND-threshold-passing memory is never duplicated.
+**Score-formula refinement (review F-xval-2):** the shipped band is `floor * GRAPH_SCORE_BAND_FACTOR(0.999) * (sharedEntities/(sharedEntities+1))` where `floor = min(score)` over the WHOLE threshold-passing pool. Contract-equivalent to the ADR's `min(lowestSeedScore, threshold) * f(...)` (post-threshold `lowestSeedScore >= threshold`, so both guarantee strictly-below); the named constant + full-pool floor make the "never outrank a genuine hit" invariant explicit.
 
 ### D5 — Candidate-side scope isolation (no cross-scope leak)
 **Decision:** the traversal JOIN filters the CANDIDATE memory by the recall `filters` (workspace + user/session/agent), not only the seed. A memory in a DIFFERENT scope that merely shares an entity is NEVER surfaced.

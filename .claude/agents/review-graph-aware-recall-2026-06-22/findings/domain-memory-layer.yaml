@@ -1,0 +1,326 @@
+agent: review-graph-aware-recall-domain-memory-layer
+review_target: 1ef4234..HEAD for feature graph-aware-recall
+plan: .claude/knowledge-base/plans/graph-aware-recall-plan.md
+findings:
+  - id: F-mem-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 70-90
+    plan_ref: T4.1 ADR D2 D5
+    summary: SQL SELECT projections match rowToResult contract; all memory columns accounted for including confirmation_count
+    evidence: |
+      The SELECT clause (lines 75-78) projects all columns required by `MemoriesRow` and read by `rowToResult`:
+      - Primary: id, text, hash, payload, workspace_id, user_id, session_id, agent_id
+      - v1.1 (T2.1): attributed_to, confirmation_count
+      - v0.6: category, kind, code, description, code_language, derived_from, superseded_by
+      
+      All are projected before the `GROUP BY m.id`, ensuring rowToResult can build VectorStoreResult DTO
+      without a second fetch. Byte-identical to normal search SELECT.
+    recommended_action: No action required; projection is complete.
+
+  - id: F-mem-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 71-90
+    plan_ref: T4.1 ADR D5 EC-2
+    summary: Scope isolation enforced via candidate-side filter + edge-side filter; cross-scope entities cannot surface
+    evidence: |
+      EC-2 / ADR D5 candidate-side scope filter on line 83-86:
+      ```sql
+      WHERE me.memory_id <> ALL($1::uuid[])
+        AND m.workspace_id = $2
+        AND COALESCE(m.user_id,'') = COALESCE($3::text,'')
+        AND COALESCE(m.session_id,'') = COALESCE($4::text,'')
+        AND COALESCE(m.agent_id,'') = COALESCE($5::text,'')
+      ```
+      
+      Hop-2 edge-side filter on lines 56-59, 63-66 (entity_edges scope columns):
+      ```sql
+      WHERE ee.workspace_id = $2
+        AND COALESCE(ee.user_id,'') = COALESCE($3::text,'')
+        AND COALESCE(ee.session_id,'') = COALESCE($4::text,'')
+        AND COALESCE(ee.agent_id,'') = COALESCE($5::text,'')
+      ```
+      
+      Both enforce workspace + tier isolation. The `entities_scope_type_key_uq` UNIQUE index (migration 0018)
+      partitions entities by scope, so two different users' memories cannot resolve to the SAME entity_id.
+      Test assertion (graph-aware-recall.test.ts:124-142) validates cross-user isolation.
+    recommended_action: No action required; scope isolation is correct.
+
+  - id: F-mem-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 82
+    plan_ref: T4.1 EC-1
+    summary: Seed exclusion filter `me.memory_id <> ALL($1::uuid[])` is correct and injection-safe
+    evidence: |
+      Parameterized exclusion (line 82) prevents seeds from re-surfacing:
+      ```sql
+      WHERE me.memory_id <> ALL($1::uuid[])
+      ```
+      
+      $1 bound to seedMemoryIds (array of uuid strings, line 40). Postgres array-to-param binding is safe.
+      The `<> ALL()` operator correctly filters: a memory is included IFF its id is not in the seed set.
+      All three implementations (Pg + InMemory + test) enforce EC-1.
+    recommended_action: No action required; seed exclusion is injection-safe.
+
+  - id: F-mem-4
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 87
+    plan_ref: T4.1 ADR D2
+    summary: GROUP BY m.id lacks Postgres functional-dependency justification in JSDoc; technically valid but risky for future maintainers
+    evidence: |
+      Line 87: `GROUP BY m.id`
+      
+      The query projects m.id, m.text, m.hash, m.payload, m.workspace_id, m.user_id, m.session_id, m.agent_id,
+      m.attributed_to, m.category, m.kind, m.code, m.description, m.code_language, m.derived_from, m.superseded_by,
+      m.confirmation_count — 17 columns from memories table in aggregate without aggregation functions.
+      
+      In Postgres, this is LEGAL because m.id is the PRIMARY KEY, making all other columns functionally
+      dependent per the PK constraint (memories PK on id, line 2 of 0000_crazy_mimic.sql).
+      However, the JSDoc (lines 1-14) does not DOCUMENT this assumption. A future maintainer adding
+      a non-aggregated column from a different table (e.g., a JOIN to entity) without GROUP BY inclusion
+      would create a silent correctness defect (Postgres would raise an error, but the risk is documented
+      indistinctly).
+      
+      Risk: moderate. Postgres will error if the assumption breaks, preventing silent data corruption.
+      But the JSDoc should note the functional-dependency constraint.
+    recommended_action: Add a one-line comment above GROUP BY explaining the functional-dependency assumption, e.g. "// PK dependency: m.id → all other m.* columns".
+
+  - id: F-mem-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 48-68
+    plan_ref: T4.1 ADR D2
+    summary: Hop-2 CTE expansion is correct; UNION correctly de-duplicates seed entities and edge targets
+    evidence: |
+      Hop-1 (default): expanded_entities = seed_entities (identity).
+      
+      Hop-2: expanded_entities = seed_entities UNION (edge targets FROM seed sources) UNION (edge sources TO seed targets).
+      
+      The UNION (lines 51-68) correctly dedups the entity_id set so `expanded_entities` contains:
+      - All seed entity_ids (seed_entities)
+      - All entity_ids REACHABLE via one edge hop (both directions: source→target and target←source)
+      
+      The two UNION branches correctly enforce edge-side scope filtering (EC-2), so only same-scope edges
+      contribute targets/sources. The self-join pattern (JOIN seed_entities on source/target) is correct.
+    recommended_action: No action required; CTE hop logic is sound.
+
+  - id: F-mem-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 92-96
+    plan_ref: T4.1
+    summary: Result mapping correctly converts string count to number and reuses rowToResult DRY
+    evidence: |
+      ```ts
+      return result.rows.map((row) => ({
+        result: rowToResult(row),
+        sharedEntities: typeof row.shared_entities === 'number' ? row.shared_entities : Number(row.shared_entities),
+      }));
+      ```
+      
+      The type guard (Number coercion) is defensive; Postgres aggregate count() returns number.
+      The rowToResult reuse (line 94) avoids duplication with the normal search pipeline.
+      rowToResult already projects all columns into payload for later consumption (DSL confirmed).
+    recommended_action: No action required; mapping is correct.
+
+  - id: F-mem-7
+    severity: INFO
+    file: packages/core/src/infrastructure/db/migrations/0018_entity_nodes.sql
+    line: 1-15
+    plan_ref: T4.1 Schema
+    summary: memory_entities table and entities scope columns correctly partition entity space by scope
+    evidence: |
+      migration 0018 creates memory_entities (M:N link table) with:
+      - PK(memory_id, entity_id)
+      - FK(memory_id → memories.id, ON DELETE CASCADE)
+      - FK(entity_id → entities.id, ON DELETE CASCADE)
+      - INDEX(entity_id) for the self-join on `JOIN expanded_entities xe ON xe.entity_id = me.entity_id`
+      
+      Entities table extended with workspace_id, user_id, session_id, agent_id + UNIQUE constraint:
+      `entities_scope_type_key_uq` on (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),
+      COALESCE(agent_id,''), COALESCE(type,''), COALESCE(normalized_key,''))
+      
+      This UNIQUE constraint partitions the entity space: two users cannot resolve to the SAME entity_id
+      even if their entity NAMES are identical. The COALESCE(..., '') pattern for NULL-safe comparison matches
+      the candidate-side scope filter pattern (line 84-86 of pg-graph-expansion-store.ts).
+    recommended_action: No action required; schema is sound.
+
+  - id: F-mem-8
+    severity: INFO
+    file: packages/core/src/infrastructure/db/migrations/0019_entity_edges.sql
+    line: 1-20
+    plan_ref: T4.1 Schema
+    summary: entity_edges table structure and indexes support efficient hop-2 traversal
+    evidence: |
+      migration 0019 creates entity_edges with:
+      - PK(id, uuid)
+      - workspace_id + user_id/session_id/agent_id scope columns (match entities partition)
+      - source_entity_id, target_entity_id (UUID FKs with CASCADE)
+      - source_memory_id (provenance for Princípio 3)
+      - relation, normalized_relation (edge label)
+      - Two indexes: entity_edges_source_idx, entity_edges_target_idx
+      - UNIQUE constraint on (workspace_id, scope tiers, source_entity_id, normalized_relation, target_entity_id, source_memory_id)
+      
+      The source/target indexes support the hop-2 CTE JOINs (lines 55, 62 of pg-graph-expansion-store.ts):
+      - `JOIN entity_edges ee ON ee.source_entity_id = s.entity_id` uses entity_edges_source_idx
+      - `JOIN entity_edges ee ON ee.target_entity_id = s.entity_id` uses entity_edges_target_idx
+      
+      Both indexes are BTREE (not HNSW), correct for equality lookups.
+    recommended_action: No action required; edge schema and indexes are appropriate.
+
+  - id: F-mem-9
+    severity: INFO
+    file: packages/core/src/domain/retrieval/pipeline.ts
+    line: 249-299
+    plan_ref: T4.1 Step 8.7 ADR D3 D4
+    summary: Graph-expansion stage preserves 9-step pipeline ordering; banding ensures graph hits rank below semantic hits
+    evidence: |
+      Step 8.7 (lines 249-299):
+      1. Opt-in guard: only runs when graphExpansionStore is wired AND options.graphExpand is set (line 456).
+      2. Seed selection: top-K threshold-passing results (line 264).
+      3. Fresh dedup: filters out already-scored candidates (line 268).
+      4. No-op discipline: emits no event when fresh.length = 0 (line 270).
+      5. Banding: graph hits scored strictly below lowest semantic hit via:
+         ```ts
+         const floor = lowestSeedScore > 0 ? lowestSeedScore : 0.000_001;
+         score: floor * 0.999 * (e.sharedEntities / (e.sharedEntities + 1))
+         ```
+         This ensures every graph hit ranks BELOW every semantic hit (Princípio 2 — priorização via genuine signal).
+      6. Fail-soft: exception degrades to cosine order, recall never throws (line 291-298).
+      7. Sorting: merged pool re-sorted descending (line 283).
+      
+      The ordering ensures: genuine semantic results → graph-expanded results → final topK truncation.
+      Byte-identical to v1.5 when graphExpand is undefined (opt-in per ADR D3).
+    recommended_action: No action required; Step 8.7 is correct.
+
+  - id: F-mem-10
+    severity: INFO
+    file: packages/core/src/domain/memory-event.ts
+    line: 122-131
+    plan_ref: T4.1 Princípio 3
+    summary: Graph-expansion events (recall_graph_expanded, recall_graph_failed) correctly honor Princípio 3 observability
+    evidence: |
+      Line 122-130:
+      - `recall_graph_expanded` (line 126): emitted ONLY when fresh.length > 0 (no-op discipline).
+        Attributes: {seeds, expanded, hops}. Per line 270 of pipeline.ts, NOT emitted when no surfaces.
+      - `recall_graph_failed` (line 130): emitted when traversal throws. Distinct from low-confidence outcome.
+        Attributes: {error}. Mirrors recall_rerank_failed / retrieval_policy_failed fail-soft pattern.
+      
+      Both follow the MEMORY_EVENTS union type (lines 16-131). No silent IGNOREs; every decision observable
+      (Princípio 3 per CLAUDE.md § IMPORTANTE).
+    recommended_action: No action required; events are correctly shaped.
+
+  - id: F-mem-11
+    severity: INFO
+    file: packages/core/src/infrastructure/db/in-memory-graph-expansion-store.ts
+    line: 30-67
+    plan_ref: T4.2 Test mirror
+    summary: InMemoryGraphExpansionStore implements identical traversal semantics (test mirror compliance)
+    evidence: |
+      Lines 30-67 implement the SAME contract as PgGraphExpansionStore:
+      - EC-1 seed exclusion (line 57): `if (seedSet.has(n.memoryId)) continue;`
+      - EC-2 scope confinement (line 58): `if (!scopeMatches(n.filters, params.filters)) continue;`
+      - Hop-1 AND hop-2 support (algorithm depends on params.hops, which the test sets).
+      - Shared-entity weight via filter count (line 59): `n.entityIds.filter((e) => seedEntities.has(e)).length`
+      - Sorting by weight descending (line 64).
+      - Limit bounding (line 65).
+      
+      The scopeMatches() function (lines 30-38) correctly replicates the COALESCE pattern of the SQL filter.
+      Test mirror is byte-correct and prevents Pg-specific SQL bugs from escaping unit tests.
+    recommended_action: No action required; test mirror is sound.
+
+  - id: F-mem-12
+    severity: INFO
+    file: tests/integration/graph-aware-recall.test.ts
+    line: 77-143
+    plan_ref: T5.1 GOAL
+    summary: GOAL test validates both features (graph expansion ON/OFF) and scope isolation; test structure is sound
+    evidence: |
+      Test 1 (lines 94-122):
+      - Crafted embeddings: memory A (MATCH) near query, memory B (FAR) far but same entity.
+      - Baseline (no graphExpand): only A surfaces (below-threshold filtering works).
+      - Expanded (graphExpand:{}): both A and B surface, A ranks first (banding correct).
+      - Event assertion: recall_graph_expanded emitted.
+      
+      Test 2 (lines 124-142):
+      - Cross-user isolation: carol's seed A surfaces; dave's far memory (same entity name) does NOT.
+      - Validates EC-2 scope isolation + entities_scope_type_key_uq partitioning.
+      
+      Both tests use deterministic crafted embeddings (vectorspace dimension DIM=8) to avoid flakiness.
+      Fixtures (queueLlm, sharedEntityExtractor) are stubs, not external LLM/extraction calls.
+    recommended_action: No action required; test coverage is complete.
+
+  - id: F-mem-13
+    severity: INFO
+    file: packages/core/src/domain/options.ts
+    line: 241-244
+    plan_ref: T4.1 ADR D3 D4 D5
+    summary: RecallOptions.graphExpand contract is correctly documented; default OFF (byte-identical)
+    evidence: |
+      Lines 241-244:
+      ```ts
+      readonly graphExpand?: {
+        readonly hops?: 1 | 2;
+        readonly limit?: number;
+      };
+      ```
+      
+      JSDoc (lines 221-239):
+      - Princípio 2: priorização via structural signal.
+      - DEFAULT OFF: omit or wire no store ⇒ byte-identical to today (ADR D3 opt-in).
+      - Fail-soft (ADR D4): a store outage degrades gracefully.
+      - Scope confinement (ADR D5 / EC-2): candidate-side filter enforced.
+      - Cache bypass: graphExpand requests skip the semantic recall cache (cache key does not encode graphExpand).
+      - hops: 1 (default) or 2 (opt-in).
+      - limit: fan-out guard (default topK).
+      
+      Contract is complete and matches implementation (pipeline.ts line 456-467).
+    recommended_action: No action required; API contract is clear.
+
+  - id: F-mem-14
+    severity: INFO
+    file: packages/core/src/domain/dip/graph-expansion-store.ts
+    line: 1-67
+    plan_ref: T4.1 DIP
+    summary: GraphExpansionStore DIP correctly specifies the recall-time entity-graph traversal port; one method per ADR-0008
+    evidence: |
+      DIP definition (lines 60-66):
+      - Single method `expandByEntities(params: ExpandByEntitiesParams)`.
+      - Returns `readonly GraphExpansionRow[]` (connected memory + sharedEntities weight).
+      - DIP boundary discipline (lines 29-31): ZERO I/O, ZERO infrastructure imports. Impls: Pg + InMemory.
+      - Contract: seed exclusion (EC-1), scope confinement (EC-2), limit bounding, fail-safe for async I/O.
+      
+      One method fits ADR-0008 method-count cap (6 verbs + 10 DIPs, max 1-2 methods per DIP).
+      Distinct from MemoryGraphStore (2 methods: upsert + list for the write path).
+      Recall-time traversal is a separate read concern.
+    recommended_action: No action required; DIP is sound.
+
+summary_by_severity:
+  BLOCKER: 0
+  HIGH: 1
+  MEDIUM: 0
+  LOW: 0
+  INFO: 13
+
+overall_verdict: READY_FOR_MERGE
+overall_rationale: >
+  The SQL JOIN traversal is CORRECT and INJECTION-SAFE. The schema (memory_entities, entity_edges)
+  properly partitions entities by scope and provides indexes for efficient hop-2 traversal. Scope
+  isolation (EC-2) is enforced at both the candidate-side and edge-side, preventing cross-scope
+  leakage. Seed exclusion (EC-1) is parameterized and safe. The 9-step pipeline correctly preserves
+  ordering; graph hits are banded strictly below semantic hits (Princípio 2 — priorização). Events
+  (recall_graph_expanded, recall_graph_failed) honor Princípio 3 observability; no-op discipline
+  prevents log flooding. The test mirror (InMemoryGraphExpansionStore) replicates SQL semantics
+  exactly. The GOAL test validates both feature (graphExpand ON/OFF) and scope isolation (cross-user).
+  
+  ONE HIGH finding (JSDoc GROUP BY comment) is a documentation gap, not a correctness defect.
+  Postgres functional-dependency assumes all m.* columns are determined by m.id (PK), which is
+  mathematically sound. A future maintainer should document this assumption to prevent accidental
+  violations. Recommended action: add a one-line JSDoc note.
+  
+  No paper-name violations detected. No missing column projections. No embedding-dimension mismatches.
+  All parameterization is correct. Scope filters on both memory candidate and edge traversal match.
+  The threshold-passing seed selection (topK) correctly limits the graph traversal scope.
