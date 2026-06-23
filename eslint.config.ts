@@ -38,6 +38,14 @@ export default tseslint.config(
         alphabetize: { order: 'asc' },
       }],
       '@typescript-eslint/no-explicit-any': 'error',
+      // Honor the universal `_`-prefix convention for intentionally-unused params
+      // (e.g. a DIP-contract arg a given impl does not need). Without this, the
+      // recommendedTypeChecked default flags `_scope` etc. as false positives.
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
       '@typescript-eslint/consistent-type-imports': ['error', {
         prefer: 'type-imports',
         fixStyle: 'separate-type-imports',

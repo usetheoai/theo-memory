@@ -16,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.20.6] - 2026-06-23
+
+### Fixed
+- **Scoped recall no longer starved by a dense shared HNSW index (EG-6).** The COMPLETE live-test found `recall()` / `search_memory` intermittently returning 0 results in the running dev stack even though the in-scope memory existed with a healthy embedding. ROOT CAUSE: on pgvector 0.5.1 the HNSW index fetches the global `hnsw.ef_search` (default 40) nearest vectors and applies the `WHERE user_id=…` scope filter AFTER — so a sparse scope whose rows are not among the global nearest is starved to 0 (the well-documented ANN+filter recall degradation; pgvector 0.8.0 iterative scans would fix it natively but the runtime is pinned to `ankane/pgvector:v0.5.1`). This was invisible to the isolated-DB GOAL tests (all rows in-scope → no starvation). FIX: a SELECTIVE (scope-filtered) `PgvectorStore.search` now runs the vector ordering as an EXACT distance sort over the scope-filtered subset — a `MATERIALIZED` CTE filters by the scope btree FIRST, then the outer query sorts that small set by `<=>` exactly — guaranteeing recall@k regardless of shared-index density. Unscoped search (no filter — not produced by `recall()` today) keeps the plain HNSW path. NO schema/migration/DIP/public-export change, NO new dependency; returned columns + bi-temporal predicate + param order preserved. New dense-multi-scope GOAL (`tests/integration/recall-scoped-exact-search.test.ts`) proves a sparse target scope recalls its memory against real `ankane/pgvector:v0.5.1` with a deterministic non-vacuous assertion (the target ranks beyond the global ef_search frontier by exact distance, so HNSW-then-filter would return 0). The exact-vs-HNSW branch keys on the presence of any selective WHERE clause (`filter.sql`), not on param count — so a param-less clause (`excludeSuperseded` → `superseded_by IS NULL`) also takes the exact path instead of being silently dropped into the unscoped branch (closes /review ARCH-3). (recall-scoped-exact-search)
+- **Lint debt closed (Item 13 adaptive + graph-aware-recall).** Pre-existing repo-wide lint errors committed 2026-06-22 (5 files: `_scope` unused-arg false-positive, `type`-vs-`interface`, import order, unnecessary type assertion) are fixed; `eslint.config.ts` now honors the universal `^_`-prefix convention for intentionally-unused params (`argsIgnorePattern`), eliminating that false-positive class. `npm run lint` is green. (recall-scoped-exact-search)
+
 ## [0.20.5] - 2026-06-23
 
 ### Fixed

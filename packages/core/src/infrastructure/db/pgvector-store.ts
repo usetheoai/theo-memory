@@ -498,12 +498,39 @@ export class PgvectorStore implements VectorStore {
     // null-safe predicate per ADR-0011.
     const temporal = composeTemporalWhere(filters?.asOf, 2);
     const filter = composeFilters(filters, temporal.nextParamIndex);
-    const sql = `
-      SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
-             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
-             embedding <=> $1::vector AS distance
+    const cols =
+      'id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category, ' +
+      'kind, code, description, code_language, derived_from, superseded_by, confirmation_count';
+    // EG-6 (recall-scoped-exact-search): a SELECTIVE (scope-filtered) recall must
+    // NOT be starved by the HNSW global-top-`ef_search`-then-filter behavior of
+    // pgvector 0.5.1 (a sparse scope whose rows are not among the global nearest
+    // returns 0). When a filter is present, filter the scope rows FIRST via the
+    // scope btree in a MATERIALIZED CTE (the planner cannot fold it back into an
+    // HNSW plan) and sort that small subset by distance EXACTLY → recall@k correct
+    // regardless of shared-index density. Unscoped search (no filter — not produced
+    // by recall() today) keeps the plain HNSW ORDER BY path. Columns + param order
+    // `[vector, ...temporal, ...filter, topK]` are preserved across both variants.
+    // Branch on `filter.sql` (not `filter.params.length`): a param-less selective
+    // clause (`excludeSuperseded` emits `superseded_by IS NULL` with NO param) MUST
+    // also take the exact path — keying on params would route it to the unscoped
+    // branch that omits `${filter.sql}`, silently dropping the clause.
+    const hasFilter = filter.sql !== '';
+    const sql = hasFilter
+      ? `
+      WITH scoped AS MATERIALIZED (
+        SELECT ${cols}, embedding
+        FROM memories
+        WHERE ${temporal.sql}${filter.sql}
+      )
+      SELECT ${cols}, embedding <=> $1::vector AS distance
+      FROM scoped
+      ORDER BY distance ASC
+      LIMIT $${filter.nextParamIndex}
+    `
+      : `
+      SELECT ${cols}, embedding <=> $1::vector AS distance
       FROM memories
-      WHERE ${temporal.sql}${filter.sql}
+      WHERE ${temporal.sql}
       ORDER BY distance ASC
       LIMIT $${filter.nextParamIndex}
     `;

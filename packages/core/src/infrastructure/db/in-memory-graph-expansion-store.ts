@@ -16,8 +16,8 @@ import type {
   GraphExpansionRow,
   GraphExpansionStore,
 } from '../../domain/dip/graph-expansion-store.js';
-import type { Filters } from '../../domain/scope.js';
 import type { VectorStoreResult } from '../../domain/dip/vector-store.js';
+import type { Filters } from '../../domain/scope.js';
 
 /** One memory's graph node: its row, its entity ids, and the scope it belongs to. */
 export interface InMemoryGraphNode {

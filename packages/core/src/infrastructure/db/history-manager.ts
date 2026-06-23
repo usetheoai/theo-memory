@@ -56,9 +56,9 @@ export class DrizzleHistoryManager implements HistoryManager {
     createdAt?: Date,
     // v0.1 history table is append-only (no soft-delete column); updatedAt + isDeleted
     // accepted from the DIP signature but persisted as createdAt + presence-of-row.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _updatedAt?: Date,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _isDeleted?: boolean,
   ): Promise<void> {
     const timestamp = createdAt ?? new Date();

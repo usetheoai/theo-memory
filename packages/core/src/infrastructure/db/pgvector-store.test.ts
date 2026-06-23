@@ -496,3 +496,48 @@ describe('PgvectorStore constructor — tracer still works via options-object (T
     expect(store).toBeDefined();
   });
 });
+
+describe('PgvectorStore.search — EG-6 scoped exact path (recall-scoped-exact-search)', () => {
+  function capturingStore() {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      return { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    return { store: new PgvectorStore(pool, { embeddingDim: 3 }), captured };
+  }
+
+  test('uses the MATERIALIZED-CTE exact path when a scope filter is present', async () => {
+    const { store, captured } = capturingStore();
+    await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice' });
+    const searchCall = captured.find((c) => c.sql.includes('embedding <=> $1::vector'));
+    expect(searchCall).toBeDefined();
+    expect(searchCall!.sql).toMatch(/MATERIALIZED/);
+    expect(searchCall!.sql).toMatch(/ORDER BY distance ASC/);
+    // scope filter param present + topK last (param order preserved).
+    expect(searchCall!.params).toContain('alice');
+    expect(searchCall!.params[searchCall!.params.length - 1]).toBe(5);
+  });
+
+  test('keeps the plain HNSW ORDER BY path when no filter is present', async () => {
+    const { store, captured } = capturingStore();
+    await store.search([0.1, 0.2, 0.3], 5);
+    const searchCall = captured.find((c) => c.sql.includes('embedding <=> $1::vector'));
+    expect(searchCall).toBeDefined();
+    expect(searchCall!.sql).not.toMatch(/MATERIALIZED/);
+    expect(searchCall!.sql).toMatch(/FROM memories/);
+  });
+
+  test('a param-less selective clause (excludeSuperseded) still takes the exact CTE path', async () => {
+    // ARCH-3: `excludeSuperseded` emits `superseded_by IS NULL` with NO param.
+    // The branch keys on filter.sql (not params.length), so the clause is NOT
+    // silently dropped into the unscoped path. Locks the footgun closed.
+    const { store, captured } = capturingStore();
+    await store.search([0.1, 0.2, 0.3], 5, { excludeSuperseded: true });
+    const searchCall = captured.find((c) => c.sql.includes('embedding <=> $1::vector'));
+    expect(searchCall).toBeDefined();
+    expect(searchCall!.sql).toMatch(/MATERIALIZED/);
+    expect(searchCall!.sql).toMatch(/superseded_by IS NULL/);
+  });
+});
