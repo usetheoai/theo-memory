@@ -1,0 +1,180 @@
+agent: review-rest-graph-aware-recall-cross-validation
+review_target: e60b441..HEAD for plan rest-graph-aware-recall
+plan: .claude/knowledge-base/plans/rest-graph-aware-recall-plan.md
+blueprint: .claude/knowledge-base/discoveries/blueprints/rest-graph-aware-recall-blueprint.md
+verdict: READY_TO_MERGE
+
+plan_tasks_summary:
+  total_tasks: 3
+  fully_implemented: 3
+  partial: 0
+  missing: 0
+  diverged: 0
+
+coverage_table:
+  - task: T1.1
+    desc: graphExpand bounded zod field on strict RecallBody
+    status: fully
+    files: [packages/api/src/server/schemas.ts, packages/api/src/server/__tests__/handlers.test.ts]
+    acceptance_criteria:
+      - criterion: "RecallBody accepts graphExpand {hops?:1|2, limit?:1..100}; rejects hops:3 + unknown inner keys (strict)"
+        satisfied: true
+        evidence: "schemas.ts:75-81 union(literal 1, literal 2) + int().min(1).max(100) + .strict(); handlers.test.ts asserts 422 on hops:3 and on bogus inner key (both observed 422 in api suite run)"
+      - criterion: "Field lands inside RecallBody (not another body); .strict()/superRefine intact"
+        satisfied: true
+        evidence: "diff inserts graphExpand between asOf and the outer .strict().superRefine(SingleScopeRefine) — both preserved"
+      - criterion: "tsc -p tsconfig.contract.json clean"
+        satisfied: true
+        evidence: "ran `tsc --noEmit -p tsconfig.contract.json` => EXIT 0"
+    dod:
+      - criterion: "schema validation tests green"
+        satisfied: true
+  - task: T1.2
+    desc: handler mapping + OpenAPI auto-derive verification
+    status: fully
+    files: [packages/api/src/server/handlers/recall.ts, packages/api/src/server/__tests__/handlers.test.ts]
+    acceptance_criteria:
+      - criterion: "POST /v1/recall with graphExpand passes it into scoped.recall options"
+        satisfied: true
+        evidence: "recall.ts destructures graphExpand from parsed.data and passes it in scoped.recall opts; handlers.test.ts asserts toHaveBeenCalledWith('q', objectContaining({graphExpand:{hops:2,limit:5}}))"
+      - criterion: "Request without graphExpand => option absent (byte-unchanged)"
+        satisfied: true
+        evidence: "handlers.test.ts asserts graphExpand:undefined passed when omitted; GOAL integration confirms FAR memory absent without graphExpand"
+      - criterion: "OpenAPI /v1/recall request schema includes graphExpand"
+        satisfied: true
+        evidence: "openapi-registration.ts:90 uses {schema: RecallBody} (auto-derive). Reviewer ran an ad-hoc test fetching GET /v1/openapi.json: JSON contains 'graphExpand' => true. NOTE: no committed test asserts this AC (see F-xval-2 INFO)"
+    dod:
+      - criterion: "vitest contract handlers.test.ts green"
+        satisfied: true
+        evidence: "api package suite 216/216 pass incl. 4 new graphExpand handler tests"
+  - task: T2.1
+    desc: GOAL integration test + full gate
+    status: fully
+    files: [tests/integration/rest-graph-aware-recall.test.ts]
+    acceptance_criteria:
+      - criterion: "REST recall with graphExpand => shared-entity below-threshold memory in results"
+        satisfied: true
+        evidence: "GOAL test it('...WITH graphExpand surfaces...') asserts texts contains FAR; ran vs real ankane/pgvector:v0.5.1 => 3/3 PASS"
+      - criterion: "REST recall without graphExpand => that memory absent (byte-unchanged)"
+        satisfied: true
+        evidence: "GOAL test asserts texts NOT contain FAR; PASS"
+      - criterion: "graphExpand {hops:3} => 422 (not 500)"
+        satisfied: true
+        evidence: "GOAL test asserts status 422; PASS"
+      - criterion: "Contract suite green; /code-quality PASS; tsc/build/lint clean"
+        satisfied: true
+        evidence: "contract tsc EXIT 0; api suite 216/216; code-quality audit PASS score 100, 0 caps"
+    dod:
+      - criterion: "vitest integration test green vs real pgvector"
+        satisfied: true
+        evidence: "reviewer ran with THEOMEM_PG_URI against themem pgvector container => 3 passed"
+      - criterion: "CHANGELOG [Unreleased] Added notes the REST surface"
+        satisfied: true
+        evidence: "CHANGELOG.md diff adds the graphExpand REST entry under [Unreleased] Added"
+
+acceptance_criteria_summary:
+  total: 13
+  satisfied: 13
+  unverified: 0
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 3
+  respected: 3
+  diverged_without_new_adr: 0
+  detail:
+    - adr: D1
+      claim: "Mirror RecallOptions.graphExpand as a bounded zod field on RecallBody"
+      respected: true
+      evidence: "zod field byte-mirrors core options.ts:241-244 ({hops?:1|2; limit?:number}); REST adds bounded limit int 1..100 + literal-union hops, an intentional DoS-guard narrowing documented in ADR D1 (parity with topK) — NOT an unauthorized divergence"
+    - adr: D2
+      claim: "One-line handler mapping; no other handler change"
+      respected: true
+      evidence: "recall.ts: one new destructured key + one passed key; resolveScope/workspaceBoundMemory/return untouched"
+    - adr: D3
+      claim: "Additive + default-OFF; rerank/adaptive REST exposure deferred"
+      respected: true
+      evidence: "only graphExpand exposed; rerank/diversify/adaptive (present in core options.ts) NOT added to RecallBody; deferral documented in implement-validate EC-4"
+
+adr_hard_claims_verified:
+  zero_new_dependency:
+    verified: true
+    evidence: "git diff e60b441..HEAD --name-only shows NO package.json and NO lockfile changed"
+  no_core_change:
+    verified: true
+    evidence: "diff name-only: no packages/core path touched; core options.ts read-only (graphExpand shipped v0.19.0)"
+  no_migration:
+    verified: true
+    evidence: "diff name-only: no migrations/*.sql touched"
+  no_new_public_export:
+    verified: true
+    evidence: "diff name-only: no domain/index.ts, no packages/*/index.ts, no p0-audit edits; graphExpand is a request-body field, not an exported symbol — export counts unchanged"
+  zod_byte_mirrors_core:
+    verified: true
+    evidence: "core RecallOptions.graphExpand = {readonly hops?:1|2; readonly limit?:number} (options.ts:241-244); zod = {hops: union(literal 1, literal 2).optional(); limit: int().min(1).max(100).optional()}.strict().optional() — shape-identical; limit is REST-bounded per ADR D1"
+
+edge_case_absorption:
+  - ec: EC-1
+    desc: invalid graphExpand -> 422 (not 500)
+    absorbed: true
+    evidence: "handlers.test.ts (hops:3 + unknown inner key) + GOAL test all assert 422; confirmed in runs"
+  - ec: EC-2
+    desc: empty graphExpand {} activates expansion with defaults
+    absorbed: true
+    evidence: "GOAL main scenario sends graphExpand:{} and surfaces FAR — confirmed PASS"
+  - ec: EC-3
+    desc: REST recall scope isolation inherited
+    absorbed: true
+    evidence: "recall.ts retains resolveScope(workspaceBoundMemory(c, memory), parsed.data); no scope-path change; documented in implement-validate"
+  - ec: EC-4
+    desc: rerank/adaptive REST exposure deferred
+    absorbed: true
+    evidence: "ADR D3 + implement-validate note; only graphExpand added"
+
+docs_claims_audit:
+  - claim: "GOAL 3/3 vs real pgvector"
+    truthful: true
+    evidence: "reviewer reran integration test => 3 passed"
+  - claim: "API package tests 216 passed"
+    truthful: true
+    evidence: "reviewer reran packages/api vitest => 24 files, 216 tests passed"
+  - claim: "/code-quality PASS (0 hard/soft caps)"
+    truthful: true
+    evidence: "audit md: PASS, score cap 100, 0 findings; consistent with the additive 2-line src diff"
+  - claim: "tsc contract clean"
+    truthful: true
+    evidence: "reviewer reran tsc -p tsconfig.contract.json => EXIT 0"
+  overclaims_detected: none
+
+no_paper_names:
+  src_clean: true
+  evidence: "git diff added lines: only mem0 token appears, and only in a .claude/knowledge-base review doc (permitted per no-paper-names-in-code.md); zero paper names in packages/api/src/** or tests/**"
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: "plan created_at 2026-06-23 same day as the feat commit; no evidence of mid-flight edit. Coverage Matrix 7/7 mapped, all tasks implemented as written."
+
+scope_creep:
+  detected: false
+  details: "every changed file is declared in the plan's Baseline Context table (schemas.ts, recall.ts, handlers.test.ts, new integration test) plus the expected audit/CHANGELOG artifacts. openapi-registration.ts was declared as 'verify, no manual edit needed' and was indeed NOT edited (auto-derive)."
+
+findings:
+  - id: F-xval-1
+    severity: INFO
+    file: packages/api/src/server/schemas.ts
+    plan_ref: ADR D1 / core options.ts:241-244
+    summary: "REST zod limit is bounded (int 1..100) while the core SDK type RecallOptions.graphExpand.limit is an open number. This is an INTENTIONAL REST-tier DoS-guard narrowing explicitly authorized by ADR D1 (parity with topK), documented in the field comment + CHANGELOG. Not a divergence — recorded for transparency."
+    evidence: |
+      core: readonly limit?: number
+      zod:  limit: z.number().int().min(1).max(100).optional()
+    recommended_action: none (compliant with ADR D1)
+  - id: F-xval-2
+    severity: LOW
+    file: packages/api/src/server/__tests__/openapi.test.ts
+    plan_ref: T1.2 Acceptance Criteria item 3 ("OpenAPI /v1/recall request schema includes graphExpand")
+    summary: "The OpenAPI auto-derive AC is satisfied at runtime (reviewer empirically confirmed GET /v1/openapi.json contains 'graphExpand'), but NO committed test asserts it. The AC relies on the structural fact that openapi-registration.ts uses {schema: RecallBody}. A one-line regression assertion would lock the AC against a future refactor that inlines a hand-written recall schema."
+    evidence: |
+      openapi-registration.ts:90 -> request body schema: RecallBody (auto-derive)
+      grep graphExpand in openapi.test.ts => no match
+      reviewer ad-hoc test: JSON.stringify(spec).includes('graphExpand') === true
+    recommended_action: "Optional: add a graphExpand assertion to openapi.test.ts. Non-blocking — the AC is met; this only hardens the regression guard."

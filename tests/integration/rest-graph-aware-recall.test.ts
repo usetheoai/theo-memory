@@ -108,6 +108,14 @@ describe.skipIf(ROOT_PG_URI === '')('rest-graph-aware-recall GOAL — graphExpan
     expect(texts).toContain(FAR); // surfaced via the entity graph over HTTP
   }, 60_000);
 
+  it('POST /v1/recall with explicit graphExpand.hops=1 also surfaces the connected memory', async () => {
+    // F-tests-7: prove an EXPLICIT hops value (not just the {} default) flows over HTTP.
+    const res = await recall({ userId: 'alice', query: QUERY, threshold: 0.1, graphExpand: { hops: 1, limit: 10 } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: { text: string }[] };
+    expect(body.results.map((r) => r.text)).toContain(FAR);
+  }, 60_000);
+
   it('POST /v1/recall WITHOUT graphExpand is byte-unchanged (B absent)', async () => {
     const res = await recall({ userId: 'alice', query: QUERY, threshold: 0.1 });
     expect(res.status).toBe(200);

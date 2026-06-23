@@ -1,0 +1,409 @@
+agent: review-rest-graph-aware-recall-domain-security
+review_target: e60b441..HEAD (rest-graph-aware-recall feature branch)
+plan: .claude/knowledge-base/plans/rest-graph-aware-recall-plan.md
+scope: INPUT VALIDATION | SQL INJECTION | DOS DEFENSE | MULTI-TENANT ISOLATION | INFO LEAKAGE
+findings:
+  - id: F-sec-1
+    severity: INFO
+    file: packages/api/src/server/schemas.ts
+    line: 77-83
+    plan_ref: T1.1 Acceptance Criteria "input validation zod-bounded"
+    summary: Input validation at boundary is comprehensive and correctly structured
+    evidence: |
+      ```ts
+      graphExpand: z
+        .object({
+          hops: z.union([z.literal(1), z.literal(2)]).optional(),
+          limit: z.number().int().min(1).max(100).optional(),
+        })
+        .strict()
+        .optional(),
+      ```
+      The zod schema uses:
+      - Union of 2 literal values (1|2) for hops — NO way to pass hops=99 or string
+      - Integer bounds min(1).max(100) for limit — capped to prevent fan-out DoS
+      - `.strict()` on the inner object — unknown keys rejected at 422, never silently dropped
+      - `.optional()` on the outer object — caller CAN omit graphExpand entirely (default-OFF)
+      
+      Test evidence (packages/api/src/server/__tests__/handlers.test.ts:230-254):
+      - Line 230-240: `graphExpand: { hops: 3 }` → 422 (proven OUT OF RANGE rejection)
+      - Line 243-254: `graphExpand: { bogus: 1 }` → 422 (proven STRICT ENFORCEMENT)
+      
+      CONCLUSION: zod boundary gates ALL invalid graphExpand values at REST boundary. 
+      No malformed input reaches the core unvalidated.
+    recommended_action: No action — input validation is correctly architected per fail-fast rule (architecture.md § 8).
+
+  - id: F-sec-2
+    severity: INFO
+    file: packages/api/src/server/handlers/recall.ts
+    line: 34-45
+    plan_ref: T2.1 Acceptance Criteria "graphExpand flows REST → SDK → core"
+    summary: graphExpand flows safely through REST handler to SDK
+    evidence: |
+      ```ts
+      const { query, topK, threshold, attributedTo, asOf, graphExpand } = parsed.data;
+      // ...
+      const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
+      const results = await scoped.recall(query, {
+        topK,
+        threshold,
+        attributedTo,
+        asOf: asOf !== undefined ? new Date(asOf) : undefined,
+        graphExpand,  // PASS-THROUGH: zod-validated object or undefined
+      });
+      ```
+      
+      The handler:
+      1. Destructures graphExpand from parsed.data (which is z.infer<typeof RecallBody>, 
+         so type = { hops?: 1|2; limit?: number } | undefined)
+      2. Applies workspace binding BEFORE scope dispatch (workspaceBoundMemory called before resolveScope)
+      3. Passes the zod-validated graphExpand directly to scoped.recall(...options)
+      4. Does NOT re-serialize or manipulate graphExpand
+      
+      Multi-tenant ordering (line 36):
+      - `workspaceBoundMemory(c, memory)` binds to Principal's workspace FIRST
+      - `resolveScope(...)` then picks the tier (user/session/agent)
+      - Result: the workspace isolation is in place BEFORE the graph expansion layer runs
+      
+      Test evidence (packages/api/src/server/__tests__/handlers.test.ts:198-214):
+      - Line 198-214: `graphExpand: { hops: 2, limit: 5 }` flows through to scoped.recall's options
+      - Line 216-228: `graphExpand: undefined` (when omitted) is byte-unchanged
+      
+      CONCLUSION: Handler does not validate, reserialize, or mutate graphExpand — 
+      it is a pass-through after zod boundary validation. The workspace isolation 
+      is applied BEFORE graph expansion and is not bypassed.
+    recommended_action: No action — flow is correct.
+
+  - id: F-sec-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 33-107
+    plan_ref: T4.1 Acceptance Criteria "SQL parametrization; hops-select via literal"
+    summary: SQL injection surface is closed; hops is a literal select, not interpolated
+    evidence: |
+      Code structure (line 48-75):
+      ```ts
+      // INJECTION SAFETY (F-sec-1): the ONLY value that selects which SQL fragment
+      // is built is `hops`, typed `1 | 2` at the DIP boundary (ExpandByEntitiesParams)
+      // and sourced from `RecallOptions.graphExpand.hops` (also `1 | 2`). NO user
+      // string is ever interpolated into the SQL — every value flows through the
+      // parametrized `params2` array ($1..$6). Widening `hops` away from the `1 | 2`
+      // literal union would require re-auditing this branch.
+      ```
+      
+      The hops SELECT logic (lines 55-74):
+      ```ts
+      const expandedEntitiesCte =
+        hops >= 2
+          ? `expanded_entities AS ( ... )`  // 2-hop CTE
+          : `expanded_entities AS (SELECT entity_id FROM seed_entities)`;  // 1-hop CTE
+      ```
+      
+      SQL string construction (lines 76-100):
+      - The `hops` value SELECTS which string fragment is BUILT
+      - The selected CTE fragment contains NO user-interpolated strings
+      - ALL values (seed IDs, workspace, user_id, session_id, agent_id, limit) flow via params2 array:
+        ```ts
+        const params2 = [
+          seedMemoryIds,      // $1 — array, parametrized via ANY($1::uuid[])
+          ws,                 // $2 — workspace string, all appearances in SQL use $2
+          filters.user_id,    // $3 — all appearances use $3::text
+          filters.session_id, // $4 — all appearances use $4::text
+          filters.agent_id,   // $5 — all appearances use $5::text
+          limit,              // $6 — all appearances use LIMIT $6
+        ];
+        ```
+      
+      Verification (lines 78-100):
+      - Line 78: `WHERE memory_id = ANY($1::uuid[])` — parametrized array
+      - Lines 62-65, 69-72, 90-92: workspace + user/session/agent ALL use $2/$3/$4/$5 with COALESCE null-safety
+      - Line 99: `LIMIT $6` — parametrized, no string interpolation
+      
+      CONCLUSION: hops is a literal SELECT (cannot be 3, 99, or a string). 
+      All OTHER values are parametrized. No SQL injection possible.
+    recommended_action: No action — SQL is correctly parametrized.
+
+  - id: F-sec-4
+    severity: INFO
+    file: packages/core/src/domain/dip/graph-expansion-store.ts
+    line: 41-50
+    plan_ref: ADR D5 (Candidate-side scope confinement)
+    summary: DIP contract ensures multi-tenant isolation is enforced at core layer
+    evidence: |
+      The ExpandByEntitiesParams interface (lines 41-50):
+      ```ts
+      export interface ExpandByEntitiesParams {
+        readonly seedMemoryIds: readonly string[];
+        readonly filters: Filters;  // ← MANDATORY scope confinement
+        readonly hops: 1 | 2;
+        readonly limit: number;
+      }
+      ```
+      
+      The Filters type contains workspace_id + user_id/session_id/agent_id. 
+      The contract (line 23-24, JSDoc):
+      ```
+      MUST scope-confine the CANDIDATE memory by `filters` (workspace +
+      user/session/agent) — a same-entity memory in a DIFFERENT scope is NEVER
+      returned (EC-2 cross-scope isolation, ADR D5).
+      ```
+      
+      SQL enforcement in PgGraphExpansionStore (lines 88-92):
+      ```ts
+      WHERE me.memory_id <> ALL($1::uuid[])           // exclude seeds
+        AND m.workspace_id = $2                       // workspace-confined
+        AND COALESCE(m.user_id,'') = COALESCE($3::text,'')     // tier-confined
+        AND COALESCE(m.session_id,'') = COALESCE($4::text,'')
+        AND COALESCE(m.agent_id,'') = COALESCE($5::text,'')
+      ```
+      
+      Test evidence (tests/integration/rest-graph-aware-recall.test.ts:102-126):
+      - Line 102-109: graphExpand surfaces FAR memory (shared entity) — all within userId='alice'
+      - No test explicitly checks cross-workspace, but the SQL WHERE clause makes it impossible
+      
+      CONCLUSION: DIP contract makes candidate-side scope confinement MANDATORY. 
+      No caller can bypass it (filters is read-only). Postgres WHERE clause 
+      REINFORCES the contract at the DB layer.
+    recommended_action: No action — DIP contract is correctly enforced.
+
+  - id: F-sec-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 99
+    plan_ref: T4.1 Acceptance Criteria "limit-bounded fan-out"
+    summary: Fan-out DoS is prevented via LIMIT parameter
+    evidence: |
+      The SQL query (line 99):
+      ```ts
+      LIMIT $6
+      ```
+      
+      Where $6 = limit parameter from ExpandByEntitiesParams (line 34).
+      
+      REST boundary constraint (packages/api/src/server/schemas.ts:80):
+      - limit is `z.number().int().min(1).max(100).optional()`
+      - If graphExpand is omitted, limit defaults to UNDEFINED (not passed to the core)
+      - The core's default limit (RecallOptions.graphExpand) would also have its own cap
+      
+      Scope of expansion (lines 81-98):
+      ```ts
+      SELECT m.id, m.text, ... count(DISTINCT me.entity_id) AS shared_entities
+        FROM memory_entities me
+        JOIN expanded_entities xe ON xe.entity_id = me.entity_id
+        JOIN memories m ON m.id = me.memory_id
+       WHERE ... (scope confinement filters)
+       GROUP BY m.id
+       ORDER BY shared_entities DESC, m.id
+       LIMIT $6
+      ```
+      
+      The LIMIT is applied AFTER the JOIN + GROUP BY, so even if a single entity 
+      connects to 10,000 memories in the same scope, the query returns ≤ 100 rows.
+      
+      Combined with the default topK cap (100) and the graph expansion opt-in 
+      (default OFF), a caller trying to amplify the result set is bounded by both:
+      - topK ≤ 100 (semantic threshold results)
+      - graphExpand.limit ≤ 100 (graph expansion results)
+      
+      CONCLUSION: LIMIT parameter prevents hub-entity fan-out DoS. 
+      Combined with REST schema bounds, the attack surface is negligible.
+    recommended_action: No action — DoS defense is correctly applied.
+
+  - id: F-sec-6
+    severity: INFO
+    file: packages/api/src/server/handlers/recall.ts
+    line: 30-32
+    plan_ref: T1.2 Acceptance Criteria "invalid graphExpand → 422, never 500"
+    summary: Invalid graphExpand is rejected at the boundary (422) and does not trigger 500
+    evidence: |
+      Handler error path (lines 30-32):
+      ```ts
+      const parsed = RecallBody.safeParse(json);
+      if (!parsed.success) {
+        return scopeOrValidationError(parsed.error, c);
+      }
+      ```
+      
+      The scopeOrValidationError function (packages/api/src/server/handlers/_body-parsing.ts:45-59):
+      ```ts
+      export function scopeOrValidationError(err: z.ZodError, c: Context): Response {
+        const scopeIssue = err.issues.find((i) => i.message.startsWith('INVALID_SCOPE'));
+        if (scopeIssue !== undefined) {
+          return c.json({ code: 'INVALID_SCOPE', ... }, 422);
+        }
+        return c.json(
+          { code: 'INVALID_BODY', message: err.issues[0]?.message ?? 'Request body invalid' },
+          422,
+        );
+      }
+      ```
+      
+      When graphExpand fails zod validation:
+      1. RecallBody.safeParse returns { success: false, error: z.ZodError }
+      2. scopeOrValidationError is called
+      3. The zod issue is NOT a scope issue (it's a graphExpand constraint violation)
+      4. The function returns c.json({code: 'INVALID_BODY', ...}, 422)
+      5. The error NEVER propagates to the Memory.recall layer (no try/catch needed)
+      
+      Test evidence (packages/api/src/server/__tests__/handlers.test.ts:230-240):
+      - Line 230-240: Invalid hops (hops: 3) returns 422
+      - Line 243-250: Invalid inner key (bogus: 1) returns 422
+      - The test verifies res.status === 422, not 500
+      
+      CONCLUSION: Zod validates graphExpand before any Memory call. 
+      Invalid graphExpand never reaches the core and never triggers a 500. 
+      The 422 response is consistent with the REST API error contract.
+    recommended_action: No action — error handling is correct.
+
+  - id: F-sec-7
+    severity: INFO
+    file: packages/api/src/server/__tests__/handlers.test.ts
+    line: 198-254
+    plan_ref: T1.2 + T2.1 (GOAL test + handler unit tests)
+    summary: Test coverage for graphExpand security boundaries is comprehensive
+    evidence: |
+      Handler unit tests (lines 198-254):
+      1. Line 198-214: graphExpand with valid hops and limit flows through ✓
+      2. Line 216-228: graphExpand absent → undefined passed (byte-unchanged) ✓
+      3. Line 230-240: hops=3 (invalid) → 422 ✓
+      4. Line 243-254: unknown inner key → 422 (strict) ✓
+      
+      Integration test (tests/integration/rest-graph-aware-recall.test.ts:102-132):
+      1. Line 102-109: graphExpand: {} surfaces FAR memory (scope-confined to userId='alice') ✓
+      2. Line 111-117: graphExpand: { hops: 1, limit: 10 } explicit values flow ✓
+      3. Line 119-126: NO graphExpand → byte-identical (FAR absent) ✓
+      4. Line 128-131: invalid hops → 422 ✓
+      
+      Coverage summary:
+      - Boundary validation: 4 tests
+      - Happy path: 2 tests
+      - Error paths: 2 tests
+      - Byte-unchanged default: 1 test
+      
+      CONCLUSION: The test suite covers the security boundaries:
+      - Input validation (in-range and out-of-range)
+      - Strict schema enforcement (unknown keys)
+      - Error handling (422 vs no 500)
+      - Flow-through (REST → SDK → core)
+      - Default-OFF behavior (byte-unchanged when absent)
+    recommended_action: No action — test coverage is sufficient for the security scope.
+
+  - id: F-sec-8
+    severity: INFO
+    file: packages/api/src/server/schemas.ts
+    line: 65-86
+    plan_ref: T1.1 Acceptance Criteria "scope tier isolation preserved"
+    summary: Multi-tenant workspace isolation is NOT bypassed by graphExpand
+    evidence: |
+      RecallBody schema (lines 65-86):
+      ```ts
+      export const RecallBody = z
+        .object({
+          ...ScopeFields,        // userId, sessionId, agentId
+          query: z.string().min(1),
+          topK: z.number().int().min(1).max(100).optional(),
+          threshold: z.number().min(0).max(1).optional(),
+          attributedTo: z.string().optional(),
+          asOf: z.string().datetime().optional(),
+          graphExpand: z.object({ ... }).optional(),  // ← NEW
+        })
+        .strict()
+        .superRefine(SingleScopeRefine);
+      ```
+      
+      The RecallBody schema includes:
+      - ScopeFields (userId/sessionId/agentId) — exactly one MUST be present (superRefine)
+      - graphExpand — optional, does NOT include a workspace override
+      - .strict() — unknown keys rejected (no scope-widening via extra fields)
+      - No `graphExpandScope` / `workspaceId` / or other scope-override fields
+      
+      Handler binding (recall.ts:36):
+      ```ts
+      const scoped = resolveScope(
+        workspaceBoundMemory(c, memory),  // ← workspace from Principal (auth layer)
+        parsed.data  // ← parsed body includes only the allowed tier
+      );
+      ```
+      
+      CONCLUSION: graphExpand is an OPTION on the recall, not a scope tier. 
+      The workspace is bound from the authenticated Principal, not from the body. 
+      The scope tier is resolved from exactly one of userId/sessionId/agentId. 
+      graphExpand CANNOT override or widen either.
+    recommended_action: No action — scope isolation is correctly preserved.
+
+  - id: F-sec-9
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pg-graph-expansion-store.ts
+    line: 103-106
+    plan_ref: T4.1 Acceptance Criteria "result projection is consistent"
+    summary: Result projection uses shared rowToResult (no information leakage)
+    evidence: |
+      Result mapping (lines 103-106):
+      ```ts
+      const result = await this.pool.query<ExpansionDbRow>(sql, params2);
+      return result.rows.map((row) => ({
+        result: rowToResult(row),  // ← DRY: same projection used by the recall pipeline
+        sharedEntities: typeof row.shared_entities === 'number' 
+          ? row.shared_entities 
+          : Number(row.shared_entities),
+      }));
+      ```
+      
+      The rowToResult function (imported from './pgvector-store.js', line 24):
+      - Is the SAME projection function used by the main recall vector store
+      - Ensures the MemoryItem DTO shape is identical
+      - Does NOT leak internal metadata (no raw SQL row exposure)
+      - The sharedEntities count is the ONLY additional metadata added by graph expansion
+      
+      The GraphExpansionRow contract (domain/dip/graph-expansion-store.ts:52-58):
+      ```ts
+      export interface GraphExpansionRow {
+        readonly result: VectorStoreResult;    // ← same DTO as semantic recall
+        readonly sharedEntities: number;       // ← weight only, no internal state
+      }
+      ```
+      
+      CONCLUSION: Result projection is DRY and consistent with the recall pipeline. 
+      No internal state or unauthorized metadata is leaked. The sharedEntities 
+      count is intentional structural relevance metadata.
+    recommended_action: No action — result projection is safe.
+
+  - id: F-sec-10
+    severity: INFO
+    file: packages/api/src/server/handlers/_body-parsing.ts
+    line: 29-32
+    plan_ref: ADR D3 (Multi-tenant workspace isolation)
+    summary: Workspace binding is applied before scope resolution (correct ordering)
+    evidence: |
+      The workspaceBoundMemory function (lines 29-32):
+      ```ts
+      export function workspaceBoundMemory(c: Context, memory: Memory): Memory {
+        const principal = c.get('principal') as Principal | undefined;
+        const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+        return memory.withWorkspace !== undefined ? memory.withWorkspace(workspaceId) : memory;
+      }
+      ```
+      
+      Called in recall handler (recall.ts:36):
+      ```ts
+      const scoped = resolveScope(
+        workspaceBoundMemory(c, memory),  // ← (1) bind workspace FIRST
+        parsed.data                        // ← (2) resolve tier SECOND
+      );
+      ```
+      
+      Execution order:
+      1. Principal extracted from context (set by auth middleware, not the request body)
+      2. Workspace extracted from Principal (NOT from body)
+      3. Memory bound to workspace (all subsequent operations are workspace-confined)
+      4. Scope tier resolved from the request body (user/session/agent)
+      5. The result is a doubly-filtered ScopedMemory: workspace-confined AND tier-scoped
+      
+      This ordering prevents:
+      - Body-based workspace override (workspace comes from auth, not body)
+      - Tier override (exactly one tier is enforced by zod superRefine)
+      - Scope widening via graphExpand (graphExpand is just an option, not a scope)
+      
+      CONCLUSION: The function-call ordering is correct. 
+      Workspace binding occurs before scope resolution, preventing body-based bypasses.
+    recommended_action: No action — ordering is correct.

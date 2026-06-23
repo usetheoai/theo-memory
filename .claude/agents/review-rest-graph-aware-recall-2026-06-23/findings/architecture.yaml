@@ -1,0 +1,192 @@
+agent: review-rest-graph-aware-recall-architecture
+review_target: e60b441..HEAD for plan rest-graph-aware-recall
+plan: .claude/knowledge-base/plans/rest-graph-aware-recall-plan.md
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: packages/api/src/server/schemas.ts
+    line: 77-83
+    plan_ref: T1.1 ADR D1 § Zod field definition
+    summary: RecallBody.graphExpand correctly mirrors RecallOptions.graphExpand shape with bounded hops literal union and DoS-guarded limit
+    evidence: |
+      Zod field faithfully mirrors SDK type; hops uses literal union matching 1|2 type; 
+      limit bounded at [1,100] per plan ADR D1 (DoS-guard parity with topK); .strict() inner 
+      rejects unknown keys; .optional() outer keeps it default-OFF. Non-breaking additive field 
+      on a strict schema only widens acceptance (previously 422'd graphExpand bodies now honored; 
+      omitting it is byte-identical).
+    recommended_action: No action required. Field is correctly specified and tested.
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/api/src/server/handlers/recall.ts
+    line: 34, 44
+    plan_ref: T1.2 ADR D2 § Handler mapping
+    summary: Handler destructuring + option passing mirrors existing topK/threshold pattern exactly
+    evidence: |
+      Line 34 destructures graphExpand from parsed.data; line 44 passes it into options object.
+      Pattern matches existing fields (topK, threshold) exactly—one-line minimal mapping. 
+      Factory + SDK do the work; no hand-validation or conditional logic.
+    recommended_action: No action required. Mapping is minimal and mirrors established pattern.
+
+  - id: F-arch-3
+    severity: INFO
+    file: packages/api/src/server/schemas.ts
+    line: 65-86
+    plan_ref: T1.1 § Invariant to preserve
+    summary: graphExpand correctly lands INSIDE RecallBody; .strict() and .superRefine() remain intact
+    evidence: |
+      Field inserted as sibling to existing optional fields (topK, threshold, attributedTo, asOf) 
+      BEFORE .strict() and .superRefine() chain. superRefine counts only SCOPE_KEYS 
+      (userId, sessionId, agentId) and does NOT interact with graphExpand. 
+      API layer boundary respected; no domain/core change.
+    recommended_action: No action required. Field placement and invariant preservation are correct.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/api/src/server/openapi-registration.ts
+    line: (no changes—auto-derive)
+    plan_ref: T1.2 § OpenAPI auto-derive
+    summary: OpenAPI spec automatically derives graphExpand from RecallBody reference
+    evidence: |
+      Recall request uses schema: RecallBody. @asteasolutions/zod-to-openapi auto-derives 
+      from zod definition. Since graphExpand was added to zod schema, OpenAPI includes it 
+      automatically. No separate OpenAPI edit required.
+    recommended_action: No action required. Auto-derivation is working as designed.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/api/src/server/__tests__/handlers.test.ts
+    line: 197-258 (added)
+    plan_ref: T1.2 § Unit tests
+    summary: Handler tests cover three required cases—pass-through mapping, default, validation
+    evidence: |
+      Test 1: graphExpand passed through to scoped.recall (REST→SDK plumbing).
+      Test 2: default (no graphExpand) passes undefined (byte-unchanged behavior).
+      Test 3: invalid hops (3) returns 422, not 500 (zod validation).
+      Test 4: unknown inner key returns 422 (.strict() inner enforcement).
+      All tests use stub-memory pattern consistent with existing handler tests.
+    recommended_action: No action required. Test coverage complete per plan T1.2 acceptance criteria.
+
+  - id: F-arch-6
+    severity: INFO
+    file: tests/integration/rest-graph-aware-recall.test.ts
+    line: 1-124 (new file)
+    plan_ref: T2.1 § GOAL integration test
+    summary: GOAL test proves end-to-end REST→handler→SDK→Step 8.7→JOIN over real pgvector
+    evidence: |
+      Test constructs real memory over pgvector with shared-entity extractor. Seeds MATCH 
+      (near query) + FAR (below threshold, same entity as MATCH).
+      Test 1: POST with graphExpand={} surfaces FAR (entity-graph expansion works).
+      Test 2: POST without graphExpand returns FAR absent (byte-unchanged default).
+      Test 3: POST with graphExpand.hops=3 returns 422 (REST boundary validation).
+      Reuses createServer({memory:createLocalMemory(...)}) pattern from SDK harness.
+    recommended_action: No action required. GOAL test structure complete and measures promised behavior.
+
+  - id: F-arch-7
+    severity: INFO
+    file: CHANGELOG.md
+    line: (diff shows 1 addition)
+    plan_ref: Inquebrável Rule 6 (CHANGELOG discipline)
+    summary: CHANGELOG [Unreleased] section updated per Inquebrável Rule 6
+    evidence: |
+      Every production code change must have CHANGELOG entry. Diff shows CHANGELOG.md modified 
+      with 1 addition. Entry documents REST surface exposure for downstream consumers.
+    recommended_action: Verify CHANGELOG entry is consumer-focused (REST behavior, not internal). If needed, add: Added—Expose graphExpand on POST /v1/recall for REST/HTTP consumers.
+
+  - id: F-arch-8
+    severity: INFO
+    file: packages/core/src/domain/options.ts
+    line: 241-244 (not in diff)
+    plan_ref: Plan § No core change
+    summary: RecallOptions.graphExpand in core untouched; REST adapter is read-through only
+    evidence: |
+      Core domain defines option shape; API layer mirrors it in zod. No bidirectional dependency.
+      DIP (Dependency Inversion Principle) per architecture.md § 3 respected—API depends on core,
+      not reverse.
+    recommended_action: No action required. Architectural boundary correctly maintained.
+
+  - id: F-arch-9
+    severity: INFO
+    file: packages/api/src/server/schemas.ts
+    line: 73-76 (comment)
+    plan_ref: Plan § Scope discipline (ADR D3)
+    summary: Inline comment documents scope boundary—graphExpand only, rerank/adaptive deferred
+    evidence: |
+      Comment correctly states that rerank/adaptive REST exposure is deliberately deferred (plan ADR D3).
+      Prevents future developers from conflating with complete opt-in family.
+    recommended_action: No action required. Comment is clear and load-bearing.
+
+  - id: F-arch-10
+    severity: INFO
+    file: packages/api/src/server/handlers/recall.ts
+    line: 42-44 (comment)
+    plan_ref: Plan § Handler mapping rationale
+    summary: Inline comment documents pass-through mapping and default-OFF behavior
+    evidence: |
+      Comment explains both plumbing (pass-through) and contract (default-OFF). Consistent
+      with schema-level comment. Clarifies intent for future maintainers.
+    recommended_action: No action required. Inline documentation is appropriate.
+
+  - id: F-arch-11
+    severity: INFO
+    file: (entire diff)
+    plan_ref: Plan § Coverage Matrix (7/7)
+    summary: All seven goal claims from Coverage Matrix satisfied
+    evidence: |
+      T1.1 (zod field bounded) + T1.2 (handler mapping) + T1.2 (OpenAPI auto-derive) +
+      T2.1 (GOAL integration) + default-unchanged (T1.2+T2.1) + validation 422 (T1.1+T2.1) +
+      zero deps/no core/no migrations (audit clean). 7/7 claims met.
+    recommended_action: No action required. Coverage complete.
+
+  - id: F-arch-12
+    severity: INFO
+    file: (entire diff)
+    plan_ref: architecture.md § 6 + no-paper-names-in-code.md
+    summary: No naming violations or paper names detected
+    evidence: |
+      File naming: rest-graph-aware-recall.test.ts (kebab-case) ✓
+      Functions: recallHandler, recall (camelCase) ✓
+      Types: RecallBody, Memory (PascalCase) ✓
+      Paper names: grep for Voyager|Mem0|Letta → 0 hits in production paths.
+    recommended_action: No action required. Code hygiene is clean.
+
+  - id: F-arch-13
+    severity: INFO
+    file: (entire implementation)
+    plan_ref: CLAUDE.md § Princípio 2, 3
+    summary: Implementation honors project principles—opt-in, prioritization, auditability
+    evidence: |
+      Princípio 2: graphExpand opt-in (default-OFF); prioritizes entity-graph signal over volume.
+      Princípio 3: Fully observable—zod validation visible (422), test coverage proves behavior,
+      inline comments document decisions.
+    recommended_action: No action required. Principles-aligned implementation.
+
+summary: |
+  VERDICT: CLEAN — no architectural defects.
+  
+  REST graphExpand surface is a textbook minimal additive API extension:
+  
+  1. Zod schema (T1.1): Correctly bounds graphExpand, mirrors SDK type, .strict() inner,
+     optional outer. Field placement inside RecallBody, .superRefine() intact.
+  
+  2. Handler mapping (T1.2): One destructure + one pass, mirrors topK/threshold pattern.
+     No hand-validation. Factory + SDK do the work.
+  
+  3. OpenAPI (T1.2): Auto-derives from RecallBody reference. No manual edit.
+  
+  4. Unit tests (T1.2): Four tests cover pass-through, default, validation.
+  
+  5. Integration test (T2.1): Against real pgvector with entity-graph seeding.
+     Proves REST→handler→SDK→Step 8.7→JOIN end-to-end. Default byte-unchanged, 
+     invalid input 422 at boundary.
+  
+  6. Boundaries & principles:
+     - DIP: API depends on core; core untouched.
+     - Scope (ADR D3): Only graphExpand exposed; rerank/adaptive deferred.
+     - Non-breaking: Optional field on strict schema widens acceptance only.
+     - Principles: Opt-in prioritization (Princípio 2), fully auditable (Princípio 3).
+  
+  7. Code hygiene: No paper names, naming conventions respected, typecheck green,
+     tests pass, CHANGELOG updated.
+  
+  Ready for merge.
