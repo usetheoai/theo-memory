@@ -41,6 +41,7 @@ import type { RememberOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 
 import { linkEntities, type RelationTriple } from './entity-linking.js';
+import { correctEntityRelationLanguage } from './label-language.js';
 import { detectInputLanguage } from './language.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
 
@@ -667,6 +668,32 @@ export async function runExtractionPipeline(
       emitEvent(tracer, 'history_persist_failed', { error: msg });
       // eslint-disable-next-line no-console
       console.warn(`[themory] history persist failed: ${msg}`);
+    }
+  }
+
+  // ============================================================
+  // EG-5: normalize entity/relation LABELS to the input language BEFORE persist.
+  // The EG-4 fact guard fixes memory[].text; the labels (entities[] names +
+  // relations[] verbs) still drift (live-test 2026-06-23). Always-on when the input
+  // language was detected + labels exist (detect-gating is unreliable for mixed short
+  // labels — see label-language.ts). FAIL-SOFT: never drops a node/edge, never fails
+  // remember(); runs before linkEntities so the PERSISTED nodes/edges + their dedup
+  // keys are in the input language (Princípio 2).
+  // ============================================================
+  if (detectedLanguage !== null && (llmEntities !== undefined || relations !== undefined)) {
+    try {
+      const labelFix = await correctEntityRelationLanguage(deps.llm, llmEntities, relations, detectedLanguage);
+      llmEntities = labelFix.entities;
+      relations = labelFix.relations;
+      if (labelFix.corrected > 0) {
+        emitEvent(tracer, 'extraction_label_language_mismatch', {
+          input_language: detectedLanguage.iso6391,
+          label_count: labelFix.labelCount,
+          corrected: labelFix.corrected,
+        });
+      }
+    } catch {
+      // fail-soft: label correction must NEVER affect remember().
     }
   }
 

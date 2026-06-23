@@ -53,17 +53,22 @@ EG-5 of `.claude/knowledge-base/roadmaps/entity-graph-dogfood-remediation-roadma
 - **Internal (the direct precedent):** EG-4 `extraction-language-determinism-fixes-cycle-1` shipped `detectInputLanguage` (`eld`) + the aggregate-detect + corrective-rewrite + fail-soft + OTel pattern for `memory[].text`. EG-5 is the same machinery applied to labels. The complete live-test report `.claude/knowledge-base/reviews/extraction-language-determinism-fixes-cycle-1-review-2026-06-23.md` records the residual EG-5 closes.
 - **Web research (EG-4, 2026-06-23):** explicit target-language + post-hoc verification with a language-ID tool is the reliable production pattern (PaLM/BLOOM wrong-language generation). EG-5 reuses the shipped `eld` detector + a focused translation call (translation is a task LLMs do reliably).
 
+## Implementation deviation (honest disclosure — Inquebrável Rule 3)
+
+ADR D1 originally proposed **aggregate-detect-then-correct** (mirror EG-4): detect the joined-labels language and only correct on a confident mismatch. During T1.1 this proved UNRELIABLE for labels (unlike facts): entity/relation labels in one extraction are SHORT and MIXED (English nouns + Portuguese ones, e.g. `product manager` + `surfar` + `fins de semana`), and `eld` classifies the mixed join as the MAJORITY language (`'en'`), so a detect-gate would SKIP and the PT labels would leak. Empirically: `eld.detect("Acme Daniel product manager surfar fins de semana") === 'en'`. The corrected approach (D1 below) is **always-on normalization gated only by input-language-detected + ≥1 non-speaker label**: one bounded map call asks the model to translate ONLY the terms not already in the target language (it no-ops already-target terms). Trade-off: one extra LLM call per `remember()` that extracts entities (disclosed in Drawbacks; a future optimization can merge it with the EG-4 fact-correction call).
+
 ## ADRs
 
-### D1 — Aggregate-detect the label language over JOINED distinct labels (reuse `eld`)
+### D1 — Always-on label normalization to the input language (one bounded map call)
 
-**Decision:** Detect the language of the JOINED distinct entity/relation labels (excluding `user`) via the shipped `detectInputLanguage`. Only when it returns a confident, supported language DIFFERENT from the input language does the corrective step run.
+**Decision:** When the input language is detected (the EG-4 `detectInputLanguage` on the input, reliable) AND ≥1 distinct non-speaker label exists, make ONE `generateResponse({type:'json'})` call asking the model to translate to the input language ONLY the labels not already in it, returning a `{ original: translated }` map (omitting already-target terms). Apply the map to entity names AND relation source/relationship/destination. Do NOT gate on label-language detection (mixed short labels detect as the majority language → unreliable).
 
-**Rationale:** Single short labels ("surfar") classify unreliably (the EG-4 lesson — that is why EG-4 went aggregate for facts). Reusing the shipped detector keeps ONE detection mechanism (DRY) and zero new dependency. `eld` reliably flags the wrong-language case on the joined surface.
+**Rationale:** Entity/relation labels are short AND mixed within a single extraction, so detect-gating skips the mixed case (live evidence above). Always-on normalization is the only reliable path; the model cheaply no-ops already-target terms (empty/partial map → `corrected` low). Reuses `detectInputLanguage` for the INPUT only (reliable on the full sentence). Zero new dependency.
 
 **Alternatives rejected:**
-- (a) Per-label detection — REJECTED: short labels mis-classify (the same failure EG-4 hit).
-- (b) Trust the prompt directive only (no guard) — REJECTED: the live-test proved the directive ("entity names ... in {name}") does NOT eliminate label drift.
+- (a) Aggregate-detect-then-correct (the original D1) — REJECTED in-cycle: mixed short labels detect as the majority language; the gate skips and PT labels leak.
+- (b) Per-label detection trigger — REJECTED: short labels mis-classify (`surfar`→Icelandic, `fins de semana`→Catalan); entity-only-PT-noun sets with no PT relation verb would not trigger.
+- (c) Trust the prompt directive only (no guard) — REJECTED: the live-test proved the directive ("entity names ... in {name}") does NOT eliminate label drift.
 
 ### D2 — ONE corrective translation MAP applied for referential integrity
 
