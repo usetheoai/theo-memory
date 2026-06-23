@@ -35,6 +35,12 @@ describe('option types — fields are readonly + optional + primitive', () => {
     >();
   });
 
+  test('RecallOptions exposes graphExpand opt-in shape (graph-aware-recall T2.1)', () => {
+    expectTypeOf<RecallOptions['graphExpand']>().toEqualTypeOf<
+      { readonly hops?: 1 | 2; readonly limit?: number } | undefined
+    >();
+  });
+
   test('ForgetOptions exposes hard', () => {
     expectTypeOf<ForgetOptions['hard']>().toEqualTypeOf<boolean | undefined>();
   });

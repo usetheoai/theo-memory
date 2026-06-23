@@ -230,6 +230,22 @@ export type {
 } from './dip/adaptive-retrieval-policy.js';
 
 /**
+ * `GraphExpansionStore` DIP — graph-aware recall traversal port (evolves the
+ * entity-relation-extraction feature). `expandByEntities` traverses the existing
+ * `entities`/`memory_entities`/`entity_edges` tables (1-2 hop JOINs) to surface
+ * memories connected by shared entities. Default impl `PgGraphExpansionStore`,
+ * auto-wired by the factory. Enable per-call via `RecallOptions.graphExpand`.
+ *
+ * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D1 + D5
+ * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md
+ */
+export type {
+  GraphExpansionStore,
+  ExpandByEntitiesParams,
+  GraphExpansionRow,
+} from './dip/graph-expansion-store.js';
+
+/**
  * Domain ontologies (Item 15) — typed per-domain entity/relation vocabularies
  * layered over LLM extraction. `BUILTIN_ONTOLOGIES` ships medical/legal/code/
  * support; `resolveOntology` resolves a registry key OR a custom `Ontology`.

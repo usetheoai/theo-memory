@@ -27,6 +27,7 @@ import type { Tracer } from '@opentelemetry/api';
 
 import type { AdaptiveRetrievalPolicy, AdaptiveTuning } from '../dip/adaptive-retrieval-policy.js';
 import type { Embedder } from '../dip/embedder.js';
+import type { GraphExpansionStore } from '../dip/graph-expansion-store.js';
 import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import { RerankerConflict } from '../errors.js';
@@ -56,6 +57,12 @@ export interface RetrievalDeps {
    * (before this pipeline), not here.
    */
   readonly retrievalPolicy?: AdaptiveRetrievalPolicy;
+  /**
+   * graph-aware-recall — optional entity-graph traversal store. When present AND
+   * `options.graphExpand` is set, Step 8.7 pool-expands the results with memories
+   * connected by shared entities/relations. Absent ⇒ no graph stage (default OFF).
+   */
+  readonly graphExpansionStore?: GraphExpansionStore;
   readonly tracer?: Tracer;
 }
 
@@ -232,6 +239,66 @@ async function applyAdaptiveAssessStage(
 }
 
 /**
+ * Step 8.7 — graph-aware recall pool-expansion (graph-aware-recall, ADR D3 + D4 + D5).
+ * Traverses the entity graph from the top `scored` seeds and APPENDS connected
+ * memories (not already in `scored`) with a graph-derived score BANDED strictly
+ * below the lowest genuine threshold-passing score (so a graph hit NEVER outranks
+ * a real semantic hit). Dedups against the pool (EC-1). Fail-soft (ADR D4): a
+ * traversal error emits `recall_graph_failed` and returns the original pool.
+ */
+async function applyGraphExpansionStage(
+  scoredSorted: readonly ScoredRow[],
+  store: GraphExpansionStore,
+  filters: Filters,
+  opts: { readonly hops?: 1 | 2; readonly limit?: number },
+  topK: number,
+  scopeTier: string,
+  tracer: Tracer | undefined,
+): Promise<readonly ScoredRow[]> {
+  if (scoredSorted.length === 0) {
+    return scoredSorted; // no seeds → nothing to expand from
+  }
+  try {
+    const hops = opts.hops ?? 1;
+    const limit = opts.limit ?? topK;
+    const seedIds = scoredSorted.slice(0, topK).map((r) => r.id);
+    const seedSet = new Set(scoredSorted.map((r) => r.id));
+    const expanded = await store.expandByEntities({ seedMemoryIds: seedIds, filters, hops, limit });
+    // EC-1: dedup against the existing pool (a connected row may already be in `scored`).
+    const fresh = expanded.filter((e) => !seedSet.has(e.result.id));
+    if (fresh.length === 0) {
+      return scoredSorted; // no-op (no event — no-op observability discipline)
+    }
+    // ADR D3 banded score: strictly below the lowest genuine threshold-passing score.
+    const lowestSeedScore = Math.min(...scoredSorted.map((r) => r.score));
+    const floor = lowestSeedScore > 0 ? lowestSeedScore : 0.000_001;
+    const graphRows: ScoredRow[] = fresh.map((e) => ({
+      id: e.result.id,
+      payload: { ...e.result.payload },
+      // weight ∈ (0,1) by sharedEntities; multiplied by a sub-floor band so all
+      // graph hits sort below every genuine semantic hit, ordered among themselves
+      // by shared-entity count.
+      score: floor * 0.999 * (e.sharedEntities / (e.sharedEntities + 1)),
+    }));
+    const merged = [...scoredSorted, ...graphRows].sort((a, b) => b.score - a.score);
+    emitEvent(tracer, 'recall_graph_expanded', {
+      scope_tier: scopeTier,
+      seeds: seedIds.length,
+      expanded: graphRows.length,
+      hops,
+    });
+    return merged;
+  } catch (err) {
+    // ADR D4 fail-soft — a graph-store outage NEVER takes down recall.
+    emitEvent(tracer, 'recall_graph_failed', {
+      scope_tier: scopeTier,
+      error: err instanceof Error ? err.name : 'unknown',
+    });
+    return scoredSorted;
+  }
+}
+
+/**
  * 9-step search. Returns the top-K MemoryItemWithScore array sorted by combined score desc.
  */
 export async function runRetrievalPipeline(
@@ -375,6 +442,25 @@ export async function runRetrievalPipeline(
         deps.retrievalPolicy,
         options?.adaptive,
         rowToItem,
+        scope.kind,
+        tracer,
+      )),
+    ];
+  }
+
+  // Step 8.7 — graph-aware recall pool-expansion (graph-aware-recall, ADR D3).
+  // Opt-in: runs ONLY when a graphExpansionStore is wired AND options.graphExpand
+  // is set (default OFF ⇒ byte-unchanged). Appends entity-connected memories
+  // (scored below genuine hits) so the rerank/diversify/topK stages below operate
+  // on the expanded pool. Fail-soft inside the helper.
+  if (deps.graphExpansionStore !== undefined && options?.graphExpand !== undefined) {
+    scored = [
+      ...(await applyGraphExpansionStage(
+        scored,
+        deps.graphExpansionStore,
+        filters,
+        options.graphExpand,
+        topK,
         scope.kind,
         tracer,
       )),
