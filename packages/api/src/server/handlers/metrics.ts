@@ -14,7 +14,11 @@
  * fabricated (Inquebrável Rule 3):
  *
  *  - `total_memories`     = active rows in scope
- *  - `entity_count`       = distinct non-null `attributedTo` peers
+ *  - `entity_count`       = distinct graph entities from `MemoryEntityStore.list()`
+ *                           (the SAME source the Entities/Graph tab reads — single
+ *                           source of truth, EG-3) when the entity read port is
+ *                           wired; distinct non-null `attributedTo` peers as the
+ *                           honest no-store fallback (in-memory adapter / tests).
  *  - `add_events`         = active rows (each surviving row is one add)
  *  - `retrieval_api_usage`= cumulative `recall()` calls for the scope, read from
  *                           the persisted counter (themory-scoped-forget-and-retrieval-counter
