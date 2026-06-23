@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 34 values (32 prior + 2 graph-aware-recall literals)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(34);
+  test('has 35 values (34 prior + entity_noise_filtered from EG-2)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(35);
+  });
+
+  test('includes entity_noise_filtered (EG-2, Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('entity_noise_filtered');
   });
 
   test('includes the 4 adaptive-retrieval literals (Item 13, Princípio 3)', () => {

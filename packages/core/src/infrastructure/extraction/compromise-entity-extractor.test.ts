@@ -108,4 +108,15 @@ describe('CompromiseEntityExtractor (T1.2)', () => {
     expect(out).not.toContain('on the');
     expect(out).not.toContain('project uses');
   });
+
+  test('EG-2: drops contraction/verb-led/generic noise but keeps real entities', () => {
+    // The dogfood sentence: noise ("I'm","m reading","love science") must NOT
+    // leak; the real entity (Dune / Frank Herbert) must survive.
+    const out = names("I'm reading Dune by Frank Herbert and I love science fiction novels");
+    expect(out.some((n) => n.includes('Dune'))).toBe(true);
+    expect(out).not.toContain("I'm");
+    expect(out).not.toContain('m reading');
+    expect(out).not.toContain('love science');
+    expect(out).not.toContain('user');
+  });
 });

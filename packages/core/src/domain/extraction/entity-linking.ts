@@ -21,6 +21,8 @@ import type { MemoryItem } from '../memory-item.js';
 import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
 import type { Filters } from '../scope.js';
 
+import { isEntityNoise } from './entity-noise-filter.js';
+
 /** EC-3 — cap entities/edges persisted per memory (a pathological LLM/extractor
  *  cannot spawn unbounded rows + resolution queries). */
 const MAX_ENTITIES_PER_MEMORY = 50;
@@ -99,8 +101,14 @@ export async function linkEntities(
     memoryId: string,
   ): Promise<void> => {
     const seen = new Set<string>();
-    const cleaned = candidates
-      .filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2) // EC-2
+    const sized = candidates.filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
+    // EG-2: drop pronoun/contraction/generic/verb-fragment noise (both node sources).
+    const denoised = sized.filter((e) => !isEntityNoise(e.name));
+    // Princípio 3 — the IGNORE is observable: emit an aggregated count (never silent;
+    // mirrors recall_threshold_filtered). NOT emitted when nothing was dropped.
+    const noiseFiltered = sized.length - denoised.length;
+    if (noiseFiltered > 0) emitEvent(tracer, 'entity_noise_filtered', { filtered_count: noiseFiltered });
+    const cleaned = denoised
       .filter((e) => !relationPredicates.has(e.normalizedKey))
       .filter((e) => {
         if (seen.has(e.normalizedKey)) return false;
