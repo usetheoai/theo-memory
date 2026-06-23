@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Distinct-entities metric consistency (EG-3): the `GET /v1/scopes/:type/:id/metrics` `entity_count` (shown as "Distinct entities" on the dashboard Overview) now counts DISTINCT graph entities from the same source the Entities/Graph tab reads (`MemoryEntityStore.list()`) when the entity read port is wired — instead of distinct `attributedTo` peers, which made the Overview report "1" while the Entities tab showed "10" for the same scope. Single source of truth: the two can no longer diverge. Honest `attributedTo` fallback retained when no entity store is wired (in-memory adapter / tests), and the entities handler uses the identical fallback so the two stay consistent on that path too. `packages/api` only; ZERO new dependency, no DIP widening, no migration, no public-export change. Surfaced by the 2026-06-23 Chrome-MCP end-user dogfood. (distinct-entities-metric-fix)
 
 ### Security
 

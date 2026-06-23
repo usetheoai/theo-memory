@@ -353,7 +353,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   app.delete('/v1/scopes/:type/:id/memories/:memId', (c) => scopedForgetHandler(c, memory));
   // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
-  app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory, usageCounterStore));
+  app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
   app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory, memoryEntityStore));
   // entity-relation-extraction-slice2 T3.1 — {nodes,edges} graph (no graph DB).
   app.get('/v1/scopes/:type/:id/graph', (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
