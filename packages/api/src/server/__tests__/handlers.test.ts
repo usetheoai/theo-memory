@@ -193,6 +193,65 @@ describe('T1.2 — POST /v1/recall', () => {
     const body = (await res.json()) as { results: MemoryItemWithScore[] };
     expect(body.results).toEqual([]);
   });
+
+  // rest-graph-aware-recall T1.2 — graphExpand opt-in mapping.
+  test('graphExpand is passed through to scoped.recall (REST → SDK mapping)', async () => {
+    const scoped = stubScopedMemory();
+    const memory = stubMemory(scoped);
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', query: 'q', graphExpand: { hops: 2, limit: 5 } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(scoped.recall).toHaveBeenCalledWith(
+      'q',
+      expect.objectContaining({ graphExpand: { hops: 2, limit: 5 } }),
+    );
+  });
+
+  test('default (no graphExpand) ⇒ option passed as undefined (byte-unchanged)', async () => {
+    const scoped = stubScopedMemory();
+    const memory = stubMemory(scoped);
+    const app = createServer({ memory });
+    await app.fetch(
+      new Request('http://localhost/v1/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', query: 'q' }),
+      }),
+    );
+    expect(scoped.recall).toHaveBeenCalledWith('q', expect.objectContaining({ graphExpand: undefined }));
+  });
+
+  test('invalid graphExpand (hops out of range) ⇒ 422, never 500', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', query: 'q', graphExpand: { hops: 3 } }),
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  test('unknown graphExpand inner key ⇒ 422 (strict inner)', async () => {
+    const memory = stubMemory(stubScopedMemory());
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', query: 'q', graphExpand: { bogus: 1 } }),
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
 });
 
 describe('T1.2 — POST /v1/forget', () => {
