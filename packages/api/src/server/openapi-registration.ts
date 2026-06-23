@@ -361,6 +361,51 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
+  // skills-cross-repo-flat-list (ADR D2) — tenant-safe cross-repo skills listing.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/skill/{subject}/all',
+    operationId: 'scopeSkillsAll',
+    summary: 'Flat cross-repo listing of ALL skills for a subject (each carrying its repoId).',
+    request: {
+      params: z.object({ subject: z.string().min(1) }),
+      query: z.object({
+        includeSuperseded: z.boolean().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+        q: z.string().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Skills across every repo for the subject. `total` is the full match count; `truncated` is true when more rows exist beyond this page.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              skills: z.array(
+                z.object({
+                  id: z.string(),
+                  hash: z.string(),
+                  description: z.string(),
+                  code: z.string().nullable(),
+                  codeLanguage: z.string().nullable(),
+                  createdAt: z.string(),
+                  derivedFrom: z.array(z.string()),
+                  supersededBy: z.string().nullable(),
+                  repoId: z.string(),
+                }),
+              ),
+              total: z.number().int(),
+              truncated: z.boolean(),
+            }),
+          },
+        },
+      },
+      400: { description: 'Empty subject or subject containing ":".' },
+      422: { description: 'Invalid query (limit/offset out of range).' },
+    },
+  });
+
   // skills-write-surface T2.1 — create a skill.
   registry.registerPath({
     method: 'post',

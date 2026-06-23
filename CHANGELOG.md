@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Cross-repo skills listing (`GET /v1/scopes/skill/:subject/all` + `Memory.listSkillsBySubject`).** A tenant-safe flat listing of ALL skills for a subject across EVERY repo, each row carrying its `repoId` — so a browse surface (e.g. the dashboard Skills tab) can list-always instead of requiring a typed repoId upfront. Tenant isolation is enforced by an `agent_id` prefix scan (`agent_id LIKE '{subject}:%'` with LIKE-wildcards escaped + `ESCAPE '\'`) AND the bound `workspace_id` — a subject containing `%`/`_`/`\`/`:` cannot broaden the match (no cross-tenant leak; subject with `:` → 400). Offset pagination (`limit`/`offset`) + optional `q` description substring filter + `total`/`truncated` disclosure. The shipped per-repo `GET /v1/scopes/skill/:repoId/skills` + `ScopedSkillMemory.getAll` are byte-unchanged (additive); no schema/migration, no new dependency. New `SkillWithRepo`/`SkillsBySubjectOptions`/`SkillsBySubjectPage` exported from `@usetheo/memory/contract`; `Memory` widens by one method (`listSkillsBySubject`). THE GOAL TEST: against real `ankane/pgvector:v0.5.1`, seeding `alice:repo-a` (2) + `alice:repo-b` (1) + `bob:repo-c` (1) → `listSkillsBySubject('alice')` returns exactly the 3 alice skills (correct `repoId`) and NONE of bob's; strict-prefix (`al` vs `alice`) + wildcard-escape isolation proven. (skills-cross-repo-flat-list)
 
 ### Changed
 

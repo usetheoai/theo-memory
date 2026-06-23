@@ -34,7 +34,7 @@ function stubMemory(): Memory {
     history: vi.fn().mockResolvedValue([]),
     reset: vi.fn().mockResolvedValue(undefined),
     flushReflections: vi.fn().mockResolvedValue(undefined),
-    withWorkspace: vi.fn().mockReturnThis(),
+    listSkillsBySubject: vi.fn().mockResolvedValue({ skills: [], total: 0 }),    withWorkspace: vi.fn().mockReturnThis(),
   };
   return stub;
 }

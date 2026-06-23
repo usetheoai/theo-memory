@@ -26,7 +26,11 @@ import { InvalidSkillError } from '../../domain/errors.js';
 import type { Filters } from '../../domain/scope.js';
 import type { SkillLanguage } from '../../domain/skill.js';
 
-import type { InsertDerivedSkillArgs, InsertSkillArgs } from './skill-store-args.js';
+import type {
+  InsertDerivedSkillArgs,
+  InsertSkillArgs,
+  ListSkillsBySubjectArgs,
+} from './skill-store-args.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -491,6 +495,47 @@ export class InMemoryVectorStore implements VectorStore {
     const derivedId = await this.insertDerivedSkill(args);
     await this.markSuperseded(sourceIdsToSupersede, derivedId);
     return derivedId;
+  }
+
+  /**
+   * skills-cross-repo-flat-list T1.1 — in-memory parity for the cross-repo
+   * listing. Filters skill rows whose `agent_id` starts with `'{subject}:'` (the
+   * `:` delimiter prevents a strict-prefix subject from leaking) within the
+   * workspace (in-memory carries no workspace column → treated as `'default'`),
+   * newest-first, with offset pagination + optional description substring filter.
+   */
+  async listSkillsBySubject(
+    args: ListSkillsBySubjectArgs,
+  ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    const wantedPrefix = `${args.subject}:`;
+    const q = args.q !== undefined && args.q.length > 0 ? args.q.toLowerCase() : undefined;
+    const matching: VectorStoreResult[] = [];
+    for (const [id, row] of this.rows.entries()) {
+      const p = row.payload;
+      if (p['kind'] !== 'skill') {
+        continue;
+      }
+      const agentId = p['agent_id'];
+      if (typeof agentId !== 'string' || !agentId.startsWith(wantedPrefix)) {
+        continue;
+      }
+      if (String(p['workspace_id'] ?? 'default') !== args.workspaceId) {
+        continue;
+      }
+      if (!args.includeSuperseded && typeof p['superseded_by'] === 'string' && p['superseded_by'].length > 0) {
+        continue;
+      }
+      if (q !== undefined && !String(p['description'] ?? '').toLowerCase().includes(q)) {
+        continue;
+      }
+      matching.push({ id, payload: p, createdAt: row.createdAt });
+    }
+    matching.sort((a, b) => {
+      const dt = (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0);
+      return dt !== 0 ? dt : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    await Promise.resolve();
+    return [matching.slice(args.offset, args.offset + args.limit), matching.length];
   }
 }
 

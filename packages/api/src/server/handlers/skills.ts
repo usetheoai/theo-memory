@@ -86,6 +86,68 @@ function toDto(s: Skill): SkillDto {
   };
 }
 
+/** skills-cross-repo-flat-list — DTO + the bare repoId the skill belongs to. */
+interface SkillWithRepoDto extends SkillDto {
+  readonly repoId: string;
+}
+
+/** skills-cross-repo-flat-list — query schema for the cross-repo flat listing. */
+const AllSkillsQuerySchema = z.object({
+  includeSuperseded: z.coerce.boolean().optional(),
+  limit: z.coerce.number().int().min(1).max(MAX_TOP_K).default(DEFAULT_TOP_K),
+  offset: z.coerce.number().int().min(0).default(0),
+  q: z.string().optional(),
+});
+
+/**
+ * GET /v1/scopes/skill/:subject/all — tenant-safe cross-repo skills listing
+ * (skills-cross-repo-flat-list ADR D2). Lists ALL skills for the authenticated
+ * subject across EVERY repo, each carrying its `repoId`, with offset pagination
+ * + optional `q` description filter. The gateway injects the authenticated
+ * subject into `:subject` (parity with how it injects `{subject}:{repoId}` into
+ * `:repoId`). Distinct literal `all` segment → no collision with `/skills`.
+ */
+export async function skillsAllHandler(c: Context, memory: Memory): Promise<Response> {
+  const subject = c.req.param('subject');
+  if (subject === undefined || subject.length === 0) {
+    return c.json(
+      { code: 'INVALID_SCOPE', message: 'subject path segment is required and must be non-empty.' },
+      400,
+    );
+  }
+  // The ':' delimiter is the namespace separator — a subject carrying it would
+  // build an ambiguous prefix (tenant-safety guard, Drawback #2).
+  if (subject.includes(':')) {
+    return c.json({ code: 'INVALID_SCOPE', message: 'subject must not contain ":".' }, 400);
+  }
+
+  const queryParse = AllSkillsQuerySchema.safeParse({
+    includeSuperseded: c.req.query('includeSuperseded'),
+    limit: c.req.query('limit'),
+    offset: c.req.query('offset'),
+    q: c.req.query('q'),
+  });
+  if (!queryParse.success) {
+    return c.json(
+      { code: 'INVALID_QUERY', message: queryParse.error.issues[0]?.message ?? 'Invalid query string' },
+      422,
+    );
+  }
+  const { includeSuperseded, limit, offset, q } = queryParse.data;
+
+  const bound = workspaceBoundMemory(c, memory);
+  const page = await bound.listSkillsBySubject(subject, {
+    limit,
+    offset,
+    ...(includeSuperseded === true ? { includeSuperseded: true } : {}),
+    ...(q !== undefined && q.length > 0 ? { q } : {}),
+  });
+  const skills: SkillWithRepoDto[] = page.skills.map((s) => ({ ...toDto(s), repoId: s.repoId }));
+  // truncated: there are more rows beyond this page (UI "show more" affordance).
+  const truncated = offset + skills.length < page.total;
+  return c.json({ skills, total: page.total, truncated }, 200);
+}
+
 export async function skillsHandler(c: Context, memory: Memory): Promise<Response> {
   const repoId = c.req.param('repoId');
   if (repoId === undefined || repoId.length === 0) {
