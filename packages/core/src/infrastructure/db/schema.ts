@@ -266,6 +266,21 @@ export const memories = pgTable(
     index('idx_memories_user_attributed_to')
       .on(table.userId, table.attributedTo)
       .where(sql`${table.attributedTo} IS NOT NULL`),
+    // skills-subject-prefix-index M2 / SEC-1 — partial composite supporting the
+    // cross-repo skills listing's `agent_id LIKE '{subject}:%'` prefix scan
+    // (PgvectorStore.listSkillsBySubject). The default `text_ops` btree opclass
+    // does NOT serve `LIKE 'prefix%'` under a non-`C` collation (the prefix
+    // degrades to a post-scan Filter → Seq Scan over the shared
+    // workspace_id='default' partition that holds every tenant's skills). The
+    // `text_pattern_ops` opclass compares by raw byte order, making the prefix a
+    // left-anchored index range (`agent_id ~>=~ 'x' AND agent_id ~<~ 'y'`).
+    // Partial on `kind='skill' AND t_invalid IS NULL` (the query's constant
+    // predicates) keeps the index small. Leading `workspace_id` (equality) +
+    // `agent_id` (range) mirrors the listSkillsBySubject WHERE shape.
+    // @see .claude/knowledge-base/plans/skills-subject-prefix-index-plan.md § D1/D2
+    index('idx_memories_skill_subject_prefix')
+      .on(table.workspaceId, table.agentId.op('text_pattern_ops'))
+      .where(sql`${table.kind} = 'skill' AND ${table.tInvalid} IS NULL`),
     check(
       // EC-1 absorption (plan v1.1): name verbatim, cited by
       // migration 0002_skill_columns.sql DROP CONSTRAINT IF EXISTS / ADD CONSTRAINT pair.
