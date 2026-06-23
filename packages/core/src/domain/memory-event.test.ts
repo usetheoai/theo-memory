@@ -8,8 +8,8 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 36 values (35 prior + extraction_language_mismatch from EG-4 fixes-cycle-1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(36);
+  test('has 37 values (36 prior + extraction_label_language_mismatch from EG-5)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(37);
   });
 
   test('includes entity_noise_filtered (EG-2, Princípio 3)', () => {
@@ -18,6 +18,10 @@ describe('MEMORY_EVENTS', () => {
 
   test('includes extraction_language_mismatch (EG-4 fixes-cycle-1, Princípio 3)', () => {
     expect(MEMORY_EVENTS).toContain('extraction_language_mismatch');
+  });
+
+  test('includes extraction_label_language_mismatch (EG-5, Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('extraction_label_language_mismatch');
   });
 
   test('includes the 4 adaptive-retrieval literals (Item 13, Princípio 3)', () => {

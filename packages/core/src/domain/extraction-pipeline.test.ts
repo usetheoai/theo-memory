@@ -501,4 +501,61 @@ describe('runExtractionPipeline (8-phase write)', () => {
     });
   });
 
+  describe('entity-label-language-determinism EG-5 — label normalization guard', () => {
+    test('corrects PT entity/relation labels to EN + emits extraction_label_language_mismatch', async () => {
+      const { tracer, exporter } = setupTracer();
+      const store = new StubVectorStore();
+      // call 1 = extraction (EN fact + PT entity/relation labels); call 2 = the label map.
+      let call = 0;
+      const llm: LLM = {
+        generateResponse: vi.fn(async () => {
+          call += 1;
+          return call === 1
+            ? {
+                memory: [{ id: '0', text: 'User enjoys surfing on weekends.' }],
+                entities: [{ name: 'surfar' }, { name: 'fins de semana' }],
+                relations: [{ source: 'user', relationship: 'gosta de', destination: 'surfar' }],
+              }
+            : { surfar: 'surfing', 'fins de semana': 'weekends', 'gosta de': 'enjoys' };
+        }),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      };
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Daniel and I enjoy surfing on weekends' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
+      );
+      expect(result).toHaveLength(1); // fact persisted
+      const span = exporter.getFinishedSpans().find((s) => s.name === 'extraction_label_language_mismatch');
+      expect(span).toBeDefined();
+      expect(span!.attributes['input_language']).toBe('en');
+      expect(span!.attributes['corrected']).toBe(3);
+    });
+
+    test('the label guard is fail-soft: a map-call error never fails remember', async () => {
+      const store = new StubVectorStore();
+      let call = 0;
+      const llm: LLM = {
+        generateResponse: vi.fn(async () => {
+          call += 1;
+          if (call === 1) {
+            return {
+              memory: [{ id: '0', text: 'User enjoys surfing on weekends.' }],
+              entities: [{ name: 'surfar' }],
+              relations: [{ source: 'user', relationship: 'gosta de', destination: 'surfar' }],
+            };
+          }
+          throw new Error('label map LLM unavailable');
+        }),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      };
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Daniel and I enjoy surfing on weekends' }],
+        { user_id: 'alice' },
+        { vectorStore: store, embedder: makeEmbedder(), llm },
+      );
+      expect(result).toHaveLength(1); // remember resolved despite the label-map error
+    });
+  });
+
 });
