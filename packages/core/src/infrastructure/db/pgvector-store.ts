@@ -510,7 +510,11 @@ export class PgvectorStore implements VectorStore {
     // regardless of shared-index density. Unscoped search (no filter — not produced
     // by recall() today) keeps the plain HNSW ORDER BY path. Columns + param order
     // `[vector, ...temporal, ...filter, topK]` are preserved across both variants.
-    const hasFilter = filter.params.length > 0;
+    // Branch on `filter.sql` (not `filter.params.length`): a param-less selective
+    // clause (`excludeSuperseded` emits `superseded_by IS NULL` with NO param) MUST
+    // also take the exact path — keying on params would route it to the unscoped
+    // branch that omits `${filter.sql}`, silently dropping the clause.
+    const hasFilter = filter.sql !== '';
     const sql = hasFilter
       ? `
       WITH scoped AS MATERIALIZED (
