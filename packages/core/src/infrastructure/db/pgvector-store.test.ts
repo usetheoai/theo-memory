@@ -528,4 +528,16 @@ describe('PgvectorStore.search — EG-6 scoped exact path (recall-scoped-exact-s
     expect(searchCall!.sql).not.toMatch(/MATERIALIZED/);
     expect(searchCall!.sql).toMatch(/FROM memories/);
   });
+
+  test('a param-less selective clause (excludeSuperseded) still takes the exact CTE path', async () => {
+    // ARCH-3: `excludeSuperseded` emits `superseded_by IS NULL` with NO param.
+    // The branch keys on filter.sql (not params.length), so the clause is NOT
+    // silently dropped into the unscoped path. Locks the footgun closed.
+    const { store, captured } = capturingStore();
+    await store.search([0.1, 0.2, 0.3], 5, { excludeSuperseded: true });
+    const searchCall = captured.find((c) => c.sql.includes('embedding <=> $1::vector'));
+    expect(searchCall).toBeDefined();
+    expect(searchCall!.sql).toMatch(/MATERIALIZED/);
+    expect(searchCall!.sql).toMatch(/superseded_by IS NULL/);
+  });
 });
