@@ -33,7 +33,7 @@ export class BleuMetricUnavailable extends Error {
   }
 }
 
- 
+
 export function calculateBleuScore(_prediction: string, _reference: string): never {
   throw new BleuMetricUnavailable();
 }
