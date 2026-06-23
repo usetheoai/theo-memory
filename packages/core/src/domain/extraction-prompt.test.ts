@@ -74,6 +74,18 @@ describe('generateAdditiveExtractionPrompt', () => {
     expect(prompt).toMatch(/^2\. Paulo works at Theo/m);
   });
 
+  test('EG-4: pins the memory[].text fact to the source language (never translate)', () => {
+    const { prompt } = generateAdditiveExtractionPrompt([], [{ role: 'user', content: 'x' }]);
+    // The fact text must be language-pinned (the EG-4 gap: only entity/relation
+    // labels were pinned before).
+    expect(prompt).toMatch(/memory\[\]\.text/);
+    expect(prompt).toMatch(/SAME language/i);
+    expect(prompt).toMatch(/never translate/i);
+    // No regression: the existing entity/relation language rule + "user" exception remain.
+    expect(prompt).toMatch(/entity name AND every `relationship`/);
+    expect(prompt).toMatch(/literal token "user"/);
+  });
+
   test('builds uuidByInt mapping (1-indexed) for the LLM response resolution', () => {
     const { uuidByInt } = generateAdditiveExtractionPrompt(
       [fixtureMemory('uuid-a', 'A'), fixtureMemory('uuid-b', 'B')],
