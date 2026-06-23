@@ -61,14 +61,15 @@ EG-6 of `.claude/knowledge-base/roadmaps/entity-graph-dogfood-remediation-roadma
 - (b) `SET enable_indexscan = off` — REJECTED: disables the scope btree too → full seq scan (slow); the CTE keeps the btree.
 - (c) Upgrade to pgvector 0.8.0 iterative scans — REJECTED for this cycle: an infra change (image `ankane/pgvector:v0.5.1` → new image, compose, Docker-prod, migration re-test); larger blast radius. The CTE fix is in-code, no infra change. (Recorded as a future option.)
 
-### D2 — Unscoped vector search keeps HNSW with a raised `hnsw.ef_search`
+### D2 — Unscoped vector search keeps the plain HNSW path (ef_search tuning deferred)
 
-**Decision:** When NO filter is present (no scope — not produced by `recall()` today, but the method is general), keep the HNSW path and raise `hnsw.ef_search` via `SET LOCAL` inside a transaction wrapping that query, so a future unscoped consumer still benefits from a deeper ANN search.
+**Decision:** When NO filter is present (no scope — not produced by `recall()` today, but the method is general), keep the existing plain HNSW `ORDER BY embedding <=> $1 LIMIT k` path UNCHANGED. The `hnsw.ef_search` raise originally proposed here is DEFERRED: it requires a transaction wrapper (`SET LOCAL`) to avoid leaking the GUC across a pooled connection, and since `recall()` is ALWAYS scoped, the unscoped path is never exercised by the recall pipeline — adding tx complexity for an unused path is YAGNI.
 
-**Rationale:** The exact path is only justified when a selective filter shrinks the candidate set; an unscoped exact sort would scan the whole table. HNSW + higher ef_search is the right tool for unscoped ANN. Keeps the change minimal + targeted.
+**Rationale:** The exact CTE path (D1) is only justified when a selective filter shrinks the candidate set; an unscoped exact sort would scan the whole table, so the unscoped path must stay HNSW. With recall always scoped, the unscoped path needs no change in this cycle. (In-cycle simplification, honestly disclosed — Inquebrável Rule 3.)
 
 **Alternatives rejected:**
 - (a) Exact path for unscoped too — REJECTED: full-table exact sort defeats the ANN index for legitimately-global searches.
+- (b) `SET LOCAL hnsw.ef_search` in a tx for the unscoped path now — DEFERRED: tx complexity for a path `recall()` never hits (YAGNI); revisit if a real unscoped consumer appears.
 
 ## Dependencies
 
