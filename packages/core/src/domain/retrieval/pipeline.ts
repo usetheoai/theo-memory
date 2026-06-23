@@ -121,8 +121,8 @@ async function applyRerankStage(
   }
 }
 
-type Candidate = { semantic: number; bm25: number; entity: number; payload: Payload };
-type ScoredRow = { id: string; payload: Payload; score: number };
+interface Candidate { semantic: number; bm25: number; entity: number; payload: Payload }
+interface ScoredRow { id: string; payload: Payload; score: number }
 
 /**
  * Step 8 gate (extracted for DRY — used by the initial threshold filter AND the
