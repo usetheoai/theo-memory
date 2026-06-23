@@ -25,6 +25,7 @@ import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import type {
   Filters,
   Memory,
+  MemoryEntityStore,
   Principal,
   ScopedMemory,
   UsageCounterStore,
@@ -66,6 +67,7 @@ export async function metricsHandler(
   c: Context,
   memory: Memory,
   usageCounterStore?: UsageCounterStore,
+  memoryEntityStore?: MemoryEntityStore,
 ): Promise<Response> {
   const rawType = c.req.param('type');
   const id = c.req.param('id');
@@ -78,10 +80,32 @@ export async function metricsHandler(
   const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
   const items = await scoped.getAll();
 
-  const entities = new Set<string>();
-  for (const m of items) {
-    const peer = attributedPeerOf(m);
-    if (peer !== undefined) entities.add(peer);
+  // Principal-derived workspace (mirrors the entities handler). One resolution,
+  // reused by both the entity-store count and the recall counter below.
+  const principal = c.get('principal') as Principal | undefined;
+  const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+
+  // entity_count: when the entity read port is wired, count DISTINCT graph
+  // entities from the SAME source the Entities/Graph tab uses
+  // (`MemoryEntityStore.list()`) — single source of truth, so the Overview card
+  // cannot diverge from the Entities tab (EG-3). When NO store is wired
+  // (in-memory adapter / tests), fall back to distinct non-null `attributedTo`
+  // peers — honest, byte-unchanged from before; the entities handler uses the
+  // identical fallback, so the two stay consistent on that path too.
+  let entityCount: number;
+  if (memoryEntityStore !== undefined) {
+    const summaries = await memoryEntityStore.list({
+      workspaceId,
+      filters: filtersFor(typeParse.data, id),
+    });
+    entityCount = summaries.length;
+  } else {
+    const peers = new Set<string>();
+    for (const m of items) {
+      const peer = attributedPeerOf(m);
+      if (peer !== undefined) peers.add(peer);
+    }
+    entityCount = peers.size;
   }
 
   // retrieval_api_usage: read the persisted per-scope recall counter when wired.
@@ -90,8 +114,6 @@ export async function metricsHandler(
   // 0-fallback when no counter store is injected (honest, no regression).
   let retrievalApiUsage = 0;
   if (usageCounterStore !== undefined) {
-    const principal = c.get('principal') as Principal | undefined;
-    const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
     retrievalApiUsage = await usageCounterStore.getRecallCount({
       workspace_id: workspaceId,
       ...filtersFor(typeParse.data, id),
@@ -101,7 +123,7 @@ export async function metricsHandler(
   return c.json(
     {
       total_memories: items.length,
-      entity_count: entities.size,
+      entity_count: entityCount,
       add_events: items.length,
       retrieval_api_usage: retrievalApiUsage,
     },
