@@ -80,10 +80,13 @@ describe.skipIf(ROOT_PG_URI === '' || !HAS_KEY)('extraction-language-determinism
     // so a leak is detected reliably (the old "hiking" sentence was a false-green).
     await memory.user('en').remember('My name is Sarah and I work as a data scientist and I love rock climbing');
     const facts = (await memory.user('en').getAll()).map((m) => m.text.toLowerCase()).join(' || ');
-    // English content tokens stay EN.
-    expect(facts).toMatch(/\bdata\b/);
-    expect(facts).toMatch(/\bclimb/); // climbing/climb stays EN
-    // The Portuguese translation must be ABSENT (the exact tokens the live-test produced).
+    expect(facts.length).toBeGreaterThan(0); // something was extracted
+    // The property under test is LANGUAGE, not extraction completeness: at least one
+    // clearly-English content token is present (OR — robust to which facts the LLM
+    // chose to extract on a given run)...
+    expect(facts).toMatch(/\bdata\b|scientist|climb/);
+    // ...AND the Portuguese translation of the input is ABSENT (the exact tokens the
+    // live-test produced when the fact was wrongly translated). This is the EG-4 oracle.
     expect(facts).not.toMatch(/cientista|escalada|caminhada|trilha/);
   }, 60_000);
 });

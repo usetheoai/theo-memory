@@ -7,11 +7,21 @@ goal: Guarantee the persisted memory[].text fact is emitted in the SAME language
 
 # Plan: extraction-language-determinism-fixes-cycle-1
 
-> **Version 1.0** — fixes-cycle-1 for EG-4 of the entity-graph-dogfood-remediation-roadmap. The shipped EG-4 (v0.20.3, prompt-only "write each fact in the SAME language") was proven INSUFFICIENT by the 2026-06-23 integrated live-test: with the real `gpt-4o-mini`, the English input `"My name is Sarah, I work as a data scientist at Acme and I love rock climbing"` was persisted as Portuguese facts (`"Sarah ama escalada."`, `"Sarah trabalha como cientista de dados na Acme."`) — reproduced 3/3 over fresh scopes against the running dev stack (gateway v0.7.0 + themory v0.20.3, OpenAI real). The shipped GOAL test (`tests/integration/extraction-language-determinism.test.ts`) used the exact sentence `"My favorite hobby is hiking on weekends"` and asserts the fact does NOT match `/caminha|trilha/`; in the live run the model produced exactly `"caminhadas"/"trilhas"` — i.e. that test would FAIL now; it passed at release via real-LLM non-determinism (or a keyless skip) — a FALSE GREEN. ROOT CAUSE: the prompt asks the model to SELF-DETECT the input language ("detect the input language … write each fact in the SAME language"); web prior art (PaLM, BLOOM) documents that self-detect/"wrong-language generation" is a measurable failure mode, while injecting the EXPLICIT target-language name is far more reliable. FIX: detect the input language DETERMINISTICALLY (`franc-min`, MIT, pure-JS) and inject the explicit language NAME into the extraction prompt ("Write ALL facts in ENGLISH."), add a one-shot bilingual reinforcement, and add a fail-soft post-extraction language-mismatch OTel guard (Princípio 3 observability). Scope: `packages/core` extraction — ONE new tiny dependency (`franc-min`), ONE new module, prompt + pipeline edits, ONE new MEMORY_EVENT literal. NO migration, NO DIP widening, NO public-export change, NO schema change.
+> **Version 1.0** — fixes-cycle-1 for EG-4 of the entity-graph-dogfood-remediation-roadmap. The shipped EG-4 (v0.20.3, prompt-only "write each fact in the SAME language") was proven INSUFFICIENT by the 2026-06-23 integrated live-test: with the real `gpt-4o-mini`, the English input `"My name is Sarah, I work as a data scientist at Acme and I love rock climbing"` was persisted as Portuguese facts (`"Sarah ama escalada."`, `"Sarah trabalha como cientista de dados na Acme."`) — reproduced 3/3 over fresh scopes against the running dev stack (gateway v0.7.0 + themory v0.20.3, OpenAI real). The shipped GOAL test (`tests/integration/extraction-language-determinism.test.ts`) used the exact sentence `"My favorite hobby is hiking on weekends"` and asserts the fact does NOT match `/caminha|trilha/`; in the live run the model produced exactly `"caminhadas"/"trilhas"` — i.e. that test would FAIL now; it passed at release via real-LLM non-determinism (or a keyless skip) — a FALSE GREEN. ROOT CAUSE: the prompt asks the model to SELF-DETECT the input language ("detect the input language … write each fact in the SAME language"); web prior art (PaLM, BLOOM) documents that self-detect/"wrong-language generation" is a measurable failure mode, while injecting the EXPLICIT target-language name is far more reliable. FIX: detect the input language DETERMINISTICALLY (`eld`, MIT, pure-JS) and inject the explicit language NAME into the extraction prompt ("Write ALL facts in ENGLISH."), add a one-shot bilingual reinforcement, and add a fail-soft post-extraction language-mismatch OTel guard (Princípio 3 observability). Scope: `packages/core` extraction — ONE new tiny dependency (`eld`), ONE new module, prompt + pipeline edits, ONE new MEMORY_EVENT literal. NO migration, NO DIP widening, NO public-export change, NO schema change.
 
 ## Goal
 
-> "Guarantee the persisted `memory[].text` fact is emitted in the SAME language/script as the input — by deterministically detecting the input language (`franc-min`) and injecting the EXPLICIT target-language name into the extraction prompt (a concrete instruction the model follows, not self-detection) — measured by `tests/integration/extraction-language-determinism.test.ts` (REAL OpenAI, hardened) where the canonical dogfood English sentence `"My name is Sarah, I work as a data scientist and I love rock climbing"` persists facts whose joined text matches `/\bdata\b/` AND `/\bclimb/` AND does NOT match `/cientista|escalada|caminhada|trilha/`, and a Portuguese sentence persists Portuguese facts (matches `/engenheiro/`, NOT `/\bengineer\b/`)."
+> "Guarantee the persisted `memory[].text` fact is emitted in the SAME language/script as the input — by deterministically detecting the input language (`eld`) and injecting the EXPLICIT target-language name into the extraction prompt (a concrete instruction the model follows, not self-detection) — measured by `tests/integration/extraction-language-determinism.test.ts` (REAL OpenAI, hardened) where the canonical dogfood English sentence `"My name is Sarah, I work as a data scientist and I love rock climbing"` persists facts whose joined text matches `/\bdata\b/` AND `/\bclimb/` AND does NOT match `/cientista|escalada|caminhada|trilha/`, and a Portuguese sentence persists Portuguese facts (matches `/engenheiro/`, NOT `/\bengineer\b/`)."
+
+## Implementation deviations (honest disclosure — Inquebrável Rule 3)
+
+The task bodies below describe the ORIGINAL plan (franc-min + per-fact `factLanguageMatches` + ISO-639-3). During `/implement` the real-LLM GOAL exposed gaps that forced these in-cycle deviations (all empirically driven, no silent scope creep):
+
+1. **`franc-min` → `eld`.** franc-min mis-classified short close-language text: the PT input "Eu trabalho como engenheiro mecânico" → Spanish (so the explicit injection FORCED Spanish output), and English facts → Indonesian/Sundanese. `eld` (Apache-2.0, pure-JS, zero deps) classifies the dogfood EN/PT inputs correctly. ISO scheme therefore moved 639-3 (`eng`/`por`) → 639-1 (`en`/`pt`).
+2. **Per-fact match → AGGREGATE detection.** `factLanguageMatches(fact)` per-fact was removed (deleted, not dead-coded): any detector mis-classifies a single short fact. The guard detects the language of the JOINED fact text (long enough to be reliable) and, on a confident mapped mismatch vs the input, rewrites each fact.
+3. **D3 escalated to detect-AND-correct** (see Unresolved Questions): injection alone left a residual PT translation by gpt-4o-mini, so the guard performs a focused corrective rewrite. `extraction_language_mismatch` attributes are `{input_language, facts_language, fact_count, corrected}`.
+4. **`extractResponseText` helper.** `OpenAILLM.generateResponse` text-mode returns a `{ text }` OBJECT (not a bare string); the correction extracts `.text` robustly (string OR `{text}`).
+5. **dist rebuild is required** to validate the GOAL: vitest resolves `@usetheo/memory` to the built `dist` (no src alias), so `npm run build` must run before the integration GOAL reflects src changes.
 
 ## Context
 
@@ -26,47 +36,47 @@ EG-4 of `.claude/knowledge-base/roadmaps/entity-graph-dogfood-remediation-roadma
 | `packages/core/src/domain/extraction/prompt.ts` | 181 | `469f43a` (2026-06-23) | composes the extraction SYSTEM_PROMPT + Zod schema; the v0.20.3 `LANGUAGE:` clause pins entity/relation/fact language via self-detection | the existing entity/relation language rule kept; the `user` speaker exception kept; strict JSON output format + `AdditiveExtractionSchema` unchanged; diacritic preservation kept; `ontologyPrefix`/`customPrefix` ordering unchanged |
 | `packages/core/src/domain/extraction/pipeline.ts` | 590 | `ef61073` (2026-06-22) | the write-pipeline extraction phase: builds the prompt (`:369`), calls `deps.llm.generateResponse([...],{type:'json'})` (`:377`), coerces + Zod-parses | the existing extraction call shape kept; the `linked_memory_ids` number→string coercion kept; extraction failure stays fail-soft (catch → `[]`); `remember()` NEVER fails on a language-guard error |
 | `packages/core/src/domain/memory-event.ts` | 164 | `3e206b2` (2026-06-23) | the `MEMORY_EVENTS` typed union (`emitEvent`); existing literals incl. `extraction_zero_facts`, `entity_noise_filtered` | existing literals UNCHANGED; new literal appended (additive union widening) |
-| `packages/core/src/domain/extraction/language.ts` (NEW) | 0 | — | (to create) — `detectInputLanguage(text)` (franc-min wrapper + ISO-639-3→name map + undetermined/short-input guard) + `factLanguageMatches(fact, expected)` | — |
-| `packages/core/package.json` | n/a | — | core package manifest | only the `dependencies` map gains `franc-min`; no other field changes |
+| `packages/core/src/domain/extraction/language.ts` (NEW) | 0 | — | (to create) — `detectInputLanguage(text)` (eld wrapper + ISO-639-1→name map + undetermined/short-input guard) + `factLanguageMatches(fact, expected)` | — |
+| `packages/core/package.json` | n/a | — | core package manifest | only the `dependencies` map gains `eld`; no other field changes |
 | `packages/core/src/domain/extraction-prompt.test.ts` | ~80 | `469f43a` (2026-06-23) | unit tests for prompt structure | existing assertions stay green |
 | `tests/integration/extraction-language-determinism.test.ts` | 82 | `469f43a` (2026-06-23) | the EG-4 real-LLM GOAL (lenient cognate assertion — the false-green) | REPLACED with the hardened non-cognate assertion (same file path) |
 
 ### Current callers / dependents
 
 - **Symbol:** `generateAdditiveExtractionPrompt(existing, messages, customInstructions, ontology)` (`prompt.ts:121`) — the ONLY caller is the write pipeline (`pipeline.ts:369`). A new OPTIONAL 5th parameter `detectedLanguage` is backward-compatible (undefined → no language directive → current behavior). No external repo imports this (package-internal).
-- **Symbol:** `runExtractionPipeline` / the extraction phase in `pipeline.ts` — called by `remember()`. Adds a local franc-min detection before prompt build + a post-parse guard. No signature change visible to `remember()` callers.
+- **Symbol:** `runExtractionPipeline` / the extraction phase in `pipeline.ts` — called by `remember()`. Adds a local eld detection before prompt build + a post-parse guard. No signature change visible to `remember()` callers.
 - **Symbol:** `MEMORY_EVENTS` / `emitEvent` (`memory-event.ts`) — consumed across the write/recall/reflect phases. Appending one literal is additive; existing consumers unaffected.
-- **Symbol:** `franc` from `franc-min` (NEW dep) — `franc(text): string` returns an ISO-639-3 code (or `'und'`). Pure-JS, only transitive dep `trigram-utils`. No native bindings → no Docker/distroless build risk.
+- **Symbol:** `eld.detect` from `eld` (NEW dep) — returns `{ language }` (ISO-639-1 code, or empty string when undetected). Pure-JS, zero transitive deps. No native bindings → no Docker/distroless build risk.
 
 ### Domain glossary
 
-- **input language** — the natural language of the user's message text (`messages[].content`), detected deterministically with `franc-min` (ISO-639-3 code, e.g. `eng`, `por`).
+- **input language** — the natural language of the user's message text (`messages[].content`), detected deterministically with `eld` (ISO-639-1 code, e.g. `en`, `pt`).
 - **target-language injection** — prepending an explicit directive naming the detected language ("Write ALL facts, entity names and relationship labels in ENGLISH.") to the extraction prompt, so the model follows a concrete instruction instead of self-detecting.
 - **language-mismatch guard** — a fail-soft post-extraction check: if a persisted fact's detected language differs from the input language, emit the `extraction_language_mismatch` OTel event (observability only — never drops the fact, never fails `remember()`).
-- **undetermined (`und`)** — franc's output when the text is too short/ambiguous to classify; the detector returns `null` and NO language directive is injected (behavior byte-unchanged from today).
+- **undetermined (`und`)** — the detector's output when the text is too short/ambiguous to classify; the detector returns `null` and NO language directive is injected (behavior byte-unchanged from today).
 
 ### Architecture boundaries affected
 
-- **`packages/core/src/domain/extraction`** — adds one local module (`language.ts`) + edits prompt/pipeline. No type/contract/DIP change (ADR-0008 untouched), no new public export from the barrel, no migration. The franc-min call is pure-local CPU (no I/O). The only external I/O in this path is the pre-existing OpenAI extraction call.
+- **`packages/core/src/domain/extraction`** — adds one local module (`language.ts`) + edits prompt/pipeline. No type/contract/DIP change (ADR-0008 untouched), no new public export from the barrel, no migration. The eld call is pure-local CPU (no I/O). The only external I/O in this path is the pre-existing OpenAI extraction call.
 
 ## Prior Art & Related Work
 
 - **Web research (2026-06-23)** — explicit target-language injection beats self-detection: PaLM native-vs-default prompt swings translation language by +14 chrF and "native prompts trigger text in the desired language, while the default prompt results in high rates of generating the wrong target language"; BLOOM 0-shot wrong-language ~1/5, mitigated by 1-shot; production pattern = detect input lang with a dedicated tool + state the target language explicitly (spelled-out name) + verify output language post-hoc with a language-ID tool. Sources: [PaLM incidental bilingualism](https://arxiv.org/pdf/2305.10266), [BLOOM translation](https://arxiv.org/pdf/2303.01911), [Microsoft localization guidance](https://learn.microsoft.com/en-us/globalization/localization/ai/localizing-ai-based-features), [translation prompt engineering](https://translated.com/resources/prompt-engineering-for-translation-guiding-ai-behavior).
 - **Internal:** the parent EG-4 plan `.claude/knowledge-base/plans/extraction-language-determinism-plan.md` (the prompt-only approach this cycle supersedes) + its edge-case report `.claude/knowledge-base/reviews/extraction-language-determinism-edge-cases-2026-06-23.md`. The existing entity/relation source-language rule in `prompt.ts` is the precedent being made deterministic.
-- **Lib:** `franc-min` (MIT) — the same `franc` family the Mem0-TS reference uses elsewhere for NLP utilities; pure-JS, no native bindings (unlike `cld3`/fasttext), so it is safe for the distroless runtime.
+- **Lib:** `eld` (efficient-language-detector, Apache-2.0) — pure-JS, no native bindings (unlike `cld3`/fasttext), safe for the distroless runtime, and markedly more accurate on short text + close-language pairs than trigram detectors.
 
 ## ADRs
 
-### D1 — Deterministic input-language detection (`franc-min`) + explicit target-language injection
+### D1 — Deterministic input-language detection (`eld`) + explicit target-language injection
 
-**Decision:** Detect the input language with `franc-min` over the joined `messages[].content`. When a language is confidently detected (not `und`, input length ≥ a small threshold), inject an explicit directive naming the language ("Write ALL facts, entity names and relationship labels in ENGLISH — the language of the input. NEVER translate.") as the HIGHEST-priority line of the extraction prompt. When undetermined, inject NOTHING (behavior byte-unchanged from today).
+**Decision:** Detect the input language with `eld` over the joined `messages[].content`. When a language is confidently detected (not `und`, input length ≥ a small threshold), inject an explicit directive naming the language ("Write ALL facts, entity names and relationship labels in ENGLISH — the language of the input. NEVER translate.") as the HIGHEST-priority line of the extraction prompt. When undetermined, inject NOTHING (behavior byte-unchanged from today).
 
-**Rationale:** Honors Inquebrável Rule 9 (use a mature lib — `franc-min` MIT, not a hand-rolled detector). Web prior art (PaLM/BLOOM) shows a concrete "write in ENGLISH" instruction is followed far more reliably than the abstract "detect the language and write in it" the model currently ignores. Determinism: detection is a pure function (no LLM, no I/O) → the directive is reproducible for the same input.
+**Rationale:** Honors Inquebrável Rule 9 (use a mature lib — `eld` MIT, not a hand-rolled detector). Web prior art (PaLM/BLOOM) shows a concrete "write in ENGLISH" instruction is followed far more reliably than the abstract "detect the language and write in it" the model currently ignores. Determinism: detection is a pure function (no LLM, no I/O) → the directive is reproducible for the same input.
 
 **Alternatives rejected:**
 - (a) Stronger prompt-only wording (no detection) — REJECTED: this is what v0.20.3 already does; the live-test proved it fails 3/3 with `gpt-4o-mini`.
 - (b) LLM self-detection ("detect the input language") — REJECTED: the current approach; documented failure mode (PaLM/BLOOM wrong-language generation).
-- (c) A heavier detector (`cld3`/fasttext) — REJECTED: native bindings break the distroless build (cf. the `sharp`/libvips build-flakiness already on record); `franc-min` is pure-JS.
+- (c) A heavier detector (`cld3`/fasttext) — REJECTED: native bindings break the distroless build (cf. the `sharp`/libvips build-flakiness already on record); `eld` is pure-JS.
 
 ### D2 — One-shot bilingual reinforcement in the prompt
 
@@ -78,9 +88,9 @@ EG-4 of `.claude/knowledge-base/roadmaps/entity-graph-dogfood-remediation-roadma
 - (a) No reinforcement (D1 injection only) — REJECTED as the sole measure: leaves the BLOOM 0-shot residual; the one line is low-cost insurance.
 - (b) Multi-example few-shot block — REJECTED: token cost + YAGNI; one example suffices.
 
-### D3 — Fail-soft post-extraction language-mismatch guard + `extraction_language_mismatch` OTel event
+### D3 — Fail-soft post-extraction language-mismatch guard (detect-and-correct) + `extraction_language_mismatch` OTel event
 
-**Decision:** After extraction, for each persisted fact, detect its language; if it differs from the detected input language, emit the new typed `extraction_language_mismatch` MEMORY_EVENT (attributes: `input_language`, `fact_language`, `fact_count`). The guard is OBSERVABILITY ONLY — it NEVER drops the fact and NEVER fails `remember()`.
+**Decision (escalated at T4.1 — see Unresolved Questions):** After extraction, for each persisted fact, detect its language; if it differs from the detected input language, run a FOCUSED corrective rewrite ("Rewrite in {language}") and replace the fact text, then emit the typed `extraction_language_mismatch` MEMORY_EVENT (attributes: `input_language`, `fact_count` = detected mismatches, `corrected` = how many were rewritten). The guard NEVER drops a fact and NEVER fails `remember()` (nested fail-soft try/catch; a correction error keeps the original text and is still observable via the event with `corrected < fact_count`). NOTE: the original cycle-plan framing was OBSERVABILITY-ONLY with the correction deferred to alt-a; the real-LLM GOAL proved injection-only insufficient, so the correction was activated in-cycle (no silent scope creep — Inquebrável Rule 3).
 
 **Rationale:** Princípio 3 — every language decision becomes observable/auditable; ops can dashboard the residual mismatch rate to know if D1+D2 regress. The research recommends a post-hoc language-ID verification safety-net. Fail-soft matches the existing extraction-failure discipline (catch → `[]`).
 
@@ -102,34 +112,34 @@ EG-4 of `.claude/knowledge-base/roadmaps/entity-graph-dogfood-remediation-roadma
 
 | Package | Version | Ecosystem | Status | Rule 9 evaluation | CVE status |
 |---|---|---|---|---|---|
-| `franc-min` | `^6.2.0` | npm (prod dep of `@usetheo/memory` core) | NEW | Evaluated `franc`/`franc-min` (MIT, pure-JS, by wooorm, mature), `eld` (Apache-2.0), `cld3`/fasttext (native bindings). Selected `franc-min`: MIT (compatible with Apache-2.0), pure-JS (no native → distroless-safe), lightweight (top languages incl. eng/por/spa/fra/deu/ita), single transitive dep `trigram-utils`. Rejected `eld` (heavier model payload, marginal benefit), `cld3`/fasttext (native bindings break the distroless build). | To be confirmed CLEAN by `/deps-audit` (osv-scanner / npm audit). franc-min has no known CRITICAL/HIGH CVE as of 2026-06-23; deps-audit is the gate. |
+| `eld` | `^1.0.1` | npm (prod dep of `@usetheo/memory` core) | NEW | Evaluated `franc-min` (MIT, pure-JS), `eld` (efficient-language-detector, Apache-2.0, pure-JS), `cld3`/fasttext (native bindings). **Originally selected `franc-min`; switched to `eld` in-cycle** (see Implementation deviation) because `franc-min` mis-classified short close-language text (PT input "Eu trabalho como engenheiro mecânico" → Spanish; English facts → Indonesian/Sundanese), which the explicit-injection design then turned into a WRONG forced output language. `eld` correctly classifies the dogfood EN/PT inputs. Apache-2.0 (compatible), pure-JS (no native → distroless-safe), zero transitive deps. Rejected `cld3`/fasttext (native bindings break the distroless build). | CLEAN (OSV `{}` for `eld@1.0.1`, 2026-06-23); pinned `^1.0.1`; Rule-9 evaluated. |
 
-Transitive: `trigram-utils` (pure-JS, MIT). No native bindings introduced. Bundle impact: small; the default barrel already ships core — `franc-min` loads with extraction (not isolated behind a subpath), acceptable since extraction is the default write path.
+Bundle impact: small (pure-JS, no transitive deps); `eld` loads with extraction (not isolated behind a subpath), acceptable since extraction is the default write path.
 
 ## Failure scenarios
 
-The extraction path performs ONE external-I/O call (the pre-existing OpenAI LLM call). The franc-min detection + the guard are pure-local CPU (no I/O). Scenarios:
+The extraction path performs ONE external-I/O call (the pre-existing OpenAI LLM call). The eld detection + the guard are pure-local CPU (no I/O). Scenarios:
 
 - **OpenAI extraction call times out / 5xx / connection reset** — UNCHANGED behavior: the existing `try/catch` around `generateResponse` returns `[]` (extraction yields no facts; `remember()` fail-soft). The D1 detection runs BEFORE the call (pure-local) and the D3 guard runs AFTER a successful parse, so neither adds a new external failure mode. Test: the existing pipeline failure path stays green; a unit test asserts `detectInputLanguage` never throws on empty/garbage input (returns `null`).
-- **franc-min returns `und` (short/ambiguous input)** — `detectInputLanguage` returns `null` → no directive injected → current behavior preserved (no new failure). Test: `detectInputLanguage('hi')` / `detectInputLanguage('')` → `null`.
+- **eld returns `und` (short/ambiguous input)** — `detectInputLanguage` returns `null` → no directive injected → current behavior preserved (no new failure). Test: `detectInputLanguage('hi')` / `detectInputLanguage('')` → `null`.
 - **Guard detection disagrees with reality (false positive/negative)** — fail-soft: at most an extra/missing OTel event; the fact is always persisted. No `remember()` impact.
 
 ## Phases
 
 ### Phase 1 — Deterministic detection module + dependency
 
-### T1.1 — Add `franc-min` + `language.ts` detection module
+### T1.1 — Add `eld` + `language.ts` detection module
 
 **Files to edit:**
-- `packages/core/package.json` — add `"franc-min": "^6.2.0"` to `dependencies`.
-- `packages/core/src/domain/extraction/language.ts` (NEW) — `detectInputLanguage(text: string): { iso6393: string; name: string } | null` (franc-min + ISO-639-3→English-name map for the supported set; returns `null` for `und`, for input shorter than the `MIN_DETECT_CHARS` threshold, OR when the detected ISO code has NO entry in the name map — EC-1: never inject a raw ISO code like `cmn`) + `factLanguageMatches(factText, expectedIso6393): boolean` (true when the fact's detected language equals the expected, OR either side is undetermined — fail-soft toward NOT flagging).
+- `packages/core/package.json` — add `"eld": "^6.2.0"` to `dependencies`.
+- `packages/core/src/domain/extraction/language.ts` (NEW) — `detectInputLanguage(text: string): { iso6393: string; name: string } | null` (eld + ISO-639-1→English-name map for the supported set; returns `null` for `und`, for input shorter than the `MIN_DETECT_CHARS` threshold, OR when the detected ISO code has NO entry in the name map — EC-1: never inject a raw ISO code like `cmn`) + `factLanguageMatches(factText, expectedIso6393): boolean` (true when the fact's detected language equals the expected, OR either side is undetermined — fail-soft toward NOT flagging).
 - `packages/core/src/domain/extraction/language.test.ts` (NEW) — unit tests.
 
 #### Why this step
 
 Action: introduce the only new dependency and a pure-function detection wrapper that the prompt builder + the guard both consume.
 
-Reasoning: D1 requires deterministic detection BEFORE prompt assembly; isolating it in `language.ts` keeps `prompt.ts`/`pipeline.ts` edits minimal and unit-testable without an LLM (SRP). The `und`/short-input `null` path is what preserves byte-unchanged behavior for inputs franc cannot classify (Baseline Context invariant).
+Reasoning: D1 requires deterministic detection BEFORE prompt assembly; isolating it in `language.ts` keeps `prompt.ts`/`pipeline.ts` edits minimal and unit-testable without an LLM (SRP). The `und`/short-input `null` path is what preserves byte-unchanged behavior for inputs the detector cannot classify (Baseline Context invariant).
 
 #### TDD
 
@@ -138,9 +148,9 @@ Reasoning: D1 requires deterministic detection BEFORE prompt assembly; isolating
 - RED `test('detectInputLanguage returns null for undetermined/short input')` — `detectInputLanguage('hi')` === `null` AND `detectInputLanguage('')` === `null`.
 - RED `test('detectInputLanguage never throws on garbage input')` — `detectInputLanguage('@@@ 123 \n')` returns `null` (no throw).
 - RED `test('factLanguageMatches is fail-soft when a side is undetermined')` — `factLanguageMatches('ok', 'eng')` === `true` (short fact → undetermined → not flagged).
-- RED `test('detectInputLanguage returns null for a detected-but-unmapped ISO code')` (EC-1) — a Mandarin sentence whose franc code `cmn` is NOT in the name map → `detectInputLanguage(...)` === `null` (never inject a raw `cmn` directive).
-- GREEN: implement with `franc-min`.
-- REFACTOR: extract the ISO-639-3→name map to a module const.
+- RED `test('detectInputLanguage returns null for a detected-but-unmapped ISO code')` (EC-1) — a Mandarin sentence whose eld code `zh` is NOT in the name map → `detectInputLanguage(...)` === `null` (never inject a raw `zh` directive).
+- GREEN: implement with `eld`.
+- REFACTOR: extract the ISO-639-1→name map to a module const.
 
 #### Concurrency tests
 
@@ -150,7 +160,7 @@ Reasoning: D1 requires deterministic detection BEFORE prompt assembly; isolating
 
 - `detectInputLanguage` returns `{ iso6393: 'eng', name: 'English' }` for the canonical EN sentence and `{ iso6393: 'por', name: 'Portuguese' }` for the canonical PT sentence (asserted with backtick literals `'eng'` / `'por'`).
 - `detectInputLanguage` returns `null` (not a throw) for `''`, `'hi'`, and `'@@@ 123'`.
-- `package.json` `dependencies` contains `franc-min` at `^6.2.0`.
+- `package.json` `dependencies` contains `eld` at `^6.2.0`.
 
 #### Definition of done
 
@@ -286,9 +296,9 @@ Reasoning: Inquebrável Rule 3/5 — the GOAL must be the property the live-test
 
 | # | Goal claim / requirement | Detail | Task |
 |---|---|---|---|
-| 1 | Deterministically detect the input language (franc-min, MIT) | pure-function detection wrapper | T1.1 |
-| 2 | undetermined/short input yields no directive (byte-unchanged behavior) | franc und path returns null | T1.1 |
-| 3 | New dep CVE-clean + Rule-9 evaluated + version pinned | franc-min added in this task; gated by deps-audit | T1.1 |
+| 1 | Deterministically detect the input language (eld, MIT) | pure-function detection wrapper | T1.1 |
+| 2 | undetermined/short input yields no directive (byte-unchanged behavior) | eld unmapped/undetected path returns null | T1.1 |
+| 3 | New dep CVE-clean + Rule-9 evaluated + version pinned | eld added in this task; gated by deps-audit | T1.1 |
 | 4 | Inject the EXPLICIT target-language name into the prompt | optional detectedLanguage param prepends directive | T2.1 |
 | 5 | One-shot bilingual reinforcement (BLOOM mitigation) | SYSTEM_PROMPT example line | T2.1 |
 | 6 | Wire detect-then-inject into the real write pipeline | pipeline builds prompt with detected language | T3.1 |
@@ -303,9 +313,9 @@ Reasoning: Inquebrável Rule 3/5 — the GOAL must be the property the live-test
 
 | Risk | Severity | Mitigation | Owner |
 |---|---|---|---|
-| `franc-min` mis-detects very short or code-switched inputs (e.g. one PT word in an EN sentence) | Medium | The `und`/short-input `null` path skips injection (no regression vs today); the guard is fail-soft (observe only). Threshold `MIN_DETECT_CHARS` tuned in T1.1. | implementer |
+| `eld` mis-detects very short or code-switched inputs (e.g. one PT word in an EN sentence) | Medium | The `und`/short-input `null` path skips injection (no regression vs today); the guard is fail-soft (observe only). Threshold `MIN_DETECT_CHARS` tuned in T1.1. | implementer |
 | Explicit injection still leaves a residual wrong-language rate with `gpt-4o-mini` | Medium | D2 one-shot reinforcement + the D3 guard surfaces the residual rate via OTel; if the hardened GOAL still fails, the auto-correct re-prompt (D3 alt-a) is the documented follow-up. | implementer |
-| New prod dependency on the default write path increases bundle a touch | Low | `franc-min` is pure-JS + one transitive dep; no native bindings; extraction is already the default path. `/deps-audit` gates CVE/license. | reviewer |
+| New prod dependency on the default write path increases bundle a touch | Low | `eld` is pure-JS + one transitive dep; no native bindings; extraction is already the default path. `/deps-audit` gates CVE/license. | reviewer |
 | Adding a `MEMORY_EVENTS` literal could break an exhaustive switch elsewhere | Low | `npm run typecheck` proves exhaustiveness; the union is widened additively and existing consumers default-handle. | implementer |
 
 ## Unresolved Questions
@@ -318,8 +328,8 @@ Reasoning: Inquebrável Rule 3/5 — the GOAL must be the property the live-test
 - [ ] All tasks T1.1–T4.1 complete with green TDD.
 - [ ] `npm test` full suite green (zero regressions); `npm run typecheck` + `npm run lint` clean.
 - [ ] Hardened real-LLM GOAL passes (EN→EN, PT→PT) + live dev-stack EN→EN re-verify captured.
-- [ ] `/deps-audit` CLEAN for `franc-min` (no CRITICAL/HIGH CVE; Rule-9 evaluated; version pinned).
-- [ ] `/code-quality` verdict ∈ {PASS, PASS_WITH_CAVEATS} (no dead code / fabricated symbol; `franc-min` recognized).
+- [ ] `/deps-audit` CLEAN for `eld` (no CRITICAL/HIGH CVE; Rule-9 evaluated; version pinned).
+- [ ] `/code-quality` verdict ∈ {PASS, PASS_WITH_CAVEATS} (no dead code / fabricated symbol; `eld` recognized).
 - [ ] No paper names in `src/**`/tests (per `no-paper-names-in-code.md`).
 - [ ] CHANGELOG `[Unreleased]` updated (Fixed).
 - [ ] `/review` returns READY_TO_MERGE.
