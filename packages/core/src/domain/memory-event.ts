@@ -145,6 +145,15 @@ export const MEMORY_EVENTS = [
   // facts already match the input language (no-op discipline).
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_language_mismatch',
+  // entity-label-language-determinism EG-5 — the post-extraction label guard rewrote N
+  // entity/relation LABELS into the input language (the live-test showed `entities[]`
+  // names + `relations[]` labels drift to a different language than the input even when
+  // the fact text is correct). Attributes `{input_language, label_count, corrected}`
+  // where `label_count` = distinct non-speaker labels considered and `corrected` = how
+  // many were rewritten. The guard NEVER drops an entity/relation nor fails remember()
+  // (fail-soft). NOT emitted when nothing was corrected (no-op discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_label_language_mismatch',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
