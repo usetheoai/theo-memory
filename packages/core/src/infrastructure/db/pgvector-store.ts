@@ -777,8 +777,11 @@ export class PgvectorStore implements VectorStore {
     const supersededClause = args.includeSuperseded ? '' : ' AND superseded_by IS NULL';
     let qClause = '';
     if (args.q !== undefined && args.q.length > 0) {
-      qClause = ` AND description ILIKE '%' || $${p} || '%'`;
-      params.push(args.q);
+      // /review COR-1: escape LIKE metacharacters in `q` (mirror listEpisodes) so a
+      // `q` of `%`/`_` is a LITERAL substring — matching the in-memory store's
+      // `.includes()` semantics (store parity) rather than a wildcard.
+      qClause = ` AND description ILIKE $${p} ESCAPE '\\'`;
+      params.push(`%${escapeLikePattern(args.q)}%`);
       p += 1;
     }
     const where = `t_invalid IS NULL AND kind = 'skill' AND workspace_id = $1 AND agent_id LIKE $2 ESCAPE '\\'${supersededClause}${qClause}`;
