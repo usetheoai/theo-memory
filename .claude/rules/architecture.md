@@ -162,6 +162,31 @@ Drizzle ORM v0.45 does not model triggers or functions in `pgTable` declarations
 
 F-dom-db-2.
 
+### 10.4 Large-table index builds run `CREATE INDEX CONCURRENTLY` out-of-band
+
+drizzle-orm 0.45.2 `migrate()` runs ALL pending migrations inside ONE transaction (verified in `drizzle-orm/pg-core/dialect.cjs` `PgDialect.migrate` — `await session.transaction(...)`). Postgres FORBIDS `CREATE INDEX CONCURRENTLY` inside a transaction block, and this Drizzle version has no per-migration no-transaction marker. So a `CREATE INDEX CONCURRENTLY` in a journal-applied migration `.sql` would crash `runMigrations()` at deploy with SQLSTATE `25001`.
+
+A plain `CREATE INDEX` (what every index migration uses today — `0005`, `0008`, `0009`, `0021`) takes a `SHARE` lock that blocks writes for the build duration. On a small/fresh table this is trivial; on a large, write-hot production `memories` table it is a deploy-time write stall.
+
+**Runbook — large-table index (ADR-0018):**
+
+1. **Author the migration as a plain `CREATE INDEX IF NOT EXISTS`** in `packages/core/src/infrastructure/db/migrations/` (via `npm run db:generate`). This is correct + sufficient for fresh/dev DBs, where the blocking build is negligible.
+2. **Before deploying against a large EXISTING production DB**, build the index OUT-OF-BAND on a direct autocommit connection (NOT inside `runMigrations()`):
+   ```sql
+   CREATE INDEX CONCURRENTLY IF NOT EXISTS "<index_name>" ON "memories" (...) WHERE ...;
+   ```
+   Run it via `psql`/an ops script against prod (same out-of-band spirit as § 10.3's trigger side-channel).
+3. **Deploy.** `runMigrations()` reaches the migration's `CREATE INDEX IF NOT EXISTS` and finds the index already present → metadata no-op; the Drizzle journal marks the migration applied. No write lock, no crash.
+
+**Recovery:** a failed `CREATE INDEX CONCURRENTLY` leaves an `indisvalid=false` index that still consumes writes — `DROP INDEX CONCURRENTLY IF EXISTS "<index_name>"` then retry. Never leave an INVALID index in place.
+
+**Rule:**
+- A journal-applied migration `.sql` MUST NOT contain `CREATE INDEX CONCURRENTLY` — it crashes the single-transaction `migrate()`. Enforced by `tests/integration/migration-no-concurrently.test.ts` (a path-drift-guarded, comment-tolerant file scan).
+- The `IF NOT EXISTS` on index migrations is load-bearing: it is what lets the out-of-band CONCURRENTLY build and the migration no-op coexist.
+- Full automation (a CI lint keyed on table size, or a no-tx-capable runner) is deferred until GA scale justifies it (ADR-0018 § Consequences). Do NOT special-case a single migration to CONCURRENTLY — it cannot live in the file anyway.
+
+ADR-0018.
+
 ## Reference
 
 - `CLAUDE.md § Architectural Decisions Locked` — the source of truth.
