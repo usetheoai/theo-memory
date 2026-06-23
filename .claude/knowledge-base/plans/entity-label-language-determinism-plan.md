@@ -82,7 +82,7 @@ ADR D1 originally proposed **aggregate-detect-then-correct** (mirror EG-4): dete
 
 ### D3 — Fail-soft guard + `extraction_label_language_mismatch` OTel event; preserve `user`
 
-**Decision:** Wrap the correction in its own try/catch; on ANY error keep the original labels. Exclude the literal `user` from the distinct-label set (never translated). Emit `extraction_label_language_mismatch` `{input_language, labels_language, label_count, corrected}` whenever a mismatch is DETECTED (residual observable when `corrected < label_count`). NEVER drops an entity/relation, NEVER fails `remember()`.
+**Decision:** Wrap the correction in its own try/catch; on ANY error keep the original labels. Exclude the literal `user` from the distinct-label set (never translated), and never let a label map ONTO `user`. Emit `extraction_label_language_mismatch` `{input_language, label_count, corrected}` when `corrected > 0` (no-op discipline; the always-on path re-attempts every write, so a transient map failure is corrected on the next remember). NEVER drops an entity/relation, NEVER fails `remember()`.
 
 **Rationale:** Princípio 3 observability + the EG-4 fail-soft invariant. The `user` exception mirrors the EG-4 fact rule (the speaker node must stay the single canonical `user`).
 
@@ -111,7 +111,7 @@ No new dependency is introduced. `/deps-audit` is a no-op delta over EG-4.
 
 The label-correction path adds ONE external-I/O call (the LLM map translation) ONLY when a label mismatch is detected; detection is pure-local CPU.
 
-- **LLM map call times out / 5xx / returns non-JSON** — fail-soft: the correction's own `try/catch` keeps the ORIGINAL labels; `remember()` proceeds; the event still fires with `corrected=0` (residual observable). Test: a stub LLM that throws on the map call → entities/relations unchanged, `remember()` resolves.
+- **LLM map call times out / 5xx / returns non-JSON** — fail-soft: the correction's own `try/catch` keeps the ORIGINAL labels; `remember()` proceeds; no event is emitted (corrected=0, no-op discipline) and the labels are re-normalized on the next write. Test: a stub LLM that throws on the map call → entities/relations unchanged, `remember()` resolves.
 - **LLM map returns a partial / extra-key object** — defensive apply: `map[label] ?? label` per label; extra keys ignored. Test: a stub returning a map missing one label → that label kept, others translated.
 - **`eld` returns `und`/unmapped on the joined labels** — `detectInputLanguage` returns null → no correction (labels kept). No new failure mode.
 
@@ -260,7 +260,7 @@ Reasoning: the integration-validation gate ("eat your own cooking"); the oracle 
 | Risk | Severity | Mitigation | Owner |
 |---|---|---|---|
 | The map LLM call mistranslates a proper name (e.g. "Acme") | Medium | The prompt pins "preserve proper names"; proper names are usually language-neutral; a wrong map value is bounded to that label + observable (`corrected` count). | implementer |
-| Extra LLM call cost on every mixed-label extraction | Low | Only fires on a confident detected mismatch (rare for same-language inputs); one bounded call regardless of label count. | reviewer |
+| Extra LLM call per `remember()` that extracts entities (ALWAYS-ON; detect-gating is unreliable for mixed short labels) | Low | One bounded call regardless of label count; only when the input language is detected + ≥1 non-speaker label. A future optimization merges it with the EG-4 fact-correction call (Unresolved Questions). Disclosed in CHANGELOG. | reviewer |
 | Renamed entity collides with an existing node of the target language | Low | This is the DESIRED dedup convergence (Princípio 2) — two language variants resolving to one node is correct, not a defect. | reviewer |
 | `eld` mis-detects the joined labels | Low | Same `null`-on-uncertain fail-soft as EG-4 → no correction, labels kept (no regression vs today). | implementer |
 
