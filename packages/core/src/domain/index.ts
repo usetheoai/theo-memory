@@ -574,8 +574,8 @@ export type { ActiveSignals, CandidateScores } from './scoring.js';
 export { MAX_EMBEDDING_DIM } from './constants.js';
 
 /**
- * Observable events — `MEMORY_EVENTS` literal union (23 members; latest:
- * entity_edge_linked + entity_edge_linking_failed from slice2 T2.0) + `emitEvent`
+ * Observable events — `MEMORY_EVENTS` literal union (35 members; latest:
+ * entity_noise_filtered from entity-extraction-noise-filter EG-2) + `emitEvent`
  * helper for OTel-typed event emission.
  *
  * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T1.1

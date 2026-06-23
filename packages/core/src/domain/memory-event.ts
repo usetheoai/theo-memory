@@ -74,6 +74,12 @@ export const MEMORY_EVENTS = [
   // still emits entity_linked even when edge linking throws — a remember() MUST NEVER
   // fail because edge linking failed). @see CLAUDE.md § IMPORTANTE Princípio 3
   'entity_edge_linking_failed',
+  // entity-extraction-noise-filter EG-2 — Phase 7 node linking dropped N candidate
+  // entities as noise (pronoun/contraction/generic-role/verb-fragment) before
+  // persist. Attribute `filtered_count` = how many were dropped. NOT emitted when
+  // filtered_count = 0 (mirrors recall_threshold_filtered). Makes the IGNORE
+  // decision observable. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'entity_noise_filtered',
   // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
   // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors
