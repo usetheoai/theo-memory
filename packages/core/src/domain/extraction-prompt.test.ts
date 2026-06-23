@@ -144,6 +144,45 @@ describe('generateAdditiveExtractionPrompt', () => {
   });
 });
 
+describe('extraction-language-determinism fixes-cycle-1 T2.1 — explicit target-language injection', () => {
+  test('injects the explicit language directive when a language is detected (D1)', () => {
+    const { prompt } = generateAdditiveExtractionPrompt(
+      [],
+      [{ role: 'user', content: 'My name is Sarah and I love rock climbing' }],
+      undefined,
+      undefined,
+      { name: 'English' },
+    );
+    expect(prompt).toMatch(/LANGUAGE DIRECTIVE/);
+    expect(prompt).toMatch(/in English/);
+    expect(prompt).toMatch(/NEVER translate/i);
+  });
+
+  test('omits the directive when no language is given (backward-compatible)', () => {
+    const { prompt } = generateAdditiveExtractionPrompt([], [{ role: 'user', content: 'x' }]);
+    expect(prompt).not.toMatch(/LANGUAGE DIRECTIVE/);
+  });
+
+  test('the directive is the highest-priority prefix (before ontology + system prompt) (D1)', () => {
+    const { prompt } = generateAdditiveExtractionPrompt(
+      [],
+      [{ role: 'user', content: 'x' }],
+      undefined,
+      BUILTIN_ONTOLOGIES.medical,
+      { name: 'Portuguese' },
+    );
+    expect(prompt.indexOf('LANGUAGE DIRECTIVE')).toBeLessThan(prompt.indexOf('DOMAIN ONTOLOGY'));
+    expect(prompt).toMatch(/in Portuguese/);
+  });
+
+  test('SYSTEM_PROMPT carries the one-shot bilingual reinforcement (D2)', () => {
+    const { prompt } = generateAdditiveExtractionPrompt([], [{ role: 'user', content: 'x' }]);
+    // one English-in→English-out + one Portuguese-in→Portuguese-out concrete cue.
+    expect(prompt).toMatch(/data scientist/);
+    expect(prompt).toMatch(/engenheiro/);
+  });
+});
+
 describe('AdditiveExtractionSchema (Zod)', () => {
   test('parses the canonical upstream response shape', () => {
     const parsed = AdditiveExtractionSchema.parse({
