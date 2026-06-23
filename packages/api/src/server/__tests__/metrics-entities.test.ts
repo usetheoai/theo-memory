@@ -2,11 +2,32 @@
  * theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped metrics +
  * entities endpoints. Derived from getAll(); entities from attributed_to.
  */
-import type { MemoryItem } from '@usetheo/memory/contract';
+import type { EntityNodeSummary, MemoryEntityStore, MemoryItem } from '@usetheo/memory/contract';
 import type { Memory, UsageCounterStore } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
 import { createServer } from '../index.js';
+
+/** Fake entity store (read side). `list` returns the given summaries; the spy
+ *  lets a test assert the workspace+scope params metrics passes. */
+function stubEntityStore(names: readonly string[]): {
+  store: MemoryEntityStore;
+  listSpy: ReturnType<typeof vi.fn>;
+} {
+  const summaries = names.map(
+    (name, i) =>
+      ({
+        id: `e-${i}`,
+        name,
+        type: 'PROPER',
+        memoryCount: 1,
+        firstSeenAt: '2026-06-01T00:00:00.000Z',
+        lastSeenAt: '2026-06-01T00:00:00.000Z',
+      }) as unknown as EntityNodeSummary,
+  );
+  const listSpy = vi.fn(async () => summaries);
+  return { store: { upsertAndLink: vi.fn(), list: listSpy }, listSpy };
+}
 
 /** Stub recall counter that reports a fixed cumulative count. */
 function stubCounter(count: number): UsageCounterStore {
@@ -98,6 +119,44 @@ describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {
     const body = (await res.json()) as Record<string, number>;
     expect(body['total_memories']).toBe(2);
     expect(body['entity_count']).toBe(1); // only paulo; '' excluded
+  });
+});
+
+describe('EG-3 — entity_count aligned to the entity store (single source of truth)', () => {
+  test('entity_count == list().length when the entity store is wired', async () => {
+    const { store } = stubEntityStore(['Dune', 'Frank Herbert', 'Japan']);
+    const items = [makeItem('id-1', '2026-06-01T00:00:00Z', 'paulo')]; // attributedTo would give 1
+    const app = createServer({ memory: stubMemory(items), memoryEntityStore: store });
+    const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'));
+    const body = (await res.json()) as Record<string, number>;
+    expect(body['entity_count']).toBe(3); // graph entities, NOT the 1 attributed peer
+  });
+
+  test('metrics entity_count equals the entities-handler list length (wired)', async () => {
+    const { store } = stubEntityStore(['Dune', 'Frank Herbert', 'Japan']);
+    const app = createServer({ memory: stubMemory([]), memoryEntityStore: store });
+    const m = (await (await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'))).json()) as Record<string, number>;
+    const e = (await (await app.fetch(new Request('http://localhost/v1/scopes/user/alice/entities'))).json()) as { entities: unknown[] };
+    expect(m['entity_count']).toBe(e.entities.length);
+  });
+
+  test('EC-1: metrics entity_count equals entities length on the no-store fallback path too', async () => {
+    const items = [
+      makeItem('id-1', '2026-06-01T00:00:00Z', 'paulo'),
+      makeItem('id-2', '2026-06-02T00:00:00Z', 'maria'),
+    ];
+    const app = createServer({ memory: stubMemory(items) }); // NO entity store
+    const m = (await (await app.fetch(new Request('http://localhost/v1/scopes/user/alice/metrics'))).json()) as Record<string, number>;
+    const e = (await (await app.fetch(new Request('http://localhost/v1/scopes/user/alice/entities'))).json()) as { entities: unknown[] };
+    expect(m['entity_count']).toBe(2);
+    expect(m['entity_count']).toBe(e.entities.length);
+  });
+
+  test('EC-2: metrics calls list() with the same workspace+scope params as entities', async () => {
+    const { store, listSpy } = stubEntityStore(['Dune']);
+    const app = createServer({ memory: stubMemory([]), memoryEntityStore: store });
+    await app.fetch(new Request('http://localhost/v1/scopes/session/sess-7/metrics'));
+    expect(listSpy).toHaveBeenCalledWith({ workspaceId: 'default', filters: { session_id: 'sess-7' } });
   });
 });
 
