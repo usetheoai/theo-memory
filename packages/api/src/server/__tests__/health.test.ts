@@ -25,7 +25,7 @@ function noopMemory(): Memory {
     history: vi.fn(),
     reset: vi.fn(),
     flushReflections: vi.fn(),
-  };
+    listSkillsBySubject: vi.fn().mockResolvedValue({ skills: [], total: 0 }),  };
 }
 
 describe('T1.3 — GET /v1/health', () => {

@@ -9,7 +9,24 @@
  *
  * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § T2.1
  */
+import type { VectorStoreResult } from '../../domain/dip/vector-store.js';
 import type { SkillLanguage } from '../../domain/skill.js';
+
+/**
+ * skills-cross-repo-flat-list T1.1 — args for the tenant-safe cross-repo skills
+ * listing. `subject` is the namespace prefix (the gateway's authenticated
+ * customer); the store filters `agent_id LIKE '{subject}:%'` (wildcards escaped)
+ * AND `workspace_id`, returning skill rows across every repo for that subject.
+ */
+export interface ListSkillsBySubjectArgs {
+  readonly workspaceId: string;
+  readonly subject: string;
+  readonly limit: number;
+  readonly offset: number;
+  readonly includeSuperseded: boolean;
+  /** Optional case-insensitive description substring filter (bound param). */
+  readonly q?: string;
+}
 
 /**
  * Args for `insertSkill` — writes a `kind='skill'` row to the local store.
@@ -74,4 +91,13 @@ export interface VectorStoreWithSkillInsert {
     args: InsertDerivedSkillArgs,
     sourceIdsToSupersede: readonly string[],
   ): Promise<string>;
+  /**
+   * skills-cross-repo-flat-list T1.1 — list ALL skill rows for a subject across
+   * every repo (tenant-safe `agent_id` prefix scan). Returns `[rows, total]`
+   * mirroring `VectorStore.list`; the caller decodes each row + strips the
+   * `'{subject}:'` prefix to derive `repoId`. Live-only, newest-first.
+   */
+  listSkillsBySubject(
+    args: ListSkillsBySubjectArgs,
+  ): Promise<readonly [readonly VectorStoreResult[], number]>;
 }

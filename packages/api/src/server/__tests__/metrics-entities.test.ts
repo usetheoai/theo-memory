@@ -70,7 +70,7 @@ function stubMemory(items: readonly MemoryItem[]): Memory {
     history: vi.fn(),
     reset: vi.fn(),
     flushReflections: vi.fn(),
-  };
+    listSkillsBySubject: vi.fn().mockResolvedValue({ skills: [], total: 0 }),  };
 }
 
 describe('T2.1 — GET /v1/scopes/:type/:id/metrics', () => {

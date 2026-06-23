@@ -96,6 +96,40 @@ export interface SkillWithScore extends Skill {
 }
 
 /**
+ * skills-cross-repo-flat-list — a skill returned by the cross-repo listing,
+ * carrying the bare `repoId` it belongs to (the `agent_id` with the
+ * `'{subject}:'` namespace prefix stripped). Lets a flat list across every repo
+ * render a repo column without a second lookup.
+ */
+export interface SkillWithRepo extends Skill {
+  /** The repo this skill belongs to (namespace prefix stripped from agent_id). */
+  readonly repoId: string;
+}
+
+/**
+ * Options consumed by the cross-repo skills listing (`Memory.listSkillsBySubject`).
+ * Offset pagination mirrors the memories listing; `q` is an optional
+ * case-insensitive description substring filter.
+ */
+export interface SkillsBySubjectOptions {
+  /** When `true`, include superseded skills. Default `false`. */
+  readonly includeSuperseded?: boolean;
+  /** Max rows per page (listing cap). Implementation default: 100. */
+  readonly limit?: number;
+  /** Rows to skip (offset pagination). Default 0. */
+  readonly offset?: number;
+  /** Optional case-insensitive description substring filter. */
+  readonly q?: string;
+}
+
+/** Page returned by the cross-repo skills listing — rows + the full match total. */
+export interface SkillsBySubjectPage {
+  readonly skills: readonly SkillWithRepo[];
+  /** Total matching rows across all repos for the subject (NOT just this page). */
+  readonly total: number;
+}
+
+/**
  * Options consumed by `ScopedSkillMemory.recall()`. Mirrors the v0.4a
  * `RecallOptions` shape with the v0.6 `includeSuperseded` filter added per
  * plan v1.1 EC-3 absorption (filter must be honored on BOTH recall and getAll).

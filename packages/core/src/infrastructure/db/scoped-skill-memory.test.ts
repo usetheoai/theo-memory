@@ -575,3 +575,63 @@ describe('createLocalMemory({ skillExecutor }) — T2.2 factory gated wiring', (
     await expect(scoped.execute('any-id', {})).rejects.toBeInstanceOf(SkillExecutionNotConfiguredError);
   });
 });
+
+describe('LocalMemory.listSkillsBySubject — cross-repo flat list (skills-cross-repo-flat-list)', () => {
+  async function seedThreeRepos(): Promise<Awaited<ReturnType<typeof buildMemory>>['memory']> {
+    const { memory } = await buildMemory();
+    // Gateway namespaces repo as `{subject}:{repoId}` → agent_id.
+    await memory.skills('alice:repo-a').add({ code: 'a1', description: 'alpha one parser', codeLanguage: 'typescript' });
+    await memory.skills('alice:repo-a').add({ code: 'a2', description: 'alpha two writer', codeLanguage: 'typescript' });
+    await memory.skills('alice:repo-b').add({ code: 'b1', description: 'beta csv loader', codeLanguage: 'typescript' });
+    await memory.skills('bob:repo-c').add({ code: 'c1', description: 'gamma retry helper', codeLanguage: 'typescript' });
+    return memory;
+  }
+
+  test('lists exactly the subject skills across repos with correct repoId, isolating other tenants', async () => {
+    const memory = await seedThreeRepos();
+    const page = await memory.listSkillsBySubject('alice');
+    expect(page.total).toBe(3);
+    expect(page.skills.length).toBe(3);
+    const repoIds = new Set(page.skills.map((s) => s.repoId));
+    expect(repoIds).toEqual(new Set(['repo-a', 'repo-b']));
+    // none of bob's skills leak (descriptions / repoIds)
+    expect(page.skills.some((s) => s.description.includes('gamma'))).toBe(false);
+    // every result is a head-of-chain skill with the kind discriminator
+    expect(page.skills.every((s) => s.kind === 'skill')).toBe(true);
+  });
+
+  test('a strict-prefix subject does not leak (the ":" delimiter prevents overlap)', async () => {
+    const memory = await seedThreeRepos();
+    await memory.skills('al:repo-x').add({ code: 'x', description: 'short prefix skill', codeLanguage: 'typescript' });
+    const page = await memory.listSkillsBySubject('al');
+    expect(page.total).toBe(1);
+    expect(page.skills[0]?.repoId).toBe('repo-x');
+    // alice's skills (alice:...) must NOT appear under subject 'al'
+    expect(page.skills.some((s) => s.description.includes('alpha'))).toBe(false);
+  });
+
+  test('q filter narrows by description; offset/limit paginate', async () => {
+    const memory = await seedThreeRepos();
+    const filtered = await memory.listSkillsBySubject('alice', { q: 'csv' });
+    expect(filtered.total).toBe(1);
+    expect(filtered.skills[0]?.repoId).toBe('repo-b');
+    const firstPage = await memory.listSkillsBySubject('alice', { limit: 2, offset: 0 });
+    expect(firstPage.skills.length).toBe(2);
+    expect(firstPage.total).toBe(3);
+    const secondPage = await memory.listSkillsBySubject('alice', { limit: 2, offset: 2 });
+    expect(secondPage.skills.length).toBe(1);
+    expect(secondPage.total).toBe(3);
+  });
+
+  test('empty subject scope returns [] with total 0', async () => {
+    const memory = await seedThreeRepos();
+    const page = await memory.listSkillsBySubject('nobody');
+    expect(page).toEqual({ skills: [], total: 0 });
+  });
+
+  test('rejects a subject containing ":" or empty with InvalidScope', async () => {
+    const { memory } = await buildMemory();
+    await expect(memory.listSkillsBySubject('a:b')).rejects.toBeInstanceOf(InvalidScope);
+    await expect(memory.listSkillsBySubject('')).rejects.toBeInstanceOf(InvalidScope);
+  });
+});

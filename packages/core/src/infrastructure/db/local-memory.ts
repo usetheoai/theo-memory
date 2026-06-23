@@ -7,6 +7,7 @@ import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import type { VectorStore } from '../../domain/dip/vector-store.js';
 import {
+  InvalidScope,
   MemoryNotFound,
   WorkspaceMismatch,
 } from '../../domain/errors.js';
@@ -19,8 +20,14 @@ import type {
 import type {
   ForgetOptions,
 } from '../../domain/options.js';
-import type { Scope } from '../../domain/scope.js';
-import type { ScopedSkillMemory } from '../../domain/skill.js';
+import type { RepoScope, Scope } from '../../domain/scope.js';
+import type {
+  ScopedSkillMemory,
+  SkillsBySubjectOptions,
+  SkillsBySubjectPage,
+  SkillWithRepo,
+} from '../../domain/skill.js';
+
 
 import type { LocalMemoryConfig } from './config.js';
 import { PgEvictor } from './eviction/index.js';
@@ -33,6 +40,7 @@ import {
 } from './scoped-memory.js';
 import { LocalScopedSkillMemory } from './scoped-skill-memory.js';
 import type { VectorStoreWithSkillInsert } from './skill-store-args.js';
+import { decodeSkillPayload } from './skills/payload.js';
 
 /**
  * v0.4b-fixes T4.1 extension: returned Memory carries a `dispose()` method
@@ -285,5 +293,56 @@ export class LocalMemory implements Memory {
         ? { skillExecutor: this.config.skillExecutor }
         : {}),
     });
+  }
+
+  /**
+   * skills-cross-repo-flat-list (ADR D2/D4) — flat cross-repo skills listing for
+   * a subject. Delegates to the store's tenant-safe prefix scan, then decodes
+   * each row into a `SkillWithRepo` (the `agent_id` with the `'{subject}:'`
+   * prefix stripped → `repoId`). The bound workspace (ADR D3) is threaded; an
+   * unbound Memory falls back to the `'default'` workspace (store column default).
+   */
+  async listSkillsBySubject(
+    subject: string,
+    options?: SkillsBySubjectOptions,
+  ): Promise<SkillsBySubjectPage> {
+    if (subject.length === 0) {
+      throw new InvalidScope('listSkillsBySubject requires a non-empty subject');
+    }
+    // The ':' delimiter is the namespace separator; a subject carrying it would
+    // produce an ambiguous prefix → reject (tenant-safety, Drawback #2).
+    if (subject.includes(':')) {
+      throw new InvalidScope('listSkillsBySubject subject must not contain ":"');
+    }
+    const store = this.config.vectorStore as VectorStore & VectorStoreWithSkillInsert;
+    const workspaceId = this.workspaceId ?? 'default';
+    const prefix = `${subject}:`;
+    const [rows, total] = await store.listSkillsBySubject({
+      workspaceId,
+      subject,
+      limit: options?.limit ?? 100,
+      offset: options?.offset ?? 0,
+      includeSuperseded: options?.includeSuperseded === true,
+      ...(options?.q !== undefined ? { q: options.q } : {}),
+    });
+    const skills: SkillWithRepo[] = [];
+    for (const r of rows) {
+      const agentId = r.payload['agent_id'];
+      // Defensive: the prefix scan should only return matching rows, but skip any
+      // row whose agent_id does not carry the expected prefix (never emit a wrong
+      // repoId). Inquebrável Rule 3 — honest over silently-wrong.
+      if (typeof agentId !== 'string' || !agentId.startsWith(prefix)) {
+        continue;
+      }
+      const repoId = agentId.slice(prefix.length);
+      const scope: RepoScope = { kind: 'repo', repoId };
+      const decoded = decodeSkillPayload(r.id, r.payload, scope);
+      if (decoded === null) {
+        continue;
+      }
+      const withCreatedAt = r.createdAt !== undefined ? { ...decoded, createdAt: r.createdAt } : decoded;
+      skills.push({ ...withCreatedAt, repoId });
+    }
+    return { skills, total };
   }
 }

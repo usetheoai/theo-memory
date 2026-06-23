@@ -541,3 +541,82 @@ describe('PgvectorStore.search — EG-6 scoped exact path (recall-scoped-exact-s
     expect(searchCall!.sql).toMatch(/superseded_by IS NULL/);
   });
 });
+
+describe('PgvectorStore.listSkillsBySubject — EG cross-repo flat list (skills-cross-repo-flat-list)', () => {
+  function capturingStore() {
+    const captured: { sql: string; params: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params: unknown[]) => {
+      captured.push({ sql, params: params ?? [] });
+      // first call = COUNT, second = page
+      return sql.includes('COUNT(*)') ? { rows: [{ total: 0 }] } : { rows: [] };
+    });
+    const pool = { query: poolQuery } as unknown as Pool;
+    return { store: new PgvectorStore(pool, { embeddingDim: 3 }), captured };
+  }
+
+  test('SQL prefix-filters agent_id with escaped wildcards + ESCAPE, binds workspace_id, kind=skill, superseded, LIMIT/OFFSET', async () => {
+    const { store, captured } = capturingStore();
+    await store.listSkillsBySubject({
+      workspaceId: 'default',
+      subject: 'alice',
+      limit: 25,
+      offset: 10,
+      includeSuperseded: false,
+    });
+    const pageCall = captured.find((c) => c.sql.includes('LIMIT'));
+    expect(pageCall).toBeDefined();
+    expect(pageCall!.sql).toMatch(/agent_id LIKE \$/);
+    expect(pageCall!.sql).toMatch(/ESCAPE '\\'/);
+    expect(pageCall!.sql).toMatch(/workspace_id = \$1/);
+    expect(pageCall!.sql).toMatch(/kind = 'skill'/);
+    expect(pageCall!.sql).toMatch(/superseded_by IS NULL/);
+    expect(pageCall!.sql).toMatch(/ORDER BY created_at DESC, id ASC/);
+    expect(pageCall!.sql).toMatch(/LIMIT \$\d+ OFFSET \$\d+/);
+    // params: $1 workspace, $2 prefix, then limit, offset.
+    expect(pageCall!.params[0]).toBe('default');
+    expect(pageCall!.params[1]).toBe('alice:%');
+    expect(pageCall!.params).toContain(25);
+    expect(pageCall!.params).toContain(10);
+  });
+
+  test('escapes LIKE wildcards in the subject prefix (no broadening)', async () => {
+    const { store, captured } = capturingStore();
+    await store.listSkillsBySubject({
+      workspaceId: 'default',
+      subject: 'a%b_c\\d',
+      limit: 10,
+      offset: 0,
+      includeSuperseded: false,
+    });
+    const pageCall = captured.find((c) => c.sql.includes('LIMIT'));
+    expect(pageCall!.params[1]).toBe('a\\%b\\_c\\\\d:%');
+  });
+
+  test('includeSuperseded omits the superseded_by IS NULL clause', async () => {
+    const { store, captured } = capturingStore();
+    await store.listSkillsBySubject({
+      workspaceId: 'default',
+      subject: 'alice',
+      limit: 10,
+      offset: 0,
+      includeSuperseded: true,
+    });
+    const pageCall = captured.find((c) => c.sql.includes('LIMIT'));
+    expect(pageCall!.sql).not.toMatch(/superseded_by IS NULL/);
+  });
+
+  test('q filter adds description ILIKE bound substring', async () => {
+    const { store, captured } = capturingStore();
+    await store.listSkillsBySubject({
+      workspaceId: 'default',
+      subject: 'alice',
+      limit: 10,
+      offset: 0,
+      includeSuperseded: false,
+      q: 'csv',
+    });
+    const pageCall = captured.find((c) => c.sql.includes('LIMIT'));
+    expect(pageCall!.sql).toMatch(/description ILIKE/);
+    expect(pageCall!.params).toContain('csv');
+  });
+});

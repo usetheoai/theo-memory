@@ -38,7 +38,11 @@ import type {
 } from './options.js';
 import type { ReflectionResult } from './reflection-result.js';
 import type { Scope } from './scope.js';
-import type { ScopedSkillMemory } from './skill.js';
+import type {
+  ScopedSkillMemory,
+  SkillsBySubjectOptions,
+  SkillsBySubjectPage,
+} from './skill.js';
 
 /**
  * Underlying primitive that adapters (src/local/, src/cloud/) implement.
@@ -151,6 +155,22 @@ export interface Memory {
    * @see .claude/knowledge-base/plans/voyager-skill-library-plan.md § ADR D1 (REUSE v0.4a reflect() chain)
    */
   skills(repoId: string): ScopedSkillMemory;
+
+  /**
+   * skills-cross-repo-flat-list (ADR D2/D4) — list ALL skills for a `subject`
+   * across EVERY repo (flat), each row carrying its `repoId`. Tenant isolation is
+   * enforced by the `agent_id` prefix the gateway namespaces per authenticated
+   * subject; the listing filters `agent_id LIKE '{subject}:%'` (wildcards
+   * escaped) AND the bound workspace. Offset pagination + optional `q`
+   * description filter. Complements `skills(repoId)` (single-repo) — the browse
+   * surface that does not require knowing a repoId upfront.
+   *
+   * @see .claude/knowledge-base/plans/skills-cross-repo-flat-list-plan.md § ADR D2/D4
+   */
+  listSkillsBySubject(
+    subject: string,
+    options?: SkillsBySubjectOptions,
+  ): Promise<SkillsBySubjectPage>;
 
   /**
    * Globally unique memoryId — no scope required. Soft delete by default;
