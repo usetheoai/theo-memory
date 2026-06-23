@@ -2,7 +2,7 @@
  * theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped metrics +
  * entities endpoints. Derived from getAll(); entities from attributed_to.
  */
-import type { EntityNodeSummary, MemoryEntityStore, MemoryItem } from '@usetheo/memory/contract';
+import type { AuthVerifier, EntityNodeSummary, MemoryEntityStore, MemoryItem, Principal } from '@usetheo/memory/contract';
 import type { Memory, UsageCounterStore } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';
 
@@ -157,6 +157,22 @@ describe('EG-3 — entity_count aligned to the entity store (single source of tr
     const app = createServer({ memory: stubMemory([]), memoryEntityStore: store });
     await app.fetch(new Request('http://localhost/v1/scopes/session/sess-7/metrics'));
     expect(listSpy).toHaveBeenCalledWith({ workspaceId: 'default', filters: { session_id: 'sess-7' } });
+  });
+
+  test('EC-2: metrics resolves the NON-default principal workspaceId (multi-tenant drift guard)', async () => {
+    const { store, listSpy } = stubEntityStore(['Dune']);
+    const principal: Principal = { workspaceId: 'ws-9', userId: 'u-1', role: 'owner', scopes: ['memory:read', 'memory:admin'] };
+    const authVerifier: AuthVerifier = {
+      resolvePrincipal: (t: string) => Promise.resolve(t === 'tok' ? principal : null),
+      verify: (t: string) => Promise.resolve(t === 'tok'),
+    };
+    const app = createServer({ memory: stubMemory([]), memoryEntityStore: store, authVerifier });
+    await app.fetch(
+      new Request('http://localhost/v1/scopes/user/alice/metrics', { headers: { Authorization: 'Bearer tok' } }),
+    );
+    // A regression that hard-coded 'default' (dropping the principal lookup) would
+    // diverge from entities under multi-tenant — this pins the principal path.
+    expect(listSpy).toHaveBeenCalledWith({ workspaceId: 'ws-9', filters: { user_id: 'alice' } });
   });
 });
 
