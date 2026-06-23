@@ -2,14 +2,16 @@
  * GOAL test (entity-extraction-noise-filter T3.1) — the entity-graph excludes
  * noise nodes end-to-end against real pgvector.
  *
- * The observed dogfood noise ("I'm", "m reading", "love science", "user")
- * originates in the COMPROMISE NER fallback (deterministic), NOT the LLM — a
- * real LLM emits clean entities and would test the filter vacuously (EC-4). So
- * this GOAL drives the production compromise-fallback path: a deterministic LLM
- * returns the fact text but NO `entities`, which makes `linkEntities` fall back
- * to the default `CompromiseEntityExtractor` over the stored fact — reproducing
- * the noise — and asserts the persisted `entities` rows INCLUDE Dune +
- * Frank Herbert and EXCLUDE the four noise tokens.
+ * This GOAL drives the LLM-PRIMARY node path — the dominant production source,
+ * which had NO content filter before EG-2 (plan ADR D1). A deterministic LLM
+ * returns the fact PLUS an `entities` list that PROVABLY contains noise tokens
+ * ("I'm", "love science", "user") alongside the real ones (Dune, Frank Herbert).
+ * Those flow into `upsertNodes`, where the EG-2 chokepoint filter must drop the
+ * noise and keep the real entities. This is non-vacuous (EC-4): the source
+ * provably carried noise, so the EXCLUDE assertions would FAIL if the chokepoint
+ * filter (T2.1) were removed. (The compromise-fallback path is covered at the
+ * unit tier in entity-linking.test.ts; the extractor-layer filter at the unit
+ * tier in compromise-entity-extractor.test.ts.)
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
@@ -46,15 +48,22 @@ function craftedEmbedder(): Embedder {
   };
 }
 
-/** Deterministic LLM: echoes the input as ONE fact, emits NO `entities` — forcing
- *  the compromise-fallback node path (where the dogfood noise originates). */
-function factOnlyLlm(): LLM {
+/** Real + noise entities the LLM "emits" — drives the LLM-primary node path. */
+const LLM_NOISE_ENTITIES = ['Dune', 'Frank Herbert', 'user', 'love science', "I'm"] as const;
+
+/** Deterministic LLM: returns the fact AND an `entities` list that provably
+ *  contains noise tokens (alongside real ones) — exercising the upsertNodes
+ *  chokepoint filter on the LLM-primary path (EC-4 non-vacuous). */
+function entitiesLlm(): LLM {
   return {
     generateResponse: async (messages: readonly { role: string; content: string }[]) => {
       const content = messages.find((m) => m.role === 'user')?.content ?? '';
       const line = content.split('\n').find((l) => l.startsWith('user: ')) ?? '';
       const text = line.replace(/^user:\s*/, '') || SENTENCE;
-      return { memory: [{ id: '0', text, attributed_to: 'user' }] }; // NO entities → compromise fallback
+      return {
+        memory: [{ id: '0', text, attributed_to: 'user' }],
+        entities: LLM_NOISE_ENTITIES.map((name) => ({ name })),
+      };
     },
     generateChat: async () => ({ role: 'assistant' as const, content: '' }),
   };
@@ -77,7 +86,7 @@ describe.skipIf(ROOT_PG_URI === '')('entity-noise-filter GOAL — entity-graph e
       vectorStore,
       embedder: craftedEmbedder(),
       embeddingDim: DIM,
-      llm: factOnlyLlm(),
+      llm: entitiesLlm(),
     });
     await memory.user('alice').remember(SENTENCE);
   }, 60_000);
@@ -87,10 +96,13 @@ describe.skipIf(ROOT_PG_URI === '')('entity-noise-filter GOAL — entity-graph e
   });
 
   it('persists Dune + Frank Herbert and excludes the noise tokens', async () => {
+    // EC-4 non-vacuous: the LLM source provably carried noise the chokepoint must drop.
+    expect(LLM_NOISE_ENTITIES).toContain('love science');
+
     const { rows } = await pool.query<{ name: string }>('SELECT name FROM entities');
     const names = rows.map((r) => r.name);
 
-    // Non-vacuous: the compromise fallback must have produced at least the real entities.
+    // The chokepoint must have persisted at least the real entities.
     expect(names.length).toBeGreaterThan(0);
 
     // INCLUDE — real entities survive (recall preserved).

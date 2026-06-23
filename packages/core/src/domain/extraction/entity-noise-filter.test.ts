@@ -9,7 +9,7 @@ import { isEntityNoise } from './entity-noise-filter.js';
 
 describe('isEntityNoise', () => {
   it('drops pronoun/contraction/generic/verb-fragment nodes (observed dogfood noise)', () => {
-    const noise = ["I'm", 'm reading', 'love science', 'user', 'I', 'me', 'we', "i've", 'User', 'People'];
+    const noise = ["I'm", 'm reading', 'love science', 'user', 'i', 'me', 'we', "i've", 'User', 'People'];
     for (const name of noise) {
       expect(isEntityNoise(name), `expected "${name}" to be noise`).toBe(true);
     }
@@ -33,6 +33,9 @@ describe('isEntityNoise', () => {
       'read me', // EC-2
       'People magazine', // EC-5 2-word brand kept
       "user's", // EC-3 possessive kept (KISS)
+      'It', // F-dom-1: capitalized pronoun homograph (film title) kept
+      'Her', // F-dom-1
+      'Us', // F-dom-1
     ];
     for (const name of keep) {
       expect(isEntityNoise(name), `expected "${name}" to be kept`).toBe(false);
