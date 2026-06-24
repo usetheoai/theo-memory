@@ -67,6 +67,8 @@ NO new storage engine. Likely: `GET /v1/scopes/:type/:id/episodes` + episode-sco
 
 **Status:** ✅ RELEASED v0.14.0 (2026-06-22, PR #60 merge `41521f5`; tag + GitHub release published). Full cycle: discover (blueprint 89) → plan (96.8) → deps-audit (PASS) → implement (4 phases TDD) → code-quality (PASS 100) → review (6 agents READY_TO_MERGE; uncovered+fixed a real ASC-cursor µs/ms precision bug) → release. Shipped `ScopedMemory.episodes()` + `VectorStore.listEpisodes` (pgvector+in-memory) + REST `GET /v1/scopes/:type/:id/episodes`. EC-9 (skill-scope asOf) DEFERRED per ADR D5. Records: `first-class-episodes-plan.md`, `first-class-episodes-review-2026-06-22.md`, `roadmap-runs/M2-2026-06-22.md`, `releases/v0.14.0-release.md`.
 
+**MCP surface completion (G3-MCP):** ✅ RELEASED v0.22.0 (2026-06-24, PR #76 merge `cfd1406`). Follow-up that closed the remaining gap — the episodic tier was SDK+REST only; v0.22.0 added the native `episodes` MCP tool (reusing the shipped `ScopedMemory.episodes()`, no core change). The episodic tier is now first-class across ALL THREE consumer surfaces (SDK + REST + MCP). `/review` 4 agents READY_TO_MERGE. Records: `mcp-episodes-tool-plan.md`, `mcp-episodes-tool-review-2026-06-23.md`, `roadmap-runs/G3-MCP-2026-06-24.md`, `releases/v0.22.0-release.md`.
+
 ---
 
 ## Deferred (NOT in this roadmap — cross-repo / TheoKit)
