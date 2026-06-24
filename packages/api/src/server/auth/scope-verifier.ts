@@ -26,6 +26,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
 
 import type { AuthPool } from './api-key-verifier.js';
+import { scopeSatisfies } from './scope-hierarchy.js';
 
 const PREFIX = 'theo_live_';
 
@@ -138,7 +139,11 @@ export function requireScope(opts: RequireScopeOptions): MiddlewareHandler {
     } catch {
       scopes = [];
     }
-    if (!scopes.includes(opts.requiredScope)) {
+    // ADR D2 (Model B): honor scope implication — a `memory:platform-admin` key
+    // satisfies a `memory:admin` gate (the gateway's per-tenant lifecycle reaches
+    // the admin routes). Exact membership still satisfies; the helper only adds
+    // the documented superset edge.
+    if (!scopeSatisfies(scopes, opts.requiredScope)) {
       return c.json(
         {
           code: 'SCOPE_INSUFFICIENT',
