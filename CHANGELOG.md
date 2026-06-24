@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`POST /v1/admin/keys` accepts an optional target `workspace_id`.** A `memory:platform-admin` caller may mint a key bound to an arbitrary workspace, which is idempotently auto-provisioned (`INSERT ... ON CONFLICT DO NOTHING`) in the mint path so the TheoCloud gateway can issue one downstream credential per tenant. A non-platform caller supplying a foreign `workspace_id` is rejected `403 INSUFFICIENT_SCOPE_FOR_TARGET`; an out-of-shape id is rejected `400 INVALID_WORKSPACE_ID`; omitting it preserves the existing caller-workspace binding. (model-b-platform-admin-mint T1.2, ADR D3)
 
 ### Changed
+- **Opt-in fail-closed multi-tenant auth mode (`THEMEMORY_REQUIRE_CREDENTIAL` / `createServer({ requireCredential })`).** When enabled, the bearer middleware refuses the no-credential and verify-only `DEFAULT_PRINCIPAL` collapse (returns `401`), so a multi-tenant deployment cannot silently grant the shared `default` owner workspace on misconfiguration. Defaults to off — single-tenant dev/CI is unchanged. `themory server` resolves the env flag at boot. (model-b-platform-admin-mint T2.1, ADR D4)
 
 ### Deprecated
 
