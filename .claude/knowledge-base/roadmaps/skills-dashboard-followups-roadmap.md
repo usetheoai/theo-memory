@@ -190,3 +190,4 @@ special-case a single migration to CONCURRENTLY (diverges from precedent for no 
 | 2026-06-23 | M1 SHIPPED — theo-cloud v0.8.1 (dashboard-logs-sse-suite-repair); suite globally green, J-19 regressions restored. M2 + M3 remain. |
 | 2026-06-23 | M2 READY_TO_MERGE — theo-memory `skills-subject-prefix-index` (migration 0021, `text_pattern_ops` index). /review 5 agents: 0 BLOCKER/0 HIGH/1 MEDIUM/4 LOW. Spun off M4 (CONCURRENTLY runbook) from the MEDIUM. M3 remains. |
 | 2026-06-23 | M2 + M3 SHIPPED — themory v0.21.1 (index) + theo-cloud v0.9.0 (SDK /v1/memory/skills/all). M3 /review 4 agents: 0 BLOCKER/0 HIGH/0 MEDIUM/3 LOW. Only M4 (CONCURRENTLY runbook, P2) remains. |
+| 2026-06-23 | M4 SHIPPED — themory v0.21.2 (CONCURRENTLY runbook ADR-0018 + architecture.md § 10.4 + guard test). /review 3 agents: 0 BLOCKER/0 HIGH/2 MEDIUM (fixed). **ROADMAP COMPLETE** — all 4 milestones shipped. |
