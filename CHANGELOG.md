@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+- **Mint-scope anti-escalation guard on `POST /v1/admin/keys`.** A caller may no longer mint a key carrying `memory:platform-admin` unless it already holds that scope (`403 INSUFFICIENT_SCOPE_FOR_MINT`). Without this, a `memory:admin` key (which passes the admin route gate) could self-mint `memory:platform-admin` and then target arbitrary workspaces — re-opening the confused-deputy (CWE-441) the slice exists to close. Base scopes (read/write/delete) and `memory:admin` remain freely mintable by an admin (lifecycle unchanged). Key rotation also fails closed on a missing `workspace_id` rather than defaulting to the shared `default` workspace. (model-b-platform-admin-mint /review BLOCKER + MEDIUM)
 
 ## [0.22.0] - 2026-06-24
 

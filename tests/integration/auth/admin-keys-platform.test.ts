@@ -68,6 +68,7 @@ if (PG_URI === undefined || PG_URI === '') {
     let dropDb: () => Promise<void>;
     let app: ReturnType<typeof createServer>;
     const platformToken = `theo_live_${randomUUID()}${randomUUID()}`;
+    const BOOTSTRAP_TOKEN = 'bootstrap-token-32-chars-minimum!!';
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
@@ -79,7 +80,11 @@ if (PG_URI === undefined || PG_URI === '') {
         embedder: new DeterministicStubEmbedder(),
         llm: stubLlm,
       });
-      app = createServer({ memory, authVerifier: new ApiKeyAuthVerifier(pool), adminApi: { pool } });
+      app = createServer({
+        memory,
+        authVerifier: new ApiKeyAuthVerifier(pool),
+        adminApi: { pool, bootstrapToken: BOOTSTRAP_TOKEN },
+      });
     }, 30_000);
 
     afterAll(async () => {
@@ -117,45 +122,101 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(ws.rows[0]?.n).toBe('1');
     });
 
-    test('cross-workspace: a key bound to ws-A cannot read ws-B memories (provider-enforced)', async () => {
-      // Mint two per-tenant keys via the platform credential.
-      const tokenA = `theo_live_${randomUUID()}${randomUUID()}`;
-      const tokenB = `theo_live_${randomUUID()}${randomUUID()}`;
-      // The admin mint returns a generated secret; but to drive the data path with a
-      // KNOWN token, seed the per-workspace keys directly (the mint path is covered above).
-      for (const [tok, ws] of [[tokenA, 'tn-a'], [tokenB, 'tn-b']] as const) {
-        await pool.query(`INSERT INTO workspaces (id, name) VALUES ($1,$1) ON CONFLICT (id) DO NOTHING`, [ws]);
-        await pool.query(
-          `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, key_name, key_hash, key_prefix, scopes)
-           VALUES ($1, 'subj', 'self', $2, $3, $4, $5, $6::jsonb)`,
-          [
-            `apk-${randomUUID().slice(0, 16)}`,
-            ws,
-            `key-${ws}`,
-            createHash('sha256').update(tok).digest('hex'),
-            tok.slice(0, 12),
-            JSON.stringify(['memory:read', 'memory:write']),
-          ],
-        );
-      }
+    test('END-TO-END confused-deputy closure: keys MINTED via the platform path isolate cross-workspace', async () => {
+      // HIGH (/review): drive the data path with keys produced by the REAL mint
+      // path (not side-loaded), so the full chain mint → workspace-bind → isolate
+      // is proven as one flow. Mint K_A (tn-x) and K_B (tn-y) via the platform key.
+      const mintKey = async (ws: string): Promise<string> => {
+        const res = await mint(app, platformToken, {
+          name: `gw-${ws}`,
+          scopes: ['memory:read', 'memory:write', 'memory:delete'],
+          workspace_id: ws,
+        });
+        expect(res.status).toBe(200);
+        return ((await res.json()) as { secret: string }).secret;
+      };
+      const secretA = await mintKey('tn-x');
+      const secretB = await mintKey('tn-y');
       const userId = `u-${randomUUID()}`;
-      const sharedText = 'cross workspace canary';
-      // ws-B remembers.
+      const sharedText = 'cross workspace canary minted';
+      // tn-y remembers via its minted key.
       const rememberB = await app.request('/v1/remember', {
         method: 'POST',
-        headers: { authorization: `Bearer ${tokenB}`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${secretB}`, 'content-type': 'application/json' },
         body: JSON.stringify({ userId, text: sharedText, infer: false }),
       });
       expect(rememberB.status).toBe(201);
-      // ws-A recall for the same user + text → empty (different workspace key).
+      // tn-x recall for the same user+text → empty (provider-enforced isolation
+      // from the credential the platform mint bound it to).
       const recallA = await app.request('/v1/recall', {
         method: 'POST',
-        headers: { authorization: `Bearer ${tokenA}`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${secretA}`, 'content-type': 'application/json' },
         body: JSON.stringify({ userId, query: sharedText, threshold: 0 }),
       });
       expect(recallA.status).toBe(200);
-      const bodyA = (await recallA.json()) as { results: unknown[] };
-      expect(bodyA.results).toHaveLength(0);
+      expect(((await recallA.json()) as { results: unknown[] }).results).toHaveLength(0);
+      // tn-y recall → sees its own row (proves the canary is findable in its ws).
+      const recallB = await app.request('/v1/recall', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${secretB}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ userId, query: sharedText, threshold: 0 }),
+      });
+      expect(((await recallB.json()) as { results: unknown[] }).results.length).toBeGreaterThan(0);
+    });
+
+    test('cross-workspace forget cannot delete another workspace memory (scoped-forget → 404)', async () => {
+      // HIGH (/review): extend isolation proof beyond read to the mutating verb.
+      const secretA = ((await (await mint(app, platformToken, { name: 'fa', scopes: ['memory:read', 'memory:write', 'memory:delete'], workspace_id: 'tn-fa' })).json()) as { secret: string }).secret;
+      const secretB = ((await (await mint(app, platformToken, { name: 'fb', scopes: ['memory:read', 'memory:write', 'memory:delete'], workspace_id: 'tn-fb' })).json()) as { secret: string }).secret;
+      const userId = `u-${randomUUID()}`;
+      const r = await app.request('/v1/remember', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${secretB}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ userId, text: 'forget canary', infer: false }),
+      });
+      expect(r.status).toBe(201);
+      const memId = ((await r.json()) as { items: { id: string }[] }).items[0]?.id;
+      expect(memId).toBeTruthy();
+      // tn-A tries to scoped-forget tn-B's memory id → 404 (no existence leak).
+      const del = await app.request(`/v1/scopes/user/${userId}/memories/${memId as string}`, {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${secretA}` },
+      });
+      expect(del.status).toBe(404);
+      // Confirm it still exists in tn-B.
+      const stillThere = await pool.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM memories WHERE id = $1 AND workspace_id = 'tn-fb' AND t_invalid IS NULL`,
+        [memId],
+      );
+      expect(stillThere.rows[0]?.n).toBe('1');
+    });
+
+    test('EC-3: bootstrap-token mint with a target workspace_id provisions + binds', async () => {
+      // Bootstrap is implicit platform-admin (first-key bootstrap, possibly the
+      // gateway platform key). It must be able to target + provision a workspace.
+      const res = await app.request('/v1/admin/keys', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${BOOTSTRAP_TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'bootstrap-platform', scopes: ['memory:platform-admin'], workspace_id: 'tn-bootstrap' }),
+      });
+      expect(res.status).toBe(200);
+      const ws = await pool.query<{ id: string }>(`SELECT id FROM workspaces WHERE id = 'tn-bootstrap'`);
+      expect(ws.rows).toHaveLength(1);
+      const key = await pool.query<{ workspace_id: string }>(
+        `SELECT workspace_id FROM theo_api_keys WHERE key_name = 'bootstrap-platform'`,
+      );
+      expect(key.rows[0]?.workspace_id).toBe('tn-bootstrap');
+    });
+
+    test('EC-5: a memory:platform-admin key passes the memory:admin-gated lifecycle route (not 403)', async () => {
+      // Proves the scopeSatisfies implication flows through requireScope end-to-end:
+      // the gateway's platform key can list/rotate/revoke the keys it minted.
+      const res = await app.request('/v1/admin/keys/list', {
+        method: 'GET',
+        headers: { authorization: `Bearer ${platformToken}` },
+      });
+      expect(res.status).not.toBe(403);
+      expect(res.status).toBe(200);
     });
   });
 }

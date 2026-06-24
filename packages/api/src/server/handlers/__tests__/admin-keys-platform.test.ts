@@ -129,3 +129,47 @@ describe('createKeyHandler — Model B platform-admin workspace targeting (T1.2)
     expect(keyInsert?.params[3]).toBe('ws-own');
   });
 });
+
+describe('createKeyHandler — mint-scope anti-escalation (/review BLOCKER)', () => {
+  test('memory:admin caller minting memory:platform-admin (no workspace_id) → 403 INSUFFICIENT_SCOPE_FOR_MINT', async () => {
+    // The exact exploit: an admin key (which passes the requireScope admin gate)
+    // tries to self-mint platform-admin, omitting workspace_id to dodge the
+    // targeting gate. Must be rejected BEFORE any write.
+    const { pool, queries } = makePool([
+      { rows: [{ workspace_id: 'ws-own', scopes: ['memory:admin'], role: 'admin' }] }, // caller resolve
+    ]);
+    const res = await post(app(pool), ADMIN_TOKEN, {
+      name: 'evil',
+      scopes: ['memory:platform-admin'],
+    });
+    expect(res.status).toBe(403);
+    expect((await readBody(res))['code']).toBe('INSUFFICIENT_SCOPE_FOR_MINT');
+    expect(queries.some((q) => q.sql.includes('INSERT INTO theo_api_keys'))).toBe(false);
+  });
+
+  test('platform-admin caller minting memory:platform-admin → allowed (holds it)', async () => {
+    const { pool } = makePool([
+      { rows: [{ workspace_id: 'ws-platform', scopes: ['memory:platform-admin'], role: 'owner' }] }, // caller resolve
+      { rows: [] }, // workspaces upsert
+      { rows: [] }, // key insert
+    ]);
+    const res = await post(app(pool), PLATFORM_TOKEN, {
+      name: 'gw-key',
+      scopes: ['memory:platform-admin'],
+    });
+    expect(res.status).toBe(200);
+  });
+
+  test('memory:admin caller minting base scopes (read/write/delete) → allowed (lifecycle preserved)', async () => {
+    const { pool } = makePool([
+      { rows: [{ workspace_id: 'ws-own', scopes: ['memory:admin'], role: 'admin' }] }, // caller resolve
+      { rows: [] }, // workspaces upsert
+      { rows: [] }, // key insert
+    ]);
+    const res = await post(app(pool), ADMIN_TOKEN, {
+      name: 'agent-key',
+      scopes: ['memory:read', 'memory:write', 'memory:delete'],
+    });
+    expect(res.status).toBe(200);
+  });
+});

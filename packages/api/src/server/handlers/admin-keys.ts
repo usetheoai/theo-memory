@@ -68,6 +68,12 @@ const ROW_ID_REGEX = /^apk-[0-9a-f]{16}$/;
 // cloud `tn-...` shape family — alnum + dash/underscore, 1..64 chars. Rejects
 // unbounded/garbage rows before they become permanent FK parents.
 const WORKSPACE_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
+// Model B (/review BLOCKER): scopes that are an escalation if minted by a caller
+// that does not already hold them. A `memory:admin` caller reaches the mint route
+// (requireScope) but MUST NOT be able to mint `memory:platform-admin` (the
+// arbitrary-workspace-targeting power). Base scopes are not here — an admin
+// provisioning read/write/delete keys is the normal lifecycle.
+const PRIVILEGED_MINT_SCOPES = new Set<string>(['memory:platform-admin']);
 const TENANT_SELF = 'self';
 
 // ============================================================================
@@ -297,6 +303,23 @@ export async function createKeyHandler(
       );
     }
     targetWorkspace = body.workspace_id;
+  }
+
+  // ── Mint-scope anti-escalation guard (Model B /review BLOCKER fix) ─────────
+  // The minted key's scopes MUST NOT exceed the caller's own privilege for any
+  // PRIVILEGED scope. Without this, a `memory:admin` caller (which satisfies the
+  // requireScope admin gate) could mint itself a `memory:platform-admin` key and
+  // then target ARBITRARY workspaces — re-opening the very confused-deputy
+  // (CWE-441) Model B exists to close. Base scopes (read/write/delete) stay
+  // freely mintable by an admin (existing lifecycle); only platform-admin is
+  // gated. Bootstrap + a real platform-admin caller satisfy the implication.
+  for (const s of dedupedScopes) {
+    if (PRIVILEGED_MINT_SCOPES.has(s) && !scopeSatisfies(callerScopes, s)) {
+      return c.json(
+        { code: 'INSUFFICIENT_SCOPE_FOR_MINT', message: `Minting scope "${s}" requires the caller to hold it.` },
+        403,
+      );
+    }
   }
 
   // ── RBAC anti-escalation guard (ADR D4) ────────────────────────────────────
@@ -546,11 +569,20 @@ export async function rotateKeyHandler(
     const newName = `${old.key_name} (rotated ${new Date().toISOString().slice(0, 10)})`.slice(0, KEY_NAME_MAX_LENGTH);
     const scopesRaw = typeof old.scopes === 'string' ? old.scopes : JSON.stringify(old.scopes);
 
+    // Model B (/review MEDIUM): fail CLOSED on a missing workspace binding. The
+    // column is NOT NULL, so this is defensive — but defaulting a rotated key to
+    // the shared `default` workspace would cross-misplace it (the exact failure
+    // the RBAC fix closed). A null here means a corrupt row: refuse, don't downgrade.
+    if (old.workspace_id === null || old.workspace_id === '') {
+      await q.query('ROLLBACK', []);
+      return c.json({ code: 'INTERNAL', message: 'Could not rotate API key. Try again.' }, 500);
+    }
+
     await q.query(
       `INSERT INTO theo_api_keys
          (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at, rotated_from)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [newId, subject, TENANT_SELF, old.workspace_id ?? 'default', old.user_id ?? null, newName, newHash, newPrefix, scopesRaw, null, oldId],
+      [newId, subject, TENANT_SELF, old.workspace_id, old.user_id ?? null, newName, newHash, newPrefix, scopesRaw, null, oldId],
     );
 
     const newExpires = new Date(Date.now() + graceMs);
