@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.22.0] - 2026-06-24
+
+### Added
+- **Episodic tier now first-class over MCP — native `episodes` tool.** The cursor-paginated, bi-temporal episodic read surface shipped in v0.14.0 (SDK `ScopedMemory.episodes()` + REST `GET /v1/scopes/:type/:id/episodes`) is now also an MCP tool, so agents/MCP clients (the primary consumer + the `/dogfood` anchor) can list a scope's chronological memory log over MCP. The `episodes` tool resolves scope via the SAME `getScope()`+`memoryFromCtx()` binding as `recall` (no scope arg — anti-spoof) and delegates to the EXISTING `ScopedMemory.episodes(options)` — no change to the core method, episode types, REST/SDK surface, schema, or migrations; no new dependency. Input: `after`/`before` (opaque cursors, mutually exclusive → -32602), `limit` (≤200), `order` (asc/desc), `queryText` (literal ILIKE), `asOf` (ISO 8601 → bi-temporal replay). Output ships `outputSchema` + `structuredContent` `{ items, nextCursor }` (the LLM-visible MemoryItem subset, like recall). MCP toolset grows 7→8; OpenMemory compat toolset unchanged (native-only — no cursor analogue). (mcp-episodes-tool, G3-MCP)
+
 ## [0.21.2] - 2026-06-23
 
 ### Changed

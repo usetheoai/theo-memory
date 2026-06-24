@@ -15,6 +15,7 @@ import type { Memory } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '@usetheo/memory-agent-core';
 
 import { addSkillHandler, TOOL_NAME as ADD_SKILL } from './add-skill-handler.js';
+import { episodesHandler, TOOL_NAME as EPISODES } from './episodes-handler.js';
 import { executeSkillHandler, TOOL_NAME as EXECUTE_SKILL } from './execute-skill-handler.js';
 import { forgetHandler, TOOL_NAME as FORGET } from './forget-handler.js';
 import { forgetSkillHandler, TOOL_NAME as FORGET_SKILL } from './forget-skill-handler.js';
@@ -29,6 +30,8 @@ const HANDLERS = new Map<string, HandlerFn>([
   [RECALL, recallHandler],
   [FORGET, forgetHandler],
   [REFLECT, reflectHandler],
+  // mcp-episodes-tool (G3-MCP) — temporal episodic read surface over MCP.
+  [EPISODES, episodesHandler],
   // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
   [ADD_SKILL, addSkillHandler],
   [FORGET_SKILL, forgetSkillHandler],

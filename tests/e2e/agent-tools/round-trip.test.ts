@@ -66,7 +66,7 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 } else {
   describe('agent-tools CLI subprocess — MCP handshake + tools/list (T7.1)', () => {
-    it('spawns the CLI, completes initialize handshake, lists 4 locked tool verbs', async () => {
+    it('spawns the CLI, completes initialize handshake, lists the 8 registered tools', async () => {
       // T2.1: CLI consolidated under commander — invoke `mcp` subcommand
       // explicitly. The legacy `themory-mcp` basename alias (EC-27) is
       // covered separately by tests/integration/cli-consolidated.test.ts.
@@ -129,7 +129,18 @@ if (PG_URI === undefined || PG_URI === '') {
         result: { tools: { name: string }[] };
       };
       const names = listResponse.result.tools.map((t) => t.name);
-      expect(names).toEqual(['remember', 'recall', 'forget', 'reflect']);
+      // 4 locked verbs + episodes (G3-MCP) + skills tools (write-surface + execute).
+      // Mirrors buildToolsListResponse declaration order (list-handler.ts).
+      expect(names).toEqual([
+        'remember',
+        'recall',
+        'forget',
+        'reflect',
+        'episodes',
+        'add_skill',
+        'forget_skill',
+        'execute_skill',
+      ]);
 
       // Graceful shutdown via SIGTERM (T6.1 EC-7 absorption)
       proc.kill('SIGTERM');

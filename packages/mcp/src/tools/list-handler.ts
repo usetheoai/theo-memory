@@ -1,11 +1,12 @@
 /**
  * `tools/list` JSON-RPC response emitter for v0.3 MCP server.
  *
- * Returns the 4 locked tools (remember/recall/forget/reflect) in declaration order
- * with their JSON Schema 7 inputSchemas + recall's outputSchema. Wired into the
+ * Returns the registered tools in locked-verb-first declaration order
+ * (remember/recall/forget/reflect, then episodes, then the skills tools) with their
+ * JSON Schema 7 inputSchemas + recall's/episodes' outputSchema. Wired into the
  * `McpServer` constructor at T1.1 via `setRequestHandler(ListToolsRequestSchema, ...)`.
  *
- * @see ADR D2 — Tool schema codegen (zod-authored, 4 separate tools, listChanged:false)
+ * @see ADR D2 — Tool schema codegen (zod-authored, separate tools, listChanged:false)
  * @see ADR D9 — JSON Schema dialect lock (target='jsonSchema7' via emitToolSchema)
  * @see MCP spec 2025-11-25 § Listing Tools (blueprint Q7 wire shape)
  */
@@ -33,6 +34,12 @@ import {
   INPUT_SCHEMA as rememberInput,
 } from './remember-schema.js';
 import {
+  TOOL_NAME as EPISODES_NAME,
+  DESCRIPTION as EPISODES_DESC,
+  INPUT_SCHEMA as episodesInput,
+  OUTPUT_SCHEMA as episodesOutput,
+} from './episodes-schema.js';
+import {
   TOOL_NAME as ADD_SKILL_NAME,
   DESCRIPTION as ADD_SKILL_DESC,
   INPUT_SCHEMA as addSkillInput,
@@ -55,8 +62,9 @@ export type ToolsListResponse = ListToolsResult;
 /**
  * Builds the spec-compliant `tools/list` result payload.
  *
- * Order honors CLAUDE.md § Locked names verb order: `remember/recall/forget/reflect`.
- * No `nextCursor` (4 static tools per ADR D2's `listChanged:false` declaration).
+ * Order honors CLAUDE.md § Locked names verb order: `remember/recall/forget/reflect`,
+ * then the native `episodes` tool, then the skills tools.
+ * No `nextCursor` (static tool list per ADR D2's `listChanged:false` declaration).
  *
  * Pure function — no side effects, deterministic. Server constructor calls this
  * once at boot OR memoizes per request; either is safe.
@@ -84,6 +92,13 @@ export function buildToolsListResponse(): ToolsListResponse {
         name: REFLECT_NAME,
         description: REFLECT_DESC,
         inputSchema: emitToolSchema(reflectInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      // mcp-episodes-tool (G3-MCP) — temporal episodic read surface (ships outputSchema, like recall).
+      {
+        name: EPISODES_NAME,
+        description: EPISODES_DESC,
+        inputSchema: emitToolSchema(episodesInput) as ToolsListResponse['tools'][number]['inputSchema'],
+        outputSchema: emitToolSchema(episodesOutput) as ToolsListResponse['tools'][number]['outputSchema'],
       },
       // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
       {
