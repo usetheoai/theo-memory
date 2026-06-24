@@ -3,7 +3,7 @@ slug: skills-dashboard-followups-roadmap
 created_at: 2026-06-23
 owner: project-owner
 source: /review of skills-cross-repo-flat-list (theo-memory v0.21.0) + skills-cross-repo-flat-list-gateway (theo-cloud v0.8.0)
-status: active
+status: completed
 repos: [theo-memory, theo-cloud]
 ---
 
@@ -26,7 +26,7 @@ Priority legend: **P1** = do soon (correctness/perf/CI health) · **P2** = nice-
 | M1 | Dashboard logs/SSE suite — 16 pre-existing failures | theo-cloud | CI health / bug | **P1** | [x] RELEASED v0.8.1 |
 | M2 | SEC-1 — `agent_id text_pattern_ops` index for the cross-repo prefix LIKE | theo-memory | perf / scalability | **P1** | [x] RELEASED |
 | M3 | SDK-surface symmetry — cross-repo flat list on `/v1/memory/*` (programmatic) | theo-cloud (+ themory contract) | API completeness | **P2** | [x] RELEASED v0.9.0 |
-| M4 | Large-table index builds: `CREATE INDEX CONCURRENTLY` runbook (out-of-tx) before GA | theo-memory | ops / migrations | **P2** | [ ] |
+| M4 | Large-table index builds: `CREATE INDEX CONCURRENTLY` runbook (out-of-tx) before GA | theo-memory | ops / migrations | **P2** | [x] RELEASED v0.21.2 |
 
 ---
 
@@ -148,7 +148,7 @@ dashboard impact (the dashboard already works via the BFF).
 
 ---
 
-## M4 — Large-table index builds via `CREATE INDEX CONCURRENTLY` runbook — [ ]
+## M4 — Large-table index builds via `CREATE INDEX CONCURRENTLY` runbook — [x] RELEASED v0.21.2 (2026-06-23)
 
 **Repo:** theo-memory (migration strategy) · **Type:** ops / migrations · **Priority:** P2
 
