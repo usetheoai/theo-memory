@@ -12,7 +12,7 @@ export type { AdminApiOptions, CreateServerOptions } from './app.js';
 
 // Camada 1 (env-secret) — historical default
 export { BearerAuthVerifier, readApiKey } from './auth/bearer-verifier.js';
-export { bearerAuth } from './auth/middleware.js';
+export { bearerAuth, parseRequireCredentialEnv } from './auth/middleware.js';
 
 // Camada 2 (OSS multi-user lifecycle per ADR-0014) — F-dom-api-1 fix
 // Re-exports so third-party SDK consumers can compose admin REST OR a

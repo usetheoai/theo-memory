@@ -87,6 +87,15 @@ export interface CreateServerOptions {
   readonly memory: Memory;
   readonly authVerifier?: AuthVerifier;
   /**
+   * Model B (ADR D4): fail-closed multi-tenant mode. When `true`, the bearer
+   * middleware refuses the no-credential / verify-only DEFAULT_PRINCIPAL collapse
+   * (returns 401) so a multi-tenant deployment cannot silently grant the shared
+   * `default` owner workspace. Defaults to `false` (single-tenant dev unchanged);
+   * the composition root may resolve it from `THEMEMORY_REQUIRE_CREDENTIAL` via
+   * {@link parseRequireCredentialEnv}.
+   */
+  readonly requireCredential?: boolean;
+  /**
    * Optional DB liveness probe injected by the composition root (CLI's
    * `themory server` subcommand at T2.3) without forcing `src/server/` to
    * import `pg` — DIP discipline per ADR D11 + `architecture.md § 3`.
@@ -165,7 +174,7 @@ export interface CreateServerOptions {
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore, requireCredential } = options;
 
   // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
   // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
@@ -331,7 +340,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
     );
   }
 
-  app.use('/v1/*', bearerAuth(authVerifier));
+  app.use('/v1/*', bearerAuth(authVerifier, { requireCredential: requireCredential === true }));
 
   // RBAC T2.1 — `/v1/members/*` membership management, gated by requireRole.
   // Mounted AFTER bearerAuth so the Principal (with role) is injected; the
