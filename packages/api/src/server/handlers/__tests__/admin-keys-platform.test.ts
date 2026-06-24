@@ -45,7 +45,7 @@ function app(pool: AuthPool): Hono {
   return a;
 }
 
-function post(a: Hono, token: string, body: unknown): Promise<Response> {
+async function post(a: Hono, token: string, body: unknown): Promise<Response> {
   return a.request('/v1/admin/keys', {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
@@ -84,7 +84,7 @@ describe('createKeyHandler — Model B platform-admin workspace targeting (T1.2)
       workspace_id: 'tn-other',
     });
     expect(res.status).toBe(403);
-    expect((await readBody(res)).code).toBe('INSUFFICIENT_SCOPE_FOR_TARGET');
+    expect((await readBody(res))['code']).toBe('INSUFFICIENT_SCOPE_FOR_TARGET');
     // No workspace was provisioned (fail before any write)
     expect(queries.some((q) => q.sql.includes('INSERT INTO workspaces'))).toBe(false);
   });
@@ -100,7 +100,7 @@ describe('createKeyHandler — Model B platform-admin workspace targeting (T1.2)
       workspace_id: tooLong,
     });
     expect(res.status).toBe(400);
-    expect((await readBody(res)).code).toBe('INVALID_WORKSPACE_ID');
+    expect((await readBody(res))['code']).toBe('INVALID_WORKSPACE_ID');
   });
 
   test('caller resolution PG error → 503 fail-closed (EC-2)', async () => {
@@ -111,7 +111,7 @@ describe('createKeyHandler — Model B platform-admin workspace targeting (T1.2)
       workspace_id: 'tn-123',
     });
     expect(res.status).toBe(503);
-    expect((await readBody(res)).code).toBe('SERVICE_UNAVAILABLE');
+    expect((await readBody(res))['code']).toBe('SERVICE_UNAVAILABLE');
   });
 
   test('omitted workspace_id binds the caller workspace (regression)', async () => {
