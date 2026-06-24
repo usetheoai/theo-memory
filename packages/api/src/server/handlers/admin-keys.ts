@@ -32,6 +32,7 @@ import type { Context } from 'hono';
 
 import type { AuthPool } from '../auth/api-key-verifier.js';
 import { isBootstrapAllowed, markBootstrapConsumedTx } from '../auth/bootstrap-token.js';
+import { scopeSatisfies } from '../auth/scope-hierarchy.js';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
@@ -63,6 +64,10 @@ const DEFAULT_GRACE_WINDOW_HOURS = 24;
 const MIN_GRACE_WINDOW_HOURS = 1;
 const MAX_GRACE_WINDOW_HOURS = 168;
 const ROW_ID_REGEX = /^apk-[0-9a-f]{16}$/;
+// Model B (EC-1): a target workspace_id is a tenant identifier; bound to the
+// cloud `tn-...` shape family — alnum + dash/underscore, 1..64 chars. Rejects
+// unbounded/garbage rows before they become permanent FK parents.
+const WORKSPACE_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
 const TENANT_SELF = 'self';
 
 // ============================================================================
@@ -163,7 +168,7 @@ export async function createKeyHandler(
   subject: string,
   opts: CreateKeyHandlerOptions = {},
 ): Promise<Response> {
-  let body: { name?: unknown; scopes?: unknown; expires_at?: unknown; user_id?: unknown };
+  let body: { name?: unknown; scopes?: unknown; expires_at?: unknown; user_id?: unknown; workspace_id?: unknown };
   try {
     body = (await c.req.json());
   } catch {
@@ -231,16 +236,24 @@ export async function createKeyHandler(
   // bootstrapping the first admin key.
   let callerWorkspace = 'default';
   let callerRole: WorkspaceRole = 'member';
+  // Model B (ADR D1): the caller's scopes decide whether a target workspace_id
+  // may be honored. Bootstrap is the implicit platform-admin owner (it bootstraps
+  // the very first key, which may itself be the gateway's platform credential).
+  let callerScopes: readonly string[] = [];
   if (opts.viaBootstrapToken === true) {
     callerRole = 'owner';
+    callerScopes = ['memory:platform-admin'];
   } else {
     const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? '';
     const callerToken = header.replace(/^Bearer\s+/i, '');
     const callerHash = createHash('sha256').update(callerToken).digest('hex');
-    let cr: { workspace_id: string; role: string | null } | undefined;
+    // EC-2 (Model B): read the caller's `scopes` in the SAME guarded SELECT so a
+    // PG failure fails closed (503) and the platform-admin check can never be
+    // bypassed by a thrown second query.
+    let cr: { workspace_id: string; role: string | null; scopes: unknown } | undefined;
     try {
-      const callerRow = await pool.query<{ workspace_id: string; role: string | null }>(
-        `SELECT k.workspace_id, m.role
+      const callerRow = await pool.query<{ workspace_id: string; role: string | null; scopes: unknown }>(
+        `SELECT k.workspace_id, k.scopes, m.role
            FROM theo_api_keys k
            LEFT JOIN workspace_users m
              ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
@@ -258,7 +271,32 @@ export async function createKeyHandler(
       callerWorkspace = cr.workspace_id;
       callerRole =
         cr.role === 'owner' || cr.role === 'admin' || cr.role === 'member' ? cr.role : 'member';
+      const rawScopes: unknown = typeof cr.scopes === 'string' ? JSON.parse(cr.scopes) : cr.scopes;
+      if (Array.isArray(rawScopes)) callerScopes = rawScopes.filter((s): s is string => typeof s === 'string');
     }
+  }
+
+  // ── Model B (ADR D1/D3): resolve the TARGET workspace ──────────────────────
+  // An explicit `workspace_id` may bind the new key to an arbitrary workspace —
+  // but ONLY for a platform-admin caller. Omitted → caller's own workspace
+  // (backward-compatible). The workspace is server-authorized (caller scope +
+  // explicit target), NEVER inferred from an unauthenticated body.
+  let targetWorkspace = callerWorkspace;
+  if (body.workspace_id !== undefined && body.workspace_id !== null) {
+    if (!scopeSatisfies(callerScopes, 'memory:platform-admin')) {
+      return c.json(
+        { code: 'INSUFFICIENT_SCOPE_FOR_TARGET', message: 'Targeting a workspace requires the memory:platform-admin scope.' },
+        403,
+      );
+    }
+    // EC-1: validate identifier shape/length BEFORE provisioning a row.
+    if (typeof body.workspace_id !== 'string' || !WORKSPACE_ID_REGEX.test(body.workspace_id)) {
+      return c.json(
+        { code: 'INVALID_WORKSPACE_ID', message: 'workspace_id must match [A-Za-z0-9_-]{1,64}.' },
+        400,
+      );
+    }
+    targetWorkspace = body.workspace_id;
   }
 
   // ── RBAC anti-escalation guard (ADR D4) ────────────────────────────────────
@@ -273,11 +311,13 @@ export async function createKeyHandler(
       return c.json({ code: 'INVALID_USER_ID', message: 'user_id must be a non-empty string.' }, 400);
     }
     const requestedUserId = body.user_id;
-    const targetRole = await opts.getMemberRole?.(callerWorkspace, requestedUserId)
+    // Membership is checked against the TARGET workspace (the one the key binds
+    // to), which equals callerWorkspace unless a platform-admin targeted another.
+    const targetRole = await opts.getMemberRole?.(targetWorkspace, requestedUserId)
       ?? (await (async (): Promise<WorkspaceRole | null> => {
         const targetRow = await pool.query<{ role: string }>(
           `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
-          [callerWorkspace, requestedUserId],
+          [targetWorkspace, requestedUserId],
         );
         const r = targetRow.rows[0]?.role;
         return r === 'owner' || r === 'admin' || r === 'member' ? r : null;
@@ -323,10 +363,16 @@ export async function createKeyHandler(
             401,
           );
         }
+        // Model B (ADR D3): idempotently provision the target workspace in the
+        // SAME tx so the FK is valid. Mirrors the migration-0016 seed pattern.
+        await q.query(
+          `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`,
+          [targetWorkspace],
+        );
         await q.query(
           `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [id, subject, TENANT_SELF, callerWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+          [id, subject, TENANT_SELF, targetWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
         );
         await markBootstrapConsumedTx(q);
         await q.query('COMMIT', []);
@@ -340,12 +386,19 @@ export async function createKeyHandler(
         client?.release();
       }
     } else {
-      // Non-bootstrap path: simple single-statement INSERT (preserves
-      // backward compatibility with T2.1 tests).
+      // Non-bootstrap path. Model B (ADR D3): provision the target workspace
+      // (idempotent) before the key INSERT so the FK resolves. Two statements
+      // (not a tx) is acceptable: ON CONFLICT DO NOTHING is idempotent under
+      // concurrency, and a key INSERT failing after a workspace upsert leaves
+      // only an empty workspace row (harmless, reused on retry).
+      await pool.query(
+        `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`,
+        [targetWorkspace],
+      );
       await pool.query(
         `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [id, subject, TENANT_SELF, callerWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+        [id, subject, TENANT_SELF, targetWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
       );
     }
   } catch (err: unknown) {
