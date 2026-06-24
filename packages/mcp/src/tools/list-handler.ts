@@ -33,6 +33,12 @@ import {
   INPUT_SCHEMA as rememberInput,
 } from './remember-schema.js';
 import {
+  TOOL_NAME as EPISODES_NAME,
+  DESCRIPTION as EPISODES_DESC,
+  INPUT_SCHEMA as episodesInput,
+  OUTPUT_SCHEMA as episodesOutput,
+} from './episodes-schema.js';
+import {
   TOOL_NAME as ADD_SKILL_NAME,
   DESCRIPTION as ADD_SKILL_DESC,
   INPUT_SCHEMA as addSkillInput,
@@ -84,6 +90,13 @@ export function buildToolsListResponse(): ToolsListResponse {
         name: REFLECT_NAME,
         description: REFLECT_DESC,
         inputSchema: emitToolSchema(reflectInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      // mcp-episodes-tool (G3-MCP) — temporal episodic read surface (ships outputSchema, like recall).
+      {
+        name: EPISODES_NAME,
+        description: EPISODES_DESC,
+        inputSchema: emitToolSchema(episodesInput) as ToolsListResponse['tools'][number]['inputSchema'],
+        outputSchema: emitToolSchema(episodesOutput) as ToolsListResponse['tools'][number]['outputSchema'],
       },
       // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
       {
