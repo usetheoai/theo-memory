@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - **`memory:platform-admin` scope + scope implication.** A new platform-level scope that is the only scope allowed to mint a `theo_live_*` key bound to an arbitrary target workspace (the seam the TheoCloud gateway uses to provision per-tenant downstream credentials, closing the gateway confused-deputy). `memory:platform-admin` is a strict superset of `memory:admin`, so a platform key reaches the existing `/v1/admin/keys/*` lifecycle routes without a separate admin grant. (model-b-platform-admin-mint T1.1, ADR D1/D2)
+- **`POST /v1/admin/keys` accepts an optional target `workspace_id`.** A `memory:platform-admin` caller may mint a key bound to an arbitrary workspace, which is idempotently auto-provisioned (`INSERT ... ON CONFLICT DO NOTHING`) in the mint path so the TheoCloud gateway can issue one downstream credential per tenant. A non-platform caller supplying a foreign `workspace_id` is rejected `403 INSUFFICIENT_SCOPE_FOR_TARGET`; an out-of-shape id is rejected `400 INVALID_WORKSPACE_ID`; omitting it preserves the existing caller-workspace binding. (model-b-platform-admin-mint T1.2, ADR D3)
 
 ### Changed
 
