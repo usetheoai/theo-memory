@@ -49,6 +49,11 @@ const VALID_SCOPES = new Set<string>([
   'memory:write',
   'memory:delete',
   'memory:admin',
+  // Model B (ADR D1): platform-level scope — the ONLY scope allowed to mint a
+  // key bound to an arbitrary target workspace_id. Strict superset of
+  // memory:admin (see scope-hierarchy.ts). Carried only by the theo-cloud
+  // gateway's provisioning credential.
+  'memory:platform-admin',
 ]);
 const RESERVED_SCOPES = new Set<string>([
   'rag:read', 'rag:write', 'traces:read',

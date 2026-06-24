@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`memory:platform-admin` scope + scope implication.** A new platform-level scope that is the only scope allowed to mint a `theo_live_*` key bound to an arbitrary target workspace (the seam the TheoCloud gateway uses to provision per-tenant downstream credentials, closing the gateway confused-deputy). `memory:platform-admin` is a strict superset of `memory:admin`, so a platform key reaches the existing `/v1/admin/keys/*` lifecycle routes without a separate admin grant. (model-b-platform-admin-mint T1.1, ADR D1/D2)
 
 ### Changed
 
