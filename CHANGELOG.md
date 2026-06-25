@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Standalone host run (`node dist/agent-tools/cli.js server` / `npx themory server`) no longer fails with `ERR_MODULE_NOT_FOUND: Cannot find package 'eld'`.** The flattened `dist/` (which moves `packages/core` to `dist/core`) resolves a workspace runtime dependency (`eld`, from `packages/core`) up the tree to the repo-root `node_modules`; pnpm's default isolated layout left it under `packages/core/node_modules` where the flattened dist could not reach it. Set `node-linker=hoisted` in `.npmrc` so the local install matches what the Dockerfile already uses — the dist now runs standalone on the host without building the image. (theo-workspace local-env live-test enablement, 2026-06-25)
 
 ### Security
 - **Mint-scope anti-escalation guard on `POST /v1/admin/keys`.** A caller may no longer mint a key carrying `memory:platform-admin` unless it already holds that scope (`403 INSUFFICIENT_SCOPE_FOR_MINT`). Without this, a `memory:admin` key (which passes the admin route gate) could self-mint `memory:platform-admin` and then target arbitrary workspaces — re-opening the confused-deputy (CWE-441) the slice exists to close. Base scopes (read/write/delete) and `memory:admin` remain freely mintable by an admin (lifecycle unchanged). Key rotation also fails closed on a missing `workspace_id` rather than defaulting to the shared `default` workspace. (model-b-platform-admin-mint /review BLOCKER + MEDIUM)
