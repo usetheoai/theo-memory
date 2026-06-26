@@ -529,3 +529,25 @@ The code and the README are authoritative. If this file disagrees with them, the
 - **PRIORITY 0 directive** (locked 2026-06-04, GO-TO CTO project-owner sign-off) — lifting the freeze on Items 13/14/15 OR introducing new features outside the 3 P0 sub-goals requires project-owner sign-off recorded in CHANGELOG + CLAUDE.md amendment.
 
 Do not edit any of the above silently. Surface the conflict to the user first.
+
+
+## This module's role in the Theo platform (reference capability)
+
+theo-memory is the **reference implementation** of the platform's data-plane capability pattern —
+exposed at the unified Traefik edge as **`/v1/memory`** with ForwardAuth per-tenant isolation
+(Model B: the gateway mints a per-tenant key and injects it upstream; the module never sees the
+client's key — CWE-441 closed). Other modules (theo-rag, …) copy this pattern to integrate.
+
+To run the whole platform locally and live-test memory end-to-end, use the local-env umbrella in
+**theo-workspace**: **`theo-workspace/docs/README.md`**
+(repo `usetheodev/theo-workspace`; local sibling: `../../theo-cloud/theo-workspace`).
+
+Memory developer workflow — run theo-memory from THIS source against the rest of the platform:
+
+- `docs/ONBOARDING.md § 4.B` — `make memory-up MODE=--host` (you run `node dist/agent-tools/cli.js server`; the script provisions Model B against it).
+- `docs/adding-a-microservice.md` — the capability pattern this module defines (so you keep it integrable as it evolves).
+
+Honest notes from the live validation (2026-06-25/26): the standalone host run needs
+`node-linker=hoisted` (in `.npmrc`) so the flattened `dist/` resolves workspace deps (e.g. `eld`);
+the LLM/provider is always the **real** OpenAI API (no mock); the gateway's platform-admin
+credential must carry the **`memory:platform-admin`** scope to mint per-tenant keys.
