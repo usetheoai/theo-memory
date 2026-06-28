@@ -1,19 +1,37 @@
 ---
 name: live-dogfood
-description: Live dogfooding harness that validates the REAL theo-cloud → theo-memory system as a human. Brings up (or refreshes) the live stack with a FRESH build, registers a real user, and drives the real dashboard UI via Chrome DevTools MCP through every journey + edge cases + negative cases + cross-tenant isolation + the #77 scope-denial security checks. Writes dated dogfood evidence (a sibling scenario that feeds /dogfood — never the LOCKED anchor), updates a regression baseline, and emits a PASS/FAIL report. Use to validate the system end-to-end as a real user before a release, after touching auth/tenancy/scope, or on a schedule. Fully automated via Claude Code.
+description: Multi-modal live dogfooding harness that validates the REAL theo-cloud → theo-memory system across 100% of its surface — UX, API, MCP, and DX (CLI + SDK). Brings up (or refreshes) the live stack with a FRESH build, registers a real user, and drives a complete journey catalog through 5 drivers: browser (Chrome DevTools MCP — the human UX path), http (REST), mcp (a real MCP client over stdio/SSE/streamable-http), cli (themory subprocess), and sdk (import + round-trip). Covers journeys + edge cases + negative cases + cross-tenant isolation + the #77 scope-denial security checks. Writes dated dogfood evidence (a sibling scenario that feeds /dogfood — never the LOCKED anchor), updates a regression baseline, and emits a PASS/FAIL report. Use to validate the system end-to-end before a release, after touching auth/tenancy/scope, or on a schedule. Fully automated via Claude Code.
 ---
 
-# Live Dogfood — validate the real system as a human
+# Live Dogfood — validate the real system across every surface
 
-Drives the **real** user journey end-to-end — browser → Traefik edge (`:8090`) →
-theo-cloud (ForwardAuth + Model B broker) → theo-memory — exactly the way a customer
-does, then records the run as **dogfood evidence**. This is not a hermetic Go e2e
-(`make e2e`) and not a demo test (`/test-chat-with-memory`): it exercises the **live
-deployed surface as a human via Chrome DevTools MCP**, and the output is production-
-readiness evidence + a regression delta.
+Drives the **real** system end-to-end — browser → Traefik edge (`:8090`) → theo-cloud
+(ForwardAuth + Model B broker) → theo-memory, plus the MCP server, the CLI, and the SDK —
+exactly the way customers (and agents) consume it, then records the run as **dogfood
+evidence**. This is not a hermetic Go e2e (`make e2e`) and not a demo test
+(`/test-chat-with-memory`): it exercises the **live deployed surface** and the output is
+production-readiness evidence + a regression delta.
 
-This skill is the **replication template** other `theo-data/**` capabilities copy once
-they have a live UI (see `theo-data/README.md` § 5). theo-memory is the reference target.
+**Multi-modal by design.** "As a human" is ONE modality (UX via Chrome MCP). MCP, CLI, and
+SDK are machine/DX surfaces and are driven by their native client — not a browser. The
+single source of truth for what runs is the journey catalog:
+
+> **[`journeys/theo-memory.md`](./journeys/theo-memory.md)** — the 100%-surface catalog
+> (32 REST routes · 9 MCP tools × 3 transports · ~10 CLI verbs · 8 SDK subpaths · 9 UX
+> tabs + auth), each row tagged with its **modality** and **lens**, with a coverage ledger.
+
+This skill is the **replication template** other `theo-data/**` capabilities copy (see
+`theo-data/README.md` § 5). theo-memory is the reference target.
+
+## The 5 drivers
+
+| Modality | Driver | Surface |
+|---|---|---|
+| `browser` | Chrome DevTools MCP (snapshot→fill→click→assert+screenshot+network) | the human UX path (dashboard tabs + auth) |
+| `http` | direct REST call (edge `:8090/v1/memory/*` or data plane `:18081/v1/*`) | the 32 REST routes + negative/security probes |
+| `mcp` | a real MCP client over stdio / SSE / streamable-http vs `themory mcp` | native + OpenMemory tools, per-user isolation, transport auth |
+| `cli` | `themory <verb>` subprocess, assert stdout/exit | the CLI verbs + flags + DX errors |
+| `sdk` | `node -e` import + round-trip against a published subpath | the 8 `@usetheo/memory/*` subpaths |
 
 ## What it produces
 
@@ -22,16 +40,18 @@ they have a live UI (see `theo-data/README.md` § 5). theo-memory is the referen
 2. `knowledge-base/dogfood/baseline.json` — per-journey last outcome (regression baseline).
 3. A consolidated PASS / PARTIAL / FAIL report with per-journey status + screenshots.
 
-## The human principle (non-negotiable)
+## Principles (non-negotiable)
 
-- **Journeys run through the real UI** (Chrome DevTools MCP: snapshot → fill → click →
-  assert + screenshot + network). A journey driven by `curl` instead of the browser is a
-  FAIL of the skill's contract — it does not prove the human path.
-- **`curl` is allowed ONLY for security/negative probes the UI cannot express** — the #77
-  scope-denial checks (read-only key on a write verb, platform-admin on a data verb) and
-  the no-auth-at-the-edge deny. These hit the API directly because no UI offers them.
-- **Never fabricate evidence.** A journey that fails is recorded as `outcome: fail` with
-  the screenshot + network status. Honest FAIL > false PASS (Unbreakable Rule 3).
+- **Each row runs in its declared modality — never substitute.** A `browser` UX journey
+  driven by `curl` is a FAIL of the skill's contract (it does not prove the human path).
+  An `mcp` row MUST use a real MCP client (not an HTTP shim). A `cli` row MUST spawn the
+  real `themory` binary. The modality IS the thing under test.
+- **Cover both lenses** (`rules/testing.md` § 4.1): `edge` (extreme of a valid input) AND
+  `negative` (invalid input → the *specific* typed error). A run with only happy journeys
+  is half a suite.
+- **Never fabricate evidence.** A row that fails is recorded as `outcome: fail` with the
+  screenshot / response / stderr. Honest FAIL > false PASS (Unbreakable Rule 3).
+- **Never print secrets** (minted keys, platform-admin key, cookies, JWTs) into the report.
 
 ## Dogfood policy (read before writing evidence)
 
@@ -79,6 +99,15 @@ they have a live UI (see `theo-data/README.md` § 5). theo-memory is the referen
 0.5 **Edge readiness.** `POST http://localhost:8090/v1/memory/recall` with NO auth MUST be
     denied (401/403) — proves Traefik + ForwardAuth are wired before any journey runs.
 
+0.6 **Non-browser modality readiness** (skip a modality's rows + record SKIPPED if its driver
+    is unavailable — never silently drop, never fabricate a pass):
+    - `mcp` — `themory mcp` boots (stdio handshake responds) and `themory mcp --compat
+      openmemory` exposes the SSE port; an MCP client lib is importable.
+    - `cli` — the `themory` binary is on PATH (or `node dist/.../cli.js`) and `themory --help`
+      exits 0 env-free.
+    - `sdk` — the package builds / is importable (`node -e "require('@usetheo/memory')"` or the
+      workspace `dist/`). If unbuilt, record the `sdk` rows SKIPPED with the reason.
+
 ## Phase 1 — A real user
 
 1.1 Open a new isolated browser context. Navigate to `http://localhost:8090`.
@@ -90,32 +119,24 @@ they have a live UI (see `theo-data/README.md` § 5). theo-memory is the referen
     active session. Capture the operator label for the evidence file.
 1.4 Take a screenshot of the authenticated dashboard (proof of login).
 
-## Phase 2 — Journey catalog (the real assertions)
+## Phase 2 — Run the catalog (per modality)
 
-Run each row through the UI (or curl where marked SECURITY). Capture a screenshot + the
-relevant `list_network_requests` status for every row. Default catalog for theo-memory:
+Open **[`journeys/theo-memory.md`](./journeys/theo-memory.md)** — the 100%-surface catalog —
+and execute EVERY row in its declared modality. Do NOT improvise the list; the catalog is the
+contract and its ledger keeps coverage at 100%. Per modality:
 
-| ID | Type | Journey (UI unless SECURITY) | Assertion |
-|---|---|---|---|
-| `M-AUTH-1` | journey | signup → dashboard Overview loads | dashboard renders; `/sessions/whoami` 200 |
-| `M-NAV-1` | journey | open Memory → Overview | metrics render; `GET /v1/dashboard/memory/metrics` 200 |
-| `M-WRITE-1` | journey | Playground → Remember a unique canary | toast "Stored …"; `POST …/memory/remember` 201 |
-| `M-READ-1` | journey | Playground → Recall a loosely-related query | the canary is returned with a score; `POST …/recall` 200 |
-| `M-READ-2` | journey | open Entities / Graph / Skills tabs | each read surface 200, renders without error |
-| `M-DEL-1` | journey | forget/curate a memory (where UI offers it) | item gone on refresh; delete request 2xx |
-| `M-REFLECT-1` | journey | Playground → Run reflection | reflection completes; no UI error |
-| `EDGE-1` | edge | Recall with an empty/whitespace query | graceful (no results OR validation), never a 500 |
-| `EDGE-2` | edge | Remember a very long (boundary) text + unicode | stored + recallable; no truncation crash |
-| `NEG-1` | negative | API: malformed remember body | typed 4xx with a clear code, never 500 |
-| `NEG-2` | negative | API: no-auth at the edge `/v1/memory/recall` | 401/403; no `Authorization` leaked back |
-| `ISO-1` | isolation | second ephemeral user recalls user-1's canary | empty — no cross-tenant leak |
-| `ISO-2` | isolation | user-1 still recalls own canary | present — ISO-1 is isolation, not a dead path |
-| `SEC-77-1` | security | curl: minted **read-only** key → `POST /v1/remember` | **403 INSUFFICIENT_SCOPE** |
-| `SEC-77-2` | security | curl: **platform-admin** key → `POST /v1/remember` | **403** (platform-admin ⊅ data scope) |
-| `SEC-77-3` | security | curl: read-only key → `POST /v1/recall` | NOT 403 (per-verb, read allowed) |
+- **`browser`** — Chrome MCP: `take_snapshot` → `fill`/`fill_form` → `click` → assert the
+  result text + `list_network_requests` status; `take_screenshot` as evidence.
+- **`http`** — call the REST route (edge `:8090/v1/memory/*` for the customer path, or the
+  data plane `:18081/v1/*` directly for admin/negative/security probes). Assert status + body.
+- **`mcp`** — start `themory mcp` (stdio) / `themory mcp --compat openmemory` (SSE), connect a
+  real MCP client, `tools/list` then call the tool; assert the structured result + isolation.
+- **`cli`** — spawn `themory <verb> …`; assert exit code + stdout (`--json` for parseable).
+- **`sdk`** — `node -e` importing the subpath; assert the import resolves + the round-trip.
 
-Cover **both** lenses (`rules/testing.md` § 4.1): edge = extreme of a VALID input (boundary);
-negative = INVALID input → typed error. A run with only journeys is half a suite.
+Order: run `browser` journeys first (they need the human session), then `http`, `mcp`, `cli`,
+`sdk`; finish with the `§ F` cross-cutting isolation rows. Capture evidence for EVERY row
+(screenshot for browser, response/exit for the rest). A `[CRIT]` row failing → run verdict `FAIL`.
 
 For SECURITY rows, extract keys WITHOUT printing them: read `THEMORY_PLATFORM_ADMIN_KEY`
 from the theo-cloud container env into a shell var; mint the read-only key via
