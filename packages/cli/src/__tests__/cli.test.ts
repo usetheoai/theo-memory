@@ -183,6 +183,16 @@ describe('T2.2 — themory mcp option forwarding (post-T3.4 MCP extraction)', ()
   });
 });
 
+describe('Issue #79 — themory remember --no-infer (REST infer:false parity)', () => {
+  it('remember --help lists the --no-infer verbatim flag', async () => {
+    const { buildProgram } = await import('../cli.js');
+    const program = buildProgram();
+    const remember = program.commands.find((c) => c.name() === 'remember');
+    expect(remember).toBeDefined();
+    expect(remember!.helpInformation()).toContain('--no-infer');
+  });
+});
+
 // ── verbs-as-cli-fixes-cycle-2 T1.1 / ADR D1 — parser strict-coercion
 //    contract tests at the runtime-behavior layer.
 //    The strict-coercion factories `parseIntInRange` + `parseFloatInRange` at

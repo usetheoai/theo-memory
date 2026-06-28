@@ -20,6 +20,13 @@ export interface RunRememberOptions {
   readonly user?: string;
   readonly session?: string;
   readonly agent?: string;
+  /**
+   * Issue #79 — verbatim store toggle, mirroring REST `POST /v1/remember`
+   * `infer`. When `false`, persist the text verbatim and skip the two-stage
+   * LLM fact-extraction (makes a CLI write → recall round-trip deterministic
+   * on any backend). Omitted/`true` preserves the engine default (extraction).
+   */
+  readonly infer?: boolean;
   readonly format: CliFormat;
 }
 
@@ -39,7 +46,13 @@ export async function runRemember(opts: RunRememberOptions): Promise<void> {
   const [memory, dispose] = await createAgentToolsMemory();
   try {
     const scoped = resolveCliScope(memory, opts);
-    const items = await scoped.remember(opts.text);
+    // Issue #79: forward the verbatim toggle only when explicitly disabled, so
+    // the engine default (infer: true) is preserved for the common path. Mirrors
+    // the REST handler (packages/api/src/server/handlers/remember.ts).
+    const items =
+      opts.infer === false
+        ? await scoped.remember(opts.text, { infer: false })
+        : await scoped.remember(opts.text);
     const out = renderCliOutput({ verb: 'remember', items }, opts.format);
     process.stdout.write(out + '\n');
   } finally {

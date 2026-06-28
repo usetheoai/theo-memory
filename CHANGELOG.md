@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`themory remember --no-infer` verbatim flag (CLI ↔ REST parity).** The CLI `remember` verb now mirrors the REST `POST /v1/remember` `infer: false` option: `--no-infer` stores the text verbatim and skips the two-stage LLM fact-extraction. Previously a CLI write → recall round-trip depended entirely on extraction, which cannot be made deterministic on a no-LLM / mock-LLM backend (the write landed in pg but recall returned nothing, with no way to force a verbatim store). Documented in `themory remember --help`. (usetheodev/theo-memory#79)
 
 ### Changed
 
