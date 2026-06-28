@@ -29,7 +29,7 @@
     "CLI-HLT": "pass",
     "CLI-REM": "pass",
     "CLI-NEG": "pass",
-    "CLI-REC": "partial",
+    "CLI-REC": "pass",
     "SDK-CORE": "pass",
     "SDK-CONTRACT": "pass",
     "SDK-THEOKIT": "pass",
@@ -41,6 +41,7 @@
     "MCP-LIST": "pass",
     "MCP-SCOPE": "pass",
     "MCP-REM": "deferred",
-    "MCP-REC": "deferred"
+    "MCP-REC": "deferred",
+    "CLI-REM-NOINFER": "pass"
   }
 }
