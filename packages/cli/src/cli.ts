@@ -308,12 +308,25 @@ export function buildProgram(): Command {
     .option('--user <id>', 'Scope by user id')
     .option('--session <id>', 'Scope by session id')
     .option('--agent <id>', 'Scope by agent id')
+    // Issue #79 — verbatim store toggle, mirroring REST `POST /v1/remember`
+    // `infer: false`. Commander stores the negated form under `opts.infer`
+    // (defaults to `true`; `--no-infer` sets it to `false`). Forwarding the
+    // verbatim path makes a CLI write → recall round-trip deterministic on any
+    // backend (no dependency on LLM fact-extraction).
+    .option('--no-infer', 'Store text verbatim, skipping LLM fact-extraction (REST infer:false parity)')
     .option('--json', 'Output JSON (default)')
     .option('--text', 'Output human-readable text instead of JSON')
     .action(
       async (
         text: string,
-        opts: { user?: string; session?: string; agent?: string; json?: boolean; text?: boolean },
+        opts: {
+          user?: string;
+          session?: string;
+          agent?: string;
+          infer?: boolean;
+          json?: boolean;
+          text?: boolean;
+        },
       ) => {
         try {
           await runRemember({
@@ -321,6 +334,7 @@ export function buildProgram(): Command {
             ...(opts.user !== undefined ? { user: opts.user } : {}),
             ...(opts.session !== undefined ? { session: opts.session } : {}),
             ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
+            ...(opts.infer === false ? { infer: false } : {}),
             format: resolveFormat(opts),
           });
         } catch (err: unknown) {
