@@ -16,6 +16,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 
 
 import { BearerAuthVerifier, readApiKey } from './bearer-verifier.js';
+import { scopeSatisfies } from './scope-hierarchy.js';
 
 const BEARER_SCHEME_RE = /^bearer\s+(.+)$/i;
 
@@ -55,6 +56,38 @@ export function requireRole(min: WorkspaceRole): MiddlewareHandler {
     if (!roleSatisfies(role, min)) {
       return c.json(
         { code: 'INSUFFICIENT_ROLE', message: `Required role "${min}" not held by this credential.`, required: min, actual: role },
+        403,
+      );
+    }
+    await next();
+    return;
+  };
+}
+
+/**
+ * Gate a data route on a required scope, checked against the Principal already
+ * resolved by {@link bearerAuth}. Mounted AFTER `bearerAuth` so 401 (bad
+ * credential) always precedes 403 (insufficient scope). Mirrors
+ * {@link requireRole} but for the scope axis: the data verbs require
+ * `memory:write` / `memory:read` / `memory:delete` per the verb, honoring the
+ * implication hierarchy ({@link scopeSatisfies}). Because `memory:platform-admin`
+ * implies ONLY `memory:admin` (key lifecycle), the gateway's provisioning
+ * credential is 403 on every data verb — least privilege (NIST AC-6): the
+ * platform key mints per-tenant keys, it never reads or writes tenant data.
+ *
+ * @see usetheodev/theo-memory#77
+ */
+export function requireScopeOnPrincipal(required: string): MiddlewareHandler {
+  return async (c, next) => {
+    const { scopes } = getPrincipal(c);
+    if (!scopeSatisfies(scopes, required)) {
+      return c.json(
+        {
+          code: 'INSUFFICIENT_SCOPE',
+          message: `Required scope "${required}" not held by this credential.`,
+          required,
+          actual: scopes,
+        },
         403,
       );
     }
