@@ -1,0 +1,19 @@
+{
+  "target": "theo-memory",
+  "scenario": "dashboard-memory-journey",
+  "last_run": "2026-06-28",
+  "rows": {
+    "API-REM-1": "pass",
+    "API-SEC-77-W": "pass",
+    "API-SEC-77-PA": "pass",
+    "API-SEC-77-R": "pass",
+    "API-KEY-ESC": "pass",
+    "API-AUTH-NEG": "pass",
+    "API-REM-NEG": "pass",
+    "XISO-1": "pass",
+    "XISO-2": "pass",
+    "UX-WRITE-1": "pass",
+    "UX-READ-1": "pass",
+    "UX-OVW-1": "pass"
+  }
+}

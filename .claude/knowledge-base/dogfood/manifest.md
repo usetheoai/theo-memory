@@ -134,3 +134,7 @@ This appendix exists because the absence of any evidence files (the directory co
 Files registered to date under `scenario: process-dogfood`:
 
 - `2026-05-31-process-v0-4b-fixes-cycle-validation.md` — validates PR #24 merge + the v0.4b-expansion follow-on cycle.
+
+## Sibling scenario — dashboard-memory-journey (live-dogfood harness)
+
+**Slug:** `dashboard-memory-journey` (a declared SIBLING of the locked anchor `claude-code-auto-memory`, per `rules/dogfood-golden-rule.md` § 5). Distinct scenario: the real user-facing journey (browser → edge → theo-cloud → theo-memory) + the data-plane security/isolation contract, recorded by the `/live-dogfood` workspace skill. Does NOT substitute or alter the anchor.
