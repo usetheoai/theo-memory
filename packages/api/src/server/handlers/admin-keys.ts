@@ -32,6 +32,7 @@ import type { Context } from 'hono';
 
 import type { AuthPool } from '../auth/api-key-verifier.js';
 import { isBootstrapAllowed, markBootstrapConsumedTx } from '../auth/bootstrap-token.js';
+import { scopeSatisfies } from '../auth/scope-hierarchy.js';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
@@ -49,6 +50,11 @@ const VALID_SCOPES = new Set<string>([
   'memory:write',
   'memory:delete',
   'memory:admin',
+  // Model B (ADR D1): platform-level scope — the ONLY scope allowed to mint a
+  // key bound to an arbitrary target workspace_id. Strict superset of
+  // memory:admin (see scope-hierarchy.ts). Carried only by the theo-cloud
+  // gateway's provisioning credential.
+  'memory:platform-admin',
 ]);
 const RESERVED_SCOPES = new Set<string>([
   'rag:read', 'rag:write', 'traces:read',
@@ -58,6 +64,16 @@ const DEFAULT_GRACE_WINDOW_HOURS = 24;
 const MIN_GRACE_WINDOW_HOURS = 1;
 const MAX_GRACE_WINDOW_HOURS = 168;
 const ROW_ID_REGEX = /^apk-[0-9a-f]{16}$/;
+// Model B (EC-1): a target workspace_id is a tenant identifier; bound to the
+// cloud `tn-...` shape family — alnum + dash/underscore, 1..64 chars. Rejects
+// unbounded/garbage rows before they become permanent FK parents.
+const WORKSPACE_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
+// Model B (/review BLOCKER): scopes that are an escalation if minted by a caller
+// that does not already hold them. A `memory:admin` caller reaches the mint route
+// (requireScope) but MUST NOT be able to mint `memory:platform-admin` (the
+// arbitrary-workspace-targeting power). Base scopes are not here — an admin
+// provisioning read/write/delete keys is the normal lifecycle.
+const PRIVILEGED_MINT_SCOPES = new Set<string>(['memory:platform-admin']);
 const TENANT_SELF = 'self';
 
 // ============================================================================
@@ -158,7 +174,7 @@ export async function createKeyHandler(
   subject: string,
   opts: CreateKeyHandlerOptions = {},
 ): Promise<Response> {
-  let body: { name?: unknown; scopes?: unknown; expires_at?: unknown; user_id?: unknown };
+  let body: { name?: unknown; scopes?: unknown; expires_at?: unknown; user_id?: unknown; workspace_id?: unknown };
   try {
     body = (await c.req.json());
   } catch {
@@ -226,16 +242,24 @@ export async function createKeyHandler(
   // bootstrapping the first admin key.
   let callerWorkspace = 'default';
   let callerRole: WorkspaceRole = 'member';
+  // Model B (ADR D1): the caller's scopes decide whether a target workspace_id
+  // may be honored. Bootstrap is the implicit platform-admin owner (it bootstraps
+  // the very first key, which may itself be the gateway's platform credential).
+  let callerScopes: readonly string[] = [];
   if (opts.viaBootstrapToken === true) {
     callerRole = 'owner';
+    callerScopes = ['memory:platform-admin'];
   } else {
     const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? '';
     const callerToken = header.replace(/^Bearer\s+/i, '');
     const callerHash = createHash('sha256').update(callerToken).digest('hex');
-    let cr: { workspace_id: string; role: string | null } | undefined;
+    // EC-2 (Model B): read the caller's `scopes` in the SAME guarded SELECT so a
+    // PG failure fails closed (503) and the platform-admin check can never be
+    // bypassed by a thrown second query.
+    let cr: { workspace_id: string; role: string | null; scopes: unknown } | undefined;
     try {
-      const callerRow = await pool.query<{ workspace_id: string; role: string | null }>(
-        `SELECT k.workspace_id, m.role
+      const callerRow = await pool.query<{ workspace_id: string; role: string | null; scopes: unknown }>(
+        `SELECT k.workspace_id, k.scopes, m.role
            FROM theo_api_keys k
            LEFT JOIN workspace_users m
              ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
@@ -253,6 +277,48 @@ export async function createKeyHandler(
       callerWorkspace = cr.workspace_id;
       callerRole =
         cr.role === 'owner' || cr.role === 'admin' || cr.role === 'member' ? cr.role : 'member';
+      const rawScopes: unknown = typeof cr.scopes === 'string' ? JSON.parse(cr.scopes) : cr.scopes;
+      if (Array.isArray(rawScopes)) callerScopes = rawScopes.filter((s): s is string => typeof s === 'string');
+    }
+  }
+
+  // ── Model B (ADR D1/D3): resolve the TARGET workspace ──────────────────────
+  // An explicit `workspace_id` may bind the new key to an arbitrary workspace —
+  // but ONLY for a platform-admin caller. Omitted → caller's own workspace
+  // (backward-compatible). The workspace is server-authorized (caller scope +
+  // explicit target), NEVER inferred from an unauthenticated body.
+  let targetWorkspace = callerWorkspace;
+  if (body.workspace_id !== undefined && body.workspace_id !== null) {
+    if (!scopeSatisfies(callerScopes, 'memory:platform-admin')) {
+      return c.json(
+        { code: 'INSUFFICIENT_SCOPE_FOR_TARGET', message: 'Targeting a workspace requires the memory:platform-admin scope.' },
+        403,
+      );
+    }
+    // EC-1: validate identifier shape/length BEFORE provisioning a row.
+    if (typeof body.workspace_id !== 'string' || !WORKSPACE_ID_REGEX.test(body.workspace_id)) {
+      return c.json(
+        { code: 'INVALID_WORKSPACE_ID', message: 'workspace_id must match [A-Za-z0-9_-]{1,64}.' },
+        400,
+      );
+    }
+    targetWorkspace = body.workspace_id;
+  }
+
+  // ── Mint-scope anti-escalation guard (Model B /review BLOCKER fix) ─────────
+  // The minted key's scopes MUST NOT exceed the caller's own privilege for any
+  // PRIVILEGED scope. Without this, a `memory:admin` caller (which satisfies the
+  // requireScope admin gate) could mint itself a `memory:platform-admin` key and
+  // then target ARBITRARY workspaces — re-opening the very confused-deputy
+  // (CWE-441) Model B exists to close. Base scopes (read/write/delete) stay
+  // freely mintable by an admin (existing lifecycle); only platform-admin is
+  // gated. Bootstrap + a real platform-admin caller satisfy the implication.
+  for (const s of dedupedScopes) {
+    if (PRIVILEGED_MINT_SCOPES.has(s) && !scopeSatisfies(callerScopes, s)) {
+      return c.json(
+        { code: 'INSUFFICIENT_SCOPE_FOR_MINT', message: `Minting scope "${s}" requires the caller to hold it.` },
+        403,
+      );
     }
   }
 
@@ -268,11 +334,13 @@ export async function createKeyHandler(
       return c.json({ code: 'INVALID_USER_ID', message: 'user_id must be a non-empty string.' }, 400);
     }
     const requestedUserId = body.user_id;
-    const targetRole = await opts.getMemberRole?.(callerWorkspace, requestedUserId)
+    // Membership is checked against the TARGET workspace (the one the key binds
+    // to), which equals callerWorkspace unless a platform-admin targeted another.
+    const targetRole = await opts.getMemberRole?.(targetWorkspace, requestedUserId)
       ?? (await (async (): Promise<WorkspaceRole | null> => {
         const targetRow = await pool.query<{ role: string }>(
           `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
-          [callerWorkspace, requestedUserId],
+          [targetWorkspace, requestedUserId],
         );
         const r = targetRow.rows[0]?.role;
         return r === 'owner' || r === 'admin' || r === 'member' ? r : null;
@@ -318,10 +386,16 @@ export async function createKeyHandler(
             401,
           );
         }
+        // Model B (ADR D3): idempotently provision the target workspace in the
+        // SAME tx so the FK is valid. Mirrors the migration-0016 seed pattern.
+        await q.query(
+          `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`,
+          [targetWorkspace],
+        );
         await q.query(
           `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [id, subject, TENANT_SELF, callerWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+          [id, subject, TENANT_SELF, targetWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
         );
         await markBootstrapConsumedTx(q);
         await q.query('COMMIT', []);
@@ -335,12 +409,19 @@ export async function createKeyHandler(
         client?.release();
       }
     } else {
-      // Non-bootstrap path: simple single-statement INSERT (preserves
-      // backward compatibility with T2.1 tests).
+      // Non-bootstrap path. Model B (ADR D3): provision the target workspace
+      // (idempotent) before the key INSERT so the FK resolves. Two statements
+      // (not a tx) is acceptable: ON CONFLICT DO NOTHING is idempotent under
+      // concurrency, and a key INSERT failing after a workspace upsert leaves
+      // only an empty workspace row (harmless, reused on retry).
+      await pool.query(
+        `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`,
+        [targetWorkspace],
+      );
       await pool.query(
         `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [id, subject, TENANT_SELF, callerWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+        [id, subject, TENANT_SELF, targetWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
       );
     }
   } catch (err: unknown) {
@@ -488,11 +569,20 @@ export async function rotateKeyHandler(
     const newName = `${old.key_name} (rotated ${new Date().toISOString().slice(0, 10)})`.slice(0, KEY_NAME_MAX_LENGTH);
     const scopesRaw = typeof old.scopes === 'string' ? old.scopes : JSON.stringify(old.scopes);
 
+    // Model B (/review MEDIUM): fail CLOSED on a missing workspace binding. The
+    // column is NOT NULL, so this is defensive — but defaulting a rotated key to
+    // the shared `default` workspace would cross-misplace it (the exact failure
+    // the RBAC fix closed). A null here means a corrupt row: refuse, don't downgrade.
+    if (old.workspace_id === null || old.workspace_id === '') {
+      await q.query('ROLLBACK', []);
+      return c.json({ code: 'INTERNAL', message: 'Could not rotate API key. Try again.' }, 500);
+    }
+
     await q.query(
       `INSERT INTO theo_api_keys
          (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at, rotated_from)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [newId, subject, TENANT_SELF, old.workspace_id ?? 'default', old.user_id ?? null, newName, newHash, newPrefix, scopesRaw, null, oldId],
+      [newId, subject, TENANT_SELF, old.workspace_id, old.user_id ?? null, newName, newHash, newPrefix, scopesRaw, null, oldId],
     );
 
     const newExpires = new Date(Date.now() + graceMs);

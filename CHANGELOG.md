@@ -16,6 +16,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.23.0] - 2026-06-28
+
+### Added
+- **`memory:platform-admin` scope + scope implication.** A new platform-level scope that is the only scope allowed to mint a `theo_live_*` key bound to an arbitrary target workspace (the seam the TheoCloud gateway uses to provision per-tenant downstream credentials, closing the gateway confused-deputy). `memory:platform-admin` is a strict superset of `memory:admin`, so a platform key reaches the existing `/v1/admin/keys/*` lifecycle routes without a separate admin grant. (model-b-platform-admin-mint T1.1, ADR D1/D2)
+- **`POST /v1/admin/keys` accepts an optional target `workspace_id`.** A `memory:platform-admin` caller may mint a key bound to an arbitrary workspace, which is idempotently auto-provisioned (`INSERT ... ON CONFLICT DO NOTHING`) in the mint path so the TheoCloud gateway can issue one downstream credential per tenant. A non-platform caller supplying a foreign `workspace_id` is rejected `403 INSUFFICIENT_SCOPE_FOR_TARGET`; an out-of-shape id is rejected `400 INVALID_WORKSPACE_ID`; omitting it preserves the existing caller-workspace binding. (model-b-platform-admin-mint T1.2, ADR D3)
+
+
+### Changed
+- **Opt-in fail-closed multi-tenant auth mode (`THEMEMORY_REQUIRE_CREDENTIAL` / `createServer({ requireCredential })`).** When enabled, the bearer middleware refuses the no-credential and verify-only `DEFAULT_PRINCIPAL` collapse (returns `401`), so a multi-tenant deployment cannot silently grant the shared `default` owner workspace on misconfiguration. Defaults to off — single-tenant dev/CI is unchanged. `themory server` resolves the env flag at boot. (model-b-platform-admin-mint T2.1, ADR D4)
+
+
+### Fixed
+- **Standalone host run (`node dist/agent-tools/cli.js server` / `npx themory server`) no longer fails with `ERR_MODULE_NOT_FOUND: Cannot find package 'eld'`.** The flattened `dist/` (which moves `packages/core` to `dist/core`) resolves a workspace runtime dependency (`eld`, from `packages/core`) up the tree to the repo-root `node_modules`; pnpm's default isolated layout left it under `packages/core/node_modules` where the flattened dist could not reach it. Set `node-linker=hoisted` in `.npmrc` so the local install matches what the Dockerfile already uses — the dist now runs standalone on the host without building the image. (theo-workspace local-env live-test enablement, 2026-06-25)
+
+
+### Security
+- **Data-plane scope enforcement on every memory verb (`requireScopeOnPrincipal`).** Each data route now gates on the scope held by the already-resolved bearer Principal: `remember`/`reflect` and the skill write/execute routes require `memory:write`, `recall` and every `GET /v1/scopes/*` read require `memory:read`, and `forget`/scoped-delete require `memory:delete` — a credential missing the verb's scope is rejected `403 INSUFFICIENT_SCOPE`. Previously any authenticated credential could read/write/delete regardless of its granted scopes (a read-only key could write; the gateway's `memory:platform-admin` provisioning key could touch tenant data). Because `memory:platform-admin` implies only `memory:admin`, the platform key is now `403` on every data verb — least privilege (NIST AC-6): it mints per-tenant keys, it never reads or writes tenant data. Closes the data-plane half of the Model B confused-deputy (CWE-441). (usetheodev/theo-memory#77)
+- **Mint-scope anti-escalation guard on `POST /v1/admin/keys`.** A caller may no longer mint a key carrying `memory:platform-admin` unless it already holds that scope (`403 INSUFFICIENT_SCOPE_FOR_MINT`). Without this, a `memory:admin` key (which passes the admin route gate) could self-mint `memory:platform-admin` and then target arbitrary workspaces — re-opening the confused-deputy (CWE-441) the slice exists to close. Base scopes (read/write/delete) and `memory:admin` remain freely mintable by an admin (lifecycle unchanged). Key rotation also fails closed on a missing `workspace_id` rather than defaulting to the shared `default` workspace. (model-b-platform-admin-mint /review BLOCKER + MEDIUM)
+
 ## [0.22.0] - 2026-06-24
 
 ### Added

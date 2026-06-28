@@ -17,7 +17,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 
 import type { AuthPool } from './auth/api-key-verifier.js';
-import { bearerAuth, requireRole } from './auth/middleware.js';
+import { bearerAuth, requireRole, requireScopeOnPrincipal } from './auth/middleware.js';
 import { requireScope } from './auth/scope-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
 import {
@@ -86,6 +86,15 @@ const ADMIN_SUBJECT = 'self';
 export interface CreateServerOptions {
   readonly memory: Memory;
   readonly authVerifier?: AuthVerifier;
+  /**
+   * Model B (ADR D4): fail-closed multi-tenant mode. When `true`, the bearer
+   * middleware refuses the no-credential / verify-only DEFAULT_PRINCIPAL collapse
+   * (returns 401) so a multi-tenant deployment cannot silently grant the shared
+   * `default` owner workspace. Defaults to `false` (single-tenant dev unchanged);
+   * the composition root may resolve it from `THEMEMORY_REQUIRE_CREDENTIAL` via
+   * {@link parseRequireCredentialEnv}.
+   */
+  readonly requireCredential?: boolean;
   /**
    * Optional DB liveness probe injected by the composition root (CLI's
    * `themory server` subcommand at T2.3) without forcing `src/server/` to
@@ -165,7 +174,7 @@ export interface CreateServerOptions {
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore, requireCredential } = options;
 
   // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
   // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
@@ -331,7 +340,7 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
     );
   }
 
-  app.use('/v1/*', bearerAuth(authVerifier));
+  app.use('/v1/*', bearerAuth(authVerifier, { requireCredential: requireCredential === true }));
 
   // RBAC T2.1 — `/v1/members/*` membership management, gated by requireRole.
   // Mounted AFTER bearerAuth so the Principal (with role) is injected; the
@@ -344,39 +353,46 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
     app.delete('/v1/members/:userId', requireRole('admin'), (c) => removeMemberHandler(c, membersRepo));
   }
 
-  app.get('/v1/scopes/:type/:id/memories', (c) => scopesHandler(c, memory));
+  // #77 — the subject-scoped data routes share the data-plane scope contract:
+  // GET reads require memory:read, POST writes memory:write, DELETE memory:delete.
+  app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
   // first-class-episodes M2 T3.1 — subject-scoped episodic/message-log read:
   // cursor-paginated, bi-temporal-aware (asOf) temporal list. 200 {items,nextCursor?}
   // / 422 (bad limit/cursor/asOf/after+before) / 404 (bad scope type).
-  app.get('/v1/scopes/:type/:id/episodes', (c) => episodesHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
   // themory-scoped-forget T1.2 — subject-scoped DELETE (drops the gateway's
   // O(scope) ownership pre-check). 204 / 404 (cross-scope, no leak) / 422 (bad id).
-  app.delete('/v1/scopes/:type/:id/memories/:memId', (c) => scopedForgetHandler(c, memory));
+  app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));
   // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
-  app.get('/v1/scopes/:type/:id/metrics', (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
-  app.get('/v1/scopes/:type/:id/entities', (c) => entitiesHandler(c, memory, memoryEntityStore));
+  app.get('/v1/scopes/:type/:id/metrics', requireScopeOnPrincipal('memory:read'), (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
+  app.get('/v1/scopes/:type/:id/entities', requireScopeOnPrincipal('memory:read'), (c) => entitiesHandler(c, memory, memoryEntityStore));
   // entity-relation-extraction-slice2 T3.1 — {nodes,edges} graph (no graph DB).
-  app.get('/v1/scopes/:type/:id/graph', (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
+  app.get('/v1/scopes/:type/:id/graph', requireScopeOnPrincipal('memory:read'), (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
   // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
-  app.get('/v1/scopes/skill/:repoId/skills', (c) => skillsHandler(c, memory));
+  app.get('/v1/scopes/skill/:repoId/skills', requireScopeOnPrincipal('memory:read'), (c) => skillsHandler(c, memory));
   // skills-cross-repo-flat-list (ADR D2) — flat cross-repo listing for a subject.
   // Distinct literal `all` segment → no collision with `:repoId/skills`.
-  app.get('/v1/scopes/skill/:subject/all', (c) => skillsAllHandler(c, memory));
+  app.get('/v1/scopes/skill/:subject/all', requireScopeOnPrincipal('memory:read'), (c) => skillsAllHandler(c, memory));
   // skills-write-surface T2.1/T2.2 — create + curate (delete) skills.
-  app.post('/v1/scopes/skill/:repoId/skills', (c) => postSkillHandler(c, memory));
-  app.delete('/v1/scopes/skill/:repoId/skills/:skillId', (c) => deleteSkillHandler(c, memory));
+  app.post('/v1/scopes/skill/:repoId/skills', requireScopeOnPrincipal('memory:write'), (c) => postSkillHandler(c, memory));
+  app.delete('/v1/scopes/skill/:repoId/skills/:skillId', requireScopeOnPrincipal('memory:delete'), (c) => deleteSkillHandler(c, memory));
   // agentic-skill-execution-sandbox T2.3 — opt-in/gated skill execution (501 when
   // no SkillExecutor wired). Registered always; the SDK gate decides reachability.
-  app.post('/v1/scopes/skill/:repoId/skills/:skillId/execute', (c) =>
+  // Executing a skill is a write-class operation (it mutates/produces state).
+  app.post('/v1/scopes/skill/:repoId/skills/:skillId/execute', requireScopeOnPrincipal('memory:write'), (c) =>
     executeSkillHandler(c, memory),
   );
 
-  app.post('/v1/remember', (c) => rememberHandler(c, memory));
-  app.post('/v1/recall', (c) => recallHandler(c, memory));
-  app.post('/v1/forget', (c) => forgetHandler(c, memory));
-  app.post('/v1/reflect', (c) => reflectHandler(c, memory));
+  // #77 — data-plane scope enforcement on the already-resolved Principal. Each
+  // verb requires its matching scope (write/read/delete); a read-only key is 403
+  // on a write, and the gateway's platform-admin-only credential is 403 on EVERY
+  // data verb (platform-admin implies only memory:admin — least privilege).
+  app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory));
+  app.post('/v1/recall', requireScopeOnPrincipal('memory:read'), (c) => recallHandler(c, memory));
+  app.post('/v1/forget', requireScopeOnPrincipal('memory:delete'), (c) => forgetHandler(c, memory));
+  app.post('/v1/reflect', requireScopeOnPrincipal('memory:write'), (c) => reflectHandler(c, memory));
 
   app.onError((err, c) => {
     // T1.6 — domain-error mapping (EC-10 / EC-23 / EC-24 absorbed inside

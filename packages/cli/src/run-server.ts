@@ -42,7 +42,7 @@ import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { BearerAuthVerifier, readApiKey } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
 import { OidcAuthVerifier } from '@usetheo/memory-api';
-import { createServer } from '@usetheo/memory-api';
+import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
 
@@ -229,6 +229,10 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
 
   const app = createServer({
     memory: memoryShim,
+    // Model B (ADR D4): fail-closed multi-tenant mode opt-in via env. The TheoCloud
+    // gateway deployment sets THEMEMORY_REQUIRE_CREDENTIAL=true so a misconfigured
+    // (no-credential) boot rejects rather than collapsing to the shared default workspace.
+    requireCredential: parseRequireCredentialEnv(process.env['THEMEMORY_REQUIRE_CREDENTIAL']),
     ...(authVerifier !== undefined ? { authVerifier } : {}),
     ...(oidcDiscovery !== undefined ? { oidcDiscovery } : {}),
     ...(adminApi !== undefined ? { adminApi } : {}),

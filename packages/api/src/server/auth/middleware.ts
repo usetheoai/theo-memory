@@ -16,6 +16,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 
 
 import { BearerAuthVerifier, readApiKey } from './bearer-verifier.js';
+import { scopeSatisfies } from './scope-hierarchy.js';
 
 const BEARER_SCHEME_RE = /^bearer\s+(.+)$/i;
 
@@ -64,6 +65,38 @@ export function requireRole(min: WorkspaceRole): MiddlewareHandler {
 }
 
 /**
+ * Gate a data route on a required scope, checked against the Principal already
+ * resolved by {@link bearerAuth}. Mounted AFTER `bearerAuth` so 401 (bad
+ * credential) always precedes 403 (insufficient scope). Mirrors
+ * {@link requireRole} but for the scope axis: the data verbs require
+ * `memory:write` / `memory:read` / `memory:delete` per the verb, honoring the
+ * implication hierarchy ({@link scopeSatisfies}). Because `memory:platform-admin`
+ * implies ONLY `memory:admin` (key lifecycle), the gateway's provisioning
+ * credential is 403 on every data verb — least privilege (NIST AC-6): the
+ * platform key mints per-tenant keys, it never reads or writes tenant data.
+ *
+ * @see usetheodev/theo-memory#77
+ */
+export function requireScopeOnPrincipal(required: string): MiddlewareHandler {
+  return async (c, next) => {
+    const { scopes } = getPrincipal(c);
+    if (!scopeSatisfies(scopes, required)) {
+      return c.json(
+        {
+          code: 'INSUFFICIENT_SCOPE',
+          message: `Required scope "${required}" not held by this credential.`,
+          required,
+          actual: scopes,
+        },
+        403,
+      );
+    }
+    await next();
+    return;
+  };
+}
+
+/**
  * Resolve a Principal from a verifier. Prefers {@link AuthVerifier.resolvePrincipal}
  * (the credential→workspace path, ADR D2); falls back to the boolean
  * {@link AuthVerifier.verify} + `default` workspace for impls that only provide
@@ -72,11 +105,27 @@ export function requireRole(min: WorkspaceRole): MiddlewareHandler {
 async function resolvePrincipalFrom(
   verifier: AuthVerifier,
   token: string,
+  requireCredential: boolean,
 ): Promise<Principal | null> {
   if (verifier.resolvePrincipal !== undefined) {
     return verifier.resolvePrincipal(token);
   }
+  // Model B (ADR D4): in fail-closed multi-tenant mode a verify-only verifier
+  // (no workspace resolution) MUST NOT collapse to the privileged DEFAULT_PRINCIPAL
+  // — that would put every credential in the `default` owner workspace. Reject.
+  if (requireCredential) return null;
   return (await verifier.verify(token)) ? DEFAULT_PRINCIPAL : null;
+}
+
+/**
+ * Model B (ADR D4, EC-4): parse `THEMEMORY_REQUIRE_CREDENTIAL`. Only the literal
+ * `"true"` (case-insensitive) or `"1"` enable fail-closed mode; everything else
+ * (including empty / whitespace / unset) leaves the legacy single-tenant default.
+ */
+export function parseRequireCredentialEnv(raw: string | undefined): boolean {
+  if (raw === undefined) return false;
+  const v = raw.trim().toLowerCase();
+  return v === 'true' || v === '1';
 }
 
 /**
@@ -88,13 +137,27 @@ async function resolvePrincipalFrom(
  * @param verifier — optional override for testing or future OAuth/JWT impls.
  *   When omitted, a {@link BearerAuthVerifier} is constructed from the env.
  */
-export function bearerAuth(verifier?: AuthVerifier): MiddlewareHandler {
+export function bearerAuth(
+  verifier?: AuthVerifier,
+  opts: { readonly requireCredential?: boolean } = {},
+): MiddlewareHandler {
   // T4.2 — hoist verifier construction to middleware creation time (not per-request).
   const apiKey = readApiKey();
   const hoistedVerifier = verifier ?? (apiKey !== undefined ? new BearerAuthVerifier(apiKey) : null);
+  const requireCredential = opts.requireCredential === true;
 
   return async (c, next) => {
     if (hoistedVerifier === null) {
+      // Model B (ADR D4): fail-closed multi-tenant mode forbids the no-credential
+      // DEFAULT_PRINCIPAL collapse — a misconfigured multi-tenant deployment MUST
+      // reject rather than silently grant the `default` owner workspace.
+      if (requireCredential) {
+        return c.json(
+          { code: 'CREDENTIAL_REQUIRED', message: 'A credential is required (multi-tenant mode).' },
+          401,
+          { 'WWW-Authenticate': 'Bearer' },
+        );
+      }
       // multi-tenant-workspace-isolation T2.1 / ADR D7: no credential configured
       // → collapse to the `default` workspace Principal (NOT the old insecure
       // "auth disabled pass-through"). With one workspace there is no cross-tenant
@@ -132,7 +195,7 @@ export function bearerAuth(verifier?: AuthVerifier): MiddlewareHandler {
     // Principal is set ONLY on a successful, non-null resolution.
     let principal: Principal | null;
     try {
-      principal = await resolvePrincipalFrom(hoistedVerifier, token);
+      principal = await resolvePrincipalFrom(hoistedVerifier, token, requireCredential);
     } catch {
       return c.json(
         { code: 'SERVICE_UNAVAILABLE', message: 'Authentication backend unavailable' },
