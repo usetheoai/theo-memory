@@ -26,8 +26,8 @@ def _run(blueprint: Path, dry_run: bool = False) -> tuple[int, dict]:
 def test_weak_imperatives_replaced(smelly_blueprint: Path) -> None:
     rc, data = _run(smelly_blueprint)
     assert rc == 0
-    # "should", "could", "may", "deveria" all in prose → replaced
-    assert data["weak_imperatives_fixed"] >= 4
+    # "should", "could", "may" all in prose → replaced
+    assert data["weak_imperatives_fixed"] >= 3
     assert data["changed"] is True
 
     # Verify code blocks were NOT touched

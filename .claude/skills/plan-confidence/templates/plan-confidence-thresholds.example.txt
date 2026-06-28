@@ -15,7 +15,7 @@
 # Customize cutoffs to your project's calibration. Defaults (90/70/50/0) are
 # SOTA values from arXiv:2412.18004 — adjust after your holdout calibration.
 #
-# Sunset = revisão trimestral. Update sunset + ADR ref when you recalibrate.
+# Sunset = quarterly review. Update sunset + ADR ref when you recalibrate.
 #
 # Run_structural.py emits a WARN when calibration is PROVISIONAL_v1
 # (no holdout). Adjust your project's calibration via ADR + this file.

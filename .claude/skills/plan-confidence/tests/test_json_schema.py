@@ -11,7 +11,6 @@ import jsonschema
 import pytest
 
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 from run_structural import run_structural  # noqa: E402
 
@@ -32,7 +31,7 @@ def schema() -> dict:
 def _report_to_dict(plan_path: Path) -> dict:
     report = run_structural(plan_path, RUBRIC, THRESHOLDS)
     d = asdict(report)
-    d["motivos"] = {k: [asdict(m) for m in v] for k, v in report.motivos.items()}
+    d["reasons"] = {k: [asdict(m) for m in v] for k, v in report.reasons.items()}
     return d
 
 
@@ -94,12 +93,12 @@ def test_schema_rejects_invalid_verdict() -> None:
         "plan_slug": "x", "plan_path": "x", "plan_version": "1",
         "scored_at": "2026-05-17T00:00:00+00:00",
         "completude_score": 50, "risco_estrutural_score": 50,
-        "active_dimensions": ["completude"],
+        "active_dimensions": ["completeness"],
         "weight_normalization_factor": 1.0,
         "weighted_avg": 50, "hard_caps_triggered": [],
         "final_score_after_caps": 50,
         "verdict": "MAYBE_OK",  # invalid
-        "motivos": {"completude": [], "evidencia": [], "calibracao": [], "risco_estrutural": []},
+        "reasons": {"completeness": [], "evidence": [], "calibration": [], "structural_risk": []},
         "sub_reports": {
             "coverage_matrix": {"total_gaps": 0, "mapped_gaps": 0, "coverage_ratio": 1.0, "is_complete": True},
             "adr_completeness": {"total_adrs": 0, "with_alternatives": 0, "completeness_ratio": 1.0},
@@ -118,12 +117,12 @@ def test_schema_rejects_out_of_range_score() -> None:
         "scored_at": "2026-05-17T00:00:00+00:00",
         "completude_score": 150,  # out of range
         "risco_estrutural_score": 50,
-        "active_dimensions": ["completude"],
+        "active_dimensions": ["completeness"],
         "weight_normalization_factor": 1.0,
         "weighted_avg": 100, "hard_caps_triggered": [],
         "final_score_after_caps": 100,
         "verdict": "SHIPPABLE",
-        "motivos": {"completude": [], "evidencia": [], "calibracao": [], "risco_estrutural": []},
+        "reasons": {"completeness": [], "evidence": [], "calibration": [], "structural_risk": []},
         "sub_reports": {
             "coverage_matrix": {"total_gaps": 0, "mapped_gaps": 0, "coverage_ratio": 1.0, "is_complete": True},
             "adr_completeness": {"total_adrs": 0, "with_alternatives": 0, "completeness_ratio": 1.0},

@@ -1,13 +1,10 @@
 """TDD for check_architecture_compliance.py — verifies plans READ .claude/rules/."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 from check_architecture_compliance import (  # noqa: E402
     ComplianceReport,
@@ -35,7 +32,7 @@ def test_reads_project_rules_when_present() -> None:
     report = check_architecture_compliance(real_plan)
     assert not report.fallback_to_defaults
     assert len(report.project_rules_found) > 0
-    # Theo-code has many rules — at least these canonical ones
+    # A real project has many rules — at least these canonical ones
     rule_names = list(report.project_rules_found)
     assert "architecture.md" in rule_names
     assert "testing.md" in rule_names
@@ -180,9 +177,9 @@ def test_compliance_motivos_are_informative(tmp_path: Path) -> None:
         "# Plan\n\n## Coverage Matrix\n\n| # | Gap | Task(s) | Resolution |\n|---|---|---|---|\n| 1 | x | T1.1 | y |\n",
     )
     report = check_architecture_compliance(plan)
-    assert len(report.motivos) >= 4
+    assert len(report.reasons) >= 4
     # At least one motivo should say "does NOT" since this plan has nothing
-    assert any("does NOT" in m or "does not" in m.lower() for m in report.motivos)
+    assert any("does NOT" in m or "does not" in m.lower() for m in report.reasons)
 
 
 def test_compliance_report_is_dataclass() -> None:

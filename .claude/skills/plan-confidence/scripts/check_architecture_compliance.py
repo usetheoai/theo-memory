@@ -84,7 +84,7 @@ class ComplianceReport:
     has_dod_quality_signal: bool = False
     has_size_budget_signal: bool = False
     compliance_score: float = 0.0  # 0.0-1.0
-    motivos: tuple[str, ...] = field(default_factory=tuple)
+    reasons: tuple[str, ...] = field(default_factory=tuple)
 
 
 def _resolve_rules_dir(plan_path: Path) -> tuple[Path, bool]:
@@ -189,25 +189,25 @@ def check_architecture_compliance(plan_path: Path) -> ComplianceReport:
     weight_size = 0.15 if size_signal else 0.0
     compliance_score = weight_rule_ref + weight_principle + weight_dod + weight_size
 
-    motivos: list[str] = []
+    reasons: list[str] = []
     if rules_referenced:
-        motivos.append(f"References {len(rules_referenced)} project rule(s): {rules_referenced[:3]}")
+        reasons.append(f"References {len(rules_referenced)} project rule(s): {rules_referenced[:3]}")
     else:
-        motivos.append(f"Plan does NOT reference any rule in `{rules_dir.relative_to(SKILL_ROOT.parent.parent.parent) if not fallback else 'defaults/'}`")
+        reasons.append(f"Plan does NOT reference any rule in `{rules_dir.relative_to(SKILL_ROOT.parent.parent.parent) if not fallback else 'defaults/'}`")
     if principles_cited:
-        motivos.append(f"Cites {len(principles_cited)} principle(s): {principles_cited[:3]}")
+        reasons.append(f"Cites {len(principles_cited)} principle(s): {principles_cited[:3]}")
     else:
-        motivos.append("Plan does NOT cite engineering principles (SOLID, DRY, KISS, YAGNI, ...)")
+        reasons.append("Plan does NOT cite engineering principles (SOLID, DRY, KISS, YAGNI, ...)")
     if dod_signal:
-        motivos.append("Global DoD references quality gates (lint/complexity/size)")
+        reasons.append("Global DoD references quality gates (lint/complexity/size)")
     else:
-        motivos.append("Global DoD does NOT mention quality gates")
+        reasons.append("Global DoD does NOT mention quality gates")
     if size_signal:
-        motivos.append("Plan mentions file-size budget")
+        reasons.append("Plan mentions file-size budget")
     else:
-        motivos.append("Plan does NOT mention LoC / file-size budget")
+        reasons.append("Plan does NOT mention LoC / file-size budget")
     if fallback:
-        motivos.append("FALLBACK: project has no `.claude/rules/`; using default principles")
+        reasons.append("FALLBACK: project has no `.claude/rules/`; using default principles")
 
     return ComplianceReport(
         project_rules_found=tuple(project_rules),
@@ -217,5 +217,5 @@ def check_architecture_compliance(plan_path: Path) -> ComplianceReport:
         has_dod_quality_signal=dod_signal,
         has_size_budget_signal=size_signal,
         compliance_score=round(compliance_score, 3),
-        motivos=tuple(motivos),
+        reasons=tuple(reasons),
     )

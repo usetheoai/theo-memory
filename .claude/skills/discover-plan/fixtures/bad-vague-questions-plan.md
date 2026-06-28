@@ -1,11 +1,11 @@
-# Discovery Plan: Mem0 / Letta / LangMem — General Investigation
+# Discovery Plan: Project A / Project B / Project C — General Investigation
 
 > **FIXTURE — NEGATIVE EXAMPLE.** Demonstrates anti-patterns `/discover-plan` is designed to prevent. Use this file to validate that `/discover-edge-cases` correctly identifies and flags the issues listed at the bottom.
 >
 > **Version 0.1** — Investigate stuff about the three memory projects we have.
 
 **Slug:** `general-investigation`
-**Owner:** TheMemory team
+**Owner:** OurProject team
 **Created:** 2026-05-21
 **Time budget:** TBD
 
@@ -35,8 +35,8 @@ Things that don't seem relevant.
 
 | # | Question | Corner | Reference project(s) | Planned method | Expected answer shape |
 |---|---|---|---|---|---|
-| Q1 | Is Mem0 good? | techniques | Mem0 | Read it carefully | A judgment |
-| Q2 | How does Letta work? | techniques | Letta | Look around | Explanation |
+| Q1 | Is Project A good? | techniques | Project A | Read it carefully | A judgment |
+| Q2 | How does Project B work? | techniques | Project B | Look around | Explanation |
 | Q3 | What can we learn from these projects? | techniques | All three | Use intuition | Insights |
 | Q4 | Explain the architecture | techniques | All three | We'll figure it out | Architectural overview |
 | Q5 | Are there any patterns? | techniques | All three | TBD | List of patterns |

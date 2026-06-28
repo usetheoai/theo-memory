@@ -1,11 +1,8 @@
 """TDD for apply_fixes.py — deterministic plan-improve fixes."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 from apply_fixes import (  # noqa: E402
     FixReport,
@@ -50,14 +47,6 @@ def test_weak_imperative_inside_code_block_preserved(tmp_path: Path) -> None:
     assert "test_should_pass" in content
 
 
-def test_weak_imperative_pt_br_deveria_replaced(tmp_path: Path) -> None:
-    plan = _write(tmp_path, "O sistema deveria validar.\n")
-    fix_weak_imperatives(plan, dry_run=False)
-    content = plan.read_text(encoding="utf-8")
-    assert "deveria" not in content
-    assert "deve" in content
-
-
 def test_weak_imperative_dry_run_does_not_modify_file(tmp_path: Path) -> None:
     original = "The system should work.\n"
     plan = _write(tmp_path, original)
@@ -88,12 +77,6 @@ def test_loophole_when_applicable_removed(tmp_path: Path) -> None:
     plan = _write(tmp_path, "Use X when applicable.\n")
     fix_loopholes(plan, dry_run=False)
     assert "when applicable" not in plan.read_text(encoding="utf-8")
-
-
-def test_loophole_pt_br_se_possivel_removed(tmp_path: Path) -> None:
-    plan = _write(tmp_path, "Aplique X se possivel.\n")
-    fix_loopholes(plan, dry_run=False)
-    assert "se possivel" not in plan.read_text(encoding="utf-8")
 
 
 def test_loophole_inside_code_block_preserved(tmp_path: Path) -> None:

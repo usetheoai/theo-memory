@@ -1,11 +1,8 @@
 """L5 — Conservative floor / fail-closed asymmetric bias."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 from run_structural import run_structural  # noqa: E402
 
@@ -17,7 +14,7 @@ THRESHOLDS = SKILL_ROOT.parent.parent / "rules" / "plan-confidence-thresholds.tx
 def test_high_smell_density_caps_at_89(tmp_path: Path) -> None:
     """30+ smell hits prevents SHIPPABLE — caps at SHIPPABLE_WITH_CAVEATS max.
 
-    The cap can fire via either: (a) smell penalty pushing risco_estrutural low
+    The cap can fire via either: (a) smell penalty pushing structural_risk low
     enough that composite < 89, or (b) soft_floor explicitly capping at 89.
     Either path satisfies the user-facing invariant.
     """
@@ -41,13 +38,13 @@ def test_high_smell_density_caps_at_89(tmp_path: Path) -> None:
 def test_soft_floor_marker_fires_when_floor_binds(tmp_path: Path) -> None:
     """When weighted_avg WOULD exceed 89 but smell density is high, soft_floor marker appears.
 
-    Construct a plan with very high completude (100) but exactly 30 smells in prose:
+    Construct a plan with very high completeness (100) but exactly 30 smells in prose:
     weighted = 0.6*100 + 0.4*70 = 88 — too low. Need smells light enough that
-    completude * 0.6 alone reaches >89... but threshold is 30 hits = cap fires.
+    completeness * 0.6 alone reaches >89... but threshold is 30 hits = cap fires.
     Use a synthetic scenario where the cap CAN bind.
     """
-    # Build a plan with high completude AND exactly 30 weak imperatives spread thin
-    # (so risco floors at 100 + 30*(-3) = 10, but soft_floor not relevant — completude
+    # Build a plan with high completeness AND exactly 30 weak imperatives spread thin
+    # (so risco floors at 100 + 30*(-3) = 10, but soft_floor not relevant — completeness
     # at 100 dominates: 0.6*100 + 0.4*10 = 64 — below 89).
     # The soft_floor cannot mathematically bind on a clean plan because smells reduce
     # risco directly. The marker is design-safety, fires only on extreme synthesized cases.

@@ -7,15 +7,12 @@ that breaks the invariant.
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import asdict
 from pathlib import Path
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 from check_coverage_matrix import check_coverage_matrix  # noqa: E402
 from check_spec_smells import check_spec_smells  # noqa: E402
@@ -182,7 +179,7 @@ def test_end_to_end_score_invariants(
     assert report.verdict in VALID_VERDICTS
     # JSON serialization works
     d = asdict(report)
-    d["motivos"] = {k: [asdict(m) for m in v] for k, v in report.motivos.items()}
+    d["reasons"] = {k: [asdict(m) for m in v] for k, v in report.reasons.items()}
     json.dumps(d)  # raises if not serializable
     # If verdict is INVALID, must have hard cap OR composite < 50
     if report.verdict == "INVALID" and not report.hard_caps_triggered:

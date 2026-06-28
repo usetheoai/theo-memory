@@ -1,80 +1,70 @@
----
-paths:
-  - "README.md"
-  - "PITCH.md"
-  - "docs/marketing/**/*.md"
----
+# Public Copy
 
-# Public Copy Rules — @usetheo/memory
+Source of Truth for voice/tone in README, marketing, and external-facing docs. Enforced by `hooks/public-copy-lint.sh` (advisory, warn-first).
 
-> **INQUEBRÁVEL — 95% Confidence Gate**
->
-> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
-> OPÇÕES PARA ELE ESCOLHER.
->
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+## § 1 — Scope
 
-Scoped to **public-facing copy only** (`README.md` HERO/BODY, `PITCH.md`, marketing surfaces). Internal docs (`CLAUDE.md`, source code, CHANGELOG when created) stay technical-direct and are exempt from these rules.
+Applies to:
+- `README.md` (any directory)
+- `PITCH.md`
+- `docs/marketing/**/*.md`
+- `docs/guides/**/*.md`
 
-The operational voice guide is locked in [`../../theokit/CLAUDE.md`](../../theokit/CLAUDE.md) and applies to TheMemory by explicit extension (root strategic review 2026-05-21). This file enumerates the concrete checks that ALSO apply to TheMemory specifically.
+Does NOT apply to:
+- `docs/exploration-reports/`, `docs/benchmarks/`, `docs/adr/` — technical-direct
+- `CLAUDE.md`, `PRD.md`, `CHANGELOG.md`, source code
+- `knowledge-base/references/**` — third-party study material
 
-## 1. Voice — aspirational, outcome-first
+## § 2 — Anchor
 
-- HERO talks outcomes ("remembers what your agent learned, across sessions, automatically").
-- HERO never names internals: no `Postgres`, `pgvector`, `Qdrant`, `vector engine`, `embedding model`. Those go in DEEP DIVE only (`## How it works`, `## Architecture`, `## Foundation`).
-- BODY can name TheoKit, TheoCloud, the ecosystem — those are user-facing surfaces.
-- DEEP DIVE (`## How it works` and lower) can be technical-direct.
+The HERO section (first screen of README) is **outcome-shaped**, not implementation-shaped. Say what the user gets, not what's inside.
 
-## 2. Locked positioning anchors
+- Good: "Provision X in 60 seconds with a single YAML."
+- Bad: "Built on <library A> with <library B> and <library C> for GitOps."
 
-Every public copy edit must preserve these anchors. If one breaks, surface the conflict before publishing.
+Internals belong in a DEEP DIVE section further down (`## How it works`, `## Architecture`, `## Stack`, `## Internals`).
 
-| Anchor | Banned alternative |
-|---|---|
-| **"Mem0-shape architecture"** (inspired, not cloned) | "Mem0-clone", "Mem0 clone", "fork of Mem0" |
-| **"Native managed memory of TheoCloud, optimized for TheoKit"** | "wrapper around Mem0", "Mem0 wrapper", "wrapper for X" |
-| **"Pre-release"** until v1.0 with reproduced benchmarks | "production-ready", "production-grade", "battle-tested" |
-| **MIT-licensed** (explicit exception) | "Apache-2.0" associated with TheMemory in any sentence |
-| **"Memory store"** / **"managed memory"** in HERO/BODY | `Qdrant`, `pgvector`, `vector engine`, `vector store engine` outside DEEP DIVE |
-| **"Lock-in is a feature, owned explicitly"** | Apologetic framing of the TheoKit + TheoCloud coupling |
-| **Three tiers: User / Session / Agent** | Renaming or collapsing the trio in HERO/BODY |
-| **"Two runtimes — local + cloud"** | Implying TheMemory is cloud-only or local-only |
+## § 3 — Honesty
 
-## 3. Cross-reference checks
+Until v1.0 with sustained measured evidence in real production:
 
-| Document | What to verify when editing |
-|---|---|
-| `../CLAUDE.md` § Voice and Tone | TheMemory adopted the aspirational voice on 2026-05-21. Rules apply. |
-| `../CLAUDE.md` § Architectural Decisions Locked | The four root overrides must not be silently revised in copy. |
-| `../README.md § Status` | Must stay "Pre-release" — canonical status declaration. |
-| Root `../../CLAUDE.md § Cross-Project Rule 9` | Cloud abstraction — user-facing copy says `memory store`, never internals. |
-| Root `../../CLAUDE.md § Product Hierarchy` | TheMemory is a "Community auxiliary (OSS auxiliary)", "Pre-release". Do not contradict. |
+- ❌ `production-ready`, `production-grade`
+- ❌ `battle-tested`
+- ❌ `enterprise-ready`, `enterprise-grade`
+- ✅ `designed for production HA scenarios`
+- ✅ `targeted at <use case>`
 
-## 4. Quantitative-claim hygiene
+## § 4 — Comparative claims
 
-- Never publish a benchmark number on public copy without a reproducible artifact + a link to the artifact in the same paragraph. The TheoCloud pattern is `theo/deploy-evidence.jsonl`; TheMemory's equivalent will live at `docs/benchmarks/` (planned v1.0).
-- Comparative claims against named players (Mem0, Letta, Zep) require a side-by-side benchmark in `docs/benchmarks/` first. Until then, frame as positioning ("optimized for TheoKit"), never as performance ("faster than X").
+Performance comparisons require:
+1. A reproducible benchmark artifact under `docs/benchmarks/`.
+2. Independent reproduction by a third party.
+3. The benchmark linked in the same paragraph as the claim.
 
-## 5. Headlines and taglines
+Without all three, do not state "faster than <X>".
 
-The root `CLAUDE.md § Locked Narrative` table holds the ecosystem-level locked narrative ("Build AI Agents and Apps faster with Theo" + "Chat. Build. Deploy."). TheMemory's own README HERO must align with that narrative — it does not introduce a separate locked tagline. When writing TheMemory copy that references the ecosystem trio, use the exact phrase "Chat. Build. Deploy."
+## § 5 — Specific numbers
 
-## 6. Pre-release honesty in copy
+SLA/uptime numbers (99.9%, 99.95%, 99.99%) require sustained measurement in real production. Until then:
 
-The README's `Status` section is the canonical declaration. Never weaken it without a PR-level decision. Specifically:
+- ✅ `target SLO of 99.9%`
+- ✅ `designed to support 99.9% uptime`
+- ❌ `99.9% uptime` (unqualified)
 
-- No "production-ready" / "production-grade" badges in README.
-- No "battle-tested" claim until v1.0 with reproduced benchmarks.
-- No comparative performance claims (latency, recall@k) until `docs/benchmarks/` exists with independent reproduction.
-- The pre-release status is OK to say plainly. Don't dress it up — the audience is developers, and pre-release is a recognized stage.
+Performance numbers (failover < 5s, restore < 1min) need a benchmark link in the same paragraph.
 
-## 7. Banned words enforcement
+## § 6 — Banned framings
 
-The PostToolUse hook `.claude/hooks/public-copy-lint.sh` warns on the banned terms above. It is **warn-first** (CLAUDE.md decision 2026-05-21) — output is advisory, never blocks the edit. Address each warning or document explicitly why it's intentional in the PR description.
+| Banned | Reason | Use instead |
+|---|---|---|
+| `<competitor> killer` | vendor-hostile | outcome-shaped positioning |
+| `drop-in replacement` | implies zero migration cost | specific compatibility surface |
+| `lock-in free` / `lock-in proof` | absolute, exaggerated | specific exit affordance ("export with X") |
+| `zero downtime` unqualified | hides scope | "minor upgrades are zero-downtime; major upgrades have measured downtime" |
 
-## Reference
+## § 7 — Adapting per project
 
-- Operational voice guide: [`../../theokit/CLAUDE.md`](../../theokit/CLAUDE.md) (the canonical document — TheMemory follows it by extension).
-- Locked narrative: root [`../../CLAUDE.md § Locked Narrative`](../../CLAUDE.md).
-- TheMemory positioning: [`../CLAUDE.md § Locked names`](../CLAUDE.md) + § Architectural Decisions Locked.
+When a project adopts this template, add a project-specific section listing:
+- Internal component names that should NOT appear in the HERO section.
+- Competitor names that trigger comparative-claim review.
+- Specific SLO targets you commit to (with measurement plan).

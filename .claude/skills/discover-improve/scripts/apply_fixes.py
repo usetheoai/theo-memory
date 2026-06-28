@@ -4,8 +4,8 @@
 Idempotent. Same input always produces same output. Cost: $0.
 
 Fixes applied (in order):
-  1. Weak imperatives in prose: should/could/may/might/deveria/poderia → must/can/deve/pode
-  2. Loopholes stripped: "if possible", "as appropriate", "se possível", "quando aplicável", ...
+  1. Weak imperatives in prose: should/could/may/might → must/can
+  2. Loopholes stripped: "if possible", "as appropriate", "when applicable", "where feasible"
   3. Fabricated citations: paths in `.claude/knowledge-base/references/{...}` that don't exist on disk are
      marked with `<!-- BLOCKED: path not found in .claude/knowledge-base/references/ -->`
 
@@ -24,12 +24,11 @@ from typing import Any
 CITATION_RE = re.compile(r".claude/knowledge-base/references/[A-Za-z0-9_\-./]+")
 LINE_SUFFIX_RE = re.compile(r":\d+(:\d+)?$")
 WEAK_IMPERATIVES_RE = re.compile(
-    r"\b(should|could|may|might|deveria|poderia|talvez|possivelmente|deveriam|poderiam)\b",
+    r"\b(should|could|may|might)\b",
     re.IGNORECASE | re.UNICODE,
 )
 LOOPHOLES_RE = re.compile(
-    r"\b(if possible|as appropriate|when applicable|where feasible|"
-    r"se poss[ií]vel|quando aplic[áa]vel|se cab[íi]vel|conforme apropriado|onde vi[áa]vel)\b",
+    r"\b(if possible|as appropriate|when applicable|where feasible)\b",
     re.IGNORECASE | re.UNICODE,
 )
 FENCED_CODE_RE = re.compile(r"^```[^\n]*\n.*?^```", re.MULTILINE | re.DOTALL)
@@ -41,12 +40,6 @@ REPLACEMENT_MAP = {
     "could": "can",
     "may": "must",
     "might": "must",
-    "deveria": "deve",
-    "poderia": "pode",
-    "deveriam": "devem",
-    "poderiam": "podem",
-    "talvez": "",
-    "possivelmente": "",
 }
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # PreToolUse hook for Bash: blocks destructive commands.
-# Reflects the Inquebrável git rules from /home/paulo/.claude/CLAUDE.md.
+# Mirrors the universal git/safety rules from CLAUDE.md (Inquebrável Rule 4).
 # Exit 0 = allow, Exit 2 = block (stderr is shown to Claude).
 
 set -euo pipefail
@@ -12,7 +12,9 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
-# --- Inquebrável git rules (CLAUDE.md PARTE I §4) ---
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
+# --- Inquebrável git rules (CLAUDE.md §4) ---
 if echo "$COMMAND" | grep -qE 'git[[:space:]]+checkout([[:space:]]|$)'; then
   echo "BLOCKED: 'git checkout' is forbidden by Inquebrável Rule 4. Use 'git switch' or 'git restore' instead." >&2
   exit 2
@@ -33,65 +35,63 @@ if echo "$COMMAND" | grep -qE 'git[[:space:]]+reset[[:space:]]+--hard'; then
   exit 2
 fi
 
-# --- No work directly on main (CLAUDE.md PARTE I §4) ---
+# --- No work directly on main (CLAUDE.md §4) ---
+# main receives release merges ONLY, via PR. Block every local command that
+# mutates the main ref: commit, plus merge/rebase/reset/cherry-pick. (push is not
+# blocked here — release legitimately pushes tags; `push --force` is already
+# blocked globally above for every branch.)
 BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 if [ "$BRANCH" = "main" ]; then
   if echo "$COMMAND" | grep -qE 'git[[:space:]]+commit([[:space:]]|$)'; then
-    echo "BLOCKED: never commit directly to main (Inquebrável Rule 4). Create a feature branch with 'git switch -c'." >&2
+    echo "BLOCKED: never commit directly to main (Inquebrável Rule 4). Work on 'develop' (single-trunk) or a feature branch." >&2
+    exit 2
+  fi
+  if echo "$COMMAND" | grep -qE 'git[[:space:]]+(merge|rebase|reset|cherry-pick)([[:space:]]|$)'; then
+    echo "BLOCKED: never mutate 'main' directly (Inquebrável Rule 4). main receives release merges only, via a develop→main PR. Switch to 'develop' first." >&2
     exit 2
   fi
 fi
 
-# --- rm -rf on dangerous paths ---
+# --- rm -rf on dangerous system paths ---
 if echo "$COMMAND" | grep -qE 'rm[[:space:]]+-rf?[[:space:]]+(/[[:space:]]*$|/[[:space:]]|/\*|~[[:space:]]*$|~[[:space:]]|\$HOME|/home([[:space:]]|/|$)|/etc([[:space:]]|/|$)|/usr([[:space:]]|/|$)|/var([[:space:]]|/|$)|/bin([[:space:]]|/|$)|/lib([[:space:]]|/|$)|/opt([[:space:]]|/|$)|/boot([[:space:]]|/|$)|/root([[:space:]]|/|$))'; then
   echo "BLOCKED: 'rm -rf' on a system path. Scope deletions to project-relative paths or /tmp/." >&2
   exit 2
 fi
 
-# --- .claude/knowledge-base/references/ is read-only study material ---
-# Only block clear WRITE/MODIFY operations targeting .claude/knowledge-base/references/.
+# --- knowledge-base/references/ and knowledge-base/tools/ are read-only study material ---
+# Only block clear WRITE/MODIFY operations targeting these dirs.
 # Read-only ops (test, ls, cat, head, tail, find, grep, for-loops, Read/Glob tools)
-# are explicitly allowed — they are needed for /discover-execute and /discover-plan.
+# are explicitly allowed — they are needed for discovery skills.
 #
 # Anchor the verb to a shell-segment boundary (start, space, `;`, `&&`, `||`, `|`, `(`)
 # so substrings like "cp" inside "docker-compose" don't false-positive.
-# Permits intermediate args/flags between verb and .claude/knowledge-base/references/ via `[^;&|]*`.
 #
-# Known limitation: regex-based shell parsing cannot distinguish bare `rm .claude/knowledge-base/references/`
-# from `rm` appearing inside a quoted string (e.g., `echo 'this rm in a string'
-# .claude/knowledge-base/references/foo`). The latter false-positives. Workaround: rephrase the echo
-# without the verb-name keyword, or use `printf '%s\n' "$VAR"` style.
-if echo "$COMMAND" | grep -qE '(^|[[:space:]]|;|&&|\|\||\||\()[[:space:]]*((rm|mv|cp|sed[[:space:]]+-i|tee)[[:space:]]+[^;&|]*(\./)?.claude/knowledge-base/references/|>{1,2}[[:space:]]+(\./)?.claude/knowledge-base/references/)'; then
-  echo "BLOCKED: '.claude/knowledge-base/references/' contains read-only study clones (Mem0, Letta, LangMem). Never modify, delete, install dependencies in, or rename anything inside it. Use docs/exploration-reports/ to capture findings instead." >&2
-  exit 2
+# Escape hatch: presence of a `.references-bootstrap` marker file at project root unblocks
+# WRITE ops to references/ AND tools/. Use ONLY for initial population
+# (git clone, bootstrap mv from another location). After the bootstrap,
+# DELETE the marker — leaving it in place defeats the read-only invariant.
+# Audit trail: every bootstrap MUST cite the source in CHANGELOG.md under Added/Changed.
+if [ ! -f "$PROJECT_DIR/.references-bootstrap" ]; then
+  # Matches both standalone (knowledge-base/) and plugin install (.claude/knowledge-base/) layouts.
+  if echo "$COMMAND" | grep -qE '(^|[[:space:]]|;|&&|\|\||\||\()[[:space:]]*((rm|mv|cp|sed[[:space:]]+-i|tee)[[:space:]]+[^;&|]*(\./)?(\.claude/)?knowledge-base/(references|tools)/|>{1,2}[[:space:]]+(\./)?(\.claude/)?knowledge-base/(references|tools)/)'; then
+    echo "BLOCKED: 'knowledge-base/references/' and 'knowledge-base/tools/' are read-only study material. Never modify/delete/rename anything there. Capture findings in 'knowledge-base/discoveries/blueprints/'. For initial bootstrap (git clone, mv from elsewhere), create '.references-bootstrap' at project root (with rationale inside) AND cite the source in CHANGELOG.md; remove the marker as soon as you're done." >&2
+    exit 2
+  fi
 fi
 
-# --- No Co-Authored-By trailers in commit messages (user policy 2026-05-22) ---
+# --- No Co-Authored-By trailers in commit messages (user policy) ---
 # Blocks any `git commit` whose message body contains the literal "Co-Authored-By"
-# (case-insensitive). User policy: this project's git history must not carry
-# co-authorship trailers. The check fires on the command text, which covers:
-#   - inline:    git commit -m "msg ... Co-Authored-By: ..."
-#   - heredoc:   git commit -m "$(cat <<'EOF' ... Co-Authored-By: ... EOF)"
-#   - amend:     git commit --amend -m "... Co-Authored-By: ..."
-# Workaround for false-positive: if you genuinely need to mention the literal
-# string "Co-Authored-By" inside a commit message body (e.g., a CHANGELOG entry
-# describing this policy), use printf via a temp file:
-#   printf '%s\n' "..." > /tmp/msg && git commit -F /tmp/msg
-# The -F path is the documented escape hatch; -F + a file with the trailer is
-# also caught by reading the file content, but the hook only sees the command
-# text so -F is the loophole. Use carefully; the policy is on the author.
+# (case-insensitive). Workaround for false-positive on legitimate documentation
+# of this policy: use `git commit -F /tmp/msg` with the trailer in the file.
 if echo "$COMMAND" | grep -qE 'git[[:space:]]+commit' && echo "$COMMAND" | grep -qiE 'co-authored-by'; then
-  echo "BLOCKED: 'Co-Authored-By:' trailers are forbidden on theo-memory commits (user policy 2026-05-22). Remove the trailer from the commit message body. See ~/.claude/projects/-home-paulo-Projetos-usetheo-theo-memory/memory/no_coauthored_by_in_commits.md for rationale." >&2
+  echo "BLOCKED: 'Co-Authored-By:' trailers are forbidden on this project's commits (user policy). Remove the trailer from the commit message body." >&2
   exit 2
 fi
 
-# --- npm publish guard REMOVED 2026-06-23 (user directive: npm/pnpm totally permissive) ---
-# Previously blocked `npm publish`/`unpublish` and required the `!` prefix. The project
-# owner explicitly opted into a fully permissive npm/pnpm surface; publish is now allowed.
-
-# --- pip / pip install / poetry inside .claude/knowledge-base/references/ (Python sub-projects exist there) ---
-if echo "$COMMAND" | grep -qE '(pip|poetry|uv)[[:space:]]+install' && pwd | grep -q '.claude/knowledge-base/references/'; then
-  echo "BLOCKED: never install dependencies inside .claude/knowledge-base/references/. Those are read-only clones." >&2
+# --- No dependency install inside read-only references/ ---
+# Matches both standalone (knowledge-base/) and plugin install (.claude/knowledge-base/) layouts.
+if echo "$COMMAND" | grep -qE '(pip|poetry|uv|npm|pnpm|yarn|cargo|go[[:space:]]+(get|mod))[[:space:]]+(install|add|tidy|download)' && pwd | grep -qE '(\.claude/)?knowledge-base/references/'; then
+  echo "BLOCKED: never install dependencies inside knowledge-base/references/. Those are read-only clones." >&2
   exit 2
 fi
 

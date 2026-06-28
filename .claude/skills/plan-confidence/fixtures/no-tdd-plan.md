@@ -21,9 +21,9 @@ Trigger TDD hard cap.
 
 ### D1 — Toy
 
-- **Decisão:** Toy.
+- **Decision:** Toy.
 - **Rationale:** Alternativa rejeitada: do nothing.
-- **Consequências:** None.
+- **Consequences:** None.
 
 ## Dependency Graph
 

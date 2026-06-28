@@ -2,8 +2,8 @@
 
 Three fix categories (all SAFE, deterministic):
 
-1. **weak_imperatives**: should/could/may/might/deveria/poderia -> must/deve
-2. **loopholes**: 'if possible' / 'se possivel' / 'when applicable' -> removed
+1. **weak_imperatives**: should/could/may/might -> must
+2. **loopholes**: 'if possible' / 'when applicable' / 'where feasible' / 'as appropriate' -> removed
 3. **tdd_template**: bug-fix tasks without #### TDD block -> inject standard template
 
 ALL fixes:
@@ -34,7 +34,6 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 WEAK_IMPERATIVE_PATTERNS: list[tuple[str, str]] = [
-    # English
     (r"\bshould\b", "must"),
     (r"\bShould\b", "Must"),
     (r"\bcould\b", "must"),
@@ -43,33 +42,14 @@ WEAK_IMPERATIVE_PATTERNS: list[tuple[str, str]] = [
     (r"\bMay\b", "Must"),
     (r"\bmight\b", "must"),
     (r"\bMight\b", "Must"),
-    # pt-BR
-    (r"\bdeveria\b", "deve"),
-    (r"\bDeveria\b", "Deve"),
-    (r"\bpoderia\b", "deve"),
-    (r"\bPoderia\b", "Deve"),
-    (r"\btalvez\b", ""),
-    (r"\bTalvez\b", ""),
-    (r"\bpossivelmente\b", ""),
-    (r"\bPossivelmente\b", ""),
 ]
 
 LOOPHOLE_PHRASES: list[str] = [
-    # English (longest first to avoid partial replacements)
+    # longest first to avoid partial replacements
     "where feasible",
     "when applicable",
     "as appropriate",
     "if possible",
-    # pt-BR
-    "se possivel",
-    "se possível",
-    "quando aplicavel",
-    "quando aplicável",
-    "se cabivel",
-    "se cabível",
-    "conforme apropriado",
-    "onde viavel",
-    "onde viável",
 ]
 
 TASK_HEADER_RE = re.compile(r"^###\s+T\d+\.\d+\b")

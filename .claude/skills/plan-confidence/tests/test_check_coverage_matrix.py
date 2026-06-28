@@ -1,13 +1,10 @@
 """T4.1 — check_coverage_matrix.py tests (v1.1 EC-4 fix: orphan exclusion)."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
 from check_coverage_matrix import (  # noqa: E402
     CoverageReport,
@@ -199,12 +196,18 @@ def test_coverage_matrix_out_of_scope_variant_phrases(tmp_path: Path) -> None:
     assert report.is_complete is True
 
 
-def test_coverage_matrix_real_plan_theo_cli_cohesion() -> None:
-    """End-to-end: real plan theo-cli-cohesion-remediation should be complete after #2 fix."""
-    project_root = Path(__file__).parent.parent.parent.parent.parent  # theo-code/
-    plan_path = project_root / ".claude" / "knowledge-base" / "plans" / "theo-cli-cohesion-remediation-plan.md"
-    if not plan_path.exists():
-        pytest.skip(f"real plan not found: {plan_path}")
+def test_coverage_matrix_real_plan_example() -> None:
+    """End-to-end: a real project plan should pass coverage-matrix completeness.
+
+    Gracefully skips when no real plan file is available in the host project."""
+    project_root = Path(__file__).parent.parent.parent.parent.parent  # repo root
+    plans_dir = project_root / "knowledge-base" / "plans"
+    if not plans_dir.is_dir():
+        pytest.skip(f"plans dir not found: {plans_dir}")
+    candidates = list(plans_dir.glob("*-plan.md"))
+    if not candidates:
+        pytest.skip(f"no real plans under {plans_dir}")
+    plan_path = candidates[0]
     report = check_coverage_matrix(plan_path)
     # F-CODE-01 is explicitly out-of-scope via D9 — should be deferred, not unmapped.
     assert report.deferred_gaps >= 1

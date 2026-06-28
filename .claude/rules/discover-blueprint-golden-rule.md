@@ -1,66 +1,81 @@
-# Discover-Blueprint Golden Rule (INQUEBRÁVEL) — TEMPLATE
+# Discover-Blueprint Golden Rule
 
-> **INQUEBRÁVEL — 95% Confidence Gate**
->
-> NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
-> OPÇÕES PARA ELE ESCOLHER.
->
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (Confiança de 95%).
+Locked unbreakable contract that `/discover-confidence` reads to score blueprints, decide verdicts, and gate the optional skill-promotion downstream. This file is the per-project Source of Truth promoted from `skills/discover-confidence/templates/discover-blueprint-golden-rule.example.md`.
 
-> Copy this file to `.claude/rules/discover-blueprint-golden-rule.md` in your project.
+Without this file, `/discover-confidence` falls back to the example template in the skill's `templates/` directory — usable, but not project-locked. Adopt this file as the project's contract.
 
-**Source of truth for the `/discover-confidence` skill's most important contract.**
+## § 1 — The unbreakable rule (LOCKED)
 
-## The Rule
-
-**A blueprint is INVALID and CANNOT produce a SHIPPABLE verdict when:**
+A blueprint is `INVALID` and **cannot** produce a `SHIPPABLE` or `SHIPPABLE_WITH_CAVEATS` verdict when any of the following holds:
 
 1. **Empty coverage corner** — at least one of `## Coverage Corner 1 — Integration Tests`, `## Coverage Corner 2 — Dependencies`, `## Coverage Corner 3 — Tools`, `## Coverage Corner 4 — Techniques` is missing or has zero non-placeholder content.
-2. **Fabricated citation** — at least one `.claude/knowledge-base/references/{project}/{path}` referenced in the blueprint does not exist when checked via `Path.exists()`.
+2. **Fabricated citation** — at least one `knowledge-base/references/{project}/{path}` (or `.claude/knowledge-base/references/...` plugin-style) referenced in the blueprint does not exist when checked via `Path.exists()`.
 
-This is NOT a guideline. It is a constraint enforced by the skill itself. The skill SHALL fail-closed when an unbreakable rule is violated.
+This is NOT a guideline. It is a constraint enforced by the skill. The skill SHALL fail-closed when an unbreakable rule is violated.
 
-## What it requires
+## § 2 — What the rule requires
 
-1. **Score capping.** Final score is capped at 49 when any unbreakable rule is violated — regardless of how high the weighted_avg would be.
-2. **Mandatory verdict.** The returned verdict is `INVALID`, not `SHIPPABLE_WITH_CAVEATS` or any other band.
-3. **Vocabulary lock.** The word "shippable" SHALL NOT appear in the report (unqualified) when the score is capped.
-4. **Hard cap audit.** JSON output MUST list all triggered caps in `hard_caps_triggered` with stable identifiers (`"empty_corner_tests"`, `"empty_corner_deps"`, `"empty_corner_tools"`, `"empty_corner_techniques"`, `"fabricated_citation"`).
-5. **Visual rendering.** When capped, the INVALID band appears in red.
-
-## Why this rule exists
-
-A blueprint that is missing a coverage corner is a blueprint that did NOT do the deep-research it claimed. A blueprint with fabricated citations is unsafe to use as a design source — recipients will trust the cited paths and build on top of references that don't exist.
-
-The lesson (mirrors plan-confidence's): **tests passing ≠ system works; coverage table green ≠ research complete.** A blueprint with one empty corner or one fabricated citation will produce wrong decisions downstream, even if 90% of other checks are green.
-
-The rule closes this gap by forcing minimum structural state PRESENT before the aggregate matters.
-
-## Rules that cannot be bent
-
-| Rule | Enforcement |
+| Requirement | Enforcement |
 |---|---|
-| All 4 coverage corners populated | M2 — `run_blueprint_score.py` via `check_research_coverage.py` |
-| All `.claude/knowledge-base/references/{...}` citations exist | M2 — `check_reference_citations.py` (path.exists() check) |
-| Mandatory blueprint sections present | M2 — `check_blueprint_completeness.py` (cap 70) |
-| ADRs section present with at least one ADR | M2 — `check_blueprint_completeness.py` (cap 70) |
+| **Score capping** — final score capped at 49 when any unbreakable rule is violated, regardless of weighted_avg | M2 `run_blueprint_score.py` |
+| **Mandatory verdict** — returned verdict is `INVALID`, not any soft band | M2 `run_blueprint_score.py` |
+| **Vocabulary lock** — the word "shippable" SHALL NOT appear in the report (unqualified) when the score is capped | Rendering invariant |
+| **Hard cap audit** — JSON output MUST list every triggered cap in `hard_caps_triggered` with stable identifiers (`empty_corner_tests`, `empty_corner_deps`, `empty_corner_tools`, `empty_corner_techniques`, `fabricated_citation`) | JSON schema invariant |
+| **Visual rendering** — INVALID band appears in red when score is capped | Renderer |
+
+## § 3 — Rules that cannot be bent (LOCKED)
+
+| Rule | Enforcement script |
+|---|---|
+| All 4 coverage corners populated | `skills/discover-confidence/scripts/check_research_coverage.py` |
+| All `knowledge-base/references/{...}` citations exist | `skills/discover-confidence/scripts/check_reference_citations.py` |
+| Mandatory blueprint sections present | `skills/discover-confidence/scripts/check_blueprint_completeness.py` (cap 70) |
+| ADRs section present with at least one ADR | `skills/discover-confidence/scripts/check_blueprint_completeness.py` (cap 70) |
 | `--skip-checks` flag does not exist and SHALL NOT be added | Constructor invariant in `run_blueprint_score.py` |
-| Score capped MUST appear marked in the report | Rendering rule |
+| Score-capped reports MUST mark the cap explicitly | Rendering invariant |
 | `hard_caps_triggered` list MUST be non-empty when verdict==INVALID | JSON schema invariant |
 
-## When this rule may change
+## § 4 — Why the rule exists
 
-Only via explicit ADR signed by the project owner. Any PR that softens enforcement MUST:
+A blueprint missing a coverage corner is a blueprint that did NOT do the deep research it claimed. A blueprint with fabricated citations is unsafe to use as a design source — recipients trust cited paths and build on top of references that do not exist.
 
-1. Cite the ADR that justifies the change.
-2. Document what changes in the `## Rules that cannot be bent` section of this file.
-3. Bump `discover-blueprint-thresholds.txt` reference to the new ADR.
-4. Add log entry with date and reason.
+The lesson — which mirrors `plan-confidence`'s: **tests passing ≠ system works; coverage table green ≠ research complete.** A blueprint with one empty corner or one fabricated citation will produce wrong decisions downstream, even if 90% of other checks are green.
 
-## Related
+This rule forces minimum structural state PRESENT before the aggregate matters.
 
-- Skill: `.claude/skills/discover-confidence/SKILL.md`
-- Thresholds: `.claude/rules/discover-blueprint-thresholds.txt`
-- Rubric: `.claude/skills/discover-confidence/templates/rubric-blueprint.md`
-- Defaults (fallback): `.claude/skills/discover-confidence/defaults/`
+## § 5 — Verdict tokens (LOCKED)
+
+`/discover-confidence` MUST emit one of these verdicts (matching `cycle-rule-schema.md`):
+
+| Verdict | Score cap | Meaning | Downstream action |
+|---|---|---|---|
+| `SHIPPABLE` | 100 | Blueprint passes all gates with high confidence | Optional skill distillation via the standalone `/skill-creator` |
+| `SHIPPABLE_WITH_CAVEATS` | 89 | Passes hard caps; some soft caps flagged | Distillation allowed; caveats logged |
+| `NEEDS_REVISION` | 70 | Soft caps fire; structurally OK | Loop to `/discover-improve` |
+| `INVALID` | 49 (capped) | Hard cap triggered (this rule fired) | Loop back to `/discover-plan` — rewrite, not improve |
+
+## § 6 — When this rule may change
+
+Per `cycle-rule-schema.md § Golden Rule Change Protocol` (ADR signed by the project
+owner). Rule-specific deviations:
+
+- Document the change in `## § 3 — Rules that cannot be bent`.
+- Bump the `rules/discover-blueprint-thresholds.txt` reference to the new ADR.
+
+## § 7 — Failure modes the rule guards against
+
+- Deep-research theatre — claiming investigation that wasn't done.
+- Fabricated citations slipping through manual review.
+- Downstream skill promotion of an INVALID blueprint.
+- `--skip-checks` flags being added to gate-bypass production-ready claims.
+- Soft caps masking hard structural failure.
+
+## Cross-references
+
+- Schema: `cycle-rule-schema.md`
+- Cycle rule: `cycle-discover.md`
+- Skill: `skills/discover-confidence/SKILL.md`
+- Skill template (the seed for this file): `skills/discover-confidence/templates/discover-blueprint-golden-rule.example.md`
+- Thresholds template: `skills/discover-confidence/templates/discover-blueprint-thresholds.example.txt`
+- Rubric: `skills/discover-confidence/templates/rubric-blueprint.md`
+- Defaults (fallback): `skills/discover-confidence/defaults/`

@@ -1,6 +1,8 @@
 ---
 name: discover-plan
-description: Turn the current context + the .claude/knowledge-base/references/ clones into a discovery plan saved at .claude/knowledge-base/discoveries/plans/{slug}-plan.md. Use when you want to plan a deep-research investigation into Mem0 / Letta / LangMem before producing a blueprint.
+version: 0.1.0
+requires: []
+description: Turn the current context + any reference projects under knowledge-base/references/ + allowlisted external sources into a discovery plan saved at knowledge-base/discoveries/plans/{slug}-plan.md. Use when you want to plan a deep-research investigation into a technology or pattern before producing a blueprint.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write
 argument-hint: "{topic-slug}"
@@ -8,7 +10,7 @@ argument-hint: "{topic-slug}"
 
 # Discover-Plan — Plan a Deep-Research Investigation
 
-Generates a structured **discovery plan** for investigating the reference implementations under `.claude/knowledge-base/references/` (Mem0, Letta, LangMem). The output is the input for `/discover-execute`.
+Generates a structured **discovery plan** for investigating the reference implementations under `knowledge-base/references/`. The output is the input for `/discover-execute`.
 
 Sibling of `/to-plan` — same backbone, different output. `to-plan` produces implementation plans; `discover-plan` produces research plans whose deliverable is a **technical blueprint** (a structured report under `docs/exploration-reports/` per investigation).
 
@@ -16,15 +18,15 @@ Sibling of `/to-plan` — same backbone, different output. `to-plan` produces im
 
 User explicitly invokes `/discover-plan {topic-slug}` when they want to:
 
-- Investigate how a reference project solves a specific problem (e.g., dedup, retrieval, reflection).
-- Compile a side-by-side blueprint across Mem0 / Letta / LangMem.
-- Audit integration tests / dependencies / tools in `.claude/knowledge-base/references/` before locking a TheMemory decision.
+- Investigate how a reference project solves a specific problem (e.g., failover, replication, multi-tenancy).
+- Compile a side-by-side blueprint across two or more cloned reference projects under `knowledge-base/references/`.
+- Audit integration tests / dependencies / tools in those references before locking an architectural decision.
 
 ## Cycle contract
 
 This skill is **phase 1** of [`cycle-discover`](../../rules/cycle-discover.md). The cycle rule is the **source of truth** for:
 
-- Chain order (this skill → `/discover-edge-cases` → `/discover-execute` → `/discover-confidence` → optional `/discover-improve` → skill-distillation tail `/skill-writer` → `/skill-validator` → `/skill-register`)
+- Chain order (this skill → `/discover-edge-cases` → `/discover-execute` → `/discover-confidence` → optional `/discover-improve`; the blueprint is terminal — optional out-of-cycle skill distillation via the standalone `/skill-creator`)
 - Hard gates, soft gates, stop conditions
 - Anti-patterns at the cycle level
 - Rollback procedures
@@ -36,13 +38,13 @@ This skill is **phase 1** of [`cycle-discover`](../../rules/cycle-discover.md). 
 
 ### Step 0 — Read project rules (MANDATORY)
 
-Before exploring `.claude/knowledge-base/references/`, internalize the project rules:
+Before exploring `knowledge-base/references/`, internalize the project rules:
 
 ```bash
-ls .claude/rules/
+ls rules/
 ```
 
-Read each `.md` file. The discovery plan SHALL cite at least one project rule (e.g., `architecture.md` for DIP boundaries that any borrowed pattern must respect, `testing.md` for test pyramid expectations that any borrowed test technique must align with).
+Read each `.md` file. The discovery plan SHALL cite at least one project rule (e.g., `architecture.md` for boundaries that any borrowed pattern must respect, `testing.md` for test pyramid expectations that any borrowed test technique must align with).
 
 ### Step 1 — Inventory what is already known
 
@@ -50,8 +52,8 @@ Read in order:
 
 1. Any foundation docs under `docs/` (landscape surveys, position papers) — if present
 2. Prior reports under `docs/exploration-reports/*.md` — if present
-3. `CLAUDE.md § Architectural Decisions Locked` — what is already locked
-4. The `.claude/knowledge-base/references/{mem0,letta,langmem}/` top-level structure (`ls`, `tree -L 2`)
+3. `CLAUDE.md § Architectural Decisions Locked` (or equivalent) — what is already locked
+4. The `knowledge-base/references/<project>/` top-level structure (`ls`, `tree -L 2`)
 
 Identify what is **already documented** vs **still open**. The discovery plan exists to close the open gaps, NOT to re-document what is already covered.
 
@@ -59,9 +61,9 @@ Identify what is **already documented** vs **still open**. The discovery plan ex
 
 For each reference project in scope, declare:
 
-- **Project**: `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/`, `.claude/knowledge-base/references/langmem/`
-- **In scope**: subdirectories the investigation will touch (e.g., `mem0-ts/src/memory/`, `letta/letta/services/`)
-- **Out of scope**: subdirectories explicitly excluded (e.g., `mem0/docs/`, build artifacts)
+- **Project**: `knowledge-base/references/<project-slug>/`
+- **In scope**: subdirectories the investigation will touch (e.g., `src/core/`, `internal/services/`)
+- **Out of scope**: subdirectories explicitly excluded (e.g., `docs/`, build artifacts, vendor trees)
 
 Out-of-scope MUST be explicit. Vague "everything else" violates Coverage Matrix completeness.
 
@@ -73,33 +75,33 @@ Every discovery plan MUST cover the four corners or explicitly justify deferral 
 
 | Corner | What to find | Example questions |
 |---|---|---|
-| **Integration tests** | How does each ref project test the boundary the blueprint targets? | "How does Mem0 test the LLM-extraction pipeline against a real Postgres?" |
-| **Dependencies** | What runtime + dev deps do they pull in? Versions? Justifications? | "Does Letta depend on `psycopg` or `asyncpg`? Which version of pgvector?" |
-| **Tools** | Build/test/lint tooling. CI shape. Local dev story. | "Does Mem0 ship docker-compose for dev? What's the test command?" |
-| **Techniques** | The algorithm / pattern / data structure being borrowed. | "How does Letta implement archival memory eviction?" |
+| **Integration tests** | How does each ref project test the boundary the blueprint targets? | "How does <project A> test the persistence layer against a real DB?" |
+| **Dependencies** | What runtime + dev deps do they pull in? Versions? Justifications? | "Does <project B> depend on driver X or Y? Which version?" |
+| **Tools** | Build/test/lint tooling. CI shape. Local dev story. | "Does <project A> ship docker-compose for dev? What's the test command?" |
+| **Techniques** | The algorithm / pattern / data structure being borrowed. | "How does <project B> implement <specific behavior>?" |
 
 #### Question budget (mandatory)
 
 - **Total: 5-10 questions across all corners.** Below 5 → blueprint will be thin; above 10 → halt-loop will likely exhaust budget. Sweet spot 6-8.
 - **Max 3 questions per corner.** If you find yourself wanting a 4th in one corner, fold two into one OR move to a follow-up discovery plan (next slug).
-- **Min 1 question per corner.** If a corner has zero, you MUST add an ADR justifying the deferral (e.g., D-skip-tools because Letta's tooling already documented in `letta/README.md` and not load-bearing for `src/local/`).
-- **Each question maps to exactly one corner.** Questions that legitimately span corners (e.g., "compare test discipline AND dependency profile") should be split.
+- **Min 1 question per corner.** If a corner has zero, you MUST add an ADR justifying the deferral.
+- **Each question maps to exactly one corner.** Questions that legitimately span corners should be split.
 
 #### Pre-validate cited paths (mandatory)
 
-Before adding a `.claude/knowledge-base/references/{project}/{path}` to ANY question's Fase A or Fase B column, verify the path exists. The `discover-confidence` hard cap on fabricated citations will fire if even one fake path slips through.
+Before adding a `knowledge-base/references/{project}/{path}` to ANY question's column, verify the path exists. The `discover-confidence` hard cap on fabricated citations will fire if even one fake path slips through.
 
 The Coverage Matrix in the discovery plan MUST map each question to a method (read which file, grep which symbol, run which command) and a target answer format.
 
 ### Step 4 — Write the discovery plan
 
-Use the template at `.claude/skills/discover-plan/templates/discovery-plan-template.md`. Save to:
+Use the template at `skills/discover-plan/templates/discovery-plan-template.md`. Save to:
 
 ```
-.claude/knowledge-base/discoveries/plans/{slug}-plan.md
+knowledge-base/discoveries/plans/{slug}-plan.md
 ```
 
-Where `{slug}` is kebab-case derived from the topic. Examples: `mem0-dedup-pipeline`, `letta-pgvector-schema`, `langmem-procedural-memory`.
+Where `{slug}` is kebab-case derived from the topic. Examples: `<framework>-failover-internals`, `<library>-schema-design`, `<pattern>-implementation-comparison`.
 
 ## Plan Template Outline
 
@@ -113,7 +115,7 @@ The full template is in `templates/discovery-plan-template.md`. Required section
 6. **Research questions** — numbered list. Each question → coverage corner (tests/deps/tools/techniques) → planned method → expected answer shape.
 7. **Coverage Matrix** — 100% mapping: every question → at least one method. Gaps marked explicitly as ADR-deferred.
 8. **Halt-loop checkpoints** — for `/discover-execute`: what intermediate state must hold before the loop can mark a sub-task DONE.
-9. **Acceptance Criteria** — observable conditions for "this discovery is done": every question answered, every citation backed by a `.claude/knowledge-base/references/` path, blueprint sections complete.
+9. **Acceptance Criteria** — observable conditions for "this discovery is done": every question answered, every citation backed by a `knowledge-base/references/` path, blueprint sections complete.
 10. **Global Definition of Done** — links to `/discover-confidence` thresholds + golden rule.
 
 ## Quality Rules
@@ -121,10 +123,10 @@ The full template is in `templates/discovery-plan-template.md`. Required section
 These rules are NON-NEGOTIABLE for every discovery plan:
 
 1. **Every research question maps to a method.** No "we'll figure it out". Method = `Read path/to/file`, `Grep 'pattern' in dir/`, `find -name`, `git log --grep`, etc.
-2. **Every citation in the plan points to a real path in `.claude/knowledge-base/references/`.** Fabricated paths are a `discover-confidence` hard cap (INVALID).
+2. **Every citation in the plan points to a real path in `knowledge-base/references/`.** Fabricated paths are a `discover-confidence` hard cap (INVALID).
 3. **Out-of-scope is explicit.** Vague "rest" is rejected.
 4. **Question budget respected.** Total 5-10 questions, max 3 per corner, min 1 per corner (or ADR-deferred). See Step 3.
-5. **Time-budget per project.** Each reference project gets a budget (e.g., "Mem0: 4h, Letta: 2h, LangMem: 1h"). Halt-loop respects it. Per-question stop condition mandatory in D1 (see template).
+5. **Time-budget per project.** Each reference project gets a budget (e.g., "<project A>: 4h, <project B>: 2h"). Halt-loop respects it. Per-question stop condition mandatory.
 6. **Coverage Matrix is complete.** Every research question maps to at least one method. Deferred questions need an ADR.
 7. **ADRs justify investigation depth.** Why dig into one subdirectory but skip another? Document the rationale.
 8. **No premature conclusions.** A discovery plan ASKS questions; it doesn't answer them. Answers come from `/discover-execute`.
@@ -133,15 +135,15 @@ These rules are NON-NEGOTIABLE for every discovery plan:
 
 - Execute the research itself — that's `/discover-execute`.
 - Write the blueprint — that's `/discover-execute` output.
-- Modify anything inside `.claude/knowledge-base/references/` — read-only zone (enforced by `.claude/hooks/boundary-check.sh`).
+- Modify anything inside `knowledge-base/references/` — read-only zone (enforced by `hooks/boundary-check.sh`).
 - Score the result — that's `/discover-confidence`.
 
 ## Anti-patterns
 
-1. **"Let's just explore Mem0 first and see what we find."** — no plan = no Coverage Matrix = no quality gate. Always plan first.
+1. **"Let's just explore the codebase first and see what we find."** — no plan = no Coverage Matrix = no quality gate. Always plan first.
 2. **Citing files without verifying they exist.** Open a Read tool and check before adding a path to the plan.
 3. **Skipping a coverage corner.** "We don't need integration tests for this" — that's an ADR, not a free pass.
-4. **Asking unanswerable questions.** "Is Mem0's architecture good?" — make it concrete: "Does Mem0's `MemoryClient.add()` accept multi-peer attribution? Where?"
+4. **Asking unanswerable questions.** "Is <project>'s architecture good?" — make it concrete: "Does <project>'s `Foo.bar()` accept argument X? Where?"
 
 ## Related
 

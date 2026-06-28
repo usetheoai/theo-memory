@@ -35,21 +35,21 @@ def test_rubric_has_4_nodes(skill_root: Path) -> None:
 
 
 def test_rubric_completude_weights_sum_to_one(skill_root: Path) -> None:
-    """v1.1 EC-3 fix: completude weights sum to 1.0 (was 0.9 in v1.0)."""
+    """v1.1 EC-3 fix: completeness weights sum to 1.0 (was 0.9 in v1.0)."""
     rubric = _load_rubric(skill_root)
     completude_weights = [
-        n["weight"] for n in rubric["nodes"] if n["dimension"] == "completude"
+        n["weight"] for n in rubric["nodes"] if n["dimension"] == "completeness"
     ]
-    assert len(completude_weights) == 3, "expected 3 completude nodes"
+    assert len(completude_weights) == 3, "expected 3 completeness nodes"
     assert abs(sum(completude_weights) - 1.0) < 1e-9, (
-        f"completude weights sum to {sum(completude_weights)}, expected 1.0"
+        f"completeness weights sum to {sum(completude_weights)}, expected 1.0"
     )
 
 
 def test_rubric_risco_estrutural_weight_is_one(skill_root: Path) -> None:
     rubric = _load_rubric(skill_root)
     risco_weights = [
-        n["weight"] for n in rubric["nodes"] if n["dimension"] == "risco_estrutural"
+        n["weight"] for n in rubric["nodes"] if n["dimension"] == "structural_risk"
     ]
     assert len(risco_weights) == 1
     assert risco_weights[0] == 1.0

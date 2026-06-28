@@ -7,7 +7,7 @@ status: draft
 
 # Plan: Missing Coverage Fixture (triggers Coverage Matrix < 100% hard cap)
 
-> Version 1.0 — Coverage Matrix tem 3 gaps mas só 2 mapeados. Hard cap "coverage_lt_100" deve disparar -> verdict INVALID, score ≤ 49.
+> Version 1.0 — Coverage Matrix tem 3 gaps mas only 2 mapeados. Hard cap "coverage_lt_100" deve disparar -> verdict INVALID, score ≤ 49.
 
 ## Context
 
@@ -21,9 +21,9 @@ Trigger coverage hard cap.
 
 ### D1 — Single decision
 
-- **Decisão:** Toy.
+- **Decision:** Toy.
 - **Rationale:** Alternativa rejeitada: doing nothing.
-- **Consequências:** Nothing.
+- **Consequences:** Nothing.
 
 ## Dependency Graph
 

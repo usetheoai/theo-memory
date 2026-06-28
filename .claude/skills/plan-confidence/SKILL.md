@@ -1,5 +1,7 @@
 ---
 name: plan-confidence
+version: 0.1.0
+requires: [edge-case-plan]
 description: Score a plan produced by /to-plan for structural quality (M2 deterministic check). Sibling of /discover-confidence with a plan-shape rubric. Use after /edge-case-plan, before /implement.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write
@@ -44,7 +46,7 @@ If `compliance_score < 0.4` AND the plan otherwise scores ≥ 90, a soft cap fir
 - **M5 (Calibration via Semantic Entropy + P(True))** — N-sample uncertainty.
 - **M6 (Evolutionary Loop)** — adaptive thresholds with human-gate.
 
-These dimensions return empty `motivos` in M2 output. The composite formula renormalizes to active dimensions (ADR D8): in M2, `final = 0.60·Completude + 0.40·Risco-estrutural`.
+These dimensions return empty `reasons` in M2 output. The composite formula renormalizes to active dimensions (ADR D8): in M2, `final = 0.60·Completude + 0.40·Risco-estrutural`.
 
 ## Workflow
 
@@ -100,12 +102,12 @@ The skill produces a JSON object with these top-level keys (see `templates/score
 
 - `plan_slug`, `plan_path`, `plan_version`
 - `completude_score`, `risco_estrutural_score` (0-100 each)
-- `active_dimensions` — list of dimensions scored in this milestone (M2: `["completude", "risco_estrutural"]`)
+- `active_dimensions` — list of dimensions scored in this milestone (M2: `["completeness", "structural_risk"]`)
 - `weight_normalization_factor` — ADR D8 normalization factor applied
 - `hard_caps_triggered` — list of triggered caps (e.g., `["coverage_lt_100"]`)
 - `final_score_after_caps` — composite after applying caps
 - `verdict` — one of SHIPPABLE / SHIPPABLE_WITH_CAVEATS / NON_SHIPPABLE / INVALID
-- `motivos` — dict of dimension → list of top-3 contributors and detractors (with citations)
+- `reasons` — dict of dimension → list of top-3 contributors and detractors (with citations)
 - `sub_reports` — raw output from each checker for auditability
 
 ## Exit Codes

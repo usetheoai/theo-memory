@@ -5,13 +5,13 @@
 **Slug:** `{slug}`
 **Source plan:** `.claude/knowledge-base/plans/{slug}-plan.md`
 **Plan verdict:** `{SHIPPABLE / SHIPPABLE_WITH_CAVEATS}` (score `{N}`)
-**Feature branch:** `{branch-name}`
+**Working branch:** `develop` (Unbreakable Rule 4 — all work happens on `develop`; `main` is release-only)
 **Started:** `{YYYY-MM-DD}`
 
 ## Pre-condition audit (verified at /implement start)
 
 - [ ] Plan verdict ≥ SHIPPABLE_WITH_CAVEATS
-- [ ] Not on `main` (current branch: `{branch}`)
+- [ ] On `develop` (current branch: `{branch}`)
 - [ ] No uncommitted changes at start
 - [ ] `npm install` complete (or N/A for pre-code phase)
 - [ ] External dependencies up (Postgres if integration tests need it)
@@ -89,7 +89,7 @@ Recommended human action: {specific next step}
 - [ ] `npm run typecheck` exit 0
 - [ ] `npm run lint` exit 0
 - [ ] Coverage ≥ 90% on changed files (100% on critical paths declared in plan)
-- [ ] CHANGELOG.md `[Unreleased]` updated with each task that introduces user-facing change (per Inquebrável Rule 6)
+- [ ] CHANGELOG.md `[Unreleased]` updated with each task that introduces user-facing change (per Unbreakable Rule 6)
 
 ## Halt-loop audit trail
 

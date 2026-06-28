@@ -18,7 +18,7 @@ def smelly_blueprint(tmp_path: Path) -> Path:
     bp.write_text(
         "# Blueprint: Smelly\n\n"
         "We should add this if possible. The system could be improved when applicable. "
-        "It may also be worth considering deveria implementar isso.\n\n"
+        "It may also be worth considering an alternative implementation.\n\n"
         "```typescript\n"
         "// This may stay as is - should not be modified\n"
         "if (something) { return; }\n"
@@ -34,7 +34,7 @@ def fab_citation_blueprint(tmp_path: Path) -> Path:
     bp = tmp_path / "fab.md"
     bp.write_text(
         "# Blueprint: Fab\n\n"
-        "Cite a fake path: .claude/knowledge-base/references/mem0/never-exists-zzz.py:99\n",
+        "Cite a fake path: .claude/knowledge-base/references/project-a/never-exists-zzz.py:99\n",
         encoding="utf-8",
     )
     return bp

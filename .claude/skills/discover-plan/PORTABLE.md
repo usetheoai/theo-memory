@@ -34,7 +34,7 @@ If your project has all five: full pipeline. If only `/discover-plan`: standalon
 ### Required
 
 - **`.claude/rules/` directory** with at least `architecture.md` and `testing.md` (or your project's equivalents). Step 0 of the protocol mandates reading them. If missing, the skill falls back to a generic "no rules" plan (lower quality output).
-- **A reference-clones directory** — the SKILL.md examples cite `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/letta/`, `.claude/knowledge-base/references/langmem/`. If your project uses a different path (e.g., `vendor/`, `third_party/`, `studies/`), see § Customization below.
+- **A reference-clones directory** — the SKILL.md examples cite `.claude/knowledge-base/references/project-a/`, `.claude/knowledge-base/references/project-b/`, `.claude/knowledge-base/references/project-c/`. If your project uses a different path (e.g., `vendor/`, `third_party/`, `studies/`), see § Customization below.
 - **`.claude/knowledge-base/discoveries/plans/` directory** — where the plan is saved. Created on first use if missing.
 
 ### Optional but recommended
@@ -49,7 +49,7 @@ When you invoke `/discover-plan {topic-slug}`:
 
 1. Reads `.claude/rules/` to internalize project principles
 2. Reads any `docs/*.md` foundation docs + `CLAUDE.md` (if present) for context inventory
-3. Lists `.claude/knowledge-base/references/{mem0,letta,langmem}/` top-level structure (or your equivalent)
+3. Lists `.claude/knowledge-base/references/{project-a,project-b,project-c}/` top-level structure (or your equivalent)
 4. Defines investigation targets (in-scope / out-of-scope)
 5. Declares four-corner coverage (5-10 questions total, max 3 per corner)
 6. Writes the plan at `.claude/knowledge-base/discoveries/plans/{slug}-plan.md`
@@ -70,7 +70,7 @@ Or simpler: add a project-specific override at `.claude/rules/discover-plan-over
 
 ### 2. Different reference projects
 
-The SKILL.md examples cite Mem0 / Letta / LangMem. To investigate different projects, just use them in your `{topic-slug}` and Research Questions — the skill doesn't enforce specific project names. The "1 question per corner" rule applies to whatever projects you list.
+The SKILL.md examples cite Project A / Project B / Project C. To investigate different projects, just use them in your `{topic-slug}` and Research Questions — the skill doesn't enforce specific project names. The "1 question per corner" rule applies to whatever projects you list.
 
 ### 3. Different "four corners"
 
@@ -86,7 +86,7 @@ If you change corners, update BOTH the SKILL.md AND `templates/discovery-plan-te
 
 ### 4. Time-budget defaults
 
-The template suggests "Mem0: 4h, Letta: 2h, LangMem: 1h" as illustrative. For your project, set per-discovery defaults based on your team's calibration. After 5-10 real discoveries, you'll know the realistic per-project budget.
+The template suggests "Project A: 4h, Project B: 2h, Project C: 1h" as illustrative. For your project, set per-discovery defaults based on your team's calibration. After 5-10 real discoveries, you'll know the realistic per-project budget.
 
 ## What's portable, what's project-specific
 
@@ -96,15 +96,15 @@ The template suggests "Mem0: 4h, Letta: 2h, LangMem: 1h" as illustrative. For yo
 | Question budget rule (5-10, max 3 per corner) | ✅ Fully | Domain-agnostic heuristic. |
 | Fase A → Fase B workflow | ✅ Fully | Investigation pattern, not tool-specific. |
 | Template structure (10 mandatory sections) | ✅ Fully | Coverage Matrix shape is universal. |
-| Cited paths `.claude/knowledge-base/references/mem0/...` | ❌ Project-specific | Examples reference TheMemory's clones. Replace with your paths. |
-| Example ADRs (D1 Mem0/Letta/LangMem budget) | ❌ Project-specific | Adapt to your reference list. |
+| Cited paths `.claude/knowledge-base/references/project-a/...` | ❌ Project-specific | Examples reference OurProject's clones. Replace with your paths. |
+| Example ADRs (D1 Project A/Project B/Project C budget) | ❌ Project-specific | Adapt to your reference list. |
 
 ## Limitations (Known)
 
 - **No self-scoring** — discovery plans don't have a confidence scorer (the closest is `/discover-confidence`, which scores BLUEPRINTS, not plans). Quality of a plan is gated only by the next skill in the chain (`/discover-edge-cases`).
 - **No automated tests** — unlike `plan-confidence` (21 pytest tests), `discover-plan` is exercised only by real invocations. The fixtures at `fixtures/` are reference examples for humans, not test inputs.
 - **Step 0 fallback weak** — if `.claude/rules/` is missing, the skill notes the absence but does not auto-generate a fallback rule set. The resulting plan will not pass the architecture-compliance soft cap in `/discover-confidence`.
-- **Single-reference-project plans** — the template assumes ≥2 in-scope projects (Mem0 + Letta + LangMem). For single-project investigations, the "Cross-cutting Comparison" section in the resulting blueprint will be degenerate. Either accept the trade-off or fork the template.
+- **Single-reference-project plans** — the template assumes ≥2 in-scope projects (Project A + Project B + Project C). For single-project investigations, the "Cross-cutting Comparison" section in the resulting blueprint will be degenerate. Either accept the trade-off or fork the template.
 
 ## Self-validation
 
