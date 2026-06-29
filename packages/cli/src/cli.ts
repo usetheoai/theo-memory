@@ -37,6 +37,8 @@ import './cli-preload.js';
  * @see Plan theo-memory-standalone-p0 § T2.1 + EC-27 + EC-28 + EC-29
  * @see Roadmap Item 18 — CLI consolidado
  */
+import { readFileSync } from 'node:fs';
+
 import { runMcpServer } from '@usetheo/memory-mcp';
 import type { RunMcpServerOptions } from '@usetheo/memory-mcp';
 import { Command, InvalidArgumentError, Option } from 'commander';
@@ -69,6 +71,25 @@ export function applyAliasArgvShim(argv: string[]): string[] {
   const next = argv.slice();
   next.splice(2, 0, 'mcp');
   return next;
+}
+
+/**
+ * ADR-0015 #3 — resolve `--tls-cert`/`--tls-key` paths into PEM material for the
+ * streamable-http listener. Both-or-neither (fail-fast, Unbreakable Rule 8): one
+ * without the other is an operator error. `readFileSync` errors (ENOENT, EACCES)
+ * propagate verbatim so a bad path fails loudly before the server boots.
+ */
+export function resolveTlsMaterial(
+  certPath?: string,
+  keyPath?: string,
+): { cert: string; key: string } | undefined {
+  if (certPath === undefined && keyPath === undefined) return undefined;
+  if (certPath === undefined || keyPath === undefined) {
+    throw new InvalidArgumentError(
+      '--tls-cert and --tls-key must be provided together (ADR-0015 #3: TLS needs both the certificate and its private key).',
+    );
+  }
+  return { cert: readFileSync(certPath, 'utf8'), key: readFileSync(keyPath, 'utf8') };
 }
 
 export function buildProgram(): Command {
@@ -171,6 +192,8 @@ export function buildProgram(): Command {
     )
     .option('--issuer <url>', 'OIDC issuer URL for --auth=oidc/both (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
     .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
+    .option('--tls-cert <path>', 'Path to the TLS certificate PEM (required WITH --tls-key for a non-localhost --host per ADR-0015 #3)')
+    .option('--tls-key <path>', 'Path to the TLS private-key PEM (required WITH --tls-cert)')
     .addOption(
       new Option(
         '--compat <mode>',
@@ -187,8 +210,11 @@ export function buildProgram(): Command {
         auth?: 'none' | 'api-keys' | 'oidc' | 'both';
         issuer?: string;
         clientId?: string;
+        tlsCert?: string;
+        tlsKey?: string;
         compat?: 'openmemory';
       }) => {
+        const tls = resolveTlsMaterial(opts.tlsCert, opts.tlsKey);
         const options: RunMcpServerOptions = {
           ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
           ...(opts.port !== undefined ? { port: opts.port } : {}),
@@ -196,6 +222,7 @@ export function buildProgram(): Command {
           ...(opts.auth !== undefined ? { auth: opts.auth } : {}),
           ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
           ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
+          ...(tls !== undefined ? { tls } : {}),
           ...(opts.compat !== undefined ? { compat: opts.compat } : {}),
         };
         await runMcpServer(options);
