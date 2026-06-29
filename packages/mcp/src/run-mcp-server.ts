@@ -89,6 +89,12 @@ export interface RunMcpServerOptions {
   readonly issuer?: string;
   /** T3.2 — OIDC client_id; required when auth=oidc. Secret env-only per ADR D4. */
   readonly clientId?: string;
+  /**
+   * ADR-0015 #3 — TLS material (PEM strings) for the streamable-http listener.
+   * Read from disk by the CLI `--tls-cert`/`--tls-key` flags. Required for any
+   * non-localhost host; passed straight through to `connectStreamableHttp`.
+   */
+  readonly tls?: { readonly cert: string; readonly key: string };
 }
 
 /**
@@ -345,6 +351,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       port,
       host,
       ...(bearerAuth !== undefined ? { bearerAuth } : {}),
+      ...(options?.tls !== undefined ? { tls: options.tls } : {}),
     });
   } else {
     await connectStdio(server);
