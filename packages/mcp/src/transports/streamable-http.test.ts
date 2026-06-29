@@ -11,7 +11,13 @@
  * @see ADR D6 — error mechanisms
  * @see .claude/knowledge-base/discoveries/blueprints discover blueprint Q5 — stateless mode pattern (sessionIdGenerator: undefined)
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { request as httpsRequest } from 'node:https';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { connectStreamableHttp } from '../transports/streamable-http.js';
 import type { McpServer } from '../server.js';
@@ -80,5 +86,77 @@ describe('connectStreamableHttp (T6.2)', () => {
     // Calling close() twice MUST NOT throw (idempotent)
     await expect(handle.close()).resolves.not.toThrow();
     expect(vi.mocked(server.stop)).toHaveBeenCalled();
+  });
+});
+
+describe('connectStreamableHttp TLS plumbing (ADR-0015 #3)', () => {
+  let certDir: string;
+  let cert: string;
+  let key: string;
+
+  beforeAll(() => {
+    // Ephemeral self-signed dev cert in a tmp dir — NEVER committed (Rule 9: use
+    // openssl, do not reinvent X.509 issuance). SAN covers the hosts the gateway
+    // reaches the themory MCP on in dev (localhost / host.docker.internal loopbacks).
+    certDir = mkdtempSync(join(tmpdir(), 'themory-mcp-tls-'));
+    const keyPath = join(certDir, 'key.pem');
+    const certPath = join(certDir, 'cert.pem');
+    execFileSync('openssl', [
+      'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+      '-keyout', keyPath, '-out', certPath, '-days', '1',
+      '-subj', '/CN=localhost',
+      '-addext', 'subjectAltName=DNS:localhost,DNS:host.docker.internal,IP:127.0.0.1',
+    ], { stdio: 'pipe' });
+    cert = readFileSync(certPath, 'utf8');
+    key = readFileSync(keyPath, 'utf8');
+  });
+
+  afterAll(() => {
+    rmSync(certDir, { recursive: true, force: true });
+  });
+
+  it('boots an HTTPS listener when tls cert/key is supplied (real TLS handshake succeeds)', async () => {
+    // Non-localhost host + tls present: the guard accepts AND the transport MUST
+    // bind via https.createServer. Proof: an HTTPS client completes the TLS
+    // handshake. If the listener were plain node:http, the handshake fails
+    // (wrong-version-number / ECONNRESET) and this test goes red.
+    const server = mockServer();
+    const handle = await connectStreamableHttp(server, {
+      port: 0,
+      host: '0.0.0.0',
+      tls: { cert, key },
+    });
+    try {
+      const handshakeOk = await new Promise<boolean>((resolve, reject) => {
+        const req = httpsRequest(
+          {
+            host: '127.0.0.1',
+            port: handle.port,
+            method: 'POST',
+            path: '/',
+            rejectUnauthorized: false, // self-signed dev cert
+            timeout: 4000,
+          },
+          (res) => {
+            // ANY HTTP response over the socket proves the TLS handshake completed.
+            res.resume();
+            resolve(true);
+          },
+        );
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('TLS request timed out')));
+        req.end('{}');
+      });
+      expect(handshakeOk).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('refuses a non-localhost host when NO tls is supplied (ADR-0015 #3 fail-fast)', async () => {
+    const server = mockServer();
+    await expect(
+      connectStreamableHttp(server, { port: 0, host: '0.0.0.0' }),
+    ).rejects.toThrow(/non-localhost/i);
   });
 });
