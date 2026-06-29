@@ -236,6 +236,20 @@ describe('ADR-0015 #3 — themory mcp --tls-cert/--tls-key forwarding', () => {
     expect(mockRunMcpServer).not.toHaveBeenCalled();
   });
 
+  it('rejects when only --tls-key is supplied (symmetric both-or-neither fail-fast)', async () => {
+    // Mirror of the --tls-cert-alone case: guards the OTHER half of the XOR so a
+    // regression that only checked the cert side cannot slip through.
+    const { buildProgram } = await import('../cli.js');
+    await expect(
+      buildProgram().parseAsync([
+        'node', 'themory', 'mcp',
+        '--transport', 'streamable-http', '--host', '0.0.0.0',
+        '--tls-key', keyPath,
+      ]),
+    ).rejects.toThrow(/together/i);
+    expect(mockRunMcpServer).not.toHaveBeenCalled();
+  });
+
   it('omits tls when neither flag is supplied (localhost dev path unchanged)', async () => {
     const { buildProgram } = await import('../cli.js');
     await buildProgram().parseAsync([
