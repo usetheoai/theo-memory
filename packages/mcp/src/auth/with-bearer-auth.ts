@@ -24,7 +24,9 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
+
+import { attachWorkspace } from './request-workspace.js';
 
 /** EC-1 — shape regex: prefix + at least 40 base64url chars (theo_live_* canonical 43). */
 const THEO_LIVE_SHAPE = /^theo_live_[A-Za-z0-9_-]{40,}$/;
@@ -92,6 +94,18 @@ function send401(
 }
 
 /**
+ * Auth-backend failure (e.g. the `resolvePrincipal` DB lookup threw). Fail
+ * closed with a typed 503 — NEVER fall through to an unbound/default Memory
+ * (plan `mcp-workspace-binding-isolation` § Failure scenarios; mirrors REST
+ * `middleware.ts` 503). No `WWW-Authenticate` (the credential is not the problem).
+ */
+function send503(res: ServerResponse, description: string): void {
+  res.statusCode = 503;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({ code: 'SERVICE_UNAVAILABLE', message: description }));
+}
+
+/**
  * Wrap a node:http request handler so that requests carrying a valid Bearer
  * token (per the prefix-routing rules above) pass through to `delegate`;
  * everything else short-circuits at 401 with a well-formed `WWW-Authenticate`
@@ -139,8 +153,53 @@ export function withBearerAuth(
     // Path A — theo_live_* prefix routing
     if (token.startsWith(THEO_LIVE_PREFIX)) {
       if (THEO_LIVE_SHAPE.test(token)) {
-        if (opts.apiKey && (await opts.apiKey.verify(token))) {
-          await delegate(req, res);
+        if (opts.apiKey) {
+          // Multi-tenant path (plan mcp-workspace-binding-isolation, ADR D2/D3):
+          // prefer resolvePrincipal so we learn "whose key?" (the tenant) and bind
+          // its workspace. Mirrors REST `resolvePrincipalFrom` (middleware.ts:105).
+          if (opts.apiKey.resolvePrincipal !== undefined) {
+            let principal: Principal | null;
+            try {
+              principal = await opts.apiKey.resolvePrincipal(token);
+            } catch (err) {
+              // Auth backend down → fail closed (503), NEVER unbound (#82). Log the
+              // cause for diagnosis (error-handling.md — never swallow); the client
+              // gets a generic message (CWE-209), the operator gets the detail.
+              logWarn('resolve_principal_failed', {
+                reason: err instanceof Error ? err.message : String(err),
+              });
+              send503(res, 'Authentication backend unavailable.');
+              return;
+            }
+            if (principal === null) {
+              send401(res, realm, resourceMetadataPath, 'invalid_token', 'API key not recognized.');
+              return;
+            }
+            // EC-1 (load-bearing): a resolved Principal with a blank workspace is
+            // malformed — reject. NEVER let it reach workspaceScopedMemory's
+            // single-tenant passthrough, which would serve UNBOUND/all-workspace
+            // data = #82 re-opened through a different door.
+            // `?? ''` defends against a verifier that escapes the type system and
+            // returns a malformed Principal (workspaceId undefined): treat as blank →
+            // 401 (EC-1), never a 500 from `.trim()` on undefined (F-sec-4).
+            if ((principal.workspaceId ?? '').trim() === '') {
+              send401(res, realm, resourceMetadataPath, 'invalid_token', 'Resolved principal has no workspace.');
+              return;
+            }
+            attachWorkspace(req, principal.workspaceId);
+            await delegate(req, res);
+            return;
+          }
+          // EC-2 (fail-closed, plan ADR D3a): the api-keys (multi-tenant) path REQUIRES
+          // a resolvePrincipal-capable verifier so the tenant workspace is resolved +
+          // bound. A verify-only verifier cannot isolate tenants → REJECT; never serve
+          // the default/all-workspace memory (that is the #82 leak class). The shipped
+          // ApiKeyAuthVerifier always provides resolvePrincipal, so this only rejects a
+          // misconfigured custom verify-only verifier on the api-keys path.
+          send401(
+            res, realm, resourceMetadataPath, 'invalid_token',
+            'Verifier cannot resolve a workspace (fail-closed).',
+          );
           return;
         }
         send401(res, realm, resourceMetadataPath, 'invalid_token', 'API key not recognized.');

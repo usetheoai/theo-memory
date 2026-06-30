@@ -28,11 +28,61 @@ import type { AddressInfo } from 'node:net';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
+import type { ScopedContext } from '@usetheo/memory/contract';
+import { withScope } from '@usetheo/memory-agent-core';
+
 import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
+import { workspaceFromRequest } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
 
 /** Hosts treated as localhost for the non-localhost-without-TLS guard (ADR-0015 #3). */
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+
+/**
+ * Header that carries the per-request user scope on the native streamable-HTTP
+ * transport (ADR D3 — the binding deferred at T6.2; theo-workspace#10 follow-up).
+ * Mirrors the SSE transport, which binds `userId` from the URL path. Only the
+ * `userId` tier is bound because that is the only tier `memoryFromCtx` resolves.
+ * Within a workspace the tiers are organizational partitions (the workspace/tenant
+ * is the security boundary, enforced upstream by the Model B per-tenant key), so a
+ * caller-supplied user id here is the same trust level as the SSE URL user.
+ */
+const USER_SCOPE_HEADER = 'x-theo-user-id';
+
+/** EC-16 — accept only a safe id charset, bounded length (no traversal/whitespace). */
+const SAFE_SCOPE_ID = /^[A-Za-z0-9._:-]{1,200}$/;
+
+/**
+ * scopeFromHeaders extracts a sanitized per-request scope from the request headers,
+ * or `undefined` when absent/invalid (fail-closed: handlers then see no scope and a
+ * scope-required tool call fails per ADR D3). Pure + exported for unit testing.
+ */
+export function scopeFromHeaders(
+  headers: NodeJS.Dict<string | string[]>,
+): { session: { userId: string } } | undefined {
+  const raw = headers[USER_SCOPE_HEADER];
+  const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  if (value === undefined || value === '' || !SAFE_SCOPE_ID.test(value)) return undefined;
+  return { session: { userId: value } };
+}
+
+/**
+ * Build the per-request `ScopedContext` from a request: the `workspaceId` comes
+ * from the AUTH-TRUSTED attachment (`withBearerAuth` → `resolvePrincipal`, never a
+ * client header — plan `mcp-workspace-binding-isolation` ADR D2, theo-memory#82),
+ * and the `userId` tier comes from the sanitized `X-Theo-User-Id` header. Returns
+ * `undefined` when neither is present (no-auth dev with no header → no scope, and
+ * scope-required tools fail closed). Pure + exported for unit testing.
+ */
+export function scopeFromRequest(req: IncomingMessage): ScopedContext | undefined {
+  const headerScope = scopeFromHeaders(req.headers);
+  const workspaceId = workspaceFromRequest(req);
+  if (workspaceId === undefined && headerScope === undefined) return undefined;
+  return {
+    ...(workspaceId !== undefined ? { workspaceId } : {}),
+    ...(headerScope ?? {}),
+  };
+}
 
 /**
  * Per ADR-0015 § Decision #3 — `themory mcp --transport streamable-http
@@ -124,16 +174,23 @@ export async function connectStreamableHttp(
   // withBearerAuth BEFORE the MCP transport sees it. When omitted, the
   // transport runs without auth (legitimate only for localhost dev loops).
   const baseHandler = (req: IncomingMessage, res: ServerResponse): void => {
-    void transport.handleRequest(req, res).catch((err: unknown) => {
-      // T1.5 — sanitize error response (CWE-209 information disclosure).
-      // Log the real error for debugging; respond with a generic message.
-      const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[themory-mcp] transport error: ${message}\n`);
-      if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('Internal Server Error\n');
-      }
-    });
+    const dispatch = (): Promise<void> =>
+      transport.handleRequest(req, res).catch((err: unknown) => {
+        // T1.5 — sanitize error response (CWE-209 information disclosure).
+        // Log the real error for debugging; respond with a generic message.
+        const message = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`[themory-mcp] transport error: ${message}\n`);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Internal Server Error\n');
+        }
+      });
+    // Bind the per-request scope: workspace from the AUTH-TRUSTED attachment
+    // (resolvePrincipal, never a client header — ADR D2, #82) + the userId tier
+    // from the X-Theo-User-Id header. Absent → no scope (scope-required tools fail
+    // closed). The workspace is what `workspaceScopedMemory` binds at each tool site.
+    const ctx = scopeFromRequest(req);
+    void (ctx ? withScope(ctx, dispatch) : dispatch());
   };
 
   const gatedHandler = options.bearerAuth

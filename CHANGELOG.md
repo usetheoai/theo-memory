@@ -16,6 +16,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.11.0] - 2026-06-30
+
+### Added
+- **Native streamable-HTTP MCP transport now binds the per-request user scope from the
+  `X-Theo-User-Id` header** (ADR D3 — the binding deferred at T6.2). Mirrors the SSE
+  transport (which binds `userId` from the URL path) so tool calls resolve a scope via
+  `memoryFromCtx` instead of failing "Scope not bound". The id is sanitized (EC-16: safe
+  charset, bounded length); absent/invalid header → no scope (scope-required tools fail
+  closed). Unblocks the integrated MCP-Gateway path (`/mcp/*` → Theo MCP Gateway → themory)
+  end-to-end: a gateway-injected per-tenant key + this header = a real scoped `tools/call`.
+  The user tier is the only one bound (the only tier `memoryFromCtx` resolves); within a
+  workspace the tiers are organizational, the workspace/tenant is the security boundary.
+- **README — streamable-HTTP over TLS usage (ADR-0015 #3).** Documents `themory mcp
+  --transport streamable-http --host 0.0.0.0 --tls-cert/--tls-key` for non-localhost binds
+  (both flags required together; localhost stays plain HTTP), and notes the theo-workspace
+  integrated stack runs `themory` from this repo's built `dist/` — so rebuild (`npm run build`)
+  after updating to ≥ v0.25.0. (`README.md` § Agent loops via MCP)
+
+### Changed
+- **`docker-publish` agora roda no self-hosted runner (minutos GitHub-hosted estão billing-blocked).** O job `build-and-publish` passou de `runs-on: ubuntu-latest` para `runs-on: [self-hosted, linux, x64]` — o runner `theo-ci-theo-memory` no droplet `theo-ci-runner`. Docker + buildx já presentes no host; o Trivy continua vindo da `aquasecurity/trivy-action` (não precisa binário no host). Build + scan + push (GHCR + Docker Hub) da imagem `themory` rodam no droplet. (`.github/workflows/docker-publish.yml`)
+
+### Deprecated
+
+### Removed
+
+### Fixed
+- **`docker-publish` referenciava uma versão inexistente do Trivy → "Set up job" falhava sempre.** `aquasecurity/trivy-action@0.24.0` nunca foi uma tag publicada (404 — "unable to find version"); falhava na resolução da action em qualquer runner. Pinado em `v0.36.0` (estável atual; mesmos inputs). (`.github/workflows/docker-publish.yml`)
+- **`docker-publish` não parseava → o workflow inteiro não rodava (nem disparava).** Dois steps usavam `if: ${{ secrets.DOCKERHUB_TOKEN != '' }}`, mas o contexto `secrets` **não é permitido em `if:`** — o GitHub rejeitava o workflow com `Unrecognized named-value: 'secrets'` (HTTP 422 no dispatch; push/tag triggers idem). O token agora é elevado a um `env` de nível job (`DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}`) e os guards usam `env.DOCKERHUB_TOKEN`, que é válido em `if:`. (`.github/workflows/docker-publish.yml`)
+
+### Security
+- **MCP tool surface now enforces per-tenant workspace isolation — closes a cross-tenant
+  data leak (theo-memory#82).** The `themory mcp` server authenticated an API key as a
+  boolean and served a single shared, workspace-UNBOUND `Memory` to every request, so any
+  valid key could read/write ANY workspace's data (the MCP twin of the gap #77 closed for
+  REST). The bearer gate now resolves a `Principal` from the key and binds
+  `Memory.withWorkspace(workspaceId)` at every tool memory-access site (the new
+  `workspaceScopedMemory` seam), fed by an auth-trusted `ScopedContext.workspaceId` (never a
+  client header). Fail-closed: a key resolving no/blank workspace → 401; a Memory that cannot
+  bind the workspace → typed error, never unbound. Scoped to the api-keys streamable-HTTP path
+  (the gateway-fronted path #82 exploited); OIDC/SSE multi-tenant workspace mapping tracked as
+  a follow-up. (#82)
+
 ## [0.25.0] - 2026-06-30
 
 ### Added

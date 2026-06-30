@@ -21,7 +21,7 @@ import { mock } from 'vitest-mock-extended';
 import { MemoryNotFound, MemoryStoreError, MissingScopeError } from '@usetheo/memory/contract';
 import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
-import { withScope } from '@usetheo/memory-agent-core';
+import { withScope, getScope } from '@usetheo/memory-agent-core';
 import { dispatch } from './dispatch.js';
 
 const FIXED_DATE = new Date('2026-05-24T12:00:00.000Z');
@@ -247,6 +247,10 @@ describe('dispatch — error paths (ADR D6)', () => {
   });
 });
 
+// #82: the skill tools are now workspace-scoped — they bind the workspace from the
+// active scope via workspaceScopedMemory before resolving memory.skills(repoId).
+// Each dispatch runs inside withScope (ALICE_CTX has no workspaceId → single-tenant
+// passthrough; the cross-tenant binding is asserted in the 12-verb isolation block).
 describe('dispatch — skills write surface (skills-write-surface T2.3)', () => {
   it('add_skill stores via memory.skills(repoId).add and reports the id', async () => {
     const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn() };
@@ -254,10 +258,12 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
 
-    const result = await dispatch(
-      'add_skill',
-      { repoId: 'acme', code: 'export const x=1;', description: 'a skill', codeLanguage: 'typescript' },
-      { memoryFactory: () => memory },
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch(
+        'add_skill',
+        { repoId: 'acme', code: 'export const x=1;', description: 'a skill', codeLanguage: 'typescript' },
+        { memoryFactory: () => memory },
+      ),
     );
 
     expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
@@ -273,10 +279,12 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
 
-    const result = await dispatch(
-      'add_skill',
-      { repoId: 'acme', code: 'x', description: 'dupe', codeLanguage: 'typescript' },
-      { memoryFactory: () => memory },
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch(
+        'add_skill',
+        { repoId: 'acme', code: 'x', description: 'dupe', codeLanguage: 'typescript' },
+        { memoryFactory: () => memory },
+      ),
     );
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result.content)).toContain('already exists');
@@ -288,7 +296,9 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
 
-    const result = await dispatch('forget_skill', { repoId: 'acme', skillId: 'sk-1' }, { memoryFactory: () => memory });
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch('forget_skill', { repoId: 'acme', skillId: 'sk-1' }, { memoryFactory: () => memory }),
+    );
     expect(skillScoped.forget).toHaveBeenCalledWith('sk-1');
     expect(result.isError ?? false).toBe(false);
   });
@@ -299,7 +309,9 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
 
-    const result = await dispatch('forget_skill', { repoId: 'acme', skillId: 'sk-x' }, { memoryFactory: () => memory });
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch('forget_skill', { repoId: 'acme', skillId: 'sk-x' }, { memoryFactory: () => memory }),
+    );
     expect(result.isError ?? false).toBe(false);
   });
 });
@@ -329,10 +341,12 @@ describe('execute_skill dispatch — T2.4', () => {
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
 
-    const result = await dispatch(
-      'execute_skill',
-      { repoId: 'acme', skillId: 'sk-1', args: { x: 2, y: 3 } },
-      { memoryFactory: () => memory },
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch(
+        'execute_skill',
+        { repoId: 'acme', skillId: 'sk-1', args: { x: 2, y: 3 } },
+        { memoryFactory: () => memory },
+      ),
     );
 
     expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
@@ -347,10 +361,12 @@ describe('execute_skill dispatch — T2.4', () => {
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScopedWith(execute) as never);
 
-    const result = await dispatch(
-      'execute_skill',
-      { repoId: 'acme', skillId: 'sk-1' },
-      { memoryFactory: () => memory },
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch(
+        'execute_skill',
+        { repoId: 'acme', skillId: 'sk-1' },
+        { memoryFactory: () => memory },
+      ),
     );
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result.content)).toContain('timeout');
@@ -362,12 +378,120 @@ describe('execute_skill dispatch — T2.4', () => {
     const memory = mock<Memory>();
     vi.mocked(memory.skills).mockReturnValue(skillScopedWith(execute) as never);
 
-    const result = await dispatch(
-      'execute_skill',
-      { repoId: 'acme', skillId: 'sk-1' },
-      { memoryFactory: () => memory },
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch(
+        'execute_skill',
+        { repoId: 'acme', skillId: 'sk-1' },
+        { memoryFactory: () => memory },
+      ),
     );
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result.content).toLowerCase()).toContain('not configured');
+  });
+});
+
+// T3.1 (#82) — every tool verb binds the active scope's workspace BEFORE touching
+// the store. With a workspace in scope, the memory the handler operates on is the
+// one returned by withWorkspace('tn-A'); a tn-A request never touches tn-B's store.
+describe('workspace isolation across all tool verbs (T3.1, #82)', () => {
+  const WS_A_CTX = { workspaceId: 'tn-A', session: { userId: 'alice' } } as const;
+
+  function memoryBoundTo(): { root: Memory; bound: Memory; boundScoped: ScopedMemory } {
+    const boundScoped = mock<ScopedMemory>();
+    const bound = mock<Memory>();
+    vi.mocked(bound.user).mockReturnValue(boundScoped);
+    const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn(), execute: vi.fn() };
+    vi.mocked(bound.skills).mockReturnValue(skillScoped as never);
+    const root = mock<Memory>();
+    // workspaceScopedMemory calls root.withWorkspace('tn-A') → bound
+    vi.mocked(root.withWorkspace!).mockReturnValue(bound);
+    return { root, bound, boundScoped };
+  }
+
+  it('recall binds withWorkspace(tn-A) before resolving the user-tier memory', async () => {
+    const { root, bound, boundScoped } = memoryBoundTo();
+    vi.mocked(boundScoped.recall).mockResolvedValue([]);
+
+    await withScope(WS_A_CTX, () => dispatch('recall', { query: 'x' }, { memoryFactory: () => root }));
+
+    expect(vi.mocked(root.withWorkspace!)).toHaveBeenCalledWith('tn-A');
+    expect(vi.mocked(bound.user)).toHaveBeenCalledWith('alice'); // user tier resolved on the WS-bound memory
+  });
+
+  it('forget binds withWorkspace(tn-A) before the top-level forget', async () => {
+    const { root, bound } = memoryBoundTo();
+    vi.mocked(bound.forget).mockResolvedValue(undefined);
+
+    await withScope(WS_A_CTX, () =>
+      dispatch('forget', { id: '550e8400-e29b-41d4-a716-446655440000' }, { memoryFactory: () => root }),
+    );
+
+    expect(vi.mocked(root.withWorkspace!)).toHaveBeenCalledWith('tn-A');
+    expect(vi.mocked(bound.forget)).toHaveBeenCalled(); // forget ran on the WS-bound memory, not root
+  });
+
+  it('add_skill binds withWorkspace(tn-A) before resolving memory.skills(repoId)', async () => {
+    const { root, bound } = memoryBoundTo();
+    const skillScoped = vi.mocked(bound.skills)('acme') as unknown as { add: ReturnType<typeof vi.fn> };
+    skillScoped.add.mockResolvedValue({ id: 'sk-1', hash: 'h' });
+
+    await withScope(WS_A_CTX, () =>
+      dispatch(
+        'add_skill',
+        { repoId: 'acme', code: 'x', description: 'd', codeLanguage: 'typescript' },
+        { memoryFactory: () => root },
+      ),
+    );
+
+    expect(vi.mocked(root.withWorkspace!)).toHaveBeenCalledWith('tn-A');
+    expect(vi.mocked(bound.skills)).toHaveBeenCalledWith('acme'); // skills resolved on the WS-bound memory
+  });
+
+  // F-xval-1 (HIGH) — the plan-mandated ALS concurrency test. Two recall dispatches
+  // interleave inside distinct withScope(tn-A)/(tn-B) blocks; the happens-before
+  // observation is that AFTER the awaited dispatch each async context still observes
+  // its OWN workspace (AsyncLocalStorage.run isolates per-context — no bleed), and
+  // root.withWorkspace was bound once per tenant with the correct id.
+  it('ALS isolation — concurrent test: interleaved tn-A/tn-B dispatches never bleed workspace', async () => {
+    const boundWorkspaces: string[] = [];
+    const root = mock<Memory>();
+    vi.mocked(root.withWorkspace!).mockImplementation((ws: string) => {
+      boundWorkspaces.push(ws);
+      const scoped = mock<ScopedMemory>();
+      vi.mocked(scoped.recall).mockResolvedValue([]);
+      const m = mock<Memory>();
+      vi.mocked(m.user).mockReturnValue(scoped);
+      return m;
+    });
+
+    const observedAfterAwait: Record<string, string | undefined> = {};
+    const probe = (ws: string): Promise<void> =>
+      withScope({ workspaceId: ws, session: { userId: 'u' } }, async () => {
+        await dispatch('recall', { query: 'x' }, { memoryFactory: () => root });
+        // happens-before: after the interleaved await, my ambient scope is STILL mine.
+        observedAfterAwait[ws] = getScope().workspaceId;
+      });
+
+    await Promise.all([probe('tn-A'), probe('tn-B')]);
+
+    expect(observedAfterAwait).toEqual({ 'tn-A': 'tn-A', 'tn-B': 'tn-B' });
+    expect([...boundWorkspaces].sort()).toEqual(['tn-A', 'tn-B']);
+  });
+
+  // F-xval-3 (MEDIUM) — a fail-closed workspace-bind throw (workspace set but the Memory
+  // has no withWorkspace, ADR D3/EC-1) MUST be handled gracefully by the dispatch, NOT
+  // left as an unhandled rejection that wedges the singleton transport. Per the error
+  // classifier (ADR D6), an unexpected throw surfaces as a thrown `McpError` (-32603
+  // Internal error) which the SDK serializes to a clean JSON-RPC error{} — a handled
+  // error response, never a transport wedge. (No `isError:true` here because the throw is
+  // a generic Error, not a typed domain/execution error.)
+  it('dispatch handles the fail-closed workspace-bind throw gracefully (McpError, not a wedge)', async () => {
+    const { McpError } = await import('@modelcontextprotocol/sdk/types.js');
+    const memory = { user: vi.fn(), forget: vi.fn() } as unknown as Memory; // no withWorkspace
+    await expect(
+      withScope({ workspaceId: 'tn-A', session: { userId: 'u' } }, () =>
+        dispatch('recall', { query: 'x' }, { memoryFactory: () => memory }),
+      ),
+    ).rejects.toBeInstanceOf(McpError);
   });
 });

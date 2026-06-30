@@ -19,8 +19,68 @@ import { join } from 'node:path';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { connectStreamableHttp } from '../transports/streamable-http.js';
+import type { IncomingMessage } from 'node:http';
+
+import { connectStreamableHttp, scopeFromHeaders, scopeFromRequest } from '../transports/streamable-http.js';
+import { attachWorkspace } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
+
+// T2.2 (#82) — scopeFromRequest threads the AUTH-TRUSTED workspace into the ctx;
+// the userId tier still comes from the X-Theo-User-Id header. The workspace MUST
+// come only from the auth attachment, never from a client header (ADR D2).
+describe('scopeFromRequest (workspace from auth + userId from header)', () => {
+  function reqWith(headers: Record<string, string>, workspaceId?: string): IncomingMessage {
+    const req = { headers } as unknown as IncomingMessage;
+    if (workspaceId !== undefined) attachWorkspace(req, workspaceId);
+    return req;
+  }
+
+  it('carries the auth-attached workspaceId + the header userId', () => {
+    const ctx = scopeFromRequest(reqWith({ 'x-theo-user-id': 'alice' }, 'tn-A'));
+    expect(ctx).toEqual({ workspaceId: 'tn-A', session: { userId: 'alice' } });
+  });
+
+  it('IGNORES a client-supplied x-workspace-id header — only the auth attachment sets the workspace (ADR D2)', () => {
+    const ctx = scopeFromRequest(reqWith({ 'x-workspace-id': 'tn-EVIL', 'x-theo-user-id': 'alice' }));
+    expect(ctx).toEqual({ session: { userId: 'alice' } });
+    expect(ctx?.workspaceId).toBeUndefined();
+  });
+
+  it('workspace-only request (no userId header) yields a workspace-scoped ctx', () => {
+    const ctx = scopeFromRequest(reqWith({}, 'tn-A'));
+    expect(ctx).toEqual({ workspaceId: 'tn-A' });
+  });
+
+  it('no workspace + no userId → undefined (scope-required tools fail closed)', () => {
+    const ctx = scopeFromRequest(reqWith({}));
+    expect(ctx).toBeUndefined();
+  });
+});
+
+// theo-workspace#10 follow-up / ADR D3 — the deferred per-request scope-binding for
+// the native streamable-HTTP transport. The header binds the userId tier (the only
+// tier memoryFromCtx resolves); EC-16 sanitization is enforced here.
+describe('scopeFromHeaders (native streamable-http scope binding)', () => {
+  it('binds the userId tier from a valid X-Theo-User-Id header', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'alice' })).toEqual({ session: { userId: 'alice' } });
+  });
+  it('returns undefined when the header is absent (fail-closed: tools see no scope)', () => {
+    expect(scopeFromHeaders({})).toBeUndefined();
+  });
+  it('rejects empty / whitespace-only values', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': '   ' })).toBeUndefined();
+    expect(scopeFromHeaders({ 'x-theo-user-id': '' })).toBeUndefined();
+  });
+  it('rejects unsafe characters and oversize ids (EC-16 sanitization)', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'a/../b' })).toBeUndefined();
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'a b' })).toBeUndefined();
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'x'.repeat(201) })).toBeUndefined();
+  });
+  it('accepts the safe id charset (alnum . _ : -) and the first value of an array header', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': 't-1:u_2.3-4' })).toEqual({ session: { userId: 't-1:u_2.3-4' } });
+    expect(scopeFromHeaders({ 'x-theo-user-id': ['first', 'second'] })).toEqual({ session: { userId: 'first' } });
+  });
+});
 
 function mockServer(): McpServer {
   return {

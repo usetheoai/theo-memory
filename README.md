@@ -243,6 +243,22 @@ Add `themory` to your project-local `.mcp.json` (Claude Code reads this file fro
 **Tools:** `remember` · `recall` · `forget` · `reflect`
 **Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEMEMORY_API_KEY` is set)
 
+#### streamable-HTTP over TLS (non-localhost binds — ADR-0015 #3)
+
+When the MCP server must listen on a **non-localhost** host (e.g. so a container reaches it
+over `host.docker.internal`), HTTPS is required. Pass a cert/key pair:
+
+```bash
+themory mcp --transport streamable-http --host 0.0.0.0 --port 18091 \
+  --auth api-keys --tls-cert path/to/cert.pem --tls-key path/to/key.pem
+```
+
+Both flags are required together (one alone fails fast); binding a non-localhost host without
+them is refused. A localhost bind stays plain HTTP. This is what the **theo-workspace**
+local stack uses to front the host themory MCP from the containerized Theo MCP Gateway
+(`make memory-up MODE=--mcp` — it runs `themory` from this repo's built `dist/`, so **rebuild
+after updating to ≥ v0.25.0**: `npm run build`).
+
 ### OpenMemory-compatible mode
 
 Run the server in OpenMemory drop-in mode so MCP clients already wired to the [OpenMemory MCP Server](https://github.com/vendor SDK/REDACTED/tree/main/openmemory) (Cursor, Claude Desktop, Windsurf, Cline) work unchanged:

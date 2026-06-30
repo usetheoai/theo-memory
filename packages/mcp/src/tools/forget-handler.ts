@@ -2,7 +2,7 @@
  * `forget` dispatch handler — T5.1.
  *
  * SEPA gotcha #1 absorbed: `forget` is on TOP-LEVEL `Memory`, NOT `ScopedMemory`
- * (per `src/core/memory-store.ts:60`). Handler calls `deps.memoryFactory().forget(id)`
+ * (per `src/core/memory-store.ts:60`). Handler calls `workspaceScopedMemory(deps.memoryFactory()).forget(id)`
  * directly. STILL gates by `getScope()` to preserve the scope-required invariant
  * (prevents anonymous bulk-delete via stdio).
  *
@@ -24,6 +24,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { MemoryNotFound } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './forget-schema.js';
 
@@ -60,7 +61,7 @@ export async function forgetHandler(
   }
 
   try {
-    await deps.memoryFactory().forget(parsed.id);
+    await workspaceScopedMemory(deps.memoryFactory()).forget(parsed.id);
     return {
       content: [{ type: 'text', text: `Memory ${parsed.id} forgotten.` }],
       isError: false,
