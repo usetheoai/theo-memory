@@ -5,20 +5,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- **README — `## CI/CD` section** documenting `docker-publish.yml`: the preview/release/dispatch triggers, the published image refs, and the Trivy CRITICAL/HIGH gate + `.trivyignore` sunset discipline, all on the self-hosted runner. (`README.md`)
 
 ### Changed
-- **README atualizado para `publish.yml`** (preview agora em `develop`; release assinado via reutilizável). (`README.md`)
-- **`docker-publish.yml` → `publish.yml`, convergido no reutilizável `theo/build-publish.yml`.** Elimina o build+scan próprio: agora chama o pipeline org-padrão (SHA-pinned actions, Trivy CRITICAL/HIGH gate com este `.trivyignore`, e nas tags ganha SBOM+SLSA mode=max + **cosign keyless sign+verify** — signing que o `themory` não tinha). Preview agora em `develop` (`:develop`), alinhado ao trunk da org. (`.github/workflows/publish.yml`)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
-- **Teste de governança do workflow atualizado para a convergência** — `tests/integration/docker-publish-workflow.test.ts` → `publish-workflow.test.ts`: assertava a forma inline antiga (Trivy/build/push em `docker-publish.yml`); agora assere a delegação ao reutilizável (`build-publish.yml`, `trivy: true`, sign/verify na tag) + permissões/OIDC + `.trivyignore`. (`tests/integration/publish-workflow.test.ts`)
 
 ### Security
+
+## [0.27.0] - 2026-06-30
+
+### Added
+- **README — `## CI/CD` section** documenting `docker-publish.yml`: the preview/release/dispatch triggers, the published image refs, and the Trivy CRITICAL/HIGH gate + `.trivyignore` sunset discipline, all on the self-hosted runner. (`README.md`)
+
+
+### Changed
+- **README atualizado para `publish.yml`** (preview agora em `develop`; release assinado via reutilizável). (`README.md`)
+- **`docker-publish.yml` → `publish.yml`, convergido no reutilizável `theo/build-publish.yml`.** Elimina o build+scan próprio: agora chama o pipeline org-padrão (SHA-pinned actions, Trivy CRITICAL/HIGH gate com este `.trivyignore`, e nas tags ganha SBOM+SLSA mode=max + **cosign keyless sign+verify** — signing que o `themory` não tinha). Preview agora em `develop` (`:develop`), alinhado ao trunk da org. (`.github/workflows/publish.yml`)
+
+
+### Fixed
+- **Teste de governança do workflow atualizado para a convergência** — `tests/integration/docker-publish-workflow.test.ts` → `publish-workflow.test.ts`: assertava a forma inline antiga (Trivy/build/push em `docker-publish.yml`); agora assere a delegação ao reutilizável (`build-publish.yml`, `trivy: true`, sign/verify na tag) + permissões/OIDC + `.trivyignore`. (`tests/integration/publish-workflow.test.ts`)
 
 ## [0.26.0] - 2026-06-30
 
