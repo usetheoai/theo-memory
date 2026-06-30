@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Teste de governança do workflow atualizado para a convergência** — `tests/integration/docker-publish-workflow.test.ts` → `publish-workflow.test.ts`: assertava a forma inline antiga (Trivy/build/push em `docker-publish.yml`); agora assere a delegação ao reutilizável (`build-publish.yml`, `trivy: true`, sign/verify na tag) + permissões/OIDC + `.trivyignore`. (`tests/integration/publish-workflow.test.ts`)
 
 ### Security
 
