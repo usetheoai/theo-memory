@@ -17,8 +17,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AuthVerifier } from '@usetheo/memory/contract';
+import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
 import { withBearerAuth } from '../auth/with-bearer-auth.js';
+import { workspaceFromRequest } from '../auth/request-workspace.js';
 import { connectStdio } from '../transports/stdio.js';
 import { connectStreamableHttp } from '../transports/streamable-http.js';
 import type { McpServer } from '../server.js';
@@ -32,6 +33,120 @@ function alwaysTrue(): AuthVerifier {
 function alwaysFalse(): AuthVerifier {
   return { verify: vi.fn(() => Promise.resolve(false)) };
 }
+
+function principal(workspaceId: string): Principal {
+  return { workspaceId, userId: 'u', role: 'member', scopes: ['memory:read'] };
+}
+/** A resolvePrincipal-capable verifier (the production ApiKeyAuthVerifier shape). */
+function resolvesTo(workspaceId: string): AuthVerifier {
+  return {
+    verify: vi.fn(() => Promise.resolve(true)),
+    resolvePrincipal: vi.fn(() => Promise.resolve(principal(workspaceId))),
+  };
+}
+function resolvesNull(): AuthVerifier {
+  return {
+    verify: vi.fn(() => Promise.resolve(false)),
+    resolvePrincipal: vi.fn(() => Promise.resolve(null)),
+  };
+}
+function resolveThrows(): AuthVerifier {
+  return {
+    verify: vi.fn(() => Promise.resolve(true)),
+    resolvePrincipal: vi.fn(() => Promise.reject(new Error('db down'))),
+  };
+}
+
+/** Minimal node:http req/res doubles capturing status + body. */
+function reqRes(token: string): {
+  req: Parameters<ReturnType<typeof withBearerAuth>>[0];
+  res: Parameters<ReturnType<typeof withBearerAuth>>[1];
+  status: () => number;
+} {
+  const req = { headers: { authorization: `Bearer ${token}` } } as Parameters<
+    ReturnType<typeof withBearerAuth>
+  >[0];
+  let statusCode = 0;
+  const res = {
+    get statusCode() {
+      return statusCode;
+    },
+    set statusCode(v: number) {
+      statusCode = v;
+    },
+    setHeader: vi.fn(),
+    end: vi.fn(),
+  } as unknown as Parameters<ReturnType<typeof withBearerAuth>>[1];
+  return { req, res, status: () => statusCode };
+}
+
+describe('withBearerAuth — workspace resolution (T2.1, #82)', () => {
+  it('resolvePrincipal success attaches the workspaceId and delegates', async () => {
+    const delegate = vi.fn();
+    const handler = withBearerAuth(delegate, { apiKey: resolvesTo('tn-A') });
+    const { req, res } = reqRes(VALID_THEO_LIVE);
+
+    await handler(req, res);
+
+    expect(delegate).toHaveBeenCalledWith(req, res);
+    expect(workspaceFromRequest(req)).toBe('tn-A');
+  });
+
+  it('resolvePrincipal null → 401, no delegate, no workspace attached', async () => {
+    const delegate = vi.fn();
+    const handler = withBearerAuth(delegate, { apiKey: resolvesNull() });
+    const { req, res, status } = reqRes(VALID_THEO_LIVE);
+
+    await handler(req, res);
+
+    expect(status()).toBe(401);
+    expect(delegate).not.toHaveBeenCalled();
+    expect(workspaceFromRequest(req)).toBeUndefined();
+  });
+
+  it('EC-1 — resolvePrincipal returns a blank workspaceId → 401, no delegate (guards #82 re-open)', async () => {
+    const delegate = vi.fn();
+    const handler = withBearerAuth(delegate, {
+      apiKey: { verify: vi.fn(() => Promise.resolve(true)), resolvePrincipal: vi.fn(() => Promise.resolve(principal('   '))) },
+    });
+    const { req, res, status } = reqRes(VALID_THEO_LIVE);
+
+    await handler(req, res);
+
+    expect(status()).toBe(401);
+    expect(delegate).not.toHaveBeenCalled();
+    expect(workspaceFromRequest(req)).toBeUndefined();
+  });
+
+  it('resolvePrincipal throws (auth backend down) → 503, no delegate, never unbound', async () => {
+    const delegate = vi.fn();
+    const handler = withBearerAuth(delegate, { apiKey: resolveThrows() });
+    const { req, res, status } = reqRes(VALID_THEO_LIVE);
+
+    await handler(req, res);
+
+    expect(status()).toBe(503);
+    expect(delegate).not.toHaveBeenCalled();
+    expect(workspaceFromRequest(req)).toBeUndefined();
+  });
+
+  it('concurrent test — two requests with different keys attach to their OWN req (no shared state / happens-before observation)', async () => {
+    const seen: Array<string | undefined> = [];
+    const delegate = vi.fn((req: Parameters<ReturnType<typeof withBearerAuth>>[0]) => {
+      seen.push(workspaceFromRequest(req));
+    });
+    const handlerA = withBearerAuth(delegate, { apiKey: resolvesTo('tn-A') });
+    const handlerB = withBearerAuth(delegate, { apiKey: resolvesTo('tn-B') });
+    const a = reqRes(VALID_THEO_LIVE);
+    const b = reqRes(VALID_THEO_LIVE);
+
+    await Promise.all([handlerA(a.req, a.res), handlerB(b.req, b.res)]);
+
+    expect(workspaceFromRequest(a.req)).toBe('tn-A');
+    expect(workspaceFromRequest(b.req)).toBe('tn-B');
+    expect(seen.sort()).toEqual(['tn-A', 'tn-B']);
+  });
+});
 
 function mockMcpServer(): McpServer {
   return {

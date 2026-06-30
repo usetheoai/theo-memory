@@ -28,9 +28,11 @@ import type { AddressInfo } from 'node:net';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
+import type { ScopedContext } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
 
 import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
+import { workspaceFromRequest } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
 
 /** Hosts treated as localhost for the non-localhost-without-TLS guard (ADR-0015 #3). */
@@ -62,6 +64,24 @@ export function scopeFromHeaders(
   const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
   if (value === undefined || value === '' || !SAFE_SCOPE_ID.test(value)) return undefined;
   return { session: { userId: value } };
+}
+
+/**
+ * Build the per-request `ScopedContext` from a request: the `workspaceId` comes
+ * from the AUTH-TRUSTED attachment (`withBearerAuth` → `resolvePrincipal`, never a
+ * client header — plan `mcp-workspace-binding-isolation` ADR D2, theo-memory#82),
+ * and the `userId` tier comes from the sanitized `X-Theo-User-Id` header. Returns
+ * `undefined` when neither is present (no-auth dev with no header → no scope, and
+ * scope-required tools fail closed). Pure + exported for unit testing.
+ */
+export function scopeFromRequest(req: IncomingMessage): ScopedContext | undefined {
+  const headerScope = scopeFromHeaders(req.headers);
+  const workspaceId = workspaceFromRequest(req);
+  if (workspaceId === undefined && headerScope === undefined) return undefined;
+  return {
+    ...(workspaceId !== undefined ? { workspaceId } : {}),
+    ...(headerScope ?? {}),
+  };
 }
 
 /**
@@ -165,10 +185,11 @@ export async function connectStreamableHttp(
           res.end('Internal Server Error\n');
         }
       });
-    // ADR D3 — bind the per-request scope from the header (mirrors the SSE
-    // transport's URL-path binding) so the JSON-RPC tool handlers resolve a scope
-    // via memoryFromCtx. Absent/invalid → no scope (scope-required tools fail closed).
-    const ctx = scopeFromHeaders(req.headers);
+    // Bind the per-request scope: workspace from the AUTH-TRUSTED attachment
+    // (resolvePrincipal, never a client header — ADR D2, #82) + the userId tier
+    // from the X-Theo-User-Id header. Absent → no scope (scope-required tools fail
+    // closed). The workspace is what `workspaceScopedMemory` binds at each tool site.
+    const ctx = scopeFromRequest(req);
     void (ctx ? withScope(ctx, dispatch) : dispatch());
   };
 
