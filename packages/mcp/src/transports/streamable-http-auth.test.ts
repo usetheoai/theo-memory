@@ -233,9 +233,9 @@ describe('withBearerAuth — unit-level (node:http handler wrap)', () => {
     expect(delegate).not.toHaveBeenCalled();
   });
 
-  it('2. delegates when theo_live_ key passes apiKey verifier', async () => {
+  it('2. delegates when theo_live_ key resolves a Principal (production ApiKeyAuthVerifier shape)', async () => {
     const delegate = vi.fn();
-    const apiKey = alwaysTrue();
+    const apiKey = resolvesTo('tn-default'); // resolvePrincipal-capable, like ApiKeyAuthVerifier
     const oidc = alwaysFalse();
     const handler = withBearerAuth(delegate, { apiKey, oidc });
 
@@ -244,9 +244,31 @@ describe('withBearerAuth — unit-level (node:http handler wrap)', () => {
 
     await handler(req, res);
 
-    expect(apiKey.verify).toHaveBeenCalledWith(VALID_THEO_LIVE);
+    expect(apiKey.resolvePrincipal).toHaveBeenCalledWith(VALID_THEO_LIVE);
     expect(oidc.verify).not.toHaveBeenCalled();
     expect(delegate).toHaveBeenCalledWith(req, res);
+  });
+
+  it('2b. EC-2 fail-closed — a verify-only verifier on the api-keys path is REJECTED (401), never single-tenant passthrough', async () => {
+    const delegate = vi.fn();
+    const apiKey = alwaysTrue(); // verify-only: no resolvePrincipal → cannot isolate tenants
+    const oidc = alwaysFalse();
+    let statusCode = 0;
+    const headers = new Map<string, string>();
+    const handler = withBearerAuth(delegate, { apiKey, oidc });
+    const req = { headers: { authorization: `Bearer ${VALID_THEO_LIVE}` } } as Parameters<typeof handler>[0];
+    const res = {
+      get statusCode() { return statusCode; },
+      set statusCode(v: number) { statusCode = v; },
+      setHeader: (k: string, v: string) => headers.set(k.toLowerCase(), v),
+      end: vi.fn(),
+    } as unknown as Parameters<typeof handler>[1];
+
+    await handler(req, res);
+
+    expect(statusCode).toBe(401);
+    expect(headers.get('www-authenticate')).toContain('error="invalid_token"');
+    expect(delegate).not.toHaveBeenCalled();
   });
 
   it('3. delegates when JWT-like token passes OIDC verifier', async () => {
