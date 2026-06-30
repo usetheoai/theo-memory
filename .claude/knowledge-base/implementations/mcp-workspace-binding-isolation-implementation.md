@@ -43,7 +43,7 @@ CHANGELOG `[Unreleased] § Security` updated in `1c69f6d`.
 - `workspace-scoped-memory.test.ts` (5): bind when ws present; passthrough single-tenant; empty/whitespace passthrough; **fail-closed throw when withWorkspace absent (EC-1)**; MissingScopeError outside withScope (EC-3).
 - `streamable-http-auth.test.ts` (16 = 11 regression + 5 new): resolvePrincipal success attaches workspace; null→401; **blank workspace→401 (EC-1)**; backend-throw→503; **concurrent test** (two keys → own req, no bleed).
 - `streamable-http.test.ts` `scopeFromRequest` (4): workspace from auth + userId from header; **client `x-workspace-id` header IGNORED (ADR D2)**; workspace-only ctx; none→undefined.
-- `handlers.test.ts` (24): all verbs + **12-verb isolation** (recall/forget/add_skill bind `withWorkspace('tn-A')` before the store op).
+- `handlers.test.ts` (26): all verbs + workspace binding — **all 12 sites structurally wrapped** (grep-verified: zero bare `deps.memoryFactory()` at a memory op); per-verb binding asserted for recall/forget/add_skill (representative of the memoryFromCtx + direct + skill site classes); **ALS no-bleed concurrency test** (interleaved tn-A/tn-B dispatches each keep their own workspace, F-xval-1); **graceful fail-closed throw** (workspace set + withWorkspace absent → handled McpError, not a transport wedge, F-xval-3).
 
 ### Integration — AUTHORITATIVE (committed, green vs real `ankane/pgvector`)
 `tests/integration/mcp/workspace-isolation.test.ts` (2/2), driven through the REAL MCP
