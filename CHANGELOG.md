@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   after updating to ≥ v0.25.0. (`README.md` § Agent loops via MCP)
 
 ### Changed
+- **`docker-publish` agora roda no self-hosted runner (minutos GitHub-hosted estão billing-blocked).** O job `build-and-publish` passou de `runs-on: ubuntu-latest` para `runs-on: [self-hosted, linux, x64]` — o runner `theo-ci-theo-memory` no droplet `theo-ci-runner`. Docker + buildx já presentes no host; o Trivy continua vindo da `aquasecurity/trivy-action` (não precisa binário no host). Build + scan + push (GHCR + Docker Hub) da imagem `themory` rodam no droplet. (`.github/workflows/docker-publish.yml`)
 
 ### Deprecated
 
