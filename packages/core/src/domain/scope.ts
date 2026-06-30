@@ -66,6 +66,20 @@ export type Scope = UserScope | SessionScope | AgentScope | RepoScope;
  */
 export interface ScopedContext {
   /**
+   * Per-request workspace (tenant) anchor — the OUTER isolation boundary
+   * (`workspace_id == tenant_id`). AUTH-TRUSTED: populated ONLY from a credential
+   * resolved by `AuthVerifier.resolvePrincipal` (e.g. the MCP bearer gate attaches
+   * it from the per-tenant key), NEVER from a client-supplied header/body — per
+   * theo-data invariant 3 ("resolve a Principal, never trust the body") + plan
+   * `mcp-workspace-binding-isolation` ADR D2. When absent (single-tenant / no-auth
+   * dev) the store collapses to the `default` workspace, which has no cross-tenant
+   * IDOR. The `session.userId` below is the WITHIN-workspace user tier — a
+   * different (cosmetic) partition, not the security boundary.
+   *
+   * @see theo-memory#82 — the cross-tenant leak this field closes on the MCP surface.
+   */
+  workspaceId?: string;
+  /**
    * Per-request session payload. Both `undefined` (field absent — e.g.,
    * `template-postgres` fixture with only `{ db }`) AND `null` (session-bearing
    * fixture, unauthenticated request) are valid runtime states the resolver
