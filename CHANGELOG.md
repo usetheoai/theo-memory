@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Native streamable-HTTP MCP transport now binds the per-request user scope from the
+  `X-Theo-User-Id` header** (ADR D3 — the binding deferred at T6.2). Mirrors the SSE
+  transport (which binds `userId` from the URL path) so tool calls resolve a scope via
+  `memoryFromCtx` instead of failing "Scope not bound". The id is sanitized (EC-16: safe
+  charset, bounded length); absent/invalid header → no scope (scope-required tools fail
+  closed). Unblocks the integrated MCP-Gateway path (`/mcp/*` → Theo MCP Gateway → themory)
+  end-to-end: a gateway-injected per-tenant key + this header = a real scoped `tools/call`.
+  The user tier is the only one bound (the only tier `memoryFromCtx` resolves); within a
+  workspace the tiers are organizational, the workspace/tenant is the security boundary.
 - **README — streamable-HTTP over TLS usage (ADR-0015 #3).** Documents `themory mcp
   --transport streamable-http --host 0.0.0.0 --tls-cert/--tls-key` for non-localhost binds
   (both flags required together; localhost stays plain HTTP), and notes the theo-workspace
