@@ -19,8 +19,33 @@ import { join } from 'node:path';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { connectStreamableHttp } from '../transports/streamable-http.js';
+import { connectStreamableHttp, scopeFromHeaders } from '../transports/streamable-http.js';
 import type { McpServer } from '../server.js';
+
+// theo-workspace#10 follow-up / ADR D3 — the deferred per-request scope-binding for
+// the native streamable-HTTP transport. The header binds the userId tier (the only
+// tier memoryFromCtx resolves); EC-16 sanitization is enforced here.
+describe('scopeFromHeaders (native streamable-http scope binding)', () => {
+  it('binds the userId tier from a valid X-Theo-User-Id header', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'alice' })).toEqual({ session: { userId: 'alice' } });
+  });
+  it('returns undefined when the header is absent (fail-closed: tools see no scope)', () => {
+    expect(scopeFromHeaders({})).toBeUndefined();
+  });
+  it('rejects empty / whitespace-only values', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': '   ' })).toBeUndefined();
+    expect(scopeFromHeaders({ 'x-theo-user-id': '' })).toBeUndefined();
+  });
+  it('rejects unsafe characters and oversize ids (EC-16 sanitization)', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'a/../b' })).toBeUndefined();
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'a b' })).toBeUndefined();
+    expect(scopeFromHeaders({ 'x-theo-user-id': 'x'.repeat(201) })).toBeUndefined();
+  });
+  it('accepts the safe id charset (alnum . _ : -) and the first value of an array header', () => {
+    expect(scopeFromHeaders({ 'x-theo-user-id': 't-1:u_2.3-4' })).toEqual({ session: { userId: 't-1:u_2.3-4' } });
+    expect(scopeFromHeaders({ 'x-theo-user-id': ['first', 'second'] })).toEqual({ session: { userId: 'first' } });
+  });
+});
 
 function mockServer(): McpServer {
   return {
