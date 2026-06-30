@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **`docker-publish` referenciava uma versão inexistente do Trivy → "Set up job" falhava sempre.** `aquasecurity/trivy-action@0.24.0` nunca foi uma tag publicada (404 — "unable to find version"); falhava na resolução da action em qualquer runner. Pinado em `v0.36.0` (estável atual; mesmos inputs). (`.github/workflows/docker-publish.yml`)
 - **`docker-publish` não parseava → o workflow inteiro não rodava (nem disparava).** Dois steps usavam `if: ${{ secrets.DOCKERHUB_TOKEN != '' }}`, mas o contexto `secrets` **não é permitido em `if:`** — o GitHub rejeitava o workflow com `Unrecognized named-value: 'secrets'` (HTTP 422 no dispatch; push/tag triggers idem). O token agora é elevado a um `env` de nível job (`DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}`) e os guards usam `env.DOCKERHUB_TOKEN`, que é válido em `if:`. (`.github/workflows/docker-publish.yml`)
 
 ### Security

@@ -110,7 +110,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trivy vulnerability scan (CRITICAL + HIGH gate per EC-43)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0 # 0.24.0 was never a published tag (404); v0.36.0 is the current stable — same inputs (image-ref/format/severity/exit-code/ignore-unfixed/trivyignores)
         with:
           image-ref: themory:scan-target
           format: table
