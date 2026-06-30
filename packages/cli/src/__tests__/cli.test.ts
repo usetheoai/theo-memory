@@ -10,11 +10,13 @@
  * @see EC-7 (plan v1.1) — SIGINT + SIGTERM + env-var hard-fail
  * @see Plan theo-memory-standalone-p0 § T2.1 + EC-27 + EC-28 + EC-29
  */
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Module under test: `runMcpServer` from `@usetheo/memory-mcp`.
 // After MCP extraction (T3.4), this function lives in a separate workspace
@@ -180,6 +182,81 @@ describe('T2.2 — themory mcp option forwarding (post-T3.4 MCP extraction)', ()
     mockRunMcpServer.mockRejectedValueOnce(new Error('Invalid port: 99999 (must be an integer in 1..65535).'));
     const { runMcpServer: rms } = await import('@usetheo/memory-mcp');
     await expect(rms({ transport: 'streamable-http', port: 99_999 })).rejects.toThrow(/port/i);
+  });
+});
+
+describe('ADR-0015 #3 — themory mcp --tls-cert/--tls-key forwarding', () => {
+  let certDir: string;
+  let certPath: string;
+  let keyPath: string;
+
+  beforeAll(() => {
+    certDir = mkdtempSync(join(tmpdir(), 'themory-cli-tls-'));
+    certPath = join(certDir, 'cert.pem');
+    keyPath = join(certDir, 'key.pem');
+    execFileSync('openssl', [
+      'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+      '-keyout', keyPath, '-out', certPath, '-days', '1',
+      '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
+    ], { stdio: 'pipe' });
+  });
+
+  afterAll(() => {
+    rmSync(certDir, { recursive: true, force: true });
+  });
+
+  it('reads cert/key PEM from disk and forwards tls to runMcpServer', async () => {
+    const { buildProgram } = await import('../cli.js');
+    const expectedCert = readFileSync(certPath, 'utf8');
+    const expectedKey = readFileSync(keyPath, 'utf8');
+    await buildProgram().parseAsync([
+      'node', 'themory', 'mcp',
+      '--transport', 'streamable-http', '--host', '0.0.0.0',
+      '--tls-cert', certPath, '--tls-key', keyPath,
+    ]);
+    // Exact-match the forwarded options (the established pattern in this file —
+    // avoids asymmetric matchers that return `any`). Proves the CLI read both
+    // PEM files from disk and forwarded them verbatim under `tls`.
+    expect(mockRunMcpServer).toHaveBeenCalledWith({
+      transport: 'streamable-http',
+      host: '0.0.0.0',
+      tls: { cert: expectedCert, key: expectedKey },
+    });
+  });
+
+  it('rejects when only --tls-cert is supplied (both-or-neither fail-fast)', async () => {
+    const { buildProgram } = await import('../cli.js');
+    await expect(
+      buildProgram().parseAsync([
+        'node', 'themory', 'mcp',
+        '--transport', 'streamable-http', '--host', '0.0.0.0',
+        '--tls-cert', certPath,
+      ]),
+    ).rejects.toThrow(/together/i);
+    expect(mockRunMcpServer).not.toHaveBeenCalled();
+  });
+
+  it('rejects when only --tls-key is supplied (symmetric both-or-neither fail-fast)', async () => {
+    // Mirror of the --tls-cert-alone case: guards the OTHER half of the XOR so a
+    // regression that only checked the cert side cannot slip through.
+    const { buildProgram } = await import('../cli.js');
+    await expect(
+      buildProgram().parseAsync([
+        'node', 'themory', 'mcp',
+        '--transport', 'streamable-http', '--host', '0.0.0.0',
+        '--tls-key', keyPath,
+      ]),
+    ).rejects.toThrow(/together/i);
+    expect(mockRunMcpServer).not.toHaveBeenCalled();
+  });
+
+  it('omits tls when neither flag is supplied (localhost dev path unchanged)', async () => {
+    const { buildProgram } = await import('../cli.js');
+    await buildProgram().parseAsync([
+      'node', 'themory', 'mcp', '--transport', 'stdio',
+    ]);
+    // Exact-match: only `transport` forwarded, no `tls` key (localhost path intact).
+    expect(mockRunMcpServer).toHaveBeenCalledWith({ transport: 'stdio' });
   });
 });
 

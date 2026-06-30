@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.25.0] - 2026-06-30
+
+### Added
+- **Dev TLS for the streamable-http MCP transport (ADR-0015 #3 plumbing).** `themory mcp --transport streamable-http` now accepts `--tls-cert <path>` / `--tls-key <path>`: when both are supplied the listener binds via `https.createServer`, so the MCP server can run on a non-localhost host (e.g. `--host 0.0.0.0`, reached by a containerized client over `host.docker.internal`) while honoring ADR-0015 #3 (HTTPS required for any non-localhost host). Supplying only one of the two flags fails fast (`--tls-cert and --tls-key must be provided together`); supplying neither preserves the unchanged localhost path. The `StreamableHttpOptions.tls` interface that previously only satisfied the guard is now actually wired into the listener. (mcp-gateway-local-compose — theo-traefik-mcp Gateway local-compose enablement)
+
 ## [0.24.0] - 2026-06-28
 
 ### Added

@@ -19,8 +19,10 @@
  * @see .claude/knowledge-base/discoveries/blueprints discover Q5 — stateless mode pattern
  */
 import { randomUUID } from 'node:crypto';
-import { createServer } from 'node:http';
-import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import { createServer as createHttpServer } from 'node:http';
+import type { IncomingMessage, Server as HttpServer, ServerResponse } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import type { Server as HttpsServer } from 'node:https';
 import type { AddressInfo } from 'node:net';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -34,10 +36,9 @@ const LOCALHOST_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 
 /**
  * Per ADR-0015 § Decision #3 — `themory mcp --transport streamable-http
- * --host <non-localhost>` refuses to start without TLS config. We do NOT yet
- * plumb TLS material (cert/key) into the transport surface; non-localhost +
- * no TLS = REFUSE. When TLS plumbing lands (follow-up cycle), this guard
- * accepts the supplied cert/key and skips the throw.
+ * --host <non-localhost>` refuses to start without TLS config. TLS material
+ * (cert/key) is now plumbed into the transport surface: non-localhost + tls =
+ * HTTPS listener; non-localhost + no TLS = REFUSE.
  */
 function assertNonLocalhostHasTls(host: string, hasTls: boolean): void {
   if (LOCALHOST_HOSTS.has(host)) return;
@@ -61,9 +62,10 @@ export interface StreamableHttpOptions {
    */
   readonly bearerAuth?: BearerAuthOptions;
   /**
-   * TLS config marker — when present, the non-localhost guard accepts the
-   * host. Reserved for the follow-up cycle that plumbs cert/key material;
-   * currently any truthy value satisfies the guard (placeholder shape).
+   * TLS material — when present, the listener binds via `https.createServer`
+   * and the non-localhost guard accepts the host. `cert`/`key` are PEM strings
+   * (read from disk by the CLI `--tls-cert`/`--tls-key` flags). Required for any
+   * non-localhost host per ADR-0015 #3.
    */
   readonly tls?: { readonly cert: string; readonly key: string };
 }
@@ -138,9 +140,9 @@ export async function connectStreamableHttp(
     ? withBearerAuth(baseHandler, options.bearerAuth)
     : baseHandler;
 
-  const httpServer: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    // Wrap the gated handler so any synchronous throw inside auth/transport
-    // surfaces as 500 rather than crashing the listener.
+  // Wrap the gated handler so any synchronous throw inside auth/transport
+  // surfaces as 500 rather than crashing the listener.
+  const requestHandler = (req: IncomingMessage, res: ServerResponse): void => {
     Promise.resolve(gatedHandler(req, res)).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       if (!res.headersSent) {
@@ -148,7 +150,15 @@ export async function connectStreamableHttp(
         res.end(`Internal server error: ${message}\n`);
       }
     });
-  });
+  };
+
+  // ADR-0015 #3 — when TLS material is supplied, bind an HTTPS listener so
+  // non-localhost hosts (e.g. 0.0.0.0 reached by a containerized gateway via
+  // host.docker.internal) speak TLS. Without tls, a plain node:http listener
+  // is used (only reached after the localhost guard above).
+  const httpServer: HttpServer | HttpsServer = options.tls
+    ? createHttpsServer({ cert: options.tls.cert, key: options.tls.key }, requestHandler)
+    : createHttpServer(requestHandler);
 
   await new Promise<void>((resolve, reject) => {
     httpServer.once('error', reject);
