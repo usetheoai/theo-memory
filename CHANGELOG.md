@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **README — streamable-HTTP over TLS usage (ADR-0015 #3).** Documents `themory mcp
+  --transport streamable-http --host 0.0.0.0 --tls-cert/--tls-key` for non-localhost binds
+  (both flags required together; localhost stays plain HTTP), and notes the theo-workspace
+  integrated stack runs `themory` from this repo's built `dist/` — so rebuild (`npm run build`)
+  after updating to ≥ v0.25.0. (`README.md` § Agent loops via MCP)
 
 ### Changed
 
