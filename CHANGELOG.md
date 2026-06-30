@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **`docker-publish` não parseava → o workflow inteiro não rodava (nem disparava).** Dois steps usavam `if: ${{ secrets.DOCKERHUB_TOKEN != '' }}`, mas o contexto `secrets` **não é permitido em `if:`** — o GitHub rejeitava o workflow com `Unrecognized named-value: 'secrets'` (HTTP 422 no dispatch; push/tag triggers idem). O token agora é elevado a um `env` de nível job (`DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}`) e os guards usam `env.DOCKERHUB_TOKEN`, que é válido em `if:`. (`.github/workflows/docker-publish.yml`)
 
 ### Security
 
