@@ -161,8 +161,13 @@ export function withBearerAuth(
             let principal: Principal | null;
             try {
               principal = await opts.apiKey.resolvePrincipal(token);
-            } catch {
-              // Auth backend down → fail closed (503), NEVER unbound (#82).
+            } catch (err) {
+              // Auth backend down → fail closed (503), NEVER unbound (#82). Log the
+              // cause for diagnosis (error-handling.md — never swallow); the client
+              // gets a generic message (CWE-209), the operator gets the detail.
+              logWarn('resolve_principal_failed', {
+                reason: err instanceof Error ? err.message : String(err),
+              });
               send503(res, 'Authentication backend unavailable.');
               return;
             }
