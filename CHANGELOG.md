@@ -29,6 +29,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+- **MCP tool surface now enforces per-tenant workspace isolation — closes a cross-tenant
+  data leak (theo-memory#82).** The `themory mcp` server authenticated an API key as a
+  boolean and served a single shared, workspace-UNBOUND `Memory` to every request, so any
+  valid key could read/write ANY workspace's data (the MCP twin of the gap #77 closed for
+  REST). The bearer gate now resolves a `Principal` from the key and binds
+  `Memory.withWorkspace(workspaceId)` at every tool memory-access site (the new
+  `workspaceScopedMemory` seam), fed by an auth-trusted `ScopedContext.workspaceId` (never a
+  client header). Fail-closed: a key resolving no/blank workspace → 401; a Memory that cannot
+  bind the workspace → typed error, never unbound. Scoped to the api-keys streamable-HTTP path
+  (the gateway-fronted path #82 exploited); OIDC/SSE multi-tenant workspace mapping tracked as
+  a follow-up. (#82)
 
 ## [0.25.0] - 2026-06-30
 
