@@ -83,11 +83,15 @@ live gap is an environment/dev-script issue, not a code gap. Tracked as an env f
   not a workspace) and the SSE/openmemory direct transport (no bearerAuth wired, not
   gateway-fronted) are out of scope; a follow-up tracks them.
 
-## In-implementation refinement (honest disclosure)
-The plan's T2.1 EC-2 said "verify-only verifier on the api-keys path → reject". The
-implementation instead mirrors the **REST precedent** (`middleware.ts:116`): prefer
-`resolvePrincipal`; a verify-only verifier yields single-tenant semantics (delegates with
-no workspace → default workspace), because the gateway/Model B path always uses
-`ApiKeyAuthVerifier` (which HAS `resolvePrincipal`) — so #82's exploit path always takes
-the resolve+bind branch. This preserves the existing verify-only single-tenant tests and
-is more backward-compatible than an unconditional reject, while closing #82.
+## Review finding closed (F-arch-1, HIGH → resolved)
+The `/review` architecture agent flagged that an interim implementation let a verify-only
+verifier on the api-keys path DELEGATE (single-tenant passthrough) instead of REJECT, which
+diverged from the plan's ADR D3a / EC-2 without an amending ADR or a test. **Resolved in
+`<commit>`**: the api-keys path now FAILS CLOSED — a verify-only verifier (no
+`resolvePrincipal`) is rejected with 401 ("Verifier cannot resolve a workspace"), never
+serving the default/all-workspace memory. This restores plan conformance (Coverage Matrix
+row "verify-only verifier rejected" is now true) and adds a dedicated negative-case test
+(`streamable-http-auth.test.ts` test 2b). The shipped `ApiKeyAuthVerifier` always provides
+`resolvePrincipal`, so production keys take the resolve+bind branch; only a misconfigured
+custom verify-only verifier is rejected — the secure, fail-closed-by-default choice for a
+tenant-isolation fix.

@@ -187,17 +187,17 @@ export function withBearerAuth(
             await delegate(req, res);
             return;
           }
-          // Verify-only verifier (no resolvePrincipal): single-tenant semantics —
-          // a valid key delegates WITHOUT a workspace (→ default workspace at the
-          // store, no cross-tenant IDOR with one workspace). Multi-tenant isolation
-          // REQUIRES a resolvePrincipal-capable verifier (ApiKeyAuthVerifier), which
-          // is what the gateway/Model B path uses — so #82's exploit path always
-          // takes the resolve+bind branch above. Mirrors REST's non-requireCredential
-          // mode (middleware.ts:116-117).
-          if (await opts.apiKey.verify(token)) {
-            await delegate(req, res);
-            return;
-          }
+          // EC-2 (fail-closed, plan ADR D3a): the api-keys (multi-tenant) path REQUIRES
+          // a resolvePrincipal-capable verifier so the tenant workspace is resolved +
+          // bound. A verify-only verifier cannot isolate tenants → REJECT; never serve
+          // the default/all-workspace memory (that is the #82 leak class). The shipped
+          // ApiKeyAuthVerifier always provides resolvePrincipal, so this only rejects a
+          // misconfigured custom verify-only verifier on the api-keys path.
+          send401(
+            res, realm, resourceMetadataPath, 'invalid_token',
+            'Verifier cannot resolve a workspace (fail-closed).',
+          );
+          return;
         }
         send401(res, realm, resourceMetadataPath, 'invalid_token', 'API key not recognized.');
         return;
