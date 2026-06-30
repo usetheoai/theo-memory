@@ -26,6 +26,7 @@ import { MissingScopeError } from '@usetheo/memory/contract';
 import type { Memory, MemoryItem } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
+import { workspaceScopedMemory } from '../tools/workspace-scoped-memory.js';
 
 import { MAX_CONTENT_BYTES, MAX_QUERY_BYTES } from '../tools/constants.js';
 import { emitToolSchema } from '../tools/schema-emit.js';
@@ -89,7 +90,7 @@ type Deps = { memoryFactory: () => Memory };
 
 export async function addMemoriesHandler(args: unknown, deps: Deps): Promise<CallToolResult> {
   const parsed = AddMemoriesInput.parse(args);
-  const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
   const opts = parsed.infer !== undefined ? { infer: parsed.infer } : undefined;
   const items = await scoped.remember(parsed.text, opts);
   return jsonResult({ added: items.length, ids: items.map((i) => i.id) });
@@ -97,7 +98,7 @@ export async function addMemoriesHandler(args: unknown, deps: Deps): Promise<Cal
 
 export async function searchMemoryHandler(args: unknown, deps: Deps): Promise<CallToolResult> {
   const parsed = SearchMemoryInput.parse(args);
-  const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
   const hits = await scoped.recall(parsed.query);
   return jsonResult(
     hits.map((h) => ({ id: h.id, memory: h.text, score: h.score, created_at: h.createdAt.toISOString() })),
@@ -106,7 +107,7 @@ export async function searchMemoryHandler(args: unknown, deps: Deps): Promise<Ca
 
 export async function listMemoriesHandler(_args: unknown, deps: Deps): Promise<CallToolResult> {
   ListMemoriesInput.parse(_args ?? {});
-  const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
   const all = await scoped.getAll();
   return jsonResult(all.map((m) => ({ id: m.id, memory: m.text, created_at: m.createdAt.toISOString() })));
 }
@@ -135,7 +136,7 @@ function ownedByUser(item: MemoryItem, userId: string): boolean {
 export async function deleteMemoriesHandler(args: unknown, deps: Deps): Promise<CallToolResult> {
   const parsed = DeleteMemoriesInput.parse(args);
   const userId = requireUserId();
-  const memory = deps.memoryFactory();
+  const memory = workspaceScopedMemory(deps.memoryFactory());
   const deleted: string[] = [];
   for (const id of parsed.memory_ids) {
     // Per-user isolation (the load-bearing IDOR guard on the multi-user SSE path):

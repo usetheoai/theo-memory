@@ -14,6 +14,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { Memory, SkillExecutionOptions } from '@usetheo/memory/contract';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 import {
   MemoryNotFound,
   SkillExecutionNotConfiguredError,
@@ -34,7 +35,7 @@ export async function executeSkillHandler(
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
-  const scoped = deps.memoryFactory().skills(parsed.repoId);
+  const scoped = workspaceScopedMemory(deps.memoryFactory()).skills(parsed.repoId);
 
   try {
     const result = await scoped.execute(

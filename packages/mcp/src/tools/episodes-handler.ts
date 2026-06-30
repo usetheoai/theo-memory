@@ -16,6 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { EpisodeListOptions, Memory, MemoryItem } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './episodes-schema.js';
 
@@ -47,7 +48,7 @@ export async function episodesHandler(
   if (parsed.queryText !== undefined) options.queryText = parsed.queryText;
   if (parsed.asOf !== undefined) options.asOf = new Date(parsed.asOf);
 
-  const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
   const page =
     Object.keys(options).length > 0 ? await scoped.episodes(options) : await scoped.episodes();
 
