@@ -1,0 +1,27 @@
+# Image publish — thin caller of the org-standard reusable build-publish (in `theo`).
+# preview: push to develop → ghcr.io/usetheodev/themory:develop (+ :develop-<sha>)
+# release: tag v*        → :X.Y.Z + :X.Y + :latest, SBOM+SLSA mode=max + keyless cosign sign+verify
+# The Trivy CRITICAL/HIGH gate (with this repo's .trivyignore) runs before every push.
+name: publish
+on:
+  push:
+    branches: [develop]
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+  id-token: write   # keyless cosign via GitHub OIDC (release only)
+jobs:
+  image:
+    uses: usetheodev/theo/.github/workflows/build-publish.yml@develop
+    with:
+      image: themory
+      dockerfile: ./Dockerfile
+      context: .
+      trivy: true
+      dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
+      sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      runner: '["self-hosted","linux","x64"]'   # GitHub-hosted minutes are billing-blocked
+    secrets: inherit
