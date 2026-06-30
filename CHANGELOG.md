@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **README — `## CI/CD` section** documenting `docker-publish.yml`: the preview/release/dispatch triggers, the published image refs, and the Trivy CRITICAL/HIGH gate + `.trivyignore` sunset discipline, all on the self-hosted runner. (`README.md`)
 
 ### Changed
+- **`docker-publish.yml` → `publish.yml`, convergido no reutilizável `theo/build-publish.yml`.** Elimina o build+scan próprio: agora chama o pipeline org-padrão (SHA-pinned actions, Trivy CRITICAL/HIGH gate com este `.trivyignore`, e nas tags ganha SBOM+SLSA mode=max + **cosign keyless sign+verify** — signing que o `themory` não tinha). Preview agora em `develop` (`:develop`), alinhado ao trunk da org. (`.github/workflows/publish.yml`)
 
 ### Deprecated
 
