@@ -17,6 +17,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Memory } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './reflect-schema.js';
 
@@ -27,7 +28,7 @@ export async function reflectHandler(
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   INPUT_SCHEMA.parse(args); // strict empty object validation (EC-11)
-  const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
   const result = await scoped.reflect();
   return {
     content: [
