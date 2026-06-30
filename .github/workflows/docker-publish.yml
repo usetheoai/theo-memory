@@ -39,7 +39,7 @@ env:
 jobs:
   build-and-publish:
     name: Build, scan, publish
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64] # GitHub-hosted minutes are billing-blocked — the theo-ci-theo-memory runner on the theo-ci-runner droplet (docker + buildx present; trivy comes from aquasecurity/trivy-action). See theo-data/CI-RUNNER-VM-GUIDE.md.
     permissions:
       contents: read
       packages: write
