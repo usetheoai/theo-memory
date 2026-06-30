@@ -179,7 +179,10 @@ export function withBearerAuth(
             // malformed — reject. NEVER let it reach workspaceScopedMemory's
             // single-tenant passthrough, which would serve UNBOUND/all-workspace
             // data = #82 re-opened through a different door.
-            if (principal.workspaceId.trim() === '') {
+            // `?? ''` defends against a verifier that escapes the type system and
+            // returns a malformed Principal (workspaceId undefined): treat as blank →
+            // 401 (EC-1), never a 500 from `.trim()` on undefined (F-sec-4).
+            if ((principal.workspaceId ?? '').trim() === '') {
               send401(res, realm, resourceMetadataPath, 'invalid_token', 'Resolved principal has no workspace.');
               return;
             }
