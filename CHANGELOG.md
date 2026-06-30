@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **README — `## CI/CD` section** documenting `docker-publish.yml`: the preview/release/dispatch triggers, the published image refs, and the Trivy CRITICAL/HIGH gate + `.trivyignore` sunset discipline, all on the self-hosted runner. (`README.md`)
 
 ### Changed
 
