@@ -1,0 +1,179 @@
+agent: review-mcp-workspace-binding-isolation-architecture
+review_target: cd9b284..HEAD (slice 1c69f6d..e31967c) for plan mcp-workspace-binding-isolation
+plan: .claude/knowledge-base/plans/mcp-workspace-binding-isolation-plan.md
+scope_note: >-
+  Reviewed the focused feature slice (6 commits) not the full main..HEAD packages
+  restructure. Architecture lens: SOLID/DIP per rules/architecture.md, the
+  workspaceScopedMemory seam placement, DRY at the 12 binding sites, the
+  auth-trusted workspace flow (ADR D2), fail-closed contract (ADR D3), file-size
+  budgets, and domain-interface (no-concrete) compliance.
+
+findings:
+  - id: F-arch-1
+    severity: HIGH
+    file: packages/mcp/src/auth/with-bearer-auth.ts
+    line: 190-199
+    plan_ref: ADR D3(a) + T2.1 (pseudo-code + RED "verify-only verifier on api-keys path -> 401, no delegate") + Coverage Matrix row "Fail-closed: verify-only verifier rejected (blueprint EC-2) | T2.1, D3"
+    summary: >-
+      Verify-only verifier on the api-keys path DELEGATES (single-tenant
+      passthrough to the default workspace) instead of REJECTING with 401 as the
+      plan's locked ADR D3 mandates — an unreconciled divergence from a security
+      ADR, with no amending ADR and no test for either behavior.
+    evidence: |
+      Plan ADR D3(a): "a verify-only verifier (no resolvePrincipal) -> reject (no
+      DEFAULT_PRINCIPAL collapse), mirroring middleware.ts:116." Plan T2.1
+      pseudo-code: `send401(...'verifier cannot resolve workspace (fail-closed)')`.
+      Implementation does the opposite:
+      ```ts
+      // Verify-only verifier (no resolvePrincipal): single-tenant semantics —
+      // a valid key delegates WITHOUT a workspace (-> default workspace at the store...).
+      if (await opts.apiKey.verify(token)) {
+        await delegate(req, res);
+        return;
+      }
+      ```
+      The change carries a defensible inline rationale (the production Model B
+      gateway always wires a resolvePrincipal-capable ApiKeyAuthVerifier, so #82's
+      exploit path always takes the resolve+bind branch at :158-187; a single
+      workspace has no cross-tenant IDOR). Honest read: this is NOT exploitable in
+      the shipped gateway configuration. BUT (a) it contradicts a LOCKED security
+      ADR (D3) without an amending ADR — per cycle-implement anti-pattern "editing
+      the plan during implementation"; (b) it falsifies the Coverage Matrix line
+      that claims the verify-only-reject case is covered; (c) the plan-mandated
+      T2.1 RED negative-case test ("verify-only verifier on api-keys path -> 401,
+      no delegate") is ABSENT — grep of streamable-http-auth.test.ts shows
+      success/null-401/blank-401/throws-503/concurrency, but no verify-only case;
+      so the divergent branch ships with zero test coverage in either direction.
+      It also softens CLAUDE.md data-plane invariant 5 (fail closed) on this path.
+    recommended_action: >-
+      Reconcile the contradiction one of two ways: (1) restore the plan's behavior
+      — reject the verify-only branch on the theo_live_* api-keys path with 401
+      (send401 'verifier cannot resolve workspace'), matching ADR D3/T2.1; OR (2)
+      keep the single-tenant passthrough but write an amending ADR (D3') in the
+      plan documenting the relaxation + its production-safety argument, correct the
+      Coverage Matrix row, and ADD a test asserting the chosen behavior. Either
+      way the verify-only api-keys branch MUST have an explicit test.
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/mcp/src/tools/workspace-scoped-memory.ts
+    line: 31-41
+    plan_ref: ADR D1 (single seam) + D3/EC-1 (fail-closed) + Baseline Context "Architecture boundaries affected" (DIP)
+    summary: >-
+      No issues found. The workspaceScopedMemory seam is DIP-clean and is the
+      correct DRY single-binding point — exactly the design ADR D1 specifies.
+    evidence: |
+      Imports only abstractions: `Memory` type from @usetheo/memory/contract and
+      `getScope` from @usetheo/memory-agent-core — no reach into any concrete
+      store (rules/architecture.md § 2 satisfied). Lives in the MCP tools layer
+      (interface/composition), not in core. Fail-closed branch throws a typed,
+      contextual Error when withWorkspace is undefined (never the REST optional-
+      chaining passthrough), honoring rules/error-handling.md fail-fast. 42 LoC,
+      single responsibility (SRP). `Memory.withWorkspace` returns `Memory`, so the
+      `.skills(repoId)` chaining at the direct sites type-checks against the
+      contract (verified at memory-store.ts:146,157).
+
+  - id: F-arch-3
+    severity: INFO
+    file: packages/mcp/src/auth/request-workspace.ts
+    line: 1-25
+    plan_ref: ADR D2 (auth-trusted, never client-supplied) + Drawbacks risk "ALS scope bleed"
+    summary: >-
+      No issues found. Symbol-keyed per-request workspace attachment is a sound
+      trust boundary with no shared mutable state.
+    evidence: |
+      Carries the workspace on a module-private `Symbol('themory.request.workspaceId')`
+      property of the per-request node:http IncomingMessage — a fresh object per
+      request, so no cross-request bleed (addresses Drawbacks risk #1 at the
+      transport edge). The Symbol cannot collide with any client-controlled
+      header/field (D2 trust boundary). Type cast uses an intersection
+      (`IncomingMessage & { [WORKSPACE_KEY]?: string }`), not `any` — type-safe.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/mcp/src/transports/streamable-http.ts
+    line: 69-86,185-192
+    plan_ref: T2.2 (transport threads auth-trusted workspace) + ADR D2
+    summary: >-
+      No issues found. scopeFromRequest threads the auth-attached workspace plus
+      the header userId; the D2 trust boundary holds and the new workspace-only
+      ctx shape fails closed safely.
+    evidence: |
+      `scopeFromRequest` merges `workspaceFromRequest(req)` (auth attachment) with
+      `scopeFromHeaders(req.headers)` (only reads x-theo-user-id, line 64). Since
+      scopeFromHeaders returns only `{ session: { userId } }`, no client header can
+      inject or clobber `workspaceId` (D2 satisfied). New shape note (safe, not a
+      defect): an authenticated request that omits X-Theo-User-Id now yields a
+      `{ workspaceId }`-only ctx; the memoryFromCtx-based verbs then throw
+      MissingScopeError (theokit/index.ts:57-69) — fail-closed, never default-
+      workspace passthrough. scopeFromHeaders stays exported because scopeFromRequest
+      and the unit tests reuse it (not dead).
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/mcp/src/openmemory/tools.ts
+    line: 90,98,107,138
+    plan_ref: ADR D1 (apply seam at openmemory sites) + ADR D4 (openmemory bound even though SSE auth deferred)
+    summary: >-
+      No issues found. The seam wraps all four OpenMemory sites and composes
+      correctly with the pre-existing per-user IDOR guard.
+    evidence: |
+      add/search/list wrap `memoryFromCtx(getScope(), workspaceScopedMemory(...))`;
+      delete wraps `workspaceScopedMemory(deps.memoryFactory())` BEFORE the per-id
+      `ownedByUser` ownership check (#26 IDOR guard preserved at :140-148) — so
+      both get(id) and forget(id) are workspace-scoped AND user-owned. Per D4 the
+      SSE path attaches no workspace today, so the seam is a forward-compatible
+      passthrough there. Cross-dir import (openmemory -> tools) is the intended
+      shared-seam reuse, not improper coupling.
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/mcp/src/tools/recall-handler.ts,remember-handler.ts,reflect-handler.ts,episodes-handler.ts,forget-handler.ts,add-skill-handler.ts,execute-skill-handler.ts,forget-skill-handler.ts
+    line: recall:40 remember:40 reflect:31 episodes:51 forget:64 add-skill:27 execute-skill:38 forget-skill:25
+    plan_ref: T3.1 (wrap all 12 sites) + ADR D1 (DRY single seam)
+    summary: >-
+      No issues found across the 8 native handler sites. Each applies the identical
+      one-line seam — the DRY win ADR D1 intended; no handler re-implements
+      fail-closed logic.
+    evidence: |
+      memoryFromCtx sites: `memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()))`.
+      Direct sites: `workspaceScopedMemory(deps.memoryFactory()).forget(id)` /
+      `.skills(repoId)`. Handler signatures unchanged (dispatch table untouched —
+      OCP-respecting). forget-handler retains its getScope() gate (anonymous bulk-
+      delete still blocked). Uniform binding == one knowledge representation (DRY).
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/domain/scope.ts
+    line: 68-78
+    plan_ref: T1.1 (additive workspaceId? on ScopedContext) + ADR D2
+    summary: >-
+      No issues found. The `workspaceId?` field is additive, optional, and
+      thoroughly documents the auth-trusted invariant.
+    evidence: |
+      Optional field keeps the 4 existing consumers (memoryFromCtx, scopeFromHeaders,
+      SSE, theokit) compiling unchanged (additive-only, per Baseline Context). JSDoc
+      explicitly states AUTH-TRUSTED, never client-supplied (D2), and cites
+      theo-memory#82 — junior-implementer-safe. File 202 LoC, within the 500 budget.
+
+severity_counts:
+  BLOCKER: 0
+  HIGH: 1
+  MEDIUM: 0
+  LOW: 0
+  INFO: 6
+
+architecture_summary: >-
+  The slice is architecturally sound: the workspaceScopedMemory seam is a clean,
+  DIP-respecting, DRY single binding point composed of domain interfaces
+  (Memory.withWorkspace, getScope) with a strong fail-closed contract, applied
+  uniformly at all 12 tool memory-access sites; the auth-trusted workspace flow
+  (Symbol-keyed per-request attachment + scopeFromRequest) correctly enforces the
+  D2 trust boundary so no client header can set the tenant. All touched files are
+  within the 500-LoC budget, no `any` in new code, all referenced symbols resolve
+  (no fabrication). The single HIGH (F-arch-1) is a plan/ADR-fidelity defect, not
+  an exploit on the production Model B path: the verify-only api-keys branch
+  delegates (single-tenant default-workspace passthrough) where locked ADR D3 and
+  the T2.1 acceptance criterion mandate a 401 reject, and that branch ships with no
+  test in either direction. Reconcile by restoring the reject OR amending ADR D3 +
+  adding an explicit test and correcting the Coverage Matrix.

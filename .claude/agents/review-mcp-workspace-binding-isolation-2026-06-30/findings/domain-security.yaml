@@ -1,0 +1,154 @@
+agent: review-mcp-workspace-binding-isolation-domain-security
+review_target: main..HEAD for plan mcp-workspace-binding-isolation (theo-memory#82, CWE-441 / IDOR / tenant isolation)
+domain: security
+domain_specific_patterns_checked:
+  - "CWE-441 both-halves (edge strips key + service enforces per-tenant scope)"
+  - "workspace_id == tenant_id outer anchor bound at every memory-op site"
+  - "Principal resolved from credential, never trusted from body/header (theo-data invariant 3 / ADR D2)"
+  - "fail-closed completeness (resolvePrincipal null/blank -> 401, backend throw -> 503, verify-only -> 401)"
+  - "workspaceScopedMemory single-tenant passthrough unreachable on the api-keys path"
+  - "openmemory delete IDOR per-user guard preserved + workspace-bound"
+  - "no secret/token logging on the new resolve_principal_failed warn path"
+  - "prove isolation through the REAL edge (theo-data invariant 6)"
+
+verdict_summary: >
+  At the CODE level the cross-tenant leak #82 is CLOSED on the api-keys streamable-HTTP path
+  the gateway exploits, with no residual bypass: all 12 memory-op sites are workspace-bound via
+  the single workspaceScopedMemory seam (grep confirms zero bare deps.memoryFactory() at a
+  memory op), the workspace is sourced ONLY from the auth-resolved Principal (symbol-keyed
+  request property, never a client header), and every fail-closed branch (null/blank
+  workspace -> 401, backend throw -> 503, verify-only verifier -> 401) is present and tested.
+  An integration test proves cross-tenant recall=0 + cross-workspace forget-safe through real
+  pgvector exercising the exact dispatch->withWorkspace path. Residual items are all OUT of
+  #82's gateway reach (OIDC/SSE), but two deserve honest flagging: the OIDC/auth=both branch
+  is NOT fail-closed (silently serves the default workspace), and the load-bearing LIVE
+  edge-isolation proof (invariant 6) was not completed (the named evidence file is missing).
+
+findings:
+  - id: F-sec-1
+    severity: MEDIUM
+    file: packages/mcp/src/auth/with-bearer-auth.ts
+    line: 213
+    plan_ref: ADR D4 — OIDC workspace mapping deferred
+    domain_anchor: "theo-data CLAUDE.md invariant 5 (fail closed) + invariant 3 (resolve a Principal)"
+    summary: >
+      OIDC / auth=both branch delegates WITHOUT binding a workspace -> every OIDC-authenticated
+      request collapses to the `default` workspace, NOT fail-closed. In a multi-tenant OIDC
+      deployment this is a silent cross-tenant read (every tenant reads the default bucket).
+    evidence: |
+      Path B (line 213-217):
+        if (opts.oidc && (await opts.oidc.verify(token))) {
+          await delegate(req, res);   // <-- no attachWorkspace(...) call
+          return;
+        }
+      Downstream, scopeFromRequest (streamable-http.ts:77-85) finds no auth-attached workspace,
+      so getScope().workspaceId is undefined and workspaceScopedMemory passes the UNBOUND memory
+      through (workspace-scoped-memory.ts:33). resolveBearerAuth wires a real OidcAuthVerifier in
+      both `oidc` and `both` modes (run-mcp-server.ts:393-405), so this branch is live, not dead.
+      HONEST GATEWAY-REACH ASSESSMENT: the Model B gateway mints `theo_live_*` api-keys, never
+      OIDC bearers, so this is OUT of #82's gateway reach — but it is a real residual hole for a
+      direct `--auth=oidc|both` multi-tenant deployment, and unlike the api-keys path it does not
+      fail closed. Deferral is documented (CHANGELOG Security; implementation summary § Scope
+      deferrals) so this is an acknowledged-but-not-yet-mitigated gap, not a hidden one.
+    recommended_action: >
+      Until OIDC->workspace mapping ships, fail closed on the OIDC path rather than serve the
+      default workspace: either reject auth=oidc|both at startup as unsupported-for-multi-tenant,
+      or per-request 401/403 when an OIDC token resolves no workspace (mirror the EC-1 blank-
+      workspace 401). At minimum, file the D4 follow-up issue and ensure it explicitly names
+      "OIDC / auth=both multi-tenant workspace resolution" as unsupported-until-implemented
+      (plan EC-4 DOCUMENT obligation).
+
+  - id: F-sec-2
+    severity: MEDIUM
+    file: .claude/knowledge-base/implementations/mcp-workspace-binding-isolation-implementation.md
+    line: 70
+    plan_ref: T4.2 / theo-data invariant 6 — prove isolation through the REAL edge
+    domain_anchor: "theo-data CLAUDE.md: a capability is NOT done until invariants 1, 4 and 6 are present (#113 e2e pattern)"
+    summary: >
+      The LIVE gateway cross-tenant probe (A's key -> B's canary -> 0 results WITH B's data
+      present + B>=1 control, end-to-end through the real edge) was NOT completed, and the
+      plan-specified evidence file is missing. The authority proof for CWE-441 closure
+      (invariant 6) is therefore partial.
+    evidence: |
+      Implementation summary § "Honest limitation (Rule 3)" (lines 70-79): the clean live
+      cross-tenant recall was "blocked by a dev bring-up mis-alignment unrelated to #82"
+      (dev/memory-up.sh container-localhost vs host pg + embedder-dim drift). Only live
+      fail-closed 401 + a live 503 + a live B-canary write were captured — NOT the
+      cross-tenant=0 assertion. The plan T4.2 acceptance criterion ("Live GW-ISO: A's key ->
+      B's canary -> 0 results (deny)") and DoD ("Evidence file written with the live
+      transcript") are unmet: `.claude/knowledge-base/dogfood/evidence/2026-06-30-mcp-iso-fix-e2e.md`
+      does NOT exist (verified by ls). The integration test (workspace-isolation.test.ts) proves
+      the identical code path against real pgvector, so the isolation PROPERTY is established —
+      this is an evidence/verification-completeness gap, not a known code leak.
+    recommended_action: >
+      Fix the dev bring-up alignment (point the host MCP listener and the canary-write at the
+      same pg the gateway path reads) and re-run the live GW-ISO probe to capture A-side=0 with
+      B-data-present + B-control>=1, then write the named evidence file. Treat invariant 6 as
+      open until that transcript exists; do not let "the integration test covers it" substitute
+      for the real-edge proof the CLAUDE.md contract requires.
+
+  - id: F-sec-3
+    severity: LOW
+    file: packages/mcp/src/run-mcp-server.ts
+    line: 295
+    plan_ref: ADR D4 — SSE/openmemory deferral
+    domain_anchor: "theo-data invariant 2 (workspace_id == tenant_id) + ADR D4 (SSE not gateway-fronted)"
+    summary: >
+      The OpenMemory SSE compat path (connectSse) mounts NO bearerAuth and never attaches a
+      workspace, so the workspaceScopedMemory wrapping added to the four openmemory handlers is
+      effectively a no-op there (always passthrough to the default workspace). Multi-tenant
+      isolation is absent on this transport; only the pre-existing per-user IDOR guard applies.
+    evidence: |
+      run-mcp-server.ts:295 connectSse({ host, port, serverFactory }) — no bearerAuth param
+      exists on the SSE transport. openmemory/tools.ts now calls workspaceScopedMemory at
+      :93/:101/:110/:139, but with no auth-attached workspace getScope().workspaceId is
+      undefined -> passthrough (workspace-scoped-memory.ts:33). HONEST REACH ASSESSMENT: SSE is
+      the direct-localhost dev path (default port 8765, no TLS guard, not gateway-fronted) and
+      is explicitly out of #82's repro per ADR D4 — so this is genuinely out of reach for the
+      gateway leak. Flagged for completeness: anyone exposing the SSE compat port to multiple
+      tenants would have NO workspace isolation. The delete IDOR per-user guard
+      (openmemory/tools.ts:136-159) IS correctly preserved.
+    recommended_action: >
+      Keep the documented deferral; ensure the SSE/openmemory multi-tenant hardening follow-up
+      is filed and that operator docs state the OpenMemory SSE compat surface is single-
+      workspace (per-user only) — not safe to expose to multiple tenants until bearerAuth +
+      workspace binding are wired.
+
+  - id: F-sec-4
+    severity: INFO
+    file: packages/mcp/src/auth/with-bearer-auth.ts
+    line: 182
+    plan_ref: T2.1 / EC-1 — blank workspaceId rejected
+    domain_anchor: "rules/error-handling.md § fail-fast"
+    summary: >
+      The blank-workspace guard reads principal.workspaceId.trim() OUTSIDE the resolvePrincipal
+      try/catch. The Principal type guarantees workspaceId: string, but a malformed verifier
+      returning a Principal with an undefined workspaceId would throw a TypeError that surfaces
+      as a generic 500 (via the outer requestHandler catch) rather than the intended 401.
+    evidence: |
+      Line 182: `if (principal.workspaceId.trim() === '')` — not wrapped; the surrounding
+      try/catch (line 162-173) only covers the `await opts.apiKey.resolvePrincipal(token)` call.
+      Still fail-CLOSED (500 short-circuits, never reaches the workspaceScopedMemory passthrough),
+      so this is not a leak — only a less-precise status code on a contract-violating verifier.
+    recommended_action: >
+      Optional hardening: treat a missing/blank workspaceId uniformly as a 401 by null-checking
+      before .trim() (e.g. `if (!principal.workspaceId || principal.workspaceId.trim() === '')`),
+      keeping the malformed-principal case on the fail-closed 401 path rather than a 500.
+
+  - id: F-sec-5
+    severity: INFO
+    file: packages/mcp/src/auth/with-bearer-auth.ts
+    line: 168
+    plan_ref: T2.1 — resolve_principal_failed logging (error-handling.md, never swallow)
+    domain_anchor: "Issues rule: NUNCA incluir secrets/tokens nos logs"
+    summary: >
+      POSITIVE FINDING — verified no secret/token leakage in the new logging. The
+      resolve_principal_failed warn logs only err.message; the prefix_collision_detected warn
+      logs only token.slice(0,10) which is the public `theo_live_` prefix, never key material.
+      The 503/401 client responses are generic (CWE-209 honored); the cause stays operator-side.
+    evidence: |
+      Lines 168-172 (resolve_principal_failed): logs { reason: err.message } only — no token.
+      Lines 206-209 (prefix_collision_detected): logs { tokenPrefix: token.slice(0,10) } = the
+      10-char "theo_live_" prefix; the 40+ secret chars are NOT logged. send401/send503 bodies
+      carry only a generic message. No raw credential reaches any log sink.
+    recommended_action: "No action — confirms the no-secret-in-logs invariant holds."

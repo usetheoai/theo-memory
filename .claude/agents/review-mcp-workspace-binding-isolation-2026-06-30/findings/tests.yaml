@@ -1,0 +1,194 @@
+agent: review-mcp-workspace-binding-isolation-tests
+review_target: main..HEAD for plan mcp-workspace-binding-isolation (closes theo-memory#82)
+plan: .claude/knowledge-base/plans/mcp-workspace-binding-isolation-plan.md
+assessment_date: 2026-06-30
+overall: >
+  The #82 isolation behavior is ADEQUATELY protected. Every previously-flagged
+  fix is PRESENT at HEAD: fail-closed (blank workspace -> 401, withWorkspace-absent
+  -> throw, backend-down -> 503, verify-only -> 401), the ALS no-bleed concurrency
+  test (interleaved tn-A/tn-B), the graceful fail-closed throw surfaced as McpError,
+  and the integration positive+negative controls (B sees its own, A sees 0; cross-
+  workspace forget does not delete B's row). Production grep confirms ALL 12 memory-
+  access sites are wrapped (zero bare memoryFactory() at a memory-op site). Remaining
+  gaps are about test BREADTH/regression-durability, not a hole in the shipped fix.
+
+test_pyramid:
+  unit_added_for_82: 20      # 5 workspace-scoped + 6 bearer(#82) + 4 scopeFromRequest + 5 handlers-isolation
+  integration_added_for_82: 2  # tests/integration/mcp/workspace-isolation.test.ts (env-gated on THEOMEM_PG_URI)
+  e2e_added_for_82: 0          # T4.2 is an evidence-based live gateway probe, not a committed test file (by design)
+  balance: healthy (unit-heavy base, 1 real-pgvector GOAL TEST, no inverted pyramid)
+
+plan_mandated_tests_present:
+  fail_closed_blank_workspace_401: present  # streamable-http-auth.test.ts:107 (EC-1)
+  fail_closed_withWorkspace_absent_throw: present  # workspace-scoped-memory.test.ts:57
+  fail_closed_backend_down_503: present  # streamable-http-auth.test.ts:121 (beyond plan; good)
+  fail_closed_verify_only_401: present  # streamable-http-auth.test.ts:252 (EC-2)
+  als_no_bleed_concurrency: present  # handlers.test.ts:455 (interleaved tn-A/tn-B, happens-before)
+  graceful_fail_closed_throw_McpError: present  # handlers.test.ts:488
+  integration_positive_negative_controls: present  # workspace-isolation.test.ts:77 (B sees own, A sees 0)
+  cross_workspace_forget_safe: present  # workspace-isolation.test.ts:96
+  bearer_concurrent_per_req_isolation: present  # streamable-http-auth.test.ts:133
+  client_workspace_header_ignored: present  # streamable-http.test.ts:43 (ADR D2)
+  missing_scope_precondition: present  # workspace-scoped-memory.test.ts:69
+  empty_whitespace_workspace_passthrough: present  # workspace-scoped-memory.test.ts:44 (edge/boundary)
+
+edge_cases_from_plan:
+  covered:
+    - "blank workspaceId from resolvePrincipal (EC-1 negative)"
+    - "verify-only verifier on api-keys path (EC-2 negative)"
+    - "withWorkspace-absent fail-closed throw (EC-1 negative)"
+    - "empty/whitespace workspaceId boundary (edge -> passthrough)"
+    - "client X-Workspace-Id header ignored (D2 negative)"
+    - "ALS concurrent bleed (HIGH risk #1)"
+    - "resolvePrincipal backend failure -> 503 (failure scenario)"
+  missing_or_thin:
+    - "openmemory delete_memories DIRECT site workspace-binding (plan T3.1 RED named it)"
+    - "per-verb isolation for reflect/remember/episodes/execute_skill/forget_skill"
+    - "automated guard for 'no bare memoryFactory() at memory-op sites' (plan T3.1 acceptance grep)"
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: packages/mcp/src/tools/handlers.test.ts
+    line: 396
+    plan_ref: T3.1 Acceptance Criteria — "grep -rnE 'memoryFactory\\(\\)' ... returns ONLY non-memory-op usages (any bare memory-op factory call FAILS the task)"
+    summary: >
+      The plan's own systemic guard against the HIGH risk "a direct memory-access
+      site is missed -> residual leak" (Drawbacks risk #2) is a mechanizable grep
+      acceptance criterion, but it is NOT encoded as a regression test anywhere in
+      the suite. The "all 12 sites wrapped" invariant is currently protected only by
+      manual review + a one-time live grep. A future handler that adds a bare
+      `deps.memoryFactory().recall()` (re-opening #82 on that verb) would pass the
+      entire test suite green.
+    evidence: |
+      grep -rln "memoryFactory" packages/mcp/src tests | grep test
+        -> handlers.test.ts, openmemory/tools.test.ts, episodes.test.ts, sse.test.ts,
+           integration/openmemory/mcp-compat.test.ts, integration/mcp/workspace-isolation.test.ts
+        None of these performs the structural "no bare memory-op factory" grep.
+      Production currently passes the invariant:
+        grep -rnE 'memoryFactory\(\)' packages/mcp/src/tools packages/mcp/src/openmemory \
+          | grep -v workspaceScopedMemory | grep -v '\.test\.'  -> (empty)
+      So the fix is complete TODAY; nothing locks it against regression.
+    recommended_action: >
+      Add a cheap structural regression test (or a code-quality ast-grep/wiring rule)
+      that fails when any *-handler.ts / openmemory/tools.ts memory-op site calls
+      deps.memoryFactory() without the workspaceScopedMemory(...) wrap. This is the
+      single highest-value missing test — it converts the manual acceptance grep into
+      a durable guard for the exact HIGH risk the plan called out.
+
+  - id: F-tests-2
+    severity: LOW
+    file: packages/mcp/src/openmemory/tools.test.ts
+    line: 1
+    plan_ref: T3.1 TDD RED — "...and the openmemory tools (search/list/add/delete)"
+    summary: >
+      The OpenMemory tool handlers are wrapped in production at all four sites
+      (tools.ts:93/101/110 memoryFromCtx path + :139 the DIRECT delete_memories site),
+      but openmemory/tools.test.ts contains ZERO workspace-binding assertions and the
+      openmemory verbs are absent from the handlers.test.ts isolation block (which
+      covers only recall/forget/add_skill). The delete_memories DIRECT site is notable:
+      it is one of the 5 DIRECT leak sites ADR D1 enumerated, and Roadmap Item 26
+      previously closed a cross-USER delete IDOR on this exact handler — yet there is
+      no test that a tn-A delete cannot reach a tn-B row. Mitigating: the single shared
+      helper is applied identically at every site (3 code shapes are covered by the 3
+      representative verbs), the grep confirms wrapping, and ADR D4 scopes openmemory
+      as a non-gateway-fronted dev path. Commit 30f14be consciously trimmed the prior
+      "12-verb" over-claim to the representative set.
+    evidence: |
+      grep -n "workspace|withWorkspace|tn-|isolation" packages/mcp/src/openmemory/tools.test.ts -> (no matches)
+      packages/mcp/src/openmemory/tools.ts:139  const memory = workspaceScopedMemory(deps.memoryFactory());
+      packages/mcp/src/openmemory/tools.ts:150        await memory.forget(id);  // delete_memories DIRECT site
+      handlers.test.ts isolation block (T3.1, line 396) asserts only recall(:411), forget(:421), add_skill(:433).
+    recommended_action: >
+      Add one isolation assertion for the openmemory delete_memories path (tn-A delete
+      binds withWorkspace('tn-A') before the ownership-checked forget) — the highest-
+      risk untested site. Optionally extend the integration GOAL TEST to dispatch one
+      openmemory verb cross-tenant. If the representative-shape coverage is accepted as
+      sufficient, record that decision explicitly (the plan literally named these verbs).
+
+  - id: F-tests-3
+    severity: LOW
+    file: packages/agent-core/src/__tests__/scope.test.ts
+    line: 22
+    plan_ref: T1.1 TDD RED — "a unit asserting a ScopedContext value with { workspaceId: 'tn-x', session: { userId: 'u' } } is assignable and round-trips workspaceId"
+    summary: >
+      The dedicated T1.1 round-trip unit (a ScopedContext carrying workspaceId, asserted
+      to round-trip getScope().workspaceId) is not present in the named scope test file —
+      its cases cover session/userId, nesting, ALS concurrency, and MissingScopeError, but
+      never set workspaceId. The field's assignability and runtime carry ARE proven
+      transitively by the consumer tests (workspace-scoped-memory.test.ts:26/49/63,
+      streamable-http.test.ts:39, handlers.test.ts WS_A_CTX:397) which construct
+      `{ workspaceId, session }` and read back getScope().workspaceId. Behavior is covered;
+      only the dedicated unit at the plan-named location is missing.
+    evidence: |
+      grep -n "workspace" packages/agent-core/src/__tests__/scope.test.ts -> (no matches)
+      packages/core/src/domain/scope.ts:81  workspaceId?: string;  (field exists, additive optional)
+      Transitive round-trip: handlers.test.ts:472 observedAfterAwait[ws] = getScope().workspaceId;
+    recommended_action: >
+      Add one assertion in scope.test.ts: withScope({ workspaceId:'tn-x', session:{userId:'u'} },
+      () => expect(getScope().workspaceId).toBe('tn-x')). Closes the literal T1.1 gap cheaply.
+
+  - id: F-tests-4
+    severity: LOW
+    file: packages/mcp/src/tools/workspace-scoped-memory.test.ts
+    line: 57
+    plan_ref: rules/testing.md § 4.1 / rules/error-handling.md § 2 — negative cases assert the SPECIFIC typed error, not just "it throws"
+    summary: >
+      The fail-closed branch (workspaceId set but Memory.withWorkspace absent) throws a
+      generic Error, asserted only by a message regex `/withWorkspace/`. Per the typed-
+      error discipline, a negative-case assertion should match a specific domain error
+      class, not a message substring (message text is refactor-fragile). This matches the
+      plan's own pseudo-code (ADR D3 specifies `throw new Error(...)`), so it is a design
+      choice, not a divergence — and at the dispatch boundary the throw IS typed as McpError
+      (handlers.test.ts:488). Self-contained helper level remains a generic Error.
+    evidence: |
+      workspace-scoped-memory.test.ts:66  ).toThrow(/withWorkspace/);   // message regex, no typed class
+      plan ADR D3 pseudo-code: throw new Error('workspaceScopedMemory: ... fail-closed, D3/EC-1');
+    recommended_action: >
+      Consider a typed WorkspaceBindingError (or reuse an existing domain error) for the
+      helper's fail-closed throw and assert toBeInstanceOf(...) + message. Low priority —
+      the boundary-level McpError assertion already provides typed protection.
+
+  - id: F-tests-5
+    severity: LOW
+    file: packages/mcp/src/transports/streamable-http-auth.test.ts
+    line: 107
+    plan_ref: rules/testing.md § 4.1 — negative case asserts the specific typed error/message
+    summary: >
+      The EC-1 blank-workspace fail-closed test asserts status 401 + no delegate +
+      workspace undefined, but (unlike the verify-only 401 at :252 and the missing-token
+      401 at :203) does NOT assert the WWW-Authenticate body/error reason. Minor negative-
+      case under-specification: a 401 returned for an unrelated reason would still pass.
+    evidence: |
+      streamable-http-auth.test.ts:116  expect(status()).toBe(401);  // no www-authenticate / body-code assert
+      contrast :270  expect(headers.get('www-authenticate')).toContain('error="invalid_token"');
+    recommended_action: >
+      Assert the WWW-Authenticate error reason (or the body code) on the EC-1 401 so the
+      blank-workspace rejection is distinguished from any other 401 path.
+
+flakiness_and_hygiene:
+  skipped_or_only_leaks: none  # only conditional describe.skip on THEOMEM_PG_URI absence (acceptable for integration)
+  order_dependence: none observed (each test self-contains scope; integration uses DELETE FROM memories in beforeEach)
+  over_mock: >
+    Acceptable. workspace-scoped-memory tests use vitest-mock-extended mock<Memory>() (idiomatic, not 10-mock smell);
+    the fail-closed test hand-builds a precise partial { user, forget } to model the no-withWorkspace impl.
+  tests_implementation_not_behavior: >
+    handlers isolation tests assert withWorkspace('tn-A') was called + ops ran on the bound memory — this is the
+    isolation BEHAVIOR (op scoped to the resolved tenant), not internal structure; the real-store integration test
+    provides the stronger black-box proof (0 cross-tenant results). Layering is correct.
+  als_test_rigor: >
+    handlers.test.ts:455 uses immediate-resolve mocks; interleaving occurs at the single await in dispatch. Deterministic,
+    not flaky. A barrier-forced interleave would be marginally stronger but the canonical ALS shape is adequate.
+
+severity_counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 1
+  LOW: 4
+  INFO: 0
+
+verdict_input: >
+  No BLOCKER/HIGH. The shipped #82 fix is well-tested at unit + integration level and all
+  previously-flagged scenarios are present. The 1 MEDIUM (F-tests-1) is a regression-durability
+  gap, not a current hole: production passes the invariant today but no test locks it. Recommend
+  adding the structural "no bare memoryFactory" guard before merge; the LOWs are advisory.

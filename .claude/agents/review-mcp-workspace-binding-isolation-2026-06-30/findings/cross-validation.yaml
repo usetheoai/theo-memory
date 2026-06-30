@@ -1,0 +1,305 @@
+agent: review-mcp-workspace-binding-isolation-cross-validation
+review_target: main..HEAD for plan mcp-workspace-binding-isolation (closes theo-memory#82)
+plan: .claude/knowledge-base/plans/mcp-workspace-binding-isolation-plan.md
+commits_inspected:
+  - 1c69f6d  # T1.1, T1.2 — ScopedContext.workspaceId + workspaceScopedMemory seam
+  - 5e44c29  # T2.1, T2.2 — bearer gate resolvePrincipal + thread workspace into ctx
+  - f73f13b  # T3.1 — bind all 12 tool memory-access sites
+  - 2da3edc  # T4.1 — integration GOAL TEST vs real pgvector
+  - ad0156b  # hardening — log resolvePrincipal failure before 503
+  - a5e31ba  # F-arch-1 fix — verify-only verifier on api-keys path -> 401 (ADR D3a)
+  - 5bdd508  # F-sec-4 fix — malformed-principal workspaceId guard (401 not 500) + live e2e evidence
+
+plan_tasks_summary:
+  total_tasks: 7
+  fully_implemented: 5      # T1.1, T1.2, T2.1, T2.2, T4.1
+  partial: 2                # T3.1 (test coverage gaps), T4.2 (live deny env-blocked)
+  missing: 0
+  diverged: 0               # interim T2.1 divergence existed (5e44c29) but was corrected at HEAD (a5e31ba)
+
+per_task_status:
+  T1.1:
+    status: fully_implemented
+    acceptance_met: true
+    dod_met: true
+    note: >
+      ScopedContext.workspaceId added as additive optional field (scope.ts) with
+      auth-trusted JSDoc (D2). tsc green; existing consumers unchanged. AC + DoD met.
+  T1.2:
+    status: fully_implemented
+    acceptance_met: true
+    dod_met: true
+    note: >
+      workspaceScopedMemory helper created with the exact plan pseudo-code (passthrough on
+      absent ws, fail-closed throw when withWorkspace undefined). 5 unit tests shipped
+      (bind / passthrough / empty-whitespace / fail-closed throw / MissingScopeError).
+      AC literal says "4/4 unit tests" but 5 were delivered (over-delivery; AC text stale).
+  T2.1:
+    status: fully_implemented
+    acceptance_met: true
+    dod_met: true
+    note: >
+      Bearer gate resolves Principal, attaches workspace via Symbol-keyed req property,
+      fail-closes: null->401, blank-ws->401 (EC-1), backend-throw->503, verify-only->401
+      (EC-2/D3a). All negative-case tests present (streamable-http-auth.test.ts 84-160),
+      incl. a per-request concurrent test. INTERIM DIVERGENCE: the original commit 5e44c29
+      let a verify-only verifier DELEGATE (single-tenant passthrough), contradicting plan
+      ADR D3/EC-2; corrected to fail-closed reject in a5e31ba (review F-arch-1). HEAD is
+      plan-conformant.
+  T2.2:
+    status: fully_implemented
+    acceptance_met: true
+    dod_met: true
+    note: >
+      scopeFromHeaders renamed to scopeFromRequest; threads auth-trusted workspaceId +
+      header userId into ctx. Client x-workspace-id-ignored test present (D2 negative case).
+  T3.1:
+    status: partial
+    acceptance_met: partial
+    dod_met: true
+    note: >
+      All 12 memory-access sites wrapped with workspaceScopedMemory (AC grep clean — see
+      F-xval evidence). BUT the AC's test obligations are only partly met: per-verb
+      isolation assertions exist for only 3 of 12 verbs (recall/forget/add_skill), the
+      plan-required ALS concurrency test is absent, and the EC-2 dispatch-surfaces-throw
+      test is absent. See F-xval-1, F-xval-2, F-xval-3.
+  T4.1:
+    status: fully_implemented
+    acceptance_met: true
+    dod_met: true
+    note: >
+      Integration test (real pgvector): A's recall=0 of B + B sees own (>=1) + cross-ws
+      forget cannot delete B's row. Core AC fully met. The plan's reinforcing concurrent
+      two-recall test is absent (F-xval-4, LOW).
+  T4.2:
+    status: partial
+    acceptance_met: partial
+    dod_met: partial
+    note: >
+      Live e2e through the real edge proved fail-closed 401 (edge + listener) + 503
+      backend-down + workspace-bound WRITE landing under tn-e09... + gateway composition.
+      The plan AC's "live A's key -> B's canary -> 0 results (deny)" and "fail-closed 4/4
+      401" were NOT captured (2/4 401 + 1 503 documented; cross-tenant recall env-blocked).
+      HONESTLY disclosed (Rule 3) in both the evidence file and the implementation summary;
+      the integration GOAL TEST substitutes for the isolation PROPERTY but not for the
+      real-edge transcript. See F-xval-5.
+
+acceptance_criteria_summary:
+  total: 7        # one AC block per task
+  satisfied: 5    # T1.1, T1.2, T2.1, T2.2, T4.1
+  unverified: 0
+  partially_satisfied: 2   # T3.1 (12-verb + concurrency obligations), T4.2 (live deny)
+  false_claims: 0          # no checkbox claims behavior the code lacks; over-claims are in the impl summary prose (F-xval-1/2), not ticked AC
+
+adr_compliance:
+  total_adrs: 4
+  respected: 4              # D1, D2, D3 (at HEAD), D4
+  diverged_without_new_adr: 0
+  details:
+    D1: respected — single workspaceScopedMemory seam applied at all 12 sites (DRY).
+    D2: respected — workspace enters ctx only via Symbol-keyed auth attachment; client x-workspace-id ignored (tested).
+    D3: respected_at_head — interim verify-only passthrough (5e44c29) corrected to fail-closed reject in a5e31ba under the plan's own ADR D3a; remediated WITH a test, not a silent override.
+    D4: respected — scope limited to api-keys streamable-HTTP; SSE/OIDC deferral documented in CHANGELOG + impl summary + follow-up.
+
+coverage_matrix_accuracy:
+  accurate_rows:
+    - "All 7 memoryFromCtx sites bound (T3.1)"           # grep confirms
+    - "All 5 DIRECT sites bound (T3.1)"                  # grep confirms
+    - "Auth resolves Principal + attaches workspace (T2.1)"
+    - "Transport threads auth-trusted workspace (T2.2)"
+    - "Fail-closed: verify-only verifier rejected (T2.1) — true at HEAD after a5e31ba"
+    - "Fail-closed: blank workspaceId rejected (T2.1)"
+    - "Fail-closed: withWorkspace-absent throws (T1.2)"
+    - "Real-store isolation proof (T4.1)"
+  inaccurate_rows:
+    - row: "ALS isolation across concurrent tenants | T2.1, T3.1 (concurrency tests)"
+      reason: >
+        Only the T2.1 per-request concurrent test exists (proves IncomingMessage object
+        isolation). The T3.1 ALS withScope-bleed test — declared the ONLY proof that
+        AsyncLocalStorage.run isolates the workspace per concurrent dispatch (Drawbacks
+        risk #1) — was never written. Row over-claims. See F-xval-1.
+    - row: "Fail-closed throw surfaced as typed tool error, not server crash (plan EC-2) | T3.1"
+      reason: No handlers.test.ts test asserts dispatch returns {isError:true} when workspaceScopedMemory throws. See F-xval-3.
+    - row: "Live edge isolation proof (#82 flips to deny) + fail-closed probes | T4.2"
+      reason: Live cross-tenant deny NOT captured (env-blocked); 2/4 fail-closed 401 documented. Honestly disclosed. See F-xval-5.
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    The plan file has a single git commit (e31967c, 10:32, a docs(impl) artifact-bundling
+    commit) that adds it to git AFTER the first implement commit (1c69f6d, 09:32). There is
+    no second commit revising plan CONTENT, so there is no evidence of mid-flight plan
+    revision. Treated as not-drifted (the plan was authored before implement and committed
+    alongside the cycle artifacts).
+
+verification_run:
+  command: npx vitest run --config vitest.contract.config.ts {workspace-scoped-memory,handlers,streamable-http-auth,streamable-http}.test.ts
+  result: 4 files passed, 61 tests passed, 0 type errors
+  changelog: "[Unreleased] § Security entry present (committed in 1c69f6d), accurate + honest, references #82"
+
+findings:
+  - id: F-xval-1
+    severity: HIGH
+    commit: f73f13b
+    file: packages/mcp/src/tools/handlers.test.ts
+    plan_ref: >
+      T3.1 #### Concurrency tests ("ALS isolation (HIGH risk) — concurrent test with
+      happens-before observation ... the only proof AsyncLocalStorage.run isolates the
+      workspace per concurrent request (Drawbacks risk #1)") + Coverage Matrix row
+      "ALS isolation across concurrent tenants | T2.1, T3.1 (concurrency tests)"
+    summary: >
+      The plan-required ALS concurrency test (two interleaved dispatches under distinct
+      withScope({workspaceId:'tn-A'}) / withScope({workspaceId:'tn-B'}) asserting no
+      workspace bleed) is MISSING. It is the declared mitigation of the #1 HIGH risk in the
+      Drawbacks table and the Coverage Matrix lists T3.1 as covering it. Only the T2.1
+      per-request test (distinct IncomingMessage objects) exists, which proves request-object
+      isolation, NOT AsyncLocalStorage.run isolation across concurrent dispatches.
+    evidence: |
+      grep for concurren|bleed|interleav|Promise.all in packages/mcp/src + tests/integration/mcp
+      returns ONLY streamable-http-auth.test.ts:133 (the T2.1 per-req test) and the
+      request-workspace.ts JSDoc. handlers.test.ts has no concurrent/interleaved dispatch test.
+      Plan Drawbacks risk #1 (HIGH): "ALS scope bleed across concurrent requests" — mitigation
+      = "Concurrency test (T3.1 #### Concurrency tests)".
+    recommended_action: >
+      Add the T3.1 ALS bleed test (two interleaved withScope dispatches, distinct workspaces,
+      assert each resolves only its own workspace) OR amend the plan/Coverage Matrix with an
+      ADR documenting that the AsyncLocalStorage.run lexical-isolation guarantee is accepted
+      without a dedicated test. Do not leave the Coverage Matrix row claiming a test that does
+      not exist.
+
+  - id: F-xval-2
+    severity: MEDIUM
+    commit: f73f13b
+    file: packages/mcp/src/tools/handlers.test.ts
+    plan_ref: >
+      T3.1 Acceptance Criteria ("the cross-tenant assertion boundWorkspace === 'tn-A' holds
+      for all 12 verbs") vs implementation summary claim "12-verb isolation"
+    summary: >
+      The T3.1 AC requires the withWorkspace('tn-A') binding assertion "for all 12 verbs", but
+      only 3 verbs are tested (recall, forget, add_skill). The implementation summary
+      (mcp-workspace-binding-isolation-implementation.md) labels this "12-verb isolation",
+      which over-claims; the commit message correctly says "3-verb isolation tests". The other
+      9 verbs (remember, reflect, episodes, execute_skill, forget_skill, openmemory
+      add/search/list/delete) are structurally wrapped at the site (AC grep passes) but have no
+      isolation test asserting the bound workspace.
+    evidence: |
+      handlers.test.ts describe('workspace isolation across all tool verbs (T3.1, #82)') has
+      exactly 3 it() blocks: recall (411), forget (421), add_skill (433).
+      implementation summary: "handlers.test.ts (24): all verbs + 12-verb isolation
+      (recall/forget/add_skill bind withWorkspace('tn-A') before the store op)."
+    recommended_action: >
+      Either extend the isolation assertions to the remaining 9 verbs (one-line each given the
+      shared helper) OR correct the implementation summary + Coverage Matrix to read "3 of 12
+      verbs spot-checked; the remaining 9 share the identical one-line seam". The binding IS
+      present at every site, so this is a test-coverage + accuracy gap, not a leak.
+
+  - id: F-xval-3
+    severity: MEDIUM
+    commit: f73f13b
+    file: packages/mcp/src/tools/handlers.test.ts
+    plan_ref: >
+      T3.1 TDD ("dispatch surfaces the fail-closed throw as a typed tool error (EC-2 SHOULD
+      TEST): when workspaceScopedMemory throws, the dispatch returns { isError: true }") +
+      Coverage Matrix row "Fail-closed throw surfaced as typed tool error, not server crash
+      (plan EC-2) | T3.1"
+    summary: >
+      The EC-2 test asserting that a workspaceScopedMemory fail-closed throw is surfaced by
+      dispatch as { isError: true } (not an unhandled rejection wedging the singleton
+      transport) is absent. A generic MissingScopeError->execution test and a MemoryStoreError
+      ->Tool-Execution-Error test exist (so the classifier likely surfaces a plain thrown
+      Error too), but the specific EC-2 case the plan required is not tested.
+    evidence: |
+      No handlers.test.ts test mounts a Memory without withWorkspace under a workspace-bearing
+      scope and asserts dispatch -> isError:true. grep for fail.closed/unbound/withWorkspace
+      undefined in handlers.test.ts returns only comments and the tn-A binding stub.
+    recommended_action: >
+      Add the EC-2 dispatch test (workspace-bearing scope + a Memory lacking withWorkspace ->
+      dispatch result.isError === true with a sanitized message) OR mark the Coverage Matrix
+      row as behaviorally-covered-by-the-generic-classifier with the supporting test cited.
+
+  - id: F-xval-4
+    severity: LOW
+    commit: 2da3edc
+    file: tests/integration/mcp/workspace-isolation.test.ts
+    plan_ref: 'T4.1 #### Concurrency tests ("two concurrent withScope recalls (A and B) against the real store assert no cross-read")'
+    summary: >
+      The plan-required reinforcing concurrent two-recall integration test is absent. The core
+      T4.1 ACs (A=0 of B, B>=1 control, cross-ws forget safe) are all present and pass, so the
+      isolation property is proven sequentially; only the concurrent reinforcement is missing.
+    evidence: |
+      tests/integration/mcp/workspace-isolation.test.ts has 2 sequential test() blocks; no
+      Promise.all / concurrent withScope.
+    recommended_action: Add the concurrent two-recall test, or drop the T4.1 concurrency-test line from the plan via a one-line note.
+
+  - id: F-xval-5
+    severity: LOW
+    commit: 5bdd508
+    file: .claude/knowledge-base/implementations/mcp-workspace-binding-isolation-live-e2e-2026-06-30.md
+    plan_ref: >
+      T4.2 Acceptance Criteria ("Live GW-ISO: A's key -> B's canary -> 0 results (deny);
+      fail-closed 4/4 401") + Coverage Matrix row "Live edge isolation proof (#82 flips to
+      deny) + fail-closed probes | T4.2"
+    summary: >
+      The T4.2 live cross-tenant DENY transcript was NOT captured (env-blocked by a dev
+      bring-up mis-alignment unrelated to the fix), and only 2 of the required 4 fail-closed
+      401 probes are documented (no-cred edge + no-cred listener), plus a 503. This is
+      HONESTLY disclosed in both the live-e2e evidence file and the implementation summary
+      (Rule 3) — invariant 6 is explicitly stated as PARTIALLY met, and the integration GOAL
+      TEST is offered as a substitute for the property (not for the transcript). No
+      over-claim, but the T4.2 AC + Coverage Matrix "live deny" row are not satisfied at HEAD.
+    evidence: |
+      live-e2e file § "What was NOT completed live": "the live cross-tenant *recall* assertion
+      is not captured ... theo-data invariant 6 is PARTIALLY met". Evidence table lists 2x 401
+      + 1x 503 + write-bound OK; no live A-recall-of-B = 0 row.
+    recommended_action: >
+      Keep the honest disclosure. Treat the live deny transcript as a tracked follow-up
+      (already noted alongside theo-memory#83 dev/CQ infra). Reviewer should weigh whether
+      READY_TO_MERGE is acceptable with the property proven by integration but not by the live
+      edge — this is a judgment call, not a fabrication.
+
+  - id: F-xval-6
+    severity: INFO
+    commit: e31967c
+    file: .claude/knowledge-base/implementations/mcp-workspace-binding-isolation-implementation.md
+    plan_ref: implementation summary completeness
+    summary: >
+      The implementation summary's Commits table lists only 1c69f6d..ad0156b and omits the two
+      review-fix commits a5e31ba (F-arch-1, verify-only reject) and 5bdd508 (F-sec-4,
+      malformed-principal guard). The F-arch-1 prose section also has an unfilled "Resolved in
+      `<commit>`" placeholder instead of the SHA a5e31ba.
+    evidence: |
+      impl summary Commits table last row = ad0156b; "Resolved in `<commit>`" literal in the
+      F-arch-1 closure section.
+    recommended_action: Backfill the two review-fix commits into the Commits table and replace `<commit>` with a5e31ba.
+
+  - id: F-xval-7
+    severity: INFO
+    commit: 1c69f6d
+    file: .claude/knowledge-base/plans/mcp-workspace-binding-isolation-plan.md
+    plan_ref: T1.2 Acceptance Criteria ("exits 0 with 4/4 unit tests passing")
+    summary: >
+      T1.2 ships 5 unit tests (the plan TDD lists 5 RED cases incl. EC-3 MissingScopeError) but
+      the AC text says "4/4". Over-delivery; the AC literal count is stale. Cosmetic.
+    evidence: workspace-scoped-memory.test.ts has 5 it() blocks; T1.2 AC says "4/4 unit tests passing".
+    recommended_action: None required (more coverage than promised). Optionally correct the AC text to 5/5.
+
+severity_counts:
+  BLOCKER: 0
+  HIGH: 1
+  MEDIUM: 2
+  LOW: 2
+  INFO: 2
+
+overall_assessment: >
+  The implementation faithfully realizes the plan's core security contract: all 12 tool
+  memory-access sites are workspace-bound through the single workspaceScopedMemory seam (D1),
+  the workspace is auth-trusted only (D2), the auth path fails closed on every negative case
+  (null/blank/verify-only/backend-down), and the real-pgvector integration GOAL TEST proves
+  cross-tenant recall=0 with a positive control. ADRs are respected at HEAD (the one interim
+  D3 divergence was caught by review and remediated with a test under ADR D3a). The gaps are
+  in TEST COMPLETENESS and DOC ACCURACY, not in the shipped behavior: the HIGH-risk ALS
+  concurrency test (F-xval-1) and the EC-2 dispatch-throw test (F-xval-3) the plan promised
+  were not written, only 3 of 12 verbs are isolation-tested while the impl summary says
+  "12-verb" (F-xval-2), and T4.2's live cross-tenant deny was env-blocked (honestly disclosed,
+  F-xval-5). No fabricated claims and no scope creep beyond the plan were found; the F-sec-4
+  `?? ''` guard (5bdd508) is hardening within EC-1's intent, not new scope.
