@@ -57,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   bind the workspace → typed error, never unbound. Scoped to the api-keys streamable-HTTP path
   (the gateway-fronted path #82 exploited); OIDC/SSE multi-tenant workspace mapping tracked as
   a follow-up. (#82)
+- **Imagem `themory` limpa no gate Trivy (CRITICAL+HIGH) — 11 CVEs de dependência corrigidos, 6 do base image documentados (issue #86).** Via `pnpm.overrides`: `protobufjs` 6.11.6→7.6.1 (corrige a CRITICAL CVE-2026-41242 + 5 HIGH), `form-data`→4.0.6, `linkify-it`→5.0.1, `lodash`→4.18.1, `tmp`→0.2.7, `underscore`→1.13.8. O bump major do `protobufjs` foi validado (build/tsc + roundtrip TensorProto via onnx-proto, o caminho do embedder/reranker local). Os 6 CVEs do OpenSSL/`libssl3` vêm do base distroless `nodejs22-debian12:nonroot` (ainda em 3.0.18; fix publicado no Debian mas não no rebuild do distroless) — não-patcháveis num runtime distroless; allowlistados no `.trivyignore` com sunset 2026-07-30 (CRITICAL é 32-bit-only, não explorável em amd64). Scan local: 0 vulnerabilidades, gate exit 0. (`package.json`, `pnpm-lock.yaml`, `.trivyignore`)
 
 ## [0.25.0] - 2026-06-30
 
