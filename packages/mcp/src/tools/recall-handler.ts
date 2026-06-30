@@ -15,6 +15,7 @@ import type { MemoryItemWithScore } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './recall-schema.js';
 
@@ -36,7 +37,7 @@ export async function recallHandler(
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
-  const scoped = memoryFromCtx(getScope(), deps.memoryFactory());
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
   const hits = await scoped.recall(parsed.query, {
     topK: parsed.topK,
     threshold: parsed.threshold,
