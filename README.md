@@ -292,6 +292,23 @@ docker run --rm --entrypoint /nodejs/bin/node \
   ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
 ```
 
+## CI/CD
+
+`publish.yml` — a thin caller of the shared reusable `theo/build-publish.yml` — runs on a
+**self-hosted runner** (the `usetheodev` org's GitHub-hosted minutes are currently billing-blocked;
+runner `theo-ci-theo-memory`, cross-repo runbook in the `theo-data` workspace).
+
+| Trigger | Channel | Result |
+|---|---|---|
+| push to `develop` | preview | `ghcr.io/usetheodev/themory:develop` (+ `:develop-<short>`) |
+| semver tag `v*` | release | `ghcr.io/usetheodev/themory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/themory` when `DOCKERHUB_TOKEN` is set) |
+| manual dispatch | smoke | unsigned build |
+
+Every build runs a **Trivy gate** (`severity: CRITICAL,HIGH`, `ignore-unfixed`, `exit-code: 1`,
+SHA-pinned in the reusable): the job fails on any fixable CRITICAL/HIGH CVE in the image, so a
+vulnerable image is never published. Exemptions go through [`.trivyignore`](./.trivyignore) with a
+**mandatory sunset date** and justification — never a blanket ignore.
+
 ## CLI
 
 ```bash

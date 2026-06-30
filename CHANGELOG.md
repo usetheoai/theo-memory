@@ -16,7 +16,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
-## [0.11.0] - 2026-06-30
+## [0.27.0] - 2026-06-30
+
+### Added
+- **README — `## CI/CD` section** documenting `docker-publish.yml`: the preview/release/dispatch triggers, the published image refs, and the Trivy CRITICAL/HIGH gate + `.trivyignore` sunset discipline, all on the self-hosted runner. (`README.md`)
+
+
+### Changed
+- **README atualizado para `publish.yml`** (preview agora em `develop`; release assinado via reutilizável). (`README.md`)
+- **`docker-publish.yml` → `publish.yml`, convergido no reutilizável `theo/build-publish.yml`.** Elimina o build+scan próprio: agora chama o pipeline org-padrão (SHA-pinned actions, Trivy CRITICAL/HIGH gate com este `.trivyignore`, e nas tags ganha SBOM+SLSA mode=max + **cosign keyless sign+verify** — signing que o `themory` não tinha). Preview agora em `develop` (`:develop`), alinhado ao trunk da org. (`.github/workflows/publish.yml`)
+
+
+### Fixed
+- **Teste de governança do workflow atualizado para a convergência** — `tests/integration/docker-publish-workflow.test.ts` → `publish-workflow.test.ts`: assertava a forma inline antiga (Trivy/build/push em `docker-publish.yml`); agora assere a delegação ao reutilizável (`build-publish.yml`, `trivy: true`, sign/verify na tag) + permissões/OIDC + `.trivyignore`. (`tests/integration/publish-workflow.test.ts`)
+
+## [0.26.0] - 2026-06-30
 
 ### Added
 - **Native streamable-HTTP MCP transport now binds the per-request user scope from the
@@ -57,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   bind the workspace → typed error, never unbound. Scoped to the api-keys streamable-HTTP path
   (the gateway-fronted path #82 exploited); OIDC/SSE multi-tenant workspace mapping tracked as
   a follow-up. (#82)
+- **Imagem `themory` limpa no gate Trivy (CRITICAL+HIGH) — 11 CVEs de dependência corrigidos, 6 do base image documentados (issue #86).** Via `pnpm.overrides`: `protobufjs` 6.11.6→7.6.1 (corrige a CRITICAL CVE-2026-41242 + 5 HIGH), `form-data`→4.0.6, `linkify-it`→5.0.1, `lodash`→4.18.1, `tmp`→0.2.7, `underscore`→1.13.8. O bump major do `protobufjs` foi validado (build/tsc + roundtrip TensorProto via onnx-proto, o caminho do embedder/reranker local). Os 6 CVEs do OpenSSL/`libssl3` vêm do base distroless `nodejs22-debian12:nonroot` (ainda em 3.0.18; fix publicado no Debian mas não no rebuild do distroless) — não-patcháveis num runtime distroless; allowlistados no `.trivyignore` com sunset 2026-07-30 (CRITICAL é 32-bit-only, não explorável em amd64). Scan local: 0 vulnerabilidades, gate exit 0. (`package.json`, `pnpm-lock.yaml`, `.trivyignore`)
 
 ## [0.25.0] - 2026-06-30
 
