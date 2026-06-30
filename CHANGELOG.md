@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.11.0] - 2026-06-30
+
+### Added
 - **Native streamable-HTTP MCP transport now binds the per-request user scope from the
   `X-Theo-User-Id` header** (ADR D3 — the binding deferred at T6.2). Mirrors the SSE
   transport (which binds `userId` from the URL path) so tool calls resolve a scope via
@@ -20,13 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   integrated stack runs `themory` from this repo's built `dist/` — so rebuild (`npm run build`)
   after updating to ≥ v0.25.0. (`README.md` § Agent loops via MCP)
 
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
 
 ### Security
 - **MCP tool surface now enforces per-tenant workspace isolation — closes a cross-tenant
