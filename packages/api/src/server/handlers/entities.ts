@@ -85,6 +85,8 @@ export async function entitiesHandler(
       scope_type: typeParse.data,
       memory_count: s.memoryCount,
       last_seen_at: s.lastSeenAt,
+      // M2 — on-demand active-relations digest (evolves with M1 supersession).
+      summary: s.summary,
     }));
     return c.json({ entities }, 200);
   }
