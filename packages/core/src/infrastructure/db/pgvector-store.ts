@@ -19,6 +19,7 @@ import {
 } from '../../domain/episode.js';
 import { EmbeddingMismatch } from '../../domain/errors.js';
 import { emitEvent } from '../../domain/memory-event.js';
+import { composeTemporalWhere } from './temporal-where.js';
 import type { Filters } from '../../domain/scope.js';
 
 import { PgvectorSkillStore } from './pgvector-skill-store.js';
@@ -153,30 +154,10 @@ interface FilterClause {
   readonly nextParamIndex: number;
 }
 
-/**
- * v1.1 T3.1 + ADR-0011: bi-temporal recall predicate. When `asOf` is set,
- * compose the null-safe clause per ADR-0011:
- *
- *   (t_valid IS NULL OR t_valid <= $N) AND (t_invalid IS NULL OR t_invalid > $N+1)
- *
- * NULL `t_valid` rows (pre-bi-temporal legacy) treated as `-Infinity`
- * (always-valid since creation). When asOf is omitted, fall back to the
- * pre-v1.1 currently-valid filter `t_invalid IS NULL` so existing callers
- * see ZERO behavior change (regression guard locked in unit tests).
- */
-function composeTemporalWhere(
-  asOf: Date | undefined,
-  startParamIndex: number,
-): { sql: string; params: readonly Date[]; nextParamIndex: number } {
-  if (asOf === undefined) {
-    return { sql: 't_invalid IS NULL', params: [], nextParamIndex: startParamIndex };
-  }
-  return {
-    sql: `(t_valid IS NULL OR t_valid <= $${startParamIndex}) AND (t_invalid IS NULL OR t_invalid > $${startParamIndex + 1})`,
-    params: [asOf, asOf],
-    nextParamIndex: startParamIndex + 2,
-  };
-}
+// ADR-0011 bi-temporal recall predicate now lives in `./temporal-where` so the
+// graph expansion path reuses the SAME audited predicate (M0 / DRY). Imported at
+// the top of this module; the three call sites below are unchanged (columnPrefix
+// defaults to '').
 
 /**
  * skills-cross-repo-flat-list T1.1 (Drawback #2, High) — escape SQL LIKE
