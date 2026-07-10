@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **`/auto-plan` milestone selector fixed** — `select_next_milestone.py` required `### M<N>` (h3) headers, but the cycle-roadmap/cycle-release/`/roadmap-feature` source-of-truth format is `## M<N>` (h2); the selector now accepts BOTH h2 and h3 so no roadmap format breaks. (M0 unblock)
 - `/code-quality` audit no longer walks `knowledge-base/references/` (cloned third-party reference repos): the skip-list used `referencia` (PT) instead of the real directory name `references` (EN), so the symbol-fabrication detector parsed foreign files — wasting time/RAM and producing a spurious `FAIL_HARD` that blocked `/review`. Now the references zone is correctly skipped, with a behavioral regression test. (#37)
 
 ### Security
