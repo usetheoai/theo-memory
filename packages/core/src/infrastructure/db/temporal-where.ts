@@ -18,7 +18,7 @@
  * the graph expansion query, which aliases `memories` as `m`. Defaults to `''`
  * (unqualified) so the primary recall path is unchanged.
  */
-export interface TemporalWhere {
+interface TemporalWhere {
   readonly sql: string;
   readonly params: readonly Date[];
   readonly nextParamIndex: number;

@@ -19,7 +19,6 @@ import {
 } from '../../domain/episode.js';
 import { EmbeddingMismatch } from '../../domain/errors.js';
 import { emitEvent } from '../../domain/memory-event.js';
-import { composeTemporalWhere } from './temporal-where.js';
 import type { Filters } from '../../domain/scope.js';
 
 import { PgvectorSkillStore } from './pgvector-skill-store.js';
@@ -29,6 +28,7 @@ import type {
   InsertSkillArgs,
   ListSkillsBySubjectArgs,
 } from './skill-store-args.js';
+import { composeTemporalWhere } from './temporal-where.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
