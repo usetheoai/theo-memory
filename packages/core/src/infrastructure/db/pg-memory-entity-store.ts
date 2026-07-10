@@ -97,18 +97,35 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       type: string | null;
       memory_count: string;
       last_seen_at: Date;
+      summary: string | null;
     }>(
+      // M2 (ADR-M2-1): the `summary` LATERAL computes an on-demand deterministic
+      // digest of the entity's currently-ACTIVE outgoing relations (`t_invalid IS
+      // NULL`, so it evolves with M1 supersession). DISTINCT + ORDER BY for a
+      // stable string; COALESCE('') so the DTO field is never NULL. Zero LLM. The
+      // partial index `entity_edges_active_idx` (M1) serves the subquery.
       `SELECT e.id, e.name, e.type,
               COUNT(DISTINCT me.memory_id) AS memory_count,
-              MAX(m.created_at) AS last_seen_at
+              MAX(m.created_at) AS last_seen_at,
+              COALESCE(s.summary, '') AS summary
          FROM entities e
          JOIN memory_entities me ON me.entity_id = e.id
          JOIN memories m ON m.id = me.memory_id
+         LEFT JOIN LATERAL (
+           SELECT string_agg(rel, '; ' ORDER BY rel) AS summary
+             FROM (
+               SELECT DISTINCT ee.normalized_relation || ' → ' || te.name AS rel
+                 FROM entity_edges ee
+                 JOIN entities te ON te.id = ee.target_entity_id
+                WHERE ee.source_entity_id = e.id
+                  AND ee.t_invalid IS NULL
+             ) d
+         ) s ON true
         WHERE e.workspace_id = $1
           AND COALESCE(e.user_id,'') = COALESCE($2,'')
           AND COALESCE(e.session_id,'') = COALESCE($3,'')
           AND COALESCE(e.agent_id,'') = COALESCE($4,'')
-        GROUP BY e.id
+        GROUP BY e.id, s.summary
         ORDER BY memory_count DESC, e.name ASC`,
       [workspaceId, filters.user_id ?? null, filters.session_id ?? null, filters.agent_id ?? null],
     );
@@ -118,6 +135,7 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       type: r.type ?? 'NOUN',
       memoryCount: Number(r.memory_count),
       lastSeenAt: r.last_seen_at instanceof Date ? r.last_seen_at.toISOString() : String(r.last_seen_at),
+      summary: r.summary ?? '',
     }));
   }
 }

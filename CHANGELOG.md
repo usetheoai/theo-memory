@@ -16,6 +16,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.30.0] - 2026-07-10
+
+### Added
+- **Evolving entity summaries (M2):** entities now expose an on-demand `summary` — a deterministic digest of their currently-active outgoing relations (`relation → target`, over active `entity_edges`) — surfaced on `GET /v1/scopes/:type/:id/entities`. It evolves with M1 supersession (a retired relation drops out) and costs ZERO per-write LLM (computed at read time; ADR-M2-1). Empty string when an entity has no active relations.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [0.29.0] - 2026-07-10
 
 ### Added

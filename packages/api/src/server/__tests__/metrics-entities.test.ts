@@ -21,9 +21,9 @@ function stubEntityStore(names: readonly string[]): {
         name,
         type: 'PROPER',
         memoryCount: 1,
-        firstSeenAt: '2026-06-01T00:00:00.000Z',
         lastSeenAt: '2026-06-01T00:00:00.000Z',
-      }) as unknown as EntityNodeSummary,
+        summary: '',
+      }) satisfies EntityNodeSummary,
   );
   const listSpy = vi.fn(async () => summaries);
   return { store: { upsertAndLink: vi.fn(), list: listSpy }, listSpy };

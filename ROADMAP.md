@@ -80,7 +80,7 @@ forgotten** memories through the graph path (the only recall path that does not 
 
 ---
 
-## M1 — [ ] Edge-level validity windows + fact invalidation
+## M1 — [x] Edge-level validity windows + fact invalidation
 
 > = CLAUDE.md Item 28. Priority **MEDIUM**, effort **L**, **~80% redundant with M0**. YAGNI-gated — stays `[ ]` by design until a real need appears.
 
