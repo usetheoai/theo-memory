@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap: added Items 27-29 (temporal context-graph completeness backlog — REDACTED/REDACTED parity gaps) to `CLAUDE.md § Roadmap`: (27) graph-aware recall temporal correctness — HIGH/S, likely bug (`PgGraphExpansionStore` ignores `t_invalid`); (28) edge-level validity windows — MEDIUM/L, ~80% redundant with #27; (29) evolving entity summaries — LOW/nice-to-have, on-demand. All sit behind M1 (Item 21) and behind a DIP; Item 14 (graph-DB backend) stays declined.
 
 ### Changed
 
