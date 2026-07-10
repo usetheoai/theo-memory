@@ -136,9 +136,14 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
       relation: string;
       target: string;
       memory_count: string;
+      active: boolean;
     }>(
+      // M1 — `active` = bool_or(t_invalid IS NULL): a triple is active if ANY of
+      // its rows is still valid. In the audit view (includeSuperseded) this lets
+      // the consumer distinguish retired edges from active ones per triple.
       `SELECT se.name AS source, ee.relation AS relation, te.name AS target,
-              count(DISTINCT ee.source_memory_id) AS memory_count
+              count(DISTINCT ee.source_memory_id) AS memory_count,
+              bool_or(ee.t_invalid IS NULL) AS active
          FROM entity_edges ee
          JOIN entities se ON se.id = ee.source_entity_id
          JOIN entities te ON te.id = ee.target_entity_id
@@ -156,6 +161,7 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
       relation: r.relation,
       target: r.target,
       memoryCount: Number(r.memory_count),
+      active: r.active !== false, // default true (active-only view omits the column semantics)
     }));
   }
 }

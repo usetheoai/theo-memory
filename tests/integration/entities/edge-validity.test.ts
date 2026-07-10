@@ -99,6 +99,9 @@ describe.skipIf(PG_URI === undefined || PG_URI === '')('M1 — edge validity + i
     // includeSuperseded: both, history preserved (invalidate-not-delete)
     const all = await graphStore.listEdges({ workspaceId: 'default', filters: uf, includeSuperseded: true });
     expect(all.map((e) => e.target).sort()).toEqual(['Adidas', 'Nike']);
+    // M1 gap-close: the audit view distinguishes active vs superseded per edge.
+    expect(all.find((e) => e.target === 'Nike')?.active).toBe(true);
+    expect(all.find((e) => e.target === 'Adidas')?.active).toBe(false);
     // the Adidas edge carries t_invalid
     const inv = await pool.query<{ c: string }>(
       `SELECT count(*) c FROM entity_edges ee JOIN entities te ON te.id = ee.target_entity_id
