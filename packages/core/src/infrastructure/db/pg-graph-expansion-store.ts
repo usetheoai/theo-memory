@@ -22,6 +22,7 @@ import type {
 } from '../../domain/dip/graph-expansion-store.js';
 
 import { rowToResult, type MemoriesRow } from './pgvector-store.js';
+import { composeTemporalWhere } from './temporal-where.js';
 
 interface ExpansionDbRow extends MemoriesRow {
   shared_entities: string | number;
@@ -34,14 +35,22 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
     const { seedMemoryIds, filters, hops, limit } = params;
     if (seedMemoryIds.length === 0) return [];
 
-    // $1 = seed ids; $2 = workspace; $3/$4/$5 = user/session/agent scope; $6 = limit.
+    // $1 = seed ids; $2 = workspace; $3/$4/$5 = user/session/agent scope; then the
+    // temporal params (M0, $6..); $temporal.nextParamIndex = limit.
     const ws = filters.workspace_id ?? 'default';
+    // M0 (graph-aware recall temporal correctness): reuse the ADR-0011 bi-temporal
+    // predicate (aliased to `m`) so graph expansion never resurfaces `t_invalid`
+    // (superseded/evicted) memories and honors `asOf`. Scope params are $1..$5, so
+    // the temporal params (0 when asOf omitted, 2 when set) start at $6; `LIMIT`
+    // then binds at `temporal.nextParamIndex`.
+    const temporal = composeTemporalWhere(filters.asOf, 6, 'm.');
     const params2 = [
       seedMemoryIds,
       ws,
       filters.user_id ?? null,
       filters.session_id ?? null,
       filters.agent_id ?? null,
+      ...temporal.params,
       limit,
     ];
 
@@ -49,7 +58,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
     // is built is `hops`, typed `1 | 2` at the DIP boundary (ExpandByEntitiesParams)
     // and sourced from `RecallOptions.graphExpand.hops` (also `1 | 2`). NO user
     // string is ever interpolated into the SQL — every value flows through the
-    // parametrized `params2` array ($1..$6). Widening `hops` away from the `1 | 2`
+    // parametrized `params2` array ($1..$N, N = temporal.nextParamIndex). Widening `hops` away from the `1 | 2`
     // literal union would require re-auditing this branch.
     // hop-2 extends the relevant entity set with edge-connected entities (scope-confined on the edge).
     const expandedEntitiesCte =
@@ -90,13 +99,14 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
          AND COALESCE(m.user_id,'') = COALESCE($3::text,'')
          AND COALESCE(m.session_id,'') = COALESCE($4::text,'')
          AND COALESCE(m.agent_id,'') = COALESCE($5::text,'')
+         AND ${temporal.sql}
        -- GROUP BY m.id only: m.id is the memories PRIMARY KEY, so every other
        -- selected m.* column is functionally dependent on it (Postgres permits
        -- this). A future non-m.* non-aggregated SELECT column MUST be added here
        -- or it will error (loud, not silent) — F-mem-4.
        GROUP BY m.id
        ORDER BY shared_entities DESC, m.id
-       LIMIT $6
+       LIMIT $${temporal.nextParamIndex}
     `;
 
     const result = await this.pool.query<ExpansionDbRow>(sql, params2);
