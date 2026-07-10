@@ -20,6 +20,7 @@ export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 export { PgMemoryGraphStore } from './pg-memory-graph-store.js';
+export { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
 export { PgUsageCounterStore } from './pg-usage-counter-store.js';
 export { SandboxedSkillExecutor } from './sandboxed-skill-executor.js';
 export type { SandboxedSkillExecutorDeps } from './sandboxed-skill-executor.js';
