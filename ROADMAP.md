@@ -129,7 +129,7 @@ forgotten** memories through the graph path (the only recall path that does not 
 
 ---
 
-## M3 — [ ] Dashboard UI for the temporal context graph (theo-cloud)
+## M3 — [x] Dashboard UI for the temporal context graph (theo-cloud)
 
 > Added 2026-07-10. The UI companion to M0/M1/M2 — surfaces the shipped backend in the
 > **theo-cloud** dashboard (separate repo: `../../theo-cloud/theo-cloud/dashboard`, React 19 + Vite;
