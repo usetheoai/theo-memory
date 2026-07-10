@@ -105,7 +105,7 @@ forgotten** memories through the graph path (the only recall path that does not 
 
 ---
 
-## M2 — [ ] Evolving entity summaries (on-demand)
+## M2 — [x] Evolving entity summaries (on-demand)
 
 > = CLAUDE.md Item 29. Priority **LOW**, nice-to-have. On-demand only — never eager LLM per write.
 
