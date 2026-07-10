@@ -65,9 +65,13 @@ export async function graphHandler(
     last_seen_at: s.lastSeenAt,
   }));
 
-  // EDGES — D6: empty when the graph store is absent.
+  // EDGES — D6: empty when the graph store is absent. M1: active edges only by
+  // default; `?includeSuperseded=true` surfaces invalidated edges (audit view).
+  const includeSuperseded = c.req.query('includeSuperseded') === 'true';
   const edgeSummaries =
-    memoryGraphStore !== undefined ? await memoryGraphStore.listEdges({ workspaceId, filters }) : [];
+    memoryGraphStore !== undefined
+      ? await memoryGraphStore.listEdges({ workspaceId, filters, includeSuperseded })
+      : [];
   const edges = edgeSummaries.map((e) => ({
     source: e.source,
     relation: e.relation,

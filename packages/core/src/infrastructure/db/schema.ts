@@ -428,6 +428,13 @@ export const entityEdges = pgTable(
     /** Provenance: the memory whose text produced this triple. */
     sourceMemoryId: uuid('source_memory_id').references(() => memories.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    /**
+     * M1 — edge-level bi-temporal validity (mirrors `memories`). An edge is
+     * currently-active iff `t_invalid IS NULL`. Set on forget-propagation (source
+     * memory forgotten) or supersession (same source+relation, new target).
+     */
+    tValid: timestamp('t_valid', { withTimezone: true }).defaultNow().notNull(),
+    tInvalid: timestamp('t_invalid', { withTimezone: true }),
     /** Scope tiers mirror `entities` (one set, others NULL — AND-composed via COALESCE). */
     userId: text('user_id'),
     sessionId: text('session_id'),
@@ -437,6 +444,10 @@ export const entityEdges = pgTable(
     // Read path: aggregate edges per (source, relation, target) within a scope.
     index('entity_edges_source_idx').on(table.sourceEntityId),
     index('entity_edges_target_idx').on(table.targetEntityId),
+    // M1 — active-edge read path (traversal + graph surfaces filter t_invalid IS NULL).
+    index('entity_edges_active_idx')
+      .on(table.sourceEntityId)
+      .where(sql`${table.tInvalid} IS NULL`),
     // EC-1 dedup identity: source_memory_id IS in the arbiter → one row per
     // (triple, memory) → count(DISTINCT source_memory_id) GROUP BY triple is correct.
     // COALESCE on the nullable scope tiers (NULL != NULL in a plain UNIQUE).

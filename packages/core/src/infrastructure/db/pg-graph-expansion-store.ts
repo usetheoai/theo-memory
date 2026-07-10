@@ -44,6 +44,11 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
     // the temporal params (0 when asOf omitted, 2 when set) start at $6; `LIMIT`
     // then binds at `temporal.nextParamIndex`.
     const temporal = composeTemporalWhere(filters.asOf, 6, 'm.');
+    // M1 (ADR-M1-2) — the hop-2 CTE walks `entity_edges`; a superseded edge must
+    // NOT expand the entity set. Reuse the SAME predicate with the `ee.` alias,
+    // sharing the SAME asOf param positions ($6/$7) as `temporal` — so its params
+    // are added to `params2` ONCE (edgeTemporal.params is identical, discarded).
+    const edgeTemporal = composeTemporalWhere(filters.asOf, 6, 'ee.');
     const params2 = [
       seedMemoryIds,
       ws,
@@ -72,6 +77,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
                 AND COALESCE(ee.user_id,'') = COALESCE($3::text,'')
                 AND COALESCE(ee.session_id,'') = COALESCE($4::text,'')
                 AND COALESCE(ee.agent_id,'') = COALESCE($5::text,'')
+                AND ${edgeTemporal.sql}
              UNION
              SELECT ee.source_entity_id AS entity_id
                FROM entity_edges ee JOIN seed_entities s ON ee.target_entity_id = s.entity_id
@@ -79,6 +85,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
                 AND COALESCE(ee.user_id,'') = COALESCE($3::text,'')
                 AND COALESCE(ee.session_id,'') = COALESCE($4::text,'')
                 AND COALESCE(ee.agent_id,'') = COALESCE($5::text,'')
+                AND ${edgeTemporal.sql}
            )`
         : `expanded_entities AS (SELECT entity_id FROM seed_entities)`;
 

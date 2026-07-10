@@ -16,6 +16,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.29.0] - 2026-07-10
+
+### Added
+- **Edge-level bi-temporal validity + automatic invalidation (M1):** `entity_edges` now carry `t_valid`/`t_invalid`. Contradicting facts supersede the prior edge (same source+relation, new target → old edge retired, history preserved), and forgetting a memory invalidates the edges it produced. Graph traversal (1-2 hop) and `GET /v1/scopes/:type/:id/graph` show only active edges by default; `?includeSuperseded=true` is the audit view. Reuses the ADR-0011 bi-temporal predicate. New public `PgGraphExpansionStore` export.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+- **Graph traversal no longer expands through superseded/invalidated edges (M1):** the hop-2 `entity_edges` traversal filters by edge validity + honors `asOf` (completes the M0 ADR-M0-2 deferral). Verified RED->GREEN against real `ankane/pgvector:v0.5.1`.
+
+### Security
+
 ## [0.28.0] - 2026-07-10
 
 ### Added

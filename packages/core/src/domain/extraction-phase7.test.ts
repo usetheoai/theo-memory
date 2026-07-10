@@ -208,6 +208,7 @@ function spyGraph(opts: { throws?: boolean } = {}): { store: MemoryGraphStore; c
   return {
     calls,
     store: {
+      invalidateEdgesByMemory: vi.fn(),
       upsertEdges: vi.fn(async (p: UpsertEdgesParams) => {
         if (opts.throws === true) throw new Error('edge store boom');
         calls.push(p);
