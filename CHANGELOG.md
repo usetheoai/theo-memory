@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`ROADMAP.md` created** (resolves the `/roadmap-feature` impediment — no macro roadmap existed): formal machine-tracked milestones `M0`/`M1`/`M2` for the temporal context-graph track, in the canonical `cycle-roadmap` format (`## M<N> — [ ]` + DoD + deps + risks + out-of-scope + SOTA anchor). M0/M1/M2 are the same three deltas as CLAUDE.md Items 27/28/29 (two views). Graph-DB backend (Item 14) declared out of scope.
 - Roadmap: added Items 27-29 (temporal context-graph completeness backlog — Graphiti/Zep parity gaps) to `CLAUDE.md § Roadmap`: (27) graph-aware recall temporal correctness — HIGH/S, likely bug (`PgGraphExpansionStore` ignores `t_invalid`); (28) edge-level validity windows — MEDIUM/L, ~80% redundant with #27; (29) evolving entity summaries — LOW/nice-to-have, on-demand. All sit behind M1 (Item 21) and behind a DIP; Item 14 (graph-DB backend) stays declined.
 
 ### Changed
