@@ -198,8 +198,13 @@ export class LocalMemory implements Memory {
     if (this.config.memoryGraphStore !== undefined) {
       try {
         await this.config.memoryGraphStore.invalidateEdgesByMemory(memoryId);
-      } catch {
-        // swallow — edge invalidation is best-effort; forget is already durable.
+      } catch (err) {
+        // Best-effort: forget is already durable (the memory soft-delete above
+        // succeeded). Observable-not-silent (Princípio 3): log with context so an
+        // edge that outlived its forgotten memory is diagnosable — mirrors the
+        // recall-cache invalidation swallow below.
+        // eslint-disable-next-line no-console
+        console.error('[themory] edge invalidateEdgesByMemory (forget) failed:', err);
       }
     }
     if (this.config.historyManager !== undefined) {
