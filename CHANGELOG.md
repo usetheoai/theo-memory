@@ -16,6 +16,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.32.0] - 2026-07-10
+
+### Added
+- **Graph edges carry an `active` flag (M1 gap-close):** `GET /v1/scopes/:type/:id/graph` now marks each edge `active` (`bool_or(t_invalid IS NULL)` per triple), so the `?includeSuperseded=true` audit view can distinguish retired edges from active ones per edge. Additive on `EdgeSummary`.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [0.30.0] - 2026-07-10
 
 ### Added
