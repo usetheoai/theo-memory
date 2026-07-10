@@ -56,7 +56,7 @@ forgotten** memories through the graph path (the only recall path that does not 
 
 ---
 
-## M0 — [ ] Graph-aware recall temporal correctness
+## M0 — [x] Graph-aware recall temporal correctness
 
 > = CLAUDE.md Item 27. Priority **HIGH**, effort **S**. Do this first.
 
