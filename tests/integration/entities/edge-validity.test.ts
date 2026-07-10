@@ -20,13 +20,16 @@ import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, test } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
-import type { Filters } from '@usetheo/memory';
+import type { Filters, Embedder, LLM } from '@usetheo/memory';
 import {
+  createLocalMemory,
+  PgvectorStore,
   PgMemoryEntityStore,
   PgMemoryGraphStore,
   PgGraphExpansionStore,
   runMigrations,
 } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory-api';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 const ZERO_VEC = `[${new Array(MAX_EMBEDDING_DIM).fill(0).join(',')}]`;
@@ -151,5 +154,28 @@ describe.skipIf(PG_URI === undefined || PG_URI === '')('M1 — edge validity + i
       limit: 10,
     });
     expect(asOf.map((r) => r.result.id)).toContain(mC);
+  });
+
+  test('T2.1: REST GET /graph shows active edges by default; ?includeSuperseded=true surfaces the retired edge', async () => {
+    const m1 = await seedMemory(pool, '2026-06-01T00:00:00Z');
+    await seedNodes(m1, ['Kendra', 'Adidas', 'Nike']);
+    await graphStore.upsertEdges({ memoryId: m1, workspaceId: 'default', filters: uf, edges: [edge('Kendra', 'loves', 'Adidas')] });
+    await graphStore.upsertEdges({ memoryId: m1, workspaceId: 'default', filters: uf, edges: [edge('Kendra', 'loves', 'Nike')] });
+
+    const embedder: Embedder = { embed: async () => EMBED, embedBatch: async (t) => t.map(() => EMBED) };
+    const llm: LLM = {
+      generateResponse: async () => ({ memory: [] }),
+      generateChat: async () => ({ role: 'assistant' as const, content: '' }),
+    };
+    const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool), embedder, llm });
+    const app = createServer({ memory, memoryEntityStore: entityStore, memoryGraphStore: graphStore });
+
+    const activeRes = await app.fetch(new Request('http://localhost/v1/scopes/user/u1/graph'));
+    const active = (await activeRes.json()) as { edges: { target: string }[] };
+    expect(active.edges.map((e) => e.target)).toEqual(['Nike']); // superseded Adidas hidden
+
+    const allRes = await app.fetch(new Request('http://localhost/v1/scopes/user/u1/graph?includeSuperseded=true'));
+    const all = (await allRes.json()) as { edges: { target: string }[] };
+    expect(all.edges.map((e) => e.target).sort()).toEqual(['Adidas', 'Nike']); // audit view
   });
 });
