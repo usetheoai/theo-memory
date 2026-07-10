@@ -178,4 +178,34 @@ describe.skipIf(PG_URI === undefined || PG_URI === '')('M1 — edge validity + i
     const all = (await allRes.json()) as { edges: { target: string }[] };
     expect(all.edges.map((e) => e.target).sort()).toEqual(['Adidas', 'Nike']); // audit view
   });
+
+  test('T1.2 fail-soft: forget() still succeeds (memory soft-deleted) when edge invalidation throws', async () => {
+    const id = await seedMemory(pool, '2026-06-01T00:00:00Z');
+    // A graph store whose invalidateEdgesByMemory ALWAYS throws — forget must not
+    // propagate it (best-effort; the memory soft-delete already succeeded).
+    const throwingGraph = {
+      upsertEdges: async () => undefined,
+      invalidateEdgesByMemory: async () => {
+        throw new Error('edge invalidation boom');
+      },
+      listEdges: async () => [],
+    };
+    const embedder: Embedder = { embed: async () => EMBED, embedBatch: async (t) => t.map(() => EMBED) };
+    const llm: LLM = {
+      generateResponse: async () => ({ memory: [] }),
+      generateChat: async () => ({ role: 'assistant' as const, content: '' }),
+    };
+    const memory = await createLocalMemory({
+      vectorStore: new PgvectorStore(pool),
+      embedder,
+      llm,
+      memoryGraphStore: throwingGraph,
+    });
+
+    // forget must resolve (NOT throw) despite the graph store throwing
+    await expect(memory.user('u1').forget(id)).resolves.toBeUndefined();
+    // and the memory IS soft-deleted (t_invalid set) — the primary op is durable
+    const r = await pool.query<{ t_invalid: string | null }>(`SELECT t_invalid FROM memories WHERE id = $1`, [id]);
+    expect(r.rows[0]!.t_invalid).not.toBeNull();
+  });
 });
