@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.29.0] - 2026-07-10
+
+### Added
 - **Edge-level bi-temporal validity + automatic invalidation (M1):** `entity_edges` now carry `t_valid`/`t_invalid`. Contradicting facts supersede the prior edge (same source+relation, new target → old edge retired, history preserved), and forgetting a memory invalidates the edges it produced. Graph traversal (1-2 hop) and `GET /v1/scopes/:type/:id/graph` show only active edges by default; `?includeSuperseded=true` is the audit view. Reuses the ADR-0011 bi-temporal predicate. New public `PgGraphExpansionStore` export.
 
 ### Changed
