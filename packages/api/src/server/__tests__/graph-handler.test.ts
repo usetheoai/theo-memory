@@ -37,7 +37,7 @@ describe('T3.1 — graphHandler {nodes, edges}', () => {
     const app = createServer({
       memory: stubMemory(),
       memoryEntityStore: { upsertAndLink: vi.fn(), list: vi.fn().mockResolvedValue(nodes) },
-      memoryGraphStore: { upsertEdges: vi.fn(), listEdges: vi.fn().mockResolvedValue(edges) },
+      memoryGraphStore: { upsertEdges: vi.fn(), invalidateEdgesByMemory: vi.fn(), listEdges: vi.fn().mockResolvedValue(edges) },
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/graph'));
     expect(res.status).toBe(200);
@@ -63,7 +63,7 @@ describe('T3.1 — graphHandler {nodes, edges}', () => {
     const app = createServer({
       memory: stubMemory(),
       memoryEntityStore: { upsertAndLink: vi.fn(), list: vi.fn().mockResolvedValue([]) },
-      memoryGraphStore: { upsertEdges: vi.fn(), listEdges: vi.fn().mockResolvedValue([]) },
+      memoryGraphStore: { upsertEdges: vi.fn(), invalidateEdgesByMemory: vi.fn(), listEdges: vi.fn().mockResolvedValue([]) },
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/bogus/alice/graph'));
     expect(res.status).toBe(404);
