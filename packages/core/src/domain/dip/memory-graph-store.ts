@@ -43,6 +43,13 @@ export interface EdgeSummary {
   readonly target: string;
   /** Distinct memories that asserted this triple (count(DISTINCT source_memory_id)). */
   readonly memoryCount: number;
+  /**
+   * M1 — `true` when the triple has at least one currently-active row
+   * (`t_invalid IS NULL`); `false` when every row is superseded/invalidated. Lets
+   * the audit view (`includeSuperseded`) distinguish retired edges from active
+   * ones. Always `true` in the default active-only view.
+   */
+  readonly active: boolean;
 }
 
 export interface ListEdgesParams {
