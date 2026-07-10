@@ -38,8 +38,8 @@ function stubMemory(): Memory {
 }
 
 const summaries: EntityNodeSummary[] = [
-  { id: 'e1', name: 'John Smith', type: 'PROPER', memoryCount: 2, lastSeenAt: '2026-06-03T00:00:00.000Z' },
-  { id: 'e2', name: 'Google', type: 'PROPER', memoryCount: 1, lastSeenAt: '2026-06-01T00:00:00.000Z' },
+  { id: 'e1', name: 'John Smith', type: 'PROPER', memoryCount: 2, lastSeenAt: '2026-06-03T00:00:00.000Z', summary: '' },
+  { id: 'e2', name: 'Google', type: 'PROPER', memoryCount: 1, lastSeenAt: '2026-06-01T00:00:00.000Z', summary: '' },
 ];
 
 describe('T4.2 — entitiesHandler via injected read port', () => {
