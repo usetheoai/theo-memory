@@ -190,6 +190,18 @@ export class LocalMemory implements Memory {
       const evictor = new PgEvictor(this.config.vectorStore.poolForEviction);
       await evictor.evict([memoryId]);
     }
+    // M1 forget-propagation — invalidate the edges this memory produced so they
+    // do not outlive it (edge-own t_invalid, for the direct-edge-read surfaces).
+    // Fail-soft: a graph-store failure must NEVER fail the memory forget (the
+    // memory soft-delete above already succeeded). Hard-delete already cascades
+    // the edges via the source_memory_id FK, so this only matters for soft-delete.
+    if (this.config.memoryGraphStore !== undefined) {
+      try {
+        await this.config.memoryGraphStore.invalidateEdgesByMemory(memoryId);
+      } catch {
+        // swallow — edge invalidation is best-effort; forget is already durable.
+      }
+    }
     if (this.config.historyManager !== undefined) {
       try {
         await this.config.historyManager.addHistory(

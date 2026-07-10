@@ -65,6 +65,7 @@ export { PgMemoryEntityStore } from './infrastructure/db/index.js';
  * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.1
  */
 export { PgMemoryGraphStore } from './infrastructure/db/index.js';
+export { PgGraphExpansionStore } from './infrastructure/db/index.js';
 /**
  * themory-scoped-forget-and-retrieval-counter — default per-scope recall-counter
  * adapter backing `retrieval_api_usage`, wired under the same gate.

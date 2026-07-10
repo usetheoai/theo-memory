@@ -12,9 +12,10 @@ import { describe, expect, test } from 'vitest';
 import type { MemoryGraphStore } from './memory-graph-store.js';
 
 describe('MemoryGraphStore DIP (T2.0)', () => {
-  test('memory_graph_store_shape — a stub implementing the port type-checks (2 methods)', () => {
+  test('memory_graph_store_shape — a stub implementing the port type-checks (3 methods)', () => {
     const stub: MemoryGraphStore = {
       upsertEdges: async () => undefined,
+      invalidateEdgesByMemory: async () => undefined,
       listEdges: async () => [],
     };
     expect(typeof stub.upsertEdges).toBe('function');
