@@ -25,6 +25,29 @@ export interface InMemoryGraphNode {
   readonly entityIds: readonly string[];
   readonly result: VectorStoreResult;
   readonly filters: Filters;
+  /**
+   * M0 — bi-temporal validity mirroring the pg store's `t_valid`/`t_invalid`.
+   * Omitted/`null` `tInvalid` ⇒ currently-valid; omitted/`null` `tValid` ⇒
+   * always-valid-since-creation (matches the SQL null-safe predicate).
+   */
+  readonly tValid?: Date | null;
+  readonly tInvalid?: Date | null;
+}
+
+/**
+ * M0 — mirror of `composeTemporalWhere` (ADR-0011) for the in-memory double.
+ * When `asOf` is omitted, a node is valid iff it is currently-valid
+ * (`tInvalid == null`). With `asOf`, it is the row valid at that instant.
+ */
+function isValidAt(node: InMemoryGraphNode, asOf: Date | undefined): boolean {
+  const tValid = node.tValid ?? null;
+  const tInvalid = node.tInvalid ?? null;
+  if (asOf === undefined) {
+    return tInvalid === null;
+  }
+  const validFrom = tValid === null || tValid.getTime() <= asOf.getTime();
+  const notYetInvalid = tInvalid === null || tInvalid.getTime() > asOf.getTime();
+  return validFrom && notYetInvalid;
 }
 
 function scopeMatches(node: Filters, want: Filters): boolean {
@@ -56,6 +79,7 @@ export class InMemoryGraphExpansionStore implements GraphExpansionStore {
     for (const n of this.nodes) {
       if (seedSet.has(n.memoryId)) continue; // EC-1 exclude seeds
       if (!scopeMatches(n.filters, params.filters)) continue; // EC-2 scope confine
+      if (!isValidAt(n, params.filters.asOf)) continue; // M0 temporal correctness
       const shared = n.entityIds.filter((e) => seedEntities.has(e)).length;
       if (shared > 0) {
         rows.push({ result: n.result, sharedEntities: shared });
