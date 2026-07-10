@@ -41,6 +41,10 @@ export async function recallHandler(
   const hits = await scoped.recall(parsed.query, {
     topK: parsed.topK,
     threshold: parsed.threshold,
+    // M0 — parity with REST: graph-aware + point-in-time. Spread-when-present keeps
+    // the call byte-unchanged when omitted; the temporal filter lives in the store.
+    ...(parsed.graphExpand !== undefined ? { graphExpand: parsed.graphExpand } : {}),
+    ...(parsed.asOf !== undefined ? { asOf: new Date(parsed.asOf) } : {}),
   });
 
   // EC-6: empty-recall shape lock

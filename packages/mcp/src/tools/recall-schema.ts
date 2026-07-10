@@ -32,6 +32,26 @@ export const INPUT_SCHEMA = z.object({
   topK: z.number().int().min(1).max(100).default(20),
   /** Minimum composite score to include (additive composite, [0, 1] range per EC-10). */
   threshold: z.number().min(0).max(1).default(0),
+  /**
+   * M0 — point-in-time recall (ADR-0011). ISO 8601 datetime; the handler parses
+   * it to a Date. Returns the memory state valid at that instant. Parity with
+   * REST `POST /v1/recall`.
+   */
+  asOf: z.string().datetime().optional(),
+  /**
+   * M0 — graph-aware recall (v0.19.0 SDK capability), parity with REST. Bounded:
+   * `hops` literal 1|2 (mirror the SDK type), `limit` <= 100 (DoS-guard parity
+   * with topK). `.strict()` rejects unknown inner keys; optional keeps it
+   * default-OFF (byte-unchanged when omitted). The temporal filter (t_invalid /
+   * asOf) is applied inside the shared expansion store.
+   */
+  graphExpand: z
+    .object({
+      hops: z.union([z.literal(1), z.literal(2)]).optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+    })
+    .strict()
+    .optional(),
 });
 
 export type RecallInput = z.infer<typeof INPUT_SCHEMA>;
