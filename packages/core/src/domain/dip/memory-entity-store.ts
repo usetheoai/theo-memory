@@ -49,6 +49,14 @@ export interface EntityNodeSummary {
    * dedup ON CONFLICT). `memory_entities` carries no per-link timestamp.
    */
   readonly lastSeenAt: string;
+  /**
+   * M2 — on-demand evolving summary: a deterministic digest of the entity's
+   * currently-active outgoing relations (`normalized_relation → target`, over
+   * `entity_edges` where `t_invalid IS NULL`), so it reflects the M1
+   * supersession/invalidation state. Computed at read time (zero per-write LLM,
+   * ADR-M2-1). Empty string when the entity has no active outgoing relations.
+   */
+  readonly summary: string;
 }
 
 export interface ListEntitiesParams {
