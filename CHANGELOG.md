@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **MCP `recall` tool exposes `graphExpand` + `asOf`** (parity with REST `POST /v1/recall`): MCP callers can now do graph-aware recall and point-in-time (`asOf`) recall; bounded `hops` 1|2 + `limit`<=100; default-OFF when omitted. (M0 / T2.2)
 - **`ROADMAP.md` created** (resolves the `/roadmap-feature` impediment — no macro roadmap existed): formal machine-tracked milestones `M0`/`M1`/`M2` for the temporal context-graph track, in the canonical `cycle-roadmap` format (`## M<N> — [ ]` + DoD + deps + risks + out-of-scope + SOTA anchor). M0/M1/M2 are the same three deltas as CLAUDE.md Items 27/28/29 (two views). Graph-DB backend (Item 14) declared out of scope.
 - Roadmap: added Items 27-29 (temporal context-graph completeness backlog — REDACTED/REDACTED parity gaps) to `CLAUDE.md § Roadmap`: (27) graph-aware recall temporal correctness — HIGH/S, likely bug (`PgGraphExpansionStore` ignores `t_invalid`); (28) edge-level validity windows — MEDIUM/L, ~80% redundant with #27; (29) evolving entity summaries — LOW/nice-to-have, on-demand. All sit behind M1 (Item 21) and behind a DIP; Item 14 (graph-DB backend) stays declined.
 
@@ -15,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Graph-aware recall temporal correctness (M0):** 1-2 hop graph expansion no longer resurfaces superseded/evicted (`t_invalid`) memories, and now honors `asOf` point-in-time. `PgGraphExpansionStore` reuses the shipped ADR-0011 bi-temporal predicate (`composeTemporalWhere`, extracted to a shared module) applied during the JOIN; the in-memory store mirrors it. Verified RED->GREEN against real `ankane/pgvector:v0.5.1`.
 - **`/auto-plan` milestone selector fixed** — `select_next_milestone.py` required `### M<N>` (h3) headers, but the cycle-roadmap/cycle-release/`/roadmap-feature` source-of-truth format is `## M<N>` (h2); the selector now accepts BOTH h2 and h3 so no roadmap format breaks. (M0 unblock)
 - `/code-quality` audit no longer walks `knowledge-base/references/` (cloned third-party reference repos): the skip-list used `referencia` (PT) instead of the real directory name `references` (EN), so the symbol-fabrication detector parsed foreign files — wasting time/RAM and producing a spurious `FAIL_HARD` that blocked `/review`. Now the references zone is correctly skipped, with a behavioral regression test. (#37)
 
