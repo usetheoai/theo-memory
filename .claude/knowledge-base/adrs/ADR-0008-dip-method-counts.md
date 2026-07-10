@@ -191,3 +191,23 @@ This ADR's original prose ("five DIP surfaces") is stale — the DIP count grew 
 - `MemoryEntityStore` (`domain/dip/memory-entity-store.ts`) — **2 methods** (`upsertAndLink`, `list`). Persist + read on the one port that owns the `entities`/`memory_entities` aggregate (plan ADR D4). Default impl `PgMemoryEntityStore`.
 
 Both are ISP-clean (≤2 methods). No per-DIP method-count cap is changed; this ADR fixes per-DIP counts, not a total-DIP ceiling. See `.claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md` § D1/D4.
+
+---
+
+## Amendment 2026-07-10 (M1 — edge-level validity windows)
+
+`MemoryGraphStore` is widened from **2 → 3 methods**: adds
+`invalidateEdgesByMemory(memoryId)`.
+
+**Justification (ISP-clean):** the new method is a **cohesive write on the SAME
+`entity_edges` aggregate** that `upsertEdges` already owns — it is the
+forget-propagation half of the edge lifecycle (persist → invalidate → read), not
+a cross-cutting concern forced onto unrelated consumers. Every consumer of
+`invalidateEdgesByMemory` (the `forget` path) legitimately needs it; no consumer
+depends on a method it does not call. Per Global CLAUDE.md PARTE II § 13.4, an
+aggregate-lifecycle method on the port that owns the aggregate is the ISP-correct
+shape (mirrors `HistoryManager`'s multi-method lifecycle rationale above).
+
+Updated count: `MemoryGraphStore` — **3 methods** (`upsertEdges`,
+`invalidateEdgesByMemory`, `listEdges`). `MemoryEntityStore` stays 2 (NOT
+widened). Enforced by `packages/core/src/domain/dip/memory-graph-store.test.ts`.
