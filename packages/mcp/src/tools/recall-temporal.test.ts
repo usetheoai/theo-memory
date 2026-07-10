@@ -20,7 +20,6 @@ const ALICE_CTX = { session: { userId: 'alice' } } as const;
 function mockMemory(scoped: ScopedMemory): Memory {
   const memory = mock<Memory>();
   vi.mocked(memory.user).mockReturnValue(scoped);
-  vi.mocked(memory.withWorkspace).mockReturnValue(memory);
   return memory;
 }
 
@@ -51,9 +50,12 @@ describe('MCP recall — graphExpand + asOf parity (M0 T2.2)', () => {
     );
 
     expect(vi.mocked(scoped.recall)).toHaveBeenCalledTimes(1);
-    const [query, options] = vi.mocked(scoped.recall).mock.calls[0]!;
+    const call = vi.mocked(scoped.recall).mock.calls[0];
+    expect(call).toBeDefined();
+    const [query, options] = call!;
     expect(query).toBe('alpha');
-    expect(options).toMatchObject({
+    expect(options).toBeDefined();
+    expect(options!).toMatchObject({
       graphExpand: { hops: 2 },
       asOf: new Date('2026-02-01T00:00:00.000Z'),
     });
@@ -68,8 +70,8 @@ describe('MCP recall — graphExpand + asOf parity (M0 T2.2)', () => {
       dispatch('recall', { query: 'alpha' }, { memoryFactory: () => memory }),
     );
 
-    const [, options] = vi.mocked(scoped.recall).mock.calls[0]!;
-    expect((options as Record<string, unknown>).graphExpand).toBeUndefined();
-    expect((options as Record<string, unknown>).asOf).toBeUndefined();
+    const opts = (vi.mocked(scoped.recall).mock.calls[0]?.[1] ?? {}) as Record<string, unknown>;
+    expect(opts['graphExpand']).toBeUndefined();
+    expect(opts['asOf']).toBeUndefined();
   });
 });

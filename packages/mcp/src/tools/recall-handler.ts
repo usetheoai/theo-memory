@@ -38,12 +38,21 @@ export async function recallHandler(
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
   const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
+  // M0 — parity with REST: graph-aware + point-in-time. Reconstruct graphExpand with
+  // per-key conditional spread so no `| undefined` leaks (exactOptionalPropertyTypes);
+  // spread-when-present keeps the call byte-unchanged when omitted. The temporal
+  // filter (t_invalid / asOf) is applied inside the shared expansion store.
+  const graphExpand =
+    parsed.graphExpand === undefined
+      ? undefined
+      : {
+          ...(parsed.graphExpand.hops !== undefined ? { hops: parsed.graphExpand.hops } : {}),
+          ...(parsed.graphExpand.limit !== undefined ? { limit: parsed.graphExpand.limit } : {}),
+        };
   const hits = await scoped.recall(parsed.query, {
     topK: parsed.topK,
     threshold: parsed.threshold,
-    // M0 — parity with REST: graph-aware + point-in-time. Spread-when-present keeps
-    // the call byte-unchanged when omitted; the temporal filter lives in the store.
-    ...(parsed.graphExpand !== undefined ? { graphExpand: parsed.graphExpand } : {}),
+    ...(graphExpand !== undefined ? { graphExpand } : {}),
     ...(parsed.asOf !== undefined ? { asOf: new Date(parsed.asOf) } : {}),
   });
 
