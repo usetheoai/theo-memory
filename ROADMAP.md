@@ -129,6 +129,35 @@ forgotten** memories through the graph path (the only recall path that does not 
 
 ---
 
+## M3 — [ ] Dashboard UI for the temporal context graph (theo-cloud)
+
+> Added 2026-07-10. The UI companion to M0/M1/M2 — surfaces the shipped backend in the
+> **theo-cloud** dashboard (separate repo: `../../theo-cloud/theo-cloud/dashboard`, React 19 + Vite;
+> BFF gateway in Go at `theo-cloud/internal/`). M0/M1/M2 are backend-complete + released
+> (v0.28/29/30); this closes the honest UI gap the reviews flagged.
+
+**Objective:** the dashboard renders the temporal context-graph features — entity `summary`
+(M2) in the Entities tab, and an active-vs-superseded edge toggle (M1) in the graph view.
+M0 (recall `graphExpand`/`asOf` in the playground) is already done.
+
+**Definition of done:**
+
+- [ ] BFF `Entity` struct carries `summary`; Entities tab renders a `summary` column (M2).
+- [ ] BFF `Graph` handler forwards `?includeSuperseded`; graph view has a toggle to include superseded edges (M1).
+- [ ] M0 playground (`graphExpand` + `asOf`) verified working end-to-end.
+- [ ] Tests: dashboard (vitest) + BFF (`go test`); `CHANGELOG.md` in theo-cloud updated.
+
+**Dependencies:** M0 (v0.28.0), M1 (v0.29.0), M2 (v0.30.0) — all shipped.
+
+**Top risks (new):**
+
+1. Cross-repo: the work is in theo-cloud, tracked here — mitigate: implement + release in theo-cloud per its own cycle; cross-reference this milestone.
+2. Per-edge active/superseded styling needs a memory-side validity flag not yet in the `/graph` response — mitigate: M3 ships the include-superseded toggle; per-edge distinct styling is a documented followup if the memory endpoint gains a per-edge flag.
+
+**Why now:** the project-owner asked to close the Dashboard UI gap; the backend is released and the BFF passes most fields through, so the FE lift is small.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `REDACTED` / `REDACTED` / `REDACTED` are already cloned under
