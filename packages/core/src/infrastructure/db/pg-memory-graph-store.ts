@@ -52,6 +52,24 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
         // D5: an endpoint the node extractor did not produce → skip (fail-soft).
         if (sourceId === undefined || targetId === undefined) continue;
 
+        // M1 supersession (ADR-M1-1): a new (source, relation, target) invalidates
+        // a PRIOR active edge with the SAME (scope, source_entity, normalized_relation)
+        // but a DIFFERENT target — "X loves A" then "X loves B" retires the A edge
+        // (history preserved via t_invalid, not deleted). Same-triple re-assert is a
+        // no-op here (target_entity_id <> $7 excludes it) and dedups via ON CONFLICT.
+        await client.query(
+          `UPDATE entity_edges SET t_invalid = now()
+             WHERE workspace_id = $1
+               AND COALESCE(user_id,'') = COALESCE($2::text,'')
+               AND COALESCE(session_id,'') = COALESCE($3::text,'')
+               AND COALESCE(agent_id,'') = COALESCE($4::text,'')
+               AND source_entity_id = $5
+               AND normalized_relation = $6
+               AND target_entity_id <> $7
+               AND t_invalid IS NULL`,
+          [workspaceId, userId, sessionId, agentId, sourceId, e.normalizedRelation, targetId],
+        );
+
         await client.query(
           `INSERT INTO entity_edges
              (workspace_id, source_entity_id, target_entity_id, relation, normalized_relation, source_memory_id, user_id, session_id, agent_id)
@@ -68,6 +86,19 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * M1 forget-propagation — invalidate every currently-active edge produced by
+   * `memoryId`. `source_memory_id` is a globally-unique UUID, so no scope filter
+   * is needed. Idempotent (`t_invalid IS NULL` guard).
+   */
+  async invalidateEdgesByMemory(memoryId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE entity_edges SET t_invalid = now()
+         WHERE source_memory_id = $1 AND t_invalid IS NULL`,
+      [memoryId],
+    );
   }
 
   /** EC-2: resolve an endpoint name (already normalized by the caller — do NOT
@@ -115,6 +146,7 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
           AND COALESCE(ee.user_id,'') = COALESCE($2,'')
           AND COALESCE(ee.session_id,'') = COALESCE($3,'')
           AND COALESCE(ee.agent_id,'') = COALESCE($4,'')
+          ${params.includeSuperseded === true ? '' : 'AND ee.t_invalid IS NULL'}
         GROUP BY se.name, ee.relation, te.name
         ORDER BY memory_count DESC, se.name ASC`,
       [workspaceId, filters.user_id ?? null, filters.session_id ?? null, filters.agent_id ?? null],

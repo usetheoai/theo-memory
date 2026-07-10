@@ -49,6 +49,12 @@ export interface ListEdgesParams {
   readonly workspaceId: string;
   /** Scope tiers (one set, others undefined) — AND-composed via COALESCE. */
   readonly filters: Filters;
+  /**
+   * M1 — default `false`: list only currently-active edges (`t_invalid IS NULL`).
+   * `true` includes superseded/invalidated edges (audit view). Injection-safe: a
+   * boolean selects between two constant SQL fragments.
+   */
+  readonly includeSuperseded?: boolean;
 }
 
 export interface MemoryGraphStore {
@@ -59,6 +65,16 @@ export interface MemoryGraphStore {
    * Idempotent: re-asserting the same triple from the same memory is a no-op.
    */
   upsertEdges(params: UpsertEdgesParams): Promise<void>;
+
+  /**
+   * M1 — forget-propagation: mark every currently-active edge produced by
+   * `memoryId` (`source_memory_id = memoryId`) as invalid (`t_invalid = now()`),
+   * so an edge never outlives the memory that produced it. `memoryId` is a
+   * globally-unique UUID, so no scope is needed. Idempotent (already-invalid rows
+   * are skipped). Fail-soft at the call site: a forget of the memory must still
+   * succeed if this fails.
+   */
+  invalidateEdgesByMemory(memoryId: string): Promise<void>;
 
   /**
    * List the relation edges for a scope, aggregated by `(source, relation,
