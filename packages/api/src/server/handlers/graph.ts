@@ -77,6 +77,8 @@ export async function graphHandler(
     relation: e.relation,
     target: e.target,
     memory_count: e.memoryCount,
+    // M1 — active vs superseded, so the graph view can distinguish them.
+    active: e.active,
   }));
 
   return c.json({ nodes, edges }, 200);
