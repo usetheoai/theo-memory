@@ -33,8 +33,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Matches `### M<N> — [<status>] <name>` (em-dash is U+2014, also accept ASCII --)
-HEADER_RE = re.compile(r"^###\s+M(\d+)\s+[—\-]{1,2}\s+\[([x\s\-])\]\s+(.+?)\s*$", re.MULTILINE)
+# Matches `## M<N> — [<status>] <name>` OR `### M<N> — ...` (em-dash U+2014, also ASCII --).
+# h2 is the cycle-roadmap / cycle-release / roadmap-feature source-of-truth format;
+# h3 is the roadmap-init template legacy format — accept BOTH so neither breaks.
+HEADER_RE = re.compile(r"^#{2,3}\s+M(\d+)\s+[—\-]{1,2}\s+\[([x\s\-])\]\s+(.+?)\s*$", re.MULTILINE)
 
 OBJECTIVE_RE = re.compile(r"^\*\*Objective:\*\*\s*(.+?)\s*$", re.MULTILINE)
 DOD_BLOCK_RE = re.compile(r"\*\*Definition of done[^*]*\*\*\s*\n((?:- \[[ x]\] .+\n?)+)", re.MULTILINE)
@@ -72,7 +74,7 @@ def parse_roadmap(text: str) -> list[Milestone]:
     """Parse a ROADMAP.md text into an ordered list of Milestone records."""
     headers = list(HEADER_RE.finditer(text))
     if not headers:
-        raise ValueError("no milestone headers found (expected `### M<N> — [<status>] <name>`)")
+        raise ValueError("no milestone headers found (expected `## M<N> — [<status>] <name>` or `### …`)")
 
     milestones: list[Milestone] = []
     for idx, match in enumerate(headers):
