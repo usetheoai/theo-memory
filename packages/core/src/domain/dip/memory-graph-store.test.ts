@@ -2,10 +2,12 @@
  * T2.0 — MemoryGraphStore DIP shape contract (slice2).
  *
  * The edges port owns the `entity_edges` aggregate (ADR D2). ISP-clean: EXACTLY
- * 2 methods (`upsertEdges`, `listEdges`) per ADR-0008 — `MemoryEntityStore` is
- * NOT widened.
+ * 3 methods (`upsertEdges`, `invalidateEdgesByMemory`, `listEdges`) per ADR-0008
+ * (amended 2026-07-10, M1 — the invalidate is a cohesive write on the SAME edges
+ * aggregate, not a cross-cutting concern). `MemoryEntityStore` is NOT widened.
  *
  * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.0
+ * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md § Amendment 2026-07-10
  */
 import { describe, expect, test } from 'vitest';
 
@@ -19,8 +21,9 @@ describe('MemoryGraphStore DIP (T2.0)', () => {
       listEdges: async () => [],
     };
     expect(typeof stub.upsertEdges).toBe('function');
+    expect(typeof stub.invalidateEdgesByMemory).toBe('function');
     expect(typeof stub.listEdges).toBe('function');
     const methodCount = Object.keys(stub).length;
-    expect(methodCount).toBe(2); // ISP — ADR-0008 ≤2
+    expect(methodCount).toBe(3); // ISP — ADR-0008 amended (M1): cohesive edges-aggregate write
   });
 });
