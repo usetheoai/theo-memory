@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- Amend the LOCKED `dogfood-golden-rule.md` into a runner+gate — every journey is anchor (100%-functional gate), `oracle_result` required for a `pass` (no hallucinated green), plus secret-redaction and no-anchor hard caps; authorized by ADR-0019 (dogfood-unified-journey-suite T0.1).
 
 ### Deprecated
 
