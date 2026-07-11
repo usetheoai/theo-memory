@@ -44,7 +44,7 @@ records the returned row/flag. Details: `drivers/sdk.md`.
 | J-API-4 | API | admin key lifecycle (create/list/rotate/revoke) + members RBAC | true | mint → list → rotate → revoke each 2xx; RBAC 403 on under-scope |
 | J-API-5 | API | health/health-db warmup 503 → 200 | true | `/v1/health` 503 while warming then 200 |
 | J-API-6 | API | graph includeSuperseded (M1) + entities summary (M2) via REST | true | default hides superseded; `?includeSuperseded=true` surfaces it with active flag; entity summary non-empty |
-| J-CLI-1 | API | `themory {remember,recall,forget,reflect,keys,health}` verbs | true | each verb exit 0 + expected stdout shape |
+| J-API-7 | API | `themory {remember,recall,forget,reflect,keys,health}` verbs | true | each verb exit 0 + expected stdout shape |
 
 ### Steps (API)
 

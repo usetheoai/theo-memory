@@ -26,13 +26,13 @@ never a silent skip. A red journey is a finding.
 | J-API-4 | admin `POST/GET/rotate/revoke /v1/admin/keys/*` + `/v1/members` RBAC | each lifecycle op 2xx; under-scope → 403; record statuses (KEY PREFIXES only — EC-2) |
 | J-API-5 | `GET /v1/health` during warm-up then after | 503 `warming_up` then 200; record both |
 | J-API-6 | `GET /graph` default then `?includeSuperseded=true`; `GET /entities` | default hides superseded; toggle surfaces it with `active` flag; entity `summary` non-empty; record edge/active + summary text |
-| J-CLI-1 | run `themory {remember,recall,forget,reflect,keys,health}` | each verb exit 0 + expected stdout shape; record exit codes |
+| J-API-7 | run `themory {remember,recall,forget,reflect,keys,health}` | each verb exit 0 + expected stdout shape; record exit codes |
 
 ## Evidence template
 
 ```yaml
 ---
-journey: J-API-<N>   # or J-CLI-<N>
+journey: J-API-<N>
 date: <today>
 operator: claude-code
 outcome: pass | partial | fail
