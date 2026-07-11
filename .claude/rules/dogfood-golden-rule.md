@@ -36,10 +36,13 @@ In order; first failure short-circuits to `EVIDENCE_INSUFFICIENT`.
 |---|---|---|
 | 1 | Manifest contains a section identifiable by `Slug` or anchor header | `anchor_missing` |
 | 2 | `Status` matches the running value declared in § 2 | `anchor_not_running` |
-| 3 | At least one evidence file under `knowledge-base/dogfood/evidence/` has frontmatter `scenario:` matching the anchor slug | `no_anchor_evidence` |
-| 4 | The most recent matching evidence file (by frontmatter `date:`) is within the freshness threshold below | `anchor_evidence_stale` |
+| 3 | Every journey in the journey catalog (§ 9) — ALL flagged `anchor: true` per Q1 — has ≥1 evidence file whose join key (`journey:` OR legacy `scenario:` via the anchor's `aliases:`) matches, with `outcome: pass` | `no_anchor_evidence` |
+| 4 | The most recent matching evidence file (by frontmatter `date:`) for each anchor journey is within the freshness threshold below | `anchor_evidence_stale` |
+| 5 | No `outcome: pass` evidence file has an empty/absent `oracle_result:` field (EC-3 — blocks a hallucinated self-reported green) | `outcome_pass_requires_oracle_result` |
+| 6 | No evidence body contains a full-secret literal `theo_live_[A-Za-z0-9_-]{20,}` / `sk-or-v1-[A-Za-z0-9]{20,}` (EC-2 — the documented ≤4-char prefix is allowed) | `evidence_contains_secret` |
+| 7 | The journey catalog declares ≥1 journey and ≥1 `anchor: true` per surface (EC-7 — a catalog with zero anchors does NOT vacuously pass) | `no_anchor_journeys` |
 
-**Freshness threshold (PER-PROJECT — EDIT THIS):** `30 days` by default. Reduce for fast-moving products; never raise without ADR.
+**Freshness threshold (PER-PROJECT — EDIT THIS):** `30 days` by default (Q3). Reduce for fast-moving products; never raise without ADR.
 
 ## § 4 — Soft caps (PER-PROJECT — EDIT OR EXTEND)
 
@@ -57,15 +60,34 @@ Every file under `knowledge-base/dogfood/evidence/` MUST have YAML frontmatter:
 
 ```yaml
 ---
-scenario: <slug>        # matches the anchor slug or a declared sibling
+journey: <J-SURFACE-N>  # catalog id (§ 9). Legacy `scenario: <slug>` is also accepted (EC-1),
+                        #   matched against the anchor journey's `aliases:` list.
 date: YYYY-MM-DD        # local date of the dogfood run
-operator: <name>        # who ran it
+operator: <name>        # who ran it (human or "claude-code" for a driven journey)
 outcome: pass | partial | fail
+oracle_result: <verbatim machine observation>   # REQUIRED when outcome==pass (EC-3):
+                        #   suite exit code / HTTP status+shape / Chrome evaluate_script return.
+                        #   A `pass` with empty/absent oracle_result is INVALID (hard cap #5).
 summary: <one line>
 ---
 ```
 
-Missing any field → evidence file ignored by hard cap #3.
+Missing any field → evidence file ignored by hard cap #3. A `pass` without a non-empty
+`oracle_result:` fails hard cap #5 (no hallucinated green). Evidence bodies MUST redact
+secrets (EC-2): drivers write at most `theo_live_` / `sk-or-` + 4 chars; a full-secret
+literal fails hard cap #6.
+
+## § 9 — Journey catalog (LOCKED contract; catalog content is PER-PROJECT)
+
+Per [ADR-0019](../knowledge-base/adrs/ADR-0019-dogfood-unified-journey-suite.md) (Q1 owner
+directive 2026-07-11), `/dogfood` is a **runner+gate**: it drives every catalogued user
+journey across the four product surfaces (SDK · API · MCP · UI) as a human and records one
+evidence file per journey. The machine-readable catalog is the Source of Truth at
+`knowledge-base/dogfood/journeys.md` — one row per journey (`id | surface | title | anchor |
+oracle`) plus a per-journey steps block. **EVERY journey is `anchor: true`** — a red or
+missing anchor journey forces `EVIDENCE_INSUFFICIENT` (hard caps #3–#7). The legacy anchor
+scenario `claude-code-auto-memory` is preserved as one anchor journey via its `aliases:`
+(no silent swap). Verdict tokens (§ 1) and Status vocabulary (§ 2) are unchanged.
 
 ## § 6 — When this rule may change
 
