@@ -6,7 +6,7 @@ goal: Replace the evidence-only /dogfood gate with a unified journey-suite that 
 
 # Plan: Unified /dogfood journey-suite (Claude-as-human across SDK · API · MCP · UI)
 
-> **Version 1.1** — (v1.1 absorbs the `/edge-case-plan` MUST-FIX items EC-1/EC-2/EC-3 from `knowledge-base/reviews/dogfood-unified-journey-suite-edge-cases-2026-07-11.md` into T0.1 + T1.1.) Rewrite the `/dogfood` skill and its LOCKED golden rule into ONE unified journey-suite. Today `/dogfood` only *evaluates* recorded evidence (a manifest + evidence files) and emits `EVIDENCE_SUFFICIENT / WITH_CAVEATS / INSUFFICIENT`. This plan turns it into a runner+gate: Claude Code, behaving as a real human user of the system, *executes* a catalogued set of user journeys end-to-end across all four product surfaces (SDK, REST API, MCP, and the theo-cloud dashboard UI — cross-repo, on the real dev-stack + real Chrome), records one evidence file per journey, and only then evaluates. The verdict semantics are preserved but are now **backed by executed journeys**: `EVIDENCE_SUFFICIENT` requires every catalogued anchor journey to have run green with fresh evidence. Expected outcome: an honest, repeatable "is the system 100% functional?" gate that generates the anchor evidence instead of waiting for it.
+> **Version 1.2** — (v1.1 absorbed the `/edge-case-plan` MUST-FIX items EC-1/EC-2/EC-3 into T0.1 + T1.1. v1.2 fixes a plan-oracle-vs-reality defect found by the `/implement` halt-loop's first run — see `knowledge-base/implementations/dogfood-unified-journey-suite-BLOCKED-2026-07-11.md`: the T0.1/T4.1 GREEN gate was "protocol scripts green", but `check_xrefs.py`/`test_e2e_smoke.py` were ALREADY FAIL at HEAD from pre-existing repo-wide debt unrelated to /dogfood. v1.2 rescopes those oracles to a **delta**: "adds zero new [FAIL] referencing the touched files".) Rewrite the `/dogfood` skill and its LOCKED golden rule into ONE unified journey-suite. Today `/dogfood` only *evaluates* recorded evidence (a manifest + evidence files) and emits `EVIDENCE_SUFFICIENT / WITH_CAVEATS / INSUFFICIENT`. This plan turns it into a runner+gate: Claude Code, behaving as a real human user of the system, *executes* a catalogued set of user journeys end-to-end across all four product surfaces (SDK, REST API, MCP, and the theo-cloud dashboard UI — cross-repo, on the real dev-stack + real Chrome), records one evidence file per journey, and only then evaluates. The verdict semantics are preserved but are now **backed by executed journeys**: `EVIDENCE_SUFFICIENT` requires every catalogued anchor journey to have run green with fresh evidence. Expected outcome: an honest, repeatable "is the system 100% functional?" gate that generates the anchor evidence instead of waiting for it.
 
 ## Goal
 
@@ -199,11 +199,11 @@ CHANGELOG.md — [Unreleased] § Changed entry (protocol requirement)
 
 #### TDD
 ```
-RED:     test_e2e_smoke.py — MUST still pass (dogfood row sections intact) after the edit
-RED:     check_xrefs.py — MUST still pass (ADR-0019 path resolves; no dangling refs)
-GREEN:   Author ADR + amend rule so both scripts pass
+RED:     test_e2e_smoke.py — the dogfood cycle sections stay intact (no dogfood `## §`/row removed) after the edit
+RED:     check_xrefs.py — adds ZERO new [FAIL] referencing `dogfood-golden-rule.md` or `ADR-0019` (DELTA vs the committed baseline; the whole-repo protocol-script baseline is PRE-EXISTING FAIL — Python-syntax + `skill_cycle_contract_resolves` + skill-frontmatter — unrelated to /dogfood and out of this plan's scope, per BLOCKED report 2026-07-11)
+GREEN:   Author ADR + amend rule so no new referencing-FAIL appears AND verdict tokens present in the file are verbatim-unchanged (EC-11 grep)
 REFACTOR: None expected (markdown)
-VERIFY:  python3 .claude/scripts/check_xrefs.py && python3 .claude/scripts/test_e2e_smoke.py
+VERIFY:  test "$(python3 .claude/scripts/check_xrefs.py 2>&1 | grep '\[FAIL\]' | grep -Ec 'dogfood-golden|ADR-0019')" = "0"  # scoped delta; MUST be 0
 ```
 
 #### Concurrency tests (only when applicable)
@@ -212,12 +212,13 @@ VERIFY:  python3 .claude/scripts/check_xrefs.py && python3 .claude/scripts/test_
 #### Acceptance Criteria
 - [ ] ADR-0019 exists and is cited by the golden rule.
 - [ ] Golden rule verdict tokens + Status vocab unchanged (diff shows only additions/cap-input evolution).
-- [ ] `check_xrefs.py` and `test_e2e_smoke.py` both green.
+- [ ] `check_xrefs.py` adds ZERO new [FAIL] referencing `dogfood-golden-rule.md`/`ADR-0019` (scoped delta; whole-repo baseline is pre-existing FAIL, out of scope).
+- [ ] `test_e2e_smoke.py` dogfood cycle sections intact (no dogfood section removed).
 - [ ] CHANGELOG `[Unreleased] § Changed` has the entry.
 - [ ] Pass: size — edited files ≤ 500 lines.
 
 #### DoD (Definition of Done)
-- [ ] Both protocol scripts green.
+- [ ] Protocol scripts add zero new referencing-FAIL (scoped delta — whole-repo baseline is pre-existing FAIL).
 - [ ] No verdict-token/Status-vocab regression.
 
 ### T0.2 — Journey catalog `knowledge-base/dogfood/journeys.md` (all surfaces enumerated)
@@ -637,11 +638,11 @@ Baseline SKILL.md:1-100 (current modes); D2 (Claude-as-human); T1.1 evaluator; P
 
 #### TDD
 ```
-RED:     test_e2e_smoke.py — dogfood-related sections still valid
-RED:     check_xrefs.py — SKILL.md references (drivers, scripts, journeys.md) all resolve
-GREEN:   Rewrite SKILL.md
+RED:     test_e2e_smoke.py — dogfood cycle sections stay intact after the SKILL.md rewrite
+RED:     check_xrefs.py — the rewritten SKILL.md adds ZERO new [FAIL] referencing the dogfood skill / drivers / scripts / the journey catalog (DELTA vs committed baseline; whole-repo baseline is pre-existing FAIL, out of scope)
+GREEN:   Rewrite SKILL.md so every reference it introduces resolves (no new referencing-FAIL)
 REFACTOR: None expected
-VERIFY:  python3 .claude/scripts/check_xrefs.py && python3 .claude/scripts/test_e2e_smoke.py
+VERIFY:  test "$(python3 .claude/scripts/check_xrefs.py 2>&1 | grep '\[FAIL\]' | grep -Ec 'skills/dogfood|journeys.md|run_journey_audit|check_journey_catalog')" = "0"  # scoped delta; MUST be 0
 ```
 
 #### Concurrency tests (only when applicable)
@@ -650,11 +651,11 @@ VERIFY:  python3 .claude/scripts/check_xrefs.py && python3 .claude/scripts/test_
 #### Acceptance Criteria
 - [ ] `run` mode documented (per-surface + all).
 - [ ] `audit` invokes `run_journey_audit.py`; tokens unchanged.
-- [ ] All SKILL.md references resolve (`check_xrefs.py`).
+- [ ] SKILL.md rewrite adds ZERO new [FAIL] referencing the dogfood skill / drivers / scripts / the journey catalog (scoped delta; whole-repo baseline pre-existing FAIL, out of scope).
 - [ ] Pass: size ≤ 500 lines.
 
 #### DoD (Definition of Done)
-- [ ] Both protocol scripts green.
+- [ ] Protocol scripts add zero new referencing-FAIL (scoped delta).
 
 ---
 
