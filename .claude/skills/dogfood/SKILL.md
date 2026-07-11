@@ -1,100 +1,92 @@
 ---
 name: dogfood
-version: 0.1.0
+version: 0.2.0
 requires: []
-description: Honesty gate that blocks any 'production-ready' / 'production-grade' / v1.0 claim without recorded evidence of sustained internal use. Reads the project's dogfood manifest at knowledge-base/dogfood/manifest.md plus evidence files at knowledge-base/dogfood/evidence/, applies the project-specific dogfood golden rule (rules/dogfood-golden-rule.md — created per project), and emits EVIDENCE_SUFFICIENT / EVIDENCE_WITH_CAVEATS / EVIDENCE_INSUFFICIENT. Invoke before any production claim, milestone promotion targeting v1.0, README/CHANGELOG edit that touches status language, or release decision.
+description: Unified honesty gate + journey runner (ADR-0019). Blocks any 'production-ready' / 'production-grade' / v1.0 claim without executed evidence that the system is 100% functional. `run` drives EVERY catalogued user journey across all four surfaces (SDK / REST API / MCP / theo-cloud dashboard UI) AS A HUMAN — via the surface drivers, on the real dev-stack + real Chrome — recording one evidence file per journey; `audit` then evaluates catalog x evidence and emits EVIDENCE_SUFFICIENT / EVIDENCE_WITH_CAVEATS / EVIDENCE_INSUFFICIENT. Per Q1 every journey is anchor: SUFFICIENT requires every journey fresh+green. Invoke before any production claim, milestone promotion targeting v1.0, README/CHANGELOG status edit, or release decision.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write Edit
-argument-hint: "[audit|log-evidence|status]"
+argument-hint: "[run|audit|log-evidence|status]"
 ---
 
-# Skill: dogfood
+# Skill: dogfood — unified journey runner + honesty gate
 
-Applies the project's **dogfood golden rule** (`rules/dogfood-golden-rule.md`) to the manifest at `knowledge-base/dogfood/manifest.md` and evidence files in `knowledge-base/dogfood/evidence/`. Emits a verdict on whether the project may legitimately claim `production-ready` / `production-grade` / `v1.0 ready`.
+Rewritten per [ADR-0019](../../knowledge-base/adrs/ADR-0019-dogfood-unified-journey-suite.md) from
+an evidence-*evaluator* into a **runner+gate**. Claude Code, behaving as a real human user, drives
+every catalogued journey across the four surfaces, records evidence, then evaluates. The contract
+is the LOCKED [`rules/dogfood-golden-rule.md`](../../rules/dogfood-golden-rule.md) — read it first.
 
-**This skill is NOT optional for a v1.0 claim.** Read `rules/dogfood-golden-rule.md` before invoking.
+## Sources of truth
 
-## Pre-conditions (per-project)
+- **Journey catalog** — `knowledge-base/dogfood/journeys.md` (§ 9 of the golden rule). One row per
+  journey (`id | surface | title | anchor | oracle`); **every journey is `anchor: true`** (Q1).
+- **Surface drivers** — how to execute each journey AS A HUMAN + record its `oracle_result`:
+  [`drivers/sdk.md`](./drivers/sdk.md), [`drivers/api.md`](./drivers/api.md),
+  [`drivers/mcp.md`](./drivers/mcp.md), [`drivers/ui.md`](./drivers/ui.md).
+- **Evidence** — append-only `knowledge-base/dogfood/evidence/*.md` (frontmatter per golden rule § 5:
+  `journey`/`date`/`operator`/`outcome`/`oracle_result`/`summary`).
 
-This skill assumes the project has defined:
+## Modes
 
-1. **A dogfood golden rule** at `rules/dogfood-golden-rule.md` — declares the project's anchor scenario, the meaning of each `Status` value (e.g., `planned | wired | running | paused | abandoned`), evidence freshness thresholds, and the conditions under which the anchor may change.
-2. **A manifest** at `knowledge-base/dogfood/manifest.md` — declares the project's anchor scenario slug, current `Status`, and target dates.
-3. **An evidence directory** at `knowledge-base/dogfood/evidence/` — append-only log of dogfood runs. Each file carries frontmatter with `scenario:`, `date:`, and a structured summary of what was exercised.
+### `run [surface?]` — execute journeys AS A HUMAN (generate evidence)
 
-If any of these is missing, the skill emits `EVIDENCE_INSUFFICIENT` with the corresponding flag (`golden_rule_missing`, `manifest_missing`, or `evidence_dir_missing`).
+1. Validate the catalog first:
+   ```bash
+   python3 .claude/skills/dogfood/scripts/check_journey_catalog.py --catalog .claude/knowledge-base/dogfood/journeys.md
+   ```
+   Any issue → fix the catalog before running (all four surfaces covered, every journey anchor).
+2. For each journey of the requested surface (or all four), open the matching driver
+   (`drivers/{sdk,api,mcp,ui}.md`) and **execute its steps as a human** — run the SDK integration
+   suite, `curl` the REST API, drive the MCP client, or drive real Chrome via chrome-devtools MCP
+   for the dashboard (the UI driver carries the cross-repo dev-stack runbook).
+3. Record ONE evidence file per journey via `log-evidence`, with `oracle_result` = the
+   machine-observable proof (suite exit code / HTTP status+shape / Chrome `evaluate_script` return).
+   On an unresolvable oracle or a genuinely-red journey, write `outcome: fail reason=…` — **never a
+   silent skip** (EC-8). A red journey is a FINDING, not a plan failure.
+   **Redact secrets** to `theo_live_`/`sk-or-` + ≤4 chars (EC-2).
 
-## Why this skill exists
+### `audit` (default) — evaluate catalog x evidence → verdict
 
-Chaos tests and synthetic benchmarks prove the system responds to a workload. **Dogfood proves the system is usable when the team that built it depends on it.** Without a dogfood gate, the temptation to claim `production-ready` at v1.0 — backed only by CI passing on toy clusters — is high. The classic platform failure mode is shipping something that passes CI but breaks the moment internal teams try to use it for anything beyond hello-world.
-
-The skill is the gate that keeps the production claim honest against that temptation.
-
-## Arguments
-
-- `$ARGUMENTS = audit` (or empty) → runs the full gate and emits a verdict.
-- `$ARGUMENTS = log-evidence` → interactive mode: helps record new evidence for the anchor or a sibling scenario.
-- `$ARGUMENTS = status` → quick summary (Status + evidence count + age of latest); no formal verdict.
-
-## Process — `audit` mode (default)
-
-### Step 1 — Verify pre-conditions
-
-Check that `rules/dogfood-golden-rule.md`, `knowledge-base/dogfood/manifest.md`, and `knowledge-base/dogfood/evidence/` all exist. Missing any → emit the corresponding flag + verdict `EVIDENCE_INSUFFICIENT`. Stop.
-
-### Step 2 — Locate the anchor section in the manifest
-
-The manifest declares an anchor scenario by a slug field (`**Slug**`, `Slug:`, or equivalent — defined by the golden rule). Extract:
-
-- `Status` — must be one of the values declared in the golden rule
-- The "target date" field (golden rule names it; e.g., `Anchor MUST become running before`)
-- The `Latest evidence` list if present
-
-Missing anchor section OR missing `Status` field → flag `anchor_missing`.
-
-### Step 3 — Apply hard caps to the anchor
-
-In order:
-
-| # | Check | Flag on failure |
-|---|---|---|
-| 1 | Anchor section present + `Status` present | `anchor_missing` |
-| 2 | `Status` matches the golden rule's "running" value (case-insensitive) | `anchor_not_running` |
-| 3 | `glob` of `knowledge-base/dogfood/evidence/*.md` returns ≥ 1 file whose frontmatter `scenario:` matches the anchor slug | `no_anchor_evidence` |
-| 4 | The most recent matching file (by `date:` frontmatter) is within the freshness threshold declared in the golden rule | `anchor_evidence_stale` |
-
-**Any flag → verdict `EVIDENCE_INSUFFICIENT`.** No exceptions.
-
-### Step 4 — Apply soft caps (only if all hard caps pass)
-
-Soft caps are defined per-project in the golden rule (e.g., minimum evidence count, coverage of sibling scenarios, presence of failure stories). Any soft cap fail → verdict `EVIDENCE_WITH_CAVEATS` and list which caps fired.
-
-### Step 5 — Emit verdict
-
-```
-EVIDENCE_SUFFICIENT     — all hard + soft caps pass
-EVIDENCE_WITH_CAVEATS   — all hard caps pass, ≥ 1 soft cap failed
-EVIDENCE_INSUFFICIENT   — any hard cap failed
+```bash
+python3 .claude/skills/dogfood/scripts/run_journey_audit.py \
+  --catalog .claude/knowledge-base/dogfood/journeys.md \
+  --evidence-dir .claude/knowledge-base/dogfood/evidence \
+  --golden-rule .claude/rules/dogfood-golden-rule.md
 ```
 
-Verdict goes to stdout in a fenced block; full details (which caps fired, evidence age, etc.) follow.
+The evaluator applies the golden rule § 3 hard-cap order (zero-anchor structural → per-journey
+newest evidence → oracle_result gate → secret gate → freshness) and prints JSON:
 
-## Process — `log-evidence` mode
+```
+EVIDENCE_SUFFICIENT     — every anchor journey fresh + green (outcome:pass + non-empty oracle_result)
+EVIDENCE_WITH_CAVEATS   — all anchor journeys green; a non-anchor journey is red (thin-evidence soft caps)
+EVIDENCE_INSUFFICIENT   — ≥1 anchor journey missing / red / stale / oracle-less / secret-bearing (named)
+```
 
-Interactive: asks for scenario slug, date (defaults to today), and a summary template. Writes `knowledge-base/dogfood/evidence/{scenario}-{YYYY-MM-DD-HHMMSS}.md` with the required frontmatter.
+Exit code non-zero on `EVIDENCE_INSUFFICIENT`. Verdict tokens are LOCKED (golden rule § 1).
 
-## Process — `status` mode
+### `log-evidence` — record one journey's evidence
 
-Reads the manifest's anchor `Status` field, counts evidence files matching the anchor slug, reports the age of the most recent one. Emits a one-line summary. Never emits a verdict.
+Interactive: writes `knowledge-base/dogfood/evidence/{journey}-{YYYY-MM-DD-HHMMSS}.md` with the § 5
+frontmatter (including the REQUIRED `oracle_result` when `outcome: pass`). No verdict.
 
-## Output
+### `status` — quick summary
 
-- `audit` and `log-evidence` modes write to `knowledge-base/reviews/dogfood-{YYYY-MM-DD}.md`.
-- `status` mode is stdout-only.
+Counts evidence per journey + the age of the most recent; one-line summary. No verdict.
 
 ## Anti-patterns
 
 - Treating `EVIDENCE_WITH_CAVEATS` as `SUFFICIENT`. Caveats are explicit — read them.
-- Logging evidence for a different scenario and claiming it satisfies the anchor.
-- Silently changing the anchor when it becomes inconvenient. The golden rule declares when (and how) the anchor may change.
-- Running dogfood as theater. The point is to actually use the thing.
+- Emitting a `pass` whose `oracle_result` merely paraphrases "the journey worked" — the gate rejects
+  it (`outcome_pass_requires_oracle_result`). The oracle is a machine observation, not prose.
+- Recording fixture evidence (`tests/fixtures/…`) as if it were a real run. Evidence lives in
+  `knowledge-base/dogfood/evidence/` and is fresh-dated from an actual `run`.
+- A full secret literal in any evidence file (the gate rejects it). Redact to a ≤4-char prefix.
+- Running dogfood as theatre. The point is to actually drive the product through its front door.
+
+## Cross-references
+
+- Golden rule (contract): [`rules/dogfood-golden-rule.md`](../../rules/dogfood-golden-rule.md)
+- ADR: [`ADR-0019`](../../knowledge-base/adrs/ADR-0019-dogfood-unified-journey-suite.md)
+- Catalog: `knowledge-base/dogfood/journeys.md`
+- Evaluator: `scripts/run_journey_audit.py` · Validator: `scripts/check_journey_catalog.py`
+- Drivers: `drivers/{sdk,api,mcp,ui}.md`
