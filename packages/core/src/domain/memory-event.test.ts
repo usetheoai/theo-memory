@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 37 values (36 prior + extraction_label_language_mismatch from EG-5)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(37);
+  test('has 38 values (37 prior + category_auto_assigned from auto-categorization T1.1)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(38);
+  });
+
+  test('includes category_auto_assigned (auto-categorization-write-pipeline T1.1, Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('category_auto_assigned');
   });
 
   test('includes entity_noise_filtered (EG-2, Princípio 3)', () => {
