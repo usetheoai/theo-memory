@@ -10,9 +10,11 @@ import {
   AdditiveExtractionSchema,
   escapeMarkdownHeaders,
   generateAdditiveExtractionPrompt,
+  renderCategoryDirective,
   renderOntologyDirective,
 } from './extraction/prompt.js';
 import { BUILTIN_ONTOLOGIES } from './ontology.js';
+import { DEFAULT_CATEGORY_TAXONOMY } from './extraction/taxonomy.js';
 import type { MemoryItem } from './memory-item.js';
 import type { Message } from './message.js';
 
@@ -338,5 +340,42 @@ describe('domain-ontologies T2.1 — generateAdditiveExtractionPrompt ontology i
     const d = renderOntologyDirective(BUILTIN_ONTOLOGIES.code);
     for (const t of BUILTIN_ONTOLOGIES.code.entityTypes) expect(d).toContain(t);
     for (const r of BUILTIN_ONTOLOGIES.code.relationTypes) expect(d).toContain(r);
+  });
+});
+
+describe('auto-categorization (T2.1)', () => {
+  const msgs: Message[] = [{ role: 'user', content: 'x' }];
+
+  test('test_schema_parses_output_with_category', () => {
+    const parsed = AdditiveExtractionSchema.parse({
+      memory: [{ id: '1', text: 'a fact', category: 'work' }],
+    });
+    expect(parsed.memory[0]?.category).toBe('work');
+  });
+
+  test('test_schema_parses_output_without_category', () => {
+    const parsed = AdditiveExtractionSchema.parse({ memory: [{ id: '1', text: 'a fact' }] });
+    expect(parsed.memory[0]?.category).toBeUndefined();
+  });
+
+  test('test_prompt_lists_the_taxonomy', () => {
+    const { prompt } = generateAdditiveExtractionPrompt([], msgs, undefined, undefined, undefined, DEFAULT_CATEGORY_TAXONOMY);
+    for (const label of DEFAULT_CATEGORY_TAXONOMY) expect(prompt).toContain(label);
+  });
+
+  test('test_empty_taxonomy_still_requests_a_label', () => {
+    const d = renderCategoryDirective([]);
+    expect(d.toLowerCase()).toContain('category');
+    expect(d).not.toContain('Prefer one of:');
+  });
+
+  test('test_prompt_instructs_lowercase', () => {
+    const d = renderCategoryDirective(DEFAULT_CATEGORY_TAXONOMY);
+    expect(d.toLowerCase()).toContain('lowercase');
+  });
+
+  test('without a taxonomy, the prompt omits the category directive (default byte-identical)', () => {
+    const withNothing = generateAdditiveExtractionPrompt([], msgs).prompt;
+    expect(withNothing).not.toContain('CATEGORY:');
   });
 });

@@ -16,6 +16,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.33.0] - 2026-07-12
+
+### Added
+- `LocalMemoryConfig.autoCategorize` — the auto-categorization off-switch + custom taxonomy are now reachable through the public `createLocalMemory` factory (threaded into `ExtractionDeps` like `ontology`); `AutoCategorizeConfig` + `DEFAULT_CATEGORY_TAXONOMY` + `classifyCategorySource` exported (auto-categorization-write-pipeline /review F-H1).
+- `category_auto_dropped` OTel event — a real drop of an LLM-proposed category that failed the 1-64 bound is now observable (Princípio 3, no silent IGNORE) (F-M1).
+- **Default-on LLM auto-categorization**: every `remember()` write auto-assigns a `category` via the existing extraction LLM call (hybrid taxonomy: fixed list preferred, short free-form fallback). An explicit caller category always wins; the auto value is trimmed + 1-64-bounded fail-soft; no backfill. Observable via `category_auto_assigned` (auto-categorization-write-pipeline T3.1).
+- Extraction prompt + schema now carry an optional per-fact `category`; `renderCategoryDirective` builds the hybrid-taxonomy instruction (auto-categorization-write-pipeline T2.1).
+- `@usetheo/memory` extraction `taxonomy.ts` — `DEFAULT_CATEGORY_TAXONOMY` + `classifyCategorySource` + `AutoCategorizeConfig` for hybrid default-on auto-categorization (auto-categorization-write-pipeline T1.2).
+- `category_auto_assigned` OTel event literal — observability for model-derived category assignment in the write pipeline (auto-categorization-write-pipeline T1.1).
+
+
+### Changed
+- Split `extraction/pipeline.ts` (was 745 lines) into `pipeline.ts` (438) + `pipeline-helpers.ts` (334) — behavior-preserving, brings both under the 500-line budget (auto-categorization-write-pipeline F1).
+- Supersede the category-filter operator-only-inference JSDoc on `RememberOptions.category` — an operator category is now an override; auto-categorization is default-on (auto-categorization-write-pipeline T1.2).
+- Amend the LOCKED `dogfood-golden-rule.md` into a runner+gate — every journey is anchor (100%-functional gate), `oracle_result` required for a `pass` (no hallucinated green), plus secret-redaction and no-anchor hard caps; authorized by ADR-0019 (dogfood-unified-journey-suite T0.1).
+
 ## [0.32.0] - 2026-07-10
 
 ### Added
