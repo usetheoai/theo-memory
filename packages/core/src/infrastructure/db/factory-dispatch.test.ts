@@ -8,8 +8,9 @@
  *
  * @see .claude/knowledge-base/plans/create-memory-preset-plan.md § T2.1
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { LocalMemoryConfig } from './config.js';
 import type * as PresetModule from './preset.js';
 
 const resolvePreset = vi.hoisted(() => vi.fn(async () => ({ __preset: true })));
@@ -21,10 +22,25 @@ vi.mock('./preset.js', async (importActual) => {
 import { createMemory } from './factory.js';
 
 describe('T2.1 — createMemory dispatch', () => {
+  beforeEach(() => resolvePreset.mockClear());
+
   it('test_createMemory_dispatches_preset_shape_to_resolvePreset', async () => {
     const result = await createMemory({ postgres: 'postgres://x/db', migrate: false });
     expect(resolvePreset).toHaveBeenCalledOnce();
     expect(resolvePreset).toHaveBeenCalledWith({ postgres: 'postgres://x/db', migrate: false });
     expect(result).toEqual({ __preset: true });
+  });
+
+  it('test_createMemory_full_config_does_NOT_dispatch_to_resolvePreset', async () => {
+    // The other discriminator branch: a full LocalMemoryConfig must route to
+    // createLocalMemory, never resolvePreset. createLocalMemory rejects on empty
+    // stub adapters; we only assert the routing decision, so we swallow that.
+    const full = {
+      embedder: {} as unknown,
+      llm: {} as unknown,
+      vectorStore: {} as unknown,
+    } as unknown as LocalMemoryConfig;
+    await createMemory(full).catch(() => undefined);
+    expect(resolvePreset).not.toHaveBeenCalled();
   });
 });
