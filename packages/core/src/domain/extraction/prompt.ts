@@ -70,7 +70,7 @@ const SYSTEM_PROMPT = [
   'The literal token "user" (the speaker) is the one allowed exception to the input-language rule.',
   '',
   'Output format (strict JSON, no prose):',
-  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "linked_memory_ids"?: ["1", "2"] }],',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "category"?: "<label>", "linked_memory_ids"?: ["1", "2"] }],',
   '  "entities"?: [{ "name": "<entity>", "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }],',
   '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
@@ -113,12 +113,30 @@ export function renderOntologyDirective(ontology: Ontology): string {
 }
 
 /**
+ * Render the auto-categorization directive (auto-categorization-write-pipeline).
+ * Instructs the LLM to assign each fact a single lowercase `category`, preferring
+ * a label from the fixed taxonomy, or a short (≤ 64-char) free-form label when none
+ * fits (hybrid — ADR D2). An empty taxonomy omits the "Prefer one of:" clause
+ * (pure free-form mode — EC-4).
+ */
+export function renderCategoryDirective(taxonomy: readonly string[]): string {
+  const prefer =
+    taxonomy.length > 0 ? ` Prefer one of: ${taxonomy.join(', ')}.` : '';
+  return (
+    'CATEGORY: assign each `memory[]` fact a single lowercase `category` label.' +
+    prefer +
+    ' If none fits, use a short (max 64 chars) lowercase label.'
+  );
+}
+
+/**
  * Compose the extraction prompt + the integer→UUID mapping that the response
  * resolution step uses to translate `linked_memory_ids: ['1']` back to real UUIDs.
  *
  * When `ontology` is provided (Item 15), its vocabulary directive is prepended
- * (highest priority) so the LLM is steered to the domain types. Default (absent)
- * is byte-identical to pre-Item-15 output.
+ * (highest priority) so the LLM is steered to the domain types. When
+ * `categoryTaxonomy` is provided (default-on auto-categorization), the category
+ * directive is prepended. Both absent → byte-identical to prior output.
  */
 export function generateAdditiveExtractionPrompt(
   existing: readonly MemoryItem[],
@@ -126,6 +144,7 @@ export function generateAdditiveExtractionPrompt(
   customInstructions?: string,
   ontology?: Ontology,
   detectedLanguage?: { readonly name: string },
+  categoryTaxonomy?: readonly string[],
 ): PromptResult {
   const uuidByInt = new Map<number, string>();
   existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
@@ -136,6 +155,10 @@ export function generateAdditiveExtractionPrompt(
 
   const ontologyPrefix = ontology !== undefined
     ? `${renderOntologyDirective(ontology)}\n\n`
+    : '';
+
+  const categoryPrefix = categoryTaxonomy !== undefined
+    ? `${renderCategoryDirective(categoryTaxonomy)}\n\n`
     : '';
 
   // EG-4 fixes-cycle-1 (D1): when the input language was detected deterministically
@@ -150,7 +173,7 @@ export function generateAdditiveExtractionPrompt(
     : '';
 
   const prompt = [
-    languagePrefix + ontologyPrefix + customPrefix + SYSTEM_PROMPT,
+    languagePrefix + ontologyPrefix + categoryPrefix + customPrefix + SYSTEM_PROMPT,
     '',
     renderExistingMemories(existing),
     renderNewMessages(newMessages),
@@ -170,6 +193,7 @@ export const AdditiveExtractionSchema = z.object({
       id: z.string(),
       text: z.string(),
       attributed_to: z.string().optional(),
+      category: z.string().optional(),
       linked_memory_ids: z.array(z.string()).optional(),
     }),
   ),
