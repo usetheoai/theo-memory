@@ -144,7 +144,7 @@ describe('runExtractionPipeline — auto-categorization (T3.1)', () => {
     const startActiveSpan = vi.fn((_n: string, fn: (s: { setAttribute: typeof setAttribute; end: () => void }) => void) => {
       fn({ setAttribute, end: () => undefined });
     });
-    const tracer = { startActiveSpan } as unknown as Parameters<typeof runExtractionPipeline>[2]['tracer'];
+    const tracer = { startActiveSpan } as unknown as NonNullable<Parameters<typeof runExtractionPipeline>[2]['tracer']>;
     await runExtractionPipeline(msg, filters, {
       vectorStore: store,
       embedder: makeEmbedder(),
