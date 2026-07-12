@@ -23,6 +23,7 @@ import type {
 import type { Reranker } from '../../domain/dip/reranker.js';
 import type { SkillExecutor } from '../../domain/dip/skill-executor.js';
 import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
+import type { AutoCategorizeConfig } from '../../domain/extraction/taxonomy.js';
 import type { MemoryConfig } from '../../domain/memory-store.js';
 import type { Scope } from '../../domain/scope.js';
 
@@ -138,6 +139,18 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * @see src/domain/dip/reranker.ts
    */
   readonly reranker?: Reranker;
+
+  /**
+   * auto-categorization-write-pipeline (F-H1) — default-on model-derived category.
+   * Absent ⇒ default-on with {@link DEFAULT_CATEGORY_TAXONOMY}. Set
+   * `{ enabled: false }` to restore operator-only category behavior, or supply a
+   * `taxonomy` to override the fixed list. Threaded into `ExtractionDeps` by
+   * `scoped-memory.ts` (like `ontology`). An operator `RememberOptions.category`
+   * always overrides the auto-derived value.
+   *
+   * @see .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md § ADR D2 + D3
+   */
+  readonly autoCategorize?: AutoCategorizeConfig;
 
   /**
    * adaptive-retrieval (Roadmap Item 13) — optional adaptive policy. When

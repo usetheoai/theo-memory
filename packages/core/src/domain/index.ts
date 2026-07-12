@@ -634,6 +634,15 @@ export { runExtractionPipeline } from './extraction/pipeline.js';
 export type { ExtractionDeps } from './extraction/pipeline.js';
 
 /**
+ * Auto-categorization surface (auto-categorization-write-pipeline). `AutoCategorizeConfig`
+ * is the `LocalMemoryConfig.autoCategorize` shape (off-switch + custom taxonomy);
+ * `DEFAULT_CATEGORY_TAXONOMY` is the fixed list; `classifyCategorySource` labels an
+ * assigned category `taxonomy` vs `suggested`.
+ */
+export { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './extraction/taxonomy.js';
+export type { AutoCategorizeConfig, CategorySource } from './extraction/taxonomy.js';
+
+/**
  * `runRetrievalPipeline` — the 9-step search orchestrator.
  * Preprocess → Embed → Semantic over-fetch → BM25 → Sigmoid normalize
  * → Entity boost → Combined score → Threshold gate → Format.
