@@ -1,0 +1,86 @@
+agent: review-create-memory-preset-wiring
+review_target: 17296fe..HEAD for plan create-memory-preset
+plan: .claude/knowledge-base/plans/create-memory-preset-plan.md
+triad_revalidation:
+  total_new_public_symbols: 4    # isPresetConfig, resolvePreset (internal), CreateMemoryPresetConfig, InvalidPresetConfig (barrel); + assemblePresetMemory (@internal seam)
+  pillar_a_honest_pass: 5 / 5    # every new symbol has a functionally-necessary caller (prod or barrel-reachable) — DEEP-verified, no no-ops
+  pillar_b_honest_pass: 5 / 5    # integration test EXERCISES assemblePresetMemory (Act phase: remember+recall round-trip vs real pgvector)
+  pillar_c_observed: n/a          # feature is a factory/dispatch surface — no new runtime OTel metric claimed by the plan for this slice; recall/remember paths reuse existing pipeline metrics
+
+findings:
+  - id: F-wire-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 298-302
+    plan_ref: D1 non-breaking discriminated overload; T2.1 dispatcher
+    summary: Pillar (a) HONEST PASS — isPresetConfig + resolvePreset are both called from the production createMemory dispatcher.
+    evidence: |
+      factory.ts:301 — `return isPresetConfig(config) ? resolvePreset(config) : createLocalMemory(config);`
+      This is the real, functionally-necessary dispatch: isPresetConfig is the discriminator (line 44 import),
+      resolvePreset is the preset branch. Neither is a no-op or dead branch. createMemory itself is re-exported
+      from packages/core/src/index.ts:38 and infrastructure/db/index.ts:61 → reachable from the public barrel.
+    recommended_action: none
+
+  - id: F-wire-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 165
+    plan_ref: D5 assemblePresetMemory @internal seam
+    summary: Pillar (a)+(b) HONEST PASS — assemblePresetMemory is called by production resolvePreset AND exercised by the integration test's Act phase.
+    evidence: |
+      Prod caller: preset.ts:165 — resolvePreset() delegates to assemblePresetMemory({ pool, embedder, llm, migrate }).
+      Test exercise: tests/integration/create-memory-preset.test.ts:51,69,91 — three tests call assemblePresetMemory
+      and then Act on it (memory.user('u1').remember(...) + recall(...) at lines 59-64 against real ankane/pgvector).
+      NOT merely imported-and-ignored. `threshold: 0` + `results.length > 0` assertion proves migrations fired and
+      the store was queried end-to-end. `@internal` JSDoc present (preset.ts:93).
+    recommended_action: none
+
+  - id: F-wire-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/index.ts
+    line: 62-65
+    plan_ref: D5 barrel discipline — assemblePresetMemory NOT re-exported
+    summary: assemblePresetMemory is correctly @internal — NOT in any barrel; deep-imported by the integration test only.
+    evidence: |
+      Barrel chain: packages/core/src/index.ts:38 → infrastructure/db/index.ts:65 re-export ONLY
+      `{ type CreateMemoryPresetConfig, InvalidPresetConfig }`. The only mention of assemblePresetMemory in a barrel
+      is index.ts:63 — a comment documenting its intentional absence.
+      Deep import confirmed: create-memory-preset.test.ts:28 imports it via relative path
+      `'../../packages/core/src/infrastructure/db/preset.js'`, not via `@usetheo/memory`.
+      No `preset` subpath in packages/core/package.json#exports (correct — it is not a public surface).
+    recommended_action: none
+
+  - id: F-wire-4
+    severity: INFO
+    file: packages/core/src/index.ts
+    line: 38
+    plan_ref: CreateMemoryPresetConfig + InvalidPresetConfig public reachability
+    summary: CreateMemoryPresetConfig (type) + InvalidPresetConfig (class) are reachable via the top-level barrel — no dead exports.
+    evidence: |
+      Chain resolves: preset.ts (source of truth) → infrastructure/db/index.ts:65 → packages/core/src/index.ts:38.
+      InvalidPresetConfig is a consumer-catchable typed error (fail-fast on empty postgres, EC-4). CreateMemoryPresetConfig
+      is the `{ postgres, openai?, migrate? }` input type consumed by createMemory's overload signature (factory.ts:299).
+      Both are legitimately public — not orphan internal exports.
+    recommended_action: none
+
+  - id: F-wire-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 158-159, 114-118
+    plan_ref: EC-1 pool leak on failed boot; EC-5 truthy env guard
+    summary: DIP boundary + resource safety honored — pool ownership is atomic (EC-1 try/catch pool.end() on failure), env-set is truthy-guarded (EC-5), adapters lazy-imported to keep openai out of the default barrel graph.
+    evidence: |
+      EC-1: preset.ts:114-118 — catch closes the pool before re-throwing; dispose wrapper (127-140) is idempotent
+      (single-end via `disposed` flag), so the two failure branches never double-end.
+      EC-5: preset.ts:158 — `if (config.openai)` truthy guard, so `openai: ''` never clobbers an ambient key.
+      Boundary: preset.ts lives in infrastructure/db and imports only within-tier (factory, pgvector-store,
+      migrations-runner) + domain DIP types — no cross-tier import into local/cloud/theokit/agent-tools.
+      Lazy import (161-164) keeps `openai`/`pg` out of the default barrel static graph (mirrors cache-store precedent).
+    recommended_action: none
+
+summary: |
+  Wiring triad is HONEST and DEEP for all 5 new symbols. No dead exports, no orphan modules,
+  no no-op callers, no barrel leak of the @internal seam. The integration test genuinely
+  exercises assemblePresetMemory against real pgvector (not just imports it). DIP boundaries
+  respected. Pillar (c) is n/a for this dispatch/factory slice (no new metric claimed; underlying
+  remember/recall reuse existing pipeline instrumentation). Verdict: CLEAN — no findings above INFO.

@@ -1,0 +1,118 @@
+agent: review-create-memory-preset-domain-memory-layer
+review_target: 17296fe..HEAD for plan create-memory-preset
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "REUSE createLocalMemory (Mem0-shape pipeline) without bypass"
+  - "embeddingDim 1536 consistent across embedder <-> PgvectorStore <-> runMigrations (footgun closure)"
+  - "OpenAI env-set (D2) safe vs module-global lazy singleton (EC-7 one-key-per-process honesty)"
+  - "dispose-wrap preserves LocalMemory prototype methods (no-spread invariant)"
+  - "auto-migrate-on-boot (D3) consistent with migrate-on-startup discipline (CLAUDE.md Item 18)"
+  - "3 fundamental principles: weighted relevance / diversity / auditability not weakened"
+  - "no-paper-names in src/**"
+findings:
+  - id: F-dom-ml-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 107
+    plan_ref: "Coverage Matrix #2 — Preset wires OpenAIEmbedder + OpenAILLM + PgvectorStore + pg.Pool; D5"
+    domain_anchor: "CLAUDE.md § What this project is (Mem0-shape architecture); createLocalMemory is the DIP-shaped factory"
+    summary: "Preset correctly REUSES createLocalMemory verbatim — no pipeline bypass. assemblePresetMemory delegates the full write/recall pipeline to createLocalMemory({ embedder, llm, vectorStore, embeddingDim }); it only adds pool ownership + dispose-wrap around it."
+    evidence: |
+      preset.ts:107-112 — const memory = await createLocalMemory({ embedder, llm, vectorStore, embeddingDim: PRESET_EMBEDDING_DIM });
+      The six-phase write, nine-step additive-scoring search, reflection default,
+      entity/graph ports, and recall cache are all inherited unchanged from
+      createLocalMemory (factory.ts:156-285). No scoring/search logic is
+      reimplemented in preset.ts. Principle 1 (weighted relevance) and
+      Principle 2 (diversity/MMR/eviction) are untouched.
+    recommended_action: "None — correct. The preset is a pure composition-root convenience over the existing port (Don't-Reinvent, parsimony rung 4)."
+
+  - id: F-dom-ml-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 79
+    plan_ref: "D4/EC-3 — fix embeddingDim at 1536, no override; Coverage Matrix #5"
+    domain_anchor: "constants.ts:21 MAX_EMBEDDING_DIM=1536; pgvector-store.ts:268 default; migrations-runner.ts:36 embeddingDim option"
+    summary: "embeddingDim=1536 is threaded IDENTICALLY through all three consumers (runMigrations, PgvectorStore, createLocalMemory), closing the documented footgun. Verified: OpenAIEmbedder emits text-embedding-3-small (1536-dim, openai.ts:49), MAX_EMBEDDING_DIM=1536, PgvectorStore ctor arg = PRESET_EMBEDDING_DIM, runMigrations({embeddingDim: PRESET_EMBEDDING_DIM})."
+    evidence: |
+      preset.ts:79 PRESET_EMBEDDING_DIM = MAX_EMBEDDING_DIM (1536)
+      preset.ts:104 runMigrations(pool, { embeddingDim: PRESET_EMBEDDING_DIM })
+      preset.ts:106 new PgvectorStore(pool, { embeddingDim: PRESET_EMBEDDING_DIM })
+      preset.ts:111 createLocalMemory({ ..., embeddingDim: PRESET_EMBEDDING_DIM })
+      Single source constant → no drift possible. probeEmbedder (factory.ts:182)
+      still runs and would throw EmbeddingMismatch if the injected embedder's
+      output != 1536, so the invariant is enforced at boot, not merely assumed.
+    recommended_action: "None — the footgun the plan exists to close is closed at the single-constant level."
+
+  - id: F-dom-ml-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 158
+    plan_ref: "D2 — feed OpenAI key via process.env; EC-7 single-key-per-process; Drawbacks row EC-7"
+    domain_anchor: "openai.ts:41-47 module-global lazy singleton `_openai`; JSDoc EC-8 (one client per module per process)"
+    summary: "D2 env-set is honestly documented but the EC-7 one-key-per-process caveat has a real correctness edge NOT surfaced to a caller who reuses the process: the OpenAI client singleton captures the key at FIRST .embed()/.chat() call, so a second resolvePreset() with a different `openai` sets process.env but the already-instantiated singleton keeps the first key. The JSDoc + CHANGELOG document this ('one key per process'), which satisfies honesty (Rule 3). Flagging as LOW because the caveat is disclosed, not hidden — no silent data corruption, and the escape hatch (full-config path) is named."
+    evidence: |
+      preset.ts:158-160 — if (config.openai) process.env['OPENAI_API_KEY'] = config.openai;
+      openai.ts:42-47 — client() memoizes `_openai` on first call reading env AT THAT MOMENT.
+      Sequence: resolvePreset(keyA) -> remember() constructs singleton w/ keyA ->
+      resolvePreset(keyB) sets env=keyB but singleton already holds keyA -> keyB ignored.
+      preset.ts:33-35 JSDoc + CHANGELOG:8 both state "one key per process ... for
+      multiple keys use the full-config path". Disclosure is present and accurate.
+    recommended_action: "No code change required for this plan (disclosure is honest and the constraint is by-design per D2 rejected-alt). If a future consumer needs multi-key, the clean follow-up is constructor-threading the apiKey into OpenAIEmbedder/OpenAILLM (already recorded as the D2 rejected alternative + Drawbacks mitigation)."
+
+  - id: F-dom-ml-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 127
+    plan_ref: "D3 — preset owns the pool; dispose-wrap; SEPA no-spread invariant"
+    domain_anchor: "local-memory.ts:55 DisposableMemory = Memory & { dispose(): Promise<void> }; factory.ts:229/284 Object.assign(memory, { dispose })"
+    summary: "wrapDisposeWithPoolEnd correctly mutates the instance in place (does NOT spread) so the LocalMemory prototype methods (user/session/agent/recall/remember/forget/reflect) survive. A {...memory} spread would have dropped the class prototype methods and broken the three-tier scope API. The dispose override is idempotent (disposed flag) so pool.end() runs exactly once, and it awaits innerDispose() first (preserving the eviction-cron stop from createLocalMemory before ending the pool)."
+    evidence: |
+      preset.ts:131 const innerDispose = memory.dispose.bind(memory);  // captures createLocalMemory's dispose
+      preset.ts:133 (memory as {...}).dispose = async () => { if (disposed) return; disposed = true; await innerDispose(); await pool.end(); }
+      preset.ts:139 return memory;  // same instance, prototype intact — NOT a spread
+      Order is correct: innerDispose() (stops eviction cron / no-op) THEN pool.end().
+      Since the LocalMemory instance is a class instance, three-tier scope narrowing
+      (user()/session()/agent()) is preserved. Principle 3 (auditability) intact —
+      history/consolidation_history writes go through the untouched pipeline.
+    recommended_action: "None — the no-spread + idempotent-close invariant is implemented correctly and matches the createLocalMemory Object.assign dispose contract."
+
+  - id: F-dom-ml-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 103
+    plan_ref: "D3 — auto-migrate by default, opt-out { migrate: false }; CLAUDE.md Item 18 migrate-on-startup discipline"
+    domain_anchor: "CLAUDE.md Roadmap Item 18 (themory migrate; migrate-on-startup discipline inside themory server); migrations-runner.ts:34 runMigrations"
+    summary: "Auto-migrate-on-boot (migrate ?? true) is consistent with the project's migrate-on-startup discipline (themory server / Item 18). runMigrations is called with the SAME embeddingDim as the store, so the dim-change branch (migrations-runner.ts:84) applies the correct 1536 column. Opt-out { migrate: false } is honored for out-of-band ops migration. EC-1 try/catch closes the pool on a failed migrate before rethrow — no leaked pool (Rule 8 resource discipline)."
+    evidence: |
+      preset.ts:169 migrate: config.migrate ?? true  (default ON, opt-out honored)
+      preset.ts:102-118 try { if (migrate) runMigrations(...); ...store...; ...createLocalMemory... } catch { await pool.end(); throw }
+      Mirrors themory server migrate-on-startup (CLAUDE.md Item 18). runMigrations
+      dim option (migrations-runner.ts:84 applyDimChange) receives 1536 identically.
+    recommended_action: "None — auto-migrate default + opt-out + fail-fast pool cleanup all match the project discipline."
+
+  - id: F-dom-ml-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 1
+    plan_ref: "Global DoD — no paper/marketing names in src/** (rules/no-paper-names-in-code.md)"
+    domain_anchor: "rules/no-paper-names-in-code.md — Voyager/Mem0/Letta/LangMem/MemGPT banned in src/**"
+    summary: "grep of preset.ts for banned paper/marketing tokens (voyager|mem0|letta|langmem|memgpt|graphiti|honcho) returns CLEAN. JSDoc uses behavior-shaped wording ('convenience branch', 'pool-owning assembly', 'discriminator') with @see pointing at the plan filesystem coordinate, not paper names."
+    evidence: |
+      grep -niE 'voyager|mem0|letta|langmem|memgpt|graphiti|honcho' preset.ts -> CLEAN (0 hits)
+      @see .claude/knowledge-base/plans/create-memory-preset-plan.md (filesystem coordinate, allowed)
+    recommended_action: "None — naming hygiene respected."
+
+summary_verdict: |
+  CLEAN from the memory-layer domain perspective. The preset is a correct
+  composition-root convenience: it REUSES createLocalMemory verbatim (no
+  Mem0-shape pipeline bypass), threads embeddingDim=1536 identically through
+  runMigrations + PgvectorStore + createLocalMemory (footgun closed at the
+  single-constant level with probeEmbedder enforcement at boot), preserves
+  LocalMemory prototype methods via in-place dispose mutation (no-spread
+  invariant), and auto-migrates consistent with Item 18. None of the 3
+  fundamental principles (weighted relevance / diversity / auditability) is
+  weakened — all inherited unchanged from createLocalMemory. The only
+  non-INFO finding is F-dom-ml-3 (LOW): the D2 single-key-per-process
+  behavior is a real edge but is HONESTLY disclosed in JSDoc + CHANGELOG
+  with a named escape hatch, so it does not violate Rule 3. No BLOCKER, no
+  HIGH, no MEDIUM.

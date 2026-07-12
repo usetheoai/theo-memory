@@ -1,0 +1,160 @@
+agent: review-create-memory-preset-cross-validation
+review_target: 17296fe..HEAD for plan create-memory-preset
+plan: .claude/knowledge-base/plans/create-memory-preset-plan.md
+edge_case_review: .claude/knowledge-base/reviews/create-memory-preset-edge-cases-2026-07-12.md
+
+plan_tasks_summary:
+  total_tasks: 4
+  fully_implemented: 3   # T1.1, T1.2, T2.2
+  partial: 0
+  missing: 0
+  diverged: 1            # T2.1 — functionally correct + non-breaking proven, but the declared
+                         #        type-level test file/tests were swapped for a runtime test
+
+acceptance_criteria_summary:
+  total: 21              # T1.1:5 + T1.2:5 + T2.1:3 + T2.2:4 + FinalPhase equivalents rolled up
+  satisfied: 20
+  unverified: 1          # T2.1 AC "createMemory({preset}) AND createMemory(fullConfig) both
+                         #   type-check" — asserted only at runtime, not via the planned type test
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 5
+  respected: 5           # D1 (discriminated overload), D2 (env-set truthy guard), D3 (auto-migrate
+                         #   opt-out + pool-owning dispose), D4 (fixed 1536, NO embeddingDim field),
+                         #   D5 (preset.ts SRP + assemblePresetMemory @internal seam)
+  diverged_without_new_adr: 0
+
+edge_case_absorption:
+  must_fix:
+    EC-1: absorbed   # try/catch pool.end() on failed boot — preset.ts:114-118 + test preset.test.ts:99-106
+    EC-2: absorbed   # GOAL-TEST assertion corrected — threshold:0 + results>0, stored=extracted fact
+                     #   (create-memory-preset.test.ts:63-64)
+    EC-3: absorbed   # embeddingDim dropped from CreateMemoryPresetConfig — preset.ts:43-47 (no field)
+  should_test:
+    EC-4: absorbed   # InvalidPresetConfig fail-fast pre-pool — preset.ts:70-76,152-157 + test :137-140
+    EC-5: absorbed   # truthy env guard `if (config.openai)` — preset.ts:158-160 + test :131-135
+    EC-6: absorbed   # migrate:false clear missing-relation error — create-memory-preset.test.ts:80-110
+  document:
+    EC-7: absorbed   # one-key-per-process — JSDoc preset.ts:33-35 + CHANGELOG entry
+    EC-8: acknowledged  # concurrent boot race — documented (Drawbacks), out of scope, not re-verifiable here
+    EC-9: acknowledged  # global env not restored — JSDoc + CHANGELOG note the side-effect
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    The plan (v1.1) was committed as a single audit-trail docs commit d59f0d5 AFTER the code
+    commits (2dcdebd..be6d63f), consistent with recording the frozen plan post-implementation
+    (git log shows only one commit touching the plan file; no mid-flight re-edit). The plan's own
+    frontmatter/version header (v1.1, absorbed EC-1/2/3 + EC-4/5/6) matches what the code
+    implements. No plan-drift BLOCKER.
+
+verification_run:
+  unit_tests: "PASS — preset.test.ts + factory-dispatch.test.ts = 11/11 (vitest.contract)"
+  invariant_tests: "PASS — matrix.test.ts + full-public-surface.test.ts = 54/54 (vitest.integration); names.has('createMemory')===true holds"
+  typecheck: "PASS — tsc --noEmit -p tsconfig.contract.json exit 0"
+  lint: "PASS — npm run lint exit 0, zero warnings on changed files"
+  size_budget: "PASS — preset.ts 171 LoC, factory.ts 302 LoC (both <= 500)"
+  paper_names: "PASS — zero paper-names in changed src/**"
+  discriminator_soundness: "CONFIRMED — no `postgres` field on LocalMemoryConfig (config.ts) nor MemoryConfig (memory-store.ts)"
+  goal_test: "PASS (per implementation log) — 3 passed / 1 skipped vs real ankane/pgvector:v0.5.1; named metric test GREEN. Not re-run here (needs live pg container)."
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: packages/core/src/domain/index.test-d.ts
+    line: "n/a (file unchanged)"
+    plan_ref: >
+      T2.1 — "Files to edit" declares `packages/core/src/domain/index.test-d.ts — add RED type test:
+      createMemory accepts BOTH the preset shape AND LocalMemoryConfig; shapes are disjoint" and the
+      T2.1 TDD block lists `test_createMemory_accepts_preset_shape`, `test_createMemory_accepts_full_config`.
+      Also Drawbacks row 3 names this type-level disjointness test as the mitigation for the
+      "discriminator collision if LocalMemoryConfig ever gains a `postgres` field" risk.
+    summary: >
+      Declared file NOT edited; declared TYPE-LEVEL tests replaced by a RUNTIME dispatch test.
+      Divergence from the plan without an in-implementation ADR.
+    evidence: |
+      - `git log 17296fe..HEAD -- packages/core/src/domain/index.test-d.ts` → NO commits.
+      - `grep -n "preset|CreateMemoryPresetConfig|postgres" index.test-d.ts` → NO matches.
+      - Instead, T2.1 (7c1c94b) added `packages/core/src/infrastructure/db/factory-dispatch.test.ts`
+        with `test_createMemory_dispatches_preset_shape_to_resolvePreset` — a RUNTIME test that
+        mocks resolvePreset and asserts routing. It proves dispatch behavior but does NOT prove the
+        plan's TYPE-LEVEL claims (`expectTypeOf(createMemory).toBeCallableWith(...)`) nor the
+        SHAPE-DISJOINTNESS guard the Drawbacks table relies on.
+      - Consequence: the "createMemory({preset}) AND createMemory(fullConfig) both type-check"
+        Acceptance Criterion (T2.1 AC1) is verified only implicitly by whole-suite typecheck, not by
+        the intentional type test; and the future-collision tripwire (Drawbacks row 3) is absent.
+    mitigating_context: >
+      The non-breaking guarantee IS proven at the surface level: matrix.test.ts (name preserved) and
+      full-public-surface.test.ts both green (54/54), full typecheck green, and the union parameter
+      type `CreateMemoryPresetConfig | LocalMemoryConfig` compiles. So the risk is low TODAY; the gap
+      is the lost intentional regression tripwire, not a broken feature.
+    recommended_action: >
+      Either (a) add the declared type-level tests to index.test-d.ts (preset-shape callable,
+      full-config callable, shapes-disjoint) to restore the Drawbacks-row-3 collision tripwire, OR
+      (b) record a one-line ADR in the implementation summary documenting the deliberate swap
+      (runtime dispatch test in lieu of type test) and the accepted loss of the disjointness guard.
+
+  - id: F-xval-2
+    severity: LOW
+    file: tests/integration/p0-audit/full-public-surface.test.ts
+    line: "93-111"
+    plan_ref: >
+      T2.1 "Files to edit" authorizes factory.ts + index.ts + index.test-d.ts. It does not authorize
+      editing full-public-surface.test.ts. (The plan Baseline table lists full-public-surface.test.ts
+      only as a *caller/invariant to keep green*, not a file to modify.)
+    summary: >
+      Scope creep in T2.1 — export-count baselines reconciled for TWO pre-existing unrelated deltas
+      (M1 graph export + v0.33 auto-categorization taxonomy) beyond the +1 this cycle actually adds.
+    evidence: |
+      - 7c1c94b edits full-public-surface.test.ts: index.ts 15->17 and domain/index.ts 56->58.
+      - Commit body admits: index.ts "+1 pre-existing M1 graph b0de550" (unrelated to this plan) plus
+        "+1 this cycle preset export"; domain/index.ts "+2 pre-existing v0.33 auto-categorization
+        taxonomy" (entirely unrelated to this plan).
+      - Only ONE of these deltas (the preset export) is authorized by this plan; the other three are
+        pre-existing stale-baseline fixes swept in opportunistically.
+    mitigating_context: >
+      Documented honestly in the commit body with per-delta provenance and a cited precedent (9af8f9c);
+      all counts are legitimate public API; the audit-trail-rotation "clean adjacent rot when you touch
+      the file" convention arguably covers it. Test is green (54/54). This is a benign, disclosed
+      reconciliation, not a silent change — hence LOW, not MEDIUM.
+    recommended_action: >
+      No code change required. Accept as disclosed opportunistic reconciliation, OR (cleaner) note it
+      in the implementation summary's "Deviations" section so the scope expansion is traceable outside
+      the commit body.
+
+  - id: F-xval-3
+    severity: INFO
+    file: multiple
+    line: "n/a"
+    plan_ref: "T1.1, T1.2, T2.2, Coverage Matrix (12 items), Global DoD"
+    summary: >
+      T1.1, T1.2, T2.2 fully implemented and verified; Coverage Matrix 12/12 map to real code+tests.
+    evidence: |
+      Coverage Matrix cross-check (all 12 land on real artifacts):
+        1  overload accepts preset shape          -> factory.ts createMemory dispatcher + isPresetConfig
+        2  wires embedder+llm+store+pool           -> resolvePreset + assemblePresetMemory (preset.ts)
+        3  OpenAI key via env                       -> resolvePreset env-set (preset.ts:158-160)
+        4  auto-migrate default, opt-out            -> assemblePresetMemory migrate?? true (preset.ts:169) + tests :81-89
+        5  dim fixed 1536, no override              -> PRESET_EMBEDDING_DIM (preset.ts:79) + no field (:43-47) + test :108-112
+        6  pool owned incl. failed boot             -> wrapDisposeWithPoolEnd + EC-1 catch (preset.ts:114-140) + tests :91-106
+        7  existing consumers/type-tests green       -> matrix.test.ts + full-public-surface.test.ts (54/54 PASS)
+        8  round-trip proof vs real pgvector         -> create-memory-preset.test.ts:49-65 (GOAL test)
+        9  change recorded                            -> CHANGELOG [Unreleased] Added (be6d63f)
+        10 fail-fast empty postgres                   -> InvalidPresetConfig (preset.ts:70-76,152-157) + test :137-140
+        11 empty openai never clobbers ambient        -> truthy guard (preset.ts:158) + test :131-135
+        12 migrate:false clear error un-migrated DB   -> create-memory-preset.test.ts:80-110
+      DoD checks re-run this review: unit 11/11 PASS, invariants 54/54 PASS, typecheck 0, lint 0,
+      size budget OK, no paper-names. GOAL test reported GREEN in implementation log (real pgvector).
+    recommended_action: "None — recorded as positive confirmation."
+
+overall_assessment: >
+  The feature IMPLEMENTS THE PLAN. All 5 ADRs respected; all 3 MUST-FIX + 3 SHOULD-TEST + 3 DOCUMENT
+  edge cases from the edge-case review absorbed into real code and tests; Coverage Matrix 12/12
+  verified against real artifacts; non-breaking guarantee proven (matrix + full-public-surface green);
+  typecheck/lint/unit all green; no paper-names; size budget respected. One MEDIUM divergence: T2.1
+  substituted the plan-declared type-level tests in index.test-d.ts with a runtime dispatch test,
+  losing the intentional shape-disjointness tripwire the Drawbacks table relied on (fix: add the type
+  tests OR record a one-line ADR). One LOW disclosed scope-creep (opportunistic export-count baseline
+  reconciliation of unrelated pre-existing deltas). No BLOCKER, no false Acceptance-Criteria claim,
+  no plan drift.

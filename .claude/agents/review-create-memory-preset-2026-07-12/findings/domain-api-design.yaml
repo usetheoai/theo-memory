@@ -1,0 +1,129 @@
+agent: review-create-memory-preset-domain-api-design
+review_target: 17296fe..HEAD for plan create-memory-preset
+domain: api-design
+domain_specific_patterns_checked:
+  - "non-breaking discriminated-union overload (D1)"
+  - "discriminator field soundness (postgres never on LocalMemoryConfig)"
+  - "public-export JSDoc + @see closure (P0 sub-goal 1)"
+  - "no `any` in public surface"
+  - "typed error export ergonomics (InvalidPresetConfig catchable)"
+  - "@internal seam kept OUT of the barrel (assemblePresetMemory)"
+  - "export-count reconcile honesty (full-public-surface.test.ts)"
+  - "no paper/marketing names in src/** + tests"
+  - "naming (Unbreakable Rule 5)"
+  - "compile-time non-breaking guard (index.test-d.ts type-level test)"
+findings:
+  - id: F-dom-api-1
+    severity: MEDIUM
+    file: packages/core/src/domain/index.test-d.ts
+    line: 100
+    plan_ref: "T2.1 Files to edit — 'packages/core/src/domain/index.test-d.ts — add RED type test: createMemory accepts BOTH the preset shape AND LocalMemoryConfig; shapes are disjoint'; Coverage Matrix row 7; Drawbacks row 3 (discriminator-collision → 'Add a type-level test (index.test-d.ts) asserting the two shapes are disjoint')"
+    domain_anchor: "P0 sub-goal 1 (APIs correct — narrowable, compile-time-guarded); Unbreakable Rule 3 (honesty about what shipped)"
+    summary: >
+      The plan-promised TYPE-LEVEL test proving the non-breaking overload at COMPILE TIME was
+      not written. index.test-d.ts is untouched this cycle (git diff 17296fe..HEAD lists no
+      change to it); line 100 still declares the OLD synthetic `CreateMemoryFactory =
+      (config: MemoryConfig) => Memory` and never references the real `createMemory`,
+      `CreateMemoryPresetConfig`, the union input, or the disjointness assertion the plan
+      required. The API contract of a PUBLIC overload therefore ships with NO compile-time
+      guard: a future field named `postgres` added to `LocalMemoryConfig` (the exact
+      Drawbacks-row-3 collision the type test was meant to catch) would silently reroute
+      full-config callers into the preset branch, and nothing in the type suite would fail.
+      The runtime factory-dispatch.test.ts (line 24) covers the dispatch DECISION, and the
+      integration test covers the round-trip, but neither is a compile-time narrowing proof.
+    evidence: |
+      # git diff 17296fe..HEAD --stat  → index.test-d.ts NOT listed
+      # index.test-d.ts:100 (unchanged, pre-existing synthetic):
+      type CreateMemoryFactory = (config: MemoryConfig) => Memory;
+      # plan T2.1 Files to edit (line 336):
+      #   packages/core/src/domain/index.test-d.ts — add RED type test:
+      #   createMemory accepts BOTH the preset shape AND LocalMemoryConfig; shapes are disjoint
+      # plan Drawbacks row 3 mitigation: "Add a type-level test (index.test-d.ts) asserting
+      #   the two shapes are disjoint; a future postgres field ... would fail that test loudly"
+      # → the loud-failure guard does not exist.
+    recommended_action: >
+      Add the promised type-level test to index.test-d.ts:
+      (a) expectTypeOf(createMemory).toBeCallableWith({ postgres: 'x', openai: 'k' }) AND
+      .toBeCallableWith(fullLocalMemoryConfig) — proves both input shapes accepted (non-breaking);
+      (b) a disjointness assertion so a future `postgres` field on LocalMemoryConfig fails the
+      suite loudly (the Drawbacks-row-3 collision guard). Alternatively, if the team accepts the
+      runtime factory-dispatch.test.ts as sufficient, record an explicit ADR/plan-amendment
+      dropping the T2.1 type-test line — do NOT leave a plan-promised guard silently absent
+      (Rule 3).
+
+  - id: F-dom-api-2
+    severity: LOW
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 26
+    plan_ref: "P0 sub-goal 1 — 'every public export ... JSDoc-cross-referenced ... has a @see cross-ref to the plan/blueprint that introduced it'"
+    domain_anchor: "P0 closure sub-goal 1 (APIs correct); full-public-surface.test.ts:124 '@see on every export statement'"
+    summary: >
+      The two PUBLIC exports (CreateMemoryPresetConfig, InvalidPresetConfig) carry their
+      plan @see cross-ref only at the BARREL (index.ts:36 and index.ts:30), not at the
+      definition site in preset.ts. The barrel is what the P0 surface test greps, so the
+      contract is satisfied at the surface — but a consumer reading the type definition via
+      go-to-definition lands on a JSDoc block with no @see back to the plan. preset.ts has
+      exactly 1 @see (the file header, line 12), and none on the two public symbols' own
+      doc-comments. This is a documentation-completeness nit, not a contract break: the
+      symbols are documented (rich prose JSDoc) and the surface @see is present.
+    evidence: |
+      # grep -c "@see" preset.ts → 1  (only the file header, line 12)
+      # public export JSDoc @see lives in the barrel instead:
+      #   index.ts:36  @see .claude/knowledge-base/plans/create-memory-preset-plan.md  (CreateMemoryPresetConfig + InvalidPresetConfig)
+      # definition-site JSDoc (preset.ts:26 interface, :70 error class) has prose but no @see
+    recommended_action: >
+      Optional polish: add `@see .claude/knowledge-base/plans/create-memory-preset-plan.md`
+      to the JSDoc of `CreateMemoryPresetConfig` (preset.ts:43) and `InvalidPresetConfig`
+      (preset.ts:70) so go-to-definition surfaces the provenance. Not blocking — the P0
+      surface contract is met at the barrel.
+
+  - id: F-dom-api-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 298
+    plan_ref: "D1 — Non-breaking discriminated-union overload; T2.1"
+    domain_anchor: "Unbreakable Rule 5 (naming); P0 sub-goal 1 (narrowable, no any)"
+    summary: >
+      CLEAN on the core API-design axes. (1) Non-breaking: `createMemory` keeps its export
+      name (matrix.test.ts:106 invariant intact) and accepts the union
+      `CreateMemoryPresetConfig | LocalMemoryConfig`, returning Promise<DisposableMemory> —
+      byte-compatible with the full-config path (createLocalMemory already returns
+      Promise<DisposableMemory>). (2) Discriminator is sound: isPresetConfig keys on a string
+      `postgres`, verified absent from LocalMemoryConfig/MemoryConfig. (3) No `any` in the
+      public surface — preset.ts uses precise `as CreateMemoryPresetConfig` casts, not `any`
+      (the two `any` grep hits are the words "any pool"/"any failure" inside JSDoc prose).
+      (4) `assemblePresetMemory` is correctly @internal (marked @internal, absent from both
+      the barrel index.ts and infrastructure/db/index.ts:63-65 which explicitly documents the
+      exclusion; the integration test deep-imports it). (5) `InvalidPresetConfig` is exported
+      and catchable, uses the Object.setPrototypeOf pattern for cross-boundary instanceof.
+      (6) No paper/marketing names in preset.ts, factory-dispatch.test.ts, or the integration
+      test. (7) Naming is specific and descriptive (CreateMemoryPresetConfig, resolvePreset,
+      assemblePresetMemory, wrapDisposeWithPoolEnd). (8) `openai?: string` optional field lets
+      the integration test pass `process.env['OPENAI_API_KEY']` (string | undefined) without
+      a cast.
+    evidence: |
+      # factory.ts:298  export function createMemory(config: CreateMemoryPresetConfig | LocalMemoryConfig): Promise<DisposableMemory>
+      # preset.ts:58    return typeof (input as CreateMemoryPresetConfig).postgres === 'string';   (no `any`)
+      # preset.ts:93    @internal ; index.ts barrel omits assemblePresetMemory ; db/index.ts:63-65 documents the omission
+      # grep paper-names → (none)
+    recommended_action: "None — these axes pass."
+
+  - id: F-dom-api-4
+    severity: INFO
+    file: tests/integration/p0-audit/full-public-surface.test.ts
+    line: 96
+    plan_ref: "Coverage Matrix row 7 (existing consumers + type tests remain green); T2.1"
+    domain_anchor: "P0 sub-goal 1 (APIs correct — honest export-count reconcile)"
+    summary: >
+      The export-count reconcile is HONEST. full-public-surface.test.ts:96-103 bumps the
+      root-barrel expectation from 15 → 17 and documents the delta transparently: +1 for the
+      create-memory-preset export (CreateMemoryPresetConfig type + InvalidPresetConfig value
+      on one `export` statement) and +1 for a pre-existing unreconciled M1 graph edge export
+      (b0de550). Verified: `grep -c "^export " src/index.ts` == 17. The comment does not
+      hide the piggy-backed pre-existing delta (Rule 3). The `any`-floor and `@see`-floor
+      sentinels (tests 3-5) remain green given the barrel JSDoc.
+    evidence: |
+      # grep -c "^export " packages/core/src/index.ts → 17  (matches the asserted 17)
+      # full-public-surface.test.ts:96 'src/index.ts declares 17 export statements (+ preset overload)'
+      #   comment: 17 = 15 (prior) + 1 pre-existing M1 graph edge + 1 create-memory-preset
+    recommended_action: "None — reconcile is honest and matches disk."

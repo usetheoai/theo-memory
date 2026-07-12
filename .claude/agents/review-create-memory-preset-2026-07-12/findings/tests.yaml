@@ -1,0 +1,187 @@
+agent: review-create-memory-preset-tests
+review_target: 17296fe..HEAD for plan create-memory-preset
+plan: .claude/knowledge-base/plans/create-memory-preset-plan.md
+testing_rule: .claude/rules/testing.md
+
+test_pyramid:
+  unit_added: 12          # preset.test.ts (11) + factory-dispatch.test.ts (1)
+  integration_added: 3    # create-memory-preset.test.ts (deterministic seam) + 1 gated real-OpenAI (skipIf)
+  e2e_added: 0
+  type_level_added: 0     # plan T2.1 declared 2-3 index.test-d.ts type tests; NONE were added
+  total: 15
+  balance: healthy        # unit-heavy, integration at the DB boundary, no inverted pyramid
+
+goal_test_assessment:
+  file: tests/integration/create-memory-preset.test.ts:49
+  is_real_wiring_proof: true
+  reasoning: >
+    NOT a tautology. DeterministicStubLLM.generateResponse returns a real
+    AdditiveExtractionSchema JSON (llms/stub.ts § AdditiveExtractionSchema), so
+    remember() actually extracts+persists a fact and recall() queries pgvector.
+    A green round-trip genuinely proves migrations fired (missing tables would
+    error) + store wired + pool owned. The threshold:0 + results.length>0
+    assertion is the honest EC-2 shape (stub embedder gives low cross-text
+    cosine); mirrors local-runtime.test.ts:99 precedent.
+
+edge_and_negative_cases_from_plan:
+  covered:
+    - EC-1 pool-leak-on-migration-failure  # preset.test.ts:99 (unit, mock reject) — asserts end() called once + rethrow
+    - EC-2 threshold:0 + results>0 GOAL assertion  # create-memory-preset.test.ts:63
+    - EC-4 empty-postgres -> InvalidPresetConfig  # preset.test.ts:137 (typed error + pool never opened)
+    - EC-5 empty-openai never clobbers ambient key  # preset.test.ts:131
+    - EC-6 migrate:false on un-migrated DB -> clear missing-relation error  # create-memory-preset.test.ts:80
+    - dispose-ends-pool-once (D3)  # preset.test.ts:91 + integration:67
+    - dim-1536 threaded to migrations + store (D4)  # preset.test.ts:108
+    - migrate default ON / opt-out OFF (D3)  # preset.test.ts:81, :86
+  missing:
+    - "createMemory type-level overload acceptance + shape-disjointness tripwire (plan T2.1 + Drawback line 120) — the compile-time test the plan promised was never written"
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: packages/core/src/domain/index.test-d.ts
+    line: 115
+    plan_ref: >
+      T2.1 "#### Files to edit" (plan:336) + TDD block (plan:356-357:
+      test_createMemory_accepts_preset_shape / test_createMemory_accepts_full_config
+      via expectTypeOf.toBeCallableWith) + Drawbacks table (plan:120:
+      "Add a type-level test asserting the two shapes are disjoint")
+    summary: >
+      The plan's declared compile-time type test for the createMemory overload
+      was NEVER added; it was replaced by the runtime factory-dispatch.test.ts,
+      which cannot detect a type-level regression (the shape-disjointness
+      tripwire is lost).
+    evidence: |
+      grep 'CreateMemoryPresetConfig|isPresetConfig|toBeCallableWith' over
+      packages/core/src/domain/*.test-d.ts -> 0 matches.
+      index.test-d.ts:100-114 tests only a SYNTHETIC `CreateMemoryFactory =
+      (config)=>Memory` that does NOT import the real `createMemory`, so it
+      would never break on an overload/return-type regression.
+      Test-quality impact:
+        1. No test guards the D1 non-breaking claim at the type level. The
+           real createMemory returns Promise<DisposableMemory> (factory.ts:298-302),
+           but the only "type test" asserts a decoupled synthetic `=> Memory`.
+        2. The Drawback-mitigation tripwire is absent: if LocalMemoryConfig ever
+           gains a `postgres` field, isPresetConfig would silently misroute a
+           full config to the preset branch, and NO test — runtime or type —
+           would fail. The plan named this exact risk (Drawbacks line 120) and
+           assigned a type test as its mitigation; the mitigation did not ship.
+        3. factory-dispatch.test.ts only asserts the preset->resolvePreset
+           direction (one runtime path). It does NOT assert the full-config
+           ->createLocalMemory direction, nor the disjointness invariant.
+    recommended_action: >
+      Add the promised type test to index.test-d.ts, e.g.
+      `expectTypeOf(createMemory).toBeCallableWith({ postgres: 'x', openai: 'k' })`
+      AND `expectTypeOf(createMemory).toBeCallableWith(fullLocalMemoryConfig)`,
+      plus a disjointness assertion (e.g. a `postgres` key is NOT assignable to
+      LocalMemoryConfig). This is the mitigation the plan's own Drawbacks table
+      committed to and is the ONLY guard for the non-breaking overload contract.
+
+  - id: F-tests-2
+    severity: LOW
+    file: packages/core/src/infrastructure/db/factory-dispatch.test.ts
+    line: 23
+    plan_ref: T2.1 TDD "test_createMemory dispatches ... to createLocalMemory" (implied by D1 both-branch dispatch)
+    summary: >
+      factory-dispatch.test.ts covers only the preset branch of the dispatcher;
+      the full-config branch (isPresetConfig false -> createLocalMemory verbatim)
+      has no dispatch assertion. Half the discriminator is untested.
+    evidence: |
+      factory-dispatch.test.ts has a single it() asserting the preset shape
+      routes to the mocked resolvePreset. There is no companion case feeding a
+      full LocalMemoryConfig and asserting createLocalMemory is invoked (and
+      resolvePreset is NOT). The "non-breaking" guarantee rests on the
+      false-branch, which is exercised only transitively (matrix.test.ts name
+      presence + the real integration test), never as a direct dispatch unit
+      assertion.
+    recommended_action: >
+      Add `it('test_createMemory_dispatches_full_config_to_createLocalMemory')`
+      that mocks createLocalMemory, passes a full config, and asserts
+      createLocalMemory was called once and resolvePreset was NOT. Cheap, closes
+      the discriminator's other half at the unit level.
+
+  - id: F-tests-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/preset.test.ts
+    line: 137
+    plan_ref: testing.md § 4.1 (negative case asserts the SPECIFIC typed error AND message)
+    summary: >
+      The EC-4 negative test asserts the typed error class (InvalidPresetConfig)
+      but not the message, and does not cover the whitespace-only `postgres`
+      branch that resolvePreset explicitly guards (`.trim() === ''`).
+    evidence: |
+      preset.test.ts:137 asserts `.rejects.toThrow(InvalidPresetConfig)` — good
+      (typed, not bare Error). But preset.ts:153 guards BOTH empty AND
+      whitespace-only (`config.postgres.trim() === ''`); the whitespace branch
+      (e.g. `{ postgres: '   ' }`) has no test, so a regression that drops
+      `.trim()` would pass. Per testing.md § 4.1 a negative test should also
+      pin the message to lock the fail-CLEAR contract.
+    recommended_action: >
+      Add a case for `{ postgres: '   ' }` rejecting with InvalidPresetConfig,
+      and assert `.rejects.toThrow(/non-empty .*postgres/)` to lock the message.
+
+  - id: F-tests-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.test.ts
+    line: 27
+    plan_ref: SEPA brief — "vi.hoisted + function-ctor mocks for `new`"
+    summary: >
+      Mock design is sound and idiomatic. vi.hoisted lifts the spies above the
+      hoisted vi.mock factories; constructor mocks use function expressions (not
+      arrows) so `new X()` is constructable; env is saved/restored in
+      before/afterEach (no cross-test leakage). vi.mock intercepts both the
+      static and the dynamic (`await import`) forms resolvePreset actually uses.
+    evidence: |
+      preset.test.ts:27-51 — hoisted spies, function-expression ctors
+      (pgvectorCtor/OpenAIEmbedderMock/OpenAILLMMock/PoolCtor), and the
+      OPENAI_API_KEY save/restore at :116-124. resolvePreset uses dynamic
+      import (preset.ts:161-163) which vi.mock still intercepts — verified the
+      mock targets match the dynamic specifiers.
+    recommended_action: none — noted as a positive.
+
+  - id: F-tests-5
+    severity: INFO
+    file: tests/integration/create-memory-preset.test.ts
+    line: 33
+    plan_ref: EC-17 CI env guard; Drawbacks "real OpenAI key unavailable in CI"
+    summary: >
+      Integration test hygiene is strong: EC-17 fails LOUDLY when CI=true but
+      THEOMEM_PG_URI unset (no false-green skip); the real-OpenAI block is gated
+      behind an explicit THEOMEM_TEST_REAL_OPENAI=1 opt-in (a stray ambient key
+      can't auto-trigger billing); the EC-6 fresh-DB case uses createIsolatedDb
+      with template0 and documents the mutually-exclusive single-pool-end
+      reasoning. No .only/.skip leaks, no commented tests.
+    evidence: |
+      :34 CI guard throw; :117 THEOMEM_TEST_REAL_OPENAI opt-in; :81 createIsolatedDb
+      ({ fresh: true }); afterEach cleanup stack :42-47. grep for
+      it.only/test.only/xit/.skip( -> 0 (describe.skipIf is a legitimate env
+      gate, not a disabled test).
+    recommended_action: none — noted as a positive.
+
+  - id: F-tests-6
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.test.ts
+    line: 60
+    plan_ref: testing.md § 3 (AAA, behavior-named tests)
+    summary: >
+      Test names are behavior-describing and AAA-structured; each `it` exercises
+      ONE behavior (migrate-default, migrate-skip, dispose-once, leak-on-failure,
+      env-set, ambient-preserved, dim-1536, empty-postgres). The `test_*` literal
+      naming matches the plan's TDD RED shapes verbatim, which aids traceability.
+    evidence: |
+      preset.test.ts describe blocks map 1:1 to plan RED assertions
+      (plan:285-292). No "and" in names; arrange/act/assert visually separated.
+    recommended_action: none — noted as a positive.
+
+summary_verdict: >
+  No BLOCKER, no HIGH. One MEDIUM (F-tests-1): the plan's declared compile-time
+  type test for the non-breaking createMemory overload — and the
+  shape-disjointness tripwire the Drawbacks table named as its own mitigation —
+  was never written; it was silently replaced by a runtime test that cannot
+  catch a type regression. This matches the cross-validation MEDIUM flag; the
+  TEST-QUALITY impact is that the D1 "non-breaking" guarantee has NO compile-time
+  guard and the discriminator-collision risk is untested in either dimension.
+  Two LOWs round out coverage gaps (untested full-config dispatch branch;
+  whitespace-postgres + message assertion). The runtime/integration suite is
+  otherwise strong: the GOAL test is a genuine wiring proof (not a tautology),
+  mock design is sound, and CI/secret hygiene is exemplary.

@@ -1,0 +1,162 @@
+agent: review-create-memory-preset-architecture
+review_target: 17296fe..HEAD for plan create-memory-preset
+plan: .claude/knowledge-base/plans/create-memory-preset-plan.md
+findings:
+  - id: F-arch-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 21
+    plan_ref: D5 (Seam export locus) + § Architecture boundaries affected
+    summary: >-
+      factory.ts <-> preset.ts static circular import is ESM-safe — both sides
+      consume the imported symbols only inside function bodies, never at module top-level.
+    evidence: |
+      factory.ts:44 `import { ..., isPresetConfig, resolvePreset } from './preset.js'`
+      preset.ts:21 `import { createLocalMemory } from './factory.js'`
+      Usage sites:
+        factory.ts:301 `return isPresetConfig(config) ? resolvePreset(config) : createLocalMemory(config);` (inside createMemory body)
+        preset.ts:107 `const memory = await createLocalMemory({...})` (inside assemblePresetMemory body)
+      Grep confirms NO top-level (module-evaluation) reference to preset symbols in factory.ts
+      and no top-level use of createLocalMemory in preset.ts. ESM live bindings resolve at call
+      time, so the cycle carries no TDZ / undefined-at-load hazard. D5 claim holds.
+    recommended_action: >-
+      None. Wiring is correct. Keep both consumption sites lazy (function-body only) if
+      either file is refactored; a top-level use of the cross-imported symbol would
+      reintroduce a load-order hazard.
+  - id: F-arch-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 132
+    plan_ref: D3 + T1.2 (dispose-wrap, no-spread)
+    summary: >-
+      wrapDisposeWithPoolEnd correctly mutates the instance in place instead of spreading —
+      preserving LocalMemory prototype methods — and guards pool.end() to run exactly once.
+    evidence: |
+      ```ts
+      function wrapDisposeWithPoolEnd(memory: DisposableMemory, pool: Pool): DisposableMemory {
+        const innerDispose = memory.dispose.bind(memory);
+        let disposed = false;
+        (memory as { dispose: () => Promise<void> }).dispose = async (): Promise<void> => {
+          if (disposed) return;
+          disposed = true;
+          await innerDispose(); await pool.end();
+        };
+        return memory;
+      }
+      ```
+      In-place mutation (not `{ ...memory }`) preserves user/session/agent/recall prototype
+      methods (D3 invariant). `bind(memory)` preserves inner-dispose receiver. `disposed` flag
+      makes double-dispose idempotent (Drawbacks row 2). SRP: assembly, dispose-wrap, and
+      resolve are three small single-purpose functions (D5).
+    recommended_action: None. Design is sound.
+  - id: F-arch-3
+    severity: LOW
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 67
+    plan_ref: D1 + Drawbacks row 3 (discriminator collision)
+    summary: >-
+      isPresetConfig discriminates purely on `typeof postgres === 'string'`. Sound today
+      (LocalMemoryConfig has no `postgres` field, verified), but there is no compile-time
+      guard preventing a future `postgres` field on LocalMemoryConfig from silently
+      breaking the discriminator — the plan's promised type-level disjointness test
+      (index.test-d.ts) was NOT added.
+    evidence: |
+      preset.ts:64-69 `return typeof (input as CreateMemoryPresetConfig).postgres === 'string';`
+      config.ts LocalMemoryConfig confirmed to have no `postgres` field (grep clean) — so the
+      discriminator is sound at HEAD. But plan T2.1 § Files to edit + Drawbacks row 3 promised
+      `index.test-d.ts` gain a disjointness assertion; `git diff 17296fe..HEAD -- .../index.test-d.ts`
+      returns EMPTY (test not added). The stated mitigation for the collision risk is absent.
+    recommended_action: >-
+      Add the promised type-level test in index.test-d.ts asserting (a) createMemory accepts
+      the preset shape AND LocalMemoryConfig, and (b) the two shapes are disjoint (a future
+      `postgres` field on LocalMemoryConfig fails the test loudly). Owned primarily by the
+      tests reviewer; flagged here because it is the design-time mitigation for D1's
+      load-bearing discriminator.
+  - id: F-arch-4
+    severity: INFO
+    file: packages/core/src/infrastructure/db/preset.ts
+    line: 56
+    plan_ref: § 2 DIP / architecture.md (infrastructure layer)
+    summary: >-
+      preset.ts respects the infrastructure-layer boundary — it is a composition-root
+      convenience that wires concrete adapters into the createLocalMemory port; it does
+      NOT introduce a domain dependency on a concrete driver.
+    evidence: |
+      Imports are all infrastructure-local (`./factory.js`, `./pgvector-store.js`,
+      `./migrations-runner.js`, dynamic `../embedders/openai.js`, `../llms/openai.js`, `pg`) plus
+      domain type-only imports (`../../domain/dip/embedder.js`, `.../llm.js`, `.../constants.js`).
+      No domain module imports preset.ts. Fail-fast typed InvalidPresetConfig at the boundary
+      (Rule 8). Lazy dynamic import of `openai`/`pg` mirrors the cache-store bundle-isolation
+      precedent (keeps `openai` out of the default barrel static graph). No `any`.
+    recommended_action: None. Layering and DIP boundary are respected.
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/factory.ts
+    line: 297
+    plan_ref: D1 (dispatcher) + D5
+    summary: >-
+      createMemory dispatcher is a correct, minimal non-breaking overload — single union
+      signature, discriminate-then-delegate, full-config path delegates VERBATIM to
+      createLocalMemory. factory.ts stays within the 500-LoC budget (302).
+    evidence: |
+      ```ts
+      export function createMemory(
+        config: CreateMemoryPresetConfig | LocalMemoryConfig,
+      ): Promise<DisposableMemory> {
+        return isPresetConfig(config) ? resolvePreset(config) : createLocalMemory(config);
+      }
+      ```
+      Replaces the prior `export { createLocalMemory as createMemory }` alias. Export NAME
+      preserved (matrix.test.ts invariant). createLocalMemory signature/behavior untouched
+      (KISS, SRP). wc -l: factory.ts=302, preset.ts=171 — both <= 500 (architecture.md).
+    recommended_action: None.
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/index.ts
+    line: 37
+    plan_ref: D5 (@internal seam) + T2.1 barrel export
+    summary: >-
+      Barrel exports exactly the intended public surface (CreateMemoryPresetConfig type +
+      InvalidPresetConfig error); assemblePresetMemory stays @internal (deep-imported by
+      the GOAL test, not re-exported) per D5 — public surface not widened for a test seam.
+    evidence: |
+      index.ts:37 `export { type CreateMemoryPresetConfig, InvalidPresetConfig } from './infrastructure/db/index.js';`
+      db/index.ts:62 re-exports the same two symbols with the comment "assemblePresetMemory stays
+      @internal ... NOT re-exported here per plan D5". Grep confirms assemblePresetMemory is
+      absent from both barrels. InvalidPresetConfig is public so consumers can catch it (EC-4). ISP
+      respected — the seam is not forced onto the public surface.
+    recommended_action: None. Surface control matches D5.
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/index.ts
+    line: 23
+    plan_ref: no-paper-names-in-code.md
+    summary: >-
+      No paper/marketing-name violations in src/**. The only token hits ("mem0" in
+      index.ts:23 / :217) are @see references to a knowledge-base ADR file PATH — explicitly
+      allowed (filesystem coordinates, not concept names).
+    evidence: |
+      grep hits: index.ts:23 and :217 both `@see .claude/knowledge-base/adrs/ADR-0001-mem0-shape-architecture.md`
+      — a filesystem path in an @see, which no-paper-names-in-code.md § "How to apply" #5 explicitly
+      permits ("File paths in @see references ... are filesystem coordinates, not concept names — they
+      are OK and encouraged"). preset.ts / factory.ts / db/index.ts have ZERO paper-name tokens.
+    recommended_action: None. Compliant.
+  - id: F-arch-8
+    severity: INFO
+    file: .claude/skills/implement/scripts/check_acceptance_criteria.py
+    line: 183
+    plan_ref: Unbreakable Rule 6 + audit-trail-rotation.md + architecture.md (500-LoC budget)
+    summary: >-
+      The CHANGELOG.md exemption from the file-size AC gate is architecturally justified:
+      the 500-LoC budget targets source-module complexity, not the append-only public
+      contract. Narrow, name-scoped exemption; no over-reach.
+    evidence: |
+      ```py
+      if Path(rel).name == "CHANGELOG.md":
+          continue
+      ```
+      Guard is inside the `by_category.get("file_size")` block, matches only the basename
+      CHANGELOG.md, and is documented with the Rule-6 / audit-trail-rotation rationale. It does
+      not weaken the LoC gate for any source file. Correct separation of "public contract growth"
+      from "source complexity budget".
+    recommended_action: None. Scoped correctly.
