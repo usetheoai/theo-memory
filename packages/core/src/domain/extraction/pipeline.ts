@@ -322,13 +322,18 @@ export async function runExtractionPipeline(
     if (options?.category !== undefined) {
       payload['category'] = options.category;
     } else if (autoCategorizeEnabled) {
-      const autoCategory = boundedAutoCategory(extracted[i]?.category);
+      const rawCategory = extracted[i]?.category;
+      const autoCategory = boundedAutoCategory(rawCategory);
       if (autoCategory !== null) {
         payload['category'] = autoCategory;
         emitEvent(tracer, 'category_auto_assigned', {
           source: classifyCategorySource(autoCategory, autoCategorizeTaxonomy),
           fact_count: 1,
         });
+      } else if (typeof rawCategory === 'string') {
+        // F-M1: the LLM PROPOSED a label but it failed the 1-64 trim/bound (EC-1/EC-5)
+        // — a real drop, observable per Princípio 3 (never a silent IGNORE).
+        emitEvent(tracer, 'category_auto_dropped', { reason: 'out_of_bounds' });
       }
     }
     survivingIds.push(id);

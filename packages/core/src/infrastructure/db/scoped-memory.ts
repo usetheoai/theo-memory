@@ -210,6 +210,9 @@ export class LocalScopedMemory implements ScopedMemory {
       // concrete Ontology + thread it (the factory already validated it once for
       // fail-fast; resolveOntology is pure + idempotent on an already-resolved object).
       ...(this.config.ontology !== undefined ? { ontology: resolveOntology(this.config.ontology) } : {}),
+      // auto-categorization-write-pipeline F-H1 — thread the config so the off-switch
+      // + custom taxonomy are reachable through the public factory (default-on when absent).
+      ...(this.config.autoCategorize !== undefined ? { autoCategorize: this.config.autoCategorize } : {}),
     }, options);
 
     // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline
