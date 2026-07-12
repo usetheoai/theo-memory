@@ -59,5 +59,9 @@ export { scopeToCounterTuple, runReflection, type ReflectDeps } from './reflect-
 export { LocalMemory, type DisposableMemory } from './local-memory.js';
 // T1.3: factory + cache/embed helpers
 export { createLocalMemory, createMemory } from './factory.js';
+// create-memory-preset (T2.1): zero-config preset shape + its typed error.
+// `assemblePresetMemory` stays @internal (deep-imported by the GOAL test, NOT
+// re-exported here) per plan D5.
+export { type CreateMemoryPresetConfig, InvalidPresetConfig } from './preset.js';
 // T1.4: migrations
 export { runMigrations } from './migrations-runner.js';
