@@ -135,7 +135,16 @@ describe('T1.2 — resolvePreset (env-set, validation)', () => {
   });
 
   it('test_resolvePreset_rejects_empty_postgres', async () => {
+    // EC-4 + testing.md §4.1: pin the SPECIFIC typed error AND message, not just "it throws".
     await expect(resolvePreset({ postgres: '' })).rejects.toThrow(InvalidPresetConfig);
+    await expect(resolvePreset({ postgres: '' })).rejects.toThrow(/non-empty `postgres`/);
+    expect(PoolCtor).not.toHaveBeenCalled();
+  });
+
+  it('test_resolvePreset_rejects_whitespace_only_postgres', async () => {
+    // The .trim()==='' guard branch (preset.ts) — a whitespace-only string is
+    // still an invalid connection string and must fail fast before any pool opens.
+    await expect(resolvePreset({ postgres: '   ' })).rejects.toThrow(InvalidPresetConfig);
     expect(PoolCtor).not.toHaveBeenCalled();
   });
 });
