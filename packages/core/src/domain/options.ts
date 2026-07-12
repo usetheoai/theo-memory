@@ -49,8 +49,13 @@ export interface RememberOptions {
    * remember(newText, { category: 'B' })` — the canonical ADR-0003 ADD-only
    * mutation path.
    *
-   * **Inference contract (ADR D1)**: category is OPERATOR-supplied; the LLM
-   * extraction pipeline does NOT auto-derive a category from free-form text.
+   * **Inference contract (auto-categorization-write-pipeline ADR D1, supersedes the
+   * category-filter operator-only decision)**: when supplied, an operator category is
+   * an OVERRIDE that always wins. When omitted AND auto-categorization is enabled (the
+   * default), the write pipeline auto-derives a category from the extraction LLM call.
+   * A caller category is written verbatim (and stays 1-64 chars per the length contract);
+   * an auto-derived label is trimmed + bounded fail-soft (out-of-range → left unset,
+   * never throws).
    *
    * **NULL findability (EC-9)**: pre-2026-06-09 rows have `category=NULL`
    * permanently. There is NO syntax to filter for NULL rows via the public
