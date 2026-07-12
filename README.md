@@ -446,7 +446,7 @@ How Theo Memory positions against direct alternatives in the agent-memory space:
 
 ## Status
 
-> **Pre-release.** Feature-complete for the core use case. Validated across 107 end-to-end scenarios (REST, MCP, CLI, browser). Not yet published to npm. The `production-ready` label is gated on sustained internal usage evidence.
+> **Pre-release.** Feature-complete for the core use case. Validated across 107 end-to-end scenarios (REST, MCP, CLI, browser). Not yet published to npm. The internal dogfood-usage evidence gate is satisfied; the `production-ready` label remains gated on one item — an independent reproduction of the v0.8 benchmark.
 
 ## Contributing
 
