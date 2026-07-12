@@ -350,12 +350,12 @@ describe('auto-categorization (T2.1)', () => {
     const parsed = AdditiveExtractionSchema.parse({
       memory: [{ id: '1', text: 'a fact', category: 'work' }],
     });
-    expect(parsed.memory[0].category).toBe('work');
+    expect(parsed.memory[0]?.category).toBe('work');
   });
 
   test('test_schema_parses_output_without_category', () => {
     const parsed = AdditiveExtractionSchema.parse({ memory: [{ id: '1', text: 'a fact' }] });
-    expect(parsed.memory[0].category).toBeUndefined();
+    expect(parsed.memory[0]?.category).toBeUndefined();
   });
 
   test('test_prompt_lists_the_taxonomy', () => {
