@@ -41,6 +41,7 @@ import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
+import { type CreateMemoryPresetConfig, isPresetConfig, resolvePreset } from './preset.js';
 
 // Re-export cache helpers so existing importers from factory.ts still work
 export {
@@ -283,5 +284,19 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   return Object.assign(memory, { dispose });
 }
 
-/** Alias matching the public surface name (T7.2 re-exports). */
-export { createLocalMemory as createMemory };
+/**
+ * Public entry point. Accepts EITHER the zero-config preset shape
+ * `{ postgres, openai?, migrate? }` OR the full {@link LocalMemoryConfig}
+ * (discriminated by the `postgres` field). Preset input is routed to
+ * {@link resolvePreset} (wires OpenAI adapters + PgvectorStore + pool +
+ * migrations); full config delegates VERBATIM to {@link createLocalMemory}.
+ *
+ * Non-breaking: existing full-config callers and `createLocalMemory` are
+ * untouched; the preset shape is a new accepted input (create-memory-preset
+ * plan D1).
+ */
+export function createMemory(
+  config: CreateMemoryPresetConfig | LocalMemoryConfig,
+): Promise<DisposableMemory> {
+  return isPresetConfig(config) ? resolvePreset(config) : createLocalMemory(config);
+}
