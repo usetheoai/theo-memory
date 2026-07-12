@@ -194,7 +194,7 @@ packages/core/src/domain/memory-event.test.ts — RED test asserting the literal
 
 #### TDD
 ```
-RED:     memory_events_includes_category_auto_assigned() — asserts the literal is in MEMORY_EVENTS (fails before the edit)
+RED:     test_memory_events_includes_category_auto_assigned() — asserts the literal is in MEMORY_EVENTS (fails before the edit)
 GREEN:   add the literal
 REFACTOR: None expected
 VERIFY:  npm test -- memory-event
@@ -263,10 +263,10 @@ input:  ('side-hustle', DEFAULT_CATEGORY_TAXONOMY) -> 'suggested'
 
 #### TDD
 ```
-RED:     classify_returns_taxonomy_for_listed_label() — 'work' -> 'taxonomy'
-RED:     classify_returns_suggested_for_unlisted_label() — 'side-hustle' -> 'suggested'
-RED:     classify_is_case_insensitive() — 'Work' -> 'taxonomy'
-RED:     default_taxonomy_is_non_empty_and_lowercase() — shape assertion
+RED:     test_classify_returns_taxonomy_for_listed_label() — 'work' -> 'taxonomy'
+RED:     test_classify_returns_suggested_for_unlisted_label() — 'side-hustle' -> 'suggested'
+RED:     test_classify_is_case_insensitive() — 'Work' -> 'taxonomy'
+RED:     test_default_taxonomy_is_non_empty_and_lowercase() — shape assertion
 GREEN:   implement taxonomy.ts
 REFACTOR: None expected
 VERIFY:  npm test -- taxonomy
@@ -328,11 +328,11 @@ packages/core/src/domain/extraction-prompt.test.ts — RED: schema parses an out
 
 #### TDD
 ```
-RED:     schema_parses_output_with_category() — { memory:[{id,text,category}] } parses, category preserved
-RED:     schema_parses_output_without_category() — backward-compat, category undefined
-RED:     prompt_lists_the_taxonomy() — the built prompt contains each default taxonomy label
-RED:     empty_taxonomy_still_requests_a_label() — EC-4: taxonomy=[] -> prompt asks for category, no dangling "Prefer one of:" empty list
-RED:     prompt_instructs_lowercase() — EC-2: the prompt asks for a lowercase label
+RED:     test_schema_parses_output_with_category() — { memory:[{id,text,category}] } parses, category preserved
+RED:     test_schema_parses_output_without_category() — backward-compat, category undefined
+RED:     test_prompt_lists_the_taxonomy() — the built prompt contains each default taxonomy label
+RED:     test_empty_taxonomy_still_requests_a_label() — EC-4: taxonomy=[] -> prompt asks for category, no dangling "Prefer one of:" empty list
+RED:     test_prompt_instructs_lowercase() — EC-2: the prompt asks for a lowercase label
 GREEN:   implement the prompt + schema change
 REFACTOR: None expected
 VERIFY:  npm test -- extraction-prompt
@@ -429,15 +429,15 @@ output: payload.category unset  (EC-1: >64 after trim, dropped fail-soft; rememb
 
 #### TDD
 ```
-RED:     autocategory_populates_when_no_operator_category() — no options.category, LLM draft has category -> payload.category === draft category
-RED:     operator_category_overrides_llm() — options.category set -> payload.category === operator value, LLM category ignored, no auto event
-RED:     disabled_flag_restores_operator_only() — autoCategorize.enabled=false + no operator category -> payload.category unset
-RED:     failsoft_when_llm_omits_category() — LLM draft without category -> memory still persists, payload.category unset, remember() does NOT throw
-RED:     emits_category_auto_assigned_event_with_source() — stub tracer records the event with source attribute
-RED:     autocategory_drops_oversized_label() — EC-1: LLM category > 64 chars -> payload.category unset, remember() does NOT throw (no InvalidScope)
-RED:     autocategory_trims_and_stores() — EC-2: LLM category "  work " -> payload.category === "work"
-RED:     autocategory_drops_non_string() — EC-3: LLM category 123/null dropped by zod -> unset, no throw
-RED:     autocategory_drops_whitespace_only() — EC-5: LLM category "   " -> unset (trim length 0)
+RED:     test_autocategory_populates_when_no_operator_category() — no options.category, LLM draft has category -> payload.category === draft category
+RED:     test_operator_category_overrides_llm() — options.category set -> payload.category === operator value, LLM category ignored, no auto event
+RED:     test_disabled_flag_restores_operator_only() — autoCategorize.enabled=false + no operator category -> payload.category unset
+RED:     test_failsoft_when_llm_omits_category() — LLM draft without category -> memory still persists, payload.category unset, remember() does NOT throw
+RED:     test_emits_category_auto_assigned_event_with_source() — stub tracer records the event with source attribute
+RED:     test_autocategory_drops_oversized_label() — EC-1: LLM category > 64 chars -> payload.category unset, remember() does NOT throw (no InvalidScope)
+RED:     test_autocategory_trims_and_stores() — EC-2: LLM category "  work " -> payload.category === "work"
+RED:     test_autocategory_drops_non_string() — EC-3: LLM category 123/null dropped by zod -> unset, no throw
+RED:     test_autocategory_drops_whitespace_only() — EC-5: LLM category "   " -> unset (trim length 0)
 GREEN:   implement the branch + type widening + threading
 REFACTOR: extract a small pure helper if the branch exceeds ~10 lines (SRP)
 VERIFY:  npm test -- extraction-pipeline-autocategory
@@ -500,9 +500,9 @@ packages/core/src/domain/extraction-pipeline-autocategory.test.ts (NEW) — the 
 
 #### TDD
 ```
-RED:     auto-categorization pipeline populates payload.category from the LLM draft when no operator category is supplied() — THE GOAL TEST
-RED:     integration_operator_override() — operator category wins through the full pipeline
-RED:     integration_failsoft_persists_uncategorized() — LLM omits category -> row persisted with category unset
+RED:     test_goal_autocategory_populates_payload_category_from_llm_draft() — THE GOAL TEST (vitest description: `auto-categorization pipeline populates payload.category from the LLM draft when no operator category is supplied`)
+RED:     test_integration_operator_override() — operator category wins through the full pipeline
+RED:     test_integration_failsoft_persists_uncategorized() — LLM omits category -> row persisted with category unset
 GREEN:   (covered by Phase 2 + 3 implementation; this phase writes the tests + confirms)
 REFACTOR: None expected
 VERIFY:  npm test && npm run typecheck && npm run lint
