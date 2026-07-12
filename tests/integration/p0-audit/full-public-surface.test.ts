@@ -93,19 +93,22 @@ describe('THE GOAL TEST — p0-api-sdk-mcp-correctness-audit (≥ 30 assertions)
     // (factory createMemory/createLocalMemory/runMigrations, config types, stores, schema,
     // stubs, + `export * from ./domain`). This is a brittle line-count proxy; the real
     // API-correctness checks (no `any`, paper-names, subpath smoke) live in the sibling tests.
-    test('1. src/index.ts declares 15 export statements (+ M1 skill-exec deps)', () => {
-      // 15 = 13 (prior baseline) + 2 M1 agentic-skill exports (SandboxedSkillExecutor
-      // value + SandboxedSkillExecutorDeps type). Reconciled by the reranker cycle
-      // (reranker adds NO root export — impl is subpath-only).
+    test('1. src/index.ts declares 17 export statements (+ preset overload)', () => {
+      // 17 = 15 (prior baseline) + 1 pre-existing M1 graph edge-level export (commit
+      // b0de550, not reconciled at the time) + 1 create-memory-preset export
+      // (`CreateMemoryPresetConfig` type + `InvalidPresetConfig` value on one export
+      // statement). All legitimate public API; brittle line-count proxy reconciled.
       const lines = rootContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(15);
+      expect(lines.length).toBe(17);
     });
 
-    test('2. src/core/index.ts declares 56 export statements (+ ... + adaptive DIP + graph-expansion DIP)', () => {
-      // 54 = 52 (47 baseline + 4 episodes + 1 reranker) + 2 ontology exports
-      // (Ontology/OntologyName type + BUILTIN_ONTOLOGIES/resolveOntology value; Item 15).
+    test('2. src/core/index.ts declares 58 export statements (+ auto-categorization taxonomy)', () => {
+      // 58 = 56 (prior baseline) + 2 pre-existing auto-categorization exports
+      // (DEFAULT_CATEGORY_TAXONOMY/classifyCategorySource value + AutoCategorizeConfig/
+      // CategorySource type, v0.33 cycle, not reconciled at the time). All legitimate
+      // public API; brittle line-count proxy reconciled opportunistically.
       const lines = contractContent.split('\n').filter((l) => l.startsWith('export '));
-      expect(lines.length).toBe(56);
+      expect(lines.length).toBe(58);
     });
 
     test('3. src/index.ts contains zero `any` occurrences (public-surface floor)', () => {

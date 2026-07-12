@@ -27,6 +27,17 @@
 export { createMemory, createLocalMemory, runMigrations, EvictionNotSupported } from './infrastructure/db/index.js';
 
 /**
+ * create-memory-preset — zero-config preset overload of {@link createMemory}.
+ *
+ * `CreateMemoryPresetConfig` is the `{ postgres, openai?, migrate? }` shape;
+ * `InvalidPresetConfig` is the typed error thrown fail-fast on an empty
+ * `postgres` (EC-4) — exported so consumers can `catch` it.
+ *
+ * @see .claude/knowledge-base/plans/create-memory-preset-plan.md
+ */
+export { type CreateMemoryPresetConfig, InvalidPresetConfig } from './infrastructure/db/index.js';
+
+/**
  * Local runtime configuration types — consumer-facing entrypoint for
  * advanced wiring (custom embedder, custom LLM, opt-in eviction).
  *
