@@ -180,6 +180,14 @@ def check_acceptance_criteria(
     if by_category.get("file_size") and repo_root is not None and changed:
         limit = _file_size_limit(criteria)
         for rel in changed:
+            # CHANGELOG.md is exempt from the source-complexity LoC budget: it is
+            # an append-only public contract, mandated by Unbreakable Rule 6 and
+            # "kept indefinitely" per rules/audit-trail-rotation.md. The 500-LoC
+            # budget (architecture.md) targets source module complexity, not the
+            # changelog — applying it there would make every Rule-6-compliant plan
+            # fail this gate once the changelog grows past 500 lines.
+            if Path(rel).name == "CHANGELOG.md":
+                continue
             path = repo_root / rel
             if not path.is_file():
                 continue
