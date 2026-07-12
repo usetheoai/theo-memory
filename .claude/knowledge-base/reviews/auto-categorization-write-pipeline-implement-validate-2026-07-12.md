@@ -36,8 +36,7 @@
 
 ### acceptance_criteria — `FAIL`
 
-- [HIGH] file_size_exceeded: `CHANGELOG.md` has 752 lines, exceeding the plan's <= 500-line acceptance criterion.
-- [HIGH] file_size_exceeded: `packages/core/src/domain/extraction/pipeline.ts` has 745 lines, exceeding the plan's <= 500-line acceptance criterion.
+- [HIGH] file_size_exceeded: `CHANGELOG.md` has 753 lines, exceeding the plan's <= 500-line acceptance criterion.
 - [LOW] criterion_requires_human_evidence: 17 acceptance criterion(s) cannot be machine-verified and need explicit evidence in review (not a silently-ticked box): `MEMORY_EVENTS` contains `category_auto_assigned`; `MemoryEvent` still derives from it.; No paper/marketing name in the added comment — `grep` of the paper-name token list returns 0 hits.; `RememberOptions.category` JSDoc no longer claims the LLM does not auto-derive; cites this plan.; No paper/marketing name in the taxonomy or comments — `grep` of the paper-name token list returns 0 hits.
 
 ### test_obligations — `SKIP`
