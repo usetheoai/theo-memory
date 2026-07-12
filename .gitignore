@@ -85,3 +85,6 @@ cross-validation-output/
 .claude/knowledge-base/dogfood/degradations/
 .dev-mcp-client/
 halt-loop-prompts/
+
+# JS coverage output
+coverage/
