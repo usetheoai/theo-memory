@@ -170,7 +170,7 @@ Honest classification (Rule 3 + Rule 10):
 
 - **Trigger:** the `/loop-cross-validation` vs REDACTED (2026-06-21, `cross-validation-output/final_report.md`, overall 3.58/5) surfaced 4 gaps. The owner chose a **full unfreeze** to address them without per-item gating friction.
 - **The P0 HARDENING discipline itself is NOT abandoned.** The 3 P0 sub-goals (APIs correct / SDKs functional / MCP available) remain the quality bar for everything that ships; "hardening" work continues to take precedence when it conflicts with a new feature. What changes is ONLY that net-new features are no longer categorically blocked.
-- **`production-ready` / v1.0 stays SEPARATELY gated (Item 11).** The freeze lift does NOT touch the v1.0 gate: `/dogfood` still returns `EVIDENCE_INSUFFICIENT` and the independent v0.8 benchmark reproduction is still unlogged. README Status stays `Pre-release`; no `production-ready` claim until BOTH close. The unfreeze is about feature scope, not the honesty gate.
+- **`production-ready` / v1.0 stays SEPARATELY gated (Item 11).** The freeze lift does NOT touch the v1.0 gate. Gate status (re-audited 2026-07-12): `/dogfood` = `EVIDENCE_SUFFICIENT` (CLOSED); the independent v0.8 benchmark reproduction remains **unlogged** (`benchmarks/reproductions/` empty) — now the **sole** remaining blocker. README Status stays `Pre-release`; no `production-ready` claim until the benchmark-reproduction gate also closes. The unfreeze is about feature scope, not the honesty gate.
 - **Gap roadmap (this session):** the actionable memory gaps are **G2 (procedural execution + injection/command sandbox — Item 21)** and **G3 (first-class episodic / message-log tier)**. See `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`.
 - **G1 (in-context working-memory tier) + G4 (context-window / token-budget) are DEFERRED (project-owner, this session).** They are agent-RUNTIME concerns, not memory-layer features — implementing them in TheMemory core would contradict the locked "memory layer, NOT agent runtime" override. They are recorded as cross-repo followups for **TheoKit**, NOT in this roadmap's critical path.
 - **Locked overrides unchanged:** the 3 root overrides (vendor lock-in exception, Phase-1 scope, Apache-2.0), the locked names, voice/tone, and ADR-0010/0011 are NOT touched by this unfreeze.
@@ -189,7 +189,7 @@ Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../t
 
 ## Feature Status (canonical reading — 2026-06-04)
 
-**TL;DR.** The system is feature-ready for the majority of vector-based hybrid OSS use cases AND for standalone REST/Docker/MCP consumers. The system is **NOT production-ready by project policy** — `/dogfood` gate returns `EVIDENCE_INSUFFICIENT` (Roadmap Item 11 + `dogfood-golden-rule.md`).
+**TL;DR.** The system is feature-ready for the majority of vector-based hybrid OSS use cases AND for standalone REST/Docker/MCP consumers. The system is **NOT production-ready by project policy** — but as of 2026-07-12 the `/dogfood` gate is **`EVIDENCE_SUFFICIENT` (CLOSED)**; the **sole remaining v1.0 blocker is the independent v0.8 benchmark reproduction** (`benchmarks/reproductions/` still empty — Roadmap Item 11 gate (a)).
 
 ### What works today (consumer can use it now)
 
@@ -226,7 +226,7 @@ Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../t
 
 The `production-ready` token is **deliberately blocked** by two hard gates per `dogfood-golden-rule.md` + Roadmap Item 11:
 
-1. **`/dogfood` gate** = `EVIDENCE_INSUFFICIENT` (persistent audit 2026-05-31 `6f7ff87`). Two hard caps firing: `anchor_not_running` (anchor scenario "Claude Code auto-memory backed by TheMemory" S1 status = `planned`) + `no_anchor_evidence` (0 evidence files). Gate blocks the v1.0 promotion until the anchor scenario runs ≥ 30 days with evidence logs.
+1. **`/dogfood` gate** = **`EVIDENCE_SUFFICIENT` — CLOSED (re-audited 2026-07-12)**. The anchor scenario S1 ("Claude Code auto-memory backed by TheMemory") transitioned `planned → wired → running` (2026-06-04); 49 evidence files are logged and the unified journey suite (ADR-0019, every journey `anchor: true`) passes `run_journey_audit.py` with 0 reds. This supersedes the stale 2026-05-31 `6f7ff87` audit (`EVIDENCE_INSUFFICIENT`, `anchor_not_running` + `no_anchor_evidence`). **This gate no longer blocks v1.0.**
 2. **Independent v0.8 benchmark reproduction** = NOT yet logged at `benchmarks/reproductions/`. Item 10 smoke-validated TheMemory cells only; competitor cells (REDACTED / REDACTED / REDACTED) deferred to vendor-SDK wiring.
 
 Until BOTH gates close: README Status stays `Pre-release`, no `production-ready` badge, no `production-grade` claim in any public copy. Every shipped cycle since 2026-05-31 honors this in its CHANGELOG/commit message — see § Inviolable Rule 3.
@@ -247,7 +247,7 @@ Until BOTH gates close: README Status stays `Pre-release`, no `production-ready`
 | Graph queries (REDACTED/REDACTED) | NO | Item 14 (v1.3) planned |
 | Domain ontologies (medical/legal) | NO | Item 15 (v1.4) planned |
 | Adaptive retrieval (Self-RAG hooks) | NO | Item 13 (v1.2) planned |
-| **`production-ready` label** | **NO** | Blocked by `/dogfood` gate + benchmark reproduction (Item 11) |
+| **`production-ready` label** | **NO** | `/dogfood` gate CLOSED (2026-07-12); sole remaining blocker = independent v0.8 benchmark reproduction (Item 11) |
 
 ---
 
@@ -362,7 +362,7 @@ Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → 
 
 | Nº | Name | Acceptance + dependency | P0 classification |
 |---|---|---|---|
-| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) `docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" running ≥ 30 days). README Status flipped to `Production-ready` in same PR that bumps to v1.0. **Current state (persistent audit 2026-05-31 `6f7ff87`):** `EVIDENCE_INSUFFICIENT`; hard caps firing: `anchor_not_running` + `no_anchor_evidence`. The gate is correctly blocking. **Depends:** Item 10 + `/dogfood` infra (shipped 2026-05-22) | **(a) On P0 critical path** — P0 sub-goal 2 directly covers `/dogfood` closure |
+| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) `docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" running ≥ 30 days). README Status flipped to `Production-ready` in same PR that bumps to v1.0. **Current state (re-audited 2026-07-12):** gate (b) `/dogfood` = `EVIDENCE_SUFFICIENT` — **CLOSED** (anchor S1 `running`; 49 evidence files; ADR-0019 journey suite 0 reds). Gate (a) independent v0.8 benchmark reproduction = **STILL OPEN** (`benchmarks/reproductions/` empty; the v0.8 matrix is TheMemory-only — competitor cells DEFERRED and the `v0-9-vendor-client-impls` plan was ABANDONED 2026-06-07). Gate (a) is now the **sole** v1.0 blocker, and by design needs an EXTERNAL/third-party reproduction. **Depends:** Item 10 + an external reproduction (or an ADR re-scoping gate (a)) | **(a) Gate (b) closed; gate (a) is owner/external-gated** |
 | 7 | **v0.5 — TheoCloud runtime + multi-region premium** | `@usetheo/memory/cloud` subpath imports cloud client (bundle-size gate). `THEOKIT_API_KEY` auth flow against staging. Multi-region failover. (Bi-temporal `asOf` MOVED to v1.1 local OSS tier per ADR-0011; cloud premium narrows to multi-region + audit-mgmt + managed embedding pricing.) **Depends:** Item 2 + Theo PaaS GA | **(a) Conditional** — if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not a new feature) per P0 § "What CONTINUES" |
 | 3 (PR-B) | **v0.2 PR-B — Scaffolded TheoKit templates + E2E** | T4.1-T4.4 + T5.1 from v0.2 plan ADR D7: default-on memory in scaffolded TheoKit apps. **Depends:** sibling `theokit` repo PR | **(c) Cross-repo dependency** — sibling repo work; not blocked by P0 directly. Ship when sibling lands. |
 | 13 | **v1.2 — Adaptive retrieval** | `shouldRetrieve` + `wasRetrievalGood` decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). | **(b) FROZEN under P0** — no plans, no PRs, no discovery cycles |

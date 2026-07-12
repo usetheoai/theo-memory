@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- **v1.0 gate status corrected (honesty).** The `/dogfood` evidence gate is now `EVIDENCE_SUFFICIENT` (re-audited 2026-07-12: anchor scenario `running`, 49 evidence files, ADR-0019 journey suite 0 reds) — the stale `EVIDENCE_INSUFFICIENT` (2026-05-31) references in `CLAUDE.md` + README Status were corrected. The project remains **Pre-release**: the sole remaining `production-ready`/v1.0 blocker is now the independent v0.8 benchmark reproduction (`benchmarks/reproductions/` still empty).
 
 ### Deprecated
 
