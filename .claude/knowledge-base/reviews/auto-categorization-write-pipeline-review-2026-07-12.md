@@ -3,7 +3,14 @@
 **Date:** 2026-07-12
 **Reviewers (spawned agents):** 6 — architecture, tests, wiring, cross-validation, domain-memory-layer, domain-database
 **Findings:** BLOCKER 0 · HIGH 1 · MEDIUM 1 · LOW 5 · INFO many (positive confirmations)
-**Verdict:** NEEDS_FIXES
+**Verdict:** NEEDS_FIXES → **READY_TO_MERGE** after fixes-cycle-1 (commit `69927b2`)
+
+## Resolution — fixes-cycle-1 (2026-07-12, commit `69927b2`)
+
+- **F-H1 (HIGH) — CLOSED.** `autoCategorize?: AutoCategorizeConfig` added to `LocalMemoryConfig` (`config.ts:153`) and threaded into `ExtractionDeps` at `scoped-memory.ts:215` (like `ontology`); `AutoCategorizeConfig` / `DEFAULT_CATEGORY_TAXONOMY` / `classifyCategorySource` exported from `domain/index.ts`. New integration test `scoped-memory-autocategory.test.ts` proves — through the real `createLocalMemory` factory — that `enabled:false` restores operator-only AND default-on auto-categorizes. The off-switch + custom taxonomy are now reachable via the public surface.
+- **F-M1 (MEDIUM) — CLOSED.** New `category_auto_dropped` OTel event (`memory-event.ts`), emitted in the pipeline branch ONLY when the LLM proposed a string that `boundedAutoCategory` rejected (EC-1/EC-5) — a real drop is now observable (Princípio 3); no event on mere absence. Asserted via stub tracer.
+- **LOW findings** (F-L1..F-L5) — accepted for merge (optional hardening; F-L4 case-fold is a documented explicit decision — auto/operator both store verbatim for mutual consistency).
+- **Post-fix gates:** full suite **1330 passed | 2 skipped**, 0 type errors, lint clean, `/code-quality` **PASS**. 0 regression.
 
 > Note: `consolidate_findings.py` mis-parsed the agent YAML (reported 0 findings / false READY_TO_MERGE); this report is the authoritative hand-consolidation of the 6 agents' returned findings.
 
