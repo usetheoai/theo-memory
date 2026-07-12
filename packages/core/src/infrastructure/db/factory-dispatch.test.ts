@@ -10,9 +10,11 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import type * as PresetModule from './preset.js';
+
 const resolvePreset = vi.hoisted(() => vi.fn(async () => ({ __preset: true })));
 vi.mock('./preset.js', async (importActual) => {
-  const actual = await importActual<typeof import('./preset.js')>();
+  const actual = await importActual<typeof PresetModule>();
   return { ...actual, resolvePreset };
 });
 
