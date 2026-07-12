@@ -26,15 +26,6 @@ export const DEFAULT_CATEGORY_TAXONOMY: readonly string[] = [
 export type CategorySource = 'taxonomy' | 'suggested';
 
 /**
- * Config knob for default-on auto-categorization. `enabled` defaults to `true`
- * (ADR D3); `taxonomy` defaults to {@link DEFAULT_CATEGORY_TAXONOMY}.
- */
-export interface AutoCategorizeConfig {
-  readonly enabled?: boolean;
-  readonly taxonomy?: readonly string[];
-}
-
-/**
  * Classify an assigned label as a fixed-taxonomy pick or a free-form suggestion.
  * Case-insensitive; an empty taxonomy always yields `'suggested'` (pure free-form mode).
  */
