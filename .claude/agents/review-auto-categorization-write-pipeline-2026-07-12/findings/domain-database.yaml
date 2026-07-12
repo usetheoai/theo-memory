@@ -1,0 +1,136 @@
+agent: review-auto-categorization-write-pipeline-domain-database
+review_target: 1f6f9d3~1..HEAD for plan auto-categorization-write-pipeline
+domain: database
+domain_specific_patterns_checked:
+  - "ADR D2/D5 no-migration/no-column/no-backfill (payload hoist reuse of existing category column)"
+  - "payload['category'] hoist to top-level category column (pgvector-store)"
+  - "1-64 char bound consistency: auto path (boundedAutoCategory) vs operator path (InvalidScope) vs DB column"
+  - "Dedup UPSERT ON CONFLICT first-write-wins immutability (category NOT in DO UPDATE SET)"
+  - "exact-match ?category=X filter normalization (auto label filterable like operator label)"
+  - "SQL-injection safety of the category filter param binding"
+findings:
+  - id: F-dom-db-1
+    severity: INFO
+    file: packages/core/src/infrastructure/db/migrations/0014_add_category_column.sql
+    line: 26
+    plan_ref: ADR D2 + D5 — NO new migration, NO new column, NO backfill; category stored in the EXISTING category column via the payload hoist
+    domain_anchor: pgvector-store.ts:388 hoist (payload['category'] -> top-level column); migration 0014 pre-existing
+    summary: >
+      VERIFIED PASS. The feature diff (1f6f9d3~1..HEAD) contains ZERO *.sql files and ZERO drizzle
+      schema changes — grep of the diff for '\.sql$|migration|schema|drizzle' returns NONE. The
+      persisted category flows into the SAME top-level `category text` column the operator path uses,
+      via the pre-existing pgvector-store hoist: the pipeline writes payload['category'] (pipeline.ts:327),
+      and pgvector-store.ts:388 reads `payload['category']` -> local `category`, deletes it from
+      cleanedPayload (line 397), and binds it into the INSERT column list (line 412/430). No adapter
+      change was required (the hoist already existed from themory-category-filter-server-side T3.2).
+      ADR D5 no-backfill holds — no UPDATE statement anywhere in the diff. This is exactly the plan's claim.
+    evidence: |
+      # diff has no migration/schema:
+      git diff --name-only 1f6f9d3~1..HEAD | grep -Ei '\.sql$|migration|schema|drizzle'  -> (empty)
+      # pgvector-store.ts (UNCHANGED by this feature) hoists into the existing column:
+      388:  const category = (payload['category'] as string | undefined) ?? null;
+      397:  delete cleanedPayload['category'];
+      430:  INSERT INTO memories (... attributed_to, category) VALUES ...
+      # pipeline auto path writes the same payload key the operator path uses:
+      pipeline.ts:323  payload['category'] = options.category;      // operator
+      pipeline.ts:327  payload['category'] = autoCategory;           // auto — SAME key -> SAME column
+    recommended_action: None — the no-migration/no-column/no-backfill claim is correct and the auto value provably reaches the same column as the operator value. No action.
+
+  - id: F-dom-db-2
+    severity: INFO
+    file: packages/core/src/domain/extraction/pipeline-helpers.ts
+    line: 34
+    plan_ref: EC-1 — LLM category length cap (1-64, fail-soft) consistent with operator path bound and DB constraint
+    domain_anchor: pipeline.ts:67 (operator InvalidScope 1-64); migration 0014 `category text` (no length/charset constraint)
+    summary: >
+      VERIFIED PASS. boundedAutoCategory() applies the SAME 1-64 char bound the operator path enforces
+      (pipeline.ts:67 throws InvalidScope for len==0 || len>64), but fail-soft: out-of-bound returns null
+      -> value dropped, remember() never throws (pipeline.ts:324-332). No risk of a DB-constraint violation
+      reaching INSERT: the underlying column is `category text` (migration 0014:26) with NO length/charset
+      constraint, so even without the app-level bound the DB could not reject on length. The app-level 1-64
+      bound is therefore a UX/consistency guard (keeps auto labels in the same shape band as operator labels),
+      not a DB-integrity guard. Both paths converge on a plain trimmed string in a nullable text column.
+    evidence: |
+      # auto path bound (fail-soft):
+      boundedAutoCategory(raw): if !string -> null; trimmed = raw.trim(); return (1..64) ? trimmed : null
+      # operator path bound (throws):
+      pipeline.ts:67  if (cat.length === 0 || cat.length > 64) throw new InvalidScope(...)
+      # DB column — no constraint that could reject:
+      0014_add_category_column.sql:26  ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "category" text;
+    recommended_action: None — bounds are consistent and no value can violate a DB constraint. Note (INFO only): operator bound counts raw length while auto bound counts trimmed length; a divergence only for whitespace-padded operator input, which is the operator's own strict contract. Acceptable.
+
+  - id: F-dom-db-3
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 422
+    plan_ref: EC-7 — re-remember idempotency; dedup UPSERT does not overwrite category on confirmation bump (first-write wins)
+    domain_anchor: ON CONFLICT DO UPDATE SET confirmation_count only (category omitted)
+    summary: >
+      VERIFIED PASS. The auto-category respects first-write-wins immutability. The UPSERT
+      (pgvector-store.ts:429-434, UNCHANGED by this feature) has `DO UPDATE SET confirmation_count =
+      memories.confirmation_count + 1` and INTENTIONALLY omits `category` from the SET list (documented
+      at 422-428). On a dedup collision of the same fact hash, the pre-existing row's category is left
+      intact; a non-deterministic auto-category emitted on a second remember() of the same fact cannot
+      overwrite the original. Because the auto path writes via the identical payload['category'] key and
+      the same INSERT column, it inherits this immutability for free — no new code path bypasses it.
+    evidence: |
+      pgvector-store.ts:433  DO UPDATE SET confirmation_count = memories.confirmation_count + 1
+      # category deliberately NOT in the SET list (comment 422-428):
+      "category is INTENTIONALLY OMITTED from the DO UPDATE SET list. First-write wins..."
+    recommended_action: None — auto labels are immutable across re-remember exactly like operator labels.
+
+  - id: F-dom-db-4
+    severity: LOW
+    file: packages/core/src/domain/extraction/pipeline.ts
+    line: 327
+    plan_ref: EC-2 — normalize stored auto-category (trim + lowercase) so it matches the exact-match ?category=X dashboard filter
+    domain_anchor: pgvector-store.ts:218 filter clause `category = $N` (case-sensitive exact match); prompt lowercase hint is a soft LLM instruction only
+    summary: >
+      PARTIAL-NORMALIZATION GAP (consistency, not correctness). The stored auto-category is `.trim()`ed
+      (boundedAutoCategory) but is NOT lowercased at the store boundary — lowercase is only *requested*
+      of the LLM in the prompt (a non-deterministic soft hint). The dashboard/REST filter is a
+      case-SENSITIVE exact match (`category = $N`, pgvector-store.ts:218). So if the LLM ignores the
+      lowercase hint and emits `"Work"`, the row persists as `"Work"` and will NOT match a
+      `?category=work` filter, whereas a taxonomy label `"work"` would. The plan's EC-2 wording ("the
+      stored value is .trim()ed (and the prompt requests lowercase)") technically matches the code —
+      trim is enforced, lowercase is only prompt-hinted — so this is arguably as-designed. But it means
+      auto labels are only *probabilistically* filter-consistent, not deterministically. Note the
+      operator path ALSO does not lowercase, so auto and operator paths are at least mutually consistent
+      (both store verbatim-after-trim); the residual risk is auto labels drifting in case because their
+      source (the LLM) is the only one told to lowercase and may not comply.
+    evidence: |
+      # stored auto value: trim only, no toLowerCase
+      pipeline-helpers.ts:38  const trimmed = raw.trim();  return (1..64) ? trimmed : null;   // no .toLowerCase()
+      # filter is case-sensitive exact match:
+      pgvector-store.ts:218-220  if (filters.category !== undefined && filters.category !== '') { parts.push(`category = $${idx}`); ... }
+      # lowercase is a soft prompt request only (classify normalizes for the OTel source attr, not the stored value):
+      taxonomy.ts:  classifyCategorySource(label) { const normalized = label.trim().toLowerCase(); ... }  // used ONLY for the event `source`, NOT for persistence
+    recommended_action: >
+      Decide explicitly (LOW — the plan may accept this as-designed). Option A (deterministic
+      consistency): lowercase the stored auto value at the store boundary in the fail-soft branch
+      (`boundedAutoCategory` could return `trimmed.toLowerCase()`), so an LLM `"Work"` is filterable via
+      `?category=work` exactly like the `"work"` taxonomy label. Option B (accept): document in the plan
+      that auto-label case-consistency is best-effort (prompt-hinted, not enforced) and that the OTel
+      `source` classifier is case-insensitive so `"Work"` still counts as `taxonomy`. Given the operator
+      path also stores verbatim, do NOT introduce a case-fold on only the auto path without confirming
+      the filter contract — a one-sided change could make auto and operator labels diverge. Flag for a
+      human decision.
+
+  - id: F-dom-db-5
+    severity: INFO
+    file: packages/core/src/infrastructure/db/pgvector-store.ts
+    line: 218
+    plan_ref: EC-6 SQL-injection defense (filter param binding) — unchanged surface, re-confirmed for the new writer
+    domain_anchor: parameterized `category = $N` binding
+    summary: >
+      VERIFIED PASS (no regression). The category filter binds via a parameter placeholder
+      (`category = $${idx}`, params.push(filters.category)) so an auto-generated free-form label
+      containing SQL metacharacters (e.g. an LLM emitting `' OR 1=1 --` as a category) is bound as a
+      string literal and never re-parsed as SQL, on both the write (INSERT param bind, pipeline persists
+      via payload) and the read (filter). The feature adds a new *source* of category values (the LLM)
+      but no new SQL string interpolation. No injection surface introduced.
+    evidence: |
+      pgvector-store.ts:219  parts.push(`category = $${idx}`);
+      pgvector-store.ts:220  params.push(filters.category);
+      # comment EC-6 confirms the design intent (lines 215-217)
+    recommended_action: None — parameterized binding covers LLM-sourced values identically to operator-sourced values.

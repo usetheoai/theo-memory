@@ -1,0 +1,182 @@
+agent: review-auto-categorization-write-pipeline-cross-validation
+review_target: 1f6f9d3~1..HEAD (develop) for plan auto-categorization-write-pipeline
+plan: .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md
+note: >
+  main..develop is NOT a clean feature diff (develop is many merged features ahead of
+  main). The authoritative feature range is the 10 commits 1f6f9d3~1..HEAD. All checks
+  below are scoped to that range. The 5 plan tasks each map to a real commit; the
+  .progress checkpoint is consistent with git history; every task test file exists and
+  its suite is green (79/79 across the 4 changed test files, 0 type errors, Node 22).
+
+plan_tasks_summary:
+  total_tasks: 5
+  fully_implemented: 4
+  partial: 1        # T3.1 — feature fires by default but the ADR-D3 off-switch is not plumbed to the top-level factory
+  missing: 0
+  diverged: 0
+
+acceptance_criteria_summary:
+  total: 36
+  satisfied: 34
+  unverified: 0
+  false_claims: 0
+  caveats: 2        # T3.1 "disabled flag restores operator-only behavior" is proven only at the ExtractionDeps layer, not through createLocalMemory config
+
+adr_compliance:
+  total_adrs: 5
+  respected: 4      # D1 piggyback, D2 hybrid-taxonomy-no-column, D4 fail-soft, D5 no-backfill
+  respected_with_caveat: 1   # D3 default-on works; the off-switch is unreachable via the top-level Memory config (not plumbed into ExtractionDeps at the production remember() call site)
+  diverged_without_new_adr: 0
+
+coverage_matrix:
+  total_rows: 17
+  mapped_to_real_code: 17
+  notes: >
+    All 17 rows map to shipped code/tests. Row 4 (default-on with off-switch) is the one
+    partial: the "default-on" half is fully wired and fires from every remember(); the
+    "off-switch" half (autoCategorize.enabled=false) is only reachable by a caller that
+    constructs ExtractionDeps directly — the top-level createLocalMemory / ScopedMemory
+    config does not carry an autoCategorize field, so it is never threaded at the
+    production remember() call site (scoped-memory.ts:196). See F-xval-1.
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    Last plan edit commit 481b35f at 2026-07-12 06:40:26; first code commit 5c208b4
+    (T1.1) at 06:45:16. The plan was frozen ~5 min BEFORE implementation began. Step G
+    clean — the plan is a valid, un-revised contract for this review.
+
+scope_creep:
+  production_files_outside_plan: 1
+  details: >
+    packages/core/src/domain/extraction/pipeline-helpers.ts (NEW, 334 lines) is not in
+    any task's declared "Files to edit", but it is the F1 behavior-preserving split of
+    pipeline.ts (was 745 lines → 438 + 334) to satisfy the plan's own DoD ("if pipeline.ts
+    grows past budget, extract a helper"). It is documented in followups.md (F1 RESOLVED)
+    and CHANGELOG (Changed). Justified, not silent scope creep — recorded as INFO F-xval-4,
+    not a divergence.
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/scoped-memory.ts:196
+    plan_ref: >
+      T3.1 task step 4 ("Thread the configured taxonomy/enabled flag from the Memory
+      config into the prompt builder + this branch") + ADR D3 ("Add an autoCategorize
+      config knob ... a deployment that wants the old behavior sets
+      autoCategorize.enabled = false") + Coverage Matrix row 4 + Objective bullet
+      "Auto-categorization is default-on with an off-switch in config".
+    summary: >
+      The ADR-D3 off-switch is not reachable through the top-level Memory config in
+      production. runExtractionPipeline is invoked from the real remember() path at
+      scoped-memory.ts:196, and that ExtractionDeps object threads every other optional
+      dep (ontology, entityExtractor, reranker, memoryGraphStore, ...) from this.config,
+      but does NOT thread `autoCategorize`. deps.autoCategorize is therefore always
+      undefined at the production call site, so `deps.autoCategorize?.enabled !== false`
+      is always true — default-on works, but a caller CANNOT set
+      autoCategorize.enabled=false via createLocalMemory. There is no autoCategorize field
+      on any factory/config type (grep of packages/core/src/index.ts + infrastructure
+      returns 0 non-test hits). The disabled-flag AC and Coverage-Matrix row 4 are proven
+      ONLY at the ExtractionDeps layer (the test passes { autoCategorize: { enabled:false } }
+      directly into runExtractionPipeline), not end-to-end through the shipped factory.
+    evidence: |
+      scoped-memory.ts:196-213 — ExtractionDeps spread threads ontology/entityExtractor/
+        memoryEntityStore/memoryGraphStore/customInstructions/tracer from this.config but
+        NOT autoCategorize.
+      pipeline.ts:107 — const autoCategorizeEnabled = deps.autoCategorize?.enabled !== false;
+        (undefined ⇒ true; off-switch dead in production).
+      grep "autoCategorize" over packages/core/src (non-test): only the extraction/
+        module + ExtractionDeps.autoCategorize?: — NO ScopedMemoryConfig / LocalMemoryConfig
+        / createLocalMemory field, NO thread at the remember() call site.
+      Contrast: reranker/ontology ARE threaded from config at scoped-memory.ts:212/361.
+    recommended_action: >
+      Add an `autoCategorize?: AutoCategorizeConfig` field to the ScopedMemory config
+      (and surface it on createLocalMemory / LocalMemoryConfig), then thread it into the
+      ExtractionDeps at scoped-memory.ts:196 exactly like ontology/reranker
+      (`...(this.config.autoCategorize !== undefined ? { autoCategorize: this.config.autoCategorize } : {})`),
+      and add one integration test proving createLocalMemory({ autoCategorize: { enabled:false } })
+      yields an uncategorized memory through remember(). Default-on behavior is unaffected;
+      this only makes the documented off-switch reachable. Alternatively, if config
+      plumbing was intentionally deferred, add a one-line ADR/followup declaring the
+      off-switch as ExtractionDeps-only for now (honesty per Rule 3) — but the plan text
+      as written ("sets autoCategorize.enabled = false") implies the factory path.
+
+  - id: F-xval-2
+    severity: INFO
+    file: packages/core/src/domain/extraction/taxonomy.ts:33
+    plan_ref: T1.2 (AutoCategorizeConfig) + commit 88fd2ec
+    summary: >
+      AutoCategorizeConfig had a small churn: added in dd9bf3b (T1.2), REMOVED in 88fd2ec
+      ("defer to its consumer" — phase-1 mini-review flagged it as an orphan type with no
+      caller), then RE-ADDED to taxonomy.ts in 842da7c (T3.1) once ExtractionDeps consumes
+      it (pipeline-helpers.ts:90 `readonly autoCategorize?: AutoCategorizeConfig`). Net
+      result is correct and now has a real consumer; noted only so the two-step history is
+      not mistaken for a lost type.
+    evidence: |
+      git log -S AutoCategorizeConfig -- taxonomy.ts → dd9bf3b (add) / 88fd2ec (remove) / 842da7c (re-add).
+      pipeline-helpers.ts:27 import type { AutoCategorizeConfig }; :90 field on ExtractionDeps.
+    recommended_action: None. Resolved by design; the type is consumed by ExtractionDeps.
+
+  - id: F-xval-3
+    severity: INFO
+    file: .claude/knowledge-base/implementations/auto-categorization-write-pipeline-followups.md
+    plan_ref: Global DoD ("File-size budget respected per architecture.md")
+    summary: >
+      The only non-passing run_validation finding is `file_size_exceeded` HIGH on
+      CHANGELOG.md (~753 lines). CHANGELOG.md is explicitly exempt from the source LoC
+      budget (audit-trail-rotation.md "CHANGELOG.md — kept indefinitely") AND Unbreakable
+      Rule 6 requires updating it — a check limitation, not an implementation defect. Every
+      SOURCE file this feature touched is under 500 (pipeline.ts 438, pipeline-helpers.ts
+      334, taxonomy.ts 45, prompt.ts 219, memory-event.ts 192, options.ts 323). Honestly
+      disclosed in followups.md; agreeing with that disclosure.
+    evidence: |
+      wc -l on all 6 changed source files ≤ 438.
+      followups.md "Known validation caveat (NOT a defect of this work)".
+    recommended_action: None for this feature. Optional tooling follow-up: exempt *.md from
+      check_acceptance_criteria.py source LoC budget (already tracked in followups.md).
+
+  - id: F-xval-4
+    severity: INFO
+    file: packages/core/src/domain/extraction/pipeline-helpers.ts
+    plan_ref: T3.1 "Files to edit" (declared pipeline.ts only) + Global DoD F1
+    summary: >
+      pipeline-helpers.ts (NEW) is outside every task's declared "Files to edit" but is the
+      F1 behavior-preserving split of pipeline.ts to honor the plan's own file-size DoD.
+      boundedAutoCategory (the EC-1/EC-2/EC-5 helper) + the infer:false verbatim path +
+      ExtractionDeps live there now. 1327 tests green, 0 regression (per followups.md). Not
+      silent scope creep — CHANGELOG-documented + followups-tracked.
+    evidence: |
+      git show 6d6eafd (refactor F1); pipeline-helpers.ts:34 boundedAutoCategory;
+      CHANGELOG Changed row 14.
+    recommended_action: None. Justified refactor with audit trail.
+
+  - id: F-xval-5
+    severity: INFO
+    file: packages/core/src/domain/extraction/pipeline.ts:382 (EC-6 verbatim path)
+    plan_ref: Coverage Matrix rows 16 (EC-6) + 17 (EC-7)
+    summary: >
+      EC-6 (infer:false verbatim path is NOT auto-categorized) and EC-7 (re-remember
+      dedup does not overwrite category) are marked "(documented)" in the Coverage Matrix,
+      i.e. verified by design/comment rather than by a dedicated new test in this feature.
+      EC-6 is enforced structurally (the verbatim path runs no LLM, so extracted[i].category
+      never exists) and EC-7 by the pre-existing category-filter UPSERT immutability
+      contract. Behaviorally correct; flagged only because these two ECs rely on existing
+      guarantees + code comments rather than a fresh regression test.
+    evidence: |
+      Plan Coverage Matrix rows 16/17 resolution column = "(documented)".
+      pipeline-helpers.ts verbatim (infer:false) path emits no category; category-filter
+      UPSERT ON CONFLICT does not overwrite category (prior plan's immutability contract).
+    recommended_action: Optional — add a 2-case regression test (infer:false yields
+      uncategorized; second remember() of the same fact leaves category unchanged) if you
+      want these ECs pinned rather than documented. Not a blocker.
+
+verdict_input: >
+  No BLOCKER, no false Acceptance-Criteria claims, no ADR diverged without an ADR, no plan
+  drift, no unauthorized production scope creep. Tests green (79/79 on changed files; the
+  broader suite reported 1327 green in the implementation trail). ONE MEDIUM: the ADR-D3
+  off-switch is not plumbed from the top-level Memory config into the production
+  remember() call site (default-on works; the documented `autoCategorize.enabled=false`
+  escape hatch is unreachable via createLocalMemory). Recommend closing F-xval-1 (thread
+  autoCategorize into ExtractionDeps at scoped-memory.ts + surface on the factory + one
+  end-to-end off-switch test) or an honest one-line ADR narrowing the off-switch to the
+  ExtractionDeps layer.

@@ -1,0 +1,190 @@
+agent: review-auto-categorization-write-pipeline-architecture
+review_target: 5c208b4~1..6d6eafd (slug commits) for plan auto-categorization-write-pipeline
+plan: .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md
+diff_base_note: |
+  The `main..develop` range carries ~1900 unrelated files. The architecture review is
+  scoped to the actual slug commit range `5c208b4~1..6d6eafd` (T1.1 5c208b4 → T1.2
+  dd9bf3b/88fd2ec → T2.1 7db64ac → T3.1 842da7c → T4.1 5245ac3 → type-fix 672217f →
+  F1 split 6d6eafd). Six source files changed:
+  taxonomy.ts (NEW), pipeline-helpers.ts (NEW, F1 split), pipeline.ts (split + T3.1),
+  prompt.ts (T2.1), memory-event.ts (T1.1), options.ts (T1.2 JSDoc).
+
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 196-213
+    plan_ref: ADR D3 + Objective bullet "disabling it restores the operator-only behavior" + T3.1 threading task 4
+    summary: >
+      The `autoCategorize` config knob (D2 custom taxonomy + D3 off-switch) is defined on
+      `ExtractionDeps` and honored in the pipeline, but it is NEVER threaded from the public
+      `Memory` factory into the deps object — the composition root does not wire it. Default-on
+      WORKS (undefined → enabled), but the documented off-switch and custom-taxonomy config are
+      architecturally unreachable through the public API.
+    evidence: |
+      `scoped-memory.ts` assembles ExtractionDeps from `this.config` but omits autoCategorize:
+      ```ts
+      const result = await runExtractionPipeline(messages, this.filters, {
+        vectorStore: this.config.vectorStore,
+        embedder: this.config.embedder,
+        llm: this.config.llm,
+        ...(this.config.entityExtractor !== undefined ? { entityExtractor: ... } : {}),
+        ...(this.config.ontology !== undefined ? { ontology: resolveOntology(...) } : {}),
+        // NO: ...(this.config.autoCategorize !== undefined ? { autoCategorize: ... } : {})
+      }, options);
+      ```
+      `LocalMemoryConfig` (config.ts) declares entityExtractor / ontology / reranker /
+      recallCache but NOT `autoCategorize`; `factory.ts` never references it. `grep autoCategorize`
+      across packages/ (excluding the 4 slug files + tests) returns ZERO hits — the knob is only
+      reachable by directly constructing `ExtractionDeps` (internal wiring, not the public surface).
+      Consequence: ADR D3's "non-breaking escape hatch" and the Objective bullet
+      "disabling it restores the operator-only behavior" cannot be exercised via `createLocalMemory`.
+      The `disabled_flag_restores_operator_only` unit test passes only because it injects
+      ExtractionDeps directly, not through the factory.
+    recommended_action: >
+      Add `readonly autoCategorize?: AutoCategorizeConfig` to `LocalMemoryConfig` and thread it in
+      scoped-memory.ts remember() the same way ontology/entityExtractor are threaded
+      (`...(this.config.autoCategorize !== undefined ? { autoCategorize: this.config.autoCategorize } : {})`),
+      plus a factory pass-through. Deferring: the caller/integration-test half is the wiring agent's
+      remit — this finding covers the composition-root DIP gap (architecture.md §1: the composition
+      root wires concretes; a config knob with no root connection is a dangling seam).
+
+  - id: F-arch-2
+    severity: INFO
+    file: packages/core/src/domain/extraction/pipeline-helpers.ts
+    line: 1-341
+    plan_ref: Global DoD "if pipeline.ts grows past budget, extract a helper (SRP)" + F1 (500-line budget)
+    summary: >
+      F1 pipeline.ts→pipeline-helpers.ts split is behavior-preserving and correctly re-exports the
+      public surface. No new import cycle. Clean SRP separation.
+    evidence: |
+      Public-surface parity verified against 5c208b4~1 (pre-split):
+        BEFORE pipeline.ts exports: applyOntologyToEntities, interface ExtractionDeps, runExtractionPipeline
+        AFTER  pipeline.ts: `export { applyOntologyToEntities }` (re-export of moved impl),
+               `export type { ExtractionDeps, Payload } from './pipeline-helpers.js'`,
+               `runExtractionPipeline` (stays here).
+      Every consumer still resolves:
+        - domain/index.ts:626 `runExtractionPipeline`, :634 `ExtractionDeps` — OK
+        - infrastructure/db/scoped-memory.ts:16 `runExtractionPipeline` — OK
+        - extraction/apply-ontology.test.ts:14 `applyOntologyToEntities from './pipeline.js'` — OK
+      `Payload` was a private `type` before → now publicly re-exported (additive, not a break).
+      Cycle check: pipeline-helpers imports entity-linking.js; entity-linking.ts does NOT import
+      pipeline* (it defines a narrowed `EntityLinkingDeps` at line 40 explicitly "to avoid a pipeline
+      import cycle" — good ISP). helpers does NOT import pipeline.ts. No cycle introduced.
+      Line budgets after split: pipeline.ts 438, pipeline-helpers.ts 334 (both < 500).
+    recommended_action: No action. The split is a textbook behavior-preserving extraction.
+
+  - id: F-arch-3
+    severity: INFO
+    file: packages/core/src/domain/extraction/taxonomy.ts
+    line: 1-45
+    plan_ref: T1.2 (ADR D2) — DEFAULT_CATEGORY_TAXONOMY + classifyCategorySource + AutoCategorizeConfig
+    summary: >
+      New leaf pure module. SRP-clean: one constant + one pure classifier + one config type.
+      Zero imports, deterministic (no clock/RNG). Correct DIP layering (domain leaf).
+    evidence: |
+      `classifyCategorySource(label, taxonomy)` is a pure, case-insensitive, deterministic membership
+      test returning the 'taxonomy'|'suggested' union; empty-taxonomy → 'suggested' (EC-4 honored).
+      `AutoCategorizeConfig` is a role-shaped, readonly, all-optional interface (ISP: two fields,
+      both consumed). No paper/marketing name in identifiers or comments (the only `@see` is a
+      knowledge-base plan path — allowed citation-coordinate form per no-paper-names-in-code.md).
+    recommended_action: No action.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/core/src/domain/extraction/pipeline.ts
+    line: 313-334
+    plan_ref: T3.1 (ADR D1/D3/D4) — operator-precedence + fail-soft LLM-category branch + OTel
+    summary: >
+      The T3.1 behavior branch is SOLID-clean. Operator precedence preserved verbatim; the LLM
+      branch delegates bound-checking to the pure `boundedAutoCategory` helper (SRP), classifies via
+      `classifyCategorySource`, emits the typed event, and cannot throw (total function → fail-soft
+      per ADR D4). `attributed_to` propagation (309-312) untouched; verbatim path unchanged.
+    evidence: |
+      ```ts
+      if (options?.category !== undefined) {
+        payload['category'] = options.category;              // operator wins (unchanged)
+      } else if (autoCategorizeEnabled) {
+        const autoCategory = boundedAutoCategory(extracted[i]?.category);
+        if (autoCategory !== null) {
+          payload['category'] = autoCategory;
+          emitEvent(tracer, 'category_auto_assigned', {
+            source: classifyCategorySource(autoCategory, autoCategorizeTaxonomy),
+            fact_count: 1,
+          });
+        }
+      }
+      ```
+      `extracted[i]?.category` is `string|undefined` under noUncheckedIndexedAccess;
+      `boundedAutoCategory(raw: unknown)` handles non-string → null. No try/catch needed (KISS —
+      guards over exceptions, exactly as the plan's Deep Dive prescribes). Branch is ~10 lines, well
+      under the complexity budget; extraction into `boundedAutoCategory` kept the function within SRP.
+    recommended_action: No action.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/core/src/domain/extraction/prompt.ts
+    line: 73,114-124,147,160-162,196
+    plan_ref: T2.1 (ADR D2/D4) — hybrid-taxonomy directive + optional zod field
+    summary: >
+      Prompt/schema change is additive and backward-compatible. `renderCategoryDirective` is a pure
+      SRP helper; the taxonomy is threaded as a defaulted parameter (OCP — a variation point via a
+      parameter, not a hard-coded branch). `category: z.string().optional()` mirrors `attributed_to`
+      exactly (proven in-tree pattern per Prior Art). Empty-taxonomy omits the "Prefer one of:" clause
+      (EC-4). No `.min(1)` (fail-soft parse — validated in the pipeline, per plan Deep Dive).
+    evidence: |
+      New `renderCategoryDirective(taxonomy: readonly string[])`: prepends the category prefix only
+      when taxonomy is provided; both category & ontology absent → "byte-identical to prior output"
+      (backward-compat asserted in the JSDoc + regression tests). `generateAdditiveExtractionPrompt`
+      gains an optional trailing `categoryTaxonomy?` param — additive signature, existing callers
+      unaffected. No paper name added by this slug (the two pre-existing mem0 `@see` lines are
+      unchanged citation coordinates).
+    recommended_action: No action.
+
+  - id: F-arch-6
+    severity: INFO
+    file: packages/core/src/domain/memory-event.ts
+    line: 157-164
+    plan_ref: T1.1 (Princípio 3) — category_auto_assigned literal
+    summary: >
+      One literal appended to the `MEMORY_EVENTS` const-tuple; union widening is backward-compatible;
+      `MemoryEvent = (typeof MEMORY_EVENTS)[number]` derivation unchanged. Cross-cutting observability
+      correctly lives in the dedicated events module (architecture.md §3), not sprinkled inline.
+    evidence: |
+      `'category_auto_assigned'` added with a doc comment describing `{source, fact_count}` and the
+      no-op discipline (not emitted on operator-supplied or dropped values). No paper name in the
+      comment. Existing 16 literals verbatim.
+    recommended_action: No action.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/core/src/domain/options.ts
+    line: 49-63
+    plan_ref: T1.2 (ADR D1 supersession) — RememberOptions.category JSDoc rewrite
+    summary: >
+      Documentation-only change. The stale "the LLM does NOT auto-derive a category" sentence (which
+      would now contradict the code) is replaced with the override/auto-derive contract citing this
+      plan's ADR D1/D3. Keeps the codebase honest (self-consistency), no signature change,
+      `readonly category?: string` preserved.
+    evidence: |
+      JSDoc now reads "an operator category is an OVERRIDE that always wins ... when omitted AND
+      auto-categorization is enabled (the default), the write pipeline auto-derives a category".
+      `RememberOptions.category` type is unchanged; no breaking rename (Baseline invariant preserved).
+    recommended_action: No action.
+
+summary_counts:
+  BLOCKER: 0
+  HIGH: 0
+  MEDIUM: 1
+  LOW: 0
+  INFO: 6
+overall_architecture_note: >
+  The design is clean and SOLID-compliant. The F1 split is behavior-preserving with correct
+  public-surface re-export and no import cycle (entity-linking deliberately narrows its deps to
+  avoid one). taxonomy.ts is a well-cohered leaf; boundedAutoCategory / classifyCategorySource are
+  single-responsibility pure helpers; the T3.1 branch preserves operator precedence and is fail-soft
+  by construction; ExtractionDeps widening with an optional autoCategorize is a cohesive ISP-clean
+  addition. The one non-INFO finding (F-arch-1, MEDIUM) is a composition-root wiring gap: the D2/D3
+  config knob is defined and honored in the domain but never connected from LocalMemoryConfig /
+  factory / scoped-memory, so the default-on feature works but the documented off-switch and custom
+  taxonomy are unreachable through the public Memory factory. No BLOCKER/HIGH architectural defects.

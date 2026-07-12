@@ -1,0 +1,156 @@
+agent: review-auto-categorization-write-pipeline-wiring
+review_target: 481b35f..HEAD (plan implementation commits 5c208b4..9a2be3a) for plan auto-categorization-write-pipeline
+plan: .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md
+summary_verdict: >
+  The core behavior change IS wired: default-on auto-categorization fires through the real
+  remember() -> LocalScopedMemory -> runExtractionPipeline path (deps.autoCategorize is undefined
+  from the factory, so autoCategorizeEnabled defaults to true and DEFAULT_CATEGORY_TAXONOMY is used).
+  The OTel event has a real production emitter (pipeline.ts:328). All new symbols have real production
+  callers. HOWEVER the config knob half of ADR D3 (the autoCategorize off-switch + custom taxonomy) is
+  STRUCTURALLY UNREACHABLE from any real caller: neither MemoryConfig/LocalMemoryConfig declares an
+  autoCategorize field, nor does scoped-memory.ts thread it into ExtractionDeps. That off-switch is
+  exercisable ONLY via the direct runExtractionPipeline(deps) test path, never via the SDK/factory/REST.
+  This is a real wiring gap for one plan Objective, not a blocker for the primary UX goal.
+
+triad_revalidation:
+  total_new_symbols: 6   # category_auto_assigned, DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource, CategorySource, AutoCategorizeConfig, boundedAutoCategory, renderCategoryDirective (7 incl. renderCategoryDirective)
+  pillar_a_honest_pass: "7 / 7"   # every new symbol has a real, functional production caller
+  pillar_b_honest_pass: "6 / 7"   # AutoCategorizeConfig/off-switch tested only at direct-pipeline level, never through remember()/factory
+  pillar_c_observed: "1 / 1"      # category_auto_assigned emitted from a real production path (pipeline.ts:328); asserted via stub tracer
+
+per_symbol:
+  - symbol: category_auto_assigned
+    kind: MEMORY_EVENTS literal
+    defined: packages/core/src/domain/memory-event.ts:164
+    pillar_a_caller: packages/core/src/domain/extraction/pipeline.ts:328 (emitEvent in the per-fact loop; real production path reachable via remember())
+    pillar_b_test: packages/core/src/domain/extraction-pipeline-autocategory.test.ts:141 (stub tracer asserts startActiveSpan('category_auto_assigned') + setAttribute('source','taxonomy'))
+    pillar_c_metric: real emitter; fires only when a value is actually written (guarded)
+    verdict: HONEST PASS
+
+  - symbol: classifyCategorySource
+    kind: pure helper
+    defined: packages/core/src/domain/extraction/taxonomy.ts:42
+    pillar_a_caller: packages/core/src/domain/extraction/pipeline.ts:329 (source attribute of the OTel event; real path)
+    pillar_b_test: taxonomy.test.ts + autocategory event test
+    verdict: HONEST PASS
+
+  - symbol: DEFAULT_CATEGORY_TAXONOMY
+    kind: const
+    defined: packages/core/src/domain/extraction/taxonomy.ts:13
+    pillar_a_caller: packages/core/src/domain/extraction/pipeline.ts:108 (default taxonomy when deps.autoCategorize.taxonomy absent — THE path the real factory takes, since deps.autoCategorize is always undefined)
+    verdict: HONEST PASS (this is the default that actually runs in production)
+
+  - symbol: boundedAutoCategory
+    kind: pure helper (fail-soft 1-64 bound)
+    defined: packages/core/src/domain/extraction/pipeline-helpers.ts:34
+    pillar_a_caller: packages/core/src/domain/extraction/pipeline.ts:325 (per-fact branch; real path)
+    pillar_b_test: autocategory.test.ts oversized/whitespace/non-string cases
+    verdict: HONEST PASS
+
+  - symbol: renderCategoryDirective
+    kind: prompt builder
+    defined: packages/core/src/domain/extraction/prompt.ts:122
+    pillar_a_caller: packages/core/src/domain/extraction/prompt.ts:161 (called by generateAdditiveExtractionPrompt when categoryTaxonomy !== undefined) <- generateAdditiveExtractionPrompt is called by pipeline.ts:109-116 with the taxonomy on the default-on path
+    pillar_b_test: extraction-prompt.test.ts:367,373
+    verdict: HONEST PASS (reachable via remember() default-on path)
+
+  - symbol: CategorySource
+    kind: type alias
+    defined: packages/core/src/domain/extraction/taxonomy.ts:26
+    pillar_a_caller: return type of classifyCategorySource (taxonomy.ts:42) — live type
+    verdict: HONEST PASS (type)
+
+  - symbol: AutoCategorizeConfig / ExtractionDeps.autoCategorize
+    kind: config type + DIP field
+    defined: packages/core/src/domain/extraction/taxonomy.ts:33 ; used at packages/core/src/domain/extraction/pipeline-helpers.ts:90
+    pillar_a_caller: >
+      pipeline.ts:107-108 reads deps.autoCategorize?.enabled / ?.taxonomy. BUT the ONLY producers of
+      a non-undefined autoCategorize are the direct-pipeline TESTS. NO real caller sets it — see F-wire-1.
+    pillar_b_test: autocategory.test.ts drives it ONLY via direct runExtractionPipeline(deps), never remember()
+    verdict: PARTIAL — the type is live but the config-knob VALUE is unreachable from the SDK/factory/REST
+
+findings:
+  - id: F-wire-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 196
+    plan_ref: ADR D3 (default-on WITH an off-switch) + Objective "Auto-categorization is default-on with an off-switch in config; disabling it restores operator-only behavior" + Coverage Matrix row 4
+    summary: >
+      The autoCategorize config knob is never threaded from the Memory factory into ExtractionDeps, so
+      the off-switch (autoCategorize.enabled=false) and the custom-taxonomy override are UNREACHABLE
+      through any real caller (SDK createLocalMemory/wireMemoryFromPool, REST POST /v1/remember, MCP).
+    evidence: |
+      scoped-memory.ts:196-213 builds the ExtractionDeps literal and threads EVERY other optional dep
+      (historyManager, tracer, customInstructions, entityExtractor, memoryEntityStore, memoryGraphStore,
+      ontology) but OMITS autoCategorize. There is no `...(this.config.autoCategorize !== undefined ? ...)` line.
+      grep 'autoCategorize' across packages/**/*.ts (excluding the 3 pipeline files + tests) = 0 hits.
+      MemoryConfig (packages/core/src/domain/memory-store.ts:224-277) declares entityBoost, customInstructions,
+      ontology — but NO autoCategorize field. LocalMemoryConfig (config.ts:32) extends MemoryConfig and adds none.
+      Consequence: at runtime deps.autoCategorize is ALWAYS undefined for a real remember(), so
+      `deps.autoCategorize?.enabled !== false` (pipeline.ts:107) is ALWAYS true and the taxonomy is ALWAYS
+      DEFAULT_CATEGORY_TAXONOMY. The DEFAULT-ON UX goal works, but ADR D3's off-switch + custom-taxonomy are
+      dead config: a deployment CANNOT set autoCategorize.enabled=false to restore operator-only behavior, and
+      CANNOT supply a custom taxonomy list. The Drawbacks table itself says "a deployment that wants the old
+      behavior sets autoCategorize.enabled = false" — but there is no surface to set it.
+    recommended_action: >
+      Add `autoCategorize?: AutoCategorizeConfig` to MemoryConfig (or LocalMemoryConfig) and thread it in
+      scoped-memory.ts:196 exactly like ontology: `...(this.config.autoCategorize !== undefined ?
+      { autoCategorize: this.config.autoCategorize } : {})`. Add ONE integration test that drives
+      memory.user(id).remember(text) (through the factory) with autoCategorize disabled and asserts the
+      persisted row has no category — proving the off-switch is reachable, not just the direct-pipeline path.
+
+  - id: F-wire-2
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+    line: 96
+    plan_ref: Phase 4 T4.1 "prove the whole chain end-to-end" + Global DoD "THE GOAL TEST"
+    summary: >
+      The "integration" test suite for this feature never exercises the real remember() composition —
+      every case calls runExtractionPipeline(deps) directly with an explicit autoCategorize in the deps
+      literal. No test proves the factory/SDK path (LocalScopedMemory.remember) actually produces the
+      auto-categorized write. The default-on behavior that ships to users is inferred, not tested.
+    evidence: |
+      Every test in extraction-pipeline-autocategory.test.ts (lines 96,107,118,130,148,163,175,186,197,210,222,233)
+      injects `autoCategorize: { enabled: ... }` directly into the runExtractionPipeline deps argument.
+      grep for auto-categorization across tests/ (the integration-suite tree that drives real factories) = 0 hits.
+      There is NO test where deps.autoCategorize is omitted (the shape the real factory produces) to confirm the
+      default-on path fires end-to-end. Result: the direct-pipeline path is well covered; the SDK path — the one
+      the dashboard UX depends on — has zero coverage and would not catch a future factory regression (e.g. if a
+      later change added `autoCategorize: { enabled: false }` at the factory).
+    recommended_action: >
+      Add at least one factory-level test (createLocalMemory or a wired LocalScopedMemory with a stub LLM/store)
+      that calls .remember() with NO autoCategorize configured and asserts the persisted payload.category is set —
+      this is the actual Goal ("without caller input") and is currently unproven through the real caller.
+
+  - id: F-wire-3
+    severity: INFO
+    file: packages/core/src/domain/extraction/taxonomy.ts
+    line: 13
+    plan_ref: Baseline Context / public API surface
+    summary: >
+      None of the new symbols (DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource, boundedAutoCategory,
+      AutoCategorizeConfig, CategorySource, renderCategoryDirective) are re-exported via src/index.ts or
+      domain/index.ts. They are internal-only. That is FINE (each has a real internal caller — no dead export),
+      but note it means AutoCategorizeConfig is not a public type a consumer could pass — reinforcing F-wire-1:
+      even if the factory threaded it, there is currently no public export for a consumer to construct one.
+    evidence: |
+      grep of packages/core/src/index.ts + domain/index.ts for the 6 symbols = 0 hits.
+      Per-symbol internal reference counts (non-test, non-defn): boundedAutoCategory=2, classifyCategorySource=3,
+      DEFAULT_CATEGORY_TAXONOMY=3, renderCategoryDirective=1, AutoCategorizeConfig=2, CategorySource=1 — all > 0,
+      so no dead exports.
+    recommended_action: >
+      When closing F-wire-1, also re-export AutoCategorizeConfig from the public surface so a consumer can type a
+      createLocalMemory({ autoCategorize }) argument.
+
+boundary_check:
+  status: PASS
+  note: >
+    All changes live in packages/core/src/domain/** (domain layer) + one edit surface in
+    infrastructure/db (scoped-memory.ts, unchanged for this feature). No cross-tier import violations:
+    taxonomy.ts is a leaf pure module; pipeline-helpers.ts imports only domain dip/* + domain siblings;
+    pipeline.ts imports from ./taxonomy.js + ./pipeline-helpers.js. No src/local, src/cloud, src/theokit,
+    or src/agent-tools reach into domain internals here.
+
+concurrent_safety:
+  status: N_A
+  note: Single-threaded per-fact loop; no shared mutable state introduced; matches the plan's "(none — single-threaded)" posture.

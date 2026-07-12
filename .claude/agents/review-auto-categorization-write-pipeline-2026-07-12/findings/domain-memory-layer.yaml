@@ -1,0 +1,146 @@
+agent: review-auto-categorization-write-pipeline-domain-memory-layer
+review_target: 1f6f9d3~1..HEAD for plan auto-categorization-write-pipeline
+domain: memory-layer
+domain_specific_patterns_checked:
+  - "Mem0-shape write pipeline integrity (category piggybacks the single extraction LLM call — NO 2nd round-trip)"
+  - "attributed_to mirror consistency (both optional per-fact, both hoisted payload -> pgvector column)"
+  - "ADD-only / immutability contract (dedup ON CONFLICT does NOT overwrite category — first-write wins)"
+  - "Operator precedence (operator options.category never clobbered by the LLM category)"
+  - "Fail-soft discipline (a categorization miss NEVER fails remember() — no throw path)"
+  - "Princípio 3 auditability (category_auto_assigned OTel event; silent-IGNORE check on drop)"
+  - "Language-correction rebuild preserves category through { ...fact, text }"
+  - "no-paper-names-in-code compliance in new src/**"
+  - "Config wiring reaches the pipeline from the real SDK factory (wiring-triad pillar a)"
+findings:
+  - id: F-dom-mem-1
+    severity: HIGH
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    line: 196
+    plan_ref: "ADR D3 — default-on with an off-switch; T1.2 autoCategorize config knob; Coverage Matrix row 4"
+    domain_anchor: "cycle-implement.md § Wiring triad pillar (a) — a real production caller must exercise the new behavior end-to-end"
+    summary: >
+      The autoCategorize config knob (off-switch + custom taxonomy) is UNREACHABLE from the real
+      SDK/factory write path. scoped-memory.ts:196-213 assembles the ExtractionDeps bundle for
+      runExtractionPipeline and threads entityExtractor / memoryEntityStore / memoryGraphStore /
+      ontology from this.config — but does NOT thread autoCategorize. Neither LocalMemoryConfig
+      (config.ts) nor MemoryConfig (memory-store.ts) declares an autoCategorize field, and the
+      factory never sets it. The knob is passed ONLY by the test file
+      (extraction-pipeline-autocategory.test.ts injects it directly into runExtractionPipeline deps).
+      NUANCE (honest): default-on STILL works end-to-end because
+      `autoCategorizeEnabled = deps.autoCategorize?.enabled !== false` is `true` when deps.autoCategorize
+      is undefined (pipeline.ts:107). So a real remember() DOES auto-categorize. But ADR D3's off-switch
+      (`autoCategorize.enabled = false` "restores the operator-only behavior") and ADR D2's configurable
+      taxonomy are impossible for any consumer using createLocalMemory / the SDK — a deployment CANNOT
+      disable auto-categorization or tune the taxonomy. The `disabled_flag_restores_operator_only`
+      acceptance criterion is proven only at the pipeline-deps seam, never through the public config surface.
+    evidence: |
+      scoped-memory.ts:196-213 (deps bundle — NO autoCategorize):
+        const result = await runExtractionPipeline(messages, this.filters, {
+          vectorStore: this.config.vectorStore,
+          embedder: this.config.embedder,
+          llm: this.config.llm,
+          ...(this.config.historyManager !== undefined ? { historyManager: ... } : {}),
+          ...(this.config.ontology !== undefined ? { ontology: resolveOntology(...) } : {}),
+          // <-- autoCategorize is NOT threaded here
+        }, options);
+
+      grep autoCategorize across packages/core/src (non-extraction-module): 12 hits, ALL in
+      extraction-pipeline-autocategory.test.ts. Zero in config.ts / memory-store.ts / factory.ts /
+      scoped-memory.ts.
+
+      pipeline.ts:107 — default-on holds via `!== false`, so DEFAULT behavior is wired; only the
+      off-switch + taxonomy override are dead-ended.
+    recommended_action: >
+      Add `readonly autoCategorize?: AutoCategorizeConfig;` to LocalMemoryConfig (config.ts) and
+      thread it in scoped-memory.ts:196 exactly like ontology
+      (`...(this.config.autoCategorize !== undefined ? { autoCategorize: this.config.autoCategorize } : {})`).
+      Add one integration test that constructs the memory via createLocalMemory with
+      `autoCategorize: { enabled: false }` and asserts a remember() yields category unset — proving the
+      off-switch reaches the pipeline through the public config surface (the current tests do not).
+
+  - id: F-dom-mem-2
+    severity: MEDIUM
+    file: packages/core/src/domain/extraction/pipeline.ts
+    line: 324
+    plan_ref: "ADR D4 fail-soft; Princípio 3 auditability (CLAUDE.md § IMPORTANTE Princípio 3 — 'IGNORE nunca é silencioso')"
+    domain_anchor: "CLAUDE.md § Princípio 3 + precedent events recall_threshold_filtered / entity_noise_filtered (a drop/IGNORE decision must be observable)"
+    summary: >
+      A fail-soft DROP of an auto-category (LLM emitted a category that failed the 1-64 trim/bound
+      check — oversized, whitespace-only, or non-string) is SILENT. The else-branch at pipeline.ts:324
+      writes the event only when boundedAutoCategory returns non-null; when it returns null the value is
+      dropped with NO event. Princípio 3 states IGNORE decisions must be observable, and the codebase's
+      own precedents (recall_threshold_filtered, entity_noise_filtered, dedup_skipped, extraction_zero_facts)
+      all emit on the IGNORE path. An operator watching category_auto_assigned volume cannot distinguish
+      "LLM never proposed a category" from "LLM proposed a bad/oversized one we dropped" — the exact
+      EC-1/EC-5 degradation the plan's Drawbacks table wants ops to measure. NOT a correctness bug
+      (fail-soft is intact) but a Princípio-3 observability gap for this feature's own failure mode.
+    evidence: |
+      pipeline.ts:322-333:
+        if (options?.category !== undefined) {
+          payload['category'] = options.category;
+        } else if (autoCategorizeEnabled) {
+          const autoCategory = boundedAutoCategory(extracted[i]?.category);
+          if (autoCategory !== null) {
+            payload['category'] = autoCategory;
+            emitEvent(tracer, 'category_auto_assigned', { source: ..., fact_count: 1 });
+          }
+          // <-- no emit when boundedAutoCategory returned null (oversized / whitespace / non-string DROP)
+        }
+
+      boundedAutoCategory (pipeline-helpers.ts:34) returns null for the drop cases; the caller silently
+      ignores. Contrast entity_noise_filtered / recall_threshold_filtered which DO emit on drop.
+    recommended_action: >
+      When autoCategorizeEnabled AND the raw LLM category was a non-empty string that failed the bound
+      (i.e. raw was present but boundedAutoCategory returned null), emit a low-cardinality event
+      (e.g. `category_auto_dropped` with a `reason` attribute: 'too_long' | 'whitespace' | 'non_string'),
+      following the no-op discipline (do NOT emit when the LLM simply omitted category — that is a
+      genuine absence, already covered by category_auto_assigned not firing). Add the literal to
+      MEMORY_EVENTS. This closes the Princípio-3 IGNORE-visibility gap for the plan's own EC-1/EC-5 drops.
+
+  - id: F-dom-mem-3
+    severity: LOW
+    file: packages/core/src/domain/extraction/pipeline.ts
+    line: 330
+    plan_ref: "Unresolved Question Q2 — one category per fact vs a batch-level category; ADR D2 source attribute"
+    domain_anchor: "Princípio 3 (accurate, non-misleading observability attributes)"
+    summary: >
+      The category_auto_assigned event hard-codes `fact_count: 1` on every emission because it fires
+      inside the per-fact loop, so for a multi-fact input the event is emitted N times each claiming
+      fact_count:1 rather than once with fact_count:N (or per-fact with an index). Plan Q2 left the
+      per-fact-vs-batch shape open and the plan's own event doc (memory-event.ts:158-164) advertises a
+      `fact_count` attribute that is always 1 — a constant attribute carries no signal and is mildly
+      misleading (an ops dashboard summing fact_count would undercount vs actual facts categorized).
+      Honest note: this is cosmetic — correctness and per-fact assignment are fine.
+    evidence: |
+      pipeline.ts:328-331:
+        emitEvent(tracer, 'category_auto_assigned', {
+          source: classifyCategorySource(autoCategory, autoCategorizeTaxonomy),
+          fact_count: 1,   // <-- always 1; the event is per-fact so this attribute is a constant
+        });
+    recommended_action: >
+      Either drop the always-1 fact_count attribute (keep only `source`), or replace it with a
+      meaningful per-fact index / total. If kept for future batch semantics, document in the
+      memory-event.ts comment that it is currently always 1 (per-fact emission) so consumers do not
+      aggregate it as a count.
+
+positive_findings:
+  - "Mem0-shape single-round-trip preserved: category piggybacks the existing extraction LLM call (prompt.ts renderCategoryDirective + AdditiveExtractionSchema `category: z.string().optional()`); NO second LLM round-trip added (ADR D1 / parsimony rung 4 honored). Confirmed pipeline.ts:109-116 threads the taxonomy into the single generateResponse call at 124."
+  - "attributed_to mirror is consistent: both optional per-fact fields, both propagate into payload in the SAME per-fact loop (attributed_to pipeline.ts:312-315; category 322-333), both hoisted to their pgvector column on INSERT. Auto-category faithfully reuses the proven pattern."
+  - "Immutability / ADD-only intact: the dedup UPSERT (pgvector-store.ts:430-434) omits category from `DO UPDATE SET confirmation_count = ... + 1`, so a re-remember of the same fact hash never overwrites the first-write category (EC-7 holds for the auto-category path exactly as for operator category)."
+  - "Operator precedence correct: pipeline.ts:322 checks `options?.category !== undefined` FIRST and writes it verbatim (no event); the LLM branch is a strict `else if`, so an operator category is never clobbered by the LLM (ADR D3). Boundary length check for the operator path stays a hard throw at entry (pipeline.ts:65-72); the LLM path is fail-soft (boundedAutoCategory returns null, never throws)."
+  - "Fail-soft cannot throw: the LLM-category branch composes only total functions — boundedAutoCategory (typeof + trim + length, no throw), classifyCategorySource (pure), emitEvent (no-op when tracer undefined). No try/catch needed because there is no throw path; a categorization miss cannot fail remember(). Matches ADR D4."
+  - "Language-correction rebuild preserves category: the extracted element type was widened with `category?: string` (pipeline.ts:117, 172) and the corrective rewrite rebuilds each fact via `result.push({ ...fact, text })` (pipeline.ts:197) — the spread carries category (and attributed_to / linked_memory_ids) through unchanged; only text is replaced."
+  - "no-paper-names-in-code compliant: grep of the banned token list over taxonomy.ts / pipeline-helpers.ts / pipeline.ts (auto-category regions) / prompt.ts / memory-event.ts returned 0 hits in the new auto-categorization code; JSDoc cites the plan file path, not paper names."
+  - "Observability literal correctly added: category_auto_assigned appended to MEMORY_EVENTS (memory-event.ts:164) with an accurate doc comment; MemoryEvent derived type unchanged; existing 16+ literals verbatim (union widening is backward-compatible)."
+
+summary: >
+  Domain-correctness verdict: the auto-categorization core is faithful to the memory-layer contracts —
+  single-round-trip Mem0-shape write, attributed_to-mirrored per-fact propagation, ADD-only category
+  immutability on dedup, correct operator precedence, genuine fail-soft (no throw path), and
+  category preserved through the language-correction rebuild; no paper-name violations. The one HIGH
+  finding (F-dom-mem-1) is a real production WIRING gap: the ADR-D3 off-switch and ADR-D2 taxonomy
+  override are unreachable from the public SDK/factory config (autoCategorize lives only on
+  ExtractionDeps and is injected only by tests) — default-on works, but the off-switch/taxonomy are
+  dead-ended and unproven through the real config surface. One MEDIUM Princípio-3 gap (F-dom-mem-2):
+  a fail-soft category DROP is silent, unlike the codebase's own IGNORE-event precedents. One LOW
+  observability wart (F-dom-mem-3): fact_count is a constant 1.

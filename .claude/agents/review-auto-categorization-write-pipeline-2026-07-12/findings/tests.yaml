@@ -1,0 +1,185 @@
+agent: review-auto-categorization-write-pipeline-tests
+review_target: main..HEAD for plan auto-categorization-write-pipeline
+plan: .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md
+verdict: READY_TO_MERGE
+summary: >
+  Strong test suite. Every declared edge case (EC-1 length cap 64, EC-2 trim,
+  EC-3 non-string, EC-4 empty taxonomy, EC-5 whitespace-only) has a matching
+  test that exercises real behavior, not implementation. Operator precedence,
+  disabled flag, fail-soft persist-uncategorized, and the OTel event with
+  source=taxonomy are all covered. THE GOAL TEST is present with the exact
+  plan-specified vitest description and is meaningful (asserts the persisted
+  payload.category end-to-end through the real pipeline including zod parse).
+  AAA/GWT shape is clean and test names describe behavior. Findings are all
+  LOW/INFO — no BLOCKER, HIGH, or MEDIUM.
+
+changed_test_files:
+  - packages/core/src/domain/extraction/taxonomy.test.ts
+  - packages/core/src/domain/extraction-prompt.test.ts   # category block (T2.1), lines 346-381
+  - packages/core/src/domain/extraction-pipeline-autocategory.test.ts  # T3.1 (10 tests) + T4.1 (3 tests) = 12+ tests
+  - packages/core/src/domain/memory-event.test.ts         # T1.1 literal-in-union assertions
+
+test_pyramid:
+  unit_added: 10        # taxonomy.test.ts (5) + extraction-prompt category block (6, sub-count) + memory-event (2 new) — pure/stubbed
+  integration_added: 13 # extraction-pipeline-autocategory.test.ts drives runExtractionPipeline via StubVectorStore + stub LLM
+  e2e_added: 0
+  total: 23
+  balance: HEALTHY  # unit-heavy base, no real-Postgres integration needed (domain-only change; store hoist untouched)
+
+tdd_order: PASS
+tdd_evidence: |
+  git log main..HEAD shows the correct ordering — T1.1 (5c208b4 event literal),
+  T1.2 (dd9bf3b taxonomy), T2.1 (7db64ac prompt+schema), T3.1 (842da7c pipeline).
+  Tests are co-committed with their implementation per the RED/GREEN convention
+  (RED test + GREEN impl in one commit). No implementation-before-test inversion.
+
+goal_test:
+  present: true
+  meaningful: true
+  file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+  line: 208
+  description: "auto-categorization pipeline populates payload.category from the LLM draft when no operator category is supplied"
+  note: >
+    Exact vitest description matches plan Goal + T4.1 verbatim. Asserts
+    store.inserted[0].category === 'work' through the full runExtractionPipeline
+    (including AdditiveExtractionSchema.parse at pipeline.ts:147), so it proves
+    Phase 2 schema + Phase 3 branch compose. Not a vibe assertion.
+
+edge_cases_from_plan:
+  covered: 5   # EC-1, EC-2, EC-3, EC-4, EC-5 all have tests
+  documented_only_no_test: 2  # EC-6 (verbatim path), EC-7 (re-remember idempotency) — plan marks these "(documented)"
+  missing: []
+  detail:
+    EC-1: covered  # test_autocategory_drops_oversized_label (70 chars -> unset, no throw)
+    EC-2: covered  # test_autocategory_trims_and_stores ("  work " -> "work") + test_prompt_instructs_lowercase
+    EC-3: covered  # test_autocategory_drops_non_string (123) — genuinely end-to-end: zod strips it at pipeline.ts:147, guard is belt-and-suspenders
+    EC-4: covered  # test_classify_returns_suggested_for_empty_taxonomy + test_empty_taxonomy_still_requests_a_label
+    EC-5: covered  # test_autocategory_drops_whitespace_only ("   " -> unset)
+    operator_precedence: covered  # test_operator_category_overrides_llm + integration_operator_override
+    disabled_flag: covered        # test_disabled_flag_restores_operator_only
+    failsoft_persist: covered     # test_failsoft_when_llm_omits_category + integration_failsoft_persists_uncategorized
+    event_source: partial         # only source='taxonomy' asserted; see F-tests-1 / F-tests-2
+
+findings:
+  - id: F-tests-1
+    severity: LOW
+    file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+    line: 141
+    plan_ref: ADR D2 + T3.1 "source attribute (taxonomy vs suggested)"
+    summary: >
+      The OTel event source-attribute is only asserted for the 'taxonomy' branch.
+      No pipeline/integration test drives a free-form (unlisted) LLM label to
+      assert source === 'suggested' end-to-end.
+    evidence: |
+      test_emits_category_auto_assigned_event_with_source uses category:'work'
+      -> asserts setAttribute('source','taxonomy'). The 'suggested' branch of
+      classifyCategorySource is unit-tested in taxonomy.test.ts:16, but the
+      pipeline never proves an unlisted label emits source='suggested' via the
+      real emitEvent path. ADR D2's whole value (ops measuring the suggested/other
+      ratio) rests on this attribute being correct for BOTH branches through the pipeline.
+    recommended_action: >
+      Add one test: LLM draft category:'side-hustle' (unlisted) + assert
+      setAttribute('source','suggested'). ~6 lines, mirrors the existing test.
+
+  - id: F-tests-2
+    severity: LOW
+    file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+    line: 156
+    plan_ref: T1.1 "attributes (source, fact_count)" + T3.1 emit "source + fact_count"
+    summary: >
+      The event test asserts only the 'source' attribute; the second declared
+      attribute fact_count (emitted at pipeline.ts:330) is never asserted.
+    evidence: |
+      pipeline.ts:328-331 emits { source, fact_count: 1 }; the test only checks
+      setAttribute('source','taxonomy'). If fact_count regressed (or the per-fact
+      count assumption Q2 changed), no test would catch it.
+    recommended_action: >
+      Add expect(setAttribute).toHaveBeenCalledWith('fact_count', 1) to the
+      existing event test. One line.
+
+  - id: F-tests-3
+    severity: LOW
+    file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+    line: 20
+    plan_ref: T4.1 Deep file dependency analysis "reuse the StubVectorStore/stub-LLM harness (DRY)"
+    summary: >
+      The StubVectorStore + makeEmbedder + makeLlm harness is duplicated ~75
+      lines from extraction-pipeline-category.test.ts rather than shared, despite
+      the plan explicitly saying "reuse ... do not reinvent the stubs (DRY)".
+    evidence: |
+      extraction-pipeline-autocategory.test.ts:20-91 is a near-verbatim copy of
+      extraction-pipeline-category.test.ts:30-109 (the autocategory copy drops the
+      private `rows` Map it does not use). Two independent StubVectorStore classes
+      now mirror the VectorStore DIP; a future DIP method addition must be patched
+      in both.
+    recommended_action: >
+      Acceptable as-is (matches the existing per-file stub convention across this
+      codebase's test suite, and duplicated test stubs are lower-risk than shared
+      production code). If touched again, extract a shared test-support
+      StubVectorStore into a __fixtures__/test-support module. NOT a merge blocker.
+
+  - id: F-tests-4
+    severity: INFO
+    file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+    line: 93
+    plan_ref: Unresolved Question Q2 (per-fact vs batch-level category on multi-fact input)
+    summary: >
+      All auto-category tests use a single-fact LLM draft. No test exercises the
+      multi-fact case (N>1 extracted facts, each with its own category) to prove
+      per-fact propagation + one event per assigned fact.
+    evidence: |
+      Every makeLlm({ memory: [ ... ] }) fixture has exactly one entry. The
+      per-fact loop (pipeline.ts:322-333) with fact_count:1 hardcoded is untested
+      for N>1. The existing extraction-pipeline-category.test.ts:125 already proves
+      the operator-category multi-fact path, so the harness supports it trivially.
+    recommended_action: >
+      Optional: add a 2-fact draft with distinct categories ('work','preferences')
+      and assert both payloads + 2 event emissions. Closes the Q2 gap with a test
+      rather than leaving it purely to the plan's per-fact design assertion.
+
+  - id: F-tests-5
+    severity: INFO
+    file: packages/core/src/domain/extraction-pipeline-autocategory.test.ts
+    line: 1
+    plan_ref: Coverage Matrix rows 16 (EC-6 verbatim path) + 17 (EC-7 re-remember)
+    summary: >
+      EC-6 (infer:false verbatim path is NOT auto-categorized) and EC-7
+      (re-remember does not overwrite category) are marked "(documented)" in the
+      Coverage Matrix and have no test. EC-6 in particular is a cheap regression
+      guard against a future change accidentally routing the verbatim path through
+      auto-categorization.
+    evidence: |
+      pipeline-helpers.ts:212 (verbatim path) only sets payload['category'] from
+      options.category — correct, but no test asserts that remember(text,{infer:false})
+      with NO operator category yields an uncategorized row. The plan intentionally
+      left these documented-only (design invariants), so this is INFO not a gap.
+    recommended_action: >
+      Optional: a single test — infer:false + no operator category + a stub LLM
+      that WOULD emit a category -> assert payload.category is undefined — locks
+      EC-6 as a behavior, not just a comment.
+
+  - id: F-tests-6
+    severity: INFO
+    file: packages/core/src/domain/extraction-prompt.test.ts
+    line: 361
+    plan_ref: T2.1 test_prompt_lists_the_taxonomy
+    summary: >
+      Positive prompt-content assertion is present and behavior-shaped (checks each
+      DEFAULT_CATEGORY_TAXONOMY label appears in the built prompt). Noted as a
+      strength; the companion negative ("no taxonomy -> no CATEGORY directive",
+      line 377) correctly guards the default byte-identical path.
+    evidence: |
+      test_prompt_lists_the_taxonomy (363) + test_empty_taxonomy_still_requests_a_label
+      (366) + test_prompt_instructs_lowercase (372) + the default-omission test (377)
+      together cover the prompt surface well without asserting internal string
+      structure. No action.
+    recommended_action: none
+
+skipped_or_only_tests: none   # no .skip / .only / xit / xtest leaks in any changed test file
+commented_out_tests: none
+flaky_signals: none           # all fixtures deterministic; no clock/RNG; embeddings mocked
+implementation_vs_behavior: >
+  Tests assert on the observable persisted payload (store.inserted[i].category),
+  the resolved return of remember() (resolves.toBeDefined for fail-soft), and the
+  OTel span name/attribute via a stub tracer — all behavior, not internal structure.
+  No test asserts on private helper internals.
