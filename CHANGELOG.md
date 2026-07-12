@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.34.0] - 2026-07-12
+
+### Added
+- **Zero-config `createMemory` preset**: `createMemory({ postgres, openai })` boots a working in-process `Memory` from just a Postgres URL + OpenAI key — it wires `OpenAIEmbedder` + `OpenAILLM` + `PgvectorStore` + a `pg.Pool`, auto-runs migrations by default (opt-out `{ migrate: false }`), owns the pool lifecycle (`dispose()` also ends the pool), and returns a `DisposableMemory`. Non-breaking: `createMemory` now accepts EITHER the preset shape OR the existing full `LocalMemoryConfig` (discriminated by the `postgres` field); `createLocalMemory` and existing callers are untouched. New public exports `CreateMemoryPresetConfig` (type) + `InvalidPresetConfig` (typed error thrown fail-fast on an empty `postgres`). One OpenAI key per process (the OpenAI client is a module-global lazy singleton); for multiple keys use the full-config path (create-memory-preset).
+
 ## [0.33.0] - 2026-07-12
 
 ### Added
