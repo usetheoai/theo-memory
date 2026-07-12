@@ -154,6 +154,14 @@ export const MEMORY_EVENTS = [
   // (fail-soft). NOT emitted when nothing was corrected (no-op discipline).
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_label_language_mismatch',
+
+  // auto-categorization-write-pipeline T1.1: fires when the write pipeline assigns a
+  // model-derived category to a fact (only when the caller supplied none and the value
+  // passed the 1-64 trim/bound check). Attributes `{source, fact_count}` where `source`
+  // = 'taxonomy' (a fixed-list label) or 'suggested' (a free-form fallback label). NOT
+  // emitted on operator-supplied category nor on a dropped/oversized/empty value (fail-soft).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'category_auto_assigned',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
