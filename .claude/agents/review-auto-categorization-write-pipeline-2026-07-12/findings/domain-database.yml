@@ -1,0 +1,135 @@
+agent: review-auto-categorization-write-pipeline-domain-database
+review_target: develop..HEAD for plan auto-categorization-write-pipeline
+domain: database
+review_phase: fixes-cycle-1 (commit 69927b2)
+domain_specific_patterns_checked:
+  - pgvector-schema (no SQL migrations present)
+  - write-pipeline persistence invariants (payload hoisting unchanged)
+  - observable error handling (new category_auto_dropped event for Princípio 3)
+findings:
+  - id: F-dom-db-1
+    severity: PASS
+    file: packages/core/src/infrastructure/db/config.ts
+    line: 142-154
+    plan_ref: auto-categorization-write-pipeline-plan § ADR D2 + D3
+    domain_anchor: CLAUDE.md § Princípio 2 (priorização via config threading)
+    summary: "NO REGRESSION: autoCategorize config threading into ExtractionDeps follows identical pattern to ontology (line 212 precedent)"
+    evidence: |
+      Config property added to `LocalMemoryConfig` interface:
+      ```ts
+      readonly autoCategorize?: AutoCategorizeConfig;
+      ```
+      Threaded into `ExtractionDeps` at scoped-memory.ts line 213-216 via spread operator
+      (identical to ontology threading at line 210-212).
+      Zero changes to persistence layer; config is pure runtime control (default-on when absent).
+    assessment: |-
+      • The off-switch (`enabled: false`) is now reachable via the public factory
+      • Custom taxonomy override (`taxonomy?: readonly string[]`) is threaded through
+      • No SQL migrations or schema additions (ADR D2 no-migration invariant preserved)
+      • Caller category still always wins (options.category overrides auto-derived value)
+    recommended_action: "NONE — this is defensive engineering (API completeness). Merge as-is."
+
+  - id: F-dom-db-2
+    severity: PASS
+    file: packages/core/src/domain/extraction/pipeline.ts
+    line: 322-336
+    plan_ref: auto-categorization-write-pipeline-plan § T3.1
+    domain_anchor: CLAUDE.md § Princípio 3 (auditabilidade — never silent IGNORE)
+    summary: "NO REGRESSION: category payload hoisting unchanged; F-M1 adds observability event when LLM-proposed category is dropped (fail-soft)"
+    evidence: |
+      Before fix (implicit):
+      ```ts
+      const autoCategory = boundedAutoCategory(extracted[i]?.category);
+      if (autoCategory !== null) {
+        payload['category'] = autoCategory;
+      }
+      // else: silent drop
+      ```
+      After fix (explicit):
+      ```ts
+      const rawCategory = extracted[i]?.category;
+      const autoCategory = boundedAutoCategory(rawCategory);
+      if (autoCategory !== null) {
+        payload['category'] = autoCategory;
+        emitEvent(tracer, 'category_auto_assigned', { ... });
+      } else if (typeof rawCategory === 'string') {
+        emitEvent(tracer, 'category_auto_dropped', { reason: 'out_of_bounds' });
+      }
+      ```
+      • Payload hoisting path unchanged (extracted → boundedAutoCategory → payload['category'])
+      • Event only emitted when LLM proposed a STRING that failed bounds (not when absent)
+      • Satisfies Princípio 3: real drops are now observable
+    assessment: |-
+      • No migration needed (the `category_auto_dropped` is an OTel event, not a table column)
+      • Event is correctly conditioned: only fires when `typeof rawCategory === 'string'`
+      • This prevents event spam when LLM simply didn't extract a category
+      • Silent drop converted to observable drop; fail-soft behavior unchanged
+    recommended_action: "NONE — F-M1 closes honest gap identified in /review. Merge as-is."
+
+  - id: F-dom-db-3
+    severity: PASS
+    file: packages/core/src/domain/extraction/pipeline-helpers.ts
+    line: 34-40
+    plan_ref: auto-categorization-write-pipeline-plan § T1.2
+    domain_anchor: CLAUDE.md § IMPORTANTE Princípio 1 (relevância = score contínuo, não booleano)
+    summary: "NO REGRESSION: boundedAutoCategory applies trim() only, NOT toLowerCase(); accepted documented decision per ADR D5"
+    evidence: |
+      ```ts
+      export function boundedAutoCategory(raw: unknown): string | null {
+        if (typeof raw !== 'string') {
+          return null;
+        }
+        const trimmed = raw.trim();
+        return trimmed.length >= 1 && trimmed.length <= 64 ? trimmed : null;
+      }
+      ```
+      • Line 38: `.trim()` applied
+      • Line 39: length check only (1-64 characters)
+      • NO `.toLowerCase()` call (unchanged from original plan § T1.2 spec)
+    assessment: |-
+      • The fix does NOT introduce lowercasing (no regression on this point)
+      • Lowercase normalization is ONLY applied in `classifyCategorySource()` (taxonomy.ts:43)
+        for comparison purposes (determining if a label is in the fixed taxonomy)
+      • The persisted `payload['category']` carries the original-cased trimmed value
+      • This is the accepted documented design (ADR D5: preserve case for semantic clarity)
+    recommended_action: "NONE — F-dom-db-4 (case preservation) is correctly implemented. No change needed."
+
+  - id: F-dom-db-4
+    severity: LOW (INFO)
+    file: packages/core/src/domain/extraction/taxonomy.ts
+    line: 42-44
+    plan_ref: auto-categorization-write-pipeline-plan § ADR D5
+    domain_anchor: CLAUDE.md § Princípio 1 (score continuo — categoria em original-case preserva semântica)
+    summary: "CONFIRMED: category is trim()-ed but NOT lowercased (documented accepted decision)"
+    evidence: |
+      classifyCategorySource applies lowercase ONLY for taxonomy membership check:
+      ```ts
+      export function classifyCategorySource(label: string, taxonomy: readonly string[]): CategorySource {
+        const normalized = label.trim().toLowerCase();
+        return taxonomy.some((entry) => entry.toLowerCase() === normalized) ? 'taxonomy' : 'suggested';
+      }
+      ```
+      • The `normalized` lowercase variable is used ONLY for comparison
+      • The persisted payload['category'] in the database is the original-cased `label` (not `normalized`)
+      • This is the deliberate design: preserve original case for observability (e.g., "Work" vs "work")
+    assessment: |-
+      • Fix does not change this behavior (no regression)
+      • Original casing is preserved in the database (semantic clarity per ADR D5)
+      • Lowercase normalization happens only in-memory for taxonomy membership checking
+      • This matches the accepted documented design and is NOT a bug
+    recommended_action: |
+      NO ACTION. This is the accepted documented behavior per plan § ADR D5:
+      "category label is trim()-ed for size checking but NOT lowercased to preserve
+      the original casing for observability (e.g., distinguishing 'Work' from 'WORK')."
+      F-dom-db-4 was flagged in the initial review as LOW (INFO) only to document this.
+      The fix does not change this; status remains PASS.
+
+database_regression_verdict: PASS — no migrations, no schema changes, no payload persistence regressions detected
+evidence_confidence: HIGH
+notes: |
+  • Commit 69927b2 is a pure config + observability fix
+  • No database schema touched (verified via `git show 69927b2 -- "*.sql"`)
+  • All three payload hoisting paths (operator → auto → default) unchanged
+  • New `category_auto_dropped` OTel event addresses Princípio 3 (never silent IGNORE)
+  • Original casing preservation (ADR D5) confirmed intact
+  • Integration test at scoped-memory-autocategory.test.ts exercises the factory default-on behavior end-to-end

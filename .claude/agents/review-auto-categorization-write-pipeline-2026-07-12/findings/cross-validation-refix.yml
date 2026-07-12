@@ -1,0 +1,50 @@
+agent: review-auto-categorization-write-pipeline-cross-validation-refix
+review_target: fixes-cycle-1 commit 69927b2 for plan auto-categorization-write-pipeline
+plan: .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md
+resolution_table:
+  - finding: F-H1
+    severity: HIGH
+    status: CLOSED
+    recommended_action: "add autoCategorize to LocalMemoryConfig, thread at scoped-memory.ts like ontology, export the type, add one integration test through remember() with enabled:false"
+    delivered:
+      - "config.ts:143 — `readonly autoCategorize?: AutoCategorizeConfig` added to LocalMemoryConfig (extends MemoryConfig)"
+      - "scoped-memory.ts:215 — conditional-spread into ExtractionDeps, byte-identical pattern to ontology/entityExtractor/reranker at the same site"
+      - "domain/index.ts:641 — AutoCategorizeConfig + CategorySource types + DEFAULT_CATEGORY_TAXONOMY + classifyCategorySource exported from the public barrel"
+      - "scoped-memory-autocategory.test.ts — 2 integration tests through the real createLocalMemory factory: default-on lands 'work'; enabled:false restores operator-only (undefined)"
+    match: EXACT
+    evidence: "Recommended action executed verbatim on all four sub-items. ADR-D3 off-switch AND ADR-D2 custom taxonomy (AutoCategorizeConfig.taxonomy field, pre-existing from T1.2) are both now reachable through the public factory. Coverage-Matrix row 4 ('disabling restores operator-only') is now proven end-to-end via createLocalMemory, not merely via a direct ExtractionDeps injection. Wiring pillar (b) 6/7 -> 7/7."
+  - finding: F-M1
+    severity: MEDIUM
+    status: CLOSED
+    recommended_action: "emit a discard event with {reason} when a non-null LLM category is dropped by the bound"
+    delivered:
+      - "memory-event.ts:165 — new 'category_auto_dropped' literal added to MEMORY_EVENTS union (38 -> 39)"
+      - "pipeline.ts:333 — emitted in `else if (typeof rawCategory === 'string')` guard, ONLY when the LLM proposed a string that boundedAutoCategory rejected; attribute {reason:'out_of_bounds'}"
+      - "extraction-pipeline-autocategory.test.ts:173 — asserts the event fires for category='x'.repeat(70) (a real 70-char drop past the 64 bound)"
+      - "memory-event.test.ts — union-length + membership assertions updated to 39"
+    match: EXACT
+    evidence: "The guard correctly distinguishes a REAL DROP from MERE ABSENCE. boundedAutoCategory returns null for both (a) typeof raw !== 'string' [absence] and (b) a string that trims-empty or exceeds 64 [real drop]. The `typeof rawCategory === 'string'` guard fires the event ONLY on case (b), exactly matching F-M1's 'not on mere absence' requirement. Aligns with the recall_threshold_filtered / entity_noise_filtered IGNORE-observability precedents (Princípio 3)."
+plan_drift:
+  plan_edited_after_fix: false
+  details: "git show 69927b2 --name-only contains no plan file. Plan last touched at 481b35f/1f6f9d3 (both pre-fix, the original plan commits). The frozen contract is unchanged by the fix; the ADR-D3 with-caveat noted in the first review is now upgraded to fully-satisfied by code, not by a plan edit."
+scope_creep:
+  detected: false
+  details: "All 9 changed files map 1:1 to F-H1 (config.ts, scoped-memory.ts, domain/index.ts, scoped-memory-autocategory.test.ts) or F-M1 (memory-event.ts, memory-event.test.ts, pipeline.ts, extraction-pipeline-autocategory.test.ts) plus CHANGELOG.md (Rule 6). No unrelated refactor, no new public API beyond the two findings' surface."
+new_untested_behavior:
+  detected: false
+  details: "The two new behaviors (public-factory autoCategorize threading; category_auto_dropped event) each ship with a dedicated RED->GREEN test. No new code path is left uncovered. 37/37 fix-scoped tests pass (verified by re-run, not self-report)."
+findings:
+  - id: F-refix-1
+    severity: INFO
+    file: packages/core/src/domain/extraction/pipeline.ts
+    summary: "F-M1 fix is semantically precise — the string-guard is the correct discriminator between real-drop and absence; boundedAutoCategory confirmed to return null on both, so the guard is load-bearing and correct."
+    evidence: "pipeline-helpers.ts:34-40 boundedAutoCategory; pipeline.ts:333 guard."
+  - id: F-refix-2
+    severity: INFO
+    file: packages/core/src/infrastructure/db/scoped-memory.ts
+    summary: "F-H1 threading matches the ontology/entityExtractor/reranker conditional-spread convention exactly at the same assembly site — no architectural divergence."
+    evidence: "scoped-memory.ts:205/212/215/364."
+carryover_low_findings:
+  note: "F-L1..F-L5 were explicitly accepted-for-merge in the review report (§ Resolution line 12). Not re-opened by this re-review; they remain optional hardening. F-L4 (case-fold) is a documented explicit decision (auto+operator both store verbatim for mutual consistency)."
+verdict_recommendation: READY_TO_MERGE
+verdict_rationale: "Both findings the fixes-cycle targeted are CLOSED with EXACT matches to the recommended actions and test evidence re-verified by run. No plan drift, no scope creep, no new untested behavior. The plan's ADR-D3 off-switch + ADR-D2 custom taxonomy + Coverage-Matrix row 4 are now honestly met end-to-end through the public factory. Remaining LOW findings were pre-accepted for merge."
