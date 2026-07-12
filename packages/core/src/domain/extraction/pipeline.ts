@@ -44,6 +44,21 @@ import { linkEntities, type RelationTriple } from './entity-linking.js';
 import { correctEntityRelationLanguage } from './label-language.js';
 import { detectInputLanguage } from './language.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
+import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
+import type { AutoCategorizeConfig } from './taxonomy.js';
+
+/**
+ * Fail-soft bound for an LLM-emitted auto-category (auto-categorization-write-pipeline
+ * EC-1/EC-2/EC-5): trim, then accept only 1-64 chars. A non-string, empty, whitespace-only,
+ * or oversized value returns `null` (dropped) — NEVER throws (unlike the operator path).
+ */
+function boundedAutoCategory(raw: unknown): string | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length >= 1 && trimmed.length <= 64 ? trimmed : null;
+}
 
 /**
  * domain-ontologies T2.2 (ADR D2) — coerce LLM-extracted entity types to the
@@ -89,6 +104,11 @@ export interface ExtractionDeps {
    *  its vocab is injected into the extraction prompt + the LLM's entity types
    *  are validated post-parse (out-of-vocab → OTHER, observable). */
   readonly ontology?: Ontology;
+  /** auto-categorization-write-pipeline T3.1 — default-on model-derived category.
+   *  When enabled (the default) and the caller supplied no `options.category`, the
+   *  LLM-emitted per-fact `category` is written to `payload['category']` (trimmed +
+   *  1-64 bounded, fail-soft). A caller category always overrides. */
+  readonly autoCategorize?: AutoCategorizeConfig;
 }
 
 type Payload = Record<string, string | number | boolean | null>;
@@ -390,14 +410,19 @@ export async function runExtractionPipeline(
   // English" instruction is followed far more reliably than the model self-detecting
   // (live-test 2026-06-23: self-detect stored English inputs as Portuguese facts).
   const detectedLanguage = detectInputLanguage(messages.map((m) => m.content).join('\n'));
+  // auto-categorization-write-pipeline T3.1 — default-on (ADR D3). When enabled, the
+  // taxonomy is injected into the prompt so the LLM emits a per-fact category.
+  const autoCategorizeEnabled = deps.autoCategorize?.enabled !== false;
+  const autoCategorizeTaxonomy = deps.autoCategorize?.taxonomy ?? DEFAULT_CATEGORY_TAXONOMY;
   const { prompt } = generateAdditiveExtractionPrompt(
     existingItems,
     messages,
     deps.customInstructions,
     deps.ontology,
     detectedLanguage ?? undefined,
+    autoCategorizeEnabled ? autoCategorizeTaxonomy : undefined,
   );
-  let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[];
+  let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[];
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
   // multilingual nodes: the LLM is the PRIMARY node source (compromise is an
@@ -452,7 +477,7 @@ export async function runExtractionPipeline(
         const lang = detectedLanguage;
         const factsLanguage = detectInputLanguage(extracted.map((f) => f.text).join(' '));
         if (factsLanguage !== null && factsLanguage.iso6391 !== lang.iso6391) {
-          const result: { id: string; text: string; attributed_to?: string | undefined; linked_memory_ids?: string[] | undefined }[] = [];
+          const result: { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[] = [];
           let correctedCount = 0;
           for (const fact of extracted) {
             let text = fact.text;
@@ -596,13 +621,23 @@ export async function runExtractionPipeline(
     if (llmAttributedTo !== undefined) {
       payload['attributed_to'] = llmAttributedTo;
     }
-    // themory-category-filter-server-side T3.3 / ADR D1 — operator-supplied
-    // category attaches to EVERY extracted fact in the write batch. NOT
-    // per-fact LLM-inferred (ADR D1 — category is operator vocabulary, not
-    // model-derived). EC-2 length check ran at pipeline entry; here we just
-    // propagate the validated value.
+    // auto-categorization-write-pipeline T3.1 (supersedes the category-filter
+    // operator-only decision, ADR D1). Operator category ALWAYS wins (verbatim,
+    // already 1-64-validated at entry). Otherwise, when auto-categorization is
+    // enabled, the LLM-emitted per-fact category is trimmed + 1-64-bounded and
+    // written FAIL-SOFT (EC-1/EC-2/EC-5): an oversized / empty / whitespace-only
+    // value is DROPPED (never throws InvalidScope — that is the operator path).
     if (options?.category !== undefined) {
       payload['category'] = options.category;
+    } else if (autoCategorizeEnabled) {
+      const autoCategory = boundedAutoCategory(extracted[i]?.category);
+      if (autoCategory !== null) {
+        payload['category'] = autoCategory;
+        emitEvent(tracer, 'category_auto_assigned', {
+          source: classifyCategorySource(autoCategory, autoCategorizeTaxonomy),
+          fact_count: 1,
+        });
+      }
     }
     survivingIds.push(id);
     survivingVectors.push(vector);
