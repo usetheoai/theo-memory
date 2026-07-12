@@ -170,6 +170,25 @@ describe('runExtractionPipeline — auto-categorization (T3.1)', () => {
     expect(store.inserted[0]?.['category']).toBeUndefined();
   });
 
+  test('test_emits_category_auto_dropped_when_llm_label_fails_bound', async () => {
+    // F-M1: a real drop (LLM proposed a label that failed the 1-64 bound) is
+    // observable — NOT a silent IGNORE (Princípio 3).
+    const store = new StubVectorStore();
+    const setAttribute = vi.fn();
+    const startActiveSpan = vi.fn((_n: string, fn: (s: { setAttribute: typeof setAttribute; end: () => void }) => void) => {
+      fn({ setAttribute, end: () => undefined });
+    });
+    const tracer = { startActiveSpan } as unknown as NonNullable<Parameters<typeof runExtractionPipeline>[2]['tracer']>;
+    await runExtractionPipeline(msg, filters, {
+      vectorStore: store,
+      embedder: makeEmbedder(),
+      llm: makeLlm({ memory: [{ id: '1', text: 'a fact', category: 'x'.repeat(70) }] }),
+      autoCategorize: { enabled: true },
+      tracer,
+    });
+    expect(startActiveSpan).toHaveBeenCalledWith('category_auto_dropped', expect.any(Function));
+  });
+
   test('test_autocategory_trims_and_stores', async () => {
     const store = new StubVectorStore();
     await runExtractionPipeline(msg, filters, {
