@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- `LocalMemoryConfig.autoCategorize` — the auto-categorization off-switch + custom taxonomy are now reachable through the public `createLocalMemory` factory (threaded into `ExtractionDeps` like `ontology`); `AutoCategorizeConfig` + `DEFAULT_CATEGORY_TAXONOMY` + `classifyCategorySource` exported (auto-categorization-write-pipeline /review F-H1).
+- `category_auto_dropped` OTel event — a real drop of an LLM-proposed category that failed the 1-64 bound is now observable (Princípio 3, no silent IGNORE) (F-M1).
 - **Default-on LLM auto-categorization**: every `remember()` write auto-assigns a `category` via the existing extraction LLM call (hybrid taxonomy: fixed list preferred, short free-form fallback). An explicit caller category always wins; the auto value is trimmed + 1-64-bounded fail-soft; no backfill. Observable via `category_auto_assigned` (auto-categorization-write-pipeline T3.1).
 - Extraction prompt + schema now carry an optional per-fact `category`; `renderCategoryDirective` builds the hybrid-taxonomy instruction (auto-categorization-write-pipeline T2.1).
 - `@usetheo/memory` extraction `taxonomy.ts` — `DEFAULT_CATEGORY_TAXONOMY` + `classifyCategorySource` + `AutoCategorizeConfig` for hybrid default-on auto-categorization (auto-categorization-write-pipeline T1.2).

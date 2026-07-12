@@ -162,6 +162,13 @@ export const MEMORY_EVENTS = [
   // emitted on operator-supplied category nor on a dropped/oversized/empty value (fail-soft).
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'category_auto_assigned',
+
+  // auto-categorization-write-pipeline F-M1: fires when the LLM PROPOSED a category
+  // label but it failed the 1-64 trim/bound check (EC-1 oversized / EC-5 whitespace) and
+  // was dropped fail-soft. Attribute `{reason}`. Makes a real drop observable (Princípio 3
+  // — never a silent IGNORE); NOT emitted when the LLM proposed no category at all.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'category_auto_dropped',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
