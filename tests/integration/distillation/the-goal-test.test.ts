@@ -58,7 +58,7 @@ import {
   precision,
   recall,
   type ConflictResolutionDecision,
-} from '../../../docs/distillation-evaluation/metrics.js';
+} from '../../eval/distillation/metrics.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 
