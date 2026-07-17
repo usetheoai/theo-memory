@@ -2,7 +2,6 @@
  * 8-phase write pipeline — T4.3 of v0-1-local-runtime plan v1.3.
  *
  * Port of the upstream `addToVectorStore`
- * (.claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/index.ts:562-994) per blueprint
  * ADR D1 + plan ADR D1.0. Phases are named verbatim from the upstream code
  * comments at L588 / L606 / L626 / L695 / L716 / L783 / L851 / L976.
  *
@@ -17,7 +16,6 @@
  * Phase 8: save messages (deferred to v0.2; historyManager.saveMessages optional)
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T4.3 + ADR D1.0
- * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/index.ts:562-994
  */
 import { randomUUID } from 'node:crypto';
 

@@ -8,7 +8,6 @@
  * The `fetchImpl` ctor option injects a stub `fetch` for testing (air-gapped CI).
  *
  * @see .claude/knowledge-base/plans/embedder-registry-plan.md § ADR D3 + § T2.1
- * @see .claude/knowledge-base/references/REDACTED/REDACTED/embeddings/ollama.py (reference shape)
  */
 import type { Embedder } from '../../domain/dip/embedder.js';
 import { EmbedderError } from '../../domain/errors.js';

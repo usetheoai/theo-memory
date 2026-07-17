@@ -42,7 +42,6 @@
  *   See: .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-M3 + F-Mi5
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1 + ADR D1.7
- * @see .claude/knowledge-base/references/REDACTED/REDACTED/orm/passage.py:1-105
  */
 import { sql } from 'drizzle-orm';
 import {

@@ -5,13 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`/dogfood` COVERAGE gate — mechanical 100%-of-system enforcement.** New `check_journey_catalog_coverage.py` + `surface-map.txt` registry: the gate auto-derives the shipped surface (every `packages/core` public subpath export + every production `/v1` REST route) and fails when any lacks a mapped journey; MCP tools / CLI verbs / dashboard UI tabs are declared in `surface-map.txt` (cross-checked). Closes the gap where the journey audit proved the *catalogued* journeys green while a newly shipped subpath/route slipped through untested. Wired into `/dogfood` `run` + `audit` (SKILL.md) (dogfood-100pct-surface-coverage).
+- **10 new dogfood journeys closing every uncovered surface**: J-SDK-13 theokit binding, J-SDK-14 embedder registry, J-SDK-15 reranker-local, J-SDK-16 adaptive-local, J-SDK-17 categories/auto-categorization, J-SDK-18 skill-execution sandbox (isolated-vm), J-API-8 skills REST CRUD, J-API-9 skill-execute REST, J-MCP-5 `add_skill` tool, J-UI-10 Webhooks tab (split from the bundled J-UI-9). Catalog 32 → 42 journeys; coverage gate green (dogfood-100pct-surface-coverage).
 
 ### Changed
+- Correct two stale entries in the dogfood UI driver, found while driving the dashboard live: the dashboard is reached via traefik at `http://localhost:8090` (`:5173` is not published), and the seed login `dev@theo.local`/`DevPassw0rd!2026` is stale/absent in the seeded Kratos (dogfood-100pct-surface-coverage).
 - **v1.0 gate status corrected (honesty).** The `/dogfood` evidence gate is now `EVIDENCE_SUFFICIENT` (re-audited 2026-07-12: anchor scenario `running`, 49 evidence files, ADR-0019 journey suite 0 reds) — the stale `EVIDENCE_INSUFFICIENT` (2026-05-31) references in `CLAUDE.md` + README Status were corrected. The project remains **Pre-release**: the sole remaining `production-ready`/v1.0 blocker is now the independent v0.8 benchmark reproduction (`benchmarks/reproductions/` still empty).
 
 ### Deprecated
 
 ### Removed
+- Internal prior-art `@see`/reference comment lines from 14 shipped `packages/core` source files (dedup, scoring/lemmatization, retrieval/extraction pipelines, embedders, DIP interfaces, schema). These pointed at internal `knowledge-base/` coordinates that do not exist for an npm consumer; behavior unchanged (comment-only removal, `tsc --noEmit` green).
 
 ### Fixed
 

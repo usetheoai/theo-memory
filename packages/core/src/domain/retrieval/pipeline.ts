@@ -1,7 +1,6 @@
 /**
  * 9-step search pipeline — T5.1 of v0-1-local-runtime plan v1.3.
  *
- * Port of reference TS port's `search` (.claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/
  * index.ts:1037-1269) per blueprint ADR D2. Steps named after the upstream code comments:
  *
  * Step 1: preprocess query (lemmatize for BM25)
@@ -20,8 +19,6 @@
  * EC-8 absorbed: NaN-scored candidates dropped at step 8 (NaN < threshold is false).
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T5.1 + ADR D1.0
- * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/index.ts:1037-1269
- * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/utils/scoring.ts:1-138
  */
 import type { Tracer } from '@opentelemetry/api';
 
