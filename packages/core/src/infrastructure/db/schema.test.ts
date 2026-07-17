@@ -7,7 +7,6 @@
  * real container.
  *
  * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1
- * @see .claude/knowledge-base/references/REDACTED/REDACTED/orm/passage.py:1-105 (REDACTED dual-backend reference)
  */
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';

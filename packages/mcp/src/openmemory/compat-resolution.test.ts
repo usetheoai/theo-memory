@@ -40,12 +40,12 @@ describe('resolveCompat', () => {
   });
 
   it('the CLI flag wins over a conflicting env (Tier-1 > Tier-2)', () => {
-    process.env[ENV] = 'REDACTED'; // unknown env
+    process.env[ENV] = 'unknown-vendor'; // unknown env
     expect(resolveCompat('openmemory')).toBe('openmemory');
   });
 
   it('ignores an unknown env value (native)', () => {
-    process.env[ENV] = 'REDACTED';
+    process.env[ENV] = 'unknown-vendor';
     expect(resolveCompat(undefined)).toBeUndefined();
   });
 });
