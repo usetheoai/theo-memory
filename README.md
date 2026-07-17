@@ -1,10 +1,6 @@
 <div align="center">
 
-<img src="https://usetheo.dev/logo.png" alt="Theo Memory" width="128" height="128" />
-
-# Theo Memory
-
-### The open-source memory layer for AI agents.
+<img src="./assets/banner.svg" alt="Theo Memory — the open-source memory layer for AI agents" width="840" />
 
 **Persistent and multi-tenant — your agents remember facts, conversations, and _executable skills_ across every user and session, on your own Postgres.**
 
