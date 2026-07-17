@@ -2,7 +2,7 @@
 
 Reproducible eval harness for the `ConflictResolutionPolicy` DIP and its three
 built-in implementations (Noop / LastWriteWins / LlmJudgedMerge per ADR D2).
-Mirrors the v0.4b `T7.3` shape at `docs/forgetting-evaluation/run.ts`.
+Mirrors the v0.4b `T7.3` shape at `tests/eval/forgetting/run.ts`.
 
 ## What this measures
 
@@ -60,7 +60,7 @@ apply only when wiring through to the real OpenAI calls (T3.3 GOAL TEST):
 npm run eval:distillation
 ```
 
-Outputs to `docs/distillation-evaluation.md` (matrix view).
+Outputs to `tests/eval/distillation.md` (matrix view).
 
 ## Architectural note (T3.2 ↔ T3.3 split)
 
@@ -78,4 +78,4 @@ set (`tests/fixtures/distillation/`) via the shared loader.
 - Plan: `.claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.2 + ADR D5 + EC-10 + EC-11`
 - Metrics: `metrics.ts`
 - Gold set: `tests/fixtures/distillation/`
-- v0.4b precedent: `docs/forgetting-evaluation/`
+- v0.4b precedent: `tests/eval/forgetting/`

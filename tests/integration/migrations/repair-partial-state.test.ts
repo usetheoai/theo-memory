@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
  * workaround applied between v0.4b shipping and v0.4b-fixes shipping.
  *
  * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b + EC-4 reversal
- * @see docs/runbook-v0-4b-rollback.md § 4
+ * @see docs/RUNBOOK.md § 4
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
