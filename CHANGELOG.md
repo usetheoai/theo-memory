@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Deprecated
 
 ### Removed
+- Public `## Comparison` section (competitor matrix + footnotes/source links) from README; the `` code-comment tag and the external competitor-repo hyperlinks in README + the v0.2 status presentation. Product docs unchanged otherwise; the OpenMemory-compat feature (a shipped interop surface) is retained.
 - Internal prior-art `@see`/reference comment lines from 14 shipped `packages/core` source files (dedup, scoring/lemmatization, retrieval/extraction pipelines, embedders, DIP interfaces, schema). These pointed at internal `knowledge-base/` coordinates that do not exist for an npm consumer; behavior unchanged (comment-only removal, `tsc --noEmit` green).
 
 ### Fixed

@@ -120,7 +120,7 @@ footer { color: #484f58; font-size: 14px; }
 
 **Blueprint** `v0-2-theokit-binding-blueprint.md` (649 LoC)
 
-- **7 questions** investigated across `.claude/knowledge-base/references/REDACTED`, `.claude/knowledge-base/references/REDACTED`, `../theokit/`
+- **7 questions** investigated across prior-art references + `../theokit/`
 - **5 ADRs** synthesized (D1 structural typing, D2 arg-passed, D3 default-on, D4 3-state resolver, D5 test pyramid)
 - **4 coverage corners** populated (tests/deps/tools/techniques)
 - **Verdict:** SHIPPABLE_WITH_CAVEATS **89/100**
