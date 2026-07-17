@@ -17,7 +17,6 @@
  * Plus EC-4 sentinel test 9: agent-tools-memory.ts MUST NOT carry redundant
  * explicit `reflectionPolicy:` wire post-T1.1 default at factory level.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T0.1
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -32,8 +31,8 @@ const REPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_PATH = join(REPO_ROOT, 'dist', 'agent-tools', 'cli.js');
 const README_PATH = join(REPO_ROOT, 'README.md');
 const CHANGELOG_PATH = join(REPO_ROOT, 'CHANGELOG.md');
-const CLI_SRC_PATH = join(REPO_ROOT, 'src', 'agent-tools', 'cli.ts');
-const AGENT_TOOLS_MEMORY_PATH = join(REPO_ROOT, 'src', 'agent-tools', 'agent-tools-memory.ts');
+const CLI_SRC_PATH = join(REPO_ROOT, 'packages', 'cli', 'src', 'cli.ts');
+const AGENT_TOOLS_MEMORY_PATH = join(REPO_ROOT, 'packages', 'agent-core', 'src', 'agent-tools-memory.ts');
 
 const DIST_EXISTS = existsSync(CLI_PATH);
 const HAS_OPENAI =
@@ -114,10 +113,10 @@ describe.skipIf(!DIST_EXISTS)('verbs-as-CLI fix-cycle integration', () => {
   );
 
   test('test 2 — cli-output module does NOT export CliReflectResult (F-dom-api-1 regression sentinel)', async () => {
-    const cliOutput = await import('../../../src/agent-tools/cli-output.js');
+    const cliOutput = await import('../../../packages/cli/src/cli-output.js');
     // CliReflectResult was a TYPE, not a runtime value — assert by grepping
     // the SOURCE file, which is the only honest signal for a TS interface drop.
-    const cliOutputSrcPath = join(REPO_ROOT, 'src', 'agent-tools', 'cli-output.ts');
+    const cliOutputSrcPath = join(REPO_ROOT, 'packages', 'cli', 'src', 'cli-output.ts');
     const src = readFileSync(cliOutputSrcPath, 'utf8');
     expect(src, 'CliReflectResult interface MUST be removed from cli-output.ts').not.toMatch(
       /\bCliReflectResult\b/,
@@ -129,11 +128,23 @@ describe.skipIf(!DIST_EXISTS)('verbs-as-CLI fix-cycle integration', () => {
   // ─── Theme 3: consumer DX ─────────────────────────────────────────────────
 
   test.skipIf(!HAS_PG_URI)(
-    'test 3 — multi-scope fails fast under 2000 ms with exit 2 (F-dom-cli-2)',
+    'test 3 — multi-scope fails fast (no Memory-factory warm-up) with exit 2 (F-dom-cli-2)',
     () => {
-      // Given: an invocation that combines --user AND --session (mutually-exclusive)
-      // When: themory remember exits because resolveCliScope fails BEFORE the
-      // ~2-5s createAgentToolsMemory warm-up.
+      // Contract: scope validation rejects mutually-exclusive --user + --session
+      // BEFORE the ~2-5s createAgentToolsMemory warm-up (embedder + LLM probe).
+      //
+      // integration-suite-stabilization (flaky-timing fix): the prior assertion
+      // used an ABSOLUTE 2000ms wall-clock budget, which is dominated by node +
+      // commander + dotenv cold-start and false-fails under suite load (observed
+      // 3174ms in-suite vs 2281ms idle — both WITHOUT any warm-up). The honest,
+      // load-robust signal is RELATIVE: the fail-fast path must not be more than
+      // a warm-up's worth slower than a plain CLI invocation that also pays only
+      // cold-start (`--help` does no factory work). If the handler regressed to
+      // warm the factory before validating, that fixed 2-5s cost would push the
+      // delta past the floor below, regardless of absolute machine speed.
+      const WARMUP_FLOOR_MS = 1500;
+
+      const baseline = runCliRaw(['--help']);
       const result = runCliRaw([
         'remember',
         'fact-that-never-persists',
@@ -143,15 +154,19 @@ describe.skipIf(!DIST_EXISTS)('verbs-as-CLI fix-cycle integration', () => {
         'sess-123',
       ]);
 
-      // Then: exit code 2 AND elapsed < 2000 ms (boundary-first ordering).
+      // Then: exit code 2 + the validation error (proves validation ran), AND
+      // the fail-fast path added no factory-warm-up cost over plain cold-start.
       expect(result.status).toBe(2);
-      expect(
-        result.elapsedMs,
-        `expected fail-fast < 2000ms; got ${result.elapsedMs.toFixed(0)}ms — handler likely warming Memory factory BEFORE scope validation`,
-      ).toBeLessThan(2000);
       expect(result.stderr).toMatch(/exactly one required/);
+      const overheadMs = result.elapsedMs - baseline.elapsedMs;
+      expect(
+        overheadMs,
+        `fail-fast added ${overheadMs.toFixed(0)}ms over \`--help\` cold-start ` +
+          `(baseline ${baseline.elapsedMs.toFixed(0)}ms, fail ${result.elapsedMs.toFixed(0)}ms) ` +
+          `— handler likely warmed the Memory factory BEFORE scope validation`,
+      ).toBeLessThan(WARMUP_FLOOR_MS);
     },
-    10_000,
+    30_000,
   );
 
   test('test 4 — cli --help stdout clean of dotenv banner (F-dom-cli-1)', () => {
@@ -225,20 +240,21 @@ describe.skipIf(!DIST_EXISTS)('verbs-as-CLI fix-cycle integration', () => {
     expect(afterCliVerbs).toMatch(/\breflect\b/);
   });
 
-  test('test 8 — CHANGELOG [Unreleased] section mentions warm-up cost (F-dom-api-2)', () => {
+  test('test 8 — CHANGELOG documents the CLI/MCP warm-up cost (F-dom-api-2)', () => {
+    // integration-suite-stabilization (stale-assertion triage, D2): the warm-up
+    // caveat was authored in [Unreleased] while verbs-as-CLI was unreleased; it
+    // SHIPPED in v0.3.0, so per CHANGELOG discipline (Inquebravel Rule 6) the
+    // entry correctly moved under [0.3.0] and MUST NOT be re-duplicated into
+    // [Unreleased]. The operator-facing contract is "the warm-up cost is
+    // documented in the CHANGELOG", not "in [Unreleased] forever" — assert the
+    // durable contract.
     const changelog = readFileSync(CHANGELOG_PATH, 'utf8');
-    // Find the [Unreleased] section bounds.
-    const unrelMatch = /^##\s*\[Unreleased\]\s*$/m.exec(changelog);
-    expect(unrelMatch, '[Unreleased] section MUST exist in CHANGELOG').not.toBeNull();
-    const startIdx = unrelMatch!.index;
-    const afterUnreleased = changelog.slice(startIdx);
-    // Next ## section ends the [Unreleased] window.
-    const nextSectionMatch = /^##\s+(?!\[Unreleased\])/m.exec(afterUnreleased.slice(1));
-    const unreleasedBody = nextSectionMatch
-      ? afterUnreleased.slice(0, nextSectionMatch.index + 1)
-      : afterUnreleased;
-    // Warm-up caveat must be present — match any of the equivalent phrasings.
-    expect(unreleasedBody).toMatch(/warm[\s-]?up|2-5s|cold[\s-]?start/i);
+    // The CHANGELOG MUST still carry a [Unreleased] header (Keep a Changelog).
+    expect(changelog, '[Unreleased] section MUST exist in CHANGELOG').toMatch(
+      /^##\s*\[Unreleased\]\s*$/m,
+    );
+    // Warm-up caveat must be documented somewhere — match any equivalent phrasing.
+    expect(changelog).toMatch(/warm[\s-]?up|2-5s|cold[\s-]?start/i);
   });
 
   // ─── EC-4 sentinel — DRY hardening source ─────────────────────────────────

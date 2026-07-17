@@ -15,8 +15,6 @@
  *  - (g) EC-4 absorption — backfill rows have confirmation_count = 1 (honest
  *        floor, not fabricated history).
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T0.1 + § ADR D5
- * @see .claude/knowledge-base/reviews/principles-alignment-hardening-edge-cases-2026-06-04.md § EC-1 + § EC-4
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -46,7 +44,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('runMigrations() applies migration 0011: confirmation_count + composite UNIQUE', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       try {
-        const m = await import('../../../src/local/index.js');
+        const m = await import('@usetheo/memory');
 
         // (a) Fresh DB → all migrations including 0011 land.
         await m.runMigrations(pool);
@@ -96,7 +94,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('runMigrations() is idempotent — re-running 0011 is a no-op', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       try {
-        const m = await import('../../../src/local/index.js');
+        const m = await import('@usetheo/memory');
         await expect(m.runMigrations(pool)).resolves.toBeUndefined();
 
         // confirmation_count still exists; composite UNIQUE still present.

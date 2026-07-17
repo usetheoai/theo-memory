@@ -3,13 +3,12 @@
  *
  * Mocks cannot prove SERIALIZABLE semantics; this test exercises real Postgres.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.2 + EC-7
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import type { MemoryItemWithScore } from '../../../src/core/memory-item.js';
-import type { Scope } from '../../../src/core/scope.js';
-import { PgvectorRecallCacheStore } from '../../../src/local/recall-cache/pgvector-recall-cache-store.js';
+import type { MemoryItemWithScore } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
+import { PgvectorRecallCacheStore } from '../../../packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t1_2_lru_eviction';
@@ -54,7 +53,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await adminPool.end();
 
       pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       store = new PgvectorRecallCacheStore(pool, { maxSizePerScope: SMALL_CAP });
     }, 60_000);
@@ -75,7 +74,7 @@ describe.skipIf(ROOT_PG_URI === '')(
         await store.set(vec(i + 1), ALICE, SAMPLE, 600);
       }
       const { rows } = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(rows[0]?.count).toBe(String(SMALL_CAP));
     });
@@ -88,7 +87,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       }
       // The "oldest" row is the first one inserted; capture its id.
       const oldest = await pool.query<{ id: number }>(
-        `SELECT id FROM recall_cache WHERE scope_key = 'user:alice' ORDER BY created_at ASC LIMIT 1`,
+        `SELECT id FROM recall_cache WHERE scope_key = 'ws:default|user:alice' ORDER BY created_at ASC LIMIT 1`,
       );
       const oldestId = oldest.rows[0]?.id;
       // Push one more → eviction fires.
@@ -109,7 +108,7 @@ describe.skipIf(ROOT_PG_URI === '')(
         await store.set(vec(i + 100), ALICE, SAMPLE, 600);
       }
       const bobCount = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:bob'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:bob'`,
       );
       expect(bobCount.rows[0]?.count).toBe(String(SMALL_CAP));
     });
@@ -127,7 +126,7 @@ describe.skipIf(ROOT_PG_URI === '')(
         store.set(vec(202), ALICE, SAMPLE, 600),
       ]);
       const { rows } = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       // Final count must equal cap exactly — concurrent eviction did NOT under-evict
       // (final < cap means we deleted too many) NOR over-insert (final > cap means we missed an eviction).

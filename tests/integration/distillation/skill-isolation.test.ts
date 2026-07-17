@@ -15,7 +15,6 @@
  *     untouched. Already-consolidated rows (kind='derived') also survive,
  *     preserving the boundary on the 2nd reflect() call.
  *
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md § F-C2
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -25,8 +24,8 @@ import {
   LastWriteWinsConflictPolicy,
   PgvectorStore,
   StubEmbedder,
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 
@@ -58,11 +57,16 @@ describe.skipIf(PG_URI === '')(
     async function seedRow(text: string, kind: string, offsetMs: number): Promise<string> {
       const embedding = Array.from({ length: schemaDim }, () => 0);
       embedding[0] = 1;
+      // A `kind='derived'` row MUST carry a non-empty `derived_from` per the
+      // memories_kind_derived_from_check constraint (migration 0015 closed the
+      // NULL hole that previously admitted derived+NULL). Seed a placeholder
+      // provenance id for derived rows; NULL for everything else.
+      const derivedFrom = kind === 'derived' ? '["f-c2-seed-src"]' : null;
       const result = await pool.query<{ id: string }>(
         `INSERT INTO memories (
-           text, hash, embedding, payload, agent_id, kind, created_at,
+           text, hash, embedding, payload, agent_id, kind, derived_from, created_at,
            last_accessed_at, access_count, llm_importance_score
-         ) VALUES ($1, $2, $3::vector, $4, $5, $6, NOW() + ($7 || ' milliseconds')::interval,
+         ) VALUES ($1, $2, $3::vector, $4, $5, $6, $8::jsonb, NOW() + ($7 || ' milliseconds')::interval,
                    NOW(), 0, 0.5)
          RETURNING id`,
         [
@@ -73,6 +77,7 @@ describe.skipIf(PG_URI === '')(
           TEST_AGENT,
           kind,
           String(offsetMs),
+          derivedFrom,
         ],
       );
       const id = result.rows[0]?.id;

@@ -8,8 +8,8 @@ import {
   StubLLM,
   LlmJudgedMergeConflictPolicy,
 
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 
 /**
  * T2.1 / EC-7 — `reflect({ conflictResolution })` with empty scope
@@ -18,7 +18,6 @@ import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
  *   - 0 rows inserted into `consolidation_history`
  *   - no exceptions
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + EC-7
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

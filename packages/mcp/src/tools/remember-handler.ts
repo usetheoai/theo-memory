@@ -1,0 +1,69 @@
+/**
+ * `remember` dispatch handler — T5.1.
+ *
+ * Validates args via T2.1 zod schema, resolves scoped memory via T3.1 `getScope()`
+ * + `memoryFromCtx`, calls `ScopedMemory.remember`, returns CallToolResult.
+ *
+ * Errors bubble to dispatch's try/catch → T4.1 classifier → ADR D6 wire shape.
+ *
+ * @see ADR D2 — schema + verb separation
+ * @see ADR D3 — scope binding via AsyncLocalStorage
+ * @see ADR D4 — reuse memoryFromCtx
+ */
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+
+import type { Memory } from '@usetheo/memory/contract';
+import type { RememberOptions } from '@usetheo/memory/contract';
+import { memoryFromCtx } from '@usetheo/memory/theokit';
+import { getScope } from '@usetheo/memory-agent-core';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
+
+import { INPUT_SCHEMA, TOOL_NAME } from './remember-schema.js';
+
+export { TOOL_NAME };
+
+function buildRememberOptions(
+  metadata: Record<string, string | number | boolean | null> | undefined,
+  infer: boolean | undefined,
+): RememberOptions | undefined {
+  if (metadata !== undefined && infer !== undefined) return { metadata, infer };
+  if (metadata !== undefined) return { metadata };
+  if (infer !== undefined) return { infer };
+  return undefined;
+}
+
+export async function rememberHandler(
+  args: unknown,
+  deps: { memoryFactory: () => Memory },
+): Promise<CallToolResult> {
+  const parsed = INPUT_SCHEMA.parse(args);
+  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
+
+  const finalOptions = buildRememberOptions(parsed.metadata, parsed.infer);
+
+  const items = await scoped.remember(parsed.content, finalOptions);
+
+  // Honest disclosure (Inquebrável Rule 3): propagate actual result instead of returning
+  // silent "Memory persisted." regardless of outcome. items=[] happens when the LLM
+  // extraction pipeline returns drafts=[] OR fails (catch in pipeline.ts swallows provider
+  // errors — see extraction_failed / extraction_zero_facts OTel events for distinction).
+  // Without this, data-loss is invisible to MCP callers (issue #1 in /tmp/themory-issue.md).
+  if (items.length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: 'No facts were extracted from the content; nothing was persisted. The LLM extractor returned an empty result (drafts=[]) or the provider call failed. Check OTel events `extraction_failed` and `extraction_zero_facts` to distinguish.',
+      }],
+      isError: true,
+    };
+  }
+
+  const ids = items.map((i) => i.id).join(', ');
+  return {
+    content: [{
+      type: 'text',
+      text: `Persisted ${items.length} memory item${items.length === 1 ? '' : 's'}: ${ids}`,
+    }],
+    isError: false,
+  };
+}

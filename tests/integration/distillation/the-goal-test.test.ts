@@ -40,7 +40,6 @@
  * What this test does NOT prove:
  *   - the LLM's actual extraction quality (deferred per ADR-DEFER above)
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.3 + Goal + EC-4 + EC-5
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -50,15 +49,15 @@ import {
   PgvectorStore,
   StubEmbedder,
   LastWriteWinsConflictPolicy,
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 import { loadGoldSet } from '../../fixtures/distillation/loader.js';
 import {
   conflictResolutionAccuracy,
   precision,
   recall,
   type ConflictResolutionDecision,
-} from '../../../docs/distillation-evaluation/metrics.js';
+} from '../../eval/distillation/metrics.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 

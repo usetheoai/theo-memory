@@ -20,9 +20,16 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "paths": {
-      "@usetheo/memory/contract": ["./src/core/index.ts"]
+      "@usetheo/memory": ["./packages/core/src/index.ts"],
+      "@usetheo/memory/contract": ["./packages/core/src/domain/index.ts"],
+      "@usetheo/memory/embedders/*": ["./packages/core/src/infrastructure/embedders/*"],
+      "@usetheo/memory/llms/*": ["./packages/core/src/infrastructure/llms/*"],
+      "@usetheo/memory-api": ["./packages/api/src/server/index.ts"],
+      "@usetheo/memory-mcp": ["./packages/mcp/src/index.ts"],
+      "@usetheo/memory-cli": ["./packages/cli/src/index.ts"],
+      "@usetheo/memory-agent-core": ["./packages/agent-core/src/index.ts"]
     }
   },
-  "include": ["src/core/**/*.ts", "src/theokit/**/*.ts", "src/agent-tools/**/*.ts", "src/embedders/**/*.ts", "src/llms/**/*.ts", "src/benchmarks/**/*.ts", "src/server/**/*.ts", "src/__tests__/**/*.ts", "benchmarks/scripts/**/*.ts"],
+  "include": ["packages/core/src/**/*.ts", "packages/api/src/**/*.ts", "packages/mcp/src/**/*.ts", "packages/cli/src/**/*.ts", "packages/agent-core/src/**/*.ts", "benchmarks/scripts/**/*.ts"],
   "exclude": ["node_modules", "referencia", "dist", ".claude"]
 }

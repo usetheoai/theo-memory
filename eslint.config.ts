@@ -17,7 +17,7 @@ export default tseslint.config(
     // v0-8-fixes-cycle-1 T3.2 + EC-4: benchmarks/scripts/ at repo root
     // (NOT under src/) — extracted runner scaffold + 3 CLI runners now
     // gain lint enforcement (previously escaped via src/{...} pattern).
-    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/*.ts', 'src/__tests__/**/*.ts', 'benchmarks/scripts/**/*.ts'],
+    files: ['packages/core/src/**/*.ts', 'packages/api/src/**/*.ts', 'packages/cli/src/**/*.ts', 'packages/agent-core/src/**/*.ts', 'benchmarks/scripts/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
@@ -38,6 +38,14 @@ export default tseslint.config(
         alphabetize: { order: 'asc' },
       }],
       '@typescript-eslint/no-explicit-any': 'error',
+      // Honor the universal `_`-prefix convention for intentionally-unused params
+      // (e.g. a DIP-contract arg a given impl does not need). Without this, the
+      // recommendedTypeChecked default flags `_scope` etc. as false positives.
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
       '@typescript-eslint/consistent-type-imports': ['error', {
         prefer: 'type-imports',
         fixStyle: 'separate-type-imports',
@@ -45,7 +53,22 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/{core,local,theokit,agent-tools,embedders,llms,benchmarks}/**/__tests__/**/*.ts', 'src/__tests__/**/*.test*.ts'],
+    files: [
+      'src/{core,local,theokit,embedders,llms,benchmarks}/**/__tests__/**/*.ts',
+      'src/__tests__/**/*.test*.ts',
+      'packages/core/src/**/__tests__/**/*.ts',
+      'packages/core/src/**/*.test.ts',
+      'packages/core/src/**/*.test-d.ts',
+      'packages/core/src/**/_test-*.ts',
+      'packages/api/src/**/__tests__/**/*.ts',
+      'packages/api/src/**/*.test.ts',
+      'packages/api/src/**/*.test-d.ts',
+      'packages/cli/src/**/__tests__/**/*.ts',
+      'packages/agent-core/src/**/__tests__/**/*.ts',
+      'packages/agent-core/src/**/*.test.ts',
+      'packages/cli/src/**/*.test.ts',
+      'packages/cli/src/**/*.test-d.ts',
+    ],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/require-await': 'off',

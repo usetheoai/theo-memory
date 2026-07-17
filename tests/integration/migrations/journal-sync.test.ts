@@ -21,11 +21,9 @@ import { join } from 'node:path';
  * artifacts that are committed alongside schema changes — failure represents a
  * deployment-shape defect, not a unit-logic defect.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T0.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-db-1
  */
 describe('Drizzle journal sync', () => {
-  const migrationsDir = join(__dirname, '..', '..', '..', 'src', 'local', 'migrations');
+  const migrationsDir = join(__dirname, '..', '..', '..', 'packages', 'core', 'src', 'infrastructure', 'db', 'migrations');
   const metaDir = join(migrationsDir, 'meta');
 
   const sqlFiles = readdirSync(migrationsDir)

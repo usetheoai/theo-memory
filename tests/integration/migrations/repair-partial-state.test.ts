@@ -14,8 +14,7 @@ import { pathToFileURL } from 'node:url';
  * have via the `psql -f src/local/migrations/0003_eviction_columns.sql`
  * workaround applied between v0.4b shipping and v0.4b-fixes shipping.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b + EC-4 reversal
- * @see docs/runbook-v0-4b-rollback.md § 4
+ * @see docs/RUNBOOK.md § 4
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
@@ -66,7 +65,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // 0004 via psql-shape (simulates the workaround consumers may have
       // used). To keep the test self-contained, we manually create the
       // memories table + apply v0.4b SQL files directly.
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       // At this point all migrations applied + journal aligned. Simulate
       // the partial-state by REMOVING all post-0002 journal rows so the
@@ -143,7 +142,7 @@ describe.skipIf(ROOT_PG_URI === '')(
     it('reports aligned state when journal already matches schema', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
       await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       const report = await repair.reportRepairState(pool);
       expect(report.diagnosis).toMatch(/aligned/);

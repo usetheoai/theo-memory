@@ -23,7 +23,7 @@
  *   npm run db:repair-v0-4b-partial-state -- --apply   (perform the repair)
  *
  * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b + EC-4 reversal
- * @see docs/runbook-v0-4b-rollback.md § 4 (cross-version partial-state recovery)
+ * @see docs/RUNBOOK.md § 4 (cross-version partial-state recovery)
  */
 
 import { createHash } from 'node:crypto';
@@ -33,9 +33,18 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = resolve(__dirname, '..', 'src', 'local', 'migrations');
+const MIGRATIONS_DIR = resolve(
+  __dirname,
+  '..',
+  'packages',
+  'core',
+  'src',
+  'infrastructure',
+  'db',
+  'migrations',
+);
 
-const RUNBOOK_REF = 'docs/runbook-v0-4b-rollback.md § 4';
+const RUNBOOK_REF = 'docs/RUNBOOK.md § 4';
 
 const V04B_COLUMNS = ['last_accessed_at', 'access_count', 'half_life_seconds'];
 const V04B_TRIGGER = 'memories_reset_half_life_on_importance_update_trg';

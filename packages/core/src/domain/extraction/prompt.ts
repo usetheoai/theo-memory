@@ -1,0 +1,217 @@
+/**
+ * Additive-extraction LLM prompt composer + Zod response schema +
+ * markdown-header escape — T4.1 of v0-1-local-runtime plan v1.3.
+ *
+ * Composes the prompt sent to the LLM during the Phase 4 extraction pipeline.
+ * Existing memories rendered with sequential integer IDs (1, 2, ...) to keep
+ * the LLM token-count low + reduce UUID hallucination (blueprint Recommendation 5);
+ * `uuidByInt` maps those integers back to the real UUIDs at response-resolution time.
+ *
+ * EC-4 defense: user-controlled text (existing-memory text + new-message content)
+ * is passed through `escapeMarkdownHeaders` BEFORE template interpolation. A line
+ * starting with `## ` becomes `\#\# ` so the LLM cannot mistake injected user
+ * text for an authoritative section header.
+ *
+ */
+import { z } from 'zod';
+
+import type { MemoryItem } from '../memory-item.js';
+import type { Message } from '../message.js';
+import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
+
+/**
+ * Escape line-start markdown headers in user-controlled text.
+ * Replaces `^## ` (start-of-line) with `\#\# ` — defeats prompt injection where
+ * user text contains a fake section delimiter that the LLM might trust.
+ */
+export function escapeMarkdownHeaders(text: string): string {
+  return text.replace(/^##\s/gm, '\\#\\# ');
+}
+
+const SYSTEM_PROMPT = [
+  'You are a memory extractor for a long-term agent memory system.',
+  'Given existing memories (numbered for reference) and new conversation messages,',
+  'output JSON with new facts to persist. Use the integer ids — FORMATTED AS JSON STRINGS,',
+  'e.g. "1", "2" (with quotes) — in `linked_memory_ids` when a new fact references or',
+  'relates to an existing memory. NEVER emit `linked_memory_ids` as bare numbers; the',
+  'array MUST contain quoted string elements.',
+  '',
+  '`attributed_to` is the perspective owner of the fact — the peer ID it belongs to.',
+  'Accept ARBITRARY string values: a user id, agent id, "system" for self-statements,',
+  'or any peer identifier supplied in conversation context. NOT restricted to a fixed',
+  'vocabulary.',
+  '',
+  'Also include `entities`: the distinct named entities mentioned in the text — people,',
+  'organizations, places, products, and salient concepts — each `{ "name": "<entity>",',
+  '"type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }`. These are the graph NODES.',
+  'Extract a node for every entity that participates in a stated fact; omit pure filler.',
+  'Represent the first-person speaker (the author of the message) as ONE consistent entity',
+  'named exactly "user" in both `entities` and `relations` — NEVER variants like "I", "me",',
+  '"eu", "Usuário", or "You" for self-statements. This keeps the speaker a single node.',
+  '',
+  'Also include `relations`: factual triples connecting those entities — each',
+  '`{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }`.',
+  'Use the entity SURFACE NAMES exactly as they appear (not ids). Be generous: emit a',
+  'relation for every stated link between two entities — covering employment, location,',
+  'usage, composition, membership, education, ownership/acquisition, and reporting/hierarchy.',
+  'Omit `entities`/`relations` only when the text genuinely has none.',
+  '',
+  'LANGUAGE: detect the input language. Emit every entity name AND every `relationship`',
+  'label in that SAME language/script — NEVER translate or transliterate. Preserve all',
+  'accents/diacritics ("São Paulo", "José", "Müller" — never "Sao Paulo", "Jose"). Use the',
+  'input language for relationship labels too: "trabalha em" not "works at", "mora em" not',
+  '"lives in", "adquiriu" not "acquired". This applies to the `memory[].text` fact too:',
+  'write each fact in the SAME language as the input — NEVER translate it. Example: the',
+  'English input "I work as a data scientist" yields the English fact "user works as a data',
+  'scientist" (NOT "trabalha como cientista de dados"); the Portuguese input "Eu sou',
+  'engenheiro" yields the Portuguese fact "user é engenheiro" (NOT "is an engineer").',
+  'The literal token "user" (the speaker) is the one allowed exception to the input-language rule.',
+  '',
+  'Output format (strict JSON, no prose):',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "category"?: "<label>", "linked_memory_ids"?: ["1", "2"] }],',
+  '  "entities"?: [{ "name": "<entity>", "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }],',
+  '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
+].join('\n');
+
+function renderExistingMemories(existing: readonly MemoryItem[]): string {
+  if (existing.length === 0) {
+    return '';
+  }
+  const lines = existing.map((m, i) => `${i + 1}. ${escapeMarkdownHeaders(m.text)}`);
+  return `## Existing Memories\n${lines.join('\n')}\n`;
+}
+
+function renderNewMessages(messages: readonly Message[]): string {
+  const lines = messages.map((m) => `${m.role}: ${escapeMarkdownHeaders(m.content)}`);
+  return `## New Messages\n${lines.join('\n')}\n`;
+}
+
+export interface PromptResult {
+  readonly prompt: string;
+  readonly uuidByInt: Map<number, string>;
+}
+
+/**
+ * Render the domain-ontology directive (Item 15 / ADR D2). When an ontology is
+ * configured, this steers the LLM toward the domain vocabulary — entity types +
+ * relation types are CONSTRAINED to the ontology's lists (the generic
+ * `PERSON|ORG|...` enum in SYSTEM_PROMPT is overridden by this higher-priority
+ * directive). Post-parse validation (`extraction/pipeline.ts`) enforces it.
+ */
+export function renderOntologyDirective(ontology: Ontology): string {
+  const desc = ontology.description !== undefined && ontology.description.length > 0
+    ? ` (${ontology.description})`
+    : '';
+  return [
+    `DOMAIN ONTOLOGY: "${ontology.name}"${desc}.`,
+    `For \`entities[].type\`, use ONLY these types: ${ontology.entityTypes.join(', ')}.`,
+    `If an entity does not fit any of those, use "${ONTOLOGY_FALLBACK_TYPE}".`,
+    `For \`relations[].relationship\`, prefer these relation types: ${ontology.relationTypes.join(', ')}.`,
+  ].join('\n');
+}
+
+/**
+ * Render the auto-categorization directive (auto-categorization-write-pipeline).
+ * Instructs the LLM to assign each fact a single lowercase `category`, preferring
+ * a label from the fixed taxonomy, or a short (≤ 64-char) free-form label when none
+ * fits (hybrid — ADR D2). An empty taxonomy omits the "Prefer one of:" clause
+ * (pure free-form mode — EC-4).
+ */
+export function renderCategoryDirective(taxonomy: readonly string[]): string {
+  const prefer =
+    taxonomy.length > 0 ? ` Prefer one of: ${taxonomy.join(', ')}.` : '';
+  return (
+    'CATEGORY: assign each `memory[]` fact a single lowercase `category` label.' +
+    prefer +
+    ' If none fits, use a short (max 64 chars) lowercase label.'
+  );
+}
+
+/**
+ * Compose the extraction prompt + the integer→UUID mapping that the response
+ * resolution step uses to translate `linked_memory_ids: ['1']` back to real UUIDs.
+ *
+ * When `ontology` is provided (Item 15), its vocabulary directive is prepended
+ * (highest priority) so the LLM is steered to the domain types. When
+ * `categoryTaxonomy` is provided (default-on auto-categorization), the category
+ * directive is prepended. Both absent → byte-identical to prior output.
+ */
+export function generateAdditiveExtractionPrompt(
+  existing: readonly MemoryItem[],
+  newMessages: readonly Message[],
+  customInstructions?: string,
+  ontology?: Ontology,
+  detectedLanguage?: { readonly name: string },
+  categoryTaxonomy?: readonly string[],
+): PromptResult {
+  const uuidByInt = new Map<number, string>();
+  existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
+
+  const customPrefix = customInstructions !== undefined && customInstructions.length > 0
+    ? `${customInstructions}\n\n`
+    : '';
+
+  const ontologyPrefix = ontology !== undefined
+    ? `${renderOntologyDirective(ontology)}\n\n`
+    : '';
+
+  const categoryPrefix = categoryTaxonomy !== undefined
+    ? `${renderCategoryDirective(categoryTaxonomy)}\n\n`
+    : '';
+
+  // EG-4 fixes-cycle-1 (D1): when the input language was detected deterministically
+  // upstream, inject the EXPLICIT target-language name as the highest-priority line.
+  // A concrete "write in English" instruction is followed far more reliably than the
+  // model self-detecting (live-test 2026-06-23: self-detect stored EN inputs as PT).
+  const languagePrefix = detectedLanguage !== undefined
+    ? `LANGUAGE DIRECTIVE: the input language is ${detectedLanguage.name}. Write ALL facts `
+      + `(\`memory[].text\`), entity names, and relationship labels in ${detectedLanguage.name} — `
+      + 'NEVER translate or transliterate. The literal token "user" (the speaker) is the only '
+      + 'exception.\n\n'
+    : '';
+
+  const prompt = [
+    languagePrefix + ontologyPrefix + categoryPrefix + customPrefix + SYSTEM_PROMPT,
+    '',
+    renderExistingMemories(existing),
+    renderNewMessages(newMessages),
+  ]
+    .filter((part) => part.length > 0)
+    .join('\n');
+
+  return { prompt, uuidByInt };
+}
+
+/** Zod schema for the LLM's additive-extraction JSON response. `relations` is
+ *  OPTIONAL (slice2 T2.2) — LLMs that omit it still parse (back-compat). Endpoint
+ *  fields are surface strings (resolved to entity ids by name downstream). */
+export const AdditiveExtractionSchema = z.object({
+  memory: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      attributed_to: z.string().optional(),
+      category: z.string().optional(),
+      linked_memory_ids: z.array(z.string()).optional(),
+    }),
+  ),
+  entities: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.string().optional(),
+      }),
+    )
+    .optional(),
+  relations: z
+    .array(
+      z.object({
+        source: z.string(),
+        relationship: z.string(),
+        destination: z.string(),
+      }),
+    )
+    .optional(),
+});
+
+export type AdditiveExtractionResponse = z.infer<typeof AdditiveExtractionSchema>;

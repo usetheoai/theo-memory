@@ -6,8 +6,8 @@ import {
   PgvectorStore,
   StubEmbedder,
   LastWriteWinsConflictPolicy,
-} from '../../../src/local/index.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 
 const emptyJsonLlm: LLM = {
   async generateResponse(_messages: readonly Message[]): Promise<unknown> {
@@ -27,7 +27,6 @@ const emptyJsonLlm: LLM = {
  *       `policy_name = 'last-write-wins'`, and `kept_memory_id` pointing
  *       to the newer row.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + ADR D2 + EC-1
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

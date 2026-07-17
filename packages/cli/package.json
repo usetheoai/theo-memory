@@ -1,0 +1,9 @@
+{
+  "name": "@usetheo/memory-cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@usetheo/memory-agent-core": "workspace:*"
+  }
+}

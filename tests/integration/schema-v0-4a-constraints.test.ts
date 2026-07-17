@@ -17,7 +17,6 @@
  * tests/integration/. Plan path honored for the introspection unit
  * portion; DB-touching CHECK enforcement here.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.2
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import pg from 'pg';

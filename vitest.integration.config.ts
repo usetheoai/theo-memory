@@ -23,9 +23,46 @@ export default defineConfig({
       // to import `examples/chat-with-memory/lib/memory.ts` (which uses the
       // guard). Alias to a noop so the import succeeds in test environment.
       'server-only': new URL('./tests/integration/examples/server-only-shim.ts', import.meta.url).pathname,
+      // Post-workspace-restructure: the @usetheo/memory/agent-tools subpath
+      // was extracted to @usetheo/memory-cli. The MCP package still imports
+      // from the old subpath; this alias bridges the gap at test time.
+      '@usetheo/memory-agent-core': new URL('./packages/agent-core/src/index.ts', import.meta.url).pathname,
+      // MCP package barrel — vitest uses node ESM resolution which does NOT
+      // auto-map .js → .ts. This alias lets `import('@usetheo/memory-mcp')`
+      // and transitive imports from packages/mcp/ resolve correctly.
+      '@usetheo/memory-mcp': new URL('./packages/mcp/src/index.ts', import.meta.url).pathname,
+      // Consumer-DX fix: packages/core#exports now point at the built dist JS so
+      // Node-SSR consumers (TheoKit/Next/Vite-SSR) can load the published
+      // package. For the integration suite we want the LIVE src, not a stale
+      // dist, so map every @usetheo/memory subpath back to its src entry.
+      // Subpaths are listed BEFORE the base specifier so the exact subpath
+      // match wins over the base prefix match.
+      '@usetheo/memory/contract': new URL('./packages/core/src/domain/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/theokit': new URL('./packages/core/src/infrastructure/theokit/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/stub': new URL('./packages/core/src/infrastructure/embedders/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/openai': new URL('./packages/core/src/infrastructure/embedders/openai.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/local': new URL('./packages/core/src/infrastructure/embedders/local.ts', import.meta.url).pathname,
+      // Item 24 — embedder registry + fetch-based adapters (map subpaths to src for integration tests).
+      '@usetheo/memory/embedders/ollama': new URL('./packages/core/src/infrastructure/embedders/ollama.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/voyage': new URL('./packages/core/src/infrastructure/embedders/voyage.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/google': new URL('./packages/core/src/infrastructure/embedders/google.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/registry': new URL('./packages/core/src/infrastructure/embedders/registry.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders': new URL('./packages/core/src/infrastructure/embedders/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms/stub': new URL('./packages/core/src/infrastructure/llms/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms/openai': new URL('./packages/core/src/infrastructure/llms/openai.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms': new URL('./packages/core/src/infrastructure/llms/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/cache-pg': new URL('./packages/core/src/infrastructure/db/recall-cache/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/reranker-local': new URL('./packages/core/src/infrastructure/rerankers/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/adaptive-local': new URL('./packages/core/src/infrastructure/adaptive/index.ts', import.meta.url).pathname,
+      '@usetheo/memory': new URL('./packages/core/src/index.ts', import.meta.url).pathname,
     },
   },
   test: {
+    globalSetup: ['tests/integration/global-setup.ts'],
+    // Resets the shared THEOMEM_PG_URI database to a clean template clone before
+    // EACH test file, so a CLI boot that migrates the dim to 384 (or a
+    // destructive test) cannot leak state into the next file.
+    setupFiles: ['tests/integration/_helpers/reset-shared-db.ts'],
     include: ['tests/integration/**/*.test.ts'],
     passWithNoTests: true,
     testTimeout: 30_000,

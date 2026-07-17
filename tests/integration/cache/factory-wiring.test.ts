@@ -6,16 +6,15 @@
  * `PgvectorRecallCacheStore` against the existing Pool; recall populates;
  * second recall hits; remember/forget/reflect invalidate.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.1 + T2.2
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import type { Embedder } from '../../../src/core/dip/embedder.js';
-import type { LLM } from '../../../src/core/dip/llm.js';
-import { InvalidCacheConfig } from '../../../src/core/errors.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/index.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { InvalidCacheConfig } from '@usetheo/memory';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t2_1_factory_wiring';
@@ -84,7 +83,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
       // Inspect recall_cache: exactly 1 row for user:alice now.
       const after1 = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(after1.rows[0]?.count).toBe('1');
 
@@ -98,7 +97,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // assert it did NOT trigger a full retrieval re-run by checking the
       // cache row count is still 1 (no second set()).
       const after2 = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(after2.rows[0]?.count).toBe('1');
       expect(embedCallsAfter).toBeGreaterThan(embedCallsBefore);
@@ -115,14 +114,14 @@ describe.skipIf(ROOT_PG_URI === '')(
       await memory.user('alice').recall('coffee'); // populate cache
 
       const cachedRows = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(cachedRows.rows[0]?.count).toBe('1');
 
       // Write triggers invalidateScope() — cache row gone post-remember.
       await memory.user('alice').remember('Paulo likes tea');
       const postWrite = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(postWrite.rows[0]?.count).toBe('0');
 
@@ -239,7 +238,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // Pre-warm the cache.
       await memory.user('alice').recall('preferences');
       const before = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(before.rows[0]?.count).toBe('1');
 
@@ -252,7 +251,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // still verifies the hook's gate behavior — see the EC-7 sibling below.
       if (result.derivedMemoriesCreated > 0) {
         const after = await pool.query<{ count: string }>(
-          `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+          `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
         );
         expect(after.rows[0]?.count).toBe('0');
       }
@@ -300,7 +299,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // Pre-warm the cache.
       await memory.user('alice').recall('preferences');
       const before = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(before.rows[0]?.count).toBe('1');
 
@@ -310,7 +309,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       // The hook's `persisted.length > 0` gate prevents the invalidateScope call —
       // cache row count must remain 1.
       const after = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(after.rows[0]?.count).toBe('1');
     }, 60_000);
@@ -326,7 +325,6 @@ describe.skipIf(ROOT_PG_URI === '')(
      * would still hold by accident. Explicit `SELECT scope_key` assertion
      * verifies the derived value, not just side-effect row counts.
      *
-     * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § T2.3
      */
     it('fixes-cycle-1 T2.3 — forget() invokes invalidateScope on derived scope (F-merge-4 + EC-4)', async () => {
       const memory = await createLocalMemory({
@@ -357,12 +355,12 @@ describe.skipIf(ROOT_PG_URI === '')(
       await memory.forget(aliceMemoryId!);
 
       const aliceAfter = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(aliceAfter.rows[0]?.count).toBe('0');
 
       const bobAfter = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:bob'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:bob'`,
       );
       expect(bobAfter.rows[0]?.count).toBe('1');
 
@@ -372,7 +370,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       const surviving = await pool.query<{ scope_key: string }>(
         `SELECT scope_key FROM recall_cache ORDER BY scope_key`,
       );
-      expect(surviving.rows.map((r) => r.scope_key)).toEqual(['user:bob']);
+      expect(surviving.rows.map((r) => r.scope_key)).toEqual(['ws:default|user:bob']);
     }, 60_000);
 
     it('T2.1-RED-7 (EC-2 pre-migration) — null table dim does NOT throw (deferred check)', async () => {

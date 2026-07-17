@@ -38,7 +38,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('T0.2-RED-1 — migration applies; recall_cache exists and is empty', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       await m.runMigrations(pool);
 
@@ -60,7 +60,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('T0.2-RED-2 — runMigrations() called twice is idempotent (v1.1 EC-6 pattern)', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       const firstCount = await pool.query<{ count: string }>(
         `SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations`,
