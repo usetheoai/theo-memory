@@ -1,7 +1,6 @@
 /**
  * Tokenizer DIP — token-counting contract for cost-tracking + prompt budgeting.
  *
- * 11th DIP, promoted from `src/benchmarks/themory/adapter.ts` (Drift-T4.1-2
  * supersedes Drift-T4.1-1 which said "2 consumers, rule-of-three not
  * reached"). Consumer count grew to 6 production + 5 test during the v0.8
  * `T6.1` + `T6.2` + `T6.3` vendor-adapter rollout, crossing the rule of

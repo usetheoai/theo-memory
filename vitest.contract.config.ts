@@ -48,7 +48,6 @@ export default defineConfig({
       'packages/cli/src/**/__tests__/**/*.test.ts',
       'packages/agent-core/src/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
-      'benchmarks/scripts/__tests__/**/*.test.ts',
     ],
     passWithNoTests: true,
     // T0.1 absorption: npm install of 6 NEW deps (hono + adapters + commander +
