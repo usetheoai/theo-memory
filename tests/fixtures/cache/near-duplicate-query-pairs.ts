@@ -6,7 +6,6 @@
  * the cache should hit on `b` when seeded with `a` for ≥ 5 of 10 pairs to
  * satisfy Item 19 acceptance criterion #1 (hit rate ≥ 0.5).
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T5.1
  */
 export const NEAR_DUPLICATE_QUERY_PAIRS: readonly { readonly a: string; readonly b: string }[] = [
   { a: 'what is my favorite color?', b: 'what color do I prefer?' },

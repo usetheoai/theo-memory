@@ -21,7 +21,7 @@
  * what it found WITHOUT auto-applying destructive corrections. Operator decides.
  *
  * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1
- * @see docs/runbook-v0-7-rollback.md for the rollback procedure (DROP TABLE path).
+ * @see docs/RUNBOOK.md for the rollback procedure (DROP TABLE path).
  */
 import { Pool } from 'pg';
 import { readFileSync } from 'node:fs';

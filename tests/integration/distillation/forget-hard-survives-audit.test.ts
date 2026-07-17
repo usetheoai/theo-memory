@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '../../../src/local/index.js';
+import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '@usetheo/memory';
 
 /**
  * T0.1 + EC-3: `consolidation_history.kept_memory_id` declares
@@ -15,8 +15,6 @@ import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '../../.
  * GREEN: migration 0007 applied; the table exists with `ON DELETE SET NULL`
  * on the FK; the 4 assertions all hold.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-3
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

@@ -21,8 +21,6 @@ import { pathToFileURL } from 'node:url';
  *       error and the trigger is still registered (0004 uses
  *       `CREATE OR REPLACE FUNCTION/TRIGGER`).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T2.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-db-2
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
@@ -53,7 +51,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await testPool.query('CREATE EXTENSION IF NOT EXISTS vector');
       // Apply column-bearing migrations via the journal-tracked runMigrations
       // path so the `memories` table exists for the trigger to attach to.
-      const { runMigrations } = await import('../../../src/local/index.js');
+      const { runMigrations } = await import('@usetheo/memory');
       await runMigrations(testPool);
       await testPool.end();
 

@@ -6,13 +6,12 @@
  * pgvector `<=>`, NaN behavior on zero-norm queries (EC-8), TTL expiry,
  * scope isolation, clearExpired sweep.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import type { MemoryItemWithScore } from '../../../src/core/memory-item.js';
-import type { Scope } from '../../../src/core/scope.js';
-import { PgvectorRecallCacheStore } from '../../../src/local/recall-cache/pgvector-recall-cache-store.js';
+import type { MemoryItemWithScore } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
+import { PgvectorRecallCacheStore } from '../../../packages/core/src/infrastructure/db/recall-cache/pgvector-recall-cache-store.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t1_1_cache_hit_miss';
@@ -61,7 +60,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await adminPool.end();
 
       pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       store = new PgvectorRecallCacheStore(pool);
     }, 60_000);
@@ -147,7 +146,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       const swept = await store.clearExpired();
       expect(swept).toBe(1);
       const remaining = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(remaining.rows[0]?.count).toBe('1');
     }, 10_000);

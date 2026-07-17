@@ -9,7 +9,6 @@
  * Integration test against real `themory mcp` + pgvector lives separately at
  * tests/integration/dogfood/claude-code-bridge-roundtrip.test.ts (T2.1).
  *
- * @see .claude/knowledge-base/plans/dogfood-anchor-scenario-launch-plan.md § T1.1
  */
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';

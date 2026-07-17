@@ -13,8 +13,8 @@
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import type { Memory } from '../../src/core/memory-store.js';
-import { createServer } from '../../src/server/index.js';
+import type { Memory } from '@usetheo/memory';
+import { createServer } from '@usetheo/memory-api';
 
 let activeProvider: BasicTracerProvider | undefined;
 

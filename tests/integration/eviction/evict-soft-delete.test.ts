@@ -13,15 +13,14 @@
  * Plan path deviation: integration test at tests/integration/eviction/ per
  * established T2.2/T3.1/T4.x/T5.x pattern.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T6.1 (D17 + EC-4 + EC-10)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
-import { PgvectorStore } from '../../../src/local/pgvector-store.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
+import { PgvectorStore } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

@@ -13,7 +13,6 @@
  *  - Princípio 2 (diversify near-paraphrase reduction): assertion 15-18
  *      EC-9 disclosure: target ≥ 40% reduction; honest measurement; no silent padding.
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T5.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -23,10 +22,10 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 
-import type { LLM } from '../../src/core/dip/llm.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../src/index.js';
-import { LocalTransformerEmbedder } from '../../src/embedders/local.js';
-import { DeterministicStubLLM } from '../../src/llms/stub.js';
+import type { LLM } from '@usetheo/memory';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
 import { distinctFacts, nearParaphrases } from '../fixtures/principles/near-paraphrases.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

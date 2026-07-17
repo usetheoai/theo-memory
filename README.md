@@ -1,241 +1,248 @@
 <div align="center">
 
-<img src="https://usetheo.dev/logo-128.webp" alt="Theo" width="96" height="96" />
+<img src="https://usetheo.dev/logo.png" alt="Theo Memory" width="128" height="128" />
 
-**`@usetheo/memory`** · the **managed memory** auxiliary of the [Theo ecosystem](https://usetheo.dev)
+# Theo Memory
 
-# Memory that lives where your agent lives.
+### Your AI agent is a goldfish. Give it a memory.
 
-A managed memory layer for AI agents — **three tiers (User, Session, Agent)**, vector-based hybridd retrieval, **native to [TheoKit](../theokit), managed by [TheoCloud](../theo)**. The persistent-state verb of **Chat. Build. Deploy.**
+**Persistent, multi-tenant memory for AI agents — facts, conversations, and _executable skills_, on your own Postgres.**
 
-*Vector + hybrid retrieval + LLM fact extraction. Local mode for dev. Cloud runtime for production. MIT.*
+`remember` · `recall` · `forget` · `reflect` — one TypeScript SDK, one REST API, one MCP server.
+Works with any LLM. No graph DB. No lock-in. Apache-2.0.
 
-[![License](https://img.shields.io/badge/license-MIT-7C3AED?style=flat-square)](./LICENSE)
-[![TypeScript](https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![License](https://img.shields.io/badge/license-Apache--2.0-7C3AED?style=flat-square)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Tests](https://img.shields.io/badge/tests-1%2C500%2B%20passing-brightgreen?style=flat-square)](#testing)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](#docker)
+[![MCP](https://img.shields.io/badge/MCP-4%20tools-FF6B35?style=flat-square)](#mcp-server)
+[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539?style=flat-square&logo=openapiinitiative&logoColor=white)](#rest-api)
 [![Status](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#status)
-[![Runtime](https://img.shields.io/badge/runtime-local%20%2B%20TheoCloud-7C3AED?style=flat-square)](#two-runtimes-one-api)
 
-[Quickstart](#quickstart) · [Three Tiers](#three-tiers) · [Why](#why-usetheomemory) · [Runtimes](#two-runtimes-one-api) · [Architecture](#architecture) · [Status](#status)
+[Quickstart](#quickstart) · [Features](#features) · [API](#api) · [REST](#rest-api) · [MCP](#mcp-server) · [Docker](#docker) · [CLI](#cli) · [Architecture](#architecture) · [Contributing](#contributing)
+
+**Part of [Theo](https://usetheo.dev) — the open platform for AI agents.** [Learn more →](https://usetheo.dev)
 
 </div>
 
 ---
 
-## The shift
+## Why Theo Memory?
 
-There is a version of your agent that remembers who its users are.
+**Every session starts from zero.** Your agent re-asks what the user already told it, forgets the
+last support ticket, relearns the same procedure. Theo Memory gives it **persistent, scoped,
+searchable memory** in four verbs: `remember` · `recall` · `forget` · `reflect`.
 
-It does not greet returning customers as strangers. It does not re-ask the dietary restriction it learned last Tuesday. It does not forget — between yesterday's deploy and today's — the playbook it spent an hour figuring out. The session ends. The user, and the agent, do not.
+So your agent can recall that Alice is vegetarian, that the last ticket was about billing, or that
+the deploy script needs a `--force` flag on Tuesdays — across users, sessions, and even as
+**reusable executable skills**.
 
-And the place that **deploys** the agent is the same place that **remembers** for it. One account. One dashboard. One platform.
-
-`@usetheo/memory` is the managed memory layer for the [TheoKit](../theokit) + [TheoCloud](../theo) agent stack — three tiers, vector-based hybrid architecture, MIT-licensed SDK, with a local mode for development and a managed runtime in TheoCloud for production.
-
-## Why `@usetheo/memory`
-
-The agentic-memory space is **crowded and well-funded** — REDACTED ($24M, ~56k stars), REDACTED ($10M, ~23k stars), REDACTED/REDACTED (YC W24, ~26k stars), REDACTED ($5.35M), REDACTED, REDACTED. Each carries a strong opinion on architecture and a strong opinion on lock-in.
-
-`@usetheo/memory` is not trying to win on benchmarks against players with two years of head start. It is trying to be **the memory line item on your TheoCloud invoice** — the managed memory that ships with the platform you already deploy on.
-
-If [Vercel KV](https://vercel.com/storage/kv) is "the key-value store that ships with the framework", `@usetheo/memory` is **the memory store that ships with the agent platform**. Same idea: deep coupling as a feature, not an apology.
-
-| Capability | `@usetheo/memory` | REDACTED | REDACTED | REDACTED / REDACTED | REDACTED |
-|---|---|---|---|---|---|
-| **Frame** | The managed memory of TheoCloud, optimized for TheoKit | Framework-agnostic drop-in SDK | Stateful agent runtime + memory | Bi-temporal knowledge graph | REDACTED memory store |
-| Architecture | vector-based hybrid: vector + LLM extraction + hybrid retrieval (semantic + BM25 + entity matching) | Same — pioneered the shape | OS-hierarchical (RAM + disk paging) | Temporal knowledge graph | Three-type semantic / episodic / procedural |
-| User memory (semantic, cross-session) | ✓ | ✓ | ✓ (core blocks) | ✓ | ✓ |
-| Session memory (episodic, scoped) | ✓ | ✓ | Implicit (single thread) | ✓ (episodes) | ✓ |
-| Agent memory (procedural, learned skills) | ✓ (skill-based) | Limited | Limited (core blocks) | Limited | ✓ (prompt rewriting) |
-| Local runtime (dev / CI) | ✓ Postgres + pgvector | ✓ self-host | ✓ Postgres + pgvector | Self-host a graph database etc. | REDACTED `BaseStore` |
-| Managed runtime | **TheoCloud — single platform for deploy + memory** | REDACTED Cloud (separate account) | REDACTED Cloud (separate account) | REDACTED Cloud (separate account) | REDACTED Platform |
-| Framework coupling | **Native to TheoKit by design** | Framework-agnostic | High (REDACTED owns the agent loop) | Framework-agnostic | High (REDACTED) |
-| License | **MIT** | Apache-2.0 | Apache-2.0 | Apache-2.0 (REDACTED) | MIT |
-| Single-vendor consolidation | **Yes** — same dashboard as your deploy | No (REDACTED Cloud is separate) | No | No | No |
-
-REDACTED won drop-in. REDACTED won the self-editing agent. REDACTED won bi-temporal auditing. **`@usetheo/memory` is the option you reach for when you have already chosen TheoKit + TheoCloud** — and you want memory on the same invoice, same dashboard, same access control, same support contract.
-
-If you are not on TheoKit, [REDACTED](https://REDACTED.ai) is a great pick.
-
-## Three tiers
-
-Three memory scopes, one API. The taxonomy follows cognitive psychology (episodic, semantic, procedural) mapped onto the surface a real agent needs.
-
-| Tier | Scope | Lifetime | Example |
-|---|---|---|---|
-| **User memory** | One user, across every session and every agent in the workspace | Durable | "Speaks Portuguese. Lives in São Paulo. Allergic to peanuts." |
-| **Session memory** | One conversation thread | Window-bounded | "User asked about pricing tier B in turn 3. We promised a callback." |
-| **Agent memory** | One agent, learned procedurally over many runs | Durable | "When the user types `/refund`, check the last 3 invoices before opening a ticket." |
-
-Same `remember` / `recall` / `forget` / `reflect` verbs across all three tiers — the scope is a parameter, not three separate APIs.
-
-## What you'd ship
-
-- **Customer support assistant that knows the user.** Past tickets, dietary restrictions, account tier, prior escalations — recalled without a separate CRM lookup.
-- **Healthcare intake bot.** Patient preferences, medication allergies, communication style persist across visits. Session memory bounded by appointment.
-- **Productivity copilot.** Adapts to the user's writing voice, project conventions, and recurring workflows. Agent memory accumulates the playbooks that worked.
-- **Coding agent with project memory.** Per-repo skill library — fix recipes, file conventions, migration patterns — accumulates across PRs. skill-based procedural memory tied to a real workspace.
-- **Multi-tenant agent SaaS.** Workspace-scoped isolation; user identity, session state, and agent skills never cross tenants. Native to TheoKit's per-request context.
-- **Game NPC with continuity.** Player history, in-game decisions, and emergent NPC personality survive session restarts.
-
----
-
-## How it works
-
-Below this line, full technical vocabulary is in play. Installation, the two runtimes, the planned API contract, the three tiers in code, architecture, and status.
-
-## Foundational principles
-
-Three principles anchor every design decision in TheMemory — schema, API contract, retrieval policy, scoring heuristics. When a technical choice conflicts with a principle, the principle wins.
-
-### Princípio 1 — Nem toda memória tem o mesmo peso.
-
-Relevance is a continuous score, not a boolean. The system composes orthogonal signals:
-
-- **Frequency / confirmation** — `confirmation_count` bumps when the same fact is asserted under the same scope (composite UPSERT per ADR D5; surfaces via `MemoryItem.confirmationCount`).
-- **Recency** — `last_accessed_at` + `created_at` feed exponential decay via `half_life_seconds` (v0.4b forgetting pipeline).
-- **Confidence** — `llm_importance_score` cached by the LLM extraction (v0.4a).
-- **Semantic similarity** — cosine over embeddings (vector-based hybrid 9-step search).
-- **BM25 + entity boost** — lexical and structural signals composed additively.
-
-The system does NOT treat each `remember()` call as an isolated event. When the same fact arrives from different sources or at different moments, the confirmation signal is reinforced and becomes queryable (`WHERE confirmation_count > N`) for filtering, ranking, and audit.
-
-### Princípio 2 — Priorização e diversidade valem mais que volume.
-
-Recalling 5 right and varied memories is worth more than recalling 50 near-paraphrases. The recall pipeline reflects this by design:
-
-- **Semantic threshold** gates BEFORE additive combination (`score = (semantic + bm25 + entity) / max_possible`) — sub-threshold dropped, not weighted.
-- **Top-K cap** bounds the raw result set.
-- **MMR diversify (opt-in)** — `RecallOptions.diversify` applies Maximal Marginal Relevance rerank between score-combine and top-K, reducing redundancy without sacrificing relevance (ADR D3 + EC-3 boundary validation: throws on `lambda ∉ [0, 1]`).
-- **Triadic eviction (v0.4b)** — when capacity saturates, the eviction policy composes Ebbinghaus + LRU + LLM-importance and protects the long-tail (`rare-isolated` survives ≥ 5 LRU passes).
-
-The contract favors information density over raw coverage. Volume without prioritization is noise.
-
-### Princípio 3 — Memória precisa ser auditável.
-
-Every decision to record, ignore, deduplicate, expire, or substitute a memory is OBSERVABLE and TRACEABLE. IGNORE is never silent:
-
-- **`MEMORY_EVENTS` typed union** (16 literals) — each phase of write / recall / reflect emits a typed OTel event via `emitEvent(tracer, ...)`. Includes `extraction_zero_facts` (LLM produced nothing), `dedup_collision_confirmed` (UPSERT bumped `confirmation_count`), `recall_threshold_filtered` (N sub-threshold candidates dropped) — the 3 IGNORE decisions that used to be silent.
-- **`MemoryItem.rejectedAsDuplicate`** — consumer-visible flag: when `remember()` returns the EXISTING row after dedup-collision, the consumer KNOWS.
-- **Audit tables** — `history` records remember/forget; `consolidation_history` records reflect with FK `ON DELETE SET NULL` for GDPR survival; `MemoryItem.derivedFrom` carries provenance for derived memories (v0.4a reflection, v0.7 distillation).
-- **Bi-temporal `t_valid` + `t_invalid`** — `recall({ asOf })` returns the valid state at any historical instant (v1.1 supersedes the ADR-0006 runtime clause).
-
-Traceability is part of the contract, not optional. Every decision to write / ignore / substitute must be justifiable and reviewable.
-
-## Quickstart (v0.1 local runtime)
-
-> **Pre-release.** Not production-ready. Status: dogfooding via the `/dogfood` gate. The embedding dimension is capped at **1536** at v0.1 (see plan ADR D1.7 in `.claude/knowledge-base/plans/v0-1-local-runtime-plan.md`).
-
-The v0.1 local runtime ships as: TypeScript library + Postgres + pgvector container + your-supplied LLM and Embedder.
-
-### Prerequisites
-
-`npm run db:push` requires the following dev tools on `PATH`:
-
-- **Node.js** 20.x or later (matches `package.json#engines.node`)
-- **Docker** + **docker compose** v2 (for the `pgvector` container)
-- **psql** — PostgreSQL 14+ client tools. `db:push` invokes `psql` directly to apply trigger-bearing migrations (e.g. `0004_eviction_half_life_trigger.sql`) because Drizzle ORM does not model triggers in its schema language. If `psql` is missing, the script aborts with a clear message pointing back at this section.
-
-### Wiring
-
-```bash
-# 1. Boot the local pgvector container
-docker compose up -d pgvector
-# (port conflict on 5432? POSTGRES_PORT=5433 docker compose up -d pgvector — see .env.example)
-
-# 2. Set the connection env var (matches docker-compose.yaml defaults)
-export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
-
-# 3. Enable pgvector + push schema (dev — uses drizzle-kit push; production should
-#    instead run npm run db:generate + apply the SQL migrations via the Drizzle
-#    migrator at app boot)
-psql $THEOMEM_PG_URI -c "CREATE EXTENSION IF NOT EXISTS vector"
-npm run db:push -- --force
-```
-
-Minimum usage from TypeScript:
+- **Runs on your infra** — plain Postgres + pgvector, your LLM key. No graph DB, no vendor lock-in, Apache-2.0.
+- **Three ways to plug in** — TypeScript SDK, REST API (OpenAPI 3.1), or MCP server (works with Claude, Cursor, and any MCP agent).
+- **Multi-tenant from day one** — workspace isolation + `owner`/`admin`/`member` RBAC, in the **free** package (not a paid tier).
 
 ```ts
-import { createMemory, PgvectorStore, DrizzleHistoryManager } from '@usetheo/memory'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import pg from 'pg'
-import { OpenAILLM, OpenAIEmbedder } from './your-providers' // consumer-supplied
+import { createLocalMemory, PgvectorStore } from '@usetheo/memory';
 
-const pool = new pg.Pool({ connectionString: process.env.THEOMEM_PG_URI! })
-const db = drizzle(pool)
+const memory = await createLocalMemory({ vectorStore, embedder, llm });
 
-const memory = await createMemory({
-  vectorStore: new PgvectorStore(pool),
-  embedder: new OpenAIEmbedder({ model: 'text-embedding-3-small', dimensions: 1536 }),
-  llm: new OpenAILLM({ model: 'gpt-4o-mini' }),
-  historyManager: new DrizzleHistoryManager(db),
-})
+// Your agent remembers
+await memory.user('alice').remember('Prefers dark mode. Speaks Portuguese.');
 
-// Write
-await memory.user('alice').remember('Paulo likes coffee')
-
-// Read
-const results = await memory.user('alice').recall('beverages', { topK: 3 })
-// → MemoryItemWithScore[] sorted by combined score (semantic + BM25 + entity boost)
+// Your agent recalls
+const facts = await memory.user('alice').recall('UI preferences');
+// → [{ text: 'Prefers dark mode', score: 0.94 }]
 ```
 
-**Important constraints at v0.1:**
+**No vendor lock-in.** Runs on your Postgres. Uses your LLM key. Apache-2.0 licensed.
 
-- Embedder MUST return 1536-dim vectors (`createMemory` probes at startup; mismatched dim throws `EmbeddingMismatch` immediately).
-- `forget(unknown_id)` throws `MemoryNotFound` (divergence from REDACTED's silent no-op).
-- `reset({})` throws `InvalidScope` — explicit scope key required (prevents accidental wipe).
-- `recall({ asOf })` throws `BiTemporalNotSupportedLocally` — bi-temporal queries land in the cloud runtime at v0.5.
-- `reflect()` throws `ReflectionNotConfigured` — reflection algorithm lands at v0.4a (roadmap Item 5).
+## Features
 
-For the full Quickstart end-to-end test, see `tests/integration/local-runtime.test.ts`.
+- **Three-tier scope** — `user` (cross-session) · `session` (conversation) · `agent` (procedural) + `skills` (code-as-skill library)
+- **4-verb API** — `remember` · `recall` · `forget` · `reflect` — consistent across all tiers
+- **Hybrid retrieval** — semantic (cosine) + BM25 (lexical) + entity boost with threshold gating
+- **LLM fact extraction** — 8-phase pipeline extracts structured facts from free-form text
+- **Bi-temporal queries** — `recall({ asOf })` for point-in-time memory snapshots
+- **Multi-peer attribution** — track who said what with `{ attributedTo: 'bob' }`
+- **Category filtering** — server-side `?category=` filter with btree index
+- **Semantic recall cache** — near-duplicate queries reuse cached results (cosine similarity)
+- **MMR diversification** — opt-in reranking for result diversity
+- **Auth lifecycle** — bearer tokens, Stripe-shape API keys, OIDC bridge
+- **Multi-tenant + RBAC** — workspace isolation (cross-tenant access is `404`, never `403`) + members/roles (`owner`/`admin`/`member`) with last-owner & anti-escalation guards — see [Multi-tenancy & RBAC](#multi-tenancy--rbac)
+- **Three surfaces** — REST API (Hono + OpenAPI 3.1) · MCP server · CLI
+- **OpenMemory drop-in** — `themory mcp --compat openmemory` serves the OpenMemory tool surface over SSE for Cursor / Claude Desktop / Windsurf / Cline
+- **Selectable embedder** — `THEOMEM_EMBEDDER=local` (on-device Xenova MiniLM) or `openai` (`text-embedding-3-small`, no on-device model)
+- **Docker-ready** — distroless image < 200 MB with healthcheck
+- **Observable** — 16 OpenTelemetry events + per-handler spans
+- **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 270+ test files
 
-## Agent loops via MCP (v0.3 — `@usetheo/memory/agent-tools`)
+## Quickstart
 
-`@usetheo/memory/agent-tools` exposes `remember/recall/forget/reflect` as an MCP server (Model Context Protocol per [spec 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25)) consumable by any MCP-aware agent loop — Claude Desktop, Claude Code, Cursor, [`@usetheo/sdk`](../theokit-sdk) agents via their existing `mcpServers` config.
+```bash
+# 1. Install
+npm install @usetheo/memory
 
-**Required environment variables (post-T3.2 — no stubs in production path):**
+# 2. Start Postgres + pgvector
+docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
+  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
 
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `THEOMEM_PG_URI` | **YES** | — | Postgres connection string (e.g., `postgresql://themem:themem@localhost:5432/themem`). |
-| `OPENAI_API_KEY` | **YES** | — | OpenAI-compatible API key. Works for OpenAI proper AND for OpenRouter (see `OPENAI_BASE_URL` below). Without it the MCP server hard-fails at startup with exit code 2. |
-| `OPENAI_BASE_URL` | no | `https://api.openai.com/v1` | Set to `https://openrouter.ai/api/v1` to route LLM calls through OpenRouter (one key serves OpenAI + Anthropic + Mistral + others). |
-| `OPENAI_CHAT_MODEL` | no | `gpt-4o-mini` | Model identifier for fact extraction. Honored by both direct OpenAI and OpenRouter. |
-| `THEOMEM_MCP_DEFAULT_USER_ID` | no | — | Default scope binding for stdio callers that do not pass `_meta.io.usetheo.themory/user_id`. Required for Claude Code direct use. |
+# 3. Configure
+cp .env.example .env
+# Set OPENAI_API_KEY (required) and THEMEMORY_API_KEY (optional, enables auth)
 
-**Install as a stdio MCP server for Claude Code** via project-local `.mcp.json` (the canonical Claude Code mechanism).
+# 4. Apply schema
+export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
+npm run db:push
 
-A copy-and-fill template is committed at [`.mcp.json.example`](.mcp.json.example) — duplicate it as `.mcp.json` (gitignored), populate `OPENAI_API_KEY`, and restart Claude Code. The inline recipe below mirrors that template for reference:
+# 5. Start
+npx themory server
+```
+
+**Embedder selection** — set `THEOMEM_EMBEDDER`:
+
+- `local` (default) — Xenova MiniLM, 384-dim, no API key. Downloads the model on first use.
+- `openai` — OpenAI `text-embedding-3-small`, 1536-dim. Requires `OPENAI_API_KEY`; needs no on-device model and makes no HuggingFace download. Recommended for server/Docker deployments.
+
+The migration dimension follows the selected embedder, so set `THEOMEM_EMBEDDER` before the first `db:push` / startup migration.
+
+Try it:
+
+```bash
+# Write a memory
+curl -X POST http://localhost:8080/v1/remember \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"alice","text":"I drink espresso every morning"}'
+
+# Query it
+curl -X POST http://localhost:8080/v1/recall \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"alice","query":"coffee"}'
+```
+
+## API
+
+### Scopes
+
+```ts
+// User — persists across sessions
+await memory.user('alice').remember('Allergic to peanuts');
+
+// Session — scoped to a conversation
+await memory.session('conv-42').remember('Discussed pricing tier B');
+
+// Agent — learned procedures
+await memory.agent('support-bot').remember('Check invoices before opening a refund');
+
+// Skills — executable code snippets
+await memory.skills('my-repo').add({
+  description: 'Deploy to staging',
+  code: 'sh("kubectl apply -f k8s/")',
+  codeLanguage: 'typescript',
+});
+```
+
+### Recall options
+
+```ts
+// Filter by category
+await memory.user('alice').recall('preferences', { category: 'food' });
+
+// Point-in-time query
+await memory.user('alice').recall('address', { asOf: new Date('2025-01-15') });
+
+// Filter by who said it
+await memory.user('alice').recall('updates', { attributedTo: 'manager-bob' });
+
+// Diversify results (MMR)
+await memory.user('alice').recall('interests', { diversify: { lambda: 0.7 } });
+```
+
+## REST API
+
+Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swagger.io/specification/) spec.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/v1/remember` | Store a memory (LLM extracts facts) |
+| `POST` | `/v1/recall` | Hybrid search |
+| `POST` | `/v1/forget` | Soft or hard delete |
+| `POST` | `/v1/reflect` | Consolidate episodic → semantic |
+| `GET` | `/v1/scopes/:type/:id/memories` | List with `?category=` filter |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/v1/members` | Workspace member CRUD (role-gated: `admin`) |
+| `GET` | `/v1/health` | Liveness (auth-exempt) |
+| `GET` | `/v1/openapi.json` | Spec (auth-exempt) |
+
+**Security** — Bearer auth (`THEMEMORY_API_KEY`), rate limiting (30 writes/min, 100 reads/min), CORS, 1 MB body cap, OIDC bridge for multi-tenant.
+
+## Multi-tenancy & RBAC
+
+Ship a multi-tenant product without bolting on a separate auth service. Two layers — **workspace isolation** and **role-based access** — are enforced server-side from the credential, never from the request body. Both live in the free package (peers commonly gate this to a paid tier).
+
+### Workspace isolation
+
+Every API key resolves to a `workspace`. The `AuthVerifier` resolves a `Principal { workspaceId, userId, role, scopes }` from the credential, and **every** persistence query is scoped by `principal.workspaceId`:
+
+- **Where the workspace comes from** — the credential, never the body. The three memory tiers (`user` / `session` / `agent`) are partitions *within* a workspace; `workspace_id` is the outer tenant anchor.
+- **How isolation is enforced** — app-level: a denormalized `workspace_id` column on every directly-queried table (`memories`, `entities`, `history`, `recall_cache`, …), composed first in every `WHERE`. The `memories` dedup index leads with `workspace_id` (the same fact under the same user in two workspaces is two distinct rows).
+- **Cross-tenant access is `404`, never `403`** — a by-id `forget`/`GET` for another workspace's row reveals nothing (no existence leak); the row is invisible because the `workspace_id` filter excludes it.
+- **Every surface is covered** — the primary 4-verb path (`remember`/`recall`/`forget`/`reflect`) **and** the opt-in recall-cache (key is workspace-prefixed `ws:<id>|…` → no cross-workspace hit), skill store, and eviction passes (COUNT + candidates + nearest-neighbor are workspace-bound) are all isolated.
+- **Legacy bridge** — no credential / the env `THEMEMORY_API_KEY` collapses to a single `default` workspace, so existing single-tenant deployments keep working unchanged.
+
+```ts
+// SDK: bind a workspace; every scoped op below is isolated to it.
+const wsA = memory.withWorkspace('acme');
+await wsA.user('alice').remember('Prefers dark mode');
+await wsA.user('alice').recall('UI preferences'); // only ever sees 'acme' rows
+```
+
+### Members & roles (RBAC)
+
+A workspace has members (`users` ↔ `workspace_users`, M:N) each holding one role: `owner` ⊇ `admin` ⊇ `member`.
+
+- **Role resolution** — an API key *acts as* a member; its role is resolved by joining the key to its membership. **Default-deny:** a key with no membership row resolves to the least-privileged `member`, never `owner`.
+- **Route gating** — management routes (`/v1/members`, `/v1/admin/keys`) require `requireRole('admin')` (401 precedes 403); the RAG verbs stay open to any member.
+- **Last-owner invariant** — a workspace can **never lose its last owner**: demote/remove runs in a transaction with a workspace-wide `SELECT … FOR UPDATE` before the owner-count guard, so two concurrent demotions can't race to zero owners (the second returns `409`).
+- **Anti-escalation** — an admin **cannot mint a key that outranks itself**: binding a key to a higher-ranked member is `403`, to a non-member `422`, to a lower/equal member `200`. A minted key carries the minter's `workspace_id`.
+- **Fail-closed** — if the auth backend errors during role resolution, the request gets an explicit `503` — never a privileged default.
+
+```bash
+# Add a member by email (admin-gated). Creates the global user if new.
+curl -X POST $BASE/v1/members \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"email":"bob@acme.com","role":"member"}'
+# → 201 { "member": { "userId": "...", "email": "bob@acme.com", "role": "member", ... } }
+
+# Promote to admin (last-owner-safe → 409 if it would orphan the workspace).
+curl -X PATCH $BASE/v1/members/$USER_ID \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"role":"admin"}'
+
+# Mint an API key bound to a member (anti-escalation: 403 if the target outranks you).
+curl -X POST $BASE/v1/admin/keys \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"bob-agent","scopes":["memory:read","memory:write"],"user_id":"'$USER_ID'"}'
+# → 200 { "id": "apk-…", "secret": "theo_live_…" }  (secret shown once)
+```
+
+> **Pre-release breaking change.** `AuthVerifier` evolves from `verify(token): Promise<boolean>` ("is this key valid?") to resolving `resolvePrincipal(token): Promise<Principal | null>` ("whose key is this?") — the `Principal` carries `{ workspaceId, userId, role, scopes }`. `verify` stays during the migration window; custom verifier implementations should add `resolvePrincipal`.
+
+> **Admin key management is deployment-level.** The `/v1/admin/keys/*` endpoints (gated by the `memory:admin` scope) manage keys at the deployment level; per-workspace member administration is the `/v1/members` surface above. Treat `memory:admin` as a deployment-operator privilege. The MCP transport currently binds the `default` workspace; per-workspace MCP is a tracked follow-up.
+
+## Agent loops via MCP
+
+Works with [Claude Code](https://claude.ai/claude-code), Claude Desktop, Cursor, and any [MCP](https://modelcontextprotocol.io)-compatible agent. The MCP server wires the **real** providers (`LocalTransformerEmbedder` + `OpenAILLM`) — there are **no stubs in production path**, so `OPENAI_API_KEY` is required at boot.
+
+Add `themory` to your project-local `.mcp.json` (Claude Code reads this file from the repo root — see [`.mcp.json.example`](./.mcp.json.example)):
 
 ```json
 {
   "mcpServers": {
     "themory": {
-      "command": "node",
-      "args": ["/absolute/path/to/dist/agent-tools/cli.js", "mcp"],
+      "command": "npx",
+      "args": ["@usetheo/memory", "mcp"],
       "env": {
         "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem",
-        "THEOMEM_MCP_DEFAULT_USER_ID": "claude-code-my-project",
-        "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
-        "OPENAI_CHAT_MODEL": "openai/gpt-4o-mini",
-        "OPENAI_API_KEY": "sk-or-..."
-      }
-    }
-  }
-}
-```
-
-After saving `.mcp.json`, RESTART Claude Code. The 4 tools (`mcp__themory__remember/recall/forget/reflect`) appear in the available-tools list once the server boots.
-
-**Install as a stdio MCP server for other agents** (Claude Desktop, Cursor, `@usetheo/sdk`):
-
-```json
-{
-  "servers": {
-    "themory": {
-      "command": "npx",
-      "args": ["@usetheo/memory/agent-tools"],
-      "env": {
-        "THEOMEM_PG_URI": "postgresql://...",
         "OPENAI_API_KEY": "sk-..."
       }
     }
@@ -243,490 +250,227 @@ After saving `.mcp.json`, RESTART Claude Code. The 4 tools (`mcp__themory__remem
 }
 ```
 
-**Or HTTP** (TheoCloud v0.5 alignment; streamable-HTTP secondary transport per ADR D1):
+`OPENAI_BASE_URL` is honored for OpenAI-compatible gateways — e.g. point at OpenRouter with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to use the free local-embedder + an OpenRouter chat model.
+
+**Tools:** `remember` · `recall` · `forget` · `reflect`
+**Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEMEMORY_API_KEY` is set)
+
+#### streamable-HTTP over TLS (non-localhost binds)
+
+When the MCP server must listen on a **non-localhost** host (e.g. so a container reaches it
+over `host.docker.internal`), HTTPS is required. Pass a cert/key pair:
 
 ```bash
-THEOMEM_PG_URI=postgres://... \
-  OPENAI_API_KEY=sk-... \
-  THEOMEM_MCP_TRANSPORT=streamable-http \
-  THEOMEM_MCP_HTTP_PORT=8080 \
-  npx @usetheo/memory/agent-tools
+themory mcp --transport streamable-http --host 0.0.0.0 --port 18091 \
+  --auth api-keys --tls-cert path/to/cert.pem --tls-key path/to/key.pem
 ```
 
-**Tools exposed (exactly 4, per CLAUDE.md § Locked names):**
+Both flags are required together (one alone fails fast); binding a non-localhost host without
+them is refused. A localhost bind stays plain HTTP.
 
-| Tool | Input | Output |
+### OpenMemory-compatible mode
+
+Run the server in OpenMemory drop-in mode so MCP clients already wired to the OpenMemory MCP Server (Cursor, Claude Desktop, Windsurf, Cline) work unchanged:
+
+```bash
+themory mcp --compat openmemory      # or env THEOMEM_MCP_COMPAT=openmemory
+```
+
+This exposes the OpenMemory tool surface — `add_memories` · `search_memory` · `list_memories` · `delete_memories` — as an alias over the native verbs, served over the OpenMemory SSE convention at `http://localhost:8765/{client}/sse/{user}` (`THEOMEM_MCP_HTTP_PORT` overrides the port). Scope is taken from the URL path (`{user}`); per-user isolation holds across all four tools, including delete (a user can only delete their own memories). No new dependency — it reuses the MCP SDK's `SSEServerTransport`. The native `themory mcp` is unchanged.
+
+## Docker
+
+```bash
+docker pull ghcr.io/usetheo/themory:0.1.0-alpha
+
+docker run -p 8080:8080 \
+  -e THEOMEM_PG_URI=postgres://... \
+  -e OPENAI_API_KEY=sk-... \
+  -e THEOMEM_EMBEDDER=openai \
+  ghcr.io/usetheo/themory:0.1.0-alpha
+```
+
+> The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
+
+Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
+
+```bash
+# Apply migrations (or `health`) against the distroless image
+docker run --rm --entrypoint /nodejs/bin/node \
+  -e THEOMEM_PG_URI=postgres://... \
+  ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
+```
+
+## CI/CD
+
+Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR (and Docker Hub) automatically on each version tag.
+
+| Trigger | Channel | Result |
 |---|---|---|
-| `remember` | `{content, metadata?}` | text content "Memory persisted." |
-| `recall` | `{query, topK?, threshold?}` | `structuredContent.results[]` of `{id, text, score, scope, createdAt, metadata}` |
-| `forget` | `{id}` xor `{all: true}` | text content with forget status (bulk delete deferred to v0.4) |
-| `reflect` | `{}` (strict empty) | text content with reflection count (algorithm lands v0.4a per Roadmap Item 5) |
+| push to `develop` | preview | `ghcr.io/usetheodev/themory:develop` (+ `:develop-<short>`) |
+| semver tag `v*` | release | `ghcr.io/usetheodev/themory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/themory` when `DOCKERHUB_TOKEN` is set) |
+| manual dispatch | smoke | unsigned build |
 
-**Error mechanisms per MCP spec § Error Handling:**
+Every build runs a **Trivy gate** (`severity: CRITICAL,HIGH`, `ignore-unfixed`, `exit-code: 1`,
+SHA-pinned in the reusable): the job fails on any fixable CRITICAL/HIGH CVE in the image, so a
+vulnerable image is never published. Exemptions go through [`.trivyignore`](./.trivyignore) with a
+**mandatory sunset date** and justification — never a blanket ignore.
 
-- **Protocol Errors** (JSON-RPC `error{}`): unknown tool → `-32601 Method not found`; malformed args → `-32602 Invalid params`; transport crash → `-32603 Internal error`.
-- **Tool Execution Errors** (`result.isError: true`): `MissingScope`, `MemoryStoreError`, `EmbedderError`, `ContentTooLargeError`, and PG transient codes (`ECONNREFUSED`/`ETIMEDOUT`/etc.) — all surface with actionable text so the LLM can self-correct.
-
-**Scope binding** flows through `AsyncLocalStorage` per ADR D3: the server reads request context, binds the active `ScopedContext`, and tool bodies resolve `memoryFromCtx(scope, memory)` from the v0.2 binding. Result: **zero cross-userId overlap** is the anchor metric (`tests/integration/agent-tools/the-goal.test.ts`).
-
-**TLS:** v0.3 ships HTTP plaintext by design; production deployments expect to run behind a reverse proxy (nginx/caddy/Cloudflare) for TLS termination. TheoCloud handles this at the platform layer; do not expose port 8080 directly to public internet without TLS.
-
-
-
-## REST API server (`@usetheo/memory/server`)
-
-Standalone HTTP distribution surface for TheMemory — exposes the 4 verbs (`remember`/`recall`/`forget`/`reflect`) + health probes + paginated scope listing under `/v1/*`. Use it when your consumer is not Node.js (mobile apps, Python/Go/Rust services via OpenAPI codegen, admin dashboards, monitoring curl probes).
-
-**Compose the server from a local memory factory:**
-
-```ts
-import { createMemory } from '@usetheo/memory';
-import { createServer } from '@usetheo/memory/server';
-import { serve } from '@hono/node-server';
-
-const memory = await createMemory({ /* local runtime config */ });
-const app = createServer({ memory });
-serve({ fetch: app.fetch, port: 8080 });
-```
-
-**Bearer authentication** is opt-in via `THEMEMORY_API_KEY` env var (mirrors the `THEOKIT_API_KEY` convention per ADR-0009). When set, every `/v1/*` request requires `Authorization: Bearer <token>`:
+## CLI
 
 ```bash
-curl -X POST http://localhost:8080/v1/remember \
-  -H "Authorization: Bearer $THEMEMORY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"userId":"alice","text":"prefers dark mode"}'
+themory server                      # Start REST API
+themory mcp                         # Start MCP server (native verbs)
+themory mcp --compat openmemory     # OpenMemory-compatible MCP server over SSE (port 8765)
+themory migrate                     # Apply pending migrations
+themory health --deep               # Probe embedder + LLM + DB
+
+themory keys create --name app --scope memory:read,memory:write
+themory keys list
+themory keys revoke <id>
+themory keys rotate <id>
 ```
-
-**OpenAPI 3.1 spec** auto-derived from the zod schemas at `GET /v1/openapi.json` — auth-exempt per EC-19 so codegen tools (openapi-generator, Postman, Swagger UI) can fetch the spec before having credentials.
-
-**Observability:** every handler emits an OTel span (`rest.v1.remember`, `rest.v1.recall`, etc.) with `http.status_code`/`http.method`/`http.route` attributes. Pass a `Tracer` via `createServer({ memory, tracer })` to wire your provider; default falls through to the global no-op tracer at zero cost.
-
-**ESM-only.** The subpath `@usetheo/memory/server` is ESM-only — matches the package's `"type": "module"`. CJS consumers (`require('@usetheo/memory/server')`) will see Node's standard ESM-resolution error.
-
-**Body limit:** 1 MB cap on `/v1/*` POST endpoints (DOS guard via `hono/body-limit`; 413 response carries the structured `{code: 'CONTENT_TOO_LARGE', message: ...}` envelope). Compressed request bodies (`Content-Encoding: gzip`) are NOT auto-decompressed by Hono — operators serving large compressed payloads should enforce body limits at the reverse-proxy layer (nginx `client_max_body_size`, Caddy `request_body max_size`) for production deployments.
-
-**Wiring real providers (post-T3.2 — no stubs in production path).** As of p0-api-sdk-mcp-correctness-audit T3.2 (mirror of MCP commit `e43d801`), BOTH `themory server` (REST) and `themory mcp` (MCP) hard-fail at startup when `OPENAI_API_KEY` is unset. Real providers wired by default: `LocalTransformerEmbedder` (Xenova MiniLM, 384-dim, keyless — `@xenova/transformers` optional dep) for embeddings and `OpenAILLM` for fact extraction. The `OPENAI_API_KEY` env var works for OpenAI proper AND for OpenRouter via `OPENAI_BASE_URL=https://openrouter.ai/api/v1`. No silent stub fallback. The earlier "alpha default uses stubs" pattern is retired.
-
-Docker stack (multi-stage distroless + `pgvector` + GHCR release pipeline) lands at v0.1.0-alpha alongside the consolidated `themory {mcp,server,migrate,health}` CLI — see Roadmap Items 16–18.
-
-**Container entrypoint** (per ADR D13): the distroless image's `ENTRYPOINT` invokes the Node binary directly — `["/nodejs/bin/node", "/app/dist/agent-tools/cli.js", "server"]` — with no shell wrapper. Migrate-on-startup runs inside the `themory server` binary (T2.3) so there is no `docker-entrypoint.sh`. Operators can run the other subcommands by overriding the entrypoint at `docker run` time:
-
-```bash
-# Apply pending migrations standalone (manual schema bootstrap).
-docker run --rm --entrypoint /nodejs/bin/node \
-  -e THEOMEM_PG_URI=postgres://... \
-  ghcr.io/usetheo/themory:0.1.0-alpha \
-  /app/dist/agent-tools/cli.js migrate
-
-# Probe DI graph + DB readiness (CI / orchestrator health checks).
-docker run --rm --entrypoint /nodejs/bin/node \
-  -e THEOMEM_PG_URI=postgres://... \
-  ghcr.io/usetheo/themory:0.1.0-alpha \
-  /app/dist/agent-tools/cli.js health
-```
-
-The `docker-compose.prod.yaml` stack (T3.2) boots both `themory` + `pgvector` with healthchecks suitable for `docker compose up -d --wait --wait-timeout 60`.
 
 ## CLI verbs
 
-`themory` ships 8 subcommands: 4 lifecycle commands (`mcp` / `server` / `migrate` / `health` — documented in the sections above) and 4 memory verbs (`remember` / `recall` / `forget` / `reflect`) that round-trip a single memory operation from the shell without a long-running server. All 4 verbs emit JSON by default; pass `--text` for human-readable output.
+The four memory verbs are first-class subcommands — `remember`, `recall`, `forget`, `reflect`:
 
 ```bash
-export THEOMEM_PG_URI=postgres://memory:memory@localhost:5432/themory
-export OPENAI_API_KEY=sk-...             # OR an OpenRouter key + OPENAI_BASE_URL
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1   # optional
-
-# Write a fact under a user scope
-themory remember 'I prefer dark coffee in the morning' --user alice
-
-# Query the same scope
-themory recall 'morning beverage' --user alice --top-k 5 --threshold 0.5
-
-# Delete a memory by id (NO scope flag — memoryId globally unique)
-themory forget 11111111-2222-3333-4444-555555555555 --hard
-
-# Trigger reflection over a scope; emits raw ReflectionResult JSON
+themory remember 'Likes espresso' --user alice
+themory recall 'coffee' --user alice --top-k 5
+themory forget <id> --hard
 themory reflect --user alice
 ```
 
-### Stable flags (v1.0 contract — see `CLAUDE.md` § Locked names)
+### API Key Rotation
 
-| Flag | Where | Type | Notes |
-|---|---|---|---|
-| `--user <id>` | `remember` / `recall` / `reflect` | string | Mutually exclusive with `--session` / `--agent`. |
-| `--session <id>` | `remember` / `recall` / `reflect` | string | Mutually exclusive with `--user` / `--agent`. |
-| `--agent <id>` | `remember` / `recall` / `reflect` | string | Mutually exclusive with `--user` / `--session`. |
-| `--top-k <n>` | `recall` | int 1..100 | Max items returned. |
-| `--threshold <f>` | `recall` | float [0, 1] | Semantic similarity floor. |
-| `--diversify <l>` | `recall` | float [0, 1] | MMR diversification lambda (opt-in). |
-| `--hard` | `forget` | flag | Hard-delete (default is soft via `t_invalid`). |
-| `--json` | all 4 verbs | flag | Output JSON (default). |
-| `--text` | all 4 verbs | flag | Human-readable text instead of JSON. |
-
-### Docker-exec composability
-
-The published image at `ghcr.io/usetheo/themory:0.1.0-alpha` includes the CLI:
+Zero-downtime key rotation in 3 steps:
 
 ```bash
-docker exec themory \
-  node /app/dist/agent-tools/cli.js recall 'morning beverage' --user alice --top-k 5
+# 1. Create a new key (old key still works)
+themory keys create --name app-v2 --scope memory:read,memory:write
+
+# 2. Update your consumer to use the new key
+#    (set THEMEMORY_API_KEY in your app's environment)
+
+# 3. Revoke the old key once consumers are migrated
+themory keys revoke <old-key-id>
 ```
 
-### Caveats (honest disclosure per Inquebrável Rule 3)
-
-- **Cold-start cost.** Each verb invocation pays ~2-5s warm-up: model download (first run only, then disk-cached), pg connect + journal sync, factory probe. For batch operations > 50 invocations, use the REST server (`themory server`) + `curl` instead of one CLI invocation per item.
-- **Output contract.** `reflect --json` emits the RAW `ReflectionResult` shape (`{ higherOrderMemories, sourceIds, derivedMemoriesCreated, reason? }`) so scripts portable across CLI + MCP + REST consume the same field names. There is no projection step.
-- **Mutually-exclusive scope.** `remember` / `recall` / `reflect` REQUIRE exactly one of `--user` / `--session` / `--agent`; zero or multiple → exit 2 in <2s (boundary-first ordering, no factory warm-up paid). `forget` takes NO scope flag because `memoryId` is globally unique.
-
-## Status — v0.6 (skill-library) shipped; v0.4b forgetting + v0.5 cloud + v0.7 distillation next
-
-> **v0.8 — Independent benchmark reproduction (Roadmap Item 10) — published 2026-06-02.** Smoke validation across LongMemEval / LoCoMo / DMR for TheMemory; vendor adapter cells (REDACTED/REDACTED/REDACTED) shipping `VendorClient` DIP only with real SDK wiring deferred per Drift-T6.x-1. Matrix at [`docs/benchmarks/v0.8.md`](docs/benchmarks/v0.8.md), methodology at [`docs/benchmarks/v0.8-methodology.md`](docs/benchmarks/v0.8-methodology.md), reproducibility runbook at [`docs/benchmarks/v0.8-reproducibility.md`](docs/benchmarks/v0.8-reproducibility.md). **`/dogfood` gate remains EVIDENCE_INSUFFICIENT — v0.8 does NOT unblock v1.0 production-ready claims.**
->
-> `@usetheo/memory` is **pre-release**. v0.0 (type contract) shipped via PR #4 on 2026-05-22; v0.1 (core + local runtime) shipped via PR #8 on 2026-05-23; v0.2 PR-A (TheoKit binding) shipped via PR #11 on 2026-05-23; v0.3 (MCP agent tools) shipped via PRs #17+#18 on 2026-05-25; v0.4a (reflection pipeline) shipped on `develop` 2026-05-23 (`494bceb`); v0.6 ( skill library) shipped on `feat/v0-6-skill-library` on 2026-05-30 — closed with the v0.6.1 fixes cycle (14 commits, b6aead6 `/review READY_TO_MERGE`) + `chat-with-memory-e2e-fixes` demo cycle (4 commits, 9e09bb9 `/test-chat-with-memory READY 30/30`). **No package is published yet** — the `@usetheo/memory` name is reserved. The TheoCloud managed runtime depends on [Theo PaaS](../theo) (pre-release) reaching general availability.
->
-> What works today (v0.1 → v0.6 against `ankane/pgvector:v0.5.1`):
-> - **`createMemory` factory** + `runMigrations` helper + public barrel at `@usetheo/memory`.
-> - **Three-tier scope** (`memory.user(id)` / `memory.session(id)` / `memory.agent(id)`) with isolation enforced at the SQL `WHERE` level — plus **`RepoScope` 4th tier** (v0.6, ADR-0010) exposed via `memory.skills(repoId)`.
-> - **8-phase write pipeline** ported verbatim from REDACTED with per-row fallback at every I/O boundary + OpenTelemetry spans per phase.
-> - **9-step search** with additive `(semantic + BM25 + entity_boost) / max_possible` scoring, threshold-gates-semantic-BEFORE-combining invariant, BM25 via Postgres `to_tsvector` + sigmoid normalization adapted to query length.
-> - **MD5 hash dedup** (no normalization; matches REDACTED byte-level behavior) + **Porter lemmatization** (optional `natural` peer + in-house `simpleStem` fallback).
-> - **Two `VectorStore` adapters**: in-memory (Map-backed, ~200 LoC) for unit tests + dev quickstart; pgvector (raw SQL via `pg`) for production. Both pass identical 17-test conformance suite.
-> - **`DrizzleHistoryManager`** for append-only audit trail (`Memory.history(id)` reverse-chronological).
-> - **Drizzle schema** with bi-temporal columns (`tValid`/`tInvalid` nullable per ADR-0006), HNSW pgvector index on 1536-dim embedding column (cap locked per plan ADR D1.7 due to pgvector 0.5.1's 2000-dim HNSW limit).
-> - **v0.4a reflection pipeline**: `reflect()` async via sleep-time worker (REDACTED pattern) behind `ReflectionPolicy` DIP — `ManualReflectionPolicy` (v0.0 default) + `ThresholdReflectionPolicy` (counter persisted in `reflection_counters` Postgres table) + scoring strategy interface (additive REDACTED default OR multiplicative Generative Agents opt-in). LLM-importance cached at write to avoid per-query cost.
-> - **v0.6 skill-library**: `memory.skills(repoId)` returns `ScopedSkillMemory` exposing `add(SkillDraft)` / `recall(query, options)` / `consolidate(options)` / `forget(skillId)`. Reuses the v0.4a chain via `executeReflection` + `validateProvenance`. `clusterThreshold` (default 0.85) opt-in per consumer. Identity is `hashFact(description)` — same-description-different-code collides on `UNIQUE(hash)` per v0.6.1 T1.2 contract. Forget is scope-isolated: cross-repo deletion attempts return the same `MemoryNotFound` shape as non-existent ids (information-leak prevention per v0.6.1 T4.1 EC-2).
-> - **`@usetheo/memory/agent-tools`** subpath: 4 MCP tools (`remember`/`recall`/`forget`/`reflect`) over stdio + streamable-HTTP transports for `@usetheo/sdk` agents; AsyncLocalStorage scope binding via `memoryFromCtx`.
-> - **`@usetheo/memory/theokit`** subpath: `memoryFromCtx(ctx, memory)` auto-scopes `user_id` from `ctx.session.userId` via structural typing (zero peer-dep, ADR D1).
-> - **`examples/chat-with-memory/`**: Next.js 15 demo combining `@usetheo/memory` + `@usetheo/sdk` + `@usetheo/ui` to demonstrate every Scope tier + skills + history + reflection through a tabbed UI. Backend auto-detect (pgvector if `THEOMEM_PG_URI` set, in-memory otherwise). Validated end-to-end by the `/test-chat-with-memory` skill — 30/30 PASS on 2026-05-30 (verdict `READY`).
-> - **Test coverage**: 490 contract tests (unit + type) + 67 integration tests against real pgvector (THE GOAL TEST for v0.6 + scope-isolation for v0.6.1 T4.1). Zero CRITICAL/HIGH CVE (6 MODERATE: 4 dev-only `esbuild` chain via drizzle-kit allowlisted to 2026-08-23; 2 demo-side `next`+`postcss` transitive not introduced by current plans).
->
-> What is still honest:
-> - **Pre-release.** No package published. No "production-ready" claim until v1.0 with reproduced benchmarks (LongMemEval + LoCoMo + DMR) per the macro roadmap + `/dogfood` returning `EVIDENCE_SUFFICIENT`.
-> - **Cloud runtime not built yet.** v0.5 depends on TheoCloud (pre-release) GA.
-> - **Long-tail forgetting not built yet.** v0.4b (roadmap Item 6) is the open problem: triadic signal (Ebbinghaus decay + LRU/LFU + LLM-judged importance) with explicit anti-long-tail guardrail. Required before v0.8 benchmark reproduction.
-> - **Episodic→Semantic distillation pipeline not built yet.** v0.7 (roadmap Item 9). Required before v1.0 contract freeze.
-> - **TheoKit binding PR-B still pending.** Default-on memory in scaffolded `create-theo` templates per ADR D7 lives in the sibling `theokit` repo — pending; until then consumers wire the singleton manually per the binding example above.
-> - **MIT license is intentional and differs from the monorepo Apache-2.0 standard** (locked 2026-05-14). Maximum permissiveness for proprietary embeds.
->
-> If you are evaluating *today* and need something running in production *today*, mature alternatives exist ([REDACTED](https://REDACTED.ai), [REDACTED](https://www.REDACTED.com), [REDACTED](https://www.REDACTED.com)). `@usetheo/memory` is what you reach for when your stack is TheoKit + TheoCloud OR you want a vector-based hybrid memory primitive without the framework lock-in.
-
-## Two runtimes, one API
-
-Runtime is picked by which key you pass to `Memory.create()` — `local` or `cloud`. Same API surface either way; same three tiers either way.
-
-| Runtime | What it does | When to use |
-|---|---|---|
-| **Local** | Runs against your own Postgres + pgvector. Embeddings via your provider key. | Dev, CI, self-hosted demos, evaluation against your data. |
-| **TheoCloud (managed)** | Runs in TheoCloud against a managed vector store with managed embeddings, managed LLM extraction, and managed retrieval. Same TheoCloud account that deploys your TheoKit app. | Production. Same dashboard as your deploy, one invoice, one access control surface. |
-
-Premium capabilities (graph memory, multi-tenant audit trails, managed embedding pricing, cross-region replication) ship in the TheoCloud runtime. The local runtime stays open and useful for development — it is not a crippled demo.
-
-## Planned API contract
-
-The contract below is the design target. Treat snippets as the **shape** the implementation will conform to, not as code you can run today.
-
-### Installation
-
-```bash
-npm install @usetheo/memory     # reserved; not yet published
-```
-
-### Local runtime — dev and CI
-
-```typescript
-import { Memory } from "@usetheo/memory";
-
-const memory = await Memory.create({
-  local: {
-    storage: { type: "postgres", url: process.env.DATABASE_URL! },
-  },
-  embeddings: { provider: "openai", model: "text-embedding-3-small" },
-  workspace: "acme-support",
-});
-```
-
-### TheoCloud runtime — production
-
-```typescript
-import { Memory } from "@usetheo/memory";
-
-const memory = await Memory.create({
-  cloud: { apiKey: process.env.THEOKIT_API_KEY! },
-  workspace: "acme-support",
-});
-```
-
-Same `THEOKIT_API_KEY` as the rest of the Theo ecosystem (`@usetheo/sdk`, TheoCloud deploys). No separate account. No separate billing.
-
-### Three-tier scopes
-
-```typescript
-// User memory — durable identity, cross-session
-await memory.user("user-42").remember(
-  "Speaks Portuguese. Vegetarian. Prefers concise responses."
-);
-
-// Session memory — scoped to one conversation
-const session = memory.session("session-abc");
-await session.remember({
-  role: "assistant",
-  text: "Promised a callback by Friday about the refund.",
-});
-
-// Agent memory — procedural skills the agent learned
-await memory.agent("support-bot").remember({
-  skill: "refund-flow",
-  body: "Check last 3 invoices, verify chargeback window, open ticket.",
-});
-
-// Unified recall — pulls from whichever tiers the call enables
-const context = await memory.recall("What does the user prefer?", {
-  user: "user-42",
-  session: "session-abc",
-  agent: "support-bot",
-  scopes: ["user", "session"],
-  limit: 8,
-});
-
-console.log(context.items);
-// → [{ tier: "user", text: "Speaks Portuguese...", score: 0.91, ... }]
-```
-
-Same verbs, scope-aware:
-
-```typescript
-// remember(fact, options)
-await memory.user(userId).remember("Allergic to peanuts");
-await memory.session(sessionId).remember({ role: "user", text: "..." });
-await memory.agent(agentId).remember({ skill: "refund-flow", body: "..." });
-
-// recall(query, options)
-const userFacts = await memory.user(userId).recall("dietary restrictions");
-const recentTurns = await memory.session(sessionId).recall(null, { limit: 20 });
-const skill = await memory.agent(agentId).recall("how to refund");
-
-// forget(predicate, options)
-await memory.user(userId).forget({ olderThan: "30d" });
-await memory.session(sessionId).clear();
-
-// reflect — consolidate episodic into semantic (Generative Agents-shaped)
-await memory.agent(agentId).reflect({ window: "7d" });
-```
-
-### TheoKit-native binding (`@usetheo/memory/theokit`)
-
-When the consumer is a [TheoKit](../theokit) app, the binding auto-scopes memory from the request context — no explicit `memory.user(id)` thread through every handler. The lock-in surface is **opt-in via a separate subpath** (consumers not using TheoKit pay zero binding bundle cost):
-
-```typescript
-// server/routes/notes.ts (TheoKit route)
-import { defineRoute, requireAuth } from "theokit/server";
-import { memoryFromCtx } from "@usetheo/memory/theokit";
-import { z } from "zod";
-
-import { memory } from "../memory.js"; // your app-scoped singleton
-
-export const POST = defineRoute({
-  body: z.object({ text: z.string() }),
-  handler: async ({ ctx, body }) => {
-    requireAuth(ctx.session);
-    await memoryFromCtx(ctx, memory).remember(body.text);
-    return { ok: true };
-  },
-});
-```
-
-`memoryFromCtx(ctx, memory)` reads `ctx.session.userId` structurally — zero peer-dependency on the `theokit` package. The resolver has three explicit states:
-
-- **(a)** `userId` is a non-empty string → returns `memory.user(userId)`
-- **(b)** `ctx.session === null` (unauthenticated) → throws `MissingScopeError` with guidance to call `requireAuth(ctx.session)` first
-- **(c)** `session` field absent OR `userId` undefined/non-string/empty/whitespace → throws `MissingScopeError` with guidance to wire `createSessionManager`
-
-`MissingScopeError` is re-exported from the same subpath for `instanceof` checks in error boundaries.
-
-v0.2 resolves the **`userId` tier only**; consumers needing `sessionId` or `agentId` scoping call `memory.session(id)` / `memory.agent(id)` directly per the three-tier API. Multi-tier auto-resolution may land in a later milestone. Default-on memory in scaffolded `create-theokit` templates (`saas` + `postgres`) is **planned** as a follow-up — until that lands, consumers add `@usetheo/memory` as a dep + wire the singleton themselves.
-
-Outside TheoKit the framework-agnostic API is identical — wire `user` / `session` / `agent` manually. **Inside TheoKit, the binding reads them from `ctx.session` for you.** That is the lock-in this project owns explicitly.
-
-### Retrieval — vector-based hybrid, multi-signal
-
-Each `recall` runs the same hybrid retrieval pipeline:
-
-```
-candidates = pgvector(semantic ANN) ∪ BM25(lexical) ∪ entity_match(extracted entities)
-score      = recency(decay) × importance(LLM-judged 1-10 at write) × relevance(cosine)
-```
-
-Pure cosine similarity is provably worse for agent behavior over long horizons (Park et al. 2023, *Generative Agents*). The recency × importance × relevance triad is the default. Hybrid candidate generation matches REDACTED's v2 retrieval shape (semantic + BM25 + entity).
-
-### Write pipeline — two-stage, ADD-only
-
-Following REDACTED v2.0 (April 2026), the write path is two-stage and **ADD-only**:
-
-1. **Extract** — recover top-K related memories for dedup context, single LLM call extracts all distinct facts from the new turn.
-2. **Update** — batch embed → hash-dedup → batch insert with entity linking.
-
-Old memories are not overwritten. Conflicts produce new facts with their own `t_valid` window. This trades disk for auditability — every claim the agent ever made is traceable.
-
-### Memory operations as agent tools
-
-When `@usetheo/memory` runs alongside an agent SDK (e.g., [`@usetheo/sdk`](../theokit-sdk)), the tier verbs are exposed as MCP tools — the agent decides when to remember, recall, and forget rather than the framework deciding for it. This follows the REDACTED lesson: **function-calling memory ops outperform hardcoded heuristics**.
-
-```typescript
-import { Agent } from "@usetheo/sdk";
-import { memoryTools } from "@usetheo/memory/agent-tools";
-
-const agent = await Agent.create({
-  apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-001" },
-  local: { cwd: process.cwd() },
-  tools: memoryTools(memory),    // exposes remember/recall/forget/reflect
-});
-```
+Both keys are valid simultaneously between steps 1 and 3 — no downtime window. For atomic rotation (create + revoke in one call), use `themory keys rotate <id>`.
 
 ## Architecture
 
 ```
-@usetheo/memory/
-├── packages/
-│   ├── core/                    Memory class, MemoryStore interface (DIP)
-│   │   ├── tiers/               UserMemory, SessionMemory, AgentMemory
-│   │   ├── retrieval/           recency × importance × relevance scorer
-│   │   ├── pipeline/            two-stage extract → update pipeline
-│   │   ├── consolidation/       reflect() — episodic → semantic
-│   │   └── types.ts             public type contract
-│   ├── local/                   Postgres + pgvector local runtime
-│   ├── cloud/                   TheoCloud managed runtime client
-│   ├── embeddings/              provider abstraction (OpenAI, Anthropic, local)
-│   ├── theokit/                 TheoKit-native binding (request-context aware)
-│   └── agent-tools/             MCP tools for @usetheo/sdk agents
+src/
+├── core/              Contracts + types (no I/O)
+│   ├── dip/           13 DIP interfaces
+│   ├── extraction/    8-phase write pipeline
+│   └── retrieval/     9-step hybrid search
+├── local/             Postgres + pgvector (15 migrations)
+├── server/            Hono REST + auth + rate-limit + CORS
+├── agent-tools/       MCP server (stdio + HTTP)
+├── embedders/         Local transformer (MiniLM, 384-dim)
+└── llms/              OpenAI-compatible client
 ```
 
-### Semantic recall cache (v1.5)
-
-Opt-in read-side cache for `recall()` keyed by **query-embedding cosine similarity** (NOT string match). A near-duplicate query (`"what is my favorite color?"` vs `"what color do I prefer?"`) within the same scope reuses the cached result instead of re-running the 9-step retrieval pipeline. Backs Roadmap Item 19 / v1.5.
-
-```ts
-import { createLocalMemory, runMigrations, PgvectorStore } from '@usetheo/memory';
-
-await runMigrations(pool);                   // migration 0010 ships recall_cache
-
-const memory = await createLocalMemory({
-  vectorStore: new PgvectorStore(pool),
-  embedder,
-  llm,
-  recallCache: { threshold: 0.8 },           // opt-in; cache disabled by default
-});
-
-await memory.user('alice').recall('what is my favorite color?');  // MISS → populates
-await memory.user('alice').recall('what color do I prefer?');     // HIT (cosine >= 0.8)
+**Write path:**
+```
+Text → Context → Retrieve existing → LLM extract → Embed → Dedup → Persist → Audit
 ```
 
-- **Threshold**: default `0.8` cosine similarity (convergent across embedchain `similarity_threshold=0.8` and REDACTED `distance_threshold=0.2`).
-- **Per-tier TTL**: default `user` 24h, `agent` 1h, `session` 10min, `repo` 1h. Override via `recallCache.ttlSecondsByScopeTier`.
-- **LRU eviction**: default cap `1000` rows per scope. Concurrent `set()` calls serialize via Postgres SERIALIZABLE isolation (single retry on `40001`).
-- **Write-trigger invalidation**: `remember()` / `forget()` / `reflect()` await `invalidateScope()` post-success so the consumer's next `recall()` sees fresh state (Inquebrável Rule 3 + Item 19 AC#3).
-- **Bypass boundary**: `recall(query, { asOf })` AND `recall(query, { attributedTo })` BYPASS the cache (no get, no set) — v1.5 cache key is `(scope_key, query_embedding)` and does not include bi-temporal/multi-peer dimensions.
-- **Observability**: 3 OTel instruments — `theo.memory.recall_cache.hit` (Counter) + `theo.memory.recall_cache.hit.duration_ms` (Histogram) + `theo.memory.recall_cache.miss.duration_ms` (Histogram). Labels `{ scope_tier, embedder_kind }`.
-- **Subpath**: `@usetheo/memory/cache-pg` exposes `PgvectorRecallCacheStore` + metric resolvers for custom wirings.
-- **Stub-embedder gate**: when cache is enabled and the embedder is `StubEmbedder` / `DeterministicStubEmbedder`, a 3-line stderr warning fires at factory time — cache hits with stub vectors are COINCIDENTAL, not semantic.
-
-**Known limitation (v1.5.0):** `memory.skills(repoId).recall(...)` does NOT consult the recall cache — the cache wrap lives on `LocalScopedMemory.recall()` only. Skill-scope cache wiring is tracked for v1.5.x. `ScopeTierTtlConfig.repo` remains REQUIRED in the public DIP because consumer configs that set it forward-port without rewrites; the field's TTL value is dormant until the wiring lands. Mirrors the v1.1 EC-9 skill-scope `asOf` honest deferral precedent. See `semantic-recall-cache-v1-5-fixes-cycle-1-plan.md` § ADR D10.
-
-THE GOAL TEST (`tests/integration/cache/semantic-recall-cache.test.ts`) verifies hit rate ≥ 0.5 on 10 hand-authored near-duplicate query pairs at `threshold=0.8` against real `ankane/pgvector:v0.5.1`. Last run: **6/10 = 0.60**.
-
-### Dependency direction (planned, enforced at CI)
-
+**Search path:**
 ```
-core              → (nothing, type-only)
-local             → core
-cloud             → core
-embeddings        → core
-theokit           → core, embeddings
-agent-tools       → core
+Query → Embed → Semantic ANN → BM25 → Entity boost → Score → Threshold → Format
 ```
 
-The `MemoryStore` interface in `core/` is the DIP boundary. Both `local/` and `cloud/` implement it. Consumers depend on `core/` only — they switch runtimes by changing one config block.
+## Testing
 
-### Local storage — pgvector
+```bash
+npm test                    # ~970 contract/unit tests
+npm run test:integration    # 540+ integration tests (real pgvector)
+npm run typecheck           # Zero errors
+npm run lint                # Zero warnings
+```
 
-Local mode runs on **Postgres + pgvector** because:
+| Metric | Value |
+|---|---|
+| Contract / unit tests | ~970 passing |
+| Test files | 270+ |
+| Integration tests | 540+ (against `ankane/pgvector:v0.5.1`) |
+| Source lines | ~20,000 |
+| DIP interfaces | 13 |
+| Migrations | 18 |
 
-- It is the simplest setup for dev and CI.
-- TheoCloud also exposes Postgres, so local-to-cloud migration is feasible.
-- pgvector is a single extension, not a separate database, network hop, or query language.
-- Hybrid retrieval (vector + BM25 + entity match) fits inside one SQL transaction.
+## How it compares
 
-### Cloud storage — TheoCloud-managed
+The agent-memory space is healthy and moving fast — REDACTED, REDACTED, and REDACTED's REDACTED are all
+strong, Apache-2.0, self-hostable projects. This is a **capability** comparison of the
+**open-source surfaces** (not a performance benchmark, and not the vendors' hosted tiers),
+best-effort from each project's public repo **as of July 2026**. Corrections welcome — open a PR.
 
-Cloud mode runs against a TheoCloud-managed vector store with managed embeddings, managed LLM extraction, and managed retrieval. The user never sees the underlying engine — that is operational state, not API surface. This follows [Cross-Project Rule 9 (Cloud abstraction)](../CLAUDE.md): user-facing copy says "memory store", not "REDACTED" or "pgvector". The managed runtime is also where premium capabilities live:
+| | **Theo Memory** | [REDACTED](https://github.com/REDACTEDai/REDACTED) | [REDACTED](https://github.com/REDACTED-ai/REDACTED) | [REDACTED](https://github.com/REDACTED/REDACTED) (REDACTED OSS) |
+|---|---|---|---|---|
+| License | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 |
+| Primary language | **TypeScript** | TypeScript + Python | Python | Python |
+| Default store | Postgres + pgvector | pgvector / others | Postgres | a graph database (graph DB) |
+| Memory model | `user` · `session` · `agent` · **`skills`** | user · session · agent | memory blocks | temporal graph + episodes |
+| Hybrid retrieval (semantic + BM25 + entity) | ✅ | ✅ | n/d | ✅ (+ graph) |
+| Point-in-time / temporal | ✅ `recall({ asOf })` | ✅ time-aware retrieval | n/d | ✅ bi-temporal |
+| **Code-as-skill memory** | ✅ executable skill library | ❌ | ❌ | ❌ |
+| MCP memory server | ✅ 4 tools + OpenMemory drop-in | via OpenMemory server | n/d | ✅ |
+| REST API (OSS) | ✅ Hono + OpenAPI 3.1 | ✅ self-hosted server | ✅ | ✅ FastAPI |
+| Multi-tenant isolation + RBAC (OSS) | ✅ workspace + `owner`/`admin`/`member` | hosted Platform ¹ | n/d ² | REDACTED Cloud ³ |
+| No graph DB required | ✅ plain Postgres | ✅ | ✅ | ❌ needs a graph database/graph |
 
-- **Graph memory** — entity-relation graph layered on top of fact extraction
-- **Bi-temporal audit** — `t_valid` and `t_invalid` windows on every fact for compliance trails
-- **Multi-region replication** — for latency-sensitive customer surfaces
-- **Managed embedding cost** — no per-call provider billing for embeddings; bundled in TheoCloud usage
+<sub>✅ present in the OSS project · ❌ absent · `n/d` = not determinable from the public repo. **Where Theo Memory is genuinely different:** (a) a **code-as-skill** memory tier (store + recall executable procedures), (b) **multi-tenant isolation + full `owner`/`admin`/`member` RBAC in the free OSS package** — peers commonly gate equivalent tenancy/RBAC to their hosted tiers, and (c) a **plain-Postgres** deployment (no graph database to run). Where peers are strong: REDACTED ships a large provider catalog + temporal reasoning; REDACTED is a first-class **temporal knowledge graph**. Theo Memory itself is **[pre-release](#status)**.</sub>
+
+<br><sub>Sources (validate these): ¹ REDACTED — [repo](https://github.com/REDACTEDai/REDACTED) (OSS self-hosted server has auth; multi-tenancy/RBAC positioned in the hosted Platform). ² REDACTED — [repo](https://github.com/REDACTED-ai/REDACTED) (OSS self-host; RBAC/tenancy not documented in the OSS repo). ³ REDACTED/REDACTED — [repo](https://github.com/REDACTED/REDACTED) (OSS engine + FastAPI server + MCP server; auth/multi-user positioned in REDACTED Cloud). All three are Apache-2.0.</sub>
 
 ## Roadmap
 
-The contract above is the target. The shipping order is:
-
-| Milestone | Scope | Status |
+| Version | Milestone | Status |
 |---|---|---|
-| **0.0 — Contract** | Type contract for `Memory`, `MemoryStore`, three tiers, retrieval scorer, two-stage pipeline. | **Shipped 2026-05-22** (PR #4) |
-| **0.1 — Core + local runtime** | `core/` + `local/` (Postgres + pgvector). Single backend, three tiers, additive scoring, 8-phase write + 9-step search. | **Shipped 2026-05-23** (PR #8) |
-| **0.2 — TheoKit binding** | `theokit/` subpath: `memoryFromCtx(ctx, memory)` auto-scopes from `ctx.session.userId` via structural typing. Default-on in scaffolded TheoKit apps deferred to sibling repo PR-B per ADR D7. | **PR-A shipped 2026-05-23** (PR #11); PR-B pending |
-| **0.3 — Agent tools (MCP)** | `agent-tools/` package: 4 MCP tools (`remember`/`recall`/`forget`/`reflect`) over stdio + streamable-HTTP for `@usetheo/sdk` agents. | **Shipped 2026-05-25** (PRs #17 + #18) |
-| **0.4a — Reflection pipeline** | `reflect()` async via sleep-time worker behind `ReflectionPolicy` DIP. Additive REDACTED (default) OR multiplicative Generative Agents (opt-in strategy). Counter persisted in `reflection_counters` Postgres table. | **Shipped 2026-05-23** (`develop` `494bceb`) |
-| **0.4b — Long-tail forgetting** | OPEN PROBLEM #1 — triadic signal (Ebbinghaus decay + LRU/LFU + LLM-judged importance) with explicit anti-long-tail guardrail. | Planned |
-| **0.5 — TheoCloud runtime** | `cloud/` package + TheoCloud-managed backend. Bi-temporal `t_valid`/`t_invalid` audit history exposed in paid tier. Multi-region replication. Depends on Theo PaaS GA. | Planned |
-| **0.6 —  skill library** | OPEN PROBLEM #2 — `memory.skills(repoId)` 4-phase consolidate orchestrator (Orient → Gather → Consolidate → Report). Identity via `hashFact(description)`. Scope-isolated forget. | **Shipped 2026-05-30** (b6aead6 `/review READY_TO_MERGE` after the v0.6.1 fixes cycle; 9e09bb9 `/test-chat-with-memory READY 30/30` after the demo `chat-with-memory-e2e-fixes` cycle) |
-| **0.7 — Episodic→Semantic distillation** | OPEN PROBLEM #3 — managed pipeline: raw episodes → entity extraction → conflict resolution (LLM-judged) → semantic facts with `derived_from` provenance. | Planned |
-| **0.8 — Independent benchmark reproduction** | Reproduce LongMemEval + LoCoMo + DMR. Publish matrix (P95 latency, recall@10, cost/session, temporal accuracy) at `docs/benchmarks/`. | Planned |
-| **1.0** | Contract stable. `production-ready` claim allowed ONLY after v0.8 reproduced independently AND `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario `running` ≥ 30 days). | Planned |
+| v0.1 | Core + local runtime | **Shipped** |
+| v0.3 | MCP agent tools | **Shipped** |
+| v0.4 | Reflection + forgetting pipelines | **Shipped** |
+| v0.6 | Skill library | **Shipped** |
+| v0.7 | Episodic → semantic distillation | **Shipped** |
+| v1.1 | Multi-peer + bi-temporal | **Shipped** |
+| v1.5 | Semantic recall cache | **Shipped** |
+| v0.5 | OpenMemory MCP-shape compatibility (drop-in over SSE) | **Shipped** |
+| v0.6 | Selectable embedder (`THEOMEM_EMBEDDER` local / OpenAI) | **Shipped** |
+| v1.0 | Contract stable / production-ready | In progress |
+| — | Agentic tool-use + injection/command safety sandbox | Planned |
+| — | Layered config + `themory config` subcommand | Planned |
+| — | Optional cross-encoder reranker (`Reranker` DIP) | Planned |
+| — | Embedder registry + additional providers | Planned |
+| v2.0 | Adaptive retrieval + graph backend | Planned |
 
-Honest claims only — v0.0 + v0.1 + v0.2 PR-A + v0.3 + v0.4a + v0.6 shipped to git (`feat/v0-6-skill-library` branch awaiting merge to `develop` → `main`); package is NOT yet published to npm; no "production-ready" claim until v1.0 per CLAUDE.md § honesty discipline. The roadmap is the commitment, not the receipt.
+## Status
 
-## Where this fits
+> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser). Not yet published to npm. We won't put a `production-ready` label on it until one last box is checked: an independent, reproducible benchmark. You can run it, self-host it, and build on it today — we're just not going to over-promise on the tin.
 
-`@usetheo/memory` is a community auxiliary of the [Theo stack](../README.md), with a managed runtime that lives inside TheoCloud:
-
-| Tier | Project | License | What it does |
-|---|---|---|---|
-| Apex (paid) | [TheoCloud](../theo) | Commercial | Managed deployment runtime. The product. Hosts the `@usetheo/memory` cloud runtime. |
-| Funnel (OSS) | [TheoCode](../theo-code) | Apache-2.0 | Autonomous coding agent. Plan · Code · Infra. |
-| Funnel (OSS) | [TheoCreate](../theo-stacks) | Apache-2.0 | Scaffolding for Node/Go/Python/Rust/Java/Ruby/PHP/Next.js. |
-| Funnel (OSS) | [TheoKit](../theokit) | Apache-2.0 | Next.js framework for full-stack AI agents. |
-| Community auxiliary | [`@usetheo/sdk`](../theokit-sdk) | Apache-2.0 | Build-your-own-agent SDK. |
-| Community auxiliary | [`@usetheo/ui`](../theo-ui) | Apache-2.0 | React components for AI agent surfaces. |
-| **Community auxiliary** | **`@usetheo/memory`** *(this)* | **MIT** | **Three-tier managed memory layer. Native to TheoKit; runs in TheoCloud.** |
-
-The local runtime is open and works without TheoCloud. The **managed runtime is the strategic focus** — that is where the single-platform consolidation happens (deploy + memory + agent SDK + UI all on one TheoCloud account).
-
-## Development
-
-This package is not yet published. Once implementation begins:
+## Contributing
 
 ```bash
-nvm use                       # Node 22+ per .nvmrc
-corepack enable
-
-pnpm install                  # install workspace deps
-pnpm typecheck                # tsc --noEmit across packages
-pnpm test                     # vitest
-pnpm build                    # tsup → dist/
-pnpm check                    # biome lint + format
+git clone https://github.com/usetheodev/theo-memory.git
+cd theo-memory
+npm install
+docker compose up -d pgvector
+npm test
 ```
 
-Contributions are welcome once the 0.0 contract lands. Until then, the value-add is on the design itself — open issues against the planned API contract above.
+We welcome issues, PRs, and feedback. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## License
 
-[MIT](./LICENSE) © [usetheo.dev](https://usetheo.dev)
+[Apache-2.0](./LICENSE) — [usetheo.dev](https://usetheo.dev)
 
-> MIT differs from the monorepo's Apache-2.0 standard (locked 2026-05-14). The choice is deliberate — maximum permissiveness for memory primitives that consumers embed deeply into proprietary systems. The rest of the OSS ecosystem stays Apache-2.0.
+<div align="center">
 
-## Community
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.usetheo.dev/)
+[![X](https://img.shields.io/badge/X-@usetheodev-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/usetheodev)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-usetheodev-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://linkedin.com/company/usetheodev)
 
-- Discord: https://discord.usetheo.dev/
-- X: https://x.com/usetheodev
-- LinkedIn: https://linkedin.com/company/usetheodev
+</div>

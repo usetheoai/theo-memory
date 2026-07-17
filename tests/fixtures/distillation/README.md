@@ -4,7 +4,7 @@
 
 - `tests/unit/distillation/gold-set-shape.test.ts` — shape / scale / Zod validation
 - `tests/integration/distillation/the-goal-test.test.ts` (T3.3) — precision / recall / conflict-resolution accuracy thresholds
-- `docs/distillation-evaluation/run.ts` (T3.2 — `npm run eval:distillation`) — full eval matrix
+- `tests/eval/distillation/run.ts` (T3.2 — `npm run eval:distillation`) — full eval matrix
 
 ## Hybrid composition (ADR D4 path; user decision 2026-06-01)
 
@@ -15,7 +15,7 @@
 
 The hand-authored subset (50 episodes / 10 per category) carries real semantic diversity: a person's coffee preference change, a relocation, a vendor switch, a multi-fact onboarding intro, a contradiction-pair where the previously-stored job title is now stale. THE GOAL TEST (T3.3) computes precision / recall **only over the hand-authored subset** — that is the honest quality signal.
 
-The procedural subset (150 episodes) is generated deterministically by `scripts/generate-distillation-fixtures.mjs` using a seeded LCG. Same input parameters → byte-identical outputs (`make` semantics). The procedural fixtures stress the pipeline at scale (200-row Zod load + loader perf) but their `expectedFacts` are templated from the same rules the LLM extraction pipeline would need to discover — measuring precision / recall over them would be self-referential.
+The procedural subset (150 episodes) is generated deterministically by a one-off generator (removed; fixtures are committed) using a seeded LCG. Same input parameters → byte-identical outputs (`make` semantics). The procedural fixtures stress the pipeline at scale (200-row Zod load + loader perf) but their `expectedFacts` are templated from the same rules the LLM extraction pipeline would need to discover — measuring precision / recall over them would be self-referential.
 
 ## Schema (Zod-validated by `loader.ts`)
 
@@ -46,7 +46,7 @@ Hand-authored episodes draw from natural-life conversations (coffee, job, reloca
 ## Regenerating procedural fixtures
 
 ```bash
-node scripts/generate-distillation-fixtures.mjs
+node a one-off generator (removed; fixtures are committed)
 ```
 
 The script is idempotent: existing JSON files are NOT overwritten. To force a regeneration, delete the target files first.
@@ -55,11 +55,11 @@ The script is idempotent: existing JSON files are NOT overwritten. To force a re
 
 - **Procedural fixtures are NOT semantic ground truth.** They exercise the loader + schema + pipeline scale, but their `expectedFacts` cannot validate extraction quality. THE GOAL TEST (T3.3) skips them.
 - **Hand-authored subset is 50 episodes (10/category)** vs ADR D4's ideal of 50 hand + 150 LLM-simulated-and-human-verified. The full 200-episode authoring is deferred to a v0.7.1 cycle (estimated ~25-40h human labor + LLM API costs). Drop-in compatible with the loader contract.
-- **Expected-fact extraction is text-string match.** Semantic equivalence (e.g., "lives in São Paulo" vs "based in SP, Brazil") is intentionally NOT collapsed by the loader — that judgment belongs to the extraction pipeline + scoring metric in `docs/distillation-evaluation/metrics.ts` (T3.2).
+- **Expected-fact extraction is text-string match.** Semantic equivalence (e.g., "lives in São Paulo" vs "based in SP, Brazil") is intentionally NOT collapsed by the loader — that judgment belongs to the extraction pipeline + scoring metric in `tests/eval/distillation/metrics.ts` (T3.2).
 
 ## Related
 
 - Plan: `.claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.1 + ADR D4`
 - Loader: `loader.ts`
-- Generator: `scripts/generate-distillation-fixtures.mjs`
+- Generator: a one-off generator (removed; fixtures are committed)
 - Methodology snapshot: `.claude/knowledge-base/discoveries/snapshots/v0-7-episodic-semantic-distillation/23330a2e...`

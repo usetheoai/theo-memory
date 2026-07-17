@@ -48,7 +48,7 @@
  * to upgrade to gpt-4o on the consolidation hot path.
  *
  * Numbers reported via console.log so the next maintainer can paste them
- * into `docs/distillation-evaluation.md` § v0.7.1 LLM-measured row.
+ * into `tests/eval/distillation.md` § v0.7.1 LLM-measured row.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -58,16 +58,16 @@ import {
   PgvectorStore,
   StubEmbedder,
   LlmJudgedMergeConflictPolicy,
-} from '../../../src/local/index.js';
-import { OpenAILLM } from '../../../src/llms/openai.js';
-import type { LLM, LLMResponse, Message } from '../../../src/core/dip/llm.js';
+} from '@usetheo/memory';
+import { OpenAILLM } from '@usetheo/memory/llms/openai';
+import type { LLM, LLMResponse, Message } from '@usetheo/memory';
 import { loadGoldSet } from '../../fixtures/distillation/loader.js';
 import {
   conflictResolutionAccuracy,
   precision,
   recall,
   type ConflictResolutionDecision,
-} from '../../../docs/distillation-evaluation/metrics.js';
+} from '../../eval/distillation/metrics.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const OPENROUTER_KEY =

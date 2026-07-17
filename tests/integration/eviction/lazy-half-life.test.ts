@@ -21,19 +21,17 @@
  * the established pattern in `tests/integration/reflection/threshold-policy.test.ts`.
  * Placed here; documented in commit body as plan deviation.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T2.2 (ADR D14)
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md § D14
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import { PgHalfLifePersister } from '../../../src/local/eviction/pg-half-life-persister.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import { PgHalfLifePersister } from '@usetheo/memory';
 import {
   TriadicScoringPolicy,
   DEFAULT_TRIADIC_CONSTANTS,
   computeHalfLifeSeconds,
-} from '../../../src/local/eviction/triadic-scoring-policy.js';
+} from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
@@ -188,7 +186,7 @@ if (PG_URI === undefined || PG_URI === '') {
 async function loadMemoryItem(
   pool: pg.Pool,
   id: string,
-): Promise<import('../../../src/core/memory-item.js').MemoryItem> {
+): Promise<import('@usetheo/memory').MemoryItem> {
   const result = await pool.query<{
     id: string;
     text: string;

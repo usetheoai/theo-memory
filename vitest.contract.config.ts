@@ -15,16 +15,39 @@ export default defineConfig({
       // the alias must be re-declared here so `import { ... } from "@/lib/memory"`
       // resolves to the actual file.
       '@/lib/memory': new URL('./examples/chat-with-memory/lib/memory.ts', import.meta.url).pathname,
+      // T2.1 (architecture-review-fixes): MCP package imports shared symbols
+      // from src/agent-tools/ via this subpath. tsconfig paths handle tsc;
+      // this alias handles vitest runtime resolution.
+      '@usetheo/memory-agent-core': new URL('./packages/agent-core/src/index.ts', import.meta.url).pathname,
+      // Consumer-DX fix: packages/core#exports now point at the built dist JS so
+      // Node-SSR consumers (TheoKit/Next/Vite-SSR) can load the published
+      // package (a src-only package is unresolvable when the bundler
+      // externalizes it — Node cannot run raw .ts). For the test suites we want
+      // the LIVE src, not a stale dist, so map every @usetheo/memory subpath
+      // back to its src entry. Subpaths are listed BEFORE the base specifier so
+      // the exact subpath match wins over the base prefix match (rollup-alias
+      // matches the first entry whose find equals or prefixes the importee).
+      '@usetheo/memory/contract': new URL('./packages/core/src/domain/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/theokit': new URL('./packages/core/src/infrastructure/theokit/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/stub': new URL('./packages/core/src/infrastructure/embedders/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/openai': new URL('./packages/core/src/infrastructure/embedders/openai.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/local': new URL('./packages/core/src/infrastructure/embedders/local.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders': new URL('./packages/core/src/infrastructure/embedders/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms/stub': new URL('./packages/core/src/infrastructure/llms/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms/openai': new URL('./packages/core/src/infrastructure/llms/openai.ts', import.meta.url).pathname,
+      '@usetheo/memory/llms': new URL('./packages/core/src/infrastructure/llms/index.ts', import.meta.url).pathname,
+      '@usetheo/memory/cache-pg': new URL('./packages/core/src/infrastructure/db/recall-cache/index.ts', import.meta.url).pathname,
+      '@usetheo/memory': new URL('./packages/core/src/index.ts', import.meta.url).pathname,
     },
   },
   test: {
     include: [
-      'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/__tests__/**/*.test.ts',
-      'src/__tests__/**/*.test.ts',
+      'packages/core/src/**/__tests__/**/*.test.ts',
+      'packages/core/src/**/*.test.ts',
+      'packages/mcp/src/**/*.test.ts',
+      'packages/cli/src/**/__tests__/**/*.test.ts',
+      'packages/agent-core/src/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
-      // v0-8-fixes-cycle-1 T1.3 + T1.2: benchmarks/scripts/__tests__/ at repo
-      // root — runner-scaffold tests + future downloader RED tests live here.
-      'benchmarks/scripts/__tests__/**/*.test.ts',
     ],
     passWithNoTests: true,
     // T0.1 absorption: npm install of 6 NEW deps (hono + adapters + commander +
@@ -39,7 +62,7 @@ export default defineConfig({
       enabled: true,
       // T1.7 (EC-25): `server` added so subpath-export.test-d.ts asserts
       // `@usetheo/memory/server` resolves to createServer at typecheck time.
-      include: ['src/{core,theokit,server}/**/__tests__/**/*.test-d.ts'],
+      include: ['packages/core/src/**/__tests__/**/*.test-d.ts', 'packages/api/src/**/*.test-d.ts'],
       tsconfig: './tsconfig.contract.json',
     },
     coverage: {

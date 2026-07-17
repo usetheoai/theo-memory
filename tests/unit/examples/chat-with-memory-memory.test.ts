@@ -15,8 +15,6 @@
  * by the T4.1 integration test against the demo HTTP surface (running
  * dev server).
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T2.1 + ADR D6
- * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-11 + EC-13
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 

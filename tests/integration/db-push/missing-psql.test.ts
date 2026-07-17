@@ -8,7 +8,6 @@ import { pathToFileURL } from 'node:url';
  * at `README.md § Quickstart › Prerequisites`. Verified by overriding
  * `PATH` to an empty directory so the `psql` resolution fails.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T2.1 Acceptance (EC-9 absorption line 360)
  */
 
 const helperPath = resolve(__dirname, '..', '..', '..', 'scripts', 'apply-trigger-migrations.mjs');

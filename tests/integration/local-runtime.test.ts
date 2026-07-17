@@ -16,7 +16,6 @@
  * parses prompt + echoes structured response; mock embedder with fixed 1536-dim
  * vector; real Postgres + pgvector via docker-compose.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T8.1
  * @see CLAUDE.md § Roadmap Item 2 acceptance criteria
  */
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -28,10 +27,10 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base';
 
-import { MAX_EMBEDDING_DIM } from '../../src/core/constants.js';
-import type { Embedder } from '../../src/core/dip/embedder.js';
-import type { LLM } from '../../src/core/dip/llm.js';
-import { createLocalMemory, DrizzleHistoryManager, PgvectorStore } from '../../src/index.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { createLocalMemory, DrizzleHistoryManager, PgvectorStore } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

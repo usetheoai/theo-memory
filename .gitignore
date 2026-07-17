@@ -79,3 +79,12 @@ htmlcov/
 benchmarks/data/
 benchmarks/results/
 
+cross-validation-output/
+
+# Dogfood degradation logs (transient hook output; audit lives in manifest + evidence/)
+.claude/knowledge-base/dogfood/degradations/
+.dev-mcp-client/
+halt-loop-prompts/
+
+# JS coverage output
+coverage/

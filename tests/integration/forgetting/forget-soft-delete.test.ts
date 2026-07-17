@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '../../../src/local/index.js';
-import { MemoryNotFound } from '../../../src/core/errors.js';
+import { createLocalMemory, PgvectorStore, StubEmbedder, StubLLM } from '@usetheo/memory';
+import { MemoryNotFound } from '@usetheo/memory';
 
 /**
  * T7.1: `Memory.forget(id)` soft-deletes via t_invalid through the PgEvictor
@@ -21,8 +21,6 @@ import { MemoryNotFound } from '../../../src/core/errors.js';
  * same path via `LocalScopedSkillMemory.forgetDelegate` (line 564); skill
  * consumers also see the BREAKING change.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T7.1 + ADR D7
- * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-3
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

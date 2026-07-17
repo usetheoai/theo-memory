@@ -10,7 +10,6 @@
  * Requires `npm run build` has been run so dist/agent-tools/cli.js exists
  * (the bridge spawns it via THEMORY_BRIDGE_CLI env override).
  *
- * @see .claude/knowledge-base/plans/dogfood-anchor-scenario-launch-plan.md § T2.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -22,8 +21,14 @@ import { MCPUnreachable, bridgeRecall, bridgeRemember } from '../../../scripts/d
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const TEST_DB = 'themem_t2_1_bridge_roundtrip';
 const CLI_PATH = resolve(process.cwd(), 'dist', 'agent-tools', 'cli.js');
+// Real-LLM E2E: the spawned `themory mcp` boots OpenAILLM and performs a live
+// extraction call, so a working LLM key is required. Gate on OPENROUTER_KEY
+// (the project's real-LLM marker) so a keyless CI run skips cleanly instead of
+// 401-failing against an absent/expired key.
+const HAS_LLM_KEY =
+  (process.env['OPENROUTER_KEY'] ?? process.env['OPENROUTER_API_KEY'] ?? '') !== '';
 
-describe.skipIf(ROOT_PG_URI === '' || !existsSync(CLI_PATH))(
+describe.skipIf(ROOT_PG_URI === '' || !existsSync(CLI_PATH) || !HAS_LLM_KEY)(
   'T2.1 — claude-code-bridge round-trip (integration; real themory mcp + pgvector)',
   () => {
     const adminUri = ROOT_PG_URI.replace(/\/[^/]*$/, '/postgres');
@@ -36,7 +41,7 @@ describe.skipIf(ROOT_PG_URI === '' || !existsSync(CLI_PATH))(
       await adminPool.query(`CREATE DATABASE ${TEST_DB}`);
       await adminPool.end();
       pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
       await m.runMigrations(pool);
       // Point the bridge subprocess at this test DB.
       process.env['THEOMEM_PG_URI'] = testUri;

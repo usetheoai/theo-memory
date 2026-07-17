@@ -28,10 +28,10 @@ import {
   type MeterProvider,
 } from '@opentelemetry/api';
 
-import { LocalTransformerEmbedder } from '../../../src/embedders/local.js';
-import { DeterministicStubLLM } from '../../../src/llms/stub.js';
-import { createLocalMemory, PgvectorStore, runMigrations } from '../../../src/index.js';
-import { __resetRecallCacheMetricsForTesting } from '../../../src/local/recall-cache/recall-cache-metrics.js';
+import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
+import { DeterministicStubLLM } from '@usetheo/memory/llms/stub';
+import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
+import { __resetRecallCacheMetricsForTesting } from '../../../packages/core/src/infrastructure/db/recall-cache/recall-cache-metrics.js';
 import { NEAR_DUPLICATE_QUERY_PAIRS } from '../../fixtures/cache/near-duplicate-query-pairs.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
@@ -119,13 +119,13 @@ describe.skipIf(ROOT_PG_URI === '')(
       // First recall populates the cache for user:alice.
       await memory.user('alice').recall('what is my favorite color?');
       const before = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(before.rows[0]?.count).toBe('1');
       // remember() must invalidate the scope per Item 19 AC#3.
       await memory.user('alice').remember('My favorite color is teal.');
       const after = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'user:alice'`,
+        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
       );
       expect(after.rows[0]?.count).toBe('0');
     }, 120_000);

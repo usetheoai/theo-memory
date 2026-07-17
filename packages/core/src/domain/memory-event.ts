@@ -1,0 +1,197 @@
+/**
+ * Observable events emitted by the v0.1 extraction + retrieval pipelines.
+ * T4.2 of v0-1-local-runtime plan v1.3.
+ *
+ * Each phase boundary emits ONE event via the optional OpenTelemetry tracer
+ * (per ADR D1.3). When the tracer is absent (config.tracer undefined), `emitEvent`
+ * is a zero-cost no-op.
+ *
+ * EC-10 absorbed: `extraction_failed` fires when the LLM response fails Zod parse —
+ * pipeline returns [] without throwing.
+ *
+ */
+import type { Tracer } from '@opentelemetry/api';
+
+export const MEMORY_EVENTS = [
+  'extraction_started',
+  'extraction_completed',
+  'extraction_failed',
+  'embedding_batch_started',
+  'embedding_batch_completed',
+  'embedding_batch_fallback',
+  'dedup_skipped',
+  'persist_started',
+  'persist_completed',
+  'persist_fallback',
+  'history_persisted',
+  'entity_linked',
+  'messages_saved',
+  // principles-alignment-hardening T1.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when PgvectorStore.insert's ON CONFLICT branch UPDATEs an
+  // existing row's confirmation_count instead of inserting a new one.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'dedup_collision_confirmed',
+  // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when runExtractionPipeline's LLM phase returns drafts=[]
+  // (extracted.length === 0). Without this event, remember() returns []
+  // indistinguishably from "no input" — the IGNORE decision was silent.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_zero_facts',
+  // principles-alignment-hardening T4.1 — Princípio 3 IGNORE auditability per
+  // ADR D2: fires when retrieval pipeline's threshold-filter step drops N
+  // sub-threshold candidates. Attributes include filtered_count so consumers
+  // can dashboard the IGNORE volume. NOT emitted when filtered_count = 0
+  // (no-op observability discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_threshold_filtered',
+  // dashboard-memories-tab-standardization T2.2 — Princípio 3 auditability per
+  // ADR D2: fires when LocalScopedMemory.getAll consumed N rows whose
+  // VectorStoreResult.createdAt was undefined (stale-impl adapter that did
+  // NOT project the column). Attributes carry `count: N` per EC-7 per-request
+  // aggregation discipline — emit ONCE per getAll call with aggregated count,
+  // NOT per-row (a 10k-row legacy scope would explode logs otherwise).
+  // NOT emitted when count = 0 (no-op observability mirror of
+  // recall_threshold_filtered).
+  'getall_temporal_fallback',
+  // code-review-fixes-v0-2-1 T2.1 — LLM parse/validation error (SyntaxError or ZodError)
+  // distinct from network error (which propagates). Princípio 3 observability.
+  'extraction_parse_failure',
+  // code-review-fixes-v0-2-1 T2.2 — embedder returned zero-dim vector in per-row fallback.
+  'embed_zero_dim_skipped',
+  // code-review-fixes-v0-2-1 T2.3 — history persist failed (non-fatal; surfaces silently swallowed error).
+  'history_persist_failed',
+  // entity-extraction-nodes-slice1 T3.1 — Phase 7 entity linking failed (non-fatal;
+  // fail-soft per ADR D3 — a remember() MUST NEVER fail because entity linking
+  // failed. Mirrors history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'entity_linking_failed',
+  // entity-relation-extraction-slice2 T2.0 — Phase 7 edge linking succeeded; attr
+  // `edge_count` = relation edges persisted for the memory. Princípio 3 observability.
+  'entity_edge_linked',
+  // entity-relation-extraction-slice2 T2.0 — Phase 7 edge linking failed (non-fatal;
+  // fail-soft via an INDEPENDENT try/catch from node linking, so a node-link success
+  // still emits entity_linked even when edge linking throws — a remember() MUST NEVER
+  // fail because edge linking failed). @see CLAUDE.md § IMPORTANTE Princípio 3
+  'entity_edge_linking_failed',
+  // entity-extraction-noise-filter EG-2 — Phase 7 node linking dropped N candidate
+  // entities as noise (pronoun/contraction/generic-role/verb-fragment) before
+  // persist. Attribute `filtered_count` = how many were dropped. NOT emitted when
+  // filtered_count = 0 (mirrors recall_threshold_filtered). Makes the IGNORE
+  // decision observable. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'entity_noise_filtered',
+  // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
+  // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
+  // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors
+  // history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'retrieval_counted_failed',
+  // agentic-skill-execution-sandbox T1.2 — a sandbox guard denied a skill
+  // execution. Attribute `reason` carries the ToolInvocationDeniedReason literal.
+  // Every denial is observable (Princípio 3 — no silent IGNORE on an RCE surface).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'tool_invocation_denied',
+  // agentic-skill-execution-sandbox T1.2 — a skill executed successfully inside the
+  // sandbox. Attribute `skill_id`. Pairs with tool_invocation_denied for the
+  // execute-path success/deny audit ratio.
+  'skill_executed',
+  // cross-encoder-reranker T2.2 / ADR D4 — the post-threshold cross-encoder
+  // rerank failed (non-fatal; fail-soft per Princípio 3 — recall() degrades to
+  // the original cosine order and NEVER throws on a reranker outage). Attribute
+  // `error` carries the error name. Mirrors history_persist_failed.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_rerank_failed',
+  // domain-ontologies T2.2 / ADR D2 (Item 15) — an LLM-extracted entity type fell
+  // outside the configured domain ontology vocabulary and was coerced to OTHER.
+  // Attributes `{ontology, from, to, entity}`. Every coercion is observable so a
+  // too-narrow ontology vocabulary surfaces (Princípio 3 — no silent typing loss).
+  'ontology_type_coerced',
+  // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the pre-embed retrieval-decision gate
+  // (`AdaptiveRetrievalPolicy.shouldRetrieve`) returned `{retrieve:false}`, so
+  // recall() returned [] WITHOUT embedding the query. Attribute `{scope_tier,
+  // reason}`. Princípio 3 — a skip is never silent.
+  'retrieval_skipped',
+  // adaptive-retrieval T2.1 / ADR D4 (Item 13) — the grade-and-correct hook
+  // (`AdaptiveRetrievalPolicy.assess`) recommended a relax and the pipeline
+  // re-filtered the already-fetched pool at a lower threshold. Attribute
+  // `{from_threshold, to_threshold, surfaced}`. Princípio 3 — every corrective is observable.
+  'retrieval_corrected',
+  // adaptive-retrieval T2.1 / ADR D4 (Item 13) — `assess` judged the pool
+  // unusable (reject) OR a relax surfaced nothing. recall() returns the original
+  // (possibly empty) results; NEVER throws. Attribute `{scope_tier, reason}`.
+  'retrieval_low_confidence',
+  // adaptive-retrieval (Item 13, fail-soft ADR D4) — a wired AdaptiveRetrievalPolicy
+  // hook (`shouldRetrieve` or `assess`) THREW; recall degraded to the normal
+  // (non-adaptive) path and NEVER crashed. Attribute `{scope_tier, hook, error}`.
+  // DISTINCT from `retrieval_low_confidence` so a policy CRASH is not conflated
+  // with a genuine low-confidence outcome (Princípio 3, mirrors recall_rerank_failed).
+  'retrieval_policy_failed',
+  // graph-aware-recall (ADR D4) — the pipeline Step 8.7 graph-expansion stage
+  // pool-expanded the results with memories connected by a shared entity / relation
+  // edge over the existing entity-graph tables. Attribute `{seeds, expanded, hops}`.
+  // NOT emitted when nothing was surfaced (no-op discipline). Princípio 3.
+  'recall_graph_expanded',
+  // graph-aware-recall (ADR D4, fail-soft) — the graph traversal/expansion threw;
+  // recall degraded to the non-graph pool and NEVER crashed. Attribute
+  // `{error}`. Mirrors recall_rerank_failed / retrieval_policy_failed.
+  'recall_graph_failed',
+  // extraction-language-determinism-fixes-cycle-1 T3.1 / ADR D3 — the post-extraction
+  // language guard detected (over the JOINED fact text) that the persisted facts are in
+  // a different language than the deterministically-detected input language (EG-4
+  // residual) and attempted a focused corrective rewrite. Attributes
+  // `{input_language, facts_language, fact_count, corrected}` where `fact_count` = facts
+  // in the batch and `corrected` = how many were rewritten into the input language
+  // (corrected < fact_count means a residual leaked past correction — still observable).
+  // The guard NEVER drops a fact nor fails remember() (fail-soft). NOT emitted when the
+  // facts already match the input language (no-op discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_language_mismatch',
+  // entity-label-language-determinism EG-5 — the post-extraction label guard rewrote N
+  // entity/relation LABELS into the input language (the live-test showed `entities[]`
+  // names + `relations[]` labels drift to a different language than the input even when
+  // the fact text is correct). Attributes `{input_language, label_count, corrected}`
+  // where `label_count` = distinct non-speaker labels considered and `corrected` = how
+  // many were rewritten. The guard NEVER drops an entity/relation nor fails remember()
+  // (fail-soft). NOT emitted when nothing was corrected (no-op discipline).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_label_language_mismatch',
+
+  // auto-categorization-write-pipeline T1.1: fires when the write pipeline assigns a
+  // model-derived category to a fact (only when the caller supplied none and the value
+  // passed the 1-64 trim/bound check). Attributes `{source, fact_count}` where `source`
+  // = 'taxonomy' (a fixed-list label) or 'suggested' (a free-form fallback label). NOT
+  // emitted on operator-supplied category nor on a dropped/oversized/empty value (fail-soft).
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'category_auto_assigned',
+
+  // auto-categorization-write-pipeline F-M1: fires when the LLM PROPOSED a category
+  // label but it failed the 1-64 trim/bound check (EC-1 oversized / EC-5 whitespace) and
+  // was dropped fail-soft. Attribute `{reason}`. Makes a real drop observable (Princípio 3
+  // — never a silent IGNORE); NOT emitted when the LLM proposed no category at all.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'category_auto_dropped',
+] as const;
+
+export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
+
+/** Attribute value type accepted by OTel spans. */
+export type AttributeValue = string | number | boolean;
+
+/**
+ * Emit one span for the given event. No-op when tracer is undefined.
+ * Each attribute is set on the active span via `setAttribute`; span ends inline.
+ */
+export function emitEvent(
+  tracer: Tracer | undefined,
+  event: MemoryEvent,
+  attributes?: Readonly<Record<string, AttributeValue>>,
+): void {
+  if (tracer === undefined) {
+    return;
+  }
+  tracer.startActiveSpan(event, (span) => {
+    if (attributes !== undefined) {
+      for (const [key, value] of Object.entries(attributes)) {
+        span.setAttribute(key, value);
+      }
+    }
+    span.end();
+  });
+}

@@ -10,7 +10,6 @@ import pg from 'pg';
  * each migration entry's hash is compared against the journal; matching
  * hashes are skipped.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
@@ -37,7 +36,7 @@ describe.skipIf(ROOT_PG_URI === '')(
 
     it('runMigrations() called twice in succession is a no-op on the second call', async () => {
       const pool = new pg.Pool({ connectionString: testUri });
-      const m = await import('../../../src/local/index.js');
+      const m = await import('@usetheo/memory');
 
       // First call: fresh DB → applies migrations 0000-0006.
       await m.runMigrations(pool);

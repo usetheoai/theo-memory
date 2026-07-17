@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { CapacityBasedTrigger } from '../../../src/local/eviction/capacity-based-trigger.js';
-import { PgEvictor } from '../../../src/local/eviction/pg-evictor.js';
+import { CapacityBasedTrigger } from '@usetheo/memory';
+import { PgEvictor } from '@usetheo/memory';
 import type {
   EvictionPolicy,
   EvictionResult,
   ScoreContext,
-} from '../../../src/core/dip/eviction-policy.js';
-import type { MemoryItem } from '../../../src/core/memory-item.js';
-import type { Scope } from '../../../src/core/scope.js';
+} from '@usetheo/memory';
+import type { MemoryItem } from '@usetheo/memory';
+import type { Scope } from '@usetheo/memory';
 
 /**
  * T12.1 (F-xval-2): triggers invoke the EvictionPolicy `onEvictionStart` +
@@ -17,8 +17,6 @@ import type { Scope } from '../../../src/core/scope.js';
  * surface. T12.1 wires both triggers to call the hooks at the eviction
  * boundary; the test exercises the canonical observability flow.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T12.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-xval-2
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

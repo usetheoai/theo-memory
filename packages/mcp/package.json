@@ -1,0 +1,32 @@
+{
+  "name": "@usetheo/memory-mcp",
+  "version": "0.2.0",
+  "private": true,
+  "description": "MCP server for @usetheo/memory (4 tools: remember/recall/forget/reflect)",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@usetheo/memory": "workspace:*",
+    "@usetheo/memory-api": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.0",
+    "jose": "^6.0.0",
+    "oauth4webapi": "^3.8.6",
+    "pg": "^8.13.0",
+    "@usetheo/memory-agent-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.0"
+  }
+}

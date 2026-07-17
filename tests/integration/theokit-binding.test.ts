@@ -15,12 +15,12 @@
 import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { MAX_EMBEDDING_DIM } from '../../src/core/constants.js';
-import type { Embedder } from '../../src/core/dip/embedder.js';
-import type { LLM } from '../../src/core/dip/llm.js';
-import { createLocalMemory, MissingScopeError, PgvectorStore } from '../../src/index.js';
-import { memoryFromCtx } from '../../src/theokit/index.js';
-import type { ScopedContext } from '../../src/theokit/types.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import type { LLM } from '@usetheo/memory';
+import { createLocalMemory, MissingScopeError, PgvectorStore } from '@usetheo/memory';
+import { memoryFromCtx } from '@usetheo/memory/theokit';
+import type { ScopedContext } from '../../packages/core/src/infrastructure/theokit/types.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

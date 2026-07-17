@@ -20,7 +20,6 @@
  * - EC-6: tests 16+17+18 assert bounds rejection for top-k/threshold/diversify
  * - EC-7: test 19 asserts no embedding array in recall JSON (size + key check)
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T0.1
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';

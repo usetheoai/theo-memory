@@ -1,0 +1,47 @@
+/**
+ * POST /v1/recall handler.
+ *
+ * Empty results return 200 with `{ results: [] }`, NOT 404 (EC-11 absorption).
+ */
+import type { Memory } from '@usetheo/memory/contract';
+import type { Context } from 'hono';
+
+import { RecallBody, resolveScope } from '../schemas.js';
+
+import {
+  EMPTY_BODY,
+  MALFORMED_BODY,
+  safeJson,
+  scopeOrValidationError,
+  workspaceBoundMemory,
+} from './_body-parsing.js';
+
+export async function recallHandler(c: Context, memory: Memory): Promise<Response> {
+  const json = await safeJson(c);
+  if (json === MALFORMED_BODY) {
+    return c.json({ code: 'BAD_REQUEST', message: 'Malformed JSON body' }, 400);
+  }
+  if (json === EMPTY_BODY) {
+    return c.json(
+      { code: 'INVALID_BODY', message: 'Request body required' },
+      422,
+    );
+  }
+  const parsed = RecallBody.safeParse(json);
+  if (!parsed.success) {
+    return scopeOrValidationError(parsed.error, c);
+  }
+  const { query, topK, threshold, attributedTo, asOf, graphExpand } = parsed.data;
+  // multi-tenant-workspace-isolation T3.1: scope recall by the Principal's workspace (ADR D3).
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
+  const results = await scoped.recall(query, {
+    topK,
+    threshold,
+    attributedTo,
+    asOf: asOf !== undefined ? new Date(asOf) : undefined,
+    // rest-graph-aware-recall — pass the graph-expansion opt-in through to the
+    // SDK recall (default OFF when absent; mirrors topK/threshold mapping).
+    graphExpand,
+  });
+  return c.json({ results }, 200);
+}

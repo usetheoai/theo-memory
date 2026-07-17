@@ -13,13 +13,12 @@
  *   psql $THEOMEM_PG_URI -c "CREATE EXTENSION IF NOT EXISTS vector"
  *   npm run db:push -- --force
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
  */
 import { afterAll, describe, test } from 'vitest';
 import pg from 'pg';
 
-import { PgvectorStore } from '../../src/local/pgvector-store.js';
-import { runVectorStoreConformance } from '../../src/local/__tests__/vector-store-conformance.js';
+import { PgvectorStore } from '@usetheo/memory';
+import { runVectorStoreConformance } from '../../packages/core/src/infrastructure/db/vector-store-conformance.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

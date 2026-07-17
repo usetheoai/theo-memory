@@ -1,124 +1,71 @@
 {
-  "name": "@usetheo/memory",
-  "version": "0.0.0-rc.3",
-  "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
+  "name": "theo-memory-workspace",
+  "version": "0.2.0",
+  "description": "Workspace root for @usetheo/memory monorepo",
   "type": "module",
-  "license": "MIT",
-  "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    },
-    "./contract": {
-      "types": "./src/core/index.ts",
-      "default": "./src/core/index.ts"
-    },
-    "./theokit": {
-      "types": "./src/theokit/index.ts",
-      "default": "./src/theokit/index.ts"
-    },
-    "./agent-tools": {
-      "types": "./src/agent-tools/index.ts",
-      "default": "./src/agent-tools/index.ts"
-    },
-    "./embedders": {
-      "types": "./src/embedders/index.ts",
-      "default": "./src/embedders/index.ts"
-    },
-    "./embedders/stub": {
-      "types": "./src/embedders/stub.ts",
-      "default": "./src/embedders/stub.ts"
-    },
-    "./embedders/openai": {
-      "types": "./src/embedders/openai.ts",
-      "default": "./src/embedders/openai.ts"
-    },
-    "./embedders/local": {
-      "types": "./src/embedders/local.ts",
-      "default": "./src/embedders/local.ts"
-    },
-    "./llms": {
-      "types": "./src/llms/index.ts",
-      "default": "./src/llms/index.ts"
-    },
-    "./llms/stub": {
-      "types": "./src/llms/stub.ts",
-      "default": "./src/llms/stub.ts"
-    },
-    "./llms/openai": {
-      "types": "./src/llms/openai.ts",
-      "default": "./src/llms/openai.ts"
-    },
-    "./server": {
-      "types": "./src/server/index.ts",
-      "default": "./src/server/index.ts"
-    },
-    "./cache-pg": {
-      "types": "./src/local/recall-cache/index.ts",
-      "default": "./src/local/recall-cache/index.ts"
-    }
-  },
+  "license": "Apache-2.0",
   "bin": {
     "themory": "./dist/agent-tools/cli.js",
     "themory-mcp": "./dist/agent-tools/cli.js"
   },
+  "packageManager": "pnpm@10.34.1",
   "engines": {
     "node": ">=20.0.0"
   },
-  "files": [
-    "src/**/*.ts",
-    "!src/**/__tests__/**",
-    "!src/**/*.test.ts",
-    "!src/**/*.test-d.ts",
-    "src/local/migrations/**",
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "dist/**/*.sql",
-    "dist/local/migrations/meta/**"
-  ],
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
     "prebuild:clean": "node -e \"const{rmSync}=require('node:fs');rmSync('dist',{recursive:true,force:true});\"",
-    "build": "npm run prebuild:clean && tsc -p tsconfig.build.json && npm run postbuild:copy-migrations",
+    "build": "npm run prebuild:clean && npm run build:core && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases",
+    "build:core": "node -e \"require('node:fs').rmSync('packages/core/dist',{recursive:true,force:true})\" && tsc -p packages/core/tsconfig.build.json && node -e \"const{cpSync,existsSync}=require('node:fs');const s='packages/core/src/infrastructure/db/migrations',d='packages/core/dist/infrastructure/db/migrations';if(existsSync(s)){cpSync(s,d,{recursive:true});console.error('[core] migrations copied to '+d);}\"",
+    "postbuild:rewrite-aliases": "node scripts/rewrite-dist-aliases.mjs",
+    "postbuild:move-cli": "node -e \"const{renameSync,rmSync,existsSync}=require('node:fs');const s='dist/cli/src',d='dist/agent-tools';if(existsSync(s)){if(existsSync(d))rmSync(d,{recursive:true});renameSync(s,d);try{require('node:fs').rmdirSync('dist/cli')}catch{};console.error('CLI moved to dist/agent-tools/')}\"",
     "prepack": "npm run build",
-    "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');if(existsSync('src/local/migrations')){mkdirSync('dist/local/migrations',{recursive:true});cpSync('src/local/migrations','dist/local/migrations',{recursive:true});console.log('migrations copied to dist/local/migrations');}\"",
+    "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const dest='dist/core/src/infrastructure/db/migrations';if(existsSync('packages/core/src/infrastructure/db/migrations')){mkdirSync(dest,{recursive:true});cpSync('packages/core/src/infrastructure/db/migrations',dest,{recursive:true});console.error('migrations copied to '+dest);}\"",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
-    "lint": "eslint 'src/{core,local,theokit,agent-tools,embedders,llms,benchmarks,server}/**/*.ts' 'src/__tests__/**/*.ts' 'benchmarks/scripts/**/*.ts' --no-error-on-unmatched-pattern",
+    "lint": "eslint 'packages/core/src/**/*.ts' 'packages/api/src/**/*.ts' 'packages/cli/src/**/*.ts' 'packages/agent-core/src/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "pretest:e2e": "npm run build",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:benchmark": "vitest run --config vitest.benchmark.config.ts",
     "db:push": "node -e \"const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end())\" && drizzle-kit push && node scripts/apply-trigger-migrations.mjs",
     "db:generate": "drizzle-kit generate",
     "db:repair-v0-4b-partial-state": "node scripts/db-repair-v0-4b-partial-state.mjs",
     "db:repair-v0-7-partial-state": "node scripts/db-repair-v0-7-partial-state.mjs",
-    "download-fixtures": "node benchmarks/scripts/download-fixtures.mjs",
     "compose:up": "docker compose up -d pgvector",
     "compose:down": "docker compose down",
     "publish:check": "npm publish --dry-run --tag next",
-    "eval:forgetting": "tsx docs/forgetting-evaluation/run.ts",
-    "eval:distillation": "tsx docs/distillation-evaluation/run.ts"
+    "eval:forgetting": "tsx tests/eval/forgetting/run.ts",
+    "eval:distillation": "tsx tests/eval/distillation/run.ts",
+    "test:all": "pnpm -r test && pnpm test"
   },
   "dependencies": {
-    "@dqbd/tiktoken": "^1.0.22",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-openapi": "^0.18.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/api": "^1.9.0",
+    "@usetheo/memory": "workspace:*",
+    "@usetheo/memory-api": "workspace:*",
+    "@usetheo/memory-mcp": "workspace:*",
+    "@xenova/transformers": "^2.17.2",
     "commander": "^12.1.0",
     "croner": "^10.0.1",
     "drizzle-orm": "^0.45.0",
-    "hono": "^4.6.0",
+    "hono": ">=4.11.4",
+    "jose": "^6.0.0",
+    "oauth4webapi": "^3.8.6",
+    "openai": "^4.77.0",
     "pg": "^8.13.0",
     "zod": "^3.25.0",
     "zod-to-json-schema": "^3.24.0"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
+    "@asteasolutions/zod-to-openapi": "7.3.4",
+    "@opentelemetry/core": "^2.7.1",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.0",
+    "@vitest/coverage-v8": "4.1.8",
     "drizzle-kit": "^0.31.0",
     "eslint": "^9.0.0",
     "eslint-plugin-import": "^2.30.0",
@@ -129,11 +76,6 @@
     "vitest": "^4.0.0",
     "vitest-mock-extended": "^4.0.0"
   },
-  "optionalDependencies": {
-    "@xenova/transformers": "^2.17.2",
-    "natural": "^8.1.0",
-    "openai": "^4.77.0"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/usetheodev/theo-memory.git"
@@ -141,5 +83,26 @@
   "bugs": {
     "url": "https://github.com/usetheodev/theo-memory/issues"
   },
-  "homepage": "https://usetheo.dev"
+  "homepage": "https://usetheo.dev",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "protobufjs",
+      "isolated-vm"
+    ],
+    "overrides": {
+      "sharp": "^0.33.5",
+      "protobufjs": "7.6.1",
+      "form-data": "4.0.6",
+      "linkify-it": "5.0.1",
+      "lodash": "4.18.1",
+      "tmp": "0.2.7",
+      "underscore": "1.13.8"
+    }
+  },
+  "private": true,
+  "optionalDependencies": {
+    "natural": "^8.1.0"
+  }
 }

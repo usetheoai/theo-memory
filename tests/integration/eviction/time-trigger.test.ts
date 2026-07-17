@@ -16,15 +16,14 @@
  * Plan path deviation: integration test placed at tests/integration/ per
  * established T2.2/T3.1/T4.1/T4.2/T5.1 pattern. Documented in commit body.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T5.2 (D10 + D11 + EC-9)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '../../../src/core/constants.js';
-import { InvalidCronExpressionError, TimeBasedTrigger } from '../../../src/local/eviction/time-based-trigger.js';
-import { PgNearestNeighborProvider } from '../../../src/local/eviction/pg-nearest-neighbor-provider.js';
-import { TriadicScoringPolicy } from '../../../src/local/eviction/triadic-scoring-policy.js';
+import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
+import { InvalidCronExpressionError, TimeBasedTrigger } from '@usetheo/memory';
+import { PgNearestNeighborProvider } from '@usetheo/memory';
+import { TriadicScoringPolicy } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 

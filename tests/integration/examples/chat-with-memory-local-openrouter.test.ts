@@ -31,8 +31,6 @@
  * the `describe.skipIf` block cleanly skips — no flake. Mirrors the EC-11
  * reachability-probe pattern from the v0.7 SDK cycle.
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T4.1 + Final Phase
- * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-2
  */
 import { randomUUID } from 'node:crypto';
 
