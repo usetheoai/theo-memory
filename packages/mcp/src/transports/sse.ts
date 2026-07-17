@@ -22,8 +22,6 @@
  *
  * Uses the SDK's existing `SSEServerTransport` — NO new dependency (blueprint Corner 2).
  *
- * @see .claude/knowledge-base/discoveries/blueprints/openmemory-mcp-compat-blueprint.md § Coverage Corner 3
- * @see .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md § T1.1 / ADR D2/D3
  */
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';

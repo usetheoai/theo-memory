@@ -17,7 +17,6 @@
  *    science") and never for a capitalized-proper first token ("Love Island")
  *    nor for action verbs that head legitimate noun compounds ("watch list").
  *
- * @see .claude/knowledge-base/plans/entity-extraction-noise-filter-plan.md § T1.1
  */
 
 /** Bare pronouns (single token). */

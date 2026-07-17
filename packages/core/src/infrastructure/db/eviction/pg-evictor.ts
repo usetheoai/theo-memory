@@ -29,7 +29,6 @@
  * @opentelemetry/api (already a project dep at v0.1). Documented in T6.1
  * commit body.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T6.1 (D17 + EC-4 + EC-10)
  */
 import { metrics, type Counter } from '@opentelemetry/api';
 import type { Pool } from 'pg';

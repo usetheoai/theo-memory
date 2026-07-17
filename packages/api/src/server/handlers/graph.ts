@@ -10,7 +10,6 @@
  *
  * SCOPE = SUBJECT (same cross-tenant-leak rationale as metrics.ts / entities.ts).
  *
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T3.1
  */
 import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import type {

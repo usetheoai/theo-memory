@@ -12,7 +12,6 @@
  * Context-window overflow (EC-18): NOT handled in v0.4a; see
  * F-reflect-context-window-fallback in the plan Followups table.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T4.1
  */
 import { ReflectionLLMResponseError } from '../errors.js';
 import type { Role } from '../message.js';

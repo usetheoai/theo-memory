@@ -35,8 +35,6 @@
  *    NOT on the pg `PoolClient` directly. The atomicity guarantee is honored
  *    inside `insertDerivedSkillAtomic` (pgvector wraps; in-memory best-effort).
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T3.1 + EC-2 + EC-3
- * @see .claude/knowledge-base/discoveries/blueprints/skill-library-blueprint.md § ADR D4
  */
 import { context as otelContext, trace as otelTrace, SpanStatusCode, type Span, type Tracer } from '@opentelemetry/api';
 

@@ -38,8 +38,6 @@
  *   to `gpt-4o-mini` per ADR D3). Multi-account + `_tools` wiring to the
  *   `tools:` field of `chat.completions.create` deferred to Cycle 2.X.
  *
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T1.2
- * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-6 + EC-7 + EC-8 + EC-9 + EC-10
  * @see src/core/dip/llm.ts § LLM.generateResponse (3rd param contract)
  */
 import OpenAI from 'openai';

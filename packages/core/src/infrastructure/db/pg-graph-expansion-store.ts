@@ -10,7 +10,6 @@
  * excluded (EC-1). Returns the connected memory rows projected via the shared
  * `rowToResult` (DRY) + `sharedEntities` weight.
  *
- * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § T4.1 + ADR D2 + D5
  * @see src/domain/dip/graph-expansion-store.ts
  */
 import type { Pool } from 'pg';

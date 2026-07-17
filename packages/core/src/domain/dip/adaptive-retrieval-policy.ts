@@ -30,8 +30,6 @@
  * The default impl ships at `src/infrastructure/adaptive/heuristic-policy.ts`
  * behind the `@usetheo/memory/adaptive-local` subpath (bundle isolation, ADR D5).
  *
- * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D1 + D2 + D3 + D4
- * @see .claude/knowledge-base/discoveries/blueprints/adaptive-retrieval-blueprint.md
  * @see ADR-0008 (DIP method-count cap)
  */
 import type { MemoryItemWithScore } from '../memory-item.js';

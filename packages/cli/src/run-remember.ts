@@ -8,7 +8,6 @@
  * EC-8 absorbed (DOCUMENT): each invocation has ~2-5s warm-up cost; batch
  * ops > 50 should use REST server + curl.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.1
  */
 import { createAgentToolsMemory } from '@usetheo/memory-agent-core';
 

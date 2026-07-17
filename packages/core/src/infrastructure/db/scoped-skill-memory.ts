@@ -10,7 +10,6 @@
  * (insertSkill, runRetrievalPipeline, consolidate orchestrator, store.delete).
  * No business logic beyond projection of payload rows into `Skill` shape.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.1
  */
 import type { Tracer } from '@opentelemetry/api';
 

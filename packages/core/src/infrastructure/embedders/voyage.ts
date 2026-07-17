@@ -7,7 +7,6 @@
  * Default model `voyage-3`. API key from the ctor option OR `VOYAGE_API_KEY`.
  * The `fetchImpl` ctor option injects a stub `fetch` for testing.
  *
- * @see .claude/knowledge-base/plans/embedder-registry-plan.md § ADR D3 + § T2.2
  */
 import type { Embedder } from '../../domain/dip/embedder.js';
 import { EmbedderError } from '../../domain/errors.js';

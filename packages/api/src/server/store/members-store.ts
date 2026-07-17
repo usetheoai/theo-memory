@@ -10,7 +10,6 @@
  * workspace the caller does not belong to resolves to `not_found` (→ 404
  * upstream), the same owned()-scoping discipline the data repositories use.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1
  */
 import { randomBytes } from 'node:crypto';
 

@@ -13,7 +13,6 @@
  *     eviction: { trigger: 'capacity', maxMemoriesPerScope: 1000 },
  *   });
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 + ADR D6
  */
 import type { Scope } from '../../../domain/scope.js';
 

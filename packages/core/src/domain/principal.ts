@@ -12,7 +12,6 @@
  * anchor (ADR D1). See `architecture.md § 1` (tiers locked) + the CLAUDE.md
  * PRIORITY 0 Amendment 2026-06-17 (strategic review).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.1
  */
 
 /**
@@ -36,7 +35,6 @@ export interface Workspace {
  * `workspace_users`; a credential with no membership row resolves to the
  * least-privileged `'member'` (default-deny).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T0.1 + ADR D1
  */
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
 

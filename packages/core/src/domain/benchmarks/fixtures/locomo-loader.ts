@@ -9,8 +9,6 @@
  * constraints. Per ADR D4, fixtures are downloaded at install time;
  * never committed to the repo.
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T2.1
- * @see .claude/knowledge-base/discoveries/snapshots/v0-8-benchmark-methodology/2026-06-02-arxiv-2402-17753-locomo.md
  */
 
 import { readFile } from 'node:fs/promises';

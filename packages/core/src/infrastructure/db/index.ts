@@ -11,7 +11,6 @@
  *   factory.ts          — createLocalMemory, createMemory, cache/embed helpers
  *   migrations-runner.ts — runMigrations (+ internal applyDimChange)
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T7.1
  */
 
 // ── Existing third-party re-exports (unchanged) ─────────────────────────

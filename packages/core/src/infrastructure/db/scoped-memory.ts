@@ -155,7 +155,6 @@ export function assertScopeIsNonEmpty(scope: Scope): void {
  * derivation function returns the most specific memory-scope tier without checking
  * for a `repo_id` column. Skill-scope cache wiring lands in v1.5.x.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § ADR D9 + § ADR D10
  */
 export function deriveScopeFromPayload(payload: Readonly<Record<string, unknown>>): Scope | undefined {
   const userId = payload['user_id'];
@@ -497,7 +496,6 @@ export class LocalScopedMemory implements ScopedMemory {
    * `InvalidScope` BEFORE any query runs. Bad cursors throw `InvalidScope` inside
    * `listEpisodes`/`decodeEpisodeCursor`. Both map to REST 422.
    *
-   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.2
    */
   async episodes(options?: EpisodeListOptions): Promise<EpisodePage> {
     if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {

@@ -8,7 +8,6 @@
  * impl guarantees: shared-entity weight, seed exclusion (EC-1), candidate-side
  * scope confinement (EC-2, ADR D5), and `limit` bounding.
  *
- * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § T4.2 + ADR D2 + D5
  * @see src/domain/dip/graph-expansion-store.ts
  */
 import type {

@@ -18,8 +18,6 @@
  * MCP clients at the `/.well-known/oauth-protected-resource` endpoint
  * (T4.2) for issuer auto-discovery.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T4.1
- * @see .claude/knowledge-base/adrs/ADR-0015-mcp-streamable-http-auth.md
  * @see src/server/auth/dual-validation.ts — the Hono twin (REST surface)
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';

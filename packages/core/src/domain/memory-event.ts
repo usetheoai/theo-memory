@@ -9,7 +9,6 @@
  * EC-10 absorbed: `extraction_failed` fires when the LLM response fails Zod parse —
  * pipeline returns [] without throwing.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T4.2 + ADR D1.4
  */
 import type { Tracer } from '@opentelemetry/api';
 
@@ -53,7 +52,6 @@ export const MEMORY_EVENTS = [
   // NOT per-row (a 10k-row legacy scope would explode logs otherwise).
   // NOT emitted when count = 0 (no-op observability mirror of
   // recall_threshold_filtered).
-  // @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D2 + EC-7
   'getall_temporal_fallback',
   // code-review-fixes-v0-2-1 T2.1 — LLM parse/validation error (SyntaxError or ZodError)
   // distinct from network error (which propagates). Princípio 3 observability.

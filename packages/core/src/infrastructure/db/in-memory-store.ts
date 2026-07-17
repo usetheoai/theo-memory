@@ -13,7 +13,6 @@
  * Filter semantics: ANDed across user_id / session_id / agent_id. Missing keys
  * in the Filters object are skipped (NOT filtered to NULL — passes-through).
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.2
  * @see blueprint Recommendation 6 + ADR D6
  */
 import type { InsertOutcome, VectorStore, VectorStoreResult } from '../../domain/dip/vector-store.js';
@@ -294,7 +293,6 @@ export class InMemoryVectorStore implements VectorStore {
    * real pgvector runtime. `queryText` is a literal case-insensitive substring
    * match (inherently non-wildcard; the SQL escape concern does not apply here).
    *
-   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 (EC-5)
    */
   async listEpisodes(
     filters: Filters | undefined,

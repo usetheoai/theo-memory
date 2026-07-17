@@ -50,7 +50,6 @@ export interface MemoryItem {
    * the LLM-extracted value at payload composition (EC-1 honest no-backfill
    * documented in CHANGELOG migration notes).
    *
-   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2
    */
   readonly attributedTo?: string;
 
@@ -60,7 +59,6 @@ export interface MemoryItem {
    * pre-v0.4a callers; v0.4a writes populate it, v0.4b TriadicScoringPolicy
    * reads it (falling back to a neutral default when absent).
    *
-   * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § ADR D8
    */
   readonly llmImportanceScore?: number | null;
 
@@ -69,7 +67,6 @@ export interface MemoryItem {
    * half-life decay + LRU bookkeeping per plan T2.1 + T3.1. NULL means never
    * recalled since insert. Optional on the type for pre-v0.4b backward compat.
    *
-   * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (D13)
    */
   readonly lastAccessedAt?: Date | null;
 
@@ -97,7 +94,6 @@ export interface MemoryItem {
    * Optional on the type for backward compat: adapters lacking UPSERT semantics
    * it undefined.
    *
-   * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1 + § T2.1
    * @see CLAUDE.md § IMPORTANTE Princípio 1
    */
   readonly confirmationCount?: number;
@@ -113,7 +109,6 @@ export interface MemoryItem {
    * Per ADR D4 this is an additive optional widening of the existing MemoryItem
    * shape (NOT a new return type) honoring ADR-0003 ADD-only invariant.
    *
-   * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D4 + § T2.1
    * @see CLAUDE.md § IMPORTANTE Princípio 3
    */
   readonly rejectedAsDuplicate?: boolean;
@@ -130,7 +125,6 @@ export interface MemoryItem {
    * intentional architectural symmetry, so consumers reading via either pathway
    * (top-level OR JSONB) continue to work.
    *
-   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D6 + EC-12
    */
   readonly category?: string;
 }

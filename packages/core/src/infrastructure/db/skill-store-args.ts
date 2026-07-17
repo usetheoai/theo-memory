@@ -1,13 +1,11 @@
 /**
  * v0.6: argument shapes for the local-store skill insertion methods.
  *
- * These types are NOT on the `VectorStore` DIP (per skill-library plan
  * § T2.1 design note — duck-typed extension matching the v0.4a
  * `insertDerivedMemory` precedent). They live here so both `PgvectorStore` and
  * `InMemoryVectorStore` reference the same shape, and the conformance suite
  * narrows the store type via runtime `typeof` guard.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.1
  */
 import type { VectorStoreResult } from '../../domain/dip/vector-store.js';
 import type { SkillLanguage } from '../../domain/skill.js';
@@ -63,7 +61,6 @@ export interface InsertSkillArgs {
  * v0.6.1 T0.2 (F1 absorption): `code` and `codeLanguage` are nullable on the
  * derived variant — `consolidate()` writes NULL for both (the LLM-merged
  * narrative lives in `description` only; structured-draft extraction defers
- * per skill-library-fixes-v0-6-1 plan ADR D2). `InsertSkillArgs`
  * (used by `add()`) keeps both required-non-null — consumers writing skills
  * must always supply code.
  */

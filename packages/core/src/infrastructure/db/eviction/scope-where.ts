@@ -15,8 +15,6 @@
  * Closes the SRP smell that F-arch-4 surfaced (the `WHERE m.agent_id = $2`
  * hardcoding was duplicated across 3 modules + 2 inline call sites).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-arch-4
  */
 import type { Scope } from '../../../domain/scope.js';
 
@@ -73,7 +71,6 @@ export function scopeValue(scope: Scope): string {
  * is per-transaction (`_xact_`) so the blast radius is bounded by the
  * holding tx's lifetime. No data-corruption risk.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1 + T12.1 (F-dom-pg-5)
  */
 export function advisoryLockKey(scope: Scope, workspaceId?: string): string {
   // multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): namespace the

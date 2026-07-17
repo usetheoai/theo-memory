@@ -19,7 +19,6 @@
  *   - `scope_tier`   — user / agent / session / repo
  *   - `embedder_kind`— constructor.name of the configured Embedder (best-effort)
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T3.1
  * @see src/local/eviction/pg-evictor.ts § getSoftDeleteCounter (F-dom-6 precedent)
  */
 import { metrics, ValueType, type Counter, type Histogram } from '@opentelemetry/api';

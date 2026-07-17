@@ -11,7 +11,6 @@
  * STOP_WORDS is English-only at v0.1 (EC-7: Portuguese / other languages
  * pass through unaltered). Multilingual support deferred to v0.2+.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § Recommendation 3
  */
 
 // Try to load `natural` (optional peer). Use createRequire for CommonJS interop

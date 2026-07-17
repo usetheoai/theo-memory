@@ -7,8 +7,6 @@
  * Moved to domain/dip/ so both `@usetheo/memory-api` and `@usetheo/memory-mcp`
  * can depend on `@usetheo/memory/contract` without cross-package coupling.
  *
- * @see .claude/knowledge-base/adrs/ADR-0013-oidc-bridge.md
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T3.1
  * @see https://datatracker.ietf.org/doc/html/rfc7662
  * @see https://datatracker.ietf.org/doc/html/rfc9728
  */

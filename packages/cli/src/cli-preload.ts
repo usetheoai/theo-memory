@@ -6,6 +6,5 @@
  * carries zero own imports so it is a leaf module that runs before
  * commander / run-mcp-server / run-server / verb handlers are loaded.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T3.1b
  */
 process.env['DOTENV_CONFIG_QUIET'] = process.env['DOTENV_CONFIG_QUIET'] ?? 'true';

@@ -14,8 +14,6 @@
  *  - Empty scope (no non-empty userId / sessionId / agentId) → EmptyScopeError
  *    BEFORE the SQL round-trip (EC-3 absorption).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T2.1
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D8
  */
 
 import type {

@@ -34,8 +34,6 @@
  * **Module hygiene** (architecture.md § Module hygiene): targeted ≤ 300 LoC
  * per plan T1.1 Acceptance; cyclomatic ≤ 8 per method.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.1 + T1.2
- * @see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § 3 + D4
  * @see src/core/dip/recall-cache-store.ts (the 13th DIP)
  */
 import type { Pool } from 'pg';

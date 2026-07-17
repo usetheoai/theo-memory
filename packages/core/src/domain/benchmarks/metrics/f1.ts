@@ -8,7 +8,6 @@
  * - both prediction and reference empty → 1.0 (vacuous-perfect)
  * - only one empty → 0.0 (no signal)
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T1.1
  */
 
 function tokenize(input: string): Set<string> {

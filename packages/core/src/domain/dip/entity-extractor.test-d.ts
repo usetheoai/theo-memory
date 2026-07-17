@@ -5,8 +5,6 @@
  * and that EntityType is the closed 4-literal union. RED before the interface exists
  * (tsc cannot resolve the import); GREEN once `entity-extractor.ts` ships.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T1.1
  */
 import { describe, test, expectTypeOf } from 'vitest';
 

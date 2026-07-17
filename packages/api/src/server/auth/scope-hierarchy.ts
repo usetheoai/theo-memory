@@ -10,7 +10,6 @@
  * `memory:admin` grant. Least privilege (NIST AC-6): platform-admin is the ONLY
  * scope that may target an arbitrary workspace; it is a strict superset of admin.
  *
- * @see .claude/knowledge-base/plans/model-b-platform-admin-mint-plan.md § T1.1 + ADR D2
  */
 
 /** Implication edges: key = granted scope, value = scopes it additionally satisfies. */

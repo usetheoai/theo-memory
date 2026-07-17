@@ -9,7 +9,6 @@
  * (EC-2 — never `queryText:''`). `asOf` ISO string is parsed to a Date (D4).
  *
  * @see packages/core/src/domain/episode.ts — EpisodeListOptions / EpisodePage
- * @see .claude/knowledge-base/plans/mcp-episodes-tool-plan.md § T2.1 + ADRs D1-D4
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 

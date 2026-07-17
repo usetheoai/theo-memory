@@ -13,7 +13,6 @@
  * batchAddHistory is implemented at v0.1 because the extraction pipeline's
  * Phase 6.5 uses it for high-throughput.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T6.1
  * @see src/local/schema.ts § history table
  */
 import { eq, sql } from 'drizzle-orm';

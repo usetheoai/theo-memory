@@ -11,7 +11,6 @@
  * verbatim from the prior inline declaration; zero behavior change.
  *
  * @see plan v0-8-fixes-cycle-1 § T3.1 + ADR D3 (MOVE-only)
- * @see .claude/knowledge-base/reviews/v0-8-independent-benchmark-reproduction-review-2026-06-02.md § F-arch-1
  */
 
 export interface Tokenizer {

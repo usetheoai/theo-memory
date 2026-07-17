@@ -8,7 +8,6 @@
  * Phase 7 is fail-soft and swallows the throw). Mirrors PgvectorStore's raw-SQL
  * + pool pattern; reuses the same ON CONFLICT clause the schema UNIQUE defines.
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T3.1
  */
 import type { Pool } from 'pg';
 

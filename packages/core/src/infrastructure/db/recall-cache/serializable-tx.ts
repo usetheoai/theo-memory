@@ -6,8 +6,6 @@
  * plan T1.2 / EC-7 absorption.
  *
  * **The race this defends against:** two concurrent `set()` calls on a full
- * scope (`COUNT(*) === maxSizePerScope`) BOTH read COUNT=maxSizePerScope,
- * BOTH issue DELETE oldest, BOTH INSERT → final count = maxSizePerScope - 1.
  * Under SERIALIZABLE isolation, PG detects the read-write dependency cycle
  * and aborts one transaction with `40001`. Retrying once resolves it
  * deterministically per PG docs.
@@ -20,7 +18,6 @@
  *   to the 9-step pipeline — cache MISS is a benign degraded path).
  * - Higher retry counts amplify connection pool pressure during incidents.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.2 + EC-7
  * @see https://www.postgresql.org/docs/current/transaction-iso.html#XACT-SERIALIZABLE
  */
 import type { Pool, PoolClient } from 'pg';

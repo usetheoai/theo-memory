@@ -6,7 +6,6 @@
  * now emits the RAW `ReflectionResult` (not a projection). Restores 3-way
  * parity with MCP + REST surfaces (closes F-dom-api-1).
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2 + ADR D2
  */
 import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
 import type { ReflectionResult } from '@usetheo/memory/contract';

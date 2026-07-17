@@ -17,7 +17,6 @@
  * `create` prints the raw secret with a one-shot warning ("save now —
  * won't show again") — matches the dashboard EC-13 show-once UX in CLI form.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.3
  */
 
 export interface RunKeysContext {

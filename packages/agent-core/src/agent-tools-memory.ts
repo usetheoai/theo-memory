@@ -21,7 +21,6 @@
  * does NOT close the pool — caller owns the pool lifecycle. A contract test
  * pins this invariant at `packages/cli/src/__tests__/agent-tools-memory.test.ts`.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T3.1 + ADRs D3 + D4
  */
 
 import { createLocalMemory, runMigrations, SandboxedSkillExecutor } from '@usetheo/memory';
@@ -89,7 +88,6 @@ export function resolveEmbedderKind(): EmbedderKind {
  * exact-match contract so `'1'`/`'TRUE'`/`'yes'` do NOT silently enable an
  * RCE-capable surface.
  *
- * @see .claude/knowledge-base/plans/production-runtime-hardening-plan.md § T1.1 + ADR D1
  */
 export function resolveSkillExecutionEnabled(): boolean {
   return process.env['THEOMEM_SKILL_EXECUTION'] === 'true';

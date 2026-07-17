@@ -16,7 +16,6 @@
  * another transaction, `fire()` short-circuits to `null` (no double-evict).
  * Lock auto-releases at transaction commit/rollback.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T5.1 (D10 + EC-2 + D17)
  */
 import type { Pool, PoolClient } from 'pg';
 
