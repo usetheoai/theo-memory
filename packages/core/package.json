@@ -1,9 +1,36 @@
 {
   "name": "@usetheo/memory",
   "version": "0.2.0",
-  "description": "Managed three-tier memory layer for the Theo ecosystem. Pre-release.",
+  "description": "The open-source memory layer for AI agents — persistent, multi-tenant memory (facts, conversations & executable skills) on your own Postgres. TypeScript SDK, REST & MCP. Pre-release.",
   "type": "module",
   "license": "Apache-2.0",
+  "homepage": "https://usetheo.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usetheodev/theo-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/usetheodev/theo-memory/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "agent-memory",
+    "long-term-memory",
+    "llm",
+    "memory",
+    "typescript",
+    "postgres",
+    "pgvector",
+    "mcp",
+    "model-context-protocol",
+    "rag",
+    "vector-search",
+    "embeddings",
+    "semantic-search",
+    "openai",
+    "self-hosted",
+    "multi-tenant"
+  ],
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
