@@ -8,7 +8,7 @@
 -- EC-6 absorbed: ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS make
 -- the migration idempotent — re-running runMigrations(pool) is a no-op once
 -- the schema has converged. The partial WHERE clause keeps storage cost
--- proportional to populated rows (REDACTED promoted-key precedent per blueprint
+-- proportional to populated rows ( promoted-key precedent per blueprint
 -- Q3; ~70% of pre-v1.1 LLM extractions DID emit attributed_to but the
 -- pipeline discarded it at payload composition — see EC-1 honest no-backfill
 -- in ADR D2 Consequences).
@@ -25,5 +25,5 @@
 -- @see .claude/knowledge-base/reviews/v1-1-multi-peer-and-bi-temporal-edge-cases-2026-06-02.md § EC-1 + EC-2 + EC-6
 ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "attributed_to" text;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_memories_user_attributed_to"
-  ON "memories" ("user_id", "attributed_to")
-  WHERE "attributed_to" IS NOT NULL;
+ ON "memories" ("user_id", "attributed_to")
+ WHERE "attributed_to" IS NOT NULL;

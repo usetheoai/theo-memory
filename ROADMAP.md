@@ -12,7 +12,7 @@
 TheMemory already ships a **temporal context graph** in Postgres-relational form — entities +
 `entity_edges` (triples with provenance) + first-class episodes (v0.22) + ontology/custom-types
 (v0.16) + graph-aware 1–2 hop recall (v0.19) + bi-temporal `asOf` (v1.1). That is **8 of the 11**
-REDACTED/REDACTED "context graph" components already present. This roadmap closes the remaining three
+/ "context graph" components already present. This roadmap closes the remaining three
 deltas **without a graph database** (Item 14 stays declined) and without chasing feature-parity
 with a competitor whose architecture bets on the graph being the substrate — ours is the deduped
 bi-temporal memory, with the graph as augmentation.
@@ -42,7 +42,7 @@ forgotten** memories through the graph path (the only recall path that does not 
 ### Explicitly out of scope
 
 - **Graph-DB backend (Apache AGE / Neo4j)** — *why excluded:* Item 14, declined 2026-06-22. 1–2 hop needs only Postgres JOINs; poly-store complexity is unjustified.
-- **Wrapping REDACTED / REDACTED as a backend or data-adapter** — *why excluded:* direct competitors; the "Adapters (REDACTED/REDACTED/REDACTED) cut 2026-05-21" decision stands (be the native backend, not a wrapper).
+- **Wrapping / as a backend or data-adapter** — *why excluded:* direct competitors; the "Adapters (//) cut 2026-05-21" decision stands (be the native backend, not a wrapper).
 - **Maintained-on-write entity summaries (eager LLM per update)** — *why excluded:* recurring LLM cost for marginal value; M2 is on-demand only.
 
 > To reconsider any of these, write a new roadmap revision — do not silently expand scope.
@@ -160,16 +160,16 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ## State-of-the-art references
 
-Conceptual comparison peers. `REDACTED` / `REDACTED` / `REDACTED` are already cloned under
-`knowledge-base/references/` (see `_catalog.md`). REDACTED / REDACTED are **not cloned** — this track
+Conceptual comparison peers. `` / `` / `` are already cloned under
+`knowledge-base/references/` (see `_catalog.md`). / are **not cloned** — this track
 used a conceptual cross-check only; clone them via `/roadmap-feature` Step 5 SOTA delta if a
 milestone needs line-level study.
 
 | Peer | License | Why it's here | Supports milestone(s) |
 |---|---|---|---|
-| REDACTED (REDACTED/REDACTED) | Apache-2.0 | Reference temporal context-graph engine — the source of the 3 deltas | M0, M1, M2 |
-| REDACTED | (managed) | Productized context-graph infra — validates the "graph as augmentation over a memory substrate" framing | M0, M2 |
-| REDACTED (cloned) | Apache-2.0 | Our architectural base (vector + LLM extraction + hybrid retrieval) | M0 |
+| (REDACTED/) | Apache-2.0 | Reference temporal context-graph engine — the source of the 3 deltas | M0, M1, M2 |
+| | (managed) | Productized context-graph infra — validates the "graph as augmentation over a memory substrate" framing | M0, M2 |
+| (cloned) | Apache-2.0 | Our architectural base (vector + LLM extraction + hybrid retrieval) | M0 |
 
 ---
 
