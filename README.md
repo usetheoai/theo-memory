@@ -4,10 +4,12 @@
 
 # Theo Memory
 
-**Persistent memory for AI agents — remember, recall, forget, reflect.**
+### Your AI agent is a goldfish. Give it a memory.
 
-Give your agent long-term memory across users, sessions, and skills.
-Drop-in TypeScript SDK. Postgres + pgvector. Works with any LLM.
+**Persistent, multi-tenant memory for AI agents — facts, conversations, and _executable skills_, on your own Postgres.**
+
+`remember` · `recall` · `forget` · `reflect` — one TypeScript SDK, one REST API, one MCP server.
+Works with any LLM. No graph DB. No lock-in. Apache-2.0.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-7C3AED?style=flat-square)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -28,9 +30,9 @@ Drop-in TypeScript SDK. Postgres + pgvector. Works with any LLM.
 
 ## Why Theo Memory?
 
-**Your agent is a goldfish.** Every session starts from zero — it re-asks what the user already
-told it, forgets the last support ticket, relearns the same procedure. Theo Memory gives it
-**persistent, scoped, searchable memory** in four verbs: `remember` · `recall` · `forget` · `reflect`.
+**Every session starts from zero.** Your agent re-asks what the user already told it, forgets the
+last support ticket, relearns the same procedure. Theo Memory gives it **persistent, scoped,
+searchable memory** in four verbs: `remember` · `recall` · `forget` · `reflect`.
 
 So your agent can recall that Alice is vegetarian, that the last ticket was about billing, or that
 the deploy script needs a `--force` flag on Tuesdays — across users, sessions, and even as
