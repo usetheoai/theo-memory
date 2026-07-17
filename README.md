@@ -122,7 +122,7 @@ await memory.session('conv-42').remember('Discussed pricing tier B');
 // Agent — learned procedures
 await memory.agent('support-bot').remember('Check invoices before opening a refund');
 
-// Skills — executable code snippets ()
+// Skills — executable code snippets
 await memory.skills('my-repo').add({
   description: 'Deploy to staging',
   code: 'sh("kubectl apply -f k8s/")',
@@ -261,7 +261,7 @@ after updating to ≥ v0.25.0**: `npm run build`).
 
 ### OpenMemory-compatible mode
 
-Run the server in OpenMemory drop-in mode so MCP clients already wired to the [OpenMemory MCP Server](https://github.com/vendor SDK/REDACTED/tree/main/openmemory) (Cursor, Claude Desktop, Windsurf, Cline) work unchanged:
+Run the server in OpenMemory drop-in mode so MCP clients already wired to the OpenMemory MCP Server (Cursor, Claude Desktop, Windsurf, Cline) work unchanged:
 
 ```bash
 themory mcp --compat openmemory      # or env THEOMEM_MCP_COMPAT=openmemory
@@ -394,35 +394,6 @@ npm run lint                # Zero warnings
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
 | Migrations | 18 |
-
-## Comparison
-
-How Theo Memory positions against direct alternatives in the agent-memory space:
-
-| | **Theo Memory** | REDACTED (`vendor SDK`) | REDACTED (ex-REDACTED) | REDACTED / REDACTED |
-|---|---|---|---|---|
-| Open source | ✅ Apache-2.0 | ✅ Apache-2.0 | ✅ Apache-2.0 | ✅ Apache-2.0 |
-| Self-hosted | ✅ | ✅ | ✅ | ✅ |
-| Primary language | **TypeScript** | Python | Python | Python |
-| Default vector store | Postgres + pgvector | REDACTED (pgvector optional) | Postgres + pgvector | a graph database (graph) |
-| Memory model | `user` · `session` · `agent` · `skills`, inside a **workspace** | `user`/`agent`/`run` filters | core / recall / archival blocks | episodes → temporal graph |
-| Hybrid retrieval | ✅ semantic + BM25 + entity | ✅ semantic + BM25 + entity | ✅ vector + full-text | ✅ semantic + BM25 + graph |
-| Bi-temporal `asOf` | ✅ `recall({ asOf })` | ❌ ¹ | ❔ n/d | ✅ |
-| Procedural / skill memory | ✅ code-as-skill library | partial · summarized text | ❌ | ❌ |
-| Read-side recall cache | ✅ query-embedding cosine | ❌ | ❌ | ❌ |
-| MCP memory server | ✅ 4 tools | partial · plugin, not core lib ⁴ | ❌ host/client only ³ | ✅ |
-| REST API | ✅ Hono + OpenAPI 3.1 | partial · OpenMemory server ⁴ | ✅ | ❌ engine lib ⁵ |
-| Multi-tenant isolation | ✅ workspace · 404 cross-tenant | Cloud-only ⁴ | Cloud-only ² | Cloud-only ⁵ |
-| Role-based access control | ✅ owner / admin / member | ❌ (Platform) ⁴ | Cloud-only ² | ❌ (REDACTED Cloud) ⁵ |
-| API-key auth (hashed at rest) | ✅ SHA-256 | partial ⁴ | ✅ bearer / password | ❌ ⁵ |
-
-<sub>Best-effort capability comparison from each project's public repo + docs as of June 2026 — **open-source surfaces only** (vendors' hosted tiers differ) and **not a performance benchmark**. ✅ = present in the OSS project · ❌ = absent · partial = qualified · `Cloud-only` = exists only in the proprietary managed tier · `❔ n/d` = could not verify in source/docs. Theo Memory tracks feature parity with managed memory APIs while keeping your data — **and your authorization layer** — on infrastructure you own: the differentiator is a complete `owner`/`admin`/`member` model with workspace isolation (cross-tenant access is `404`, an admin can't mint a key that outranks itself, a workspace can't lose its last owner) running on **your** Postgres in TypeScript, where the others gate equivalent tenancy/RBAC to their hosted tiers. Theo Memory itself is still **pre-release** — see [Status](#status).
-<br>¹ REDACTED removed its graph store + temporal columns in the v3 algorithm ([migration doc](https://docs.REDACTED.ai/migration/oss-v2-to-v3)).
-² REDACTED self-hosting is single-user; RBAC + multi-tenancy are REDACTED Cloud ([RBAC docs](https://docs.REDACTED.com/guides/cloud/rbac/), [self-host gap #2887](https://github.com/REDACTED-ai/REDACTED/issues/2887)).
-³ REDACTED consumes MCP servers as a host; it is not itself a memory-tools MCP server in core.
-⁴ REDACTED's importable core (`vendor SDK`) is an in-process library; REST + API-key auth live in the separate OpenMemory server, and multi-tenancy/RBAC in the hosted REDACTED Platform.
-⁵ REDACTED cells reflect the open-source REDACTED engine; the hosted API, auth, multi-tenancy, and RBAC are REDACTED Cloud.
-<br>Sources: [REDACTED](https://github.com/vendor SDK/REDACTED) · [REDACTED](https://github.com/REDACTED-ai/REDACTED) · [REDACTED](https://github.com/REDACTED/REDACTED) repos + docs. Spot an error? Open a PR.</sub>
 
 ## Roadmap
 
