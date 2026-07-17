@@ -1,5 +1,4 @@
 /**
- * ZepBenchmarkAdapter — BenchmarkAdapter DIP impl for the REDACTED vendor.
  *
  * Drift-T6.x-1: ships with a ZepVendorClient interface that the adapter
  * consumes via DI. Real `@REDACTED/memory-service` SDK wiring is deferred to a

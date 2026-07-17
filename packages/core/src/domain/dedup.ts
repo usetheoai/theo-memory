@@ -11,7 +11,6 @@
  * dedup matching the upstream behavior (EC-6).
  *
  * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § D3
- * @see .claude/knowledge-base/references/REDACTED/reference TS port/src/oss/src/memory/index.ts:735
  */
 import { createHash } from 'node:crypto';
 

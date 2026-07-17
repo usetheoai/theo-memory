@@ -95,7 +95,6 @@ export interface MemoryItem {
    * `confirmation_count > N` to surface high-confidence facts.
    *
    * Optional on the type for backward compat: adapters lacking UPSERT semantics
-   * (in-memory store, external REDACTED/REDACTED adapters not yet upgraded) leave
    * it undefined.
    *
    * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1 + § T2.1

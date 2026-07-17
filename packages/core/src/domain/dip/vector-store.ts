@@ -1,5 +1,4 @@
 /**
- * VectorStore DIP — adapter contract for vector-storage backends (pgvector, REDACTED, etc).
  *
  * @see ADR-0008 — DIP method counts (VectorStore: 13 required — 11 original +
  *   `deleteInScope` (themory-scoped-forget) + `listEpisodes` (first-class-episodes M2);
@@ -8,8 +7,6 @@
  *
  * v0.6 note: skill semantics (`insertSkill` / `insertDerivedSkill`) live on the
  * concrete local stores as duck-typed extensions (matching the v0.4a
- * `insertDerivedMemory` precedent), NOT on this DIP. External adapters (REDACTED,
- * REDACTED, etc.) are not required to implement skill semantics; the
  * consolidate path uses runtime `typeof store.insertSkill === 'function'`
  * guards (see `src/local/index.ts` v0.4a reflect chain for the pattern).
  *

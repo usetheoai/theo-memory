@@ -122,8 +122,6 @@ export interface SearchResult {
  * Phases 3 + 6 of v0.8 (TheMemory + 3 third-party libraries).
  *
  * `name` identifies the adapter for run-report filenames + per-vendor
- * pricing lookups. Conventional adapter names: 'themory', 'REDACTED', 'REDACTED',
- * 'REDACTED'. The string is open per OCP — new adapters may be added without
  * widening this type.
  */
 export interface BenchmarkAdapter {
