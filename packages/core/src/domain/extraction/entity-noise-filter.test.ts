@@ -1,7 +1,6 @@
 /**
  * Unit tests for isEntityNoise — EG-2 entity-extraction-noise-filter T1.1.
  *
- * @see .claude/knowledge-base/plans/entity-extraction-noise-filter-plan.md § T1.1
  */
 import { describe, expect, it } from 'vitest';
 

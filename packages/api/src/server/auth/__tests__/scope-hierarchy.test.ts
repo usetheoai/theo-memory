@@ -7,7 +7,6 @@
  * SRP-simple (single required scope) while letting a platform key pass a
  * `memory:admin` gate (the gateway's per-tenant lifecycle uses admin routes).
  *
- * @see .claude/knowledge-base/plans/model-b-platform-admin-mint-plan.md § T1.1
  */
 import { describe, expect, test } from 'vitest';
 

@@ -1,5 +1,4 @@
 /**
- * Integration test for .claude/hooks/dogfood-mirror.sh.
  *
  * T1.2 of dogfood-anchor-scenario-launch plan v1.1.
  *
@@ -7,7 +6,6 @@
  * verifies basic argv routing logic. Does NOT cover the full MCP round-trip
  * (that lives in claude-code-bridge-roundtrip.test.ts under T2.1).
  *
- * @see .claude/knowledge-base/plans/dogfood-anchor-scenario-launch-plan.md § T1.2
  */
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';

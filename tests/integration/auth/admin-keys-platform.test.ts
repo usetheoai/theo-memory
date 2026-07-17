@@ -9,7 +9,6 @@
  *
  * Run against real ankane/pgvector:v0.5.1 (gated by THEOMEM_PG_URI).
  *
- * @see .claude/knowledge-base/plans/model-b-platform-admin-mint-plan.md § T1.2 / T1.3 (ADR D1/D3)
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';

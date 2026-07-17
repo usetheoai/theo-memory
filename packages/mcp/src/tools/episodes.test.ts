@@ -7,7 +7,6 @@
  * (pagination), EC-2 absent-option omission, EC-3 session-scope union serialization,
  * and the error paths (missing scope, after+before mutual exclusion).
  *
- * @see .claude/knowledge-base/plans/mcp-episodes-tool-plan.md § T1.1 (+ EC-1..EC-4)
  * @see ADR D6 — Protocol (thrown McpError) vs Execution (returned isError) errors
  */
 import { McpError } from '@modelcontextprotocol/sdk/types.js';

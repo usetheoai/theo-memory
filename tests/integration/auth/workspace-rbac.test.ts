@@ -9,7 +9,6 @@
  *     outranks the caller → 403; bound to a non-member → 422; bound to a
  *     lower/equal member → 200.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1 + ADR D3/D4
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';

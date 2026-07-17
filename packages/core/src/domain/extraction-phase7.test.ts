@@ -7,7 +7,6 @@
  * throw → entity_linking_failed event + remember() still returns its items);
  * caps per memory (EC-3); drops empty/short names before persist (EC-2).
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T3.1
  */
 import { trace } from '@opentelemetry/api';
 import {

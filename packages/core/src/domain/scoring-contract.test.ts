@@ -12,7 +12,6 @@
  *
  * Parameterized over default {1,1,1} and GENERATIVE_AGENTS_WEIGHTS {0.5, 3, 2}.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T1.2
  */
 import { describe, expect, test } from 'vitest';
 

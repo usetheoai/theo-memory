@@ -22,8 +22,6 @@
  *   - Integration tests against real pgvector — covered by existing
  *     `tests/integration/pgvector-store.test.ts`.
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.2
- * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-2-pre-red.md
  */
 import type { Pool } from 'pg';
 import { describe, expect, test, vi } from 'vitest';

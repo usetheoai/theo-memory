@@ -10,7 +10,6 @@
  * ThresholdReflectionPolicy(threshold=50); mocked LLM returns canned drafts
  * for determinism.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T6.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

@@ -42,7 +42,7 @@ forgotten** memories through the graph path (the only recall path that does not 
 ### Explicitly out of scope
 
 - **Graph-DB backend (Apache AGE / Neo4j)** — *why excluded:* Item 14, declined 2026-06-22. 1–2 hop needs only Postgres JOINs; poly-store complexity is unjustified.
-- **Wrapping / as a backend or data-adapter** — *why excluded:* direct competitors; the "Adapters (//) cut 2026-05-21" decision stands (be the native backend, not a wrapper).
+- **Wrapping / as a backend or data-adapter** — *why excluded:* direct competitors; the "Adapters  cut 2026-05-21" decision stands (be the native backend, not a wrapper).
 - **Maintained-on-write entity summaries (eager LLM per update)** — *why excluded:* recurring LLM cost for marginal value; M2 is on-demand only.
 
 > To reconsider any of these, write a new roadmap revision — do not silently expand scope.
@@ -167,7 +167,7 @@ milestone needs line-level study.
 
 | Peer | License | Why it's here | Supports milestone(s) |
 |---|---|---|---|
-| (REDACTED/) | Apache-2.0 | Reference temporal context-graph engine — the source of the 3 deltas | M0, M1, M2 |
+|  | Apache-2.0 | Reference temporal context-graph engine — the source of the 3 deltas | M0, M1, M2 |
 | | (managed) | Productized context-graph infra — validates the "graph as augmentation over a memory substrate" framing | M0, M2 |
 | (cloned) | Apache-2.0 | Our architectural base (vector + LLM extraction + hybrid retrieval) | M0 |
 

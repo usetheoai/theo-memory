@@ -12,8 +12,6 @@
  * end-to-end against a live pgvector container. Skipped when
  * `THEOMEM_PG_URI` is unset so CI environments without docker pass.
  *
- * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T4.1
- * @see .claude/knowledge-base/adrs/ADR-0011-bi-temporal-local-runtime-gate-lift.md
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

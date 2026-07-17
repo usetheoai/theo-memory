@@ -3,7 +3,6 @@
  * preserving the ADD-only invariant (ADR-0003). DEFAULT policy on
  * `Memory.reflect({ conflictResolution })` per ADR D2.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.2 + ADR D2
  */
 import { describe, expect, test } from 'vitest';
 

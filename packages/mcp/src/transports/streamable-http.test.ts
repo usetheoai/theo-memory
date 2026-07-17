@@ -9,7 +9,6 @@
  * @see ADR D1 — Transport: stdio + streamable-HTTP (skip SSE + fastmcp)
  * @see ADR D3 — scope binding via AsyncLocalStorage
  * @see ADR D6 — error mechanisms
- * @see .claude/knowledge-base/discoveries/blueprints discover blueprint Q5 — stateless mode pattern (sessionIdGenerator: undefined)
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';

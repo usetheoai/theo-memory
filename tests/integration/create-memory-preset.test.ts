@@ -15,7 +15,6 @@
  *
  * Gated by THEOMEM_PG_URI (EC-17: fail loudly in CI when unset).
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md § T2.2
  */
 import pg from 'pg';
 import { afterEach, describe, expect, test } from 'vitest';

@@ -17,8 +17,6 @@
  *   - src/local/scoped-skill-memory.ts:104
  *   - src/local/skills/payload.ts:78
  *
- * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § T6.1 + ADR D5
- * @see .claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md § EC-5
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

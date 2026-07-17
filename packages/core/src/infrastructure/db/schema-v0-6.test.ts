@@ -12,8 +12,6 @@
  * `memories_kind_derived_from_check` verbatim — the migration's DROP+ADD
  * pair cites this name explicitly so Drizzle auto-naming cannot drift.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T0.1
- * @see .claude/knowledge-base/discoveries/blueprints/skill-library-blueprint.md § ADR D3
  */
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';

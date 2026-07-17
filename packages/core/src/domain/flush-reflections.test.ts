@@ -10,7 +10,6 @@
  * Integration test against real pgvector is in
  * tests/integration/reflection/threshold-policy.test.ts (env-gated).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T6.1 + T4.3 EC-7
  */
 import { describe, expect, test } from 'vitest';
 

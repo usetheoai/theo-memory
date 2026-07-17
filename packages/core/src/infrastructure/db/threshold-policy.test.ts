@@ -3,7 +3,6 @@
  *
  * Mix of unit-tier (no DB) + integration-tier (env-gated real pgvector).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T2.1
  */
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';

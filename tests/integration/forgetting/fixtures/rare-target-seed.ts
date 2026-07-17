@@ -24,7 +24,6 @@
  * Bottom 30% by score (300 victims) = 300 cluster members. All 50 rare
  * targets survive → recall@10 on rare queries = 1.0 ≥ the 0.70 threshold.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.1
  * @see CLAUDE.md § Macro roadmap Item 6 acceptance verbatim
  */
 import type { Pool } from 'pg';

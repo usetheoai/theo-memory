@@ -8,7 +8,6 @@
  * (reads the auth-trusted ScopedContext.workspaceId) → Memory.withWorkspace → store —
  * the same path the gateway drives with a per-tenant key.
  *
- * @see .claude/knowledge-base/plans/mcp-workspace-binding-isolation-plan.md § T4.1
  * @see tests/integration/auth/workspace-isolation.test.ts — the REST #77 sibling
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';

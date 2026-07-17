@@ -11,7 +11,6 @@
  *
  * Gated by THEOMEM_PG_URI (absent → SKIP). Real ankane/pgvector:v0.5.1.
  *
- * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T1.1
  */
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import pg from 'pg';

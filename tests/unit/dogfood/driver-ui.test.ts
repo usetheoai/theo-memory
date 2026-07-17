@@ -2,7 +2,6 @@
  * T3.1 — UI driver coverage. Asserts `drivers/ui.md` documents every J-UI journey with a
  * Chrome-MCP-observable oracle, the dev-stack runbook gotchas, and EC-8.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 3 / T3.1
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

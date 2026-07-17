@@ -4,7 +4,6 @@
  * honest verdict (and counts the real J-MCP-3 evidence produced by an actual run), and a
  * simulated red journey blocks SUFFICIENT.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Final Phase / T5.1
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';

@@ -14,8 +14,6 @@
  * default so a regression that adds 60s to a single scenario surfaces as
  * a timeout rather than getting masked.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T5.1
- * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-9
  */
 import { vi } from 'vitest';
 

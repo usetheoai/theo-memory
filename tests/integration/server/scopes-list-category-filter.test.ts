@@ -15,7 +15,6 @@
  *   7. EC-7 cursor + changed category does NOT throw (graceful subset OR empty)
  *   8. EC-3 SDK boundary — LocalScopedMemory.getAll({category:''}) equivalent to no-filter
  *
- * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T4.1 + EC-3 + EC-7
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

@@ -10,8 +10,6 @@
  * (forbids self-rotation cycle at row level — defense in depth on top of
  * the lineage CTE UNION dedupe).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T0.2
- * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-2
  */
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

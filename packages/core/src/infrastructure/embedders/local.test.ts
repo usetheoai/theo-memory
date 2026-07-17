@@ -14,8 +14,6 @@
  * (no temperature; argmax pooling for sentence-transformers). The same
  * input MUST produce the same output bit-for-bit on the same hardware.
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T1.1 + ADR D1
- * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-4-pre-red.md (lazy singleton + L2 + batch slicing)
  */
 import { describe, expect, test, vi } from 'vitest';
 

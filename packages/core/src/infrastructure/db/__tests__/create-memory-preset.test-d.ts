@@ -4,7 +4,6 @@
  * (create-memory-preset T2.1 + Drawbacks row 3). Restores the compile-time
  * non-breaking guarantee that the runtime factory-dispatch.test.ts cannot prove.
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md § T2.1
  */
 import { describe, expectTypeOf, it } from 'vitest';
 

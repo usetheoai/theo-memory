@@ -10,7 +10,6 @@ import pg from 'pg';
  * each migration entry's hash is compared against the journal; matching
  * hashes are skipped.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

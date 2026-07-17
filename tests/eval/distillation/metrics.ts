@@ -15,7 +15,6 @@
  * BLEU-4 formula: geometric mean of modified n-gram precisions (n=1..4)
  * times brevity penalty.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.2 + ADR D5 + EC-10
  */
 import natural from 'natural';
 

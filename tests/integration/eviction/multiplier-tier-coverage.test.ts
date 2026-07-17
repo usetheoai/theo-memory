@@ -21,8 +21,6 @@ import type { Scope } from '@usetheo/memory';
  * victim list (multiplier × base_score elevated its rank above the
  * clustered cluster).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T7.2
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-5
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

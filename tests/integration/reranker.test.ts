@@ -26,7 +26,6 @@
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI). First run downloads the
  * two ONNX models from the HF CDN (cached thereafter).
  *
- * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § T5.1 (GOAL)
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

@@ -15,8 +15,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * `__resetCounterCacheForTesting()` lets this test exercise the
  * "consumer-registers-provider-after-import" sequence deterministically.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T10.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-6
  */
 
 describe('T10.1: PgEvictor OTel meter lazy init (F-dom-6)', () => {

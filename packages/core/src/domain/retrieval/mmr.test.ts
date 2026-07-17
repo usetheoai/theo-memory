@@ -2,7 +2,6 @@
  * principles-alignment-hardening T4.2 — unit tests for mmrRerank
  * (Maximal Marginal Relevance) per ADR D3 + EC-3 boundary validation.
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T4.2
  */
 import { describe, expect, test } from 'vitest';
 

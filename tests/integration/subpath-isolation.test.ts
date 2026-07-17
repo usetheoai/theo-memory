@@ -203,7 +203,6 @@ describe('T4.1 — @usetheo/memory/cache-pg subpath isolation', () => {
  * IS reachable from the default barrel (zero-runtime type export) — only the
  * IMPL is subpath-isolated.
  *
- * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § T3.2 + ADR D5
  */
 describe('T3.2 — @usetheo/memory/reranker-local subpath isolation', () => {
   test('default @usetheo/memory barrel does NOT reach packages/core/src/infrastructure/rerankers/cross-encoder.ts', () => {
@@ -233,7 +232,6 @@ describe('T3.2 — @usetheo/memory/reranker-local subpath isolation', () => {
  * subpath barrel smoke-imports `HeuristicAdaptiveRetrievalPolicy`. The DIP TYPE
  * `AdaptiveRetrievalPolicy` IS reachable from the default barrel (zero-runtime).
  *
- * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § T4.2 + ADR D5
  */
 describe('T4.2 — @usetheo/memory/adaptive-local subpath isolation', () => {
   test('default @usetheo/memory barrel does NOT reach packages/core/src/infrastructure/adaptive/heuristic-policy.ts', () => {
@@ -258,7 +256,6 @@ describe('T4.2 — @usetheo/memory/adaptive-local subpath isolation', () => {
  * heavy deps they statically pull (`openai`, `@xenova/transformers`). The 4 new
  * subpaths smoke-import their public surface.
  *
- * @see .claude/knowledge-base/plans/embedder-registry-plan.md § T3.1 + ADR D2 + D4
  */
 describe('T3.1 — @usetheo/memory/embedders/registry subpath isolation', () => {
   test('registry static-import graph does NOT reach the SDK-backed adapters or their deps', () => {

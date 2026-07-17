@@ -13,7 +13,6 @@
  *  - (e) Legacy rows survive the migration with category=NULL (ADR D1 honest
  *        no-backfill — no implicit "general" default).
  *
- * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T2.1 + ADR D2 + ADR D1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

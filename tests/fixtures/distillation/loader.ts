@@ -12,8 +12,6 @@
  * read time. T3.3 helpers filter by `source === 'hand'` to keep the
  * quality signal honest.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.1 + ADR D4
- * @see .claude/knowledge-base/discoveries/snapshots/v0-7-episodic-semantic-distillation/23330a2ecff714779ded7f8225a62f9f1b7f030f8b04ac4b86039a2673475187.md (methodology snapshot)
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';

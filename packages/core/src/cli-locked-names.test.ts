@@ -13,7 +13,6 @@
  * Closes M6 + EC-4 from `/review verbs-as-cli-fixes-cycle-1` 2026-06-04.
  *
  * @see CLAUDE.md § Locked names → `themory CLI verbs` + `themory CLI flags (stable)`
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T3.3
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

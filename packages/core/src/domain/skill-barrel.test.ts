@@ -9,7 +9,6 @@
  * of the public contract — downstream `import { Skill } from '@usetheo/memory'`
  * would break.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.2
  */
 import { expectTypeOf, test } from 'vitest';
 

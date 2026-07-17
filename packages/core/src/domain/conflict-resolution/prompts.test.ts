@@ -6,7 +6,6 @@
  * candidate ids embedded verbatim) so the LLM judge has the information
  * it needs to return a valid {kept_id, rejected_ids, reason} JSON.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.3 + ADR D2
  */
 import { describe, expect, test } from 'vitest';
 

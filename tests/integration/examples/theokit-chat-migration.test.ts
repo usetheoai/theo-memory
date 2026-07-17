@@ -12,8 +12,6 @@
  * include glob (`tests/integration/**\/*.test.ts`); EC-8 sentinel verifies
  * this membership empirically.
  *
- * @see .claude/knowledge-base/plans/examples-theokit-chat-migration-plan.md § T0.1
- * @see .claude/knowledge-base/reviews/examples-theokit-chat-migration-edge-cases-2026-06-05.md § EC-5, EC-8
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';

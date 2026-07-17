@@ -6,7 +6,6 @@
  * its own workspace's rows, and a cross-workspace forget is a 404 (WorkspaceMismatch)
  * that never touches the other workspace's row (EC-5 / ADR D6).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T3.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';

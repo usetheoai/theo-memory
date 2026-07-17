@@ -13,7 +13,6 @@
  *   - Every fixture id starts with its category prefix (file naming
  *     discipline + audit).
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.1 + ADR D4
  */
 import { describe, expect, test } from 'vitest';
 

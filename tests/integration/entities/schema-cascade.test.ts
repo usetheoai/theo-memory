@@ -9,7 +9,6 @@
  *
  * Gated by THEOMEM_PG_URI (EC-17: CI=true with absent env fails loudly).
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T2.1
  */
 import { randomUUID } from 'node:crypto';
 

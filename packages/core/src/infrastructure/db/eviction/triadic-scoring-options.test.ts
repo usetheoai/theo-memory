@@ -21,8 +21,6 @@ import {
  * `null` — SEPA iter 2 pre-RED MAJOR finding) as the first positional arg
  * without throwing TypeError.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T1.1 + ADR D5
- * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-2
  */
 describe('TriadicScoringPolicy constructor', () => {
   const stubEvictor: Evictor = {

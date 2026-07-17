@@ -11,7 +11,6 @@
  * `infer: false` stores verbatim (no LLM) so the assertion is deterministic with
  * the stub embedder (identical text → cosine 1.0).
  *
- * @see .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md § T3.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';

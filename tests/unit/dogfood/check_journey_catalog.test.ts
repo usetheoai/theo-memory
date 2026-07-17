@@ -5,7 +5,6 @@
  * every journey MUST be anchor:true), a duplicate journey id. Passes on a well-formed
  * all-anchor 4-surface catalog. The author-time gate the runtime audit (T1.1) complements.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 1 / T1.2
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';

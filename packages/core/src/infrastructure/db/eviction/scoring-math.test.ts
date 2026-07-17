@@ -17,8 +17,6 @@
  * which matches the test names + blueprint D7 retention-probability semantics.
  * Documented in commit body.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T2.1 (ADR D7 + D8 + D14)
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md § D7 + D8 + D9
  */
 import { describe, expect, test } from 'vitest';
 

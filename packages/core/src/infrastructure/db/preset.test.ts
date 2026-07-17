@@ -5,7 +5,6 @@
  * T1.2 — assemblePresetMemory (pool-owning assembly) + resolvePreset (env-set,
  *        migrate opt-out, fail-fast) with a mock pool + deterministic stub adapters.
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md
  */
 import type { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

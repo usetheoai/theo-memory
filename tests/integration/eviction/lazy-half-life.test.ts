@@ -21,8 +21,6 @@
  * the established pattern in `tests/integration/reflection/threshold-policy.test.ts`.
  * Placed here; documented in commit body as plan deviation.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T2.2 (ADR D14)
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md § D14
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

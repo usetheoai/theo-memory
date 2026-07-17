@@ -10,8 +10,6 @@
  *  - EC-3: empty-string filter normalizes to undefined (no-filter)
  *  - EC-4: byte-equality / case-sensitivity preserved (Preferences ≠ preferences)
  *
- * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T3.1
- * @see .claude/knowledge-base/reviews/themory-category-filter-server-side-edge-cases-2026-06-09.md § EC-3 + EC-4
  */
 import { describe, expect, test } from 'vitest';
 

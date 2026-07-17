@@ -3,7 +3,6 @@
  *
  * Plan: `theo-memory-faang-auth-lifecycle` § T2.2.1 + EC-3.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2.1
  */
 import { describe, expect, test, vi } from 'vitest';
 

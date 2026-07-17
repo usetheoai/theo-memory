@@ -9,7 +9,6 @@ import {
  * T11.2 unit tests for the deterministic-hash + Fisher-Yates helpers
  * (closes F-tests-1 + F-tests-2 MAJOR + EC-8 absorption).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.2
  */
 describe('makeSeededRandom — LCG output is identical for the same seed across runs', () => {
   it('two RNGs with the same seed emit identical sequences', () => {

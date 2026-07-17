@@ -7,7 +7,6 @@
  * + label shapes without depending on `@opentelemetry/sdk-metrics`
  * (not in dependencies; Inquebrável Rule 11 YAGNI).
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T3.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';

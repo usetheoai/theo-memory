@@ -16,8 +16,6 @@
  * Runs against `ankane/pgvector:v0.5.1` via THEOMEM_PG_URI. Mirrors the
  * pgvector-store-list-temporal.test.ts skeleton.
  *
- * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T3.2 + ADR D6 + ADR D2
- * @see .claude/knowledge-base/reviews/themory-category-filter-server-side-edge-cases-2026-06-09.md § EC-1 + EC-3..EC-6
  */
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import pg from 'pg';

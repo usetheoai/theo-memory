@@ -15,7 +15,6 @@
  *
  * Gated by THEOMEM_PG_URI.
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T5.1
  */
 import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';

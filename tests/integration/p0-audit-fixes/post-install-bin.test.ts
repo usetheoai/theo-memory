@@ -29,8 +29,6 @@
  * fail this test for a missing flag, NOT for a real regression — surface
  * that distinction in the SKIP message.
  *
- * @see .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md § T0.1
- * @see .claude/rules/architecture.md § 10.1 (F-T7-1-3 publish-readiness regression class)
  */
 import { spawnSync } from 'node:child_process';
 import {

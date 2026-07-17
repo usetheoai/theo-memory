@@ -22,8 +22,6 @@
  * tsc to typecheck the interface presence/shape via tsconfig.contract.json's
  * src/core/ include, so RED fails the right way (module not found).
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.1 + ADR D2
- * @see .claude/knowledge-base/discoveries/blueprints/v0-7-episodic-semantic-distillation-blueprint.md § R3 (3-impl strategy DIP)
  * @see src/core/__tests__/dip-eviction-policy.test.ts (8th DIP precedent shape)
  */
 import { describe, expect, test } from 'vitest';

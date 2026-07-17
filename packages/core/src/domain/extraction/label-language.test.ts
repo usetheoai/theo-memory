@@ -3,7 +3,6 @@
  * Uses a stub LLM (the corrective map is deterministic-under-stub); detection is
  * the real `eld` collaborator (pure, no I/O).
  *
- * @see .claude/knowledge-base/plans/entity-label-language-determinism-plan.md § T1.1
  */
 import { describe, expect, it, vi } from 'vitest';
 

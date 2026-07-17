@@ -12,8 +12,6 @@
  * Sentinel guards against accidental removal during package.json edits in
  * unrelated cycles.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/theo-memory-faang-auth-lifecycle-blueprint.md § Coverage Corner 3 — deps
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § ADR D4
  */
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
