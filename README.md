@@ -4,9 +4,9 @@
 
 # Theo Memory
 
-### Your AI agent is a goldfish. Give it a memory.
+### The open-source memory layer for AI agents.
 
-**Persistent, multi-tenant memory for AI agents — facts, conversations, and _executable skills_, on your own Postgres.**
+**Persistent and multi-tenant — your agents remember facts, conversations, and _executable skills_ across every user and session, on your own Postgres.**
 
 `remember` · `recall` · `forget` · `reflect` — one TypeScript SDK, one REST API, one MCP server.
 Works with any LLM. No graph DB. No lock-in. Apache-2.0.
