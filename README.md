@@ -28,7 +28,17 @@ Drop-in TypeScript SDK. Postgres + pgvector. Works with any LLM.
 
 ## Why Theo Memory?
 
-Most agents forget everything between sessions. Theo Memory gives them persistent, scoped, searchable memory — so your agent can recall that Alice is vegetarian, that the last support ticket was about billing, or that the deploy script needs a `--force` flag on Tuesdays.
+**Your agent is a goldfish.** Every session starts from zero — it re-asks what the user already
+told it, forgets the last support ticket, relearns the same procedure. Theo Memory gives it
+**persistent, scoped, searchable memory** in four verbs: `remember` · `recall` · `forget` · `reflect`.
+
+So your agent can recall that Alice is vegetarian, that the last ticket was about billing, or that
+the deploy script needs a `--force` flag on Tuesdays — across users, sessions, and even as
+**reusable executable skills**.
+
+- **Runs on your infra** — plain Postgres + pgvector, your LLM key. No graph DB, no vendor lock-in, Apache-2.0.
+- **Three ways to plug in** — TypeScript SDK, REST API (OpenAPI 3.1), or MCP server (works with Claude, Cursor, and any MCP agent).
+- **Multi-tenant from day one** — workspace isolation + `owner`/`admin`/`member` RBAC, in the **free** package (not a paid tier).
 
 ```ts
 import { createLocalMemory, PgvectorStore } from '@usetheo/memory';
@@ -394,6 +404,31 @@ npm run lint                # Zero warnings
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
 | Migrations | 18 |
+
+## How it compares
+
+The agent-memory space is healthy and moving fast — Mem0, Letta, and Zep's Graphiti are all
+strong, Apache-2.0, self-hostable projects. This is a **capability** comparison of the
+**open-source surfaces** (not a performance benchmark, and not the vendors' hosted tiers),
+best-effort from each project's public repo **as of July 2026**. Corrections welcome — open a PR.
+
+| | **Theo Memory** | [Mem0](https://github.com/mem0ai/mem0) | [Letta](https://github.com/letta-ai/letta) | [Graphiti](https://github.com/getzep/graphiti) (Zep OSS) |
+|---|---|---|---|---|
+| License | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 |
+| Primary language | **TypeScript** | TypeScript + Python | Python | Python |
+| Default store | Postgres + pgvector | pgvector / others | Postgres | Neo4j (graph DB) |
+| Memory model | `user` · `session` · `agent` · **`skills`** | user · session · agent | memory blocks | temporal graph + episodes |
+| Hybrid retrieval (semantic + BM25 + entity) | ✅ | ✅ | n/d | ✅ (+ graph) |
+| Point-in-time / temporal | ✅ `recall({ asOf })` | ✅ time-aware retrieval | n/d | ✅ bi-temporal |
+| **Code-as-skill memory** | ✅ executable skill library | ❌ | ❌ | ❌ |
+| MCP memory server | ✅ 4 tools + OpenMemory drop-in | via OpenMemory server | n/d | ✅ |
+| REST API (OSS) | ✅ Hono + OpenAPI 3.1 | ✅ self-hosted server | ✅ | ✅ FastAPI |
+| Multi-tenant isolation + RBAC (OSS) | ✅ workspace + `owner`/`admin`/`member` | hosted Platform ¹ | n/d ² | Zep Cloud ³ |
+| No graph DB required | ✅ plain Postgres | ✅ | ✅ | ❌ needs Neo4j/graph |
+
+<sub>✅ present in the OSS project · ❌ absent · `n/d` = not determinable from the public repo. **Where Theo Memory is genuinely different:** (a) a **code-as-skill** memory tier (store + recall executable procedures), (b) **multi-tenant isolation + full `owner`/`admin`/`member` RBAC in the free OSS package** — peers commonly gate equivalent tenancy/RBAC to their hosted tiers, and (c) a **plain-Postgres** deployment (no graph database to run). Where peers are strong: Mem0 ships a large provider catalog + temporal reasoning; Graphiti is a first-class **temporal knowledge graph**. Theo Memory itself is **[pre-release](#status)**.</sub>
+
+<br><sub>Sources (validate these): ¹ Mem0 — [repo](https://github.com/mem0ai/mem0) (OSS self-hosted server has auth; multi-tenancy/RBAC positioned in the hosted Platform). ² Letta — [repo](https://github.com/letta-ai/letta) (OSS self-host; RBAC/tenancy not documented in the OSS repo). ³ Graphiti/Zep — [repo](https://github.com/getzep/graphiti) (OSS engine + FastAPI server + MCP server; auth/multi-user positioned in Zep Cloud). All three are Apache-2.0.</sub>
 
 ## Roadmap
 
