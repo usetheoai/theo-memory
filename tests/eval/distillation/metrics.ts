@@ -1,6 +1,6 @@
 /**
  * Pure-function metrics for v0.7 distillation evaluation. Used by
- * `docs/distillation-evaluation/run.ts` (T3.2 — npm run eval:distillation)
+ * `tests/eval/distillation/run.ts` (T3.2 — npm run eval:distillation)
  * AND `tests/integration/distillation/the-goal-test.test.ts` (T3.3 —
  * precision/recall thresholds).
  *

@@ -19,7 +19,7 @@ npm run eval:forgetting
 ```
 
 The script prints the recall@10 matrix to stdout in Markdown format —
-copy/paste into `docs/forgetting-evaluation.md` if you want to update the
+copy/paste into `tests/eval/forgetting.md` if you want to update the
 committed matrix.
 
 ## What it measures
@@ -29,7 +29,7 @@ The script reuses the deterministic seed fixture from
 fixture THE GOAL TEST T7.1 uses): 950 cluster members + 50 rare-isolated
 targets in a single scope. Two eviction strategies are RUN; two are
 synthesized (they collapse to random under the uniform-base-score seed —
-see methodology in `docs/forgetting-evaluation.md`).
+see methodology in `tests/eval/forgetting.md`).
 
 ## What it does NOT measure
 
@@ -56,6 +56,6 @@ value, and (b) tightening the random baseline is out of T7.3 scope.
 ## Cross-references
 
 - Plan: `.claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.3`
-- Methodology: `docs/forgetting-evaluation.md`
-- Runner: `docs/forgetting-evaluation/run.ts`
+- Methodology: `tests/eval/forgetting.md`
+- Runner: `tests/eval/forgetting/run.ts`
 - npm script wiring: `package.json scripts.eval:forgetting`

@@ -23,7 +23,7 @@ import {
   precision,
   recall,
   tokenize,
-} from '../../../docs/distillation-evaluation/metrics.js';
+} from '../../eval/distillation/metrics.js';
 
 describe('T3.2: distillation evaluation metrics', () => {
   test('tokenize lowercases + splits on whitespace + drops punctuation', () => {

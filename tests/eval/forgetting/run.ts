@@ -22,7 +22,7 @@
  * Requires: THEOMEM_PG_URI env var pointing at a running pgvector instance.
  *
  * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.3
- * @see docs/forgetting-evaluation.md
+ * @see tests/eval/forgetting.md
  */
 import pg from 'pg';
 
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
 
     // Strategies (b) and (c) collapse to (a) under uniform-base-score seeds —
     // synthesized rows reflect that fact honestly without re-running redundant
-    // measurements. See methodology in docs/forgetting-evaluation.md.
+    // measurements. See methodology in tests/eval/forgetting.md.
     const lru: ScenarioResult = {
       name: '(b) pure LRU (uniform lastAccessedAt → collapses to random)',
       evictedTotal: random.evictedTotal,

@@ -4,7 +4,7 @@
 
 - `tests/unit/distillation/gold-set-shape.test.ts` — shape / scale / Zod validation
 - `tests/integration/distillation/the-goal-test.test.ts` (T3.3) — precision / recall / conflict-resolution accuracy thresholds
-- `docs/distillation-evaluation/run.ts` (T3.2 — `npm run eval:distillation`) — full eval matrix
+- `tests/eval/distillation/run.ts` (T3.2 — `npm run eval:distillation`) — full eval matrix
 
 ## Hybrid composition (ADR D4 path; user decision 2026-06-01)
 
@@ -55,7 +55,7 @@ The script is idempotent: existing JSON files are NOT overwritten. To force a re
 
 - **Procedural fixtures are NOT semantic ground truth.** They exercise the loader + schema + pipeline scale, but their `expectedFacts` cannot validate extraction quality. THE GOAL TEST (T3.3) skips them.
 - **Hand-authored subset is 50 episodes (10/category)** vs ADR D4's ideal of 50 hand + 150 LLM-simulated-and-human-verified. The full 200-episode authoring is deferred to a v0.7.1 cycle (estimated ~25-40h human labor + LLM API costs). Drop-in compatible with the loader contract.
-- **Expected-fact extraction is text-string match.** Semantic equivalence (e.g., "lives in São Paulo" vs "based in SP, Brazil") is intentionally NOT collapsed by the loader — that judgment belongs to the extraction pipeline + scoring metric in `docs/distillation-evaluation/metrics.ts` (T3.2).
+- **Expected-fact extraction is text-string match.** Semantic equivalence (e.g., "lives in São Paulo" vs "based in SP, Brazil") is intentionally NOT collapsed by the loader — that judgment belongs to the extraction pipeline + scoring metric in `tests/eval/distillation/metrics.ts` (T3.2).
 
 ## Related
 
