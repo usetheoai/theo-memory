@@ -175,9 +175,9 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 ## Multi-tenancy & RBAC
 
-Two orthogonal layers turn the single-tenant memory store into a multi-tenant, role-gated one. Both are enforced **server-side from the credential** — never from the request body.
+Ship a multi-tenant product without bolting on a separate auth service. Two layers — **workspace isolation** and **role-based access** — are enforced server-side from the credential, never from the request body. Both live in the free package (peers commonly gate this to a paid tier).
 
-### Slice 1 — Workspace isolation (the tenant boundary)
+### Workspace isolation
 
 Every API key resolves to a `workspace`. The `AuthVerifier` resolves a `Principal { workspaceId, userId, role, scopes }` from the credential, and **every** persistence query is scoped by `principal.workspaceId`:
 
@@ -194,7 +194,7 @@ await wsA.user('alice').remember('Prefers dark mode');
 await wsA.user('alice').recall('UI preferences'); // only ever sees 'acme' rows
 ```
 
-### Slice 2 — Members & roles (RBAC)
+### Members & roles (RBAC)
 
 A workspace has members (`users` ↔ `workspace_users`, M:N) each holding one role: `owner` ⊇ `admin` ⊇ `member`.
 
@@ -253,7 +253,7 @@ Add `themory` to your project-local `.mcp.json` (Claude Code reads this file fro
 **Tools:** `remember` · `recall` · `forget` · `reflect`
 **Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEMEMORY_API_KEY` is set)
 
-#### streamable-HTTP over TLS (non-localhost binds — ADR-0015 #3)
+#### streamable-HTTP over TLS (non-localhost binds)
 
 When the MCP server must listen on a **non-localhost** host (e.g. so a container reaches it
 over `host.docker.internal`), HTTPS is required. Pass a cert/key pair:
@@ -264,10 +264,7 @@ themory mcp --transport streamable-http --host 0.0.0.0 --port 18091 \
 ```
 
 Both flags are required together (one alone fails fast); binding a non-localhost host without
-them is refused. A localhost bind stays plain HTTP. This is what the **theo-workspace**
-local stack uses to front the host themory MCP from the containerized Theo MCP Gateway
-(`make memory-up MODE=--mcp` — it runs `themory` from this repo's built `dist/`, so **rebuild
-after updating to ≥ v0.25.0**: `npm run build`).
+them is refused. A localhost bind stays plain HTTP.
 
 ### OpenMemory-compatible mode
 
@@ -304,9 +301,7 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-`publish.yml` — a thin caller of the shared reusable `theo/build-publish.yml` — runs on a
-**self-hosted runner** (the `usetheodev` org's GitHub-hosted minutes are currently billing-blocked;
-runner `theo-ci-theo-memory`, cross-repo runbook in the `theo-data` workspace).
+Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR (and Docker Hub) automatically on each version tag.
 
 | Trigger | Channel | Result |
 |---|---|---|
@@ -444,15 +439,15 @@ best-effort from each project's public repo **as of July 2026**. Corrections wel
 | v0.5 | OpenMemory MCP-shape compatibility (drop-in over SSE) | **Shipped** |
 | v0.6 | Selectable embedder (`THEOMEM_EMBEDDER` local / OpenAI) | **Shipped** |
 | v1.0 | Contract stable / production-ready | In progress |
-| — | Agentic tool-use + injection/command safety sandbox | Planned (post-P0) |
-| — | Layered config + `themory config` subcommand | Planned (post-P0) |
-| — | Optional cross-encoder reranker (`Reranker` DIP) | Planned (post-P0) |
-| — | Embedder registry + additional providers | Planned (post-P0) |
+| — | Agentic tool-use + injection/command safety sandbox | Planned |
+| — | Layered config + `themory config` subcommand | Planned |
+| — | Optional cross-encoder reranker (`Reranker` DIP) | Planned |
+| — | Embedder registry + additional providers | Planned |
 | v2.0 | Adaptive retrieval + graph backend | Planned |
 
 ## Status
 
-> **Pre-release.** Feature-complete for the core use case. Validated across 107 end-to-end scenarios (REST, MCP, CLI, browser). Not yet published to npm. The internal dogfood-usage evidence gate is satisfied; the `production-ready` label remains gated on one item — an independent reproduction of the v0.8 benchmark.
+> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser). Not yet published to npm. We won't put a `production-ready` label on it until one last box is checked: an independent, reproducible benchmark. You can run it, self-host it, and build on it today — we're just not going to over-promise on the tin.
 
 ## Contributing
 
