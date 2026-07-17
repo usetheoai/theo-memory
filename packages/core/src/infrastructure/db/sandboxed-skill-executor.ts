@@ -15,7 +15,6 @@
  * Args are injected as STRUCTURED values (never string-concatenated into source);
  * only the validated arg-key identifiers are appended to the invocation expression.
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.3 (DEC-1..DEC-7)
  */
 import type { Tracer } from '@opentelemetry/api';
 // `import type` is fully erased at compile time — it does NOT pull the native addon

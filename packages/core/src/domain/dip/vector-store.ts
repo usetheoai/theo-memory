@@ -10,7 +10,6 @@
  * consolidate path uses runtime `typeof store.insertSkill === 'function'`
  * guards (see `src/local/index.ts` v0.4a reflect chain for the pattern).
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.1
  */
 import type { EpisodeListOptions } from '../episode.js';
 import type { Filters } from '../scope.js';
@@ -32,8 +31,6 @@ export interface VectorStoreResult {
    * Additive optional field (backward-compatible for all 6+ existing callsites
    * in `src/local/index.ts` and the 2 in-tree impls).
    *
-   * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D1 — additive shape extension
-   * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § ADR D2 — getAll fallback + OTel event
    */
   readonly createdAt?: Date;
   /**
@@ -49,7 +46,6 @@ export interface VectorStoreResult {
    *
    * Additive optional field — backward-compatible.
    *
-   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T3.1 + ADR D2 + EC-12
    */
   readonly category?: string;
 }
@@ -62,7 +58,6 @@ export interface VectorStoreResult {
  * For adapters lacking UPSERT semantics (e.g., in-memory backends), each row is
  * treated as a fresh insert: confirmationCount=1, rejectedAsDuplicate=false.
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1 + § ADR D4
  */
 export interface InsertOutcome {
   readonly id: string;
@@ -182,7 +177,6 @@ export interface VectorStore {
    * Additive read method; existing methods are unchanged (ADR-0008 method-count
    * note — this is a read of the same `memories` the store already owns).
    *
-   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 + ADRs D1-D4
    */
   listEpisodes(
     filters: Filters | undefined,

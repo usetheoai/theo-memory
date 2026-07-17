@@ -6,7 +6,6 @@
  * which of the two happened (observability only — the persisted value is a plain
  * string either way; no new column).
  *
- * @see .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md § ADR D2
  */
 
 /** The default fixed taxonomy (lowercase; the prompt lists these as preferred labels). */

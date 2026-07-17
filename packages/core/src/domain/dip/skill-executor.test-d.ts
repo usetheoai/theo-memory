@@ -8,7 +8,6 @@
  *
  * RED for this task is the typecheck error from the absent module, not a runtime assert.
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.1 + ADR D1
  */
 import { describe, test, expectTypeOf } from 'vitest';
 

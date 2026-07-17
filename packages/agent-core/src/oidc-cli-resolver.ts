@@ -27,7 +27,6 @@
  *     leak risk). The resolver accepts `clientId` from input but reads
  *     `clientSecret` exclusively from `process.env`.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T3.2
  */
 import type { OidcDiscoveryConfig } from '@usetheo/memory/contract';
 

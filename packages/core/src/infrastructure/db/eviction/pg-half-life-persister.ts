@@ -13,7 +13,6 @@
  * value, the trigger sets `half_life_seconds = NULL` so the next scoring
  * re-backfills via this persister.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T2.2 (D14 + EC-1)
  */
 import type { Pool } from 'pg';
 

@@ -1,7 +1,5 @@
 /**
  *
- * Drift-T6.x-1: ships with a ZepVendorClient interface that the adapter
- * consumes via DI. Real `@REDACTED/memory-service` SDK wiring is deferred to a
  * follow-up cycle.
  *
  * Drift-T5.1-1 absorbed: returns SearchResult.modelUsed for cost lookup.

@@ -6,12 +6,9 @@
  * V8 context with a hardened guard set; an out-of-process impl (cloud sandbox) is a
  * future seam. Per ADR D1 the port lives in the domain layer (pure contract, no I/O,
  * no native addon) so high-level callers depend on the abstraction, not the impl
- * (DIP — `.claude/rules/architecture.md § 3`). Per ADR D2 the in-process sandbox is
  * the locked default; per ADR D3 execution is opt-in/gated (a consumer wires an
  * executor explicitly — STORE-only stays the default).
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.1 + ADRs D1-D4
- * @see .claude/knowledge-base/discoveries/blueprints/agentic-skill-execution-sandbox-blueprint.md § ADR D3
  */
 import type { Skill } from '../skill.js';
 

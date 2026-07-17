@@ -11,7 +11,6 @@
  * EC-1: combineScores guards `maxPossible === 0` to avoid divide-by-zero NaN.
  * EC-8: NaN propagates predictably; Phase 5 threshold gate drops NaN-scored results.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § D2
  */
 
 /** ENTITY_BOOST_WEIGHT — upstream additive constant. Hardcoded; surfaceable via config at v1.x only if measurement demands tuning. */

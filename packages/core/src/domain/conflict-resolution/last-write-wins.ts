@@ -17,8 +17,6 @@
  *
  * Pure function: zero LLM calls, zero I/O, zero stateful side effects.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.2 + ADR D2
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-1
  */
 import type {
   ConflictResolutionPolicy,

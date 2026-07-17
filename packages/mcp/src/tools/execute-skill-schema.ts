@@ -6,7 +6,6 @@
  * call returns a Tool Execution Error ("not configured"). Scope is the `repoId`
  * ARGUMENT (Repo tier), not the AsyncLocalStorage user/session/agent scope.
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T2.4 + ADR D3
  */
 import { z } from 'zod';
 

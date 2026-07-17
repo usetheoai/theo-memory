@@ -8,7 +8,6 @@
  * EC-3 absorbed via createAgentToolsMemory. EC-5 absorbed: UUID v4 validator
  * at handler entry.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.3
  */
 import { createAgentToolsMemory } from '@usetheo/memory-agent-core';
 

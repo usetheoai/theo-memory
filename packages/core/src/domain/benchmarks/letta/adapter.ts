@@ -1,7 +1,5 @@
 /**
- * LettaBenchmarkAdapter — BenchmarkAdapter DIP impl for the 3rd-party vendor.
  *
- * Drift-T6.x-1: ships with a LettaVendorClient interface that the adapter
  * consumes via DI. Real REST wiring (the vendor has no official JS SDK at
  * audit time) is deferred to a follow-up cycle.
  *

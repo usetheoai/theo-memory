@@ -17,8 +17,6 @@
  *   - Empty batch → empty array
  *   - Pathological inputs > 1 → clamped to 1 in min-max output
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T1.2 + ADR D3
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D9
  */
 
 import type {

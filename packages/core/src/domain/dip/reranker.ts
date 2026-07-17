@@ -25,8 +25,6 @@
  * The default impl ships at `src/infrastructure/rerankers/cross-encoder.ts`
  * behind the `@usetheo/memory/reranker-local` subpath (bundle isolation).
  *
- * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D1
- * @see .claude/knowledge-base/discoveries/blueprints/cross-encoder-reranker-blueprint.md § ADRs
  * @see ADR-0008 (DIP method-count cap)
  */
 import type { MemoryItemWithScore } from '../memory-item.js';

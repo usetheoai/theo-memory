@@ -14,8 +14,6 @@
  * Prior art (a domain-tuned category taxonomy injected into the extraction
  * prompt to constrain the LLM's output) is surveyed in the blueprint.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/domain-ontologies-blueprint.md
- * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D1 + D4
  */
 import { InvalidOntology } from './errors.js';
 

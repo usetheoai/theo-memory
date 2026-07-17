@@ -149,8 +149,6 @@ export class LocalMemory implements Memory {
    * Postgres production path gains the soft-delete contract.
    *
    * @see CHANGELOG.md [Unreleased] § Changed `**BREAKING**` entry
-   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T7.1 + ADR D7
-   * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-3
    */
   async forget(memoryId: string, options?: ForgetOptions): Promise<void> {
     const existing = await this.config.vectorStore.get(memoryId);
@@ -284,7 +282,6 @@ export class LocalMemory implements Memory {
    * rows from regular agent memories sharing the same id.
    *
    * @throws InvalidScope on empty `repoId`.
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.1
    */
   skills(repoId: string): ScopedSkillMemory {
     // The local stores (PgvectorStore + InMemoryVectorStore) implement the

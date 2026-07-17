@@ -31,8 +31,6 @@
  * verifier itself stays test-friendly + lib-swappable per Inquebrável
  * Rule 9 (Não Reinvente) without lock-in.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T3.1
- * @see .claude/knowledge-base/discoveries/blueprints/theo-memory-faang-auth-lifecycle-blueprint.md § Q4 (Path A: dual-validation middleware)
  * @see https://datatracker.ietf.org/doc/html/rfc7662
  */
 import { createHash } from 'node:crypto';

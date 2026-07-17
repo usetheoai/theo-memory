@@ -32,7 +32,6 @@ export interface AgentScope {
  * Disambiguation between regular agent memories and skill memories happens via
  * the `kind='skill'` discriminator on the row — same column, different kind.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.1 + ADR D3
  */
 export interface RepoScope {
   readonly kind: 'repo';
@@ -105,7 +104,6 @@ export interface ScopedContext {
  * `session_id` is the only rename (the upstream uses `run_id`).
  *
  * v0.6 adds two skill-aware filter fields (kind + excludeSuperseded) per
- * skill-library plan ADR D3 / T2.2. These are honored by the local
  * stores' composeFilters / matchesFilters via dedicated branches (not the
  * generic equality loop); the pipeline layer derives them from
  * `RecallOptions.onlySkills` / `RecallOptions.includeSuperseded` before
@@ -123,7 +121,6 @@ export interface Filters {
    * The pipeline boundary in `src/local/index.ts::recall` routes
    * `RecallOptions.attributedTo` into this field before reaching the store.
    *
-   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T2.2
    */
   readonly attributed_to?: string;
   /**
@@ -136,8 +133,6 @@ export interface Filters {
    * composes the SQL WHERE clause; NULL-safe semantics match the
    * Apache-2.0 prior art referenced in ADR-0011 (see knowledge-base coordinates there).
    *
-   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T3.1
-   * @see .claude/knowledge-base/adrs/ADR-0011-bi-temporal-local-runtime-gate-lift.md
    */
   readonly asOf?: Date;
   /** v0.6: discriminate kind at the SQL/store layer ('extracted' | 'derived' | 'skill'). */
@@ -168,7 +163,6 @@ export interface Filters {
    * composing the predicate, so `filters.category=''` is equivalent to omitting
    * the filter. Defense-in-depth alongside REST zod `min(1)` validation.
    *
-   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D5 + EC-3 + EC-9
    */
   readonly category?: string;
   /**
@@ -180,7 +174,6 @@ export interface Filters {
    * no-credential collapse target per ADR D7). The REST path carries it as a
    * REQUIRED field via {@link ScopedFilters} (ADR D4 compile-time guard).
    *
-   * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T1.1 + ADR D1/D3/D4
    */
   readonly workspace_id?: string;
 }
@@ -197,6 +190,5 @@ export interface Filters {
  * goal test. This type is the documented target, NOT yet load-bearing — do
  * not delete it as "unused"; it marks the follow-up's contract.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § ADR D4 (amended 2026-06-17)
  */
 export type ScopedFilters = Filters & { readonly workspace_id: string };

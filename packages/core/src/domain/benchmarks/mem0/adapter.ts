@@ -1,8 +1,5 @@
 /**
- * Mem0BenchmarkAdapter — BenchmarkAdapter DIP impl for the 3rd-party vendor.
  *
- * Drift-T6.x-1: ships with a Mem0VendorClient interface that the adapter
- * consumes via DI. Real `vendor SDK` SDK wiring (Mem0OfficialClient class)
  * is deferred to a follow-up cycle. T6.x scope: validate the
  * BenchmarkAdapter pattern works for non-TheMemory adapters (SOLID/OCP).
  *

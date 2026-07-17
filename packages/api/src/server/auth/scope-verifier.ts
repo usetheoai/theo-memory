@@ -19,7 +19,6 @@
  * NOT a replacement for the upstream Bearer middleware — this verifier
  * REQUIRES `theo_live_*` shape; OIDC tokens (T3.1) take a different path.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 

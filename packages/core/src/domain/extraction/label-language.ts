@@ -18,7 +18,6 @@
  *
  * FAIL-SOFT: any error keeps the original labels; the caller never fails `remember()`.
  *
- * @see .claude/knowledge-base/plans/entity-label-language-determinism-plan.md
  */
 import type { LLM } from '../dip/llm.js';
 import type { Message } from '../message.js';

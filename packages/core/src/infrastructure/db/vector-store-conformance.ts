@@ -11,7 +11,6 @@
  * Adapter authors call:
  *   runVectorStoreConformance('in-memory', async () => ({ store: new InMemoryVectorStore(), truncate: ... }))
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.1
  * @see ADR D1.2 (this plan) + ADR-0008 (DIP method counts)
  */
 import { randomUUID } from 'node:crypto';

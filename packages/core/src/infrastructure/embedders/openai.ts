@@ -29,8 +29,6 @@
  *   to `text-embedding-3-small` per MOVE-only ADR D3). Constructor-level
  *   multi-account support also deferred.
  *
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T1.1
- * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-5 + EC-6 + EC-7 + EC-8 + EC-9
  */
 import OpenAI from 'openai';
 

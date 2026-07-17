@@ -46,9 +46,6 @@
  * @experimental — debug only. Not semantically meaningful for actual recall;
  *   use for race/dedup reproducibility (e.g., F-T4.1-2 isolation) and CI.
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.1 (corrected v1.2 — F-arch-2 + F-arch-3 honesty fix)
- * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-edge-cases-2026-06-01.md § EC-1
- * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-arch-2 + F-arch-3
  */
 import { createHash } from 'node:crypto';
 

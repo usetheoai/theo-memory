@@ -16,8 +16,6 @@
  * carrying a JSON string on success, or `"Error: …"` on failure — matching what
  * OpenMemory clients parse.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/openmemory-mcp-compat-blueprint.md
- * @see .claude/knowledge-base/plans/openmemory-mcp-compat-plan.md § T0.1
  */
 import type { CallToolResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';

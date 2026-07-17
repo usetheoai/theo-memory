@@ -12,8 +12,6 @@
  * boundary per LongMemEval/LoCoMo fixture schemas); BenchmarkQuery.expectedSpeakers
  * is OPTIONAL (single-speaker fixtures like DMR-derived MSC subset may omit).
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T0.1 + ADRs D1, D5, D6
- * @see .claude/knowledge-base/reviews/v0-8-independent-benchmark-reproduction-edge-cases-2026-06-02.md § EC-5
  */
 import { expectTypeOf, test } from 'vitest';
 

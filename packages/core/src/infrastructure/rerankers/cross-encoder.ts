@@ -34,9 +34,7 @@
  * call (plan ADR D4) so a load/inference failure degrades to cosine order —
  * a reranker outage NEVER takes down recall.
  *
- * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D2 + § T3.1
  * @see packages/core/src/infrastructure/embedders/local.ts (lazy singleton + retry precedent)
- * @see .claude/knowledge-base/discoveries/blueprints/cross-encoder-reranker-blueprint.md § Coverage Corner 2
  */
 import {
   AutoModelForSequenceClassification,

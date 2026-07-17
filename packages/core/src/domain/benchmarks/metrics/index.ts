@@ -5,7 +5,6 @@
  * `calculateBleuScore` throws `BleuMetricUnavailable` on any call;
  * surfacing the deferral loudly instead of silently propagating 0.
  *
- * @see .claude/knowledge-base/plans/v0-8-fixes-cycle-1-plan.md § T0.1
  */
 export { BleuMetricUnavailable, calculateBleuScore } from './bleu.js';
 export { calculateExactMatch } from './exact-match.js';

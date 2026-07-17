@@ -5,7 +5,6 @@
  * NFC normalization, lowercasing, and trim. Both-empty inputs are
  * considered a match; only-one-empty is not.
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T1.1
  */
 
 function normalize(input: string): string {

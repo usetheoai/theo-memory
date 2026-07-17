@@ -12,7 +12,6 @@
  *
  * ISP-clean (2 methods) per ADR-0008. Default adapter: `PgUsageCounterStore`.
  *
- * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T2.2
  */
 import type { Filters } from '../scope.js';
 

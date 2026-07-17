@@ -14,8 +14,6 @@
  * signal vs returning empty metadata (which would confuse clients into
  * trying empty issuer URLs).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T4.2
- * @see .claude/knowledge-base/adrs/ADR-0015-mcp-streamable-http-auth.md § Decision #4
  * @see https://datatracker.ietf.org/doc/html/rfc9728
  */
 import type { OidcDiscoveryConfig } from '@usetheo/memory/contract';

@@ -15,7 +15,6 @@
  * Phase 7: entity linking (deferred to v0.2; flag-gated via entityBoost config)
  * Phase 8: save messages (deferred to v0.2; historyManager.saveMessages optional)
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T4.3 + ADR D1.0
  */
 import { randomUUID } from 'node:crypto';
 

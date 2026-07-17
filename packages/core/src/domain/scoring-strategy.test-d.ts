@@ -7,8 +7,6 @@
  * Independent of ADR-0008's locked 5 DIPs (embedder/llm/vector-store/
  * history-manager/reflection-policy). This is the 6th DIP per plan ADR D2.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T1.1 + ADR D2
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D9
  */
 import { expectTypeOf, test } from 'vitest';
 

@@ -7,7 +7,6 @@
  * dispatch handler routes valid input to `memory.episodes(options)`.
  *
  * @see packages/core/src/domain/episode.ts — EpisodeListOptions / EpisodePage
- * @see .claude/knowledge-base/plans/mcp-episodes-tool-plan.md § T2.1 + ADRs D3/D4
  * @see ADR D2 (first-class-episodes) — episode list is TEMPORAL, not semantic
  */
 import { z } from 'zod';

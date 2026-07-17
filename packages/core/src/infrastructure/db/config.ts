@@ -38,7 +38,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * are PG-only). `createLocalMemory` throws `EvictionNotSupported` when this
    * field is set with an `InMemoryVectorStore`.
    *
-   * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 + ADR D6
    */
   readonly eviction?: LocalEvictionConfig;
   /**
@@ -78,7 +77,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * `skills()` factory. The default impl is `SandboxedSkillExecutor` (isolated-vm,
    * optional addon); a consumer enables execution by passing one explicitly.
    *
-   * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T2.2 + ADR D3
    */
   readonly skillExecutor?: SkillExecutor;
   /**
@@ -97,8 +95,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * literal received value via `String(received)` for operator
    * diagnosability.
    *
-   * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.1 + ADR D2
-   * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
    */
   readonly embeddingDim?: number;
   /**
@@ -119,7 +115,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * matching surface). The factory throws `InvalidCacheConfig` when
    * config shape is provided without a Postgres vector store.
    *
-   * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.1
    * @see src/core/dip/recall-cache-store.ts (13th DIP)
    */
   readonly recallCache?: RecallCacheStoreConfig | RecallCacheStore;
@@ -135,7 +130,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * cache key does not include rerank, so a reranked request runs the full
    * pipeline (no get, no set).
    *
-   * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § T4.1 + ADR D3 + D6
    * @see src/domain/dip/reranker.ts
    */
   readonly reranker?: Reranker;
@@ -148,7 +142,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * `scoped-memory.ts` (like `ontology`). An operator `RememberOptions.category`
    * always overrides the auto-derived value.
    *
-   * @see .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md § ADR D2 + D3
    */
   readonly autoCategorize?: AutoCategorizeConfig;
 
@@ -161,7 +154,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * forwards per-call tuning. The default impl is `HeuristicAdaptiveRetrievalPolicy`
    * (`@usetheo/memory/adaptive-local`, key-free, no new dependency).
    *
-   * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D2 + D3 + D4 + D5
    * @see src/domain/dip/adaptive-retrieval-policy.ts
    */
   readonly retrievalPolicy?: AdaptiveRetrievalPolicy;
@@ -175,7 +167,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * auto-instantiated by the factory from the pool when the vector store exposes
    * one (mirrors `memoryGraphStore`). NO new dependency, NO migration.
    *
-   * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D1 + D4
    * @see src/domain/dip/graph-expansion-store.ts
    */
   readonly graphExpansionStore?: GraphExpansionStore;
@@ -186,7 +177,6 @@ export interface LocalMemoryConfig extends MemoryConfig {
  * non-PgvectorStore vector store. Advisory locks + pgvector cosine distance
  * are PG-only; eviction is not implemented for `InMemoryVectorStore`.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1 (SEPA iter 5 pre-RED CRITICAL #3)
  */
 export class EvictionNotSupported extends Error {
   override readonly name = 'EvictionNotSupported' as const;

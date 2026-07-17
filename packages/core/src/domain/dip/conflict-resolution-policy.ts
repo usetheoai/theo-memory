@@ -15,7 +15,6 @@
  * is injected at IMPL constructor (sibling-DIP precedent), NOT in per-call
  * `ConsolidationContext`.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.1 (ADR D2)
  */
 import type { Scope } from '../scope.js';
 

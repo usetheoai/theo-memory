@@ -1,7 +1,6 @@
 /**
  * Test fixture: minimal LLM impl that returns a canned response.
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T1.2
  */
 import type { LLM, LLMResponse, Message } from '../../dip/llm.js';
 

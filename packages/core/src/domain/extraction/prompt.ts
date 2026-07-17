@@ -12,7 +12,6 @@
  * starting with `## ` becomes `\#\# ` so the LLM cannot mistake injected user
  * text for an authoritative section header.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T4.1 + EC-4
  */
 import { z } from 'zod';
 

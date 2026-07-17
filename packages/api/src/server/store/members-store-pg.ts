@@ -11,7 +11,6 @@
  * Raw SQL via {@link AuthPool} (consistent with `admin-keys.ts`) so `src/server`
  * stays free of a drizzle runtime dependency.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1 + ADR D3
  */
 import { randomBytes } from 'node:crypto';
 

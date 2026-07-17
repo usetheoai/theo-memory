@@ -14,7 +14,6 @@
  * uses. We carry no monotonic sequence column; `(created_at, id)` is sufficient
  * for v1 (a `sequence_id` column is a documented follow-up).
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T1.1 + ADRs D1/D2
  */
 import { InvalidScope } from './errors.js';
 import type { MemoryItem } from './memory-item.js';
@@ -29,7 +28,6 @@ export const EPISODE_LIMIT_MAX = 200;
  * Options for the episodic read surface. All optional; an empty call lists the
  * newest page of the scope's live memories.
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T1.1
  */
 export interface EpisodeListOptions {
   /** Opaque cursor — return the page AFTER this position (in the active order). */

@@ -30,8 +30,6 @@
  * from `src/infrastructure`. Impls: `PgGraphExpansionStore` (the JOIN) +
  * `InMemoryGraphExpansionStore` (test mirror).
  *
- * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D1 + D2 + D5
- * @see .claude/knowledge-base/discoveries/blueprints/graph-aware-recall-blueprint.md
  * @see ADR-0008 (DIP method-count cap)
  */
 import type { Filters } from '../scope.js';

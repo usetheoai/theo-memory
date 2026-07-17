@@ -18,7 +18,6 @@
  * EC-11 absorbed: empty query embeds + returns semantic-only (BM25 lemmatizes to []).
  * EC-8 absorbed: NaN-scored candidates dropped at step 8 (NaN < threshold is false).
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T5.1 + ADR D1.0
  */
 import type { Tracer } from '@opentelemetry/api';
 

@@ -34,9 +34,7 @@
  * @experimental — debug only. Sentence-split pseudo-extraction is sufficient
  *   for F-T4.1-2 race-condition reproducibility but not for actual recall.
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.2
  * @see src/core/extraction/prompt.ts § AdditiveExtractionSchema
- * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-arch-6 + F-arch-8
  */
 import { createHash } from 'node:crypto';
 

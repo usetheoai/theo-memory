@@ -8,15 +8,11 @@
  * surface. NO new DIP per Inquebrável Rule 11 (YAGNI).
  *
  * Two consumers:
- *  - Hook script (.claude/hooks/dogfood-mirror.sh) — intercepts PostToolUse
  *    on Write/Edit of memory files
- *  - Skill (.claude/skills/memory-policy/SKILL.md) — exposes 4 verbs as
  *    explicit Claude Code commands
  *
  * Both pass `projectSlug` EXPLICITLY (EC-3 absorption per ADR D2 v1.1).
  *
- * @see .claude/knowledge-base/plans/dogfood-anchor-scenario-launch-plan.md § T1.1 + ADR D1 + ADR D2
- * @see .claude/knowledge-base/reviews/dogfood-anchor-scenario-launch-edge-cases-2026-06-04.md
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

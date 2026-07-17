@@ -29,7 +29,6 @@ export interface RememberOptions {
    *
    * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
    *
-   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § ADR D2
    */
   readonly attributedTo?: string;
 
@@ -69,8 +68,6 @@ export interface RememberOptions {
    * Consumers rendering category in HTML MUST escape per OWASP output-encoding.
    * React auto-escapes; raw HTML renderers need DOMPurify or equivalent.
    *
-   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D1 + D3 + D6
-   * @see .claude/knowledge-base/plans/red-team-full-system-fixes-cycle-1-plan.md § T3.1 (XSS contract)
    */
   readonly category?: string;
 }
@@ -119,7 +116,6 @@ export interface RecallOptions {
    *
    * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
    *
-   * @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T2.2 + ADR D2
    */
   readonly attributedTo?: string;
 
@@ -127,7 +123,6 @@ export interface RecallOptions {
    * v0.6: when `true`, restrict recall to `kind='skill'` rows. Default `false`.
    * Translated by the runtime into `Filters.kind = 'skill'` before reaching the store.
    *
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.2
    */
   readonly onlySkills?: boolean;
 
@@ -136,7 +131,6 @@ export interface RecallOptions {
    * When `true`, include the full supersession history. Translated by the runtime
    * into `Filters.excludeSuperseded = !includeSuperseded` before reaching the store.
    *
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.2 + EC-3
    */
   readonly includeSuperseded?: boolean;
 
@@ -156,7 +150,6 @@ export interface RecallOptions {
    *   `InvalidScope` when lambda ∉ [0, 1] (EC-3 absorption per architecture.md § 8).
    * - `topPool`: candidate pool size before MMR selection. Defaults to `topK * 3`.
    *
-   * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T4.2 + § ADR D3
    * @see CLAUDE.md § IMPORTANTE Princípio 2
    * @throws InvalidScope — when `diversify.lambda` is outside [0, 1].
    */
@@ -190,7 +183,6 @@ export interface RecallOptions {
    * v1.5 cache key does not include rerank, so a reranked request always runs
    * the full pipeline.
    *
-   * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D3 + D5 + D6
    * @see CLAUDE.md § IMPORTANTE Princípio 2
    * @throws RerankerConflict — when both `rerank` and `diversify` are set.
    */
@@ -215,7 +207,6 @@ export interface RecallOptions {
    * byte-identical to a plain `recall()`. No behavior change for existing callers
    * (opt-in per ADR D4).
    *
-   * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D2 + D3 + D4
    * @see CLAUDE.md § IMPORTANTE Princípio 2 + Princípio 3
    */
   readonly adaptive?: {
@@ -240,7 +231,6 @@ export interface RecallOptions {
    * Setting `graphExpand` WITHOUT a wired store is a no-op (EC-3). A wired+requested
    * graph-expand BYPASSES the recall cache (the cache key does not encode it).
    *
-   * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § ADR D3 + D4 + D5
    * @see CLAUDE.md § IMPORTANTE Princípio 2 + Princípio 3
    */
   readonly graphExpand?: {
@@ -275,7 +265,6 @@ export interface ReflectOptions {
    * v0.4a (no consolidation; `NoopConflictPolicy` would also short-circuit
    * to the same result).
    *
-   * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + ADR D2
    */
   readonly conflictResolution?: ConflictResolutionPolicy;
 }
@@ -317,7 +306,6 @@ export interface GetAllOptions {
    * via this filter. The no-filter call (omit the option entirely) is the only
    * way to see uncategorized memories alongside categorized ones.
    *
-   * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T1.1 + ADR D5 + EC-3 + EC-9
    */
   readonly category?: string;
 }

@@ -12,7 +12,6 @@
  * `workspace_id` is normalized to `'default'` on BOTH paths. A divergence would
  * write one row and read another, pinning the metric at 0.
  *
- * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T2.2
  */
 import type { Pool } from 'pg';
 

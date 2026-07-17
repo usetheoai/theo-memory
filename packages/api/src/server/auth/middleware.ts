@@ -48,7 +48,6 @@ export function getPrincipal(c: Context): Principal {
  * {@link bearerAuth} so 401 (bad credential) always precedes 403 (insufficient
  * role). A member hitting a management route gets 403 `INSUFFICIENT_ROLE`.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1
  */
 export function requireRole(min: WorkspaceRole): MiddlewareHandler {
   return async (c, next) => {

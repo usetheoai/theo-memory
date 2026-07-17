@@ -7,8 +7,6 @@
  * unexpected shapes fall through to JSON.stringify (honest, not silent)
  * so downstream code can flag them rather than silently failing.
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T2.1
- * @see .claude/knowledge-base/discoveries/snapshots/v0-8-benchmark-methodology/2026-06-02-hf-longmemeval-cleaned.md
  */
 
 import { readFile } from 'node:fs/promises';

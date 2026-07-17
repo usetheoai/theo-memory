@@ -11,7 +11,6 @@
  * Uses `:batchEmbedContents` (one HTTP call for the whole batch); the response
  * `embeddings[].values` preserves request order.
  *
- * @see .claude/knowledge-base/plans/embedder-registry-plan.md § ADR D3 + § T2.3
  */
 import type { Embedder } from '../../domain/dip/embedder.js';
 import { EmbedderError } from '../../domain/errors.js';
