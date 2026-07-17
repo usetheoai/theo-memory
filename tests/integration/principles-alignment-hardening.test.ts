@@ -13,7 +13,6 @@
  *  - Princípio 2 (diversify near-paraphrase reduction): assertion 15-18
  *      EC-9 disclosure: target ≥ 40% reduction; honest measurement; no silent padding.
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T5.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

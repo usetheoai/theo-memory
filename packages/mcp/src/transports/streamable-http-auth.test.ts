@@ -11,9 +11,6 @@
  * The MCP wire protocol is OUT of scope here — we only assert the auth gate
  * behavior. Verifier impls are vi.fn() stubs (no real DB / no real OIDC issuer).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T4.1
- * @see .claude/knowledge-base/adrs/ADR-0015-mcp-streamable-http-auth.md
- * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-10
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

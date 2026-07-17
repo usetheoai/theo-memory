@@ -7,7 +7,6 @@
  * passes through (alpha mode). This test pins the enforcement contract by
  * setting the env to a known value and asserting 401/200 behavior.
  *
- * @see .claude/knowledge-base/plans/red-team-full-system-fixes-cycle-1-plan.md § T1.1
  * @see src/server/auth/middleware.ts:32-36 (alpha mode passthrough)
  */
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';

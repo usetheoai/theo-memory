@@ -9,7 +9,6 @@
  * - after + before together → 422 (EC-4)
  * - scope type case-sensitive enum → 404
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T3.1 + ADR D6 + EC-4
  */
 import type { EpisodePage, Memory, MemoryItem } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';

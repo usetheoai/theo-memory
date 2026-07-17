@@ -21,7 +21,6 @@
  *
  * Requires: THEOMEM_PG_URI env var pointing at a running pgvector instance.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.3
  * @see tests/eval/forgetting.md
  */
 import pg from 'pg';

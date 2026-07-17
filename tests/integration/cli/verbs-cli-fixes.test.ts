@@ -17,7 +17,6 @@
  * Plus EC-4 sentinel test 9: agent-tools-memory.ts MUST NOT carry redundant
  * explicit `reflectionPolicy:` wire post-T1.1 default at factory level.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T0.1
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';

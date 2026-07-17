@@ -2,8 +2,6 @@
  * Subpath export smoke test for `@usetheo/memory/embedders` + `.../stub` +
  * `.../openai` (adapters-openai-cycle-2 § T2.1 extension).
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T2.1
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T2.1
  */
 import { describe, it, expect } from 'vitest';
 

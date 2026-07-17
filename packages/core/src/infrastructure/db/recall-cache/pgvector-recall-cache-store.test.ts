@@ -4,7 +4,6 @@
  * SERIALIZABLE semantics) is covered by sibling integration tests at
  * `tests/integration/cache/*.test.ts`.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.1
  */
 import type { Pool } from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';

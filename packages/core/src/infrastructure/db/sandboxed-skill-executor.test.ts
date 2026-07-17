@@ -6,7 +6,6 @@
  * `Isolate.prototype.dispose` verifies the no-leak invariant (dispose asymmetry:
  * pre-isolate denials do NOT dispose, post-isolate denials DO).
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.3 (DEC-1..DEC-7)
  */
 import type { Tracer } from '@opentelemetry/api';
 import { describe, test, expect } from 'vitest';

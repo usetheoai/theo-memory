@@ -1,7 +1,6 @@
 /**
  * T1.2 contract — renderCliOutput helper.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T1.2
  */
 import { describe, expect, test } from 'vitest';
 

@@ -14,7 +14,6 @@
  * — no real HTTP listener, no real issuer. The stub records request shapes +
  * returns canned discovery + introspection responses.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T2.1
  */
 import { afterEach, describe, expect, test, vi } from 'vitest';
 

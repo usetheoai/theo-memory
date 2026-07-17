@@ -19,7 +19,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § T5.1 (GOAL)
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { trace } from '@opentelemetry/api';

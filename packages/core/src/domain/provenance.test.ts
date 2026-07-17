@@ -1,7 +1,6 @@
 /**
  * T4.2 tests for validateProvenance per plan v0-4a-reflection-pipeline.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T4.2
  */
 import { describe, expect, test } from 'vitest';
 

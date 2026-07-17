@@ -10,7 +10,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see .claude/knowledge-base/plans/skills-cross-repo-flat-list-plan.md § T3.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

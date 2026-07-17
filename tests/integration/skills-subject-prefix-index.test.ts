@@ -21,7 +21,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see .claude/knowledge-base/plans/skills-subject-prefix-index-plan.md § T1.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

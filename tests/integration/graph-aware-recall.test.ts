@@ -13,7 +13,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see .claude/knowledge-base/plans/graph-aware-recall-plan.md § T5.1 (GOAL)
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {

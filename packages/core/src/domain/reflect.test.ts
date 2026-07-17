@@ -4,7 +4,6 @@
  * Uses InMemoryVectorStore + mocked LLM + mocked Embedder for end-to-end
  * pipeline coverage WITHOUT a real Postgres container.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T4.3
  */
 import { describe, expect, test } from 'vitest';
 

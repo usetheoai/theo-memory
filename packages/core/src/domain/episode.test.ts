@@ -1,7 +1,6 @@
 /**
  * RED-phase unit tests for src/core/domain/episode.ts — T1.1 of first-class-episodes (M2).
  * Pure cursor + limit + LIKE-escape helpers for the episodic read surface.
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T1.1
  */
 import { describe, expect, test } from 'vitest';
 

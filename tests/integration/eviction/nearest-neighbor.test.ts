@@ -12,7 +12,6 @@
  * at tests/integration/** per the established pattern (T2.2 + T3.1). Placed
  * here; documented in commit body.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1 (D9 + D16)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

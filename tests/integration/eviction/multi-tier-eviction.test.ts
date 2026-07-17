@@ -22,8 +22,6 @@ import type { Scope } from '@usetheo/memory';
  * `idx_memories_eviction_score_session (session_id, last_accessed_at)` so the
  * triggers' generalized queries stay performant against active rows.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-1, F-dom-pg-3, F-arch-4, F-dom-4
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

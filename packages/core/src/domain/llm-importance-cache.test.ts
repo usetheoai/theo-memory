@@ -9,7 +9,6 @@
  * by the store's own tests (PgvectorStore.getImportanceByHash via integration
  * env-gated suite).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T5.2
  */
 import { describe, expect, test } from 'vitest';
 

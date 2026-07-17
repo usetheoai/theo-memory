@@ -19,7 +19,6 @@ import {
  *   (b) `consolidation_history` has 0 rows for the failed policy run
  *   (c) `reflect()` raises an error (caller observes the failure)
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + EC-8
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

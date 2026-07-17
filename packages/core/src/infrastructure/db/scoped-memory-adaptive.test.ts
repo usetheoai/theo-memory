@@ -6,7 +6,6 @@
  *   - shouldRetrieve throw ⇒ fail-soft, normal retrieval (never skips on error)
  *   - no retrievalPolicy ⇒ default path byte-unchanged (EC-3: option alone is a no-op)
  *
- * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § T3.1 + ADR D2 + D4 + EC-3
  */
 import {
   BasicTracerProvider,

@@ -4,7 +4,6 @@
  * caller supplied none and auto-categorization is enabled, with operator precedence,
  * fail-soft, and the EC-1/EC-2/EC-5 trim+bound guards.
  *
- * @see .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md § Phase 3 / T3.1 + Phase 4 / T4.1
  */
 import { describe, expect, test, vi } from 'vitest';
 

@@ -30,8 +30,6 @@
  * cleanly skips — no flake. This mirrors the EC-11 reachability-probe
  * pattern shipped in the v0.7 SDK cycle (tests/eval/distillation/README.md).
  *
- * @see .claude/knowledge-base/plans/examples-chat-with-memory-v0-7-distillation-plan.md § T1.1 + T1.2 + T4.1
- * @see .claude/knowledge-base/reviews/examples-chat-with-memory-v0-7-distillation-edge-cases-2026-06-01.md § EC-1 + EC-2 + EC-3 + EC-4 + EC-8 + EC-B
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';

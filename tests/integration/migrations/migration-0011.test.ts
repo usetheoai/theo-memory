@@ -15,8 +15,6 @@
  *  - (g) EC-4 absorption — backfill rows have confirmation_count = 1 (honest
  *        floor, not fabricated history).
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T0.1 + § ADR D5
- * @see .claude/knowledge-base/reviews/principles-alignment-hardening-edge-cases-2026-06-04.md § EC-1 + § EC-4
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

@@ -16,7 +16,6 @@
  * collapse "doesn't exist" + "exists under different tenant" + "already
  * revoked" into a single 404 NOT_FOUND.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.1
  * @see /home/paulo/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go
  */
 import { Hono } from 'hono';

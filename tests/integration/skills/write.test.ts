@@ -11,7 +11,6 @@
  *
  * Gated by THEOMEM_PG_URI (EC-17: CI=true with absent env fails loudly).
  *
- * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § T2.4
  */
 import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';

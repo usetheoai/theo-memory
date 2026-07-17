@@ -11,7 +11,6 @@
  * AND `GetAllOptions`, so T3.1's Orient phase can call
  * `scope.getAll({onlySkills: true, includeSuperseded: false})` consistently.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T2.2 + EC-3
  */
 import { describe, expect, test } from 'vitest';
 

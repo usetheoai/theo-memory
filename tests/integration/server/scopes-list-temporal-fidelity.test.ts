@@ -26,8 +26,6 @@
  * UNIQUE per scope. Direct SQL is used ONLY for the temporal UPDATE
  * (controlled timestamp manipulation that scoped.remember itself can't express).
  *
- * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § T3.1
- * @see .claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md § EC-3
  * @see tests/integration/pgvector-store-list-temporal.test.ts (sibling sentinel for the SQL layer)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';

@@ -17,8 +17,6 @@ import { getNeighborScopeId } from './triadic-scoring-policy.js';
  * `tests/integration/eviction/multi-tier-eviction.test.ts` exercises the end-to-end
  * multi-tier path; this file locks the unit contract.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1 (line 418)
- * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-5
  */
 describe('getNeighborScopeId — kind-authoritative dispatch', () => {
   it('returns userId for UserScope', () => {

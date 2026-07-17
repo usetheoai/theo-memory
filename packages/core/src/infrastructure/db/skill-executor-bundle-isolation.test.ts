@@ -9,7 +9,6 @@
  * the addon is referenced only via `import type` (erased) + the lazy
  * `() => import('isolated-vm')` (runtime, only when `execute()` is called).
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.4 (EC-47)
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

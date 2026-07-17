@@ -14,8 +14,6 @@
  * `src/core/memory-event.ts` in this same RED commit per SEPA pre-RED CRITICAL-2
  * (type narrowing requires the literal exist BEFORE `emitEvent` call typechecks).
  *
- * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § T2.2
- * @see .claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md § EC-7
  */
 import type { Tracer } from '@opentelemetry/api';
 import { describe, expect, test, vi } from 'vitest';

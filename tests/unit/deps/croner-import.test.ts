@@ -9,8 +9,6 @@
  * Per plan v0-4a-reflection-pipeline § T0.1 + ADR D10 (croner runtime dep,
  * exact version pin `^10.0.1` per deps-audit-golden-rule).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.1
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D7
  */
 import { describe, it, expect } from 'vitest';
 import { Cron } from 'croner';

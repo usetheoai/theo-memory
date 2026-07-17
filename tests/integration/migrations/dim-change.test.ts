@@ -19,9 +19,6 @@ import pg from 'pg';
  * probe. pgvector v0.5.1 stores `vector(N)` dimension in `atttypmod`
  * directly (NO +4 varlena offset — empirical, see `getColumnDim` below).
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3
- * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-3 + EC-4
- * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 + C2 absorption)
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

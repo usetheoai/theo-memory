@@ -5,7 +5,6 @@
  * `AdditiveExtractionSchema` from src/core/extraction/prompt.ts:89 —
  * `{ memory: [{ id, text, attributed_to?, linked_memory_ids? }] }`.
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.2
  */
 import { describe, it, expect } from 'vitest';
 

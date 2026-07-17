@@ -6,7 +6,6 @@
  * pgvector-runtime capability (in-memory hard-deletes → no tombstones) and is
  * covered by the GOAL integration test (T4.1).
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 (EC-2/3/5)
  */
 import { describe, expect, test } from 'vitest';
 

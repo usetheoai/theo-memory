@@ -16,7 +16,6 @@ export interface SkillFixture {
 // re-tuning both halves of the chain. Two opposing constraints must hold
 // simultaneously:
 //
-//   (1) DISTINCT strings. T1.2 of skill-library-fixes-v0-6-1 made
 //       hashFact(description) the canonical row hash. Byte-identical
 //       descriptions collide on the UNIQUE(hash) index at insert time, so
 //       the second add() would throw before the consolidate phase runs.

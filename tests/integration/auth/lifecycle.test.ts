@@ -15,8 +15,6 @@
  * OidcAuthVerifier DIP shape (no real HTTP fixture needed — that's the
  * whole point of the DIP per T3.1 ADR D1).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T5.1
- * @see .claude/knowledge-base/discoveries/blueprints/theo-memory-faang-auth-lifecycle-blueprint.md § Q6
  */
 import { Hono } from 'hono';
 import pg from 'pg';

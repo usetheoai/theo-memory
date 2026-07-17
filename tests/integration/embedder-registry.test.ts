@@ -14,7 +14,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see .claude/knowledge-base/plans/embedder-registry-plan.md § T4.1 (GOAL)
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

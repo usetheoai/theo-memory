@@ -13,7 +13,6 @@
  *
  * Gated by THEOMEM_PG_URI (EC-17: CI=true with absent env fails loudly).
  *
- * @see .claude/knowledge-base/plans/dashboard-phase2b-skills-browse-plan.md § T2.2
  */
 import pg from 'pg';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';

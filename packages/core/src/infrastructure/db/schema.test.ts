@@ -6,7 +6,6 @@
  * requiring a live Postgres connection — T2.2 runs the smoke push against a
  * real container.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1
  */
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';

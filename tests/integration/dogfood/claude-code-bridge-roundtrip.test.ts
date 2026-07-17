@@ -10,7 +10,6 @@
  * Requires `npm run build` has been run so dist/agent-tools/cli.js exists
  * (the bridge spawns it via THEMORY_BRIDGE_CLI env override).
  *
- * @see .claude/knowledge-base/plans/dogfood-anchor-scenario-launch-plan.md § T2.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

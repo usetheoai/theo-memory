@@ -6,7 +6,6 @@
  * (partial mock keeps the real isPresetConfig discriminator) so the dispatch
  * decision is tested without a real DB.
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md § T2.1
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

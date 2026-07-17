@@ -22,7 +22,6 @@
  * tests/integration/forgetting/guardrail-long-tail.test.ts per the
  * established T2.2 / T3.1 / T4.x / T5.x / T6.1 / T7.1 pattern.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.2 (D18 + EC-3 fallback)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

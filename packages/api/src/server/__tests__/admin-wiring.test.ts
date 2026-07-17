@@ -12,7 +12,6 @@
  *   5. EC-7 — admin route MUST hit requireScope (NOT generic bearerAuth) when both middlewares
  *      active; `theo_live_*` admin key returns 200, NOT 401 from generic bearer mismatch.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T1.1
  */
 import type { Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';

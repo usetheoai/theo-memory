@@ -14,7 +14,6 @@
  * T1.1 (RememberOptions.category) + T2.1 (migration 0014) + T3.1/T3.2/T3.3
  * (adapter + pipeline) + T4.1 (REST handler).
  *
- * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T4.2
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

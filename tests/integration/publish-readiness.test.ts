@@ -27,7 +27,6 @@
  *      `runMigrations()` resolves the journal from the published dist (the dist runner reads
  *      `migrations/` next to itself, NOT the src tree). Regression guard for the consumer-DX fix.
  *
- * @see .claude/knowledge-base/plans/completed/complete-workspace-publish-topology-plan.md § ADR D1 (SUPERSEDED)
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';

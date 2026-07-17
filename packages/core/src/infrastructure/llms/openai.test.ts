@@ -9,8 +9,6 @@
  * dogfood via the chat-with-memory demo, which IS the real-API integration
  * surface).
  *
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T1.2
- * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-2
  */
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 

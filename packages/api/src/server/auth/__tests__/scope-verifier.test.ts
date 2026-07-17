@@ -13,7 +13,6 @@
  * `theo_api_keys` filtering by required scope. Returns 403
  * SCOPE_INSUFFICIENT on mismatch; 401 INVALID_API_KEY on missing key.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2
  */
 import { createHash } from 'node:crypto';
 

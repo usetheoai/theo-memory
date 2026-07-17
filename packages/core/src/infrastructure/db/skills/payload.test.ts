@@ -6,7 +6,6 @@
  *
  * Total: 6 tests (4 F9 + 2 EC-1).
  *
- * @see .claude/knowledge-base/plans/skill-library-fixes-v0-6-1-plan.md § T3.3
  */
 import { describe, expect, test } from 'vitest';
 

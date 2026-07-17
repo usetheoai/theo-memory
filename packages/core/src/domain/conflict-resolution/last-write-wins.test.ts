@@ -9,8 +9,6 @@
  * Without a deterministic tie-break, `Math.max` + unstable sort callbacks
  * return non-reproducible winners and THE GOAL TEST (T3.3) goes flaky.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.2 + ADR D2 + EC-1
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-1
  */
 import { describe, expect, test } from 'vitest';
 

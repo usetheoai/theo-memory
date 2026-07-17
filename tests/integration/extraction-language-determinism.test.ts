@@ -7,7 +7,6 @@
  *
  * Skipped when OPENAI_API_KEY or THEOMEM_PG_URI is missing (no flaky/keyless CI).
  *
- * @see .claude/knowledge-base/plans/extraction-language-determinism-plan.md § T2.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

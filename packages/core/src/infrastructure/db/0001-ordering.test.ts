@@ -15,7 +15,6 @@
  * Per plan v0-4a-reflection-pipeline § T0.2 + EC-10.
  * Env-gated skip pattern matches tests/integration/pgvector-store.test.ts.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.2
  */
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

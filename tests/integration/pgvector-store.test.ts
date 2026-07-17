@@ -13,7 +13,6 @@
  *   psql $THEOMEM_PG_URI -c "CREATE EXTENSION IF NOT EXISTS vector"
  *   npm run db:push -- --force
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T3.3
  */
 import { afterAll, describe, test } from 'vitest';
 import pg from 'pg';

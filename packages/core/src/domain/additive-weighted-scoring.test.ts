@@ -10,8 +10,6 @@
  *   - EC-8: min===max returns 0.5 (neutral) — no NaN
  *   - returned array same length as input; all values in [0, 1]
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T1.2 + ADR D3
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D9
  */
 import { describe, expect, test } from 'vitest';
 

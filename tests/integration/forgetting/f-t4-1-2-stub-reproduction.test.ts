@@ -19,8 +19,6 @@
  * EC-3 absorption: all assertions guard WHERE t_invalid IS NULL.
  * EC-4 absorption: optional dumpPgLocks helper for post-mortem.
  *
- * @see .claude/knowledge-base/plans/f-t4-1-2-eviction-race-debug-plan.md § T1.1
- * @see .claude/knowledge-base/plans/completed/adapters-stub-embedder-llm-cycle-1-fixes-plan.md § T0.1
  * @see commit b2909ff (hotfix being lifted)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

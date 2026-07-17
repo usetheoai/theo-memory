@@ -27,7 +27,6 @@ const emptyJsonLlm: LLM = {
  *       `policy_name = 'last-write-wins'`, and `kept_memory_id` pointing
  *       to the newer row.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + ADR D2 + EC-1
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

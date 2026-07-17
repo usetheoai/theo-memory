@@ -3,7 +3,6 @@
  *
  * Mocks cannot prove SERIALIZABLE semantics; this test exercises real Postgres.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.2 + EC-7
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';

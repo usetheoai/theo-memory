@@ -2,7 +2,6 @@
  * T2.3 RED — stub-embedder loud warning at createLocalMemory() time when
  * `recallCache` is also enabled. Cycle-1 T2.2 (run-server) precedent.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.3
  */
 import { afterEach, beforeEach, describe, expect, test, vi, type MockInstance } from 'vitest';
 

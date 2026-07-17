@@ -11,8 +11,6 @@
  *   6. EC-4: counter lazy-resolved (vi.spyOn metrics.getMeter) — NOT at module load
  *   7. EC-6: cluster size > clusterCap (default 20) → abstain + cluster_too_large
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.3 + ADR D2
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-2 + EC-4 + EC-6
  * @see src/local/eviction/pg-evictor.ts:56-75 (EC-4 lazy-init precedent)
  * @see src/llms/openai.ts:89-91 (Cycle 2 non_json_response shape)
  */

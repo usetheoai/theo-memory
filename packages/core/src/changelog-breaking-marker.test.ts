@@ -13,7 +13,6 @@
  * between `## [Unreleased]` and the next versioned `## [` header) and asserts
  * the marker is present somewhere inside it.
  *
- * @see .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md § T0.3 + ADR D4
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -6,7 +6,6 @@
  * `PgvectorRecallCacheStore` against the existing Pool; recall populates;
  * second recall hits; remember/forget/reflect invalidate.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.1 + T2.2
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
@@ -326,7 +325,6 @@ describe.skipIf(ROOT_PG_URI === '')(
      * would still hold by accident. Explicit `SELECT scope_key` assertion
      * verifies the derived value, not just side-effect row counts.
      *
-     * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-fixes-cycle-1-plan.md § T2.3
      */
     it('fixes-cycle-1 T2.3 — forget() invokes invalidateScope on derived scope (F-merge-4 + EC-4)', async () => {
       const memory = await createLocalMemory({

@@ -15,7 +15,6 @@
  *     untouched. Already-consolidated rows (kind='derived') also survive,
  *     preserving the boundary on the 2nd reflect() call.
  *
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md § F-C2
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';

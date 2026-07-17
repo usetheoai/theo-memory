@@ -14,7 +14,6 @@
  *   test 7 — EC-1 absorption (empty string rejected)     — ADR D1 amendment
  *   test 8 — EC-2 absorption (hex notation rejected)     — ADR D1 amendment
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-2-plan.md § T0.1
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';

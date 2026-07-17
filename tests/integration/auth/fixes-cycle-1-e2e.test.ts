@@ -12,7 +12,6 @@
  * EC-10 absorption: afterEach hook closes ALL spawned listeners via
  * Promise.allSettled — prevents EADDRINUSE cascade if a scenario crashes.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T4.1
  */
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';

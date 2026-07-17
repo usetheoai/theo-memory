@@ -4,7 +4,6 @@
  * into `{nodes, edges}`. D6: when the graph store is absent, edges = [] (nodes
  * still served). Invalid scope type → 404.
  *
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T3.1
  */
 import type { EntityNodeSummary, EdgeSummary, Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';

@@ -1,7 +1,6 @@
 /**
  * Contract tests for DeterministicStubEmbedder.
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T1.1 + EC-1
  */
 import { describe, it, expect } from 'vitest';
 

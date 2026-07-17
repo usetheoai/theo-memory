@@ -19,7 +19,6 @@
  * (`tests/eval/forgetting/run.ts`). The seeded shuffle produces
  * byte-identical permutations for the same seed (EC-8 absorption).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.2
  */
 
 /**

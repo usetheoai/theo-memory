@@ -6,7 +6,6 @@
  * MUST cache after that (production callers do not want a fresh instrument
  * per emission).
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T3.1
  */
 import { afterEach, describe, expect, test } from 'vitest';
 

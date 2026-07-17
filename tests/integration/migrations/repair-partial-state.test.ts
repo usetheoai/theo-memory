@@ -14,7 +14,6 @@ import { pathToFileURL } from 'node:url';
  * have via the `psql -f src/local/migrations/0003_eviction_columns.sql`
  * workaround applied between v0.4b shipping and v0.4b-fixes shipping.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b + EC-4 reversal
  * @see docs/RUNBOOK.md § 4
  */
 

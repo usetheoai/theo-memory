@@ -4,7 +4,6 @@
  * LLM-primary and the compromise-fallback node sources, and that real (incl.
  * multilingual) entities survive.
  *
- * @see .claude/knowledge-base/plans/entity-extraction-noise-filter-plan.md § T2.1
  */
 import { describe, expect, it } from 'vitest';
 

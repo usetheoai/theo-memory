@@ -10,7 +10,6 @@
  * Gated by THEOMEM_PG_URI (skips cleanly when unset, per the integration-suite
  * convention; EC-17 CI guard fails loudly when CI=true but unset).
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T4.1 + GOAL
  */
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';

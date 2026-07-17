@@ -9,8 +9,6 @@
  *
  * Per plan v0-4a-reflection-pipeline § T0.2 ADRs D4 + D6 + D8.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T0.2
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D10 + D11
  */
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';
