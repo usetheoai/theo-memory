@@ -20,8 +20,6 @@
  * Pure types — ZERO runtime impl in `src/core/`. Per `architecture.md § 3`,
  * this file MUST NOT import from `src/local/` or `src/cloud/`.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T1.1 (ADR D12)
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md § D7 + D8 + D9
  */
 import type { MemoryItem } from '../memory-item.js';
 import type { Scope } from '../scope.js';
@@ -168,7 +166,6 @@ export function assertValidFraction(fraction: number): void {
  * `TriadicScoringPolicy` depends on the abstraction; the abstraction must NOT
  * live with the concrete). Closes F-arch-2 MAJOR.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T5.1 + F-arch-2
  */
 export interface HalfLifePersister {
   persist(memoryId: string, halfLifeSeconds: number): Promise<void>;
@@ -184,8 +181,6 @@ export interface HalfLifePersister {
  * v0.4b-fixes T5.1: relocated from `src/local/eviction/triadic-scoring-policy.ts`
  * to live next to its DIP siblings per architecture.md § 3 (F-arch-2 closure).
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T5.1 + F-arch-2
  */
 export interface NearestNeighborProvider {
   /**

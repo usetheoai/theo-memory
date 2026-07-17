@@ -42,13 +42,10 @@
  * **Allowlist note (T1.1 deps-audit re-gate):** `@xenova/transformers`
  * transitively pulls `protobufjs <= 7.5.7` which has 1 CRITICAL + 4 HIGH
  * advisories — allowlisted with aggressive sunset (CRITICAL 2026-07-01,
- * HIGHs 2026-08-01) per `.claude/rules/deps-audit-allowlist.txt` because
  * the parser is invoked only at model-warmup time on a one-shot signed
  * download from the HF CDN; runtime inference does NOT route user input
  * through it. Re-audit at sunset; track upstream Xenova v3 line.
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T1.1 + ADR D1
- * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-4-pre-red.md (lazy Promise singleton + L2 + batch slicing)
  * @see src/embedders/openai.ts (lazy singleton precedent)
  * @see src/embedders/stub.ts (L2-normalization invariant precedent)
  */

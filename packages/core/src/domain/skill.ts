@@ -11,8 +11,6 @@
  * the v0.4a `Memory.reflect()` chain at `src/local/index.ts:189-280` per
  * plan ADR D1 (REUSE, no sibling chain).
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § ADRs D1-D5
- * @see .claude/knowledge-base/discoveries/blueprints/skill-library-blueprint.md § ADRs D1-D3
  */
 import type { SkillExecutionOptions, SkillExecutionResult } from './dip/skill-executor.js';
 import type { MemoryItem } from './memory-item.js';
@@ -40,7 +38,6 @@ export interface Skill extends MemoryItem {
    * Executable code-as-skill payload preserved verbatim. NULL on derived skills
    * produced by `consolidate()` in v0.6.1 (the LLM-merged narrative lives in
    * `description` only; structured-draft extraction defers to a future cycle
-   * per skill-library-fixes-v0-6-1 plan ADR D2). Skills written via
    * `add(SkillDraft)` always carry non-null code — see `SkillDraft.code`.
    */
   readonly code: string | null;
@@ -238,7 +235,6 @@ export interface ScopedSkillMemory {
    * (absent / superseded / cross-scope / cross-workspace) throws `MemoryNotFound`
    * (→ 404, no existence leak). A guard denial throws `ToolInvocationDeniedError`.
    *
-   * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T2.1 + ADR D3
    */
   execute(
     skillId: string,

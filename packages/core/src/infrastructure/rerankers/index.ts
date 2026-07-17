@@ -9,7 +9,6 @@
  * (plan ADR D5 — the default `@usetheo/memory` barrel does NOT pull this
  * module, nor `@xenova/transformers`, transitively).
  *
- * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § T3.2 + ADR D5
  * @see package.json#exports."./reranker-local"
  */
 

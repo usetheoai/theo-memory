@@ -6,7 +6,6 @@
  * (store-only, D2). Scope is the `repoId` ARGUMENT (Repo tier), not the
  * AsyncLocalStorage user/session/agent scope.
  *
- * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § T2.3
  */
 import { z } from 'zod';
 

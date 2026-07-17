@@ -7,8 +7,6 @@
  * is a separate async step performed by the write pipeline (Phase 7), not by this
  * contract. Relations (edges) are out of scope for this contract (a later slice).
  *
- * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T1.1
  */
 
 /** Closed set of entity kinds an extractor may emit. */

@@ -20,8 +20,6 @@
  * remain as the lexical metric pair; LLM-judge remains as the semantic
  * metric.
  *
- * @see .claude/knowledge-base/plans/v0-8-fixes-cycle-1-plan.md § T0.1 + ADR D1
- * @see .claude/knowledge-base/reviews/v0-8-independent-benchmark-reproduction-review-2026-06-02.md § F-tests-1 BLOCKER
  */
 
 export class BleuMetricUnavailable extends Error {

@@ -18,8 +18,6 @@
  * Module hygiene: targets ≤ 100 LoC (no external library, pure cosine over
  * candidates' embedding field).
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T4.2 + § ADR D3
- * @see .claude/knowledge-base/reviews/principles-alignment-hardening-edge-cases-2026-06-04.md § EC-3
  * @see CLAUDE.md § IMPORTANTE Princípio 2
  */
 import { InvalidScope } from '../errors.js';

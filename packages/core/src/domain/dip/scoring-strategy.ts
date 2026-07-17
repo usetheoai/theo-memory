@@ -13,8 +13,6 @@
  *
  * Method count: 1 required (`score`). Pure type declaration; zero runtime deps.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § ADR D2
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D9
  */
 
 /**

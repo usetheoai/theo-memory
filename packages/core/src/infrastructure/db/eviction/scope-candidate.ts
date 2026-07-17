@@ -8,7 +8,6 @@
  * third consumer when `LocalScopedMemory.forget()` delegates through the
  * PgEvictor path.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T6.1 + F-arch-3
  */
 import type { PoolClient } from 'pg';
 

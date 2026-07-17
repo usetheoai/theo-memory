@@ -7,7 +7,6 @@
  * a clear message; other domain errors (`InvalidSkillError`) bubble to dispatch's
  * classifier. Store-only — the code is never executed.
  *
- * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § T2.3
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 

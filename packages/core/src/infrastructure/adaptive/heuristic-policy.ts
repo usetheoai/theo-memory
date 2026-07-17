@@ -16,7 +16,6 @@
  *    Per-call `tuning` (from `RecallOptions.adaptive`) overrides the construction
  *    config.
  *
- * @see .claude/knowledge-base/plans/adaptive-retrieval-plan.md § ADR D3 + T4.1
  * @see src/domain/dip/adaptive-retrieval-policy.ts
  */
 import type {

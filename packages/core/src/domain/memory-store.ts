@@ -105,7 +105,6 @@ export interface ScopedMemory {
    *
    * Additive: the 4 existing verbs (remember/recall/forget/getAll) are unchanged.
    *
-   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T1.2 + ADRs D1-D4
    */
   episodes(options?: EpisodeListOptions): Promise<EpisodePage>;
 
@@ -141,7 +140,6 @@ export interface Memory {
    * isolation omit it; the default (no binding) maps to the `default`
    * workspace at the store layer (ADR D7).
    *
-   * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T3.1 + ADR D1/D3
    */
   withWorkspace?(workspaceId: string): Memory;
 
@@ -151,8 +149,6 @@ export interface Memory {
    * Scopes the returned skill memory to a single repository identifier;
    * skills written under one `repoId` are isolated from skills under another.
    *
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § ADR D5 (no new subpath in v0.6)
-   * @see .claude/knowledge-base/plans/skill-library-plan.md § ADR D1 (REUSE v0.4a reflect() chain)
    */
   skills(repoId: string): ScopedSkillMemory;
 
@@ -165,7 +161,6 @@ export interface Memory {
    * description filter. Complements `skills(repoId)` (single-repo) — the browse
    * surface that does not require knowing a repoId upfront.
    *
-   * @see .claude/knowledge-base/plans/skills-cross-repo-flat-list-plan.md § ADR D2/D4
    */
   listSkillsBySubject(
     subject: string,
@@ -269,7 +264,6 @@ export interface MemoryConfig {
    * Resolved + validated at factory time (`InvalidOntology` on a bad key/object);
    * absent = current generic extraction (byte-unchanged).
    *
-   * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D4
    */
   // `OntologyName | (string & {})` keeps autocomplete for the 4 built-in keys
   // while accepting any string (e.g. a dynamic value from env/config); an

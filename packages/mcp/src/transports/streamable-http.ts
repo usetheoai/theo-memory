@@ -16,7 +16,6 @@
  * primary v0.3 transport is stdio; HTTP testing depth ramps up at v0.5 cloud.
  *
  * @see ADR D1 — Transport: stdio + streamable-HTTP (skip SSE + fastmcp)
- * @see .claude/knowledge-base/discoveries/blueprints discover Q5 — stateless mode pattern
  */
 import { randomUUID } from 'node:crypto';
 import { createServer as createHttpServer } from 'node:http';

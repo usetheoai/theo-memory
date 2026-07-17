@@ -14,8 +14,6 @@
  * `theo_live_` literal — without fallthrough, legitimate consumers
  * would be silently 401'd.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T3.1
- * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-1
  */
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { MiddlewareHandler } from 'hono';

@@ -6,7 +6,6 @@
  * another workspace resolves to `not_found` → 404 (no existence leak). Mounted
  * under `requireRole('admin')` by the composition root.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1
  */
 import type { Context } from 'hono';
 

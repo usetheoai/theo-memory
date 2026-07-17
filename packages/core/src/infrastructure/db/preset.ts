@@ -9,7 +9,6 @@
  * also ends the pool it created. A consumer needing custom adapters / a
  * different embedding dim uses the full-config `createLocalMemory` path.
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md
  */
 import type { Pool } from 'pg';
 
@@ -40,7 +39,6 @@ import { PgvectorStore } from './pgvector-store.js';
  * the 1536-dim OpenAI `text-embedding-3-small` embedder, so a dim override
  * could only mismatch (D4/EC-3). Custom dims go through `createLocalMemory`.
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md § ADRs D1-D4
  */
 export interface CreateMemoryPresetConfig {
   readonly postgres: string;
@@ -69,7 +67,6 @@ export function isPresetConfig(
  * Uses `Object.setPrototypeOf` so `instanceof` survives the ESM/CJS boundary +
  * dynamic imports (same pattern as `src/domain/errors.ts`).
  *
- * @see .claude/knowledge-base/plans/create-memory-preset-plan.md § EC-4
  */
 export class InvalidPresetConfig extends Error {
   override readonly name = 'InvalidPresetConfig' as const;

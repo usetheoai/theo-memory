@@ -19,8 +19,6 @@
  * (anti-pattern of standalone adapter classes with divergent signatures
  * per ADR D1).
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T0.1 + ADRs D1, D5, D6
- * @see .claude/knowledge-base/discoveries/blueprints/v0-8-benchmark-methodology-blueprint.md § Q1 (EC-4 duck-type contract finding)
  */
 
 /**

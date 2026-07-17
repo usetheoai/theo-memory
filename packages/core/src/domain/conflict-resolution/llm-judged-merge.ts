@@ -9,8 +9,6 @@
  * LLM call). Constructor `{ temperature, seed }` accepted for EC-5 forward
  * compat (T3.3); NOT forwarded today — see ADR-DEFER-LLM-TEMP-SEED.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.3 + ADR D2
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-2 + EC-4 + EC-6
  * @see src/local/eviction/pg-evictor.ts:56-75 (EC-4 precedent)
  * @see src/llms/openai.ts:89-91 (Cycle 2 EC-10 non_json_response shape)
  */

@@ -12,8 +12,6 @@
  * query returns 0 rows and this provider returns 1.0 (max isolation → full
  * long-tail protection per blueprint D9).
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.1 (D9 + D16)
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
  */
 import type { Pool } from 'pg';
 

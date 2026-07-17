@@ -10,8 +10,6 @@
  * consumes, so they live next to their single caller instead of in the class
  * module.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1
  */
 import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';

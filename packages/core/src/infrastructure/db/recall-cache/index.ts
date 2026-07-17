@@ -10,7 +10,6 @@
  * blueprint Rec #3 — default `@usetheo/memory` barrel does NOT pull this
  * module transitively).
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T4.1
  * @see package.json#exports."./cache-pg"
  */
 

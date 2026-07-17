@@ -18,8 +18,6 @@
  *    `process.env.TZ='UTC'` (or pass a future `timezone` constructor option;
  *    deferred to F-sleeptime-timezone-option followup per YAGNI v0.4a).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T3.1
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4a-reflection-pipeline-blueprint.md § D7
  */
 
 import { Cron } from 'croner';

@@ -15,7 +15,6 @@
  * detector is not reliable, OR the detected ISO-639-1 code is not in the supported
  * name map (so a raw/unsupported code is never injected into the prompt).
  *
- * @see .claude/knowledge-base/plans/extraction-language-determinism-fixes-cycle-1-plan.md
  */
 import { eld } from 'eld';
 

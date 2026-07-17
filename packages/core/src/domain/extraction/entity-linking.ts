@@ -8,7 +8,6 @@
  * nodes and edges have INDEPENDENT try/catch so a node success still emits
  * `entity_linked` even when edge linking throws.
  *
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.2
  */
 import type { Tracer } from '@opentelemetry/api';
 
@@ -72,7 +71,6 @@ export interface LlmEntity {
  * node decision + its prior-art survey live in the plan (cited below).
  * `relations === undefined` skips edge linking.
  *
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md
  */
 export async function linkEntities(
   items: readonly MemoryItem[],

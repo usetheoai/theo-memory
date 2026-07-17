@@ -9,8 +9,6 @@
  * `MemoryEntityStore.list` (the handler composes both — ISP per ADR-0008, this
  * port is exactly 2 methods and does NOT duplicate node listing).
  *
- * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.0
  */
 import type { Filters } from '../scope.js';
 

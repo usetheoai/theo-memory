@@ -10,7 +10,6 @@
  * Extracted from metrics.ts + entities.ts per /review F-arch-3 (DRY — the
  * metadata-vs-top-level precedence is one business rule, not two copies).
  *
- * @see .claude/knowledge-base/reviews/dashboard-phase2a-attribution-asof-review-2026-06-19.md § F-arch-3
  */
 export function attributedPeerOf(m: {
   attributedTo?: string;

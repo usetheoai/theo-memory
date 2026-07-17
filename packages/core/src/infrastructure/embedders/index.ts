@@ -14,11 +14,6 @@
  * (no static SDK pull) is the single path — re-exporting it from this barrel
  * (which statically pulls the openai/local SDKs) would defeat that guarantee.
  *
- * @see .claude/knowledge-base/plans/adapters-portfolio-roadmap.md
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T2.1
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T2.1
- * @see .claude/knowledge-base/plans/embedder-registry-plan.md § T2.1-T2.3 + ADR D4
- * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-wire-3
  */
 export { DeterministicStubEmbedder } from './stub.js';
 export { OpenAIEmbedder } from './openai.js';

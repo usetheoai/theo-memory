@@ -6,8 +6,6 @@
  * when DMR is actually generated from upstream multi-session conversation
  * data.
  *
- * @see .claude/knowledge-base/plans/v0-8-independent-benchmark-reproduction-plan.md § T2.1
- * @see .claude/knowledge-base/discoveries/snapshots/v0-8-benchmark-methodology/2026-06-02-dmr-REDACTED-REDACTED.md
  */
 
 import { readFile } from 'node:fs/promises';

@@ -1,7 +1,6 @@
 /**
  * Types for the reflection execution pipeline per plan v0-4a-reflection-pipeline.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T4.1
  */
 import type { LLM } from '../dip/llm.js';
 import type { MemoryItem } from '../memory-item.js';

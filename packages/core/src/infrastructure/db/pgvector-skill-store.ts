@@ -12,7 +12,6 @@
  * second argument, keeping the class independent of `PgvectorStore` itself
  * (no circular import) and DIP-friendly for future runtime variants.
  *
- * @see .claude/knowledge-base/plans/skill-library-fixes-v0-6-1-plan.md § T3.1
  */
 import type { Pool, PoolClient } from 'pg';
 

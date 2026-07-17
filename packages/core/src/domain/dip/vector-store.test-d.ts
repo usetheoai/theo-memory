@@ -1,7 +1,6 @@
 /**
  * Type-level shape assertion for T1.1 — VectorStoreResult.createdAt optional field.
  *
- * Per ADR D1 of `.claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md`:
  * the extension is additive (optional field), backward-compatible across all 6+ callsites in
  * `src/local/index.ts` + impls in `src/local/pgvector-store.ts` + `src/local/in-memory-store.ts`.
  *
@@ -11,7 +10,6 @@
  * Negative-type test uses the canonical Vitest `// @ts-expect-error` directive (NOT `as any`
  * which would bypass the type check entirely per SEPA pre-RED guidance).
  *
- * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § T1.1
  */
 import { describe, test, expectTypeOf } from 'vitest';
 

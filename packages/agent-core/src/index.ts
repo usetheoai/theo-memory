@@ -7,7 +7,6 @@
  * former `cli ↔ mcp` import cycle: previously `mcp` imported these helpers from the
  * cli via the phantom `@usetheo/memory/agent-tools` subpath (which resolved only via
  * build-time shims, not Node `exports`). See ADR D3 of
- * `.claude/knowledge-base/plans/complete-workspace-publish-topology-plan.md`.
  *
  * NOTE (public surface, breaking — pre-release): the previously-documented
  * `@usetheo/memory/agent-tools` subpath is REDEFINED to this package. Core

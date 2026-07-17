@@ -9,7 +9,6 @@
  * from the enumerated set. The model MUST NOT invent IDs (per plan D7 fail-fast
  * via T4.2 provenance validator).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § ADR D11
  */
 import type { MemoryItem } from '../memory-item.js';
 import type { Scope } from '../scope.js';

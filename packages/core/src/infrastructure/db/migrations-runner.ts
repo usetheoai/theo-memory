@@ -145,10 +145,6 @@ export async function runMigrations(
  * container in RED test phase; SEPA's training-data claim of `N + 4` was wrong
  * for this version).
  *
- * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.3 + v1.2 ADR D3 amendment
- * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-3 + EC-4
- * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-C1
- * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-3-pre-red.md (C1 atomic tx + C2 atttypmod empirical correction)
  */
 async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
   // T1.1 — defense-in-depth guard (CWE-89). validateEmbeddingDim() validates

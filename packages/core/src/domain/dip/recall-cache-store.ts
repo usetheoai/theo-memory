@@ -38,7 +38,6 @@
  * @see Plan semantic-recall-cache-v1-5 § ADR D2 (threshold default 0.8)
  * @see Plan semantic-recall-cache-v1-5 § ADR D3 (4 scope-tier TTL spread)
  * @see Plan semantic-recall-cache-v1-5 § ADR D8 (cache applicability boundary)
- * @see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § Q4 + Q7 (threshold convergence + library survey)
  * @see ADR-0008 (DIP method-count cap)
  * @see ADR-0010 (RepoScope = 4th tier surfaced via Memory.skills(repoId))
  */
@@ -134,7 +133,6 @@ export interface RecallCacheStore {
    * `ttlSeconds` is the scope-tier TTL resolved by the factory; impl writes
    * `expires_at = NOW() + ttlSeconds * INTERVAL '1 second'`.
    *
-   * Capacity-bounded (per `maxSizePerScope`): impl MUST evict oldest row in
    * scope BEFORE inserting when at cap — atomically within a SERIALIZABLE
    * transaction to defend against concurrent-set race (EC-7 absorption).
    */

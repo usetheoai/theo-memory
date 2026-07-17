@@ -9,7 +9,6 @@
  * (absent / cross-scope skill — no existence leak). Other errors bubble to
  * dispatch's classifier.
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T2.4 + ADR D3
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 

@@ -10,7 +10,6 @@
  * 5 codepoints) hash to different values. This is intentional byte-level
  * dedup matching the upstream behavior (EC-6).
  *
- * @see .claude/knowledge-base/discoveries/blueprints/v0-1-local-runtime-blueprint.md § D3
  */
 import { createHash } from 'node:crypto';
 

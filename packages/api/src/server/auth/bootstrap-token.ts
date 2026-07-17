@@ -17,8 +17,6 @@
  * `markBootstrapConsumedTx` — flipping the flag. If the tx rolls back
  * (e.g., DB constraint violation), the flag stays false (atomicity).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2.1
- * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-3
  */
 import type { AuthPool } from './api-key-verifier.js';
 

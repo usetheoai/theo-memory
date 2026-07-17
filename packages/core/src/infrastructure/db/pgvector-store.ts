@@ -220,7 +220,6 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
     params.push(filters.category);
     idx += 1;
   }
-  // v0.6: kind discriminator and supersession filter per skill-library T2.2.
   if (filters.kind !== undefined) {
     parts.push(`kind = $${idx}`);
     params.push(filters.kind);
@@ -256,8 +255,6 @@ export class PgvectorStore implements VectorStore {
    * `tracer` continues to be optional OTel for F-arch-3 per-row fallback
    * observability.
    *
-   * @see .claude/knowledge-base/plans/adapters-openrouter-local-embedder-plan.md § T0.2
-   * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-2-pre-red.md (M2 widening rationale)
    */
   private readonly embeddingDim: number;
   private readonly tracer?: Tracer;
@@ -678,7 +675,6 @@ export class PgvectorStore implements VectorStore {
    * migrations 0018/0019 — no children-first logic, EC-1). Returns whether a row
    * matched.
    *
-   * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § T1.1
    */
   async deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean> {
     // workspace param matches what rows carry: unbound rows store 'default'.
@@ -742,7 +738,6 @@ export class PgvectorStore implements VectorStore {
    * skills-cross-repo-flat-list T1.1 (ADR D1/D3) — tenant-safe cross-repo skills
    * listing. Filters `kind='skill'` rows whose `agent_id` starts with the
    * escaped `'{subject}:'` prefix (the gateway's per-customer namespace, ADR D3
-   * of skill-library), AND the bound `workspace_id` (defense-in-depth +
    * multi-workspace correctness). The prefix is wildcard-escaped and bound as a
    * param with `ESCAPE '\'` so a subject containing `% _ \` cannot broaden the
    * match (cross-tenant leak guard). Live-only, newest-first; returns
@@ -802,7 +797,6 @@ export class PgvectorStore implements VectorStore {
    * matching the `ORDER BY created_at, id` comparator (full ms precision via the
    * opaque cursor; UUID id is the deterministic tie-break).
    *
-   * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.1 + ADRs D1-D4 + D7
    */
   async listEpisodes(
     filters: Filters | undefined,
@@ -1041,7 +1035,6 @@ export class PgvectorStore implements VectorStore {
    * `INSERT consolidation_history` failure rolls BOTH the soft-deletes AND
    * any earlier inserts; the consumer never observes half-applied state.
    *
-   * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T2.1 + EC-8
    */
   async persistConsolidations(
     results: readonly ConflictResolutionResult[],

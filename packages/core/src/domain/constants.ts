@@ -1,7 +1,6 @@
 /**
  * Cross-cutting constants shared between core + local + cloud adapters.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § ADR D1.7
  */
 
 /**

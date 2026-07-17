@@ -7,7 +7,6 @@
  * `themory reflect --json | jq .higherOrderMemories` got `null` because the
  * projection renamed it to `derived`).
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-fixes-cycle-1-plan.md § T1.2
  */
 import { createAgentToolsMemory } from '@usetheo/memory-agent-core';
 

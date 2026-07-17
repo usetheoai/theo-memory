@@ -15,7 +15,6 @@
  * OR an explicit ADR explaining why old scores remain acceptable. Tracked
  * as F-importance-prompt-versioning.
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T5.1
  */
 import type { LLM } from '../dip/llm.js';
 import { ImportanceScoringError } from '../errors.js';

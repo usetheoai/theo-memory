@@ -31,7 +31,6 @@
  * container until the issuer is reachable. Intentional fail-fast vs silent
  * partial wiring (Inquebrável Rule 8).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T2.2
  * @see https://github.com/panva/oauth4webapi
  * @see https://datatracker.ietf.org/doc/html/rfc7662
  */

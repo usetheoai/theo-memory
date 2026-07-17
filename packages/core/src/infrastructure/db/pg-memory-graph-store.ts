@@ -10,7 +10,6 @@
  * transaction per memory; the caller (Phase 7) is fail-soft and swallows the throw.
  * Endpoints that do not resolve to an existing node are skipped (D5).
  *
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.1
  */
 import type { Pool, PoolClient } from 'pg';
 

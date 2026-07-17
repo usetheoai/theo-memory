@@ -9,8 +9,6 @@
  * pull it). Synchronous + deterministic; embedding of the names happens later
  * in the write pipeline.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T1.2
  */
 import type { EntityExtractor, EntityType, ExtractedEntity } from '../../domain/dip/entity-extractor.js';
 import { isEntityNoise } from '../../domain/extraction/entity-noise-filter.js';

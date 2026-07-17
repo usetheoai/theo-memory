@@ -10,7 +10,6 @@
  *
  * Performance: source IDs pre-built into a Set for O(1) lookup; total O(N drafts × M citations).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T4.2
  */
 import { ReflectionProvenanceMissingError } from '../errors.js';
 

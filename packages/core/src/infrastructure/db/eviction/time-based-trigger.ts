@@ -21,7 +21,6 @@
  * transaction so a concurrent CapacityBasedTrigger fire on the same scope
  * does not double-evict.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T5.2 (D10 + EC-9)
  */
 import { Cron } from 'croner';
 import type { Pool, PoolClient } from 'pg';

@@ -4,7 +4,6 @@
  * to keep `instanceof` working across ESM/CJS, dynamic imports, and worker_threads
  * (EC-2 absorption — see edge-case review of plan v1.0).
  *
- * @see .claude/rules/architecture.md § 8 Error handling
  */
 
 export class MemoryNotFound extends Error {
@@ -34,7 +33,6 @@ export class InvalidScope extends Error {
  * Rule 8). Distinct from the model-inference fail-soft (plan ADR D4): this is a
  * consumer-error fail-fast thrown BEFORE any inference.
  *
- * @see .claude/knowledge-base/plans/cross-encoder-reranker-plan.md § ADR D3
  */
 export class RerankerConflict extends Error {
   override readonly name = 'RerankerConflict' as const;
@@ -55,7 +53,6 @@ export class RerankerConflict extends Error {
  * fallback). Fail-fast at the factory boundary (config error), distinct from the
  * runtime fail-soft coercion of out-of-vocab LLM output.
  *
- * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § ADR D1 + D4
  */
 export class InvalidOntology extends Error {
   override readonly name = 'InvalidOntology' as const;
@@ -102,7 +99,6 @@ export class InvalidEmbeddingDim extends Error {
 /**
  * Thrown by {@link validateRecallCacheStoreConfig} (T0.1) when the
  * `RecallCacheStoreConfig` fails any invariant — out-of-bounds threshold,
- * non-positive-integer `maxSizePerScope`, NaN/Infinity numeric values, or
  * negative TTL per scope-tier (EC-1 + EC-3 absorptions).
  *
  * @see Plan semantic-recall-cache-v1-5 § ADR D1+D2+D3
@@ -353,7 +349,6 @@ export class EmbedderError extends Error {
  * key (also `EmbedderError`). The message carries an install hint. Mirrors
  * `SkillExecutorUnavailableError`.
  *
- * @see .claude/knowledge-base/plans/embedder-registry-plan.md § ADR D2
  */
 export class EmbedderUnavailableError extends Error {
   override readonly name = 'EmbedderUnavailableError' as const;
@@ -393,7 +388,6 @@ export class ContentTooLargeError extends Error {
 }
 
 /**
- * @see plan skill-library § T2.1 (insertSkill / insertDerivedSkill edge cases)
  *
  * Thrown by VectorStore.insertSkill / insertDerivedSkill when the supplied
  * skill payload violates the v0.6 contract. The store layer rejects at the
@@ -427,7 +421,6 @@ export class InvalidSkillError extends Error {
  * 403) at the boundary so the response does not leak the resource's existence
  * in another tenant (ADR D6 + OWASP IDOR guidance).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § ADR D6
  */
 export class WorkspaceMismatch extends Error {
   override readonly name = 'WorkspaceMismatch' as const;
@@ -446,7 +439,6 @@ export class WorkspaceMismatch extends Error {
  * store a variant, revise the `description` (distinct hash) or `forget(id)` then
  * `add(...)`. Maps to HTTP 409 at the REST boundary (skills-write-surface D1).
  *
- * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § ADR D1
  */
 export class SkillAlreadyExists extends Error {
   override readonly name = 'SkillAlreadyExists' as const;
@@ -475,7 +467,6 @@ export class SkillAlreadyExists extends Error {
  * per-call cap literal WITH backing code at that time (not pre-declared — review
  * 2026-06-22 F-arch-1/2 removed the unimplemented `tool-call-cap` seam per YAGNI).
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + T1.3
  */
 export type ToolInvocationDeniedReason =
   | 'node-binding-attempt'
@@ -496,7 +487,6 @@ export type ToolInvocationDeniedReason =
  * (no executor wired → 501) and {@link SkillExecutorUnavailableError} (sandbox
  * backend not installed → 503).
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + ADR D3
  */
 export class ToolInvocationDeniedError extends Error {
   override readonly name = 'ToolInvocationDeniedError' as const;
@@ -515,7 +505,6 @@ export class ToolInvocationDeniedError extends Error {
  * wired into the memory (execution is opt-in/gated per ADR D3 — STORE-only is the
  * default). Maps to HTTP 501 at the REST boundary.
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 + ADR D3
  */
 export class SkillExecutionNotConfiguredError extends Error {
   override readonly name = 'SkillExecutionNotConfiguredError' as const;
@@ -532,7 +521,6 @@ export class SkillExecutionNotConfiguredError extends Error {
  * not-configured (an executor IS wired but its backend is missing). The message
  * carries an install hint. Maps to HTTP 503 at the REST boundary.
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T1.2 (EC-3)
  */
 export class SkillExecutorUnavailableError extends Error {
   override readonly name = 'SkillExecutorUnavailableError' as const;

@@ -10,10 +10,6 @@
  * Future cycles (anthropic, ollama, gemini, ...) add their adapters here as
  * the roadmap advances.
  *
- * @see .claude/knowledge-base/plans/adapters-portfolio-roadmap.md
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § T2.1
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T2.1
- * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-review-2026-06-01.md § F-wire-3
  */
 export { DeterministicStubLLM } from './stub.js';
 export { OpenAILLM } from './openai.js';

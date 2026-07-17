@@ -125,8 +125,6 @@ export async function probeEmbedder(embedder: Embedder, expectedDim: number): Pr
  * Runs BEFORE `probeEmbedder` and BEFORE `vectorStore.initialize()` so
  * config-level rejection happens at startup with zero side effects.
  *
- * @see .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-edge-cases-2026-06-01.md § EC-1
- * @see .claude/knowledge-base/implementations/adapters-openrouter-local-embedder/sepa-iterations/iteration-1-pre-red.md (CRITICAL #1 — uniform InvalidScope for all pre-flight failures)
  */
 export function validateEmbeddingDim(received: number | undefined): number {
   if (received === undefined) {

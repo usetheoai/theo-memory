@@ -7,8 +7,6 @@
  * extraction (EntityExtractor) and embedding (Embedder) stay in the domain
  * orchestration; this port owns ONLY the database write.
  *
- * @see .claude/knowledge-base/discoveries/blueprints/entity-relation-extraction-no-graphdb-blueprint.md
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T3.1
  */
 import type { Filters } from '../scope.js';
 

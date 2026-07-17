@@ -5,8 +5,6 @@
  * runtime code lands. Failures at this layer surface as `tsc --noEmit` errors,
  * not at vitest runtime (mirrors the existing `memory-store.test-d.ts` precedent).
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T1.1
- * @see .claude/knowledge-base/discoveries/blueprints/skill-library-blueprint.md § ADR D2
  */
 import { expectTypeOf, test } from 'vitest';
 

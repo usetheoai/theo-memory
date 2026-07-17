@@ -10,7 +10,6 @@
  * Per ADR-0002 + memory-store.ts:59-60 the `forget` verb does NOT bind scope
  * (memoryId globally unique) — `forget` subcommand bypasses this helper.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T1.1 + ADR D2
  */
 import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 

@@ -28,8 +28,6 @@
  * `recency = 2^(-Δt/h)` which matches the test names + the blueprint D7
  * retention-probability semantics.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T2.1 (ADR D7 + D8 + D14)
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md § D7 + D8 + D9
  */
 import {
   assertValidFraction,
@@ -101,8 +99,6 @@ const MAX_PROTECTION_MULTIPLIER = 1;
  *
  * Exported for unit-testing in `__tests__/get-neighbor-scope-id.test.ts`.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T3.1
- * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-5
  */
 export function getNeighborScopeId(scope: Scope): string | null {
   switch (scope.kind) {
@@ -210,7 +206,6 @@ function normalizeWeights(raw: TriadicWeights): TriadicWeights {
  * v0.4b defaults (DEFAULT_TRIADIC_WEIGHTS, DEFAULT_TRIADIC_CONSTANTS, null
  * collaborators).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T1.1 + ADR D5
  */
 export interface TriadicScoringPolicyOptions {
   readonly weights?: TriadicWeights;

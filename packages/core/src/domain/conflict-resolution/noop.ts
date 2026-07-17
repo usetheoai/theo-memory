@@ -12,7 +12,6 @@
  * by constructing `LastWriteWinsConflictPolicy` (T1.2) or
  * `LlmJudgedMergeConflictPolicy` (T1.3).
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T1.2 + ADR D2
  */
 import type {
   ConflictResolutionPolicy,

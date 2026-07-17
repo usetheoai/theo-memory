@@ -15,7 +15,6 @@
  * to 404, and workspace isolation means a foreign scope simply has no rows (no
  * existence leak).
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T3.1 + ADR D6 + EC-4
  */
 import type { EpisodeListOptions, Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';

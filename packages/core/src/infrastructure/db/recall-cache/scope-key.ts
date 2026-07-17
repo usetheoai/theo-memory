@@ -13,7 +13,6 @@
  *                    `kind` discriminator IS `'repo'` even though the conceptual
  *                    name in the ScopeTierTtlConfig is the skill-scope tier)
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.1
  * @see src/core/scope.ts (Scope union — discriminator-based exhaustive switch)
  */
 import { DEFAULT_WORKSPACE_ID } from '../../../domain/principal.js';

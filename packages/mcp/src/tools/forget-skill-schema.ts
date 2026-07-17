@@ -4,7 +4,6 @@
  * Curation: delete a skill from a repo (skills-write-surface T2.3 / D4).
  * Scope-isolated — only a skill in the given repo can be forgotten.
  *
- * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § T2.3
  */
 import { z } from 'zod';
 

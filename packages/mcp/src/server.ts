@@ -35,7 +35,6 @@ import { buildOpenMemoryToolsList, openMemoryDispatch } from './openmemory/tools
  *
  * Added 2026-06-04 to close the dogfood T2.1 architectural gap (MCP stdio
  * transport had no scope binding). See
- * `.claude/knowledge-base/audits/dogfood-anchor-T2.1-mcp-stdio-scope-binding-gap-2026-06-04.md`.
  */
 const META_USER_ID_KEY = 'io.usetheo.themory/user_id';
 

@@ -5,7 +5,6 @@
  * `forget` tool's idempotent semantic: a `MemoryNotFound` (the id is not a skill
  * in this repo's scope) returns success (idempotent curation), NOT an error.
  *
- * @see .claude/knowledge-base/plans/skills-write-surface-plan.md § T2.3
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 

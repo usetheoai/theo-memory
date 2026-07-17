@@ -10,7 +10,6 @@
  * EC-9 absorbed (DOCUMENT): recall returns MemoryItemWithScore[] with extra
  * `score: number` field — text renderer uses `[<score>] <id>: <text>` pattern.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T2.2
  */
 import type { MemoryItemWithScore } from '@usetheo/memory/contract';
 import { createAgentToolsMemory } from '@usetheo/memory-agent-core';

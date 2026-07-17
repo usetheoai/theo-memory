@@ -39,9 +39,7 @@
  *   in src/local/index.ts surfaces this constraint at runtime when the
  *   operator triggers the parametric path.
  *
- *   See: .claude/knowledge-base/reviews/adapters-openrouter-local-embedder-review-2026-06-02.md § F-M3 + F-Mi5
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T2.1 + ADR D1.7
  */
 import { sql } from 'drizzle-orm';
 import {
@@ -77,7 +75,6 @@ import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
  * id is a STABLE literal (`'default'`, not a random UUID) so the env-key bridge
  * resolves it without a lookup race and the seed is idempotent (EC-6 / EC-7).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T0.2 + ADR D1/D5/D7
  */
 export const workspaces = pgTable('workspaces', {
   id: text('id').primaryKey(),
@@ -94,7 +91,6 @@ export const workspaces = pgTable('workspaces', {
  * request acts as (owner of the `'default'` workspace) so single-tenant
  * deployments keep working after RBAC lands.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T0.2
  */
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -113,7 +109,6 @@ export const users = pgTable('users', {
  * `theo_api_keys` on `(workspace_id, user_id)`; a key with no membership row
  * resolves to the least-privileged `member` (default-deny).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T0.2 + ADR D3
  */
 export const workspaceUsers = pgTable(
   'workspace_users',
@@ -156,13 +151,11 @@ export const memories = pgTable(
      *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
      *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
      *  (any peer ID accepted; not restricted to the upstream bivalent "user"/"assistant" vocabulary).
-     *  @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2. */
     attributedTo: text('attributed_to'),
     /** themory-category-filter-server-side T2.1: operator-supplied category tag promoted to top-level
      *  column per ADR D2 (mirrors v1.1 attributed_to precedent). NULL on pre-2026-06-09 rows and on
      *  remember() calls without RememberOptions.category. ADR D1 honest no-backfill; ADR D6 immutable
      *  via UPSERT (first-write wins; mutation = forget + remember).
-     *  @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T2.1 + ADR D2 + ADR D6. */
     category: text('category'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
     /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
@@ -186,7 +179,6 @@ export const memories = pgTable(
     codeLanguage: varchar('code_language', { length: 20 }),
     /** v0.4b: timestamp of last recall() touching this row — drives exponential half-life decay
      *  and LRU/LFU bookkeeping per plan T2.1 + T3.1. NULL means never recalled since insert.
-     *  @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13). */
     lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
     /** v0.4b: monotonic counter incremented by recall() write-back hook per plan T3.1.
      *  Used by the access-frequency dimension of triadic scoring per plan T2.1. */
@@ -199,7 +191,6 @@ export const memories = pgTable(
      *  how many times the SAME hash was asserted within the SAME scope. DEFAULT 1
      *  treats pre-cycle rows as "1 confirmation" (EC-4 honest floor — pre-cycle
      *  schema did not track confirmations; 1 is NOT fabricated history).
-     *  @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D1
      *  @see CLAUDE.md § IMPORTANTE Princípio 1 */
     confirmationCount: integer('confirmation_count').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -213,7 +204,6 @@ export const memories = pgTable(
     // (hash, 'alice', NULL, NULL) is independent from (hash, 'bob', NULL, NULL).
     // The v0.1 global UNIQUE was a pre-existing cross-scope dedup defect — see
     // EC-1 absorption in the principles-alignment-hardening edge-case review.
-    // @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § ADR D5
     // multi-tenant-workspace-isolation T1.1 / EC-12: workspace_id leads the dedup
     // key so the same fact under the same user in two workspaces is two rows, not
     // a cross-workspace confirmation_count bump. workspace_id is NOT NULL (no COALESCE).
@@ -244,8 +234,6 @@ export const memories = pgTable(
     // index weight. Migration 0006 drops + recreates these 3 indexes keyed
     // only on the scope-tier column.
     //
-    // @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1 (ADR D13)
-    // @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T9.1 (F-dom-pg-1)
     index('idx_memories_eviction_score')
       .on(table.agentId)
       .where(sql`${table.tInvalid} IS NULL`),
@@ -276,7 +264,6 @@ export const memories = pgTable(
     // Partial on `kind='skill' AND t_invalid IS NULL` (the query's constant
     // predicates) keeps the index small. Leading `workspace_id` (equality) +
     // `agent_id` (range) mirrors the listSkillsBySubject WHERE shape.
-    // @see .claude/knowledge-base/plans/skills-subject-prefix-index-plan.md § D1/D2
     index('idx_memories_skill_subject_prefix')
       .on(table.workspaceId, table.agentId.op('text_pattern_ops'))
       .where(sql`${table.kind} = 'skill' AND ${table.tInvalid} IS NULL`),
@@ -307,7 +294,6 @@ export const memories = pgTable(
  * EC-3 absorption: CHECK forbids all-NULL scope rows (Postgres NULL≠NULL in UNIQUE
  * would otherwise allow unbounded all-NULL counter rows, defeating modular arithmetic).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § ADR D4
  */
 export const reflectionCounters = pgTable(
   'reflection_counters',
@@ -492,9 +478,7 @@ export const history = pgTable(
  * but NOT here; `drizzle-kit push` would have computed a destructive diff
  * (DROP TABLE) and silently lost all GDPR-survival audit rows.
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3
  * @see src/local/migrations/0007_distillation_columns.sql
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md § F-C3
  */
 export const consolidationHistory = pgTable(
   'consolidation_history',
@@ -532,8 +516,6 @@ export const consolidationHistory = pgTable(
  * the embedder. T2.1 (cache wrap) is the canonical mismatch-detection gate via
  * `atttypmod` probe (EC-2 absorption).
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T0.2
- * @see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § 3 + D4
  * @see src/core/dip/recall-cache-store.ts (13th DIP contract)
  */
 export const recallCache = pgTable(
@@ -594,8 +576,6 @@ export const recallCache = pgTable(
  * via the `isUniqueViolation()` discriminator (port from cloud T2.1).
  * Documented per ADR D4 of cloud plan; no extra code needed beyond UNIQUE.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T0.2
- * @see .claude/knowledge-base/discoveries/blueprints/theo-memory-faang-auth-lifecycle-blueprint.md § Q1 (Stripe-shape verdict)
  */
 export const theoApiKeys = pgTable(
   'theo_api_keys',
@@ -665,8 +645,6 @@ export const theoApiKeys = pgTable(
  * CHECK (id = 1)` in the migration. Migration seeds the row on first
  * install via `INSERT ... ON CONFLICT DO NOTHING`.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2.1
- * @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-3
  */
 export const adminConfig = pgTable('admin_config', {
   id: integer('id').primaryKey().default(1),

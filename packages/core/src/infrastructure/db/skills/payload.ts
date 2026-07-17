@@ -6,13 +6,11 @@
  * `src/local/skills/consolidate.ts`).
  *
  * Absorbs v1.1 EC-1 (codeLanguage / code may be NULL on derived skills post
- * skill-library-fixes-v0-6-1 plan T0.2). The decoder accepts
  * `code_language` ∈ `{null, undefined, 'typescript', 'javascript'}` when
  * `kind === 'skill'` so derived skills (which carry NULL) are not silently
  * filtered out of recall + the consolidate Orient phase. Same handling for
  * `code` — propagate NULL straight through instead of coercing to `''`.
  *
- * @see .claude/knowledge-base/plans/skill-library-fixes-v0-6-1-plan.md § T3.3 + EC-1
  */
 import type { Scope } from '../../../domain/scope.js';
 import type { Skill, SkillLanguage, SkillWithScore } from '../../../domain/skill.js';
