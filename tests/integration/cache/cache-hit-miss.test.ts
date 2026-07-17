@@ -6,7 +6,6 @@
  * pgvector `<=>`, NaN behavior on zero-norm queries (EC-8), TTL expiry,
  * scope isolation, clearExpired sweep.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T1.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';

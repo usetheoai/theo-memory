@@ -17,8 +17,6 @@
  * convention; documented in the T0.1 commit body. Plan intent (test the 3 columns
  * + 1 index) honored byte-for-byte.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T0.1
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § ADR D13
  */
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, test } from 'vitest';

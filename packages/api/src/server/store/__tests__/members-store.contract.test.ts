@@ -5,7 +5,6 @@
  * cross-workspace not_found on the in-memory impl. The same contract is
  * enforced (with row-locking) by the pg impl in the integration suite.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1
  */
 import { describe, expect, it } from 'vitest';
 

@@ -12,10 +12,6 @@
  * + `@usetheo/memory/llms/openai`, never re-exported from root. Locks the
  * regression guard before adapter #3 (anthropic, ollama, etc.) ships.
  *
- * @see .claude/knowledge-base/plans/adapters-stub-embedder-llm-cycle-1-plan.md § ADR D4
- * @see .claude/knowledge-base/reviews/adapters-stub-embedder-llm-cycle-1-edge-cases-2026-06-01.md § EC-6
- * @see .claude/knowledge-base/plans/adapters-openai-cycle-2-plan.md § T2.1 + ADR D1
- * @see .claude/knowledge-base/reviews/adapters-openai-cycle-2-edge-cases-2026-06-01.md § EC-3
  */
 import { describe, it, expect } from 'vitest';
 

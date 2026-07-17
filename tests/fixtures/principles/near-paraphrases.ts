@@ -15,7 +15,6 @@
  * measure empirically; if not met, the commit body discloses retune-with-rationale
  * OR adjust-with-rationale per Inquebrável Rule 3 (NOT silent fixture padding).
  *
- * @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T4.2 + § T5.1
  */
 export const nearParaphrases: readonly string[] = [
   'Alice likes coffee',

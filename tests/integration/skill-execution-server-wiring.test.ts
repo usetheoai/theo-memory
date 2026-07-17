@@ -16,7 +16,6 @@
  *
  * Gated by THEOMEM_PG_URI (skips clean when unset; EC-17 CI guard).
  *
- * @see .claude/knowledge-base/plans/production-runtime-hardening-plan.md § T2.1 + GOAL
  */
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';

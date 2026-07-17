@@ -3,7 +3,6 @@
  * counter: migration 0020 (T2.1), PgUsageCounterStore (T2.2), recall increment
  * (T2.3), metrics read (T2.4). Gated by THEOMEM_PG_URI; real ankane/pgvector.
  *
- * @see .claude/knowledge-base/plans/themory-scoped-forget-and-retrieval-counter-plan.md § Phase 2
  */
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import pg from 'pg';

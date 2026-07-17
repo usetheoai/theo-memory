@@ -7,7 +7,6 @@
  * composeFilters scope isolation. Exercised against the real InMemoryVectorStore
  * (in-process, no I/O) so it runs in the always-on contract suite.
  *
- * @see .claude/knowledge-base/plans/first-class-episodes-plan.md § T2.2
  */
 import { describe, expect, test, vi } from 'vitest';
 

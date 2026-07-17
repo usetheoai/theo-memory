@@ -11,7 +11,6 @@
  * **EC-8 absorption:** token containing SQL metachars is handled safely
  * via the parameterized query layer — pinned by an explicit test.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T1.1
  * @see <HOME>/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go (Stripe-shape canonical)
  */
 import { createHash } from 'node:crypto';

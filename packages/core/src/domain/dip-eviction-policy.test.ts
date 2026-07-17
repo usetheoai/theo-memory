@@ -12,8 +12,6 @@
  *
  * Pure type-shape assertions via implementation stub — tsc enforces the contract.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T1.1 (ADR D12)
- * @see .claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md § D8 + D9 (scoring composition + long-tail multiplier)
  */
 import { describe, expect, test } from 'vitest';
 

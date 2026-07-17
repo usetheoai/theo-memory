@@ -8,7 +8,6 @@
  *   - caller resolution PG error → 503 fail-closed (EC-2)
  *   - omitted workspace_id → caller-workspace binding unchanged (regression)
  *
- * @see .claude/knowledge-base/plans/model-b-platform-admin-mint-plan.md § T1.2 (ADR D1/D3, EC-1/EC-2)
  */
 import { Hono } from 'hono';
 import { describe, expect, test, vi } from 'vitest';

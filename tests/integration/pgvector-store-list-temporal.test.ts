@@ -26,8 +26,6 @@
  *   `ORDER BY created_at DESC, id ASC` so identical-timestamp rows have a
  *   deterministic id tiebreak — Dashboard pagination consumes this contract.
  *
- * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § T2.1
- * @see .claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md § EC-1 + EC-2
  * @see src/local/schema.ts:128 (created_at .notNull())
  */
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';

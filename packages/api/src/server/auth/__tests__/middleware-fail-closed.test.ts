@@ -7,7 +7,6 @@
  *   - env parsing: only "true"/"1" enable (EC-4)
  *   - flag off → DEFAULT_PRINCIPAL fallback preserved (single-tenant regression)
  *
- * @see .claude/knowledge-base/plans/model-b-platform-admin-mint-plan.md § T2.1 (ADR D4, EC-4)
  */
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import { Hono } from 'hono';

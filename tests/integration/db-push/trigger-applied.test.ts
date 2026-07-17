@@ -21,8 +21,6 @@ import { pathToFileURL } from 'node:url';
  *       error and the trigger is still registered (0004 uses
  *       `CREATE OR REPLACE FUNCTION/TRIGGER`).
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T2.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-db-2
  */
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

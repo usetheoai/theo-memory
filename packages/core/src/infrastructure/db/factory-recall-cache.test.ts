@@ -6,7 +6,6 @@
  * paired with `InMemoryVectorStore`) so its happy-path lives in the integration
  * suite at `tests/integration/cache/factory-wiring.test.ts`.
  *
- * @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T2.1 + T2.2
  */
 import { describe, expect, test, vi } from 'vitest';
 

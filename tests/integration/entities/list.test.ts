@@ -9,7 +9,6 @@
  *
  * Gated by THEOMEM_PG_URI.
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T4.1 + ADR D4
  */
 import { randomUUID } from 'node:crypto';
 

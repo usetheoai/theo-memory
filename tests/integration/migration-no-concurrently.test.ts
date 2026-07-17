@@ -7,13 +7,10 @@
  * Postgres FORBIDS `CREATE INDEX CONCURRENTLY` inside a transaction block — a
  * migration file carrying it would crash `runMigrations()` at deploy with
  * SQLSTATE 25001. Large-table index builds must therefore run CONCURRENTLY
- * OUT-OF-BAND before deploy; see `.claude/rules/architecture.md § 10.4`.
  *
  * This is a pure file-inspection sentinel (no pgvector container), mirroring
  * `schema-snapshot-parity.test.ts` + `config-parity.test.ts`.
  *
- * @see .claude/knowledge-base/plans/migration-concurrently-index-runbook-plan.md § T1.1
- * @see .claude/knowledge-base/adrs/ADR-0018-large-table-index-concurrently-runbook.md
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

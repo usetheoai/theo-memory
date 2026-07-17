@@ -7,7 +7,6 @@
  * injection → handler `workspaceBoundMemory` — with two real `theo_live_*` keys
  * bound to different workspaces, plus EC-4 (a body `workspaceId` → 400).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-workspace-isolation-plan.md § T3.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';

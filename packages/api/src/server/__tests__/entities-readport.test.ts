@@ -5,7 +5,6 @@
  * falls back to attributed_to derivation when no port is wired; surfaces 500
  * when the port rejects (never a masked empty 200).
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T4.2
  */
 import type { EntityNodeSummary, Memory } from '@usetheo/memory/contract';
 import { describe, expect, test, vi } from 'vitest';

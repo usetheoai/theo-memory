@@ -12,7 +12,6 @@
  *  8. Text projection contract — sourceMemories[i].text = description + "\n\nCode:\n" + code.
  *  9. Transitive cluster — A~B, B~C, A!~C → single cluster of all three (greedy union-find).
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T3.1
  */
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 

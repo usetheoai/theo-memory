@@ -2,7 +2,6 @@
  * Tests for the per-file isolated-database helper
  * (integration-suite-stabilization T0.1).
  *
- * @see .claude/knowledge-base/plans/integration-suite-stabilization-plan.md § T0.1
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

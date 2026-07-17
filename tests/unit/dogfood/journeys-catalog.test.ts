@@ -5,7 +5,6 @@
  * proves the catalog exists, covers all four surfaces, and — per Q1 (owner directive
  * 2026-07-11) — flags EVERY journey `anchor: true`. RED fails when the catalog is absent.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 0 / T0.2
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';

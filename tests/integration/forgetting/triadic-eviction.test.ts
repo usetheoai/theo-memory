@@ -18,7 +18,6 @@
  *   - Cluster member multiplier ≈ 0.1 (clamp floor; tight sibling NN)
  *   - Rare target multiplier ≈ 1.0 (max isolation; no near neighbors)
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

@@ -16,7 +16,6 @@
  * parses prompt + echoes structured response; mock embedder with fixed 1536-dim
  * vector; real Postgres + pgvector via docker-compose.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T8.1
  * @see CLAUDE.md § Roadmap Item 2 acceptance criteria
  */
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';

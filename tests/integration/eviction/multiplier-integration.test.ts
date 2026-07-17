@@ -26,7 +26,6 @@
  * use a stub NearestNeighborProvider and could live anywhere; co-located
  * here for cohesion. Documented in commit body.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T4.2 (D9)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

@@ -21,7 +21,6 @@
  * "increment correctness" invariant that both skipped tests would also cover
  * if duplicates arose.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T3.1 (D15 + EC-8)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

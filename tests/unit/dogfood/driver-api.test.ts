@@ -2,7 +2,6 @@
  * T2.2 — API driver coverage. Asserts `drivers/api.md` documents every J-API + J-CLI
  * journey with an oracle, and the EC-8 fail-not-skip rule.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 2 / T2.2
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

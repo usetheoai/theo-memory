@@ -4,7 +4,6 @@
  * Covers the 4 verbs (add/recall/consolidate/forget) + scope isolation
  * between distinct `repoId` values + empty-repoId rejection per plan TDD.
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T4.1
  */
 import { describe, expect, test } from 'vitest';
 

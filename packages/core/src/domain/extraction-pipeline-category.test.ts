@@ -13,7 +13,6 @@
  *  - EC-2 boundary: throws InvalidScope when category.length === 65
  *  - EC-2 boundary: accepts exactly 64 chars (does NOT throw)
  *
- * @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T3.3 + EC-2 + ADR D1
  */
 import { describe, expect, test, vi } from 'vitest';
 

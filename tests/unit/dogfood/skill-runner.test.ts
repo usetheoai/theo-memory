@@ -3,7 +3,6 @@
  * deferred callers (invokes run_journey_audit.py + check_journey_catalog.py, references the
  * 4 drivers + the catalog), documents run+audit modes, and preserves the verdict tokens.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 4 / T4.1
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

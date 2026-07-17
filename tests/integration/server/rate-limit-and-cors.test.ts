@@ -1,7 +1,6 @@
 /**
  * T2.1 + T2.2 of red-team-full-system-fixes-cycle-1 — rate-limit + CORS.
  *
- * @see .claude/knowledge-base/plans/red-team-full-system-fixes-cycle-1-plan.md § T2.1 + T2.2
  */
 import { describe, expect, test, vi, beforeAll, afterAll } from 'vitest';
 

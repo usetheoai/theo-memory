@@ -2,7 +2,6 @@
  * T2.1 — SDK driver coverage. Asserts `drivers/sdk.md` documents every J-SDK journey
  * from the catalog with a resolvable oracle, and documents the EC-8 fail-not-skip rule.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 2 / T2.1
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

@@ -11,7 +11,6 @@
  * that dimension via the public `runMigrations(pool, { embeddingDim })` path
  * (e.g. 384 for the local transformer embedder).
  *
- * @see .claude/knowledge-base/plans/integration-suite-stabilization-plan.md § T0.1
  */
 import pg from 'pg';
 

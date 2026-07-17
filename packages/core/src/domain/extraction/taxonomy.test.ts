@@ -2,7 +2,6 @@
  * RED-phase tests for extraction/taxonomy.ts — auto-categorization-write-pipeline T1.2.
  * The hybrid-taxonomy default list + the source classifier (fixed-list vs free-form).
  *
- * @see .claude/knowledge-base/plans/auto-categorization-write-pipeline-plan.md § Phase 1 / T1.2
  */
 import { describe, expect, test } from 'vitest';
 

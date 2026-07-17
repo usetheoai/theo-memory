@@ -13,7 +13,6 @@
  * across the 15 migrated routes — not 15 redundant tests (parity is
  * structural per T2.1 byte-for-byte copy + 8/8 T0.1 RED sentinels GREEN).
  *
- * @see .claude/knowledge-base/plans/examples-theokit-chat-migration-plan.md § T2.2
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

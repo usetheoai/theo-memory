@@ -6,8 +6,6 @@
  * (amended 2026-07-10, M1 — the invalidate is a cohesive write on the SAME edges
  * aggregate, not a cross-cutting concern). `MemoryEntityStore` is NOT widened.
  *
- * @see .claude/knowledge-base/plans/entity-relation-extraction-slice2-plan.md § T2.0
- * @see .claude/knowledge-base/adrs/ADR-0008-dip-method-counts.md § Amendment 2026-07-10
  */
 import { describe, expect, test } from 'vitest';
 

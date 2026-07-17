@@ -13,7 +13,6 @@
  * Inquebrável Rule 3 (Honestidade Extrema) — silent skips are the worst kind
  * of green: they look passing while protecting nothing.
  *
- * @see .claude/knowledge-base/implementations/v0-3-agent-tools-mcp-followups.md
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

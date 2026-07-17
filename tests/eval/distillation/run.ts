@@ -16,7 +16,6 @@
  *
  * Reproduce with: `npm run eval:distillation`
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.2 + ADR D5 + EC-10 + EC-11
  * @see tests/eval/distillation.md (matrix output)
  * @see tests/eval/forgetting/run.ts (v0.4b T7.3 precedent — same shape)
  */

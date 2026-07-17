@@ -11,7 +11,6 @@ import { rowToMemoryItem, type ScopeCandidateRow } from './scope-candidate.js';
  * file locks the column-precedence rule that `rowToMemoryItem` reconstructs
  * the scope from.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T6.1
  */
 describe('rowToMemoryItem — column precedence reproduces write-side scope', () => {
   const baseRow: ScopeCandidateRow = {

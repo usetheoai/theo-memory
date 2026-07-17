@@ -11,7 +11,6 @@
  * Gated by THEOMEM_PG_URI (skips cleanly when unset, per the integration-suite
  * convention). isolated-vm must be installed (optional addon).
  *
- * @see .claude/knowledge-base/plans/agentic-skill-execution-sandbox-plan.md § T3.1
  */
 import type { Tracer } from '@opentelemetry/api';
 import pg from 'pg';

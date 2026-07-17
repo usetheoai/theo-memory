@@ -13,7 +13,6 @@
  * Plan path deviation: integration test at tests/integration/eviction/ per
  * established T2.2/T3.1/T4.x/T5.x pattern.
  *
- * @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T6.1 (D17 + EC-4 + EC-10)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import pg from 'pg';

@@ -11,8 +11,6 @@
  *      recommended explicit `.sort((a,b) => a.id.localeCompare(b.id))` in
  *      list() for id-order stability — this test pins that contract.
  *
- * @see .claude/knowledge-base/plans/dashboard-memories-tab-standardization-plan.md § T2.2
- * @see .claude/knowledge-base/reviews/dashboard-memories-tab-standardization-edge-cases-2026-06-08.md § EC-6
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 

@@ -16,8 +16,6 @@
  *   - CRITICAL-2: detect stub via `adapterSource === 'stub'` (NOT
  *     `constructor.name === 'DeterministicStubLLM'`; the latter is fragile)
  *
- * @see .claude/knowledge-base/plans/examples-chat-with-memory-v0-7-distillation-plan.md § T0.1 + ADR D5
- * @see .claude/knowledge-base/reviews/examples-chat-with-memory-v0-7-distillation-edge-cases-2026-06-01.md § EC-1
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 

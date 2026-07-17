@@ -1,7 +1,6 @@
 /**
  * T1.1 contract — resolveCliScope helper.
  *
- * @see .claude/knowledge-base/plans/verbs-as-cli-themory-remember-recall-forget-reflect-plan.md § T1.1
  */
 import { describe, expect, test } from 'vitest';
 

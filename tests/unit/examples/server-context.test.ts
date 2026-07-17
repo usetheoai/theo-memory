@@ -15,7 +15,6 @@
  * discovered in chunk-TPCT3MXV.js runMiddlewareAndContext). Same outcome,
  * different file-shape than the plan letter prescribed.
  *
- * @see .claude/knowledge-base/plans/examples-theokit-chat-migration-plan.md § T3.0 + ADR D7
  * @see examples/chat-with-memory/node_modules/theokit/dist/server/auth/index.d.ts (real createSessionManager shape)
  */
 import { describe, expect, it } from "vitest";

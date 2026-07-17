@@ -1,5 +1,4 @@
 /**
- * THE GOAL TEST — v0.6 skill-library T5.1.
  *
  * Proves the Goal metric (per plan v1.1 Goal statement + CLAUDE.md Roadmap
  * Item 8 acceptance criterion): consolidate two syntactically-different but
@@ -17,7 +16,6 @@
  * Gated by THEOMEM_PG_URI env var (EC-17 absorption: CI=true with absent
  * env fails loudly, never silently skips).
  *
- * @see .claude/knowledge-base/plans/skill-library-plan.md § T5.1 + Goal
  */
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import pg from 'pg';

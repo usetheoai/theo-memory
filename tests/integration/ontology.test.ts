@@ -15,7 +15,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see .claude/knowledge-base/plans/domain-ontologies-plan.md § T4.1 (GOAL)
  */
 import {
   BasicTracerProvider,

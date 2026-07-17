@@ -12,7 +12,6 @@
  *   - recall: matched / expected
  *   - conflictResolutionAccuracy: per-pair correctness
  *
- * @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.2 + ADR D5 + EC-10
  */
 import { describe, expect, test } from 'vitest';
 

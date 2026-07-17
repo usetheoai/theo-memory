@@ -22,7 +22,6 @@ import pg from 'pg';
  *
  * @see src/local/migrations/0004_eviction_half_life_trigger.sql (race-window
  *   discussion in the SQL comment block)
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T9.2
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

@@ -8,7 +8,6 @@
  * If a future route forgets `requireRole`, the member row turns green where it
  * must be 403 and this suite fails.
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T2.1
  */
 import { describe, expect, it, vi } from 'vitest';
 

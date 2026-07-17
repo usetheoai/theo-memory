@@ -11,8 +11,6 @@
  * touches the migrations + schema source-of-truth which is integration-tier
  * concern (production deployment correctness).
  *
- * @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-review-2026-06-02.md § F-C3
- * @see .claude/rules/architecture.md § 10.2 (drizzle-kit push vs runMigrations)
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

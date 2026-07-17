@@ -2,7 +2,6 @@
  * T2.3 — MCP driver coverage. Asserts `drivers/mcp.md` documents every J-MCP journey
  * with an oracle + the EC-8 fail-not-skip rule.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 2 / T2.3
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

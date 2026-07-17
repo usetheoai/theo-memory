@@ -12,7 +12,6 @@
  * / `randomUUID()` into the prompt header fails this test BEFORE the snapshot
  * itself non-determinizes.
  *
- * @see .claude/knowledge-base/plans/p0-api-sdk-mcp-correctness-audit-fixes-cycle-1-plan.md § T0.4 + T3.2 + EC-2 + EC-8
  */
 import { describe, expect, test } from 'vitest';
 

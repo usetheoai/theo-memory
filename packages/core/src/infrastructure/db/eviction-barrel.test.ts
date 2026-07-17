@@ -8,8 +8,6 @@ import { describe, expect, it } from 'vitest';
  * the public API without reaching into `src/local/eviction/*` deep paths)
  * + F-arch-5 + F-wire-2 + F-xval-3 MAJOR per ADR D6 consolidation.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-2
  */
 
 describe('T4.1: v0.4b eviction surface reachable via public barrels (F-dom-2)', () => {

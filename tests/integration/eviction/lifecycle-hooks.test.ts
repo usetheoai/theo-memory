@@ -17,8 +17,6 @@ import type { Scope } from '@usetheo/memory';
  * surface. T12.1 wires both triggers to call the hooks at the eviction
  * boundary; the test exercises the canonical observability flow.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T12.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-xval-2
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

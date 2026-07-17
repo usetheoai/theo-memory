@@ -6,8 +6,6 @@
  * lexicographically-last filename) → validate #5 oracle_result + #6 secret BEFORE counting
  * #3 present+pass → #4 freshness (>30d stale, boundary inclusive). Covers EC-1..EC-7.
  *
- * @see .claude/knowledge-base/plans/dogfood-unified-journey-suite-plan.md § Phase 1 / T1.1
- * @see .claude/knowledge-base/implementations/dogfood-unified-journey-suite/sepa-iterations/T1.1-pre-red.md
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';

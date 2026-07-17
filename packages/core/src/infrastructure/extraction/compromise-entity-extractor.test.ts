@@ -6,7 +6,6 @@
  * dedup, regex fallback when the NLP lib is absent, and the EC-2 empty/short
  * drop guard (the SEPA-flagged hard checkpoint).
  *
- * @see .claude/knowledge-base/plans/entity-extraction-nodes-slice1-plan.md § T1.2
  */
 import { describe, test, expect } from 'vitest';
 

@@ -4,7 +4,6 @@
  * not only by injecting `ExtractionDeps` directly. Exercised against the real
  * InMemoryVectorStore (in-process, no I/O) so it runs in the always-on contract suite.
  *
- * @see .claude/knowledge-base/reviews/auto-categorization-write-pipeline-review-2026-07-12.md § F-H1
  */
 import { describe, expect, test, vi } from 'vitest';
 

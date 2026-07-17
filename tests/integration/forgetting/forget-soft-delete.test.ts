@@ -21,8 +21,6 @@ import { MemoryNotFound } from '@usetheo/memory';
  * same path via `LocalScopedSkillMemory.forgetDelegate` (line 564); skill
  * consumers also see the BREAKING change.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T7.1 + ADR D7
- * @see .claude/knowledge-base/reviews/v0-4b-fixes-cycle-edge-cases-2026-05-30.md § EC-3
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

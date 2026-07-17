@@ -3,7 +3,6 @@
  *
  * Real-timer integration tests with retry:3 per plan D9 (vitest jitter absorption).
  *
- * @see .claude/knowledge-base/plans/v0-4a-reflection-pipeline-plan.md § T3.1
  */
 import { afterEach, describe, expect, test } from 'vitest';
 

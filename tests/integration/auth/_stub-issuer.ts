@@ -10,7 +10,6 @@
  * to release the port — the `Promise.allSettled` pattern in the e2e test
  * defends against cascade EADDRINUSE if a scenario crashes.
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-fixes-cycle-1-plan.md § T4.1
  */
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';

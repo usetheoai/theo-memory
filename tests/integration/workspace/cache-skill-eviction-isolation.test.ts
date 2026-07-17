@@ -12,7 +12,6 @@
  *   3. eviction — a capacity-triggered eviction pass in ws-A never soft-deletes
  *      a ws-B row (the COUNT, candidate load + scoring are workspace-bound).
  *
- * @see .claude/knowledge-base/plans/multi-tenant-rbac-and-slice1-completion-plan.md § T3.1
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';

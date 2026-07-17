@@ -14,8 +14,6 @@
  *   2. metadata JSON when OIDC is configured — fields per RFC 9728 § 2.
  *   3. accessible WITHOUT Bearer (auth-exempt, like /v1/openapi.json).
  *
- * @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T4.2
- * @see .claude/knowledge-base/adrs/ADR-0015-mcp-streamable-http-auth.md § Decision #4
  * @see https://datatracker.ietf.org/doc/html/rfc9728
  */
 import type { Memory } from '@usetheo/memory/contract';

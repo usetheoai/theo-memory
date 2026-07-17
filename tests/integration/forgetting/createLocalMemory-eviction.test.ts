@@ -26,7 +26,6 @@ import type { Scope } from '@usetheo/memory';
  * (`eviction_${kind}_${scopeKey}`) holds via the public factory path the
  * same way it holds via direct trigger construction.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T4.1
  */
 
 const PG_URI = process.env['THEOMEM_PG_URI'] ?? '';

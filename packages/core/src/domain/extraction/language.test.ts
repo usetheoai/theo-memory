@@ -2,7 +2,6 @@
  * Unit tests for deterministic input-language detection (EG-4 fixes-cycle-1 T1.1).
  * Pure functions — no LLM, no I/O.
  *
- * @see .claude/knowledge-base/plans/extraction-language-determinism-fixes-cycle-1-plan.md § T1.1
  */
 import { describe, expect, it } from 'vitest';
 
