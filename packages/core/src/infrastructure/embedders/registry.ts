@@ -16,7 +16,6 @@
  *   with an install hint.
  *
  * @see .claude/knowledge-base/plans/embedder-registry-plan.md § ADR D1 + D2 + D4 + T3.1
- * @see .claude/knowledge-base/references/REDACTED/REDACTED/utils/factory.py (EmbedderFactory shape)
  */
 import type { Embedder } from '../../domain/dip/embedder.js';
 import { EmbedderError, EmbedderUnavailableError } from '../../domain/errors.js';

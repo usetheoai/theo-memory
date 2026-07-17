@@ -5,7 +5,6 @@
  * supersedes Drift-T4.1-1 which said "2 consumers, rule-of-three not
  * reached"). Consumer count grew to 6 production + 5 test during the v0.8
  * `T6.1` + `T6.2` + `T6.3` vendor-adapter rollout, crossing the rule of
- * three and triggering ISP cleanup (vendor adapters REDACTED/REDACTED/REDACTED were
  * structurally depending on a sibling vendor adapter's exported interface).
  *
  * MOVE-only refactor per v0-8-fixes-cycle-1 ADR D3: interface body
