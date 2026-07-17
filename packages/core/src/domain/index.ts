@@ -434,20 +434,6 @@ export {
 } from './conflict-resolution/prompts.js';
 
 /**
- * v0.8 `BenchmarkAdapter` 10th DIP — independent benchmark reproduction
- * shapes for LongMemEval / LoCoMo / DMR fixture loaders.
- *
- */
-export type {
-  AddMetrics,
-  BenchmarkAdapter,
-  BenchmarkCorpus,
-  BenchmarkCorpusItem,
-  BenchmarkQuery,
-  SearchResult,
-} from './dip/benchmark-adapter.js';
-
-/**
  * 12th DIP — `AuthVerifier` — pluggable REST-server bearer-auth contract.
  * Default: BearerAuthVerifier from theo-memory-standalone-p0 cycle.
  *
