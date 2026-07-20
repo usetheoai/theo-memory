@@ -4,7 +4,7 @@
  * @see ADR D1 — Transport selection: stdio (primary) + streamable-HTTP (secondary)
  * @see ADR D8 — Package surface (subpath + bin + bundle isolation)
  */
-import type { Memory } from '@usetheo/memory/contract';
+import type { Memory, RecallTraceStore } from '@usetheo/memory/contract';
 
 /**
  * Transport flavor for the MCP server.
@@ -56,4 +56,11 @@ export interface McpServerOptions {
    * of the native verbs (Roadmap Item 26).
    */
   readonly toolset?: ToolsetKind;
+  /**
+   * recall-trace-retention-and-mcp M4 — optional recall-trace read store backing
+   * the `explain_recall` tool. When omitted, `explain_recall` returns an honest
+   * "tracing not enabled" result. Injected by the composition root under the same
+   * `THEOMEM_RECALL_TRACE` posture as the SDK write + REST read.
+   */
+  readonly recallTraceStore?: RecallTraceStore;
 }
