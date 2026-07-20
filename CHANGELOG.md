@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **`publish` CI red fixed — registered the `@usetheo/memory/recall-trace-pg` subpath in `scripts/rewrite-dist-aliases.mjs`.** The recall-trace work (S2/M4) added the subpath export imported by the dist server + MCP entrypoints, but the fail-loud postbuild alias-rewrite map was not updated, so `pnpm build` aborted (`UNRESOLVED specifier @usetheo/memory/recall-trace-pg`) → the docker image build failed → no image shipped (all recent `publish` runs red). Adds the one alias entry; `pnpm build` green (145 specifiers rewritten). (M5 CD pipeline — task 1.)
 
 ### Security
 
