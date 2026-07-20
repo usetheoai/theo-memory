@@ -7,7 +7,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
-- **v1.0 gate re-scoped — comparative-benchmark gate (Item 11 gate (a)) DROPPED (ADR-0020).** The independent v0.8 comparative-benchmark reproduction is no longer a v1.0 blocker: the benchmark feature was removed entirely in v0.35.0 and the product ships no comparative "faster-than" claim, so `public-copy.md § 4` (which gates comparative claims) does not apply. Both technical v1.0 gates are now resolved — `/dogfood` = `EVIDENCE_SUFFICIENT` (CLOSED) + benchmark gate DROPPED — so declaring `production-ready` / cutting `v1.0.0` is now a deliberate **owner release decision**, not a technical blocker. The no-comparative-claim guardrail stays in force for any future benchmark claim. Reconciles the stale gate description in `CLAUDE.md` + `README.md` with the v0.35.0 removal.
 
 ### Deprecated
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.36.1] - 2026-07-20
+
+### Changed
+- **v1.0 gate re-scoped — comparative-benchmark gate (Item 11 gate (a)) DROPPED (ADR-0020).** The independent v0.8 comparative-benchmark reproduction is no longer a v1.0 blocker: the benchmark feature was removed entirely in v0.35.0 and the product ships no comparative "faster-than" claim, so `public-copy.md § 4` (which gates comparative claims) does not apply. Both technical v1.0 gates are now resolved — `/dogfood` = `EVIDENCE_SUFFICIENT` (CLOSED) + benchmark gate DROPPED — so declaring `production-ready` / cutting `v1.0.0` is now a deliberate **owner release decision**, not a technical blocker. The no-comparative-claim guardrail stays in force for any future benchmark claim. Reconciles the stale gate description in `CLAUDE.md` + `README.md` with the v0.35.0 removal.
 
 ## [0.36.0] - 2026-07-20
 
