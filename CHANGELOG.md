@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **M4 T2.1 — per-workspace fail-closed opt-out for recall tracing.** `RecallTraceStoreConfig.disabledWorkspaces` — a listed workspace writes 0 trace rows even when tracing is deployment-enabled; checked in-memory at the write gate (no per-recall DB read) (recall-trace-retention-and-mcp).
 - **M4 accountable-forgetting governance — `RecallTraceRetentionPolicy` retention sweep (T1.1).** Age-based, race-safe (`withSerializableTransactionAndRetry`) `DELETE` that bounds the `recall_traces` audit log; `PgRecallTraceRetention.sweep(olderThanSeconds)` via `@usetheo/memory/recall-trace-pg` (recall-trace-retention-and-mcp).
 - Roadmap amended: added M4 Accountable-forgetting governance + surfaces (retention · MCP · dashboard) (`/roadmap-feature accountable-forgetting-governance`)
 
