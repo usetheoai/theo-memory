@@ -1,7 +1,12 @@
-# Image publish — thin caller of the org-standard reusable build-publish (in `theo`).
-# preview: push to develop → ghcr.io/usetheodev/themory:develop (+ :develop-<sha>)
-# release: tag v*        → :X.Y.Z + :X.Y + :latest, SBOM+SLSA mode=max + keyless cosign sign+verify
-# The Trivy CRITICAL/HIGH gate (with this repo's .trivyignore) runs before every push.
+# Image publish + dev deploy — M5 CD pipeline (playbook, adapted from theo-rag).
+#   develop push → build ./Dockerfile → ghcr.io/usetheodev/themory:develop (+ :develop-<sha>)
+#                  behind the Trivy CRITICAL/HIGH gate → deploy to the dev host
+#                  (deploy-dev job, develop-only).
+#   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign — NOT deployed
+#                  (the future prod host is provisioned separately).
+#
+# The deploy is a `needs: image` job (NOT a workflow_run trigger) because the repo's
+# default branch is `main` and workflow_run only fires from the default branch.
 name: publish
 on:
   push:
@@ -24,4 +29,62 @@ jobs:
       sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
       verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
       runner: '["self-hosted","linux","x64"]'   # GitHub-hosted minutes are billing-blocked
-    secrets: inherit
+    # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
+    # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
+    # (GHCR still publishes via the run's GITHUB_TOKEN).
+    secrets:
+      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # Deploy the freshly-published :develop image to the dev host. develop-only: a v* tag
+  # publishes the release image but never deploys.
+  deploy-dev:
+    needs: image
+    if: ${{ github.ref == 'refs/heads/develop' }}
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Configure SSH deploy key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > ~/.ssh/themory_deploy
+          chmod 600 ~/.ssh/themory_deploy
+          ssh-keyscan -H "${{ vars.DEV_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Provision runtime env on the dev host
+        # Written over stdin (never argv) so the secret is not exposed in the process
+        # list; GitHub masks it in logs. Compose reads this .env. .env is gitignored, so
+        # the git sync below never clobbers it.
+        run: |
+          SHA='${{ github.sha }}'
+          BUILT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" \
+            'cat > <HOME>/theo-data-plane/theo-memory/.env' <<EOF
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          THEOMEM_GIT_SHA=${SHA}
+          THEOMEM_VERSION=develop-${SHA:0:7}
+          THEOMEM_BUILD_TIME=${BUILT}
+          EOF
+
+      - name: Sync the deploy mirror, log into GHCR, and deploy
+        # Sync the box checkout to the published commit FIRST (it carries the deploy
+        # script + compose override), then pull the image and restart themory. Sync to
+        # the EXACT commit (not the branch tip) so the checkout, the compose files, and
+        # the version gate all agree even if develop advanced.
+        run: |
+          ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" bash -s <<'REMOTE'
+          set -euo pipefail
+          DIR=<HOME>/theo-data-plane/theo-memory
+          cd "$DIR"
+          git fetch --quiet origin develop
+          git reset --hard --quiet '${{ github.sha }}'
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          EXPECTED_SHA='${{ github.sha }}' bash scripts/deploy-dev.sh
+          REMOTE
+
+      - name: Remove the deploy key from the runner
+        if: always()
+        run: rm -f ~/.ssh/themory_deploy
