@@ -24,8 +24,14 @@ Each task completes its TDD cycle (RED → GREEN → REFACTOR → WIRING → COM
 
 | # | Plan ref | Status | Wiring (a) | Wiring (b) | Wiring (c) | Commit SHA |
 |---|---|---|---|---|---|---|
-| T0.1 | Phase 0 / T0.1 — `RecallTraceStore` DIP + types | pending | — | — | — | — |
-| T1.1 | Phase 1 / T1.1 — `recall_traces` table + migration 0023 | pending | — | — | — | — |
+| T0.1 | Phase 0 / T0.1 — `RecallTraceStore` DIP + types | committed | ✓ | defer | n/a | (this commit) |
+
+<!-- ADR-DEFER-WIRING-B: T0.1 RecallTraceStore — a Phase-0 DIP contract has no integration test yet; exercised by integration tests in T2.1 (pg-store round-trip) + the final GOAL TEST. Type coverage via recall-trace-store.test-d.ts now. Pillar (a) PASS, pillar (c) n/a (no T0.1 metric). -->
+
+| T1.1 | Phase 1 / T1.1 — `recall_traces` table + migration 0023 | committed | ✓ | defer | n/a | (this commit) |
+
+<!-- ADR-DEFER-WIRING-B: T1.1 recallTraces — the drizzle table symbol is re-exported by the db barrel (pillar a PASS); its integration exercise via the symbol lands in T2.1 (PgRecallTraceStore round-trip test). The TABLE's creation behavior IS integration-tested now (tests/integration/recall-trace/migration.test.ts, real pgvector). Migration hand-authored because db:generate is broken project-wide (schema.ts:223, see followups). -->
+
 | T2.1 | Phase 2 / T2.1 — `PgRecallTraceStore` + subpath export | pending | — | — | — | — |
 | T3.1 | Phase 3 / T3.1 — trace dropped candidates in pipeline | pending | — | — | — | — |
 | T4.1 | Phase 4 / T4.1 — factory opt-in wiring + recall_id | pending | — | — | — | — |
