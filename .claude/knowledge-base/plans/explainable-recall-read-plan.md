@@ -189,14 +189,14 @@ VERIFY: npm test -- scoped-memory
 ```
 
 #### Concurrency tests
-(none — single-threaded; concurrency of distinct recall_ids is covered by the S1 `concurrency.test.ts` shape and re-exercised in the Final Phase)
+(none — single-threaded)
 
 #### Acceptance Criteria
-- [ ] `RecallOptions.recallId?` exists + documented
-- [ ] Supplied id keys the trace; absent → minted
-- [ ] `recall()` return byte-identical (D1)
-- [ ] Pass: lint zero warnings on changed files
-- [ ] Pass: size — options.ts ≤ 500 (scoped-memory.ts pre-existing >500, add ≤ 5 lines)
+- [ ] `test_recall_uses_supplied_recall_id` passes: a supplied `recallId` appears verbatim as the recorded `batch.recallId`
+- [ ] `test_recall_mints_when_recall_id_absent` passes: absent option → recorded `batch.recallId` matches `/^[0-9a-f-]{36}$/`
+- [ ] `test_recall_return_unchanged_with_recall_id` passes: the returned array `toEqual` with vs without `recallId` (D1)
+- [ ] `npx eslint` reports 0 warnings on `options.ts` + `scoped-memory.ts`
+- [ ] `wc -l options.ts` ≤ 500; net add to `scoped-memory.ts` ≤ 5 lines (`git diff --stat`)
 
 #### DoD
 - [ ] `npm test -- scoped-memory` green
@@ -251,13 +251,13 @@ VERIFY: npm test -- handlers
 ```
 
 #### Concurrency tests
-(none — single-threaded HTTP handler; each request mints its own id)
+(none — single-threaded)
 
 #### Acceptance Criteria
-- [ ] Response carries a UUID `recallId`
-- [ ] Empty results still 200
-- [ ] OpenAPI spec includes `recallId`
-- [ ] Pass: lint / size (recall.ts ≤ 500)
+- [ ] `test_recall_response_includes_recall_id` passes: response body `.recallId` matches `/^[0-9a-f-]{36}$/`
+- [ ] `test_recall_still_200_empty_results` passes: empty results → HTTP 200 with `{ results: [], recallId }`
+- [ ] `npm test -- openapi` passes: the generated spec's `/v1/recall` response schema declares `recallId`
+- [ ] `npx eslint` reports 0 warnings on `recall.ts`; `wc -l recall.ts` ≤ 500
 
 #### DoD
 - [ ] `npm test -- handlers` green
@@ -314,13 +314,13 @@ VERIFY: npm run test:integration -- recall-trace/recall-trace-store
 ```
 
 #### Concurrency tests
-(none — single-threaded read; no shared mutable state)
+(none — single-threaded)
 
 #### Acceptance Criteria
-- [ ] Cross-workspace read returns `[]`
-- [ ] Same-workspace read returns rows
-- [ ] 14th DIP still 2 methods (ADR-0008)
-- [ ] Pass: lint / size
+- [ ] `test_get_by_recall_id_scopes_workspace` passes: `getByRecallId(id, 'wsB')` returns `[]` while `getByRecallId(id, 'wsA')` returns the rows
+- [ ] `test_get_by_recall_id_default_workspace` passes: the `'default'`-workspace round-trip returns the rows
+- [ ] `grep -c "async .*(" recall-trace-store.ts` interface shows exactly 2 methods (ADR-0008)
+- [ ] `npm run typecheck` reports 0 errors (all `getByRecallId` callers updated to the new arity)
 
 #### DoD
 - [ ] `npm run test:integration -- recall-trace/recall-trace-store` green
@@ -400,16 +400,17 @@ VERIFY: npm test -- scope-verb-matrix handlers && npm run test:integration -- re
 ```
 
 #### Concurrency tests
-(none — single-threaded read handler)
+(none — single-threaded)
 
 #### Failure scenarios
 See `## Failure scenarios`.
 
 #### Acceptance Criteria
-- [ ] Route guarded by `memory:read` (platform-admin/mint-key 403s — least privilege)
-- [ ] Own-workspace read 200 with breakdown; cross-tenant 404
-- [ ] Route mounts only when `recallTraceStore` provided
-- [ ] Pass: lint / size (app.ts stays ≤ 500; recall-traces.ts ≤ 500)
+- [ ] `test_read_endpoint_requires_memory_read` passes: a credential without `memory:read` gets HTTP 403 on the route
+- [ ] `test_read_endpoint_returns_drops_for_own_workspace` passes: HTTP 200 with `drops[].dropReason` present
+- [ ] `test_read_endpoint_404_cross_tenant` passes: a foreign-workspace `recallId` gets HTTP 404
+- [ ] `test_read_route_absent_without_store` passes: `createServer` without `recallTraceStore` → the route returns 404 (not mounted)
+- [ ] `npx eslint` reports 0 warnings on `app.ts` + `recall-traces.ts`; `wc -l` ≤ 500 each
 
 #### DoD
 - [ ] `npm test -- scope-verb-matrix handlers` green
@@ -428,7 +429,7 @@ See `## Failure scenarios`.
 | 3 | read cannot cross tenants (CWE-441) | T3.1 | `getByRecallId(recallId, workspaceId)` predicate |
 | 4 | operator reads the dropped candidates + breakdown | T4.1 | `GET /v1/recall-traces/:recallId` (memory:read) |
 | 5 | endpoint is opt-in (backward-compat) | T4.1 (D4) | `CreateServerOptions.recallTraceStore?` conditional mount |
-| 6 | THE GOAL TEST (read round-trip + isolation) | Final | integration test |
+| 6 | THE GOAL TEST (read round-trip + isolation) | T4.1 | `read-surface.test.ts` created in T4.1 Files-to-edit; exercised in Final Phase |
 
 **Coverage: 6/6 gaps covered (100%)**
 
