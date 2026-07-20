@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Internal prior-art `@see`/reference comment lines from 14 shipped `packages/core` source files (dedup, scoring/lemmatization, retrieval/extraction pipelines, embedders, DIP interfaces, schema). These pointed at internal `knowledge-base/` coordinates that do not exist for an npm consumer; behavior unchanged (comment-only removal, `tsc --noEmit` green).
 
 ### Fixed
+- **Restored four `memories` columns silently dropped by unclosed JSDoc comments in the schema.** Three block comments in `schema.ts` were missing their closing `*/`, so the column definitions right after each (`attributedTo`, `category`, `textLemmatized`, `lastAccessedAt`) were parsed as comment text and never registered on the drizzle model — leaving `table.category` `undefined`, which crashed drizzle `getTableConfig` at the category index and cascaded a compile/runtime failure to every module importing the db barrel (schema tests, eviction, CLI, MCP, server) and broke `db:generate` repo-wide. Closing the three comments restores the columns; typecheck goes from 3 errors to 0 and `db:generate` works again. Pre-existing bug (predates the recall-trace work); regression locked by the existing schema column-list assertion (explainable-recall).
 
 ### Security
 
