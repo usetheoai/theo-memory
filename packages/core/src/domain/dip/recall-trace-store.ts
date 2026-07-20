@@ -103,6 +103,14 @@ export interface RecallTraceStoreConfig {
    * limit (EC-1). Default {@link DEFAULT_MAX_ROWS_PER_RECALL}.
    */
   readonly maxRowsPerRecall?: number;
+  /**
+   * explainable-recall M4 (governance) — per-workspace fail-closed opt-out.
+   * A workspace listed here writes ZERO trace rows even when the deployment
+   * enabled tracing (the write gate returns no trace context). Bounds growth at
+   * the source; checked in-memory at the write gate (NO per-recall DB read).
+   * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-2)
+   */
+  readonly disabledWorkspaces?: readonly string[];
 }
 
 /**
