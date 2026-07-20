@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - Roadmap amended: added M5 CD pipeline — 100% functional in dev (`/roadmap-feature cd-pipeline-dev`)
+- Roadmap amended: added M6 Global Claude Code ⇄ theo-memory integration + migration (`/roadmap-feature claude-code-memory-integration`); grounded in the deep-research blueprint `claude-code-theo-memory-integration` (hooks-first hybrid; `POST /v1/remember/batch`; secret-scrubbed idempotent migration of Claude Code's native file-memory)
 - **M5 CD pipeline — dev auto-deploy (playbook Phase 3-4).** `publish.yml` gains a `deploy-dev` job (develop-only; a `v*` tag publishes the release image but never deploys) that SSHes to the dev host, syncs the deploy mirror to the pushed commit, logs into GHCR, and runs the new `scripts/deploy-dev.sh` — which pulls `ghcr.io/usetheodev/themory:develop`, brings up `themory_app` alongside the existing pgvector via the new `docker-compose.deploy.yml`, then gates the deploy on the image's OCI revision label == pushed sha (version gate) AND `/v1/health` + `/v1/health/db` green (health gate). `secrets: inherit` → explicit block (semgrep). (`/v1/version` + `/v1/healthz{,/ready}` aliases deferred within M5 pending an `app.ts` SRP refactor.)
 
 ### Changed

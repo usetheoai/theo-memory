@@ -207,6 +207,31 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
+## M6 — [ ] Global Claude Code ⇄ theo-memory integration + migration
+
+> Added 2026-07-20 by `/roadmap-feature` (slug: `claude-code-memory-integration`). Grounded in the deep-research blueprint `knowledge-base/discoveries/blueprints/claude-code-theo-memory-integration-blueprint.md` (3 cited frames, SHIPPABLE_WITH_CAVEATS). Grill: `knowledge-base/grills/claude-code-memory-integration-feature-grill.md`. **Two coordinated pieces:** server-side (theo-memory repo, gates the milestone) + a global Claude Code kit under `~/.claude` (companion, not theo-memory `src`).
+
+**Objective:** make Claude Code (all instances, globally) use theo-memory (hosted) as its persistent memory via a hooks-first hybrid (deterministic `SessionStart` auto-recall + `Stop` auto-remember; MCP as an explicit complement), plus a one-shot, secret-scrubbed, idempotent migration of Claude Code's 487 native memory files into theo-memory — every session becoming real dogfood evidence.
+
+**Definition of done:**
+
+- [ ] **Server-side batch import (theo-memory repo — gates the checkbox):** `POST /v1/remember/batch` (array body, `infer:false` raw-store, provenance `metadata`, `memory:write`, **batch-aware rate-limit** — the 30-writes/60s per-token limiter makes one-request-per-fact infeasible for thousands). Integration test vs real pgvector: batch inserts N facts, `metadata:{source}` round-trips on recall, re-run is idempotent (`confirmation_count` bumps, no double-insert). (The only server GAP — all per-item semantics already exist at the core layer.)
+- [ ] **Migration tool:** parses Claude Code memory nodes (BOTH frontmatter variants — nested `metadata.type` + flat `type`; `[[wikilinks]]` → entity edges), runs a **MANDATORY fail-closed secret/PII scrub**, defaults to **dry-run + review** (nothing persists without approval), then batch-imports with provenance. Test: a fixture with a PLANTED secret proves it is scrubbed (never persisted) + re-import dedups.
+- [ ] **Global Claude Code kit:** `SessionStart` (auto-recall → inject via `hookSpecificOutput.additionalContext`) + `Stop` (auto-remember, `async`) hooks (+ `UserPromptSubmit`/`PreCompact`) **MERGED** into `~/.claude/settings.json` (never clobbering the existing 3 hooks) + remote MCP `claude mcp add --transport http --scope user`. Recall is **project-namespaced** (no cross-project pollution).
+- [ ] **Live proof:** a fact written in one Claude Code session is auto-recalled (injected) in a fresh session on the same project — end-to-end against hosted (or local-dev) theo-memory.
+- [ ] Auth documented (`theo_live_*` dashboard-mint → Bearer → memory edge, ForwardAuth Model B) and the kit points at the **resolved** prod edge host.
+
+**Dependencies:** Soft: M5 (deployed/reachable endpoint — the kit talks to the hosted REST). The server-side batch endpoint ships independently. **Owner-provided (blocks go-live, not the build):** the PRODUCTION edge host/path that accepts `theo_live_*` for `/v1/memory/*` (`app-dev.usetheo.dev` is the dashboard SPA, NOT the memory edge; only local dev `:8090` was verified). No hard dep on M0–M4.
+
+**Top risks (new):**
+
+1. **Production edge host unconfirmed (HIGH).** The authenticated `/v1/memory/*` edge for a `theo_live_*` key is only verified on local dev; `app-dev.usetheo.dev` serves the SPA. Wrong host → silent 404. Mitigate: resolve the prod edge with the team (owner task); validate the full flow on local dev first; make the endpoint a single config knob.
+2. **Secret/PII leakage in the migration (HIGH).** Claude Code memory files are a known secret vector. A naive import embeds keys/tokens/PII into the shared store. Mitigate: the scrub stage is MANDATORY + fail-closed (un-scrubbable node is skipped, not imported); dry-run shows every redaction before any write.
+
+**Why now:** theo-memory is now deployed + reachable (M5 CD live); this IS the product's own dogfood thesis (CLAUDE.md anchor = "Claude Code auto-memory backed by TheMemory"), so every session becomes real evidence; and the deep research settled the effective architecture — hooks beat MCP tools for reliable auto-capture (the model forgets to call MCP `remember`; hooks are deterministic).
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
