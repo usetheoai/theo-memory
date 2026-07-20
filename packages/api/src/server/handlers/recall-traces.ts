@@ -20,6 +20,9 @@ import { getPrincipal } from '../auth/middleware.js';
 
 export async function recallTracesHandler(c: Context, store: RecallTraceStore): Promise<Response> {
   const recallId = c.req.param('recallId');
+  if (recallId === undefined || recallId === '') {
+    return c.json({ code: 'NOT_FOUND', message: 'Missing recall_id' }, 404);
+  }
   const workspaceId = getPrincipal(c).workspaceId;
   const drops = await store.getByRecallId(recallId, workspaceId);
   if (drops.length === 0) {
