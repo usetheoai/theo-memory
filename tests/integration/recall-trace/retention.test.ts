@@ -111,3 +111,44 @@ test('T1.1 — sweep returns 0 when nothing is expired', async () => {
   expect(deleted).toBe(0);
   expect(await count()).toBe(1);
 });
+
+// FX2 (/review M4-R2) — an unvalidated maxAge is a full-table-wipe footgun: a
+// NEGATIVE window flips the predicate to `created_at <= NOW() + interval`, which
+// matches EVERY row across ALL workspaces. The sweep MUST reject a non-positive /
+// non-finite window with a typed error and delete NOTHING — never wipe the audit log.
+test('FX2 — sweep rejects a negative window (typed error, deletes nothing)', async () => {
+  await db.pool.query('TRUNCATE recall_traces');
+  await seed('wsA', 'old-a', 10 * 24 * 3600); // an OLD row a full-wipe would delete
+  await seed('wsB', 'fresh-b', 60);
+  const retention = new PgRecallTraceRetention(db.pool);
+  await expect(retention.sweep(-1)).rejects.toThrow(/positive|finite|window|seconds/i);
+  expect(await count()).toBe(2); // the cross-tenant audit log is intact — NO wipe
+});
+test('FX2 — sweep rejects NaN / Infinity (fail-fast, not a silent throw-every-tick)', async () => {
+  await db.pool.query('TRUNCATE recall_traces');
+  await seed('wsA', 'old-a', 10 * 24 * 3600);
+  const retention = new PgRecallTraceRetention(db.pool);
+  await expect(retention.sweep(Number.NaN)).rejects.toThrow(/positive|finite|window|seconds/i);
+  await expect(retention.sweep(Number.POSITIVE_INFINITY)).rejects.toThrow(/positive|finite|window|seconds/i);
+  expect(await count()).toBe(1);
+});
+
+// FX3 (/review M4-R3) — the ORIGINAL race test uses fresh writes disjoint from the
+// (old-row) delete-set, so it never produces the 40001 the SERIALIZABLE wrapper
+// defends. TWO concurrent sweeps over the SAME old rows DO collide (write-write on
+// the same rows under SSI → 40001), so this genuinely exercises the retry branch:
+// both sweeps resolve (retry absorbs the conflict), the old set is deleted exactly
+// once, and no 40001 escapes.
+test('FX3 — two concurrent sweeps over the same rows both resolve (40001 retried, no orphan)', async () => {
+  await db.pool.query('TRUNCATE recall_traces');
+  const OLD = 40;
+  for (let i = 0; i < OLD; i++) await seed('wsA', `dup-old-${i}`, 5 * 24 * 3600);
+  await seed('wsB', 'wsB-fresh', 60); // cross-workspace fresh row must survive
+  const retention = new PgRecallTraceRetention(db.pool);
+  // Both sweeps target the identical old set → real serialization conflict.
+  const [d1, d2] = await Promise.all([retention.sweep(24 * 3600), retention.sweep(24 * 3600)]);
+  // Retry absorbs 40001: both promises resolve, neither throws.
+  expect(d1 + d2).toBe(OLD); // the old rows are deleted exactly once across the two
+  expect(await count('wsA')).toBe(0); // no orphan old row left behind
+  expect(await count('wsB')).toBe(1); // fresh cross-workspace row untouched
+});
