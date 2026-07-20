@@ -1,66 +1,28 @@
 /**
- * Hono app composer: mounts the 4 verbs under `/v1`, applies optional
- * bearer middleware, and ships a catch-all `app.onError` that returns the
- * sanitized 500 envelope (EC-10). Domain-error mapping (InvalidScope,
- * MemoryNotFound, etc.) lands in T1.6 — this task keeps the catch-all tight.
+ * Hono app composer (composition root). Constructs the `OpenAPIHono`, delegates
+ * the cross-cutting middleware stage to {@link registerMiddleware} and the route
+ * stage to {@link registerRoutes}, and ships the catch-all `app.onError` that
+ * returns the sanitized structured envelope (EC-10, T1.6). The two stage modules
+ * live under `./routes/` and preserve the exact load-bearing ordering
+ * (middleware → auth-exempt → admin → bearer → members → data); see each for
+ * the ordering rationale.
  *
  * @see Plan theo-memory-standalone-p0 § T1.2 + ADR D11 (DI factory shape)
+ * @see Plan claude-code-memory-integration-plan § M6 T1.1 (SRP extraction)
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Tracer } from '@opentelemetry/api';
-import { ContentTooLargeError } from '@usetheo/memory/contract';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import type { MemoryEntityStore, MemoryGraphStore } from '@usetheo/memory/contract';
 import type { RecallTraceStore } from '@usetheo/memory/contract';
 import type { UsageCounterStore } from '@usetheo/memory/contract';
-import { bodyLimit } from 'hono/body-limit';
-import { cors } from 'hono/cors';
 
 import type { AuthPool } from './auth/api-key-verifier.js';
-import { bearerAuth, requireRole, requireScopeOnPrincipal } from './auth/middleware.js';
-import { requireScope } from './auth/scope-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
-import {
-  createKeyHandler,
-  lineageKeyHandler,
-  listKeysHandler,
-  revokeKeyHandler,
-  rotateKeyHandler,
-} from './handlers/admin-keys.js';
-import { entitiesHandler } from './handlers/entities.js';
-import { episodesHandler } from './handlers/episodes.js';
-import { forgetHandler } from './handlers/forget.js';
-import { graphHandler } from './handlers/graph.js';
-import { healthDbHandler, healthHandler } from './handlers/health.js';
-import {
-  addMemberHandler,
-  listMembersHandler,
-  removeMemberHandler,
-  setMemberRoleHandler,
-} from './handlers/members.js';
-import { metricsHandler } from './handlers/metrics.js';
-import { recallTracesHandler } from './handlers/recall-traces.js';
-import { recallHandler } from './handlers/recall.js';
-import { reflectHandler } from './handlers/reflect.js';
-import { rememberHandler } from './handlers/remember.js';
-import { scopedForgetHandler } from './handlers/scoped-forget.js';
-import { scopesHandler } from './handlers/scopes.js';
-import {
-  deleteSkillHandler,
-  executeSkillHandler,
-  postSkillHandler,
-  skillsAllHandler,
-  skillsHandler,
-} from './handlers/skills.js';
-import {
-  wellKnownOauthProtectedResourceHandler,
-  type OidcDiscoveryConfig,
-} from './handlers/well-known.js';
-import { rateLimitMiddleware } from './middleware/rate-limit.js';
-import { otelMiddleware } from './observability/otel-middleware.js';
-import { registerAllPaths } from './openapi-registration.js';
-import { createPostgresMembersRepository } from './store/members-store-pg.js';
+import type { OidcDiscoveryConfig } from './handlers/well-known.js';
+import { registerMiddleware } from './routes/register-middleware.js';
+import { registerRoutes } from './routes/register-routes.js';
 import type { MembersRepository } from './store/members-store.js';
 
 /**
@@ -81,9 +43,6 @@ export interface AdminApiOptions {
    */
   readonly bootstrapToken?: string;
 }
-
-/** ADR-0014 D6 — single-tenant OSS variant; subject is the constant `'self'`. */
-const ADMIN_SUBJECT = 'self';
 
 export interface CreateServerOptions {
   readonly memory: Memory;
@@ -185,236 +144,19 @@ export interface CreateServerOptions {
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore, recallTraceStore, requireCredential } = options;
-
-  // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
-  // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
-  // at boot with a clear error rather than crashing deep in the first admin request.
+  const { adminApi, tracer } = options;
+  // EC-1 absorption — pool runtime guard. A cast escape (`pool: undefined as any`)
+  // or an untyped JS caller (`{ adminApi: {} }`) can slip a bad pool past types;
+  // fail synchronously at boot with a clear error rather than crashing deep in
+  // the first admin request.
   if (adminApi !== undefined && (!adminApi.pool || typeof adminApi.pool.query !== 'function')) {
     throw new Error(
       `createServer: adminApi.pool is required when adminApi is supplied; got typeof pool=${typeof adminApi.pool}`,
     );
   }
-
   const app = new OpenAPIHono();
-
-  // EC-19 absorption — /v1/openapi.json MUST resolve auth-exempt even when
-  // THEMEMORY_API_KEY is configured. Codegen tools (openapi-generator,
-  // Postman, Swagger UI) fetch the spec BEFORE having credentials. Mount
-  // BEFORE the bearer middleware so the route resolves first (Hono executes
-  // middleware along the matched path; ordering here is load-bearing per
-  // SEPA pre-RED iter 5 CRITICAL).
-  registerAllPaths(app.openAPIRegistry);
-  app.doc('/v1/openapi.json', {
-    openapi: '3.1.0',
-    info: {
-      title: '@usetheo/memory REST API',
-      version: '0.1.0-alpha',
-      description:
-        'Standalone REST distribution surface for TheMemory — 4 verbs ' +
-        '(remember/recall/forget/reflect) + health + paginated scope listing.',
-      license: { name: 'MIT', url: 'https://opensource.org/licenses/MIT' },
-    },
-  });
-
-  // OTel span middleware mounts BEFORE everything else so spans capture all
-  // requests (including 401s + 413s). Scope `/v1/*` so /v1/openapi.json
-  // itself also gets a span without polluting unrelated routes. Per T1.5 +
-  // EC-21 + EC-22.
-  app.use('/v1/*', otelMiddleware(tracer));
-
-  // fixes-cycle-1 T2.1 / F-rev-4 absorption: bodyLimit middleware caps
-  // request bodies at 1MB BEFORE bearer is consulted. Order is load-bearing
-  // per ADR D3 v1.1: OTel → bodyLimit → bearer. EC-1 absorption: the
-  // onError callback constructs the structured T1.6 envelope via
-  // mapDomainErrorToResponse(new ContentTooLargeError(...)) so 413 carries
-  // the same {code, message} shape as every other 4xx response (consumers
-  // parsing 4xx envelopes uniformly would break with the default plain 413).
-  // The `-1` actualSize sentinel signals the actual size is unknown at limit
-  // hit (hono does not surface it).
-  app.use(
-    '/v1/*',
-    bodyLimit({
-      maxSize: 1_000_000,
-      onError: (c) => {
-        const { status, body } = mapDomainErrorToResponse(
-          new ContentTooLargeError(1_000_000, -1),
-        );
-        return c.json(body, status as Parameters<typeof c.json>[1]);
-      },
-    }),
-  );
-
-  // red-team-full-system-fixes-cycle-1 T2.2 / ADR D3 — CORS middleware.
-  // Mounted BEFORE bearer so OPTIONS preflight succeeds without auth.
-  // EC-2: when origin='*', hono/cors does NOT set credentials:true (Fetch spec).
-  // EC-5: maxAge=86400 (24h) so browsers cache preflight.
-  const corsOrigin = process.env['THEMORY_CORS_ORIGIN'] ?? '*';
-  if (corsOrigin === '*' && process.env['NODE_ENV'] === 'production') {
-    // T1.2 — fail-fast in production per OWASP A01:2021 (ADR D2, EC-2).
-    // Guard fires ONLY when NODE_ENV === 'production'; test/dev/undefined are permissive.
-    throw new Error(
-      'THEMORY_CORS_ORIGIN must be set when NODE_ENV=production. ' +
-        'Wildcard CORS in production is a security misconfiguration (OWASP A01:2021).',
-    );
-  }
-  app.use(
-    '/v1/*',
-    cors({
-      origin: corsOrigin,
-      allowHeaders: ['Authorization', 'Content-Type'],
-      allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-      maxAge: 86400,
-    }),
-  );
-
-  // red-team-full-system-fixes-cycle-1 T2.1 / ADR D2 — rate-limit middleware.
-  // Write endpoints share one limiter (default 30/min); read endpoints share
-  // another (default 100/min). Health is exempt (mounted before this).
-  app.post('/v1/remember', rateLimitMiddleware('write'));
-  app.post('/v1/forget', rateLimitMiddleware('write'));
-  app.post('/v1/reflect', rateLimitMiddleware('write'));
-  app.post('/v1/recall', rateLimitMiddleware('read'));
-  app.get('/v1/scopes/*', rateLimitMiddleware('read'));
-  // explainable-recall-read S2 — the trace READ reuses the read bucket (plan Q3).
-  app.get('/v1/recall-traces/*', rateLimitMiddleware('read'));
-  // themory-scoped-forget T1.2 — scoped DELETE is a write; method-scoped so it
-  // does NOT disturb the GET read-limiter above.
-  app.delete('/v1/scopes/*', rateLimitMiddleware('write'));
-
-  // Health endpoints (T3.5 absorption — surfaced by the docker-compose
-  // healthcheck round-trip): orchestrator liveness/readiness probes do not
-  // carry credentials, so `/v1/health` + `/v1/health/db` MUST be
-  // auth-exempt even when THEMEMORY_API_KEY is configured. Mount BEFORE
-  // the bearer middleware so the routes resolve first along the matched
-  // path (same load-bearing ordering as `/v1/openapi.json` per EC-19).
-  // Mirrors RFC 9110 + OWASP `/healthz` convention — gated health
-  // endpoints break Kubernetes / docker-compose `--wait` readiness gates.
-  app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
-  app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
-
-  // T4.2 / ADR-0015 #4 — RFC 9728 discovery endpoint MUST be auth-exempt.
-  // MCP clients fetch it BEFORE having a token. Mount BEFORE bearer
-  // middleware AND outside the `/v1/*` prefix per the RFC 9728 well-known
-  // URI pattern. Returns 404 when no oidcDiscovery configured (handler
-  // owns the 404 envelope — see well-known.ts).
-  app.get(
-    '/.well-known/oauth-protected-resource',
-    wellKnownOauthProtectedResourceHandler(oidcDiscovery),
-  );
-
-  // T1.1 + ADR D1 + EC-7 absorption — admin sub-app MUST mount BEFORE the
-  // generic `/v1/*` bearerAuth middleware. Hono executes middleware along the
-  // matched path; if generic bearer fires first on `/v1/admin/*`, it rejects
-  // theo_live_* admin keys that don't match THEMEMORY_API_KEY env var.
-  // requireScope owns its own Bearer extraction + theo_api_keys SHA-256 lookup,
-  // bypassing the env-secret comparison. EC-7 sentinel test 5 protects this.
-  // RBAC T2.1 — membership store powering `/v1/members/*` AND the key-mint
-  // anti-escalation target-role lookup (ADR D4). Constructed BEFORE the admin
-  // block so the mint handler can consult `getMemberRole` via the DIP rather
-  // than an inline SQL duplicate.
-  const membersRepo: MembersRepository | undefined =
-    options.membersRepository ??
-    (adminApi !== undefined ? createPostgresMembersRepository(adminApi.pool) : undefined);
-
-  if (adminApi !== undefined) {
-    const adminBootstrap = adminApi.bootstrapToken;
-    app.use(
-      '/v1/admin/*',
-      requireScope({
-        pool: adminApi.pool,
-        requiredScope: 'memory:admin',
-        ...(adminBootstrap !== undefined ? { bootstrapToken: adminBootstrap } : {}),
-      }),
-    );
-    app.post('/v1/admin/keys', (c) => {
-      // viaBootstrapToken detection mirrors the integration test's `buildAdminApp` pattern —
-      // when the Bearer equals the bootstrap token, createKeyHandler runs the atomic-tx
-      // path (BEGIN → INSERT → markBootstrapConsumedTx → COMMIT) per EC-3 absorption.
-      const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? '';
-      const token = header.replace(/^Bearer\s+/i, '');
-      const viaBootstrap =
-        adminBootstrap !== undefined && adminBootstrap.length > 0 && token === adminBootstrap;
-      return createKeyHandler(c, adminApi.pool, ADMIN_SUBJECT, {
-        viaBootstrapToken: viaBootstrap,
-        // ADR D4: consult the MembersRepository DIP for the target's role.
-        ...(membersRepo !== undefined
-          ? { getMemberRole: (ws: string, uid: string) => membersRepo.getMemberRole(ws, uid) }
-          : {}),
-      });
-    });
-    app.get('/v1/admin/keys/list', (c) => listKeysHandler(c, adminApi.pool, ADMIN_SUBJECT));
-    app.delete('/v1/admin/keys/:id', (c) => revokeKeyHandler(c, adminApi.pool, ADMIN_SUBJECT));
-    app.post('/v1/admin/keys/:id/rotate', (c) =>
-      rotateKeyHandler(c, adminApi.pool, ADMIN_SUBJECT),
-    );
-    app.get('/v1/admin/keys/:id/lineage', (c) =>
-      lineageKeyHandler(c, adminApi.pool, ADMIN_SUBJECT),
-    );
-  }
-
-  app.use('/v1/*', bearerAuth(authVerifier, { requireCredential: requireCredential === true }));
-
-  // RBAC T2.1 — `/v1/members/*` membership management, gated by requireRole.
-  // Mounted AFTER bearerAuth so the Principal (with role) is injected; the
-  // handlers derive the workspace from the Principal (never the body). The repo
-  // was constructed above (shared with the key-mint anti-escalation lookup).
-  if (membersRepo !== undefined) {
-    app.get('/v1/members', requireRole('admin'), (c) => listMembersHandler(c, membersRepo));
-    app.post('/v1/members', requireRole('admin'), (c) => addMemberHandler(c, membersRepo));
-    app.patch('/v1/members/:userId', requireRole('admin'), (c) => setMemberRoleHandler(c, membersRepo));
-    app.delete('/v1/members/:userId', requireRole('admin'), (c) => removeMemberHandler(c, membersRepo));
-  }
-
-  // #77 — the subject-scoped data routes share the data-plane scope contract:
-  // GET reads require memory:read, POST writes memory:write, DELETE memory:delete.
-  app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
-  // first-class-episodes M2 T3.1 — subject-scoped episodic/message-log read:
-  // cursor-paginated, bi-temporal-aware (asOf) temporal list. 200 {items,nextCursor?}
-  // / 422 (bad limit/cursor/asOf/after+before) / 404 (bad scope type).
-  app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
-  // themory-scoped-forget T1.2 — subject-scoped DELETE (drops the gateway's
-  // O(scope) ownership pre-check). 204 / 404 (cross-scope, no leak) / 422 (bad id).
-  app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));
-  // theo-memory-dashboard-full-integration T2.1/T2.2 — subject-scoped KPIs +
-  // entity aggregation (real, derived from getAll(); ADR D2 amendment).
-  app.get('/v1/scopes/:type/:id/metrics', requireScopeOnPrincipal('memory:read'), (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
-  app.get('/v1/scopes/:type/:id/entities', requireScopeOnPrincipal('memory:read'), (c) => entitiesHandler(c, memory, memoryEntityStore));
-  // explainable-recall-read S2 (D4) — opt-in: mounted only when the store is
-  // wired, so existing deployments without tracing are unaffected. memory:read
-  // guard + workspace-scoped read (the handler resolves ws from the Principal).
-  if (recallTraceStore !== undefined) {
-    app.get('/v1/recall-traces/:recallId', requireScopeOnPrincipal('memory:read'), (c) =>
-      recallTracesHandler(c, recallTraceStore),
-    );
-  }
-  // entity-relation-extraction-slice2 T3.1 — {nodes,edges} graph (no graph DB).
-  app.get('/v1/scopes/:type/:id/graph', requireScopeOnPrincipal('memory:read'), (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
-  // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
-  // (dedicated sub-resource; the generic memories endpoint stays 501 for skill).
-  app.get('/v1/scopes/skill/:repoId/skills', requireScopeOnPrincipal('memory:read'), (c) => skillsHandler(c, memory));
-  // skills-cross-repo-flat-list (ADR D2) — flat cross-repo listing for a subject.
-  // Distinct literal `all` segment → no collision with `:repoId/skills`.
-  app.get('/v1/scopes/skill/:subject/all', requireScopeOnPrincipal('memory:read'), (c) => skillsAllHandler(c, memory));
-  // skills-write-surface T2.1/T2.2 — create + curate (delete) skills.
-  app.post('/v1/scopes/skill/:repoId/skills', requireScopeOnPrincipal('memory:write'), (c) => postSkillHandler(c, memory));
-  app.delete('/v1/scopes/skill/:repoId/skills/:skillId', requireScopeOnPrincipal('memory:delete'), (c) => deleteSkillHandler(c, memory));
-  // agentic-skill-execution-sandbox T2.3 — opt-in/gated skill execution (501 when
-  // no SkillExecutor wired). Registered always; the SDK gate decides reachability.
-  // Executing a skill is a write-class operation (it mutates/produces state).
-  app.post('/v1/scopes/skill/:repoId/skills/:skillId/execute', requireScopeOnPrincipal('memory:write'), (c) =>
-    executeSkillHandler(c, memory),
-  );
-
-  // #77 — data-plane scope enforcement on the already-resolved Principal. Each
-  // verb requires its matching scope (write/read/delete); a read-only key is 403
-  // on a write, and the gateway's platform-admin-only credential is 403 on EVERY
-  // data verb (platform-admin implies only memory:admin — least privilege).
-  app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory));
-  app.post('/v1/recall', requireScopeOnPrincipal('memory:read'), (c) => recallHandler(c, memory));
-  app.post('/v1/forget', requireScopeOnPrincipal('memory:delete'), (c) => forgetHandler(c, memory));
-  app.post('/v1/reflect', requireScopeOnPrincipal('memory:write'), (c) => reflectHandler(c, memory));
-
+  registerMiddleware(app, tracer);
+  registerRoutes(app, options);
   app.onError((err, c) => {
     // T1.6 — domain-error mapping (EC-10 / EC-23 / EC-24 absorbed inside
     // mapDomainErrorToResponse). Pure-function mapper keeps Hono Context
@@ -422,6 +164,5 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
     const { status, body } = mapDomainErrorToResponse(err);
     return c.json(body, status as Parameters<typeof c.json>[1]);
   });
-
   return app;
 }
