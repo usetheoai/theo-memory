@@ -460,7 +460,7 @@ best-effort from each project's public repo **as of July 2026**. Corrections wel
 
 ## Status
 
-> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser). Not yet published to npm. We won't put a `production-ready` label on it until one last box is checked: an independent, reproducible benchmark. You can run it, self-host it, and build on it today — we're just not going to over-promise on the tin.
+> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser), plus continuous real-usage evidence (our own team runs on it). Not yet published to npm. We won't put a `production-ready` label on it until we cut v1.0 — a deliberate call we make once the contract is frozen, not a marketing default. You can run it, self-host it, and build on it today — we're just not going to over-promise on the tin.
 
 ## Contributing
 
