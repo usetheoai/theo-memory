@@ -91,7 +91,15 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     responses: {
       200: {
         description: 'Ranked results.',
-        content: { 'application/json': { schema: z.object({ results: z.array(MemoryItemWithScoreSchema) }) } },
+        content: {
+          'application/json': {
+            schema: z.object({
+              results: z.array(MemoryItemWithScoreSchema),
+              // explainable-recall S2 (D2) — server-minted id for GET /v1/recall-traces/:recallId
+              recallId: z.string(),
+            }),
+          },
+        },
       },
       400: { description: 'Malformed JSON body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
       413: {
