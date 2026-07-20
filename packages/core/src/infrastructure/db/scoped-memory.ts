@@ -207,7 +207,7 @@ export class LocalScopedMemory implements ScopedMemory {
    * `recallId` per recall; resolves the tenant `workspaceId`/`scopeKey` HERE
    * (EC-2 — never from the pipeline) and threads `maxRows` (Finding A).
    */
-  private recallTraceDeps(): {
+  private recallTraceDeps(options?: RecallOptions): {
     recallTrace?: RecallTraceStore;
     recallTraceContext?: {
       recallId: string;
@@ -220,6 +220,11 @@ export class LocalScopedMemory implements ScopedMemory {
     if (store === undefined) {
       return {};
     }
+    // explainable-recall S2 — a caller-supplied recallId (REST handler) keys the
+    // trace so it can be returned + looked up; empty/absent ⇒ mint a fresh UUID.
+    const suppliedId = options?.recallId;
+    const recallId =
+      suppliedId !== undefined && suppliedId.length > 0 ? suppliedId : randomUUID();
     const workspaceId = this.filters.workspace_id ?? DEFAULT_WORKSPACE_ID;
     // A config POJO carries maxRowsPerRecall; a store INSTANCE (has record())
     // caps internally, so the pipeline uses the default here (double-cap is safe).
@@ -232,7 +237,7 @@ export class LocalScopedMemory implements ScopedMemory {
     return {
       recallTrace: store,
       recallTraceContext: {
-        recallId: randomUUID(),
+        recallId,
         workspaceId,
         scopeKey: deriveScopeKey(this.scope, workspaceId),
         maxRows,
@@ -413,7 +418,7 @@ export class LocalScopedMemory implements ScopedMemory {
         ...(this.config.reranker !== undefined ? { reranker: this.config.reranker } : {}),
         ...(this.config.retrievalPolicy !== undefined ? { retrievalPolicy: this.config.retrievalPolicy } : {}),
         ...(this.config.graphExpansionStore !== undefined ? { graphExpansionStore: this.config.graphExpansionStore } : {}),
-        ...this.recallTraceDeps(),
+        ...this.recallTraceDeps(options),
         ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       }, options);
     }
@@ -433,7 +438,7 @@ export class LocalScopedMemory implements ScopedMemory {
     const results = await runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
-      ...this.recallTraceDeps(),
+      ...this.recallTraceDeps(options),
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
     }, options);
     const ttlSeconds = resolveCacheTtl(this.scope, this.config.recallCache);
