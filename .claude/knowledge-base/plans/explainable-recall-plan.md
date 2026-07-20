@@ -1,6 +1,6 @@
 # Plan: Explainable Recall (accountable forgetting — Slice 1)
 
-> **Version 1.2** — Ship the write-side foundation of the "accountable forgetting" differentiator: an opt-in `RecallTraceStore` DIP + a queryable `recall_traces` Postgres table that persists, per recall, one row per DROPPED candidate (sub-threshold or MMR) with its component-score breakdown, threshold, and drop-reason, keyed by a server-generated `recall_id`. This is Slice 1 (S1) of the blueprint; S2 (`explain(recallId)` read surface) reads what S1 persists. Expected outcome: with tracing enabled, every recall's negative-space becomes a set of queryable rows — the "why we dropped it" that no competitor persists.
+> **Version 1.3** — Ship the write-side foundation of the "accountable forgetting" differentiator: an opt-in `RecallTraceStore` DIP + a queryable `recall_traces` Postgres table that persists, per recall, one row per DROPPED candidate (sub-threshold or MMR) with its component-score breakdown, threshold, and drop-reason, keyed by a server-generated `recall_id`. This is Slice 1 (S1) of the blueprint; S2 (`explain(recallId)` read surface) reads what S1 persists. Expected outcome: with tracing enabled, every recall's negative-space becomes a set of queryable rows — the "why we dropped it" that no competitor persists.
 
 ## Goal
 
@@ -10,7 +10,7 @@
 
 The "accountable forgetting" differentiator (blueprint `knowledge-base/discoveries/blueprints/accountable-forgetting-blueprint.md`, `/discover-confidence` SHIPPABLE_WITH_CAVEATS 89) established that the unique, defensible surface is the **negative-space of memory**: what recall ignored/dropped and *why*. The blueprint proved (with SOTA code) that Graphiti and Mem0 both **discard the reason** for a drop (Graphiti keeps only timestamps; Mem0 keeps action but not rationale; `NONE` is invisible) and OpenMemory hides the negative-space entirely (`memories.py:277` drops non-ADD events; `:129-130` filters reads).
 
-**v1.2 (2026-07-20)** — TDD RED lines rewritten to executable `test_<behavior>` shape (implement-side shape gate). **v1.1** — absorbs 3 MUST FIX from `/edge-case-plan` (`knowledge-base/reviews/explainable-recall-edge-cases-2026-07-20.md`): EC-1 (cap `maxRowsPerRecall` to guard the Postgres 65535 bind-param limit → T0.1 validator), EC-2 (thread `workspaceId`+`scopeKey` via a single `recallTraceContext` field on `RetrievalDeps` → D1, T3.1, T4.1), EC-3 (probe `recall_traces` at resolve time → fail-fast instead of silent-no-trace → T4.1). SHOULD-TEST items EC-4 (truncation signal), EC-5 (partial-context gate), EC-6 (null-composite round-trip) folded into the respective TDD blocks.
+**v1.3 (2026-07-20)** — SEPA initial-brief fixes: Finding A (thread resolved `maxRows` into `recallTraceContext` so the pipeline truncates without reading the 2-method DIP), Finding B (drop stale loose `recallId?` residue → single `recallTraceContext`), LOW (drop unused `RecallTraceBatch.query?`). **v1.2** — TDD RED lines rewritten to executable `test_<behavior>` shape (implement-side shape gate). **v1.1** — absorbs 3 MUST FIX from `/edge-case-plan` (`knowledge-base/reviews/explainable-recall-edge-cases-2026-07-20.md`): EC-1 (cap `maxRowsPerRecall` to guard the Postgres 65535 bind-param limit → T0.1 validator), EC-2 (thread `workspaceId`+`scopeKey` via a single `recallTraceContext` field on `RetrievalDeps` → D1, T3.1, T4.1), EC-3 (probe `recall_traces` at resolve time → fail-fast instead of silent-no-trace → T4.1). SHOULD-TEST items EC-4 (truncation signal), EC-5 (partial-context gate), EC-6 (null-composite round-trip) folded into the respective TDD blocks.
 
 Scope for THIS plan is fixed by the grill `knowledge-base/grills/explainable-recall-grill.md` (6 decisions, verdict READY_FOR_PLAN): Slice 1 = the **recall-time** write-side only (persist the reason + a recall trace), core-only, opt-in via factory, into a dedicated queryable table behind a DIP. The `explain()`/`replay()` read surface (S2), edge-supersession (S3, blueprint ADR D1), and the write-time trace (dedup/zero-facts, S1b) are explicitly out of scope.
 
@@ -50,7 +50,7 @@ The three IGNORE events already exist in-code (`packages/core/src/domain/memory-
   - **External (public API consumed by other repos):** YES — the return type `readonly MemoryItemWithScore[]` is the locked `recall` verb contract. **MUST NOT change** (S1 keeps it bare-array; trace is a side-channel).
 - **Symbol:** `RetrievalDeps` in `packages/core/src/domain/retrieval/pipeline.ts:39-63`
   - **Callers (production):** assembled in `scoped-memory.ts:361-366` and `:383-385`
-  - **Change:** additive optional fields (`recallTrace?`, `recallId?`), like existing optional `reranker`/`retrievalPolicy`/`graphExpansionStore` (`:47,:55,:61`) — non-breaking.
+  - **Change:** additive optional fields (`recallTrace?`, `recallTraceContext?`), like existing optional `reranker`/`retrievalPolicy`/`graphExpansionStore` (`:47,:55,:61`) — non-breaking.
 
 ### Domain glossary
 
@@ -97,7 +97,7 @@ No CVE surface added (nothing new to audit). `/deps-audit` is a NOOP for this pl
 
 ### D1 — Write from inside the pipeline via a `RetrievalDeps` port (do NOT change `recall()`'s return)
 
-**Decision:** Add optional `recallTrace?: RecallTraceStore` + `recallTraceContext?: { recallId: string; workspaceId: string; scopeKey: string }` to `RetrievalDeps` (EC-2: one context field so tenant keys reach the write point, since scope resolution lives in `scoped-memory.ts`, not the pipeline); collect dropped candidates at the `filterAtThreshold` drop points and the MMR branch, and write them via the port from inside `runRetrievalPipeline` — mirroring the existing in-pipeline `emitEvent` side-effect.
+**Decision:** Add optional `recallTrace?: RecallTraceStore` + `recallTraceContext?: { recallId: string; workspaceId: string; scopeKey: string; maxRows: number }` to `RetrievalDeps` (EC-2: one context field so tenant keys reach the write point, since scope resolution lives in `scoped-memory.ts`, not the pipeline; **`maxRows` threads the resolved `maxRowsPerRecall` from the factory so the pipeline can truncate + emit `recall_trace_truncated` without reading the config off the 2-method DIP — SEPA Finding A**); collect dropped candidates at the `filterAtThreshold` drop points and the MMR branch, and write them via the port from inside `runRetrievalPipeline` — mirroring the existing in-pipeline `emitEvent` side-effect.
 
 **Rationale:** The pipeline currently discards dropped candidates (`pipeline.ts:137-146` `continue`) and returns a bare array; `recall()` and all three production callers (`recall.ts:37`, `recall-handler.ts:52`, `tools.ts:100`) depend on the `readonly MemoryItemWithScore[]` contract (a locked verb). Threading the port through `RetrievalDeps` (like `reranker`/`graphExpansionStore`, `pipeline.ts:47,61`) is the smallest blast radius and keeps the return contract intact. Per `architecture.md § 2`, the port is a domain interface; the pipeline never imports the pg impl.
 
@@ -186,7 +186,7 @@ packages/core/src/domain/dip/recall-trace-store.test.ts — NEW: RED validator u
 #### Deep Dives
 - `DropReason` = `'semantic_gate' | 'sub_threshold' | 'nan' | 'mmr_redundant'`.
 - `RecallTraceRow` fields: `recallId: string`, `workspaceId: string`, `scopeKey: string`, `memoryId: string`, `semantic: number`, `bm25: number`, `entity: number`, `composite: number | null` (null for `semantic_gate`, Q3), `threshold: number`, `dropReason: DropReason`, `createdAt: Date`.
-- `RecallTraceBatch` = `{ recallId; workspaceId; scopeKey; query?: string; rows: readonly Omit<RecallTraceRow,'recallId'|'workspaceId'|'scopeKey'|'createdAt'>[] }`.
+- `RecallTraceBatch` = `{ recallId; workspaceId; scopeKey; rows: readonly Omit<RecallTraceRow,'recallId'|'workspaceId'|'scopeKey'|'createdAt'>[] }` (no `query` field — dropped per SEPA LOW: no `query` column exists; YAGNI).
 - `RecallTraceStoreConfig` = `{ maxRowsPerRecall?: number }` (default `DEFAULT_MAX_ROWS_PER_RECALL = 200`); validator throws a typed `InvalidRecallTraceConfig` on non-positive values AND on values above `MAX_ROWS_PER_RECALL = 5000` (EC-1: 5000 rows × ~10 cols = 50 000 bind params < the Postgres 65 535 limit; a higher cap would make the batch INSERT throw and — being fail-soft — silently write nothing). Typed error, clear message (per `error-handling.md`).
 - Invariant: interface has exactly 2 methods (ADR-0008 cap).
 
@@ -387,7 +387,7 @@ rows (no lost update, no cross-recall bleed). Rows keyed by recall_id → no sha
 ### T3.1 — Trace dropped candidates inside `runRetrievalPipeline`
 
 #### Objective
-Add `recallTrace?: RecallTraceStore` + `recallId?: string` to `RetrievalDeps`; capture each dropped candidate (all 4 drop-reasons) with `{semantic,bm25,entity,composite?,threshold}`; call `recallTrace.record(...)` once per recall, fail-soft.
+Add `recallTrace?: RecallTraceStore` + `recallTraceContext?: { recallId, workspaceId, scopeKey, maxRows }` to `RetrievalDeps`; capture each dropped candidate (all 4 drop-reasons) with `{semantic,bm25,entity,composite?,threshold}`; call `recallTrace.record(...)` once per recall, fail-soft.
 
 #### Why this step (action + reasoning)
 1. **What this step does** — turns the silent `continue` drops (`pipeline.ts:137-146`) and MMR non-selections into recorded rows, written via the port from inside the pipeline (D1).
@@ -421,11 +421,11 @@ dropped = []   -- filled at :138, :144, and MMR diff
 kept = filterAtThreshold(...)   -- unchanged return
 ...
 if deps.recallTrace && deps.recallTraceContext:          -- EC-5: BOTH required
-  ctx = deps.recallTraceContext                          -- { recallId, workspaceId, scopeKey } (EC-2)
-  rows = dropped.slice(0, cap)                            -- cap = store's maxRowsPerRecall
+  ctx = deps.recallTraceContext                          -- { recallId, workspaceId, scopeKey, maxRows } (EC-2 + Finding A)
+  rows = dropped.slice(0, ctx.maxRows)                    -- EC-1 cap threaded from the factory (Finding A) — DIP stays 2 methods
   if dropped.length > rows.length:                        -- EC-4: no silent truncation
     emitEvent(deps.tracer, 'recall_trace_truncated', { dropped_total: dropped.length, persisted: rows.length })
-  try: await deps.recallTrace.record({ ...ctx, rows })
+  try: await deps.recallTrace.record({ recallId: ctx.recallId, workspaceId: ctx.workspaceId, scopeKey: ctx.scopeKey, rows })
   catch e: emitEvent(deps.tracer, 'recall_trace_write_failed', { error: String(e) })
 return kept   -- IDENTICAL to today
 ```
@@ -498,7 +498,7 @@ packages/core/src/infrastructure/db/factory.test.ts — RED wiring tests
 
 #### Deep Dives
 - `resolveRecallTraceStore(config)`: returns `undefined` when `config.recallTrace` absent (default OFF); DIP-instance escape hatch (like `isRecallCacheStoreInstance`); else validate POJO + **probe the `recall_traces` table exists** (EC-3 — mirror `resolveRecallCacheStore`'s dim-probe `factory.ts:91-97`; throw a clear typed error at `createLocalMemory` if the migration was not run, instead of degrading to silent-no-trace under fail-soft) + dynamic-import `PgRecallTraceStore`.
-- `recallTraceContext`: built once per `retrieveResults` invocation as `{ recallId: crypto.randomUUID(), workspaceId, scopeKey }` (EC-2 — `workspaceId`/`scopeKey` resolved here via the scope, then passed into the pipeline deps so the write point has the tenant keys). `recallId` is NOT returned to the caller (S1 — surfacing to callers is S2).
+- `recallTraceContext`: built once per `retrieveResults` invocation as `{ recallId: crypto.randomUUID(), workspaceId, scopeKey, maxRows: resolvedMaxRowsPerRecall }` (EC-2 — `workspaceId`/`scopeKey` resolved here via the scope; `maxRows` = the store's resolved `maxRowsPerRecall` (default 200), threaded so the pipeline truncates against it without touching the DIP — SEPA Finding A). `recallId` is NOT returned to the caller (S1 — surfacing to callers is S2). **Verify at GREEN:** confirm `workspaceId` is resolvable at this site (via `withWorkspace`/config/filters) — SEPA NOTE.
 - Invariant: when `recallTrace` is OFF, `retrieveResults` behavior is byte-identical to today (deps lack the port → pipeline's opt-in gate skips).
 
 #### Tasks
