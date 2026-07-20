@@ -113,6 +113,25 @@ export class InvalidCacheConfig extends Error {
   }
 }
 
+/**
+ * Thrown by {@link validateRecallTraceStoreConfig} (explainable-recall T0.1)
+ * when the `RecallTraceStoreConfig` fails an invariant — `maxRowsPerRecall`
+ * not a positive integer ≤ `MAX_ROWS_PER_RECALL` (EC-1: the Postgres
+ * bind-param guard; the NaN / non-integer half mirrors the
+ * {@link InvalidCacheConfig} IEEE-754 precedent).
+ *
+ * @see plan explainable-recall § Phase 0 / T0.1
+ * @see packages/core/src/domain/dip/recall-trace-store.ts
+ */
+export class InvalidRecallTraceConfig extends Error {
+  override readonly name = 'InvalidRecallTraceConfig' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, InvalidRecallTraceConfig.prototype);
+  }
+}
+
 export class BiTemporalNotSupportedLocally extends Error {
   override readonly name = 'BiTemporalNotSupportedLocally' as const;
 
