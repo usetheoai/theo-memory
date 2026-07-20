@@ -34,6 +34,12 @@ import type { Embedder, Memory } from '@usetheo/memory/contract';
 // built (mcp / server / verb handlers at runtime).
 import { Pool } from 'pg';
 
+// M4 governance — recall-trace env resolvers (dedicated SRP module).
+import {
+  resolveRecallTraceEnabled,
+  resolveRecallTraceDisabledWorkspaces,
+} from './recall-trace-env.js';
+
 /**
  * @internal Embedding dimension produced by `LocalTransformerEmbedder`
  * (Xenova `Xenova/all-MiniLM-L6-v2`, 384-dim, L2-normalized). Single source
@@ -93,17 +99,17 @@ export function resolveSkillExecutionEnabled(): boolean {
   return process.env['THEOMEM_SKILL_EXECUTION'] === 'true';
 }
 
-/**
- * explainable-recall-read S2 (/review F-arch-1) — opt-in accountable-forgetting
- * recall tracing, wired at this single shared site so server + MCP + CLI honor one
- * `THEOMEM_RECALL_TRACE` flag. Default OFF → no `recallTrace` → recall() writes no
- * `recall_traces` rows (byte-unchanged) AND the paired REST read route is not mounted.
- * When `true`, the write (this factory) + the read port (run-server's createServer)
- * are enabled together so `GET /v1/recall-traces/:recallId` returns real data.
- */
-export function resolveRecallTraceEnabled(): boolean {
-  return process.env['THEOMEM_RECALL_TRACE'] === 'true';
-}
+// explainable-recall M4 governance — the three THEOMEM_RECALL_TRACE* env
+// resolvers live in a dedicated SRP module (architecture.md § 3); re-exported
+// here so the agent-tools composition root + its existing import sites are
+// unchanged (FX /review M4-R1/M4-R2 split to keep this file under budget).
+// `resolveRecallTraceMaxAgeSeconds` + the default are re-exported straight from
+// the module; the two used in this file's factory body are imported at the top.
+export { resolveRecallTraceEnabled, resolveRecallTraceDisabledWorkspaces };
+export {
+  resolveRecallTraceMaxAgeSeconds,
+  DEFAULT_RECALL_TRACE_MAX_AGE_SECONDS,
+} from './recall-trace-env.js';
 
 /** Embedding dimension for an embedder kind (must match the migration dim). */
 export function embeddingDimForKind(kind: EmbedderKind): number {
@@ -146,11 +152,10 @@ export const PG_URI_ENV_SPEC = {
 } as const;
 
 /**
- * @internal Shared env spec for agent-tools subpath (CLI/MCP/REST).
- * NOT part of the public `@usetheo/memory/agent-tools` API surface.
- *
- * Single source of truth for `Error: OPENAI_API_KEY required ...` stderr
- * string consumed by the 3 callers + by existing test sentinels.
+ * @internal OPENAI_API_KEY env spec (agent-tools subpath — CLI/MCP/REST); not
+ * part of the public `@usetheo/memory/agent-tools` API surface. Single source of
+ * truth for the `Error: OPENAI_API_KEY required ...` stderr string consumed by
+ * the 3 callers + by existing test sentinels.
  */
 export const OPENAI_API_KEY_ENV_SPEC = {
   name: 'OPENAI_API_KEY',
@@ -207,7 +212,13 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
     embeddingDim,
     ...(skillExecutor !== undefined ? { skillExecutor } : {}),
     // explainable-recall-read S2 (/review F-arch-1) — opt-in recall tracing write.
-    ...(resolveRecallTraceEnabled() ? { recallTrace: {} } : {}),
+    // M4 governance (FX1 /review M4-R1): thread the operator-set per-workspace
+    // opt-out (THEOMEM_RECALL_TRACE_DISABLED_WORKSPACES) into the write config so
+    // the fail-closed opt-out is reachable in the DEPLOYED artifact, not just via
+    // SDK config. Empty CSV → empty list → no workspace opted out (unchanged).
+    ...(resolveRecallTraceEnabled()
+      ? { recallTrace: { disabledWorkspaces: resolveRecallTraceDisabledWorkspaces() } }
+      : {}),
   });
 }
 

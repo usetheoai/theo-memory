@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **M4 governance hardening (`/review` fix-cycle).** Closes 5 findings from the adversarial review of the M4 recall-trace work (tenant-isolation core was already clean): (M4-R1) the per-workspace opt-out is now **operator-reachable** in the deployed artifact via `THEOMEM_RECALL_TRACE_DISABLED_WORKSPACES` (CSV) — previously only settable through SDK config; (M4-R2) the retention window is now **validated fail-fast** — a non-positive/non-finite `THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS` (and `PgRecallTraceRetention.sweep`) throws a typed error instead of the former footgun where `-1` flipped the predicate to `NOW() + interval` and wiped every tenant's audit log; (M4-R3) the retention race test now exercises the **real 40001 retry** (two concurrent sweeps over the same rows) rather than disjoint fresh-writes that never conflict; (M4-R5) `themory server` shutdown now **drains the in-flight sweep** before closing the pool. Extracted `recall-trace-env.ts` + `server-lifecycle.ts` (SRP) to keep both touched files under the module-size budget (recall-trace-retention-and-mcp).
 
 ### Security
 

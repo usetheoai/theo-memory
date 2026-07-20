@@ -10,6 +10,15 @@
 | **Retention sweep throughput** | **335,276 ± 40,449 rows/sec** (N=5000) | age-based `DELETE ... WHERE created_at <= NOW() - interval` inside `withSerializableTransactionAndRetry`. Sweeping 5000 rows takes ~15ms — a daily cron sweep is negligible even at millions of rows. |
 | **Trace WRITE overhead** | **4.26 ± 0.59 ms/recall** (50 dropped candidates) | one multi-row `INSERT` of the dropped set. The per-recall cost of tracing scales with the dropped-candidate count (capped at `maxRowsPerRecall`). For a typical recall dropping a handful of candidates the cost is sub-millisecond. |
 
+> **Scope note (honesty — /review M4-R4):** the shipped evidence is (a) sweep throughput
+> and (b) the isolated **trace-write** cost. The write cost **IS** the recall-path ON-vs-OFF
+> delta: the retrieval pipeline is byte-identical whether tracing is on or off **except** for
+> this single batch `INSERT` — with tracing OFF (the default) the added cost is exactly `0`
+> (no `recall_traces` write happens), and with tracing ON the added cost is the measured
+> `4.26 ± 0.59 ms` for a 50-drop recall. There is no separate recall-latency harness because
+> the trace INSERT is the entire added work; a full end-to-end p50/p95 ON/OFF arm would only
+> re-measure this same INSERT on top of embedding + search noise.
+
 ## Interpretation (bottleneck analysis)
 
 - The **sweep is not a bottleneck**: at ~335k rows/sec, even a table that accrued 10M rows sweeps in ~30s — well within a daily off-peak cron window. The SERIALIZABLE-retry adds no measurable cost on the uncontended path.
