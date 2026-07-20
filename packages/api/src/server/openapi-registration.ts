@@ -96,7 +96,13 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
             schema: z.object({
               results: z.array(MemoryItemWithScoreSchema),
               // explainable-recall S2 (D2) — server-minted id for GET /v1/recall-traces/:recallId
-              recallId: z.string(),
+              recallId: z
+                .string()
+                .describe(
+                  'Server-minted correlation id. Its dropped-candidate trace is readable at ' +
+                    'GET /v1/recall-traces/{recallId} ONLY when the deployment enabled recall ' +
+                    'tracing (THEOMEM_RECALL_TRACE); otherwise the lookup returns 404.',
+                ),
             }),
           },
         },

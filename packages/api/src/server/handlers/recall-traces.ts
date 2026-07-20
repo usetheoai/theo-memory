@@ -24,12 +24,24 @@ export async function recallTracesHandler(c: Context, store: RecallTraceStore): 
     return c.json({ code: 'NOT_FOUND', message: 'Missing recall_id' }, 404);
   }
   const workspaceId = getPrincipal(c).workspaceId;
-  const drops = await store.getByRecallId(recallId, workspaceId);
-  if (drops.length === 0) {
+  const rows = await store.getByRecallId(recallId, workspaceId);
+  if (rows.length === 0) {
     return c.json(
       { code: 'NOT_FOUND', message: 'No recall trace for this recall_id in this workspace' },
       404,
     );
   }
+  // Project to the documented wire DTO — do NOT serialize the raw domain row
+  // (which also carries workspaceId/scopeKey/createdAt, internal keys the OpenAPI
+  // schema never advertises). Leaky-abstraction fix, /review F-arch-2 / F-api-1.
+  const drops = rows.map((r) => ({
+    memoryId: r.memoryId,
+    semantic: r.semantic,
+    bm25: r.bm25,
+    entity: r.entity,
+    composite: r.composite,
+    threshold: r.threshold,
+    dropReason: r.dropReason,
+  }));
   return c.json({ recallId, drops }, 200);
 }

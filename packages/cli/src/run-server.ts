@@ -29,10 +29,12 @@ import { serve } from '@hono/node-server';
 import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore, PgUsageCounterStore } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
+import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
 import {
   assertEnvOrExit,
   embeddingDimForKind,
   resolveEmbedderKind,
+  resolveRecallTraceEnabled,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
@@ -249,6 +251,10 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     // serves the REAL retrieval_api_usage (same pool as the Memory factory, so the
     // counter recall() increments is the counter metrics reads). Mirrors the above.
     usageCounterStore: new PgUsageCounterStore(pool),
+    // explainable-recall-read S2 (/review F-arch-1) — wire the recall-trace READ
+    // port so GET /v1/recall-traces/:recallId is mounted in production, opt-in via
+    // the same THEOMEM_RECALL_TRACE flag that enables the write (wireMemoryFromPool).
+    ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
   });
 
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {

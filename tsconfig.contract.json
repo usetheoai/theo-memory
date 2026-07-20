@@ -22,6 +22,7 @@
     "paths": {
       "@usetheo/memory": ["./packages/core/src/index.ts"],
       "@usetheo/memory/contract": ["./packages/core/src/domain/index.ts"],
+      "@usetheo/memory/recall-trace-pg": ["./packages/core/src/infrastructure/db/recall-trace/index.ts"],
       "@usetheo/memory/embedders/*": ["./packages/core/src/infrastructure/embedders/*"],
       "@usetheo/memory/llms/*": ["./packages/core/src/infrastructure/llms/*"],
       "@usetheo/memory-api": ["./packages/api/src/server/index.ts"],

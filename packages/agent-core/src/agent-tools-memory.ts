@@ -93,6 +93,18 @@ export function resolveSkillExecutionEnabled(): boolean {
   return process.env['THEOMEM_SKILL_EXECUTION'] === 'true';
 }
 
+/**
+ * explainable-recall-read S2 (/review F-arch-1) — opt-in accountable-forgetting
+ * recall tracing, wired at this single shared site so server + MCP + CLI honor one
+ * `THEOMEM_RECALL_TRACE` flag. Default OFF → no `recallTrace` → recall() writes no
+ * `recall_traces` rows (byte-unchanged) AND the paired REST read route is not mounted.
+ * When `true`, the write (this factory) + the read port (run-server's createServer)
+ * are enabled together so `GET /v1/recall-traces/:recallId` returns real data.
+ */
+export function resolveRecallTraceEnabled(): boolean {
+  return process.env['THEOMEM_RECALL_TRACE'] === 'true';
+}
+
 /** Embedding dimension for an embedder kind (must match the migration dim). */
 export function embeddingDimForKind(kind: EmbedderKind): number {
   return kind === 'openai' ? OPENAI_EMBEDDER_DIM : LOCAL_EMBEDDER_DIM;
@@ -194,6 +206,8 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
     llm: new OpenAILLM(),
     embeddingDim,
     ...(skillExecutor !== undefined ? { skillExecutor } : {}),
+    // explainable-recall-read S2 (/review F-arch-1) — opt-in recall tracing write.
+    ...(resolveRecallTraceEnabled() ? { recallTrace: {} } : {}),
   });
 }
 
