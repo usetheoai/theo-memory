@@ -182,6 +182,31 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
+## M5 — [ ] CD pipeline — 100% functional in dev
+
+> Added 2026-07-20 by `/roadmap-feature` (slug: `cd-pipeline-dev`). See CHANGELOG `[Unreleased] § Added`. Adapts the org-standard "Theo CD Pipeline" 8-phase playbook (sibling reference: theo-rag) to theo-memory. **DoD shape = end-to-end** ("100% funcional em dev"): the cycle delivers all pipeline CODE; the live green requires owner-provided infra prerequisites (declared below). Grill: `knowledge-base/grills/cd-pipeline-dev-feature-grill.md`.
+
+**Objective:** every push to `develop` builds the image, pushes it to GHCR, and updates the dev host under a version-gate + health-gate; a `v*` tag publishes a signed release image and deploys nothing — the same pipeline theo-rag runs.
+
+**Definition of done:**
+
+- [ ] **Build unblocked** — `@usetheo/memory/recall-trace-pg` (+ sibling subpaths) registered in `scripts/rewrite-dist-aliases.mjs`; `pnpm build` + `docker build` green; the `publish` run passes the Trivy gate and pushes `ghcr.io/<org>/themory:develop`. (Fixes the current CI red — an unregistered subpath from the S2/M4 recall-trace work, NOT the sharp/libvips flake.)
+- [ ] **`deploy-dev` job** (on `develop` only; a `v*` tag SKIPS it) SSHes to the dev host, `git fetch`+`reset --hard $sha`, `docker login ghcr.io`, runs `scripts/deploy-dev.sh` which passes BOTH the version gate (running `themory_app` container's `org.opencontainers.image.revision` == pushed sha) AND the health gate (liveness + readiness green). Deploy files: `docker-compose.deploy.yml` (GHCR image + build-info env) + `scripts/deploy-dev.sh`.
+- [ ] **Observability** — `GET /v1/version` → `{name,version,git_sha,built_at,node}` (deployed sha); `/v1/healthz` (liveness) + `/v1/healthz/ready` (readiness `SELECT 1`, 2s timeout) aliases; all auth-exempt + in the OpenAPI contract test.
+- [ ] **CI hardening** — `integration.yml` (pgvector ephemeral port + `test:integration` gate) + `security-sast.yml` (semgrep via `docker run`, SHA-pinned `uses:`) on the self-hosted runner; `publish.yml` switched from `secrets: inherit` to an explicit secrets block (Docker Hub push + semgrep rule).
+- [ ] **Live proof** — a push to `develop` turns every check green and `/v1/version` on the dev host shows the pushed sha; a tag publishes the signed release image with `deploy-dev` skipped (dev host unchanged).
+
+**Dependencies:** M4 `[x]` (recency). **Owner-provided infra prerequisites** (block the *live* proof, not the code — a coding agent cannot self-serve these): repo secrets `DEV_SSH_KEY` + `OPENAI_API_KEY`; repo variable `DEV_HOST`; dev host provisioned (theo-memory mirror + docker/compose + deploy pubkey authorized + a running pgvector left untouched); GHCR image coordinate confirmed (`ghcr.io/usetheo` vs `usetheodev` divergence between compose and the publish job). Already satisfied: Phase 1 self-hosted runner (online), Phase 8 org fixes (in `usetheodev/theo`).
+
+**Top risks (new):**
+
+1. **Deploy secrets + SSH to a shared dev host.** The deploy job writes a runtime `.env` with `OPENAI_API_KEY` over SSH and logs into GHCR; a leaked `DEV_SSH_KEY` or a `.env` on a shared box is real exposure. Mitigate: dedicated ed25519 deploy key (repo secret), provisioned over stdin (never argv/process-list), removed in an `always` step; `.env` chmod 600; deploy dir isolated so it can't disrupt neighbours (the dev host is shared infra).
+2. **Version-gate trusts an OCI label stamped by the ORG reusable workflow, not the Dockerfile.** `deploy-dev.sh` proves which code runs via `org.opencontainers.image.revision`, but theo-memory's Dockerfile does not stamp it (relies on `usetheodev/theo`'s metadata-action). If the label is absent, or the GHCR coordinate is wrong, the gate either always-fails or silently passes the wrong image. Mitigate: verify the label is present on a real pushed image + confirm the exact coordinate before trusting the gate.
+
+**Why now:** the `publish` CI is currently RED (the `@usetheo/memory/recall-trace-pg` subpath from S2/M4 breaks `pnpm build`) so no image ships at all; theo-memory is the *reference* data-plane capability yet the only one without continuous delivery to a dev host (theo-rag already has it); and the shared org substrate is ready (self-hosted runner online, reusable build-publish + GHCR). Fixing + wiring the esteira makes every future merge auto-verified on a live dev host.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
