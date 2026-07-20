@@ -29,7 +29,11 @@ import { serve } from '@hono/node-server';
 import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore, PgUsageCounterStore } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
-import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
+import {
+  PgRecallTraceStore,
+  PgRecallTraceRetention,
+  startRecallTraceRetentionCron,
+} from '@usetheo/memory/recall-trace-pg';
 import {
   assertEnvOrExit,
   embeddingDimForKind,
@@ -257,6 +261,14 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
   });
 
+  // M4 T3.1 — start the recall-trace retention cron under the same opt-in flag.
+  // maxAge from THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS (default 30 days).
+  const retentionCron = resolveRecallTraceEnabled()
+    ? startRecallTraceRetentionCron(new PgRecallTraceRetention(pool), {
+        maxAgeSeconds: Number(process.env['THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS'] ?? 2_592_000),
+      })
+    : undefined;
+
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
     process.stdout.write(`themory server: listening on ${host}:${String(info.port)}\n`);
   }) as unknown as HttpListener;
@@ -286,6 +298,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
           }),
           new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
         ]);
+        retentionCron?.stop(); // M4 — stop the retention cron before closing the pool
         await pool.end();
       } finally {
         process.exit(0);

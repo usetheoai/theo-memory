@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
 import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
-import { PgRecallTraceRetention } from '@usetheo/memory/recall-trace-pg';
+import { PgRecallTraceRetention, startRecallTraceRetentionCron } from '@usetheo/memory/recall-trace-pg';
 
 import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
@@ -84,6 +84,25 @@ test('T1.1 — sweep is race-safe under concurrent writes; fresh cross-workspace
   );
   expect(Number(oldWsA.rows[0]?.n ?? 0)).toBe(0); // all old swept, no orphan
 });
+
+test('T3.1 — the retention cron drives the sweep (onTick fires with the deleted count)', async () => {
+  await db.pool.query('TRUNCATE recall_traces');
+  await seed('wsA', 'cron-old', 5 * 24 * 3600); // 5 days — expired
+  await seed('wsA', 'cron-fresh', 60); //          fresh — survives
+  const retention = new PgRecallTraceRetention(db.pool);
+  const deleted = await new Promise<number>((resolve) => {
+    const handle = startRecallTraceRetentionCron(retention, {
+      maxAgeSeconds: 24 * 3600,
+      cronExpression: '* * * * * *', // every second — deterministic first-tick await
+      onTick: (n) => {
+        handle.stop();
+        resolve(n);
+      },
+    });
+  });
+  expect(deleted).toBe(1); // the cron actually ran the sweep (1 old row)
+  expect(await count('wsA')).toBe(1); // fresh row remains
+}, 15_000);
 
 test('T1.1 — sweep returns 0 when nothing is expired', async () => {
   await db.pool.query('TRUNCATE recall_traces');
