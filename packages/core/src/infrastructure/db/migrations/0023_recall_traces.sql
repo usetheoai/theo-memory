@@ -1,9 +1,12 @@
 -- explainable-recall T1.1 — accountable-forgetting recall trace (Slice 1).
 -- Hand-authored (NOT drizzle-kit generated): `drizzle-kit generate` is broken
--- project-wide by a pre-existing bug at schema.ts:223 (an index references a
--- non-existent `category` column) — see explainable-recall-followups.md. The
--- runner applies migrations by journal (`migrate()`), which needs only this
--- .sql + the _journal.json entry. Idempotent (IF NOT EXISTS) per the 0010
+-- project-wide by a PRE-EXISTING bug (verified 2026-07-20) — an unclosed JSDoc
+-- `/**` at schema.ts:155 swallows the `category: text('category')` column def
+-- (:159), so the `memories_category_idx` index (:223) references a column that
+-- does not exist, crashing drizzle-kit ("Cannot read properties of undefined
+-- (reading 'name')") and tsc. See explainable-recall-followups.md. The runner
+-- applies migrations by journal (`migrate()`), which needs only this .sql + the
+-- _journal.json entry (no snapshot). Idempotent (IF NOT EXISTS) per the 0010
 -- precedent so re-application is a no-op.
 CREATE TABLE IF NOT EXISTS "recall_traces" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
