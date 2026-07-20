@@ -137,7 +137,7 @@ export interface RecallTraceStore {
    * Returns every trace row for `recallId`, ordered by `createdAt` ascending;
    * an empty array for an unknown id. PURE READ — no side effects.
    */
-  getByRecallId(recallId: string): Promise<readonly RecallTraceRow[]>;
+  getByRecallId(recallId: string, workspaceId: string): Promise<readonly RecallTraceRow[]>;
 }
 
 /**
