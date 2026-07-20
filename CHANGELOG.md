@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M4 Accountable-forgetting governance + surfaces (retention · MCP · dashboard) (`/roadmap-feature accountable-forgetting-governance`)
 
 ### Changed
 
