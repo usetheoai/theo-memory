@@ -682,3 +682,45 @@ export const scopeUsageCounters = pgTable(
     ),
   ],
 );
+
+/**
+ * `recall_traces` — the write-side of "accountable forgetting" (explainable-recall
+ * S1). One row per DROPPED candidate of a recall, keyed by `recall_id`, so the
+ * negative-space (what was dropped + why) is queryable (blueprint ADR D2).
+ * Populated opt-in from inside the retrieval pipeline (fail-soft, D3); read back
+ * by `RecallTraceStore.getByRecallId`. Scoped by `workspace_id` per the
+ * data-plane tenant invariant.
+ */
+export const recallTraces = pgTable(
+  'recall_traces',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Correlation id of the recall this drop belongs to (server-minted UUID). */
+    recallId: text('recall_id').notNull(),
+    /** Tenant boundary — the resolved Principal's workspace. */
+    workspaceId: text('workspace_id').notNull().default('default'),
+    /** Scope key (tier + id) the recall ran under. */
+    scopeKey: text('scope_key').notNull(),
+    /** The dropped candidate's memory id. */
+    memoryId: text('memory_id').notNull(),
+    /** Semantic (cosine) component of the additive score. */
+    semantic: real('semantic').notNull(),
+    /** BM25 lexical component. */
+    bm25: real('bm25').notNull(),
+    /** Entity-boost component (uniformly 0 in v0.1 — schema-forward). */
+    entity: real('entity').notNull().default(0),
+    /** Additive composite in [0,1]; NULL for `semantic_gate` drops (EC-6). */
+    composite: real('composite'),
+    /** The threshold this recall applied. */
+    threshold: real('threshold').notNull(),
+    /** Why the candidate was dropped: semantic_gate | sub_threshold | nan | mmr_redundant. */
+    dropReason: text('drop_reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Read path: getByRecallId(recall_id) — the S2 explain surface reads by this.
+    index('recall_traces_recall_id_idx').on(table.recallId),
+    // Tenant-scoped scan + retention sweep (Unresolved Q1 follow-up).
+    index('recall_traces_ws_created_idx').on(table.workspaceId, table.createdAt),
+  ],
+);

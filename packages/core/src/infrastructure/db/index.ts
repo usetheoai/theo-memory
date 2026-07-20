@@ -29,6 +29,7 @@ export {
   history,
   memories,
   memoryEntities,
+  recallTraces,
   scopeUsageCounters,
 } from './schema.js';
 export { StubEmbedder, StubLLM } from './stubs.js';
