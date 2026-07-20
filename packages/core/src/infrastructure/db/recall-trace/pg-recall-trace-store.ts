@@ -30,7 +30,9 @@ const COLUMNS =
 const SELECT_BY_RECALL_ID =
   `SELECT recall_id, workspace_id, scope_key, memory_id, semantic, bm25, entity,` +
   ` composite, threshold, drop_reason, created_at` +
-  ` FROM recall_traces WHERE recall_id = $1 ORDER BY created_at ASC, id ASC`;
+  // explainable-recall S2 (D3) — the workspace predicate is the tenant boundary:
+  // a recall_id minted under another workspace returns 0 rows (CWE-441 / IDOR).
+  ` FROM recall_traces WHERE recall_id = $1 AND workspace_id = $2 ORDER BY created_at ASC, id ASC`;
 
 /** node-postgres row shape for `recall_traces` (real → number, text → string). */
 interface RawTraceRow {
@@ -105,8 +107,11 @@ export class PgRecallTraceStore implements RecallTraceStore {
     );
   }
 
-  async getByRecallId(recallId: string): Promise<readonly RecallTraceRow[]> {
-    const { rows } = await this.pool.query<RawTraceRow>(SELECT_BY_RECALL_ID, [recallId]);
+  async getByRecallId(
+    recallId: string,
+    workspaceId: string,
+  ): Promise<readonly RecallTraceRow[]> {
+    const { rows } = await this.pool.query<RawTraceRow>(SELECT_BY_RECALL_ID, [recallId, workspaceId]);
     return rows.map(toRow);
   }
 }
