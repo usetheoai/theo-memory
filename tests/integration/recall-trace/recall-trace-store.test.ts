@@ -98,6 +98,23 @@ test('T1.1 — a supplied RecallOptions.recallId keys the trace rows verbatim', 
   expect(Number(rows[0]?.n ?? 0)).toBeGreaterThan(0);
 });
 
+test('T1.1/D1 — recall() returns the SAME array with vs without a supplied recallId', async () => {
+  const withId = await onMemory
+    .user('alice')
+    .recall('match', { threshold: 0.5, topK: 10, recallId: 'd1-check-id' });
+  const without = await onMemory.user('alice').recall('match', { threshold: 0.5, topK: 10 });
+  // D1 invariant: recallId is an INPUT; the returned bare array is unchanged.
+  expect(withId.map((r) => r.id)).toEqual(without.map((r) => r.id));
+});
+
+test('T1.1 — an empty-string recallId is treated as absent (minted UUID, never keyed by "")', async () => {
+  await onMemory.user('alice').recall('match', { threshold: 0.5, topK: 10, recallId: '' });
+  const { rows } = await db.pool.query<{ n: string }>(
+    "SELECT COUNT(*)::int AS n FROM recall_traces WHERE recall_id = ''",
+  );
+  expect(Number(rows[0]?.n ?? 0)).toBe(0);
+});
+
 test('T3.1 — getByRecallId is workspace-scoped: no cross-tenant read (CWE-441)', async () => {
   const store = new PgRecallTraceStore(db.pool);
   await store.record({
