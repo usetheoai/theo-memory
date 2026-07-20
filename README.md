@@ -161,15 +161,30 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/v1/remember` | Store a memory (LLM extracts facts) |
-| `POST` | `/v1/recall` | Hybrid search |
+| `POST` | `/v1/recall` | Hybrid search — response envelope carries a `recallId` (see accountable forgetting) |
 | `POST` | `/v1/forget` | Soft or hard delete |
 | `POST` | `/v1/reflect` | Consolidate episodic → semantic |
 | `GET` | `/v1/scopes/:type/:id/memories` | List with `?category=` filter |
+| `GET` | `/v1/recall-traces/:recallId` | Why each candidate was **dropped** (accountable forgetting; opt-in, workspace-scoped) |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/v1/members` | Workspace member CRUD (role-gated: `admin`) |
 | `GET` | `/v1/health` | Liveness (auth-exempt) |
 | `GET` | `/v1/openapi.json` | Spec (auth-exempt) |
 
 **Security** — Bearer auth (`THEMEMORY_API_KEY`), rate limiting (30 writes/min, 100 reads/min), CORS, 1 MB body cap, OIDC bridge for multi-tenant.
+
+### Accountable forgetting (opt-in)
+
+Every recall discards candidates — sub-threshold matches, redundant near-duplicates. Most memory layers throw the *reason* away. When you enable tracing (`THEOMEM_RECALL_TRACE=true`), each recall persists one row per **dropped** candidate with its full score breakdown (semantic / bm25 / entity / composite / threshold) and the drop reason (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), keyed by the `recallId` the recall response returns:
+
+```bash
+# recall returns a recallId in its envelope …
+curl -s $URL/v1/recall -H "Authorization: Bearer $KEY" \
+  -d '{"userId":"alice","query":"preferences"}' | jq .recallId
+# … then read WHY each candidate was dropped (workspace-scoped; 404 across tenants)
+curl -s $URL/v1/recall-traces/<recallId> -H "Authorization: Bearer $KEY" | jq .drops
+```
+
+Default OFF (recall is byte-unchanged and writes nothing). The read is scoped to the caller's workspace at the store boundary — a `recallId` from another tenant returns `404`. Pre-release; the write cost is one row per dropped candidate per recall.
 
 ## Multi-tenancy & RBAC
 
