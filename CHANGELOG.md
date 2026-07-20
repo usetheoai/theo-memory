@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M5 CD pipeline — 100% functional in dev (`/roadmap-feature cd-pipeline-dev`)
 
 ### Changed
 
