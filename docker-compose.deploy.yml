@@ -1,0 +1,42 @@
+# Deploy override for the dev host (165.227.121.20) — M5 CD pipeline (playbook Phase 4).
+# Runs the themory API from the GHCR-published image (built once on the CI runner)
+# on top of the base docker-compose.yaml pgvector (container `themem_pgvector`, already
+# running from the platform local-env). Layered by scripts/deploy-dev.sh:
+#   docker compose -f docker-compose.yaml -f docker-compose.deploy.yml pull themory
+#   docker compose -f docker-compose.yaml -f docker-compose.deploy.yml up -d pgvector themory
+# pgvector is inherited unchanged from the base file (left running, not rebuilt) so the
+# CD deploy never disrupts the neighbouring platform stacks on this shared box.
+services:
+  themory:
+    image: ghcr.io/usetheodev/themory:develop
+    container_name: themory_app
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      # DB connection — the base `pgvector` service, same compose network (service name).
+      THEOMEM_PG_URI: postgres://${POSTGRES_USER:-themem}:${POSTGRES_PASSWORD:-themem}@pgvector:5432/${POSTGRES_DB:-themem}
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      # Real OpenAI key (extraction/embedding) — written into .env by the deploy job.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Build-info (forward-compat for a future GET /v1/version) — written into .env too.
+      THEOMEM_GIT_SHA: ${THEOMEM_GIT_SHA:-unknown}
+      THEOMEM_VERSION: ${THEOMEM_VERSION:-dev}
+      THEOMEM_BUILD_TIME: ${THEOMEM_BUILD_TIME:-unknown}
+    ports:
+      - "${THEMORY_PORT:-8080}:8080"
+    healthcheck:
+      # The distroless image has no shell/curl — probe via node directly. /v1/health
+      # honors the EC-33 readiness gate (503 while the Memory factory warms, 200 once ready).
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - "require('node:http').get('http://127.0.0.1:8080/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
