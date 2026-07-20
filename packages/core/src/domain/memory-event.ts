@@ -167,6 +167,14 @@ export const MEMORY_EVENTS = [
   // — never a silent IGNORE); NOT emitted when the LLM proposed no category at all.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'category_auto_dropped',
+  // explainable-recall T3.1 — the recall-trace write (accountable forgetting) failed;
+  // fail-soft (D3): recall STILL returns its results, the failure is observable, never
+  // silently swallowed. Attribute `{error}`. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_trace_write_failed',
+  // explainable-recall T3.1 — the dropped-candidate set exceeded the store's
+  // maxRowsPerRecall cap so the trace was truncated (EC-4: no silent truncation).
+  // Attributes `{dropped_total, persisted}`. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'recall_trace_truncated',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
