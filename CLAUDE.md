@@ -170,7 +170,7 @@ Honest classification (Rule 3 + Rule 10):
 
 - **Trigger:** the `/loop-cross-validation` vs (2026-06-21, `cross-validation-output/final_report.md`, overall 3.58/5) surfaced 4 gaps. The owner chose a **full unfreeze** to address them without per-item gating friction.
 - **The P0 HARDENING discipline itself is NOT abandoned.** The 3 P0 sub-goals (APIs correct / SDKs functional / MCP available) remain the quality bar for everything that ships; "hardening" work continues to take precedence when it conflicts with a new feature. What changes is ONLY that net-new features are no longer categorically blocked.
-- **`production-ready` / v1.0 stays SEPARATELY gated (Item 11).** The freeze lift does NOT touch the v1.0 gate. Gate status (re-audited 2026-07-12): `/dogfood` = `EVIDENCE_SUFFICIENT` (CLOSED); the independent v0.8 benchmark reproduction remains **unlogged** (`benchmarks/reproductions/` empty) — now the **sole** remaining blocker. README Status stays `Pre-release`; no `production-ready` claim until the benchmark-reproduction gate also closes. The unfreeze is about feature scope, not the honesty gate.
+- **`production-ready` / v1.0 stays SEPARATELY gated (Item 11).** The freeze lift does NOT touch the v1.0 gate. Gate status (updated 2026-07-20): `/dogfood` = `EVIDENCE_SUFFICIENT` (CLOSED). The former gate (a) — the independent v0.8 comparative benchmark reproduction — was **DROPPED per ADR-0020** (the benchmark feature was removed in v0.35.0; the product ships no comparative "faster-than" claim, so `public-copy.md § 4` does not apply). **v1.0 is now gated on `/dogfood` alone, which is CLOSED — so the path to v1.0 is unblocked.** Declaring v1.0 (README Status `Pre-release → Production-ready` + a `v1.0.0` cut) remains a **separate, deliberate owner release action**; this file does not auto-flip it. The no-comparative-claim guardrail (`public-copy.md § 4`) stays in force for any future benchmark claim.
 - **Gap roadmap (this session):** the actionable memory gaps are **G2 (procedural execution + injection/command sandbox — Item 21)** and **G3 (first-class episodic / message-log tier)**. See `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`.
 - **G1 (in-context working-memory tier) + G4 (context-window / token-budget) are DEFERRED (project-owner, this session).** They are agent-RUNTIME concerns, not memory-layer features — implementing them in TheMemory core would contradict the locked "memory layer, NOT agent runtime" override. They are recorded as cross-repo followups for **TheoKit**, NOT in this roadmap's critical path.
 - **Locked overrides unchanged:** the 3 root overrides (vendor lock-in exception, Phase-1 scope, Apache-2.0), the locked names, voice/tone, and ADR-0010/0011 are NOT touched by this unfreeze.
@@ -189,7 +189,7 @@ Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../t
 
 ## Feature Status (canonical reading — 2026-06-04)
 
-**TL;DR.** The system is feature-ready for the majority of vector-based hybrid OSS use cases AND for standalone REST/Docker/MCP consumers. The system is **NOT production-ready by project policy** — but as of 2026-07-12 the `/dogfood` gate is **`EVIDENCE_SUFFICIENT` (CLOSED)**; the **sole remaining v1.0 blocker is the independent v0.8 benchmark reproduction** (`benchmarks/reproductions/` still empty — Roadmap Item 11 gate (a)).
+**TL;DR.** The system is feature-ready for the majority of vector-based hybrid OSS use cases AND for standalone REST/Docker/MCP consumers. The system is **NOT yet labelled production-ready by project policy** — but as of 2026-07-20 both v1.0 gates are resolved: `/dogfood` = **`EVIDENCE_SUFFICIENT` (CLOSED)**, and the former gate (a) — the independent v0.8 comparative benchmark — was **DROPPED per ADR-0020** (benchmark feature removed in v0.35.0; no comparative claim is shipped). **The v1.0 path is unblocked; the actual v1.0 label + version cut is a pending owner release decision, not a technical blocker.**
 
 ### What works today (consumer can use it now)
 
@@ -216,7 +216,7 @@ Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../t
 | Capability | Blocker | Roadmap Item |
 |---|---|---|
 | **TheoCloud managed runtime + multi-region** | Theo PaaS GA | 7 (v0.5) |
-| **`production-ready` label / v1.0 contract freeze** | `/dogfood` `EVIDENCE_SUFFICIENT` (anchor scenario ≥ 30 days) + independent v0.8 benchmark reproduction | 11 (v1.0) |
+| **`production-ready` label / v1.0 contract freeze** | Owner release decision (both technical gates resolved: `/dogfood` `EVIDENCE_SUFFICIENT`; comparative-benchmark gate DROPPED per ADR-0020) | 11 (v1.0) |
 | Adaptive retrieval (Self-RAG / CRAG / Adaptive-RAG hooks) | None (next major after v1.0) | 13 (v1.2) |
 | Optional graph backend (`@usetheo/memory/graph` via Apache AGE / a graph database) | None | 14 (v1.3) |
 | Domain ontologies (typed schemas: medical / legal / code / support) | Depends on Item 9 | 15 (v1.4) |
@@ -224,12 +224,12 @@ Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../t
 
 ### Production-ready gate (Item 11)
 
-The `production-ready` token is **deliberately blocked** by two hard gates per `dogfood-golden-rule.md` + Roadmap Item 11:
+The `production-ready` token was historically blocked by two hard gates per `dogfood-golden-rule.md` + Roadmap Item 11. As of 2026-07-20 **both are resolved**:
 
 1. **`/dogfood` gate** = **`EVIDENCE_SUFFICIENT` — CLOSED (re-audited 2026-07-12)**. The anchor scenario S1 ("Claude Code auto-memory backed by TheMemory") transitioned `planned → wired → running` (2026-06-04); 49 evidence files are logged and the unified journey suite (ADR-0019, every journey `anchor: true`) passes `run_journey_audit.py` with 0 reds. This supersedes the stale 2026-05-31 `6f7ff87` audit (`EVIDENCE_INSUFFICIENT`, `anchor_not_running` + `no_anchor_evidence`). **This gate no longer blocks v1.0.**
-2. **Independent v0.8 benchmark reproduction** = NOT yet logged at `benchmarks/reproductions/`. Item 10 smoke-validated TheMemory cells only; competitor cells ( / / ) deferred to vendor-SDK wiring.
+2. **Independent v0.8 benchmark reproduction** = **DROPPED per ADR-0020 (2026-07-20)**. The benchmark feature was removed entirely in v0.35.0 (`283fbc2`); the competitor SDK wiring (`v0-9-vendor-client-impls`) was abandoned 2026-06-07; and the product ships **no** comparative "faster-than" claim, so the `public-copy.md § 4` independent-reproduction requirement (which gates *comparative claims*) does not apply. This gate no longer blocks v1.0.
 
-Until BOTH gates close: README Status stays `Pre-release`, no `production-ready` badge, no `production-grade` claim in any public copy. Every shipped cycle since 2026-05-31 honors this in its CHANGELOG/commit message — see § Inviolable Rule 3.
+**Both technical gates are now resolved.** What remains is a **deliberate owner release decision**: flipping README Status `Pre-release → Production-ready` in the same PR that cuts `v1.0.0`. Until the owner makes that call, README Status stays `Pre-release`, no `production-ready` badge, no `production-grade` claim in any public copy — and the no-comparative-claim guardrail (`public-copy.md § 4`) stays in force for any future benchmark claim. See § Inviolable Rule 3.
 
 ### Per-audience readiness
 
@@ -247,7 +247,7 @@ Until BOTH gates close: README Status stays `Pre-release`, no `production-ready`
 | Graph queries | NO | Item 14 (v1.3) planned |
 | Domain ontologies (medical/legal) | NO | Item 15 (v1.4) planned |
 | Adaptive retrieval (Self-RAG hooks) | NO | Item 13 (v1.2) planned |
-| **`production-ready` label** | **NO** | `/dogfood` gate CLOSED (2026-07-12); sole remaining blocker = independent v0.8 benchmark reproduction (Item 11) |
+| **`production-ready` label** | **Pending owner call** | Both technical gates resolved: `/dogfood` CLOSED (2026-07-12) + comparative-benchmark gate DROPPED per ADR-0020 (2026-07-20). v1.0 label/cut is now an owner release decision, not a blocker (Item 11) |
 
 ---
 
@@ -296,7 +296,7 @@ Until BOTH gates close: README Status stays `Pre-release`, no `production-ready`
 - **vector-based hybrid architecture** — vector + LLM extraction + hybrid retrieval (semantic + BM25 + entity matching). Two-stage write pipeline. ADD-only.
 - **Three tiers (User / Session / Agent)** — mapped 1:1 onto 's `user_id` / `agent_id` / `run_id` filter shape internally. Public API uses scoped sub-object form (`memory.user(id).remember(...)`) for type narrowing.
 - **Apache-2.0 licensed** — aligned with the monorepo standard (re-aligned 2026-06-09; prior MIT carve-out locked 2026-05-21 was reverted after weighing patent grant + trademark protection upside against perceived embed friction).
-- **Pre-release is honest** — never claim production-ready until v1.0 with reproduced benchmarks. Breaks the consistency with the other 6 sub-projects' "production" status deliberately.
+- **Pre-release is honest** — never claim production-ready until the owner explicitly declares v1.0 (both technical gates are resolved as of 2026-07-20 per ADR-0020; the label is now an owner call, not a blocker). No comparative "faster-than" claim without satisfying `public-copy.md § 4` in full. Breaks the consistency with the other 6 sub-projects' "production" status deliberately.
 - **Cross-Project Rule 9 (Cloud abstraction)** — cloud runtime user-copy says `memory store`, NEVER `` / `pgvector` / `vector engine` / `vector store engine` etc.
 
 If a piece of TheMemory copy contradicts the locked narrative in [`../CLAUDE.md`](../CLAUDE.md) or the operational rules in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md), the root and TheoKit rules win — surface the conflict before publishing.
@@ -362,7 +362,7 @@ Items grouped by status: **Shipped** → **Pending** → **Cut / deferred** → 
 
 | Nº | Name | Acceptance + dependency | P0 classification |
 |---|---|---|---|
-| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) `docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction logged in `benchmarks/reproductions/`. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT` (anchor scenario "Claude Code auto-memory backed by TheMemory" running ≥ 30 days). README Status flipped to `Production-ready` in same PR that bumps to v1.0. **Current state (re-audited 2026-07-12):** gate (b) `/dogfood` = `EVIDENCE_SUFFICIENT` — **CLOSED** (anchor S1 `running`; 49 evidence files; ADR-0019 journey suite 0 reds). Gate (a) independent v0.8 benchmark reproduction = **STILL OPEN** (`benchmarks/reproductions/` empty; the v0.8 matrix is TheMemory-only — competitor cells DEFERRED and the `v0-9-vendor-client-impls` plan was ABANDONED 2026-06-07). Gate (a) is now the **sole** v1.0 blocker, and by design needs an EXTERNAL/third-party reproduction. **Depends:** Item 10 + an external reproduction (or an ADR re-scoping gate (a)) | **(a) Gate (b) closed; gate (a) is owner/external-gated** |
+| 11 | **v1.0 — Contract stable / `production-ready` label** | (a) ~~`docs/benchmarks/v0.8.md` exists + ≥ 1 external reproduction~~ **DROPPED per ADR-0020 (2026-07-20)** — benchmark feature removed in v0.35.0; no comparative claim is shipped so `public-copy.md § 4` does not apply. (b) `/dogfood` returns `EVIDENCE_SUFFICIENT`. README Status flipped to `Production-ready` in same PR that bumps to v1.0. **Current state (2026-07-20):** gate (b) `/dogfood` = `EVIDENCE_SUFFICIENT` — **CLOSED** (anchor S1 `running`; 49 evidence files; ADR-0019 journey suite 0 reds); gate (a) — **DROPPED (ADR-0020)**. **Both technical gates resolved — the v1.0 label + `v1.0.0` cut is now a pending owner release decision, not a blocker.** | **Owner release decision (both technical gates resolved)** |
 | 7 | **v0.5 — TheoCloud runtime + multi-region premium** | `@usetheo/memory/cloud` subpath imports cloud client (bundle-size gate). `THEOKIT_API_KEY` auth flow against staging. Multi-region failover. (Bi-temporal `asOf` MOVED to v1.1 local OSS tier per ADR-0011; cloud premium narrows to multi-region + audit-mgmt + managed embedding pricing.) **Depends:** Item 2 + Theo PaaS GA | **(a) Conditional** — if PaaS lands during P0, cloud runtime ships AS hardening of the contract surface (not a new feature) per P0 § "What CONTINUES" |
 | 3 (PR-B) | **v0.2 PR-B — Scaffolded TheoKit templates + E2E** | T4.1-T4.4 + T5.1 from v0.2 plan ADR D7: default-on memory in scaffolded TheoKit apps. **Depends:** sibling `theokit` repo PR | **(c) Cross-repo dependency** — sibling repo work; not blocked by P0 directly. Ship when sibling lands. |
 | 13 | **v1.2 — Adaptive retrieval** | `shouldRetrieve` + `wasRetrievalGood` decision hooks (Self-RAG / CRAG / Adaptive-RAG patterns). | **(b) FROZEN under P0** — no plans, no PRs, no discovery cycles |
@@ -513,14 +513,14 @@ The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 
 1. **95% confidence gate.** Ask if uncertain. Especially load-bearing for theo-memory — the 4 root overrides are documented because they came from confirming with the project owner explicitly, not from inference.
 2. **Task completion gate.** Finish before starting a new task.
-3. **Extreme honesty.** Admit ignorance. Surface risks. The single biggest honesty risk here is claiming production-ready before v1.0 + reproduced benchmarks + `/dogfood` `EVIDENCE_SUFFICIENT`.
+3. **Extreme honesty.** Admit ignorance. Surface risks. The single biggest honesty risk here is claiming production-ready before the owner declares v1.0 (both technical gates are resolved per ADR-0020; `/dogfood` = `EVIDENCE_SUFFICIENT`), and making any comparative "faster-than" claim without the full `public-copy.md § 4` evidence.
 4. **Git rules.** No `git checkout` or `git revert`. No direct work on `main`.
 5. **TDD.** Tests before production code; bug fixes start with a regression test. Especially critical for the LLM-extraction pipeline — write the prompt-output assertion test first.
 6. **Changelog discipline.** Every code change updates `CHANGELOG.md`.
 7. **Don't reinvent.** `pgvector`, `pg`, `zod` for the schema layer. `@usetheo/sdk`'s LLM client + `MemoryAdapter` for ecosystem reuse. 's two-stage pipeline is the proven shape — adopt, don't redesign.
 8. **No emojis** in code, READMEs, CHANGELOGs, or CLAUDE.md files unless explicitly requested.
 9. **No paper names in code** per `.claude/rules/no-paper-names-in-code.md` (promoted 2026-05-30). Knowledge-base docs MAY cite / / / etc.; `src/**` + tests MUST NOT.
-10. **PRIORITY 0 HARDENING discipline** (locked 2026-06-04; **feature freeze LIFTED 2026-06-21** — see § PRIORITY 0 → Amendment 2026-06-21). The 3 P0 sub-goals (API correct + SDK functional + MCP available) remain the quality bar and take precedence when a new feature conflicts with hardening. The categorical FREEZE on Items 13/14/15 + Phase V is NO LONGER in force (full unfreeze, project-owner sign-off). **`production-ready`/v1.0 remains separately gated** by `/dogfood` `EVIDENCE_SUFFICIENT` + benchmark reproduction (Item 11) — the unfreeze does NOT touch that honesty gate.
+10. **PRIORITY 0 HARDENING discipline** (locked 2026-06-04; **feature freeze LIFTED 2026-06-21** — see § PRIORITY 0 → Amendment 2026-06-21). The 3 P0 sub-goals (API correct + SDK functional + MCP available) remain the quality bar and take precedence when a new feature conflicts with hardening. The categorical FREEZE on Items 13/14/15 + Phase V is NO LONGER in force (full unfreeze, project-owner sign-off). **`production-ready`/v1.0 label remains an owner release decision** — both technical gates are resolved (2026-07-20): `/dogfood` `EVIDENCE_SUFFICIENT` + the comparative-benchmark gate DROPPED per ADR-0020 (Item 11). The unfreeze does NOT touch the honesty discipline: no `production-ready` label until the owner cuts v1.0, and no comparative claim without `public-copy.md § 4`.
 
 Full text: `<HOME>/.claude/CLAUDE.md`. Cross-project rules: `<HOME>/Projetos/usetheo/CLAUDE.md`.
 
