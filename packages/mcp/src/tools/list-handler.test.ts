@@ -23,7 +23,7 @@ describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
   test('returns exactly 8 tools (4 verbs + episodes + add_skill/forget_skill + execute_skill; no pagination per ADR D2 listChanged:false)', () => {
     const response = buildToolsListResponse();
     // skills-write-surface (D3) grew 4→6; agentic-skill-execution-sandbox T2.4 → 7; mcp-episodes-tool (G3-MCP) → 8.
-    expect(response.tools).toHaveLength(8);
+    expect(response.tools).toHaveLength(9);
     // No nextCursor for a static list (plan T2.2 Deep Dives; listChanged:false)
     expect(response).not.toHaveProperty('nextCursor');
   });
@@ -42,6 +42,7 @@ describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
       'add_skill',
       'forget_skill',
       'execute_skill',
+      'explain_recall',
     ]);
   });
 

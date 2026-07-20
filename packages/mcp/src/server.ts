@@ -92,6 +92,7 @@ export class McpServer {
     // Register the tools/call dispatch handler. Protocol Errors throw McpError;
     // Tool Execution Errors return CallToolResult.
     const memoryFactory = options.memoryFactory;
+    const recallTraceStore = options.recallTraceStore; // M4 — backs explain_recall
     this.sdkServer.setRequestHandler(CallToolRequestSchema, (req) => {
       if (memoryFactory === undefined) {
         return Promise.resolve({
@@ -107,10 +108,10 @@ export class McpServer {
       const userId = resolveScopedUserId(req.params._meta);
       if (userId !== undefined) {
         return withScope({ session: { userId } }, () =>
-          dispatchFn(req.params.name, req.params.arguments, { memoryFactory }),
+          dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}) }),
         );
       }
-      return dispatchFn(req.params.name, req.params.arguments, { memoryFactory });
+      return dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}) });
     });
   }
 

@@ -137,6 +137,23 @@ test('GOAL — a recall dropping 0 candidates writes 0 new rows', async () => {
   expect(await traceCount()).toBe(before);
 });
 
+test('T2.1 — an opted-out workspace writes 0 trace rows (fail-closed, M4)', async () => {
+  const vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  const disabledMem = await createLocalMemory({
+    vectorStore,
+    embedder,
+    embeddingDim: DIM,
+    llm,
+    recallTrace: { disabledWorkspaces: ['default'] }, // the unbound default workspace is opted out
+  });
+  await disabledMem.user('bob').remember('match here');
+  await disabledMem.user('bob').remember('far apart');
+  const before = await traceCount();
+  await disabledMem.user('bob').recall('match', { threshold: 0.5, topK: 10 });
+  // the recall drops `far`, but the workspace is opted out → the write gate returns no context.
+  expect(await traceCount()).toBe(before);
+});
+
 test('GOAL — tracing OFF (no recallTrace) writes nothing', async () => {
   const before = await traceCount();
   await offMemory.user('alice').recall('match', { threshold: 0.5, topK: 10 });

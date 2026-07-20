@@ -158,6 +158,30 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
+## M4 — [ ] Accountable-forgetting governance + surfaces (retention · MCP · dashboard)
+
+> Added 2026-07-20 by `/roadmap-feature` (slug: `accountable-forgetting-governance`). See CHANGELOG `[Unreleased] § Added`. This is the "S3" that turns the shipped recall-trace wedge (S1 write + S2 read REST, ad-hoc, v0.35.0) into a governed, demoable product. **HONEST SIZE CAVEAT** (`/roadmap-feature` flagged this scope): the trio spans **2 repos** (dashboard in theo-cloud) — `/to-plan` will likely phase it (possible `NEEDS_SPLIT`); the theo-memory pieces gate the checkbox flip, the dashboard is tracked cross-repo.
+
+**Objective:** make accountable forgetting governed + surfaced — per-tenant retention/opt-out bounds the `recall_traces` table, an MCP `explain_recall` tool lets an agent query the negative-space, and a theo-cloud dashboard view lets an operator see what was dropped and why.
+
+**Definition of done:**
+
+- [ ] `RecallTraceRetentionPolicy` DIP + per-workspace config (max-age / opt-out) + a sweep; integration test: traces older than the retention window are swept; an opted-out workspace writes 0 rows (default-safe: opt-out = tracing off, no unbounded growth).
+- [ ] MCP tool `explain_recall` registered, workspace-scoped, MCP round-trip test (recall_id → drops), mirroring the S2 REST read.
+- [ ] [theo-cloud, CROSS-REPO] dashboard view lists recent recall_ids + drills into the drops (breakdown + drop-reason); e2e/dogfood. Tracked in theo-cloud's own cycle; does NOT gate this checkbox.
+- [ ] CHANGELOG `[Unreleased]` + README/docs updated; the retention default + opt-out documented.
+
+**Dependencies:** S1 recall-trace write + S2 read surface (ad-hoc, shipped v0.35.0). Soft: M3 `[x]` (the theo-cloud dashboard infra the view reuses). None of M0–M2 (orthogonal context-graph track).
+
+**Top risks (new):**
+
+1. Cross-repo: the dashboard lives in theo-cloud → `cycle-release` (single-repo) cannot verify the view; risk of marking M4 done with the dashboard lagging. Mitigate: split the DoD — the theo-memory pieces (retention + MCP) gate the flip; the dashboard is a tracked, cross-referenced theo-cloud deliverable.
+2. Retention sweep correctness under multi-tenancy: a `DELETE FROM recall_traces` sweep must be workspace-scoped + race-safe (concurrent writes), or it could delete another tenant's traces / leave orphans. Mitigate: workspace-scoped DELETE + a race-aware test; opt-out fail-closed (default safe).
+
+**Why now:** S1 (write) + S2 (read REST) shipped ad-hoc in v0.35.0 — the raw capability exists but is neither governed (the `recall_traces` table grows unbounded) nor surfaced (not demoable), so the differentiator is a technical wedge, not a moat. This milestone makes it governed + operator-visible — the piece the honest competitive assessment identified as what turns the wedge into a defensible position, paired with real customer validation.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under

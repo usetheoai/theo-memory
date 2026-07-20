@@ -29,12 +29,17 @@ import { serve } from '@hono/node-server';
 import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore, PgUsageCounterStore } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
-import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
+import {
+  PgRecallTraceStore,
+  PgRecallTraceRetention,
+  startRecallTraceRetentionCron,
+} from '@usetheo/memory/recall-trace-pg';
 import {
   assertEnvOrExit,
   embeddingDimForKind,
   resolveEmbedderKind,
   resolveRecallTraceEnabled,
+  resolveRecallTraceMaxAgeSeconds,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
@@ -47,7 +52,7 @@ import { OidcAuthVerifier } from '@usetheo/memory-api';
 import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
-
+import { installServerLifecycle, type ServerListenerLike } from './server-lifecycle.js';
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
 // (single source of truth — was triplicated across CLI factory + 2 runners).
@@ -95,11 +100,6 @@ function shouldSkipMigrations(): boolean {
   // Positive opt-in per SEPA iter 11 CRITICAL Q6a: ONLY `=== 'true'` skips.
   // Fail-safe default is to run migrations.
   return process.env['THEMEMORY_SKIP_MIGRATIONS'] === 'true';
-}
-
-interface HttpListener {
-  close: (cb?: (err?: Error) => void) => void;
-  on?: (event: string, cb: (err: Error) => void) => void;
 }
 
 export async function runServer(options?: RunServerOptions): Promise<void> {
@@ -257,43 +257,28 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
   });
 
+  // M4 T3.1 — start the recall-trace retention cron under the same opt-in flag.
+  // maxAge from THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS (validated: fail-fast on a
+  // non-positive/non-finite value — FX2 /review M4-R2 — never a silent full-wipe).
+  const retentionCron = resolveRecallTraceEnabled()
+    ? startRecallTraceRetentionCron(new PgRecallTraceRetention(pool), {
+        maxAgeSeconds: resolveRecallTraceMaxAgeSeconds(),
+      })
+    : undefined;
+
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
     process.stdout.write(`themory server: listening on ${host}:${String(info.port)}\n`);
-  }) as unknown as HttpListener;
+  }) as unknown as ServerListenerLike;
 
-  if (listener.on !== undefined) {
-    listener.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        process.stderr.write(`themory server: Port ${String(port)} already in use\n`);
-        process.exit(1);
-        return;
-      }
-      process.stderr.write(`themory server: listen error: ${err.message}\n`);
-      process.exit(1);
-    });
-  }
-
-  // EC-32 idempotent shutdown — guard against double-fire.
-  let shuttingDown = false;
-  const shutdown = (): void => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    void (async () => {
-      try {
-        await Promise.race([
-          new Promise<void>((resolve, reject) => {
-            listener.close((err) => (err !== undefined ? reject(err) : resolve()));
-          }),
-          new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
-        ]);
-        await pool.end();
-      } finally {
-        process.exit(0);
-      }
-    })();
-  };
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  // Listener error handler + idempotent graceful shutdown (SIGTERM/SIGINT) live in
+  // the lifecycle helper; it drains the retention cron before closing the pool (FX5).
+  installServerLifecycle({
+    listener,
+    port,
+    pool,
+    ...(retentionCron !== undefined ? { retentionCron } : {}),
+    shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
+  });
 
   // Let the warm Promise surface its rejection (if any) to the loop so the
   // process exits non-zero on Memory bootstrap failure.

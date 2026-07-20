@@ -11,6 +11,14 @@
  */
 
 export { PgRecallTraceStore } from './pg-recall-trace-store.js';
+// M4 governance — the retention sweep impl + its port type.
+export { PgRecallTraceRetention } from './pg-recall-trace-retention.js';
+export {
+  startRecallTraceRetentionCron,
+  recallTraceRetentionTick,
+  type RecallTraceRetentionCronOptions,
+} from './recall-trace-retention-cron.js';
+export type { RecallTraceRetentionPolicy } from '../../../domain/dip/recall-trace-store.js';
 
 // Re-export the 14th-DIP contract types so subpath consumers don't need to mix
 // imports across `@usetheo/memory/contract` AND `@usetheo/memory/recall-trace-pg`.

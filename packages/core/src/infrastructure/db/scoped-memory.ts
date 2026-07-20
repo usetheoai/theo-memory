@@ -231,6 +231,11 @@ export class LocalScopedMemory implements ScopedMemory {
     const cfg = this.config.recallTrace;
     const isConfigPojo =
       cfg !== undefined && typeof (cfg as { record?: unknown }).record !== 'function';
+    // M4 (ADR-2) — fail-closed per-workspace opt-out, checked in-memory (no
+    // per-recall DB read): a disabled workspace writes ZERO trace rows.
+    if (isConfigPojo && (cfg as RecallTraceStoreConfig).disabledWorkspaces?.includes(workspaceId)) {
+      return {};
+    }
     const maxRows = isConfigPojo
       ? ((cfg as RecallTraceStoreConfig).maxRowsPerRecall ?? DEFAULT_MAX_ROWS_PER_RECALL)
       : DEFAULT_MAX_ROWS_PER_RECALL;

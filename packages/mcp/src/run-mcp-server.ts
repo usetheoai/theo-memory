@@ -31,11 +31,13 @@ import {
   assertEnvOrExit,
   embeddingDimForKind,
   resolveEmbedderKind,
+  resolveRecallTraceEnabled,
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
   resolveOidcConfig,
 } from '@usetheo/memory-agent-core';
+import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
 import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
 import { McpServer } from './server.js';
 import { connectStdio } from './transports/stdio.js';
@@ -322,6 +324,9 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     name: 'themory',
     version: '0.3.0',
     memoryFactory: () => memory,
+    // M4 — back explain_recall with the recall-trace store, opt-in under the same
+    // THEOMEM_RECALL_TRACE posture as the SDK write + REST read.
+    ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
   });
 
   const shutdownHandler = (): void => {

@@ -103,6 +103,14 @@ export interface RecallTraceStoreConfig {
    * limit (EC-1). Default {@link DEFAULT_MAX_ROWS_PER_RECALL}.
    */
   readonly maxRowsPerRecall?: number;
+  /**
+   * explainable-recall M4 (governance) — per-workspace fail-closed opt-out.
+   * A workspace listed here writes ZERO trace rows even when the deployment
+   * enabled tracing (the write gate returns no trace context). Bounds growth at
+   * the source; checked in-memory at the write gate (NO per-recall DB read).
+   * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-2)
+   */
+  readonly disabledWorkspaces?: readonly string[];
 }
 
 /**
@@ -138,6 +146,26 @@ export interface RecallTraceStore {
    * an empty array for an unknown id. PURE READ — no side effects.
    */
   getByRecallId(recallId: string, workspaceId: string): Promise<readonly RecallTraceRow[]>;
+}
+
+/**
+ * explainable-recall M4 (governance) — bounds the `recall_traces` audit log so it
+ * does not grow unbounded when tracing is enabled. A periodic, INTERNAL (never
+ * tenant-triggered) age-based sweep. Kept SEPARATE from {@link RecallTraceStore}
+ * (SRP + the ADR-0008 2-method cap on the store): housekeeping is a distinct
+ * concern from read/write.
+ *
+ * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-1)
+ */
+export interface RecallTraceRetentionPolicy {
+  /**
+   * Delete every `recall_traces` row whose `created_at` is older than
+   * `olderThanSeconds`; returns the number of rows deleted. Age-based only
+   * (uniform housekeeping) — cannot selectively target one workspace, so it
+   * carries no cross-tenant deletion risk. MUST be race-safe against concurrent
+   * writes (implementers use the SERIALIZABLE-retry helper).
+   */
+  sweep(olderThanSeconds: number): Promise<number>;
 }
 
 /**
