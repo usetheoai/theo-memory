@@ -85,7 +85,7 @@ test('N concurrent record() calls with distinct recallIds all persist independen
     ),
   );
   // Each recallId retrieves EXACTLY its own 2 rows — no interleaving/loss.
-  const traces = await Promise.all(ids.map((id) => store.getByRecallId(id)));
+  const traces = await Promise.all(ids.map((id) => store.getByRecallId(id, 'default')));
   for (let i = 0; i < N; i++) {
     const t = traces[i]!;
     expect(t).toHaveLength(2);

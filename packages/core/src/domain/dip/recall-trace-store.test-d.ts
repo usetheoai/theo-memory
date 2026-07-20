@@ -20,7 +20,7 @@ test('RecallTraceStore exposes EXACTLY record + getByRecallId (2 methods, ADR-00
   expectTypeOf<keyof RecallTraceStore>().toEqualTypeOf<'record' | 'getByRecallId'>();
   expectTypeOf<RecallTraceStore['record']>().parameters.toEqualTypeOf<[RecallTraceBatch]>();
   expectTypeOf<RecallTraceStore['record']>().returns.toEqualTypeOf<Promise<void>>();
-  expectTypeOf<RecallTraceStore['getByRecallId']>().parameters.toEqualTypeOf<[string]>();
+  expectTypeOf<RecallTraceStore['getByRecallId']>().parameters.toEqualTypeOf<[string, string]>();
   expectTypeOf<RecallTraceStore['getByRecallId']>().returns.toEqualTypeOf<
     Promise<readonly RecallTraceRow[]>
   >();

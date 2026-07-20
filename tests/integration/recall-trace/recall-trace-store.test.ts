@@ -83,7 +83,7 @@ test('GOAL — recall dropping ≥1 candidate writes recall_traces rows retrieva
   expect(rows[0]?.composite).toBeNull(); // EC-6
 
   const store = new PgRecallTraceStore(db.pool);
-  const trace = await store.getByRecallId(rows[0]!.recall_id);
+  const trace = await store.getByRecallId(rows[0]!.recall_id, 'default');
   expect(trace.some((r) => r.memoryId === farId && r.dropReason === 'semantic_gate')).toBe(true);
 });
 
@@ -96,6 +96,22 @@ test('T1.1 — a supplied RecallOptions.recallId keys the trace rows verbatim', 
   );
   // The dropped `far` candidate's row must carry the caller-supplied id, not a minted UUID.
   expect(Number(rows[0]?.n ?? 0)).toBeGreaterThan(0);
+});
+
+test('T3.1 — getByRecallId is workspace-scoped: no cross-tenant read (CWE-441)', async () => {
+  const store = new PgRecallTraceStore(db.pool);
+  await store.record({
+    recallId: 'ws-scoped-1',
+    workspaceId: 'wsA',
+    scopeKey: 'user:u',
+    rows: [
+      { memoryId: 'mx', semantic: 0.1, bm25: 0, entity: 0, composite: 0.1, threshold: 0.5, dropReason: 'sub_threshold' },
+    ],
+  });
+  // Another workspace CANNOT read the trace (fail-closed) …
+  expect(await store.getByRecallId('ws-scoped-1', 'wsB')).toEqual([]);
+  // … while the owning workspace can.
+  expect((await store.getByRecallId('ws-scoped-1', 'wsA')).length).toBe(1);
 });
 
 test('GOAL — a recall dropping 0 candidates writes 0 new rows', async () => {
