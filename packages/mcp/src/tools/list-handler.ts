@@ -13,6 +13,11 @@
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 
 import {
+  TOOL_NAME as EXPLAIN_RECALL_NAME,
+  DESCRIPTION as EXPLAIN_RECALL_DESC,
+  INPUT_SCHEMA as explainRecallInput,
+} from './explain-recall-schema.js';
+import {
   TOOL_NAME as FORGET_NAME,
   DESCRIPTION as FORGET_DESC,
   INPUT_SCHEMA as forgetInput,
@@ -116,6 +121,12 @@ export function buildToolsListResponse(): ToolsListResponse {
         name: EXECUTE_SKILL_NAME,
         description: EXECUTE_SKILL_DESC,
         inputSchema: emitToolSchema(executeSkillInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      // recall-trace-retention-and-mcp M4 — explain why a recall dropped candidates.
+      {
+        name: EXPLAIN_RECALL_NAME,
+        description: EXPLAIN_RECALL_DESC,
+        inputSchema: emitToolSchema(explainRecallInput) as ToolsListResponse['tools'][number]['inputSchema'],
       },
     ],
   };

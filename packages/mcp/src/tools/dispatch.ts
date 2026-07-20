@@ -11,7 +11,7 @@
  */
 import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { Memory } from '@usetheo/memory/contract';
+import type { Memory, RecallTraceStore } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '@usetheo/memory-agent-core';
 
 import { addSkillHandler, TOOL_NAME as ADD_SKILL } from './add-skill-handler.js';
@@ -21,9 +21,13 @@ import { forgetHandler, TOOL_NAME as FORGET } from './forget-handler.js';
 import { forgetSkillHandler, TOOL_NAME as FORGET_SKILL } from './forget-skill-handler.js';
 import { recallHandler, TOOL_NAME as RECALL } from './recall-handler.js';
 import { reflectHandler, TOOL_NAME as REFLECT } from './reflect-handler.js';
+import { explainRecallHandler, TOOL_NAME as EXPLAIN_RECALL } from './explain-recall-handler.js';
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
 
-type HandlerFn = (args: unknown, deps: { memoryFactory: () => Memory }) => Promise<CallToolResult>;
+type HandlerFn = (
+  args: unknown,
+  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore },
+) => Promise<CallToolResult>;
 
 const HANDLERS = new Map<string, HandlerFn>([
   [REMEMBER, rememberHandler],
@@ -37,6 +41,8 @@ const HANDLERS = new Map<string, HandlerFn>([
   [FORGET_SKILL, forgetSkillHandler],
   // agentic-skill-execution-sandbox T2.4 — opt-in skill execution over MCP.
   [EXECUTE_SKILL, executeSkillHandler],
+  // recall-trace-retention-and-mcp M4 T4.1 — explain why a recall dropped candidates.
+  [EXPLAIN_RECALL, explainRecallHandler],
 ]);
 
 /**
@@ -48,7 +54,7 @@ const HANDLERS = new Map<string, HandlerFn>([
 export async function dispatch(
   toolName: string,
   args: unknown,
-  deps: { memoryFactory: () => Memory },
+  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore },
 ): Promise<CallToolResult> {
   try {
     const handler = HANDLERS.get(toolName);
