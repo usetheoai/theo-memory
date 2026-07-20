@@ -11,3 +11,7 @@ Opportunistic findings + pre-existing issues surfaced during the halt-loop (NOT 
 ## Wiring deferrals
 
 - **T0.1 `RecallTraceStore` pillar (b)** — ADR-DEFER-WIRING-B: a Phase-0 contract has no integration test yet; the symbol is exercised by an integration test in T2.1 (`pg-store` round-trip) and the final GOAL TEST. Type-level coverage exists now via `recall-trace-store.test-d.ts`. Pillar (a) PASS, pillar (c) n/a (no metric declared for T0.1).
+
+## Carry-forward to T4.1 (SEPA T2.1 MEDIUM)
+
+- **T4.1 factory MUST call `validateRecallTraceStoreConfig` before constructing `PgRecallTraceStore`.** The constructor does NOT self-validate; a direct `new PgRecallTraceStore(pool, { maxRowsPerRecall: NaN })` → `slice(0, NaN)` silently persists 0 rows (fail-silent, contra EC-1 fail-fast). The plan assigns validation to the factory resolver (T4.1) — the T4.1 auditor must confirm `resolveRecallTraceStore` validates the POJO config (mirrors `resolveRecallCacheStore` → `validateRecallCacheStoreConfig`).
