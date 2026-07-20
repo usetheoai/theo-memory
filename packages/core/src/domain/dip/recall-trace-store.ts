@@ -141,6 +141,26 @@ export interface RecallTraceStore {
 }
 
 /**
+ * explainable-recall M4 (governance) — bounds the `recall_traces` audit log so it
+ * does not grow unbounded when tracing is enabled. A periodic, INTERNAL (never
+ * tenant-triggered) age-based sweep. Kept SEPARATE from {@link RecallTraceStore}
+ * (SRP + the ADR-0008 2-method cap on the store): housekeeping is a distinct
+ * concern from read/write.
+ *
+ * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-1)
+ */
+export interface RecallTraceRetentionPolicy {
+  /**
+   * Delete every `recall_traces` row whose `created_at` is older than
+   * `olderThanSeconds`; returns the number of rows deleted. Age-based only
+   * (uniform housekeeping) — cannot selectively target one workspace, so it
+   * carries no cross-tenant deletion risk. MUST be race-safe against concurrent
+   * writes (implementers use the SERIALIZABLE-retry helper).
+   */
+  sweep(olderThanSeconds: number): Promise<number>;
+}
+
+/**
  * Config validator. Throws {@link InvalidRecallTraceConfig} at factory time
  * (fail-fast per error-handling.md).
  *
