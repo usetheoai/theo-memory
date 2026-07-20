@@ -44,7 +44,11 @@ test('test_pg_store_record_getbyid_roundtrip — record(3) then getByRecallId re
 
   const got = await store.getByRecallId('r-round');
   expect(got).toHaveLength(3);
-  expect(got[0]).toMatchObject({
+  // Rows of one batch share created_at (single INSERT) and carry random uuid
+  // ids, so getByRecallId order is stable-by-id but NOT insertion-order — assert
+  // by memoryId lookup, never by position.
+  const byId = new Map(got.map((r) => [r.memoryId, r]));
+  expect(byId.get('m0')).toMatchObject({
     recallId: 'r-round',
     workspaceId: 'ws-1',
     scopeKey: 'user:u1',
@@ -53,8 +57,9 @@ test('test_pg_store_record_getbyid_roundtrip — record(3) then getByRecallId re
     threshold: 0.7,
     dropReason: 'sub_threshold',
   });
-  expect(got[0]?.semantic).toBeCloseTo(0.4, 5);
-  expect(got[0]?.createdAt).toBeInstanceOf(Date);
+  expect(byId.get('m0')?.semantic).toBeCloseTo(0.4, 5);
+  expect(byId.get('m2')?.semantic).toBeCloseTo(0.42, 5);
+  expect(byId.get('m0')?.createdAt).toBeInstanceOf(Date);
 
   // unknown id → []
   expect(await store.getByRecallId('nope')).toEqual([]);
