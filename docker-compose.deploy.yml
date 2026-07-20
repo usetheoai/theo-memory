@@ -20,7 +20,12 @@ services:
       THEOMEM_PG_URI: postgres://${POSTGRES_USER:-themem}:${POSTGRES_PASSWORD:-themem}@pgvector:5432/${POSTGRES_DB:-themem}
       PORT: "8080"
       HOST: "0.0.0.0"
-      # Real OpenAI key (extraction/embedding) — written into .env by the deploy job.
+      # Embedder MUST match the shared themem_pgvector's stored dimension. That DB was
+      # provisioned by the platform local-env at dim 1536 (OpenAI); the local embedder
+      # (Xenova, 384) would trip the destructive-dim-change migration guard and crash-loop.
+      # So the CD deploy uses OpenAI (needs OPENAI_API_KEY, provided below).
+      THEOMEM_EMBEDDER: ${THEOMEM_EMBEDDER:-openai}
+      # Real OpenAI key (extraction + embedding) — written into .env by the deploy job.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Build-info (forward-compat for a future GET /v1/version) — written into .env too.
       THEOMEM_GIT_SHA: ${THEOMEM_GIT_SHA:-unknown}
