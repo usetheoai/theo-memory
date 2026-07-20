@@ -80,6 +80,17 @@ export interface RecallOptions {
   readonly threshold?: number;
 
   /**
+   * explainable-recall S2 — opt-in caller-supplied recall id used to KEY the
+   * accountable-forgetting trace (the `recall_traces.recall_id` of every dropped
+   * candidate). When set (non-empty), the trace uses it verbatim instead of
+   * minting one; the REST `POST /v1/recall` handler supplies it so it can be
+   * returned in the response envelope and looked up via `GET /v1/recall-traces/:recallId`.
+   * Absent/empty ⇒ a fresh UUID is minted. INPUT ONLY — the `recall()` return
+   * shape is unchanged (S1 D1 bare-array invariant). No effect when tracing is off.
+   */
+  readonly recallId?: string;
+
+  /**
    * Bi-temporal point-in-time query. When set, recall returns the memories
    * that were valid at the given instant via the null-safe predicate
    * `(t_valid IS NULL OR t_valid <= asOf) AND (t_invalid IS NULL OR t_invalid > asOf)`.

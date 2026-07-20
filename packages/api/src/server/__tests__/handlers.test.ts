@@ -179,6 +179,27 @@ describe('T1.2 — POST /v1/recall', () => {
     expect(body.results).toHaveLength(1);
   });
 
+  test('T2.1 — response envelope includes a UUID recallId passed through to recall()', async () => {
+    const scoped = stubScopedMemory();
+    const memory = stubMemory(scoped);
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'alice', query: 'q' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: unknown[]; recallId?: string };
+    expect(body.recallId).toMatch(/^[0-9a-f-]{36}$/);
+    // the same id the handler returns is the one it drove the trace with (S2 D2)
+    expect(scoped.recall).toHaveBeenCalledWith(
+      'q',
+      expect.objectContaining({ recallId: body.recallId }),
+    );
+  });
+
   test('3. empty results return 200 with { results: [] }, NOT 404 (EC-11)', async () => {
     const memory = stubMemory(stubScopedMemory());
     const app = createServer({ memory });
@@ -190,8 +211,22 @@ describe('T1.2 — POST /v1/recall', () => {
       }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { results: MemoryItemWithScore[] };
+    const body = (await res.json()) as { results: MemoryItemWithScore[]; recallId?: string };
     expect(body.results).toEqual([]);
+    // S2 D2 — the recallId is returned even on the empty-results path (/review F-xval-4).
+    expect(body.recallId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  test('T4.1 — a recall-trace store error surfaces as 500, NOT a masked 404', async () => {
+    const store = {
+      record: async () => {},
+      getByRecallId: async () => {
+        throw new Error('db down');
+      },
+    };
+    const app = createServer({ memory: stubMemory(stubScopedMemory()), recallTraceStore: store });
+    const res = await app.fetch(new Request('http://localhost/v1/recall-traces/some-id'));
+    expect(res.status).toBe(500);
   });
 
   // rest-graph-aware-recall T1.2 — graphExpand opt-in mapping.

@@ -4,6 +4,7 @@
  * Extracted from index.ts (T1.2 of architecture-review-fixes plan).
  */
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
+import type { RecallTraceStore } from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import type { VectorStore } from '../../domain/dip/vector-store.js';
 import {
@@ -69,6 +70,8 @@ export class LocalMemory implements Memory {
      * set via {@link withWorkspace} on the REST/server path from the Principal.
      */
     private readonly workspaceId: string | undefined = undefined,
+    /** explainable-recall (S1) — undefined when tracing disabled (default OFF). */
+    private readonly recallTraceStore: RecallTraceStore | undefined = undefined,
   ) {}
 
   /**
@@ -79,7 +82,13 @@ export class LocalMemory implements Memory {
    * the request body.
    */
   withWorkspace(workspaceId: string): Memory {
-    return new LocalMemory(this.config, this.reflectionPolicy, this.recallCacheStore, workspaceId);
+    return new LocalMemory(
+      this.config,
+      this.reflectionPolicy,
+      this.recallCacheStore,
+      workspaceId,
+      this.recallTraceStore,
+    );
   }
 
   user(userId: string): ScopedMemory {
@@ -91,6 +100,7 @@ export class LocalMemory implements Memory {
       this.reflectionPolicy,
       this.pendingReflections,
       this.recallCacheStore,
+      this.recallTraceStore,
     );
   }
 
@@ -103,6 +113,7 @@ export class LocalMemory implements Memory {
       this.reflectionPolicy,
       this.pendingReflections,
       this.recallCacheStore,
+      this.recallTraceStore,
     );
   }
 
@@ -115,6 +126,7 @@ export class LocalMemory implements Memory {
       this.reflectionPolicy,
       this.pendingReflections,
       this.recallCacheStore,
+      this.recallTraceStore,
     );
   }
 
