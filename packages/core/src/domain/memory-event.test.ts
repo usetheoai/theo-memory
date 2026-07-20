@@ -8,13 +8,18 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 39 values (37 prior + category_auto_assigned T1.1 + category_auto_dropped F-M1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(39);
+  test('has 41 values (39 prior + recall_trace_write_failed + recall_trace_truncated, explainable-recall T3.1)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(41);
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {
     expect(MEMORY_EVENTS).toContain('category_auto_assigned');
     expect(MEMORY_EVENTS).toContain('category_auto_dropped');
+  });
+
+  test('includes the recall-trace IGNORE/failure events (explainable-recall T3.1, Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('recall_trace_write_failed');
+    expect(MEMORY_EVENTS).toContain('recall_trace_truncated');
   });
 
   test('includes entity_noise_filtered (EG-2, Princípio 3)', () => {
