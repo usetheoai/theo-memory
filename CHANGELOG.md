@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **M4 accountable-forgetting governance — `RecallTraceRetentionPolicy` retention sweep (T1.1).** Age-based, race-safe (`withSerializableTransactionAndRetry`) `DELETE` that bounds the `recall_traces` audit log; `PgRecallTraceRetention.sweep(olderThanSeconds)` via `@usetheo/memory/recall-trace-pg` (recall-trace-retention-and-mcp).
 - Roadmap amended: added M4 Accountable-forgetting governance + surfaces (retention · MCP · dashboard) (`/roadmap-feature accountable-forgetting-governance`)
 
 ### Changed
