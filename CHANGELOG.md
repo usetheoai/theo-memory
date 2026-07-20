@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Standalone compose files were flat-indented / unparseable — fixed (M5 blocker).** `docker-compose.yaml` + `docker-compose.prod.yaml` had every service property at the service-NAME indentation level (1-space flat), so a strict `docker compose config` rejected them (`services.restart must be a mapping`) — the M5 dev-deploy merge (`-f docker-compose.yaml -f docker-compose.deploy.yml`) failed on the host. Re-indented both to valid YAML (same content — container names + named volumes preserved, so a running pgvector is not recreated). Also corrected the stale `ghcr.io/usetheo` → `ghcr.io/usetheodev` coordinate in the prod-compose comment.
 - **`publish` CI red fixed — registered the `@usetheo/memory/recall-trace-pg` subpath in `scripts/rewrite-dist-aliases.mjs`.** The recall-trace work (S2/M4) added the subpath export imported by the dist server + MCP entrypoints, but the fail-loud postbuild alias-rewrite map was not updated, so `pnpm build` aborted (`UNRESOLVED specifier @usetheo/memory/recall-trace-pg`) → the docker image build failed → no image shipped (all recent `publish` runs red). Adds the one alias entry; `pnpm build` green (145 specifiers rewritten). (M5 CD pipeline — task 1.)
 
 ### Security
