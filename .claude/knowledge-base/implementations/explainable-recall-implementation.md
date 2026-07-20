@@ -55,3 +55,33 @@ Key cross-cutting invariants (from plan ADRs, enforced every task):
 ## Final Phase: Integration Validation
 
 THE GOAL TEST (`tests/integration/recall-trace/recall-trace-store.test.ts`) vs real `themem_pgvector`: recall dropping ≥1 candidate → rows by `recall_id` with breakdown; 0 drops → 0 rows; tracing OFF → nothing written; fail-soft path exercised.
+
+---
+
+# FINAL STATUS (2026-07-20) — S1 IMPLEMENTATION COMPLETE
+
+All 5 tasks committed on `develop` + concurrency obligations + CHANGELOG/audit trail:
+
+| Task | Commit | Wiring a/b/c |
+|---|---|---|
+| T0.1 DIP contract | `70c06b5` | pass/defer/n-a |
+| T1.1 table+migration 0023 | `3b40aed` (+`9698274`) | pass/defer/n-a |
+| T2.1 PgRecallTraceStore + subpath | `83d48a6` (+`9a5a0dd`) | pass/pass/n-a |
+| T3.1 pipeline write (4 reasons, fail-soft) | `b0ae75e` (+`07f5239`) | defer/pass/n-a |
+| T4.1 factory opt-in + recall_id + tenant threading | `9b8e86a` | pass/defer/n-a |
+| concurrency (recall_id uniqueness + atomic record) | `a3de09d` | — |
+| CHANGELOG + audit trail | `bd17b59` | — |
+
+**THE GOAL TEST (metric) PROVEN 5/5** vs real pgvector: recall dropping ≥1 → rows by recall_id (semantic_gate→composite null EC-6); 0 drops → 0; OFF → nothing; +EC-1/EC-3 fail-fast.
+**S1 domain: 35 unit (0 type errors) + 12 integration — all green.**
+
+Invariants held: D1 (bare-array unchanged on/off), D3 (fail-soft never breaks recall), EC-2 (tenant keys in scoped-memory, store survives withWorkspace), EC-3 (table probe fail-fast), trace-consistency prune vs kept set.
+
+## Validation gate: 4 reds — ALL PROVEN PRE-EXISTING (evidenced at commit c624ce5, before any S1 work)
+
+1. `npm test` — schema.ts:155 unclosed-JSDoc bug (swallows `category` col) cascades to ~8 barrel-importing files; schema.test.ts FAILS at c624ce5 too (7 fails). S1 domain itself is green.
+2. `npm run typecheck` — 3 errors, all schema.ts category/attributedTo; ZERO new from S1.
+3. `npm run lint` — no S1 file in the errors; pre-existing repo debt.
+4. `acceptance_criteria` file-size — errors.ts (535) + schema.ts (684) already >500 at c624ce5; S1's minimal necessary additions → 554/726. CHANGELOG (778) is not a source file.
+
+**HALT (contract-correct, Rule 3): NOT emitting IMPLEMENTATION_COMPLETE** — the gate exits 1 on PRE-EXISTING repo defects S1 cannot fix without scope-creep. S1 itself is complete + self-verified green. The 1-2 char schema.ts:155 fix greens the whole gate + unblocks db:generate but is out-of-scope (unrelated shared file) — surfaced for a separate hardening slice / human decision.
