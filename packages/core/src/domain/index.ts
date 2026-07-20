@@ -381,6 +381,29 @@ export {
 } from './dip/recall-cache-store.js';
 
 /**
+ * explainable-recall (S1) — the 14th DIP: the "accountable forgetting" recall
+ * trace store contract + row/batch/drop-reason shapes.
+ *
+ */
+export type {
+  DropReason,
+  RecallTraceBatch,
+  RecallTraceRow,
+  RecallTraceStore,
+  RecallTraceStoreConfig,
+} from './dip/recall-trace-store.js';
+
+/**
+ * explainable-recall (S1) — recall-trace config validation + row-cap bounds.
+ *
+ */
+export {
+  validateRecallTraceStoreConfig,
+  DEFAULT_MAX_ROWS_PER_RECALL,
+  MAX_ROWS_PER_RECALL,
+} from './dip/recall-trace-store.js';
+
+/**
  * `InvalidCacheConfig` — typed error from v1.5 cache config validation.
  *
  */

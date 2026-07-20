@@ -109,6 +109,10 @@
       "types": "./dist/infrastructure/db/recall-cache/index.d.ts",
       "default": "./dist/infrastructure/db/recall-cache/index.js"
     },
+    "./recall-trace-pg": {
+      "types": "./dist/infrastructure/db/recall-trace/index.d.ts",
+      "default": "./dist/infrastructure/db/recall-trace/index.js"
+    },
     "./reranker-local": {
       "types": "./dist/infrastructure/rerankers/index.d.ts",
       "default": "./dist/infrastructure/rerankers/index.js"
