@@ -1,0 +1,188 @@
+/**
+ * REST composition — route stage (M6 T1.1 SRP extraction).
+ *
+ * Mounts every route in the exact pre-refactor order (load-bearing per
+ * EC-19/EC-7 + ADR D3): auth-exempt health/version/well-known → admin
+ * `requireScope` → `bearerAuth` → members (`requireRole`) → data/verb/skill
+ * routes (`requireScopeOnPrincipal`). The bearer middleware stays in the middle
+ * so the admin sub-app resolves theo_live_* keys via its own SHA-256 lookup
+ * before the generic env-secret bearer fires. Behavior is byte-for-byte the
+ * old `createApp` body; this module only relocates it.
+ *
+ * @see Plan claude-code-memory-integration-plan § M6 T1.1
+ */
+import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { Memory } from '@usetheo/memory/contract';
+import type { Context } from 'hono';
+
+import type { AdminApiOptions, CreateServerOptions } from '../app.js';
+import { bearerAuth, requireRole, requireScopeOnPrincipal } from '../auth/middleware.js';
+import { requireScope } from '../auth/scope-verifier.js';
+import {
+  createKeyHandler,
+  lineageKeyHandler,
+  listKeysHandler,
+  revokeKeyHandler,
+  rotateKeyHandler,
+} from '../handlers/admin-keys.js';
+import { entitiesHandler } from '../handlers/entities.js';
+import { episodesHandler } from '../handlers/episodes.js';
+import { forgetHandler } from '../handlers/forget.js';
+import { graphHandler } from '../handlers/graph.js';
+import { healthDbHandler, healthHandler } from '../handlers/health.js';
+import {
+  addMemberHandler,
+  listMembersHandler,
+  removeMemberHandler,
+  setMemberRoleHandler,
+} from '../handlers/members.js';
+import { metricsHandler } from '../handlers/metrics.js';
+import { recallTracesHandler } from '../handlers/recall-traces.js';
+import { recallHandler } from '../handlers/recall.js';
+import { reflectHandler } from '../handlers/reflect.js';
+import { rememberHandler } from '../handlers/remember.js';
+import { scopedForgetHandler } from '../handlers/scoped-forget.js';
+import { scopesHandler } from '../handlers/scopes.js';
+import {
+  deleteSkillHandler,
+  executeSkillHandler,
+  postSkillHandler,
+  skillsAllHandler,
+  skillsHandler,
+} from '../handlers/skills.js';
+import { versionHandler } from '../handlers/version.js';
+import { wellKnownOauthProtectedResourceHandler } from '../handlers/well-known.js';
+import { createPostgresMembersRepository } from '../store/members-store-pg.js';
+import type { MembersRepository } from '../store/members-store.js';
+
+/** ADR-0014 D6 — single-tenant OSS variant; subject is the constant `'self'`. */
+const ADMIN_SUBJECT = 'self';
+
+// Health + version + RFC 9728 discovery are auth-exempt: orchestrator probes
+// and MCP clients hit them BEFORE having credentials, so they mount ahead of
+// the bearer middleware (same load-bearing ordering as /v1/openapi.json per
+// EC-19). `/v1/healthz` + `/v1/healthz/ready` are M6 T1.1 aliases of the
+// existing health pair; `/v1/version` reports build provenance.
+function registerAuthExemptRoutes(app: OpenAPIHono, options: CreateServerOptions): void {
+  const { dbProbe, readinessProbe, oidcDiscovery } = options;
+  app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
+  app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+  app.get('/v1/healthz', (c) => healthHandler(c, readinessProbe));
+  app.get('/v1/healthz/ready', (c) => healthDbHandler(c, dbProbe));
+  app.get('/v1/version', versionHandler);
+  app.get(
+    '/.well-known/oauth-protected-resource',
+    wellKnownOauthProtectedResourceHandler(oidcDiscovery),
+  );
+}
+
+// viaBootstrapToken detection mirrors the integration test's `buildAdminApp`
+// pattern: when the Bearer equals the bootstrap token, createKeyHandler runs the
+// atomic-tx path (EC-3). ADR D4: consult the MembersRepository DIP for the
+// target's role rather than an inline SQL duplicate.
+function makeCreateKeyRoute(
+  adminApi: AdminApiOptions,
+  adminBootstrap: string | undefined,
+  membersRepo: MembersRepository | undefined,
+): (c: Context) => Promise<Response> {
+  return (c) => {
+    const header = c.req.header('authorization') ?? c.req.header('Authorization') ?? '';
+    const token = header.replace(/^Bearer\s+/i, '');
+    const viaBootstrap =
+      adminBootstrap !== undefined && adminBootstrap.length > 0 && token === adminBootstrap;
+    return createKeyHandler(c, adminApi.pool, ADMIN_SUBJECT, {
+      viaBootstrapToken: viaBootstrap,
+      ...(membersRepo !== undefined
+        ? { getMemberRole: (ws: string, uid: string) => membersRepo.getMemberRole(ws, uid) }
+        : {}),
+    });
+  };
+}
+
+// T1.1 + ADR D1 + EC-7 — admin sub-app MUST mount BEFORE the generic bearer.
+// requireScope owns its own Bearer extraction + theo_api_keys SHA-256 lookup,
+// bypassing the env-secret comparison the generic bearer would apply.
+function registerAdminRoutes(
+  app: OpenAPIHono,
+  adminApi: AdminApiOptions,
+  membersRepo: MembersRepository | undefined,
+): void {
+  const adminBootstrap = adminApi.bootstrapToken;
+  app.use('/v1/admin/*', requireScope({
+    pool: adminApi.pool,
+    requiredScope: 'memory:admin',
+    ...(adminBootstrap !== undefined ? { bootstrapToken: adminBootstrap } : {}),
+  }));
+  app.post('/v1/admin/keys', makeCreateKeyRoute(adminApi, adminBootstrap, membersRepo));
+  app.get('/v1/admin/keys/list', (c) => listKeysHandler(c, adminApi.pool, ADMIN_SUBJECT));
+  app.delete('/v1/admin/keys/:id', (c) => revokeKeyHandler(c, adminApi.pool, ADMIN_SUBJECT));
+  app.post('/v1/admin/keys/:id/rotate', (c) => rotateKeyHandler(c, adminApi.pool, ADMIN_SUBJECT));
+  app.get('/v1/admin/keys/:id/lineage', (c) => lineageKeyHandler(c, adminApi.pool, ADMIN_SUBJECT));
+}
+
+// RBAC T2.1 — `/v1/members/*` membership management, gated by requireRole.
+// Mounted AFTER bearerAuth so the Principal (with role) is injected; handlers
+// derive the workspace from the Principal, never the body.
+function registerMemberRoutes(app: OpenAPIHono, membersRepo: MembersRepository): void {
+  app.get('/v1/members', requireRole('admin'), (c) => listMembersHandler(c, membersRepo));
+  app.post('/v1/members', requireRole('admin'), (c) => addMemberHandler(c, membersRepo));
+  app.patch('/v1/members/:userId', requireRole('admin'), (c) => setMemberRoleHandler(c, membersRepo));
+  app.delete('/v1/members/:userId', requireRole('admin'), (c) => removeMemberHandler(c, membersRepo));
+}
+
+// #77 — subject-scoped data routes: GET reads require memory:read, DELETE
+// memory:delete. recall-traces is opt-in (mounted only when the store is wired).
+function registerScopeRoutes(app: OpenAPIHono, options: CreateServerOptions): void {
+  const { memory, usageCounterStore, memoryEntityStore, memoryGraphStore, recallTraceStore } = options;
+  app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
+  app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/metrics', requireScopeOnPrincipal('memory:read'), (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
+  app.get('/v1/scopes/:type/:id/entities', requireScopeOnPrincipal('memory:read'), (c) => entitiesHandler(c, memory, memoryEntityStore));
+  app.get('/v1/scopes/:type/:id/graph', requireScopeOnPrincipal('memory:read'), (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
+  if (recallTraceStore !== undefined) {
+    app.get('/v1/recall-traces/:recallId', requireScopeOnPrincipal('memory:read'), (c) => recallTracesHandler(c, recallTraceStore));
+  }
+}
+
+// Repo-tier skill routes (browse + cross-repo flat list + create/curate/execute).
+function registerSkillRoutes(app: OpenAPIHono, memory: Memory): void {
+  app.get('/v1/scopes/skill/:repoId/skills', requireScopeOnPrincipal('memory:read'), (c) => skillsHandler(c, memory));
+  app.get('/v1/scopes/skill/:subject/all', requireScopeOnPrincipal('memory:read'), (c) => skillsAllHandler(c, memory));
+  app.post('/v1/scopes/skill/:repoId/skills', requireScopeOnPrincipal('memory:write'), (c) => postSkillHandler(c, memory));
+  app.delete('/v1/scopes/skill/:repoId/skills/:skillId', requireScopeOnPrincipal('memory:delete'), (c) => deleteSkillHandler(c, memory));
+  app.post('/v1/scopes/skill/:repoId/skills/:skillId/execute', requireScopeOnPrincipal('memory:write'), (c) => executeSkillHandler(c, memory));
+}
+
+// #77 — the 4 verbs: each requires its matching scope on the resolved Principal.
+function registerVerbRoutes(app: OpenAPIHono, memory: Memory): void {
+  app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory));
+  app.post('/v1/recall', requireScopeOnPrincipal('memory:read'), (c) => recallHandler(c, memory));
+  app.post('/v1/forget', requireScopeOnPrincipal('memory:delete'), (c) => forgetHandler(c, memory));
+  app.post('/v1/reflect', requireScopeOnPrincipal('memory:write'), (c) => reflectHandler(c, memory));
+}
+
+/**
+ * Mount every route in the load-bearing order. The membership repo is
+ * constructed once and shared by the key-mint anti-escalation lookup and the
+ * `/v1/members` routes. bearerAuth mounts between the admin sub-app and the
+ * member/data routes — do not reorder.
+ */
+export function registerRoutes(app: OpenAPIHono, options: CreateServerOptions): void {
+  const { authVerifier, requireCredential, adminApi } = options;
+  const membersRepo: MembersRepository | undefined =
+    options.membersRepository ??
+    (adminApi !== undefined ? createPostgresMembersRepository(adminApi.pool) : undefined);
+
+  registerAuthExemptRoutes(app, options);
+  if (adminApi !== undefined) {
+    registerAdminRoutes(app, adminApi, membersRepo);
+  }
+  app.use('/v1/*', bearerAuth(authVerifier, { requireCredential: requireCredential === true }));
+  if (membersRepo !== undefined) {
+    registerMemberRoutes(app, membersRepo);
+  }
+  registerScopeRoutes(app, options);
+  registerSkillRoutes(app, options.memory);
+  registerVerbRoutes(app, options.memory);
+}
