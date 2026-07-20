@@ -150,12 +150,12 @@ export const memories = pgTable(
     /** v1.1 T1.1: first-class promoted column for multi-peer attribution per blueprint Q3 + R1.
      *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
      *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
-     *  (any peer ID accepted; not restricted to the upstream bivalent "user"/"assistant" vocabulary).
+     *  (any peer ID accepted; not restricted to the upstream bivalent "user"/"assistant" vocabulary). */
     attributedTo: text('attributed_to'),
     /** themory-category-filter-server-side T2.1: operator-supplied category tag promoted to top-level
      *  column per ADR D2 (mirrors v1.1 attributed_to precedent). NULL on pre-2026-06-09 rows and on
      *  remember() calls without RememberOptions.category. ADR D1 honest no-backfill; ADR D6 immutable
-     *  via UPSERT (first-write wins; mutation = forget + remember).
+     *  via UPSERT (first-write wins; mutation = forget + remember). */
     category: text('category'),
     textLemmatized: jsonb('text_lemmatized').$type<string[]>(),
     /** v0.4a: discriminator for extracted (v0.1 default) vs derived (reflection output) per ADR D6;
@@ -178,7 +178,7 @@ export const memories = pgTable(
     /** v0.6: Language tag of the `code` payload (typescript | javascript). NULL for non-skills. */
     codeLanguage: varchar('code_language', { length: 20 }),
     /** v0.4b: timestamp of last recall() touching this row — drives exponential half-life decay
-     *  and LRU/LFU bookkeeping per plan T2.1 + T3.1. NULL means never recalled since insert.
+     *  and LRU/LFU bookkeeping per plan T2.1 + T3.1. NULL means never recalled since insert. */
     lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
     /** v0.4b: monotonic counter incremented by recall() write-back hook per plan T3.1.
      *  Used by the access-frequency dimension of triadic scoring per plan T2.1. */
