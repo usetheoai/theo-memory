@@ -12,6 +12,7 @@ import { ContentTooLargeError } from '@usetheo/memory/contract';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import type { MemoryEntityStore, MemoryGraphStore } from '@usetheo/memory/contract';
+import type { RecallTraceStore } from '@usetheo/memory/contract';
 import type { UsageCounterStore } from '@usetheo/memory/contract';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
@@ -39,6 +40,7 @@ import {
   setMemberRoleHandler,
 } from './handlers/members.js';
 import { metricsHandler } from './handlers/metrics.js';
+import { recallTracesHandler } from './handlers/recall-traces.js';
 import { recallHandler } from './handlers/recall.js';
 import { reflectHandler } from './handlers/reflect.js';
 import { rememberHandler } from './handlers/remember.js';
@@ -171,10 +173,19 @@ export interface CreateServerOptions {
    * mirroring the `memoryEntityStore` wiring precedent.
    */
   readonly usageCounterStore?: UsageCounterStore;
+  /**
+   * explainable-recall-read S2 (ADR D4) — optional recall-trace READ port. When
+   * supplied, `GET /v1/recall-traces/:recallId` serves the dropped candidates of
+   * a recall (workspace-scoped). When omitted, the route is NOT mounted (opt-in;
+   * existing deployments unaffected). The composition root (`themory server`)
+   * injects the same `PgRecallTraceStore` it wired for the SDK trace write,
+   * mirroring the `memoryEntityStore` wiring precedent.
+   */
+  readonly recallTraceStore?: RecallTraceStore;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {
-  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore, requireCredential } = options;
+  const { memory, authVerifier, dbProbe, tracer, readinessProbe, oidcDiscovery, adminApi, memoryEntityStore, memoryGraphStore, usageCounterStore, recallTraceStore, requireCredential } = options;
 
   // EC-1 absorption — pool runtime guard. TS allows `adminApi: { pool: undefined as any }`
   // via cast escape OR consumer JS may pass `{ adminApi: {} }` without types. Fail synchronously
@@ -265,6 +276,8 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   app.post('/v1/reflect', rateLimitMiddleware('write'));
   app.post('/v1/recall', rateLimitMiddleware('read'));
   app.get('/v1/scopes/*', rateLimitMiddleware('read'));
+  // explainable-recall-read S2 — the trace READ reuses the read bucket (plan Q3).
+  app.get('/v1/recall-traces/*', rateLimitMiddleware('read'));
   // themory-scoped-forget T1.2 — scoped DELETE is a write; method-scoped so it
   // does NOT disturb the GET read-limiter above.
   app.delete('/v1/scopes/*', rateLimitMiddleware('write'));
@@ -367,6 +380,14 @@ export function createApp(options: CreateServerOptions): OpenAPIHono {
   // entity aggregation (real, derived from getAll(); ADR D2 amendment).
   app.get('/v1/scopes/:type/:id/metrics', requireScopeOnPrincipal('memory:read'), (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
   app.get('/v1/scopes/:type/:id/entities', requireScopeOnPrincipal('memory:read'), (c) => entitiesHandler(c, memory, memoryEntityStore));
+  // explainable-recall-read S2 (D4) — opt-in: mounted only when the store is
+  // wired, so existing deployments without tracing are unaffected. memory:read
+  // guard + workspace-scoped read (the handler resolves ws from the Principal).
+  if (recallTraceStore !== undefined) {
+    app.get('/v1/recall-traces/:recallId', requireScopeOnPrincipal('memory:read'), (c) =>
+      recallTracesHandler(c, recallTraceStore),
+    );
+  }
   // entity-relation-extraction-slice2 T3.1 — {nodes,edges} graph (no graph DB).
   app.get('/v1/scopes/:type/:id/graph', requireScopeOnPrincipal('memory:read'), (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
   // dashboard-phase2b-skills-browse T2.1 — read-only Repo-tier skills listing
