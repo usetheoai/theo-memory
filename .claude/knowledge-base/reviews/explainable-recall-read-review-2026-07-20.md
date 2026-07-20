@@ -3,8 +3,8 @@
 **Date:** 2026-07-20
 **Reviewers (spawned agents):** 5 — architecture, tests, security/tenant-isolation, cross-validation, api-contract
 **Diff base:** `4c3cdbb..HEAD` (16 files, +331/-19)
-**Findings:** 15 (BLOCKER: 0, HIGH: 1, MEDIUM: 4, LOW: 7, INFO: many)
-**Verdict:** NEEDS_FIXES → (post-fix) READY_TO_MERGE
+**Findings:** 15 (BLOCKER: 0, HIGH: 1, MEDIUM: 4, LOW: 7, INFO: many) — all HIGH/MEDIUM resolved in fix-cycle bfb0d52
+**Verdict:** READY_TO_MERGE
 
 ## Quality gates (deterministic)
 
