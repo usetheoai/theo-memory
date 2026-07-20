@@ -137,6 +137,54 @@ describe('runRetrievalPipeline recall trace', () => {
     expect(batches[0]?.rows).toHaveLength(1);
   });
 
+  test('test_pipeline_traces_sub_threshold_drops — passes semantic gate but composite < threshold (bm25 active)', async () => {
+    const { store, batches } = stubStore();
+    // Activate the bm25 signal (maxScore = 2) via a keyword hit on `kept`; then
+    // `msub` has semantic 0.6 ≥ threshold 0.5 (passes the semantic gate) but
+    // bm25 0 → combined 0.6/2 = 0.3 < 0.5 → sub_threshold (composite COMPUTED, not null).
+    const vs = {
+      search: async () => [
+        { id: 'kept', score: 0.95, payload: { text: 'kept' } },
+        { id: 'msub', score: 0.6, payload: { text: 'sub' } },
+      ],
+      keywordSearch: async () => [{ id: 'kept', score: 5.0, payload: { text: 'kept' } }],
+    } as unknown as VectorStore;
+    await runRetrievalPipeline(
+      'hello world',
+      FILTERS,
+      { vectorStore: vs, embedder, recallTrace: store, recallTraceContext: ctx() },
+      { threshold: 0.5, topK: 10 },
+    );
+    const row = batches[0]?.rows.find((r) => r.memoryId === 'msub');
+    expect(row?.dropReason).toBe('sub_threshold');
+    expect(row?.composite).toBeCloseTo(0.3, 2); // COMPUTED (distinguishes from semantic_gate's null)
+  });
+
+  test('test_pipeline_traces_mmr_drops — MMR-unselected pool candidates traced as mmr_redundant', async () => {
+    const { store, batches } = stubStore();
+    const all: VectorStoreResult[] = [
+      { id: 'a', score: 0.9, payload: { text: 'a' } },
+      { id: 'b', score: 0.85, payload: { text: 'b' } },
+      { id: 'c', score: 0.8, payload: { text: 'c' } },
+    ];
+    await runRetrievalPipeline(
+      'q',
+      FILTERS,
+      { vectorStore: vectorStoreReturning(all), embedder, recallTrace: store, recallTraceContext: ctx() },
+      { threshold: 0.1, topK: 1, diversify: { lambda: 1, topPool: 3 } },
+    );
+    // topK=1 selects 1 of the 3-candidate pool → the other 2 are mmr_redundant,
+    // breakdown recovered from the candidates Map (composite = the combined score, not null).
+    const mmr = (batches[0]?.rows ?? []).filter((r) => r.dropReason === 'mmr_redundant');
+    expect(mmr).toHaveLength(2);
+    expect(mmr[0]?.composite).not.toBeNull();
+    expect(mmr[0]?.semantic).toBeGreaterThan(0);
+  });
+
+  // NOTE: the 'nan' drop-reason branch is DEFENSIVE — `combineScores` returns 0
+  // (not NaN) when maxScore is 0 and never produces NaN from finite inputs, so
+  // 'nan' is unreachable in practice from a real scoring pass. Kept for safety.
+
   test('test_pipeline_skips_when_context_incomplete — recallTrace without context → no write (EC-5)', async () => {
     const { store, batches } = stubStore();
     const kept = await runRetrievalPipeline(
