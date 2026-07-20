@@ -141,7 +141,7 @@ tests/integration/recall-trace/retention.test.ts (NEW) — RED tests
 - Edge: 0 expired rows → returns 0, no error.
 
 #### Concurrency tests
-Race-aware: `Promise.all` of N concurrent `record()` writes for workspace A WHILE `sweep()` runs → assert (a) no lost-update/orphan (final count deterministic), (b) `40001` retried at most once, (c) rows for a DIFFERENT workspace with fresh `created_at` are NOT deleted. This is the load-bearing invariant (single-thread TDD cannot prove it).
+Race detector-style, happens-before barrier + atomic-counter invariant: `Promise.all` of N concurrent `record()` writes for workspace A WHILE `sweep()` runs; the atomic-counter invariant asserts the final surviving row count == (writes − expired), proving (a) no lost-update/orphan, (b) `40001` retried at most once, (c) rows for a DIFFERENT workspace with fresh `created_at` survive. This is the load-bearing invariant (single-thread TDD cannot prove it).
 
 #### TDD
 ```
@@ -194,7 +194,7 @@ tests/integration/recall-trace/recall-trace-store.test.ts — RED test (opted-ou
 - Fail-closed: if the workspace is disabled, `recallTraceDeps` returns `{}` → the pipeline writes nothing (EC-5 both-required gate already no-ops without context).
 
 #### Concurrency tests
-(none — single-threaded config check)
+(none — single-threaded)
 
 #### TDD
 ```
@@ -241,7 +241,7 @@ tests/integration/recall-trace/retention.test.ts — wiring assertion (trigger f
 - `agent-tools-memory.ts` — extends the `resolveRecallTraceEnabled` path (from S2 fix-cycle) with the retention config.
 
 #### Concurrency tests
-The cron fires the sweep which is race-tested in T1.1; the wiring test asserts the trigger invokes `sweep` (a spy) at least once.
+(none — single-threaded)
 
 #### TDD
 ```
@@ -292,7 +292,7 @@ packages/mcp/src/tools/explain-recall.test.ts (NEW) — RED round-trip
 - Workspace from the MCP scope binding (AsyncLocalStorage, per the existing MCP scope pattern), NEVER from the tool args (CWE-441).
 
 #### Concurrency tests
-(none — single request)
+(none — single-threaded)
 
 #### TDD
 ```
@@ -337,7 +337,7 @@ docs/benchmarks/m4-recall-trace-retention.md (NEW) — the recorded results + me
 - Overhead: 100 recalls each dropping ≥1 candidate, tracing ON vs OFF, report p50/p95 delta; assert the ON overhead is within a stated bound (e.g., < 15% p95).
 
 #### Concurrency tests
-(none — measurement harness; the race correctness is proven in T1.1)
+(none — single-threaded)
 
 #### TDD
 ```
@@ -366,7 +366,7 @@ VERIFY: npm run bench -- recall-trace-retention (or the project bench command)
 | 4 | sweep runs in production | T3.1 | TimeBasedTrigger cron wiring + OTel counter |
 | 5 | agent-reachable read (MCP) | T4.1 | explain_recall triad reusing S2 getByRecallId |
 | 6 | benchmark evidence (sweep + overhead) | T5.1 | recorded ≥3-run benchmark |
-| 7 | integration validation (THE GOAL TEST) | Final | end-to-end vs real pgvector |
+| 7 | integration validation (THE GOAL TEST) | T1.1, T2.1, T4.1, T5.1 (+ Final Phase) | end-to-end vs real pgvector — exercised in the Final Phase |
 
 **Coverage: 7/7 gaps covered (100%)**
 
