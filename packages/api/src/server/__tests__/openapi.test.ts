@@ -80,6 +80,16 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     expect(json).toContain('graphExpand');
   });
 
+  test('explainable-recall-read S2 — spec advertises recallId + the recall-traces read path', async () => {
+    const app = createServer({ memory: stubMemory() });
+    const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    const json = JSON.stringify(await res.json());
+    // The recall response gained recallId (T2.1) and the read endpoint is registered (T4.1).
+    expect(json).toContain('recallId');
+    expect(json).toContain('/v1/recall-traces/{recallId}');
+    expect(json).toContain('getRecallTrace');
+  });
+
   test('4. spec advertises license MIT', async () => {
     const app = createServer({ memory: stubMemory() });
     const res = await app.fetch(new Request('http://localhost/v1/openapi.json'));

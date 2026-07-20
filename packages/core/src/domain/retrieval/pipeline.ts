@@ -24,6 +24,7 @@ import type { Tracer } from '@opentelemetry/api';
 import type { AdaptiveRetrievalPolicy, AdaptiveTuning } from '../dip/adaptive-retrieval-policy.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { GraphExpansionStore } from '../dip/graph-expansion-store.js';
+import type { RecallTraceRow, RecallTraceStore } from '../dip/recall-trace-store.js';
 import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import { RerankerConflict } from '../errors.js';
@@ -59,6 +60,27 @@ export interface RetrievalDeps {
    * connected by shared entities/relations. Absent ⇒ no graph stage (default OFF).
    */
   readonly graphExpansionStore?: GraphExpansionStore;
+  /**
+   * explainable-recall (S1) — optional recall-trace store. When present AND
+   * `recallTraceContext` is also set (both required, EC-5), the pipeline writes
+   * one row per DROPPED candidate (accountable forgetting). The write is a
+   * fail-soft side-effect (D3) that NEVER alters the returned set. Absent ⇒ no
+   * trace (default OFF, byte-unchanged return).
+   */
+  readonly recallTrace?: RecallTraceStore;
+  /**
+   * explainable-recall (S1) — per-recall trace context: the server-minted
+   * `recallId`, the tenant `workspaceId`/`scopeKey` (resolved in
+   * `scoped-memory.ts`, EC-2), and `maxRows` (the resolved `maxRowsPerRecall`,
+   * threaded so the pipeline truncates without reading the 2-method DIP —
+   * Finding A). Required alongside `recallTrace` for the write to fire (EC-5).
+   */
+  readonly recallTraceContext?: {
+    readonly recallId: string;
+    readonly workspaceId: string;
+    readonly scopeKey: string;
+    readonly maxRows: number;
+  };
   readonly tracer?: Tracer;
 }
 
@@ -121,6 +143,17 @@ interface Candidate { semantic: number; bm25: number; entity: number; payload: P
 interface ScoredRow { id: string; payload: Payload; score: number }
 
 /**
+ * explainable-recall (S1) — a dropped candidate captured for the recall trace,
+ * shaped as a `RecallTraceRow` minus the batch-envelope fields (added by the
+ * store). Collected inside `filterAtThreshold` (threshold drops) + the MMR
+ * branch (mmr_redundant).
+ */
+type DroppedCandidate = Omit<
+  RecallTraceRow,
+  'recallId' | 'workspaceId' | 'scopeKey' | 'createdAt'
+>;
+
+/**
  * Step 8 gate (extracted for DRY — used by the initial threshold filter AND the
  * adaptive Step 8.6 relax corrective). Applies the semantic gate + additive
  * combine + final-threshold gate + NaN drop, returning the surviving rows
@@ -131,10 +164,25 @@ function filterAtThreshold(
   candidates: ReadonlyMap<string, Candidate>,
   maxScore: number,
   threshold: number,
+  // explainable-recall (S1) — optional collector: when present, each dropped
+  // candidate is pushed with its component breakdown + drop-reason. Passed ONLY
+  // by the initial filter call (NOT the adaptive relax re-filter) so the trace
+  // reflects the primary threshold pass.
+  drops?: DroppedCandidate[],
 ): ScoredRow[] {
   const out: ScoredRow[] = [];
   for (const [id, c] of candidates.entries()) {
     if (c.semantic < threshold) {
+      // semantic_gate: dropped BEFORE the composite is computed → composite null (EC-6).
+      drops?.push({
+        memoryId: id,
+        semantic: c.semantic,
+        bm25: c.bm25,
+        entity: c.entity,
+        composite: null,
+        threshold,
+        dropReason: 'semantic_gate',
+      });
       continue;
     }
     const combined = combineScores(
@@ -142,11 +190,66 @@ function filterAtThreshold(
       maxScore,
     );
     if (combined < threshold || Number.isNaN(combined)) {
+      const isNan = Number.isNaN(combined);
+      drops?.push({
+        memoryId: id,
+        semantic: c.semantic,
+        bm25: c.bm25,
+        entity: c.entity,
+        composite: isNan ? null : combined,
+        threshold,
+        dropReason: isNan ? 'nan' : 'sub_threshold',
+      });
       continue;
     }
     out.push({ id, payload: c.payload, score: combined });
   }
   return out;
+}
+
+/**
+ * explainable-recall (S1) — fail-soft write of the dropped-candidate trace.
+ * NO-OP unless BOTH `recallTrace` AND `recallTraceContext` are set (EC-5).
+ * Truncates to `context.maxRows` and emits `recall_trace_truncated` when it
+ * clips (EC-4). A store failure emits `recall_trace_write_failed` and is
+ * swallowed — the recall result is NEVER affected (D3).
+ */
+async function writeRecallTrace(
+  deps: RetrievalDeps,
+  drops: DroppedCandidate[],
+  keptIds: ReadonlySet<string>,
+): Promise<void> {
+  const store: RecallTraceStore | undefined = deps.recallTrace;
+  const context = deps.recallTraceContext;
+  if (store === undefined || context === undefined) {
+    return;
+  }
+  // Never report a candidate that ENDED UP in the returned set as "dropped":
+  // the opt-in adaptive-relax (Step 8.6) / graph-expansion (Step 8.7) stages
+  // rebind `scored` and can resurface a primary-pass drop into the final set.
+  // Pruning against the kept ids keeps the trace consistent with what was
+  // returned (Princípio 3 — the trace must be justifiable). SEPA T3.1 MEDIUM.
+  const filtered = keptIds.size === 0 ? drops : drops.filter((d) => !keptIds.has(d.memoryId));
+  const rows = filtered.slice(0, context.maxRows);
+  if (filtered.length > rows.length) {
+    emitEvent(deps.tracer, 'recall_trace_truncated', {
+      dropped_total: drops.length,
+      persisted: rows.length,
+    });
+  }
+  if (rows.length === 0) {
+    return;
+  }
+  try {
+    await store.record({
+      recallId: context.recallId,
+      workspaceId: context.workspaceId,
+      scopeKey: context.scopeKey,
+      rows,
+    });
+  } catch (err) {
+    emitEvent(deps.tracer, 'recall_trace_write_failed', { error: String(err) });
+  }
 }
 
 /**
@@ -382,7 +485,10 @@ export async function runRetrievalPipeline(
   // principles-alignment-hardening T4.1: capture pre-threshold count for the
   // recall_threshold_filtered event (Princípio 3 IGNORE auditability per ADR D2).
   const preThresholdCount = candidates.size;
-  let scored: ScoredRow[] = filterAtThreshold(candidates, maxScore, threshold);
+  // explainable-recall (S1) — collect dropped candidates from the PRIMARY
+  // threshold pass (the adaptive relax re-filter below passes no collector).
+  const recallDrops: DroppedCandidate[] = [];
+  let scored: ScoredRow[] = filterAtThreshold(candidates, maxScore, threshold, recallDrops);
   // principles-alignment-hardening T4.1 — emit recall_threshold_filtered ONLY
   // when filtered_count > 0 (no-op observability discipline; do not flood
   // dashboards with zero-filter events). EC-5 absorption: emitEvent is no-op
@@ -488,7 +594,20 @@ export async function runRetrievalPipeline(
   // the rerank is a no-op (results fall through cosine-sorted). Logic extracted
   // to applyRerankStage for cohesion (review F-arch-2 / plan T2.2 REFACTOR).
   if (options?.rerank !== undefined && deps.reranker !== undefined) {
-    return applyRerankStage(query, scored, deps.reranker, options.rerank, topK, rowToItem, tracer);
+    // Compute the reranked result FIRST, then trace the threshold drops pruned
+    // against what was actually returned (rerank has no MMR-redundant drops of
+    // its own; adaptive relax may have resurfaced a primary drop into `scored`).
+    const reranked = await applyRerankStage(
+      query,
+      scored,
+      deps.reranker,
+      options.rerank,
+      topK,
+      rowToItem,
+      tracer,
+    );
+    await writeRecallTrace(deps, recallDrops, new Set(reranked.map((r) => r.id)));
+    return reranked;
   }
 
   let top: readonly { id: string; payload: Payload; score: number }[];
@@ -508,12 +627,34 @@ export async function runRetrievalPipeline(
       payload: c.payload,
     }));
     const selected = mmrRerank(mmrCandidates, lambda, effectiveTopPool, topK);
+    // explainable-recall (S1) — pool candidates NOT selected by MMR are
+    // mmr_redundant drops; breakdown recovered from the candidates Map by id.
+    const selectedIds = new Set(selected.map((s) => s.id));
+    for (const c of candidatesForMmr) {
+      if (!selectedIds.has(c.id)) {
+        const cand = candidates.get(c.id);
+        if (cand !== undefined) {
+          recallDrops.push({
+            memoryId: c.id,
+            semantic: cand.semantic,
+            bm25: cand.bm25,
+            entity: cand.entity,
+            composite: c.score,
+            threshold,
+            dropReason: 'mmr_redundant',
+          });
+        }
+      }
+    }
     top = selected.map((s) => ({ id: s.id, payload: s.payload, score: s.score }));
   } else {
     // Step 9: sort + format top-K (v1.5 default path)
     top = scored.slice(0, topK);
   }
 
+  // explainable-recall (S1) — fail-soft trace write (threshold + MMR drops),
+  // pruned against the kept set (resurface consistency, SEPA T3.1 MEDIUM).
+  await writeRecallTrace(deps, recallDrops, new Set(top.map((t) => t.id)));
   emitEvent(tracer, 'extraction_completed', { results: top.length });
 
   return top.map(rowToItem);

@@ -1,6 +1,11 @@
 # Reference projects — study material only, never committed.
 # Clones live here for inspiration / design study.
 .claude/knowledge-base/references/**
+# Cycle kit — versioned (skills/rules/hooks/commands/scripts + settings). Only
+# generated/large runtime output underneath is ignored.
+.claude/knowledge-base/tools/**
+.claude/knowledge-base/discoveries/snapshots/**
+.claude/agents/**
 
 # Node.js
 node_modules/

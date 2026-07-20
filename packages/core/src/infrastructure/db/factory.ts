@@ -9,11 +9,17 @@ import {
   type RecallCacheStore,
   validateRecallCacheStoreConfig,
 } from '../../domain/dip/recall-cache-store.js';
+import {
+  type RecallTraceStore,
+  type RecallTraceStoreConfig,
+  validateRecallTraceStoreConfig,
+} from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import {
   EmbeddingMismatch,
   InvalidCacheConfig,
   InvalidEmbeddingDim,
+  InvalidRecallTraceConfig,
 } from '../../domain/errors.js';
 import { resolveOntology } from '../../domain/ontology.js';
 import type { Scope } from '../../domain/scope.js';
@@ -102,6 +108,61 @@ export async function resolveRecallCacheStore(
   return new PgvectorRecallCacheStore(pool, optIn, {
     embedderKind: config.embedder.constructor.name,
   });
+}
+
+/** Duck-type guard: is `v` an already-constructed RecallTraceStore (vs a POJO config)? */
+function isRecallTraceStoreInstance(
+  v: RecallTraceStoreConfig | RecallTraceStore,
+): v is RecallTraceStore {
+  return (
+    typeof (v as RecallTraceStore).record === 'function' &&
+    typeof (v as RecallTraceStore).getByRecallId === 'function'
+  );
+}
+
+/**
+ * explainable-recall (S1) — opt-in resolver for the recall-trace store.
+ * Mirrors {@link resolveRecallCacheStore}: returns `undefined` when not opted in
+ * (default OFF); a `RecallTraceStore` instance is used as-is; a POJO config is
+ * validated FIRST (SEPA T2.1 — the constructor does not self-validate, so a bad
+ * `maxRowsPerRecall` must fail HERE, not silently at first recall), then backed
+ * by the default `PgRecallTraceStore`.
+ *
+ * EC-3: probes that the `recall_traces` table EXISTS and fails-fast with a clear
+ * error — enabling tracing without the migration would (fail-soft, D3) silently
+ * write nothing forever.
+ */
+export async function resolveRecallTraceStore(
+  config: LocalMemoryConfig,
+): Promise<RecallTraceStore | undefined> {
+  const optIn = config.recallTrace;
+  if (optIn === undefined) return undefined;
+  if (isRecallTraceStoreInstance(optIn)) {
+    return optIn;
+  }
+  validateRecallTraceStoreConfig(optIn); // EC-1 — fail-fast before any DB call.
+  if (!(config.vectorStore instanceof PgvectorStoreClass)) {
+    throw new InvalidRecallTraceConfig(
+      `recallTrace config requires a PgvectorStore vector store (got ` +
+        `${config.vectorStore.constructor.name}); supply a custom RecallTraceStore ` +
+        `instance for a non-Postgres backend.`,
+    );
+  }
+  const pool = config.vectorStore.poolForEviction;
+  // EC-3 — the recall_traces table MUST exist (migration 0023) or tracing would
+  // fail-soft-silently forever. Fail-fast at construction instead.
+  const probe = await pool.query<{ reg: string | null }>(
+    `SELECT to_regclass('recall_traces') AS reg`,
+  );
+  if (probe.rows[0]?.reg == null) {
+    throw new InvalidRecallTraceConfig(
+      'recall_traces table not found — run runMigrations(pool) (migration 0023) ' +
+        'BEFORE createLocalMemory({ recallTrace }). Enabling tracing without the ' +
+        'table would silently write nothing.',
+    );
+  }
+  const { PgRecallTraceStore } = await import('./recall-trace/pg-recall-trace-store.js');
+  return new PgRecallTraceStore(pool, optIn);
 }
 
 // ── Embedding helpers ───────────────────────────────────────────────────
@@ -210,6 +271,9 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   // paths get the cache (the two features are orthogonal — eviction touches
   // memories; cache touches recall_cache).
   const recallCacheStore = await resolveRecallCacheStore(config, effectiveDim);
+  // explainable-recall (S1) — opt-in recall-trace store (orthogonal to cache +
+  // eviction; validates config + probes the recall_traces table fail-fast).
+  const recallTraceStore = await resolveRecallTraceStore(config);
 
   // semantic-recall-cache-v1-5 T2.3 / F-rev-9 absorption (cycle-1 T2.2 precedent
   // at src/agent-tools/run-server.ts:110-118): when cache is enabled AND the
@@ -223,7 +287,13 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
   }
 
   if (config.eviction === undefined) {
-    const memory = new LocalMemory(baseConfig, resolvedReflectionPolicy, recallCacheStore);
+    const memory = new LocalMemory(
+      baseConfig,
+      resolvedReflectionPolicy,
+      recallCacheStore,
+      undefined,
+      recallTraceStore,
+    );
     return Object.assign(memory, { dispose: (): Promise<void> => Promise.resolve() });
   }
 
@@ -272,7 +342,13 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
       ? { ...baseConfig, postRememberHook }
       : baseConfig;
 
-  const memory = new LocalMemory(augmentedConfig, resolvedReflectionPolicy, recallCacheStore);
+  const memory = new LocalMemory(
+    augmentedConfig,
+    resolvedReflectionPolicy,
+    recallCacheStore,
+    undefined,
+    recallTraceStore,
+  );
   const dispose = (): Promise<void> => {
     if (stopCron !== undefined) {
       stopCron();

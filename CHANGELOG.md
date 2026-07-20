@@ -5,16 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.35.0] - 2026-07-20
+
+### Added
+- **Accountable-forgetting READ surface — `recall_id` + workspace-scoped `GET /v1/recall-traces/:recallId` (S2).** `POST /v1/recall` now returns the server-minted `recall_id` in its envelope (`{ results, recallId }`), and a new opt-in REST route `GET /v1/recall-traces/:recallId` returns the candidates that recall DROPPED with their full breakdown (semantic/bm25/entity/composite/threshold/drop-reason) — so an operator can finally answer "why was memory X not recalled?". `RecallOptions` gains an optional `recallId` input (the SDK `recall()` bare-array return is unchanged); the read is guarded by `memory:read` and workspace-scoped at the store boundary (a `recall_id` from another workspace — or an unknown one — returns 404, no cross-tenant read / CWE-441). Wired via the opt-in `createServer({ recallTraceStore })`; omit it and the route is not mounted (existing deployments unaffected). THE GOAL TEST proves it end-to-end over the REST edge against real pgvector (explainable-recall-read).
+- **`RecallTraceStore` DIP + `@usetheo/memory/recall-trace-pg` — "accountable forgetting" recall-trace surface (S1).** Opt-in via `createLocalMemory({ recallTrace: {} })`: when enabled, every recall persists one `recall_traces` row per DROPPED candidate (semantic/bm25/entity score breakdown + threshold + drop-reason ∈ semantic_gate/sub_threshold/nan/mmr_redundant, keyed by a server-minted `recall_id`) so the negative-space of recall — what was dropped and why — becomes queryable per tenant. Ships the 14th DIP (`record` / `getByRecallId`, ADR-0008 2-method cap), the `recall_traces` table (migration 0023), the bundle-isolated `PgRecallTraceStore` default impl, the retrieval-pipeline trace write (fail-soft — a trace-store error NEVER breaks recall; the returned result set is byte-identical whether tracing is on or off), and the factory opt-in (config validated fail-fast; the `recall_traces` table is probed at construction so tracing never silently no-ops). Default OFF. THE GOAL TEST proves it end-to-end against real pgvector: a recall dropping ≥1 candidate writes rows retrievable by `recall_id`; 0 drops → 0 rows; OFF → nothing (explainable-recall).
 - **`/dogfood` COVERAGE gate — mechanical 100%-of-system enforcement.** New `check_journey_catalog_coverage.py` + `surface-map.txt` registry: the gate auto-derives the shipped surface (every `packages/core` public subpath export + every production `/v1` REST route) and fails when any lacks a mapped journey; MCP tools / CLI verbs / dashboard UI tabs are declared in `surface-map.txt` (cross-checked). Closes the gap where the journey audit proved the *catalogued* journeys green while a newly shipped subpath/route slipped through untested. Wired into `/dogfood` `run` + `audit` (SKILL.md) (dogfood-100pct-surface-coverage).
 - **10 new dogfood journeys closing every uncovered surface**: J-SDK-13 theokit binding, J-SDK-14 embedder registry, J-SDK-15 reranker-local, J-SDK-16 adaptive-local, J-SDK-17 categories/auto-categorization, J-SDK-18 skill-execution sandbox (isolated-vm), J-API-8 skills REST CRUD, J-API-9 skill-execute REST, J-MCP-5 `add_skill` tool, J-UI-10 Webhooks tab (split from the bundled J-UI-9). Catalog 32 → 42 journeys; coverage gate green (dogfood-100pct-surface-coverage).
 
+
 ### Changed
+- **BREAKING (pre-release, 14th DIP): `RecallTraceStore.getByRecallId` gains a required `workspaceId` param.** `getByRecallId(recallId, workspaceId)` — the read is now workspace-scoped at the store boundary (`AND workspace_id = $2`) so a `recall_id` minted under another workspace returns no rows (tenant isolation / CWE-441). Still 2 methods (ADR-0008 preserved). Acceptable while the recall-trace surface is unreleased `[Unreleased]` (explainable-recall-read).
 - **`scripts/` pruned to the minimum** — kept only the 5 referenced by build/db npm scripts + tests (`rewrite-dist-aliases`, `apply-trigger-migrations`, 2 `db-repair`, `dogfood/claude-code-bridge`). Removed 6 orphaned one-off helpers (`run-bridge*`, `generate-distillation-fixtures`, `audit/public-export-matrix`, `fix-imports-after-move`, `t3.5-mappings`).
 - **`docs/` reorganized to 3 files** — `ARCHITECTURE.md`, `RUNBOOK.md` (merged rollback runbooks), `EVALUATION.md` (merged eval matrices). Evaluation *code* (imported by tests + `npm run eval:*`) moved to `tests/eval/{distillation,forgetting}/` — docs holds docs, not runnable code.
 - Correct two stale entries in the dogfood UI driver, found while driving the dashboard live: the dashboard is reached via traefik at `http://localhost:8090` (`:5173` is not published), and the seed login `dev@theo.local`/`DevPassw0rd!2026` is stale/absent in the seeded Kratos (dogfood-100pct-surface-coverage).
 - **v1.0 gate status corrected (honesty).** The `/dogfood` evidence gate is now `EVIDENCE_SUFFICIENT` (re-audited 2026-07-12: anchor scenario `running`, 49 evidence files, ADR-0019 journey suite 0 reds) — the stale `EVIDENCE_INSUFFICIENT` (2026-05-31) references in `CLAUDE.md` + README Status were corrected. The project remains **Pre-release**: the sole remaining `production-ready`/v1.0 blocker is now the independent v0.8 benchmark reproduction (`benchmarks/reproductions/` still empty).
 
-### Deprecated
 
 ### Removed
 - **Benchmark feature removed entirely** (v0.8 independent benchmark reproduction): `benchmarks/`, `docs/benchmarks/`, `packages/core/src/domain/benchmarks/**`, the `BenchmarkAdapter` DIP (`dip/benchmark-adapter.ts`) + its `index.ts` type exports, `vitest.benchmark.config.ts`, the `test:benchmark`/`download-fixtures` npm scripts, and all benchmark tests/fixtures. `tsc --noEmit` green; no remaining references.
@@ -22,9 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Public `## Comparison` section (competitor matrix + footnotes/source links) from README; the `` code-comment tag and the external competitor-repo hyperlinks in README + the v0.2 status presentation. Product docs unchanged otherwise; the OpenMemory-compat feature (a shipped interop surface) is retained.
 - Internal prior-art `@see`/reference comment lines from 14 shipped `packages/core` source files (dedup, scoring/lemmatization, retrieval/extraction pipelines, embedders, DIP interfaces, schema). These pointed at internal `knowledge-base/` coordinates that do not exist for an npm consumer; behavior unchanged (comment-only removal, `tsc --noEmit` green).
 
-### Fixed
 
-### Security
+### Fixed
+- **Restored four `memories` columns silently dropped by unclosed JSDoc comments in the schema.** Three block comments in `schema.ts` were missing their closing `*/`, so the column definitions right after each (`attributedTo`, `category`, `textLemmatized`, `lastAccessedAt`) were parsed as comment text and never registered on the drizzle model — leaving `table.category` `undefined`, which crashed drizzle `getTableConfig` at the category index and cascaded a compile/runtime failure to every module importing the db barrel (schema tests, eviction, CLI, MCP, server) and broke `db:generate` repo-wide. Closing the three comments restores the columns; typecheck goes from 3 errors to 0 and `db:generate` works again. Pre-existing bug (predates the recall-trace work); regression locked by the existing schema column-list assertion (explainable-recall).
 
 ## [0.34.0] - 2026-07-12
 

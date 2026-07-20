@@ -91,7 +91,21 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     responses: {
       200: {
         description: 'Ranked results.',
-        content: { 'application/json': { schema: z.object({ results: z.array(MemoryItemWithScoreSchema) }) } },
+        content: {
+          'application/json': {
+            schema: z.object({
+              results: z.array(MemoryItemWithScoreSchema),
+              // explainable-recall S2 (D2) — server-minted id for GET /v1/recall-traces/:recallId
+              recallId: z
+                .string()
+                .describe(
+                  'Server-minted correlation id. Its dropped-candidate trace is readable at ' +
+                    'GET /v1/recall-traces/{recallId} ONLY when the deployment enabled recall ' +
+                    'tracing (THEOMEM_RECALL_TRACE); otherwise the lookup returns 404.',
+                ),
+            }),
+          },
+        },
       },
       400: { description: 'Malformed JSON body.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
       413: {
@@ -585,6 +599,41 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
       403: { description: 'Caller role below admin.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
       404: { description: 'Member not found (or in another workspace — no existence leak).', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
       409: { description: 'Would leave the workspace without an owner.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+    },
+  });
+
+  // explainable-recall-read S2 (T4.1) — the accountable-forgetting READ surface.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/recall-traces/{recallId}',
+    operationId: 'getRecallTrace',
+    summary:
+      'Read the candidates a recall DROPPED (workspace-scoped). recallId comes from the POST /v1/recall envelope. Populated only when the deployment enabled recall tracing.',
+    request: { params: z.object({ recallId: z.string().min(1) }) },
+    responses: {
+      200: {
+        description: 'The dropped candidates with their score breakdown + drop-reason.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              recallId: z.string(),
+              drops: z.array(
+                z.object({
+                  memoryId: z.string(),
+                  semantic: z.number(),
+                  bm25: z.number(),
+                  entity: z.number(),
+                  composite: z.number().nullable(),
+                  threshold: z.number(),
+                  dropReason: z.string(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      403: { description: 'Missing memory:read scope.', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
+      404: { description: 'Unknown recall_id, or one in another workspace (no cross-tenant leak).', content: { 'application/json': { schema: ErrorEnvelopeSchema } } },
     },
   });
 }
