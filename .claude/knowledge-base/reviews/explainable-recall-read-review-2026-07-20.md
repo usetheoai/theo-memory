@@ -78,3 +78,22 @@ NEEDS_FIXES. The fixes are small and clear; applied in a fix-cycle (below) → r
 
 ## Spawned agents (audit trail)
 - architecture (a9f8239), tests (a93e7da), security (a5717383), cross-validation (a4c85ac), api-contract (a4b7cb7) — findings consolidated above.
+
+## Fix-cycle resolution (commit bfb0d52) — VERDICT: READY_TO_MERGE
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| F-arch-1 | HIGH | FIXED — `THEOMEM_RECALL_TRACE` env-gates BOTH the write (wireMemoryFromPool) + the read port (run-server createServer); endpoint now live in production when opted in. |
+| F-arch-2 / F-api-1 | MEDIUM | FIXED — handler projects rows to the 7-field wire DTO; `workspaceId`/`scopeKey`/`createdAt` no longer leak. |
+| F-test-1 | MEDIUM | FIXED — D1 return-unchanged assertion added. |
+| F-test-2 | MEDIUM | FIXED — empty-string recallId → minted UUID test. |
+| F-test-3 | MEDIUM | FIXED — store-error → 500 (not masked 404) test. |
+| F-xval-4 | LOW | FIXED — empty-results asserts recallId. |
+| F-xval-3 / F-test-5 | LOW | FIXED — OpenAPI spec asserts recallId + the recall-traces path. |
+| F-xval-5 | LOW | FIXED — CHANGELOG `### Changed` entry for the getByRecallId break. |
+| F-api-3 | LOW | FIXED — recallId `.describe()` carries the tracing-off caveat. |
+| F-api-2 | LOW | ACCEPTED — OpenAPI registers the route unconditionally while it is opt-in; a repo-wide `app.notFound` envelope is out of S2 scope (tracked as a general-hardening follow-up). |
+| F-arch-3 | LOW | ACCEPTED (doc note) — conditional-mount is a deliberate variant of the memoryEntityStore precedent. |
+| F-test-4 | LOW | ACCEPTED — tracing-off honest-empty + cache-hit interactions documented in followups; not required for merge. |
+
+Post-fix gates: api 271/271, cli run-server 9/9, integration recall-trace 20/20, contract typecheck 0, lint 0 on changed files. **Verdict: READY_TO_MERGE** — no BLOCKER, the 1 HIGH and 4 MEDIUM resolved, security dimension airtight.
