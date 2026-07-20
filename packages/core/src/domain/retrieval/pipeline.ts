@@ -214,14 +214,24 @@ function filterAtThreshold(
  * clips (EC-4). A store failure emits `recall_trace_write_failed` and is
  * swallowed — the recall result is NEVER affected (D3).
  */
-async function writeRecallTrace(deps: RetrievalDeps, drops: DroppedCandidate[]): Promise<void> {
+async function writeRecallTrace(
+  deps: RetrievalDeps,
+  drops: DroppedCandidate[],
+  keptIds: ReadonlySet<string>,
+): Promise<void> {
   const store: RecallTraceStore | undefined = deps.recallTrace;
   const context = deps.recallTraceContext;
   if (store === undefined || context === undefined) {
     return;
   }
-  const rows = drops.slice(0, context.maxRows);
-  if (drops.length > rows.length) {
+  // Never report a candidate that ENDED UP in the returned set as "dropped":
+  // the opt-in adaptive-relax (Step 8.6) / graph-expansion (Step 8.7) stages
+  // rebind `scored` and can resurface a primary-pass drop into the final set.
+  // Pruning against the kept ids keeps the trace consistent with what was
+  // returned (Princípio 3 — the trace must be justifiable). SEPA T3.1 MEDIUM.
+  const filtered = keptIds.size === 0 ? drops : drops.filter((d) => !keptIds.has(d.memoryId));
+  const rows = filtered.slice(0, context.maxRows);
+  if (filtered.length > rows.length) {
     emitEvent(deps.tracer, 'recall_trace_truncated', {
       dropped_total: drops.length,
       persisted: rows.length,
@@ -584,10 +594,20 @@ export async function runRetrievalPipeline(
   // the rerank is a no-op (results fall through cosine-sorted). Logic extracted
   // to applyRerankStage for cohesion (review F-arch-2 / plan T2.2 REFACTOR).
   if (options?.rerank !== undefined && deps.reranker !== undefined) {
-    // Trace the threshold drops before the rerank early-return (rerank has no
-    // MMR-redundant drops of its own).
-    await writeRecallTrace(deps, recallDrops);
-    return applyRerankStage(query, scored, deps.reranker, options.rerank, topK, rowToItem, tracer);
+    // Compute the reranked result FIRST, then trace the threshold drops pruned
+    // against what was actually returned (rerank has no MMR-redundant drops of
+    // its own; adaptive relax may have resurfaced a primary drop into `scored`).
+    const reranked = await applyRerankStage(
+      query,
+      scored,
+      deps.reranker,
+      options.rerank,
+      topK,
+      rowToItem,
+      tracer,
+    );
+    await writeRecallTrace(deps, recallDrops, new Set(reranked.map((r) => r.id)));
+    return reranked;
   }
 
   let top: readonly { id: string; payload: Payload; score: number }[];
@@ -632,8 +652,9 @@ export async function runRetrievalPipeline(
     top = scored.slice(0, topK);
   }
 
-  // explainable-recall (S1) — fail-soft trace write (threshold + MMR drops).
-  await writeRecallTrace(deps, recallDrops);
+  // explainable-recall (S1) — fail-soft trace write (threshold + MMR drops),
+  // pruned against the kept set (resurface consistency, SEPA T3.1 MEDIUM).
+  await writeRecallTrace(deps, recallDrops, new Set(top.map((t) => t.id)));
   emitEvent(tracer, 'extraction_completed', { results: top.length });
 
   return top.map(rowToItem);
