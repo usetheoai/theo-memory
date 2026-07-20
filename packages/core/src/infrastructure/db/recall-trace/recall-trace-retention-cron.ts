@@ -39,25 +39,32 @@ export async function recallTraceRetentionTick(
 }
 
 /**
- * Start the retention cron. Returns a `{ stop }` handle. Idempotent stop.
+ * Start the retention cron. Returns a `{ stop }` handle whose `stop()` is async:
+ * it halts future ticks AND awaits the in-flight tick (if any) so a caller can
+ * drain a mid-DELETE sweep before closing the pool (FX5 /review M4-R5). Idempotent.
  * A tick failure is logged, never crashes the process (the next tick retries).
  */
 export function startRecallTraceRetentionCron(
   retention: RecallTraceRetentionPolicy,
   options: RecallTraceRetentionCronOptions,
-): { stop: () => void } {
+): { stop: () => Promise<void> } {
   const expr = options.cronExpression ?? DEFAULT_CRON;
+  // Track the in-flight tick so stop() can await it (drain-on-shutdown).
+  let inFlight: Promise<void> = Promise.resolve();
   const job = new Cron(expr, () => {
-    void recallTraceRetentionTick(retention, options.maxAgeSeconds)
-      .then((deleted) => options.onTick?.(deleted))
+    inFlight = recallTraceRetentionTick(retention, options.maxAgeSeconds)
+      .then((deleted) => {
+        options.onTick?.(deleted);
+      })
       .catch((err: unknown) => {
         // eslint-disable-next-line no-console
         console.warn('[recall-trace-retention] sweep tick failed:', err);
       });
   });
   return {
-    stop: () => {
+    stop: async () => {
       job.stop();
+      await inFlight; // drain a tick that is mid-sweep before the pool closes
     },
   };
 }
