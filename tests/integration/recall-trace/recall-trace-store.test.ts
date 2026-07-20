@@ -87,6 +87,17 @@ test('GOAL — recall dropping ≥1 candidate writes recall_traces rows retrieva
   expect(trace.some((r) => r.memoryId === farId && r.dropReason === 'semantic_gate')).toBe(true);
 });
 
+test('T1.1 — a supplied RecallOptions.recallId keys the trace rows verbatim', async () => {
+  const fixed = 'fixed-recall-id-t1-0001';
+  await onMemory.user('alice').recall('match', { threshold: 0.5, topK: 10, recallId: fixed });
+  const { rows } = await db.pool.query<{ n: string }>(
+    'SELECT COUNT(*)::int AS n FROM recall_traces WHERE recall_id = $1',
+    [fixed],
+  );
+  // The dropped `far` candidate's row must carry the caller-supplied id, not a minted UUID.
+  expect(Number(rows[0]?.n ?? 0)).toBeGreaterThan(0);
+});
+
 test('GOAL — a recall dropping 0 candidates writes 0 new rows', async () => {
   const before = await traceCount();
   await onMemory.user('alice').recall('match', { threshold: 0, topK: 10 }); // threshold 0 → nothing drops
