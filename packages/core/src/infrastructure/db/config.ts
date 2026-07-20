@@ -20,6 +20,10 @@ import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
 } from '../../domain/dip/recall-cache-store.js';
+import type {
+  RecallTraceStore,
+  RecallTraceStoreConfig,
+} from '../../domain/dip/recall-trace-store.js';
 import type { Reranker } from '../../domain/dip/reranker.js';
 import type { SkillExecutor } from '../../domain/dip/skill-executor.js';
 import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
@@ -118,6 +122,17 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * @see src/core/dip/recall-cache-store.ts (13th DIP)
    */
   readonly recallCache?: RecallCacheStoreConfig | RecallCacheStore;
+  /**
+   * explainable-recall (S1) — opt-in "accountable forgetting" recall trace.
+   * A POJO `RecallTraceStoreConfig` uses the default `PgRecallTraceStore`
+   * (requires a `PgvectorStore` vector store + the `recall_traces` table); a
+   * `RecallTraceStore` instance is used as-is. Absent ⇒ no tracing (default
+   * OFF, byte-unchanged recall). Deployment-level: when set, EVERY recall in
+   * this deployment is traced.
+   *
+   * @see packages/core/src/domain/dip/recall-trace-store.ts (14th DIP)
+   */
+  readonly recallTrace?: RecallTraceStoreConfig | RecallTraceStore;
   /**
    * cross-encoder-reranker T4.1 — opt-in `Reranker` enabling a post-threshold
    * cross-encoder rerank stage. When present AND a recall sets `options.rerank`,

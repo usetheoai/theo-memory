@@ -4,7 +4,14 @@
  * Extracted from index.ts (T1.1 of architecture-review-fixes plan).
  * Contains the LocalScopedMemory class and helper functions it depends on.
  */
+import { randomUUID } from 'node:crypto';
+
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
+import {
+  DEFAULT_MAX_ROWS_PER_RECALL,
+  type RecallTraceStore,
+  type RecallTraceStoreConfig,
+} from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import {
   type EpisodeListOptions,
@@ -26,12 +33,14 @@ import type {
   ReflectOptions,
   RememberOptions,
 } from '../../domain/options.js';
+import { DEFAULT_WORKSPACE_ID } from '../../domain/principal.js';
 import type { ReflectionResult } from '../../domain/reflection-result.js';
 import { runRetrievalPipeline } from '../../domain/retrieval/pipeline.js';
 import type { Filters, Scope } from '../../domain/scope.js';
 
 import { resolveCacheTtl } from './cache-helpers.js';
 import type { LocalMemoryConfig } from './config.js';
+import { deriveScopeKey } from './recall-cache/scope-key.js';
 import { runReflection } from './reflect-orchestrator.js';
 
 /**
@@ -188,7 +197,48 @@ export class LocalScopedMemory implements ScopedMemory {
     private readonly pendingReflections: Set<Promise<unknown>> = new Set(),
     /** semantic-recall-cache-v1-5 T2.1 — opt-in cache wrap; undefined = unchanged behavior. */
     private readonly recallCacheStore: RecallCacheStore | undefined = undefined,
+    /** explainable-recall (S1) — opt-in recall-trace store; undefined = no tracing. */
+    private readonly recallTraceStore: RecallTraceStore | undefined = undefined,
   ) {}
+
+  /**
+   * explainable-recall (S1) — the recall-trace deps fragment spread into the
+   * pipeline's `RetrievalDeps`. Empty when tracing is OFF. Mints a FRESH
+   * `recallId` per recall; resolves the tenant `workspaceId`/`scopeKey` HERE
+   * (EC-2 — never from the pipeline) and threads `maxRows` (Finding A).
+   */
+  private recallTraceDeps(): {
+    recallTrace?: RecallTraceStore;
+    recallTraceContext?: {
+      recallId: string;
+      workspaceId: string;
+      scopeKey: string;
+      maxRows: number;
+    };
+  } {
+    const store = this.recallTraceStore;
+    if (store === undefined) {
+      return {};
+    }
+    const workspaceId = this.filters.workspace_id ?? DEFAULT_WORKSPACE_ID;
+    // A config POJO carries maxRowsPerRecall; a store INSTANCE (has record())
+    // caps internally, so the pipeline uses the default here (double-cap is safe).
+    const cfg = this.config.recallTrace;
+    const isConfigPojo =
+      cfg !== undefined && typeof (cfg as { record?: unknown }).record !== 'function';
+    const maxRows = isConfigPojo
+      ? ((cfg as RecallTraceStoreConfig).maxRowsPerRecall ?? DEFAULT_MAX_ROWS_PER_RECALL)
+      : DEFAULT_MAX_ROWS_PER_RECALL;
+    return {
+      recallTrace: store,
+      recallTraceContext: {
+        recallId: randomUUID(),
+        workspaceId,
+        scopeKey: deriveScopeKey(this.scope, workspaceId),
+        maxRows,
+      },
+    };
+  }
 
   async remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]> {
     const messages: readonly Message[] = [{ role: 'user', content: text }];
@@ -363,6 +413,7 @@ export class LocalScopedMemory implements ScopedMemory {
         ...(this.config.reranker !== undefined ? { reranker: this.config.reranker } : {}),
         ...(this.config.retrievalPolicy !== undefined ? { retrievalPolicy: this.config.retrievalPolicy } : {}),
         ...(this.config.graphExpansionStore !== undefined ? { graphExpansionStore: this.config.graphExpansionStore } : {}),
+        ...this.recallTraceDeps(),
         ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
       }, options);
     }
@@ -382,6 +433,7 @@ export class LocalScopedMemory implements ScopedMemory {
     const results = await runRetrievalPipeline(query, applySkillFilters(this.filters, options), {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
+      ...this.recallTraceDeps(),
       ...(this.config.tracer !== undefined ? { tracer: this.config.tracer } : {}),
     }, options);
     const ttlSeconds = resolveCacheTtl(this.scope, this.config.recallCache);
