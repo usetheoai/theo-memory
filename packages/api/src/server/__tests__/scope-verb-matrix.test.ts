@@ -138,4 +138,30 @@ describe('scope x verb authz matrix (contract)', () => {
       });
     }
   });
+
+  // explainable-recall-read S2 (T4.1) — GET /v1/recall-traces/:id needs memory:read.
+  describe('GET /v1/recall-traces/:recallId requires memory:read', () => {
+    const stubTraceStore = { record: async () => {}, getByRecallId: async () => [] };
+    function traceApp(): ReturnType<typeof createApp> {
+      return createApp({
+        memory: stubMemory(),
+        authVerifier: verifier(TOKENS),
+        recallTraceStore: stubTraceStore,
+      });
+    }
+    async function getTrace(tok: string): Promise<Response> {
+      return traceApp().request('/v1/recall-traces/some-id', {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+    }
+    it('is 403 for a write-only key (no memory:read)', async () => {
+      expect((await getTrace('tok-write')).status).toBe(403);
+    });
+    it('is allowed (not 403) for a read key', async () => {
+      expect((await getTrace('tok-read')).status).not.toBe(403);
+    });
+    it('is 403 for the platform-admin provisioning key (least privilege)', async () => {
+      expect((await getTrace('tok-platform-admin')).status).toBe(403);
+    });
+  });
 });
