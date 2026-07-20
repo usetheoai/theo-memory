@@ -3,6 +3,8 @@
  *
  * Empty results return 200 with `{ results: [] }`, NOT 404 (EC-11 absorption).
  */
+import { randomUUID } from 'node:crypto';
+
 import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
@@ -34,6 +36,10 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
   const { query, topK, threshold, attributedTo, asOf, graphExpand } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope recall by the Principal's workspace (ADR D3).
   const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
+  // explainable-recall S2 (D2) — mint the recall_id HERE so it can be BOTH driven
+  // into the accountable-forgetting trace (SDK keys the recall_traces rows with it)
+  // AND returned to the caller for the follow-up GET /v1/recall-traces/:recallId.
+  const recallId = randomUUID();
   const results = await scoped.recall(query, {
     topK,
     threshold,
@@ -42,6 +48,7 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
     // rest-graph-aware-recall — pass the graph-expansion opt-in through to the
     // SDK recall (default OFF when absent; mirrors topK/threshold mapping).
     graphExpand,
+    recallId,
   });
-  return c.json({ results }, 200);
+  return c.json({ results, recallId }, 200);
 }
