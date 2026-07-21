@@ -215,13 +215,18 @@ export async function connectStreamableHttp(
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
+    // Sessions FIRST. `httpServer.close()` stops accepting new connections but
+    // resolves only once existing sockets end, and Streamable HTTP holds long-lived
+    // text/event-stream connections that never end on their own — closing the
+    // listener first would block forever waiting for streams that closeAll() has
+    // not been reached to terminate.
+    await sessions.closeAll();
     await new Promise<void>((resolve, reject) => {
       httpServer.close((err) => {
         if (err) reject(err);
         else resolve();
       });
     });
-    await sessions.closeAll();
   };
 
   return {

@@ -21,7 +21,7 @@
  *
  *   THEO_MCP_EDGE_URL=https://app-dev.usetheo.dev/mcp/memory \
  *   THEO_MCP_EDGE_KEY=theo_live_... \
- *   THEO_MCP_EDGE_KEY_B=theo_live_...   # optional: enables the cross-tenant case
+ *   THEO_MCP_EDGE_KEY_B=theo_live_...   # REQUIRED: the cross-tenant isolation case
  *   npx vitest run tests/integration/mcp-edge/gateway-contract.test.ts
  */
 import { describe, expect, it } from 'vitest';
@@ -90,6 +90,18 @@ async function openSession(key: string, clientName: string): Promise<string> {
 }
 
 describe.skipIf(EDGE_URL === '' || KEY_A === '')('MCP gateway edge contract (M7)', () => {
+  it('is configured to actually assert something', () => {
+    // A suite that reports green by skipping is worse than no suite: it reads as
+    // coverage on the dashboard while asserting nothing. Once an edge is configured,
+    // the cross-tenant case is NOT optional — missing KEY_B fails here rather than
+    // silently dropping the only test that proves tenant isolation.
+    expect(
+      KEY_B,
+      'THEO_MCP_EDGE_KEY_B is required whenever THEO_MCP_EDGE_URL/_KEY are set — ' +
+        'without a second tenant the isolation case cannot run',
+    ).not.toBe('');
+  });
+
   it('denies a request with no credential', async () => {
     const reply = await post(initializeBody('no-cred'));
     expect(reply.status).toBe(401);
@@ -157,48 +169,88 @@ describe.skipIf(EDGE_URL === '' || KEY_A === '')('MCP gateway edge contract (M7)
 
   it('ignores a tenant claimed in the request body', async () => {
     // Tenancy comes from the credential (Model B), never from client-supplied data.
-    // A body-claimed workspace must not widen what the credential can reach.
+    //
+    // Asserting the response merely lacks the forged id proves nothing: recall never
+    // echoes a workspace id, so that passes whether the claim was honoured or not.
+    // The observable that DOES differentiate is whose data comes back — so seed a
+    // marker as A, then repeat the read with a forged workspace attached.
+    const marker = `m7-body-tenant-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const sessionId = await openSession(KEY_A, 'body-tenant');
-    const reply = await post(
+
+    const write = await post(
       JSON.stringify({
         jsonrpc: '2.0',
         id: 4,
         method: 'tools/call',
+        params: { name: 'remember', arguments: { content: `body tenant probe ${marker}`, infer: false } },
+      }),
+      { key: KEY_A, sessionId },
+    );
+    expect(write.status, `seed write failed: ${write.body}`).toBe(200);
+
+    const forged = await post(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 5,
+        method: 'tools/call',
         params: {
           name: 'recall',
-          arguments: { query: 'anything', workspaceId: 'wk-someone-else', tenant_id: 'tn-forged' },
+          arguments: { query: marker, workspaceId: 'wk-someone-else', tenant_id: 'tn-forged' },
         },
       }),
       { key: KEY_A, sessionId },
     );
-    // Either the argument is rejected outright or it is ignored — what must never
-    // happen is a successful read attributed to the forged workspace.
-    expect(reply.body).not.toContain('wk-someone-else');
+
+    // The forged claim was ignored: the read stayed on the credential's workspace and
+    // returned A's own marker. Had it been honoured, the call would have run against
+    // an empty foreign workspace and the marker would be absent.
+    expect(forged.body).toContain(marker);
   });
 });
 
-describe.skipIf(EDGE_URL === '' || KEY_A === '' || KEY_B === '')(
+describe.skipIf(EDGE_URL === '' || KEY_A === '')(
   'MCP gateway edge contract — cross-tenant isolation (M7)',
   () => {
     it('does not surface tenant A memories to tenant B', async () => {
       const marker = `m7-isolation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
       const sessionA = await openSession(KEY_A, 'tenant-a');
-      await post(
+      // `content` is the schema's field name. Sending `text` gets the call rejected
+      // with -32602 BEFORE anything is written, which would make the isolation
+      // assertion below pass vacuously — nothing was ever stored to leak.
+      const writeA = await post(
         JSON.stringify({
           jsonrpc: '2.0',
           id: 10,
           method: 'tools/call',
-          params: { name: 'remember', arguments: { text: `isolation probe ${marker}` } },
+          params: {
+            name: 'remember',
+            arguments: { content: `isolation probe ${marker}`, infer: false },
+          },
         }),
         { key: KEY_A, sessionId: sessionA },
       );
+      expect(writeA.status, `tenant A write failed: ${writeA.body}`).toBe(200);
+      expect(writeA.body, `tenant A write errored: ${writeA.body}`).not.toContain('"error"');
+
+      // POSITIVE CONTROL — without it, an argument-name drift silently turns the
+      // isolation assertion back into a tautology.
+      const readA = await post(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 11,
+          method: 'tools/call',
+          params: { name: 'recall', arguments: { query: marker } },
+        }),
+        { key: KEY_A, sessionId: sessionA },
+      );
+      expect(readA.body, 'tenant A must be able to read back its own write').toContain(marker);
 
       const sessionB = await openSession(KEY_B, 'tenant-b');
       const readB = await post(
         JSON.stringify({
           jsonrpc: '2.0',
-          id: 11,
+          id: 12,
           method: 'tools/call',
           params: { name: 'recall', arguments: { query: marker } },
         }),

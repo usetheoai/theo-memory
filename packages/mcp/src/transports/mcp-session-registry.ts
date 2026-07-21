@@ -29,6 +29,13 @@ export type McpServerFactory = () => McpServer;
 interface Session {
   readonly transport: StreamableHTTPServerTransport;
   readonly server: McpServer;
+  /**
+   * Guards the stop cycle. `server.stop()` closes the transport, which fires
+   * `onclose`, which would call `server.stop()` again — that recursed until
+   * "Maximum call stack size exceeded". BOTH entry points (onclose and closeAll)
+   * set it, so the cycle cannot start from either direction.
+   */
+  stopping: boolean;
 }
 
 /** Reads the session header, tolerating node's `string | string[]` typing. */
@@ -39,12 +46,14 @@ function readSessionId(req: IncomingMessage): string | undefined {
 
 export class McpSessionRegistry {
   private readonly sessions = new Map<string, Session>();
+  /** Sessions created but not yet through `initialize` — see `open()`. */
+  private readonly pending = new Set<Session>();
 
   constructor(private readonly createServer: McpServerFactory) {}
 
   /** Live session count — for tests and for operational visibility. */
   get size(): number {
-    return this.sessions.size;
+    return this.sessions.size + this.pending.size;
   }
 
   /**
@@ -79,9 +88,16 @@ export class McpSessionRegistry {
 
   /** Stops every live session. Called when the listener closes. */
   async closeAll(): Promise<void> {
-    const live = [...this.sessions.values()];
+    const live = [...this.sessions.values(), ...this.pending];
     this.sessions.clear();
-    await Promise.all(live.map((s) => s.server.stop()));
+    this.pending.clear();
+    await Promise.all(
+      live.map((s) => {
+        if (s.stopping) return Promise.resolve();
+        s.stopping = true;
+        return s.server.stop();
+      }),
+    );
   }
 
   /**
@@ -91,25 +107,31 @@ export class McpSessionRegistry {
    */
   private async open(): Promise<StreamableHTTPServerTransport> {
     const server = this.createServer();
+    const session: Session = {
+      transport: undefined as unknown as StreamableHTTPServerTransport,
+      server,
+      stopping: false,
+    };
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId: string) => {
-        this.sessions.set(sessionId, { transport, server });
+        this.sessions.set(sessionId, session);
+        this.pending.delete(session);
       },
     });
-    // Evict on close: a disconnected client must not pin its server for the
-    // process lifetime — an unbounded map here is a slow leak on a long-running
-    // server fronted by a gateway that reconnects clients freely.
-    //
-    // `stopping` breaks a reentrancy cycle: server.stop() closes the transport,
-    // which fires onclose, which would call server.stop() again — that recursed
-    // until "Maximum call stack size exceeded".
-    let stopping = false;
+    Object.assign(session, { transport });
+    // Until `initialize` succeeds the session has no id, so it is in no map and
+    // `closeAll()` cannot reach it. Park it in `pending` so an abandoned handshake
+    // — or a header-less request that the SDK rejects outright — is still torn down
+    // instead of pinning an McpServer for the process lifetime.
+    this.pending.add(session);
+    // Evict on close: a disconnected client must not pin its server either.
     transport.onclose = (): void => {
       const id = transport.sessionId;
       if (id !== undefined) this.sessions.delete(id);
-      if (stopping) return;
-      stopping = true;
+      this.pending.delete(session);
+      if (session.stopping) return;
+      session.stopping = true;
       void server.stop();
     };
     // The SDK's `onclose` type is `(() => void) | undefined`, which does not
