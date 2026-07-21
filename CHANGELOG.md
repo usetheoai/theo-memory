@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- The dev deploy only redeployed the REST API, leaving the MCP upstream on an older build of the same image; both are now pulled, recreated, and version-gated together (#103)
 - `/code-quality` wrote its audit to a hardcoded knowledge-base root and reported `report_path: null` (it was set after the JSON was serialized); the audit now lands beside the plan it audited and the path is present in the summary (#103)
 - `/code-quality` could not run on this repo: its languages config was written in a one-per-line format no consumer reads, and plan resolution only looked under `.claude/knowledge-base/` while this repo keeps `knowledge-base/` at the root (#103)
 - MCP streamable-http accepted only ONE client: a singleton transport made every client after the first fail with `-32600 "Server already initialized"`. Sessions are now per-client (transport + server per `Mcp-Session-Id`), so every Claude Code instance can connect (#103)
