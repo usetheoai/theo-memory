@@ -29,8 +29,10 @@ interface RecordedResponse {
   readonly res: ServerResponse;
   status(): number | undefined;
   body(): string;
-  /** Simulates the HTTP response completing. */
+  /** Simulates the HTTP response completing (emits finish, then close). */
   finish(): void;
+  /** Simulates the client aborting mid-flight (emits close only). */
+  abort(): void;
 }
 
 function recordingResponse(): RecordedResponse {
@@ -38,7 +40,7 @@ function recordingResponse(): RecordedResponse {
   let payload = '';
   // A real ServerResponse emits 'finish' when the response completes; the registry
   // hangs its runtime eviction on that, so the double must honor it.
-  const listeners: Array<() => void> = [];
+  const listeners = new Map<string, Array<() => void>>();
   const res = {
     writeHead: (code: number) => {
       status = code;
@@ -47,14 +49,22 @@ function recordingResponse(): RecordedResponse {
       payload = chunk ?? '';
     },
     once: (event: string, fn: () => void) => {
-      if (event === 'finish') listeners.push(fn);
+      const bucket = listeners.get(event) ?? [];
+      bucket.push(fn);
+      listeners.set(event, bucket);
     },
   } as unknown as ServerResponse;
   return {
     res,
     status: () => status,
     body: () => payload,
-    finish: () => listeners.splice(0).forEach((fn) => fn()),
+    // A completed response emits finish THEN close; an aborted one emits close only.
+    finish: () => {
+      for (const event of ['finish', 'close']) {
+        (listeners.get(event) ?? []).splice(0).forEach((fn) => fn());
+      }
+    },
+    abort: () => (listeners.get('close') ?? []).splice(0).forEach((fn) => fn()),
   };
 }
 
@@ -151,5 +161,20 @@ describe('McpSessionRegistry — runtime eviction (M7)', () => {
 
     expect(vi.mocked(created[0]!.stop), 'a live session must survive its first response')
       .not.toHaveBeenCalled();
+  });
+});
+
+describe('McpSessionRegistry — aborted handshake (M7)', () => {
+  it('releases a session whose client disconnected before the response was written', async () => {
+    // 'finish' never fires on an aborted response, so hanging eviction on it alone
+    // left the same leak in a narrower window. 'close' covers both endings.
+    const { registry, created } = trackingRegistry();
+    const reply = recordingResponse();
+
+    await registry.resolve(request(), reply.res);
+    reply.abort();
+
+    expect(registry.size).toBe(0);
+    expect(vi.mocked(created[0]!.stop)).toHaveBeenCalledTimes(1);
   });
 });

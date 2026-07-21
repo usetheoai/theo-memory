@@ -147,7 +147,15 @@ export class McpSessionRegistry {
     // `finish` fires for the rejected case AND for an initialize whose connection dies
     // before completing. When `initialize` succeeded, `transport.sessionId` is set and
     // the session has already moved into `sessions`, so this is a no-op for it.
-    res.once('finish', () => {
+    // 'close', not 'finish': 'finish' fires only when the response was fully written,
+    // so a client that aborts mid-flight would leave its session in `pending` until
+    // shutdown — the same leak in a narrower window. 'close' fires on completion AND
+    // on premature termination, so it is a strict superset.
+    //
+    // Safe against killing a live session: the SDK assigns `sessionId` and awaits
+    // `onsessioninitialized` BEFORE building the response, so by the time this runs on
+    // a successful handshake the id is set and the session has already left `pending`.
+    res.once('close', () => {
       if (transport.sessionId === undefined) this.evict(session);
     });
     // Evict on close: a disconnected client must not pin its server either.
