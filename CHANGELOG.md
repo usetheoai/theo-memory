@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- `/release` derived the next version with `git describe --tags`, which returns the nearest tag by ancestry; since release tags live on `main`, it read v0.10.0 while the latest release was v0.37.0 and would have cut a version backwards (M7)
 - MCP session eviction hung on `finish`, which never fires when a client aborts mid-flight, so an aborted handshake still leaked its server until shutdown; it now evicts on `close`, which covers both endings (M7)
 - Claude Code kit ignored `THEOMEM_MEMORY_PATH_PREFIX` when set in `~/.claude/theo-memory.env` — the documented gateway setup was a silent no-op that kept sending the client credential straight to the service (M7)
 - MCP sessions that never completed a handshake were only released at shutdown, so every sessionless request pinned a server for the process lifetime; they are now evicted when their response ends (M7)
