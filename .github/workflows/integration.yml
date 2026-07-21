@@ -68,14 +68,30 @@ jobs:
       - name: Build (dist subpaths the integration tests import)
         run: pnpm run build
 
-      - name: Apply schema (pgvector extension + tables)
-        # A FRESH CI database → drizzle-kit push creates tables non-interactively
-        # (it only prompts on destructive changes to an existing schema).
-        run: pnpm run db:push
+      - name: Apply schema (migrations — the runtime path, no drizzle-kit TTY / no psql)
+        # `pnpm run db:push` uses drizzle-kit push (requires a TTY — it prompts
+        # unconditionally in this version, not only on destructive changes) AND
+        # `apply-trigger-migrations.mjs` (requires the `psql` client, absent on the
+        # runner). Instead provision the schema the way the deployed server does:
+        # `themory migrate` → runMigrations(pool) applies the .sql migrations
+        # (triggers included) programmatically — no drizzle-kit, no psql, no TTY.
+        # Embedder defaults to openai (dim 1536), matching the integration suite.
+        env:
+          # THEOMEM_EMBEDDER=openai → schema provisioned at vector(1536) to match the
+          # integration suite (openai embedder / MAX_EMBEDDING_DIM). Unset defaults to
+          # `local` (384) → dimension mismatch against every 1536 insert. `migrate`
+          # only reads the dim CONSTANT (embeddingDimForKind) — it makes NO API call,
+          # so no OPENAI_API_KEY is needed here.
+          THEOMEM_EMBEDDER: openai
+        run: |
+          node -e "const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
+          node dist/agent-tools/cli.js migrate
 
       - name: Run integration suite (real Postgres + real OpenAI)
         # THEOMEM_PG_URI set above; OPENAI_API_KEY from the repo secret (real
-        # provider — no stubs in the production path).
+        # provider — no stubs in the production path). THEOMEM_EMBEDDER=openai keeps
+        # the runtime embedder (1536) consistent with the schema provisioned above.
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          THEOMEM_EMBEDDER: openai
         run: pnpm run test:integration
