@@ -9,6 +9,7 @@
 import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
+import { mapDomainErrorToResponse } from '../errors.js';
 import { BatchRememberBody, RememberBody, resolveScope } from '../schemas.js';
 
 import {
@@ -57,7 +58,7 @@ export async function batchRememberHandler(c: Context, memory: Memory): Promise<
   // Bind to the Principal's workspace ONCE (ADR D3) — reused for every item.
   const bound = workspaceBoundMemory(c, memory);
   const results: unknown[] = [];
-  const errors: { readonly index: number; readonly message: string }[] = [];
+  const errors: { readonly index: number; readonly code: string; readonly message: string }[] = [];
   let imported = 0;
   let deduped = 0;
   for (let i = 0; i < parsed.data.items.length; i++) {
@@ -78,7 +79,12 @@ export async function batchRememberHandler(c: Context, memory: Memory): Promise<
         else imported += 1;
       }
     } catch (err) {
-      errors.push({ index: i, message: err instanceof Error ? err.message : String(err) });
+      // M6-SEC-02: route the per-item failure through the SAME sanitizer every
+      // other verb uses (mapDomainErrorToResponse → sanitized {code,message},
+      // logs the raw message with Bearer-token redaction). NEVER echo raw
+      // err.message — a pg native error or a token-bearing message must not leak.
+      const { body } = mapDomainErrorToResponse(err);
+      errors.push({ index: i, code: body.code, message: body.message });
     }
   }
   return c.json(

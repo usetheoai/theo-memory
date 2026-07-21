@@ -28,6 +28,7 @@ hooks stay fast and dumb.
 | File | Role |
 |---|---|
 | `hooks/theo-lib.mjs` | Shared ESM helpers (`loadEnv`, `readInput`, `projectOf`, `post`). Fail-tolerant: a memory outage is always a silent no-op. |
+| `hooks/theo-scrub.mjs` | Shared secret/PII deny-list + `scrub()` — the SAME scrub the migration tool uses (single source of truth). Applied client-side before every write. |
 | `hooks/merge-settings.mjs` | `mergeHooks(existing, additions)` — the load-bearing, tested settings.json merge (non-clobbering, idempotent). |
 | `hooks/theo-recall.mjs` | **SessionStart** — recalls the project's top-K memories, injects them via `hookSpecificOutput.additionalContext`. |
 | `hooks/theo-remember.mjs` | **Stop** — fire-and-forgets the last assistant message to `/v1/remember` (server extracts). Salience floor drops trivial turns. |
@@ -78,6 +79,23 @@ A memory outage **never** blocks a Claude Code session (blueprint ADR-5, plan T3
 - `post()` returns `null` on any error and never throws.
 - `theo-recall.mjs` injects nothing and exits 0 when recall fails or is empty.
 - `theo-remember.mjs` / `theo-precompact.mjs` fire-and-forget and exit 0 regardless.
+
+## Secret hygiene (client-side scrub)
+
+The server stores `infer:false` **verbatim**, so the client hook is the only place a
+secret can be caught before it enters the store. **`theo-remember` and `theo-precompact`
+run `theo-scrub.mjs` over the text before every write** — the same fail-closed deny-list
+the migration tool uses (OpenAI / Slack / Google / AWS / GitHub keys, JWTs, Bearer tokens,
+`postgres://user:pass@` connection strings, secret-named `KEY=value` assignments, PEM
+private-key blocks, and a high-entropy catch-all). Matches are replaced with
+`[REDACTED:<kind>]`.
+
+The **PreCompact transcript tail** is the highest-risk source (it can carry tool-output
+env dumps / `.env` reads / API responses); it is scrubbed the same way. The scrub is a
+**best-effort deny-list, not an exhaustive guarantee** — a secret in an unrecognized shape
+can still slip through. If a project routinely handles high-value secrets in-session,
+prefer not enabling the PreCompact hook (bias the deny-list toward over-redaction, and
+review `theo-scrub.mjs` before trusting it with regulated data).
 
 ## Test the merge
 
