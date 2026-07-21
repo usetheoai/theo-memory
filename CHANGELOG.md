@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **M7 Phase 1 — Claude Code ⇄ theo-memory auth + MCP routing unblocked on dev.** Fixed a split-brain credential store (the dashboard minted into the k3d Postgres while the ForwardAuth validator read an empty compose database, so every `theo_live_*` returned 401) and exposed the Theo MCP Gateway at the public edge (`/mcp/*` had no Caddy `handle` block and fell through to the SPA file_server). A valid key now authenticates, and `POST /mcp/memory` without a credential returns a gated `401 application/json` instead of HTML. Remaining: theo-memory's admin API is unmounted, so Model B per-tenant minting 404s — deliberately deferred behind closing issue #101 (that service is publicly unauthenticated; mounting key minting on it first would be worse). (claude-code-mcp-gateway-dev)
 - **`flip_milestone_checkbox.py` never flipped a milestone.** Its header regex required `###`, while the format documented in `cycle-release.md` / `cycle-roadmap.md` (and emitted by `/roadmap-init`) is `## M<N> — [ ] <name>`. Every release against a spec-conformant `ROADMAP.md` therefore hit the "milestone not found" WARN path and skipped the flip silently — the checkbox never moved and the roadmap-runs audit file was never written. The pattern now accepts `#{2,3}`. Found while closing M5 + M6 for v0.37.0 (the first release where the flip was actually exercised).
 
 ### Security
