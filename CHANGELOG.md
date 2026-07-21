@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- REST `remember`/`recall` now resolve the user tier from the edge-injected `X-Theo-User-Id` when the body names none, matching the MCP surface — so gateway-fronted callers (the Claude Code kit hooks) land under the credential's user, unifying REST and MCP memory in the space the dashboard reads (theo-cloud#249)
 
 ### Changed
 
