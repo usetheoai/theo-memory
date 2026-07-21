@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **`flip_milestone_checkbox.py` never flipped a milestone.** Its header regex required `###`, while the format documented in `cycle-release.md` / `cycle-roadmap.md` (and emitted by `/roadmap-init`) is `## M<N> — [ ] <name>`. Every release against a spec-conformant `ROADMAP.md` therefore hit the "milestone not found" WARN path and skipped the flip silently — the checkbox never moved and the roadmap-runs audit file was never written. The pattern now accepts `#{2,3}`. Found while closing M5 + M6 for v0.37.0 (the first release where the flip was actually exercised).
 
 ### Security
 
