@@ -64,7 +64,13 @@ If any HARD check fails, refuse with the missing piece surfaced honestly.
 ### Step 2 — Detect current version and compute next
 
 ```bash
-LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+# Highest RELEASED version, by semver order — NOT `git describe --tags --abbrev=0`.
+# describe returns the nearest tag by ANCESTRY, and release tags point at merge commits
+# on `main`, which `develop` does not descend from. On this repo it answered v0.10.0
+# while the latest release was v0.37.0 — a minor bump off that would have cut a version
+# that already exists, or silently moved the line backwards.
+LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1 || true)
+LAST_TAG="${LAST_TAG:-v0.0.0}"
 NEXT_VERSION=$(python3 skills/release/scripts/compute_next_version.py \
   --current "$LAST_TAG" \
   --bump "${ARGUMENTS:-auto}" \
