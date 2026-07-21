@@ -24,6 +24,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+// Single source of truth for the secret/PII deny-list (M6-SEC-01): the SAME scrub
+// the ongoing auto-remember hooks apply. Re-exported below so existing unit tests
+// that import `{ scrub }` from this module keep working.
+import { scrub } from '../docs/claude-code-kit/hooks/theo-scrub.mjs';
+
 // --- Constants -------------------------------------------------------------
 
 /** Facts per HTTP request. Bounded to stay under the server MAX_BATCH_ITEMS (1000). */
@@ -35,21 +40,8 @@ export const SECRET_DOMINATED_RATIO = 0.4;
 /** Default REST endpoint; overridable via THEOMEM_MIGRATE_URL. */
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8080';
 
-/**
- * Ordered secret/PII deny-list. Specific patterns run BEFORE the generic
- * high-entropy catch-all so a known key gets its precise `kind`. Every match is
- * replaced with `[REDACTED:<kind>]`. Security-critical — ADR-4.
- */
-const SECRET_PATTERNS = [
-  { kind: 'private_key', re: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g, privateKey: true },
-  { kind: 'openai_key', re: /sk-[A-Za-z0-9_-]{20,}/g },
-  { kind: 'theo_key', re: /theo_live_[A-Za-z0-9_-]+/g },
-  { kind: 'aws_key', re: /AKIA[0-9A-Z]{16}/g },
-  { kind: 'github_token', re: /gh[pousr]_[A-Za-z0-9]{20,}/g },
-  { kind: 'jwt', re: /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g },
-  { kind: 'bearer_token', re: /Bearer\s+[A-Za-z0-9._-]{20,}/g },
-  { kind: 'high_entropy', re: /[A-Za-z0-9+/]{32,}={0,2}/g },
-];
+/** Re-export the shared scrub so `import { scrub } from '<this module>'` still resolves. */
+export { scrub };
 
 // --- Typed errors (error-handling.md: explicit + typed, never magic values) --
 
@@ -141,35 +133,18 @@ export function parseNode(raw, filename) {
 }
 
 function combinedText(node) {
-  return [node.description, node.body].filter((s) => s && s.trim() !== '').join('\n\n');
+  // COR-05: include `name` — a node whose only human label is the frontmatter
+  // `name` would otherwise migrate with near-empty text and be dropped by the
+  // SKIP gate as "empty after scrub".
+  return [node.name, node.description, node.body]
+    .filter((s) => s && s.trim() !== '')
+    .join('\n\n');
 }
 
-// --- SCRUB (fail-closed, security-critical — ADR-4) ------------------------
-
-/**
- * Redact every deny-list secret/PII match in `text`, replacing with
- * `[REDACTED:<kind>]`. Returns the cleaned text plus accounting used by the
- * fail-closed skip decision.
- *
- * @param {string} text
- * @returns {{ clean: string, redactedChars: number, originalChars: number, kinds: string[], hadPrivateKey: boolean }}
- */
-export function scrub(text) {
-  const originalChars = text.length;
-  let clean = text;
-  let redactedChars = 0;
-  const kinds = [];
-  let hadPrivateKey = false;
-  for (const { kind, re, privateKey } of SECRET_PATTERNS) {
-    clean = clean.replace(re, (match) => {
-      redactedChars += match.length;
-      kinds.push(kind);
-      if (privateKey) hadPrivateKey = true;
-      return `[REDACTED:${kind}]`;
-    });
-  }
-  return { clean, redactedChars, originalChars, kinds, hadPrivateKey };
-}
+// --- SCRUB — the deny-list + scrub() live in the shared theo-scrub.mjs module,
+//     imported + re-exported at the top of this file. Single source of truth with
+//     the ongoing auto-remember hooks (M6-SEC-01), so a secret shape the migration
+//     redacts is redacted on every Stop/PreCompact write too.
 
 // --- MAP -------------------------------------------------------------------
 
@@ -189,7 +164,9 @@ export function nodeToBatchItem(node, opts) {
     source: 'claude-code',
     project: opts.project,
     file: node.file,
-    wikilinks: node.wikilinks.join(','),
+    // SEC-04: scrub the wikilinks too — they ride into metadata, so a secret
+    // embedded in a `[[...]]` link must be redacted like the body text is.
+    wikilinks: scrub(node.wikilinks.join(',')).clean,
   };
   if (type) metadata.node_type = type;
   const item = { userId: opts.userId, text: clean, infer: false, metadata };

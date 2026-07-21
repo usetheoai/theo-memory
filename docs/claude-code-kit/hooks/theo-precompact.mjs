@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs';
 
 import { readInput, projectOf, post } from './theo-lib.mjs';
+import { scrubText } from './theo-scrub.mjs';
 
 const SALIENCE_MIN_CHARS = 40;
 const TRANSCRIPT_TAIL_CHARS = 4000;
@@ -34,7 +35,10 @@ function transcriptTail(input) {
 async function main() {
   const input = await readInput();
   const project = projectOf(input.cwd);
-  const text = transcriptTail(input);
+  // M6-SEC-01: the transcript tail is the highest-risk source — it routinely
+  // carries tool_result blocks (env dumps, .env reads, API responses) with live
+  // secrets. Scrub BEFORE the write (server stores infer=false verbatim).
+  const text = scrubText(transcriptTail(input));
 
   if (text.length < SALIENCE_MIN_CHARS) return;
 

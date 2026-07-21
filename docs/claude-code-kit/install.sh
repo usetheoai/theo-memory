@@ -28,11 +28,13 @@ echo "  target     : ${CLAUDE_DIR}"
 
 # --- 1. copy the hook + lib files --------------------------------------------
 mkdir -p "${HOOKS_DIR}"
-for f in theo-lib.mjs merge-settings.mjs theo-recall.mjs theo-remember.mjs theo-precompact.mjs; do
+# theo-scrub.mjs is REQUIRED — theo-remember/theo-precompact import it for the
+# pre-write secret scrub (M6-SEC-01). Omitting it breaks the hooks at runtime.
+for f in theo-lib.mjs theo-scrub.mjs merge-settings.mjs theo-recall.mjs theo-remember.mjs theo-precompact.mjs; do
   cp "${KIT_DIR}/hooks/${f}" "${HOOKS_DIR}/${f}"
 done
 chmod +x "${HOOKS_DIR}/theo-recall.mjs" "${HOOKS_DIR}/theo-remember.mjs" "${HOOKS_DIR}/theo-precompact.mjs"
-echo "  copied 5 hook files → ${HOOKS_DIR}"
+echo "  copied 6 hook files → ${HOOKS_DIR}"
 
 # --- 2. seed the env file if absent ------------------------------------------
 if [[ -f "${ENV_FILE}" ]]; then
