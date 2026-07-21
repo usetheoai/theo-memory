@@ -94,7 +94,13 @@ export function projectOf(cwd) {
  * (network error, non-2xx, timeout, malformed JSON). NEVER throws — a memory outage
  * degrades to a no-op, it does not break the session.
  *
- * @param {string} path      request path, e.g. '/v1/recall'
+ * The verb path is joined onto an optional prefix so the SAME hooks work against
+ * both surfaces without editing code: theo-memory's own REST exposes `/v1/recall`,
+ * while the Theo gateway namespaces capabilities as `/v1/memory/recall`. Set
+ * THEOMEM_MEMORY_PATH_PREFIX=/v1/memory to go through the gateway. Hardcoding the
+ * raw REST path is what tied this kit to a direct-to-service deployment.
+ *
+ * @param {string} path      verb path, e.g. '/v1/recall'
  * @param {object} body      JSON request body
  * @param {{ timeoutMs?: number }} [opts]
  * @returns {Promise<object|null>}
@@ -102,10 +108,14 @@ export function projectOf(cwd) {
 export async function post(path, body, opts = {}) {
   const { url, token } = loadEnv();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // '/v1/recall' + prefix '/v1/memory' → '/v1/memory/recall'. An unset prefix keeps
+  // the path verbatim, so existing raw-REST setups are unaffected.
+  const prefix = (process.env.THEOMEM_MEMORY_PATH_PREFIX ?? '').replace(/\/+$/, '');
+  const target = prefix ? `${prefix}/${path.replace(/^\/v1\//, '')}` : path;
   try {
     const headers = { 'content-type': 'application/json' };
     if (token) headers.authorization = `Bearer ${token}`;
-    const res = await fetch(`${url}${path}`, {
+    const res = await fetch(`${url}${target}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
