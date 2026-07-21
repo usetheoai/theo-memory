@@ -232,7 +232,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M7 — [ ] Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level)
+## M7 — [x] Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level)
 
 > Added 2026-07-21 by `/roadmap-feature` (slug: `claude-code-mcp-gateway-dev`). Grill: `knowledge-base/grills/claude-code-mcp-gateway-dev-feature-grill.md`. **Corrects the integration architecture M6 shipped** — M6's own risk #1 ("Production edge host unconfirmed … wrong host → silent 404") materialized.
 
