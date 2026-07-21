@@ -61,3 +61,69 @@ services:
       timeout: 3s
       retries: 6
       start_period: 30s
+
+  # M7 — the MCP upstream the Theo MCP Gateway fronts at the public edge
+  # (https://app-dev.usetheo.dev/mcp/memory). Same image, different entrypoint verb:
+  # `themory mcp` instead of `themory server`. Before this service the gateway resolved
+  # the credential, minted the per-tenant key, and then failed with `upstream_error`
+  # because nothing was listening — dev ran only the REST server.
+  #
+  # DELIBERATELY NOT PUBLISHED TO THE HOST. `host.docker.internal` maps to the bridge
+  # gateway IP, so a loopback-only publish is unreachable from the gateway container and
+  # a reachable publish means 0.0.0.0 on a SHARED box — the same class of exposure as
+  # issue #101. Instead this joins the gateway's own network and is addressed by service
+  # name; the port never leaves the docker bridge.
+  themory_mcp:
+    image: ghcr.io/usetheodev/themory:develop
+    container_name: themory_mcp
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    # ENTRYPOINT hardcodes the `server` verb, so `command:` alone would produce
+    # `server mcp ...`. Override the entrypoint to select the MCP verb.
+    entrypoint:
+      - /nodejs/bin/node
+      - /app/dist/agent-tools/cli.js
+      - mcp
+    command:
+      - --transport
+      - streamable-http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "18091"
+      # Defense in depth: the gateway already authenticates and injects a least-privilege
+      # per-tenant key, but this upstream validates that key itself. A bug in the edge
+      # must not turn into an unauthenticated data surface (invariant 5, fail closed).
+      - --auth
+      - api-keys
+      # ADR-0015 #3: a non-localhost bind REQUIRES TLS. The keypair is the dev CA the
+      # gateway already trusts via THEO_MCP_UPSTREAM_CA_FILE.
+      - --tls-cert
+      - /etc/theo/tls/themory-mcp.crt
+      - --tls-key
+      - /etc/theo/tls/themory-mcp.key
+    environment:
+      THEOMEM_PG_URI: postgres://${POSTGRES_USER:-themem}:${POSTGRES_PASSWORD:-themem}@pgvector:5432/${POSTGRES_DB:-themem}
+      THEOMEM_EMBEDDER: ${THEOMEM_EMBEDDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Binds the MCP tool scope. Tenant isolation does NOT come from this value — it
+      # comes from the per-tenant credential the gateway injects; this only names the
+      # scope tier the 4 verbs operate on.
+      THEOMEM_MCP_DEFAULT_USER_ID: ${THEOMEM_MCP_DEFAULT_USER_ID:-claude-code}
+      THEOMEM_GIT_SHA: ${THEOMEM_GIT_SHA:-unknown}
+      THEOMEM_VERSION: ${THEOMEM_VERSION:-dev}
+    volumes:
+      - ${THEMORY_MCP_TLS_DIR:-/home/paulo/theo-cloud/theo-workspace/dev/tls}:/etc/theo/tls:ro
+    networks:
+      - default
+      - theo_edge
+
+# The gateway's compose project network, joined (not created) so the MCP upstream is
+# addressable as `themory_mcp` without ever publishing a port on the shared host.
+networks:
+  theo_edge:
+    external: true
+    name: ${THEO_EDGE_NETWORK:-theo-workspace_default}
