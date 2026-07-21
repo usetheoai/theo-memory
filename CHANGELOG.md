@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- MCP graceful shutdown was a no-op over HTTP: the listener handle was discarded and SIGTERM stopped a detached server, so every container recreate cut in-flight requests (M7)
+- MCP sessions created before `initialize` completed were unreachable by teardown, leaking one server per abandoned handshake (M7)
+- MCP shutdown closed the HTTP listener before its sessions, which could hang forever on a live SSE stream (M7)
 - Entity labels could come back half-translated (a Portuguese input yielded `engineer mecânico`), breaking the source-language guarantee; the extraction prompt now forbids mixing languages inside a compound label (#103)
 - The dev deploy only redeployed the REST API, leaving the MCP upstream on an older build of the same image; both are now pulled, recreated, and version-gated together (M7)
 - `/code-quality` wrote its audit to a hardcoded knowledge-base root and reported `report_path: null` (it was set after the JSON was serialized); the audit now lands beside the plan it audited and the path is present in the summary (M7)

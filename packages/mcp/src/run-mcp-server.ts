@@ -211,6 +211,31 @@ export function resolveCompatPort(opt?: number): number {
   return resolvePort(Number.parseInt(envRaw, 10));
 }
 
+/**
+ * Installs SIGTERM/SIGINT handlers that run `teardown` under a grace window.
+ *
+ * The race guard is load-bearing: one wedged session's `stop()` must never block
+ * process exit past the window, or Docker/k8s escalates to SIGKILL and in-flight
+ * work is cut anyway. `teardown` is a thunk because what must be torn down is only
+ * known after the transport is wired.
+ */
+function installShutdown(teardown: () => Promise<void>): void {
+  const handler = (): void => {
+    void (async (): Promise<void> => {
+      try {
+        await Promise.race([
+          teardown(),
+          new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
+        ]);
+      } finally {
+        process.exit(0);
+      }
+    })();
+  };
+  process.on('SIGTERM', handler);
+  process.on('SIGINT', handler);
+}
+
 export async function runMcpServer(options?: RunMcpServerOptions): Promise<void> {
   // verbs-as-cli-fixes-cycle-1 T2.1 / ADR D3: env-fail boundary now goes
   // through the shared `assertEnvOrExit` helper at agent-tools-memory.ts.
@@ -300,23 +325,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       serverFactory: () =>
         new McpServer({ name: 'themory', version: '0.3.0', memoryFactory: () => memory, toolset: 'openmemory' }),
     });
-    const compatShutdown = (): void => {
-      void (async (): Promise<void> => {
-        try {
-          // Mirror the native shutdown race-guard: a single wedged SSE session's
-          // server.stop() must NOT block process exit past the grace window
-          // (else Docker/k8s SIGKILLs us). Same SHUTDOWN_TIMEOUT_MS as native.
-          await Promise.race([
-            handle.close(),
-            new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
-          ]);
-        } finally {
-          process.exit(0);
-        }
-      })();
-    };
-    process.on('SIGTERM', compatShutdown);
-    process.on('SIGINT', compatShutdown);
+    installShutdown(() => handle.close());
     return;
   }
 
@@ -335,24 +344,13 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
     });
 
-  // The stdio transport is single-client by nature, so it keeps one instance.
-  const server = makeServer();
-
-  const shutdownHandler = (): void => {
-    void (async (): Promise<void> => {
-      try {
-        await Promise.race([
-          server.stop(),
-          new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
-        ]);
-      } finally {
-        process.exit(0);
-      }
-    })();
-  };
-
-  process.on('SIGTERM', shutdownHandler);
-  process.on('SIGINT', shutdownHandler);
+  // What SIGTERM must tear down differs per transport, and it is only known after
+  // the transport is wired. stdio owns a single shared server; streamable-http owns
+  // a listener plus every live session, reachable only through the returned handle.
+  //
+  // Getting this wrong is silent: pointing the shutdown at the stdio server while
+  // serving HTTP stops an object that was never connected, leaves the listener open,
+  // and cuts in-flight requests — on every container recreate.
 
   if (transport === 'streamable-http') {
     const bearerAuth = await resolveBearerAuth(authMode, pool, {
@@ -361,14 +359,23 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       host,
       port,
     });
-    await connectStreamableHttp(makeServer, {
+    const handle = await connectStreamableHttp(makeServer, {
       port,
       host,
       ...(bearerAuth !== undefined ? { bearerAuth } : {}),
       ...(options?.tls !== undefined ? { tls: options.tls } : {}),
     });
+    // The handle is the ONLY route to httpServer.close() + every live session's
+    // server.stop(). Discarding it made SIGTERM a no-op that stopped a detached
+    // server while the listener stayed open — on every container recreate.
+    installShutdown(() => handle.close());
   } else {
+    // stdio is single-client by construction, so one shared instance is correct —
+    // and it is built ONLY here, so the HTTP path never allocates a server it does
+    // not connect (the previous shape did, then pointed SIGTERM at that dead object).
+    const server = makeServer();
     await connectStdio(server);
+    installShutdown(() => server.stop());
   }
 }
 
