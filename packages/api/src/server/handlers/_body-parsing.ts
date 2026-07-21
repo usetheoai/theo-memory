@@ -42,6 +42,23 @@ export async function safeJson(c: Context): Promise<unknown> {
   }
 }
 
+/**
+ * Read + JSON-parse the request body, returning the parsed value OR a ready 4xx
+ * Response for the malformed (400) / empty (422) cases. Callers:
+ * `const json = await readJsonBody(c); if (json instanceof Response) return json;`
+ * then `Schema.safeParse(json)`. Shared by the single + batch remember handlers (DRY).
+ */
+export async function readJsonBody(c: Context): Promise<unknown> {
+  const json = await safeJson(c);
+  if (json === MALFORMED_BODY) {
+    return c.json({ code: 'BAD_REQUEST', message: 'Malformed JSON body' }, 400);
+  }
+  if (json === EMPTY_BODY) {
+    return c.json({ code: 'INVALID_BODY', message: 'Request body required' }, 422);
+  }
+  return json;
+}
+
 export function scopeOrValidationError(err: z.ZodError, c: Context): Response {
   const scopeIssue = err.issues.find(
     (i) => i.message.startsWith('INVALID_SCOPE'),

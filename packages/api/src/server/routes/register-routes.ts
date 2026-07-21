@@ -40,7 +40,7 @@ import { metricsHandler } from '../handlers/metrics.js';
 import { recallTracesHandler } from '../handlers/recall-traces.js';
 import { recallHandler } from '../handlers/recall.js';
 import { reflectHandler } from '../handlers/reflect.js';
-import { rememberHandler } from '../handlers/remember.js';
+import { batchRememberHandler, rememberHandler } from '../handlers/remember.js';
 import { scopedForgetHandler } from '../handlers/scoped-forget.js';
 import { scopesHandler } from '../handlers/scopes.js';
 import {
@@ -157,6 +157,9 @@ function registerSkillRoutes(app: OpenAPIHono, memory: Memory): void {
 // #77 — the 4 verbs: each requires its matching scope on the resolved Principal.
 function registerVerbRoutes(app: OpenAPIHono, memory: Memory): void {
   app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory));
+  // M6 T1.3 — batch remember (array body → per-item scoped.remember; one request,
+  // N facts, one write-limiter slot). Same memory:write scope as /v1/remember.
+  app.post('/v1/remember/batch', requireScopeOnPrincipal('memory:write'), (c) => batchRememberHandler(c, memory));
   app.post('/v1/recall', requireScopeOnPrincipal('memory:read'), (c) => recallHandler(c, memory));
   app.post('/v1/forget', requireScopeOnPrincipal('memory:delete'), (c) => forgetHandler(c, memory));
   app.post('/v1/reflect', requireScopeOnPrincipal('memory:write'), (c) => reflectHandler(c, memory));
