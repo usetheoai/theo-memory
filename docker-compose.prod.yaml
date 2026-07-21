@@ -4,16 +4,16 @@
 #
 # Boots TWO services:
 # - `themory` — REST API server image from GHCR (T3.1 + T3.3); runs
-# Drizzle migrations on startup per ADR D8 + T2.3.
+#   Drizzle migrations on startup per ADR D8 + T2.3.
 # - `pgvector` — Postgres + pgvector extension (`ankane/pgvector:v0.5.1`
-# convergent across + blueprint Q7).
+#   convergent across + blueprint Q7).
 #
 # Reverse proxy (Nginx / Caddy / Cloudflare) is NOT bundled — consumer
 # decides. bundles Nginx; we don't (CLAUDE.md Roadmap Item 17 stance).
 #
 # EC-41 (DOCUMENT — operator usage): boot the stack with the explicit wait:
 #
-# docker compose -f docker-compose.prod.yaml up -d --wait --wait-timeout 60
+#   docker compose -f docker-compose.prod.yaml up -d --wait --wait-timeout 60
 #
 # Both services declare healthchecks; `--wait` blocks until they pass OR the
 # `--wait-timeout` expires. 60s default covers cold-start of pgvector +
@@ -28,62 +28,62 @@
 # @see Plan T3.4 — ENTRYPOINT direct Node binary (no docker-entrypoint.sh)
 
 services:
- themory:
- # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
- # running the compose against a locally-built image) can point at
- # `themory:dev` without forking this file. Default keeps the public
- # Docker Hub coordinate (also available at ghcr.io/usetheo/themory).
- image: ${THEMORY_IMAGE:-usetheo/themory:${VERSION:-0.2.0}}
- container_name: themory_app
- restart: unless-stopped
- depends_on:
- pgvector:
- condition: service_healthy
- environment:
- # DB connection — pgvector service in the same compose network.
- THEOMEM_PG_URI: postgres://${POSTGRES_USER:-themem}:${POSTGRES_PASSWORD:-themem}@pgvector:5432/${POSTGRES_DB:-themem}
- # REST bind config; PORT honored by `themory server` (T2.3).
- PORT: "8080"
- HOST: "0.0.0.0"
- # Optional bearer token (EC-1 absorption — unset/empty = open mode).
- THEMEMORY_API_KEY: ${THEMEMORY_API_KEY:-}
- # Optional skip-migrations escape hatch — positive opt-in only per T2.3.
- THEMEMORY_SKIP_MIGRATIONS: ${THEMEMORY_SKIP_MIGRATIONS:-false}
- ports:
- - "${THEMORY_PORT:-8080}:8080"
- healthcheck:
- # GET /v1/health honors the EC-33 readiness gate (503 while warming,
- # 200 once Memory factory resolved). The image has no shell + no curl
- # so we use node directly to probe the loopback endpoint.
- test:
- - "CMD"
- - "/nodejs/bin/node"
- - "-e"
- - "require('node:http').get('http://127.0.0.1:8080/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
- interval: 10s
- timeout: 3s
- retries: 6
- start_period: 30s
+  themory:
+    # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
+    # running the compose against a locally-built image) can point at
+    # `themory:dev` without forking this file. Default keeps the public
+    # Docker Hub coordinate (also available at ghcr.io/usetheodev/themory).
+    image: ${THEMORY_IMAGE:-usetheo/themory:${VERSION:-0.2.0}}
+    container_name: themory_app
+    restart: unless-stopped
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      # DB connection — pgvector service in the same compose network.
+      THEOMEM_PG_URI: postgres://${POSTGRES_USER:-themem}:${POSTGRES_PASSWORD:-themem}@pgvector:5432/${POSTGRES_DB:-themem}
+      # REST bind config; PORT honored by `themory server` (T2.3).
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      # Optional bearer token (EC-1 absorption — unset/empty = open mode).
+      THEMEMORY_API_KEY: ${THEMEMORY_API_KEY:-}
+      # Optional skip-migrations escape hatch — positive opt-in only per T2.3.
+      THEMEMORY_SKIP_MIGRATIONS: ${THEMEMORY_SKIP_MIGRATIONS:-false}
+    ports:
+      - "${THEMORY_PORT:-8080}:8080"
+    healthcheck:
+      # GET /v1/health honors the EC-33 readiness gate (503 while warming,
+      # 200 once Memory factory resolved). The image has no shell + no curl
+      # so we use node directly to probe the loopback endpoint.
+      test:
+        - "CMD"
+        - "/nodejs/bin/node"
+        - "-e"
+        - "require('node:http').get('http://127.0.0.1:8080/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
 
- pgvector:
- image: ankane/pgvector:v0.5.1
- container_name: themory_pgvector
- restart: unless-stopped
- environment:
- POSTGRES_USER: ${POSTGRES_USER:-themem}
- POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-themem}
- POSTGRES_DB: ${POSTGRES_DB:-themem}
- volumes:
- - themory_pgdata:/var/lib/postgresql/data
- healthcheck:
- test:
- - "CMD-SHELL"
- - "pg_isready -U ${POSTGRES_USER:-themem} -d ${POSTGRES_DB:-themem}"
- interval: 5s
- timeout: 3s
- retries: 12
- start_period: 10s
+  pgvector:
+    image: ankane/pgvector:v0.5.1
+    container_name: themory_pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-themem}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-themem}
+      POSTGRES_DB: ${POSTGRES_DB:-themem}
+    volumes:
+      - themory_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -U ${POSTGRES_USER:-themem} -d ${POSTGRES_DB:-themem}"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
 volumes:
- themory_pgdata:
- name: themory_pgdata
+  themory_pgdata:
+    name: themory_pgdata

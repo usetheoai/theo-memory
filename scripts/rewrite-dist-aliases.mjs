@@ -38,6 +38,10 @@ const EXACT = {
   '@usetheo/memory-agent-core': 'agent-core/src/index.js',
   '@usetheo/memory-api': 'api/src/server/index.js',
   '@usetheo/memory-mcp': 'mcp/src/index.js',
+  // Subpath exports imported by the dist server/MCP entrypoints as BARE specifiers.
+  // Must be mapped here or the fail-loud postbuild aborts `pnpm build` → docker build
+  // → the publish CI goes red. Add any new such subpath in the SAME change that imports it.
+  '@usetheo/memory/recall-trace-pg': 'core/src/infrastructure/db/recall-trace/index.js',
 };
 // Wildcard prefix -> dist-root-relative directory the rest maps into.
 const PREFIX = {

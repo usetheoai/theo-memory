@@ -131,6 +131,7 @@ export function withBearerAuth(
     // additive — no regression risk on the existing 401 path.
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
+      // nosemgrep: javascript.express.security.cors-misconfiguration.cors-misconfiguration -- reviewed: unauthenticated preflight; Bearer-token auth (no cookies / no Access-Control-Allow-Credentials), so a reflected Origin cannot enable credentialed cross-origin theft (B2 / themory-issue-3).
       res.setHeader('Access-Control-Allow-Origin', req.headers['origin'] ?? '*');
       res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
       res.setHeader(

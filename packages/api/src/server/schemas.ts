@@ -100,6 +100,23 @@ export const ForgetBody = z
   })
   .strict();
 
+/**
+ * M6 claude-code-memory-integration T1.2 — batch remember body. One HTTP request
+ * carrying an array of the SAME per-item shape as {@link RememberBody} (so each
+ * item is fully validated + single-scope-refined; DRY). Bounded by
+ * {@link MAX_BATCH_ITEMS} to cap request size (the 1 MB bodyLimit middleware +
+ * DoS). A batch is ONE write-limiter slot (N facts, 1 request) — the migration
+ * of thousands of pre-written facts becomes feasible against the 30-writes/60s limit.
+ */
+export const MAX_BATCH_ITEMS = 1000;
+
+export const BatchRememberBody = z
+  .object({
+    items: z.array(RememberBody).min(1).max(MAX_BATCH_ITEMS),
+  })
+  .strict();
+
+export type BatchRememberBody = z.infer<typeof BatchRememberBody>;
 export type RememberBody = z.infer<typeof RememberBody>;
 export type RecallBody = z.infer<typeof RecallBody>;
 export type ReflectBody = z.infer<typeof ReflectBody>;

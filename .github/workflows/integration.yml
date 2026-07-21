@@ -1,0 +1,122 @@
+# Integration (Postgres + pgvector) — M5 Phase 2 CI hardening. The integration
+# suite (tests/integration/**, ~95 tests against a real pgvector) previously ran
+# ONLY locally — `describe.skipIf(!THEOMEM_PG_URI)` silently skips without a DB, so
+# a regression could land green. This job provisions a pgvector service, applies
+# the schema, builds the dist subpaths (theo-memory's package `exports` point at
+# `./dist/**`, so the integration tests need the compiled output), and runs
+# `test:integration` as a REQUIRED gate.
+name: Integration (Postgres)
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+# One run per ref — a new push cancels the in-flight run (single-trunk develop).
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: integration (pgvector + test:integration)
+    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
+    # for the org, so ubuntu-latest jobs never dispatch.
+    runs-on: [self-hosted, linux, x64]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          # Dedicated app DB `themem` — MUST NOT be the `postgres` maintenance DB.
+          # The integration harness derives its admin connection as `.../postgres`
+          # (global-setup.ts / isolated-db.ts / reset-shared-db.ts `siblingUri(uri,
+          # 'postgres')`) and issues `DROP DATABASE <app-db> WITH (FORCE)` from it.
+          # If the app DB were `postgres`, that admin connection would be dropping
+          # the very database it is connected to → `55006 cannot drop the currently
+          # open database`. A separate `themem` app DB (the local convention) avoids
+          # it; the default `postgres` maintenance DB always exists alongside it.
+          POSTGRES_DB: themem
+        # Ephemeral host port (NOT 5432:5432): the self-hosted runner host is SHARED
+        # across repos, so a fixed host port would collide with a concurrent job's
+        # postgres (and with the platform's own :5432). The mapped port is resolved below.
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Resolve Postgres URI (dynamic host port — shared self-hosted host)
+        # App DB is `themem` (NOT the `postgres` maintenance DB) — see the service
+        # POSTGRES_DB note above (avoids the reset-shared-db drop-the-open-db 55006).
+        run: echo "THEOMEM_PG_URI=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/themem" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 10.34.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (dist subpaths the integration tests import)
+        run: pnpm run build
+
+      - name: Apply schema (migrations — the runtime path, no drizzle-kit TTY / no psql)
+        # `pnpm run db:push` uses drizzle-kit push (requires a TTY — it prompts
+        # unconditionally in this version, not only on destructive changes) AND
+        # `apply-trigger-migrations.mjs` (requires the `psql` client, absent on the
+        # runner). Instead provision the schema the way the deployed server does:
+        # `themory migrate` → runMigrations(pool) applies the .sql migrations
+        # (triggers included) programmatically — no drizzle-kit, no psql, no TTY.
+        # Embedder defaults to openai (dim 1536), matching the integration suite.
+        env:
+          # THEOMEM_EMBEDDER=openai → schema provisioned at vector(1536) to match the
+          # integration suite (openai embedder / MAX_EMBEDDING_DIM). Unset defaults to
+          # `local` (384) → dimension mismatch against every 1536 insert. `migrate`
+          # only reads the dim CONSTANT (embeddingDimForKind) — it makes NO API call,
+          # so no OPENAI_API_KEY is needed here.
+          THEOMEM_EMBEDDER: openai
+        run: |
+          node -e "const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
+          node dist/agent-tools/cli.js migrate
+
+      - name: Pre-cache the local embedder model (Xenova/all-MiniLM-L6-v2) with retry
+        # Tests that exercise the shipped LOCAL embedder (LocalTransformerEmbedder)
+        # download a ~22 MB ONNX model from huggingface.co on first use. The HF CDN
+        # is intermittently "Service unavailable" from the runner (same CDN-flakiness
+        # class as the sharp/libvips build). A single unlucky first-caller then fails
+        # (principles-alignment-hardening). Pre-warm the model ONCE with retry so it is
+        # on disk (shared @xenova/transformers cache) before any test — deterministic,
+        # not a per-test race. node-linker=hoisted makes the bare import resolve at root.
+        run: |
+          for i in $(seq 1 6); do
+            node -e "import('@xenova/transformers').then(async (m)=>{const p=await m.pipeline('feature-extraction','Xenova/all-MiniLM-L6-v2');await p('warmup',{pooling:'mean',normalize:true});console.log('xenova model cached');}).then(()=>process.exit(0)).catch((e)=>{console.error('attempt failed:',e.message);process.exit(1);})" && exit 0
+            echo "HF fetch attempt $i failed — retry in 20s"; sleep 20
+          done
+          echo "::error::could not pre-cache the Xenova model after 6 attempts (HF CDN unreachable)"; exit 1
+
+      - name: Run integration suite (real Postgres + real OpenAI)
+        # THEOMEM_PG_URI set above; OPENAI_API_KEY from the repo secret (real
+        # provider — no stubs in the production path). THEOMEM_EMBEDDER=openai keeps
+        # the runtime embedder (1536) consistent with the schema provisioned above.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          THEOMEM_EMBEDDER: openai
+        run: pnpm run test:integration
