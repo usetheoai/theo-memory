@@ -52,8 +52,18 @@ export function loadEnv() {
     process.env.THEOMEM_MEMORY_URL || parsed.THEOMEM_MEMORY_URL || DEFAULT_URL;
   const token =
     process.env.THEOMEM_MEMORY_TOKEN || parsed.THEOMEM_MEMORY_TOKEN || null;
+  // Same precedence as url/token: env wins, then the file. Reading this ONLY from
+  // process.env made the documented gateway setup a silent no-op — the key was
+  // parsed out of the env file and then dropped, so requests kept going to the raw
+  // REST path and failed soft (post() returns null on any error).
+  const pathPrefix =
+    process.env.THEOMEM_MEMORY_PATH_PREFIX || parsed.THEOMEM_MEMORY_PATH_PREFIX || '';
 
-  return { url: url.replace(/\/+$/, ''), token: token || null };
+  return {
+    url: url.replace(/\/+$/, ''),
+    token: token || null,
+    pathPrefix: pathPrefix.replace(/\/+$/, ''),
+  };
 }
 
 /**
@@ -94,18 +104,27 @@ export function projectOf(cwd) {
  * (network error, non-2xx, timeout, malformed JSON). NEVER throws — a memory outage
  * degrades to a no-op, it does not break the session.
  *
- * @param {string} path      request path, e.g. '/v1/recall'
+ * The verb path is joined onto an optional prefix so the SAME hooks work against
+ * both surfaces without editing code: theo-memory's own REST exposes `/v1/recall`,
+ * while the Theo gateway namespaces capabilities as `/v1/memory/recall`. Set
+ * THEOMEM_MEMORY_PATH_PREFIX=/v1/memory to go through the gateway. Hardcoding the
+ * raw REST path is what tied this kit to a direct-to-service deployment.
+ *
+ * @param {string} path      verb path, e.g. '/v1/recall'
  * @param {object} body      JSON request body
  * @param {{ timeoutMs?: number }} [opts]
  * @returns {Promise<object|null>}
  */
 export async function post(path, body, opts = {}) {
-  const { url, token } = loadEnv();
+  const { url, token, pathPrefix } = loadEnv();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // '/v1/recall' + prefix '/v1/memory' → '/v1/memory/recall'. An unset prefix keeps
+  // the path verbatim, so existing raw-REST setups are unaffected.
+  const target = pathPrefix ? `${pathPrefix}/${path.replace(/^\/v1\//, '')}` : path;
   try {
     const headers = { 'content-type': 'application/json' };
     if (token) headers.authorization = `Bearer ${token}`;
-    const res = await fetch(`${url}${path}`, {
+    const res = await fetch(`${url}${target}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),

@@ -182,7 +182,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M5 — [ ] CD pipeline — 100% functional in dev
+## M5 — [x] CD pipeline — 100% functional in dev
 
 > Added 2026-07-20 by `/roadmap-feature` (slug: `cd-pipeline-dev`). See CHANGELOG `[Unreleased] § Added`. Adapts the org-standard "Theo CD Pipeline" 8-phase playbook (sibling reference: theo-rag) to theo-memory. **DoD shape = end-to-end** ("100% funcional em dev"): the cycle delivers all pipeline CODE; the live green requires owner-provided infra prerequisites (declared below). Grill: `knowledge-base/grills/cd-pipeline-dev-feature-grill.md`.
 
@@ -207,7 +207,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M6 — [ ] Global Claude Code ⇄ theo-memory integration + migration
+## M6 — [x] Global Claude Code ⇄ theo-memory integration + migration
 
 > Added 2026-07-20 by `/roadmap-feature` (slug: `claude-code-memory-integration`). Grounded in the deep-research blueprint `knowledge-base/discoveries/blueprints/claude-code-theo-memory-integration-blueprint.md` (3 cited frames, SHIPPABLE_WITH_CAVEATS). Grill: `knowledge-base/grills/claude-code-memory-integration-feature-grill.md`. **Two coordinated pieces:** server-side (theo-memory repo, gates the milestone) + a global Claude Code kit under `~/.claude` (companion, not theo-memory `src`).
 
@@ -229,6 +229,33 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 2. **Secret/PII leakage in the migration (HIGH).** Claude Code memory files are a known secret vector. A naive import embeds keys/tokens/PII into the shared store. Mitigate: the scrub stage is MANDATORY + fail-closed (un-scrubbable node is skipped, not imported); dry-run shows every redaction before any write.
 
 **Why now:** theo-memory is now deployed + reachable (M5 CD live); this IS the product's own dogfood thesis (CLAUDE.md anchor = "Claude Code auto-memory backed by TheMemory"), so every session becomes real evidence; and the deep research settled the effective architecture — hooks beat MCP tools for reliable auto-capture (the model forgets to call MCP `remember`; hooks are deterministic).
+
+---
+
+## M7 — [ ] Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level)
+
+> Added 2026-07-21 by `/roadmap-feature` (slug: `claude-code-mcp-gateway-dev`). Grill: `knowledge-base/grills/claude-code-mcp-gateway-dev-feature-grill.md`. **Corrects the integration architecture M6 shipped** — M6's own risk #1 ("Production edge host unconfirmed … wrong host → silent 404") materialized.
+
+**Objective:** every Claude Code instance uses theo-memory in the **dev environment** through the **Theo MCP Gateway** behind Traefik (`mcp-gateway-edge`: `PathPrefix(/mcp)`), with the client holding exactly ONE secret — a scoped `theo_live_*` — and the gateway performing MCP-aware auth + downstream credential injection (Model B). Owner directive: **SOTA-level, no workarounds, nothing insecure.**
+
+**Definition of done:**
+
+- [ ] **Discovery-backed design (gates everything else).** A `/discover` blueprint establishes the state-of-the-art Claude Code integration surface — hooks × MCP × plugins/skills × `settings.json` precedence × transport (stdio vs streamable-HTTP vs SSE) — citing primary sources (Anthropic Claude Code docs) **plus ≥ 2 real OSS implementations**. The chosen design is justified against rejected alternatives in an ADR. No assumption ships unexamined.
+- [ ] **Gateway-only data path.** Every memory operation from Claude Code reaches theo-memory through the `/mcp` edge on **dev** (`app-dev.usetheo.dev`). The client config holds **exactly one** secret: a scoped `theo_live_*`. **Zero** database credentials and **zero** LLM API keys on any client.
+- [ ] **Fail-closed proven at the edge.** No credential → 401/403 (never a default principal); revoked/invalid key → denied. Captured as real request/response evidence, not asserted.
+- [ ] **Tenant isolation proven end-to-end.** Account A cannot read account B's memories through the MCP surface.
+- [ ] **Every instance, one step.** A brand-new Claude Code instance on a *different* project gains memory with ONE documented command — auto-recall and auto-remember work with no per-project wiring.
+- [ ] **No workaround left in the path.** The REST kit's dialect mismatch (`/v1/recall` vs `/v1/memory/recall`) fixed properly via a configurable prefix — not patched around; and no client touches the unauthenticated `:8080` path (issue #101 resolved or designed out).
+- [ ] **Regression guard + evidence.** An automated test that fails if edge routing, auth, or MCP scope binding regresses, plus recorded evidence in the milestone run-file.
+
+**Dependencies:** **M5** (CD pipeline — any redeploy of the gateway/BFF rides it) + **M6** (the kit and batch endpoint this milestone reconfigures). Both `[x]`, so M7 is immediately eligible.
+
+**Top risks (new):**
+
+1. **External dependency on a delegated track (HIGH).** The Theo MCP Gateway is `theo-cloud` **M7 — an explicitly delegated track owned by another team**. If it is not deployed/maintained on dev, this milestone blocks on someone else. Current signal: `POST https://app-dev.usetheo.dev/mcp` returns **405** (route exists; handshake/method unverified) while the local edge returns **502** (gateway service down locally). Mitigate: verify the deployed gateway state FIRST and escalate to the owning team — **never route around it with an insecure shortcut.** *Owner stance recorded: schedule risk accepted, insecure shortcuts are not.*
+2. **The credential supply chain is broken in dev (HIGH).** `theo_api_keys` on the deployed droplet is **EMPTY (`0 total, 0 active`)** even though a key was minted through the dashboard UI. Either the creation flow does not persist (a defect in another repo) or the environment was cleanroom-rebuilt after minting. Without a valid `theo_live_*`, nothing authenticates and the whole milestone stalls. Mitigate: test the UI creation flow as the FIRST executable step; if it does not persist, file the upstream bug and treat it as blocking.
+
+**Why now:** activating the M6 kit exposed that the live integration is on the **wrong architecture** — the MCP was registered as **stdio**, putting Postgres *and* OpenAI credentials on every client, while the hooks pointed at a **public endpoint with no authentication whatsoever** (issue #101: writes accepted with no header and with an invalid token, from an arbitrary internet IP). The correct design already exists in `theo-workspace/dev/traefik/dynamic.yml:79-91` — `/mcp` → Theo MCP Gateway, MCP-aware auth, Model B credential injection — it was simply never wired for Claude Code on dev. Per the owner: *"se o theo-memory não funciona com o Claude Code, ele é um produto morto."*
 
 ---
 
