@@ -75,6 +75,15 @@ export default defineConfig({
     // fail-latency for freedom from load-induced timeout flakes.
     testTimeout: 90_000,
     hookTimeout: 90_000,
+    // Retry a failed test up to 2× before declaring the run red. This suite is
+    // subprocess- and network-heavy (spawned CLI processes, real OpenAI, a shared
+    // self-hosted runner), which produces ROTATING single-test flakes: across
+    // consecutive CI runs the same 120 files passed while a different one failed
+    // each time (principles-alignment → verbs-cli → cli-consolidated), each passing
+    // on the next run. Retry separates that transient class from real breakage: a
+    // genuinely broken test fails all 3 attempts and still blocks the gate, while a
+    // load-induced flake no longer reds an otherwise-good build.
+    retry: 2,
     globals: false,
     // Integration tests all share the same Postgres + pgvector container.
     // Parallel file execution causes TRUNCATE races and FK constraint violations
