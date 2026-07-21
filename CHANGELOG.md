@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- MCP upstream service (`themory mcp`, streamable-http + TLS + `--auth api-keys`) in the dev deploy, so the Theo MCP Gateway has something to front at `/mcp/memory` (#103)
 - Roadmap amended: added M7 Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level) (`/roadmap-feature claude-code-mcp-gateway-dev`) — corrects the integration architecture M6 shipped, after M6's own risk #1 ("production edge host unconfirmed → silent 404") materialized: the MCP had been registered as stdio (DB + LLM credentials on every client) and the hooks pointed at an unauthenticated public endpoint.
 
 ### Changed
