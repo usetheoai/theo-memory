@@ -182,7 +182,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M5 — [ ] CD pipeline — 100% functional in dev
+## M5 — [x] CD pipeline — 100% functional in dev
 
 > Added 2026-07-20 by `/roadmap-feature` (slug: `cd-pipeline-dev`). See CHANGELOG `[Unreleased] § Added`. Adapts the org-standard "Theo CD Pipeline" 8-phase playbook (sibling reference: theo-rag) to theo-memory. **DoD shape = end-to-end** ("100% funcional em dev"): the cycle delivers all pipeline CODE; the live green requires owner-provided infra prerequisites (declared below). Grill: `knowledge-base/grills/cd-pipeline-dev-feature-grill.md`.
 
@@ -207,7 +207,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M6 — [ ] Global Claude Code ⇄ theo-memory integration + migration
+## M6 — [x] Global Claude Code ⇄ theo-memory integration + migration
 
 > Added 2026-07-20 by `/roadmap-feature` (slug: `claude-code-memory-integration`). Grounded in the deep-research blueprint `knowledge-base/discoveries/blueprints/claude-code-theo-memory-integration-blueprint.md` (3 cited frames, SHIPPABLE_WITH_CAVEATS). Grill: `knowledge-base/grills/claude-code-memory-integration-feature-grill.md`. **Two coordinated pieces:** server-side (theo-memory repo, gates the milestone) + a global Claude Code kit under `~/.claude` (companion, not theo-memory `src`).
 
