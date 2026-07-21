@@ -32,6 +32,32 @@ export function workspaceBoundMemory(c: Context, memory: Memory): Memory {
   return memory.withWorkspace !== undefined ? memory.withWorkspace(workspaceId) : memory;
 }
 
+/** MCP-parity user-scope header the edge injects (mirrors the streamable-http transport). */
+const USER_SCOPE_HEADER = 'X-Theo-User-Id';
+const SCOPE_TIER_KEYS = ['userId', 'sessionId', 'agentId'] as const;
+
+/**
+ * Resolve the user tier the SAME way the MCP transport does: when the body names
+ * no scope tier, fall back to the auth-trusted `X-Theo-User-Id` the edge injects.
+ *
+ * Why: the REST surface took the tier ONLY from the body, so the Claude Code kit
+ * hooks (which post no tier) landed under a project-name id invisible to the
+ * dashboard, while the MCP tools landed under the credential's subject. This unifies
+ * both onto one user space the dashboard reads. Body-supplied tiers still win — the
+ * header is a fallback, never an override — and an absent identity stays absent so
+ * the schema's single-tier refine still fails closed. Returns a NEW object; never
+ * mutates the input.
+ */
+export function applyHeaderUserScope<T extends Record<string, unknown>>(c: Context, body: T): T {
+  const alreadyTiered = SCOPE_TIER_KEYS.some(
+    (k) => body[k] !== undefined && body[k] !== null,
+  );
+  if (alreadyTiered) return body;
+  const headerUser = c.req.header(USER_SCOPE_HEADER)?.trim();
+  if (headerUser === undefined || headerUser === '') return body;
+  return { ...body, userId: headerUser };
+}
+
 export async function safeJson(c: Context): Promise<unknown> {
   const raw = await c.req.text();
   if (raw.trim().length === 0) return EMPTY_BODY;

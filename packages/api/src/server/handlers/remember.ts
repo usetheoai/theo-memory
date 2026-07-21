@@ -13,6 +13,7 @@ import { mapDomainErrorToResponse } from '../errors.js';
 import { BatchRememberBody, RememberBody, resolveScope } from '../schemas.js';
 
 import {
+  applyHeaderUserScope,
   readJsonBody,
   scopeOrValidationError,
   workspaceBoundMemory,
@@ -21,7 +22,14 @@ import {
 export async function rememberHandler(c: Context, memory: Memory): Promise<Response> {
   const json = await readJsonBody(c);
   if (json instanceof Response) return json;
-  const parsed = RememberBody.safeParse(json);
+  // MCP parity: when the body names no tier, fall back to the auth-trusted
+  // X-Theo-User-Id the edge injects, so gateway-fronted callers (the kit hooks)
+  // land under the credential's user — the same space the dashboard + MCP read.
+  const withScope =
+    typeof json === 'object' && json !== null
+      ? applyHeaderUserScope(c, json as Record<string, unknown>)
+      : json;
+  const parsed = RememberBody.safeParse(withScope);
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
