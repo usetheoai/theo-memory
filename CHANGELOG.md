@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- MCP session eviction hung on `finish`, which never fires when a client aborts mid-flight, so an aborted handshake still leaked its server until shutdown; it now evicts on `close`, which covers both endings (M7)
 - Claude Code kit ignored `THEOMEM_MEMORY_PATH_PREFIX` when set in `~/.claude/theo-memory.env` — the documented gateway setup was a silent no-op that kept sending the client credential straight to the service (M7)
 - MCP sessions that never completed a handshake were only released at shutdown, so every sessionless request pinned a server for the process lifetime; they are now evicted when their response ends (M7)
 - MCP concurrency tests ran sequentially despite their name, so they never exercised two sessions opening at once; they are now genuinely parallel and a ten-client fan-out case was added (M7)
