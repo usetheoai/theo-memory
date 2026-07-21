@@ -1,0 +1,81 @@
+# Integration (Postgres + pgvector) — M5 Phase 2 CI hardening. The integration
+# suite (tests/integration/**, ~95 tests against a real pgvector) previously ran
+# ONLY locally — `describe.skipIf(!THEOMEM_PG_URI)` silently skips without a DB, so
+# a regression could land green. This job provisions a pgvector service, applies
+# the schema, builds the dist subpaths (theo-memory's package `exports` point at
+# `./dist/**`, so the integration tests need the compiled output), and runs
+# `test:integration` as a REQUIRED gate.
+name: Integration (Postgres)
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+# One run per ref — a new push cancels the in-flight run (single-trunk develop).
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: integration (pgvector + test:integration)
+    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
+    # for the org, so ubuntu-latest jobs never dispatch.
+    runs-on: [self-hosted, linux, x64]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        # Ephemeral host port (NOT 5432:5432): the self-hosted runner host is SHARED
+        # across repos, so a fixed host port would collide with a concurrent job's
+        # postgres (and with the platform's own :5432). The mapped port is resolved below.
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Resolve Postgres URI (dynamic host port — shared self-hosted host)
+        run: echo "THEOMEM_PG_URI=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/postgres" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 10.34.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (dist subpaths the integration tests import)
+        run: pnpm run build
+
+      - name: Apply schema (pgvector extension + tables)
+        # A FRESH CI database → drizzle-kit push creates tables non-interactively
+        # (it only prompts on destructive changes to an existing schema).
+        run: pnpm run db:push
+
+      - name: Run integration suite (real Postgres + real OpenAI)
+        # THEOMEM_PG_URI set above; OPENAI_API_KEY from the repo secret (real
+        # provider — no stubs in the production path).
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: pnpm run test:integration
